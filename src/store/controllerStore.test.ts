@@ -1336,9 +1336,10 @@ describe('controllerStore (keyed)', () => {
           transforms: ['show'],
           stampedAt: '2026-08-13T18:00:00.000Z',
         },
-        expectedController: {
+        expectedControllerSession: {
           id: expectedControllerStatus.controller.id,
           address: expectedControllerStatus.controller.address,
+          liveEpoch: store().controllers['10.0.0.5'].liveEpoch ?? 0,
         },
       })
 
@@ -1388,9 +1389,10 @@ describe('controllerStore (keyed)', () => {
           transforms: ['show'],
           stampedAt: '2026-08-13T18:00:00.000Z',
         },
-        expectedController: {
+        expectedControllerSession: {
           id: expectedControllerStatus.controller.id,
           address: expectedControllerStatus.controller.address,
+          liveEpoch: store().controllers['10.0.0.5'].liveEpoch ?? 0,
         },
       })
 
@@ -1400,6 +1402,57 @@ describe('controllerStore (keyed)', () => {
         artifactId: 'show:show-session-refresh',
         mode: 'run',
       }))
+    })
+
+    it('aborts a generated Show after a same-address Controller reconnect (#851)', async () => {
+      await store().addController('10.0.0.5')
+      const provider = created.get('10.0.0.5')!
+      const expectedControllerStatus = getControllerProvider().getStatus()
+      if (expectedControllerStatus.kind !== 'connected') {
+        throw new Error('Expected a connected Controller fixture')
+      }
+      provider.compile = async (source: string) => {
+        provider.compiledSources.push(source)
+        await provider.disconnect()
+        await provider.connect({ address: '10.0.0.5' })
+        return provider.compileResult
+      }
+      const source = stampArtifact(PATTERN_SRC, {
+        kind: 'show',
+        id: 'show-session-reconnect',
+        name: 'Session Reconnect',
+        transforms: ['show'],
+        stampedAt: '2026-08-13T18:00:00.000Z',
+      })
+
+      await store().pushGeneratedArtifact({
+        artifactId: 'show:show-session-reconnect',
+        source,
+        name: 'Session Reconnect',
+        persist: false,
+        compilePressure: GENERATED_ARTIFACT_PRESSURE,
+        artifactStamp: {
+          kind: 'show',
+          id: 'show-session-reconnect',
+          name: 'Session Reconnect',
+          transforms: ['show'],
+          stampedAt: '2026-08-13T18:00:00.000Z',
+        },
+        expectedControllerSession: {
+          id: expectedControllerStatus.controller.id,
+          address: expectedControllerStatus.controller.address,
+          liveEpoch: store().controllers['10.0.0.5'].liveEpoch ?? 0,
+        },
+      })
+
+      expect(provider.pushed).toHaveLength(0)
+      expect(provider.saved).toHaveLength(0)
+      expect(store().artifactPushResult).toEqual({
+        ok: false,
+        message: 'Controller session changed before Show delivery',
+        artifactId: 'show:show-session-reconnect',
+        mode: 'run',
+      })
     })
 
     it('applies active profile transforms before signing a generated Show (#777)', async () => {

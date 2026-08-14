@@ -43,7 +43,6 @@ import { ShowLayerTransitionEditor } from '@/components/ShowLayerTransitionEdito
 import { ShowTransitionXrayPictogram } from '@/components/ShowTransitionXrayPictogram'
 import { ShowArtifactInventoryPopover } from '@/components/ShowArtifactInventoryPopover'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
-import type { ConnectedControllerIdentity } from '@/engine/ControllerProvider'
 import { makeProgramId } from '@/engine/bytecodePush'
 import { PatternDeploymentActions } from '@/components/PatternDeploymentActions'
 import { PatternCombobox, type PatternComboboxOption } from '@/components/PatternCombobox'
@@ -255,7 +254,10 @@ import { type ControllerProfile } from '@/engine/controllerProfile'
 import { STOCK_PATTERNS } from '@/engine/galleryCatalog'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { compileLibraries } from '@/engine/libraries'
-import { useControllerStore } from '@/store/controllerStore'
+import {
+  useControllerStore,
+  type GeneratedArtifactControllerSession,
+} from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { resolveMap, STOCK_MAPS, useMapStore } from '@/store/mapStore'
 import { applyNormalizeMode } from '@/engine/maps'
@@ -887,7 +889,7 @@ function ShowReferenceInstrument({
 interface ShowDeliverySnapshot {
   show: ShowRecord
   controllerIp: string | null
-  controller: ConnectedControllerIdentity
+  controllerSession: GeneratedArtifactControllerSession
   artifact: NonNullable<CompiledShowState['artifact']>
   prepared: ReturnType<typeof prepareShowControllerArtifact>
 }
@@ -1144,11 +1146,16 @@ export function ShowEditor({
   const connectedControllerAddress = controllerStatus.kind === 'connected'
     ? controllerStatus.controller.address
     : null
-  const deliveryController = useMemo<ConnectedControllerIdentity | null>(() => (
+  const activeControllerLiveEpoch = activeController?.liveEpoch ?? 0
+  const deliveryControllerSession = useMemo<GeneratedArtifactControllerSession | null>(() => (
     connectedControllerId && connectedControllerAddress
-      ? { id: connectedControllerId, address: connectedControllerAddress }
+      ? {
+          id: connectedControllerId,
+          address: connectedControllerAddress,
+          liveEpoch: activeControllerLiveEpoch,
+        }
       : null
-  ), [connectedControllerAddress, connectedControllerId])
+  ), [activeControllerLiveEpoch, connectedControllerAddress, connectedControllerId])
 
   const canonicalStockShow = builtInContext ? stockShowById(showId)?.show : undefined
   const editableShow = stockShowDraft ?? savedShow ?? canonicalStockShow ?? showOverride ?? null
@@ -1758,7 +1765,7 @@ export function ShowEditor({
   const preparedDeliverySnapshot = useMemo<ShowDeliverySnapshot | null>(() => {
     if (
       !artifactCompilationReady
-      || !deliveryController
+      || !deliveryControllerSession
       || !compiledShow
       || !compiled.artifact
       || compiled.artifactBlocker
@@ -1768,7 +1775,7 @@ export function ShowEditor({
     return {
       show: compiledShow,
       controllerIp: activeIp,
-      controller: deliveryController,
+      controllerSession: deliveryControllerSession,
       artifact: compiled.artifact,
       prepared: preparedControllerArtifact.value,
     }
@@ -1779,7 +1786,7 @@ export function ShowEditor({
     compiled.artifactBlocker,
     compiledShow,
     compilePressure?.status,
-    deliveryController,
+    deliveryControllerSession,
     preparedControllerArtifact.value,
   ])
   useEffect(() => {
@@ -2068,7 +2075,7 @@ export function ShowEditor({
           worstInstantRenderersPerPixel: delivery.artifact.summary.worstInstantRenderersPerPixel,
         },
         artifactStamp: prepared.artifactStamp,
-        expectedController: delivery.controller,
+        expectedControllerSession: delivery.controllerSession,
         previewImage,
       })
     } finally {

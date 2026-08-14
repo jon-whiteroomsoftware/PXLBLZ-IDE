@@ -363,9 +363,16 @@ export interface GeneratedArtifactPush {
   compilePressure: Omit<ShowCompilePressureInput, 'deliveredSourceBytes'>
   artifactStamp: ArtifactStampMeta
   previewImage?: Uint8Array
-  /** Connected Controller identity that authorized this prepared artifact. Shows
-   * supply it; session-agnostic generated callers may omit it. */
-  expectedController?: ConnectedControllerIdentity
+  /** Connected Controller identity and live connection epoch that authorized
+   * this prepared artifact. Shows supply it; session-agnostic generated callers
+   * may omit it. */
+  expectedControllerSession?: GeneratedArtifactControllerSession
+}
+
+export interface GeneratedArtifactControllerSession extends ConnectedControllerIdentity {
+  /** Connection generation from ControllerEntry. Stable across status/metadata
+   * refreshes and fresh on every reconnect. */
+  liveEpoch: number
 }
 
 /** The outcome of a single Send-to-Controller push, surfaced on the button. */
@@ -1324,13 +1331,14 @@ export const useControllerStore = create<ControllerConnectionState>()(
               controllerId,
               () => {
                 const provider = getControllerProvider()
-                const expectedController = artifact.expectedController
-                const assertDeviceSession = expectedController
+                const expectedControllerSession = artifact.expectedControllerSession
+                const assertDeviceSession = expectedControllerSession
                   ? () => {
                       if (
                         get().activeIp !== controllerId
+                        || (get().controllers[controllerId]?.liveEpoch ?? 0) !== expectedControllerSession.liveEpoch
                         || getControllerProvider() !== provider
-                        || !statusMatchesConnectedController(expectedController, provider.getStatus())
+                        || !statusMatchesConnectedController(expectedControllerSession, provider.getStatus())
                       ) {
                         throw new Error('Controller session changed before Show delivery')
                       }

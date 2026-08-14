@@ -6864,14 +6864,14 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       name: 'Opening Night',
       persist: false,
       artifactStamp: expect.objectContaining({ kind: 'show', id: 'show-send' }),
-      expectedController: { id: 'ctrl-live', address: '10.0.0.5' },
+      expectedControllerSession: { id: 'ctrl-live', address: '10.0.0.5', liveEpoch: 0 },
     }))
 
     await user.click(screen.getByRole('button', { name: 'Save to Bench PB' }))
     expect(pushGeneratedArtifact).toHaveBeenLastCalledWith(expect.objectContaining({
       artifactId: 'show:show-send',
       persist: true,
-      expectedController: { id: 'ctrl-live', address: '10.0.0.5' },
+      expectedControllerSession: { id: 'ctrl-live', address: '10.0.0.5', liveEpoch: 0 },
     }))
   })
 
@@ -7054,9 +7054,10 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     await user.click(run)
 
     expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1)
-    expect(pushGeneratedArtifact.mock.calls[0][0].expectedController).toEqual({
+    expect(pushGeneratedArtifact.mock.calls[0][0].expectedControllerSession).toEqual({
       id: 'ctrl-live',
       address: '10.0.0.5',
+      liveEpoch: 0,
     })
     const source = pushGeneratedArtifact.mock.calls[0][0].source as string
     expect(source).toContain('0.7654321')
@@ -7091,7 +7092,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     await waitFor(() => expect(pushGeneratedArtifact).toHaveBeenCalledWith(expect.objectContaining({
       source: expect.stringContaining('export function render(index, x)'),
       artifactStamp: expect.objectContaining({ transforms: expect.arrayContaining(['renderer-adapter']) }),
-      expectedController: { id: 'ctrl-live', address: '10.0.0.5' },
+      expectedControllerSession: { id: 'ctrl-live', address: '10.0.0.5', liveEpoch: 0 },
     })))
   })
 
@@ -7262,6 +7263,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
     expect(run).toBeDisabled()
     expect(run).toHaveAttribute('title', 'Rebuilding Show...')
+    expect(within(run).getByText('Run')).toBeInTheDocument()
+    expect(within(screen.getByRole('button', { name: 'Save to Bench PB' })).getByText('Save')).toBeInTheDocument()
     await waitFor(() => expect(run).toHaveAttribute('title', expect.not.stringContaining('Rebuilding Show')))
     expect(run).toBeDisabled()
     expect(run).not.toHaveAttribute('title', "Fix the pattern's errors before sending")

@@ -1078,12 +1078,12 @@ snapshot builds, and any confirmation bound to the previous snapshot closes.
 The click path consumes the ready snapshot and never recompiles the Show.
 During rebuilding, the Controller identity and action labels remain fixed while
 the disabled Run and Save icons become same-size spinners. The snapshot's stable
-Controller identity travels through profile draining, preview generation, and
-device compilation; `pushPattern` revalidates the active target and that identity
-immediately before every queued Controller mutation. A status-object refresh or
-reconnect to the same Controller remains valid. Once delivery begins, a
-disconnect or different Controller aborts through the visible action-failure
-surface before any write.
+Controller identity and live connection epoch travel through profile draining,
+preview generation, and device compilation; `pushPattern` revalidates the active
+target, identity, and epoch immediately before every queued Controller mutation.
+A status-object or metadata refresh inside that connection remains valid. Once
+delivery begins, a disconnect, reconnect, or different Controller aborts through
+the visible action-failure surface before any write.
 Compilation and preparation failures remain delivery blockers with their
 diagnostic reason. `showControllerArtifact.ts` is the only
 device-derivation seam: it compares generated capabilities with the installed

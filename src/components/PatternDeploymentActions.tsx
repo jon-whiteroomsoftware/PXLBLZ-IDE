@@ -57,7 +57,7 @@ export function PatternDeploymentActions({
   }
 
   const actionLabel = (mode: SendMode) => (
-    pushResult && !pushResult.ok && activeMode === mode
+    !preparing && pushResult && !pushResult.ok && activeMode === mode
       ? 'Failed'
       : mode === 'save' ? 'Save' : 'Run'
   )
