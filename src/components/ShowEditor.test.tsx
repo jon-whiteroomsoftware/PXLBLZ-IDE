@@ -7154,6 +7154,62 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(source).not.toContain('0.1234567')
   })
 
+  it('does not submit a confirmed Save after preview generation outlives its prepared Show (#851)', async () => {
+    const user = userEvent.setup()
+    let show = createDefaultShow('show-save-stale-preview', 'Stale preview Save', 1000)
+    show = { ...show, stageMapId: 'plane' }
+    show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.1)
+    show.cells[0] = {
+      ...show.cells[0],
+      pattern: { kind: 'user', id: 'live-pattern' },
+      patternName: 'Live Pattern',
+    }
+    const oldPattern: PatternRecord = {
+      id: 'live-pattern',
+      name: 'Live Pattern',
+      src: 'export function render(index) { rgb(0.1234567, 0, 0) }',
+      controls: {},
+      updatedAt: 1,
+    }
+    const newPattern: PatternRecord = {
+      ...oldPattern,
+      src: 'export function render(index) { rgb(0.7654321, 0, 0) }',
+      updatedAt: 2,
+    }
+    let resolvePreview!: (image: Uint8Array) => void
+    const previewJpeg = vi.spyOn(previewThumbnailJpeg, 'buildPreviewJpeg')
+      .mockReturnValue(new Promise((resolve) => { resolvePreview = resolve }))
+    const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    usePatternStore.setState({ userPatterns: [oldPattern], patternsLoaded: true })
+    useControllerStore.setState({
+      controllers: {
+        '10.0.0.5': {
+          ip: '10.0.0.5', nickname: 'Bench PB', phase: 'live', mapDim: 1, firmwareVersion: '3.67',
+        },
+      },
+      activeIp: '10.0.0.5',
+      pushGeneratedArtifact,
+    })
+    setControllerProvider(new ConnectedControllerProvider())
+
+    try {
+      render(<ShowEditor showId={show.id} />)
+      await user.click(screen.getByRole('button', { name: 'Save to Bench PB' }))
+      expect(screen.getByTestId('show-preflight-dialog')).toBeInTheDocument()
+
+      const confirmedSave = user.click(screen.getByRole('button', { name: 'Send anyway' }))
+      await waitFor(() => expect(previewJpeg).toHaveBeenCalledTimes(1))
+      act(() => usePatternStore.setState({ userPatterns: [newPattern] }))
+      resolvePreview(new Uint8Array([1, 2, 3]))
+      await confirmedSave
+
+      expect(pushGeneratedArtifact).not.toHaveBeenCalled()
+    } finally {
+      previewJpeg.mockRestore()
+    }
+  })
+
   it('retires a pending send confirmation when the Controller session changes (#851)', async () => {
     const user = userEvent.setup()
     let show = createDefaultShow('show-session-retire', 'Retire Controller session', 1000)

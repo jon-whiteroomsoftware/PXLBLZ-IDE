@@ -1075,7 +1075,10 @@ snapshot from the settled Show compilation and active Controller context before
 enabling Run or Save. A Show, Pattern, Library, map, profile, or Controller
 change invalidates that snapshot; Run and Save remain disabled while the next
 snapshot builds, and any confirmation bound to the previous snapshot closes.
-The click path consumes the ready snapshot and never recompiles the Show.
+The click path consumes the ready snapshot and never recompiles the Show. A
+confirmation revalidates that exact committed snapshot immediately before
+delivery and again after asynchronous Save-preview generation; a dependency
+change retires the action without submitting stale source.
 During rebuilding, the Controller identity and action labels remain fixed while
 the disabled Run and Save icons become same-size spinners. The snapshot's stable
 Controller identity and live connection epoch travel through profile draining,

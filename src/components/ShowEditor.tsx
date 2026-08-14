@@ -1029,6 +1029,7 @@ export function ShowEditor({
   const [showSendMode, setShowSendMode] = useState<SendMode>('run')
   const [pendingSendMode, setPendingSendMode] = useState<SendMode | null>(null)
   const pendingDeliveryRef = useRef<ShowDeliverySnapshot | null>(null)
+  const preparedDeliverySnapshotRef = useRef<ShowDeliverySnapshot | null>(null)
   const [preparingSave, setPreparingSave] = useState(false)
   const [compositionClipPendingDelete, setCompositionClipPendingDelete] = useState<ShowTimelineClipOwner | null>(null)
   const [pendingPatternSlotSelection, setPendingPatternSlotSelection] = useState<PendingPatternSlotSelection | null>(null)
@@ -1789,6 +1790,12 @@ export function ShowEditor({
     deliveryControllerSession,
     preparedControllerArtifact.value,
   ])
+  useLayoutEffect(() => {
+    // Event handlers and async preview generation must validate against the
+    // latest committed snapshot, not the render that opened a confirmation.
+    // Layout timing closes the window before a user can confirm the new UI.
+    preparedDeliverySnapshotRef.current = preparedDeliverySnapshot
+  }, [preparedDeliverySnapshot])
   useEffect(() => {
     const pendingDelivery = pendingDeliveryRef.current
     if (!pendingDelivery || pendingDelivery === preparedDeliverySnapshot) return
@@ -2039,12 +2046,17 @@ export function ShowEditor({
       })
   const controllerName = activeController ? activeController.nickname || activeIp : null
 
+  function deliveryIsCurrent(delivery: ShowDeliverySnapshot | null): delivery is ShowDeliverySnapshot {
+    return Boolean(
+      delivery
+      && delivery === preparedDeliverySnapshotRef.current
+      && delivery.show.id === showId
+      && delivery.controllerIp === useControllerStore.getState().activeIp,
+    )
+  }
+
   async function sendShow(mode: SendMode, delivery: ShowDeliverySnapshot | null) {
-    if (
-      !delivery
-      || delivery.show.id !== showId
-      || delivery.controllerIp !== useControllerStore.getState().activeIp
-    ) {
+    if (!deliveryIsCurrent(delivery)) {
       pendingDeliveryRef.current = null
       setPendingSendMode(null)
       return
@@ -2059,7 +2071,7 @@ export function ShowEditor({
       const previewImage = mode === 'save'
         ? (await buildPreviewJpeg(delivery.artifact).catch(() => null)) ?? undefined
         : undefined
-      if (delivery.controllerIp !== useControllerStore.getState().activeIp) return
+      if (!deliveryIsCurrent(delivery)) return
       trackEvent('send_to_controller', {
         mode,
         pattern_key: deliveryArtifactId,
