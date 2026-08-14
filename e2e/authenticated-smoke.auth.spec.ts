@@ -9,6 +9,9 @@ import type { ControllerProfile } from '../src/engine/controllerProfile'
 async function replaceEditorSource(page: Page, editor: Locator, source: string): Promise<void> {
   const input = editor.getByRole('textbox', { name: 'Editor content' })
   const viewLines = editor.locator('.view-lines')
+  // textContent preserves the one-line model text without layout-only wraps;
+  // Monaco renders ordinary spaces as NBSPs inside view-lines.
+  const renderedSource = async () => (await viewLines.textContent() ?? '').replaceAll('\u00a0', ' ')
   await viewLines.click()
   await expect(editor).toHaveClass(/focused/)
   await expect(input).toBeFocused()
@@ -18,9 +21,9 @@ async function replaceEditorSource(page: Page, editor: Locator, source: string):
   // Typing an opening bracket over a selection can auto-surround the old
   // source. Delete first so every caller starts from an empty model.
   await input.press('Backspace')
-  await expect(viewLines).toHaveText('')
+  await expect.poll(renderedSource).toBe('')
   await page.keyboard.type(source)
-  await expect(viewLines).toHaveText(source)
+  await expect.poll(renderedSource).toBe(source)
 }
 
 test('gates functional Show access behind the showtime query parameter', async ({ page }) => {
