@@ -2,6 +2,11 @@
 
 ![PXLBLZ-IDE — a modern IDE for Pixelblaze](docs/screenshots/readme-banner.png)
 
+> [!NOTE]
+> PXLBLZ-IDE has moved to its permanent home:
+> **[pxlblz-ide.whiteroomsoftware.com](https://pxlblz-ide.whiteroomsoftware.com/)**.
+> Update your bookmarks if you were using the GitHub Pages release.
+
 <a href="https://pxlblz-ide.whiteroomsoftware.com/"><img src="docs/screenshots/launch-button.png" alt="Open PXLBLZ-IDE" width="230" align="right"></a>
 
 PXLBLZ-IDE is an IDE for [Pixelblaze](https://electromage.com/) LED
@@ -131,7 +136,7 @@ hosted app never proxies it. The
 [privacy page](https://pxlblz-ide.whiteroomsoftware.com/docs/privacy) has the
 details.
 
-## Acknowledgement
+## Acknowledgements
 
 Thanks to [Ben Hencke](https://electromage.com/about) and ElectroMage for
 building Pixelblaze. It has been a small box with an outsized effect: a lot of
@@ -139,12 +144,12 @@ fun, and a generous way into making electronics feel approachable. PXLBLZ-IDE
 is an independent project and is not affiliated with or endorsed by
 ElectroMage 😺
 
-## Previous release
-
-The original 1.0 release remains available at
-[jon-whiteroomsoftware.github.io/PXLBLZ-IDE](https://jon-whiteroomsoftware.github.io/PXLBLZ-IDE/).
-Version 2 is a new application with cloud accounts and does not migrate v1
-browser storage.
+Thanks also to [ZRanger1](https://github.com/zranger1) for letting PXLBLZ-IDE
+ship his Patterns as built-in content. His work is some of the best in the
+Pixelblaze community, and it shows up everywhere here: a whole
+[gallery section](https://pxlblz-ide.whiteroomsoftware.com/gallery/zranger1)
+of his Patterns renders live in the IDE, and several of the built-in Shows
+remix them.
 
 ## License and feedback
 
