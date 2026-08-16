@@ -196,6 +196,32 @@ describe('controllerPanelStore', () => {
     })
   })
 
+  it('keeps one activation locked while the panel unmounts and the device write is unresolved', async () => {
+    const write = deferred<void>()
+    provider.setActiveProgram = (programId, opts = {}) => {
+      provider.activeProgramWrites.push({ programId, save: opts.save ?? true })
+      return write.promise.then(() => {
+        provider.config = { activeProgramId: programId }
+      })
+    }
+
+    const first = useControllerPanelStore.getState().activateProgram('abc')
+    await Promise.resolve()
+    expect(useControllerPanelStore.getState().activatingProgramId).toBe('abc')
+
+    useControllerPanelStore.getState().stop()
+    await expect(useControllerPanelStore.getState().activateProgram('def')).rejects.toThrow(
+      'A Controller Pattern switch is already in progress',
+    )
+    expect(provider.activeProgramWrites).toEqual([{ programId: 'abc', save: true }])
+
+    write.resolve()
+    await expect(first).rejects.toThrow(
+      'Controller session changed before Pattern activation could be confirmed',
+    )
+    expect(useControllerPanelStore.getState().activatingProgramId).toBeNull()
+  })
+
   it('rejects activation and publishes device truth when the requested program is not active', async () => {
     provider.setActiveProgram = (programId, opts = {}) => {
       provider.activeProgramWrites.push({ programId, save: opts.save ?? true })

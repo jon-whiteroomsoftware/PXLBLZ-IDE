@@ -48,6 +48,9 @@ interface ControllerPanelState {
   brightness: number | null
   /** Id of the Controller's active program, resolved to a name by the panel view. */
   activeProgramId?: string
+  /** Saved Pattern whose persistent activation is in flight. Store-owned so the
+   *  lock survives closing and reopening the Controller popover. */
+  activatingProgramId: string | null
   /** Sequencer mode reported by the Controller: 0 off, 1 shuffle, 2 playlist. */
   sequencerMode: number | null
   /** Whether the Controller's sequencer is currently running. */
@@ -135,6 +138,7 @@ interface ControllerPanelState {
 export const controllerPanelInitialState = {
   brightness: null,
   activeProgramId: undefined,
+  activatingProgramId: null as string | null,
   sequencerMode: null as number | null,
   runSequencer: null as boolean | null,
   configSourceIp: null,
@@ -187,6 +191,7 @@ let seededForIp: string | undefined
 // this; late reads from the previous device must not write into the shared panel
 // slice after the new device has populated it.
 let panelSession = 0
+let activationInFlight: symbol | null = null
 const panelSnapshots = new Map<string, ControllerPanelSnapshot>()
 
 function snapshotFromState(state: ControllerPanelState): ControllerPanelSnapshot {
@@ -273,6 +278,7 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
       set({
         ...(cached ?? controllerPanelInitialState),
         programsByController: get().programsByController,
+        activatingProgramId: get().activatingProgramId,
       })
     }
     const session = panelSession
@@ -407,53 +413,66 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
   },
 
   activateProgram: async (programId) => {
-    const initiatingSession = panelSession
-    const provider = getControllerProvider()
-    const previousActiveProgramId = get().activeProgramId
-    const previousActiveControls = get().activeControls
-    const previousControlsSeededFor = controlsSeededFor
-    let confirmationSession: number | null = null
-    const rollbackOptimisticActivation = () => {
-      if (
-        confirmationSession == null
-        || confirmationSession !== panelSession
-        || provider !== getControllerProvider()
-      ) return
-      controlsSeededFor = previousControlsSeededFor
-      set({
-        activeProgramId: previousActiveProgramId,
-        activeControls: previousActiveControls,
-      })
+    if (activationInFlight !== null) {
+      throw new Error('A Controller Pattern switch is already in progress.')
     }
-    await provider.setActiveProgram(programId, { save: true })
-    if (!controllerSessionMatches(initiatingSession, provider)) {
-      throw new Error('Controller session changed before Pattern activation could be confirmed.')
-    }
-    panelSession += 1
-    confirmationSession = panelSession
-    controlsSeededFor = undefined
-    set({ activeProgramId: programId, activeControls: {} })
-    let config: ControllerConfig
+    const activation = Symbol(programId)
+    activationInFlight = activation
+    set({ activatingProgramId: programId })
     try {
-      config = await provider.getConfig()
-    } catch (error) {
-      rollbackOptimisticActivation()
-      throw new Error(
-        `Could not confirm Controller Pattern activation: ${errorMessage(error)}`,
-        { cause: error },
-      )
+      const initiatingSession = panelSession
+      const provider = getControllerProvider()
+      const previousActiveProgramId = get().activeProgramId
+      const previousActiveControls = get().activeControls
+      const previousControlsSeededFor = controlsSeededFor
+      let confirmationSession: number | null = null
+      const rollbackOptimisticActivation = () => {
+        if (
+          confirmationSession == null
+          || confirmationSession !== panelSession
+          || provider !== getControllerProvider()
+        ) return
+        controlsSeededFor = previousControlsSeededFor
+        set({
+          activeProgramId: previousActiveProgramId,
+          activeControls: previousActiveControls,
+        })
+      }
+      await provider.setActiveProgram(programId, { save: true })
+      if (!controllerSessionMatches(initiatingSession, provider)) {
+        throw new Error('Controller session changed before Pattern activation could be confirmed.')
+      }
+      panelSession += 1
+      confirmationSession = panelSession
+      controlsSeededFor = undefined
+      set({ activeProgramId: programId, activeControls: {} })
+      let config: ControllerConfig
+      try {
+        config = await provider.getConfig()
+      } catch (error) {
+        rollbackOptimisticActivation()
+        throw new Error(
+          `Could not confirm Controller Pattern activation: ${errorMessage(error)}`,
+          { cause: error },
+        )
+      }
+      if (!controllerSessionMatches(confirmationSession, provider)) {
+        rollbackOptimisticActivation()
+        throw new Error('Controller session changed before Pattern activation could be confirmed.')
+      }
+      if (config.activeProgramId !== programId) {
+        rollbackOptimisticActivation()
+        throw new Error(
+          `Controller did not activate Pattern ${programId}; active Pattern is ${config.activeProgramId ?? 'unknown'}.`,
+        )
+      }
+      set((state) => configPatch(state, config))
+    } finally {
+      if (activationInFlight === activation) {
+        activationInFlight = null
+        set({ activatingProgramId: null })
+      }
     }
-    if (!controllerSessionMatches(confirmationSession, provider)) {
-      rollbackOptimisticActivation()
-      throw new Error('Controller session changed before Pattern activation could be confirmed.')
-    }
-    if (config.activeProgramId !== programId) {
-      rollbackOptimisticActivation()
-      throw new Error(
-        `Controller did not activate Pattern ${programId}; active Pattern is ${config.activeProgramId ?? 'unknown'}.`,
-      )
-    }
-    set((state) => configPatch(state, config))
   },
 
   deleteProgram: async (programId) => {

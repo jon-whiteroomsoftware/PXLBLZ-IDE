@@ -446,7 +446,9 @@ the prior control seed, publishes the id optimistically, then rejects unless a
 direct config read confirms that id; a rejected confirmation rolls the
 optimistic id and controls back. Activation also advances the panel read
 generation so a poll started before the command cannot overwrite its confirmed
-state. `deleteProgram` brackets the write with complete inventory reads, then
+state. Its store-owned in-flight lock survives popover unmounts and rejects a
+second persistent activation until the first command settles. `deleteProgram`
+brackets the write with complete inventory reads, then
 proves the target disappeared and every unrelated id/name pair survived. Both
 confirmations are scoped to the provider/session that sent the command.
 Per-Controller snapshots include the sequencer fields, so reopening one

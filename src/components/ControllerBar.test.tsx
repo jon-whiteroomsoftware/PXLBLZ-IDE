@@ -895,6 +895,28 @@ describe('ControllerBar', () => {
     await waitFor(() => expect(activateProgram).toHaveBeenCalledWith('program-1'))
   })
 
+  it('opens an informational menu for a run-only Pattern over a read-empty inventory', () => {
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    useControllerPanelStore.setState({
+      activeProgramId: 'run-only',
+      programLabels: { 'run-only': 'Live Draft' },
+      programs: [],
+      programsByController: { '10.0.0.5': [] },
+    })
+
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    const trigger = screen.getByRole('button', { name: 'Switch running Pattern' })
+    expect(trigger).toBeEnabled()
+    fireEvent.click(trigger)
+
+    const runOnly = screen.getByRole('option', { name: /Live Draftunsaved · running/ })
+    expect(runOnly).toBeDisabled()
+    expect(runOnly).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('No saved Patterns match.')).toBeInTheDocument()
+  })
+
   it('marks only the selected row as switching and disables the list in flight', async () => {
     setControllerProvider(new ConnectedProvider())
     seedLiveController()
@@ -902,7 +924,12 @@ describe('ControllerBar', () => {
     const activation = new Promise<void>((resolve) => {
       resolveActivation = resolve
     })
-    const activateProgram = vi.fn(() => activation)
+    const activateProgram = vi.fn((programId: string) => {
+      useControllerPanelStore.setState({ activatingProgramId: programId })
+      return activation.finally(() => {
+        useControllerPanelStore.setState({ activatingProgramId: null })
+      })
+    })
     const programs = [
       { id: 'a', name: 'Aurora' },
       { id: 'z', name: 'Zebra' },

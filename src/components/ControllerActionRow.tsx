@@ -45,6 +45,7 @@ export function ControllerActionRow() {
   const lastSavedProfileSignature = useControllerStore((state) => state.lastSavedProfileSignature)
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)
   const activeProgramId = useControllerPanelStore((state) => state.activeProgramId)
+  const activatingProgramId = useControllerPanelStore((state) => state.activatingProgramId)
   const programsByController = useControllerPanelStore((state) => state.programsByController)
   const programs = activeIp ? programsByController[activeIp] ?? [] : []
   const programsRead = !!activeIp
@@ -87,6 +88,10 @@ export function ControllerActionRow() {
     working,
     programsRead,
     programCount: programs.length,
+    hasRunOnlyActive: programsRead
+      && !!activeProgramId
+      && !programs.some((program) => program.id === activeProgramId),
+    switching: activatingProgramId !== null,
   })
   const target = active ? active.nickname || active.ip : 'Controller'
 

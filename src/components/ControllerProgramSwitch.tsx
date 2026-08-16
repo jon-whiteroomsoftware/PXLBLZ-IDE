@@ -32,11 +32,11 @@ export function ControllerProgramSwitch({
   actionClass,
 }: ControllerProgramSwitchProps) {
   const activeProgramId = useControllerPanelStore((state) => state.activeProgramId)
+  const switchingId = useControllerPanelStore((state) => state.activatingProgramId)
   const programLabels = useControllerPanelStore((state) => state.programLabels)
   const activateProgram = useControllerPanelStore((state) => state.activateProgram)
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState('')
-  const [switchingId, setSwitchingId] = useState<string | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -95,15 +95,12 @@ export function ControllerProgramSwitch({
 
   const switchTo = async (row: ControllerProgramMenuRow) => {
     if (!gate.enabled || row.disabled || switchingId !== null) return
-    setSwitchingId(row.id)
     setFailure(null)
     try {
       await activateProgram(row.id)
       close(true)
     } catch (error) {
       setFailure(errorMessage(error))
-    } finally {
-      setSwitchingId(null)
     }
   }
 
