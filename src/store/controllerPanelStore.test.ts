@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
+  ControllerProgramDeletionError,
   useControllerPanelStore,
   controllerPanelInitialState,
   CONTROLLER_POLL_INTERVAL_MS,
@@ -325,6 +326,19 @@ describe('controllerPanelStore', () => {
     expect(useControllerPanelStore.getState().programs).toEqual([{ id: 'def', name: 'Nebula' }])
   })
 
+  it('revalidates the running Pattern at the device command boundary', async () => {
+    provider.config = { activeProgramId: 'abc' }
+
+    await expect(useControllerPanelStore.getState().deleteProgram('abc')).rejects.toThrow(
+      'Running now — switch to another Pattern first',
+    )
+
+    expect(provider.deletedProgramIds).toEqual([])
+    expect(useControllerPanelStore.getState()).toMatchObject({
+      activeProgramId: 'abc',
+    })
+  })
+
   it('rejects deletion and preserves the last inventory when refresh fails', async () => {
     await useControllerPanelStore.getState().refreshPrograms('192.168.8.224')
     const before = useControllerPanelStore.getState().programs
@@ -355,10 +369,42 @@ describe('controllerPanelStore', () => {
     expect(useControllerPanelStore.getState().programs).toEqual(before)
   })
 
+  it('retains the first inventory baseline across a partial-attempt retry', async () => {
+    const listPrograms = provider.listPrograms.bind(provider)
+    let reads = 0
+    provider.listPrograms = () => {
+      reads += 1
+      return reads === 1
+        ? Promise.resolve([...provider.programs])
+        : Promise.reject(new Error('confirmation unavailable'))
+    }
+
+    let baseline: readonly ProgramListEntry[] | undefined
+    try {
+      await useControllerPanelStore.getState().deleteProgram('abc')
+    } catch (error) {
+      expect(error).toBeInstanceOf(ControllerProgramDeletionError)
+      baseline = (error as ControllerProgramDeletionError).baseline
+    }
+    expect(baseline).toEqual([
+      { id: 'abc', name: 'Aurora' },
+      { id: 'def', name: 'Nebula' },
+    ])
+
+    provider.listPrograms = listPrograms
+    provider.programs = []
+    await expect(
+      useControllerPanelStore.getState().deleteProgram('abc', baseline),
+    ).rejects.toThrow('also removed unrelated Pattern def')
+    expect(provider.deletedProgramIds).toEqual(['abc'])
+  })
+
   it('treats a target already absent from fresh device truth as an idempotent success', async () => {
     provider.programs = [{ id: 'def', name: 'Nebula' }]
 
-    await expect(useControllerPanelStore.getState().deleteProgram('abc')).resolves.toBeUndefined()
+    await expect(useControllerPanelStore.getState().deleteProgram('abc')).resolves.toEqual([
+      { id: 'def', name: 'Nebula' },
+    ])
 
     expect(provider.deletedProgramIds).toEqual([])
     expect(useControllerPanelStore.getState().programs).toEqual([{ id: 'def', name: 'Nebula' }])

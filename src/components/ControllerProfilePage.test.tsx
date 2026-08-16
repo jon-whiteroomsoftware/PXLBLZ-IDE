@@ -55,6 +55,10 @@ import { routerInitialState, useRouterStore } from '@/store/routerStore'
 import { patternInitialState, usePatternStore } from '@/store/patternStore'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import { stockShowById } from '@/pixelblaze/stock/shows'
+import {
+  __resetControllerDeviceWriteQueue,
+  queueControllerDeviceWrite,
+} from '@/engine/controllerDeviceWriteQueue'
 
 const READBACK_POINTS = [
   [0, 0],
@@ -150,6 +154,7 @@ class ProgramListProvider extends MapReadbackProvider {
 }
 
 beforeEach(() => {
+  __resetControllerDeviceWriteQueue()
   window.history.replaceState(null, '', '/')
   useControllerProfileStore.setState(controllerProfileInitialState)
   useControllerProfileLiveStore.setState(controllerProfileLiveInitialState)
@@ -174,6 +179,7 @@ function enableShowtime() {
 }
 
 afterEach(() => {
+  __resetControllerDeviceWriteQueue()
   resetControllerProvider()
   resetControllerMetadataStorage()
   resetPersonalContentProvider()
@@ -516,6 +522,41 @@ describe('ControllerProfilePage', () => {
     expect(provider.deletedProgramIds).toEqual([])
   })
 
+  it('serializes device deletion and metadata cleanup with Controller writes', async () => {
+    const profile = seedProfile()
+    const provider = renderLiveProgramInventory(profile, {
+      storageId: 'delete-write-queue',
+      activeProgramId: 'ACTIVE',
+      configSourceIp: '192.168.8.224',
+      programs: [
+        { id: 'DEV1', name: 'Twinkle' },
+        { id: 'ACTIVE', name: 'Running Pattern' },
+      ],
+      bindings: { 'pat-1': 'DEV1' },
+      pushRecords: {},
+    })
+    const priorWrite = deferred<void>()
+    const queuedPrior = queueControllerDeviceWrite(
+      '192.168.8.224',
+      () => priorWrite.promise,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Twinkle from the Controller' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', {
+      name: 'Delete from Controller',
+    }))
+    const observedBindings = queueControllerDeviceWrite('192.168.8.224', async () => (
+      structuredClone(provider.bindings)
+    ))
+    await Promise.resolve()
+    expect(provider.deletedProgramIds).toEqual([])
+
+    priorWrite.resolve()
+    await queuedPrior
+    await expect(observedBindings).resolves.toEqual({ '192.168.8.224': {} })
+    expect(provider.deletedProgramIds).toEqual(['DEV1'])
+  })
+
   it('waits for Controller-scoped config before marking an inventory row as running', async () => {
     const profile = seedProfile()
     usePatternStore.setState({
@@ -548,6 +589,11 @@ describe('ControllerProfilePage', () => {
 
     await screen.findByRole('table', { name: 'Saved PXLBLZ Patterns' })
     expect(screen.queryByLabelText('Running now')).not.toBeInTheDocument()
+    const pendingDelete = screen.getByRole('button', {
+      name: 'Delete Twinkle from the Controller',
+    })
+    expect(pendingDelete).toBeDisabled()
+    expect(pendingDelete).toHaveAttribute('title', 'Waiting to confirm the running Pattern')
 
     act(() => {
       useControllerPanelStore.getState().noteProgramActivated('DEV1', '192.168.8.224')

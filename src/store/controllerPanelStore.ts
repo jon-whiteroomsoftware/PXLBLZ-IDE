@@ -37,6 +37,20 @@ export const CONTROLLER_POLL_INTERVAL_MS = 1000
  *  final value lands so the device never settles on a stale brightness. */
 export const BRIGHTNESS_SEND_INTERVAL_MS = 100
 
+export class ControllerProgramDeletionError extends Error {
+  readonly baseline: ProgramListEntry[] | undefined
+
+  constructor(
+    message: string,
+    baseline?: readonly ProgramListEntry[],
+    options?: ErrorOptions,
+  ) {
+    super(message, options)
+    this.name = 'ControllerProgramDeletionError'
+    this.baseline = baseline?.map((program) => ({ ...program }))
+  }
+}
+
 const sendBrightness = throttleTrailing((write: { provider: ReturnType<typeof getControllerProvider>; value: number }) => {
   void write.provider
     .setBrightness(write.value, false)
@@ -132,8 +146,12 @@ interface ControllerPanelState {
   noteProgramActivated: (programId: string, controllerIp: string) => void
   /** Switch to a saved program and confirm it through an immediate poll. */
   activateProgram: (programId: string) => Promise<void>
-  /** Delete a saved program and refresh the Controller inventory. */
-  deleteProgram: (programId: string) => Promise<void>
+  /** Delete a saved program and refresh the Controller inventory. The first
+   * safety baseline can be carried into Retry after an ambiguous attempt. */
+  deleteProgram: (
+    programId: string,
+    baseline?: readonly ProgramListEntry[],
+  ) => Promise<ProgramListEntry[]>
 }
 
 export const controllerPanelInitialState = {
@@ -484,61 +502,102 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     }
   },
 
-  deleteProgram: async (programId) => {
+  deleteProgram: async (programId, originalBaseline) => {
     const session = panelSession
     const ip = seededForIp
     const provider = getControllerProvider()
-    let beforePrograms: ProgramListEntry[]
+    const carriedBaseline = originalBaseline?.map((program) => ({ ...program }))
+    let currentPrograms: ProgramListEntry[]
     try {
-      beforePrograms = await provider.listPrograms()
+      currentPrograms = await provider.listPrograms()
     } catch (error) {
-      throw new Error(
+      throw new ControllerProgramDeletionError(
         `Could not read Controller inventory before deletion: ${errorMessage(error)}`,
+        carriedBaseline,
         { cause: error },
       )
     }
     if (!controllerSessionMatches(session, provider)) {
       throw new Error('Controller session changed before Pattern deletion could start.')
     }
-    if (!beforePrograms.some((program) => program.id === programId)) {
-      set((state) => ({
-        programs: beforePrograms,
-        ...(ip
-          ? { programsByController: { ...state.programsByController, [ip]: beforePrograms } }
-          : {}),
-      }))
-      return
+
+    const baseline = carriedBaseline ?? currentPrograms.map((program) => ({ ...program }))
+    const publishPrograms = (programs: ProgramListEntry[]) => set((state) => ({
+      programs,
+      ...(ip
+        ? { programsByController: { ...state.programsByController, [ip]: programs } }
+        : {}),
+    }))
+    const verifyDeletion = (programs: ProgramListEntry[]) => {
+      const missingUnrelated = baseline.filter(
+        (before) => before.id !== programId
+          && !programs.some((after) => after.id === before.id && after.name === before.name),
+      )
+      if (missingUnrelated.length > 0) {
+        throw new ControllerProgramDeletionError(
+          `Controller deletion of Pattern ${programId} also removed unrelated Pattern ${missingUnrelated.map((program) => program.id).join(', ')}.`,
+          baseline,
+        )
+      }
+      if (programs.some((program) => program.id === programId)) {
+        throw new ControllerProgramDeletionError(
+          `Controller still reports Pattern ${programId} after deletion.`,
+          baseline,
+        )
+      }
     }
-    await provider.deleteProgram(programId)
+
+    if (!currentPrograms.some((program) => program.id === programId)) {
+      publishPrograms(currentPrograms)
+      verifyDeletion(currentPrograms)
+      return baseline
+    }
+
+    let config: ControllerConfig
+    try {
+      config = await provider.getConfig()
+    } catch (error) {
+      throw new ControllerProgramDeletionError(
+        `Could not confirm the running Controller Pattern before deletion: ${errorMessage(error)}`,
+        baseline,
+        { cause: error },
+      )
+    }
+    if (!controllerSessionMatches(session, provider)) {
+      throw new Error('Controller session changed before Pattern deletion could start.')
+    }
+    set((state) => configPatch(state, config))
+    if (config.activeProgramId === programId) {
+      throw new ControllerProgramDeletionError(
+        'Running now — switch to another Pattern first',
+        baseline,
+      )
+    }
+
+    try {
+      await provider.deleteProgram(programId)
+    } catch (error) {
+      throw new ControllerProgramDeletionError(
+        errorMessage(error),
+        baseline,
+        { cause: error },
+      )
+    }
     let programs: ProgramListEntry[]
     try {
       programs = await provider.listPrograms()
     } catch (error) {
-      throw new Error(
+      throw new ControllerProgramDeletionError(
         `Could not confirm Controller Pattern deletion: ${errorMessage(error)}`,
+        baseline,
         { cause: error },
       )
     }
     if (!controllerSessionMatches(session, provider)) {
       throw new Error('Controller session changed before Pattern deletion could be confirmed.')
     }
-    set((state) => ({
-      programs,
-      ...(ip
-        ? { programsByController: { ...state.programsByController, [ip]: programs } }
-        : {}),
-    }))
-    const missingUnrelated = beforePrograms.filter(
-      (before) => before.id !== programId
-        && !programs.some((after) => after.id === before.id && after.name === before.name),
-    )
-    if (missingUnrelated.length > 0) {
-      throw new Error(
-        `Controller deletion of Pattern ${programId} also removed unrelated Pattern ${missingUnrelated.map((program) => program.id).join(', ')}.`,
-      )
-    }
-    if (programs.some((program) => program.id === programId)) {
-      throw new Error(`Controller still reports Pattern ${programId} after deletion.`)
-    }
+    publishPrograms(programs)
+    verifyDeletion(programs)
+    return baseline
   },
 }))

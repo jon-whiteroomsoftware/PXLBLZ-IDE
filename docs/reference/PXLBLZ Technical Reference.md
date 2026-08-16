@@ -598,13 +598,19 @@ focus; Run delegates to the panel store's persistent activation path and never
 navigates Studio. Program ids move from a column into the name tooltip, and
 Other Patterns have no freshness column.
 
-Delete is available for managed and Other rows but disabled for the live
-running id, including when that id changes after the confirmation dialog opens.
+Delete is available for managed and Other rows only after Controller-scoped
+active-program evidence arrives, and remains disabled for the live running id,
+including when that id changes after the confirmation dialog opens. A fresh
+config read revalidates the active id immediately before the device command.
 The dialog distinguishes ownership: managed deletion promises to preserve the
 Studio Pattern, while Other deletion warns that source recovery requires Import
-first. The operation is deliberately device-first: `controllerPanelStore`
-re-reads the complete inventory and proves the target absent and all unrelated
-id/name pairs present before durable metadata changes. A managed success then
+first. The operation is deliberately device-first and the complete device plus
+metadata transaction runs through the per-Controller write queue, serializing
+it with managed-artifact reconciliation. `controllerPanelStore` re-reads the
+complete inventory and proves the target absent and all unrelated id/name pairs
+present before durable metadata changes. The first inventory is retained across
+retries, so an ambiguous confirmation cannot erase evidence that an unrelated
+Pattern also vanished. A managed success then
 removes exactly its Controller/binding entry from both overwrite bindings and
 push records and clears the five session-only Run/Save comparison memos for
 that same pair. Foreign or no-longer-matching metadata is a no-op. A failed

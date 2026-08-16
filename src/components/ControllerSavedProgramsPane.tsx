@@ -35,6 +35,7 @@ import {
   subscribeControllerPushRecordsRevision,
 } from '@/engine/controllerMetadataStorage'
 import { removeManagedControllerSavedProgramMetadata } from '@/engine/controllerSavedProgramDeletion'
+import { queueControllerDeviceWrite } from '@/engine/controllerDeviceWriteQueue'
 import type { ControllerProfile } from '@/engine/controllerProfile'
 import { controllerForProfile } from '@/engine/controllerProfileConnection'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
@@ -60,7 +61,10 @@ import {
   useControllerStore,
   type ControllerReconciliationState,
 } from '@/store/controllerStore'
-import { useControllerPanelStore } from '@/store/controllerPanelStore'
+import {
+  ControllerProgramDeletionError,
+  useControllerPanelStore,
+} from '@/store/controllerPanelStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useShowStore } from '@/store/showStore'
@@ -383,7 +387,7 @@ function DeleteProgramDialog({
   pending,
   controllerName,
   busy,
-  blocked,
+  blockedReason,
   error,
   onCancel,
   onConfirm,
@@ -391,7 +395,7 @@ function DeleteProgramDialog({
   pending: PendingProgramDelete | null
   controllerName: string
   busy: boolean
-  blocked: boolean
+  blockedReason: string | null
   error: string | null
   onCancel: () => void
   onConfirm: () => void
@@ -410,9 +414,9 @@ function DeleteProgramDialog({
         <div className="mt-3 rounded border border-zinc-800 bg-zinc-950/70 px-3 py-2 text-xs text-zinc-400">
           Program id <span className="font-mono text-zinc-200">{program.programId}</span>
         </div>
-        {blocked && (
+        {blockedReason && (
           <div className="mt-3 border border-amber-500/30 bg-amber-950/20 px-2.5 py-2 text-xs text-amber-200">
-            Running now — switch to another Pattern first
+            {blockedReason}
           </div>
         )}
         {error && (
@@ -423,7 +427,7 @@ function DeleteProgramDialog({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={busy} onClick={onCancel}>Cancel</AlertDialogCancel>
           <AlertDialogAction
-            disabled={busy || blocked}
+            disabled={busy || blockedReason !== null}
             className="border-red-500/70 text-red-300 hover:bg-red-950/40"
             onClick={(event) => {
               event.preventDefault()
@@ -447,6 +451,7 @@ function SavedProgramRowActions({
   onRun,
   onImport,
   onDelete,
+  deleteDisabledReason,
 }: {
   program: ControllerSavedProgramRow
   running: boolean
@@ -456,6 +461,7 @@ function SavedProgramRowActions({
   onRun: (program: ControllerSavedProgramRow) => void
   onImport?: (program: ControllerSavedProgramRow) => void
   onDelete: (program: ControllerSavedProgramRow) => void
+  deleteDisabledReason: string | null
 }) {
   return (
     <span className={actionClusterClass}>
@@ -489,10 +495,8 @@ function SavedProgramRowActions({
         type="button"
         className={`${iconButtonClass} hover:text-red-300`}
         aria-label={`Delete ${program.name} from the Controller`}
-        title={running
-          ? 'Running now — switch to another Pattern first'
-          : 'Delete from the Controller'}
-        disabled={disabled || running}
+        title={deleteDisabledReason ?? 'Delete from the Controller'}
+        disabled={disabled || deleteDisabledReason !== null}
         onClick={() => onDelete(program)}
       >
         <Trash2 {...controlIcon} aria-hidden />
@@ -546,6 +550,7 @@ function SavedProgramsInventory({
   hasSnapshot,
   showsEnabled,
   activeProgramId,
+  activeProgramKnown,
   activatingProgramId,
   onRefresh,
   onOpen,
@@ -562,6 +567,7 @@ function SavedProgramsInventory({
   hasSnapshot: boolean
   showsEnabled: boolean
   activeProgramId: string | undefined
+  activeProgramKnown: boolean
   activatingProgramId: string | null
   onRefresh: () => void
   onOpen: (routeId: string) => void
@@ -668,6 +674,11 @@ function SavedProgramsInventory({
           <tbody>
             {presentedPrograms.owned.map((program) => {
               const running = program.programId === activeProgramId
+              const deleteDisabledReason = !activeProgramKnown
+                ? 'Waiting to confirm the running Pattern'
+                : running
+                  ? 'Running now — switch to another Pattern first'
+                  : null
               return (
                 <tr
                   key={program.programId}
@@ -694,6 +705,7 @@ function SavedProgramsInventory({
                       importing={false}
                       onRun={onRun}
                       onDelete={onDelete}
+                      deleteDisabledReason={deleteDisabledReason}
                     />
                   </td>
                 </tr>
@@ -724,6 +736,11 @@ function SavedProgramsInventory({
               <tbody>
                 {presentedPrograms.foreign.map((program) => {
                   const running = program.programId === activeProgramId
+                  const deleteDisabledReason = !activeProgramKnown
+                    ? 'Waiting to confirm the running Pattern'
+                    : running
+                      ? 'Running now — switch to another Pattern first'
+                      : null
                   return (
                     <tr
                       key={program.programId}
@@ -745,6 +762,7 @@ function SavedProgramsInventory({
                           onRun={onRun}
                           onImport={onImport}
                           onDelete={onDelete}
+                          deleteDisabledReason={deleteDisabledReason}
                         />
                       </td>
                     </tr>
@@ -801,6 +819,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   const [pendingDelete, setPendingDelete] = useState<PendingProgramDelete | null>(null)
   const [deletingProgramId, setDeletingProgramId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deleteBaseline, setDeleteBaseline] = useState<ProgramListEntry[] | null>(null)
   const liveEpoch = profileController?.phase === 'live' ? profileController.liveEpoch : undefined
   const readKey = liveIp
     ? controllerSavedProgramsReadKey({
@@ -820,6 +839,12 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         ? 'error'
         : 'ready'
   const activeProgramId = configSourceIp === liveIp ? panelActiveProgramId : undefined
+  const activeProgramKnown = liveIp !== undefined && configSourceIp === liveIp
+  const deleteBlockedReason = !activeProgramKnown
+    ? 'Waiting to confirm the running Pattern'
+    : pendingDelete?.program.programId === activeProgramId
+      ? 'Running now — switch to another Pattern first'
+      : null
 
   useEffect(() => {
     if (!liveIp) {
@@ -981,6 +1006,10 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   async function confirmProgramDelete() {
     if (!pendingDelete || !liveIp) return
     const { program } = pendingDelete
+    if (!activeProgramKnown) {
+      setDeleteError('Waiting to confirm the running Pattern')
+      return
+    }
     if (activeProgramId === program.programId) {
       setDeleteError('Running now — switch to another Pattern first')
       return
@@ -988,24 +1017,35 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
 
     setDeletingProgramId(program.programId)
     setDeleteError(null)
+    let retainedBaseline = deleteBaseline
     try {
-      await deleteProgram(program.programId)
-      const metadataResult = await removeManagedControllerSavedProgramMetadata({
-        controllerId: liveIp,
-        bindingKey: program.bindingKey,
-        programId: program.programId,
-      }, {
-        getControllerBindings,
-        setControllerBindings,
-        getPushRecords,
-        setPushRecords,
+      await queueControllerDeviceWrite(liveIp, async () => {
+        retainedBaseline = await deleteProgram(
+          program.programId,
+          deleteBaseline ?? undefined,
+        )
+        const metadataResult = await removeManagedControllerSavedProgramMetadata({
+          controllerId: liveIp,
+          bindingKey: program.bindingKey,
+          programId: program.programId,
+        }, {
+          getControllerBindings,
+          setControllerBindings,
+          getPushRecords,
+          setPushRecords,
+        })
+        if (metadataResult.removed) {
+          forgetDeletedSavedProgram(liveIp, metadataResult.bindingKey)
+        }
       })
-      if (metadataResult.removed) {
-        forgetDeletedSavedProgram(liveIp, metadataResult.bindingKey)
-      }
       requestSavedProgramsRefresh(profile.id)
+      setDeleteBaseline(null)
       setPendingDelete(null)
     } catch (error) {
+      const baseline = error instanceof ControllerProgramDeletionError
+        ? error.baseline
+        : retainedBaseline
+      if (baseline) setDeleteBaseline([...baseline])
       const message = error instanceof Error ? error.message : 'Controller deletion failed.'
       setDeleteError(`Could not delete “${program.name}” from ${profile.name}. ${message}`)
     } finally {
@@ -1025,11 +1065,12 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         pending={pendingDelete}
         controllerName={profile.name}
         busy={deletingProgramId !== null}
-        blocked={pendingDelete?.program.programId === activeProgramId}
+        blockedReason={deleteBlockedReason}
         error={deleteError}
         onCancel={() => {
           setPendingDelete(null)
           setDeleteError(null)
+          setDeleteBaseline(null)
         }}
         onConfirm={() => void confirmProgramDelete()}
       />
@@ -1045,6 +1086,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         hasSnapshot={hasInventorySnapshot}
         showsEnabled={showsEnabled}
         activeProgramId={activeProgramId}
+        activeProgramKnown={activeProgramKnown}
         activatingProgramId={activatingProgramId}
         onRefresh={() => requestSavedProgramsRefresh(profile.id)}
         onOpen={(routeId) => navigate({
@@ -1057,6 +1099,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         onImport={(program) => void beginProgramImport(program)}
         onDelete={(program) => {
           setDeleteError(null)
+          setDeleteBaseline(null)
           setPendingDelete({ program })
         }}
         importingProgramId={importingProgramId}
