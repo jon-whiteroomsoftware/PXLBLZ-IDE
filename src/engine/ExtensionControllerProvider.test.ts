@@ -195,6 +195,11 @@ function makeDeviceTransport(
           if ('pixelCount' in cmd) writes.push(cmd)
           if ('setVars' in cmd) writes.push(cmd)
           if ('setControls' in cmd) writes.push(cmd)
+          if ('activeProgramId' in cmd) {
+            writes.push(cmd)
+            if (typeof cmd.activeProgramId === 'string') activeProgramId = cmd.activeProgramId
+          }
+          if ('deleteProgram' in cmd) writes.push(cmd)
           if ('pause' in cmd && !('setCode' in cmd)) {
             writes.push(cmd)
             if (opts.acknowledgeRendererCommands ?? true) reply(msg.connId, { ack: 1 })
@@ -496,6 +501,33 @@ describe('ExtensionControllerProvider', () => {
 
       d.setActiveProgramId('PROG1')
       await expect(p.getActiveProgramBytecodeSize()).resolves.toBeNull()
+    })
+
+    it('switches saved programs with boot persistence by default and invalidates the known footprint', async () => {
+      const d = makeDeviceTransport()
+      const p = new ExtensionControllerProvider({ transport: d.transport })
+      await p.connect(TARGET)
+      await p.pushBytecode(new Uint8Array([9, 9, 9]), { id: 'PROG1' })
+      await expect(p.getActiveProgramBytecodeSize()).resolves.toBe(3)
+
+      await p.setActiveProgram('PROG2')
+
+      expect(d.writes[d.writes.length - 1]).toEqual({ activeProgramId: 'PROG2', save: true })
+      await expect(p.getActiveProgramBytecodeSize()).resolves.toBeNull()
+    })
+
+    it('forwards an explicit transient activation and saved-program deletion', async () => {
+      const d = makeDeviceTransport()
+      const p = new ExtensionControllerProvider({ transport: d.transport })
+      await p.connect(TARGET)
+
+      await p.setActiveProgram('PROG2', { save: false })
+      await p.deleteProgram('PROG1')
+
+      expect(d.writes.slice(-2)).toEqual([
+        { activeProgramId: 'PROG2', save: false },
+        { deleteProgram: 'PROG1' },
+      ])
     })
 
     it('pushBytecode rejects when not connected', async () => {

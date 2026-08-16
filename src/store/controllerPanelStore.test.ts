@@ -27,6 +27,9 @@ class FakeProvider extends NullControllerProvider {
   variableWrites: Array<Record<string, number>> = []
   installedMap: number[][] | null = null
   mapWrites: number[][][] = []
+  activeProgramWrites: Array<{ programId: string; save: boolean }> = []
+  deletedProgramIds: string[] = []
+  listProgramsCalls = 0
 
   getConfig(): Promise<ControllerConfig> {
     return Promise.resolve(this.config)
@@ -35,6 +38,7 @@ class FakeProvider extends NullControllerProvider {
     return Promise.resolve(this.telemetry)
   }
   listPrograms(): Promise<ProgramListEntry[]> {
+    this.listProgramsCalls += 1
     return Promise.resolve(this.programs)
   }
   getVars(): Promise<Record<string, number>> {
@@ -62,6 +66,20 @@ class FakeProvider extends NullControllerProvider {
   setPixelMap(points: number[][]): Promise<void> {
     this.mapWrites.push(points)
     this.installedMap = points
+    return Promise.resolve()
+  }
+  setActiveProgram(programId: string, opts: { save?: boolean } = {}): Promise<void> {
+    this.activeProgramWrites.push({ programId, save: opts.save ?? true })
+    this.config = {
+      ...this.config,
+      activeProgramId: programId,
+      activeControls: programId === 'abc' ? { sliderHue: 0.1 } : this.config.activeControls,
+    }
+    return Promise.resolve()
+  }
+  deleteProgram(programId: string): Promise<void> {
+    this.deletedProgramIds.push(programId)
+    this.programs = this.programs.filter((program) => program.id !== programId)
     return Promise.resolve()
   }
 }
@@ -137,6 +155,53 @@ describe('controllerPanelStore', () => {
     await useControllerPanelStore.getState().poll()
 
     expect(useControllerPanelStore.getState().activeProgramId).toBe('doom-fire')
+  })
+
+  it('activates a saved program persistently and reseeds its controls from the confirming poll', async () => {
+    provider.config = {
+      brightness: 0.5,
+      activeProgramId: 'def',
+      activeControls: { sliderSpeed: 0.3 },
+    }
+    await useControllerPanelStore.getState().poll()
+    useControllerPanelStore.getState().setControl('sliderSpeed', 0.8)
+
+    await useControllerPanelStore.getState().activateProgram('abc')
+
+    expect(provider.activeProgramWrites).toEqual([{ programId: 'abc', save: true }])
+    expect(useControllerPanelStore.getState().activeProgramId).toBe('abc')
+    expect(useControllerPanelStore.getState().activeControls).toEqual({ sliderHue: 0.1 })
+  })
+
+  it('deletes a saved program and refreshes the inventory from the Controller', async () => {
+    await useControllerPanelStore.getState().refreshPrograms('192.168.8.224')
+    const callsBeforeDelete = provider.listProgramsCalls
+
+    await useControllerPanelStore.getState().deleteProgram('abc')
+
+    expect(provider.deletedProgramIds).toEqual(['abc'])
+    expect(provider.listProgramsCalls).toBe(callsBeforeDelete + 1)
+    expect(useControllerPanelStore.getState().programs).toEqual([{ id: 'def', name: 'Nebula' }])
+  })
+
+  it('keeps the last sequencer state when a later config poll omits the fields', async () => {
+    provider.config = {
+      ...provider.config,
+      sequencerMode: 2,
+      runSequencer: true,
+    }
+    await useControllerPanelStore.getState().poll()
+    expect(useControllerPanelStore.getState()).toMatchObject({
+      sequencerMode: 2,
+      runSequencer: true,
+    })
+
+    provider.config = { brightness: 0.5, activeProgramId: 'def' }
+    await useControllerPanelStore.getState().poll()
+    expect(useControllerPanelStore.getState()).toMatchObject({
+      sequencerMode: 2,
+      runSequencer: true,
+    })
   })
 
   it('seeds brightness once and does not overwrite it on later polls', async () => {

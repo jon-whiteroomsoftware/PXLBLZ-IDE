@@ -773,6 +773,15 @@ export class ExtensionControllerProvider implements ControllerProvider {
     return this.fireAndForget((conn) => conn.saveProgram(opts.id, pbpBlob))
   }
 
+  setActiveProgram(programId: string, opts: { save?: boolean } = {}): Promise<void> {
+    this.knownActiveBytecode = null
+    return this.fireAndForget((conn) => conn.setActiveProgram(programId, opts.save ?? true))
+  }
+
+  deleteProgram(programId: string): Promise<void> {
+    return this.fireAndForget((conn) => conn.deleteProgram(programId))
+  }
+
   /** Encode the baked coordinate array to the firmware mapData blob and write it to
    *  the device's single shared map slot over the live connection (H12, #204).
    *  Fire-and-forget at the protocol level. */

@@ -78,6 +78,28 @@ dragging is how the control gets its first real value. The custom thumb styling
 lives in `.deck-slider-unset`. An earlier attempt that dimmed and disabled the
 control was rejected: the unset state has to look interactive.
 
+## Saved Pattern selection, deletion, and sequencer fields
+
+The saved-Pattern protocol uses two fire-and-forget JSON commands:
+
+- `{"activeProgramId": id, "save": bool}` selects an existing saved Pattern.
+  `save: true` persists that selection as the Pattern used after reboot; it does
+  not save Pattern bytes, which already exist on the Controller.
+- `{"deleteProgram": id}` removes one saved Pattern. The command has no
+  acknowledgement, so PXLBLZ re-lists the complete inventory before treating a
+  deletion as confirmed.
+
+The sequencer packet that carries `activeProgram` can also carry top-level
+`sequencerMode` (`0` off, `1` shuffle, `2` playlist) and `runSequencer`. These
+fields are passive device state; a packet that omits them does not prove the
+sequencer changed mode.
+
+Firmware 3.67's behavior when the deleted Pattern is active remains unobserved.
+PXLBLZ does not depend on that undefined behavior: every user-facing delete
+action is disabled for the running row. The namespaced hardware probe records
+the immediate and post-reboot active ids while preserving the unrelated program
+inventory and restoring the original boot Pattern.
+
 ## The saved-pattern preview JPEG is a 1D waterfall
 
 The PBP preview JPEG is a fixed **100×150** image, not a snapshot of the 2D grid

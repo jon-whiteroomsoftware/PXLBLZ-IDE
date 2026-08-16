@@ -140,6 +140,10 @@ export interface ControllerConfig {
   chipId?: number
   /** Firmware version from the settings packet when available. */
   firmwareVersion?: string
+  /** Sequencer mode from the sequencer packet: 0 off, 1 shuffle, 2 playlist. */
+  sequencerMode?: number
+  /** Whether the Controller's sequencer is currently running. */
+  runSequencer?: boolean
 }
 
 /** Live runtime metrics the device reports while running — distinct from stored
@@ -274,6 +278,13 @@ export interface ControllerProvider {
    *  the frames are sent. */
   saveProgram(pbpBlob: Uint8Array, opts: { id: string }): Promise<void>
 
+  /** Switch to a program already saved on the Controller. `save` persists the
+   *  selection as the boot program and defaults to true at this app-facing seam. */
+  setActiveProgram(programId: string, opts?: { save?: boolean }): Promise<void>
+
+  /** Delete one saved program. Resolves after sending; callers re-list to confirm. */
+  deleteProgram(programId: string): Promise<void>
+
   /** Write a baked coordinate array to the Controller's single shared pixel map
    *  (H12, issue #204) — the map every pattern on the device reads. `points` are
    *  firmware-normalized `[x,y(,z)]` tuples (the preview's resolved map points); the
@@ -387,6 +398,14 @@ export class NullControllerProvider implements ControllerProvider {
   }
 
   saveProgram(_pbpBlob: Uint8Array, _opts: { id: string }): Promise<void> {
+    return Promise.reject(new Error('Not connected to a Controller'))
+  }
+
+  setActiveProgram(_programId: string, _opts?: { save?: boolean }): Promise<void> {
+    return Promise.reject(new Error('Not connected to a Controller'))
+  }
+
+  deleteProgram(_programId: string): Promise<void> {
     return Promise.reject(new Error('Not connected to a Controller'))
   }
 

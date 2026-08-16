@@ -39,6 +39,10 @@ interface ControllerPanelState {
   brightness: number | null
   /** Id of the Controller's active program, resolved to a name by the panel view. */
   activeProgramId?: string
+  /** Sequencer mode reported by the Controller: 0 off, 1 shuffle, 2 playlist. */
+  sequencerMode: number | null
+  /** Whether the Controller's sequencer is currently running. */
+  runSequencer: boolean | null
   /** The Controller's program list, fetched once on start for id→name resolution. */
   programs: ProgramListEntry[]
   /** Connection-time program inventories keyed by Controller IP. Controller profile
@@ -108,11 +112,17 @@ interface ControllerPanelState {
   /** Publish a program activation already confirmed by the push protocol. The next
    *  panel poll remains authoritative and can replace it after an external switch. */
   noteProgramActivated: (programId: string) => void
+  /** Switch to a saved program and confirm it through an immediate poll. */
+  activateProgram: (programId: string) => Promise<void>
+  /** Delete a saved program and refresh the Controller inventory. */
+  deleteProgram: (programId: string) => Promise<void>
 }
 
 export const controllerPanelInitialState = {
   brightness: null,
   activeProgramId: undefined,
+  sequencerMode: null as number | null,
+  runSequencer: null as boolean | null,
   programs: [] as ProgramListEntry[],
   programsByController: {} as Record<string, ProgramListEntry[]>,
   fps: null,
@@ -255,6 +265,8 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
         if (reseed) controlsSeededFor = config.activeProgramId
         return {
           activeProgramId: config.activeProgramId,
+          sequencerMode: config.sequencerMode ?? s.sequencerMode,
+          runSequencer: config.runSequencer ?? s.runSequencer,
           // Seed brightness once (?? on the existing value), then slider-owned.
           brightness: s.brightness ?? config.brightness ?? null,
           // Pixel count is device config (editable via setPixelCount, #213);
@@ -344,5 +356,17 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
 
   noteProgramActivated: (programId) => {
     set({ activeProgramId: programId })
+  },
+
+  activateProgram: async (programId) => {
+    await getControllerProvider().setActiveProgram(programId, { save: true })
+    controlsSeededFor = undefined
+    set({ activeProgramId: programId })
+    await get().poll()
+  },
+
+  deleteProgram: async (programId) => {
+    await getControllerProvider().deleteProgram(programId)
+    await get().refreshPrograms()
   },
 }))

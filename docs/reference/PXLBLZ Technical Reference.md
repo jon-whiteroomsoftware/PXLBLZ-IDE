@@ -413,6 +413,15 @@ successful empty scan separately from helper, timeout, or service failures so
 the Controller entry surface can distinguish device settings from an
 unreachable discovery path.
 
+The provider's saved-program control seam exposes `setActiveProgram(id,
+{save})` and `deleteProgram(id)`. The extension provider forwards them over the
+existing generic JSON relay, so neither operation requires an extension release.
+Activation defaults to `save: true` at the provider boundary: the already-saved
+Pattern becomes the Controller's boot selection. Deletion is fire-and-forget at
+the protocol layer; callers refresh the program list and treat that device truth
+as confirmation. `NullControllerProvider` rejects both operations like every
+other disconnected write.
+
 ## 15. Identity, connection state, and live panel
 
 Connection state is keyed by IP; several Controllers may stay live with one
@@ -422,6 +431,11 @@ connection without a stable id is unclaimed but fully usable.
 `controllerStore` owns connection phase, discovery, active selection, push
 state, and the installed-map observation. `controllerPanelStore` polls the
 active Controller for config, telemetry, vars, controls, programs, and FPS.
+The config projection also retains the sequencer packet's optional
+`sequencerMode` (0 off, 1 shuffle, 2 playlist) and `runSequencer` fields when a
+later poll omits them. `activateProgram` sends a saved activation, invalidates
+the prior control seed, publishes the id optimistically, and polls immediately;
+`deleteProgram` sends the command and then refreshes the program inventory.
 The map is read once per connect (and on panel/profile open or explicit
 refresh) as raw `/pixelmap.dat` bytes; `installedMapObservation.ts` validates
 the blob and derives fingerprint, dimension, and count. Per-Controller

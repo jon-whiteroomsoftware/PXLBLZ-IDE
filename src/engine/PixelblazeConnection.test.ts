@@ -580,11 +580,15 @@ describe('PixelblazeConnection', () => {
       socket.simulateMessage({ brightness: 0.4, pixelCount: 256, name: 'pb', ver: '3.68' })
       socket.simulateMessage({
         activeProgram: { activeProgramId: 'pat1', name: 'X', controls: { sliderA: 0.7 } },
+        sequencerMode: 1,
+        runSequencer: true,
       })
       await expect(promise).resolves.toEqual({
         brightness: 0.4,
         activeProgramId: 'pat1',
         activeControls: { sliderA: 0.7 },
+        sequencerMode: 1,
+        runSequencer: true,
         name: 'pb',
         pixelCount: 256,
         firmwareVersion: '3.68',
@@ -654,10 +658,18 @@ describe('PixelblazeConnection', () => {
       })
     })
 
-    it('setActiveProgram sends {activeProgramId}', async () => {
+    it('setActiveProgram sends the active id and explicit boot-persistence flag', async () => {
       const { conn, socket } = await connected()
       conn.setActiveProgram('pat9')
-      expect(socket.lastFrame()).toEqual({ activeProgramId: 'pat9' })
+      expect(socket.lastFrame()).toEqual({ activeProgramId: 'pat9', save: false })
+      conn.setActiveProgram('pat10', true)
+      expect(socket.lastFrame()).toEqual({ activeProgramId: 'pat10', save: true })
+    })
+
+    it('deleteProgram sends exactly the named saved-program id', async () => {
+      const { conn, socket } = await connected()
+      conn.deleteProgram('pat9')
+      expect(socket.lastFrame()).toEqual({ deleteProgram: 'pat9' })
     })
 
     it('setBrightness sends {brightness, save}', async () => {

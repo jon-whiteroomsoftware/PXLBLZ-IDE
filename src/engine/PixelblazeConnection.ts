@@ -283,6 +283,8 @@ export class PixelblazeConnection {
   // higher-level connection code can read identity-adjacent fields (`boardType`,
   // `chipId`) without narrowing the packet too early.
   private lastSettings: Record<string, unknown> | null = null
+  private sequencerMode: number | null = null
+  private runSequencer: boolean | null = null
 
   /** True once the socket handshake is open and frames can flow. */
   get isConnected(): boolean {
@@ -435,6 +437,8 @@ export class PixelblazeConnection {
     boardType?: string
     chipId?: number
     firmwareVersion?: string
+    sequencerMode?: number
+    runSequencer?: boolean
   }> {
     if (!this.isConnected) {
       return Promise.reject(new Error('Cannot send: Pixelblaze connection is not open'))
@@ -452,6 +456,8 @@ export class PixelblazeConnection {
         brightness: typeof b === 'number' ? b : undefined,
         activeProgramId: active.activeProgramId,
         activeControls: active.controls,
+        sequencerMode: this.sequencerMode ?? undefined,
+        runSequencer: this.runSequencer ?? undefined,
         name: this._deviceName ?? undefined,
         pixelCount: this._pixelCount ?? undefined,
         boardType: typeof settings?.boardType === 'string' ? settings.boardType : undefined,
@@ -484,9 +490,14 @@ export class PixelblazeConnection {
     this.sendJson({ setControls: controls, save })
   }
 
-  /** Set the active pattern by id. Fire-and-forget; `{activeProgramId:<id>}`. */
-  setActiveProgram(id: string): void {
-    this.sendJson({ activeProgramId: id })
+  /** Set the active pattern by id. `save` persists the boot selection. */
+  setActiveProgram(id: string, save = false): void {
+    this.sendJson({ activeProgramId: id, save })
+  }
+
+  /** Delete one saved program by id. Fire-and-forget. */
+  deleteProgram(id: string): void {
+    this.sendJson({ deleteProgram: id })
   }
 
   /** Set global brightness (0..1). Fire-and-forget; with `save:true` it
@@ -714,6 +725,12 @@ export class PixelblazeConnection {
     // Passively capture the device's pixel count from the settings packet.
     if ('pixelCount' in msg && typeof msg.pixelCount === 'number') this._pixelCount = msg.pixelCount
     if ('brightness' in msg) this.lastSettings = msg
+    if ('sequencerMode' in msg && typeof msg.sequencerMode === 'number') {
+      this.sequencerMode = msg.sequencerMode
+    }
+    if ('runSequencer' in msg && typeof msg.runSequencer === 'boolean') {
+      this.runSequencer = msg.runSequencer
+    }
     // Resolve the first matching pending request by response field.
     if ('vars' in msg) this.fulfil('vars', msg.vars)
     if ('ack' in msg) this.fulfil('ack', msg.ack)
