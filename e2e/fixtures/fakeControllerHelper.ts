@@ -7,6 +7,10 @@ export interface FakeControllerHelperOptions {
   boardType: string
   mac: string
   pixelCount: number
+  controls?: Record<string, number>
+  vars?: Record<string, number>
+  sequencerMode?: number
+  runSequencer?: boolean
 }
 
 /** Installs a browser-side stand-in for the extension relay and a small slice of
@@ -101,7 +105,7 @@ export async function installFakeControllerHelper(
       const payload = message.payload as { text?: string; binary?: string } | undefined
       if (!payload?.text || typeof message.connId !== 'string') return
       const command = JSON.parse(payload.text) as Record<string, unknown>
-      if (command.getVars) reply(message.connId, { vars: {} })
+      if (command.getVars) reply(message.connId, { vars: fixture.vars ?? {} })
       if (command.getConfig) {
         reply(message.connId, {
           brightness: 0.5,
@@ -110,12 +114,20 @@ export async function installFakeControllerHelper(
           name: fixture.deviceName,
           pixelCount: fixture.pixelCount,
           ver: '3.67',
+          sequencerMode: fixture.sequencerMode,
+          runSequencer: fixture.runSequencer,
         })
-        reply(message.connId, { activeProgram: { activeProgramId, controls: {} } })
+        reply(message.connId, {
+          activeProgram: { activeProgramId, controls: fixture.controls ?? {} },
+          sequencerMode: fixture.sequencerMode,
+          runSequencer: fixture.runSequencer,
+        })
       }
       if (command.ping) reply(message.connId, { ack: 1 })
       if (command.listPrograms) replyPrograms(message.connId)
-      if (command.getControls !== undefined) reply(message.connId, { controls: {} })
+      if (command.getControls !== undefined) {
+        reply(message.connId, { controls: fixture.controls ?? {} })
+      }
       if (command.setCode && typeof command.setCode === 'object') {
         const id = (command.setCode as { id?: unknown }).id
         pendingProgramId = typeof id === 'string' ? id : null

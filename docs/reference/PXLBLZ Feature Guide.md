@@ -202,6 +202,17 @@ live and volatile; a pixel count change is a deliberate saved write.
 **Play/Pause** freezes or resumes the Controller's renderer without touching
 flash.
 
+The panel keeps high-value state visible without making every reading compete
+for height. **Pixelblaze**, **Pattern controls**, **Power**, and **Variables**
+fold independently and remember their state while you work. Power starts
+folded with its limiter, recent duty, and estimated draw in the header; expand
+it for the complete telemetry and estimation assumptions. A grey **limiting**
+label means idle and amber means the cap is intervening. The label follows a
+three-poll majority so a single noisy report does not flash the state. When the
+Controller is actively shuffling or playing a playlist, the corresponding
+read-only icon appears first in the panel header; its tooltip warns that the
+sequencer can replace a manual Pattern switch at the next interval.
+
 One flag worth knowing: firmware silently drops a map whose pixel count
 disagrees with the device, so the panel calls out the mismatch with an amber
 `256≠300` chip instead of letting it fail quietly.

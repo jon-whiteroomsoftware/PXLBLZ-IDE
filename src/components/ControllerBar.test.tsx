@@ -366,6 +366,44 @@ describe('ControllerBar', () => {
     expect(popover).not.toHaveTextContent('Desk')
     expect(popover).not.toHaveTextContent('10.0.0.5')
     expect(screen.getByTestId('controller-pill-remove')).toHaveAccessibleName('Disconnect Desk')
+    expect(screen.getByTestId('controller-panel-wrap')).toHaveClass('pt-0.5', 'pb-2', 'pr-3')
+  })
+
+  it('puts a read-only sequencer indicator first in the header controls only while sequencing', () => {
+    useControllerStore.setState({
+      extensionPresent: true,
+      activeIp: '10.0.0.5',
+      controllers: {
+        '10.0.0.5': { ip: '10.0.0.5', nickname: 'Desk', phase: 'live', mapDim: 2 },
+      },
+    })
+    useControllerPanelStore.setState({ sequencerMode: 1, runSequencer: true })
+
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+
+    const indicator = screen.getByTestId('controller-sequencer-indicator')
+    const disconnect = screen.getByRole('button', { name: 'Disconnect Desk' })
+    expect(indicator).toHaveAttribute('aria-label', 'Sequencer shuffle is on')
+    expect(indicator).toHaveAttribute(
+      'title',
+      'Sequencer: shuffle. The Controller is choosing Patterns on its own; a manual switch is overridden at the next interval.',
+    )
+    expect(indicator.querySelector('.lucide-shuffle')).toBeInTheDocument()
+    expect(
+      indicator.compareDocumentPosition(disconnect) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+
+    act(() => useControllerPanelStore.setState({ sequencerMode: 2, runSequencer: true }))
+    expect(indicator).toHaveAttribute('aria-label', 'Sequencer playlist is on')
+    expect(indicator.querySelector('.lucide-list-music')).toBeInTheDocument()
+
+    act(() => useControllerPanelStore.setState({ sequencerMode: 0, runSequencer: true }))
+    expect(screen.queryByTestId('controller-sequencer-indicator')).not.toBeInTheDocument()
+    act(() => useControllerPanelStore.setState({ sequencerMode: 1, runSequencer: false }))
+    expect(screen.queryByTestId('controller-sequencer-indicator')).not.toBeInTheDocument()
+    act(() => useControllerPanelStore.setState({ sequencerMode: 3, runSequencer: true }))
+    expect(screen.queryByTestId('controller-sequencer-indicator')).not.toBeInTheDocument()
   })
 
   it('keeps the panel header actions icon-only and fixed-size across renderer states', () => {

@@ -10,6 +10,15 @@ describe('DeckSlider', () => {
     expect(screen.getByText('0.75')).toBeInTheDocument()
   })
 
+  it('tightens label rhythm without changing the range input hit target', () => {
+    render(<DeckSlider label="brightness" value={0.75} min={0} max={1} step={0.01} onChange={() => {}} />)
+    const slider = screen.getByLabelText('brightness')
+    const label = slider.closest('label')
+    expect(label).toHaveClass('gap-0.5')
+    expect(screen.getByText('brightness')).toHaveClass('leading-tight')
+    expect(slider.className).not.toMatch(/\bh-/)
+  })
+
   it('uses canonical percentage readout and accessibility text when requested', () => {
     render(
       <DeckSlider

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { CircleArrowUp, Cpu, Pause, Play, RotateCw } from 'lucide-react'
+import { CircleArrowUp, Cpu, ListMusic, Pause, Play, RotateCw, Shuffle } from 'lucide-react'
 import { controlIcon, iconProps, transportIcon } from '@/components/iconScale'
 import {
   useControllerStore,
@@ -30,6 +30,7 @@ import { onControllerEntryRequested } from './controllerEntryEvents'
 import type { DiscoveredController } from '@/engine/ControllerProvider'
 import { routePath } from '@/engine/routes'
 import { CONTROLLER_HELPER_STORE_URL } from '@/engine/controllerHelper'
+import { describeControllerSequencer } from '@/engine/controllerPanelView'
 
 // The consolidated top-right Controller surface (#210). Supersedes the always-on
 // header IP input (ControllerConnect) and the standalone status dot
@@ -52,6 +53,25 @@ const PILL_TONE: Record<ControllerStatusTone, StatusTone> = {
   pending: 'connecting',
   live: 'ok',
   error: 'error',
+}
+
+function ControllerSequencerIndicator() {
+  const mode = useControllerPanelStore((state) => state.sequencerMode)
+  const running = useControllerPanelStore((state) => state.runSequencer)
+  const presentation = describeControllerSequencer(mode, running)
+  if (!presentation) return null
+  const Icon = presentation.mode === 'shuffle' ? Shuffle : ListMusic
+  return (
+    <span
+      role="img"
+      aria-label={presentation.accessibleLabel}
+      title={presentation.tooltip}
+      data-testid="controller-sequencer-indicator"
+      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-amber-400/40 bg-amber-400/[0.06] text-amber-300"
+    >
+      <Icon size={13} aria-hidden />
+    </span>
+  )
 }
 
 function ControllerPillButton({
@@ -226,6 +246,7 @@ function ControllerPillButton({
                 pill this popover hangs from). */}
             <ControllerPanelTitle />
             <div className="flex shrink-0 items-center gap-1">
+              <ControllerSequencerIndicator />
               <button
                 type="button"
                 onClick={onRemove}
@@ -277,7 +298,7 @@ function ControllerPillButton({
             </p>
           )}
           {actionRow}
-          <div className="py-2 pr-3">
+          <div className="pt-0.5 pb-2 pr-3" data-testid="controller-panel-wrap">
             <ControllerPanel />
           </div>
         </div>

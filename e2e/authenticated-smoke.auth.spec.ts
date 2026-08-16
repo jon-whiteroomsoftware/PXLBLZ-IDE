@@ -152,6 +152,92 @@ test('empty Controllers workspace leads through extension setup and Connect (#81
   await expect(page.getByRole('textbox', { name: 'Controller IP address' })).toBeVisible()
 })
 
+test('Controller popover keeps sequencer and power state legible in a compact deck (#866)', async ({ page }) => {
+  await installFakeControllerHelper(page, {
+    programs: [{ id: 'E2E866PROGRAM00001', name: 'EmberSpire' }],
+    activeProgramId: 'E2E866PROGRAM00001',
+    deviceName: 'Deck bench',
+    boardType: 'standard',
+    mac: '86:60:00:00:00:01',
+    pixelCount: 64,
+    controls: { sliderIntensity: 0.55, sliderCooling: 0.42 },
+    vars: {
+      phase: 0.5,
+      __px_powerDutyRecent: 0.78,
+      __px_powerDutySinceStart: 0.41,
+      __px_powerMilliAmps: 4000,
+      __px_powerLimit: 0.35,
+      __px_powerScale: 0.84,
+      __px_powerClipping: 1,
+    },
+    sequencerMode: 1,
+    runSequencer: true,
+  })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('studio/patterns/EmberSpire')
+
+  await page.getByRole('button', { name: 'Connect a Controller' }).click()
+  await page.getByRole('textbox', { name: 'Controller IP address' }).fill('192.168.8.224')
+  await page.getByTestId('controller-go').click()
+  const controllerPill = page.getByTestId('controller-pill')
+  await expect(controllerPill).toHaveAttribute('data-phase', 'live')
+  await controllerPill.click()
+
+  const popover = page.getByTestId('controller-panel-popover')
+  await expect(popover).toBeVisible()
+  const sequencer = page.getByTestId('controller-sequencer-indicator')
+  await expect(sequencer).toHaveAttribute('aria-label', 'Sequencer shuffle is on')
+  await expect(sequencer).toHaveAttribute(
+    'title',
+    'Sequencer: shuffle. The Controller is choosing Patterns on its own; a manual switch is overridden at the next interval.',
+  )
+  const indicatorBeforeDisconnect = await sequencer.evaluate((element) => (
+    element.compareDocumentPosition(document.querySelector('[data-testid="controller-pill-remove"]')!)
+    & Node.DOCUMENT_POSITION_FOLLOWING
+  ) !== 0)
+  expect(indicatorBeforeDisconnect).toBe(true)
+
+  const panel = page.getByTestId('controller-panel')
+  const pixelblaze = panel.getByRole('button', { name: 'Pixelblaze', exact: true })
+  const controls = panel.getByRole('button', { name: 'pattern controls', exact: true })
+  const power = panel.getByRole('button', { name: 'power', exact: true })
+  const variables = panel.getByRole('button', { name: 'variables', exact: true })
+  await expect(pixelblaze).toHaveAttribute('aria-expanded', 'true')
+  await expect(controls).toHaveAttribute('aria-expanded', 'true')
+  await expect(power).toHaveAttribute('aria-expanded', 'false')
+  await expect(variables).toHaveAttribute('aria-expanded', 'true')
+
+  const summary = page.getByTestId('controller-power-summary')
+  await expect(summary).toHaveText(/limiting · duty 78% · 1\.3 A/)
+  await expect(summary).not.toHaveClass(/truncate/)
+  await page.setViewportSize({ width: 320, height: 844 })
+  const summaryBounds = await summary.evaluate((element) => {
+    const summaryRect = element.getBoundingClientRect()
+    const buttonRect = element.closest('button')!.getBoundingClientRect()
+    return {
+      summaryLeft: summaryRect.left,
+      summaryRight: summaryRect.right,
+      buttonLeft: buttonRect.left,
+      buttonRight: buttonRect.right,
+    }
+  })
+  expect(summaryBounds.summaryLeft).toBeGreaterThanOrEqual(summaryBounds.buttonLeft)
+  expect(summaryBounds.summaryRight).toBeLessThanOrEqual(summaryBounds.buttonRight)
+  const foldedHeight = await popover.evaluate((element) => element.getBoundingClientRect().height)
+
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await power.click()
+  await expect(power).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.getByTestId('controller-power-limiting-value')).toHaveText('yes')
+  const expandedHeight = await popover.evaluate((element) => element.getBoundingClientRect().height)
+  expect(foldedHeight).toBeLessThanOrEqual(500)
+  expect(expandedHeight).toBeGreaterThan(foldedHeight)
+  expect(expandedHeight).toBeLessThanOrEqual(625)
+  await controllerPill.click()
+  await controllerPill.click()
+  await expect(power).toHaveAttribute('aria-expanded', 'true')
+})
+
 test('keeps the Shows header inside the center editor pane (#758)', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(showtimePath('studio/shows/stock-show-101-clips-cuts-blank-time'))

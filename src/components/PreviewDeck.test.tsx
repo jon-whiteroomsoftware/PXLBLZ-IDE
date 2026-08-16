@@ -72,6 +72,8 @@ describe('PreviewDeck (smoke)', () => {
     useEditorStore.setState({ nativeDim: 2, previewPatternName: 'Demo' })
     render(<PreviewDeck />)
 
+    expect(screen.getByTestId('preview-deck')).toBeInTheDocument()
+
     // Primary band: play/pause + the viewport embedding control.
     expect(screen.getByRole('button', { name: /run|pause/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Display' })).toBeInTheDocument()
@@ -195,14 +197,20 @@ describe('PreviewDeck (smoke)', () => {
     const header = toggle.closest('h4')?.parentElement
 
     expect(section).toHaveAttribute('data-expanded', 'true')
-    expect(section).toHaveClass('pb-2')
-    expect(header).toHaveClass('mb-1.5')
+    expect(section).toHaveClass('pb-1.5')
+    expect(header).toHaveClass('mb-1')
 
     fireEvent.click(toggle)
 
     expect(section).toHaveAttribute('data-expanded', 'false')
     expect(section).toHaveClass('pb-0')
     expect(header).toHaveClass('mb-0')
+  })
+
+  it('uses the compact trailing rhythm for Preview inner grids', () => {
+    const { container } = render(<PreviewDeck />)
+    const trailingGrids = container.querySelectorAll('[data-deck="grid"].mb-\\[5px\\]')
+    expect(trailingGrids).toHaveLength(3)
   })
 
   it('opens a focused pixel-count drawer and applies the preview count explicitly', async () => {

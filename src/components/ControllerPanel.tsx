@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { inlineIcon } from '@/components/iconScale'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
@@ -11,7 +11,9 @@ import {
   controllerSliderValue,
   describeControllerVars,
   describeControllerPowerTelemetry,
+  describeControllerPowerSummary,
   formatDutyCapPercent,
+  CONTROLLER_POWER_TELEMETRY_KEYS,
 } from '@/engine/controllerPanelView'
 import {
   DeckSection,
@@ -31,6 +33,37 @@ import {
   InstalledMapPresentation,
   useInstalledMapCandidates,
 } from '@/components/InstalledMapPresentation'
+import {
+  createLimitingSmoothingState,
+  updateLimitingSmoothing,
+  type LimitingSmoothingState,
+} from '@/engine/limitingSmoothing'
+
+function useSmoothedLimiting(sample: boolean | null, pollSnapshot: object): boolean {
+  const stateRef = useRef<LimitingSmoothingState | null>(null)
+  const [active, setActive] = useState(sample ?? false)
+  useEffect(() => {
+    if (sample == null) return
+    const next = stateRef.current
+      ? updateLimitingSmoothing(stateRef.current, sample)
+      : createLimitingSmoothingState(sample)
+    stateRef.current = next
+    setActive(next.active)
+  }, [sample, pollSnapshot])
+  return active
+}
+
+function LimitingWord({ active, testId }: { active: boolean; testId: string }) {
+  return (
+    <span
+      className={`transition-colors duration-700 ${active ? 'text-amber-300' : 'text-zinc-500'}`}
+      title={active ? 'The limiter is intervening now' : 'The limiter is idle'}
+      data-testid={testId}
+    >
+      limiting
+    </span>
+  )
+}
 
 // The live Controller panel (H6, issue #198). A dashboard built from the *same*
 // shared deck template as the preview control deck — read-only telemetry (active
@@ -180,6 +213,12 @@ export function ControllerPanel() {
     : null
   const installedMapCandidates = useInstalledMapCandidates(userMaps, installedMapPointCount)
 
+  const clippingRaw = vars[CONTROLLER_POWER_TELEMETRY_KEYS.clipping]
+  const limitingNow = useSmoothedLimiting(
+    typeof clippingRaw === 'number' ? clippingRaw > 0 : null,
+    vars,
+  )
+
   if (!connected) return null
 
   const controlDescriptions: Record<string, string> = {}
@@ -223,6 +262,7 @@ export function ControllerPanel() {
         }
       : undefined,
   )
+  const powerSummary = powerTelemetry ? describeControllerPowerSummary(powerTelemetry) : null
   const watchedVars = describeControllerVars(vars)
   const installedFirmware = controllerEntry?.firmwareVersion
     ? controllerEntry.firmwareVersion.startsWith('v')
@@ -257,7 +297,13 @@ export function ControllerPanel() {
           </a>
         </div>
       )}
-      <DeckSection label="Pixelblaze" hint={PANEL_HINT}>
+      <DeckSection
+        label="Pixelblaze"
+        hint={PANEL_HINT}
+        collapsible
+        persistKey="controller-panel:pixelblaze"
+        flushTop
+      >
         {/* Three bands, each given the width its content actually needs (#757). The
             section holds three different kinds of thing, and the old single 2-column
             grid treated them all as short label/value one-liners:
@@ -278,7 +324,7 @@ export function ControllerPanel() {
             Band 3's two columns are each genuinely two lines tall, so they bottom-align
             on their own — retiring the hand-tuned `h-10` stretch the old layout needed to
             fake it. */}
-        <div className="flex flex-col gap-y-2">
+        <div className="flex flex-col gap-y-1.5">
           <DeckSlider
             label="brightness"
             ariaLabel="Controller brightness"
@@ -309,7 +355,7 @@ export function ControllerPanel() {
           </ControllerFactRow>
 
           <div className="grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-x-4 items-start">
-            <div className="min-w-0 flex flex-col gap-y-2">
+            <div className="min-w-0 flex flex-col gap-y-1.5">
               <ControllerFactRow label="fps">
                 <span className="block truncate text-live tabular-nums">{fpsLabel}</span>
               </ControllerFactRow>
@@ -329,7 +375,17 @@ export function ControllerPanel() {
       </DeckSection>
 
       {controls.length > 0 && (
-        <DeckSection label="pattern controls" hint={controlsHint ?? undefined}>
+        <DeckSection
+          label="pattern controls"
+          hint={controlsHint ?? undefined}
+          collapsible
+          persistKey="controller-panel:controls"
+          summary={(
+            <span className="text-zinc-500">
+              {controls.length} control{controls.length === 1 ? '' : 's'}
+            </span>
+          )}
+        >
           <DeckGrid>
             {controls.map((c) =>
               c.kind === 'toggle' ? (
@@ -363,8 +419,35 @@ export function ControllerPanel() {
       )}
 
       {powerTelemetry && (
-        <DeckSection label="power" hint={POWER_HINT}>
-          <DeckGrid gapY="gap-y-1">
+        <DeckSection
+          label="power"
+          hint={POWER_HINT}
+          collapsible
+          persistKey="controller-panel:power"
+          defaultExpanded={false}
+          summary={powerSummary && (
+            <span
+              className="whitespace-nowrap tabular-nums"
+              title="limiting · recent duty · estimated draw"
+              data-testid="controller-power-summary"
+            >
+              <LimitingWord
+                active={limitingNow}
+                testId="controller-power-limiting-summary"
+              />
+              <span className="text-zinc-600"> · </span>
+              <span className="text-zinc-500">duty </span>
+              <span className="text-live">{powerSummary.dutyRecentLabel}</span>
+              {powerSummary.estimatedDrawLabel && (
+                <>
+                  <span className="text-zinc-600"> · </span>
+                  <span className="text-live">{powerSummary.estimatedDrawLabel}</span>
+                </>
+              )}
+            </span>
+          )}
+        >
+          <DeckGrid gapY="gap-y-[3px]">
             <div className="col-span-2">
               <DeckTelemetry label="duty recent / start" value={powerTelemetry.dutyLabel} />
             </div>
@@ -387,17 +470,25 @@ export function ControllerPanel() {
             )}
             <div className="col-span-2">
               <DeckCell label="limiting">
-                <span className="text-live tabular-nums truncate">
-                  <span>{powerTelemetry.clippingLabel}</span>
+                <span className="truncate tabular-nums">
+                  <span
+                    className={`transition-colors duration-700 ${limitingNow ? 'text-amber-300' : 'text-zinc-400'}`}
+                    data-testid="controller-power-limiting-value"
+                  >
+                    {powerTelemetry.clippingLabel}
+                  </span>
                   <span className="text-zinc-500"> · scaled to </span>
-                  <span>{powerTelemetry.scaleLabel}</span>
+                  <span className="text-live">{powerTelemetry.scaleLabel}</span>
                 </span>
               </DeckCell>
             </div>
             <div className="col-span-2">
               <DeckTelemetry label="est. draw" value={powerTelemetry.estimatedDrawLabel} />
               {powerTelemetry.estimatedDrawAssumptions && (
-                <div className="mt-0.5 text-right text-[10px] leading-tight text-zinc-500">
+                <div
+                  className="mt-0.5 truncate text-right text-[10px] leading-tight text-zinc-500"
+                  title={powerTelemetry.estimatedDrawAssumptions}
+                >
                   {powerTelemetry.estimatedDrawAssumptions}
                 </div>
               )}
@@ -407,8 +498,14 @@ export function ControllerPanel() {
       )}
 
       {watchedVars.length > 0 && (
-        <DeckSection label="variables" hint={VARS_HINT}>
-          <DeckGrid gapY="gap-y-1">
+        <DeckSection
+          label="variables"
+          hint={VARS_HINT}
+          collapsible
+          persistKey="controller-panel:variables"
+          summary={<span className="text-zinc-500">{watchedVars.length}</span>}
+        >
+          <DeckGrid gapY="gap-y-[3px]">
             {watchedVars.map((v) => (
               <DeckTelemetry key={v.name} label={v.name} value={v.value} />
             ))}

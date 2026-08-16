@@ -21,6 +21,7 @@ import {
 } from '@/store/controllerProfileStore'
 import { controllerInitialState, useControllerStore } from '@/store/controllerStore'
 import { encodeMapData } from '@/engine/mapPush'
+import { resetDeckSectionPersistenceForTests } from './Deck'
 
 class ConnectedProvider extends NullControllerProvider {
   config: ControllerConfig = {
@@ -77,6 +78,7 @@ class ConnectedProvider extends NullControllerProvider {
 }
 
 beforeEach(() => {
+  resetDeckSectionPersistenceForTests()
   useControllerStore.setState(controllerInitialState)
   useControllerPanelStore.setState(controllerPanelInitialState)
   useEditorStore.setState(editorInitialState)
@@ -107,6 +109,8 @@ describe('ControllerPanel', () => {
     await waitFor(() => expect(screen.getByText('30.0')).toBeInTheDocument())
     expect(screen.getByLabelText('Controller brightness')).toBeInTheDocument()
     expect(screen.queryByLabelText('Live duty cap')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pixelblaze' }).closest('[data-deck="section"]'))
+      .toHaveClass('mt-0', 'pt-0.5')
   })
 
   it('orders the compact Pixelblaze controls as brightness, map, then fps', async () => {
@@ -324,6 +328,33 @@ describe('ControllerPanel', () => {
     expect(screen.getByText('0.50')).toBeInTheDocument()
   })
 
+  it('makes every Controller section collapsible with useful folded defaults', async () => {
+    const provider = new ConnectedProvider()
+    provider.vars = {
+      phase: 0.5,
+      __px_powerDutyRecent: 0.29,
+      __px_powerDutySinceStart: 0.38,
+      __px_powerMilliAmps: 400,
+      __px_powerClipping: 0,
+    }
+    setControllerProvider(provider)
+    render(<ControllerPanel />)
+
+    const pixelblaze = await screen.findByRole('button', { name: 'Pixelblaze' })
+    const controls = screen.getByRole('button', { name: /^pattern controls$/i })
+    const power = screen.getByRole('button', { name: /^power$/i })
+    const variables = screen.getByRole('button', { name: /^variables$/i })
+    expect(pixelblaze).toHaveAttribute('aria-expanded', 'true')
+    expect(controls).toHaveAttribute('aria-expanded', 'true')
+    expect(power).toHaveAttribute('aria-expanded', 'false')
+    expect(variables).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.click(controls)
+    expect(screen.getByText('2 controls')).toBeInTheDocument()
+    fireEvent.click(variables)
+    expect(screen.getByText('1')).toBeInTheDocument()
+  })
+
   it('renders reserved power telemetry separately from watched vars', async () => {
     const provider = new ConnectedProvider()
     provider.vars = {
@@ -334,7 +365,13 @@ describe('ControllerPanel', () => {
       __px_powerScale: 0.84,
       __px_powerClipping: 1,
     }
-    const profile = defaultControllerProfile({ id: 'ctrl-1', deviceId: 'c1', now: 1 })
+    const profile = {
+      ...defaultControllerProfile({ id: 'ctrl-1', deviceId: 'c1', now: 1 }),
+      electricalProfile: {
+        ledPresetId: 'ws2811-12v-grouped' as const,
+        supplyBudget: { value: 3, unit: 'amps' as const },
+      },
+    }
     useControllerProfileStore.setState({
       profiles: [{
         ...profile,
@@ -355,18 +392,34 @@ describe('ControllerPanel', () => {
     setControllerProvider(provider)
     render(<ControllerPanel />)
 
-    await waitFor(() => expect(screen.getByText('power')).toBeInTheDocument())
+    const powerToggle = await screen.findByRole('button', { name: /^power$/i })
+    expect(powerToggle).toHaveAttribute('aria-expanded', 'false')
+    const summary = screen.getByTestId('controller-power-summary')
+    expect(summary).toHaveTextContent('limiting · duty 78% · 4.0 A · 48.3 W')
+    expect(summary).toHaveClass('whitespace-nowrap')
+    expect(summary).not.toHaveClass('truncate')
+    expect(screen.queryByLabelText('Live duty cap')).not.toBeInTheDocument()
+
+    fireEvent.click(powerToggle)
     expect(screen.getByText('78% / 41%')).toBeInTheDocument()
     expect(screen.getByText('35%')).toBeInTheDocument()
     expect(screen.getByLabelText('Live duty cap')).toHaveValue('0.35')
     expect(screen.getByText('84%')).toBeInTheDocument()
     expect(screen.getByText('yes')).toBeInTheDocument()
-    expect(screen.getByText('≈ 4.0 A')).toBeInTheDocument()
-    expect(screen.getByText('60 mA/px · 256 px · 40%')).toBeInTheDocument()
+    expect(screen.getByText('≈ 4.0 A · 48.3 W')).toBeInTheDocument()
+    expect(
+      screen.getByText('3-LED segments · 60 mA/addr @ 12V full white · 256 addr · 40%'),
+    ).toBeInTheDocument()
+    const assumptions = screen.getByTitle(
+      '3-LED segments · 60 mA/addr @ 12V full white · 256 addr · 40%',
+    )
+    expect(assumptions).toHaveClass('truncate')
 
     act(() => useControllerPanelStore.getState().setBrightness(0.3))
-    expect(screen.getByText('≈ 3.0 A')).toBeInTheDocument()
-    expect(screen.getByText('60 mA/px · 256 px · 30%')).toBeInTheDocument()
+    expect(screen.getByText('≈ 3.0 A · 36.2 W')).toBeInTheDocument()
+    expect(
+      screen.getByText('3-LED segments · 60 mA/addr @ 12V full white · 256 addr · 30%'),
+    ).toBeInTheDocument()
     expect(screen.getByText('phase')).toBeInTheDocument()
     expect(screen.queryByText('__px_powerDutyRecent')).not.toBeInTheDocument()
 
@@ -383,6 +436,34 @@ describe('ControllerPanel', () => {
     )
   })
 
+  it('smooths limiter colour over actual poll samples in folded and expanded Power', async () => {
+    const provider = new ConnectedProvider()
+    provider.vars = {
+      __px_powerDutyRecent: 0.5,
+      __px_powerMilliAmps: 500,
+      __px_powerClipping: 1,
+    }
+    setControllerProvider(provider)
+    render(<ControllerPanel />)
+
+    const power = await screen.findByRole('button', { name: /^power$/i })
+    const folded = await screen.findByTestId('controller-power-limiting-summary')
+    await waitFor(() => expect(folded).toHaveClass('text-amber-300'))
+    fireEvent.click(power)
+    const expanded = screen.getByTestId('controller-power-limiting-value')
+    expect(expanded).toHaveClass('text-amber-300')
+
+    act(() => useControllerPanelStore.setState({
+      vars: { ...provider.vars, __px_powerClipping: 0 },
+    }))
+    await waitFor(() => expect(expanded).toHaveClass('text-amber-300'))
+
+    act(() => useControllerPanelStore.setState({
+      vars: { ...provider.vars, __px_powerClipping: 0, sample: 2 },
+    }))
+    await waitFor(() => expect(expanded).toHaveClass('text-zinc-400'))
+  })
+
   it('keeps the live duty-cap readout compact across the low-value boundary', async () => {
     const provider = new ConnectedProvider()
     provider.vars = {
@@ -396,6 +477,7 @@ describe('ControllerPanel', () => {
     setControllerProvider(provider)
     const { rerender } = render(<ControllerPanel />)
 
+    fireEvent.click(await screen.findByRole('button', { name: /^power$/i }))
     const dutyCap = await screen.findByLabelText('Live duty cap')
     expect(dutyCap).toHaveAttribute('aria-valuetext', '11%')
     expect(screen.getByText('11%')).toBeInTheDocument()

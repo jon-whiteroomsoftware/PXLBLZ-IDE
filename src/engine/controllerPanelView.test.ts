@@ -6,6 +6,8 @@ import {
   controllerSliderValue,
   describeControllerVars,
   describeControllerPowerTelemetry,
+  describeControllerPowerSummary,
+  describeControllerSequencer,
 } from './controllerPanelView'
 
 const programs = [
@@ -133,6 +135,31 @@ describe('resolveActiveProgramName', () => {
     expect(
       describeControllerPanel({ programs, fps: null, mapPointCount: 16 }).mapCountMismatch,
     ).toBe(false)
+  })
+})
+
+describe('describeControllerSequencer', () => {
+  it('shows only running shuffle and playlist modes', () => {
+    expect(describeControllerSequencer(1, true)).toEqual({
+      mode: 'shuffle',
+      accessibleLabel: 'Sequencer shuffle is on',
+      tooltip: 'Sequencer: shuffle. The Controller is choosing Patterns on its own; a manual switch is overridden at the next interval.',
+    })
+    expect(describeControllerSequencer(2, true)).toEqual({
+      mode: 'playlist',
+      accessibleLabel: 'Sequencer playlist is on',
+      tooltip: 'Sequencer: playlist. The Controller is choosing Patterns on its own; a manual switch is overridden at the next interval.',
+    })
+  })
+
+  it.each([
+    [0, true],
+    [1, false],
+    [2, null],
+    [3, true],
+    [null, true],
+  ])('hides mode %s while running is %s', (mode, running) => {
+    expect(describeControllerSequencer(mode, running)).toBeNull()
   })
 })
 
@@ -289,7 +316,7 @@ describe('describeControllerPowerTelemetry', () => {
   })
 
   it('shows amps and watts from the matching Controller electrical profile', () => {
-    expect(describeControllerPowerTelemetry({
+    const telemetry = describeControllerPowerTelemetry({
       __px_powerDutyRecent: 0.5,
       __px_powerDutySinceStart: 0.4,
       __px_powerLimit: 0.5,
@@ -303,9 +330,26 @@ describe('describeControllerPowerTelemetry', () => {
         ledPresetId: 'ws2811-12v-grouped',
         supplyBudget: { value: 3, unit: 'amps' },
       },
-    })).toMatchObject({
+    })
+    expect(telemetry).toMatchObject({
       estimatedDrawLabel: '≈ 1.2 A · 14.4 W',
       estimatedDrawAssumptions: '3-LED segments · 60 mA/addr @ 12V full white · 100 addr · 50%',
+    })
+    expect(describeControllerPowerSummary(telemetry!)).toEqual({
+      dutyRecentLabel: '50%',
+      estimatedDrawLabel: '1.2 A · 14.4 W',
+    })
+  })
+
+  it('keeps the folded Power summary useful when only amps are available', () => {
+    const telemetry = describeControllerPowerTelemetry({
+      __px_powerDutyRecent: 0.29,
+      __px_powerDutySinceStart: 0.38,
+      __px_powerMilliAmps: 400,
+    })
+    expect(describeControllerPowerSummary(telemetry!)).toEqual({
+      dutyRecentLabel: '29%',
+      estimatedDrawLabel: '0.4 A',
     })
   })
 

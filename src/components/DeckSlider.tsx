@@ -87,8 +87,8 @@ export function DeckSlider({
   )
   const valueText = indeterminate ? undefined : formatValue(value)
   return (
-    <label className={`flex flex-col gap-1 ${className}`}>
-      <span className="text-zinc-400">{label}</span>
+    <label className={`flex flex-col gap-0.5 ${className}`} data-deck="slider">
+      <span className="text-zinc-400 leading-tight">{label}</span>
       <div className="flex items-center gap-2">
         <input
           type="range"

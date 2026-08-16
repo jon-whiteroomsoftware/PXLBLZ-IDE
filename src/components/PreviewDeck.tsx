@@ -87,7 +87,7 @@ const SHOW_PREVIEW_HINT = (
 // then the author's pattern controls; then the Variables turn-down.
 export function PreviewDeck({ showPrimaryBand = true }: { showPrimaryBand?: boolean }) {
   return (
-    <div className="font-mono pl-3">
+    <div className="font-mono pl-3" data-testid="preview-deck">
       {showPrimaryBand && <PrimaryBand />}
       {!showPrimaryBand && <ActiveMapBakeStatus standalone />}
       <SecondaryBand />
@@ -374,7 +374,7 @@ export function PreviewViewportSection({ profile }: { profile: 'pattern' | 'show
       hint={pattern ? PREVIEW_HINT : SHOW_PREVIEW_HINT}
       collapsible={pattern}
     >
-      <DeckGrid className="mb-2">
+      <DeckGrid className="mb-[5px]">
         <DeckSlider
           label="light size"
           ariaLabel="Light size"
@@ -410,7 +410,7 @@ export function PreviewViewportSection({ profile }: { profile: 'pattern' | 'show
           />
         )}
       </DeckGrid>
-      <DeckGrid gapY="gap-y-1" className="mb-2">
+      <DeckGrid gapY="gap-y-[3px]" className="mb-[5px]">
         <DeckCell label="renderer">
           <DeckSelect
             ariaLabel="Renderer"
@@ -433,7 +433,7 @@ export function PreviewViewportSection({ profile }: { profile: 'pattern' | 'show
         )}
       </DeckGrid>
       {pattern && (
-        <DeckGrid gapY="gap-y-1" className="mb-2 -mt-1.5">
+        <DeckGrid gapY="gap-y-[3px]" className="mb-[5px] -mt-1.5">
           <DeckTelemetry label="fps" value={fps === null ? '—' : fps.toFixed(1)} />
           <DeckTelemetry label="elapsed" value={elapsed === null ? '—' : `${(elapsed / 1000).toFixed(1)}s`} />
           {layoutLabel && <DeckTelemetry label="layout" value={layoutLabel} />}

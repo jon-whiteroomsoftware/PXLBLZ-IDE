@@ -101,6 +101,26 @@ export function describeControllerPanel({
   return { patternName, patternUnsaved, fpsLabel, pixelsLabel, mapPointsLabel, mapCountMismatch }
 }
 
+export interface ControllerSequencerPresentation {
+  mode: 'shuffle' | 'playlist'
+  accessibleLabel: string
+  tooltip: string
+}
+
+/** Read-only presentation for the two sequencer modes the firmware exposes. */
+export function describeControllerSequencer(
+  mode: number | null,
+  running: boolean | null,
+): ControllerSequencerPresentation | null {
+  if (!running || (mode !== 1 && mode !== 2)) return null
+  const label = mode === 1 ? 'shuffle' : 'playlist'
+  return {
+    mode: label,
+    accessibleLabel: `Sequencer ${label} is on`,
+    tooltip: `Sequencer: ${label}. The Controller is choosing Patterns on its own; a manual switch is overridden at the next interval.`,
+  }
+}
+
 // ── live controls + watched vars (H7, issue #199) ────────────────────────────
 // The device reports the running pattern's live controls and exported variables
 // as flat name→value maps (no kind metadata). We recover each control's kind from
@@ -184,6 +204,23 @@ export interface ControllerPowerTelemetryView {
   clippingLabel: string
   estimatedDrawLabel: string
   estimatedDrawAssumptions?: string
+}
+
+export interface ControllerPowerSummaryView {
+  dutyRecentLabel: string
+  estimatedDrawLabel: string | null
+}
+
+/** The high-value subset that remains visible while the Power deck is folded. */
+export function describeControllerPowerSummary(
+  telemetry: ControllerPowerTelemetryView,
+): ControllerPowerSummaryView {
+  return {
+    dutyRecentLabel: telemetry.dutyLabel.split('/')[0].trim(),
+    estimatedDrawLabel: telemetry.estimatedDrawLabel === PLACEHOLDER
+      ? null
+      : telemetry.estimatedDrawLabel.replace(/^≈\s*/, ''),
+  }
 }
 
 export interface ControllerPowerTelemetryContext {

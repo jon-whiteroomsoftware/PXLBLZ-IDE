@@ -443,6 +443,17 @@ proves the target disappeared and every unrelated id/name pair survived. Both
 confirmations are scoped to the provider/session that sent the command.
 Per-Controller snapshots include the sequencer fields, so reopening one
 Controller cannot inherit another's mode.
+The open Controller popover presents an amber shuffle or playlist indicator
+only when firmware reports mode 1 or 2 together with a running sequencer. The
+indicator is observational; sequencer control remains in the Pixelblaze UI.
+All four live-panel decks use the shared disclosure primitive. Pixelblaze,
+Pattern controls, and Variables start expanded; Power starts folded with a
+single-line summary of limiter state, recent duty, and estimated draw. Module
+session state preserves each disclosure across popover unmount/reopen without
+turning UI state into durable Controller data. Limiter presentation consumes
+every vars poll and uses the strict majority of the latest three samples; a
+tie retains the prior state. Both the folded and expanded labels transition
+between structural grey and amber over 700 ms.
 The map is read once per connect (and on panel/profile open or explicit
 refresh) as raw `/pixelmap.dat` bytes; `installedMapObservation.ts` validates
 the blob and derives fingerprint, dimension, and count. Per-Controller
