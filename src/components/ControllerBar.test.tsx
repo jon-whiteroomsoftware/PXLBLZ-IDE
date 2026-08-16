@@ -949,6 +949,11 @@ describe('ControllerBar', () => {
     expect(screen.getByRole('option', { name: /Auroraswitching/ })).toBeDisabled()
     expect(screen.getByRole('option', { name: 'Zebra' })).toBeDisabled()
     expect(activateProgram).toHaveBeenCalledTimes(1)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    const trigger = screen.getByRole('button', { name: 'Switch running Pattern' })
+    expect(screen.queryByRole('listbox', { name: 'Switch the running Pattern' })).not.toBeInTheDocument()
+    expect(trigger).toBeEnabled()
+    expect(trigger).toHaveFocus()
 
     await act(async () => resolveActivation?.())
     await waitFor(() => expect(screen.queryByRole('listbox', { name: 'Switch the running Pattern' })).not.toBeInTheDocument())

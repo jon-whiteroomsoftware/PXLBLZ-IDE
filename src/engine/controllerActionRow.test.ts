@@ -165,21 +165,6 @@ describe('describeControllerActionRow', () => {
       hasRunOnlyActive: true,
     }).switch).toEqual({ enabled: true })
 
-    expect(describeControllerActionRow({
-      route: studioPattern,
-      patternName: 'Aurora Drift',
-      status: connected,
-      compileStatus: 'good',
-      runAlreadyPushed: false,
-      saveAlreadyPushed: false,
-      working: false,
-      programsRead: true,
-      programCount: 2,
-      switching: true,
-    }).switch).toEqual({
-      enabled: false,
-      reason: 'A Controller Pattern switch is already in progress',
-    })
   })
 })
 

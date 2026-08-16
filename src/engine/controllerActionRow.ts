@@ -14,7 +14,6 @@ export interface ControllerActionRowInput {
   programsRead: boolean
   programCount: number
   hasRunOnlyActive?: boolean
-  switching?: boolean
 }
 
 export interface ControllerActionRowView {
@@ -40,7 +39,6 @@ function describeSwitchGate({
   programsRead,
   programCount,
   hasRunOnlyActive,
-  switching,
 }: Pick<
   ControllerActionRowInput,
   | 'status'
@@ -48,16 +46,12 @@ function describeSwitchGate({
   | 'programsRead'
   | 'programCount'
   | 'hasRunOnlyActive'
-  | 'switching'
 >): SendGate {
   if (status.kind !== 'connected') {
     return disabled('Connect this Controller to switch saved Patterns')
   }
   if (working) {
     return disabled('Wait for the current send to finish before switching Patterns')
-  }
-  if (switching) {
-    return disabled('A Controller Pattern switch is already in progress')
   }
   if (!programsRead) {
     return disabled('Saved Patterns have not been read from this Controller')
@@ -85,7 +79,6 @@ export function describeControllerActionRow({
   programsRead,
   programCount,
   hasRunOnlyActive = false,
-  switching = false,
 }: ControllerActionRowInput): ControllerActionRowView {
   const switchGate = describeSwitchGate({
     status,
@@ -93,7 +86,6 @@ export function describeControllerActionRow({
     programsRead,
     programCount,
     hasRunOnlyActive,
-    switching,
   })
   if (!isStudioPatternRoute(route) || !patternName) {
     const gate = disabled(OPEN_PATTERN_REASON)
