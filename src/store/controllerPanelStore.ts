@@ -3,6 +3,7 @@ import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { applyControllerPixelCount } from '@/engine/applyControllerPixelCount'
 import { throttleTrailing } from '@/engine/throttleTrailing'
 import { getProgramLabels } from '@/engine/controllerMetadataStorage'
+import type { ControllerConfig } from '@/engine/ControllerProvider'
 import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
 import { POWER_LIMIT_VARIABLE_NAME } from '@/engine/powerTelemetry'
 
@@ -138,6 +139,8 @@ type ControllerPanelSnapshot = Pick<
   ControllerPanelState,
   | 'brightness'
   | 'activeProgramId'
+  | 'sequencerMode'
+  | 'runSequencer'
   | 'programs'
   | 'pixelCount'
   | 'pixelCountPending'
@@ -173,6 +176,8 @@ function snapshotFromState(state: ControllerPanelState): ControllerPanelSnapshot
   return {
     brightness: state.brightness,
     activeProgramId: state.activeProgramId,
+    sequencerMode: state.sequencerMode,
+    runSequencer: state.runSequencer,
     programs: state.programs,
     pixelCount: state.pixelCount,
     pixelCountPending: state.pixelCountPending,
@@ -184,6 +189,36 @@ function snapshotFromState(state: ControllerPanelState): ControllerPanelSnapshot
 
 function saveSeededSnapshot(state: ControllerPanelState): void {
   if (seededForIp) panelSnapshots.set(seededForIp, snapshotFromState(state))
+}
+
+function configPatch(
+  state: ControllerPanelState,
+  config: ControllerConfig,
+): Partial<ControllerPanelState> {
+  const reseed = config.activeProgramId !== controlsSeededFor
+  if (reseed) controlsSeededFor = config.activeProgramId
+  return {
+    activeProgramId: config.activeProgramId,
+    sequencerMode: config.sequencerMode ?? state.sequencerMode,
+    runSequencer: config.runSequencer ?? state.runSequencer,
+    brightness: state.brightness ?? config.brightness ?? null,
+    pixelCount:
+      state.pixelCountPending != null
+        ? state.pixelCountPending
+        : config.pixelCount ?? state.pixelCount,
+    activeControls: reseed ? config.activeControls ?? {} : state.activeControls,
+  }
+}
+
+function controllerSessionMatches(
+  session: number,
+  provider: ReturnType<typeof getControllerProvider>,
+): boolean {
+  return session === panelSession && provider === getControllerProvider()
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 export const useControllerPanelStore = create<ControllerPanelState>()((set, get) => ({
@@ -258,30 +293,7 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     ])
     if (session !== panelSession) return
     if (config) {
-      set((s) => {
-        // Reseed the controls only when the device's active pattern changes; in
-        // between, the slider owns them so a scrub never fights the poll.
-        const reseed = config.activeProgramId !== controlsSeededFor
-        if (reseed) controlsSeededFor = config.activeProgramId
-        return {
-          activeProgramId: config.activeProgramId,
-          sequencerMode: config.sequencerMode ?? s.sequencerMode,
-          runSequencer: config.runSequencer ?? s.runSequencer,
-          // Seed brightness once (?? on the existing value), then slider-owned.
-          brightness: s.brightness ?? config.brightness ?? null,
-          // Pixel count is device config (editable via setPixelCount, #213);
-          // refresh it from each poll, falling back to the last known value. An
-          // optimistic local edit is reconciled here once the device reports back.
-          // While a write is in flight (`pixelCountPending` set) keep showing the
-          // pending value — a poll mid-write still reports the *old* count and would
-          // flash the input back to it. The hold is owned and always cleared by
-          // `setPixelCount` (in its finally), so poll only reads it, never clears it —
-          // a poll alone can't strand the input disabled.
-          pixelCount:
-            s.pixelCountPending != null ? s.pixelCountPending : config.pixelCount ?? s.pixelCount,
-          activeControls: reseed ? config.activeControls ?? {} : s.activeControls,
-        }
-      })
+      set((state) => configPatch(state, config))
     }
     if (telemetry && acceptsFps) set({ fps: telemetry.fps, fpsSourceIp })
     if (vars) set({ vars })
@@ -359,14 +371,59 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
   },
 
   activateProgram: async (programId) => {
-    await getControllerProvider().setActiveProgram(programId, { save: true })
+    const session = panelSession
+    const provider = getControllerProvider()
+    await provider.setActiveProgram(programId, { save: true })
+    if (!controllerSessionMatches(session, provider)) {
+      throw new Error('Controller session changed before Pattern activation could be confirmed.')
+    }
     controlsSeededFor = undefined
     set({ activeProgramId: programId })
-    await get().poll()
+    let config: ControllerConfig
+    try {
+      config = await provider.getConfig()
+    } catch (error) {
+      throw new Error(
+        `Could not confirm Controller Pattern activation: ${errorMessage(error)}`,
+        { cause: error },
+      )
+    }
+    if (!controllerSessionMatches(session, provider)) {
+      throw new Error('Controller session changed before Pattern activation could be confirmed.')
+    }
+    set((state) => configPatch(state, config))
+    if (config.activeProgramId !== programId) {
+      throw new Error(
+        `Controller did not activate Pattern ${programId}; active Pattern is ${config.activeProgramId ?? 'unknown'}.`,
+      )
+    }
   },
 
   deleteProgram: async (programId) => {
-    await getControllerProvider().deleteProgram(programId)
-    await get().refreshPrograms()
+    const session = panelSession
+    const ip = seededForIp
+    const provider = getControllerProvider()
+    await provider.deleteProgram(programId)
+    let programs: ProgramListEntry[]
+    try {
+      programs = await provider.listPrograms()
+    } catch (error) {
+      throw new Error(
+        `Could not confirm Controller Pattern deletion: ${errorMessage(error)}`,
+        { cause: error },
+      )
+    }
+    if (!controllerSessionMatches(session, provider)) {
+      throw new Error('Controller session changed before Pattern deletion could be confirmed.')
+    }
+    set((state) => ({
+      programs,
+      ...(ip
+        ? { programsByController: { ...state.programsByController, [ip]: programs } }
+        : {}),
+    }))
+    if (programs.some((program) => program.id === programId)) {
+      throw new Error(`Controller still reports Pattern ${programId} after deletion.`)
+    }
   },
 }))
