@@ -954,9 +954,12 @@ describe('ControllerBar', () => {
     expect(screen.queryByRole('listbox', { name: 'Switch the running Pattern' })).not.toBeInTheDocument()
     expect(trigger).toBeEnabled()
     expect(trigger).toHaveFocus()
+    const elsewhere = screen.getByRole('button', { name: 'Add a Controller' })
+    elsewhere.focus()
 
     await act(async () => resolveActivation?.())
     await waitFor(() => expect(screen.queryByRole('listbox', { name: 'Switch the running Pattern' })).not.toBeInTheDocument())
+    expect(elsewhere).toHaveFocus()
   })
 
   it('keeps the switch menu open with the Controller reason after activation fails', async () => {

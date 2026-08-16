@@ -41,6 +41,7 @@ export function ControllerProgramSwitch({
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const filterRef = useRef<HTMLInputElement>(null)
+  const menuLifecycleRef = useRef(0)
   const view = useMemo(() => projectControllerProgramMenu({
     programs,
     activeProgramId,
@@ -49,6 +50,7 @@ export function ControllerProgramSwitch({
   }), [activeProgramId, filter, programLabels, programs])
 
   const close = useCallback((restoreFocus: boolean) => {
+    menuLifecycleRef.current += 1
     setOpen(false)
     setFilter('')
     setFailure(null)
@@ -95,12 +97,13 @@ export function ControllerProgramSwitch({
 
   const switchTo = async (row: ControllerProgramMenuRow) => {
     if (!gate.enabled || row.disabled || switchingId !== null) return
+    const menuLifecycle = menuLifecycleRef.current
     setFailure(null)
     try {
       await activateProgram(row.id)
-      close(true)
+      if (menuLifecycleRef.current === menuLifecycle) close(true)
     } catch (error) {
-      setFailure(errorMessage(error))
+      if (menuLifecycleRef.current === menuLifecycle) setFailure(errorMessage(error))
     }
   }
 
@@ -144,6 +147,7 @@ export function ControllerProgramSwitch({
         onClick={() => {
           if (open) close(true)
           else {
+            menuLifecycleRef.current += 1
             setFailure(null)
             setOpen(true)
           }
