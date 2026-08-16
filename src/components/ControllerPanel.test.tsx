@@ -453,15 +453,15 @@ describe('ControllerPanel', () => {
     const expanded = screen.getByTestId('controller-power-limiting-value')
     expect(expanded).toHaveClass('text-amber-300')
 
-    act(() => useControllerPanelStore.setState({
-      vars: { ...provider.vars, __px_powerClipping: 0 },
-    }))
+    provider.vars = { ...provider.vars, __px_powerClipping: 0 }
+    await act(async () => useControllerPanelStore.getState().poll())
     await waitFor(() => expect(expanded).toHaveClass('text-amber-300'))
+    expect(expanded).toHaveTextContent('yes')
 
-    act(() => useControllerPanelStore.setState({
-      vars: { ...provider.vars, __px_powerClipping: 0, sample: 2 },
-    }))
+    provider.vars = { ...provider.vars, __px_powerClipping: 0 }
+    await act(async () => useControllerPanelStore.getState().poll())
     await waitFor(() => expect(expanded).toHaveClass('text-zinc-400'))
+    expect(expanded).toHaveTextContent('no')
   })
 
   it('keeps the live duty-cap readout compact across the low-value boundary', async () => {

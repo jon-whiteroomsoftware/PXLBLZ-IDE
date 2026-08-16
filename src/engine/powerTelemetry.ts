@@ -2,6 +2,7 @@ export const POWER_RECENT_WINDOW_MS = 2_000
 export const POWER_CAP_RESPONSE_MS = 250
 export const POWER_SINCE_START_MAX_FRAMES = 16_384
 export const POWER_LIMIT_VARIABLE_NAME = '__px_powerLimit'
+export const POWER_CLIPPING_VARIABLE_NAME = '__px_powerClipping'
 
 export interface PowerTelemetryEstimatorState {
   recentDuty: number

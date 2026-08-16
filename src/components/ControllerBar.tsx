@@ -55,10 +55,13 @@ const PILL_TONE: Record<ControllerStatusTone, StatusTone> = {
   error: 'error',
 }
 
-function ControllerSequencerIndicator() {
+function ControllerSequencerIndicator({ ip, live }: { ip: string; live: boolean }) {
   const mode = useControllerPanelStore((state) => state.sequencerMode)
   const running = useControllerPanelStore((state) => state.runSequencer)
-  const presentation = describeControllerSequencer(mode, running)
+  const sourceIp = useControllerPanelStore((state) => state.configSourceIp)
+  const presentation = live && sourceIp === ip
+    ? describeControllerSequencer(mode, running)
+    : null
   if (!presentation) return null
   const Icon = presentation.mode === 'shuffle' ? Shuffle : ListMusic
   return (
@@ -246,7 +249,7 @@ function ControllerPillButton({
                 pill this popover hangs from). */}
             <ControllerPanelTitle />
             <div className="flex shrink-0 items-center gap-1">
-              <ControllerSequencerIndicator />
+              <ControllerSequencerIndicator ip={ip} live={phase === 'live'} />
               <button
                 type="button"
                 onClick={onRemove}

@@ -153,13 +153,52 @@ test('empty Controllers workspace leads through extension setup and Connect (#81
 })
 
 test('Controller popover keeps sequencer and power state legible in a compact deck (#866)', async ({ page }) => {
+  const profile: ControllerProfile = {
+    id: 'e2e-866-controller',
+    name: 'Deck bench',
+    deviceId: 'pixelblaze_pb32_86d4ee549434',
+    lastKnownDeviceName: 'Deck bench',
+    lastSeenIp: '192.168.8.224',
+    lastKnownPixelCount: 256,
+    board: { kind: 'pixelblaze-v3-standard', hardwareRevision: 3.5, firmwareVersion: '3.67' },
+    electricalProfile: {
+      ledPresetId: 'ws2811-12v-grouped',
+      supplyBudget: { value: 5, unit: 'amps' },
+    },
+    inputs: [],
+    globalTransforms: [
+      {
+        id: 'hardware-brightness',
+        type: 'hardware-brightness',
+        enabled: false,
+        mixinId: 'builtin:hardware-brightness',
+        inputId: '',
+        mode: 'multiply-output',
+      },
+      {
+        id: 'power-cap',
+        type: 'power-cap',
+        enabled: true,
+        mixinId: 'builtin:power-cap',
+        mode: 'direct',
+        maxDuty: 0.35,
+      },
+    ],
+    keepPatternsUpToDate: false,
+    patternBindings: [],
+    zones: [],
+    updatedAt: Date.now(),
+  }
+  const created = await page.context().request.post('/api/controllers', { data: profile })
+  expect(created.ok(), `POST /api/controllers -> ${created.status()}`).toBe(true)
+
   await installFakeControllerHelper(page, {
     programs: [{ id: 'E2E866PROGRAM00001', name: 'EmberSpire' }],
     activeProgramId: 'E2E866PROGRAM00001',
     deviceName: 'Deck bench',
-    boardType: 'standard',
-    mac: '86:60:00:00:00:01',
-    pixelCount: 64,
+    boardType: 'pb32',
+    mac: '34:94:54:ee:d4:86',
+    pixelCount: 256,
     controls: { sliderIntensity: 0.55, sliderCooling: 0.42 },
     vars: {
       phase: 0.5,
@@ -208,7 +247,7 @@ test('Controller popover keeps sequencer and power state legible in a compact de
   await expect(variables).toHaveAttribute('aria-expanded', 'true')
 
   const summary = page.getByTestId('controller-power-summary')
-  await expect(summary).toHaveText(/limiting · duty 78% · 1\.3 A/)
+  await expect(summary).toHaveText(/limiting · duty 78% · 5\.0 A · 60\.4 W/)
   await expect(summary).not.toHaveClass(/truncate/)
   await page.setViewportSize({ width: 320, height: 844 })
   const summaryBounds = await summary.evaluate((element) => {

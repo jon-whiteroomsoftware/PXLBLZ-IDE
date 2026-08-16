@@ -5,7 +5,15 @@ import { throttleTrailing } from '@/engine/throttleTrailing'
 import { getProgramLabels } from '@/engine/controllerMetadataStorage'
 import type { ControllerConfig } from '@/engine/ControllerProvider'
 import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
-import { POWER_LIMIT_VARIABLE_NAME } from '@/engine/powerTelemetry'
+import {
+  POWER_CLIPPING_VARIABLE_NAME,
+  POWER_LIMIT_VARIABLE_NAME,
+} from '@/engine/powerTelemetry'
+import {
+  createLimitingSmoothingState,
+  updateLimitingSmoothing,
+  type LimitingSmoothingState,
+} from '@/engine/limitingSmoothing'
 
 // Polling orchestration for the live Controller panel (H6, issue #198).
 //
@@ -44,6 +52,8 @@ interface ControllerPanelState {
   sequencerMode: number | null
   /** Whether the Controller's sequencer is currently running. */
   runSequencer: boolean | null
+  /** Controller whose latest successful config read produced the config fields. */
+  configSourceIp: string | null
   /** The Controller's program list, fetched once on start for id→name resolution. */
   programs: ProgramListEntry[]
   /** Connection-time program inventories keyed by Controller IP. Controller profile
@@ -75,6 +85,9 @@ interface ControllerPanelState {
   /** The running pattern's exported variables (name → value), read-only. Refreshed
    *  every poll. */
   vars: Record<string, number>
+  /** Three-poll limiter majority, updated only by successful vars polls. Kept in
+   *  the per-Controller snapshot so closing the popover does not reset history. */
+  limitingSmoothing: LimitingSmoothingState | null
   /** One-shot warm fetch: program list + a single poll, without
    *  starting the interval. Called on connect (#225) so the panel opens populated
    *  instead of empty-then-jumping, and reused by `start()` as its first tick. FPS
@@ -124,6 +137,7 @@ export const controllerPanelInitialState = {
   activeProgramId: undefined,
   sequencerMode: null as number | null,
   runSequencer: null as boolean | null,
+  configSourceIp: null,
   programs: [] as ProgramListEntry[],
   programsByController: {} as Record<string, ProgramListEntry[]>,
   fps: null,
@@ -132,6 +146,7 @@ export const controllerPanelInitialState = {
   pixelCountPending: null,
   activeControls: {} as Record<string, number>,
   vars: {} as Record<string, number>,
+  limitingSmoothing: null as LimitingSmoothingState | null,
   programLabels: {} as Record<string, string>,
 }
 
@@ -141,11 +156,13 @@ type ControllerPanelSnapshot = Pick<
   | 'activeProgramId'
   | 'sequencerMode'
   | 'runSequencer'
+  | 'configSourceIp'
   | 'programs'
   | 'pixelCount'
   | 'pixelCountPending'
   | 'activeControls'
   | 'vars'
+  | 'limitingSmoothing'
   | 'programLabels'
 >
 
@@ -178,11 +195,13 @@ function snapshotFromState(state: ControllerPanelState): ControllerPanelSnapshot
     activeProgramId: state.activeProgramId,
     sequencerMode: state.sequencerMode,
     runSequencer: state.runSequencer,
+    configSourceIp: state.configSourceIp,
     programs: state.programs,
     pixelCount: state.pixelCount,
     pixelCountPending: state.pixelCountPending,
     activeControls: state.activeControls,
     vars: state.vars,
+    limitingSmoothing: state.limitingSmoothing,
     programLabels: state.programLabels,
   }
 }
@@ -194,6 +213,7 @@ function saveSeededSnapshot(state: ControllerPanelState): void {
 function configPatch(
   state: ControllerPanelState,
   config: ControllerConfig,
+  sourceIp: string | null = seededForIp ?? null,
 ): Partial<ControllerPanelState> {
   const reseed = config.activeProgramId !== controlsSeededFor
   if (reseed) controlsSeededFor = config.activeProgramId
@@ -201,12 +221,28 @@ function configPatch(
     activeProgramId: config.activeProgramId,
     sequencerMode: config.sequencerMode ?? state.sequencerMode,
     runSequencer: config.runSequencer ?? state.runSequencer,
+    configSourceIp: sourceIp,
     brightness: state.brightness ?? config.brightness ?? null,
     pixelCount:
       state.pixelCountPending != null
         ? state.pixelCountPending
         : config.pixelCount ?? state.pixelCount,
     activeControls: reseed ? config.activeControls ?? {} : state.activeControls,
+  }
+}
+
+function varsPollPatch(
+  state: ControllerPanelState,
+  vars: Record<string, number>,
+): Pick<ControllerPanelState, 'vars' | 'limitingSmoothing'> {
+  const clipping = vars[POWER_CLIPPING_VARIABLE_NAME]
+  if (typeof clipping !== 'number') return { vars, limitingSmoothing: null }
+  const sample = clipping > 0
+  return {
+    vars,
+    limitingSmoothing: state.limitingSmoothing
+      ? updateLimitingSmoothing(state.limitingSmoothing, sample)
+      : createLimitingSmoothingState(sample),
   }
 }
 
@@ -296,7 +332,7 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
       set((state) => configPatch(state, config))
     }
     if (telemetry && acceptsFps) set({ fps: telemetry.fps, fpsSourceIp })
-    if (vars) set({ vars })
+    if (vars) set((state) => varsPollPatch(state, vars))
   },
 
   refreshPrograms: async (ip = seededForIp) => {

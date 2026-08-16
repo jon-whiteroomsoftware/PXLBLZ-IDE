@@ -450,10 +450,11 @@ All four live-panel decks use the shared disclosure primitive. Pixelblaze,
 Pattern controls, and Variables start expanded; Power starts folded with a
 single-line summary of limiter state, recent duty, and estimated draw. Module
 session state preserves each disclosure across popover unmount/reopen without
-turning UI state into durable Controller data. Limiter presentation consumes
-every vars poll and uses the strict majority of the latest three samples; a
-tie retains the prior state. Both the folded and expanded labels transition
-between structural grey and amber over 700 ms.
+turning UI state into durable Controller data. Per-Controller panel snapshots
+also retain limiter history. Only a successful device vars poll contributes a
+sample; an optimistic live-cap edit does not. Folded and expanded presentation
+use the same strict majority of the latest three samples, with a tie retaining
+the prior state, and transition between structural grey and amber over 700 ms.
 The map is read once per connect (and on panel/profile open or explicit
 refresh) as raw `/pixelmap.dat` bytes; `installedMapObservation.ts` validates
 the blob and derives fingerprint, dimension, and count. Per-Controller

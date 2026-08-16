@@ -9,7 +9,10 @@ import {
   resolvePowerCapMilliamps,
   type PowerCapSettings,
 } from './powerCap'
-import { POWER_LIMIT_VARIABLE_NAME } from './powerTelemetry'
+import {
+  POWER_CLIPPING_VARIABLE_NAME,
+  POWER_LIMIT_VARIABLE_NAME,
+} from './powerTelemetry'
 import {
   findLedConstructionPreset,
   resolveControllerElectricalProfile,
@@ -276,7 +279,7 @@ export const CONTROLLER_POWER_TELEMETRY_KEYS = {
   milliamps: '__px_powerMilliAmps',
   limit: POWER_LIMIT_VARIABLE_NAME,
   scale: '__px_powerScale',
-  clipping: '__px_powerClipping',
+  clipping: POWER_CLIPPING_VARIABLE_NAME,
 } as const
 
 const RESERVED_POWER_TELEMETRY_NAMES = new Set<string>(

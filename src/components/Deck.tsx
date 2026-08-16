@@ -94,7 +94,9 @@ export function DeckSection({
               {hint}
             </HelpHint>
           )}
-          className={`${expanded ? 'mb-1' : 'mb-0'} h-[18px]`}
+          className={expanded || !summary
+            ? `${expanded ? 'mb-1' : 'mb-0'} h-[18px]`
+            : 'mb-0'}
         />
       ) : (
         <div
@@ -132,14 +134,17 @@ export function DeckDisclosureHeader({
   className?: string
 }) {
   return (
-    <div className={`flex items-center gap-1.5 ${className}`} data-deck="section-header">
+    <div
+      className={`flex gap-1.5 ${summary ? 'items-start' : 'items-center'} ${className}`}
+      data-deck="section-header"
+    >
       <h4 className="min-w-0 flex-1">
         <button
           type="button"
           aria-expanded={expanded}
           aria-label={label}
           onClick={onToggle}
-          className="flex h-full w-full items-center gap-1 text-left text-[10.5px] font-semibold uppercase tracking-wider text-structural transition-colors hover:text-live"
+          className={`flex h-full w-full items-center gap-x-1 text-left text-[10.5px] font-semibold uppercase tracking-wider text-structural transition-colors hover:text-live ${summary ? 'flex-wrap gap-y-0.5' : ''}`}
         >
           <span className="shrink-0">{label}</span>
           <ChevronDown
@@ -148,7 +153,7 @@ export function DeckDisclosureHeader({
           />
           {summary && (
             <span
-              className="ml-auto shrink-0 whitespace-nowrap text-right text-[10.5px] font-normal normal-case tracking-normal"
+              className="order-last w-full shrink-0 whitespace-nowrap text-left text-[10.5px] font-normal normal-case tracking-normal"
               data-deck="section-summary"
               data-testid="deck-section-summary"
             >

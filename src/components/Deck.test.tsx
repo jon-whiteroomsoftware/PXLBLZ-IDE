@@ -41,9 +41,11 @@ describe('DeckSection', () => {
     )
 
     const summary = screen.getByTestId('deck-section-summary')
-    expect(summary).toHaveClass('whitespace-nowrap')
+    expect(summary).toHaveClass('w-full', 'whitespace-nowrap', 'text-left')
     expect(summary).not.toHaveClass('truncate')
-    expect(screen.getByRole('button', { name: 'Power' })).toHaveAttribute('aria-expanded', 'false')
+    const toggle = screen.getByRole('button', { name: 'Power' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle.closest('[data-deck="section-header"]')).not.toHaveClass('h-[18px]')
   })
 
   it('uses the compact section and header rhythm without shrinking disclosure hit targets', () => {

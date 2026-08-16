@@ -377,7 +377,11 @@ describe('ControllerBar', () => {
         '10.0.0.5': { ip: '10.0.0.5', nickname: 'Desk', phase: 'live', mapDim: 2 },
       },
     })
-    useControllerPanelStore.setState({ sequencerMode: 1, runSequencer: true })
+    useControllerPanelStore.setState({
+      sequencerMode: 1,
+      runSequencer: true,
+      configSourceIp: '10.0.0.5',
+    })
 
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
@@ -403,6 +407,29 @@ describe('ControllerBar', () => {
     act(() => useControllerPanelStore.setState({ sequencerMode: 1, runSequencer: false }))
     expect(screen.queryByTestId('controller-sequencer-indicator')).not.toBeInTheDocument()
     act(() => useControllerPanelStore.setState({ sequencerMode: 3, runSequencer: true }))
+    expect(screen.queryByTestId('controller-sequencer-indicator')).not.toBeInTheDocument()
+  })
+
+  it('never attributes another or non-live Controller sequencer state to the open popover', () => {
+    useControllerStore.setState({
+      extensionPresent: true,
+      activeIp: '10.0.0.6',
+      controllers: {
+        '10.0.0.5': { ip: '10.0.0.5', nickname: 'A', phase: 'live', mapDim: 2 },
+        '10.0.0.6': { ip: '10.0.0.6', nickname: 'B', phase: 'error', mapDim: 2 },
+      },
+    })
+    useControllerPanelStore.setState({
+      sequencerMode: 1,
+      runSequencer: true,
+      configSourceIp: '10.0.0.5',
+    })
+
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle B panel' }))
+    expect(screen.queryByTestId('controller-sequencer-indicator')).not.toBeInTheDocument()
+
+    act(() => useControllerPanelStore.setState({ configSourceIp: '10.0.0.6' }))
     expect(screen.queryByTestId('controller-sequencer-indicator')).not.toBeInTheDocument()
   })
 

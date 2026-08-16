@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useSyncExternalStore, type ReactNode } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { inlineIcon } from '@/components/iconScale'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
@@ -13,7 +13,6 @@ import {
   describeControllerPowerTelemetry,
   describeControllerPowerSummary,
   formatDutyCapPercent,
-  CONTROLLER_POWER_TELEMETRY_KEYS,
 } from '@/engine/controllerPanelView'
 import {
   DeckSection,
@@ -33,26 +32,6 @@ import {
   InstalledMapPresentation,
   useInstalledMapCandidates,
 } from '@/components/InstalledMapPresentation'
-import {
-  createLimitingSmoothingState,
-  updateLimitingSmoothing,
-  type LimitingSmoothingState,
-} from '@/engine/limitingSmoothing'
-
-function useSmoothedLimiting(sample: boolean | null, pollSnapshot: object): boolean {
-  const stateRef = useRef<LimitingSmoothingState | null>(null)
-  const [active, setActive] = useState(sample ?? false)
-  useEffect(() => {
-    if (sample == null) return
-    const next = stateRef.current
-      ? updateLimitingSmoothing(stateRef.current, sample)
-      : createLimitingSmoothingState(sample)
-    stateRef.current = next
-    setActive(next.active)
-  }, [sample, pollSnapshot])
-  return active
-}
-
 function LimitingWord({ active, testId }: { active: boolean; testId: string }) {
   return (
     <span
@@ -198,6 +177,7 @@ export function ControllerPanel() {
   const pixelCount = useControllerPanelStore((s) => s.pixelCount)
   const activeControls = useControllerPanelStore((s) => s.activeControls)
   const vars = useControllerPanelStore((s) => s.vars)
+  const limitingSmoothing = useControllerPanelStore((s) => s.limitingSmoothing)
   const setBrightness = useControllerPanelStore((s) => s.setBrightness)
   const setControl = useControllerPanelStore((s) => s.setControl)
   const setPowerLimit = useControllerPanelStore((s) => s.setPowerLimit)
@@ -213,11 +193,7 @@ export function ControllerPanel() {
     : null
   const installedMapCandidates = useInstalledMapCandidates(userMaps, installedMapPointCount)
 
-  const clippingRaw = vars[CONTROLLER_POWER_TELEMETRY_KEYS.clipping]
-  const limitingNow = useSmoothedLimiting(
-    typeof clippingRaw === 'number' ? clippingRaw > 0 : null,
-    vars,
-  )
+  const limitingNow = limitingSmoothing?.active ?? false
 
   if (!connected) return null
 
@@ -475,7 +451,7 @@ export function ControllerPanel() {
                     className={`transition-colors duration-700 ${limitingNow ? 'text-amber-300' : 'text-zinc-400'}`}
                     data-testid="controller-power-limiting-value"
                   >
-                    {powerTelemetry.clippingLabel}
+                    {limitingNow ? 'yes' : 'no'}
                   </span>
                   <span className="text-zinc-500"> · scaled to </span>
                   <span className="text-live">{powerTelemetry.scaleLabel}</span>

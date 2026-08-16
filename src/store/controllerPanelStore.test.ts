@@ -129,6 +129,7 @@ describe('controllerPanelStore', () => {
     const s = useControllerPanelStore.getState()
     expect(s.brightness).toBe(0.5)
     expect(s.activeProgramId).toBe('def')
+    expect(s.configSourceIp).toBe('192.168.8.224')
     expect(s.fps).toBeNull()
     expect(s.fpsSourceIp).toBeNull()
     expect(s.programs).toHaveLength(2)
@@ -440,6 +441,42 @@ describe('controllerPanelStore', () => {
       __px_powerDutyRecent: 0.5,
     })
     expect(provider.variableWrites).toEqual([{ __px_powerLimit: 0.2 }])
+  })
+
+  it('counts only vars polls for limiter smoothing and retains history across a reopen', async () => {
+    provider.vars = {
+      __px_powerDutyRecent: 0.5,
+      __px_powerLimit: 0.35,
+      __px_powerClipping: 1,
+    }
+    useControllerPanelStore.getState().start('limiter-ip')
+    await flush()
+    expect(useControllerPanelStore.getState().limitingSmoothing).toMatchObject({
+      samples: [true],
+      active: true,
+    })
+
+    provider.vars = { ...provider.vars, __px_powerClipping: 0 }
+    await useControllerPanelStore.getState().poll()
+    expect(useControllerPanelStore.getState().limitingSmoothing).toMatchObject({
+      samples: [true, false],
+      active: true,
+    })
+
+    useControllerPanelStore.getState().setPowerLimit(0.2)
+    expect(useControllerPanelStore.getState().limitingSmoothing).toMatchObject({
+      samples: [true, false],
+      active: true,
+    })
+
+    useControllerPanelStore.getState().stop()
+    useControllerPanelStore.getState().start('limiter-ip')
+    expect(useControllerPanelStore.getState().limitingSmoothing?.active).toBe(true)
+    await flush()
+    expect(useControllerPanelStore.getState().limitingSmoothing).toMatchObject({
+      samples: [true, false, false],
+      active: false,
+    })
   })
 
   it('setBrightness writes through volatile (never save:true) and updates locally', () => {
