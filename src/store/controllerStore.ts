@@ -1712,6 +1712,20 @@ export const useControllerStore = create<ControllerConnectionState>()(
             // emit — never raw editor source. Use the last *clean* preview source so a
             // broken edit is never compiled and pushed.
             const activeController = get().controllers[controllerId]
+            const provider = getControllerProvider()
+            const expectedStatus = provider.getStatus()
+            const expectedLiveEpoch = activeController?.liveEpoch ?? 0
+            const assertDeviceSession = () => {
+              if (
+                expectedStatus.kind !== 'connected'
+                || get().activeIp !== controllerId
+                || (get().controllers[controllerId]?.liveEpoch ?? 0) !== expectedLiveEpoch
+                || getControllerProvider() !== provider
+                || !statusMatchesConnectedController(expectedStatus.controller, provider.getStatus())
+              ) {
+                throw new Error('Controller session changed before Pattern delivery')
+              }
+            }
             await waitForControllerProfileWrites()
             const profiles = await getPersonalContentProvider().listControllerProfiles().catch(() => [])
             const profile = activeController
@@ -1769,10 +1783,11 @@ export const useControllerStore = create<ControllerConnectionState>()(
             const previewImage = persist
               ? (await buildPreviewJpeg(bundled)) ?? undefined
               : undefined
+            assertDeviceSession()
             const { created, programId } = await queueControllerDeviceWrite(
               controllerId,
               () => pushPattern({
-              provider: getControllerProvider(),
+              provider,
               controllerId,
               patternId,
               source: code,
@@ -1786,8 +1801,10 @@ export const useControllerStore = create<ControllerConnectionState>()(
               saveBindings: setControllerBindings,
               loadPushRecords: getPushRecords,
               savePushRecords: setPushRecords,
+              assertDeviceSession,
               }),
             )
+            assertDeviceSession()
             assumeRendererPlaying(controllerId)
             useControllerPanelStore.getState().noteProgramActivated(programId, controllerId)
             // Record the name we pushed against the device program id (#237) so the

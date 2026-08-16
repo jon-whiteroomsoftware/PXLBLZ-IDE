@@ -1819,6 +1819,32 @@ describe('controllerStore (keyed)', () => {
       expect(created.get('10.0.0.5')!.compiledSources).toHaveLength(1)
     })
 
+    it('rejects a Pattern push when the active Controller changes during preparation', async () => {
+      await store().addController('10.0.0.5')
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ previewSource: PATTERN_SRC, previewPatternName: 'Twinkle' })
+      let releaseWrite!: () => void
+      void queueControllerProfileWrite('switch-race', async () => {
+        await new Promise<void>((resolve) => {
+          releaseWrite = resolve
+        })
+      })
+
+      const push = store().pushActivePattern()
+      await vi.waitFor(() => expect(releaseWrite).toBeTypeOf('function'))
+      await store().addController('10.0.0.6')
+      releaseWrite()
+      await push
+
+      expect(created.get('10.0.0.5')!.compiledSources).toEqual([])
+      expect(created.get('10.0.0.6')!.compiledSources).toEqual([])
+      expect(store().pushResult).toEqual({
+        ok: false,
+        message: 'Controller session changed before Pattern delivery',
+      })
+      expect(useControllerPanelStore.getState().configSourceIp).not.toBe('10.0.0.5')
+    })
+
     it('pushes patterns bundled with user cloud libraries', async () => {
       const source = 'export function render(index) { MyLib.paint(index) }'
       await store().addController({
