@@ -1,5 +1,16 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import { ChevronDown, ChevronUp, Download, RefreshCw } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronUp,
+  Download,
+  Play,
+  RefreshCw,
+  SlidersHorizontal,
+  Sun,
+  Trash2,
+  Variable,
+  Zap,
+} from 'lucide-react'
 import { controlIcon, inlineIcon } from '@/components/iconScale'
 import { Button } from '@/components/ui/button'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
@@ -24,8 +35,8 @@ import { controllerForProfile } from '@/engine/controllerProfileConnection'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import {
   describeControllerSavedPrograms,
-  CONTROLLER_SAVED_PATTERN_STATUS_LABELS,
   sortControllerSavedPrograms,
+  type ControllerSavedProgramFeatures,
   type ControllerSavedPatternStatus,
   type ControllerSavedProgramSort,
   type ControllerSavedProgramRow,
@@ -49,22 +60,17 @@ import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useShowStore } from '@/store/showStore'
 import { useRouterStore } from '@/store/routerStore'
-import type { ArtifactShowOutputContract } from '@/engine/artifactStamp'
 import {
   controllerSavedProgramsReadKey,
   useControllerSavedProgramsLiveStore,
 } from '@/store/controllerSavedProgramsLiveStore'
 
-const tableHeadClass = 'border-b border-seam pb-2 pr-2 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-zinc-500'
+const tableHeadClass = 'border-b border-seam pb-1.5 pr-2 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-zinc-500'
 const EMPTY_CONTROLLER_PROGRAMS: ProgramListEntry[] = []
-const tableCellClass = 'border-t border-zinc-900/85 py-2 pr-2 align-baseline'
+const tableCellClass = 'border-t border-zinc-900/85 py-1.5 pr-2 align-middle'
 const tableClass = 'w-full table-fixed border-collapse text-xs [&_tbody_tr:first-child_td]:border-t-0'
-const patternInventoryColumns = [
-  { id: 'pattern', className: 'w-[44%]' },
-  { id: 'pattern-id', className: 'w-[18%]' },
-  { id: 'status', className: 'w-[18%]' },
-  { id: 'output-or-action', className: 'w-[20%]' },
-] as const
+const iconButtonClass = 'inline-flex h-6 w-6 items-center justify-center rounded border border-transparent text-zinc-400 hover:border-zinc-700 hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-transparent disabled:hover:bg-transparent'
+const actionClusterClass = 'inline-flex items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100'
 
 type SavedProgramsReadStatus = 'offline' | 'loading' | 'ready' | 'error'
 
@@ -76,52 +82,69 @@ type PendingProgramImport = {
 const statusPresentation: Record<ControllerSavedPatternStatus, { title: string; className: string }> = {
   current: {
     title: 'Current: the saved Pattern matches this Controller profile and renderer.',
-    className: 'text-emerald-300',
+    className: 'bg-emerald-400',
   },
   stale: {
     title: 'Push again: a code-affecting profile or renderer setting changed since this Pattern was saved.',
-    className: 'text-amber-300',
+    className: 'bg-amber-400',
   },
   unmanaged: {
     title: 'Unknown: no recognized durable profile signature is available for this saved Pattern.',
-    className: 'text-zinc-500',
+    className: 'bg-zinc-600',
   },
   queued: {
     title: 'Queued: waiting to sync with this Controller profile.',
-    className: 'text-zinc-500',
+    className: 'animate-pulse bg-zinc-500',
   },
   updating: {
     title: 'Syncing: updating this saved Pattern for the Controller profile.',
-    className: 'animate-pulse text-amber-300',
+    className: 'animate-pulse bg-amber-400',
   },
   failed: {
     title: 'Failed: PXLBLZ could not update this saved Pattern.',
-    className: 'text-red-300',
+    className: 'bg-red-500',
   },
 }
 
-function PatternStatusBadge({ status }: { status: ControllerSavedPatternStatus }) {
+function PatternStatusDot({ status }: { status: ControllerSavedPatternStatus }) {
   const presentation = statusPresentation[status]
   return (
     <span
       title={presentation.title}
-      className={`whitespace-nowrap font-mono font-medium uppercase tracking-[0.12em] ${IDE_MICROTYPE.required.sizeClassName} ${presentation.className}`}
+      aria-label={presentation.title}
+      className="inline-flex h-4 items-center"
     >
-      {CONTROLLER_SAVED_PATTERN_STATUS_LABELS[status]}
+      <span aria-hidden className={`size-2 rounded-full ${presentation.className}`} />
     </span>
   )
 }
 
-function SavedProgramOutputContract({ contract }: { contract?: ArtifactShowOutputContract }) {
-  if (!contract) return <span>-</span>
-  if (contract.kind === 'installation') {
-    return (
-      <span title={contract.outputMap?.fingerprint ? `Map fingerprint ${contract.outputMap.fingerprint}` : undefined}>
-        Installation · {contract.pixelCount} px{contract.outputMap ? ` · ${contract.outputMap.name}` : ''}
-      </span>
-    )
-  }
-  return <span>Portable 2D · variable · {contract.mapClasses.join('/')}</span>
+const EMPTY_PROFILE_FEATURES: ControllerSavedProgramFeatures = {
+  powerCap: false,
+  hardwareBrightness: false,
+  controlBinding: false,
+  variableBinding: false,
+}
+
+function ProfileFeatureIcons({ features }: { features?: ControllerSavedProgramFeatures }) {
+  const resolved = features ?? EMPTY_PROFILE_FEATURES
+  const items = [
+    [resolved.powerCap, Zap, 'Power cap is baked into this saved Pattern'],
+    [resolved.hardwareBrightness, Sun, 'Hardware brightness input is baked into this saved Pattern'],
+    [resolved.controlBinding, SlidersHorizontal, "A hardware input drives one of this Pattern's controls"],
+    [resolved.variableBinding, Variable, "A hardware input assigns one of this Pattern's variables"],
+  ] as const
+  const shown = items.filter(([visible]) => visible)
+  if (shown.length === 0) return <span className="text-zinc-700">·</span>
+  return (
+    <span className="inline-flex items-center gap-1 text-zinc-400">
+      {shown.map(([, Icon, title]) => (
+        <span key={title} title={title} aria-label={title} className="inline-flex">
+          <Icon size={12} aria-hidden />
+        </span>
+      ))}
+    </span>
+  )
 }
 
 function EmptyState({ children }: { children: React.ReactNode }) {
@@ -132,26 +155,85 @@ function EmptyState({ children }: { children: React.ReactNode }) {
   )
 }
 
-function PatternInventoryColumns() {
+function SavedProgramSourceNote({ program }: { program: ControllerSavedProgramRow }) {
+  if (program.kind === 'foreign') return null
+  const available = program.routeId !== null
+  if (program.sourceKind === 'show') {
+    const output = `Show output${program.showOutputContract
+      ? ` · ${program.showOutputContract.kind === 'installation'
+        ? `Installation · ${program.showOutputContract.pixelCount} px`
+        : 'Portable 2D'}`
+      : ''}`
+    return (
+      <>
+        <span className="block truncate text-[10px] text-zinc-500">{output}</span>
+        {!available && (
+          <span className="block text-[10px] text-amber-400/65">Source Show unavailable</span>
+        )}
+      </>
+    )
+  }
+  if (available) return null
   return (
-    <colgroup>
-      {patternInventoryColumns.map((column) => (
-        <col key={column.id} className={column.className} />
-      ))}
-    </colgroup>
+    <span className="block text-[10px] text-amber-400/65">Source Pattern unavailable</span>
   )
 }
 
-function SavedProgramSourceNote({ program }: { program: ControllerSavedProgramRow }) {
-  const available = program.routeId !== null
-  const label = program.sourceKind === 'show'
-    ? (available ? 'Show output' : 'Source Show unavailable')
-    : (!available ? 'Source Pattern unavailable' : null)
-  if (!label) return null
+function SavedProgramNameCell({
+  program,
+  running,
+  showsEnabled,
+  onOpen,
+}: {
+  program: ControllerSavedProgramRow
+  running: boolean
+  showsEnabled: boolean
+  onOpen: (routeId: string) => void
+}) {
+  const title = [
+    program.name,
+    `Program id ${program.programId}`,
+    ...(program.deviceName !== program.name
+      ? [`On the Controller as “${program.deviceName}”`]
+      : []),
+  ].join('\n')
+  const canOpen = program.kind === 'owned'
+    && program.routeId !== null
+    && (program.sourceKind !== 'show' || showsEnabled)
+  const nameClass = `block max-w-full truncate text-left font-sans leading-snug ${running
+    ? 'font-medium text-amber-300'
+    : program.kind === 'owned'
+      ? 'font-medium text-live/90'
+      : 'text-zinc-500'}`
+
   return (
-    <span className={`block text-[10px] ${available ? 'text-zinc-500' : 'text-amber-400/65'}`}>
-      {label}
-    </span>
+    <td className={`${tableCellClass} overflow-hidden`}>
+      <span className="flex min-w-0 items-center gap-2">
+        <span
+          aria-hidden={running ? undefined : true}
+          aria-label={running ? 'Running now' : undefined}
+          title={running ? 'Running now' : undefined}
+          className={`size-1.5 shrink-0 rounded-full ${running
+            ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,.8)]'
+            : 'bg-transparent'}`}
+        />
+        <span className="min-w-0">
+          {canOpen ? (
+            <button
+              type="button"
+              title={title}
+              className={`${nameClass} transition-colors hover:text-amber-300`}
+              onClick={() => onOpen(program.routeId!)}
+            >
+              {program.name}
+            </button>
+          ) : (
+            <span title={title} className={nameClass}>{program.name}</span>
+          )}
+          <SavedProgramSourceNote program={program} />
+        </span>
+      </span>
+    </td>
   )
 }
 
@@ -177,7 +259,7 @@ function ManagedPatternReconciliation({
   const total = Math.max(managedCount, 1)
 
   return (
-    <section className="border-b border-seam bg-zinc-950/55 px-4 py-3">
+    <section className="border-b border-seam bg-zinc-950/55 px-4 py-2">
       <label className="flex cursor-pointer items-center justify-between gap-4">
         <span className="text-xs font-medium text-zinc-200">
           Keep PXLBLZ Patterns up to date when Controller settings change
@@ -288,30 +370,63 @@ function ImportProgramDialog({
   )
 }
 
-function ProgramImportButton({
+function SavedProgramRowActions({
   program,
+  running,
   disabled,
   importing,
+  activating,
+  onRun,
   onImport,
 }: {
   program: ControllerSavedProgramRow
+  running: boolean
   disabled: boolean
   importing: boolean
-  onImport: (program: ControllerSavedProgramRow) => void
+  activating: boolean
+  onRun: (program: ControllerSavedProgramRow) => void
+  onImport?: (program: ControllerSavedProgramRow) => void
 }) {
   return (
-    <Button
-      type="button"
-      size="xs"
-      variant="ghost"
-      aria-label={`Import ${program.name}`}
-      disabled={disabled}
-      className={`${sectionActionButtonClass} w-full min-w-0 max-w-full px-1 text-[10px]`}
-      onClick={() => onImport(program)}
-    >
-      <Download {...inlineIcon} aria-hidden />
-      {importing ? 'Reading' : 'Import'}
-    </Button>
+    <span className={actionClusterClass}>
+      <button
+        type="button"
+        className={iconButtonClass}
+        aria-label={`Run ${program.name} on the Controller`}
+        title={running ? 'Running now' : 'Run on the Controller (switches the running Pattern)'}
+        disabled={disabled || running}
+        onClick={() => onRun(program)}
+      >
+        {activating
+          ? <RefreshCw {...controlIcon} className="animate-spin" aria-hidden />
+          : <Play {...controlIcon} aria-hidden className={running ? 'text-emerald-400' : undefined} />}
+      </button>
+      {onImport && (
+        <button
+          type="button"
+          className={iconButtonClass}
+          aria-label={`Import ${program.name}`}
+          title={importing ? 'Reading…' : 'Import into Studio'}
+          disabled={disabled}
+          onClick={() => onImport(program)}
+        >
+          {importing
+            ? <RefreshCw {...controlIcon} className="animate-spin" aria-hidden />
+            : <Download {...controlIcon} aria-hidden />}
+        </button>
+      )}
+      <button
+        type="button"
+        className={`${iconButtonClass} hover:text-red-300`}
+        aria-label={`Delete ${program.name} from the Controller`}
+        title={running
+          ? 'Running now — switch to another Pattern first'
+          : 'Delete support follows in this Controller inventory update'}
+        disabled
+      >
+        <Trash2 {...controlIcon} aria-hidden />
+      </button>
+    </span>
   )
 }
 
@@ -320,11 +435,13 @@ function SortableTableHead({
   label,
   sort,
   onSort,
+  labelClassName = '',
 }: {
   field: ControllerSavedProgramSort['field']
   label: string
   sort: ControllerSavedProgramSort
   onSort: (field: ControllerSavedProgramSort['field']) => void
+  labelClassName?: string
 }) {
   const active = sort.field === field
   return (
@@ -334,7 +451,7 @@ function SortableTableHead({
         className="inline-flex items-center gap-1 rounded-sm text-left hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live/60"
         onClick={() => onSort(field)}
       >
-        {label}
+        <span className={labelClassName}>{label}</span>
         {active && (sort.direction === 'ascending'
           ? <ChevronUp {...inlineIcon} aria-hidden />
           : <ChevronDown {...inlineIcon} aria-hidden />)}
@@ -348,8 +465,11 @@ function SavedProgramsInventory({
   programs,
   hasSnapshot,
   showsEnabled,
+  activeProgramId,
+  activatingProgramId,
   onRefresh,
   onOpen,
+  onRun,
   onImport,
   importingProgramId,
   error,
@@ -359,8 +479,11 @@ function SavedProgramsInventory({
   programs: ControllerSavedProgramsView
   hasSnapshot: boolean
   showsEnabled: boolean
+  activeProgramId: string | undefined
+  activatingProgramId: string | null
   onRefresh: () => void
   onOpen: (routeId: string) => void
+  onRun: (program: ControllerSavedProgramRow) => void
   onImport: (program: ControllerSavedProgramRow) => void
   importingProgramId: string | null
   error: string | null
@@ -386,6 +509,7 @@ function SavedProgramsInventory({
     field,
     direction: current.field === field && current.direction === 'ascending' ? 'descending' : 'ascending',
   }))
+  const actionsBusy = activatingProgramId !== null || importingProgramId !== null
   return (
     <section className="border-b border-seam px-4 py-4">
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -428,49 +552,67 @@ function SavedProgramsInventory({
       ) : presentedPrograms.owned.length === 0 ? (
         <EmptyState>No PXLBLZ Patterns are saved on this Controller.</EmptyState>
       ) : (
-        <div className="overflow-x-auto">
-          <table className={tableClass} aria-label="Saved PXLBLZ Patterns">
-            <PatternInventoryColumns />
-            <thead>
-              <tr>
-                <SortableTableHead field="pattern" label="Pattern" sort={sort} onSort={updateSort} />
-                <SortableTableHead field="pattern-id" label="Pattern ID" sort={sort} onSort={updateSort} />
-                <SortableTableHead field="status" label="Status" sort={sort} onSort={updateSort} />
-                <th className={tableHeadClass}>Output</th>
-              </tr>
-            </thead>
-            <tbody>
-              {presentedPrograms.owned.map((program) => (
-                <tr key={program.programId}>
-                  <td className={`${tableCellClass} overflow-hidden`}>
-                    <span className="block min-w-0">
-                      {program.routeId && (program.sourceKind !== 'show' || showsEnabled) ? (
-                        <button
-                          type="button"
-                          title={program.name}
-                          className="block max-w-full whitespace-normal break-words text-left font-sans font-medium leading-snug text-live transition-colors hover:text-amber-300"
-                          onClick={() => onOpen(program.routeId!)}
-                        >
-                          {program.name}
-                        </button>
-                      ) : (
-                        <span className="block whitespace-normal break-words font-sans leading-snug text-zinc-300">{program.name}</span>
-                      )}
-                      <SavedProgramSourceNote program={program} />
-                    </span>
-                  </td>
-                  <td title={program.programId} className={`${tableCellClass} truncate font-mono text-zinc-400`}>{program.programId}</td>
+        <table className={tableClass} aria-label="Saved PXLBLZ Patterns">
+          <colgroup>
+            <col className="w-[58%]" />
+            <col className="w-[16%]" />
+            <col className="w-[8%]" />
+            <col className="w-[18%]" />
+          </colgroup>
+          <thead>
+            <tr>
+              <SortableTableHead field="pattern" label="Pattern" sort={sort} onSort={updateSort} />
+              <th
+                className={tableHeadClass}
+                title="Profile features baked into the saved artifact: power cap, hardware brightness, input-driven control, input-assigned variable"
+              >
+                Profile
+              </th>
+              <SortableTableHead
+                field="status"
+                label="Status"
+                labelClassName="sr-only"
+                sort={sort}
+                onSort={updateSort}
+              />
+              <th className={`${tableHeadClass} text-right`}><span className="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {presentedPrograms.owned.map((program) => {
+              const running = program.programId === activeProgramId
+              return (
+                <tr
+                  key={program.programId}
+                  className={`group ${running ? 'bg-emerald-500/[0.04]' : ''}`}
+                >
+                  <SavedProgramNameCell
+                    program={program}
+                    running={running}
+                    showsEnabled={showsEnabled}
+                    onOpen={onOpen}
+                  />
                   <td className={tableCellClass}>
-                    <PatternStatusBadge status={statusFor(program)} />
+                    <ProfileFeatureIcons features={program.profileFeatures} />
                   </td>
-                  <td className={`${tableCellClass} truncate font-mono text-[11.5px] text-zinc-400`}>
-                    <SavedProgramOutputContract contract={program.showOutputContract} />
+                  <td className={tableCellClass}>
+                    <PatternStatusDot status={statusFor(program)} />
+                  </td>
+                  <td className={`${tableCellClass} text-right`}>
+                    <SavedProgramRowActions
+                      program={program}
+                      running={running}
+                      disabled={actionsBusy}
+                      activating={activatingProgramId === program.programId}
+                      importing={false}
+                      onRun={onRun}
+                    />
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              )
+            })}
+          </tbody>
+        </table>
       )}
       {showInventory && (
         <>
@@ -480,38 +622,47 @@ function SavedProgramsInventory({
           {presentedPrograms.foreign.length === 0 ? (
             <EmptyState>No other Patterns are saved on this Controller.</EmptyState>
           ) : (
-            <div className="overflow-x-auto">
-              <table className={tableClass} aria-label="Other Patterns">
-                <PatternInventoryColumns />
-                <thead>
-                  <tr>
-                    <SortableTableHead field="pattern" label="Pattern" sort={sort} onSort={updateSort} />
-                    <SortableTableHead field="pattern-id" label="Pattern ID" sort={sort} onSort={updateSort} />
-                    <SortableTableHead field="status" label="Status" sort={sort} onSort={updateSort} />
-                    <th className={tableHeadClass}><span className="sr-only">Actions</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {presentedPrograms.foreign.map((program) => (
-                    <tr key={program.programId}>
-                      <td title={program.name} className={`${tableCellClass} whitespace-normal break-words font-sans leading-snug text-zinc-500`}>{program.name}</td>
-                      <td title={program.programId} className={`${tableCellClass} truncate font-mono text-zinc-500`}>{program.programId}</td>
-                      <td className={tableCellClass}>
-                        <PatternStatusBadge status={statusFor(program)} />
-                      </td>
+            <table className={tableClass} aria-label="Other Patterns">
+              <colgroup>
+                <col className="w-[76%]" />
+                <col className="w-[24%]" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <SortableTableHead field="pattern" label="Pattern" sort={sort} onSort={updateSort} />
+                  <th className={`${tableHeadClass} text-right`}><span className="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {presentedPrograms.foreign.map((program) => {
+                  const running = program.programId === activeProgramId
+                  return (
+                    <tr
+                      key={program.programId}
+                      className={`group ${running ? 'bg-emerald-500/[0.04]' : ''}`}
+                    >
+                      <SavedProgramNameCell
+                        program={program}
+                        running={running}
+                        showsEnabled={showsEnabled}
+                        onOpen={onOpen}
+                      />
                       <td className={`${tableCellClass} text-right`}>
-                        <ProgramImportButton
+                        <SavedProgramRowActions
                           program={program}
-                          disabled={importingProgramId !== null}
+                          running={running}
+                          disabled={actionsBusy}
+                          activating={activatingProgramId === program.programId}
                           importing={importingProgramId === program.programId}
+                          onRun={onRun}
                           onImport={onImport}
                         />
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  )
+                })}
+              </tbody>
+            </table>
           )}
         </>
       )}
@@ -536,6 +687,9 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     liveIp ? state.programsByController[liveIp] ?? EMPTY_CONTROLLER_PROGRAMS : EMPTY_CONTROLLER_PROGRAMS
   ))
   const refreshControllerPrograms = useControllerPanelStore((state) => state.refreshPrograms)
+  const activeProgramId = useControllerPanelStore((state) => state.activeProgramId)
+  const activatingProgramId = useControllerPanelStore((state) => state.activatingProgramId)
+  const activateProgram = useControllerPanelStore((state) => state.activateProgram)
   const pushRecordsRevision = useSyncExternalStore(
     subscribeControllerPushRecordsRevision,
     getControllerPushRecordsRevision,
@@ -551,6 +705,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   const [pendingImport, setPendingImport] = useState<PendingProgramImport | null>(null)
   const [importingProgramId, setImportingProgramId] = useState<string | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
+  const [runError, setRunError] = useState<string | null>(null)
   const liveEpoch = profileController?.phase === 'live' ? profileController.liveEpoch : undefined
   const readKey = liveIp
     ? controllerSavedProgramsReadKey({
@@ -658,6 +813,15 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     ? reconciliation.managedCount
     : inventoryManagedCount
 
+  async function runSavedProgram(program: ControllerSavedProgramRow) {
+    setRunError(null)
+    try {
+      await activateProgram(program.programId)
+    } catch (error) {
+      setRunError(error instanceof Error ? error.message : 'Saved Pattern could not be run.')
+    }
+  }
+
   async function beginProgramImport(program: ControllerSavedProgramRow) {
     if (!liveIp) return
     setImportError(null)
@@ -716,7 +880,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   }
 
   return (
-    <div data-testid="controller-saved-programs-pane" className="h-full min-h-0 overflow-y-auto bg-zinc-950 text-zinc-200">
+    <div data-testid="controller-saved-programs-pane" className="h-full min-h-0 overflow-x-hidden overflow-y-auto bg-zinc-950 text-zinc-200">
       <ImportProgramDialog
         pending={pendingImport}
         busy={importingProgramId !== null}
@@ -734,6 +898,8 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         programs={programs}
         hasSnapshot={hasInventorySnapshot}
         showsEnabled={showsEnabled}
+        activeProgramId={activeProgramId}
+        activatingProgramId={activatingProgramId}
         onRefresh={() => requestSavedProgramsRefresh(profile.id)}
         onOpen={(routeId) => navigate({
           kind: 'studio',
@@ -741,9 +907,10 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
             ? { kind: 'shows', id: routeId.slice('show:'.length) }
             : { kind: 'patterns', id: routeId },
         })}
+        onRun={(program) => void runSavedProgram(program)}
         onImport={(program) => void beginProgramImport(program)}
         importingProgramId={importingProgramId}
-        error={importError}
+        error={runError ?? importError}
         reconciliation={reconciliation}
       />
     </div>

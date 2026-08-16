@@ -241,11 +241,13 @@ device id and editable even offline. It is where hardware knowledge lives:
   PXLBLZ does not pretend to be an ammeter; plan the physical power system
   for real.
 - **Saved Patterns.** The profile's inventory separates what PXLBLZ manages
-  from everything else on the device. Managed rows say when a saved artifact
-  no longer matches the current profile or map (**PUSH AGAIN**), and **Keep
-  Patterns up to date** rewrites managed artifacts automatically after an
-  edit that changes generated code. Other Patterns are listed, importable
-  when they contain source, and never touched.
+  from everything else on the device. The running row has a green marker;
+  managed rows show which profile features were baked into the artifact and
+  use a status dot for current, stale, syncing, queued, failed, or unknown
+  state. Hover or focus a row to reveal its actions. **Run** switches the
+  Controller without opening or changing a Studio Pattern; foreign source
+  remains importable. **Keep Patterns up to date** rewrites only managed
+  artifacts after an edit that changes generated code.
 
 Two built-in diagnostics earn their keep here: **AnalogWiggleFinder** finds
 which analog pin a pot is on, and **View generated artifact** shows exactly

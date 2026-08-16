@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ControllerProfilePage } from './ControllerProfilePage'
 import { ControllerProfileHeaderActions } from './ControllerProfileHeaderActions'
 import { ControllerSavedProgramsPane } from './ControllerSavedProgramsPane'
-import { NullControllerProvider, type ControllerStatus } from '@/engine/ControllerProvider'
+import {
+  NullControllerProvider,
+  type ControllerConfig,
+  type ControllerStatus,
+} from '@/engine/ControllerProvider'
 import { resetControllerProvider, setControllerProvider } from '@/engine/controllerProviderRegistry'
 import { encodeMapData } from '@/engine/mapPush'
 import {
@@ -60,6 +64,15 @@ const READBACK_POINTS = [
 ]
 const READBACK_HASH = '06427689'
 
+const statusDotName = {
+  current: /^Current:/,
+  stale: /^Push again:/,
+  unmanaged: /^Unknown:/,
+  queued: /^Queued:/,
+  updating: /^Syncing:/,
+  failed: /^Failed:/,
+} as const
+
 class MapReadbackProvider extends NullControllerProvider {
   readonly mapData = encodeMapData(READBACK_POINTS)
 
@@ -88,6 +101,8 @@ class ProgramListProvider extends MapReadbackProvider {
   programs: Array<{ id: string; name: string }> = []
   recoveredPrograms = new Map<string, RecoveredSavedProgram>()
   listCalls = 0
+  activeProgramId: string | undefined
+  activationCalls: Array<{ programId: string; save: boolean | undefined }> = []
 
   listPrograms() {
     this.listCalls += 1
@@ -96,6 +111,18 @@ class ProgramListProvider extends MapReadbackProvider {
 
   readSavedProgram(programId: string) {
     return Promise.resolve(this.recoveredPrograms.get(programId) ?? null)
+  }
+
+  setActiveProgram(programId: string, opts?: { save?: boolean }) {
+    this.activationCalls.push({ programId, save: opts?.save })
+    this.activeProgramId = programId
+    return Promise.resolve()
+  }
+
+  getConfig(): Promise<ControllerConfig> {
+    return Promise.resolve({
+      ...(this.activeProgramId ? { activeProgramId: this.activeProgramId } : {}),
+    })
   }
 }
 
@@ -150,10 +177,12 @@ function renderLiveProgramInventory(
     pushRecords: Record<string, ControllerPushRecord>
     mapDim?: ControllerEntry['mapDim']
     installedMap?: ControllerEntry['installedMap']
+    activeProgramId?: string
   },
 ) {
   const provider = new ProgramListProvider()
   provider.programs = fixture.programs
+  provider.activeProgramId = fixture.activeProgramId
   setControllerMetadataStorage({
     ...demoControllerMetadataStorage,
     id: fixture.storageId,
@@ -162,6 +191,7 @@ function renderLiveProgramInventory(
   })
   setControllerProvider(provider)
   useControllerPanelStore.setState({
+    activeProgramId: fixture.activeProgramId,
     programs: provider.programs,
     programsByController: { '192.168.8.224': provider.programs },
   })
@@ -179,9 +209,106 @@ function renderLiveProgramInventory(
     },
   })
   render(<ControllerSavedProgramsPane profile={profile} />)
+  return provider
 }
 
 describe('ControllerProfilePage', () => {
+  it('projects running state and profile evidence while keeping row Run isolated from Studio', async () => {
+    const profile = seedProfile()
+    usePatternStore.setState({
+      userPatterns: [{
+        id: 'pat-1',
+        name: 'Twinkle',
+        src: 'export function render(i) {}',
+        controls: {},
+        updatedAt: 1,
+      }],
+      patternsLoaded: true,
+    })
+    const featureSignature = JSON.stringify({
+      version: 1,
+      transforms: [
+        { type: 'power-cap', mixinId: 'builtin:power-cap', maxDuty: 0.4 },
+        {
+          type: 'hardware-brightness',
+          mixinId: 'builtin:hardware-brightness',
+          inputId: 'pot-1',
+          mode: 'multiply-output',
+        },
+      ],
+      inputs: [],
+      bindings: [
+        {
+          id: 'binding-1',
+          patternId: 'pat-1',
+          inputId: 'pot-1',
+          target: { kind: 'call-function', name: 'setSpeed' },
+        },
+        {
+          id: 'binding-2',
+          patternId: 'pat-1',
+          inputId: 'pot-2',
+          target: { kind: 'assign-variable', name: 'speed', min: 0, max: 4 },
+        },
+      ],
+    })
+    const provider = renderLiveProgramInventory(profile, {
+      storageId: 'inventory-affordances',
+      activeProgramId: 'DEV1',
+      programs: [
+        { id: 'DEV1', name: 'Device Twinkle' },
+        { id: 'FOREIGN1', name: 'sound bar kit' },
+      ],
+      bindings: { 'pat-1': 'DEV1' },
+      pushRecords: {
+        'pat-1': {
+          transforms: [],
+          artifactHash: 'twinkle-hash',
+          stampedAt: '2026-08-16T00:00:00.000Z',
+          name: 'Twinkle',
+          profileSignature: featureSignature,
+        },
+      },
+    })
+
+    const managed = await screen.findByRole('table', { name: 'Saved PXLBLZ Patterns' })
+    const other = screen.getByRole('table', { name: 'Other Patterns' })
+    expect(within(managed).queryByRole('columnheader', { name: 'Pattern ID' })).not.toBeInTheDocument()
+    expect(within(other).queryByRole('columnheader', { name: 'Status' })).not.toBeInTheDocument()
+    expect(screen.getByTitle(/Program id DEV1/)).toHaveTextContent('Twinkle')
+    expect(screen.getByLabelText('Running now')).toBeInTheDocument()
+    expect(screen.getByTitle('Power cap is baked into this saved Pattern')).toBeInTheDocument()
+    expect(screen.getByTitle('Hardware brightness input is baked into this saved Pattern')).toBeInTheDocument()
+    expect(screen.getByTitle("A hardware input drives one of this Pattern's controls")).toBeInTheDocument()
+    expect(screen.getByTitle("A hardware input assigns one of this Pattern's variables")).toBeInTheDocument()
+
+    const runningRun = screen.getByRole('button', { name: 'Run Twinkle on the Controller' })
+    expect(runningRun).toBeDisabled()
+    expect(runningRun).toHaveAttribute('title', 'Running now')
+    const runningDelete = screen.getByRole('button', { name: 'Delete Twinkle from the Controller' })
+    expect(runningDelete).toBeDisabled()
+    expect(runningDelete).toHaveAttribute(
+      'title',
+      'Running now — switch to another Pattern first',
+    )
+
+    const foreignRun = screen.getByRole('button', { name: 'Run sound bar kit on the Controller' })
+    const foreignActions = foreignRun.parentElement!
+    expect(foreignActions).toHaveClass(
+      'opacity-0',
+      'group-hover:opacity-100',
+      'group-focus-within:opacity-100',
+    )
+    const routeBefore = useRouterStore.getState().route
+    fireEvent.click(foreignRun)
+    await waitFor(() => expect(provider.activationCalls).toEqual([
+      { programId: 'FOREIGN1', save: true },
+    ]))
+    expect(useRouterStore.getState().route).toEqual(routeBefore)
+    expect(screen.getByRole('button', { name: 'Run sound bar kit on the Controller' })).toBeDisabled()
+    expect(screen.getAllByLabelText('Running now')).toHaveLength(1)
+  })
+
   it('keys ragged input columns to the center pane instead of the viewport (#772)', () => {
     const profile = seedProfile()
     useControllerProfileStore.setState({
@@ -1168,26 +1295,22 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByRole('heading', { name: 'Other Patterns (1)' })).toBeInTheDocument()
     expect(screen.queryByText(/foreign programs/i)).not.toBeInTheDocument()
     expect(screen.getByText('sound bar kit')).toBeInTheDocument()
-    expect(screen.getByText('DEV1')).toBeInTheDocument()
-    expect(screen.getByText('FOREIGN1')).toBeInTheDocument()
-    expect(screen.getByText('Installation · 256 px · Measured wall')).toBeInTheDocument()
+    expect(screen.getByTitle(/Program id DEV1/)).toHaveTextContent('Twinkle')
+    expect(screen.getByTitle(/Program id FOREIGN1/)).toHaveTextContent('sound bar kit')
+    expect(screen.getByText('Show output · Installation · 256 px')).toBeInTheDocument()
     expect(screen.queryByLabelText('Saved from a Show')).not.toBeInTheDocument()
     expect(screen.getByText('Source Show unavailable')).toBeInTheDocument()
     expect(screen.queryByText('Source Pattern unavailable')).not.toBeInTheDocument()
     const savedInventory = screen.getByRole('table', { name: 'Saved PXLBLZ Patterns' })
     const otherInventory = screen.getByRole('table', { name: 'Other Patterns' })
     expect(within(savedInventory).getByRole('columnheader', { name: 'Pattern' })).toBeInTheDocument()
-    expect(within(savedInventory).getByRole('columnheader', { name: 'Pattern ID' })).toBeInTheDocument()
+    expect(within(savedInventory).getByRole('columnheader', { name: 'Profile' })).toBeInTheDocument()
     expect(within(savedInventory).getByRole('columnheader', { name: 'Status' })).toBeInTheDocument()
-    expect(within(savedInventory).getByRole('columnheader', { name: 'Output' })).toBeInTheDocument()
-    expect(screen.getByTitle('Map fingerprint 11111111')).toBeInTheDocument()
-    expect(screen.getByText('CURRENT')).toBeInTheDocument()
-    expect(screen.getByText('PUSH AGAIN')).toBeInTheDocument()
-    expect(screen.getAllByText('UNKNOWN')).toHaveLength(2)
-    for (const badge of screen.getAllByText(/^(CURRENT|PUSH AGAIN|UNKNOWN)$/)) {
-      expect(badge).not.toHaveClass('w-[4.75rem]', 'border', 'bg-zinc-900/70')
-      expect(badge).toHaveClass('font-mono', 'uppercase')
-    }
+    expect(within(savedInventory).getByRole('columnheader', { name: 'Actions' })).toBeInTheDocument()
+    expect(within(otherInventory).queryByRole('columnheader', { name: 'Status' })).not.toBeInTheDocument()
+    expect(screen.getByLabelText(statusDotName.current)).toBeInTheDocument()
+    expect(screen.getByLabelText(statusDotName.stale)).toBeInTheDocument()
+    expect(screen.getByLabelText(statusDotName.unmanaged)).toBeInTheDocument()
     expect(provider.listCalls).toBe(0)
 
     expect(savedInventory).toHaveClass('table-fixed')
@@ -1203,18 +1326,11 @@ describe('ControllerProfilePage', () => {
     const columnClasses = (table: HTMLElement) => (
       Array.from(table.querySelectorAll('col')).map((column) => column.className)
     )
-    expect(columnClasses(savedInventory)).toEqual(columnClasses(otherInventory))
-    const headerWidths = (table: HTMLElement) => (
-      within(table).getAllByRole('columnheader').map((header) => header.getBoundingClientRect().width)
-    )
-    headerWidths(savedInventory).forEach((width, index) => {
-      expect(Math.abs(width - headerWidths(otherInventory)[index])).toBeLessThan(1)
-    })
-    for (const badge of screen.getAllByText(/^(CURRENT|PUSH AGAIN|UNKNOWN)$/)) {
-      expect(badge).not.toHaveClass('max-w-full', 'justify-center')
-    }
+    expect(columnClasses(savedInventory)).toEqual(['w-[58%]', 'w-[16%]', 'w-[8%]', 'w-[18%]'])
+    expect(columnClasses(otherInventory)).toEqual(['w-[76%]', 'w-[24%]'])
     const importButton = screen.getByRole('button', { name: 'Import sound bar kit' })
-    expect(importButton).toHaveClass('w-full')
+    expect(importButton).toHaveClass('h-6', 'w-6')
+    expect(importButton.parentElement).toHaveClass('opacity-0', 'group-focus-within:opacity-100')
     expect(importButton.getBoundingClientRect().right).toBeLessThanOrEqual(
       importButton.closest('td')!.getBoundingClientRect().right,
     )
@@ -1231,18 +1347,15 @@ describe('ControllerProfilePage', () => {
     expect(patternHeader).toHaveAttribute('aria-sort', 'descending')
     expect(savedRows()[0]).toContain('Twinkle')
 
-    const idHeader = within(savedInventory).getByRole('columnheader', { name: 'Pattern ID' })
-    fireEvent.click(within(idHeader).getByRole('button', { name: 'Pattern ID' }))
-    expect(idHeader).toHaveAttribute('aria-sort', 'ascending')
-    expect(savedRows().map((row) => row.match(/DEV1|DEV2|SHOW1/)?.[0])).toEqual(['DEV1', 'DEV2', 'SHOW1'])
-
     const statusHeader = within(savedInventory).getByRole('columnheader', { name: 'Status' })
     fireEvent.click(within(statusHeader).getByRole('button', { name: 'Status' }))
     expect(statusHeader).toHaveAttribute('aria-sort', 'ascending')
-    expect(savedRows().map((row) => row.match(/CURRENT|PUSH AGAIN|UNKNOWN/)?.[0])).toEqual(['CURRENT', 'PUSH AGAIN', 'UNKNOWN'])
+    expect(savedRows().map((row) => row.match(/Twinkle|AuroraSphere|Measured wall Show/)?.[0]))
+      .toEqual(['Twinkle', 'Measured wall Show', 'AuroraSphere'])
     fireEvent.click(within(statusHeader).getByRole('button', { name: 'Status' }))
     expect(statusHeader).toHaveAttribute('aria-sort', 'descending')
-    expect(savedRows().map((row) => row.match(/CURRENT|PUSH AGAIN|UNKNOWN/)?.[0])).toEqual(['UNKNOWN', 'PUSH AGAIN', 'CURRENT'])
+    expect(savedRows().map((row) => row.match(/Twinkle|AuroraSphere|Measured wall Show/)?.[0]))
+      .toEqual(['AuroraSphere', 'Measured wall Show', 'Twinkle'])
 
     const changedProfile = {
       ...profile,
@@ -1251,7 +1364,7 @@ describe('ControllerProfilePage', () => {
       ),
     }
     rerender(pane(changedProfile))
-    expect(within(savedInventory).getAllByText('PUSH AGAIN')).toHaveLength(2)
+    expect(within(savedInventory).getAllByLabelText(statusDotName.stale)).toHaveLength(2)
     expect(provider.listCalls).toBe(0)
 
     useControllerStore.setState({
@@ -1269,8 +1382,8 @@ describe('ControllerProfilePage', () => {
         },
       },
     })
-    for (const label of ['QUEUED', 'SYNCING', 'FAILED']) {
-      expect(await screen.findByText(label)).not.toHaveClass('w-[4.75rem]', 'border')
+    for (const status of [statusDotName.queued, statusDotName.updating, statusDotName.failed]) {
+      expect(await screen.findByLabelText(status)).toBeInTheDocument()
     }
 
     fireEvent.click(screen.getByRole('button', { name: 'Twinkle' }))
@@ -1338,7 +1451,7 @@ describe('ControllerProfilePage', () => {
     })
 
     render(<ControllerSavedProgramsPane profile={profile} />)
-    expect(await screen.findByText('CURRENT')).toBeInTheDocument()
+    expect(await screen.findByLabelText(statusDotName.current)).toBeInTheDocument()
 
     useControllerStore.setState({
       controllerReconciliations: {
@@ -1363,12 +1476,12 @@ describe('ControllerProfilePage', () => {
     })
     expect(screen.queryByText(/reading saved Patterns/i)).not.toBeInTheDocument()
     expect(screen.getByRole('table', { name: 'Saved PXLBLZ Patterns' })).toBeInTheDocument()
-    expect(screen.getByText('SYNCING')).toBeInTheDocument()
-    expect(screen.queryByText('CURRENT')).not.toBeInTheDocument()
+    expect(screen.getByLabelText(statusDotName.updating)).toBeInTheDocument()
+    expect(screen.queryByLabelText(statusDotName.current)).not.toBeInTheDocument()
 
     resolveReread(records)
     useControllerStore.setState({ controllerReconciliations: {} })
-    expect(await screen.findByText('CURRENT')).toBeInTheDocument()
+    expect(await screen.findByLabelText(statusDotName.current)).toBeInTheDocument()
     expect(readCount).toBe(2)
   })
 
@@ -1404,7 +1517,7 @@ describe('ControllerProfilePage', () => {
         },
       },
     })
-    expect(await screen.findByText('CURRENT')).toBeInTheDocument()
+    expect(await screen.findByLabelText(statusDotName.current)).toBeInTheDocument()
 
     useControllerStore.setState({
       controllerReconciliations: {
@@ -1426,8 +1539,8 @@ describe('ControllerProfilePage', () => {
       await usePatternStore.getState().updatePatternSrc(pattern.id, editedSource)
     })
 
-    expect(await screen.findByText('PUSH AGAIN')).toBeInTheDocument()
-    expect(screen.queryByText('CURRENT')).not.toBeInTheDocument()
+    expect(await screen.findByLabelText(statusDotName.stale)).toBeInTheDocument()
+    expect(screen.queryByLabelText(statusDotName.current)).not.toBeInTheDocument()
   })
 
   it('does not claim a saved Pattern needs another push while the installed map is unknown', async () => {
@@ -1449,9 +1562,9 @@ describe('ControllerProfilePage', () => {
       installedMap: { status: 'error', message: 'map read timed out' },
     })
 
-    expect(await screen.findByText('UNKNOWN')).toBeInTheDocument()
-    expect(screen.queryByText('PUSH AGAIN')).not.toBeInTheDocument()
-    expect(screen.queryByText('CURRENT')).not.toBeInTheDocument()
+    expect(await screen.findByLabelText(statusDotName.unmanaged)).toBeInTheDocument()
+    expect(screen.queryByLabelText(statusDotName.stale)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(statusDotName.current)).not.toBeInTheDocument()
   })
 
   it('links a compiled legacy built-in Show artifact to its canonical Studio Show source', async () => {
@@ -1483,8 +1596,8 @@ describe('ControllerProfilePage', () => {
     const showLink = await screen.findByRole('button', {
       name: 'Coronal Mass Ejection PXLBLZ remix',
     })
-    expect(showLink).not.toHaveClass('truncate')
-    expect(screen.getByText('Show output')).toBeInTheDocument()
+    expect(showLink).toHaveClass('truncate')
+    expect(screen.getByText('Show output · Portable 2D')).toBeInTheDocument()
     expect(screen.queryByText('Studio Show missing')).not.toBeInTheDocument()
 
     fireEvent.click(showLink)
@@ -1524,8 +1637,7 @@ describe('ControllerProfilePage', () => {
     expect(screen.queryByRole('button', {
       name: 'Coronal Mass Ejection PXLBLZ remix',
     })).not.toBeInTheDocument()
-    expect(screen.getByText('Show output')).toBeInTheDocument()
-    expect(screen.getByText('Portable 2D · variable · surface')).toBeInTheDocument()
+    expect(screen.getByText('Show output · Portable 2D')).toBeInTheDocument()
   })
 
   it('prefers an exact personal Show source over a built-in legacy alias', async () => {
@@ -1595,8 +1707,7 @@ describe('ControllerProfilePage', () => {
     })
 
     const showLink = await screen.findByRole('button', { name: 'Redline Installation - tuned' })
-    expect(screen.getByText('Show output')).toBeInTheDocument()
-    expect(screen.getByText('Installation · 2000 px · Redline stage')).toBeInTheDocument()
+    expect(screen.getByText('Show output · Installation · 2000 px')).toBeInTheDocument()
 
     fireEvent.click(showLink)
 

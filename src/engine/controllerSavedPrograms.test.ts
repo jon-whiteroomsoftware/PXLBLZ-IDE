@@ -1,4 +1,5 @@
 import {
+  controllerSavedProgramFeatures,
   describeControllerSavedPrograms,
   describeProfileFreshness,
   sortControllerSavedPrograms,
@@ -22,6 +23,93 @@ function pushRecord(transforms: string[], profileSignature?: string, sourceHash?
     ...(sourceHash === undefined ? {} : { sourceHash }),
   }
 }
+
+describe('controllerSavedProgramFeatures', () => {
+  const signatureWith = (input: {
+    transforms?: Array<Record<string, unknown>>
+    bindings?: Array<Record<string, unknown>>
+    version?: number
+  }) => JSON.stringify({
+    version: input.version ?? 1,
+    transforms: input.transforms ?? [],
+    inputs: [],
+    bindings: input.bindings ?? [],
+  })
+
+  it('does not claim features without durable evidence or from an unrecognized signature', () => {
+    expect(controllerSavedProgramFeatures(undefined)).toEqual({
+      powerCap: false,
+      hardwareBrightness: false,
+      controlBinding: false,
+      variableBinding: false,
+    })
+    expect(controllerSavedProgramFeatures(pushRecord([], '{not json'))).toEqual({
+      powerCap: false,
+      hardwareBrightness: false,
+      controlBinding: false,
+      variableBinding: false,
+    })
+    expect(controllerSavedProgramFeatures(pushRecord([], signatureWith({
+      version: 2,
+      transforms: [{ type: 'power-cap', mixinId: 'builtin:power-cap', maxDuty: 0.4 }],
+    })))).toEqual({
+      powerCap: false,
+      hardwareBrightness: false,
+      controlBinding: false,
+      variableBinding: false,
+    })
+  })
+
+  it('derives power and brightness from legacy transforms or a recognized signature', () => {
+    expect(controllerSavedProgramFeatures(pushRecord(['power-cap', 'hardware-brightness']))).toMatchObject({
+      powerCap: true,
+      hardwareBrightness: true,
+    })
+    expect(controllerSavedProgramFeatures(pushRecord([], signatureWith({
+      transforms: [
+        { type: 'power-cap', mixinId: 'builtin:power-cap', maxDuty: 0.4 },
+        {
+          type: 'hardware-brightness',
+          mixinId: 'builtin:hardware-brightness',
+          inputId: 'pot-1',
+          mode: 'multiply-output',
+        },
+      ],
+    })))).toMatchObject({ powerCap: true, hardwareBrightness: true })
+  })
+
+  it.each([
+    ['call-exported-slider', true, false],
+    ['call-function', true, false],
+    ['assign-variable', false, true],
+  ] as const)('derives %s binding evidence', (kind, controlBinding, variableBinding) => {
+    const target = kind === 'assign-variable'
+      ? { kind, name: 'speed', min: 0, max: 4 }
+      : { kind, name: kind === 'call-function' ? 'setSpeed' : 'sliderSpeed' }
+    expect(controllerSavedProgramFeatures(pushRecord([], signatureWith({
+      bindings: [{ id: 'binding-1', patternId: 'pat-1', inputId: 'pot-1', target }],
+    })))).toMatchObject({ controlBinding, variableBinding })
+  })
+
+  it('reports control and variable bindings independently when both are present', () => {
+    expect(controllerSavedProgramFeatures(pushRecord([], signatureWith({
+      bindings: [
+        {
+          id: 'binding-1',
+          patternId: 'pat-1',
+          inputId: 'pot-1',
+          target: { kind: 'call-function', name: 'setSpeed' },
+        },
+        {
+          id: 'binding-2',
+          patternId: 'pat-1',
+          inputId: 'pot-2',
+          target: { kind: 'assign-variable', name: 'speed', min: 0, max: 4 },
+        },
+      ],
+    })))).toMatchObject({ controlBinding: true, variableBinding: true })
+  })
+})
 
 describe('describeProfileFreshness', () => {
   it('marks a push record current only when its normalized full profile signature matches', () => {
@@ -114,6 +202,12 @@ describe('describeControllerSavedPrograms', () => {
         routeId: 'AuroraSphere',
         studioPatternMissing: false,
         sourceKind: 'pattern',
+        profileFeatures: {
+          powerCap: false,
+          hardwareBrightness: false,
+          controlBinding: false,
+          variableBinding: false,
+        },
         freshness: 'stale',
       },
       {
@@ -124,6 +218,12 @@ describe('describeControllerSavedPrograms', () => {
         routeId: null,
         studioPatternMissing: true,
         sourceKind: 'pattern',
+        profileFeatures: {
+          powerCap: false,
+          hardwareBrightness: false,
+          controlBinding: false,
+          variableBinding: false,
+        },
         freshness: 'unmanaged',
       },
       {
@@ -134,6 +234,12 @@ describe('describeControllerSavedPrograms', () => {
         routeId: 'pat-1',
         studioPatternMissing: false,
         sourceKind: 'pattern',
+        profileFeatures: {
+          powerCap: true,
+          hardwareBrightness: false,
+          controlBinding: false,
+          variableBinding: false,
+        },
         freshness: 'current',
       },
     ])
@@ -206,7 +312,7 @@ describe('describeControllerSavedPrograms', () => {
     expect(view.foreign.map((row) => row.programId)).toEqual(['F2', 'F1'])
   })
 
-  it('sorts by Pattern ID and effective Status in both directions', () => {
+  it('sorts by effective Status in both directions', () => {
     const view = {
       owned: [
         { ...savedProgramRow('B2', 'Mike'), freshness: 'unmanaged' as const },
@@ -216,15 +322,6 @@ describe('describeControllerSavedPrograms', () => {
       foreign: [savedProgramRow('F2', 'Apple', 'foreign'), savedProgramRow('F1', 'Zebra', 'foreign')],
     }
     const statuses = { B2: 'updating', A1: 'failed', C3: 'queued' } as const
-
-    expect(sortControllerSavedPrograms(view, {
-      field: 'pattern-id',
-      direction: 'ascending',
-    }, statuses).owned.map((row) => row.programId)).toEqual(['A1', 'B2', 'C3'])
-    expect(sortControllerSavedPrograms(view, {
-      field: 'pattern-id',
-      direction: 'descending',
-    }, statuses).foreign.map((row) => row.programId)).toEqual(['F2', 'F1'])
 
     expect(sortControllerSavedPrograms(view, {
       field: 'status',

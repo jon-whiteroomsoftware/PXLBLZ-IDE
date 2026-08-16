@@ -152,7 +152,7 @@ test('empty Controllers workspace leads through extension setup and Connect (#81
   await expect(page.getByRole('textbox', { name: 'Controller IP address' })).toBeVisible()
 })
 
-test('Controller popover keeps compact live state and switches saved Patterns in place (#866, #868)', async ({ page }) => {
+test('Controller surfaces keep live state and switch saved Patterns in place (#866, #868, #869)', async ({ page }) => {
   const profile: ControllerProfile = {
     id: 'e2e-866-controller',
     name: 'Deck bench',
@@ -331,6 +331,42 @@ test('Controller popover keeps compact live state and switches saved Patterns in
   await controllerPill.click()
   await controllerPill.click()
   await expect(power).toHaveAttribute('aria-expanded', 'true')
+
+  await page.getByRole('link', { name: 'Open Deck bench profile' }).click()
+  await expect(page).toHaveURL(new RegExp(`/studio/controllers/${profile.id}$`))
+  const profileUrl = page.url()
+  const inventoryPane = page.getByTestId('controller-saved-programs-pane')
+  const otherPrograms = page.getByRole('table', { name: 'Other Patterns' })
+  await expect(otherPrograms).toBeVisible()
+  await expect(otherPrograms.getByLabel('Running now')).toHaveCount(1)
+  const runEmberSpire = otherPrograms.getByRole('button', {
+    name: 'Run EmberSpire on the Controller',
+  })
+  const rowActions = runEmberSpire.locator('..')
+  await expect(rowActions).toHaveCSS('opacity', '0')
+  await runEmberSpire.focus()
+  await expect(rowActions).toHaveCSS('opacity', '1')
+  await runEmberSpire.click()
+  await expect(otherPrograms.getByLabel('Running now')).toHaveCount(1)
+  await expect(runEmberSpire).toBeDisabled()
+  expect(page.url()).toBe(profileUrl)
+  const paneWidth = await inventoryPane.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }))
+  expect(paneWidth.scrollWidth).toBeLessThanOrEqual(paneWidth.clientWidth)
+
+  await controllerPill.click()
+  await expect(page.getByTestId('controller-panel-popover').locator('span[title="EmberSpire"]'))
+    .toBeVisible()
+  await expect.poll(() => page.evaluate(() => {
+    const writes = (window as typeof window & {
+      __fakeControllerWrites?: Array<Record<string, unknown>>
+    }).__fakeControllerWrites ?? []
+    return writes.some((write) => (
+      write.activeProgramId === 'E2E866PROGRAM00001' && write.save === true
+    ))
+  })).toBe(true)
 })
 
 test('keeps the Shows header inside the center editor pane (#758)', async ({ page }) => {
@@ -774,10 +810,10 @@ test('saved Pattern freshness follows the full profile through a real managed ov
 
   await expect(page).toHaveURL(new RegExp(`/studio/controllers/${profile.id}$`))
   await expect(page.getByRole('table', { name: 'Saved PXLBLZ Patterns' })).toBeVisible()
-  await expect(page.getByText('CURRENT', { exact: true })).toBeVisible()
+  await expect(page.getByLabel(/^Current:/)).toBeVisible()
 
   await page.getByRole('checkbox', { name: 'Limit power' }).check()
-  const pushAgain = page.getByText('PUSH AGAIN', { exact: true })
+  const pushAgain = page.getByLabel(/^Push again:/)
   await expect(pushAgain).toBeVisible()
   const badgeGeometry = await pushAgain.evaluate((badge) => {
     const badgeBounds = badge.getBoundingClientRect()
@@ -802,8 +838,8 @@ test('saved Pattern freshness follows the full profile through a real managed ov
     }
     return body.value?.[controllerId]?.[bindingKey]?.profileSignature ?? null
   }).toBe(enabledSignature)
-  await expect(page.getByText('CURRENT', { exact: true })).toBeVisible()
-  await expect(page.getByText('PUSH AGAIN', { exact: true })).toHaveCount(0)
+  await expect(page.getByLabel(/^Current:/)).toBeVisible()
+  await expect(page.getByLabel(/^Push again:/)).toHaveCount(0)
 
   await page.getByRole('button', { name: pattern.name, exact: true }).click()
   await expect(page).toHaveURL(new RegExp(`/studio/patterns/${pattern.id}$`))
@@ -829,8 +865,8 @@ test('saved Pattern freshness follows the full profile through a real managed ov
 
   await controllerPill.click()
   await page.getByRole('link', { name: `Open ${profile.name} profile` }).click()
-  await expect(page.getByText('PUSH AGAIN', { exact: true })).toBeVisible()
-  await expect(page.getByText('CURRENT', { exact: true })).toHaveCount(0)
+  await expect(page.getByLabel(/^Push again:/)).toBeVisible()
+  await expect(page.getByLabel(/^Current:/)).toHaveCount(0)
 })
 
 test('selecting a persisted degenerate fallback map signals that its bake needs repair (#817)', async ({ page }) => {

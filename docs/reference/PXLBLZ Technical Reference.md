@@ -592,13 +592,23 @@ on external switches, disconnects, and every new attempt.
 **Inventory and recovery.** The profile's context pane joins `listPrograms`
 with bindings, push records, and the personal and built-in Pattern/Show
 catalogs. Bound entries appear under Saved PXLBLZ Patterns and link to Studio;
-unbound entries are Other Patterns, never modified. Saved PXLBLZ Patterns is
-the sole profile-freshness surface. Each bound row compares the recognized,
-compatibility-normalized signature in its push record with a fresh full-profile
-signature for that binding and the live map dimension: exact matches are
-CURRENT, recognized differences are PUSH AGAIN, and missing or unrecognized
-evidence is UNKNOWN. Saved Show rows use the same signature and are labeled
-Show output with their contract summary.
+unbound entries are Other Patterns and are never reconciled. The running id is
+marked in either table. Row actions stay visually hidden until hover or keyboard
+focus; Run delegates to the panel store's persistent activation path and never
+navigates Studio. Program ids move from a column into the name tooltip, and
+Other Patterns have no freshness column.
+
+Saved PXLBLZ Patterns is the sole profile-freshness surface. Each bound row
+compares the recognized, compatibility-normalized signature in its push record
+with a fresh full-profile signature for that binding and the live map dimension:
+exact matches get an emerald status dot, recognized differences amber, and
+missing or unrecognized evidence zinc; queued and syncing pulse, and failures
+are red. The tooltip and accessible label retain the full status explanation.
+`controllerSavedProgramFeatures` separately derives up to four artifact facts
+from durable evidence: power-cap and hardware-brightness transforms, a
+call-exported-slider or call-function control binding, and an assign-variable
+binding. Unrecognized signatures make no feature claim. Saved Show rows retain
+their Show-output contract summary and any source-unavailable note.
 
 The read identity includes the connection epoch, push-record revision, and
 manual-refresh generation. Reconnects, successful push-record writes, and

@@ -21,6 +21,45 @@ export const CONTROLLER_SAVED_PATTERN_STATUS_LABELS: Record<ControllerSavedPatte
   failed: 'FAILED',
 }
 
+export interface ControllerSavedProgramFeatures {
+  powerCap: boolean
+  hardwareBrightness: boolean
+  controlBinding: boolean
+  variableBinding: boolean
+}
+
+/** Report only profile features supported by durable artifact evidence. */
+export function controllerSavedProgramFeatures(
+  pushRecord: ControllerPushRecord | undefined,
+): ControllerSavedProgramFeatures {
+  const features: ControllerSavedProgramFeatures = {
+    powerCap: pushRecord?.transforms.includes('power-cap') === true,
+    hardwareBrightness: pushRecord?.transforms.includes('hardware-brightness') === true,
+    controlBinding: false,
+    variableBinding: false,
+  }
+  if (!pushRecord?.profileSignature) return features
+  const stored = readStoredArtifactSignature(pushRecord.profileSignature)
+  if (stored.kind !== 'recognized') return features
+
+  const signature = JSON.parse(stored.normalized) as {
+    transforms: Array<{ type: string }>
+    bindings: Array<{ target: { kind: string } }>
+  }
+  for (const transform of signature.transforms) {
+    if (transform.type === 'power-cap') features.powerCap = true
+    if (transform.type === 'hardware-brightness') features.hardwareBrightness = true
+  }
+  for (const binding of signature.bindings) {
+    if (
+      binding.target.kind === 'call-exported-slider'
+      || binding.target.kind === 'call-function'
+    ) features.controlBinding = true
+    if (binding.target.kind === 'assign-variable') features.variableBinding = true
+  }
+  return features
+}
+
 export function describeProfileFreshness(
   pushRecord: ControllerPushRecord | undefined,
   currentProfileSignature: string | null,
@@ -55,6 +94,8 @@ export interface ControllerSavedProgramRow {
   /** Which Studio entity produced this program; foreign rows default to pattern. */
   sourceKind: 'pattern' | 'show'
   freshness: ControllerSavedPatternFreshness
+  /** Profile features baked into the durable Controller artifact. */
+  profileFeatures?: ControllerSavedProgramFeatures
   showOutputContract?: ArtifactShowOutputContract
 }
 
@@ -64,7 +105,7 @@ export interface ControllerSavedProgramsView {
 }
 
 export type ControllerSavedProgramSort = {
-  field: 'pattern' | 'pattern-id' | 'status'
+  field: 'pattern' | 'status'
   direction: 'ascending' | 'descending'
 }
 
@@ -89,9 +130,7 @@ export function sortControllerSavedPrograms(
   const direction = sort.direction === 'ascending' ? 1 : -1
   const compare = (a: ControllerSavedProgramRow, b: ControllerSavedProgramRow) => {
     let result: number
-    if (sort.field === 'pattern-id') {
-      result = compareText(a.programId, b.programId)
-    } else if (sort.field === 'status') {
+    if (sort.field === 'status') {
       const aStatus = statusByProgramId[a.programId] ?? a.freshness
       const bStatus = statusByProgramId[b.programId] ?? b.freshness
       result = compareText(
@@ -172,6 +211,7 @@ export function describeControllerSavedPrograms(input: {
       routeId: studioPattern?.routeId ?? null,
       studioPatternMissing: !studioPattern,
       sourceKind: bindingKey.startsWith('show:') ? 'show' : 'pattern',
+      profileFeatures: controllerSavedProgramFeatures(pushRecord),
       freshness: describeProfileFreshness(
         pushRecord,
         input.profileSignatureReady === false
