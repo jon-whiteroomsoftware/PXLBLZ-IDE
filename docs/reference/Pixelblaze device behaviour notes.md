@@ -96,9 +96,11 @@ sequencer changed mode.
 
 Firmware 3.67's behavior when the deleted Pattern is active remains unobserved.
 PXLBLZ does not depend on that undefined behavior: every user-facing delete
-action is disabled for the running row. The namespaced hardware probe records
-the immediate and post-reboot active ids while preserving the unrelated program
-inventory and restoring the original boot Pattern.
+action is disabled for the running row. On firmware 3.67, the namespaced
+hardware probe confirmed run-only activation, restoration of the prior running
+Pattern, inactive deletion, and exact preservation of every unrelated saved
+Pattern. Delete-active and post-reboot observation remain deliberately deferred
+to a controlled bench session; the automated probe never changes boot selection.
 
 ## The saved-pattern preview JPEG is a 1D waterfall
 

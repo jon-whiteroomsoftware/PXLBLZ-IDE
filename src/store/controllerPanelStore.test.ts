@@ -200,17 +200,21 @@ describe('controllerPanelStore', () => {
       activeProgramId: 'def',
       activeControls: { sliderSpeed: 0.3 },
     }
+    useControllerPanelStore.setState({
+      activeProgramId: 'def',
+      activeControls: { sliderSpeed: 0.8 },
+    })
 
     await expect(useControllerPanelStore.getState().activateProgram('abc')).rejects.toThrow(
       'Controller did not activate Pattern abc',
     )
     expect(useControllerPanelStore.getState()).toMatchObject({
       activeProgramId: 'def',
-      activeControls: { sliderSpeed: 0.3 },
+      activeControls: { sliderSpeed: 0.8 },
     })
   })
 
-  it('rejects a late activation confirmation from a replaced provider', async () => {
+  it('rejects a late activation confirmation without overwriting the replacement Controller', async () => {
     useControllerPanelStore.setState({
       activeProgramId: 'def',
       activeControls: { sliderSpeed: 0.3 },
@@ -219,14 +223,41 @@ describe('controllerPanelStore', () => {
     provider.getConfig = () => confirmation.promise
     const activation = useControllerPanelStore.getState().activateProgram('abc')
     await Promise.resolve()
-    setControllerProvider(new FakeProvider())
+    const replacement = new FakeProvider()
+    replacement.config = {
+      activeProgramId: 'replacement-program',
+      activeControls: { sliderReplacement: 0.6 },
+    }
+    setControllerProvider(replacement)
+    useControllerPanelStore.getState().seed('replacement-controller')
+    await flush()
 
     confirmation.resolve({ activeProgramId: 'abc', activeControls: { sliderHue: 0.1 } })
 
     await expect(activation).rejects.toThrow('Controller session changed')
     expect(useControllerPanelStore.getState()).toMatchObject({
+      activeProgramId: 'replacement-program',
+      activeControls: { sliderReplacement: 0.6 },
+    })
+  })
+
+  it('does not let a poll started before activation overwrite its confirmed program', async () => {
+    provider.config = {
       activeProgramId: 'def',
       activeControls: { sliderSpeed: 0.3 },
+    }
+    const oldTelemetry = deferred<ControllerTelemetry>()
+    provider.getTelemetry = () => oldTelemetry.promise
+    const oldPoll = useControllerPanelStore.getState().poll()
+    await Promise.resolve()
+
+    await useControllerPanelStore.getState().activateProgram('abc')
+    oldTelemetry.resolve({ fps: 30 })
+    await oldPoll
+
+    expect(useControllerPanelStore.getState()).toMatchObject({
+      activeProgramId: 'abc',
+      activeControls: { sliderHue: 0.1 },
     })
   })
 

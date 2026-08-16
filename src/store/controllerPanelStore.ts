@@ -371,13 +371,18 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
   },
 
   activateProgram: async (programId) => {
-    const session = panelSession
+    const initiatingSession = panelSession
     const provider = getControllerProvider()
     const previousActiveProgramId = get().activeProgramId
     const previousActiveControls = get().activeControls
     const previousControlsSeededFor = controlsSeededFor
+    let confirmationSession: number | null = null
     const rollbackOptimisticActivation = () => {
-      if (session !== panelSession) return
+      if (
+        confirmationSession == null
+        || confirmationSession !== panelSession
+        || provider !== getControllerProvider()
+      ) return
       controlsSeededFor = previousControlsSeededFor
       set({
         activeProgramId: previousActiveProgramId,
@@ -385,10 +390,11 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
       })
     }
     await provider.setActiveProgram(programId, { save: true })
-    if (!controllerSessionMatches(session, provider)) {
-      rollbackOptimisticActivation()
+    if (!controllerSessionMatches(initiatingSession, provider)) {
       throw new Error('Controller session changed before Pattern activation could be confirmed.')
     }
+    panelSession += 1
+    confirmationSession = panelSession
     controlsSeededFor = undefined
     set({ activeProgramId: programId, activeControls: {} })
     let config: ControllerConfig
@@ -401,16 +407,17 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
         { cause: error },
       )
     }
-    if (!controllerSessionMatches(session, provider)) {
+    if (!controllerSessionMatches(confirmationSession, provider)) {
       rollbackOptimisticActivation()
       throw new Error('Controller session changed before Pattern activation could be confirmed.')
     }
-    set((state) => configPatch(state, config))
     if (config.activeProgramId !== programId) {
+      rollbackOptimisticActivation()
       throw new Error(
         `Controller did not activate Pattern ${programId}; active Pattern is ${config.activeProgramId ?? 'unknown'}.`,
       )
     }
+    set((state) => configPatch(state, config))
   },
 
   deleteProgram: async (programId) => {

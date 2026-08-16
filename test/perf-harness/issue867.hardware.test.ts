@@ -1,10 +1,13 @@
-// #867: destructive-but-contained provider protocol probe on the pb32 bench.
-// Creates only namespaced fixtures, proves inactive deletion preserves the
-// complete prior inventory, records delete-active behavior before/after reboot,
-// and restores the original saved Pattern as the running and boot selection.
+// #867: safe, reversible provider protocol probe on the pb32 bench.
+// Creates one namespaced fixture, proves activation and restoration, deletes
+// the fixture only while inactive, and preserves the complete prior inventory.
+// Delete-active and reboot behavior require a controlled bench session.
 import { describe, expect, it } from 'vitest'
 import { makeProgramId } from '../../src/engine/bytecodePush'
-import { PixelblazeConnection, type ProgramListEntry } from '../../src/engine/PixelblazeConnection'
+import {
+  PixelblazeConnection,
+  type ProgramListEntry,
+} from '../../src/engine/PixelblazeConnection'
 import { encodePbp } from '../../src/engine/pbpEncode'
 import {
   fetchControllerCompiler,
@@ -49,24 +52,9 @@ async function connect() {
   return connection
 }
 
-async function reconnectAfterReboot() {
-  await sleep(2_000)
-  const deadline = Date.now() + 30_000
-  let lastError: unknown
-  while (Date.now() < deadline) {
-    try {
-      return await connect()
-    } catch (error) {
-      lastError = error
-      await sleep(1_000)
-    }
-  }
-  throw lastError instanceof Error ? lastError : new Error('Controller did not reconnect after reboot')
-}
-
 describe('Controller program switching and deletion (#867)', () => {
   it.skipIf(!runHardware)(
-    'preserves unrelated programs and records delete-active behavior across reboot',
+    'activates, restores, and deletes one reserved fixture without changing boot selection',
     async () => {
       const compile = await fetchControllerCompiler(ip)
       const bytecode = compile(source)
@@ -76,55 +64,57 @@ describe('Controller program switching and deletion (#867)', () => {
       const originalActive = beforeConfig.activeProgramId
       if (!originalActive || !beforePrograms.some((program) => program.id === originalActive)) {
         connection.close()
-        throw new Error('Active Pattern is not saved; refusing a probe that cannot restore the boot selection.')
+        throw new Error('Active Pattern is not saved; refusing a probe that cannot restore it.')
       }
 
-      const saveFixture = async (id: string, name: string) => {
-        connection.saveProgram(id, encodePbp({ id, name, sourceCode: source, byteCode: bytecode }))
-        const programs = await waitForInventory(connection, (items) => items.some((item) => item.id === id))
-        expect(programs.some((program) => program.id === id && program.name === name)).toBe(true)
-      }
-      const deleteAndConfirm = async (id: string) => {
-        connection.deleteProgram(id)
-        return waitForInventory(connection, (items) => !items.some((item) => item.id === id))
-      }
-
-      const inactiveId = makeProgramId()
-      const activeId = makeProgramId()
-      let evidence: Record<string, unknown> | null = null
+      const fixtureId = makeProgramId()
+      const fixtureName = '__pxlblz_867_switch_delete__'
       let runError: unknown
       try {
-        await saveFixture(inactiveId, '__pxlblz_867_inactive__')
-        connection.setActiveProgram(originalActive, true)
-        await waitForControllerConfig(() => connection.getConfig(), { activeProgramId: originalActive })
-        const afterInactiveDelete = await deleteAndConfirm(inactiveId)
-        expect(sortedInventory(afterInactiveDelete)).toEqual(sortedInventory(beforePrograms))
+        connection.saveProgram(
+          fixtureId,
+          encodePbp({ id: fixtureId, name: fixtureName, sourceCode: source, byteCode: bytecode }),
+        )
+        const afterSave = await waitForInventory(
+          connection,
+          (items) => items.some((item) => item.id === fixtureId),
+        )
+        expect(
+          afterSave.some((program) => program.id === fixtureId && program.name === fixtureName),
+        ).toBe(true)
 
-        await saveFixture(activeId, '__pxlblz_867_active__')
-        connection.setActiveProgram(activeId, true)
-        await waitForControllerConfig(() => connection.getConfig(), { activeProgramId: activeId })
-        const afterActiveDelete = await deleteAndConfirm(activeId)
-        const immediatelyAfterDelete = await connection.getConfig()
-        expect(sortedInventory(afterActiveDelete)).toEqual(sortedInventory(beforePrograms))
+        connection.setActiveProgram(fixtureId, false)
+        const fixtureActive = await waitForControllerConfig(
+          () => connection.getConfig(),
+          { activeProgramId: fixtureId },
+        )
+        expect(fixtureActive.activeProgramId).toBe(fixtureId)
 
-        const rebootResponse = await fetch(`http://${ip}/reboot`, { method: 'POST' })
-        expect([200, 404]).toContain(rebootResponse.status)
-        connection.close()
-        connection = await reconnectAfterReboot()
-        const afterReboot = await connection.getConfig()
-        const afterRebootPrograms = await connection.listPrograms()
-        expect(sortedInventory(afterRebootPrograms)).toEqual(sortedInventory(beforePrograms))
+        connection.setActiveProgram(originalActive, false)
+        const originalRestored = await waitForControllerConfig(
+          () => connection.getConfig(),
+          { activeProgramId: originalActive },
+        )
+        expect(originalRestored.activeProgramId).toBe(originalActive)
 
-        evidence = {
-          firmwareVersion: beforeConfig.firmwareVersion ?? null,
-          originalActive,
-          deletedActive: activeId,
-          activeImmediatelyAfterDelete: immediatelyAfterDelete.activeProgramId ?? null,
-          activeAfterReboot: afterReboot.activeProgramId ?? null,
-          rebootStatus: rebootResponse.status,
-          unrelatedProgramsPreserved: true,
-        }
-        console.log(`ISSUE867_EVIDENCE ${JSON.stringify(evidence)}`)
+        connection.deleteProgram(fixtureId)
+        const afterDelete = await waitForInventory(
+          connection,
+          (items) => !items.some((item) => item.id === fixtureId),
+        )
+        expect(afterDelete.some((program) => program.id === fixtureId)).toBe(false)
+        expect(sortedInventory(afterDelete)).toEqual(sortedInventory(beforePrograms))
+
+        console.log(
+          `ISSUE867_EVIDENCE ${JSON.stringify({
+            firmwareVersion: beforeConfig.firmwareVersion ?? null,
+            originalActive,
+            fixtureId,
+            activationConfirmed: fixtureActive.activeProgramId,
+            restorationConfirmed: originalRestored.activeProgramId,
+            inventoryPreserved: true,
+          })}`,
+        )
       } catch (error) {
         runError = error
       } finally {
@@ -133,37 +123,36 @@ describe('Controller program switching and deletion (#867)', () => {
             await connection.getConfig()
           } catch {
             connection.close()
-            connection = await reconnectAfterReboot()
+            connection = await connect()
           }
-          connection.setActiveProgram(originalActive, true)
+
+          connection.setActiveProgram(originalActive, false)
           const restored = await waitForControllerConfig(
             () => connection.getConfig(),
             { activeProgramId: originalActive },
           )
-          if (restored.activeProgramId !== originalActive) {
-            throw new Error('Controller active/boot Pattern did not restore.')
-          }
+          expect(restored.activeProgramId).toBe(originalActive)
+
           const remaining = await connection.listPrograms()
-          for (const id of [inactiveId, activeId]) {
-            if (remaining.some((program) => program.id === id)) connection.deleteProgram(id)
+          if (remaining.some((program) => program.id === fixtureId)) {
+            connection.deleteProgram(fixtureId)
           }
           const cleaned = await waitForInventory(
             connection,
-            (items) => !items.some((item) => item.id === inactiveId || item.id === activeId),
+            (items) => !items.some((item) => item.id === fixtureId),
           )
           expect(sortedInventory(cleaned)).toEqual(sortedInventory(beforePrograms))
-        } catch (restoreError) {
+        } catch (cleanupError) {
           runError = runError == null
-            ? restoreError
-            : new AggregateError([runError as Error, restoreError as Error])
+            ? cleanupError
+            : new AggregateError([runError as Error, cleanupError as Error])
         } finally {
           connection.close()
         }
       }
 
       if (runError != null) throw runError
-      expect(evidence).not.toBeNull()
     },
-    180_000,
+    120_000,
   )
 })
