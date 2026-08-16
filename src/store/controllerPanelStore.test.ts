@@ -149,13 +149,34 @@ describe('controllerPanelStore', () => {
   })
 
   it('publishes a confirmed activation immediately and lets polling replace it', async () => {
-    useControllerPanelStore.getState().noteProgramActivated('run-pattern-1')
-    expect(useControllerPanelStore.getState().activeProgramId).toBe('run-pattern-1')
+    useControllerPanelStore.getState().noteProgramActivated('run-pattern-1', '192.168.8.224')
+    expect(useControllerPanelStore.getState()).toMatchObject({
+      activeProgramId: 'run-pattern-1',
+      configSourceIp: '192.168.8.224',
+    })
 
     provider.config = { brightness: 0.5, activeProgramId: 'doom-fire' }
     await useControllerPanelStore.getState().poll()
 
     expect(useControllerPanelStore.getState().activeProgramId).toBe('doom-fire')
+  })
+
+  it('keeps the newest same-Controller program-list response when requests finish out of order', async () => {
+    const first = deferred<ProgramListEntry[]>()
+    const second = deferred<ProgramListEntry[]>()
+    provider.listPrograms = vi.fn()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise)
+
+    const oldRefresh = useControllerPanelStore.getState().refreshPrograms('192.168.8.224')
+    const newRefresh = useControllerPanelStore.getState().refreshPrograms('192.168.8.224')
+    second.resolve([{ id: 'new', name: 'New Pattern' }])
+    await newRefresh
+    first.resolve([{ id: 'old', name: 'Old Pattern' }])
+    await oldRefresh
+
+    expect(useControllerPanelStore.getState().programsByController['192.168.8.224'])
+      .toEqual([{ id: 'new', name: 'New Pattern' }])
   })
 
   it('activates a saved program persistently and reseeds its controls from the confirming poll', async () => {

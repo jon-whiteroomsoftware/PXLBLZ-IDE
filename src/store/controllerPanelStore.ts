@@ -126,9 +126,10 @@ interface ControllerPanelState {
    *  (#237). The push path persists the cache to storage; this only mirrors it into the
    *  live slice so the panel resolves the new name without waiting for a reseed. */
   noteProgramLabel: (programId: string, label: string) => void
-  /** Publish a program activation already confirmed by the push protocol. The next
-   *  panel poll remains authoritative and can replace it after an external switch. */
-  noteProgramActivated: (programId: string) => void
+  /** Publish a program activation already confirmed by the push protocol, including
+   *  the Controller that supplied that evidence. The next panel poll remains
+   *  authoritative and can replace it after an external switch. */
+  noteProgramActivated: (programId: string, controllerIp: string) => void
   /** Switch to a saved program and confirm it through an immediate poll. */
   activateProgram: (programId: string) => Promise<void>
   /** Delete a saved program and refresh the Controller inventory. */
@@ -192,6 +193,7 @@ let seededForIp: string | undefined
 // slice after the new device has populated it.
 let panelSession = 0
 let activationInFlight: symbol | null = null
+const programRefreshVersions = new Map<string, number>()
 const panelSnapshots = new Map<string, ControllerPanelSnapshot>()
 
 function snapshotFromState(state: ControllerPanelState): ControllerPanelSnapshot {
@@ -343,10 +345,17 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
 
   refreshPrograms: async (ip = seededForIp) => {
     const session = panelSession
+    const provider = getControllerProvider()
+    const requestKey = ip ?? ''
+    const requestVersion = (programRefreshVersions.get(requestKey) ?? 0) + 1
+    programRefreshVersions.set(requestKey, requestVersion)
     try {
-      const programs = await getControllerProvider().listPrograms()
+      const programs = await provider.listPrograms()
+      if (programRefreshVersions.get(requestKey) !== requestVersion) return
       set((state) => ({
-        ...(session === panelSession && (!ip || ip === seededForIp) ? { programs } : {}),
+        ...(controllerSessionMatches(session, provider) && (!ip || ip === seededForIp)
+          ? { programs }
+          : {}),
         ...(ip
           ? { programsByController: { ...state.programsByController, [ip]: programs } }
           : {}),
@@ -408,8 +417,8 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     set((s) => ({ programLabels: { ...s.programLabels, [programId]: label } }))
   },
 
-  noteProgramActivated: (programId) => {
-    set({ activeProgramId: programId })
+  noteProgramActivated: (programId, controllerIp) => {
+    set({ activeProgramId: programId, configSourceIp: controllerIp })
   },
 
   activateProgram: async (programId) => {

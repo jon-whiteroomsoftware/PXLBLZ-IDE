@@ -1380,7 +1380,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               },
             )
             assumeRendererPlaying(controllerId)
-            useControllerPanelStore.getState().noteProgramActivated(programId)
+            useControllerPanelStore.getState().noteProgramActivated(programId, controllerId)
 
             if (artifact.name) {
               const labels = withProgramLabel(
@@ -1789,7 +1789,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               }),
             )
             assumeRendererPlaying(controllerId)
-            useControllerPanelStore.getState().noteProgramActivated(programId)
+            useControllerPanelStore.getState().noteProgramActivated(programId, controllerId)
             // Record the name we pushed against the device program id (#237) so the
             // panel resolves a run-only program — which never enters the device's
             // program list — to the pattern's name instead of the raw generated id.

@@ -352,7 +352,15 @@ describe('ControllerProfilePage', () => {
     await screen.findByRole('table', { name: 'Saved PXLBLZ Patterns' })
     expect(screen.queryByLabelText('Running now')).not.toBeInTheDocument()
 
-    resolveConfig({ activeProgramId: 'FOREIGN1' })
+    act(() => {
+      useControllerPanelStore.getState().noteProgramActivated('DEV1', '192.168.8.224')
+    })
+    const managed = screen.getByRole('table', { name: 'Saved PXLBLZ Patterns' })
+    expect(await within(managed).findByLabelText('Running now')).toBeInTheDocument()
+
+    await act(async () => {
+      resolveConfig({ activeProgramId: 'FOREIGN1' })
+    })
     const other = screen.getByRole('table', { name: 'Other Patterns' })
     expect(await within(other).findByLabelText('Running now')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run sound bar kit on the Controller' }))
