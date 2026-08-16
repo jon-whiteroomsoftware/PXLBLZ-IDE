@@ -43,12 +43,27 @@ export function controllerSavedProgramFeatures(
   if (stored.kind !== 'recognized') return features
 
   const signature = JSON.parse(stored.normalized) as {
-    transforms: Array<{ type: string }>
-    bindings: Array<{ target: { kind: string } }>
+    transforms: Array<{
+      type: string
+      inputId?: string
+      mode?: string
+      maxDuty?: number
+    }>
+    inputs: Array<{ id: string; signal: string }>
+    bindings: Array<{ inputId: string; target: { kind: string } }>
   }
   for (const transform of signature.transforms) {
-    if (transform.type === 'power-cap') features.powerCap = true
-    if (transform.type === 'hardware-brightness') features.hardwareBrightness = true
+    if (transform.type === 'power-cap' && (transform.maxDuty ?? -1) >= 0) {
+      features.powerCap = true
+    }
+    if (
+      transform.type === 'hardware-brightness'
+      && transform.mode === 'multiply-output'
+      && signature.inputs.some((input) => (
+        input.id === transform.inputId && input.signal === 'analog'
+      ))
+      && !signature.bindings.some((binding) => binding.inputId === transform.inputId)
+    ) features.hardwareBrightness = true
   }
   for (const binding of signature.bindings) {
     if (

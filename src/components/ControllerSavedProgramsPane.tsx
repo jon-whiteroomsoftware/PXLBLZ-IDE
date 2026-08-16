@@ -436,22 +436,31 @@ function SortableTableHead({
   sort,
   onSort,
   labelClassName = '',
+  compact = false,
 }: {
   field: ControllerSavedProgramSort['field']
   label: string
   sort: ControllerSavedProgramSort
   onSort: (field: ControllerSavedProgramSort['field']) => void
   labelClassName?: string
+  compact?: boolean
 }) {
   const active = sort.field === field
   return (
     <th className={tableHeadClass} aria-sort={active ? sort.direction : 'none'}>
       <button
         type="button"
-        className="inline-flex items-center gap-1 rounded-sm text-left hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live/60"
+        className={`inline-flex items-center gap-1 rounded-sm text-left hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live/60 ${compact ? 'h-5 w-5 justify-center' : ''}`}
         onClick={() => onSort(field)}
       >
         <span className={labelClassName}>{label}</span>
+        {compact && !active && (
+          <span
+            data-testid="controller-status-sort-target"
+            aria-hidden
+            className="size-2 rounded-full border border-zinc-600"
+          />
+        )}
         {active && (sort.direction === 'ascending'
           ? <ChevronUp {...inlineIcon} aria-hidden />
           : <ChevronDown {...inlineIcon} aria-hidden />)}
@@ -572,6 +581,7 @@ function SavedProgramsInventory({
                 field="status"
                 label="Status"
                 labelClassName="sr-only"
+                compact
                 sort={sort}
                 onSort={updateSort}
               />
@@ -687,7 +697,8 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     liveIp ? state.programsByController[liveIp] ?? EMPTY_CONTROLLER_PROGRAMS : EMPTY_CONTROLLER_PROGRAMS
   ))
   const refreshControllerPrograms = useControllerPanelStore((state) => state.refreshPrograms)
-  const activeProgramId = useControllerPanelStore((state) => state.activeProgramId)
+  const panelActiveProgramId = useControllerPanelStore((state) => state.activeProgramId)
+  const configSourceIp = useControllerPanelStore((state) => state.configSourceIp)
   const activatingProgramId = useControllerPanelStore((state) => state.activatingProgramId)
   const activateProgram = useControllerPanelStore((state) => state.activateProgram)
   const pushRecordsRevision = useSyncExternalStore(
@@ -724,6 +735,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
       : savedProgramsRead.phase === 'failed'
         ? 'error'
         : 'ready'
+  const activeProgramId = configSourceIp === liveIp ? panelActiveProgramId : undefined
 
   useEffect(() => {
     if (!liveIp) {
@@ -731,6 +743,11 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
       return
     }
     if (useControllerStore.getState().activeIp !== liveIp) setActiveController(liveIp)
+    useControllerPanelStore.getState().seed(liveIp)
+  }, [clearSavedPrograms, liveIp, profile.id, setActiveController])
+
+  useEffect(() => {
+    if (!liveIp) return
     void syncSavedPrograms(profile.id, {
       controllerId: liveIp,
       liveEpoch,
@@ -744,7 +761,6 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
       },
     })
   }, [
-    clearSavedPrograms,
     controllerPrograms,
     liveEpoch,
     liveIp,
@@ -752,7 +768,6 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     pushRecordsRevision,
     refreshControllerPrograms,
     refreshGeneration,
-    setActiveController,
     syncSavedPrograms,
   ])
 

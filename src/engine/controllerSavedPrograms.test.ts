@@ -27,12 +27,13 @@ function pushRecord(transforms: string[], profileSignature?: string, sourceHash?
 describe('controllerSavedProgramFeatures', () => {
   const signatureWith = (input: {
     transforms?: Array<Record<string, unknown>>
+    inputs?: Array<Record<string, unknown>>
     bindings?: Array<Record<string, unknown>>
     version?: number
   }) => JSON.stringify({
     version: input.version ?? 1,
     transforms: input.transforms ?? [],
-    inputs: [],
+    inputs: input.inputs ?? [],
     bindings: input.bindings ?? [],
   })
 
@@ -75,7 +76,42 @@ describe('controllerSavedProgramFeatures', () => {
           mode: 'multiply-output',
         },
       ],
+      inputs: [{
+        id: 'pot-1',
+        name: 'Brightness',
+        pin: 33,
+        signal: 'analog',
+        smoothing: 0.2,
+        fallback: 0.5,
+        invert: false,
+      }],
     })))).toMatchObject({ powerCap: true, hardwareBrightness: true })
+  })
+
+  it('does not claim signature brightness when a same-input binding suppresses its emission', () => {
+    expect(controllerSavedProgramFeatures(pushRecord([], signatureWith({
+      transforms: [{
+        type: 'hardware-brightness',
+        mixinId: 'builtin:hardware-brightness',
+        inputId: 'pot-1',
+        mode: 'multiply-output',
+      }],
+      inputs: [{
+        id: 'pot-1',
+        name: 'Brightness',
+        pin: 33,
+        signal: 'analog',
+        smoothing: 0.2,
+        fallback: 0.5,
+        invert: false,
+      }],
+      bindings: [{
+        id: 'binding-1',
+        patternId: 'pat-1',
+        inputId: 'pot-1',
+        target: { kind: 'call-function', name: 'setSpeed' },
+      }],
+    })))).toMatchObject({ hardwareBrightness: false, controlBinding: true })
   })
 
   it.each([

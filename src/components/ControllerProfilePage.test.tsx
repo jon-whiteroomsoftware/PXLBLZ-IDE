@@ -102,6 +102,7 @@ class ProgramListProvider extends MapReadbackProvider {
   recoveredPrograms = new Map<string, RecoveredSavedProgram>()
   listCalls = 0
   activeProgramId: string | undefined
+  configPromise: Promise<ControllerConfig> | undefined
   activationCalls: Array<{ programId: string; save: boolean | undefined }> = []
 
   listPrograms() {
@@ -120,6 +121,7 @@ class ProgramListProvider extends MapReadbackProvider {
   }
 
   getConfig(): Promise<ControllerConfig> {
+    if (this.configPromise) return this.configPromise
     return Promise.resolve({
       ...(this.activeProgramId ? { activeProgramId: this.activeProgramId } : {}),
     })
@@ -178,11 +180,15 @@ function renderLiveProgramInventory(
     mapDim?: ControllerEntry['mapDim']
     installedMap?: ControllerEntry['installedMap']
     activeProgramId?: string
+    panelActiveProgramId?: string
+    configSourceIp?: string | null
+    configPromise?: Promise<ControllerConfig>
   },
 ) {
   const provider = new ProgramListProvider()
   provider.programs = fixture.programs
   provider.activeProgramId = fixture.activeProgramId
+  provider.configPromise = fixture.configPromise
   setControllerMetadataStorage({
     ...demoControllerMetadataStorage,
     id: fixture.storageId,
@@ -191,7 +197,8 @@ function renderLiveProgramInventory(
   })
   setControllerProvider(provider)
   useControllerPanelStore.setState({
-    activeProgramId: fixture.activeProgramId,
+    activeProgramId: fixture.panelActiveProgramId ?? fixture.activeProgramId,
+    configSourceIp: fixture.configSourceIp ?? null,
     programs: provider.programs,
     programsByController: { '192.168.8.224': provider.programs },
   })
@@ -262,7 +269,7 @@ describe('ControllerProfilePage', () => {
       bindings: { 'pat-1': 'DEV1' },
       pushRecords: {
         'pat-1': {
-          transforms: [],
+          transforms: ['hardware-brightness'],
           artifactHash: 'twinkle-hash',
           stampedAt: '2026-08-16T00:00:00.000Z',
           name: 'Twinkle',
@@ -275,6 +282,9 @@ describe('ControllerProfilePage', () => {
     const other = screen.getByRole('table', { name: 'Other Patterns' })
     expect(within(managed).queryByRole('columnheader', { name: 'Pattern ID' })).not.toBeInTheDocument()
     expect(within(other).queryByRole('columnheader', { name: 'Status' })).not.toBeInTheDocument()
+    const statusSort = within(managed).getByRole('button', { name: 'Status' })
+    expect(statusSort).toHaveClass('h-5', 'w-5')
+    expect(within(statusSort).getByTestId('controller-status-sort-target')).toBeInTheDocument()
     expect(screen.getByTitle(/Program id DEV1/)).toHaveTextContent('Twinkle')
     expect(screen.getByLabelText('Running now')).toBeInTheDocument()
     expect(screen.getByTitle('Power cap is baked into this saved Pattern')).toBeInTheDocument()
@@ -307,6 +317,46 @@ describe('ControllerProfilePage', () => {
     expect(useRouterStore.getState().route).toEqual(routeBefore)
     expect(screen.getByRole('button', { name: 'Run sound bar kit on the Controller' })).toBeDisabled()
     expect(screen.getAllByLabelText('Running now')).toHaveLength(1)
+  })
+
+  it('waits for Controller-scoped config before marking an inventory row as running', async () => {
+    const profile = seedProfile()
+    usePatternStore.setState({
+      userPatterns: [{
+        id: 'pat-1',
+        name: 'Twinkle',
+        src: 'export function render(i) {}',
+        controls: {},
+        updatedAt: 1,
+      }],
+      patternsLoaded: true,
+    })
+    let resolveConfig!: (config: ControllerConfig) => void
+    const configPromise = new Promise<ControllerConfig>((resolve) => {
+      resolveConfig = resolve
+    })
+    renderLiveProgramInventory(profile, {
+      storageId: 'inventory-config-provenance',
+      activeProgramId: 'FOREIGN1',
+      panelActiveProgramId: 'DEV1',
+      configSourceIp: '10.0.0.1',
+      configPromise,
+      programs: [
+        { id: 'DEV1', name: 'Device Twinkle' },
+        { id: 'FOREIGN1', name: 'sound bar kit' },
+      ],
+      bindings: { 'pat-1': 'DEV1' },
+      pushRecords: {},
+    })
+
+    await screen.findByRole('table', { name: 'Saved PXLBLZ Patterns' })
+    expect(screen.queryByLabelText('Running now')).not.toBeInTheDocument()
+
+    resolveConfig({ activeProgramId: 'FOREIGN1' })
+    const other = screen.getByRole('table', { name: 'Other Patterns' })
+    expect(await within(other).findByLabelText('Running now')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run sound bar kit on the Controller' }))
+      .toBeDisabled()
   })
 
   it('keys ragged input columns to the center pane instead of the viewport (#772)', () => {
@@ -1311,7 +1361,7 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByLabelText(statusDotName.current)).toBeInTheDocument()
     expect(screen.getByLabelText(statusDotName.stale)).toBeInTheDocument()
     expect(screen.getByLabelText(statusDotName.unmanaged)).toBeInTheDocument()
-    expect(provider.listCalls).toBe(0)
+    expect(provider.listCalls).toBe(1)
 
     expect(savedInventory).toHaveClass('table-fixed')
     expect(otherInventory).toHaveClass('table-fixed')
@@ -1365,7 +1415,7 @@ describe('ControllerProfilePage', () => {
     }
     rerender(pane(changedProfile))
     expect(within(savedInventory).getAllByLabelText(statusDotName.stale)).toHaveLength(2)
-    expect(provider.listCalls).toBe(0)
+    expect(provider.listCalls).toBe(1)
 
     useControllerStore.setState({
       controllerReconciliations: {
@@ -1396,7 +1446,7 @@ describe('ControllerProfilePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Refresh saved Patterns' }))
     expect(await screen.findByText('New Pattern 14')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Other Patterns (2)' })).toBeInTheDocument()
-    expect(provider.listCalls).toBe(1)
+    expect(provider.listCalls).toBe(2)
     expect(consoleError.mock.calls.flat().join(' ')).not.toContain('same key')
     consoleError.mockRestore()
   })
