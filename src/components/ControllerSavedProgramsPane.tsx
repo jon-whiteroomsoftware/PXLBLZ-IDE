@@ -27,9 +27,14 @@ import {
 } from '@/components/ui/alert-dialog'
 import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
 import {
+  getControllerBindings,
   getControllerPushRecordsRevision,
+  getPushRecords,
+  setControllerBindings,
+  setPushRecords,
   subscribeControllerPushRecordsRevision,
 } from '@/engine/controllerMetadataStorage'
+import { removeManagedControllerSavedProgramMetadata } from '@/engine/controllerSavedProgramDeletion'
 import type { ControllerProfile } from '@/engine/controllerProfile'
 import { controllerForProfile } from '@/engine/controllerProfileConnection'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
@@ -77,6 +82,10 @@ type SavedProgramsReadStatus = 'offline' | 'loading' | 'ready' | 'error'
 type PendingProgramImport = {
   program: ControllerSavedProgramRow
   decision: SavedProgramImportDecision
+}
+
+type PendingProgramDelete = {
+  program: ControllerSavedProgramRow
 }
 
 const statusPresentation: Record<ControllerSavedPatternStatus, { title: string; className: string }> = {
@@ -370,6 +379,65 @@ function ImportProgramDialog({
   )
 }
 
+function DeleteProgramDialog({
+  pending,
+  controllerName,
+  busy,
+  blocked,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  pending: PendingProgramDelete | null
+  controllerName: string
+  busy: boolean
+  blocked: boolean
+  error: string | null
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  if (!pending) return null
+  const { program } = pending
+  const description = program.kind === 'owned'
+    ? 'This removes the saved Pattern from the Controller. The Studio Pattern is not deleted; Save sends it again.'
+    : 'This removes the Pattern from the Controller. PXLBLZ holds no copy of it — Import first if you want to keep the source.'
+
+  return (
+    <AlertDialogRoot open onOpenChange={(open) => { if (!open && !busy) onCancel() }}>
+      <AlertDialogContent onEscapeKeyDown={(event) => { if (busy) event.preventDefault() }}>
+        <AlertDialogTitle>Delete “{program.name}” from {controllerName}?</AlertDialogTitle>
+        <AlertDialogDescription>{description}</AlertDialogDescription>
+        <div className="mt-3 rounded border border-zinc-800 bg-zinc-950/70 px-3 py-2 text-xs text-zinc-400">
+          Program id <span className="font-mono text-zinc-200">{program.programId}</span>
+        </div>
+        {blocked && (
+          <div className="mt-3 border border-amber-500/30 bg-amber-950/20 px-2.5 py-2 text-xs text-amber-200">
+            Running now — switch to another Pattern first
+          </div>
+        )}
+        {error && (
+          <div role="alert" className="mt-3 border border-red-500/30 bg-red-950/20 px-2.5 py-2 text-xs text-red-200">
+            {error}
+          </div>
+        )}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy} onClick={onCancel}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={busy || blocked}
+            className="border-red-500/70 text-red-300 hover:bg-red-950/40"
+            onClick={(event) => {
+              event.preventDefault()
+              onConfirm()
+            }}
+          >
+            {busy ? 'Deleting…' : error ? 'Retry delete' : 'Delete from Controller'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialogRoot>
+  )
+}
+
 function SavedProgramRowActions({
   program,
   running,
@@ -378,6 +446,7 @@ function SavedProgramRowActions({
   activating,
   onRun,
   onImport,
+  onDelete,
 }: {
   program: ControllerSavedProgramRow
   running: boolean
@@ -386,6 +455,7 @@ function SavedProgramRowActions({
   activating: boolean
   onRun: (program: ControllerSavedProgramRow) => void
   onImport?: (program: ControllerSavedProgramRow) => void
+  onDelete: (program: ControllerSavedProgramRow) => void
 }) {
   return (
     <span className={actionClusterClass}>
@@ -421,8 +491,9 @@ function SavedProgramRowActions({
         aria-label={`Delete ${program.name} from the Controller`}
         title={running
           ? 'Running now — switch to another Pattern first'
-          : 'Delete support follows in this Controller inventory update'}
-        disabled
+          : 'Delete from the Controller'}
+        disabled={disabled || running}
+        onClick={() => onDelete(program)}
       >
         <Trash2 {...controlIcon} aria-hidden />
       </button>
@@ -480,7 +551,9 @@ function SavedProgramsInventory({
   onOpen,
   onRun,
   onImport,
+  onDelete,
   importingProgramId,
+  deletingProgramId,
   error,
   reconciliation,
 }: {
@@ -494,7 +567,9 @@ function SavedProgramsInventory({
   onOpen: (routeId: string) => void
   onRun: (program: ControllerSavedProgramRow) => void
   onImport: (program: ControllerSavedProgramRow) => void
+  onDelete: (program: ControllerSavedProgramRow) => void
   importingProgramId: string | null
+  deletingProgramId: string | null
   error: string | null
   reconciliation?: ControllerReconciliationState
 }) {
@@ -518,7 +593,9 @@ function SavedProgramsInventory({
     field,
     direction: current.field === field && current.direction === 'ascending' ? 'descending' : 'ascending',
   }))
-  const actionsBusy = activatingProgramId !== null || importingProgramId !== null
+  const actionsBusy = activatingProgramId !== null
+    || importingProgramId !== null
+    || deletingProgramId !== null
   return (
     <section className="border-b border-seam px-4 py-4">
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -616,6 +693,7 @@ function SavedProgramsInventory({
                       activating={activatingProgramId === program.programId}
                       importing={false}
                       onRun={onRun}
+                      onDelete={onDelete}
                     />
                   </td>
                 </tr>
@@ -666,6 +744,7 @@ function SavedProgramsInventory({
                           importing={importingProgramId === program.programId}
                           onRun={onRun}
                           onImport={onImport}
+                          onDelete={onDelete}
                         />
                       </td>
                     </tr>
@@ -701,6 +780,8 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   const configSourceIp = useControllerPanelStore((state) => state.configSourceIp)
   const activatingProgramId = useControllerPanelStore((state) => state.activatingProgramId)
   const activateProgram = useControllerPanelStore((state) => state.activateProgram)
+  const deleteProgram = useControllerPanelStore((state) => state.deleteProgram)
+  const forgetDeletedSavedProgram = useControllerStore((state) => state.forgetDeletedSavedProgram)
   const pushRecordsRevision = useSyncExternalStore(
     subscribeControllerPushRecordsRevision,
     getControllerPushRecordsRevision,
@@ -717,6 +798,9 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   const [importingProgramId, setImportingProgramId] = useState<string | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const [runError, setRunError] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<PendingProgramDelete | null>(null)
+  const [deletingProgramId, setDeletingProgramId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const liveEpoch = profileController?.phase === 'live' ? profileController.liveEpoch : undefined
   const readKey = liveIp
     ? controllerSavedProgramsReadKey({
@@ -894,6 +978,41 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     }
   }
 
+  async function confirmProgramDelete() {
+    if (!pendingDelete || !liveIp) return
+    const { program } = pendingDelete
+    if (activeProgramId === program.programId) {
+      setDeleteError('Running now — switch to another Pattern first')
+      return
+    }
+
+    setDeletingProgramId(program.programId)
+    setDeleteError(null)
+    try {
+      await deleteProgram(program.programId)
+      const metadataResult = await removeManagedControllerSavedProgramMetadata({
+        controllerId: liveIp,
+        bindingKey: program.bindingKey,
+        programId: program.programId,
+      }, {
+        getControllerBindings,
+        setControllerBindings,
+        getPushRecords,
+        setPushRecords,
+      })
+      if (metadataResult.removed) {
+        forgetDeletedSavedProgram(liveIp, metadataResult.bindingKey)
+      }
+      requestSavedProgramsRefresh(profile.id)
+      setPendingDelete(null)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Controller deletion failed.'
+      setDeleteError(`Could not delete “${program.name}” from ${profile.name}. ${message}`)
+    } finally {
+      setDeletingProgramId(null)
+    }
+  }
+
   return (
     <div data-testid="controller-saved-programs-pane" className="h-full min-h-0 overflow-x-hidden overflow-y-auto bg-zinc-950 text-zinc-200">
       <ImportProgramDialog
@@ -901,6 +1020,18 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         busy={importingProgramId !== null}
         onCancel={() => setPendingImport(null)}
         onConfirm={() => void confirmProgramImport()}
+      />
+      <DeleteProgramDialog
+        pending={pendingDelete}
+        controllerName={profile.name}
+        busy={deletingProgramId !== null}
+        blocked={pendingDelete?.program.programId === activeProgramId}
+        error={deleteError}
+        onCancel={() => {
+          setPendingDelete(null)
+          setDeleteError(null)
+        }}
+        onConfirm={() => void confirmProgramDelete()}
       />
       <ManagedPatternReconciliation
         profile={profile}
@@ -924,7 +1055,12 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         })}
         onRun={(program) => void runSavedProgram(program)}
         onImport={(program) => void beginProgramImport(program)}
+        onDelete={(program) => {
+          setDeleteError(null)
+          setPendingDelete({ program })
+        }}
         importingProgramId={importingProgramId}
+        deletingProgramId={deletingProgramId}
         error={runError ?? importError}
         reconciliation={reconciliation}
       />

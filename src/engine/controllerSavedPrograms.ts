@@ -102,6 +102,8 @@ export interface StudioPatternIdentity {
 export interface ControllerSavedProgramRow {
   kind: 'owned' | 'foreign'
   programId: string
+  /** Exact Studio entity identity for managed metadata cleanup. */
+  bindingKey: string | null
   name: string
   deviceName: string
   routeId: string | null
@@ -206,6 +208,7 @@ export function describeControllerSavedPrograms(input: {
       foreign.push({
         kind: 'foreign',
         programId: program.id,
+        bindingKey: null,
         name: deviceName,
         deviceName,
         routeId: null,
@@ -221,6 +224,7 @@ export function describeControllerSavedPrograms(input: {
     owned.push({
       kind: 'owned',
       programId: program.id,
+      bindingKey,
       name: studioPattern?.name.trim() || deviceName,
       deviceName,
       routeId: studioPattern?.routeId ?? null,

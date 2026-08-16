@@ -369,6 +369,161 @@ test('Controller surfaces keep live state and switch saved Patterns in place (#8
   })).toBe(true)
 })
 
+test('deletes an inactive managed Controller Pattern and re-arms Studio Save (#870)', async ({ page }) => {
+  const controllerId = '192.168.8.224'
+  const programId = 'E2E870PROGRAM00001'
+  const siblingProgramId = 'E2E870PROGRAM00002'
+  const pattern = {
+    id: 'e2e-870-pattern',
+    name: 'Delete target',
+    src: 'export function render(index) { hsv(index / pixelCount, 1, 1) }',
+    controls: {},
+    updatedAt: Date.now(),
+  }
+  const profile: ControllerProfile = {
+    id: 'e2e-870-controller',
+    name: 'Delete bench',
+    deviceId: 'pixelblaze_pb32_3cd4ee549434',
+    lastKnownDeviceName: 'Delete bench',
+    lastSeenIp: controllerId,
+    lastKnownPixelCount: 64,
+    board: { kind: 'pixelblaze-v3-standard', hardwareRevision: 3.5, firmwareVersion: '3.67' },
+    electricalProfile: null,
+    inputs: [],
+    globalTransforms: [],
+    keepPatternsUpToDate: false,
+    patternBindings: [],
+    zones: [],
+    updatedAt: Date.now(),
+  }
+  const pushRecord = {
+    transforms: [],
+    artifactHash: 'e2e-870-before-delete',
+    sourceHash: artifactHash(pattern.src),
+    stampedAt: '2026-08-16T00:00:00.000Z',
+    name: pattern.name,
+    profileSignature: controllerProfileArtifactSignature(profile, pattern.id, { mapDim: null }),
+  }
+
+  for (const [resource, data] of [
+    ['controllers', profile],
+    ['patterns', pattern],
+  ] as const) {
+    const response = await page.context().request.post(`/api/${resource}`, { data })
+    expect(response.ok(), `POST /api/${resource} -> ${response.status()}`).toBe(true)
+  }
+  for (const [key, value] of [
+    ['controller-bindings', { [controllerId]: { [pattern.id]: programId } }],
+    ['controller-push-records', { [controllerId]: { [pattern.id]: pushRecord } }],
+  ] as const) {
+    const response = await page.context().request.put(`/api/controller-metadata/${key}`, {
+      data: { value },
+    })
+    expect(response.ok(), `PUT /api/controller-metadata/${key} -> ${response.status()}`).toBe(true)
+  }
+
+  await installFakeControllerHelper(page, {
+    programs: [
+      { id: programId, name: pattern.name },
+      { id: siblingProgramId, name: 'Spare Pattern' },
+    ],
+    activeProgramId: siblingProgramId,
+    deviceName: profile.name,
+    boardType: 'pb32',
+    mac: '34:94:54:ee:d4:3c',
+    pixelCount: 64,
+  })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`studio/patterns/${pattern.id}`)
+
+  await page.getByRole('button', { name: 'Connect a Controller' }).click()
+  await page.getByRole('textbox', { name: 'Controller IP address' }).fill(controllerId)
+  await page.getByTestId('controller-go').click()
+  const controllerPill = page.getByTestId('controller-pill')
+  await expect(controllerPill).toHaveAttribute('data-phase', 'live')
+
+  const save = page.getByTestId('save-to-controller')
+  await expect(save).toBeEnabled()
+  await save.click()
+  await expect.poll(() => page.evaluate((targetId) => {
+    const writes = (window as typeof window & {
+      __fakeControllerWrites?: Array<Record<string, unknown>>
+    }).__fakeControllerWrites ?? []
+    return writes.some((write) => (
+      typeof write.setCode === 'object'
+      && (write.setCode as { id?: unknown }).id === targetId
+    ))
+  }, programId)).toBe(true)
+  await expect(save).toBeDisabled()
+
+  await controllerPill.click()
+  await page.getByRole('link', { name: `Open ${profile.name} profile` }).click()
+  await expect(page).toHaveURL(new RegExp(`/studio/controllers/${profile.id}$`))
+  const managedTable = page.getByRole('table', { name: 'Saved PXLBLZ Patterns' })
+  await expect(managedTable).toBeVisible()
+  const targetDelete = managedTable.getByRole('button', {
+    name: `Delete ${pattern.name} from the Controller`,
+  })
+  await expect(targetDelete).toBeDisabled()
+  await expect(targetDelete).toHaveAttribute(
+    'title',
+    'Running now — switch to another Pattern first',
+  )
+
+  await page.getByRole('button', { name: 'Run Spare Pattern on the Controller' }).click()
+  await expect(targetDelete).toBeEnabled()
+  await targetDelete.click()
+  const dialog = page.getByRole('alertdialog')
+  await expect(dialog.getByRole('heading', {
+    name: `Delete “${pattern.name}” from ${profile.name}?`,
+  })).toBeVisible()
+  await expect(dialog).toContainText(
+    'The Studio Pattern is not deleted; Save sends it again.',
+  )
+  const writesBeforeDelete = await page.evaluate(() => (
+    (window as typeof window & {
+      __fakeControllerWrites?: Array<Record<string, unknown>>
+    }).__fakeControllerWrites ?? []
+  ).length)
+  await dialog.getByRole('button', { name: 'Delete from Controller' }).click()
+
+  await expect(managedTable.getByText(pattern.name, { exact: true })).toHaveCount(0)
+  await expect(dialog).not.toBeVisible()
+  await expect.poll(() => page.evaluate(({ offset, targetId }) => {
+    const writes = (window as typeof window & {
+      __fakeControllerWrites?: Array<Record<string, unknown>>
+    }).__fakeControllerWrites ?? []
+    const deletionWrites = writes.slice(offset)
+    return {
+      deleted: deletionWrites.filter((write) => write.deleteProgram === targetId).length,
+      repushed: deletionWrites.some((write) => 'setCode' in write),
+    }
+  }, { offset: writesBeforeDelete, targetId: programId })).toEqual({
+    deleted: 1,
+    repushed: false,
+  })
+
+  for (const [key, field] of [
+    ['controller-bindings', 'bindings'],
+    ['controller-push-records', 'pushRecords'],
+  ] as const) {
+    const response = await page.context().request.get(`/api/controller-metadata/${key}`)
+    expect(response.ok(), `GET /api/controller-metadata/${key} -> ${response.status()}`).toBe(true)
+    const body = await response.json() as {
+      value?: Record<string, Record<string, unknown>>
+    }
+    expect(body.value?.[controllerId]?.[pattern.id], `${field} target`).toBeUndefined()
+  }
+  const patternsResponse = await page.context().request.get('/api/patterns')
+  expect(patternsResponse.ok(), `GET /api/patterns -> ${patternsResponse.status()}`).toBe(true)
+  const patternsBody = await patternsResponse.json() as { patterns?: Array<{ id: string }> }
+  expect(patternsBody.patterns?.some((candidate) => candidate.id === pattern.id)).toBe(true)
+
+  await page.goBack()
+  await expect(page).toHaveURL(new RegExp(`/studio/patterns/${pattern.id}$`))
+  await expect(page.getByTestId('save-to-controller')).toBeEnabled()
+})
+
 test('keeps the Shows header inside the center editor pane (#758)', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(showtimePath('studio/shows/stock-show-101-clips-cuts-blank-time'))

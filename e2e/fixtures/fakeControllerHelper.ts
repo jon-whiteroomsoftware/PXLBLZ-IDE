@@ -24,6 +24,7 @@ export async function installFakeControllerHelper(
     const RELAY_SOURCE = 'pblz-relay'
     let activeProgramId = fixture.activeProgramId
     let pendingProgramId: string | null = null
+    let programs = fixture.programs.map((program) => ({ ...program }))
     const writes: Array<Record<string, unknown>> = []
     Object.defineProperty(window, '__fakeControllerWrites', {
       configurable: true,
@@ -49,7 +50,7 @@ export async function installFakeControllerHelper(
     })
     const replyPrograms = (connId: string) => {
       const body = new TextEncoder().encode(
-        fixture.programs.map((program) => `${program.id}\t${program.name}`).join('\n'),
+        programs.map((program) => `${program.id}\t${program.name}`).join('\n'),
       )
       const frame = new Uint8Array(body.length + 2)
       frame[0] = 7
@@ -131,6 +132,9 @@ export async function installFakeControllerHelper(
       }
       if (command.ping) reply(message.connId, { ack: 1 })
       if (command.listPrograms) replyPrograms(message.connId)
+      if (typeof command.deleteProgram === 'string') {
+        programs = programs.filter((program) => program.id !== command.deleteProgram)
+      }
       if (command.getControls !== undefined) {
         reply(message.connId, { controls: fixture.controls ?? {} })
       }

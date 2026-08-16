@@ -97,10 +97,25 @@ class MapReadbackProvider extends NullControllerProvider {
   }
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
 class ProgramListProvider extends MapReadbackProvider {
   programs: Array<{ id: string; name: string }> = []
+  bindings: BindingStore = {}
+  pushRecords: ControllerPushRecords = {}
   recoveredPrograms = new Map<string, RecoveredSavedProgram>()
   listCalls = 0
+  deletedProgramIds: string[] = []
+  bindingWrites = 0
+  pushRecordWrites = 0
   activeProgramId: string | undefined
   configPromise: Promise<ControllerConfig> | undefined
   activationCalls: Array<{ programId: string; save: boolean | undefined }> = []
@@ -117,6 +132,12 @@ class ProgramListProvider extends MapReadbackProvider {
   setActiveProgram(programId: string, opts?: { save?: boolean }) {
     this.activationCalls.push({ programId, save: opts?.save })
     this.activeProgramId = programId
+    return Promise.resolve()
+  }
+
+  deleteProgram(programId: string) {
+    this.deletedProgramIds.push(programId)
+    this.programs = this.programs.filter((program) => program.id !== programId)
     return Promise.resolve()
   }
 
@@ -187,13 +208,23 @@ function renderLiveProgramInventory(
 ) {
   const provider = new ProgramListProvider()
   provider.programs = fixture.programs
+  provider.bindings = { '192.168.8.224': fixture.bindings }
+  provider.pushRecords = { '192.168.8.224': fixture.pushRecords }
   provider.activeProgramId = fixture.activeProgramId
   provider.configPromise = fixture.configPromise
   setControllerMetadataStorage({
     ...demoControllerMetadataStorage,
     id: fixture.storageId,
-    getControllerBindings: async () => ({ '192.168.8.224': fixture.bindings }),
-    getPushRecords: async () => ({ '192.168.8.224': fixture.pushRecords }),
+    getControllerBindings: async () => provider.bindings,
+    setControllerBindings: async (next) => {
+      provider.bindingWrites += 1
+      provider.bindings = next
+    },
+    getPushRecords: async () => provider.pushRecords,
+    setPushRecords: async (next) => {
+      provider.pushRecordWrites += 1
+      provider.pushRecords = next
+    },
   })
   setControllerProvider(provider)
   useControllerPanelStore.setState({
@@ -317,6 +348,172 @@ describe('ControllerProfilePage', () => {
     expect(useRouterStore.getState().route).toEqual(routeBefore)
     expect(screen.getByRole('button', { name: 'Run sound bar kit on the Controller' })).toBeDisabled()
     expect(screen.getAllByLabelText('Running now')).toHaveLength(1)
+  })
+
+  it('deletes an inactive managed Pattern and clears only its metadata and Send memos', async () => {
+    const profile = seedProfile()
+    const targetRecord = {
+      transforms: [],
+      artifactHash: 'target-hash',
+      stampedAt: '2026-08-16T00:00:00.000Z',
+      name: 'Twinkle',
+    }
+    const siblingRecord = { ...targetRecord, artifactHash: 'sibling-hash', name: 'Sibling' }
+    usePatternStore.setState({
+      userPatterns: [{
+        id: 'pat-1',
+        name: 'Twinkle',
+        src: 'export function render(i) {}',
+        controls: {},
+        updatedAt: 1,
+      }],
+      patternsLoaded: true,
+    })
+    const memos = {
+      '192.168.8.224': { 'pat-1': 'target', sibling: 'keep-a' },
+      '10.0.0.9': { 'pat-1': 'keep-b' },
+    }
+    useControllerStore.setState({
+      lastSavedSource: structuredClone(memos),
+      lastSavedProfileSignature: structuredClone(memos),
+      lastPushedSource: structuredClone(memos),
+      lastPushedProfileSignature: structuredClone(memos),
+      lastRunProgramId: structuredClone(memos),
+    })
+    const provider = renderLiveProgramInventory(profile, {
+      storageId: 'managed-delete',
+      activeProgramId: 'ACTIVE',
+      programs: [
+        { id: 'DEV1', name: 'Device Twinkle' },
+        { id: 'SIBLING', name: 'Sibling' },
+        { id: 'ACTIVE', name: 'Running Pattern' },
+      ],
+      bindings: { 'pat-1': 'DEV1', sibling: 'SIBLING' },
+      pushRecords: { 'pat-1': targetRecord, sibling: siblingRecord },
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Twinkle from the Controller' }))
+    const dialog = screen.getByRole('alertdialog')
+    expect(within(dialog).getByRole('heading', { name: 'Delete “Twinkle” from Burner bag?' }))
+      .toBeInTheDocument()
+    expect(dialog).toHaveTextContent(
+      'This removes the saved Pattern from the Controller. The Studio Pattern is not deleted; Save sends it again.',
+    )
+    expect(within(dialog).getByText('DEV1')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete from Controller' }))
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Twinkle' })).not.toBeInTheDocument())
+    expect(provider.deletedProgramIds).toEqual(['DEV1'])
+    expect(provider.bindings).toEqual({
+      '192.168.8.224': { sibling: 'SIBLING' },
+    })
+    expect(provider.pushRecords).toEqual({
+      '192.168.8.224': { sibling: siblingRecord },
+    })
+    expect(usePatternStore.getState().userPatterns.map((pattern) => pattern.id)).toEqual(['pat-1'])
+    for (const field of [
+      'lastSavedSource',
+      'lastSavedProfileSignature',
+      'lastPushedSource',
+      'lastPushedProfileSignature',
+      'lastRunProgramId',
+    ] as const) {
+      expect(useControllerStore.getState()[field]).toEqual({
+        '192.168.8.224': { sibling: 'keep-a' },
+        '10.0.0.9': { 'pat-1': 'keep-b' },
+      })
+    }
+  })
+
+  it('keeps a failed foreign delete retryable without touching metadata', async () => {
+    const profile = seedProfile()
+    const provider = renderLiveProgramInventory(profile, {
+      storageId: 'foreign-delete-failure',
+      activeProgramId: 'ACTIVE',
+      programs: [
+        { id: 'FOREIGN1', name: 'sound bar kit' },
+        { id: 'ACTIVE', name: 'Running Pattern' },
+      ],
+      bindings: {},
+      pushRecords: {},
+    })
+    provider.deleteProgram = vi.fn().mockRejectedValueOnce(new Error('device timed out'))
+      .mockImplementation(ProgramListProvider.prototype.deleteProgram.bind(provider))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete sound bar kit from the Controller' }))
+    const dialog = screen.getByRole('alertdialog')
+    expect(dialog).toHaveTextContent(
+      'This removes the Pattern from the Controller. PXLBLZ holds no copy of it — Import first if you want to keep the source.',
+    )
+    expect(within(dialog).getByText('FOREIGN1')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete from Controller' }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Could not delete “sound bar kit” from Burner bag. device timed out',
+    )
+    expect(screen.getByText('sound bar kit')).toBeInTheDocument()
+    expect(provider.bindingWrites).toBe(0)
+    expect(provider.pushRecordWrites).toBe(0)
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Retry delete' }))
+    await waitFor(() => expect(screen.queryByText('sound bar kit')).not.toBeInTheDocument())
+    expect(provider.bindingWrites).toBe(0)
+    expect(provider.pushRecordWrites).toBe(0)
+  })
+
+  it('keeps the delete dialog open and non-dismissible while the device operation is busy', async () => {
+    const profile = seedProfile()
+    const provider = renderLiveProgramInventory(profile, {
+      storageId: 'foreign-delete-busy',
+      activeProgramId: 'ACTIVE',
+      programs: [
+        { id: 'FOREIGN1', name: 'sound bar kit' },
+        { id: 'ACTIVE', name: 'Running Pattern' },
+      ],
+      bindings: {},
+      pushRecords: {},
+    })
+    const pending = deferred<void>()
+    provider.deleteProgram = vi.fn(async (programId: string) => {
+      await pending.promise
+      provider.deletedProgramIds.push(programId)
+      provider.programs = provider.programs.filter((program) => program.id !== programId)
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete sound bar kit from the Controller' }))
+    const dialog = screen.getByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete from Controller' }))
+    expect(await within(dialog).findByRole('button', { name: 'Deleting…' })).toBeDisabled()
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+    expect(dialog).toBeInTheDocument()
+
+    pending.resolve()
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+  })
+
+  it('blocks confirmation if the row becomes active after its delete dialog opens', async () => {
+    const profile = seedProfile()
+    const provider = renderLiveProgramInventory(profile, {
+      storageId: 'delete-active-race',
+      activeProgramId: 'ACTIVE',
+      programs: [
+        { id: 'DEV1', name: 'Twinkle' },
+        { id: 'ACTIVE', name: 'Running Pattern' },
+      ],
+      bindings: { 'pat-1': 'DEV1' },
+      pushRecords: {},
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Twinkle from the Controller' }))
+    act(() => {
+      useControllerPanelStore.getState().noteProgramActivated('DEV1', '192.168.8.224')
+    })
+
+    const dialog = screen.getByRole('alertdialog')
+    expect(within(dialog).getByRole('button', { name: 'Delete from Controller' })).toBeDisabled()
+    expect(dialog).toHaveTextContent('Running now — switch to another Pattern first')
+    expect(provider.deletedProgramIds).toEqual([])
   })
 
   it('waits for Controller-scoped config before marking an inventory row as running', async () => {

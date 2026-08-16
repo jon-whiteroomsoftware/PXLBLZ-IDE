@@ -233,6 +233,7 @@ describe('describeControllerSavedPrograms', () => {
       {
         kind: 'owned',
         programId: 'DEV2',
+        bindingKey: 'demo:AuroraSphere',
         name: 'AuroraSphere',
         deviceName: 'Aurora on device',
         routeId: 'AuroraSphere',
@@ -249,6 +250,7 @@ describe('describeControllerSavedPrograms', () => {
       {
         kind: 'owned',
         programId: 'ORPHAN1',
+        bindingKey: 'pat-deleted',
         name: 'Deleted Studio pattern',
         deviceName: 'Deleted Studio pattern',
         routeId: null,
@@ -265,6 +267,7 @@ describe('describeControllerSavedPrograms', () => {
       {
         kind: 'owned',
         programId: 'DEV1',
+        bindingKey: 'pat-1',
         name: 'Twinkle',
         deviceName: 'Device copy of Twinkle',
         routeId: 'pat-1',
@@ -283,6 +286,7 @@ describe('describeControllerSavedPrograms', () => {
       {
         kind: 'foreign',
         programId: 'FOREIGN1',
+        bindingKey: null,
         name: 'sound bar kit',
         deviceName: 'sound bar kit',
         routeId: null,
@@ -438,6 +442,7 @@ function savedProgramRow(
   return {
     kind,
     programId,
+    bindingKey: kind === 'owned' ? programId : null,
     name,
     deviceName: name,
     routeId: null,

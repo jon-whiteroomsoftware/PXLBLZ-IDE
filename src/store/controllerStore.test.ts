@@ -1140,6 +1140,35 @@ describe('controllerStore (keyed)', () => {
     expect(store().controllers['10.0.0.9'].nickname).toBeUndefined()
   })
 
+  it('forgets deletion memos for exactly one Controller and Studio entity (#870)', () => {
+    const memo = {
+      '10.0.0.5': { 'pat-1': 'target', sibling: 'keep-a' },
+      '10.0.0.6': { 'pat-1': 'keep-b' },
+    }
+    useControllerStore.setState({
+      lastSavedSource: structuredClone(memo),
+      lastSavedProfileSignature: structuredClone(memo),
+      lastPushedSource: structuredClone(memo),
+      lastPushedProfileSignature: structuredClone(memo),
+      lastRunProgramId: structuredClone(memo),
+    })
+
+    store().forgetDeletedSavedProgram('10.0.0.5', 'pat-1')
+
+    for (const field of [
+      'lastSavedSource',
+      'lastSavedProfileSignature',
+      'lastPushedSource',
+      'lastPushedProfileSignature',
+      'lastRunProgramId',
+    ] as const) {
+      expect(store()[field]).toEqual({
+        '10.0.0.5': { sibling: 'keep-a' },
+        '10.0.0.6': { 'pat-1': 'keep-b' },
+      })
+    }
+  })
+
   describe('pushActivePattern (#202)', () => {
     const PATTERN_SRC = 'export function render(index) {\n  hsv(index, 1, 1)\n}\n'
     const GENERATED_ARTIFACT_PRESSURE = {

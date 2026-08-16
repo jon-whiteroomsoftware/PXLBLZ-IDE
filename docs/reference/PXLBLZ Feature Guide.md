@@ -246,8 +246,12 @@ device id and editable even offline. It is where hardware knowledge lives:
   use a status dot for current, stale, syncing, queued, failed, or unknown
   state. Hover or focus a row to reveal its actions. **Run** switches the
   Controller without opening or changing a Studio Pattern; foreign source
-  remains importable. **Keep Patterns up to date** rewrites only managed
-  artifacts after an edit that changes generated code.
+  remains importable. **Delete** removes an inactive saved Pattern after a
+  confirmation; the running row must be switched first. Deleting a managed
+  row keeps its Studio Pattern and re-arms **Save**, while deleting an Other
+  Pattern warns that PXLBLZ has no recovery copy unless you import it first.
+  **Keep Patterns up to date** rewrites only managed artifacts after an edit
+  that changes generated code.
 
 Two built-in diagnostics earn their keep here: **AnalogWiggleFinder** finds
 which analog pin a pot is on, and **View generated artifact** shows exactly
@@ -410,8 +414,8 @@ Pattern through the same choreography.
 
 - Manage Wi-Fi, LED chipset, timezone, Output Expander setup, or other
   Controller settings. Use the Pixelblaze web UI.
-- Rename, delete, or arrange device playlists (it lists and imports Saved
-  Patterns).
+- Rename or arrange device playlists. PXLBLZ can list, import, run, and delete
+  individual saved Patterns, but it does not author playlist membership.
 - Recover source from a saved Pattern that contains only compiled code.
 - Continuously synchronize hardware control positions with Studio preview
   controls.

@@ -229,6 +229,8 @@ interface ControllerConnectionState {
   lastPushedProfileSignature: Record<string, Record<string, string>>
   /** Generated-code profile signature used by the last save-mode push. */
   lastSavedProfileSignature: Record<string, Record<string, string>>
+  /** Clear session-only Send gates after a managed saved Pattern is deleted. */
+  forgetDeletedSavedProgram: (controllerId: string, bindingKey: string) => void
   /** Whether the Send button's Save mode is armed (#238). When on, Send persists the
    *  pattern to the device's Saved Patterns (#236) instead of a run-only push. Sticky:
    *  persisted across sessions (it's a deliberate, remembered intent). */
@@ -421,6 +423,19 @@ export const controllerInitialState = {
   discovered: [] as DiscoveredController[],
   discovering: false,
   discoveryUnavailable: false,
+}
+
+function withoutControllerMemoEntry<T>(
+  records: Record<string, Record<string, T>>,
+  controllerId: string,
+  bindingKey: string,
+): Record<string, Record<string, T>> {
+  const controllerRecords = records[controllerId]
+  if (!controllerRecords || !Object.prototype.hasOwnProperty.call(controllerRecords, bindingKey)) {
+    return records
+  }
+  const { [bindingKey]: _removed, ...remaining } = controllerRecords
+  return { ...records, [controllerId]: remaining }
 }
 
 // Live provider per Controller IP, plus each one's status unsubscribe. Kept
@@ -652,6 +667,34 @@ export const useControllerStore = create<ControllerConnectionState>()(
           set({ activeIp: ip })
           setControllerProvider(providers.get(ip) ?? new NullControllerProvider())
         },
+
+        forgetDeletedSavedProgram: (controllerId, bindingKey) => set((state) => ({
+          lastSavedSource: withoutControllerMemoEntry(
+            state.lastSavedSource,
+            controllerId,
+            bindingKey,
+          ),
+          lastSavedProfileSignature: withoutControllerMemoEntry(
+            state.lastSavedProfileSignature,
+            controllerId,
+            bindingKey,
+          ),
+          lastPushedSource: withoutControllerMemoEntry(
+            state.lastPushedSource,
+            controllerId,
+            bindingKey,
+          ),
+          lastPushedProfileSignature: withoutControllerMemoEntry(
+            state.lastPushedProfileSignature,
+            controllerId,
+            bindingKey,
+          ),
+          lastRunProgramId: withoutControllerMemoEntry(
+            state.lastRunProgramId,
+            controllerId,
+            bindingKey,
+          ),
+        })),
 
         refreshInstalledMap: async (ip, options = {}) => {
           const provider = providers.get(ip) ?? (get().activeIp === ip ? getControllerProvider() : null)
