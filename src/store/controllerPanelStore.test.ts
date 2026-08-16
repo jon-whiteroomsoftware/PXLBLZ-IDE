@@ -174,12 +174,20 @@ describe('controllerPanelStore', () => {
   })
 
   it('rejects activation when the confirming config read fails', async () => {
+    useControllerPanelStore.setState({
+      activeProgramId: 'def',
+      activeControls: { sliderSpeed: 0.3 },
+    })
     provider.getConfig = () => Promise.reject(new Error('config unavailable'))
 
     await expect(useControllerPanelStore.getState().activateProgram('abc')).rejects.toThrow(
       'Could not confirm Controller Pattern activation',
     )
     expect(provider.activeProgramWrites).toEqual([{ programId: 'abc', save: true }])
+    expect(useControllerPanelStore.getState()).toMatchObject({
+      activeProgramId: 'def',
+      activeControls: { sliderSpeed: 0.3 },
+    })
   })
 
   it('rejects activation and publishes device truth when the requested program is not active', async () => {
@@ -203,6 +211,10 @@ describe('controllerPanelStore', () => {
   })
 
   it('rejects a late activation confirmation from a replaced provider', async () => {
+    useControllerPanelStore.setState({
+      activeProgramId: 'def',
+      activeControls: { sliderSpeed: 0.3 },
+    })
     const confirmation = deferred<ControllerConfig>()
     provider.getConfig = () => confirmation.promise
     const activation = useControllerPanelStore.getState().activateProgram('abc')
@@ -212,6 +224,10 @@ describe('controllerPanelStore', () => {
     confirmation.resolve({ activeProgramId: 'abc', activeControls: { sliderHue: 0.1 } })
 
     await expect(activation).rejects.toThrow('Controller session changed')
+    expect(useControllerPanelStore.getState()).toMatchObject({
+      activeProgramId: 'def',
+      activeControls: { sliderSpeed: 0.3 },
+    })
   })
 
   it('deletes a saved program and refreshes the inventory from the Controller', async () => {
@@ -221,7 +237,7 @@ describe('controllerPanelStore', () => {
     await useControllerPanelStore.getState().deleteProgram('abc')
 
     expect(provider.deletedProgramIds).toEqual(['abc'])
-    expect(provider.listProgramsCalls).toBe(callsBeforeDelete + 1)
+    expect(provider.listProgramsCalls).toBe(callsBeforeDelete + 2)
     expect(useControllerPanelStore.getState().programs).toEqual([{ id: 'def', name: 'Nebula' }])
   })
 
@@ -231,9 +247,37 @@ describe('controllerPanelStore', () => {
     provider.listPrograms = () => Promise.reject(new Error('inventory unavailable'))
 
     await expect(useControllerPanelStore.getState().deleteProgram('abc')).rejects.toThrow(
+      'Could not read Controller inventory before deletion',
+    )
+    expect(provider.deletedProgramIds).toEqual([])
+    expect(useControllerPanelStore.getState().programs).toEqual(before)
+  })
+
+  it('rejects deletion and preserves the last inventory when post-delete confirmation fails', async () => {
+    await useControllerPanelStore.getState().refreshPrograms('192.168.8.224')
+    const before = useControllerPanelStore.getState().programs
+    let reads = 0
+    provider.listPrograms = () => {
+      reads += 1
+      return reads === 1
+        ? Promise.resolve([...provider.programs])
+        : Promise.reject(new Error('confirmation unavailable'))
+    }
+
+    await expect(useControllerPanelStore.getState().deleteProgram('abc')).rejects.toThrow(
       'Could not confirm Controller Pattern deletion',
     )
+    expect(provider.deletedProgramIds).toEqual(['abc'])
     expect(useControllerPanelStore.getState().programs).toEqual(before)
+  })
+
+  it('treats a target already absent from fresh device truth as an idempotent success', async () => {
+    provider.programs = [{ id: 'def', name: 'Nebula' }]
+
+    await expect(useControllerPanelStore.getState().deleteProgram('abc')).resolves.toBeUndefined()
+
+    expect(provider.deletedProgramIds).toEqual([])
+    expect(useControllerPanelStore.getState().programs).toEqual([{ id: 'def', name: 'Nebula' }])
   })
 
   it('rejects deletion when the refreshed inventory still contains the target', async () => {
@@ -247,6 +291,20 @@ describe('controllerPanelStore', () => {
       'Controller still reports Pattern abc',
     )
     expect(useControllerPanelStore.getState().programs).toContainEqual({ id: 'abc', name: 'Aurora' })
+  })
+
+  it('rejects deletion when the target disappears with an unrelated program', async () => {
+    await useControllerPanelStore.getState().refreshPrograms('192.168.8.224')
+    provider.deleteProgram = (programId) => {
+      provider.deletedProgramIds.push(programId)
+      provider.programs = []
+      return Promise.resolve()
+    }
+
+    await expect(useControllerPanelStore.getState().deleteProgram('abc')).rejects.toThrow(
+      'also removed unrelated Pattern def',
+    )
+    expect(useControllerPanelStore.getState().programs).toEqual([])
   })
 
   it('rejects a late deletion confirmation from a replaced provider without publishing it', async () => {

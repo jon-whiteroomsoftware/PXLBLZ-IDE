@@ -435,10 +435,12 @@ The config projection also retains the sequencer packet's optional
 `sequencerMode` (0 off, 1 shuffle, 2 playlist) and `runSequencer` fields when a
 later poll omits them. `activateProgram` sends a saved activation, invalidates
 the prior control seed, publishes the id optimistically, then rejects unless a
-direct config read confirms that id. `deleteProgram` rejects unless a direct
-inventory refresh omits the target. Both confirmations are scoped to the
-provider/session that sent the command. Per-Controller snapshots include the
-sequencer fields, so reopening one Controller cannot inherit another's mode.
+direct config read confirms that id; a rejected confirmation rolls the
+optimistic id and controls back. `deleteProgram` brackets the write with complete
+inventory reads, then proves the target disappeared and every unrelated
+id/name pair survived. Both confirmations are scoped to the provider/session
+that sent the command. Per-Controller snapshots include the sequencer fields,
+so reopening one Controller cannot inherit another's mode.
 The map is read once per connect (and on panel/profile open or explicit
 refresh) as raw `/pixelmap.dat` bytes; `installedMapObservation.ts` validates
 the blob and derives fingerprint, dimension, and count. Per-Controller

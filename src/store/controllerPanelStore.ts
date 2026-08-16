@@ -373,22 +373,36 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
   activateProgram: async (programId) => {
     const session = panelSession
     const provider = getControllerProvider()
+    const previousActiveProgramId = get().activeProgramId
+    const previousActiveControls = get().activeControls
+    const previousControlsSeededFor = controlsSeededFor
+    const rollbackOptimisticActivation = () => {
+      if (session !== panelSession) return
+      controlsSeededFor = previousControlsSeededFor
+      set({
+        activeProgramId: previousActiveProgramId,
+        activeControls: previousActiveControls,
+      })
+    }
     await provider.setActiveProgram(programId, { save: true })
     if (!controllerSessionMatches(session, provider)) {
+      rollbackOptimisticActivation()
       throw new Error('Controller session changed before Pattern activation could be confirmed.')
     }
     controlsSeededFor = undefined
-    set({ activeProgramId: programId })
+    set({ activeProgramId: programId, activeControls: {} })
     let config: ControllerConfig
     try {
       config = await provider.getConfig()
     } catch (error) {
+      rollbackOptimisticActivation()
       throw new Error(
         `Could not confirm Controller Pattern activation: ${errorMessage(error)}`,
         { cause: error },
       )
     }
     if (!controllerSessionMatches(session, provider)) {
+      rollbackOptimisticActivation()
       throw new Error('Controller session changed before Pattern activation could be confirmed.')
     }
     set((state) => configPatch(state, config))
@@ -403,6 +417,27 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     const session = panelSession
     const ip = seededForIp
     const provider = getControllerProvider()
+    let beforePrograms: ProgramListEntry[]
+    try {
+      beforePrograms = await provider.listPrograms()
+    } catch (error) {
+      throw new Error(
+        `Could not read Controller inventory before deletion: ${errorMessage(error)}`,
+        { cause: error },
+      )
+    }
+    if (!controllerSessionMatches(session, provider)) {
+      throw new Error('Controller session changed before Pattern deletion could start.')
+    }
+    if (!beforePrograms.some((program) => program.id === programId)) {
+      set((state) => ({
+        programs: beforePrograms,
+        ...(ip
+          ? { programsByController: { ...state.programsByController, [ip]: beforePrograms } }
+          : {}),
+      }))
+      return
+    }
     await provider.deleteProgram(programId)
     let programs: ProgramListEntry[]
     try {
@@ -422,6 +457,15 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
         ? { programsByController: { ...state.programsByController, [ip]: programs } }
         : {}),
     }))
+    const missingUnrelated = beforePrograms.filter(
+      (before) => before.id !== programId
+        && !programs.some((after) => after.id === before.id && after.name === before.name),
+    )
+    if (missingUnrelated.length > 0) {
+      throw new Error(
+        `Controller deletion of Pattern ${programId} also removed unrelated Pattern ${missingUnrelated.map((program) => program.id).join(', ')}.`,
+      )
+    }
     if (programs.some((program) => program.id === programId)) {
       throw new Error(`Controller still reports Pattern ${programId} after deletion.`)
     }
