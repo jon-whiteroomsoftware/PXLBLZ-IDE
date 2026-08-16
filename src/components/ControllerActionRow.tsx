@@ -15,6 +15,7 @@ import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { useEditorStore } from '@/store/editorStore'
 import { activePushKey, usePatternStore } from '@/store/patternStore'
 import { useRouterStore } from '@/store/routerStore'
+import { ControllerProgramSwitch } from './ControllerProgramSwitch'
 
 export function ControllerActionRow() {
   const provider = getControllerProvider()
@@ -44,6 +45,10 @@ export function ControllerActionRow() {
   const lastSavedProfileSignature = useControllerStore((state) => state.lastSavedProfileSignature)
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)
   const activeProgramId = useControllerPanelStore((state) => state.activeProgramId)
+  const programsByController = useControllerPanelStore((state) => state.programsByController)
+  const programs = activeIp ? programsByController[activeIp] ?? [] : []
+  const programsRead = !!activeIp
+    && Object.prototype.hasOwnProperty.call(programsByController, activeIp)
 
   const patternName = activeDemoName
     ?? userPatterns.find((pattern) => pattern.id === activePatternId)?.name
@@ -80,6 +85,8 @@ export function ControllerActionRow() {
     runAlreadyPushed: alreadyPushed('run'),
     saveAlreadyPushed: alreadyPushed('save'),
     working,
+    programsRead,
+    programCount: programs.length,
   })
   const target = active ? active.nickname || active.ip : 'Controller'
 
@@ -109,8 +116,8 @@ export function ControllerActionRow() {
     'inline-flex h-7 items-center gap-1.5 rounded-sm px-2 text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-30'
 
   return (
-    <div data-testid="controller-action-row" className="border-b border-seam px-3 py-2">
-      <div className="flex min-w-0 items-center gap-1">
+    <div data-testid="controller-action-row" className="relative border-b border-seam px-3 py-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-1">
         <button
           type="button"
           disabled={!view.run.enabled}
@@ -132,11 +139,16 @@ export function ControllerActionRow() {
           Save
         </button>
         <span
-          className="ml-1.5 min-w-0 truncate text-[10px] text-zinc-500"
+          className="ml-1.5 min-w-16 flex-1 basis-20 truncate text-[10px] text-zinc-500"
           title={view.subject ?? undefined}
         >
           {view.subject ?? '—'}
         </span>
+        <ControllerProgramSwitch
+          gate={view.switch}
+          programs={programs}
+          actionClass={actionClass}
+        />
       </div>
     </div>
   )

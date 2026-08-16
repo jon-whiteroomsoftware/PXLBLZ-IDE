@@ -24,6 +24,11 @@ export async function installFakeControllerHelper(
     const RELAY_SOURCE = 'pblz-relay'
     let activeProgramId = fixture.activeProgramId
     let pendingProgramId: string | null = null
+    const writes: Array<Record<string, unknown>> = []
+    Object.defineProperty(window, '__fakeControllerWrites', {
+      configurable: true,
+      value: writes,
+    })
 
     const bytesToBase64 = (bytes: Uint8Array) => {
       let binary = ''
@@ -105,6 +110,7 @@ export async function installFakeControllerHelper(
       const payload = message.payload as { text?: string; binary?: string } | undefined
       if (!payload?.text || typeof message.connId !== 'string') return
       const command = JSON.parse(payload.text) as Record<string, unknown>
+      writes.push(command)
       if (command.getVars) reply(message.connId, { vars: fixture.vars ?? {} })
       if (command.getConfig) {
         reply(message.connId, {
@@ -127,6 +133,9 @@ export async function installFakeControllerHelper(
       if (command.listPrograms) replyPrograms(message.connId)
       if (command.getControls !== undefined) {
         reply(message.connId, { controls: fixture.controls ?? {} })
+      }
+      if (typeof command.activeProgramId === 'string') {
+        activeProgramId = command.activeProgramId
       }
       if (command.setCode && typeof command.setCode === 'object') {
         const id = (command.setCode as { id?: unknown }).id

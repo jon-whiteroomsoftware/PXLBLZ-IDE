@@ -1,4 +1,7 @@
-import { describeControllerActionRow } from './controllerActionRow'
+import {
+  describeControllerActionRow,
+  projectControllerProgramMenu,
+} from './controllerActionRow'
 import type { Route } from './routes'
 
 const connected = {
@@ -20,10 +23,13 @@ describe('describeControllerActionRow', () => {
       runAlreadyPushed: false,
       saveAlreadyPushed: false,
       working: false,
+      programsRead: true,
+      programCount: 2,
     })).toEqual({
       subject: 'Aurora Drift',
       run: { enabled: true },
       save: { enabled: true },
+      switch: { enabled: true },
     })
   })
 
@@ -40,6 +46,8 @@ describe('describeControllerActionRow', () => {
       runAlreadyPushed: false,
       saveAlreadyPushed: false,
       working: false,
+      programsRead: true,
+      programCount: 2,
     })
 
     expect(view.subject).toBeNull()
@@ -48,6 +56,7 @@ describe('describeControllerActionRow', () => {
       reason: 'Open a pattern to push it to this Controller',
     })
     expect(view.save).toEqual(view.run)
+    expect(view.switch).toEqual({ enabled: true })
   })
 
   it('keeps run and save dirty state independent', () => {
@@ -59,6 +68,8 @@ describe('describeControllerActionRow', () => {
       runAlreadyPushed: true,
       saveAlreadyPushed: false,
       working: false,
+      programsRead: true,
+      programCount: 2,
     })
 
     expect(view.run).toEqual({ enabled: false, reason: 'No changes since the last send' })
@@ -74,6 +85,8 @@ describe('describeControllerActionRow', () => {
       runAlreadyPushed: false,
       saveAlreadyPushed: false,
       working: false,
+      programsRead: true,
+      programCount: 2,
     })
 
     expect(view.subject).toBe('Broken Glass')
@@ -93,10 +106,110 @@ describe('describeControllerActionRow', () => {
       runAlreadyPushed: false,
       saveAlreadyPushed: false,
       working: true,
+      programsRead: true,
+      programCount: 2,
     })
 
     expect(view.subject).toBe('Aurora Drift')
     expect(view.run).toEqual({ enabled: false, reason: 'Sending…' })
     expect(view.save).toEqual(view.run)
+    expect(view.switch).toEqual({
+      enabled: false,
+      reason: 'Wait for the current send to finish before switching Patterns',
+    })
+  })
+
+  it('distinguishes an unread inventory from a Controller with no saved Patterns', () => {
+    const unread = describeControllerActionRow({
+      route: studioPattern,
+      patternName: 'Aurora Drift',
+      status: connected,
+      compileStatus: 'good',
+      runAlreadyPushed: false,
+      saveAlreadyPushed: false,
+      working: false,
+      programsRead: false,
+      programCount: 0,
+    })
+    const empty = describeControllerActionRow({
+      route: studioPattern,
+      patternName: 'Aurora Drift',
+      status: connected,
+      compileStatus: 'good',
+      runAlreadyPushed: false,
+      saveAlreadyPushed: false,
+      working: false,
+      programsRead: true,
+      programCount: 0,
+    })
+
+    expect(unread.switch).toEqual({
+      enabled: false,
+      reason: 'Saved Patterns have not been read from this Controller',
+    })
+    expect(empty.switch).toEqual({
+      enabled: false,
+      reason: 'This Controller has no saved Patterns',
+    })
+  })
+})
+
+describe('projectControllerProgramMenu', () => {
+  const programs = [
+    { id: 'z', name: 'zebra' },
+    { id: 'a2', name: 'aurora' },
+    { id: 'a1', name: 'Aurora' },
+  ]
+
+  it('sorts saved Patterns case-insensitively with a stable id tie-breaker', () => {
+    expect(projectControllerProgramMenu({ programs, filter: '' }).rows).toEqual([
+      { id: 'a1', name: 'Aurora', running: false, unsaved: false, disabled: false },
+      { id: 'a2', name: 'aurora', running: false, unsaved: false, disabled: false },
+      { id: 'z', name: 'zebra', running: false, unsaved: false, disabled: false },
+    ])
+  })
+
+  it('pins an active run-only Pattern above filtered saved rows', () => {
+    const view = projectControllerProgramMenu({
+      programs,
+      activeProgramId: 'run-only',
+      programLabels: { 'run-only': 'Live Draft' },
+      filter: 'aur',
+    })
+
+    expect(view.rows).toEqual([
+      {
+        id: 'run-only',
+        name: 'Live Draft',
+        running: true,
+        unsaved: true,
+        disabled: true,
+      },
+      { id: 'a1', name: 'Aurora', running: false, unsaved: false, disabled: false },
+      { id: 'a2', name: 'aurora', running: false, unsaved: false, disabled: false },
+    ])
+  })
+
+  it('marks a saved active Pattern and only offers filtering above eight entries', () => {
+    expect(projectControllerProgramMenu({
+      programs,
+      activeProgramId: 'a2',
+      filter: '',
+    })).toMatchObject({
+      showFilter: false,
+      rows: [
+        { id: 'a1', running: false },
+        { id: 'a2', running: true },
+        { id: 'z', running: false },
+      ],
+    })
+
+    expect(projectControllerProgramMenu({
+      programs: Array.from({ length: 9 }, (_, index) => ({
+        id: String(index),
+        name: `Pattern ${index}`,
+      })),
+      filter: '',
+    }).showFilter).toBe(true)
   })
 })

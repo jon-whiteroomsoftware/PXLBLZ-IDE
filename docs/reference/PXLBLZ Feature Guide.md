@@ -213,6 +213,14 @@ Controller is actively shuffling or playing a playlist, the corresponding
 read-only icon appears first in the panel header; its tooltip warns that the
 sequencer can replace a manual Pattern switch at the next interval.
 
+The action row's **Switch** menu changes only what the Controller runs. It lists
+saved Patterns alphabetically, marks the running one, and keeps a run-only
+Pattern pinned as **unsaved · running** when it is not part of the saved
+inventory. Large inventories gain a filter. A successful choice is also saved
+as the Controller's boot Pattern; the menu stays open with the device's reason
+if the change cannot be confirmed. Shuffle and playlist remain authoritative,
+so their header indicator stays visible after a manual switch.
+
 One flag worth knowing: firmware silently drops a map whose pixel count
 disagrees with the device, so the panel calls out the mismatch with an amber
 `256≠300` chip instead of letting it fail quietly.
@@ -249,6 +257,10 @@ what the profile inserted, wrapped, or bound.
 bytecode; **Save** writes a durable Pattern and activates it. The two track
 dirty state independently — a clean Run does not pretend you saved — and
 failures surface as visible alerts with a reason.
+
+Both verbs act on the open Studio Pattern. **Switch** beside them acts on the
+Controller's saved inventory instead: it neither opens that Pattern in Studio
+nor changes the Run or Save dirty state.
 
 A Controller has one shared map slot, so **Send map to Controller** is its
 own confirm-first action, re-baked for the device's pixel count, never a

@@ -152,7 +152,7 @@ test('empty Controllers workspace leads through extension setup and Connect (#81
   await expect(page.getByRole('textbox', { name: 'Controller IP address' })).toBeVisible()
 })
 
-test('Controller popover keeps sequencer and power state legible in a compact deck (#866)', async ({ page }) => {
+test('Controller popover keeps compact live state and switches saved Patterns in place (#866, #868)', async ({ page }) => {
   const profile: ControllerProfile = {
     id: 'e2e-866-controller',
     name: 'Deck bench',
@@ -193,7 +193,10 @@ test('Controller popover keeps sequencer and power state legible in a compact de
   expect(created.ok(), `POST /api/controllers -> ${created.status()}`).toBe(true)
 
   await installFakeControllerHelper(page, {
-    programs: [{ id: 'E2E866PROGRAM00001', name: 'EmberSpire' }],
+    programs: [
+      { id: 'E2E866PROGRAM00001', name: 'EmberSpire' },
+      { id: 'E2E868PROGRAM00002', name: 'IridescentFibers' },
+    ],
     activeProgramId: 'E2E866PROGRAM00001',
     deviceName: 'Deck bench',
     boardType: 'pb32',
@@ -236,6 +239,37 @@ test('Controller popover keeps sequencer and power state legible in a compact de
   ) !== 0)
   expect(indicatorBeforeDisconnect).toBe(true)
 
+  const actionRow = page.getByTestId('controller-action-row')
+  await expect(actionRow).toContainText('EmberSpire')
+  const studioUrl = page.url()
+  await page.getByRole('button', { name: 'Switch running Pattern' }).click()
+  const switchMenu = page.getByRole('listbox', { name: 'Switch the running Pattern' })
+  await expect(switchMenu).toBeVisible()
+  await expect(switchMenu.getByRole('option')).toHaveCount(2)
+  await expect(switchMenu.getByRole('option').nth(0)).toHaveText('EmberSpire')
+  await expect(switchMenu.getByRole('option').nth(1)).toHaveText('IridescentFibers')
+  await expect(switchMenu.getByRole('option', { name: 'EmberSpire' })).toHaveAttribute('aria-selected', 'true')
+  await expect(switchMenu.getByRole('option', { name: 'IridescentFibers' })).toHaveAttribute(
+    'title',
+    'E2E868PROGRAM00002',
+  )
+  await switchMenu.getByRole('option', { name: 'IridescentFibers' }).click()
+
+  await expect(switchMenu).not.toBeVisible()
+  await expect(popover.locator('span[title="IridescentFibers"]')).toBeVisible()
+  await expect(popover.locator('[title="Supported render dimensions: 2D"]')).toHaveText('2D')
+  await expect(actionRow).toContainText('EmberSpire')
+  expect(page.url()).toBe(studioUrl)
+  await expect(sequencer).toBeVisible()
+  await expect.poll(() => page.evaluate(() => {
+    const writes = (window as typeof window & {
+      __fakeControllerWrites?: Array<Record<string, unknown>>
+    }).__fakeControllerWrites ?? []
+    return writes.some((write) => (
+      write.activeProgramId === 'E2E868PROGRAM00002' && write.save === true
+    ))
+  })).toBe(true)
+
   const panel = page.getByTestId('controller-panel')
   const pixelblaze = panel.getByRole('button', { name: 'Pixelblaze', exact: true })
   const controls = panel.getByRole('button', { name: 'pattern controls', exact: true })
@@ -250,6 +284,28 @@ test('Controller popover keeps sequencer and power state legible in a compact de
   await expect(summary).toHaveText(/limiting · duty 78% · 5\.0 A · 60\.4 W/)
   await expect(summary).not.toHaveClass(/truncate/)
   await page.setViewportSize({ width: 320, height: 844 })
+  const actionBounds = await actionRow.evaluate((element) => {
+    const row = element.getBoundingClientRect()
+    const switchButton = element.querySelector('[aria-label="Switch running Pattern"]')!
+      .getBoundingClientRect()
+    return {
+      scrollWidth: element.scrollWidth,
+      clientWidth: element.clientWidth,
+      rowLeft: row.left,
+      rowRight: row.right,
+      switchLeft: switchButton.left,
+      switchRight: switchButton.right,
+    }
+  })
+  expect(actionBounds.scrollWidth).toBeLessThanOrEqual(actionBounds.clientWidth)
+  expect(actionBounds.switchLeft).toBeGreaterThanOrEqual(actionBounds.rowLeft)
+  expect(actionBounds.switchRight).toBeLessThanOrEqual(actionBounds.rowRight)
+  await page.getByRole('button', { name: 'Switch running Pattern' }).click()
+  await expect(switchMenu).toBeVisible()
+  const menuHeight = await switchMenu.evaluate((element) => element.getBoundingClientRect().height)
+  expect(menuHeight).toBeLessThanOrEqual(844 * 0.6 + 1)
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('button', { name: 'Switch running Pattern' })).toBeFocused()
   const summaryBounds = await summary.evaluate((element) => {
     const summaryRect = element.getBoundingClientRect()
     const buttonRect = element.closest('button')!.getBoundingClientRect()

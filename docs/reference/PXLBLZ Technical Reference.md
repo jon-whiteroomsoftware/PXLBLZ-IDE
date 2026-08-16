@@ -431,6 +431,14 @@ connection without a stable id is unclaimed but fully usable.
 `controllerStore` owns connection phase, discovery, active selection, push
 state, and the installed-map observation. `controllerPanelStore` polls the
 active Controller for config, telemetry, vars, controls, programs, and FPS.
+`ControllerActionRow` derives the Switch gate from the active IP's own
+`programsByController` entry. A missing key means the inventory has not been
+read; a present empty array means the read succeeded and the Controller has no
+saved Patterns. The menu never substitutes the shared visible list or another
+Controller's cached inventory. Its pure projection case-insensitively sorts the
+flat list, filters only saved rows, marks a saved active row in place, and pins
+an active id absent from the inventory as a disabled run-only row. The Switch
+workflow does not read or write Pattern Studio selection or delivery records.
 The config projection also retains the sequencer packet's optional
 `sequencerMode` (0 off, 1 shuffle, 2 playlist) and `runSequencer` fields when a
 later poll omits them. `activateProgram` sends a saved activation, invalidates

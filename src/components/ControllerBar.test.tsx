@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ControllerBar } from './ControllerBar'
 import {
@@ -807,6 +808,180 @@ describe('ControllerBar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(useControllerStore.getState().saveArmed).toBe(true)
     expect(requestPush).toHaveBeenCalledTimes(2)
+  })
+
+  it('switches among a flat alphabetized saved-Pattern list without changing the open Studio Pattern', async () => {
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    useRouterStore.setState({
+      route: { kind: 'studio', entity: { kind: 'patterns', id: 'pattern-1' } },
+    })
+    usePatternStore.setState({
+      activePatternId: 'pattern-1',
+      userPatterns: [{
+        id: 'pattern-1',
+        name: 'Open Draft',
+        src: 'export function render() {}',
+        controls: {},
+        updatedAt: 1,
+      }],
+    })
+    const activateProgram = vi.fn().mockResolvedValue(undefined)
+    useControllerPanelStore.setState({
+      activeProgramId: 'run-only',
+      programLabels: { 'run-only': 'Live Draft' },
+      programs: [{ id: 'foreign', name: 'Foreign Controller Pattern' }],
+      programsByController: {
+        '10.0.0.5': [
+          { id: 'z', name: 'Zebra' },
+          { id: 'a', name: 'aurora' },
+        ],
+      },
+      activateProgram,
+    })
+
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    const trigger = screen.getByRole('button', { name: 'Switch running Pattern' })
+    fireEvent.click(trigger)
+
+    const options = screen.getAllByRole('option')
+    expect(options.map((option) => option.textContent)).toEqual([
+      'Live Draftunsaved · running',
+      'aurora',
+      'Zebra',
+    ])
+    expect(options[0]).toBeDisabled()
+    expect(options[0]).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('Switches what the Controller runs; Run and Save still send the open Pattern.')).toBeInTheDocument()
+
+    fireEvent.click(options[1])
+    await waitFor(() => expect(activateProgram).toHaveBeenCalledWith('a'))
+    expect(screen.queryByRole('listbox', { name: 'Switch the running Pattern' })).not.toBeInTheDocument()
+    expect(usePatternStore.getState().activePatternId).toBe('pattern-1')
+    expect(screen.getByTestId('controller-action-row')).toHaveTextContent('Open Draft')
+  })
+
+  it('auto-focuses a large-list filter and supports arrow-key activation', async () => {
+    const user = userEvent.setup()
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    const programs = Array.from({ length: 9 }, (_, index) => ({
+      id: `program-${index}`,
+      name: `Pattern ${index}`,
+    }))
+    const activateProgram = vi.fn().mockResolvedValue(undefined)
+    useControllerPanelStore.setState({
+      programs,
+      programsByController: { '10.0.0.5': programs },
+      activateProgram,
+    })
+
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Switch running Pattern' }))
+
+    const filter = screen.getByRole('searchbox', { name: 'Filter saved Patterns' })
+    await waitFor(() => expect(filter).toHaveFocus())
+    fireEvent.keyDown(filter, { key: 'ArrowUp' })
+    expect(screen.getByRole('option', { name: 'Pattern 8' })).toHaveFocus()
+    fireEvent.keyDown(document.activeElement!, { key: 'Home' })
+    expect(screen.getByRole('option', { name: 'Pattern 0' })).toHaveFocus()
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
+    const second = screen.getByRole('option', { name: 'Pattern 1' })
+    expect(second).toHaveFocus()
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(activateProgram).toHaveBeenCalledWith('program-1'))
+  })
+
+  it('marks only the selected row as switching and disables the list in flight', async () => {
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    let resolveActivation: (() => void) | undefined
+    const activation = new Promise<void>((resolve) => {
+      resolveActivation = resolve
+    })
+    const activateProgram = vi.fn(() => activation)
+    const programs = [
+      { id: 'a', name: 'Aurora' },
+      { id: 'z', name: 'Zebra' },
+    ]
+    useControllerPanelStore.setState({
+      programs,
+      programsByController: { '10.0.0.5': programs },
+      activateProgram,
+    })
+
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Switch running Pattern' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Aurora' }))
+
+    expect(screen.getByRole('listbox', { name: 'Switch the running Pattern' })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('option', { name: /Auroraswitching/ })).toBeDisabled()
+    expect(screen.getByRole('option', { name: 'Zebra' })).toBeDisabled()
+    expect(activateProgram).toHaveBeenCalledTimes(1)
+
+    await act(async () => resolveActivation?.())
+    await waitFor(() => expect(screen.queryByRole('listbox', { name: 'Switch the running Pattern' })).not.toBeInTheDocument())
+  })
+
+  it('keeps the switch menu open with the Controller reason after activation fails', async () => {
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    const activateProgram = vi.fn().mockRejectedValue(new Error('device did not confirm the change'))
+    useControllerPanelStore.setState({
+      programs: [{ id: 'a', name: 'Aurora' }],
+      programsByController: { '10.0.0.5': [{ id: 'a', name: 'Aurora' }] },
+      activateProgram,
+    })
+
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Switch running Pattern' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Aurora' }))
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(
+      'device did not confirm the change',
+    ))
+    expect(screen.getByRole('listbox', { name: 'Switch the running Pattern' })).toBeVisible()
+    expect(screen.getByRole('option', { name: 'Aurora' })).toBeEnabled()
+  })
+
+  it('closes the switch menu on Escape and restores focus to its trigger', () => {
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    useControllerPanelStore.setState({
+      programs: [{ id: 'a', name: 'Aurora' }],
+      programsByController: { '10.0.0.5': [{ id: 'a', name: 'Aurora' }] },
+    })
+
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    const trigger = screen.getByRole('button', { name: 'Switch running Pattern' })
+    fireEvent.click(trigger)
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(screen.queryByRole('listbox', { name: 'Switch the running Pattern' })).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
+
+  it('closes only the switch menu on a click elsewhere in the Controller popover', () => {
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    useControllerPanelStore.setState({
+      programs: [{ id: 'a', name: 'Aurora' }],
+      programsByController: { '10.0.0.5': [{ id: 'a', name: 'Aurora' }] },
+    })
+
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Switch running Pattern' }))
+    fireEvent.mouseDown(screen.getByTestId('controller-panel'))
+
+    expect(screen.queryByRole('listbox', { name: 'Switch the running Pattern' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('controller-panel-popover')).toBeVisible()
   })
 
   it('re-enables the popover Run action when the Controller switches programs', () => {

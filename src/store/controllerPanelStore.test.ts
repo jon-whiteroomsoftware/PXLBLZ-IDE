@@ -165,6 +165,7 @@ describe('controllerPanelStore', () => {
       activeControls: { sliderSpeed: 0.3 },
     }
     await useControllerPanelStore.getState().poll()
+    useControllerPanelStore.setState({ sequencerMode: 1, runSequencer: true })
     useControllerPanelStore.getState().setControl('sliderSpeed', 0.8)
 
     await useControllerPanelStore.getState().activateProgram('abc')
@@ -172,6 +173,10 @@ describe('controllerPanelStore', () => {
     expect(provider.activeProgramWrites).toEqual([{ programId: 'abc', save: true }])
     expect(useControllerPanelStore.getState().activeProgramId).toBe('abc')
     expect(useControllerPanelStore.getState().activeControls).toEqual({ sliderHue: 0.1 })
+    expect(useControllerPanelStore.getState()).toMatchObject({
+      sequencerMode: 1,
+      runSequencer: true,
+    })
   })
 
   it('rejects activation when the confirming config read fails', async () => {
