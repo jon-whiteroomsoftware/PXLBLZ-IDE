@@ -393,10 +393,23 @@ describe('ControllerBar', () => {
     const indicator = screen.getByTestId('controller-sequencer-indicator')
     const disconnect = screen.getByRole('button', { name: 'Disconnect Desk' })
     expect(indicator).toHaveAttribute('aria-label', 'Sequencer shuffle is on')
-    expect(indicator).toHaveAttribute(
-      'title',
-      'Sequencer: shuffle. The Controller is choosing Patterns on its own; a manual switch is overridden at the next interval.',
-    )
+    // The next-interval warning is a visible tip on hover and focus and the
+    // chip's accessible description, not a mouse-only native title (#872).
+    const warning = 'Sequencer: shuffle. The Controller is choosing Patterns on its own; a manual switch is overridden at the next interval.'
+    expect(indicator).not.toHaveAttribute('title')
+    expect(indicator).toHaveAccessibleDescription(warning)
+    const warningTip = document.getElementById(indicator.getAttribute('aria-describedby')!)!
+    expect(warningTip).not.toBeVisible()
+    act(() => indicator.focus())
+    expect(document.activeElement).toBe(indicator)
+    expect(warningTip).toBeVisible()
+    expect(warningTip).toHaveTextContent(warning)
+    act(() => indicator.blur())
+    expect(warningTip).not.toBeVisible()
+    fireEvent.mouseEnter(indicator.parentElement!)
+    expect(warningTip).toBeVisible()
+    fireEvent.mouseLeave(indicator.parentElement!)
+    expect(warningTip).not.toBeVisible()
     expect(indicator.querySelector('.lucide-shuffle')).toBeInTheDocument()
     expect(
       indicator.compareDocumentPosition(disconnect) & Node.DOCUMENT_POSITION_FOLLOWING,

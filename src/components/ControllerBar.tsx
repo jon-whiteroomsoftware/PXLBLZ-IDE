@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { CircleArrowUp, Cpu, ListMusic, Pause, Play, RotateCw, Shuffle } from 'lucide-react'
 import { controlIcon, iconProps, transportIcon } from '@/components/iconScale'
 import {
@@ -31,6 +31,7 @@ import type { DiscoveredController } from '@/engine/ControllerProvider'
 import { routePath } from '@/engine/routes'
 import { CONTROLLER_HELPER_STORE_URL } from '@/engine/controllerHelper'
 import { describeControllerSequencer } from '@/engine/controllerPanelView'
+import { DisabledReasonTip } from '@/components/ui/disabled-reason'
 
 // The consolidated top-right Controller surface (#210). Supersedes the always-on
 // header IP input (ControllerConnect) and the standalone status dot
@@ -59,20 +60,28 @@ function ControllerSequencerIndicator({ ip, live }: { ip: string; live: boolean 
   const mode = useControllerPanelStore((state) => state.sequencerMode)
   const running = useControllerPanelStore((state) => state.runSequencer)
   const sourceIp = useControllerPanelStore((state) => state.configSourceIp)
+  const warningId = useId()
   const presentation = live && sourceIp === ip
     ? describeControllerSequencer(mode, running)
     : null
   if (!presentation) return null
   const Icon = presentation.mode === 'shuffle' ? Shuffle : ListMusic
+  // The next-interval warning is the useful part of this indicator (#872), so
+  // it renders as an in-page tip on hover and keyboard focus and doubles as
+  // the chip's accessible description, instead of a mouse-only native title.
   return (
-    <span
-      role="img"
-      aria-label={presentation.accessibleLabel}
-      title={presentation.tooltip}
-      data-testid="controller-sequencer-indicator"
-      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-amber-400/40 bg-amber-400/[0.06] text-amber-300"
-    >
-      <Icon size={13} aria-hidden />
+    <span className="relative inline-flex">
+      <span
+        role="img"
+        tabIndex={0}
+        aria-label={presentation.accessibleLabel}
+        aria-describedby={warningId}
+        data-testid="controller-sequencer-indicator"
+        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-amber-400/40 bg-amber-400/[0.06] text-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60"
+      >
+        <Icon size={13} aria-hidden />
+      </span>
+      <DisabledReasonTip id={warningId}>{presentation.tooltip}</DisabledReasonTip>
     </span>
   )
 }
