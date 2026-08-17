@@ -13,10 +13,15 @@ This package preserves the two campaigns run for #788 and #800 on 2026-08-10:
 - [`catalogs/issue-800-full-surface.md`](catalogs/issue-800-full-surface.md):
   the source's "150 goals" outside the Show surface (148 IDs are enumerated;
   the catalog preserves and explains the discrepancy).
+- [`catalogs/issue-862-controller.md`](catalogs/issue-862-controller.md):
+  the Controller hardware acceptance campaign (#862): connect, live panel,
+  Run/Save/import, Switch and delete, map and pixel count, Keep-up-to-date
+  reconciliation, failure paths, and cleanup on the bench Controller.
 - [`tester-protocol.md`](tester-protocol.md): tester isolation, evidence, and
   verdict rules.
 - [`verdict-schema.json`](verdict-schema.json): the structured result contract.
-- [`harness/`](harness/): the Playwright HTTP driver and Codex batch runners.
+- [`harness/`](harness/): the Playwright HTTP driver, Codex batch runners, and
+  the bench snapshot/restore probes for hardware lanes.
 
 The source record remains on [#788](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/788)
 and [#800](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/800).
@@ -135,6 +140,18 @@ or a persistent Chromium profile is required; its `--extension`,
 `--profile-dir`, and `--headed` options cover that lane. Native browser prompts
 cannot be clicked by a headless page. A one-time human permission grant or an
 explicitly approved test Extension is campaign setup, not a product verdict.
+
+For an unattended hardware lane, copy `extension/` into the campaign root and
+edit only its manifest: add the issue-runtime origin (for example
+`http://localhost:5177/*`) to the content-script matches, and add the bench
+Controller's `http://IP/*` and `ws://IP/*` origins to `host_permissions` so the
+per-IP grant is present at load. Record that deviation in the campaign report:
+the just-in-time authorization popup is not exercised on that lane. Snapshot
+the Controller's config, program inventory, and `/pixelmap.dat` before the
+first batch and after cleanup with `harness/bench-snapshot.ts` and a plain
+`curl http://<ip>/pixelmap.dat`; `harness/bench-restore-map.ts` re-installs the
+captured blob and verifies it byte for byte. Those probes support the
+comparison; they never grade a goal.
 
 The execution step is complete when every assigned goal has one schema-valid
 finder result and its named screenshots exist.
