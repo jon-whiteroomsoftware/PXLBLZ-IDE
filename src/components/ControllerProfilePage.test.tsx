@@ -247,6 +247,7 @@ function renderLiveProgramInventory(
         deviceId: profile.deviceId,
         nickname: 'Burner bag',
         phase: 'live',
+        liveEpoch: 1,
         mapDim: fixture.mapDim ?? 2,
         ...(fixture.installedMap ? { installedMap: fixture.installedMap } : {}),
       },
@@ -597,6 +598,49 @@ describe('ControllerProfilePage', () => {
     expect(providerA.deletedProgramIds).toEqual([])
     expect(providerB.deletedProgramIds).toEqual([])
     expect(providerA.bindings).toEqual({ '192.168.8.224': { 'pat-1': 'DEV1' } })
+  })
+
+  it('does not let a queued deletion cross an in-place Controller reconnect', async () => {
+    const profile = seedProfile()
+    const provider = renderLiveProgramInventory(profile, {
+      storageId: 'delete-controller-epoch',
+      activeProgramId: 'ACTIVE',
+      configSourceIp: '192.168.8.224',
+      programs: [
+        { id: 'DEV1', name: 'Twinkle' },
+        { id: 'ACTIVE', name: 'Running Pattern' },
+      ],
+      bindings: { 'pat-1': 'DEV1' },
+      pushRecords: {},
+    })
+    const priorWrite = deferred<void>()
+    const queuedPrior = queueControllerDeviceWrite(
+      '192.168.8.224',
+      () => priorWrite.promise,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Twinkle from the Controller' }))
+    const dialog = screen.getByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete from Controller' }))
+
+    act(() => {
+      useControllerStore.setState((state) => ({
+        controllers: {
+          ...state.controllers,
+          '192.168.8.224': {
+            ...state.controllers['192.168.8.224']!,
+            liveEpoch: 2,
+          },
+        },
+      }))
+    })
+    priorWrite.resolve()
+    await queuedPrior
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Controller session changed before Pattern deletion could start.',
+    )
+    expect(provider.deletedProgramIds).toEqual([])
   })
 
   it('waits for Controller-scoped config before marking an inventory row as running', async () => {

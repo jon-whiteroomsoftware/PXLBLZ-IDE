@@ -608,8 +608,10 @@ Studio Pattern, while Other deletion warns that source recovery requires Import
 first. The operation is deliberately device-first and the complete device plus
 metadata transaction runs through the per-Controller write queue, serializing
 it with managed-artifact reconciliation. The queued operation also retains the
-exact Controller/provider session that authorized it and refuses to cross onto
-a newly active Controller. `controllerPanelStore` re-reads the
+exact profile, Controller, provider, and live-connection epoch that authorized
+it when the dialog opened. It revalidates that token before the initial read,
+device delete, and confirmation read, refusing to cross onto a newly active or
+reconnected Controller. `controllerPanelStore` re-reads the
 complete inventory and proves the target absent and all unrelated id/name pairs
 present before durable metadata changes. The first inventory is retained across
 retries, so an ambiguous confirmation cannot erase evidence that an unrelated

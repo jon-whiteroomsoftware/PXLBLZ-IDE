@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import {
   ChevronDown,
   ChevronUp,
@@ -90,6 +90,11 @@ type PendingProgramImport = {
 
 type PendingProgramDelete = {
   program: ControllerSavedProgramRow
+  controllerId: string
+  controllerName: string
+  liveEpoch: number
+  profileId: string
+  provider: ReturnType<typeof getControllerProvider>
 }
 
 const statusPresentation: Record<ControllerSavedPatternStatus, { title: string; className: string }> = {
@@ -790,6 +795,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   const showsEnabled = useRouterStore((state) => state.featureAccess.shows)
   const profileController = controllerForProfile(profile, controllers)
   const liveIp = profileController?.phase === 'live' ? profileController.ip : undefined
+  const liveEpoch = profileController?.phase === 'live' ? profileController.liveEpoch : undefined
   const controllerPrograms = useControllerPanelStore((state) => (
     liveIp ? state.programsByController[liveIp] ?? EMPTY_CONTROLLER_PROGRAMS : EMPTY_CONTROLLER_PROGRAMS
   ))
@@ -820,7 +826,18 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   const [deletingProgramId, setDeletingProgramId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleteBaseline, setDeleteBaseline] = useState<ProgramListEntry[] | null>(null)
-  const liveEpoch = profileController?.phase === 'live' ? profileController.liveEpoch : undefined
+  const currentDeleteSession = useRef({
+    controllerId: liveIp,
+    liveEpoch,
+    profileId: profile.id,
+  })
+  useEffect(() => {
+    currentDeleteSession.current = {
+      controllerId: liveIp,
+      liveEpoch,
+      profileId: profile.id,
+    }
+  }, [liveEpoch, liveIp, profile.id])
   const readKey = liveIp
     ? controllerSavedProgramsReadKey({
         controllerId: liveIp,
@@ -840,7 +857,16 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         : 'ready'
   const activeProgramId = configSourceIp === liveIp ? panelActiveProgramId : undefined
   const activeProgramKnown = liveIp !== undefined && configSourceIp === liveIp
-  const deleteBlockedReason = !activeProgramKnown
+  const pendingDeleteSessionIsCurrent = !pendingDelete || (
+    pendingDelete.controllerId === liveIp
+    && pendingDelete.liveEpoch === liveEpoch
+    && pendingDelete.profileId === profile.id
+    && pendingDelete.provider === getControllerProvider()
+  )
+  const deleteSessionKnown = activeProgramKnown && liveEpoch !== undefined
+  const deleteBlockedReason = !pendingDeleteSessionIsCurrent
+    ? 'Controller session changed — close this dialog and choose the Pattern again'
+    : !deleteSessionKnown
     ? 'Waiting to confirm the running Pattern'
     : pendingDelete?.program.programId === activeProgramId
       ? 'Running now — switch to another Pattern first'
@@ -1004,9 +1030,23 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   }
 
   async function confirmProgramDelete() {
-    if (!pendingDelete || !liveIp) return
+    if (!pendingDelete) return
     const { program } = pendingDelete
-    if (!activeProgramKnown) {
+    const sessionIsCurrent = () => {
+      const current = currentDeleteSession.current
+      const controller = useControllerStore.getState().controllers[pendingDelete.controllerId]
+      return current.controllerId === pendingDelete.controllerId
+        && current.liveEpoch === pendingDelete.liveEpoch
+        && current.profileId === pendingDelete.profileId
+        && controller?.phase === 'live'
+        && controller.liveEpoch === pendingDelete.liveEpoch
+        && getControllerProvider() === pendingDelete.provider
+    }
+    if (!sessionIsCurrent()) {
+      setDeleteError('Controller session changed — close this dialog and choose the Pattern again')
+      return
+    }
+    if (!deleteSessionKnown) {
       setDeleteError('Waiting to confirm the running Pattern')
       return
     }
@@ -1018,19 +1058,19 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     setDeletingProgramId(program.programId)
     setDeleteError(null)
     let retainedBaseline = deleteBaseline
-    const expectedProvider = getControllerProvider()
     try {
-      await queueControllerDeviceWrite(liveIp, async () => {
+      await queueControllerDeviceWrite(pendingDelete.controllerId, async () => {
         retainedBaseline = await deleteProgram(
           program.programId,
           {
             baseline: deleteBaseline ?? undefined,
-            expectedControllerId: liveIp,
-            expectedProvider,
+            expectedControllerId: pendingDelete.controllerId,
+            expectedProvider: pendingDelete.provider,
+            sessionIsCurrent,
           },
         )
         const metadataResult = await removeManagedControllerSavedProgramMetadata({
-          controllerId: liveIp,
+          controllerId: pendingDelete.controllerId,
           bindingKey: program.bindingKey,
           programId: program.programId,
         }, {
@@ -1040,10 +1080,10 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
           setPushRecords,
         })
         if (metadataResult.removed) {
-          forgetDeletedSavedProgram(liveIp, metadataResult.bindingKey)
+          forgetDeletedSavedProgram(pendingDelete.controllerId, metadataResult.bindingKey)
         }
       })
-      requestSavedProgramsRefresh(profile.id)
+      requestSavedProgramsRefresh(pendingDelete.profileId)
       setDeleteBaseline(null)
       setPendingDelete(null)
     } catch (error) {
@@ -1052,7 +1092,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         : retainedBaseline
       if (baseline) setDeleteBaseline([...baseline])
       const message = error instanceof Error ? error.message : 'Controller deletion failed.'
-      setDeleteError(`Could not delete “${program.name}” from ${profile.name}. ${message}`)
+      setDeleteError(`Could not delete “${program.name}” from ${pendingDelete.controllerName}. ${message}`)
     } finally {
       setDeletingProgramId(null)
     }
@@ -1068,7 +1108,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
       />
       <DeleteProgramDialog
         pending={pendingDelete}
-        controllerName={profile.name}
+        controllerName={pendingDelete?.controllerName ?? profile.name}
         busy={deletingProgramId !== null}
         blockedReason={deleteBlockedReason}
         error={deleteError}
@@ -1091,7 +1131,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         hasSnapshot={hasInventorySnapshot}
         showsEnabled={showsEnabled}
         activeProgramId={activeProgramId}
-        activeProgramKnown={activeProgramKnown}
+        activeProgramKnown={deleteSessionKnown}
         activatingProgramId={activatingProgramId}
         onRefresh={() => requestSavedProgramsRefresh(profile.id)}
         onOpen={(routeId) => navigate({
@@ -1103,9 +1143,17 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         onRun={(program) => void runSavedProgram(program)}
         onImport={(program) => void beginProgramImport(program)}
         onDelete={(program) => {
+          if (!liveIp || liveEpoch === undefined) return
           setDeleteError(null)
           setDeleteBaseline(null)
-          setPendingDelete({ program })
+          setPendingDelete({
+            program,
+            controllerId: liveIp,
+            controllerName: profile.name,
+            liveEpoch,
+            profileId: profile.id,
+            provider: getControllerProvider(),
+          })
         }}
         importingProgramId={importingProgramId}
         deletingProgramId={deletingProgramId}

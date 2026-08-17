@@ -349,6 +349,37 @@ describe('controllerPanelStore', () => {
     expect(provider.deletedProgramIds).toEqual([])
   })
 
+  it('revalidates the authorizing session immediately before the delete command', async () => {
+    let sessionIsCurrent = true
+    provider.getConfig = async () => {
+      sessionIsCurrent = false
+      return { activeProgramId: 'def' }
+    }
+
+    await expect(useControllerPanelStore.getState().deleteProgram('abc', {
+      sessionIsCurrent: () => sessionIsCurrent,
+    })).rejects.toThrow('Controller session changed')
+
+    expect(provider.deletedProgramIds).toEqual([])
+  })
+
+  it('revalidates the authorizing session before the confirmation inventory read', async () => {
+    let sessionIsCurrent = true
+    provider.deleteProgram = async (programId) => {
+      provider.deletedProgramIds.push(programId)
+      provider.programs = provider.programs.filter((program) => program.id !== programId)
+      sessionIsCurrent = false
+    }
+    const readsBeforeDelete = provider.listProgramsCalls
+
+    await expect(useControllerPanelStore.getState().deleteProgram('abc', {
+      sessionIsCurrent: () => sessionIsCurrent,
+    })).rejects.toThrow('Controller session changed')
+
+    expect(provider.deletedProgramIds).toEqual(['abc'])
+    expect(provider.listProgramsCalls).toBe(readsBeforeDelete + 1)
+  })
+
   it('rejects deletion and preserves the last inventory when refresh fails', async () => {
     await useControllerPanelStore.getState().refreshPrograms('192.168.8.224')
     const before = useControllerPanelStore.getState().programs
