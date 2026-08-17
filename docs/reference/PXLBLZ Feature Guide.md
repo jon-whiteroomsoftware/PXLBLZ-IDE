@@ -58,6 +58,9 @@ workspace starts with an editable **Start Here** example of each kind.
 
 Two habits worth learning on day one: the center-pane title is the rename
 control, and **Space** toggles preview playback anywhere outside a text field.
+Controller names are the deliberate exception: Rename appears only while that
+profile's physical Controller is live, because the device—not the profile—is
+the source of truth.
 
 ### Sign-in and your workspace
 
@@ -229,6 +232,13 @@ disagrees with the device, so the panel calls out the mismatch with an amber
 
 A profile is durable configuration for one physical Controller, keyed by its
 device id and editable even offline. It is where hardware knowledge lives:
+
+The profile name is not an offline alias. While the matched Controller is live,
+rename it from the center title or its rail action; PXLBLZ writes the physical
+device, reads the new name back, and only then updates the panel, rail, and
+durable profile. A failed device write leaves the old name in place and reports
+the failure where you made the edit. The confirmed name survives reconnect and
+reboot because it is Controller configuration.
 
 - **Inputs.** Describe a potentiometer or button once (pin, signal,
   smoothing) and route it to hardware brightness or to any Pattern's

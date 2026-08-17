@@ -45,7 +45,7 @@ import { MapContextPane } from '@/components/MapContextPane'
 import { useMixinStore, STOCK_MIXIN_ITEMS } from '@/store/mixinStore'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useLibraryStore } from '@/store/libraryStore'
-import { useControllerProfileStore } from '@/store/controllerProfileStore'
+import { profileMatchesLive, useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useShowStore } from '@/store/showStore'
 import { useEditorStore } from '@/store/editorStore'
 import { useDocsStore } from '@/store/docsStore'
@@ -366,7 +366,8 @@ function StudioApp() {
   const editingLibrary = useLibraryStore((s) => s.editingLibrary)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const controllerProfilesLoaded = useControllerProfileStore((s) => s.profilesLoaded)
-  const updateControllerProfile = useControllerProfileStore((s) => s.updateProfile)
+  const liveControllers = useControllerStore((s) => s.controllers)
+  const renameControllerProfile = useControllerStore((s) => s.renameControllerProfile)
   const activeShowId = useShowStore((s) => s.activeShowId)
   const shows = useShowStore((s) => s.shows)
   const showsLoaded = useShowStore((s) => s.showsLoaded)
@@ -1062,8 +1063,8 @@ function StudioApp() {
                 <InlineEntityTitle
                   name={activeControllerProfile ? controllerProfileDisplayName(activeControllerProfile) : 'Controller profile'}
                   noun="controller"
-                  onRename={activeControllerProfile
-                    ? (nextName) => updateControllerProfile(activeControllerProfile.id, { name: nextName })
+                  onRename={activeControllerProfile && profileMatchesLive(activeControllerProfile, liveControllers)
+                    ? (nextName) => renameControllerProfile(activeControllerProfile.id, nextName)
                     : undefined}
                   takenNames={controllerProfiles
                     .filter((profile) => profile.id !== activeControllerProfile?.id)

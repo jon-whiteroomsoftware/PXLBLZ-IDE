@@ -5,6 +5,18 @@ Controller. Each is here because it produced a long debugging detour at least
 once: the failure modes are silent, so the device looks healthy while the feature
 looks broken.
 
+## Device-name writes need read-back confirmation
+
+The configured Controller name is written over the WebSocket as
+`{"name":"Road case"}`. Firmware sends no acknowledgement for the write. A
+subsequent `getConfig` settings packet reports the applied top-level `name`, and
+the setting survives a controller reboot.
+
+PXLBLZ therefore treats send completion as insufficient. It reads config back
+on the same live connection and updates the Controller profile only after the
+exact requested name is reported. An offline profile cannot be renamed, and a
+failed or unconfirmed write leaves the last device-authoritative name intact.
+
 ## A pushed map must match pixelCount exactly
 
 A pushed pixel map must contain exactly `pixelCount` coordinates. The firmware

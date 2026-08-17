@@ -336,12 +336,26 @@ describe('routing (#308)', () => {
     expect(renameShow).toHaveBeenCalledWith(show.id, 'Night Show')
   })
 
-  it('renames a Controller profile from the middle-pane title', async () => {
+  it('renames a matching live Controller from the middle-pane title', async () => {
     const user = userEvent.setup()
-    const updateProfile = vi.fn(async () => {})
+    const renameControllerProfile = vi.fn(async () => {})
     window.history.replaceState(null, '', '/studio/controllers/ctrl-1')
     seedSignedInWorkspace()
-    useControllerProfileStore.setState({ profiles: [controllerProfile], profilesLoaded: true, updateProfile })
+    useControllerProfileStore.setState({ profiles: [controllerProfile], profilesLoaded: true })
+    useControllerStore.setState({
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          deviceId: controllerProfile.deviceId,
+          nickname: controllerProfile.name,
+          phase: 'live',
+          liveEpoch: 1,
+          installedMap: { status: 'absent', observedAt: 1 },
+          mapDim: null,
+        },
+      },
+      renameControllerProfile,
+    })
 
     render(<App />)
 
@@ -349,7 +363,17 @@ describe('routing (#308)', () => {
     await user.click(within(editorPane).getByRole('button', { name: 'Rename controller Burner bag' }))
     await user.clear(within(editorPane).getByRole('textbox', { name: 'Controller name' }))
     await user.type(within(editorPane).getByRole('textbox', { name: 'Controller name' }), 'Road case{Enter}')
-    expect(updateProfile).toHaveBeenCalledWith('ctrl-1', { name: 'Road case' })
+    expect(renameControllerProfile).toHaveBeenCalledWith('ctrl-1', 'Road case')
+  })
+
+  it('does not offer a local-only rename for an offline Controller profile', () => {
+    window.history.replaceState(null, '', '/studio/controllers/ctrl-1')
+    seedSignedInWorkspace()
+    useControllerProfileStore.setState({ profiles: [controllerProfile], profilesLoaded: true })
+
+    render(<App />)
+
+    expect(screen.queryByRole('button', { name: 'Rename controller Burner bag' })).not.toBeInTheDocument()
   })
 
   it('puts Show details and quiet Show metadata in the title row', async () => {

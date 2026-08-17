@@ -72,6 +72,7 @@ export function ControllersRailSection({
               id: profile.id,
               name: controllerProfileDisplayName(profile),
               meta: profileIsLive(profile) ? 'LIVE' : 'IDLE',
+              canRename: profileIsLive(profile),
             }))}
             activeEntityId={activeControllerProfileId}
             query=""

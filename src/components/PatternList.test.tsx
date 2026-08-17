@@ -13,6 +13,7 @@ import {
   type ControllerProfile,
 } from '@/store/controllerProfileStore'
 import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
+import { controllerInitialState, useControllerStore } from '@/store/controllerStore'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { getAuthSession } from '@/engine/authSession'
 import { useRouterStore, routerInitialState } from '@/store/routerStore'
@@ -138,6 +139,7 @@ beforeEach(() => {
   useMixinStore.setState(mixinInitialState)
   useLibraryStore.setState(libraryInitialState)
   useControllerProfileStore.setState(controllerProfileInitialState)
+  useControllerStore.setState(controllerInitialState)
   useShowStore.setState(showInitialState)
   useEntityOrganizationStore.setState(entityOrganizationInitialState)
   useWorkspaceStore.setState(workspaceInitialState)
@@ -872,10 +874,8 @@ describe('PatternList', () => {
     expect(useMapStore.getState().editingMap?.kind).toBe('existing')
   })
 
-  it('lists durable controller profiles under Controllers', async () => {
+  it('lists durable offline Controller profiles without a local rename action', async () => {
     mockControllers = [CONTROLLER_PROFILE]
-    const updateControllerProfile = vi.fn(async () => {})
-    useControllerProfileStore.setState({ updateProfile: updateControllerProfile })
     const user = userEvent.setup()
     render(<PatternList />)
 
@@ -885,11 +885,38 @@ describe('PatternList', () => {
     expect(screen.queryByText('Burner bag')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'New controller profile' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'More actions for Old alias' }))
+    expect(screen.queryByRole('button', { name: 'Rename' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Move to Trash' })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Rename item' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: /search by name/i })).not.toBeInTheDocument()
+  })
+
+  it('renames a matching live Controller from the Controllers rail', async () => {
+    mockControllers = [CONTROLLER_PROFILE]
+    const renameControllerProfile = vi.fn(async () => {})
+    useControllerStore.setState({
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          deviceId: CONTROLLER_PROFILE.deviceId,
+          nickname: CONTROLLER_PROFILE.name,
+          phase: 'live',
+          liveEpoch: 1,
+          installedMap: { status: 'absent', observedAt: 1 },
+          mapDim: null,
+        },
+      },
+      renameControllerProfile,
+    })
+    const user = userEvent.setup()
+    render(<PatternList />)
+
+    await user.click(screen.getByRole('radio', { name: 'Controllers' }))
+    await user.click(await screen.findByRole('button', { name: 'More actions for Old alias' }))
     await user.click(screen.getByRole('button', { name: 'Rename' }))
     await user.clear(screen.getByRole('textbox', { name: 'Rename item' }))
     await user.type(screen.getByRole('textbox', { name: 'Rename item' }), 'Road case{Enter}')
-    expect(updateControllerProfile).toHaveBeenCalledWith('ctrl-1', { name: 'Road case' })
-    expect(screen.queryByRole('textbox', { name: /search by name/i })).not.toBeInTheDocument()
+    expect(renameControllerProfile).toHaveBeenCalledWith('ctrl-1', 'Road case')
   })
 
   it('lists user-authored cloud mixins under Mixins', async () => {

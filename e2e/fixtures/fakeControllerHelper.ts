@@ -25,6 +25,13 @@ export async function installFakeControllerHelper(
     let activeProgramId = fixture.activeProgramId
     let pendingProgramId: string | null = null
     let programs = fixture.programs.map((program) => ({ ...program }))
+    const deviceNameStorageKey = `__pxlblzFakeControllerName:${fixture.mac}`
+    let deviceName = fixture.deviceName
+    try {
+      deviceName = window.sessionStorage.getItem(deviceNameStorageKey) ?? fixture.deviceName
+    } catch {
+      // Opaque bootstrap origins can deny storage; the in-page fake still works.
+    }
     const writes: Array<Record<string, unknown>> = []
     Object.defineProperty(window, '__fakeControllerWrites', {
       configurable: true,
@@ -118,7 +125,7 @@ export async function installFakeControllerHelper(
           brightness: 0.5,
           boardType: fixture.boardType,
           chipId: 777,
-          name: fixture.deviceName,
+          name: deviceName,
           pixelCount: fixture.pixelCount,
           ver: '3.67',
           sequencerMode: fixture.sequencerMode,
@@ -131,6 +138,14 @@ export async function installFakeControllerHelper(
         })
       }
       if (command.ping) reply(message.connId, { ack: 1 })
+      if (typeof command.name === 'string') {
+        deviceName = command.name
+        try {
+          window.sessionStorage.setItem(deviceNameStorageKey, deviceName)
+        } catch {
+          // Keep the current document's device state even if storage is denied.
+        }
+      }
       if (command.listPrograms) replyPrograms(message.connId)
       if (typeof command.deleteProgram === 'string') {
         programs = programs.filter((program) => program.id !== command.deleteProgram)

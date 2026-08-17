@@ -2,7 +2,7 @@ import { create } from 'zustand'
 
 export type StudioOperationSurface = 'rail' | 'editor'
 export type StudioOperationAction = 'create' | 'clone' | 'rename' | 'delete' | 'empty-trash'
-export type StudioOperationEntityKind = 'pattern' | 'map' | 'mixin' | 'library'
+export type StudioOperationEntityKind = 'pattern' | 'map' | 'mixin' | 'library' | 'controller'
 
 export interface StudioOperationSpec {
   surface: StudioOperationSurface

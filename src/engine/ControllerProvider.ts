@@ -244,6 +244,10 @@ export interface ControllerProvider {
    *  Resolves once the command is sent. */
   setBrightness(value: number, save?: boolean): Promise<void>
 
+  /** Set the Controller's persisted device name. Resolves when the command has
+   * been sent; callers confirm applied truth with `getConfig()`. */
+  setName(name: string): Promise<void>
+
   /** Set the device's configured pixel count. `save` persists to flash — default
    *  true (this is wiring config, not a volatile control, so it should survive a
    *  reboot). Resolves once the command is sent. Also the remedy for an
@@ -378,6 +382,10 @@ export class NullControllerProvider implements ControllerProvider {
   }
 
   setBrightness(_value: number, _save = false): Promise<void> {
+    return Promise.reject(new Error('Not connected to a Controller'))
+  }
+
+  setName(_name: string): Promise<void> {
     return Promise.reject(new Error('Not connected to a Controller'))
   }
 

@@ -87,7 +87,7 @@ const baseProfile: ControllerProfile = {
 }
 
 describe('ControllerProfile display name', () => {
-  it('shows an authored profile rename instead of the last observed device name (#808)', () => {
+  it('shows the latest device-confirmed profile name over an older observation (#864)', () => {
     expect(controllerProfileDisplayName({
       ...baseProfile,
       name: 'Road case',

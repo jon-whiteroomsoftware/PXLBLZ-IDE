@@ -506,6 +506,13 @@ export class PixelblazeConnection {
     this.sendJson({ brightness: value, save })
   }
 
+  /** Set the Controller's configured device name. The firmware persists this
+   * settings command; callers that need applied-device truth must follow it with
+   * getConfig because the write itself has no acknowledgement. */
+  setName(name: string): void {
+    this.sendJson({ name })
+  }
+
   /** Set the device's configured pixel count. Fire-and-forget; sends
    *  `{pixelCount, save}` — `save:true` persists to flash so it survives a reboot
    *  (the reference client's `setPixelCount(n, save=True)`,

@@ -50,6 +50,9 @@ export interface EntityOrganizationTreeItem {
   id: string
   name: string
   meta?: string
+  /** Defaults true. A false value hides entity rename while retaining folder,
+   * move, and trash actions. */
+  canRename?: boolean
 }
 
 interface DropTarget {
@@ -502,7 +505,7 @@ function OrganizationTreeNode(props: {
         )}
         {props.menuKey === key && (
           <RowActionMenu
-            onRename={folder || props.canRenameEntity ? () => {
+            onRename={folder || (props.canRenameEntity && item?.canRename !== false) ? () => {
               props.onMenu(null)
               props.onEdit(key)
             } : undefined}

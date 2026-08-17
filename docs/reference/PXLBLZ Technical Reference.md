@@ -422,11 +422,28 @@ the protocol layer; callers refresh the program list and treat that device truth
 as confirmation. `NullControllerProvider` rejects both operations like every
 other disconnected write.
 
+The same generic relay carries the device-name settings command through
+`setName(name)`. Firmware gives that write no acknowledgement, so a rename is
+not complete when the frame is sent: `controllerStore` follows it with
+`getConfig()` and requires the settings packet to report the exact requested
+name before any profile state changes.
+
 ## 15. Identity, connection state, and live panel
 
 Connection state is keyed by IP; several Controllers may stay live with one
 active. Durable identity is the Pixelblaze device id (board type + MAC). A
 connection without a stable id is unclaimed but fully usable.
+
+Controller rename is a live, device-authoritative transaction. The action
+requires a durable profile whose device id matches a live keyed entry, captures
+that provider and live connection epoch, and runs through the per-Controller
+device-write queue. It writes the physical Controller first, confirms the name
+on the same session, then updates the live nickname, reconnect seed,
+device-id/name cache, profile name, and last-known device name. A send failure,
+confirmation mismatch, or replaced connection rejects without inventing a
+local alias. Offline and unmatched profiles expose no rename affordance. The
+existing profile-save recovery handles a later D1 failure; PXLBLZ does not try
+to roll back an already-confirmed physical rename.
 
 `controllerStore` owns connection phase, discovery, active selection, push
 state, and the installed-map observation. `controllerPanelStore` polls the

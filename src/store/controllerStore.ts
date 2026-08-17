@@ -299,6 +299,10 @@ interface ControllerConnectionState {
   ) => Promise<void>
   /** Send an acknowledged device-wide renderer command to exactly one Controller. */
   setRendererPaused: (ip: string, paused: boolean) => Promise<void>
+  /** Rename the matching live physical Controller, confirm device truth, then
+   * reconcile its keyed session and durable profile. Offline profiles cannot be
+   * renamed into local-only aliases. */
+  renameControllerProfile: (profileId: string, name: string) => Promise<void>
   /** Startup auto-reconnect: try only the remembered last-connected Controller. */
   autoConnect: () => Promise<void>
   /** Compile + push the active pattern to the active Controller, overwrite-in-place
@@ -984,6 +988,83 @@ export const useControllerStore = create<ControllerConnectionState>()(
               },
             }))
           }
+        },
+
+        renameControllerProfile: async (profileId, requestedName) => {
+          const name = requestedName.trim()
+          if (!name) throw new Error('Controller name is required')
+
+          const profile = useControllerProfileStore.getState().profiles.find(
+            (candidate) => candidate.id === profileId,
+          )
+          const entry = profile
+            ? controllerForProfile(profile, get().controllers)
+            : null
+          if (
+            !profile?.deviceId
+            || !entry
+            || entry.phase !== 'live'
+            || entry.deviceId !== profile.deviceId
+            || entry.liveEpoch == null
+          ) {
+            throw new Error('Connect this Controller before renaming it')
+          }
+
+          const ip = entry.ip
+          const deviceId = profile.deviceId
+          const liveEpoch = entry.liveEpoch
+          const provider = providers.get(ip)
+          const status = provider?.getStatus()
+          if (!provider || !status || status.kind !== 'connected') {
+            throw new Error('Connect this Controller before renaming it')
+          }
+          const expectedController = {
+            id: status.controller.id,
+            address: status.controller.address,
+          }
+
+          const assertCurrentSession = () => {
+            const current = get().controllers[ip]
+            if (
+              providers.get(ip) !== provider
+              || current?.phase !== 'live'
+              || current.deviceId !== deviceId
+              || current.liveEpoch !== liveEpoch
+              || !statusMatchesConnectedController(expectedController, provider.getStatus())
+            ) {
+              throw new Error('Controller connection changed before the rename completed')
+            }
+          }
+
+          await queueControllerDeviceWrite(ip, async () => {
+            assertCurrentSession()
+            await provider.setName(name)
+            assertCurrentSession()
+            const confirmed = await provider.getConfig()
+            assertCurrentSession()
+            if (confirmed.name !== name) {
+              throw new Error(`Controller did not confirm the name “${name}”`)
+            }
+            const currentProfile = useControllerProfileStore.getState().profiles.find(
+              (candidate) => candidate.id === profileId,
+            )
+            if (currentProfile?.deviceId !== deviceId) {
+              throw new Error('Controller profile changed before the rename completed')
+            }
+
+            patchController(ip, { nickname: name })
+            set((state) => ({
+              ...(state.lastConnectedIp === ip ? { lastConnectedNickname: name } : {}),
+              lastKnownControllerNames: {
+                ...state.lastKnownControllerNames,
+                [deviceId]: name,
+              },
+            }))
+            await useControllerProfileStore.getState().updateProfile(profileId, {
+              name,
+              lastKnownDeviceName: name,
+            })
+          })
         },
 
         autoConnect: async () => {

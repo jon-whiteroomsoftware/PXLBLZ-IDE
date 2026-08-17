@@ -86,6 +86,9 @@ class FakeProvider extends NullControllerProvider {
   firmwareUpdateChecks = 0
   rendererCommands: boolean[] = []
   rendererCommandError: Error | null = null
+  nameCommands: string[] = []
+  setNameError: Error | null = null
+  applyNameCommands = true
   connectionGeneration = 0
 
   detectHelper(): Promise<boolean> {
@@ -153,6 +156,12 @@ class FakeProvider extends NullControllerProvider {
     return this.rendererCommandError
       ? Promise.reject(this.rendererCommandError)
       : Promise.resolve()
+  }
+  setName(name: string): Promise<void> {
+    if (this.setNameError) return Promise.reject(this.setNameError)
+    this.nameCommands.push(name)
+    if (this.applyNameCommands) this.name = name
+    return Promise.resolve()
   }
 
   // ── push surface (#202) ─────────────────────────────────────────────────────
@@ -292,6 +301,130 @@ afterEach(() => {
 const store = () => useControllerStore.getState()
 
 describe('controllerStore (keyed)', () => {
+  it('renames a matching live Controller device-first, confirms it, then persists device truth', async () => {
+    const profile = defaultControllerProfile({
+      id: 'profile-rename',
+      name: 'Burner bag',
+      deviceId: 'pixelblaze_pb32_rename',
+      deviceName: 'Burner bag',
+      ip: '10.0.0.5',
+    })
+    const updates: Array<{ id: string; changes: Record<string, unknown> }> = []
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      id: 'rename-test',
+      updateControllerProfile: async (id, changes) => {
+        updates.push({ id, changes })
+      },
+    })
+    useControllerProfileStore.setState({ profiles: [profile], profilesLoaded: true })
+    await store().addController({
+      id: profile.deviceId!,
+      address: '10.0.0.5',
+      name: profile.name,
+    })
+
+    await store().renameControllerProfile(profile.id, 'Road case')
+
+    const provider = created.get('10.0.0.5')!
+    expect(provider.nameCommands).toEqual(['Road case'])
+    expect(updates).toHaveLength(1)
+    expect(updates[0]).toMatchObject({
+      id: profile.id,
+      changes: { name: 'Road case', lastKnownDeviceName: 'Road case' },
+    })
+    expect(store().controllers['10.0.0.5'].nickname).toBe('Road case')
+    expect(store().lastConnectedNickname).toBe('Road case')
+    expect(store().lastKnownControllerNames[profile.deviceId!]).toBe('Road case')
+    expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
+      name: 'Road case',
+      lastKnownDeviceName: 'Road case',
+    })
+  })
+
+  it('refuses offline profiles and preserves every name when the device write fails', async () => {
+    const profile = defaultControllerProfile({
+      id: 'profile-rename',
+      name: 'Burner bag',
+      deviceId: 'pixelblaze_pb32_rename',
+      deviceName: 'Burner bag',
+      ip: '10.0.0.5',
+    })
+    const updateControllerProfile = vi.fn(async () => {})
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      id: 'rename-failure-test',
+      updateControllerProfile,
+    })
+    useControllerProfileStore.setState({ profiles: [profile], profilesLoaded: true })
+
+    await expect(store().renameControllerProfile(profile.id, 'Road case'))
+      .rejects.toThrow('Connect this Controller')
+
+    await store().addController({
+      id: profile.deviceId!,
+      address: '10.0.0.5',
+      name: profile.name,
+    })
+    const provider = created.get('10.0.0.5')!
+    const previousLiveName = store().controllers['10.0.0.5'].nickname
+    provider.setNameError = new Error('socket closed')
+
+    await expect(store().renameControllerProfile(profile.id, 'Road case'))
+      .rejects.toThrow('socket closed')
+    expect(store().controllers['10.0.0.5'].nickname).toBe(previousLiveName)
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Burner bag')
+    expect(updateControllerProfile).not.toHaveBeenCalled()
+  })
+
+  it('rejects unconfirmed and reconnected renames without changing the durable profile', async () => {
+    const profile = defaultControllerProfile({
+      id: 'profile-rename',
+      name: 'Burner bag',
+      deviceId: 'pixelblaze_pb32_rename',
+      deviceName: 'Burner bag',
+      ip: '10.0.0.5',
+    })
+    const updateControllerProfile = vi.fn(async () => {})
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      id: 'rename-confirmation-test',
+      updateControllerProfile,
+    })
+    useControllerProfileStore.setState({ profiles: [profile], profilesLoaded: true })
+    await store().addController({
+      id: profile.deviceId!,
+      address: '10.0.0.5',
+      name: profile.name,
+    })
+    const provider = created.get('10.0.0.5')!
+    provider.applyNameCommands = false
+    await expect(store().renameControllerProfile(profile.id, 'Road case'))
+      .rejects.toThrow('did not confirm')
+    expect(updateControllerProfile).not.toHaveBeenCalled()
+
+    provider.applyNameCommands = true
+    const confirmation = deferred<ControllerConfig>()
+    provider.getConfig = () => confirmation.promise
+    const rename = store().renameControllerProfile(profile.id, 'Road case')
+    await Promise.resolve()
+    provider.emit({ kind: 'connecting', target: { address: '10.0.0.5' } })
+    provider.emit({
+      kind: 'connected',
+      connectionGeneration: ++provider.connectionGeneration,
+      controller: {
+        id: profile.deviceId!,
+        address: '10.0.0.5',
+        deviceId: profile.deviceId!,
+      },
+    })
+    confirmation.resolve({ name: 'Road case' })
+
+    await expect(rename).rejects.toThrow('connection changed')
+    expect(updateControllerProfile).not.toHaveBeenCalled()
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Burner bag')
+  })
+
   it('reconciles only managed saved Patterns and never writes foreign programs', async () => {
     const profile = {
       ...defaultControllerProfile({

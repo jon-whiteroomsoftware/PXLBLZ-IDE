@@ -688,6 +688,10 @@ export class ExtensionControllerProvider implements ControllerProvider {
     return this.fireAndForget((conn) => conn.setBrightness(value, save))
   }
 
+  setName(name: string): Promise<void> {
+    return this.fireAndForget((conn) => conn.setName(name))
+  }
+
   setPixelCount(value: number, save = true): Promise<void> {
     return this.fireAndForget((conn) => conn.setPixelCount(value, save))
   }

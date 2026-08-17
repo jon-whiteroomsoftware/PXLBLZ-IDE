@@ -126,7 +126,7 @@ export function PatternList({
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const loadControllerProfiles = useControllerProfileStore((s) => s.loadProfiles)
   const removeControllerProfile = useControllerProfileStore((s) => s.removeProfile)
-  const updateControllerProfile = useControllerProfileStore((s) => s.updateProfile)
+  const renameControllerProfile = useControllerStore((s) => s.renameControllerProfile)
   const userShows = useShowStore((s) => s.shows)
   const activeShowId = useShowStore((s) => s.activeShowId)
   const loadShows = useShowStore((s) => s.loadShows)
@@ -841,6 +841,17 @@ export function PatternList({
     })
   }
 
+  function handleRenameControllerProfile(profileId: string, name: string) {
+    const currentName = controllerProfiles.find((profile) => profile.id === profileId)?.name ?? name
+    void executeStudioOperation({
+      surface: 'rail',
+      action: 'rename',
+      entityKind: 'controller',
+      entityName: currentName,
+      run: () => renameControllerProfile(profileId, name),
+    })
+  }
+
   function openControllerProfile(profileId: string) {
     requestBufferReplacement(() => {
       closeMapEditor()
@@ -1185,7 +1196,7 @@ export function PatternList({
             onScroll={updateScrollMetrics}
             profileIsLive={(profile) => profileMatchesLive(profile, liveControllers)}
             onOpenControllerProfile={openControllerProfile}
-            onRenameControllerProfile={(profileId, name) => void updateControllerProfile(profileId, { name })}
+            onRenameControllerProfile={handleRenameControllerProfile}
             personalOrganization={controllerOrganization}
             onPersonalOrganizationChange={(organization) => void mutateOrganization(
               'controllers',

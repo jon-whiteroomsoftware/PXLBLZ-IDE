@@ -678,6 +678,12 @@ describe('PixelblazeConnection', () => {
       expect(socket.lastFrame()).toEqual({ brightness: 0.3, save: false })
     })
 
+    it('setName sends the device-name settings command', async () => {
+      const { conn, socket } = await connected()
+      conn.setName('Road case')
+      expect(socket.lastFrame()).toEqual({ name: 'Road case' })
+    })
+
     it('setPixelCount sends {pixelCount, save} and defaults to save:true', async () => {
       const { conn, socket } = await connected()
       conn.setPixelCount(16)

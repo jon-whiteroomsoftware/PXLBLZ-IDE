@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures/authenticated'
+import { installFakeControllerHelper } from './fixtures/fakeControllerHelper'
 
 test('authenticated Studio renames a Pattern from the middle-pane title', async ({ page }) => {
   await page.goto('studio/patterns')
@@ -30,18 +31,21 @@ test('authenticated Studio renames a Pattern from the middle-pane title', async 
   await expect(page.getByRole('button', { name: 'Rename pattern Header Renamed Pattern' })).toBeVisible()
 })
 
-test('authenticated Studio renames a Controller profile from its header and rail', async ({ page }) => {
+test('authenticated Studio renames the live Controller from its header and rail', async ({ page }) => {
   const id = `controller-title-rename-${Date.now()}`
   const originalName = `Bench ${Date.now()}`
   const headerName = `${originalName} Header`
   const railName = `${originalName} Rail`
+  const controllerIp = '192.168.8.224'
+  const deviceId = 'pixelblaze_pb32_665544332211'
   const request = page.context().request
   const created = await request.post('/api/controllers', {
     data: {
       id,
       name: originalName,
-      deviceId: `pixelblaze_pb32_${Date.now()}`,
-      lastKnownDeviceName: 'Last hardware name',
+      deviceId,
+      lastKnownDeviceName: originalName,
+      lastSeenIp: controllerIp,
       board: { kind: 'pixelblaze-v3-standard' },
       inputs: [],
       globalTransforms: [],
@@ -53,10 +57,34 @@ test('authenticated Studio renames a Controller profile from its header and rail
   expect(created.ok()).toBe(true)
 
   try {
+    await installFakeControllerHelper(page, {
+      programs: [{ id: 'RENAMEPROGRAM0001', name: 'Rename fixture' }],
+      activeProgramId: 'RENAMEPROGRAM0001',
+      deviceName: originalName,
+      boardType: 'pb32',
+      mac: '11:22:33:44:55:66',
+      pixelCount: 64,
+    })
     await page.goto(`studio/controllers/${id}`)
+    await expect(page.getByRole('button', { name: `Rename controller ${originalName}` })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Connect a Controller' }).click()
+    await page.getByRole('textbox', { name: 'Controller IP address' }).fill(controllerIp)
+    await page.getByTestId('controller-go').click()
+    await expect(page.getByTestId('controller-pill')).toHaveAttribute('data-phase', 'live')
+
     await page.getByRole('button', { name: `Rename controller ${originalName}` }).click()
     await page.getByRole('textbox', { name: 'Controller name' }).fill(headerName)
     await page.getByRole('textbox', { name: 'Controller name' }).press('Enter')
+    await expect(page.getByRole('button', { name: `Rename controller ${headerName}` })).toBeVisible()
+    await expect.poll(() => page.evaluate((name) => {
+      const writes = (window as typeof window & {
+        __fakeControllerWrites?: Array<Record<string, unknown>>
+      }).__fakeControllerWrites ?? []
+      return writes.filter((write) => write.name === name).length
+    }, headerName)).toBe(1)
+
+    await page.reload()
+    await expect(page.getByTestId('controller-pill')).toHaveAttribute('data-phase', 'live')
     await expect(page.getByRole('button', { name: `Rename controller ${headerName}` })).toBeVisible()
 
     await page.getByRole('treeitem', { name: headerName }).hover()
@@ -71,8 +99,15 @@ test('authenticated Studio renames a Controller profile from its header and rail
       const { controllers } = await response.json() as { controllers: Array<{ id: string; name: string }> }
       return controllers.some((controller) => controller.id === id && controller.name === railName)
     }).toBe(true)
+    await expect.poll(() => page.evaluate((name) => {
+      const writes = (window as typeof window & {
+        __fakeControllerWrites?: Array<Record<string, unknown>>
+      }).__fakeControllerWrites ?? []
+      return writes.some((write) => write.name === name)
+    }, railName)).toBe(true)
 
     await page.reload()
+    await expect(page.getByTestId('controller-pill')).toHaveAttribute('data-phase', 'live')
     await expect(page.getByRole('button', { name: `Rename controller ${railName}` })).toBeVisible()
   } finally {
     await request.delete(`/api/controllers/${encodeURIComponent(id)}`)
