@@ -626,6 +626,45 @@ describe('controllerStore (keyed)', () => {
     })
   })
 
+  it('does not let a stale connection bootstrap overwrite a confirmed rename', async () => {
+    const mapRead = deferred<Uint8Array | null>()
+    const profile = defaultControllerProfile({
+      id: 'profile-bootstrap-rename',
+      name: 'Burner bag',
+      deviceId: 'pixelblaze_pb32_bootstrap',
+      deviceName: 'Burner bag',
+      ip: '10.0.0.5',
+    })
+    setControllerProviderFactory((ip) => {
+      const provider = new FakeProvider()
+      provider.name = 'Burner bag'
+      provider.getPixelMapData = () => mapRead.promise
+      created.set(ip, provider)
+      return provider
+    })
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      id: 'bootstrap-rename-test',
+      listControllerProfiles: async () => [profile],
+      updateControllerProfile: async () => {},
+    })
+    useControllerProfileStore.setState({ profiles: [profile], profilesLoaded: true })
+
+    const connecting = store().addController({
+      id: profile.deviceId!,
+      address: '10.0.0.5',
+      name: profile.name,
+    })
+    await vi.waitFor(() => expect(store().controllers['10.0.0.5']?.phase).toBe('live'))
+    await store().renameControllerProfile(profile.id, 'Road case')
+    mapRead.resolve(encodeMapData([[0], [1]]))
+    await connecting
+
+    expect(store().controllers['10.0.0.5'].nickname).toBe('Road case')
+    expect(store().lastConnectedNickname).toBe('Road case')
+    expect(store().lastKnownControllerNames[profile.deviceId!]).toBe('Road case')
+  })
+
   it('isolates Controller observations when an earlier Controller responds late', async () => {
     const firstRead = deferred<Uint8Array | null>()
     setControllerProviderFactory((ip) => {

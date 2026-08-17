@@ -811,12 +811,24 @@ export const useControllerStore = create<ControllerConnectionState>()(
           if (initialConnection) assumeRendererPlaying(target)
 
           // Live: read config and the one canonical raw installed-map observation.
+          const nicknameBeforeBootstrap = get().controllers[target]?.nickname
           const [config] = await Promise.all([
             provider.getConfig().catch(() => null),
             get().refreshInstalledMap(target),
           ])
           const liveDeviceId = get().controllers[target]?.deviceId ?? connectTarget.deviceId ?? null
-          const reportedName = config?.name ?? connectTarget.name
+          const currentNickname = get().controllers[target]?.nickname
+          // A live rename may finish while the map read is still pending. In that
+          // case the earlier config response is stale and must not republish its
+          // name into the entry or either reconnect cache.
+          const nicknameChangedDuringBootstrap = currentNickname !== nicknameBeforeBootstrap
+          const acceptedConfigName = nicknameChangedDuringBootstrap ? undefined : config?.name
+          const reportedName = nicknameChangedDuringBootstrap
+            ? currentNickname
+            : acceptedConfigName ?? connectTarget.name
+          const rememberedName = nicknameChangedDuringBootstrap
+            ? currentNickname
+            : acceptedConfigName
           const reportedFirmwareVersion = config?.firmwareVersion ?? connectTarget.firmwareVersion
           patchController(target, {
             phase: 'live',
@@ -824,7 +836,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
             // the reconnect churn (#230) getConfig can land on a torn-down socket and
             // reject (→ null here); clobbering the name to undefined would flash the
             // pill back to the bare IP. Keep the seeded/last-known name instead.
-            ...(config?.name ? { nickname: config.name } : {}),
+            ...(acceptedConfigName ? { nickname: acceptedConfigName } : {}),
             ...(reportedFirmwareVersion ? { firmwareVersion: reportedFirmwareVersion } : {}),
           })
           // Remember the IP *and* the freshly-read name (#215). A device rename since
@@ -833,7 +845,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
           // — a transient getConfig failure must not poison the seed for next reload.
           set({
             lastConnectedIp: target,
-            ...(config?.name ? { lastConnectedNickname: config.name } : {}),
+            ...(rememberedName ? { lastConnectedNickname: rememberedName } : {}),
           })
           if (liveDeviceId) {
             set((s) => ({
