@@ -632,6 +632,51 @@ describe('controllerProfileStore', () => {
     expect(useControllerProfileStore.getState().profiles[0].lastKnownPixelCount).toBe(300)
   })
 
+  it('orders each config-derived fact independently across overlapping refreshes (#876)', async () => {
+    // Newer refresh B lands firmware only; older refresh A finishes later with a
+    // pixel count and a stale firmware version. A's count lands, A's firmware
+    // must not replace B's newer one.
+    const profile = defaultControllerProfile({
+      id: 'ctrl-1',
+      name: 'Burner bag',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      firmwareVersion: '3.66',
+      now: 1,
+    })
+    const provider = new FakeControllerProvider()
+    const pending: Array<(config: ControllerConfig) => void> = []
+    provider.getConfig = () => new Promise((resolve) => { pending.push(resolve) })
+    setPersonalContentProvider(memoryProvider([{ ...profile, lastKnownPixelCount: 256 }]))
+    setControllerProvider(provider)
+    useControllerStore.setState({
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          phase: 'live',
+          deviceId: profile.deviceId,
+          nickname: 'Burner bag',
+          mapDim: null,
+        },
+      },
+      activeIp: '192.168.8.224',
+    })
+    await useControllerProfileStore.getState().loadProfiles()
+
+    const first = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    const second = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    pending[1]({ name: 'Burner bag', firmwareVersion: '3.68' })
+    await second
+    expect(useControllerProfileStore.getState().profiles[0].board.firmwareVersion).toBe('3.68')
+    pending[0]({ name: 'Burner bag', firmwareVersion: '3.66', pixelCount: 200 })
+    await first
+    expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
+      lastKnownPixelCount: 200,
+      board: { firmwareVersion: '3.68' },
+    })
+  })
+
   it('auto-creates a default profile for a signed-in live controller with a stable device id', async () => {
     setPersonalContentProvider(memoryProvider())
 

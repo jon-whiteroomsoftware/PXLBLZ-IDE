@@ -195,13 +195,24 @@ const profileKeyWriters = new Map<string, Map<string, number>>()
 // is discarded; the next refresh reads the current truth.
 let profileSettleGeneration = 0
 // Live-metadata refresh ordering (#876): each refresh takes a generation when
-// it starts, and a refresh applies its config-derived facts only if no
-// refresh that started later has already applied a read carrying a numeric
-// pixel count. Overlapping refreshes may all land, in start order; an older
-// read can never put older facts back over newer ones, and a newer read that
-// failed or came back without the count supersedes nothing.
+// it starts, and each config-derived fact (pixel count, device name, firmware)
+// is applied only if no refresh that started later has already applied that
+// same fact. Overlapping refreshes may all land, in start order; an older read
+// can never put an older fact back over a newer one, and a read that failed or
+// came back without a fact supersedes nothing for that fact.
+type LiveMetadataFact = 'pixelCount' | 'name' | 'firmware'
 let liveMetadataRefreshGeneration = 0
-const liveMetadataAppliedGeneration = new Map<string, number>()
+const liveMetadataAppliedGeneration = new Map<string, Partial<Record<LiveMetadataFact, number>>>()
+
+function liveMetadataFactIsCurrent(profileId: string, fact: LiveMetadataFact, generation: number): boolean {
+  return (liveMetadataAppliedGeneration.get(profileId)?.[fact] ?? 0) <= generation
+}
+
+function markLiveMetadataFactApplied(profileId: string, fact: LiveMetadataFact, generation: number): void {
+  const applied = liveMetadataAppliedGeneration.get(profileId) ?? {}
+  applied[fact] = Math.max(applied[fact] ?? 0, generation)
+  liveMetadataAppliedGeneration.set(profileId, applied)
+}
 
 function keyWritersFor(profileId: string): Map<string, number> {
   let writers = profileKeyWriters.get(profileId)
@@ -625,21 +636,35 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     // refreshes), and device facts read moments ago are still true (#876). Only
     // the name is guarded against an intervening rename: a newer profile name
     // that no longer matches what this refresh started from wins outright, and
-    // a refresh that started later and already applied outranks this one.
+    // each config-derived fact yields to a later-started refresh that already
+    // applied that fact.
     const current = get().profiles.find((candidate) => candidate.id === profileId)
     if (!current) return
-    if ((liveMetadataAppliedGeneration.get(profileId) ?? 0) > generation) return
-    // Only a read that carried the fact this ordering protects may supersede.
-    if (typeof config?.pixelCount === 'number') liveMetadataAppliedGeneration.set(profileId, generation)
     const nameUntouched = current.name === profile.name
       && current.lastKnownDeviceName === profile.lastKnownDeviceName
     const refreshedInstalledMap = useControllerStore.getState().controllers[active.ip]?.installedMap
     const installedMapSnapshot = refreshedInstalledMap
       ? toInstalledMapSnapshot(refreshedInstalledMap)
       : undefined
-    const firmwareVersion = config?.firmwareVersion ?? active.firmwareVersion
-    const liveName = config?.name ?? active.nickname
-    const board = withControllerFirmwareUpdateReport(current.board, { firmwareVersion })
+    // A config-derived fact this refresh carries lands only if no later-started
+    // refresh already landed that fact; when config lacks the fact, the live
+    // controller entry's value stands in and needs no ordering.
+    const readFact = <T,>(fact: LiveMetadataFact, value: T | undefined, fallback: T | undefined): T | undefined => {
+      if (value === undefined) return fallback
+      if (!liveMetadataFactIsCurrent(profileId, fact, generation)) return undefined
+      markLiveMetadataFactApplied(profileId, fact, generation)
+      return value
+    }
+    const pixelCount = readFact(
+      'pixelCount',
+      typeof config?.pixelCount === 'number' ? config.pixelCount : undefined,
+      undefined,
+    )
+    const liveName = readFact('name', config?.name || undefined, active.nickname)
+    const firmwareVersion = readFact('firmware', config?.firmwareVersion || undefined, active.firmwareVersion)
+    const board = firmwareVersion
+      ? withControllerFirmwareUpdateReport(current.board, { firmwareVersion })
+      : current.board
     const changes: Partial<Omit<ControllerProfile, 'id'>> = {
       ...(active.deviceId && current.deviceId !== active.deviceId ? { deviceId: active.deviceId } : {}),
       ...(nameUntouched && liveName
@@ -647,8 +672,8 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
         ? { name: liveName, lastKnownDeviceName: liveName }
         : {}),
       ...(current.lastSeenIp !== active.ip ? { lastSeenIp: active.ip } : {}),
-      ...(typeof config?.pixelCount === 'number' && current.lastKnownPixelCount !== config.pixelCount
-        ? { lastKnownPixelCount: config.pixelCount }
+      ...(pixelCount !== undefined && current.lastKnownPixelCount !== pixelCount
+        ? { lastKnownPixelCount: pixelCount }
         : {}),
       ...(installedMapSnapshot
         ? {
