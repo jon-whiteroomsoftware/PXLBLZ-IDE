@@ -73,9 +73,12 @@ export function PatternDeploymentActions({
   )
 
   const actionTitle = (mode: SendMode, gate: SendGate) => {
-    if (working) return 'Sending...'
-    if (!gate.enabled) return undefined
+    // A gated reason lives in the tip while the control is focusable; while
+    // the control is hard-disabled for in-flight work the reason (for example
+    // "Rebuilding Show...") stays the title.
+    if (!gate.enabled) return working ? gate.reason : undefined
     if (pushResult && !pushResult.ok && activeMode === mode) return pushResult.message
+    if (working) return 'Sending...'
     return mode === 'save' ? `Save to ${target}` : `Run on ${target}`
   }
 

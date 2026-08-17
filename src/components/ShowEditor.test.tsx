@@ -53,6 +53,7 @@ import { DEFAULT_SHOW_TRAILS_RETENTION } from '@/engine/showPreviousRgbFeedback'
 import { appendShowLayoutInterval, projectShowLayoutIntervals } from '@/engine/showLayoutIntervals'
 import * as previewThumbnailJpeg from '@/engine/previewThumbnailJpeg'
 import { validateShowComposition } from '@/engine/showCompositionModel'
+import { expectDisabledReason } from '@/components/ui/disabled-reason.testing'
 
 /**
  * Zone Layout definitions are authored in the Zone Map, reached from the Zone
@@ -6955,10 +6956,9 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(/Controller transforms \+[\d.]+ KB/)
     expect(screen.getByLabelText(/^Controller source .* advisory\.$/i)).toBeInTheDocument()
     const blockedReason = 'Peak: 6 Patterns per pixel (limit 4).'
-    expect(screen.getByRole('button', { name: 'Run on Bench PB' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Run on Bench PB' })).toHaveAttribute('title', blockedReason)
-    expect(screen.getByRole('button', { name: 'Save to Bench PB' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Save to Bench PB' })).toHaveAttribute('title', blockedReason)
+    // The blocker is a focusable gated reason, not a mouse-only title (#875).
+    expectDisabledReason(screen.getByRole('button', { name: 'Run on Bench PB' }), blockedReason)
+    expectDisabledReason(screen.getByRole('button', { name: 'Save to Bench PB' }), blockedReason)
   })
 
   it('does not measure an unmatched Installation target profile against the live Controller (#849)', () => {
@@ -7377,11 +7377,14 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(run).toHaveAttribute('title', 'Rebuilding Show...')
     expect(within(run).getByText('Run')).toBeInTheDocument()
     expect(within(screen.getByRole('button', { name: 'Save to Bench PB' })).getByText('Save')).toBeInTheDocument()
-    await waitFor(() => expect(run).toHaveAttribute('title', expect.not.stringContaining('Rebuilding Show')))
-    expect(run).toBeDisabled()
-    expect(run).not.toHaveAttribute('title', "Fix the pattern's errors before sending")
-    expect(run).not.toHaveAttribute('title', 'Earlier transport failure')
-    expect(run.getAttribute('title')).toBeTruthy()
+    // Once the rebuild settles the compile failure is a focusable gated reason
+    // (#875): no title, aria-disabled, and the reason as accessible description.
+    await waitFor(() => expect(run).not.toHaveAttribute('title'))
+    expectDisabledReason(run, /.+/)
+    const reason = document.getElementById(run.getAttribute('aria-describedby')!)!.textContent ?? ''
+    expect(reason).not.toContain('Rebuilding Show')
+    expect(reason).not.toBe("Fix the pattern's errors before sending")
+    expect(reason).not.toBe('Earlier transport failure')
   })
 
   it('dismisses pending Controller delivery when navigating to another Show (#593)', async () => {
