@@ -14,12 +14,14 @@ import {
 } from '@/engine/controllerActionRow'
 import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
 import type { SendGate } from '@/engine/sendToController'
+import { queueControllerDeviceWrite } from '@/engine/controllerDeviceWriteQueue'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
 
 interface ControllerProgramSwitchProps {
   gate: SendGate
   programs: ProgramListEntry[]
   actionClass: string
+  controllerId: string
 }
 
 function errorMessage(error: unknown): string {
@@ -30,6 +32,7 @@ export function ControllerProgramSwitch({
   gate,
   programs,
   actionClass,
+  controllerId,
 }: ControllerProgramSwitchProps) {
   const activeProgramId = useControllerPanelStore((state) => state.activeProgramId)
   const switchingId = useControllerPanelStore((state) => state.activatingProgramId)
@@ -100,7 +103,7 @@ export function ControllerProgramSwitch({
     const menuLifecycle = menuLifecycleRef.current
     setFailure(null)
     try {
-      await activateProgram(row.id)
+      await queueControllerDeviceWrite(controllerId, () => activateProgram(row.id))
       if (menuLifecycleRef.current === menuLifecycle) close(true)
     } catch (error) {
       if (menuLifecycleRef.current === menuLifecycle) setFailure(errorMessage(error))

@@ -151,6 +151,7 @@ export function ControllerActionRow() {
           gate={view.switch}
           programs={programs}
           actionClass={actionClass}
+          controllerId={activeIp ?? ''}
         />
       </div>
     </div>

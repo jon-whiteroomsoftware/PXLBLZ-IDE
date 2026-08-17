@@ -394,22 +394,27 @@ function DeleteProgramDialog({
   busy,
   blockedReason,
   error,
+  canReauthorize,
   onCancel,
   onConfirm,
+  onReauthorize,
 }: {
   pending: PendingProgramDelete | null
   controllerName: string
   busy: boolean
   blockedReason: string | null
   error: string | null
+  canReauthorize: boolean
   onCancel: () => void
   onConfirm: () => void
+  onReauthorize: () => void
 }) {
   if (!pending) return null
   const { program } = pending
   const description = program.kind === 'owned'
     ? 'This removes the saved Pattern from the Controller. The Studio Pattern is not deleted; Save sends it again.'
     : 'This removes the Pattern from the Controller. PXLBLZ holds no copy of it — Import first if you want to keep the source.'
+  const reauthorizing = canReauthorize && blockedReason !== null
 
   return (
     <AlertDialogRoot open onOpenChange={(open) => { if (!open && !busy) onCancel() }}>
@@ -432,14 +437,21 @@ function DeleteProgramDialog({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={busy} onClick={onCancel}>Cancel</AlertDialogCancel>
           <AlertDialogAction
-            disabled={busy || blockedReason !== null}
+            disabled={busy || (blockedReason !== null && !reauthorizing)}
             className="border-red-500/70 text-red-300 hover:bg-red-950/40"
             onClick={(event) => {
               event.preventDefault()
-              onConfirm()
+              if (reauthorizing) onReauthorize()
+              else onConfirm()
             }}
           >
-            {busy ? 'Deleting…' : error ? 'Retry delete' : 'Delete from Controller'}
+            {busy
+              ? 'Deleting…'
+              : reauthorizing
+                ? 'Recheck Controller'
+                : error
+                  ? 'Retry delete'
+                  : 'Delete from Controller'}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -864,8 +876,15 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     && pendingDelete.provider === getControllerProvider()
   )
   const deleteSessionKnown = activeProgramKnown && liveEpoch !== undefined
+  const canReauthorizeDelete = !!pendingDelete
+    && !pendingDeleteSessionIsCurrent
+    && pendingDelete.controllerId === liveIp
+    && pendingDelete.profileId === profile.id
+    && deleteSessionKnown
   const deleteBlockedReason = !pendingDeleteSessionIsCurrent
-    ? 'Controller session changed — close this dialog and choose the Pattern again'
+    ? canReauthorizeDelete
+      ? 'Controller reconnected — recheck it before retrying'
+      : 'Controller session changed — close this dialog and choose the Pattern again'
     : !deleteSessionKnown
     ? 'Waiting to confirm the running Pattern'
     : pendingDelete?.program.programId === activeProgramId
@@ -964,9 +983,10 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     : inventoryManagedCount
 
   async function runSavedProgram(program: ControllerSavedProgramRow) {
+    if (!liveIp) return
     setRunError(null)
     try {
-      await activateProgram(program.programId)
+      await queueControllerDeviceWrite(liveIp, () => activateProgram(program.programId))
     } catch (error) {
       setRunError(error instanceof Error ? error.message : 'Saved Pattern could not be run.')
     }
@@ -1098,6 +1118,17 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     }
   }
 
+  function reauthorizeProgramDelete() {
+    if (!pendingDelete || !liveIp || liveEpoch === undefined) return
+    if (pendingDelete.controllerId !== liveIp || pendingDelete.profileId !== profile.id) return
+    setPendingDelete({
+      ...pendingDelete,
+      controllerName: profile.name,
+      liveEpoch,
+      provider: getControllerProvider(),
+    })
+  }
+
   return (
     <div data-testid="controller-saved-programs-pane" className="h-full min-h-0 overflow-x-hidden overflow-y-auto bg-zinc-950 text-zinc-200">
       <ImportProgramDialog
@@ -1112,12 +1143,14 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         busy={deletingProgramId !== null}
         blockedReason={deleteBlockedReason}
         error={deleteError}
+        canReauthorize={canReauthorizeDelete}
         onCancel={() => {
           setPendingDelete(null)
           setDeleteError(null)
           setDeleteBaseline(null)
         }}
         onConfirm={() => void confirmProgramDelete()}
+        onReauthorize={reauthorizeProgramDelete}
       />
       <ManagedPatternReconciliation
         profile={profile}

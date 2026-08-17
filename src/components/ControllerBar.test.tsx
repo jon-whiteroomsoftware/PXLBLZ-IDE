@@ -34,6 +34,7 @@ import {
   type ControllerTelemetry,
 } from '@/engine/ControllerProvider'
 import { controllerProfileArtifactSignature } from '@/engine/controllerProfilePassRecipe'
+import { queueControllerDeviceWrite } from '@/engine/controllerDeviceWriteQueue'
 
 class ConnectedProvider extends NullControllerProvider {
   constructor(private readonly reportedFps = 36) {
@@ -862,6 +863,32 @@ describe('ControllerBar', () => {
     expect(screen.getByTestId('controller-action-row')).toHaveTextContent('Open Draft')
   })
 
+  it('serializes a saved-Pattern switch with other writes to the same Controller', async () => {
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    const activateProgram = vi.fn().mockResolvedValue(undefined)
+    useControllerPanelStore.setState({
+      programsByController: { '10.0.0.5': [{ id: 'a', name: 'Aurora' }] },
+      activateProgram,
+    })
+    let releasePrior!: () => void
+    const priorWrite = new Promise<void>((resolve) => { releasePrior = resolve })
+    const queuedPrior = queueControllerDeviceWrite('10.0.0.5', () => priorWrite)
+
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Switch running Pattern' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Aurora' }))
+    await Promise.resolve()
+    expect(activateProgram).not.toHaveBeenCalled()
+
+    await act(async () => {
+      releasePrior()
+      await queuedPrior
+    })
+    await waitFor(() => expect(activateProgram).toHaveBeenCalledWith('a'))
+  })
+
   it('auto-focuses a large-list filter and supports arrow-key activation', async () => {
     const user = userEvent.setup()
     setControllerProvider(new ConnectedProvider())
@@ -945,7 +972,8 @@ describe('ControllerBar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Switch running Pattern' }))
     fireEvent.click(screen.getByRole('option', { name: 'Aurora' }))
 
-    expect(screen.getByRole('listbox', { name: 'Switch the running Pattern' })).toHaveAttribute('aria-busy', 'true')
+    await waitFor(() => expect(screen.getByRole('listbox', { name: 'Switch the running Pattern' }))
+      .toHaveAttribute('aria-busy', 'true'))
     expect(screen.getByRole('option', { name: /Auroraswitching/ })).toBeDisabled()
     expect(screen.getByRole('option', { name: 'Zebra' })).toBeDisabled()
     expect(activateProgram).toHaveBeenCalledTimes(1)

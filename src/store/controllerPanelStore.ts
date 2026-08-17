@@ -551,6 +551,14 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
       baseline,
       'Controller session changed before Pattern deletion could start.',
     )
+    const baselineTarget = baseline.find((program) => program.id === programId)
+    const currentTarget = currentPrograms.find((program) => program.id === programId)
+    if (carriedBaseline && baselineTarget && currentTarget && baselineTarget.name !== currentTarget.name) {
+      throw new ControllerProgramDeletionError(
+        `Controller Pattern id ${programId} now identifies ${currentTarget.name}; choose the Pattern again before deleting.`,
+        baseline,
+      )
+    }
     const publishPrograms = (programs: ProgramListEntry[]) => set((state) => ({
       programs,
       ...(ip
@@ -610,6 +618,12 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     if (config.activeProgramId === programId) {
       throw new ControllerProgramDeletionError(
         'Running now — switch to another Pattern first',
+        baseline,
+      )
+    }
+    if (config.runSequencer) {
+      throw new ControllerProgramDeletionError(
+        'Stop the Controller sequencer before deleting a saved Pattern.',
         baseline,
       )
     }

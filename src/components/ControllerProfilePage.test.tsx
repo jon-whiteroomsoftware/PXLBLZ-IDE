@@ -643,6 +643,59 @@ describe('ControllerProfilePage', () => {
     expect(provider.deletedProgramIds).toEqual([])
   })
 
+  it('rechecks the same Controller after a post-delete reconnect and finishes metadata cleanup', async () => {
+    const profile = seedProfile()
+    const provider = renderLiveProgramInventory(profile, {
+      storageId: 'delete-reconnect-recovery',
+      activeProgramId: 'ACTIVE',
+      configSourceIp: '192.168.8.224',
+      programs: [
+        { id: 'DEV1', name: 'Twinkle' },
+        { id: 'ACTIVE', name: 'Running Pattern' },
+      ],
+      bindings: { 'pat-1': 'DEV1' },
+      pushRecords: {
+        'pat-1': {
+          transforms: [],
+          artifactHash: 'target-hash',
+          stampedAt: '2026-08-16T00:00:00.000Z',
+          name: 'Twinkle',
+        },
+      },
+    })
+    provider.deleteProgram = vi.fn(async (programId: string) => {
+      provider.deletedProgramIds.push(programId)
+      provider.programs = provider.programs.filter((program) => program.id !== programId)
+      useControllerStore.setState((state) => ({
+        controllers: {
+          ...state.controllers,
+          '192.168.8.224': {
+            ...state.controllers['192.168.8.224']!,
+            liveEpoch: 2,
+          },
+        },
+      }))
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Twinkle from the Controller' }))
+    const dialog = screen.getByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete from Controller' }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Controller session changed before Pattern deletion could be confirmed.',
+    )
+    expect(provider.deletedProgramIds).toEqual(['DEV1'])
+    expect(provider.bindings).toEqual({ '192.168.8.224': { 'pat-1': 'DEV1' } })
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Recheck Controller' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Retry delete' }))
+
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(provider.deletedProgramIds).toEqual(['DEV1'])
+    expect(provider.bindings).toEqual({ '192.168.8.224': {} })
+    expect(provider.pushRecords).toEqual({ '192.168.8.224': {} })
+  })
+
   it('waits for Controller-scoped config before marking an inventory row as running', async () => {
     const profile = seedProfile()
     usePatternStore.setState({

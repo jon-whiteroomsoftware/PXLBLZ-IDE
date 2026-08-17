@@ -349,6 +349,16 @@ describe('controllerPanelStore', () => {
     expect(provider.deletedProgramIds).toEqual([])
   })
 
+  it('blocks deletion while the Controller sequencer can change the running Pattern', async () => {
+    provider.config = { activeProgramId: 'def', runSequencer: true }
+
+    await expect(useControllerPanelStore.getState().deleteProgram('abc')).rejects.toThrow(
+      'Stop the Controller sequencer before deleting',
+    )
+
+    expect(provider.deletedProgramIds).toEqual([])
+  })
+
   it('revalidates the authorizing session immediately before the delete command', async () => {
     let sessionIsCurrent = true
     provider.getConfig = async () => {
@@ -378,6 +388,20 @@ describe('controllerPanelStore', () => {
 
     expect(provider.deletedProgramIds).toEqual(['abc'])
     expect(provider.listProgramsCalls).toBe(readsBeforeDelete + 1)
+  })
+
+  it('refuses to reuse a retained baseline when the target id now has another name', async () => {
+    const baseline = [...provider.programs]
+    provider.programs = [
+      { id: 'abc', name: 'Replacement Pattern' },
+      { id: 'def', name: 'Nebula' },
+    ]
+
+    await expect(useControllerPanelStore.getState().deleteProgram('abc', { baseline })).rejects.toThrow(
+      'now identifies Replacement Pattern',
+    )
+
+    expect(provider.deletedProgramIds).toEqual([])
   })
 
   it('rejects deletion and preserves the last inventory when refresh fails', async () => {
