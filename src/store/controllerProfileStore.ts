@@ -195,9 +195,10 @@ const profileKeyWriters = new Map<string, Map<string, number>>()
 // is discarded; the next refresh reads the current truth.
 let profileSettleGeneration = 0
 // Live-metadata refresh ordering (#876): each refresh takes a generation when
-// it starts, and a refresh applies its device facts only if no refresh that
-// started later has already applied. Overlapping refreshes may all land, in
-// start order; an older read can never put older facts back over newer ones.
+// it starts, and a refresh applies its config-derived facts only if no
+// refresh that started later has already applied *usable* config. Overlapping
+// refreshes may all land, in start order; an older read can never put older
+// facts back over newer ones, and a newer read that failed supersedes nothing.
 let liveMetadataRefreshGeneration = 0
 const liveMetadataAppliedGeneration = new Map<string, number>()
 
@@ -627,7 +628,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     const current = get().profiles.find((candidate) => candidate.id === profileId)
     if (!current) return
     if ((liveMetadataAppliedGeneration.get(profileId) ?? 0) > generation) return
-    liveMetadataAppliedGeneration.set(profileId, generation)
+    if (config) liveMetadataAppliedGeneration.set(profileId, generation)
     const nameUntouched = current.name === profile.name
       && current.lastKnownDeviceName === profile.lastKnownDeviceName
     const refreshedInstalledMap = useControllerStore.getState().controllers[active.ip]?.installedMap

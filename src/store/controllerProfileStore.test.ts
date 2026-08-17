@@ -582,6 +582,45 @@ describe('controllerProfileStore', () => {
     expect(useControllerProfileStore.getState().profiles[0].lastKnownPixelCount).toBe(300)
   })
 
+  it('does not let a newer refresh whose config read failed suppress an older valid read (#876)', async () => {
+    const profile = defaultControllerProfile({
+      id: 'ctrl-1',
+      name: 'Burner bag',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      now: 1,
+    })
+    const provider = new FakeControllerProvider()
+    const pending: Array<{ resolve: (config: ControllerConfig) => void; reject: (error: Error) => void }> = []
+    provider.getConfig = () => new Promise((resolve, reject) => { pending.push({ resolve, reject }) })
+    setPersonalContentProvider(memoryProvider([{ ...profile, lastKnownPixelCount: 256 }]))
+    setControllerProvider(provider)
+    useControllerStore.setState({
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          phase: 'live',
+          deviceId: profile.deviceId,
+          nickname: 'Burner bag',
+          mapDim: null,
+        },
+      },
+      activeIp: '192.168.8.224',
+    })
+    await useControllerProfileStore.getState().loadProfiles()
+
+    const first = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    const second = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    // The newer refresh fails its config read and finishes first.
+    pending[1].reject(new Error('timed out'))
+    await second
+    // The older refresh's valid read still lands.
+    pending[0].resolve({ name: 'Burner bag', pixelCount: 200 })
+    await first
+    expect(useControllerProfileStore.getState().profiles[0].lastKnownPixelCount).toBe(200)
+  })
+
   it('auto-creates a default profile for a signed-in live controller with a stable device id', async () => {
     setPersonalContentProvider(memoryProvider())
 
