@@ -397,7 +397,8 @@ closed. Every Pattern row distinguishes three things in plain language:
 **configured uses** are separately configured versions of that Pattern in the
 Show, **copies in delivered code** are the copies the compiler kept in the
 generated Pixelblaze Pattern, and **timeline placements** are the Clips that
-place those uses on the Stage.
+place those uses on the Stage. A Clip that crosses an internal Scene boundary
+still appears and counts once on the timeline.
 
 Those counts do not say how many run at once. **Pattern copies running** gives
 the maximum number that can run simultaneously. **Busiest LED** says how many

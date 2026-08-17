@@ -68,6 +68,7 @@ describe('Show source inventory', () => {
 
     expect(baseSource).toContain('0.314159')
     expect(baseSource.match(/\bfunction\b/g)).toHaveLength(2)
+    expect(baseSource.endsWith('}')).toBe(true)
     expect(artifact.summary.creatorPatternPressure).toEqual({
       patternCopiesRunning: { steady: 1, worst: 1 },
       patternCalculationsPerPixel: { steady: 1, worst: 1 },
@@ -107,6 +108,88 @@ describe('Show source inventory', () => {
       patternCalculationsPerPixel: { steady: 1, worst: 2 },
     })
     expect(artifact.summary.worstInstantRenderersPerPixel).toBe(2)
+  })
+
+  it('keeps Pattern comments stable when Trails rewrites executable color sinks (#878)', () => {
+    const artifact = compileShow({
+      clips: [{
+        id: 'trails-comment',
+        source: '// output via rgb()\n// example: export function render(index) {\n/*\n  __pxlblz_show_elapsed_s = 1\n*/\nexport function render(index) { rgb(1, 0, 0) }',
+      }],
+      masterPixelCount: 1,
+      outputEffects: [{ id: 'trails', kind: 'trails', retention: 0.5 }],
+    }, {})
+    const encoded = new TextEncoder().encode(artifact.code)
+    const baseSource = artifact.summary.sourceInventory.chunks
+      .filter((chunk) => (
+        chunk.category === 'pattern'
+        && chunk.ownerId === 'trails-comment'
+        && chunk.patternPart === 'compiled-pattern'
+      ))
+      .map((chunk) => new TextDecoder().decode(encoded.slice(chunk.startByte, chunk.endByte)))
+      .join('')
+
+    expect(baseSource).toContain('// output via rgb()')
+    expect(baseSource).toContain('// example: function render(index) {')
+    expect(baseSource).toContain('  __pxlblz_show_elapsed_s = 1')
+    expect(baseSource).not.toContain('// output via __pxlblz_')
+  })
+
+  it('does not count an empty Soft Split side as creator Pattern work (#878)', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'real', source: 'export function render2D(index, x, y) { rgb(x, y, 1) }' },
+        { id: '__pxlblz_empty-soft', source: 'export function render2D(index, x, y) { rgb(0, 0, 0) }' },
+      ],
+      routingLayouts: [{
+        id: 'soft',
+        name: 'Soft Split',
+        zones: [],
+        logical: { kind: 'soft-split', zoneNames: ['real-zone', 'empty-zone'], axis: 'x', feather: 0.2 },
+      }],
+      routedSceneSequence: {
+        scenes: [0, 1].map(() => ({
+          holdMs: 1_000,
+          placements: [
+            { zoneName: 'real-zone', clipId: 'real' },
+            { zoneName: 'empty-zone', clipId: '__pxlblz_empty-soft' },
+          ],
+        })),
+      },
+      loopDurationMs: 2_000,
+    }, {})
+
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(2)
+    expect(artifact.summary.creatorPatternPressure).toEqual({
+      patternCopiesRunning: { steady: 1, worst: 1 },
+      patternCalculationsPerPixel: { steady: 1, worst: 1 },
+    })
+  })
+
+  it('does not count an empty crossfade endpoint as creator Pattern work (#878)', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: '__pxlblz_empty-outgoing', source: 'export function render(index) { rgb(0, 0, 0) }' },
+        { id: 'real-incoming', source: 'export function render(index) { rgb(1, 0, 0) }' },
+      ],
+      sceneSequence: {
+        scenes: [
+          {
+            clipId: '__pxlblz_empty-outgoing',
+            holdMs: 1_000,
+            transitionOut: { kind: 'crossfade', durationMs: 1_000 },
+          },
+          { clipId: 'real-incoming', holdMs: 1_000 },
+        ],
+      },
+      loopDurationMs: 3_000,
+    }, {})
+
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(2)
+    expect(artifact.summary.creatorPatternPressure).toEqual({
+      patternCopiesRunning: { steady: 1, worst: 1 },
+      patternCalculationsPerPixel: { steady: 1, worst: 1 },
+    })
   })
 
   it('excludes the empty routed sentinel from creator-facing Pattern pressure (#878)', () => {
@@ -151,9 +234,9 @@ describe('Show source inventory', () => {
       physicalMachineCount: 2,
       authoredReferenceCount: 15,
       patternBreakdown: {
-        baseCopies: [{ ownerId: 'marquee', bytes: 2_645 }, { ownerId: 'surge', bytes: 2_646 }],
-        baseBytes: 5_291,
-        generatedBytes: 23_164,
+        baseCopies: [{ ownerId: 'marquee', bytes: 2_643 }, { ownerId: 'surge', bytes: 2_644 }],
+        baseBytes: 5_287,
+        generatedBytes: 23_168,
       },
     })
     expect(rings).toMatchObject({
@@ -162,9 +245,9 @@ describe('Show source inventory', () => {
       physicalMachineCount: 1,
       authoredReferenceCount: 7,
       patternBreakdown: {
-        baseCopies: [{ ownerId: 'rings', bytes: 2_461 }],
-        baseBytes: 2_461,
-        generatedBytes: 20_652,
+        baseCopies: [{ ownerId: 'rings', bytes: 2_459 }],
+        baseBytes: 2_459,
+        generatedBytes: 20_654,
       },
     })
     expect(marquee.patternBreakdown!.baseBytes + marquee.patternBreakdown!.generatedBytes).toBe(marquee.bytes)
@@ -300,6 +383,59 @@ describe('Show source inventory', () => {
       key: 'stock:Rings',
       name: 'Rings',
       ownerIds: ['use:inside'],
+      logicalInstanceCount: 1,
+      authoredReferenceCount: 1,
+    }])
+  })
+
+  it('counts one logical timeline Clip once across its stored Scene segments (#878)', () => {
+    const show = createDefaultShow('spanning-placement', 'Spanning placement', 2_000)
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance', pattern: { kind: 'stock', id: 'Rings' }, patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: [
+        {
+          sceneId: 'scene-1',
+          zones: [{
+            zoneId: 'zone-1',
+            main: [{
+              id: 'logical-clip', instanceId: 'instance', startMs: 0, durationMs: 1_000,
+              view: { mirror: false, phase: 0, brightness: 1 },
+            }],
+            overlays: [],
+          }],
+        },
+        {
+          sceneId: 'scene-2',
+          zones: [{
+            zoneId: 'zone-1',
+            main: [{
+              id: 'logical-clip--span-scene-2', logicalClipId: 'logical-clip',
+              instanceId: 'instance', startMs: 0, durationMs: 1_000,
+              view: { mirror: false, phase: 0, brightness: 1 },
+            }],
+            overlays: [],
+          }],
+        },
+      ],
+    }
+    const inventory: DeliveredShowSourceInventory = {
+      totalBytes: 100,
+      generatedSourceBytes: 100,
+      provenanceBytes: 0,
+      chunks: [{
+        id: 'pattern-instance', category: 'pattern', label: 'Rings', ownerId: 'instance',
+        bytes: 100, startByte: 0, endByte: 100,
+      }],
+    }
+
+    expect(describeShowArtifactPatterns(show, inventory)).toEqual([{
+      key: 'stock:Rings',
+      name: 'Rings',
+      ownerIds: ['instance'],
       logicalInstanceCount: 1,
       authoredReferenceCount: 1,
     }])

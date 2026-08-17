@@ -3862,16 +3862,7 @@ function emitTrailsOutputEffectSource(
     : suspensionLifetimes.map((lifetime) => (
         `(__pxlblz_show_elapsed_s >= ${lifetime.start / 1000} && __pxlblz_show_elapsed_s < ${lifetime.end / 1000})`
       )).join(' || ')
-  const wrappedOutputs = source
-    .replace(/\brgb\s*\(/g, '__pxlblz_show_trails_rgb(')
-    .replace(
-      /export function (render(?:2D)?)\(index([^)]*)\) \{/g,
-      'export function $1(index$2) {\n  __pxlblz_show_trails_index = index',
-    )
-    .replace(
-      /^( {2}__pxlblz_show_elapsed_s =[^\n]+)$/gm,
-      '$1\n  __pxlblz_show_trails_beforeRender()',
-    )
+  const wrappedOutputs = rewriteTrailsOutputHooks(source)
   const runtime = `var __pxlblz_show_trails_index = 0
 var __pxlblz_show_trails_ready = 0
 var __pxlblz_show_trails_suspended = 0
@@ -3900,6 +3891,51 @@ function __pxlblz_show_trails_rgb(r, g, b) {
   rgb(r, g, b)
 }`
   return `${runtime}\n${wrappedOutputs}`
+}
+
+function rewriteTrailsOutputHooks(source: string): string {
+  const rewrites: Rewrite[] = []
+  const visit = (value: unknown): void => {
+    if (!value || typeof value !== 'object') return
+    if (Array.isArray(value)) {
+      value.forEach(visit)
+      return
+    }
+    const node = value as Node
+    if (node.type === 'CallExpression'
+      && node.callee?.type === 'Identifier'
+      && node.callee.name === 'rgb') {
+      rewrites.push({
+        start: node.callee.start,
+        end: node.callee.end,
+        text: '__pxlblz_show_trails_rgb',
+      })
+    }
+    if (node.type === 'FunctionDeclaration'
+      && (node.id?.name === 'render' || node.id?.name === 'render2D')) {
+      rewrites.push({
+        start: node.body.start + 1,
+        end: node.body.start + 1,
+        text: '\n  __pxlblz_show_trails_index = index',
+      })
+    }
+    if (node.type === 'ExpressionStatement'
+      && node.expression?.type === 'AssignmentExpression'
+      && node.expression.left?.type === 'Identifier'
+      && node.expression.left.name === '__pxlblz_show_elapsed_s') {
+      rewrites.push({
+        start: node.end,
+        end: node.end,
+        text: '\n  __pxlblz_show_trails_beforeRender()',
+      })
+    }
+    for (const [key, child] of Object.entries(node)) {
+      if (key === 'start' || key === 'end' || key === 'loc') continue
+      visit(child)
+    }
+  }
+  visit(parseModule(source))
+  return rewriteSource(source, rewrites)
 }
 
 function emitSingleClipShowCode(member: CompiledMember, outputDimension: ShowOutputDimension): string {
@@ -11241,9 +11277,8 @@ function measureShowRendererPressure(
   routingLayouts: ResolvedRoutingLayout[] | null,
   includeMember: (memberId: string) => boolean,
 ): ShowRendererPressure {
-  const softSplitFactor = recipe.routingLayouts?.some((layout) => (
-    layout.logical?.kind === 'soft-split' && layout.logical.feather > 0
-  )) ? 2 : 1
+  const includedMemberCount = members.filter((member) => includeMember(member.id)).length
+  const defaultWorst = transitionCost === 'renderer-window' || transitionCost === 'bounded-renderer-window' ? 2 : 1
   if (recipe.routedSceneSequence) {
     const memberById = new Map(members.map((member) => [member.id, member]))
     const activeMemberIds = recipe.routedSceneSequence.scenes.map((scene) => (
@@ -11258,14 +11293,23 @@ function measureShowRendererPressure(
           consumerId: patternOutputConsumerId(sceneIndex, placementIndex),
         }]
       })
-      const evaluations = [...groupRoutedPlacementsByZone(placements)].map(([, stack]) => {
-        if (outputDimension !== 2) return stack.length
-        const plan = analyzeViewportCoverageStack(stack, outputDimension, scene.propertyTracks).plan
-        return plan?.maxPatternEvaluationsPerPixel ?? stack.length
-      })
-      return Math.max(0, ...evaluations)
+      const evaluationsByZone = new Map([...groupRoutedPlacementsByZone(placements)].map(([zoneName, stack]) => {
+        const depth = outputDimension === 2
+          ? analyzeViewportCoverageStack(stack, outputDimension, scene.propertyTracks).plan
+            ?.maxPatternEvaluationsPerPixel ?? stack.length
+          : stack.length
+        return [zoneName, depth] as const
+      }))
+      const steady = Math.max(0, ...evaluationsByZone.values())
+      const softSplitWorst = Math.max(0, ...(recipe.routingLayouts ?? []).flatMap((layout) => (
+        layout.logical?.kind === 'soft-split' && layout.logical.feather > 0
+          ? [layout.logical.zoneNames.reduce((sum, zoneName) => sum + (evaluationsByZone.get(zoneName) ?? 0), 0)]
+          : []
+      )))
+      return { steady, worst: Math.max(steady, softSplitWorst) }
     })
-    const holdDepth = Math.max(0, ...sceneDepths)
+    const holdDepth = Math.max(0, ...sceneDepths.map((depth) => depth.steady))
+    const holdWorst = Math.max(0, ...sceneDepths.map((depth) => depth.worst))
     const transitionDepth = recipe.routedSceneSequence.scenes.slice(0, -1).reduce((worst, scene, index) => {
       if (!scene.transitionOut || scene.transitionOut.kind === 'cut') return worst
       const rendersBoth = scene.transitionOut.kind === 'crossfade'
@@ -11281,8 +11325,8 @@ function measureShowRendererPressure(
           && normalizeShowDissolveSoftness(scene.transitionOut.softness ?? 0.15) > 0
           && scene.transitionOut.edgePolicy === 'blend')
       return Math.max(worst, rendersBoth
-        ? sceneDepths[index] + sceneDepths[index + 1]
-        : Math.max(sceneDepths[index], sceneDepths[index + 1]))
+        ? sceneDepths[index].worst + sceneDepths[index + 1].worst
+        : Math.max(sceneDepths[index].worst, sceneDepths[index + 1].worst))
     }, 0)
     const controllerSteady = Math.max(0, ...activeMemberIds.map((ids) => ids.size))
     const controllerTransition = recipe.routedSceneSequence.scenes.slice(0, -1).reduce((worst, scene, index) => {
@@ -11314,14 +11358,11 @@ function measureShowRendererPressure(
     }, 0)
     return {
       steady: holdDepth,
-      worst: Math.max(holdDepth, transitionDepth) * softSplitFactor,
+      worst: Math.max(holdWorst, transitionDepth),
       controllerSteady,
       controllerWorst: Math.max(controllerSteady, controllerTransition),
     }
   }
-  const includedMemberCount = members.filter((member) => includeMember(member.id)).length
-  const defaultWorst = transitionCost === 'renderer-window' || transitionCost === 'bounded-renderer-window' ? 2 : 1
-  const worst = includedMemberCount === 0 ? 0 : defaultWorst
   if (recipe.sceneSequence) {
     const activeMemberIds = recipe.sceneSequence.scenes.map((scene) => (
       new Set(includeMember(scene.clipId) ? [scene.clipId] : [])
@@ -11336,9 +11377,31 @@ function measureShowRendererPressure(
       ]).size)
     }, 0)
     const controllerSteady = Math.max(0, ...activeMemberIds.map((ids) => ids.size))
+    const calculationDepths = activeMemberIds.map((ids) => ids.size > 0 ? 1 : 0)
+    const calculationSteady = Math.max(0, ...calculationDepths)
+    const calculationTransition = recipe.sceneSequence.scenes.slice(0, -1).reduce((peak, scene, index) => {
+      if (!scene.transitionOut || scene.transitionOut.kind === 'cut') return peak
+      const rendersBoth = defaultWorst === 2 && (
+        scene.transitionOut.kind === 'crossfade'
+        || (scene.transitionOut.kind === 'motion' && scene.transitionOut.edgePolicy === 'blend')
+        || (scene.transitionOut.kind === 'portal'
+          && clampNumber(scene.transitionOut.feather ?? 0, 0, 1) > 0
+          && resolvePortalEdgePolicy(scene.transitionOut) === 'blend')
+        || (scene.transitionOut.kind === 'wipe'
+          && clampNumber(scene.transitionOut.feather ?? 0, 0, 1) > 0
+          && scene.transitionOut.edgePolicy === 'blend')
+        || (scene.transitionOut.kind === 'dither'
+          && scene.transitionOut.dissolveVariant === 'soft-threshold'
+          && normalizeShowDissolveSoftness(scene.transitionOut.softness ?? 0.15) > 0
+          && scene.transitionOut.edgePolicy === 'blend')
+      )
+      return Math.max(peak, rendersBoth
+        ? calculationDepths[index] + calculationDepths[index + 1]
+        : Math.max(calculationDepths[index], calculationDepths[index + 1]))
+    }, 0)
     return {
-      steady: controllerSteady > 0 ? 1 : 0,
-      worst,
+      steady: calculationSteady,
+      worst: Math.max(calculationSteady, calculationTransition),
       controllerSteady,
       controllerWorst: Math.max(controllerSteady, controllerTransition),
     }
@@ -11363,6 +11426,17 @@ function measureShowRendererPressure(
   const staticRoutedMemberCount = routingLayoutMemberIds || directRoutes
     ? Math.max(0, ...resolvedRouteMemberCounts)
     : includedMemberCount > 0 ? 1 : 0
+  const softSplitWorst = Math.max(0, ...(routingLayouts ?? []).flatMap((layout) => (
+    layout.logical?.kind === 'soft-split' && layout.logical.feather > 0
+      ? [layout.logical.zoneNames.reduce((sum, zoneName) => (
+          sum + Number(layout.routes.some((route) => route.zone.name === zoneName && includeMember(route.member.id)))
+        ), 0)]
+      : []
+  )))
+  const worst = Math.max(
+    softSplitWorst,
+    includedMemberCount === 0 ? 0 : Math.min(defaultWorst, includedMemberCount),
+  )
   let progressiveRoutingPeak = staticRoutedMemberCount
   if (routingLayoutMemberIds && layoutIndexById) {
     let sourceLayoutIndex = 0
@@ -11595,7 +11669,7 @@ function buildShowSourceInventory(
       return {
         ownerId: member.id,
         start,
-        end: source[codeEnd] === '\n' ? codeEnd + 1 : codeEnd,
+        end: codeEnd,
       }
     })
 
@@ -11615,39 +11689,8 @@ function buildShowSourceInventory(
   let identifierIndex = 0
   let compiledPatternRangeIndex = 0
   const chunks: ShowSourceInventoryChunk[] = []
-  for (const line of lines) {
-    const candidates: ShowSourceAttribution[] = []
-    while (identifierIndex < identifiers.length && identifiers[identifierIndex].start < line.end) {
-      const identifier = identifiers[identifierIndex]
-      if (identifier.start >= line.start) {
-        const attribution = attributionByCompactedName.get(identifier.name as string)
-        if (attribution) candidates.push(attribution)
-      }
-      identifierIndex += 1
-    }
-    while (compiledPatternRanges[compiledPatternRangeIndex]?.end <= line.start) {
-      compiledPatternRangeIndex += 1
-    }
-    const compiledPatternRange = compiledPatternRanges[compiledPatternRangeIndex]
-    const compiledPatternLine = compiledPatternRange
-      && line.start >= compiledPatternRange.start
-      && line.end <= compiledPatternRange.end
-    let attribution: ShowSourceAttribution | undefined = compiledPatternLine
-      ? {
-          category: 'pattern',
-          ownerId: compiledPatternRange.ownerId,
-          patternPart: 'compiled-pattern',
-        }
-      : candidates.sort((left, right) => (
-          SHOW_SOURCE_CATEGORY_PRIORITY[right.category] - SHOW_SOURCE_CATEGORY_PRIORITY[left.category]
-        ))[0]
-    if (/^\s*export\b/.test(line.source)) attribution = { category: 'exports' }
-    if (!attribution) attribution = /^\s*$/.test(line.source) || /^\s*[{}]+[;,]?\s*$/.test(line.source)
-      ? previous
-      : { category: 'remainder' }
-    previous = attribution
-
-    const bytes = byteLength(line.source)
+  const appendChunk = (chunkSource: string, attribution: ShowSourceAttribution) => {
+    const bytes = byteLength(chunkSource)
     const prior = chunks[chunks.length - 1]
     if (prior
       && prior.category === attribution.category
@@ -11668,6 +11711,52 @@ function buildShowSourceInventory(
       })
     }
     byteCursor += bytes
+  }
+  for (const line of lines) {
+    const candidates: ShowSourceAttribution[] = []
+    while (identifierIndex < identifiers.length && identifiers[identifierIndex].start < line.end) {
+      const identifier = identifiers[identifierIndex]
+      if (identifier.start >= line.start) {
+        const attribution = attributionByCompactedName.get(identifier.name as string)
+        if (attribution) candidates.push(attribution)
+      }
+      identifierIndex += 1
+    }
+    while (compiledPatternRanges[compiledPatternRangeIndex]?.end <= line.start) {
+      compiledPatternRangeIndex += 1
+    }
+    const compiledPatternRange = compiledPatternRanges[compiledPatternRangeIndex]
+    const compiledPatternLine = compiledPatternRange
+      && line.start >= compiledPatternRange.start
+      && line.start < compiledPatternRange.end
+    let attribution: ShowSourceAttribution | undefined = compiledPatternLine
+      ? {
+          category: 'pattern',
+          ownerId: compiledPatternRange.ownerId,
+          patternPart: 'compiled-pattern',
+        }
+      : candidates.sort((left, right) => (
+          SHOW_SOURCE_CATEGORY_PRIORITY[right.category] - SHOW_SOURCE_CATEGORY_PRIORITY[left.category]
+        ))[0]
+    if (/^\s*export\b/.test(line.source)) attribution = { category: 'exports' }
+    if (!attribution) attribution = /^\s*$/.test(line.source) || /^\s*[{}]+[;,]?\s*$/.test(line.source)
+      ? previous
+      : { category: 'remainder' }
+
+    if (compiledPatternLine && compiledPatternRange.end < line.end) {
+      const compiledLength = compiledPatternRange.end - line.start
+      appendChunk(line.source.slice(0, compiledLength), attribution)
+      const separatorAttribution: ShowSourceAttribution = {
+        category: 'pattern',
+        ownerId: compiledPatternRange.ownerId,
+        patternPart: 'member-generated',
+      }
+      appendChunk(line.source.slice(compiledLength), separatorAttribution)
+      previous = separatorAttribution
+      continue
+    }
+    appendChunk(line.source, attribution)
+    previous = attribution
   }
   return { totalBytes: byteCursor, chunks }
 }

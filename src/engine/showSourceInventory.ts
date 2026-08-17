@@ -207,22 +207,27 @@ export function describeShowArtifactPatterns(
   const physicalOwnerIds = [...new Set(inventory.chunks.flatMap((chunk) => (
     chunk.category === 'pattern' && chunk.ownerId ? [chunk.ownerId] : []
   )))]
-  const authoredReferencesByLogicalId = new Map<string, number>()
+  const authoredReferencesByLogicalId = new Map<string, Set<string>>()
+  const addAuthoredReference = (instanceId: string, placementId: string) => {
+    const placementIds = authoredReferencesByLogicalId.get(instanceId) ?? new Set<string>()
+    placementIds.add(placementId)
+    authoredReferencesByLogicalId.set(instanceId, placementIds)
+  }
   if (composition) {
     for (const scene of composition.scenes) {
       for (const zone of scene.zones) {
         for (const placement of zone.main) {
-          authoredReferencesByLogicalId.set(placement.instanceId, (authoredReferencesByLogicalId.get(placement.instanceId) ?? 0) + 1)
+          addAuthoredReference(placement.instanceId, placement.logicalClipId ?? placement.id)
         }
         for (const layer of zone.overlays) {
           for (const placement of layer.placements) {
-            authoredReferencesByLogicalId.set(placement.instanceId, (authoredReferencesByLogicalId.get(placement.instanceId) ?? 0) + 1)
+            addAuthoredReference(placement.instanceId, placement.logicalClipId ?? placement.id)
           }
         }
       }
     }
   } else {
-    for (const entry of logical) authoredReferencesByLogicalId.set(entry.id, 1)
+    for (const entry of logical) addAuthoredReference(entry.id, entry.id)
   }
 
   const groups = new Map<string, ShowArtifactInventoryPattern>()
@@ -235,7 +240,7 @@ export function describeShowArtifactPatterns(
       authoredReferenceCount: 0,
     }
     current.logicalInstanceCount += 1
-    current.authoredReferenceCount += authoredReferencesByLogicalId.get(entry.id) ?? 0
+    current.authoredReferenceCount += authoredReferencesByLogicalId.get(entry.id)?.size ?? 0
     groups.set(entry.key, current)
   }
   for (const ownerId of physicalOwnerIds) {
