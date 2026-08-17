@@ -481,8 +481,16 @@ export class ExtensionControllerProvider implements ControllerProvider {
 
   // ── read / control surface (delegated to the connection) ────────────────────
 
-  getConfig(): Promise<ControllerConfig> {
-    return this.withConn((conn) => conn.getConfig())
+  async getConfig(): Promise<ControllerConfig> {
+    const conn = this.connOrNull()
+    if (!conn) throw new Error('Not connected to a Controller')
+    const config = await conn.getConfig()
+    // Reconnect republishes this target, so only a same-connection config read
+    // may advance its device-authoritative name.
+    if (this.conn === conn && this.target && config.name !== undefined) {
+      this.target = { ...this.target, name: config.name }
+    }
+    return config
   }
 
   getTelemetry(): Promise<ControllerTelemetry> {

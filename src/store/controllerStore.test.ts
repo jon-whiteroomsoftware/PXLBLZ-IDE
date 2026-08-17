@@ -425,6 +425,32 @@ describe('controllerStore (keyed)', () => {
     expect(useControllerProfileStore.getState().profiles[0].name).toBe('Burner bag')
   })
 
+  it('does not rename hardware when its profile is removed while the write is queued', async () => {
+    const profile = defaultControllerProfile({
+      id: 'profile-rename',
+      name: 'Burner bag',
+      deviceId: 'pixelblaze_pb32_rename',
+      deviceName: 'Burner bag',
+      ip: '10.0.0.5',
+    })
+    useControllerProfileStore.setState({ profiles: [profile], profilesLoaded: true })
+    await store().addController({
+      id: profile.deviceId!,
+      address: '10.0.0.5',
+      name: profile.name,
+    })
+    const blocker = deferred<void>()
+    const existingWrite = queueControllerDeviceWrite('10.0.0.5', () => blocker.promise)
+    const rename = store().renameControllerProfile(profile.id, 'Road case')
+
+    useControllerProfileStore.setState({ profiles: [] })
+    blocker.resolve()
+    await existingWrite
+
+    await expect(rename).rejects.toThrow('profile changed')
+    expect(created.get('10.0.0.5')!.nameCommands).toEqual([])
+  })
+
   it('reconciles only managed saved Patterns and never writes foreign programs', async () => {
     const profile = {
       ...defaultControllerProfile({

@@ -1036,7 +1036,17 @@ export const useControllerStore = create<ControllerConnectionState>()(
             }
           }
 
+          const assertCurrentProfile = () => {
+            const currentProfile = useControllerProfileStore.getState().profiles.find(
+              (candidate) => candidate.id === profileId,
+            )
+            if (currentProfile?.deviceId !== deviceId) {
+              throw new Error('Controller profile changed before the rename completed')
+            }
+          }
+
           await queueControllerDeviceWrite(ip, async () => {
+            assertCurrentProfile()
             assertCurrentSession()
             await provider.setName(name)
             assertCurrentSession()
@@ -1045,12 +1055,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
             if (confirmed.name !== name) {
               throw new Error(`Controller did not confirm the name “${name}”`)
             }
-            const currentProfile = useControllerProfileStore.getState().profiles.find(
-              (candidate) => candidate.id === profileId,
-            )
-            if (currentProfile?.deviceId !== deviceId) {
-              throw new Error('Controller profile changed before the rename completed')
-            }
+            assertCurrentProfile()
 
             patchController(ip, { nickname: name })
             set((state) => ({

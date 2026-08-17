@@ -610,6 +610,9 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       provider.getConfig().catch(() => null),
       live.refreshInstalledMap(active.ip),
     ])
+    // Any intervening profile mutation makes this request's captured config
+    // stale as a composite patch. A later refresh can read current device truth.
+    if (get().profiles.find((candidate) => candidate.id === profileId) !== profile) return
     const refreshedInstalledMap = useControllerStore.getState().controllers[active.ip]?.installedMap
     const installedMapSnapshot = refreshedInstalledMap
       ? toInstalledMapSnapshot(refreshedInstalledMap)

@@ -99,4 +99,24 @@ describe('InlineEntityTitle', () => {
     expect(screen.getByText('Pixelblaze shelf')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Rename controller/ })).not.toBeInTheDocument()
   })
+
+  it('keeps an in-flight failure visible when rename availability disappears', async () => {
+    const user = userEvent.setup()
+    let rejectRename!: (reason: Error) => void
+    const onRename = vi.fn(() => new Promise<void>((_resolve, reject) => {
+      rejectRename = reject
+    }))
+    const { rerender } = render(
+      <InlineEntityTitle name="Burner bag" noun="controller" onRename={onRename} />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Rename controller Burner bag' }))
+    await user.clear(screen.getByRole('textbox', { name: 'Controller name' }))
+    await user.type(screen.getByRole('textbox', { name: 'Controller name' }), 'Road case{Enter}')
+    rerender(<InlineEntityTitle name="Burner bag" noun="controller" />)
+    rejectRename(new Error('Controller connection changed before the rename completed'))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Controller connection changed')
+    expect(screen.getByRole('textbox', { name: 'Controller name' })).toBeInTheDocument()
+  })
 })

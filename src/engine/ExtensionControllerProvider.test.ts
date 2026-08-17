@@ -77,6 +77,7 @@ function makeDeviceTransport(
   let lastConnId = ''
   let openSocket = false
   let activeProgramId = 'P1'
+  let deviceName = opts.settings?.name
   let pendingProgramId: string | null = null
   let droppedSetCode = false
   // When silent, the device stops answering frames and never emits a socket
@@ -182,7 +183,11 @@ function makeDeviceTransport(
           const cmd = JSON.parse(msg.payload.text) as Record<string, unknown>
           if (cmd.getVars) reply(msg.connId, { vars: { speed: 0.5 } })
           if (cmd.getConfig) {
-            reply(msg.connId, { brightness: 0.4, ...opts.settings })
+            reply(msg.connId, {
+              brightness: 0.4,
+              ...opts.settings,
+              ...(deviceName !== undefined ? { name: deviceName } : {}),
+            })
             reply(msg.connId, { activeProgram: { activeProgramId, controls: { sliderX: 0.7 } } })
           }
           if (cmd.ping) reply(msg.connId, { ack: 1 })
@@ -192,7 +197,10 @@ function makeDeviceTransport(
             emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'message', connId: msg.connId, payload: { binary: bytesToBase64(frame) } })
           }
           if ('brightness' in cmd) writes.push(cmd)
-          if ('name' in cmd) writes.push(cmd)
+          if ('name' in cmd) {
+            writes.push(cmd)
+            if (typeof cmd.name === 'string') deviceName = cmd.name
+          }
           if ('pixelCount' in cmd) writes.push(cmd)
           if ('setVars' in cmd) writes.push(cmd)
           if ('setControls' in cmd) writes.push(cmd)
@@ -869,6 +877,31 @@ describe('ExtensionControllerProvider', () => {
       expect(p.getStatus()).toMatchObject({
         kind: 'connected',
         connectionGeneration: 2,
+      })
+    })
+
+    it('reconnects with the device-confirmed name instead of the original target name', async () => {
+      const d = makeDeviceTransport({ settings: { name: 'Burner bag' } })
+      const p = new ExtensionControllerProvider({
+        transport: d.transport,
+        reconnectDelayMs: 5,
+        setTimeout: ((fn: () => void) => {
+          timers.push(fn)
+          return 0
+        }) as unknown as typeof setTimeout,
+      })
+      await p.connect({ ...TARGET, name: 'Burner bag' })
+      await p.setName('Road case')
+      await expect(p.getConfig()).resolves.toMatchObject({ name: 'Road case' })
+
+      d.dropSocket()
+      await new Promise((resolve) => queueMicrotask(() => resolve(null)))
+      flushTimers()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(p.getStatus()).toMatchObject({
+        kind: 'connected',
+        controller: { name: 'Road case' },
       })
     })
 

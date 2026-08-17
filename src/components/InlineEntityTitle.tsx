@@ -26,23 +26,29 @@ export function InlineEntityTitle({
   const [saving, setSaving] = useState(false)
   const rootRef = useRef<HTMLSpanElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  // Availability may disappear while a submitted rename is pending. Retain its
+  // handler until settlement so a rejection remains visible in this editor.
+  const activeRenameRef = useRef(onRename)
   const label = `${noun[0]?.toUpperCase()}${noun.slice(1)} name`
 
   function cancel() {
     setEditing(false)
     setDraft(name)
     setError(null)
+    activeRenameRef.current = undefined
   }
 
   function beginEditing() {
     if (!onRename) return
     setDraft(name)
     setError(null)
+    activeRenameRef.current = onRename
     setEditing(true)
   }
 
   async function commit() {
-    if (!onRename || saving) return
+    const rename = activeRenameRef.current ?? onRename
+    if (!rename || saving) return
     const trimmed = draft.trim()
     if (!trimmed) {
       setError(`${label} is required`)
@@ -68,7 +74,7 @@ export function InlineEntityTitle({
     setSaving(true)
     setError(null)
     try {
-      const renamed = await onRename(trimmed)
+      const renamed = await rename(trimmed)
       if (renamed !== false) setEditing(false)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : `Could not rename ${noun}`)
@@ -94,7 +100,7 @@ export function InlineEntityTitle({
     }
   }, [editing, name])
 
-  if (!onRename) return <span className="min-w-0 truncate text-zinc-200">{name}</span>
+  if (!onRename && !editing) return <span className="min-w-0 truncate text-zinc-200">{name}</span>
 
   return (
     <span ref={rootRef} className="relative inline-grid min-w-0 items-center">

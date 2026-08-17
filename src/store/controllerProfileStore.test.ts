@@ -454,6 +454,47 @@ describe('controllerProfileStore', () => {
     expect(useControllerProfileStore.getState().profiles[0].board.firmwareUpdate).toBeUndefined()
   })
 
+  it('discards a stale metadata refresh after a newer profile rename settles', async () => {
+    const profile = defaultControllerProfile({
+      id: 'ctrl-1',
+      name: 'Old alias',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      now: 1,
+    })
+    const provider = new FakeControllerProvider()
+    let resolveConfig!: (config: ControllerConfig) => void
+    provider.getConfig = () => new Promise((resolve) => { resolveConfig = resolve })
+    setPersonalContentProvider(memoryProvider([profile]))
+    setControllerProvider(provider)
+    useControllerStore.setState({
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          phase: 'live',
+          deviceId: profile.deviceId,
+          nickname: 'Burner bag',
+          mapDim: null,
+        },
+      },
+      activeIp: '192.168.8.224',
+    })
+    await useControllerProfileStore.getState().loadProfiles()
+
+    const refresh = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    await useControllerProfileStore.getState().updateProfile(profile.id, {
+      name: 'Road case',
+      lastKnownDeviceName: 'Road case',
+    })
+    resolveConfig({ name: 'Burner bag', pixelCount: 256 })
+    await refresh
+
+    expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
+      name: 'Road case',
+      lastKnownDeviceName: 'Road case',
+    })
+  })
+
   it('auto-creates a default profile for a signed-in live controller with a stable device id', async () => {
     setPersonalContentProvider(memoryProvider())
 
