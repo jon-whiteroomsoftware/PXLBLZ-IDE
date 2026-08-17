@@ -386,6 +386,7 @@ export function ControllerPanel() {
                   max={1}
                   step={0.01}
                   presentation="percentage"
+                  unsetHint="Not set: the Controller reports no usable position for this control; drag to set it."
                   onChange={(v) => setControl(c.name, v)}
                 />
               ),

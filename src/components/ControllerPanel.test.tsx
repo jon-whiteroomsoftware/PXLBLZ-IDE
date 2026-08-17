@@ -510,6 +510,56 @@ describe('ControllerPanel', () => {
     expect(screen.getByText(/How fast it goes\./)).toBeInTheDocument()
   })
 
+  it('shows drifted or uninitialized control values as an explicit unset state, never a fabricated 0.50 (#873)', async () => {
+    // Measured on the bench pb32 (fw 3.67, 2026-08-17): a saved Pattern with no
+    // stored controls reports uninitialized live control values (-1.69e+38 and
+    // the like) while its exported variables hold the Pattern's own defaults.
+    const provider = new ConnectedProvider()
+    provider.config = {
+      ...provider.config,
+      activeControls: {
+        sliderSpeed: -1.694739e38,
+        sliderZoom: -1.694739e38,
+        sliderThickness: -2.132828e-14,
+        sliderBrightness: 0.65,
+      },
+    }
+    provider.vars = { speed: 0.199982, zoom: 0.329987, thickness: 0.439972, brightness: 0.649994 }
+    setControllerProvider(provider)
+    render(<ControllerPanel />)
+
+    const speed = await screen.findByLabelText('sliderSpeed')
+    for (const name of ['sliderSpeed', 'sliderZoom', 'sliderThickness']) {
+      const slider = screen.getByLabelText(name)
+      // Assistive tech hears "not set", not the range input's midpoint value.
+      expect(slider).toHaveAttribute('aria-valuetext', 'not set')
+      expect(slider.className).toContain('deck-slider-unset')
+    }
+    expect(screen.getAllByText('—')).toHaveLength(3)
+    expect(screen.getAllByTitle(/reports no usable position/)).toHaveLength(3)
+    // A usable in-range value still shows as itself.
+    expect(screen.getByLabelText('sliderBrightness')).toHaveAttribute('aria-valuetext', '65%')
+    expect(screen.queryByText('0.50')).not.toBeInTheDocument()
+    expect(screen.queryByText('50%')).not.toBeInTheDocument()
+
+    // Moving an unset control gives it a real value.
+    fireEvent.change(speed, { target: { value: '0.2' } })
+    await waitFor(() => expect(provider.controlWrites[provider.controlWrites.length - 1]).toEqual({
+      controls: { sliderSpeed: 0.2 },
+      save: false,
+    }))
+    expect(speed).toHaveAttribute('aria-valuetext', '20%')
+  })
+
+  it('renders no controls while the Controller reports none (#873)', async () => {
+    const provider = new ConnectedProvider()
+    provider.config = { ...provider.config, activeControls: undefined }
+    setControllerProvider(provider)
+    render(<ControllerPanel />)
+    await screen.findByLabelText('Controller brightness')
+    expect(screen.queryByRole('slider', { name: /^slider/ })).not.toBeInTheDocument()
+  })
+
   it('writes a control through the provider (volatile) when a slider moves', async () => {
     const provider = new ConnectedProvider()
     setControllerProvider(provider)

@@ -81,11 +81,26 @@ returns an empty object for a **run-only** program, one pushed to run rather tha
 saved to flash. So for a run-only Pattern there is no clean source for real
 slider positions — neither live nor stored.
 
+A **saved** Pattern whose controls were never adjusted behaves the same way
+(measured on the bench pb32, firmware 3.67, 2026-08-17, #873): its stored
+`getControls` is `{}`, and right after activation — and on every later read —
+the live map reports uninitialized values for every control (`sliderSpeed:
+-1.694739e+38`, `sliderThickness: -2.13e-14`, `sliderBrightness: -1.51e+26`)
+while the exported variables hold the Pattern's own defaults (`speed 0.20`,
+`zoom 0.33`, `thickness 0.44`, `brightness 0.65`). The slider handlers were
+never invoked, so nothing links the two. A live `setControls` write reads back
+exactly (`sliderSpeed: 0.77`) and the bound variable follows it. The panel
+therefore shows such controls as unset until the user moves them; the exported
+variables in the watched list are the only truthful numbers, and they are not
+slider positions.
+
 The IDE treats any slider value outside a finite 0..1 as *unset* rather than
 trying to repair it, because the true value is genuinely unknowable until the
 user sets one. That surfaces through `DeckSlider`, which accepts
 `value: number | null`; `null` renders an indeterminate state — a hollow accent
-ring on an empty track with a dash readout — and stays **draggable**, since
+ring on an empty track with a dash readout whose hover text explains the state,
+and an `aria-valuetext` of "not set" so assistive tech does not announce the
+range input's midpoint as a value (#873) — and stays **draggable**, since
 dragging is how the control gets its first real value. The custom thumb styling
 lives in `.deck-slider-unset`. An earlier attempt that dimmed and disabled the
 control was rejected: the unset state has to look interactive.

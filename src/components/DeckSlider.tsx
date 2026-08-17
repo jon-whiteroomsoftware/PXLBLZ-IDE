@@ -17,6 +17,7 @@ export function DeckSlider({
   presentation = 'number',
   curve = 1,
   className = '',
+  unsetHint = 'Not set — drag to set a value.',
 }: {
   label: string
   ariaLabel?: string
@@ -41,6 +42,9 @@ export function DeckSlider({
    *  endpoints exactly (unlike a true log scale, which can't hit 0). */
   curve?: number
   className?: string
+  /** Hover explanation for the indeterminate readout, so an unset control says
+   *  why it is unset instead of reading as a value (#873). */
+  unsetHint?: string
 }) {
   const indeterminate = value == null
   // With a non-linear curve the range input runs in normalized *position* space
@@ -93,7 +97,9 @@ export function DeckSlider({
         <input
           type="range"
           aria-label={ariaLabel ?? label}
-          aria-valuetext={valueText}
+          // Assistive tech would otherwise announce the range input's midpoint as
+          // a real value while the control is unset (#873).
+          aria-valuetext={indeterminate ? 'not set' : valueText}
           min={sliderMin}
           max={sliderMax}
           step={sliderStep}
@@ -107,6 +113,7 @@ export function DeckSlider({
         />
         <span
           className={`shrink-0 w-10 text-right tabular-nums ${indeterminate ? 'text-zinc-500' : 'text-live'}`}
+          title={indeterminate ? unsetHint : undefined}
         >
           {indeterminate ? '—' : valueText}
         </span>

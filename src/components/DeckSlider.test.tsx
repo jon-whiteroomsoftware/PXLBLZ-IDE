@@ -46,6 +46,28 @@ describe('DeckSlider', () => {
     // Readout is a dash, not "0.00", so no misleading zero flashes before the read.
     expect(screen.getByText('—')).toBeInTheDocument()
     expect(screen.queryByText('0.00')).not.toBeInTheDocument()
+    // The a11y value is "not set" too, not the range input's midpoint (#873), and
+    // the dash explains itself on hover.
+    expect(slider).toHaveAttribute('aria-valuetext', 'not set')
+    expect(screen.getByText('—')).toHaveAttribute('title', 'Not set — drag to set a value.')
+  })
+
+  it('lets the caller explain what an unset value means (#873)', () => {
+    render(
+      <DeckSlider
+        label="speed"
+        value={null}
+        min={0}
+        max={1}
+        step={0.01}
+        onChange={() => {}}
+        unsetHint="Not set: the Controller reports no usable position for this control; drag to set it."
+      />,
+    )
+    expect(screen.getByText('—')).toHaveAttribute(
+      'title',
+      'Not set: the Controller reports no usable position for this control; drag to set it.',
+    )
   })
 
   it('stays draggable while indeterminate — dragging is how the user sets it', () => {
