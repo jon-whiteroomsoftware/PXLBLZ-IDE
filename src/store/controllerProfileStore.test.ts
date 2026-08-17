@@ -769,6 +769,96 @@ describe('controllerProfileStore', () => {
     expect(useControllerProfileStore.getState().profiles[0].name).toBe('Cached')
   })
 
+  it('never overwrites a user rename that returns to the name a refresh started from (#876)', async () => {
+    const profile = defaultControllerProfile({
+      id: 'ctrl-1',
+      name: 'Alpha',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      now: 1,
+    })
+    const provider = new FakeControllerProvider()
+    const pending: Array<(config: ControllerConfig) => void> = []
+    provider.getConfig = () => new Promise((resolve) => { pending.push(resolve) })
+    setPersonalContentProvider(memoryProvider([profile]))
+    setControllerProvider(provider)
+    useControllerStore.setState({
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          phase: 'live',
+          deviceId: profile.deviceId,
+          nickname: 'Alpha',
+          mapDim: null,
+        },
+      },
+      activeIp: '192.168.8.224',
+    })
+    await useControllerProfileStore.getState().loadProfiles()
+
+    const refresh = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    await useControllerProfileStore.getState().updateProfile(profile.id, { name: 'Bravo', lastKnownDeviceName: 'Bravo' })
+    await useControllerProfileStore.getState().updateProfile(profile.id, { name: 'Alpha', lastKnownDeviceName: 'Alpha' })
+    pending[0]({ name: 'Device' })
+    await refresh
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Alpha')
+  })
+
+  it('gives name ownership back when a refresh write is rejected (#876)', async () => {
+    // Older refresh A (actual name) is pending; the user renames; a newer
+    // refresh B writes a cached stand-in name and that write fails and rolls
+    // back. A must not treat B's rolled-back write as refresh ownership and
+    // overwrite the user's rename.
+    const profile = defaultControllerProfile({
+      id: 'ctrl-1',
+      name: 'Old',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      now: 1,
+    })
+    const provider = new FakeControllerProvider()
+    const pending: Array<(config: ControllerConfig) => void> = []
+    provider.getConfig = () => new Promise((resolve) => { pending.push(resolve) })
+    const memory = memoryProvider([profile])
+    let failNextNameWrite = false
+    setPersonalContentProvider({
+      ...memory,
+      updateControllerProfile: async (id, changes) => {
+        if (failNextNameWrite && 'name' in changes) {
+          failNextNameWrite = false
+          throw new Error('offline')
+        }
+        return memory.updateControllerProfile(id, changes)
+      },
+    })
+    setControllerProvider(provider)
+    useControllerStore.setState({
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          phase: 'live',
+          deviceId: profile.deviceId,
+          nickname: 'Cached',
+          mapDim: null,
+        },
+      },
+      activeIp: '192.168.8.224',
+    })
+    await useControllerProfileStore.getState().loadProfiles()
+
+    const first = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    await useControllerProfileStore.getState().updateProfile(profile.id, { name: 'Road case', lastKnownDeviceName: 'Road case' })
+    const second = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    failNextNameWrite = true
+    pending[1]({ pixelCount: 256 })
+    await expect(second).rejects.toThrow('offline')
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Road case')
+    pending[0]({ name: 'Device' })
+    await first
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Road case')
+  })
+
   it('fills a fact from the live entry only until the device has actually reported it (#876)', async () => {
     const profile = defaultControllerProfile({
       id: 'ctrl-1',
