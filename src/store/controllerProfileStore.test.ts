@@ -915,6 +915,65 @@ describe('controllerProfileStore', () => {
     expect(useControllerProfileStore.getState().profiles[0].name).toBe('Road case')
   })
 
+  it('keeps a rolled-back user rename retryable instead of overwriting it with the device name (#876)', async () => {
+    const profile = defaultControllerProfile({
+      id: 'ctrl-1',
+      name: 'Old',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      now: 1,
+    })
+    const provider = new FakeControllerProvider()
+    const pending: Array<(config: ControllerConfig) => void> = []
+    provider.getConfig = () => new Promise((resolve) => { pending.push(resolve) })
+    const memory = memoryProvider([profile])
+    let holdRename: { resolve: () => void; reject: (error: Error) => void } | null = null
+    setPersonalContentProvider({
+      ...memory,
+      updateControllerProfile: async (id, changes) => {
+        if ('name' in changes && changes.name === 'Road case') {
+          await new Promise<void>((resolve, reject) => { holdRename = { resolve, reject } })
+        }
+        return memory.updateControllerProfile(id, changes)
+      },
+    })
+    setControllerProvider(provider)
+    useControllerStore.setState({
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          phase: 'live',
+          deviceId: profile.deviceId,
+          nickname: 'Device',
+          mapDim: null,
+        },
+      },
+      activeIp: '192.168.8.224',
+    })
+    await useControllerProfileStore.getState().loadProfiles()
+
+    // The user's rename is optimistically applied and still in flight when the
+    // refresh starts...
+    const rename = useControllerProfileStore.getState().updateProfile(profile.id, {
+      name: 'Road case',
+      lastKnownDeviceName: 'Road case',
+    })
+    for (let i = 0; i < 5; i += 1) await Promise.resolve()
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Road case')
+    const refresh = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    // ...then fails and rolls back before the refresh applies.
+    holdRename!.reject(new Error('offline'))
+    await expect(rename).rejects.toThrow('offline')
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Old')
+    pending[0]({ name: 'Device' })
+    await refresh
+
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Old')
+    expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([
+      { profileId: profile.id, patches: [{ name: 'Road case', lastKnownDeviceName: 'Road case' }] },
+    ])
+  })
+
   it('fills a fact from the live entry only until the device has actually reported it (#876)', async () => {
     const profile = defaultControllerProfile({
       id: 'ctrl-1',

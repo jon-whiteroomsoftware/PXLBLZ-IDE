@@ -658,13 +658,18 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     // applied that fact.
     const current = get().profiles.find((candidate) => candidate.id === profileId)
     if (!current) return
-    // The name may be replaced only if no write since this refresh started
-    // touched it, or the last write that did was another refresh's own
-    // (surviving) name write. Ownership decides, never value equality.
+    // The name may be replaced only if (a) no write since this refresh started
+    // touched it AND the name still reads as it did at start — a rename that
+    // was in flight at start and rolled back since must keep its retry — or
+    // (b) the last write that touched it was another refresh's own settled
+    // name write. Ownership decides which writes count; the value check only
+    // ever narrows.
     const lastNameWriteOp = profileNameWriteOp.get(profileId)
-    const nameUntouched = lastNameWriteOp === undefined
-      || lastNameWriteOp <= startWriteOp
-      || (liveMetadataNameWriteOps.get(profileId)?.has(lastNameWriteOp) ?? false)
+    const nameStable = current.name === profile.name
+      && current.lastKnownDeviceName === profile.lastKnownDeviceName
+    const nameUntouched = (nameStable && (lastNameWriteOp === undefined || lastNameWriteOp <= startWriteOp))
+      || (lastNameWriteOp !== undefined
+        && (liveMetadataNameWriteOps.get(profileId)?.has(lastNameWriteOp) ?? false))
     const refreshedInstalledMap = useControllerStore.getState().controllers[active.ip]?.installedMap
     const installedMapSnapshot = refreshedInstalledMap
       ? toInstalledMapSnapshot(refreshedInstalledMap)
