@@ -50,6 +50,27 @@ export function byteLength(source: string): number {
   return new TextEncoder().encode(source).length
 }
 
+function collectMemberPatternSymbols(ast: Node, prefix: string): string[] {
+  const symbols = new Set<string>()
+  const visit = (value: unknown): void => {
+    if (!value || typeof value !== 'object') return
+    if (Array.isArray(value)) {
+      value.forEach(visit)
+      return
+    }
+    const node = value as Node
+    if (node.type === 'Identifier' && typeof node.name === 'string' && node.name.startsWith(`${prefix}_`)) {
+      symbols.add(node.name)
+    }
+    for (const [key, child] of Object.entries(node)) {
+      if (key === 'start' || key === 'end' || key === 'loc') continue
+      visit(child)
+    }
+  }
+  visit(ast)
+  return [...symbols]
+}
+
 export interface Rewrite {
   start: number
   end: number
@@ -193,6 +214,7 @@ export function compileMember(
       )
     : renamedSource
   const code = isolatedSource.replace(/\bexport\s+/g, '')
+  const patternSourceSymbols = collectMemberPatternSymbols(parseModule(code), prefix)
   const coordinateTransformPrefix = coordinateTransformBuiltins.size > 0
     ? allocateMemberRuntimePrefix(prefix, mapping, 'ctm')
     : null
@@ -231,6 +253,7 @@ export function compileMember(
       : 4,
     prefix,
     code,
+    patternSourceSymbols,
     resourceSource: memberSource,
     sourceBytes: byteLength(memberSource),
     renamedBindings: [...mapping.values()].sort(),

@@ -482,6 +482,8 @@ export type ShowSourceInventoryCategory =
   | 'exports'
   | 'remainder'
 
+export type ShowPatternSourcePart = 'compiled-pattern' | 'member-generated'
+
 export interface ShowSourceInventoryChunk {
   id: string
   category: ShowSourceInventoryCategory
@@ -490,6 +492,7 @@ export interface ShowSourceInventoryChunk {
   startByte: number
   endByte: number
   ownerId?: string
+  patternPart?: ShowPatternSourcePart
 }
 
 export interface ShowSourceInventory {
@@ -887,6 +890,7 @@ export interface CompiledMember {
   rollingRefreshSlices: number
   prefix: string
   code: string
+  patternSourceSymbols?: string[]
   resourceSource: string
   sourceBytes: number
   renamedBindings: string[]
@@ -11426,6 +11430,7 @@ export function compactGeneratedShowSymbols(source: string): { code: string; nam
 interface ShowSourceAttribution {
   category: ShowSourceInventoryCategory
   ownerId?: string
+  patternPart?: ShowPatternSourcePart
 }
 
 const SHOW_SOURCE_CATEGORY_PRIORITY: Record<ShowSourceInventoryCategory, number> = {
@@ -11445,10 +11450,14 @@ function showSourceAttributionForSymbol(
   if (symbol.includes('_score_')) return { category: 'score-data' }
   const member = members.find((candidate) => symbol.startsWith(`${candidate.prefix}_`))
   if (member) {
+    if (member.id === '__pxlblz_empty-routed') return { category: 'routing-render-plans' }
+    if ((member.patternSourceSymbols ?? member.renamedBindings).includes(symbol)) {
+      return { category: 'pattern', ownerId: member.id, patternPart: 'compiled-pattern' }
+    }
     if (/(?:effect|vignette|colorKey|contentKey|applyColor|applyOutput)/i.test(symbol)) {
       return { category: 'effects-transitions', ownerId: member.id }
     }
-    return { category: 'pattern', ownerId: member.id }
+    return { category: 'pattern', ownerId: member.id, patternPart: 'member-generated' }
   }
   if (/(?:effect|trails|transition|motion|portal|wipe|dissolve|crossfade|snapshot|fade|reveal|easing|mix)/i.test(symbol)) {
     return { category: 'effects-transitions' }
@@ -11466,7 +11475,11 @@ function showSourceAttributionForSymbol(
 }
 
 function showSourceChunkLabel(attribution: ShowSourceAttribution): string {
-  if (attribution.category === 'pattern') return `Pattern ${attribution.ownerId ?? 'member'}`
+  if (attribution.category === 'pattern') {
+    return attribution.patternPart === 'compiled-pattern'
+      ? `Compiled Pattern ${attribution.ownerId ?? 'member'}`
+      : `Pattern-owned generated source ${attribution.ownerId ?? 'member'}`
+  }
   if (attribution.category === 'runtime-scheduler') return 'Show runtime and scheduler'
   if (attribution.category === 'routing-render-plans') {
     return attribution.ownerId
@@ -11529,9 +11542,12 @@ function buildShowSourceInventory(
       }
       identifierIndex += 1
     }
-    let attribution = candidates.sort((left, right) => (
-      SHOW_SOURCE_CATEGORY_PRIORITY[right.category] - SHOW_SOURCE_CATEGORY_PRIORITY[left.category]
-    ))[0]
+    let attribution = candidates.sort((left, right) => {
+      const categoryPriority = SHOW_SOURCE_CATEGORY_PRIORITY[right.category] - SHOW_SOURCE_CATEGORY_PRIORITY[left.category]
+      if (categoryPriority !== 0) return categoryPriority
+      if (left.category !== 'pattern' || right.category !== 'pattern') return 0
+      return Number(right.patternPart === 'member-generated') - Number(left.patternPart === 'member-generated')
+    })[0]
     if (/^\s*export\b/.test(line.source)) attribution = { category: 'exports' }
     if (!attribution) attribution = /^\s*$/.test(line.source) || /^\s*[{}]+[;,]?\s*$/.test(line.source)
       ? previous
@@ -11540,7 +11556,10 @@ function buildShowSourceInventory(
 
     const bytes = byteLength(line.source)
     const prior = chunks[chunks.length - 1]
-    if (prior && prior.category === attribution.category && prior.ownerId === attribution.ownerId) {
+    if (prior
+      && prior.category === attribution.category
+      && prior.ownerId === attribution.ownerId
+      && prior.patternPart === attribution.patternPart) {
       prior.bytes += bytes
       prior.endByte += bytes
     } else {
@@ -11552,6 +11571,7 @@ function buildShowSourceInventory(
         startByte: byteCursor,
         endByte: byteCursor + bytes,
         ...(attribution.ownerId ? { ownerId: attribution.ownerId } : {}),
+        ...(attribution.patternPart ? { patternPart: attribution.patternPart } : {}),
       })
     }
     byteCursor += bytes

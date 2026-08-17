@@ -34,26 +34,53 @@ const CATEGORY_COLOR: Record<DeliveredShowSourceInventoryCategory, string> = {
 }
 
 const PANEL_WIDTH = 460
+const POINTER_LEAVE_GRACE_MS = 150
 
-// Inline row annotation: counts of one are the unremarkable default, so only
-// counts that differ from one earn a mention.
 function rowMeta(row: ShowArtifactInventoryRow, transitionCount: number): string {
-  if (row.category === 'pattern') {
-    return [
-      row.logicalInstanceCount !== 1 ? `${row.logicalInstanceCount} logical` : null,
-      row.physicalMachineCount !== 1 ? `${row.physicalMachineCount} physical` : null,
-      row.authoredReferenceCount !== 1 ? `${row.authoredReferenceCount} references` : null,
-    ].filter(Boolean).join(' · ')
-  }
   if (row.category === 'effects-transitions' && transitionCount > 0) {
     return `${transitionCount} ${transitionCount === 1 ? 'Transition' : 'Transitions'}`
   }
   return ''
 }
 
+function countLabel(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`
+}
+
+function patternStructure(row: ShowArtifactInventoryRow): string {
+  return [
+    countLabel(row.logicalInstanceCount ?? 0, 'configured use'),
+    countLabel(row.physicalMachineCount ?? 0, 'copy in delivered code', 'copies in delivered code'),
+    countLabel(row.authoredReferenceCount ?? 0, 'timeline placement'),
+  ].join(' · ')
+}
+
+function patternCostEquation(row: ShowArtifactInventoryRow): string {
+  const breakdown = row.patternBreakdown
+  if (!breakdown || breakdown.baseCopies.length === 0) return `${formatBytes(row.bytes)} Pattern total`
+  const [first, ...additional] = breakdown.baseCopies
+  const terms = [`one compiled copy ${formatBytes(first.bytes)}`]
+  if (additional.length > 0) {
+    const additionalBytes = additional.reduce((sum, copy) => sum + copy.bytes, 0)
+    const equalAdditionalCopies = additional.every((copy) => copy.bytes === additional[0].bytes)
+    terms.push(additional.length > 1 && equalAdditionalCopies
+      ? `${additional.length} x ${formatBytes(additional[0].bytes)} for ${additional.length} additional compiled copies`
+      : `${formatBytes(additionalBytes)} across ${countLabel(additional.length, 'additional compiled copy')}`)
+  }
+  terms.push(`${formatBytes(breakdown.generatedBytes)} generated for Show settings and placements`)
+  return `${terms.join(' + ')} = ${formatBytes(row.bytes)}`
+}
+
+function busiestLedWork(steady: number, worst: number): string {
+  const normalWork = countLabel(steady, 'Pattern color calculation')
+  if (steady === worst) return `Busiest LED: ${normalWork}`
+  return `Busiest LED: ${normalWork} normally, up to ${worst} when visuals overlap`
+}
+
 export function ShowArtifactInventoryPopover({ inventory, model, vmWords, renderers, structure, delivery }: Props) {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const pointerCloseTimerRef = useRef<number | null>(null)
   const suppressFocusRevealRef = useRef(false)
   const [open, setOpen] = useState(false)
   const [pinned, setPinned] = useState(false)
@@ -61,8 +88,26 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
   const deliveredBytes = delivery?.totalBytes ?? inventory.totalBytes
   const transformBytes = Math.max(0, delivery?.transformBytes ?? 0)
 
+  function cancelScheduledPointerClose() {
+    if (pointerCloseTimerRef.current === null) return
+    window.clearTimeout(pointerCloseTimerRef.current)
+    pointerCloseTimerRef.current = null
+  }
+
   function reveal() {
+    cancelScheduledPointerClose()
     setOpen(true)
+  }
+
+  function schedulePointerClose() {
+    cancelScheduledPointerClose()
+    pointerCloseTimerRef.current = window.setTimeout(() => {
+      pointerCloseTimerRef.current = null
+      if (pinned) return
+      const active = document.activeElement
+      if (triggerRef.current?.contains(active) || panelRef.current?.contains(active)) return
+      setOpen(false)
+    }, POINTER_LEAVE_GRACE_MS)
   }
 
   function closeUnlessFocused() {
@@ -75,12 +120,17 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
   }
 
   function closeAndFocusTrigger() {
+    cancelScheduledPointerClose()
     suppressFocusRevealRef.current = true
     setPinned(false)
     setOpen(false)
     triggerRef.current?.focus()
     window.setTimeout(() => { suppressFocusRevealRef.current = false }, 0)
   }
+
+  useEffect(() => () => {
+    if (pointerCloseTimerRef.current !== null) window.clearTimeout(pointerCloseTimerRef.current)
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -102,6 +152,7 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
     const closeOnOutsidePointer = (event: PointerEvent) => {
       const target = event.target as Node
       if (triggerRef.current?.contains(target) || panelRef.current?.contains(target)) return
+      cancelScheduledPointerClose()
       setPinned(false)
       setOpen(false)
     }
@@ -117,7 +168,7 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
       className="fixed z-[100] max-h-[min(680px,calc(100vh-48px))] w-[min(460px,calc(100vw-16px))] overflow-y-auto rounded-md border border-zinc-700 bg-[#08090b]/[0.99] p-3 font-mono text-[10px] text-zinc-300 shadow-[0_24px_80px_-20px_rgba(0,0,0,.98),0_0_0_1px_rgba(245,158,11,.10)] backdrop-blur-sm"
       style={position}
       onPointerEnter={reveal}
-      onPointerLeave={() => { if (!pinned) setOpen(false) }}
+      onPointerLeave={schedulePointerClose}
       onFocus={reveal}
       onBlur={closeUnlessFocused}
       onKeyDown={(event) => {
@@ -127,15 +178,22 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
     >
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-xs font-semibold tracking-wide text-zinc-100">Show source inventory</h2>
-        <button
-          type="button"
-          aria-label="Close Show source inventory"
-          className="rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
-          onClick={closeAndFocusTrigger}
-        >
-          <X size={13} aria-hidden />
-        </button>
+        {pinned ? (
+          <button
+            type="button"
+            aria-label="Close Show source inventory"
+            className="rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
+            onClick={closeAndFocusTrigger}
+          >
+            <X size={13} aria-hidden />
+          </button>
+        ) : (
+          <span className="text-[8px] text-zinc-500">Select the meter to keep this open</span>
+        )}
       </div>
+      <p className="mt-1 text-[9px] leading-relaxed text-zinc-500">
+        Code this Show sends to one Pixelblaze, including Pattern copies and generated choreography.
+      </p>
 
       <div className="mt-2 flex h-4 w-full overflow-hidden rounded-sm bg-zinc-900 ring-1 ring-zinc-700/70" aria-hidden>
         {model.rows.map((row) => (
@@ -158,15 +216,24 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
       <div className="mt-2 divide-y divide-zinc-800/80 border-y border-zinc-800/80">
         {model.rows.map((row) => {
           const meta = rowMeta(row, structure.transitionCount)
+          const pattern = row.category === 'pattern' && row.patternBreakdown
           return (
-            <div key={row.id} className="flex items-center gap-2 py-1.5">
-              <span className={`h-2 w-2 shrink-0 rounded-[2px] ${CATEGORY_COLOR[row.category]}`} aria-hidden />
-              <span className="truncate text-zinc-200">{row.label}</span>
-              {!row.creatorEditable && row.category === 'runtime-scheduler' && (
-                <span className="shrink-0 rounded-sm bg-zinc-800 px-1.5 py-0.5 text-[8px] uppercase tracking-wider text-zinc-500">fixed</span>
+            <div key={row.id} className={pattern ? 'py-2' : 'flex items-center gap-2 py-1.5'}>
+              <div className={pattern ? 'flex items-center gap-2' : 'contents'}>
+                <span className={`h-2 w-2 shrink-0 rounded-[2px] ${CATEGORY_COLOR[row.category]}`} aria-hidden />
+                <span className="truncate text-zinc-200">{row.label}</span>
+                {!row.creatorEditable && row.category === 'runtime-scheduler' && (
+                  <span className="shrink-0 rounded-sm bg-zinc-800 px-1.5 py-0.5 text-[8px] uppercase tracking-wider text-zinc-500">fixed</span>
+                )}
+                {meta && <span className="truncate text-[9px] text-zinc-500">{meta}</span>}
+                <span className="ml-auto shrink-0 tabular-nums text-zinc-200">{formatBytes(row.bytes)}</span>
+              </div>
+              {pattern && (
+                <div className="ml-4 mt-1 min-w-0 text-[9px] leading-relaxed">
+                  <div className="text-zinc-500">{patternStructure(row)}</div>
+                  <div className="break-words tabular-nums text-zinc-300">{patternCostEquation(row)}</div>
+                </div>
               )}
-              {meta && <span className="truncate text-[9px] text-zinc-500">{meta}</span>}
-              <span className="ml-auto shrink-0 tabular-nums text-zinc-200">{formatBytes(row.bytes)}</span>
             </div>
           )
         })}
@@ -187,31 +254,18 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
         />
         <ResourceAxis label="VM words" value={`${vmWords.used.toLocaleString('en-US')} / ${vmWords.budget.toLocaleString('en-US')}`} detail={`${vmWords.remaining.toLocaleString('en-US')} free`} />
         <ResourceAxis
-          label="Controller renderers"
-          value={`${renderers.controller.worst} peak active`}
-          detail={`Per pixel: ${renderers.perPixel.steady} steady / ${renderers.perPixel.worst} peak`}
+          label="Pattern copies running"
+          value={`Up to ${renderers.controller.worst} at once`}
+          detail={busiestLedWork(renderers.perPixel.steady, renderers.perPixel.worst)}
         />
       </div>
 
-      {model.slimmingTips.length > 0 && (
-        <section className="mt-3" aria-labelledby="show-slimming-heading">
-          <h3 id="show-slimming-heading" className="text-[9px] font-semibold uppercase tracking-[0.14em] text-amber-300/90">Ways to slim this Show</h3>
-          <ol className="mt-1.5 space-y-1.5">
-            {model.slimmingTips.slice(0, 4).map((tip) => (
-              <li key={tip.contributorId} className="grid grid-cols-[auto_1fr] gap-2 leading-relaxed text-zinc-400">
-                <span className="tabular-nums text-zinc-200">{formatBytes(tip.currentBytes)}</span>
-                <span>{tip.message}</span>
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
     </div>,
     document.body,
   ) : null
 
   return (
-    <span onPointerEnter={reveal} onPointerLeave={() => { if (!pinned) setOpen(false) }}>
+    <span onPointerEnter={reveal} onPointerLeave={schedulePointerClose}>
       <button
         ref={triggerRef}
         type="button"
@@ -225,7 +279,10 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
           const nextPinned = !pinned
           setPinned(nextPinned)
           if (nextPinned) reveal()
-          else setOpen(false)
+          else {
+            cancelScheduledPointerClose()
+            setOpen(false)
+          }
         }}
       >
         {formatBytes(deliveredBytes)} / {formatBytes(model.budgetBytes)}

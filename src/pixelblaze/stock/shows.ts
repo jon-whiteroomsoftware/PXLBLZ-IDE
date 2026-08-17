@@ -1641,9 +1641,9 @@ function learn302(): StockShow {
 // inventory prices every contributor. The score carries one deliberately
 // expensive treatment - the closing weave echo, an independent RibbonLoom
 // instance overlaid on the garden. Measured against the real compiler: the
-// echo does NOT duplicate the executable (one physical machine serves both
-// logical instances, and the slimming tip says so); what it costs is its
-// simultaneous overlay structure - 6,421 bytes of render plans and score
+// echo does NOT duplicate the executable (one compiled copy serves both
+// configured uses); what it costs is its simultaneous overlay structure -
+// 6,421 bytes of render plans and score
 // data, 15,894 B (23.2% of budget) with the echo against 9,473 B without.
 // Because the echo is independent it also restarts the opening weave from
 // its first frame, which is why the treatment earns those bytes; deleting it
@@ -1664,8 +1664,8 @@ function learn303(): StockShow {
       instance('loom', 'RibbonLoom', LESSON_TIME_SCALE),
       instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
       // Independent on purpose: a fresh instance restarts the weave from its
-      // opening frame and costs a second physical machine, and both facts are
-      // the lesson.
+      // opening frame. Lifetime-colored state lets it share one compiled copy
+      // with the first use without sharing that clock or state.
       instance('loom-echo', 'RibbonLoom', LESSON_TIME_SCALE),
     ],
     scenes: [{
@@ -1694,9 +1694,9 @@ function learn303(): StockShow {
   }
   return normalizedCatalogue({
     id, title: 'Compile, Simplify, and Deliver', track: 'portable', collection: 'learn', level: 300, order: 3,
-    purpose: 'A Show stays editable choreography, but it ships as one ordinary Pixelblaze Pattern. The artifact inventory breaks down what that generated Pattern spends on each Pattern, Effect, and score structure, and its slimming tips name the costs you can actually act on.',
-    notice: 'The weave echo near the end is an independent RibbonLoom instance, and the inventory shows the compiler reusing one physical machine for both instances. What the echo really costs is its overlay structure - about six kilobytes of render plans and score data - and independence is why it restarts the weave from its first frame.',
-    prompts: ["Open the artifact inventory: RibbonLoom lists one physical machine for two logical instances, and the render-plan row is what the echo's Layer actually costs. Delete the echo Clip and watch the total fall.", 'Undo the deletion, then export the EPE or open the generated code: everything on the timeline ships inside that one ordinary Pattern.'],
+    purpose: 'A Show stays editable choreography, but it ships as one ordinary Pixelblaze Pattern. The artifact inventory separates compiled Pattern code from the source generated for Show settings, placements, Effects, and score structure.',
+    notice: 'The weave echo near the end is a separately configured RibbonLoom use, and the inventory shows the compiler keeping one copy in the delivered code for both uses. What the echo really costs is its overlay structure - about six kilobytes of render plans and score data - and its separate clock is why it restarts the weave from its first frame.',
+    prompts: ["Open the artifact inventory: RibbonLoom lists two configured uses but one copy in the delivered code, while the render-plan row shows what the echo's Layer costs. Delete the echo Clip and watch the total fall.", 'Undo the deletion, then export the EPE or open the generated code: everything on the timeline ships inside that one ordinary Pattern.'],
     guideHeading: 'compile-simplify-and-deliver',
     patternSlots: [['loom', 'loom-echo'], ['garden']],
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,

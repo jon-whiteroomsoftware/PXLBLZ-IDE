@@ -129,7 +129,7 @@ itself must be reached through the UI.
 | ID | Goal | Section | Expected | Flags |
 |----|------|---------|----------|-------|
 | F1 | Read the compile bar; open the source inventory popover; find VM words | 17 | Byte-level inventory | |
-| F2 | On a heavy Show (Redline), open "Ways to slim this Show"; entries are changeable and material | 17 | | |
+| F2 | On Overture, hover the source meter and move into the inventory, then pin it; distinguish configured uses, copies in delivered code, timeline placements, generated placement source, Pattern copies running, and Busiest LED calculations | 17 | Hover remains open across the pointer crossing; Pattern and shared rows add to the artifact total | |
 | F3 | View code opens the generated Pattern source read-only | 17 | | |
 | F4 | Export .epe; the file downloads with provenance; re-import recovers it | 17 | Compatibility contract | |
 | F5 | Push a Show over 2,000 px; outbound actions block with a named cause while editing continues | 12,17 | Support envelope | |

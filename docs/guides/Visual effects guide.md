@@ -285,12 +285,12 @@ reads as noise.
 
 A Show stays editable choreography but publishes as one ordinary Pixelblaze
 Pattern. The artifact inventory prices the generated code line by line, and
-**Ways to slim this Show** names the contributors you can act on — the
-compiler already reuses one machine across compatible instances of the same
-Pattern, so the tips distinguish real duplicates from structure that simply
-costs what it costs. **303 Compile, Simplify, and Deliver** carries one
-deliberately expensive treatment so you can price it, remove it, and compare
-inventories.
+each Pattern row separates one compiled copy from the source generated for its
+Show settings and placements. It also distinguishes configured uses, copies in
+the delivered code, timeline placements, and copies active at once. **303
+Compile, Simplify, and Deliver** carries one deliberately expensive treatment
+so you can price it, remove it, and compare inventories without a heuristic
+guess about what you should change.
 
 ### Ruthlessly engineered spectacle
 

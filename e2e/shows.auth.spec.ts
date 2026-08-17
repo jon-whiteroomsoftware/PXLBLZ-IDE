@@ -454,15 +454,23 @@ test.describe('authenticated Show authoring', () => {
     await expect(addLabel).toHaveCSS('display', 'block')
   })
 
-  test('shows peak controller-wide renderers ahead of per-pixel depth (#839)', async ({ page }) => {
+  test('explains simultaneous Pattern copies separately from work on the busiest LED (#839)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto(showtimePath('studio/shows/stock-show-301-installation-mapping'))
 
-    await page.getByRole('button', { name: /Show source inventory/ }).click()
+    const sourceMeter = page.getByRole('button', { name: /Show source inventory/ })
+    await sourceMeter.hover()
     const inventory = page.getByRole('dialog', { name: 'Show source inventory' })
-    await expect(inventory).toContainText('Controller renderers')
-    await expect(inventory).toContainText('3 peak active')
-    await expect(inventory).toContainText('Per pixel: 1 steady / 1 peak')
+    await inventory.hover()
+    await page.waitForTimeout(200)
+    await expect(inventory).toBeVisible()
+    await expect(inventory.getByRole('button', { name: 'Close Show source inventory' })).toHaveCount(0)
+    await expect(inventory).toContainText('Pattern copies running')
+    await expect(inventory).toContainText('Up to 3 at once')
+    await expect(inventory).toContainText('Busiest LED: 1 Pattern color calculation')
+
+    await sourceMeter.click()
+    await expect(inventory.getByRole('button', { name: 'Close Show source inventory' })).toBeVisible()
 
     await page.setViewportSize({ width: 390, height: 800 })
     await expect(inventory).toBeVisible()

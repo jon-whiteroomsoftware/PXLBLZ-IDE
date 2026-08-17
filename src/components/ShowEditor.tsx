@@ -1715,7 +1715,6 @@ export function ShowEditor({
       model: buildShowArtifactInventoryModel(inventory, {
         patterns: describeShowArtifactPatterns(compiledShow, inventory),
         budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
-        zoneLayoutCount: compiled.artifact.summary.routedZoneLayoutCount,
       }),
     }
   }, [compiledShow, compiled.artifact, inspectableShowExport])

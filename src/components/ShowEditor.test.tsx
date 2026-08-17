@@ -7736,7 +7736,11 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(inventory).toHaveTextContent('PXLBLZ Show infrastructure')
     expect(inventory).toHaveTextContent('Effects and Transitions')
     expect(inventory).toHaveTextContent('CompassRose')
-    expect(inventory).toHaveTextContent('Ways to slim this Show')
+    expect(inventory).toHaveTextContent('configured use')
+    expect(inventory).toHaveTextContent('copy in delivered code')
+    expect(inventory).toHaveTextContent('timeline placement')
+    expect(inventory).toHaveTextContent('generated for Show settings and placements')
+    expect(inventory).not.toHaveTextContent('Ways to slim this Show')
     // Read-only chrome stays deleted: no subtitle, no machine summary, no
     // generated-program box, no trailing disclaimer (#63).
     expect(inventory).not.toHaveTextContent('Exact UTF-8 bytes')
@@ -7789,7 +7793,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(inventory).not.toHaveTextContent('interned stacks')
   })
 
-  it('leads with peak controller-wide renderers while retaining per-pixel depth (#839)', async () => {
+  it('explains simultaneous Pattern copies separately from work on the busiest LED (#839)', async () => {
     const user = userEvent.setup()
     const installation = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-301-installation-mapping')!
 
@@ -7797,9 +7801,9 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     await user.click(screen.getByRole('button', { name: /show source inventory/i }))
 
     const inventory = screen.getByRole('dialog', { name: 'Show source inventory' })
-    expect(inventory).toHaveTextContent('Controller renderers')
-    expect(inventory).toHaveTextContent('3 peak active')
-    expect(inventory).toHaveTextContent('Per pixel: 1 steady / 1 peak')
+    expect(inventory).toHaveTextContent('Pattern copies running')
+    expect(inventory).toHaveTextContent('Up to 3 at once')
+    expect(inventory).toHaveTextContent('Busiest LED: 1 Pattern color calculation')
   })
 
   it('surfaces actionable renderer pressure without tinting the source gauge (#63, #492, #499)', () => {

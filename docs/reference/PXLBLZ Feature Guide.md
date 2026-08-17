@@ -389,11 +389,30 @@ geometry, driven by Show transport.
 
 ## 17. Cost, sending, and sharing
 
-The compile bar under the timeline is the honest accountant: delivered
-source size, memory words, and short warnings or blockers, with a byte-level
-inventory behind the source figure and a **Ways to slim this Show** section
-whenever it finds actionable savings. Limits are enforced with a named cause
-while editing and preview continue.
+The compile bar under the timeline is the honest accountant: delivered source
+size, memory words, and short warnings or blockers. Open the source figure for
+a byte-level inventory. Hovering lets the pointer move from the source figure
+into the inventory; selecting the figure keeps the inventory open until it is
+closed. Every Pattern row distinguishes three things in plain language:
+**configured uses** are separately configured versions of that Pattern in the
+Show, **copies in delivered code** are the copies the compiler kept in the
+generated Pixelblaze Pattern, and **timeline placements** are the Clips that
+place those uses on the Stage.
+
+Those counts do not say how many run at once. **Pattern copies running** gives
+the maximum number that can run simultaneously. **Busiest LED** says how many
+Pattern color calculations can contribute to one LED: its normal count and,
+when different, the higher count reached while visuals overlap. Effects add
+work to a Pattern result but do not add another Pattern color calculation.
+
+Each Pattern row then reads as an equation: one compiled copy, any additional
+compiled copies, and the source generated for Show settings and placements add
+up to the Pattern total. Identical measured copies may use repeated-cost
+notation; unequal copies show a truthful aggregate. Shared Show infrastructure,
+routing, Effects and Transitions, score data, provenance, and Controller
+transforms remain separate rows or delivery layers. The inventory presents
+measurements without guessing which creative change should come next. Limits
+are enforced with a named cause while editing and preview continue.
 
 Sending mirrors ordinary Patterns: **View code**, **Run**, **Save**, and
 **Export `.epe`**. After an edit, Run and Save disable until the fresh

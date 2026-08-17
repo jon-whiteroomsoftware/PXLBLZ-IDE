@@ -2166,13 +2166,9 @@ describe('stock Show curriculum (#363)', () => {
     const model = buildShowArtifactInventoryModel(inventory, {
       patterns: describeShowArtifactPatterns(item.show, inventory),
       budgetBytes: compiled.artifact!.summary.measuredDeviceBudgetBytes,
-      zoneLayoutCount: compiled.artifact!.summary.routedZoneLayoutCount,
     })
     const loomRow = model.rows.find((row) => row.category === 'pattern' && row.label === 'RibbonLoom')!
     expect(loomRow).toMatchObject({ physicalMachineCount: 1, logicalInstanceCount: 2 })
-    // A shared machine leaves nothing to deduplicate, so the inventory offers
-    // no slimming tip for RibbonLoom rather than a non-actionable one (#63).
-    expect(model.slimmingTips.some((tip) => tip.contributorId === loomRow.id)).toBe(false)
 
     // The note's Try-this: deleting the echo must fall out of the inventory
     // as a real, sizable saving rather than a rounding error.

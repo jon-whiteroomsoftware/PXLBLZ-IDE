@@ -328,10 +328,12 @@ The program's working rules, in the order they earn their keep:
 The creator-facing consequences are inspectable per Show. The compile bar under
 the timeline reports delivered source, VM words, and support-envelope warnings.
 Hovering the **Show source** figure opens an exact byte-level inventory of the
-generated artifact (which Patterns, plans, and score tables own which bytes)
-plus the peak number of active Pattern machines across the Controller and the
-separate steady/peak renderer depth per pixel. **Ways to slim this Show** ranks
-the levers you actually control. Arena assignments, cache choices, and rejected
+generated artifact. Each Pattern row separates one compiled copy from
+Show-specific settings and placement source, then distinguishes configured
+uses, copies in the delivered code, and timeline placements. A separate figure
+reports the peak copies active across the Controller and the steady/peak
+renderer depth per pixel. The inventory presents measurements rather than
+heuristic repair advice. Arena assignments, cache choices, and rejected
 specializations stay out of the persistent authoring UI. **View code** shows
 the whole generated Pattern, because the best answer to "what did the compiler
 do?" is the code it wrote.

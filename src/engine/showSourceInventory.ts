@@ -37,25 +37,20 @@ export interface ShowArtifactInventoryRow {
   physicalMachineCount?: number
   logicalInstanceCount?: number
   authoredReferenceCount?: number
-}
-
-export interface ShowArtifactSlimmingTip {
-  contributorId: string
-  currentBytes: number
-  message: string
+  patternBreakdown?: {
+    baseCopies: Array<{ ownerId: string; bytes: number }>
+    baseBytes: number
+    generatedBytes: number
+  }
 }
 
 export interface ShowArtifactInventoryModel {
   totalBytes: number
+  artifactBytes: number
+  provenanceBytes: number
   budgetBytes: number
   rows: ShowArtifactInventoryRow[]
-  slimmingTips: ShowArtifactSlimmingTip[]
 }
-
-// A tip earns its slot only when acting on it can recover a meaningful share
-// of the source budget; smaller contributors stay in the table without advice.
-const SLIMMING_TIP_MIN_BUDGET_SHARE = 0.05
-const DOMINANT_PATTERN_BUDGET_SHARE = 0.25
 
 export function buildDeliveredShowSourceInventory(
   generatedInventory: ShowSourceInventory,
@@ -101,7 +96,6 @@ export function buildShowArtifactInventoryModel(
   options: {
     patterns: readonly ShowArtifactInventoryPattern[]
     budgetBytes: number
-    zoneLayoutCount: number
   },
 ): ShowArtifactInventoryModel {
   const budgetBytes = Math.max(1, options.budgetBytes)
@@ -109,12 +103,19 @@ export function buildShowArtifactInventoryModel(
     pattern.ownerIds.map((ownerId) => [ownerId, pattern] as const)
   )))
   const patternBytes = new Map<string, number>()
+  const patternParts = new Map<string, Map<string, { baseBytes: number; generatedBytes: number }>>()
   const categoryBytes = new Map<DeliveredShowSourceInventoryCategory, number>()
   for (const chunk of inventory.chunks) {
     if (chunk.category === 'pattern' && chunk.ownerId) {
       const pattern = patternByOwnerId.get(chunk.ownerId)
       if (pattern) {
         patternBytes.set(pattern.key, (patternBytes.get(pattern.key) ?? 0) + chunk.bytes)
+        const byOwner = patternParts.get(pattern.key) ?? new Map()
+        const contribution = byOwner.get(chunk.ownerId) ?? { baseBytes: 0, generatedBytes: 0 }
+        if (chunk.patternPart === 'compiled-pattern') contribution.baseBytes += chunk.bytes
+        else contribution.generatedBytes += chunk.bytes
+        byOwner.set(chunk.ownerId, contribution)
+        patternParts.set(pattern.key, byOwner)
         continue
       }
     }
@@ -124,6 +125,15 @@ export function buildShowArtifactInventoryModel(
   const rows: ShowArtifactInventoryRow[] = options.patterns.flatMap((pattern) => {
     const bytes = patternBytes.get(pattern.key) ?? 0
     if (bytes <= 0) return []
+    const parts = patternParts.get(pattern.key) ?? new Map()
+    const baseCopies = pattern.ownerIds.map((ownerId) => ({
+      ownerId,
+      bytes: parts.get(ownerId)?.baseBytes ?? 0,
+    }))
+    const baseBytes = baseCopies.reduce((sum, copy) => sum + copy.bytes, 0)
+    const generatedBytes = pattern.ownerIds.reduce((sum, ownerId) => (
+      sum + (parts.get(ownerId)?.generatedBytes ?? 0)
+    ), 0)
     return [{
       id: `pattern:${pattern.key}`,
       category: 'pattern' as const,
@@ -134,6 +144,7 @@ export function buildShowArtifactInventoryModel(
       physicalMachineCount: pattern.ownerIds.length,
       logicalInstanceCount: pattern.logicalInstanceCount,
       authoredReferenceCount: pattern.authoredReferenceCount,
+      patternBreakdown: { baseCopies, baseBytes, generatedBytes },
     }]
   })
   const categoryLabels: Record<Exclude<DeliveredShowSourceInventoryCategory, 'pattern'>, string> = {
@@ -167,44 +178,13 @@ export function buildShowArtifactInventoryModel(
     })
   }
 
-  const slimmingTips = rows.flatMap((row): ShowArtifactSlimmingTip[] => {
-    if (!row.creatorEditable) return []
-    if (row.category === 'pattern') {
-      const machines = row.physicalMachineCount ?? 1
-      if (machines > 1) return [{
-        contributorId: row.id,
-        currentBytes: row.bytes,
-        message: `${row.label} - run fewer simultaneous instances.`,
-      }]
-      if (row.percentage >= DOMINANT_PATTERN_BUDGET_SHARE) return [{
-        contributorId: row.id,
-        currentBytes: row.bytes,
-        message: `${row.label} alone is ${Math.round(row.percentage * 100)}% of the source budget. Simplify its source or swap in a lighter Pattern.`,
-      }]
-      return []
-    }
-    if (row.percentage < SLIMMING_TIP_MIN_BUDGET_SHARE) return []
-    if (row.category === 'effects-transitions') return [{
-      contributorId: row.id,
-      currentBytes: row.bytes,
-      message: 'Consolidate Effect and Transition variants that repeat the same visual structure.',
-    }]
-    if (row.category === 'score-data') return [{
-      contributorId: row.id,
-      currentBytes: row.bytes,
-      message: 'Shorten or simplify data-heavy choreography.',
-    }]
-    // With a single Zone Layout there is no layout variety to reduce, so the
-    // routing row carries no advice.
-    if (row.category === 'routing-render-plans' && options.zoneLayoutCount > 1) return [{
-      contributorId: row.id,
-      currentBytes: row.bytes,
-      message: 'Reduce unique Zone Layouts.',
-    }]
-    return []
-  }).sort((left, right) => right.currentBytes - left.currentBytes)
-
-  return { totalBytes: inventory.totalBytes, budgetBytes, rows, slimmingTips }
+  return {
+    totalBytes: inventory.totalBytes,
+    artifactBytes: inventory.generatedSourceBytes,
+    provenanceBytes: inventory.provenanceBytes,
+    budgetBytes,
+    rows,
+  }
 }
 
 export function describeShowArtifactPatterns(
