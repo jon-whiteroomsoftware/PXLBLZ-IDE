@@ -67,6 +67,20 @@ restore brightness. Brightness comes from `getConfig()`; if it cannot be read,
 skip the blackout and just write the count rather than stranding the strip dark.
 Only do this on a genuine reduction.
 
+How soon `getConfig().pixelCount` reports a saved write (bench pb32, firmware
+3.67, 2026-08-17, #876): a raise is reported by the very next read; a reduction
+is reported about 200 ms after the blackout-then-shrink sequence resolves.
+Nothing lags for seconds. The panel therefore treats the device's own report of
+the written count as the acknowledgement that refreshes durable profile
+metadata; a write the firmware silently drops never gets that report and never
+refreshes anything.
+
+Two things about switching Patterns are worth knowing (#877): the first
+`getConfig` after `{"activeProgramId": ...}` can still name the previous
+Pattern while the new one loads, so activation is confirmed over a short window
+of reads rather than a single one; and stopping the sequencer and switching in
+the same breath confirmed cleanly on the bench.
+
 ## Live control values are drifted variables, not positions
 
 The firmware's live `activeProgram.controls` (from `getConfig`) reports each

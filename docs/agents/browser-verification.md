@@ -44,6 +44,17 @@ Array.from(document.querySelectorAll('button')).map(b => b.getAttribute('aria-la
 Pausing the preview first settles the page. This path has driven a full
 discover → connect → live-panel verification with no screenshot at all.
 
+## A screenshot dismisses hover-only tips
+
+Playwright and CDP screenshots close the shared hover/focus tip
+(`DisabledReasonTip`) and every native `title` tooltip: the tip is open in the
+DOM the instant before the capture and gone in the image. That is why the #862
+campaign screenshots showed no tooltips on hardware. To photograph a tip, give
+its control keyboard focus (`element.focus()` or Tab) and capture; focus keeps
+the tip open through the screenshot. To assert a hover tip without a picture,
+read `aria-describedby` and the tip's `hidden` attribute after a real
+`page.mouse.move` onto the control.
+
 ## Verifying Studio as the synthetic user
 
 To drive an issue runtime as its synthetic user, `npm run dev:session -- --issue
