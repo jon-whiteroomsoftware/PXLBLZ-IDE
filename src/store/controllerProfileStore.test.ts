@@ -16,6 +16,7 @@ import {
 import {
   defaultControllerProfile,
   __resetControllerProfileAutoCreateGuards,
+  __resetLiveMetadataRefreshOrdering,
   controllerProfileInitialState,
   useControllerProfileStore,
   type ControllerProfile,
@@ -126,6 +127,7 @@ beforeEach(() => {
   resetPersonalContentProvider()
   resetControllerProvider()
   __resetControllerProfileAutoCreateGuards()
+  __resetLiveMetadataRefreshOrdering()
   __resetControllerProfileWriteQueue()
   useControllerProfileStore.setState(controllerProfileInitialState)
   useControllerStore.setState(controllerInitialState)
@@ -676,9 +678,8 @@ describe('controllerProfileStore', () => {
       board: { firmwareVersion: '3.68' },
     })
 
-    // A newer refresh whose config lacks firmware falls back to the live entry
-    // as it is now, but a cached stand-in never outranks a fact the device
-    // actually returned: an older real read still lands over it.
+    // Once an actual firmware read has landed, a cached live-entry stand-in
+    // never replaces it — in either completion order.
     useControllerStore.setState((state) => ({
       controllers: {
         ...state.controllers,
@@ -691,23 +692,57 @@ describe('controllerProfileStore', () => {
     await Promise.resolve()
     pending[3]({ name: 'Burner bag', pixelCount: 220 })
     await fourth
-    expect(useControllerProfileStore.getState().profiles[0].board.firmwareVersion).toBe('3.69')
+    expect(useControllerProfileStore.getState().profiles[0].board.firmwareVersion).toBe('3.68')
     pending[2]({ name: 'Burner bag', firmwareVersion: '3.70' })
     await third
     expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
       lastKnownPixelCount: 220,
       board: { firmwareVersion: '3.70' },
     })
-    // And a stand-in yields to a later real read that already landed.
     const fifth = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
     await Promise.resolve()
     const sixth = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
     await Promise.resolve()
-    pending[5]({ name: 'Burner bag', firmwareVersion: '3.71' })
-    await sixth
-    pending[4]({ name: 'Burner bag' })
+    pending[4]({ name: 'Burner bag', firmwareVersion: '3.71' })
     await fifth
+    pending[5]({ name: 'Burner bag' })
+    await sixth
     expect(useControllerProfileStore.getState().profiles[0].board.firmwareVersion).toBe('3.71')
+  })
+
+  it('fills a fact from the live entry only until the device has actually reported it (#876)', async () => {
+    const profile = defaultControllerProfile({
+      id: 'ctrl-1',
+      name: 'Burner bag',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      now: 1,
+    })
+    const provider = new FakeControllerProvider()
+    const pending: Array<(config: ControllerConfig) => void> = []
+    provider.getConfig = () => new Promise((resolve) => { pending.push(resolve) })
+    setPersonalContentProvider(memoryProvider([profile]))
+    setControllerProvider(provider)
+    useControllerStore.setState({
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          phase: 'live',
+          deviceId: profile.deviceId,
+          nickname: 'Burner bag',
+          firmwareVersion: '3.60',
+          mapDim: null,
+        },
+      },
+      activeIp: '192.168.8.224',
+    })
+    await useControllerProfileStore.getState().loadProfiles()
+
+    // No actual firmware read yet: the live entry stands in.
+    const first = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    pending[0]({ name: 'Burner bag' })
+    await first
+    expect(useControllerProfileStore.getState().profiles[0].board.firmwareVersion).toBe('3.60')
   })
 
   it('does not take fallback facts from a replaced or disconnected session (#876)', async () => {

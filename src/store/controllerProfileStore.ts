@@ -204,6 +204,12 @@ type LiveMetadataFact = 'pixelCount' | 'name' | 'firmware'
 let liveMetadataRefreshGeneration = 0
 const liveMetadataAppliedGeneration = new Map<string, Partial<Record<LiveMetadataFact, number>>>()
 
+/** Test seam: forget live-metadata refresh ordering between tests. */
+export function __resetLiveMetadataRefreshOrdering(): void {
+  liveMetadataRefreshGeneration = 0
+  liveMetadataAppliedGeneration.clear()
+}
+
 function liveMetadataFactIsCurrent(profileId: string, fact: LiveMetadataFact, generation: number): boolean {
   return (liveMetadataAppliedGeneration.get(profileId)?.[fact] ?? 0) <= generation
 }
@@ -651,9 +657,9 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     // controller entry as it is *now* stands in — but only while it is still
     // the same live session (phase, device, epoch) this refresh started from;
     // after a disconnect or a replacement Controller on the same IP the fact
-    // stays unapplied. A stand-in that qualifies yields to any later actual
-    // read but never supersedes one: only a fact the device actually returned
-    // advances that fact's ordering.
+    // stays unapplied. A stand-in is a cache, not an observation: it fills a
+    // fact only while no actual device read of that fact has ever landed for
+    // this profile, and it never advances the fact's ordering.
     const liveEntry = useControllerStore.getState().controllers[active.ip]
     const liveNow = liveEntry
       && liveEntry.phase === 'live'
@@ -662,8 +668,10 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       ? liveEntry
       : undefined
     const readFact = <T,>(fact: LiveMetadataFact, value: T | undefined, fallback: T | undefined): T | undefined => {
+      if (value === undefined) {
+        return liveMetadataAppliedGeneration.get(profileId)?.[fact] === undefined ? fallback : undefined
+      }
       if (!liveMetadataFactIsCurrent(profileId, fact, generation)) return undefined
-      if (value === undefined) return fallback
       markLiveMetadataFactApplied(profileId, fact, generation)
       return value
     }
