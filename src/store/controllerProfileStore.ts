@@ -203,11 +203,16 @@ let profileSettleGeneration = 0
 type LiveMetadataFact = 'pixelCount' | 'name' | 'firmware'
 let liveMetadataRefreshGeneration = 0
 const liveMetadataAppliedGeneration = new Map<string, Partial<Record<LiveMetadataFact, number>>>()
+// The device name a refresh last wrote per profile, so a later refresh can tell
+// "another refresh renamed this" (fine to overwrite) from "the user renamed
+// this" (never overwrite).
+const liveMetadataWrittenName = new Map<string, string>()
 
 /** Test seam: forget live-metadata refresh ordering between tests. */
 export function __resetLiveMetadataRefreshOrdering(): void {
   liveMetadataRefreshGeneration = 0
   liveMetadataAppliedGeneration.clear()
+  liveMetadataWrittenName.clear()
 }
 
 function liveMetadataFactIsCurrent(profileId: string, fact: LiveMetadataFact, generation: number): boolean {
@@ -646,8 +651,12 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     // applied that fact.
     const current = get().profiles.find((candidate) => candidate.id === profileId)
     if (!current) return
-    const nameUntouched = current.name === profile.name
-      && current.lastKnownDeviceName === profile.lastKnownDeviceName
+    // A name that moved since this refresh started is a user rename unless it
+    // is exactly what another refresh wrote from the device meanwhile.
+    const nameUntouched = (current.name === profile.name
+      && current.lastKnownDeviceName === profile.lastKnownDeviceName)
+      || (current.name === liveMetadataWrittenName.get(profileId)
+        && current.lastKnownDeviceName === current.name)
     const refreshedInstalledMap = useControllerStore.getState().controllers[active.ip]?.installedMap
     const installedMapSnapshot = refreshedInstalledMap
       ? toInstalledMapSnapshot(refreshedInstalledMap)
@@ -707,6 +716,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
         ? { board }
         : {}),
     }
+    if (changes.name) liveMetadataWrittenName.set(profileId, changes.name)
     if (Object.keys(changes).length > 0) await get().updateProfile(profileId, changes)
   },
 }))

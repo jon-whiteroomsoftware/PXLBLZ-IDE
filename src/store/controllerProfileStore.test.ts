@@ -710,6 +710,60 @@ describe('controllerProfileStore', () => {
     expect(useControllerProfileStore.getState().profiles[0].board.firmwareVersion).toBe('3.71')
   })
 
+  it('lets an actual device name land after a cached stand-in renamed the profile first (#876)', async () => {
+    const profile = defaultControllerProfile({
+      id: 'ctrl-1',
+      name: 'Old',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      now: 1,
+    })
+    const provider = new FakeControllerProvider()
+    const pending: Array<(config: ControllerConfig) => void> = []
+    provider.getConfig = () => new Promise((resolve) => { pending.push(resolve) })
+    setPersonalContentProvider(memoryProvider([profile]))
+    setControllerProvider(provider)
+    useControllerStore.setState({
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          phase: 'live',
+          deviceId: profile.deviceId,
+          nickname: 'Cached',
+          mapDim: null,
+        },
+      },
+      activeIp: '192.168.8.224',
+    })
+    await useControllerProfileStore.getState().loadProfiles()
+
+    const first = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    const second = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    // The later refresh lacks a name and writes the cached one first...
+    pending[1]({ pixelCount: 256 })
+    await second
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Cached')
+    // ...then the older actual read still lands the device's name.
+    pending[0]({ name: 'Device' })
+    await first
+    expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
+      name: 'Device',
+      lastKnownDeviceName: 'Device',
+    })
+
+    // A user rename in the same window is still never overwritten.
+    const third = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    await useControllerProfileStore.getState().updateProfile(profile.id, {
+      name: 'Road case',
+      lastKnownDeviceName: 'Road case',
+    })
+    pending[2]({ name: 'Device' })
+    await third
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Road case')
+  })
+
   it('fills a fact from the live entry only until the device has actually reported it (#876)', async () => {
     const profile = defaultControllerProfile({
       id: 'ctrl-1',
