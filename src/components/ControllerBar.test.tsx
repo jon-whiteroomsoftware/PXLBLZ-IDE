@@ -921,6 +921,59 @@ describe('ControllerBar', () => {
     expect(options?.sessionIsCurrent()).toBe(false)
   })
 
+  it('clears a stale Switch failure once the Controller reports the target running (#877)', async () => {
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    const activateProgram = vi.fn().mockRejectedValue(
+      new Error('Controller did not activate Pattern a; active Pattern is b.'),
+    )
+    useControllerStore.setState({
+      setActive: (ip) => useControllerStore.setState({ activeIp: ip }),
+    })
+    useControllerPanelStore.setState({
+      activeProgramId: 'b',
+      programsByController: { '10.0.0.5': [{ id: 'a', name: 'Aurora' }, { id: 'b', name: 'Blaze' }] },
+      activateProgram,
+    })
+
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Switch running Pattern' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Aurora' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Switch failed: Controller did not activate Pattern a')
+
+    // A later poll reports the target running: the banner and the running
+    // marker must not contradict each other, so the banner clears.
+    act(() => useControllerPanelStore.setState({ activeProgramId: 'a' }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Aurora/ })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('keeps a Switch failure while the Controller reports another Pattern running (#877)', async () => {
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    const activateProgram = vi.fn().mockRejectedValue(
+      new Error('Controller did not activate Pattern a; active Pattern is b.'),
+    )
+    useControllerStore.setState({
+      setActive: (ip) => useControllerStore.setState({ activeIp: ip }),
+    })
+    useControllerPanelStore.setState({
+      activeProgramId: 'b',
+      programsByController: { '10.0.0.5': [{ id: 'a', name: 'Aurora' }, { id: 'b', name: 'Blaze' }, { id: 'c', name: 'Comet' }] },
+      activateProgram,
+    })
+
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Switch running Pattern' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Aurora' }))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+
+    act(() => useControllerPanelStore.setState({ activeProgramId: 'c' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Switch failed')
+  })
+
   it('auto-focuses a large-list filter and supports arrow-key activation', async () => {
     const user = userEvent.setup()
     setControllerProvider(new ConnectedProvider())

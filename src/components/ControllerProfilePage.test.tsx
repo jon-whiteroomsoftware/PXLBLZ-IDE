@@ -364,6 +364,47 @@ describe('ControllerProfilePage', () => {
     expect(screen.getAllByLabelText('Running now')).toHaveLength(1)
   })
 
+  it('clears a stale Run failure once the Controller reports the row running (#877)', async () => {
+    const profile = seedProfile()
+    const originalActivate = useControllerPanelStore.getState().activateProgram
+    const activateProgram = vi.fn().mockRejectedValue(
+      new Error('Controller session changed before Pattern activation could be confirmed.'),
+    )
+    try {
+      renderLiveProgramInventory(profile, {
+        storageId: 'run-failure-reconciles',
+        activeProgramId: 'ACTIVE',
+        configSourceIp: '192.168.8.224',
+        programs: [
+          { id: 'DEV1', name: 'Twinkle' },
+          { id: 'ACTIVE', name: 'Running Pattern' },
+        ],
+        bindings: { 'pat-1': 'DEV1' },
+        pushRecords: {},
+      })
+      useControllerPanelStore.setState({ activateProgram })
+      fireEvent.click(await screen.findByRole('button', { name: 'Run Twinkle on the Controller' }))
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Controller session changed before Pattern activation could be confirmed.',
+      )
+
+      // The next poll shows Twinkle running after all: the alert is stale and
+      // clears rather than contradicting the running marker.
+      act(() => useControllerPanelStore.setState({ activeProgramId: 'DEV1' }))
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Run Twinkle on the Controller' })).toBeDisabled()
+
+      // A different Pattern taking over leaves a genuine failure in place.
+      act(() => useControllerPanelStore.setState({ activeProgramId: 'ACTIVE' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Run Twinkle on the Controller' }))
+      expect(await screen.findByRole('alert')).toBeInTheDocument()
+      act(() => useControllerPanelStore.setState({ activeProgramId: 'OTHER' }))
+      expect(screen.getByRole('alert')).toBeInTheDocument()
+    } finally {
+      useControllerPanelStore.setState({ activateProgram: originalActivate })
+    }
+  })
+
   it('deletes an inactive managed Pattern and clears only its metadata and Send memos', async () => {
     const profile = seedProfile()
     const targetRecord = {

@@ -42,7 +42,7 @@ export function ControllerProgramSwitch({
   const activateProgram = useControllerPanelStore((state) => state.activateProgram)
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState('')
-  const [failure, setFailure] = useState<string | null>(null)
+  const [failure, setFailure] = useState<{ programId: string; message: string } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const filterRef = useRef<HTMLInputElement>(null)
@@ -61,6 +61,11 @@ export function ControllerProgramSwitch({
     setFailure(null)
     if (restoreFocus) triggerRef.current?.focus()
   }, [])
+
+  // A failure banner and the running marker must never contradict each other
+  // (#877): when a later poll reports the failed target as the running Pattern,
+  // the activation was confirmed late, so the banner is stale and hides.
+  const visibleFailure = failure && activeProgramId !== failure.programId ? failure : null
 
   useEffect(() => {
     if (!open) return
@@ -125,7 +130,9 @@ export function ControllerProgramSwitch({
       }))
       if (menuLifecycleRef.current === menuLifecycle) close(true)
     } catch (error) {
-      if (menuLifecycleRef.current === menuLifecycle) setFailure(errorMessage(error))
+      if (menuLifecycleRef.current === menuLifecycle) {
+        setFailure({ programId: row.id, message: errorMessage(error) })
+      }
     }
   }
 
@@ -197,9 +204,9 @@ export function ControllerProgramSwitch({
               className="m-1.5 h-7 rounded-sm border border-zinc-800 bg-zinc-900 px-2 font-mono text-[11px] text-zinc-200 placeholder:text-zinc-600 focus:border-live/60 focus:outline-none"
             />
           )}
-          {failure && (
+          {visibleFailure && (
             <p role="alert" className="border-y border-red-400/20 bg-red-500/5 px-3 py-1.5 text-[10px] leading-4 text-red-300">
-              Switch failed: {failure}
+              Switch failed: {visibleFailure.message}
             </p>
           )}
           <ul

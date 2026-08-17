@@ -5,6 +5,8 @@ import {
   controllerPanelInitialState,
   CONTROLLER_POLL_INTERVAL_MS,
   BRIGHTNESS_SEND_INTERVAL_MS,
+  ACTIVATION_CONFIRMATION_ATTEMPTS,
+  ACTIVATION_CONFIRMATION_RETRY_MS,
 } from './controllerPanelStore'
 import { setControllerProvider, resetControllerProvider } from '@/engine/controllerProviderRegistry'
 import {
@@ -260,18 +262,75 @@ describe('controllerPanelStore', () => {
       activeProgramId: 'def',
       activeControls: { sliderSpeed: 0.3 },
     }
+    let configReads = 0
+    provider.getConfig = () => {
+      configReads += 1
+      return Promise.resolve(provider.config)
+    }
     useControllerPanelStore.setState({
       activeProgramId: 'def',
       activeControls: { sliderSpeed: 0.8 },
     })
 
-    await expect(useControllerPanelStore.getState().activateProgram('abc')).rejects.toThrow(
-      'Controller did not activate Pattern abc',
-    )
+    const activation = useControllerPanelStore.getState().activateProgram('abc')
+    activation.catch(() => {})
+    // The confirmation window re-reads the device before declaring failure (#877).
+    await vi.advanceTimersByTimeAsync(ACTIVATION_CONFIRMATION_RETRY_MS * ACTIVATION_CONFIRMATION_ATTEMPTS)
+    await expect(activation).rejects.toThrow('Controller did not activate Pattern abc')
+    expect(configReads).toBe(ACTIVATION_CONFIRMATION_ATTEMPTS)
     expect(useControllerPanelStore.getState()).toMatchObject({
       activeProgramId: 'def',
       activeControls: { sliderSpeed: 0.8 },
     })
+  })
+
+  it('confirms an activation the Controller reports one read late instead of failing it (#877)', async () => {
+    // Firmware can answer the first getConfig after setActiveProgram with the
+    // previous program (it is still loading the new one, or a sequencer step
+    // just landed). A read one retry later shows the target; that is success,
+    // not a contradiction between a failure banner and a running marker.
+    provider.setActiveProgram = (programId, opts = {}) => {
+      provider.activeProgramWrites.push({ programId, save: opts.save ?? true })
+      return Promise.resolve()
+    }
+    const replies: ControllerConfig[] = [
+      { brightness: 0.5, activeProgramId: 'def', activeControls: { sliderSpeed: 0.3 } },
+      { brightness: 0.5, activeProgramId: 'abc', activeControls: { sliderHue: 0.1 } },
+    ]
+    provider.getConfig = () => Promise.resolve(replies.length > 1 ? replies.shift()! : replies[0])
+    useControllerPanelStore.setState({ activeProgramId: 'def', activeControls: { sliderSpeed: 0.8 } })
+
+    const activation = useControllerPanelStore.getState().activateProgram('abc')
+    await vi.advanceTimersByTimeAsync(ACTIVATION_CONFIRMATION_RETRY_MS)
+    await expect(activation).resolves.toBeUndefined()
+    expect(useControllerPanelStore.getState()).toMatchObject({
+      activeProgramId: 'abc',
+      activeControls: { sliderHue: 0.1 },
+      activatingProgramId: null,
+    })
+  })
+
+  it('stops the confirmation window when the session changes between reads (#877)', async () => {
+    provider.setActiveProgram = (programId, opts = {}) => {
+      provider.activeProgramWrites.push({ programId, save: opts.save ?? true })
+      return Promise.resolve()
+    }
+    provider.config = { activeProgramId: 'def' }
+    useControllerPanelStore.setState({ activeProgramId: 'def' })
+
+    const activation = useControllerPanelStore.getState().activateProgram('abc')
+    activation.catch(() => {})
+    await Promise.resolve()
+    await Promise.resolve()
+    // Between the first read and the retry the panel re-seeds for another Controller.
+    const replacement = new FakeProvider()
+    replacement.config = { activeProgramId: 'replacement-program' }
+    setControllerProvider(replacement)
+    useControllerPanelStore.getState().seed('replacement-controller')
+    await vi.advanceTimersByTimeAsync(ACTIVATION_CONFIRMATION_RETRY_MS * ACTIVATION_CONFIRMATION_ATTEMPTS)
+
+    await expect(activation).rejects.toThrow('Controller session changed')
+    expect(useControllerPanelStore.getState().activeProgramId).toBe('replacement-program')
   })
 
   it('revalidates the authorizing Controller session during activation', async () => {

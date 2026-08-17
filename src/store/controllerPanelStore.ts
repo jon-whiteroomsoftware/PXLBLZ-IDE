@@ -314,6 +314,17 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+/** How many config reads a Pattern activation gets to confirm the target is
+ *  running before it is declared failed, and the pause between them (#877).
+ *  Firmware can answer the first read after `setActiveProgram` with the previous
+ *  program while it is still loading the new one, or while a sequencer step is
+ *  landing; failing on that first read produced a failure banner beside a panel
+ *  whose next poll already showed the target running. */
+export const ACTIVATION_CONFIRMATION_ATTEMPTS = 3
+export const ACTIVATION_CONFIRMATION_RETRY_MS = 300
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
 export const useControllerPanelStore = create<ControllerPanelState>()((set, get) => ({
   ...controllerPanelInitialState,
 
@@ -519,24 +530,32 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
       controlsSeededFor = undefined
       set({ activeProgramId: programId, activeControls: {} })
       let config: ControllerConfig
-      try {
-        config = await provider.getConfig()
-      } catch (error) {
-        rollbackOptimisticActivation()
-        throw new Error(
-          `Could not confirm Controller Pattern activation: ${errorMessage(error)}`,
-          { cause: error },
-        )
-      }
-      if (!activationSessionMatches(confirmationSession)) {
-        rollbackOptimisticActivation()
-        throw new Error('Controller session changed before Pattern activation could be confirmed.')
-      }
-      if (config.activeProgramId !== programId) {
-        rollbackOptimisticActivation()
-        throw new Error(
-          `Controller did not activate Pattern ${programId}; active Pattern is ${config.activeProgramId ?? 'unknown'}.`,
-        )
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          config = await provider.getConfig()
+        } catch (error) {
+          rollbackOptimisticActivation()
+          throw new Error(
+            `Could not confirm Controller Pattern activation: ${errorMessage(error)}`,
+            { cause: error },
+          )
+        }
+        if (!activationSessionMatches(confirmationSession)) {
+          rollbackOptimisticActivation()
+          throw new Error('Controller session changed before Pattern activation could be confirmed.')
+        }
+        if (config.activeProgramId === programId) break
+        if (attempt >= ACTIVATION_CONFIRMATION_ATTEMPTS) {
+          rollbackOptimisticActivation()
+          throw new Error(
+            `Controller did not activate Pattern ${programId}; active Pattern is ${config.activeProgramId ?? 'unknown'}.`,
+          )
+        }
+        await sleep(ACTIVATION_CONFIRMATION_RETRY_MS)
+        if (!activationSessionMatches(confirmationSession)) {
+          rollbackOptimisticActivation()
+          throw new Error('Controller session changed before Pattern activation could be confirmed.')
+        }
       }
       set((state) => configPatch(state, config))
     } finally {

@@ -846,7 +846,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   const [pendingImport, setPendingImport] = useState<PendingProgramImport | null>(null)
   const [importingProgramId, setImportingProgramId] = useState<string | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
-  const [runError, setRunError] = useState<string | null>(null)
+  const [runError, setRunError] = useState<{ programId: string; message: string } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<PendingProgramDelete | null>(null)
   const [deletingProgramId, setDeletingProgramId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -881,6 +881,10 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         ? 'error'
         : 'ready'
   const activeProgramId = configSourceIp === liveIp ? panelActiveProgramId : undefined
+  // A Run failure and the running marker must never contradict each other
+  // (#877): once the Controller reports the failed row running, the activation
+  // was confirmed late and the alert is stale, so it hides.
+  const visibleRunError = runError && activeProgramId !== runError.programId ? runError.message : null
   const activeProgramKnown = liveIp !== undefined && configSourceIp === liveIp
   const pendingDeleteSessionIsCurrent = !pendingDelete || (
     pendingDelete.controllerId === liveIp
@@ -1023,7 +1027,10 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         },
       ))
     } catch (error) {
-      setRunError(error instanceof Error ? error.message : 'Saved Pattern could not be run.')
+      setRunError({
+        programId: program.programId,
+        message: error instanceof Error ? error.message : 'Saved Pattern could not be run.',
+      })
     }
   }
 
@@ -1230,7 +1237,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         }}
         importingProgramId={importingProgramId}
         deletingProgramId={deletingProgramId}
-        error={runError ?? importError}
+        error={visibleRunError ?? importError}
       />
     </div>
   )
