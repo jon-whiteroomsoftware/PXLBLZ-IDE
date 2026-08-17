@@ -619,6 +619,17 @@ describe('controllerProfileStore', () => {
     pending[0].resolve({ name: 'Burner bag', pixelCount: 200 })
     await first
     expect(useControllerProfileStore.getState().profiles[0].lastKnownPixelCount).toBe(200)
+
+    // The same holds when the newer read succeeds but carries no pixel count.
+    const third = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    const fourth = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    pending[3].resolve({ name: 'Burner bag' })
+    await fourth
+    pending[2].resolve({ name: 'Burner bag', pixelCount: 300 })
+    await third
+    expect(useControllerProfileStore.getState().profiles[0].lastKnownPixelCount).toBe(300)
   })
 
   it('auto-creates a default profile for a signed-in live controller with a stable device id', async () => {
