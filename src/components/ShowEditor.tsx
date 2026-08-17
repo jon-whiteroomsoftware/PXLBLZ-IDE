@@ -10410,12 +10410,12 @@ function CompileBar({
           }}
           renderers={{
             controller: {
-              steady: summary.steadyStateRenderersPerController,
-              worst: summary.worstInstantRenderersPerController,
+              steady: summary.creatorPatternPressure.patternCopiesRunning.steady,
+              worst: summary.creatorPatternPressure.patternCopiesRunning.worst,
             },
             perPixel: {
-              steady: summary.steadyStateRenderersPerPixel,
-              worst: summary.worstInstantRenderersPerPixel,
+              steady: summary.creatorPatternPressure.patternCalculationsPerPixel.steady,
+              worst: summary.creatorPatternPressure.patternCalculationsPerPixel.worst,
             },
           }}
           structure={{

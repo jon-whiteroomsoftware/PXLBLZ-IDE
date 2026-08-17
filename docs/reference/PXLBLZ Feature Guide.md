@@ -404,6 +404,7 @@ the maximum number that can run simultaneously. **Busiest LED** says how many
 Pattern color calculations can contribute to one LED: its normal count and,
 when different, the higher count reached while visuals overlap. Effects add
 work to a Pattern result but do not add another Pattern color calculation.
+Compiler-owned blank routing does not appear as a running Pattern.
 
 Each Pattern row then reads as an equation: one compiled copy, any additional
 compiled copies, and the source generated for Show settings and placements add

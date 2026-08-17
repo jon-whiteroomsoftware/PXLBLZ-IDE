@@ -84,6 +84,9 @@ describe('ShowArtifactInventoryPopover', () => {
     expect(focusedInventory).toHaveTextContent('Pattern copies running')
     expect(focusedInventory).toHaveTextContent('Up to 4 at once')
     expect(focusedInventory).toHaveTextContent('Busiest LED: 1 Pattern color calculation normally, up to 2 when visuals overlap')
+    expect(focusedInventory).toHaveTextContent(
+      'Busiest LED counts how many Pattern colors are calculated for one LED at the same moment. Effects modify those colors; they do not add another Pattern calculation.',
+    )
     expect(focusedInventory).toHaveTextContent('2 configured uses · 2 copies in delivered code · 7 timeline placements')
     expect(focusedInventory).toHaveTextContent('one compiled copy 40 B + 50 B across 1 additional compiled copy + 210 B generated for Show settings and placements = 300 B')
     expect(focusedInventory).not.toHaveTextContent('2 x 40 B')

@@ -484,6 +484,10 @@ export type ShowSourceInventoryCategory =
 
 export type ShowPatternSourcePart = 'compiled-pattern' | 'member-generated'
 
+function isCompilerEmptyShowMember(memberId: string): boolean {
+  return memberId === '__pxlblz_empty' || memberId.startsWith('__pxlblz_empty-')
+}
+
 export interface ShowSourceInventoryChunk {
   id: string
   category: ShowSourceInventoryCategory
@@ -556,6 +560,11 @@ export interface ShowCompileSummary {
   worstInstantRenderersPerController: number
   steadyStateRenderersPerPixel: number
   worstInstantRenderersPerPixel: number
+  /** Creator-facing counts with compiler-internal empty routing removed. */
+  creatorPatternPressure: {
+    patternCopiesRunning: { steady: number; worst: number }
+    patternCalculationsPerPixel: { steady: number; worst: number }
+  }
   routingRepresentation: 'none' | 'range-branches' | 'packed-pixels' | 'generated-formula' | 'coordinate-predicates'
   /** Zone Layouts the compiled artifact actually pays for, not saved definitions. */
   routedZoneLayoutCount: number
@@ -890,7 +899,8 @@ export interface CompiledMember {
   rollingRefreshSlices: number
   prefix: string
   code: string
-  patternSourceSymbols?: string[]
+  /** Lowered Pattern source before member adapters, snapshots, or slot resets are appended. */
+  patternCode: string
   resourceSource: string
   sourceBytes: number
   renamedBindings: string[]
@@ -3231,6 +3241,16 @@ export function compileShow(
     worstInstantRenderersPerController: rendererPressure.controllerWorst,
     steadyStateRenderersPerPixel: rendererPressure.steady,
     worstInstantRenderersPerPixel: rendererPressure.worst,
+    creatorPatternPressure: {
+      patternCopiesRunning: {
+        steady: rendererPressure.creator.controllerSteady,
+        worst: rendererPressure.creator.controllerWorst,
+      },
+      patternCalculationsPerPixel: {
+        steady: rendererPressure.creator.steady,
+        worst: rendererPressure.creator.worst,
+      },
+    },
     routingRepresentation,
     routedZoneLayoutCount: routingLayouts?.length ?? 0,
     routingEstimate: routingPlan,
@@ -11174,6 +11194,13 @@ function describeEffectCost(
   }
 }
 
+interface ShowRendererPressure {
+  steady: number
+  worst: number
+  controllerSteady: number
+  controllerWorst: number
+}
+
 function showRendererPressure(
   recipe: ShowRecipe,
   transitionCost: ShowCompileSummary['transitionCost'],
@@ -11181,29 +11208,64 @@ function showRendererPressure(
   outputDimension: ShowOutputDimension,
   directRoutes: ResolvedRoute[] | null,
   routingLayouts: ResolvedRoutingLayout[] | null,
-): { steady: number; worst: number; controllerSteady: number; controllerWorst: number } {
+): ShowRendererPressure & { creator: ShowRendererPressure } {
+  const runtime = measureShowRendererPressure(
+    recipe,
+    transitionCost,
+    members,
+    outputDimension,
+    directRoutes,
+    routingLayouts,
+    () => true,
+  )
+  const creator = members.some((member) => isCompilerEmptyShowMember(member.id))
+    ? measureShowRendererPressure(
+        recipe,
+        transitionCost,
+        members,
+        outputDimension,
+        directRoutes,
+        routingLayouts,
+        (memberId) => !isCompilerEmptyShowMember(memberId),
+      )
+    : runtime
+  return { ...runtime, creator }
+}
+
+function measureShowRendererPressure(
+  recipe: ShowRecipe,
+  transitionCost: ShowCompileSummary['transitionCost'],
+  members: CompiledMember[],
+  outputDimension: ShowOutputDimension,
+  directRoutes: ResolvedRoute[] | null,
+  routingLayouts: ResolvedRoutingLayout[] | null,
+  includeMember: (memberId: string) => boolean,
+): ShowRendererPressure {
   const softSplitFactor = recipe.routingLayouts?.some((layout) => (
     layout.logical?.kind === 'soft-split' && layout.logical.feather > 0
   )) ? 2 : 1
   if (recipe.routedSceneSequence) {
     const memberById = new Map(members.map((member) => [member.id, member]))
     const activeMemberIds = recipe.routedSceneSequence.scenes.map((scene) => (
-      new Set(scene.placements.map((placement) => placement.clipId))
+      new Set(scene.placements.map((placement) => placement.clipId).filter(includeMember))
     ))
     const sceneDepths = recipe.routedSceneSequence.scenes.map((scene, sceneIndex) => {
-      const placements = scene.placements.map((placement, placementIndex) => ({
-        ...placement,
-        member: memberById.get(placement.clipId)!,
-        consumerId: patternOutputConsumerId(sceneIndex, placementIndex),
-      }))
+      const placements = scene.placements.flatMap((placement, placementIndex) => {
+        if (!includeMember(placement.clipId)) return []
+        return [{
+          ...placement,
+          member: memberById.get(placement.clipId)!,
+          consumerId: patternOutputConsumerId(sceneIndex, placementIndex),
+        }]
+      })
       const evaluations = [...groupRoutedPlacementsByZone(placements)].map(([, stack]) => {
         if (outputDimension !== 2) return stack.length
         const plan = analyzeViewportCoverageStack(stack, outputDimension, scene.propertyTracks).plan
         return plan?.maxPatternEvaluationsPerPixel ?? stack.length
       })
-      return Math.max(1, ...evaluations)
+      return Math.max(0, ...evaluations)
     })
-    const holdDepth = Math.max(1, ...sceneDepths)
+    const holdDepth = Math.max(0, ...sceneDepths)
     const transitionDepth = recipe.routedSceneSequence.scenes.slice(0, -1).reduce((worst, scene, index) => {
       if (!scene.transitionOut || scene.transitionOut.kind === 'cut') return worst
       const rendersBoth = scene.transitionOut.kind === 'crossfade'
@@ -11221,8 +11283,8 @@ function showRendererPressure(
       return Math.max(worst, rendersBoth
         ? sceneDepths[index] + sceneDepths[index + 1]
         : Math.max(sceneDepths[index], sceneDepths[index + 1]))
-    }, 1)
-    const controllerSteady = Math.max(1, ...activeMemberIds.map((ids) => ids.size))
+    }, 0)
+    const controllerSteady = Math.max(0, ...activeMemberIds.map((ids) => ids.size))
     const controllerTransition = recipe.routedSceneSequence.scenes.slice(0, -1).reduce((worst, scene, index) => {
       if (!scene.transitionOut || scene.transitionOut.kind === 'cut') {
         return worst
@@ -11232,12 +11294,14 @@ function showRendererPressure(
         ? scene.placements
           .filter((placement) => placement.zoneName === scopeZoneName)
           .map((placement) => placement.clipId)
+          .filter(includeMember)
         : activeMemberIds[index]
       if (scene.transitionOut.kind === 'fade-color') {
         if (!scopeZoneName) return worst
         const incomingOutsideScope = recipe.routedSceneSequence!.scenes[index + 1].placements
           .filter((placement) => placement.zoneName !== scopeZoneName)
           .map((placement) => placement.clipId)
+          .filter(includeMember)
         return Math.max(worst, new Set([
           ...outgoingIds,
           ...incomingOutsideScope,
@@ -11247,7 +11311,7 @@ function showRendererPressure(
         ...outgoingIds,
         ...activeMemberIds[index + 1],
       ]).size)
-    }, 1)
+    }, 0)
     return {
       steady: holdDepth,
       worst: Math.max(holdDepth, transitionDepth) * softSplitFactor,
@@ -11255,9 +11319,13 @@ function showRendererPressure(
       controllerWorst: Math.max(controllerSteady, controllerTransition),
     }
   }
-  const worst = transitionCost === 'renderer-window' || transitionCost === 'bounded-renderer-window' ? 2 : 1
+  const includedMemberCount = members.filter((member) => includeMember(member.id)).length
+  const defaultWorst = transitionCost === 'renderer-window' || transitionCost === 'bounded-renderer-window' ? 2 : 1
+  const worst = includedMemberCount === 0 ? 0 : defaultWorst
   if (recipe.sceneSequence) {
-    const activeMemberIds = recipe.sceneSequence.scenes.map((scene) => new Set([scene.clipId]))
+    const activeMemberIds = recipe.sceneSequence.scenes.map((scene) => (
+      new Set(includeMember(scene.clipId) ? [scene.clipId] : [])
+    ))
     const controllerTransition = recipe.sceneSequence.scenes.slice(0, -1).reduce((peak, scene, index) => {
       if (!scene.transitionOut || scene.transitionOut.kind === 'cut' || scene.transitionOut.kind === 'fade-color') {
         return peak
@@ -11266,11 +11334,17 @@ function showRendererPressure(
         ...activeMemberIds[index],
         ...activeMemberIds[index + 1],
       ]).size)
-    }, 1)
-    return { steady: 1, worst, controllerSteady: 1, controllerWorst: controllerTransition }
+    }, 0)
+    const controllerSteady = Math.max(0, ...activeMemberIds.map((ids) => ids.size))
+    return {
+      steady: controllerSteady > 0 ? 1 : 0,
+      worst,
+      controllerSteady,
+      controllerWorst: Math.max(controllerSteady, controllerTransition),
+    }
   }
   const routingLayoutMemberIds = routingLayouts?.map((layout) => (
-    new Set(layout.routes.map((route) => route.member.id))
+    new Set(layout.routes.map((route) => route.member.id).filter(includeMember))
   ))
   const layoutIndexById = routingLayouts
     ? new Map(routingLayouts.map((layout, index) => [layout.id, index]))
@@ -11284,11 +11358,11 @@ function showRendererPressure(
   const resolvedRouteMemberCounts = routingLayoutMemberIds && selectedRoutingLayoutIndices
     ? [...selectedRoutingLayoutIndices].map((index) => routingLayoutMemberIds[index]?.size ?? 0)
     : directRoutes
-      ? [new Set(directRoutes.map((route) => route.member.id)).size]
+      ? [new Set(directRoutes.map((route) => route.member.id).filter(includeMember)).size]
       : []
   const staticRoutedMemberCount = routingLayoutMemberIds || directRoutes
     ? Math.max(0, ...resolvedRouteMemberCounts)
-    : 1
+    : includedMemberCount > 0 ? 1 : 0
   let progressiveRoutingPeak = staticRoutedMemberCount
   if (routingLayoutMemberIds && layoutIndexById) {
     let sourceLayoutIndex = 0
@@ -11320,10 +11394,10 @@ function showRendererPressure(
   }
   const controllerWorst = recipe.crossfade
     || (recipe.routeTransition && recipe.routeTransition.kind !== 'fade-color')
-    ? Math.max(progressiveRoutingPeak, members.length)
+    ? Math.max(progressiveRoutingPeak, includedMemberCount)
     : progressiveRoutingPeak
   return {
-    steady: 1,
+    steady: includedMemberCount > 0 ? 1 : 0,
     worst,
     controllerSteady: staticRoutedMemberCount,
     controllerWorst,
@@ -11369,11 +11443,9 @@ function boolNumber(value: boolean): 0 | 1 {
   return value ? 1 : 0
 }
 
-
-export function compactGeneratedShowSymbols(source: string): { code: string; names: Map<string, string> } {
+function showSourceIdentifiers(source: string): Node[] {
   const ast = parseModule(source)
   const identifiers: Node[] = []
-  const existingNames = new Set<string>()
   const visit = (value: unknown): void => {
     if (!value || typeof value !== 'object') return
     if (Array.isArray(value)) {
@@ -11381,14 +11453,28 @@ export function compactGeneratedShowSymbols(source: string): { code: string; nam
       return
     }
     const node = value as Node
-    if (node.type === 'Identifier' && typeof node.name === 'string') {
-      identifiers.push(node)
-      existingNames.add(node.name)
+    if (node.type === 'Identifier' && typeof node.name === 'string') identifiers.push(node)
+    for (const [key, child] of Object.entries(node)) {
+      if (key === 'start' || key === 'end' || key === 'loc') continue
+      visit(child)
     }
-    for (const child of Object.values(node)) visit(child)
   }
   visit(ast)
-  identifiers.sort((left, right) => left.start - right.start)
+  return identifiers.sort((left, right) => left.start - right.start)
+}
+
+function rewriteKnownShowSymbols(source: string, names: ReadonlyMap<string, string>): string {
+  const rewrites = showSourceIdentifiers(source).flatMap((identifier): Rewrite[] => {
+    const compact = names.get(identifier.name as string)
+    return compact ? [{ start: identifier.start, end: identifier.end, text: compact }] : []
+  })
+  return rewriteSource(source, rewrites)
+}
+
+export function compactGeneratedShowSymbols(source: string): { code: string; names: Map<string, string> } {
+  const identifiers = showSourceIdentifiers(source)
+  const existingNames = new Set<string>()
+  for (const identifier of identifiers) existingNames.add(identifier.name as string)
 
   const counts = new Map<string, number>()
   for (const identifier of identifiers) {
@@ -11420,11 +11506,7 @@ export function compactGeneratedShowSymbols(source: string): { code: string; nam
     names.set(name, compact)
     existingNames.add(compact)
   }
-  const rewrites = identifiers.flatMap((identifier): Rewrite[] => {
-    const compact = names.get(identifier.name as string)
-    return compact ? [{ start: identifier.start, end: identifier.end, text: compact }] : []
-  })
-  return { code: rewriteSource(source, rewrites), names }
+  return { code: rewriteKnownShowSymbols(source, names), names }
 }
 
 interface ShowSourceAttribution {
@@ -11450,10 +11532,7 @@ function showSourceAttributionForSymbol(
   if (symbol.includes('_score_')) return { category: 'score-data' }
   const member = members.find((candidate) => symbol.startsWith(`${candidate.prefix}_`))
   if (member) {
-    if (member.id === '__pxlblz_empty-routed') return { category: 'routing-render-plans' }
-    if ((member.patternSourceSymbols ?? member.renamedBindings).includes(symbol)) {
-      return { category: 'pattern', ownerId: member.id, patternPart: 'compiled-pattern' }
-    }
+    if (isCompilerEmptyShowMember(member.id)) return { category: 'routing-render-plans' }
     if (/(?:effect|vignette|colorKey|contentKey|applyColor|applyOutput)/i.test(symbol)) {
       return { category: 'effects-transitions', ownerId: member.id }
     }
@@ -11502,22 +11581,25 @@ function buildShowSourceInventory(
     attributionByCompactedName.set(compacted, showSourceAttributionForSymbol(original, members))
   }
 
-  const ast = parseModule(source)
-  const identifiers: Node[] = []
-  const visit = (value: unknown): void => {
-    if (!value || typeof value !== 'object') return
-    if (Array.isArray(value)) {
-      value.forEach(visit)
-      return
-    }
-    const node = value as Node
-    if (node.type === 'Identifier' && typeof node.name === 'string') identifiers.push(node)
-    for (const [key, child] of Object.entries(node)) {
-      if (key === 'start' || key === 'end' || key === 'loc') continue
-      visit(child)
-    }
-  }
-  visit(ast)
+  let compiledPatternSearchStart = 0
+  const compiledPatternRanges = members
+    .filter((member) => !isCompilerEmptyShowMember(member.id))
+    .map((member) => {
+      const compactedPatternCode = rewriteKnownShowSymbols(member.patternCode.trim(), compactedNames)
+      const start = source.indexOf(compactedPatternCode, compiledPatternSearchStart)
+      if (start < 0) {
+        throw new Error(`Compiled Pattern source for "${member.id}" is missing from the final Show artifact.`)
+      }
+      const codeEnd = start + compactedPatternCode.length
+      compiledPatternSearchStart = codeEnd
+      return {
+        ownerId: member.id,
+        start,
+        end: source[codeEnd] === '\n' ? codeEnd + 1 : codeEnd,
+      }
+    })
+
+  const identifiers = showSourceIdentifiers(source)
 
   const lines: Array<{ start: number; end: number; source: string }> = []
   let lineStart = 0
@@ -11531,6 +11613,7 @@ function buildShowSourceInventory(
   let previous: ShowSourceAttribution = { category: 'remainder' }
   let byteCursor = 0
   let identifierIndex = 0
+  let compiledPatternRangeIndex = 0
   const chunks: ShowSourceInventoryChunk[] = []
   for (const line of lines) {
     const candidates: ShowSourceAttribution[] = []
@@ -11542,12 +11625,22 @@ function buildShowSourceInventory(
       }
       identifierIndex += 1
     }
-    let attribution = candidates.sort((left, right) => {
-      const categoryPriority = SHOW_SOURCE_CATEGORY_PRIORITY[right.category] - SHOW_SOURCE_CATEGORY_PRIORITY[left.category]
-      if (categoryPriority !== 0) return categoryPriority
-      if (left.category !== 'pattern' || right.category !== 'pattern') return 0
-      return Number(right.patternPart === 'member-generated') - Number(left.patternPart === 'member-generated')
-    })[0]
+    while (compiledPatternRanges[compiledPatternRangeIndex]?.end <= line.start) {
+      compiledPatternRangeIndex += 1
+    }
+    const compiledPatternRange = compiledPatternRanges[compiledPatternRangeIndex]
+    const compiledPatternLine = compiledPatternRange
+      && line.start >= compiledPatternRange.start
+      && line.end <= compiledPatternRange.end
+    let attribution: ShowSourceAttribution | undefined = compiledPatternLine
+      ? {
+          category: 'pattern',
+          ownerId: compiledPatternRange.ownerId,
+          patternPart: 'compiled-pattern',
+        }
+      : candidates.sort((left, right) => (
+          SHOW_SOURCE_CATEGORY_PRIORITY[right.category] - SHOW_SOURCE_CATEGORY_PRIORITY[left.category]
+        ))[0]
     if (/^\s*export\b/.test(line.source)) attribution = { category: 'exports' }
     if (!attribution) attribution = /^\s*$/.test(line.source) || /^\s*[{}]+[;,]?\s*$/.test(line.source)
       ? previous

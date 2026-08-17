@@ -127,8 +127,9 @@ mostly a question of how many renderers run. Let `N` be the output pixels and
   full-blend Motion.
 
 The Add Effect palette shows broad cost classes while you choose; the compile
-bar and its source inventory price the finished artifact, leading with the
-peak number of Pattern machines active across the Controller.
+bar and its source inventory price the finished artifact, including the maximum
+number of creator Pattern copies running simultaneously and the Pattern color
+calculations needed by the busiest LED.
 
 ## Built-in Show companion
 

@@ -49,6 +49,86 @@ describe('Show source inventory', () => {
     expect(chunks.every((chunk, index) => chunk.startByte === (chunks[index - 1]?.endByte ?? 0))).toBe(true)
   })
 
+  it('keeps generated advance and color adapters out of compiled Pattern base source (#878)', () => {
+    const artifact = compileShow({
+      clips: [{
+        id: 'adapter-proof',
+        source: 'var phase = 0.314159\nexport function beforeRender(delta) { phase += delta }\nexport function render(index) { hsv(phase, 1, 1) }',
+      }],
+    }, {})
+    const encoded = new TextEncoder().encode(artifact.code)
+    const baseSource = artifact.summary.sourceInventory.chunks
+      .filter((chunk) => (
+        chunk.category === 'pattern'
+        && chunk.ownerId === 'adapter-proof'
+        && chunk.patternPart === 'compiled-pattern'
+      ))
+      .map((chunk) => new TextDecoder().decode(encoded.slice(chunk.startByte, chunk.endByte)))
+      .join('')
+
+    expect(baseSource).toContain('0.314159')
+    expect(baseSource.match(/\bfunction\b/g)).toHaveLength(2)
+    expect(artifact.summary.creatorPatternPressure).toEqual({
+      patternCopiesRunning: { steady: 1, worst: 1 },
+      patternCalculationsPerPixel: { steady: 1, worst: 1 },
+    })
+  })
+
+  it('counts overlapping calculations of one Pattern without inventing another running copy (#878)', () => {
+    const artifact = compileShow({
+      clips: [{
+        id: 'repeat',
+        source: 'export function render(index) { hsv(index, 1, 1) }',
+      }],
+      routingLayouts: [{
+        id: 'normalized',
+        name: 'Normalized',
+        zones: [],
+        logical: { kind: 'single', zoneNames: ['main'] },
+      }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1_000,
+            placements: [{ zoneName: 'main', clipId: 'repeat' }],
+            transitionOut: { kind: 'crossfade', durationMs: 1_000 },
+          },
+          {
+            holdMs: 1_000,
+            placements: [{ zoneName: 'main', clipId: 'repeat' }],
+          },
+        ],
+      },
+      loopDurationMs: 3_000,
+    }, {})
+
+    expect(artifact.summary.creatorPatternPressure).toEqual({
+      patternCopiesRunning: { steady: 1, worst: 1 },
+      patternCalculationsPerPixel: { steady: 1, worst: 2 },
+    })
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(2)
+  })
+
+  it('excludes the empty routed sentinel from creator-facing Pattern pressure (#878)', () => {
+    const show = createDefaultShow('empty-pressure', 'Empty pressure', 1)
+    show.composition = {
+      version: 1,
+      patternInstances: [],
+      scenes: show.scenes.map((scene) => ({
+        sceneId: scene.id,
+        zones: [{ zoneId: 'zone-1', main: [], overlays: [] }],
+      })),
+    }
+    const compiled = compileShowForArtifact(show, [], undefined, {}, { stageDimension: 2 })
+    const summary = compiled.artifact!.summary
+    expect(summary.worstInstantRenderersPerController).toBe(1)
+    expect(summary.worstInstantRenderersPerPixel).toBe(1)
+    expect(summary.creatorPatternPressure).toEqual({
+      patternCopiesRunning: { steady: 0, worst: 0 },
+      patternCalculationsPerPixel: { steady: 0, worst: 0 },
+    })
+  })
+
   it('explains Overture Pattern totals without treating compiled machines as simultaneous (#878)', () => {
     const show = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-remix-overture')!.show
     const compiled = compileShowForArtifact(show, [], undefined, {}, { stageDimension: 2 })
@@ -66,31 +146,32 @@ describe('Show source inventory', () => {
     const rings = model.rows.find((row) => row.id === 'pattern:stock:LumaRings')!
 
     expect(marquee).toMatchObject({
-      bytes: 26_213,
+      bytes: 28_455,
       logicalInstanceCount: 2,
       physicalMachineCount: 2,
       authoredReferenceCount: 15,
       patternBreakdown: {
-        baseCopies: [{ ownerId: 'marquee', bytes: 1_804 }, { ownerId: 'surge', bytes: 1_698 }],
-        baseBytes: 3_502,
-        generatedBytes: 22_711,
+        baseCopies: [{ ownerId: 'marquee', bytes: 2_645 }, { ownerId: 'surge', bytes: 2_646 }],
+        baseBytes: 5_291,
+        generatedBytes: 23_164,
       },
     })
     expect(rings).toMatchObject({
-      bytes: 22_127,
+      bytes: 23_113,
       logicalInstanceCount: 1,
       physicalMachineCount: 1,
       authoredReferenceCount: 7,
       patternBreakdown: {
-        baseCopies: [{ ownerId: 'rings', bytes: 1_597 }],
-        baseBytes: 1_597,
-        generatedBytes: 20_530,
+        baseCopies: [{ ownerId: 'rings', bytes: 2_461 }],
+        baseBytes: 2_461,
+        generatedBytes: 20_652,
       },
     })
     expect(marquee.patternBreakdown!.baseBytes + marquee.patternBreakdown!.generatedBytes).toBe(marquee.bytes)
     expect(rings.patternBreakdown!.baseBytes + rings.patternBreakdown!.generatedBytes).toBe(rings.bytes)
     expect(model.rows.reduce((sum, row) => sum + row.bytes, 0)).toBe(artifact.summary.artifactBytes)
     expect(artifact.summary.worstInstantRenderersPerController).toBe(2)
+    expect(artifact.summary.creatorPatternPressure.patternCopiesRunning.worst).toBe(2)
     expect(model.rows.some((row) => row.category === 'pattern' && row.label === '__pxlblz_empty-routed')).toBe(false)
     expect(inventory.chunks.some((chunk) => chunk.category === 'pattern' && chunk.ownerId === '__pxlblz_empty-routed')).toBe(false)
   })

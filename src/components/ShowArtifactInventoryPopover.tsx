@@ -260,6 +260,11 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
         />
       </div>
 
+      <p className="mt-2 text-[9px] leading-relaxed text-zinc-500">
+        Busiest LED counts how many Pattern colors are calculated for one LED at the same moment.
+        Effects modify those colors; they do not add another Pattern calculation.
+      </p>
+
     </div>,
     document.body,
   ) : null
