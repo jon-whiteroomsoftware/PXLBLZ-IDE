@@ -651,8 +651,9 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     // controller entry as it is *now* stands in — but only while it is still
     // the same live session (phase, device, epoch) this refresh started from;
     // after a disconnect or a replacement Controller on the same IP the fact
-    // stays unapplied. A stand-in that qualifies is current truth, so it takes
-    // part in the same ordering and an older read cannot undo it.
+    // stays unapplied. A stand-in that qualifies yields to any later actual
+    // read but never supersedes one: only a fact the device actually returned
+    // advances that fact's ordering.
     const liveEntry = useControllerStore.getState().controllers[active.ip]
     const liveNow = liveEntry
       && liveEntry.phase === 'live'
@@ -661,11 +662,10 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       ? liveEntry
       : undefined
     const readFact = <T,>(fact: LiveMetadataFact, value: T | undefined, fallback: T | undefined): T | undefined => {
-      const resolved = value ?? fallback
-      if (resolved === undefined) return undefined
       if (!liveMetadataFactIsCurrent(profileId, fact, generation)) return undefined
+      if (value === undefined) return fallback
       markLiveMetadataFactApplied(profileId, fact, generation)
-      return resolved
+      return value
     }
     const pixelCount = readFact(
       'pixelCount',

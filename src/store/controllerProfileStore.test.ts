@@ -677,7 +677,8 @@ describe('controllerProfileStore', () => {
     })
 
     // A newer refresh whose config lacks firmware falls back to the live entry
-    // as it is now, and that fallback also outranks an older read.
+    // as it is now, but a cached stand-in never outranks a fact the device
+    // actually returned: an older real read still lands over it.
     useControllerStore.setState((state) => ({
       controllers: {
         ...state.controllers,
@@ -691,12 +692,22 @@ describe('controllerProfileStore', () => {
     pending[3]({ name: 'Burner bag', pixelCount: 220 })
     await fourth
     expect(useControllerProfileStore.getState().profiles[0].board.firmwareVersion).toBe('3.69')
-    pending[2]({ name: 'Burner bag', firmwareVersion: '3.67' })
+    pending[2]({ name: 'Burner bag', firmwareVersion: '3.70' })
     await third
     expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
       lastKnownPixelCount: 220,
-      board: { firmwareVersion: '3.69' },
+      board: { firmwareVersion: '3.70' },
     })
+    // And a stand-in yields to a later real read that already landed.
+    const fifth = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    const sixth = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    pending[5]({ name: 'Burner bag', firmwareVersion: '3.71' })
+    await sixth
+    pending[4]({ name: 'Burner bag' })
+    await fifth
+    expect(useControllerProfileStore.getState().profiles[0].board.firmwareVersion).toBe('3.71')
   })
 
   it('does not take fallback facts from a replaced or disconnected session (#876)', async () => {
