@@ -14,6 +14,9 @@ import {
   updateLimitingSmoothing,
   type LimitingSmoothingState,
 } from '@/engine/limitingSmoothing'
+import { findProfileForLiveController } from '@/engine/controllerProfilePassRecipe'
+import { useControllerStore } from '@/store/controllerStore'
+import { useControllerProfileStore } from '@/store/controllerProfileStore'
 
 // Polling orchestration for the live Controller panel (H6, issue #198).
 //
@@ -295,6 +298,18 @@ function controllerSessionMatches(
   return session === panelSession && provider === getControllerProvider()
 }
 
+/** Re-read live metadata for the profile matched to the active live Controller,
+ *  so durable facts such as `lastKnownPixelCount` follow a device write the
+ *  panel just made (#876). A no-op without a live match. */
+function refreshMatchedProfileMetadata(): void {
+  const live = useControllerStore.getState()
+  const active = live.activeIp ? live.controllers[live.activeIp] : undefined
+  if (!active || active.phase !== 'live') return
+  const profileStore = useControllerProfileStore.getState()
+  const profile = findProfileForLiveController(profileStore.profiles, active)
+  if (profile) void profileStore.refreshLiveMetadata(profile.id)
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
@@ -419,6 +434,11 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
       // Poll immediately so the device's freshly-reported count clears the hold now
       // rather than after the next interval tick — re-enabling the input promptly.
       await get().poll()
+      // The profile status band reads durable metadata (`lastKnownPixelCount`),
+      // which only an explicit profile Refresh used to re-read (#876). An
+      // acknowledged write is the same evidence a Refresh would gather, so
+      // re-read the matched profile's live metadata now.
+      refreshMatchedProfileMetadata()
     } catch {
       // Tolerate a failed write; the finally releases the hold either way.
     } finally {

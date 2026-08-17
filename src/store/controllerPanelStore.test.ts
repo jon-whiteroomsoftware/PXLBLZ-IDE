@@ -13,6 +13,12 @@ import {
   type ControllerTelemetry,
 } from '@/engine/ControllerProvider'
 import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
+import { useControllerStore, controllerInitialState } from '@/store/controllerStore'
+import {
+  useControllerProfileStore,
+  controllerProfileInitialState,
+  defaultControllerProfile,
+} from '@/store/controllerProfileStore'
 
 class FakeProvider extends NullControllerProvider {
   config: ControllerConfig = { brightness: 0.5, activeProgramId: 'def' }
@@ -804,6 +810,70 @@ describe('controllerPanelStore', () => {
     await flush()
     expect(provider.pixelCountWrites).toEqual([{ value: 8, save: true }])
     expect(provider.brightnessWrites).toEqual([])
+  })
+
+  describe('profile metadata after a pixel-count write (#876)', () => {
+    const seedLiveProfile = () => {
+      const profile = defaultControllerProfile({ id: 'profile-1', deviceId: 'dev-1', now: 1 })
+      const refreshLiveMetadata = vi.fn(async () => {})
+      useControllerStore.setState({
+        ...controllerInitialState,
+        activeIp: '10.0.0.9',
+        controllers: {
+          '10.0.0.9': { ip: '10.0.0.9', deviceId: 'dev-1', phase: 'live', mapDim: 2 },
+        },
+      })
+      useControllerProfileStore.setState({
+        ...controllerProfileInitialState,
+        profiles: [{ ...profile, lastKnownPixelCount: 256 }],
+        profilesLoaded: true,
+        refreshLiveMetadata,
+      })
+      return { profile, refreshLiveMetadata }
+    }
+
+    afterEach(() => {
+      useControllerStore.setState(controllerInitialState)
+      useControllerProfileStore.setState(controllerProfileInitialState)
+    })
+
+    it('refreshes the matched profile once the write is acknowledged', async () => {
+      const { profile, refreshLiveMetadata } = seedLiveProfile()
+      useControllerPanelStore.setState({ pixelCount: 256 })
+      provider.config = { ...provider.config, pixelCount: 256 }
+      provider.setPixelCount = (value: number, save = true) => {
+        provider.pixelCountWrites.push({ value, save })
+        provider.config = { ...provider.config, pixelCount: value }
+        return Promise.resolve()
+      }
+
+      await useControllerPanelStore.getState().setPixelCount(300)
+
+      expect(provider.pixelCountWrites).toEqual([{ value: 300, save: true }])
+      expect(refreshLiveMetadata).toHaveBeenCalledTimes(1)
+      expect(refreshLiveMetadata).toHaveBeenCalledWith(profile.id)
+    })
+
+    it('does not refresh profile metadata when the write fails', async () => {
+      const { refreshLiveMetadata } = seedLiveProfile()
+      useControllerPanelStore.setState({ pixelCount: 256 })
+      provider.setPixelCount = () => Promise.reject(new Error('write failed'))
+
+      await useControllerPanelStore.getState().setPixelCount(300)
+
+      expect(refreshLiveMetadata).not.toHaveBeenCalled()
+      expect(useControllerPanelStore.getState().pixelCountPending).toBeNull()
+    })
+
+    it('does not refresh when no live Controller matches a profile', async () => {
+      const { refreshLiveMetadata } = seedLiveProfile()
+      useControllerProfileStore.setState({ profiles: [] })
+      useControllerPanelStore.setState({ pixelCount: 256 })
+
+      await useControllerPanelStore.getState().setPixelCount(300)
+
+      expect(refreshLiveMetadata).not.toHaveBeenCalled()
+    })
   })
 
   it('marks the write in flight so the panel can dim/disable the input', () => {
