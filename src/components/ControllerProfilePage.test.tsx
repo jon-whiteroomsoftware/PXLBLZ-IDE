@@ -394,8 +394,12 @@ describe('ControllerProfilePage', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Run Twinkle on the Controller' })).toBeDisabled()
 
-      // A different Pattern taking over leaves a genuine failure in place.
+      // Cleared, not hidden: another Pattern taking over later does not bring
+      // the old alert back.
       act(() => useControllerPanelStore.setState({ activeProgramId: 'ACTIVE' }))
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+      // A different Pattern taking over leaves a genuine failure in place.
       fireEvent.click(screen.getByRole('button', { name: 'Run Twinkle on the Controller' }))
       expect(await screen.findByRole('alert')).toBeInTheDocument()
       act(() => useControllerPanelStore.setState({ activeProgramId: 'OTHER' }))

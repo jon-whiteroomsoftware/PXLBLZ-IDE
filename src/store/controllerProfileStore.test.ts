@@ -539,6 +539,49 @@ describe('controllerProfileStore', () => {
     })
   })
 
+  it('never lets an older read overwrite the facts a newer refresh already landed (#876)', async () => {
+    // Refresh A reads first but finishes last (slow map read); refresh B starts
+    // later, reads a newer count, and lands. A must not put the older count back.
+    const profile = defaultControllerProfile({
+      id: 'ctrl-1',
+      name: 'Burner bag',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      now: 1,
+    })
+    const provider = new FakeControllerProvider()
+    const pending: Array<(config: ControllerConfig) => void> = []
+    provider.getConfig = () => new Promise((resolve) => { pending.push(resolve) })
+    setPersonalContentProvider(memoryProvider([{ ...profile, lastKnownPixelCount: 256 }]))
+    setControllerProvider(provider)
+    useControllerStore.setState({
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          phase: 'live',
+          deviceId: profile.deviceId,
+          nickname: 'Burner bag',
+          mapDim: null,
+        },
+      },
+      activeIp: '192.168.8.224',
+    })
+    await useControllerProfileStore.getState().loadProfiles()
+
+    const first = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    const second = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    expect(pending).toHaveLength(2)
+    // The newer refresh answers first with the newer count and lands it.
+    pending[1]({ name: 'Burner bag', pixelCount: 300 })
+    await second
+    expect(useControllerProfileStore.getState().profiles[0].lastKnownPixelCount).toBe(300)
+    // The older refresh answers late with the older count and must be discarded.
+    pending[0]({ name: 'Burner bag', pixelCount: 200 })
+    await first
+    expect(useControllerProfileStore.getState().profiles[0].lastKnownPixelCount).toBe(300)
+  })
+
   it('auto-creates a default profile for a signed-in live controller with a stable device id', async () => {
     setPersonalContentProvider(memoryProvider())
 

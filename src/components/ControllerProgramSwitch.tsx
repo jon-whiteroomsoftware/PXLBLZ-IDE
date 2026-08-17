@@ -64,8 +64,17 @@ export function ControllerProgramSwitch({
 
   // A failure banner and the running marker must never contradict each other
   // (#877): when a later poll reports the failed target as the running Pattern,
-  // the activation was confirmed late, so the banner is stale and hides.
-  const visibleFailure = failure && activeProgramId !== failure.programId ? failure : null
+  // the activation was confirmed late, so the banner is stale and clears for
+  // good. Cleared from the store subscription (an external system), never
+  // hidden by derivation, so a later switch cannot resurrect it.
+  useEffect(() => {
+    if (!failure) return
+    const clearIfConfirmed = (state: { activeProgramId?: string }) => {
+      if (state.activeProgramId === failure.programId) setFailure(null)
+    }
+    clearIfConfirmed(useControllerPanelStore.getState())
+    return useControllerPanelStore.subscribe(clearIfConfirmed)
+  }, [failure])
 
   useEffect(() => {
     if (!open) return
@@ -204,9 +213,9 @@ export function ControllerProgramSwitch({
               className="m-1.5 h-7 rounded-sm border border-zinc-800 bg-zinc-900 px-2 font-mono text-[11px] text-zinc-200 placeholder:text-zinc-600 focus:border-live/60 focus:outline-none"
             />
           )}
-          {visibleFailure && (
+          {failure && (
             <p role="alert" className="border-y border-red-400/20 bg-red-500/5 px-3 py-1.5 text-[10px] leading-4 text-red-300">
-              Switch failed: {visibleFailure.message}
+              Switch failed: {failure.message}
             </p>
           )}
           <ul

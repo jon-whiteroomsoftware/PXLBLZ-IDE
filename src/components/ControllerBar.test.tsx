@@ -947,6 +947,10 @@ describe('ControllerBar', () => {
     act(() => useControllerPanelStore.setState({ activeProgramId: 'a' }))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Aurora/ })).toHaveAttribute('aria-selected', 'true')
+    // The failure is cleared, not merely hidden: a later switch to another
+    // Pattern does not resurrect it.
+    act(() => useControllerPanelStore.setState({ activeProgramId: 'b' }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('keeps a Switch failure while the Controller reports another Pattern running (#877)', async () => {

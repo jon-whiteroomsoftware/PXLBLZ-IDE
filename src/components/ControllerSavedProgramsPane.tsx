@@ -883,8 +883,17 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   const activeProgramId = configSourceIp === liveIp ? panelActiveProgramId : undefined
   // A Run failure and the running marker must never contradict each other
   // (#877): once the Controller reports the failed row running, the activation
-  // was confirmed late and the alert is stale, so it hides.
-  const visibleRunError = runError && activeProgramId !== runError.programId ? runError.message : null
+  // was confirmed late and the alert is stale, so it clears for good — from the
+  // store subscription, never by derivation, so a later switch cannot bring it
+  // back.
+  useEffect(() => {
+    if (!runError) return
+    const clearIfConfirmed = (state: { activeProgramId?: string; configSourceIp: string | null }) => {
+      if (state.configSourceIp === liveIp && state.activeProgramId === runError.programId) setRunError(null)
+    }
+    clearIfConfirmed(useControllerPanelStore.getState())
+    return useControllerPanelStore.subscribe(clearIfConfirmed)
+  }, [liveIp, runError])
   const activeProgramKnown = liveIp !== undefined && configSourceIp === liveIp
   const pendingDeleteSessionIsCurrent = !pendingDelete || (
     pendingDelete.controllerId === liveIp
@@ -1237,7 +1246,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         }}
         importingProgramId={importingProgramId}
         deletingProgramId={deletingProgramId}
-        error={visibleRunError ?? importError}
+        error={runError?.message ?? importError}
       />
     </div>
   )
