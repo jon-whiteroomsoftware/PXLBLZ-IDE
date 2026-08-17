@@ -229,10 +229,14 @@ test('Controller surfaces keep live state and switch saved Patterns in place (#8
   await expect(popover).toBeVisible()
   const sequencer = page.getByTestId('controller-sequencer-indicator')
   await expect(sequencer).toHaveAttribute('aria-label', 'Sequencer shuffle is on')
-  await expect(sequencer).toHaveAttribute(
-    'title',
-    'Sequencer: shuffle. The Controller is choosing Patterns on its own; a manual switch is overridden at the next interval.',
-  )
+  // The next-interval warning is a visible tip on hover/focus and the chip's
+  // accessible description (#872), not a mouse-only native title.
+  const sequencerWarning = 'Sequencer: shuffle. The Controller is choosing Patterns on its own; a manual switch is overridden at the next interval.'
+  await expect(sequencer).toHaveAccessibleDescription(sequencerWarning)
+  await sequencer.focus()
+  await expect(page.getByRole('note').filter({ hasText: sequencerWarning })).toBeVisible()
+  await sequencer.blur()
+  await expect(page.getByRole('note').filter({ hasText: sequencerWarning })).toBeHidden()
   const indicatorBeforeDisconnect = await sequencer.evaluate((element) => (
     element.compareDocumentPosition(document.querySelector('[data-testid="controller-pill-remove"]')!)
     & Node.DOCUMENT_POSITION_FOLLOWING
