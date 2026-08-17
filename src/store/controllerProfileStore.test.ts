@@ -675,6 +675,28 @@ describe('controllerProfileStore', () => {
       lastKnownPixelCount: 200,
       board: { firmwareVersion: '3.68' },
     })
+
+    // A newer refresh whose config lacks firmware falls back to the live entry
+    // as it is now, and that fallback also outranks an older read.
+    useControllerStore.setState((state) => ({
+      controllers: {
+        ...state.controllers,
+        '192.168.8.224': { ...state.controllers['192.168.8.224']!, firmwareVersion: '3.69' },
+      },
+    }))
+    const third = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    const fourth = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    pending[3]({ name: 'Burner bag', pixelCount: 220 })
+    await fourth
+    expect(useControllerProfileStore.getState().profiles[0].board.firmwareVersion).toBe('3.69')
+    pending[2]({ name: 'Burner bag', firmwareVersion: '3.67' })
+    await third
+    expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
+      lastKnownPixelCount: 220,
+      board: { firmwareVersion: '3.69' },
+    })
   })
 
   it('auto-creates a default profile for a signed-in live controller with a stable device id', async () => {

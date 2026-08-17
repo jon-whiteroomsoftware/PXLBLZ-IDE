@@ -647,21 +647,24 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       ? toInstalledMapSnapshot(refreshedInstalledMap)
       : undefined
     // A config-derived fact this refresh carries lands only if no later-started
-    // refresh already landed that fact; when config lacks the fact, the live
-    // controller entry's value stands in and needs no ordering.
+    // refresh already landed that fact. When config lacks the fact, the live
+    // controller entry as it is *now* stands in; that value is current truth,
+    // so it takes part in the same ordering and an older read cannot undo it.
+    const liveNow = useControllerStore.getState().controllers[active.ip] ?? active
     const readFact = <T,>(fact: LiveMetadataFact, value: T | undefined, fallback: T | undefined): T | undefined => {
-      if (value === undefined) return fallback
+      const resolved = value ?? fallback
+      if (resolved === undefined) return undefined
       if (!liveMetadataFactIsCurrent(profileId, fact, generation)) return undefined
       markLiveMetadataFactApplied(profileId, fact, generation)
-      return value
+      return resolved
     }
     const pixelCount = readFact(
       'pixelCount',
       typeof config?.pixelCount === 'number' ? config.pixelCount : undefined,
       undefined,
     )
-    const liveName = readFact('name', config?.name || undefined, active.nickname)
-    const firmwareVersion = readFact('firmware', config?.firmwareVersion || undefined, active.firmwareVersion)
+    const liveName = readFact('name', config?.name || undefined, liveNow.nickname)
+    const firmwareVersion = readFact('firmware', config?.firmwareVersion || undefined, liveNow.firmwareVersion)
     const board = firmwareVersion
       ? withControllerFirmwareUpdateReport(current.board, { firmwareVersion })
       : current.board
