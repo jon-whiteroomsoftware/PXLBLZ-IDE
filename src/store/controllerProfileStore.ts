@@ -205,9 +205,10 @@ let liveMetadataRefreshGeneration = 0
 const liveMetadataAppliedGeneration = new Map<string, Partial<Record<LiveMetadataFact, number>>>()
 // Write ownership of the profile name (#876): the op of the last write that
 // touched `name` per profile, and the ops of the name writes metadata
-// refreshes made and that were not rolled back. A refresh may replace the
-// name only if every name write since it started was a refresh write —
-// ownership, not value equality, decides.
+// refreshes made that have durably settled. A refresh may replace the name
+// only if the last name write since it started was a settled refresh write —
+// ownership, not value equality, decides; an in-flight or rolled-back refresh
+// write authorizes nothing.
 const profileNameWriteOp = new Map<string, number>()
 const liveMetadataNameWriteOps = new Map<string, Set<number>>()
 
@@ -727,25 +728,24 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     const nameOpBefore = profileNameWriteOp.get(profileId)
     const write = get().updateProfile(profileId, changes)
     // updateProfile records the name write op synchronously, so right after
-    // the call it is this write's op. Claim it as refresh-owned; a rejected
-    // write gives the claim back so a rolled-back name never counts as ours.
+    // the call it is this write's op. It becomes refresh-owned only once the
+    // durable write settles: while it is in flight no other refresh may treat
+    // it as ours, and a rejected write hands the op back so a rolled-back
+    // name never counts as refresh ownership.
     const nameOp = changes.name ? profileNameWriteOp.get(profileId) : undefined
+    try {
+      await write
+    } catch (error) {
+      if (nameOp !== undefined && profileNameWriteOp.get(profileId) === nameOp) {
+        if (nameOpBefore === undefined) profileNameWriteOp.delete(profileId)
+        else profileNameWriteOp.set(profileId, nameOpBefore)
+      }
+      throw error
+    }
     if (nameOp !== undefined) {
       const ops = liveMetadataNameWriteOps.get(profileId) ?? new Set<number>()
       ops.add(nameOp)
       liveMetadataNameWriteOps.set(profileId, ops)
-    }
-    try {
-      await write
-    } catch (error) {
-      if (nameOp !== undefined) {
-        liveMetadataNameWriteOps.get(profileId)?.delete(nameOp)
-        if (profileNameWriteOp.get(profileId) === nameOp) {
-          if (nameOpBefore === undefined) profileNameWriteOp.delete(profileId)
-          else profileNameWriteOp.set(profileId, nameOpBefore)
-        }
-      }
-      throw error
     }
   },
 }))

@@ -859,6 +859,62 @@ describe('controllerProfileStore', () => {
     expect(useControllerProfileStore.getState().profiles[0].name).toBe('Road case')
   })
 
+  it('does not let an in-flight refresh name write authorize an older refresh (#876)', async () => {
+    const profile = defaultControllerProfile({
+      id: 'ctrl-1',
+      name: 'Old',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      now: 1,
+    })
+    const provider = new FakeControllerProvider()
+    const pending: Array<(config: ControllerConfig) => void> = []
+    provider.getConfig = () => new Promise((resolve) => { pending.push(resolve) })
+    const memory = memoryProvider([profile])
+    let holdNameWrite: { resolve: () => void; reject: (error: Error) => void } | null = null
+    setPersonalContentProvider({
+      ...memory,
+      updateControllerProfile: async (id, changes) => {
+        if ('name' in changes && changes.name === 'Cached') {
+          await new Promise<void>((resolve, reject) => { holdNameWrite = { resolve, reject } })
+        }
+        return memory.updateControllerProfile(id, changes)
+      },
+    })
+    setControllerProvider(provider)
+    useControllerStore.setState({
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          phase: 'live',
+          deviceId: profile.deviceId,
+          nickname: 'Cached',
+          mapDim: null,
+        },
+      },
+      activeIp: '192.168.8.224',
+    })
+    await useControllerProfileStore.getState().loadProfiles()
+
+    const first = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    await useControllerProfileStore.getState().updateProfile(profile.id, { name: 'Road case', lastKnownDeviceName: 'Road case' })
+    const second = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    pending[1]({ pixelCount: 256 })
+    // B's stand-in name write is now in flight (held by the provider).
+    for (let i = 0; i < 5; i += 1) await Promise.resolve()
+    expect(holdNameWrite).not.toBeNull()
+    // A resolves while B's write is pending: it must not treat B's provisional
+    // op as refresh ownership. (Profile writes queue per profile, so A's own
+    // write settles only after B's is released.)
+    pending[0]({ name: 'Device' })
+    for (let i = 0; i < 5; i += 1) await Promise.resolve()
+    holdNameWrite!.reject(new Error('offline'))
+    await expect(second).rejects.toThrow('offline')
+    await first
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Road case')
+  })
+
   it('fills a fact from the live entry only until the device has actually reported it (#876)', async () => {
     const profile = defaultControllerProfile({
       id: 'ctrl-1',
