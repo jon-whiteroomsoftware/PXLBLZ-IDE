@@ -304,6 +304,64 @@ describe('Show source inventory', () => {
     })
   })
 
+  it('drops a superseded progressive destination from later Scene pressure (#878)', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'left', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+        { id: 'right', source: 'export function render2D(index, x, y) { rgb(0, 1, 0) }' },
+        {
+          id: '__pxlblz_empty-right',
+          source: 'export function render2D(index, x, y) { rgb(0, 0, 0) }',
+          compilerOwnedEmpty: true,
+        },
+      ],
+      routingLayouts: [
+        {
+          id: 'a', name: 'A', zones: [],
+          logical: { kind: 'single', zoneNames: ['left-zone'] },
+        },
+        {
+          id: 'b-soft', name: 'B Soft Split', zones: [],
+          logical: { kind: 'soft-split', zoneNames: ['left-zone', 'right-zone'], axis: 'x', feather: 0.2 },
+        },
+        {
+          id: 'c', name: 'C', zones: [],
+          logical: { kind: 'single', zoneNames: ['left-zone'] },
+        },
+      ],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1_000,
+            placements: [
+              { zoneName: 'left-zone', clipId: 'left' },
+              { zoneName: 'right-zone', clipId: '__pxlblz_empty-right' },
+            ],
+            transitionOut: { kind: 'cut', durationMs: 0 },
+          },
+          {
+            holdMs: 1_000,
+            placements: [
+              { zoneName: 'left-zone', clipId: 'left' },
+              { zoneName: 'right-zone', clipId: 'right' },
+            ],
+          },
+        ],
+      },
+      routingSwitches: [
+        { atMs: 500, layoutId: 'b-soft', durationMs: 1_000 },
+        { atMs: 1_000, layoutId: 'c' },
+      ],
+      loopDurationMs: 2_000,
+    }, {})
+
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(2)
+    expect(artifact.summary.creatorPatternPressure.patternCalculationsPerPixel).toEqual({
+      steady: 1,
+      worst: 1,
+    })
+  })
+
   it('excludes the empty routed sentinel from creator-facing Pattern pressure (#878)', () => {
     const show = createDefaultShow('empty-pressure', 'Empty pressure', 1)
     show.composition = {

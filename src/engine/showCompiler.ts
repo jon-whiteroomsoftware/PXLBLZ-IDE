@@ -11320,43 +11320,36 @@ function measureShowRendererPressure(
     const recipeLayouts = recipe.routingLayouts ?? []
     const layoutById = new Map(recipeLayouts.map((layout) => [layout.id, layout]))
     const orderedSwitches = [...(recipe.routingSwitches ?? [])].sort((left, right) => left.atMs - right.atMs)
-    const switchSegments: Array<{
-      atMs: number
-      durationMs: number
-      source: (typeof recipeLayouts)[number]
-      destination: (typeof recipeLayouts)[number]
-    }> = []
-    let activeLayout = recipeLayouts[0]
-    for (const routingSwitch of orderedSwitches) {
-      const destination = layoutById.get(routingSwitch.layoutId) ?? recipeLayouts[0]
-      if (activeLayout && destination) {
-        switchSegments.push({
-          atMs: routingSwitch.atMs,
-          durationMs: routingSwitch.durationMs ?? 0,
-          source: activeLayout,
-          destination,
-        })
+    const layoutsAt = (timeMs: number) => {
+      if (recipeLayouts.length === 0) return []
+      let active = recipeLayouts[0]
+      let transfer: { source: (typeof recipeLayouts)[number]; endMs: number } | null = null
+      for (const routingSwitch of orderedSwitches) {
+        if (routingSwitch.atMs > timeMs) break
+        if (transfer && routingSwitch.atMs >= transfer.endMs) transfer = null
+        const destination = layoutById.get(routingSwitch.layoutId) ?? recipeLayouts[0]
+        const durationMs = routingSwitch.durationMs ?? 0
+        if (durationMs > 0) {
+          transfer = { source: active, endMs: routingSwitch.atMs + durationMs }
+        }
+        active = destination
       }
-      activeLayout = destination
+      if (transfer && timeMs >= transfer.endMs) transfer = null
+      return transfer && transfer.source.id !== active.id ? [active, transfer.source] : [active]
     }
     const layoutsDuring = (startMs: number, endMs: number) => {
       if (recipeLayouts.length === 0) return []
-      let selected = recipeLayouts[0]
-      for (const segment of switchSegments) {
-        if (segment.atMs > startMs) break
-        selected = segment.destination
+      const sampleTimes = new Set([startMs])
+      for (const routingSwitch of orderedSwitches) {
+        if (routingSwitch.atMs > startMs && routingSwitch.atMs < endMs) {
+          sampleTimes.add(routingSwitch.atMs)
+        }
+        const transferEndMs = routingSwitch.atMs + (routingSwitch.durationMs ?? 0)
+        if (transferEndMs > startMs && transferEndMs < endMs) sampleTimes.add(transferEndMs)
       }
-      const result = new Map([[selected.id, selected]])
-      for (const segment of switchSegments) {
-        if (segment.atMs >= startMs && segment.atMs < endMs) {
-          result.set(segment.destination.id, segment.destination)
-        }
-        if (segment.durationMs > 0
-          && segment.atMs < endMs
-          && segment.atMs + segment.durationMs > startMs) {
-          result.set(segment.source.id, segment.source)
-          result.set(segment.destination.id, segment.destination)
-        }
+      const result = new Map<string, (typeof recipeLayouts)[number]>()
+      for (const timeMs of sampleTimes) {
+        for (const layout of layoutsAt(timeMs)) result.set(layout.id, layout)
       }
       return [...result.values()]
     }

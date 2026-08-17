@@ -1038,7 +1038,9 @@ and are accounted separately; they do not increment this evaluation count.
 The creator-facing counts exclude explicitly compiler-owned blank members; the
 internal renderer fields still include them for compile-pressure safety. A
 Soft Split contributes its two-zone peak only during intervals where that
-layout is active. These labels
+layout is active. When a routing switch interrupts an in-progress layout
+transfer, the superseded destination drops out while the retained source and
+new destination remain eligible. These labels
 preserve the distinction between
 `steadyStateRenderersPerController` / `worstInstantRenderersPerController` and
 the `creatorPatternPressure` copy/calculation fields. Hover-open inventory uses
