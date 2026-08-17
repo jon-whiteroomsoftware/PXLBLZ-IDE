@@ -601,12 +601,15 @@ Other Patterns have no freshness column.
 Delete is available for managed and Other rows only after Controller-scoped
 active-program evidence arrives, and remains disabled for the live running id,
 including when that id changes after the confirmation dialog opens. A fresh
-config read revalidates the active id immediately before the device command.
+config read revalidates the active id immediately before the device command;
+a missing active id is unsafe rather than equivalent to no running Pattern.
 The dialog distinguishes ownership: managed deletion promises to preserve the
 Studio Pattern, while Other deletion warns that source recovery requires Import
 first. The operation is deliberately device-first and the complete device plus
 metadata transaction runs through the per-Controller write queue, serializing
-it with managed-artifact reconciliation. `controllerPanelStore` re-reads the
+it with managed-artifact reconciliation. The queued operation also retains the
+exact Controller/provider session that authorized it and refuses to cross onto
+a newly active Controller. `controllerPanelStore` re-reads the
 complete inventory and proves the target absent and all unrelated id/name pairs
 present before durable metadata changes. The first inventory is retained across
 retries, so an ambiguous confirmation cannot erase evidence that an unrelated

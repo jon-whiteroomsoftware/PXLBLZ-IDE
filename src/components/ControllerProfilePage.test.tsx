@@ -557,6 +557,48 @@ describe('ControllerProfilePage', () => {
     expect(provider.deletedProgramIds).toEqual(['DEV1'])
   })
 
+  it('does not let a queued deletion cross to a newly active Controller', async () => {
+    const profile = seedProfile()
+    const providerA = renderLiveProgramInventory(profile, {
+      storageId: 'delete-controller-session',
+      activeProgramId: 'ACTIVE-A',
+      configSourceIp: '192.168.8.224',
+      programs: [
+        { id: 'DEV1', name: 'Twinkle' },
+        { id: 'ACTIVE-A', name: 'Running on A' },
+      ],
+      bindings: { 'pat-1': 'DEV1' },
+      pushRecords: {},
+    })
+    const priorWrite = deferred<void>()
+    const queuedPrior = queueControllerDeviceWrite(
+      '192.168.8.224',
+      () => priorWrite.promise,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Twinkle from the Controller' }))
+    const dialog = screen.getByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete from Controller' }))
+
+    const providerB = new ProgramListProvider()
+    providerB.programs = [
+      { id: 'DEV1', name: 'Different Pattern with colliding id' },
+      { id: 'ACTIVE-B', name: 'Running on B' },
+    ]
+    providerB.activeProgramId = 'ACTIVE-B'
+    setControllerProvider(providerB)
+    useControllerStore.setState({ activeIp: '10.0.0.9' })
+    priorWrite.resolve()
+    await queuedPrior
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Controller session changed before Pattern deletion could start.',
+    )
+    expect(providerA.deletedProgramIds).toEqual([])
+    expect(providerB.deletedProgramIds).toEqual([])
+    expect(providerA.bindings).toEqual({ '192.168.8.224': { 'pat-1': 'DEV1' } })
+  })
+
   it('waits for Controller-scoped config before marking an inventory row as running', async () => {
     const profile = seedProfile()
     usePatternStore.setState({

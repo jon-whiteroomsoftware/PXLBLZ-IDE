@@ -1018,11 +1018,16 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     setDeletingProgramId(program.programId)
     setDeleteError(null)
     let retainedBaseline = deleteBaseline
+    const expectedProvider = getControllerProvider()
     try {
       await queueControllerDeviceWrite(liveIp, async () => {
         retainedBaseline = await deleteProgram(
           program.programId,
-          deleteBaseline ?? undefined,
+          {
+            baseline: deleteBaseline ?? undefined,
+            expectedControllerId: liveIp,
+            expectedProvider,
+          },
         )
         const metadataResult = await removeManagedControllerSavedProgramMetadata({
           controllerId: liveIp,

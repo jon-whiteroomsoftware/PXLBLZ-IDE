@@ -339,6 +339,16 @@ describe('controllerPanelStore', () => {
     })
   })
 
+  it('requires the device config to identify the running Pattern before deletion', async () => {
+    provider.config = {}
+
+    await expect(useControllerPanelStore.getState().deleteProgram('abc')).rejects.toThrow(
+      'Controller did not identify its running Pattern',
+    )
+
+    expect(provider.deletedProgramIds).toEqual([])
+  })
+
   it('rejects deletion and preserves the last inventory when refresh fails', async () => {
     await useControllerPanelStore.getState().refreshPrograms('192.168.8.224')
     const before = useControllerPanelStore.getState().programs
@@ -394,7 +404,7 @@ describe('controllerPanelStore', () => {
     provider.listPrograms = listPrograms
     provider.programs = []
     await expect(
-      useControllerPanelStore.getState().deleteProgram('abc', baseline),
+      useControllerPanelStore.getState().deleteProgram('abc', { baseline }),
     ).rejects.toThrow('also removed unrelated Pattern def')
     expect(provider.deletedProgramIds).toEqual(['abc'])
   })
@@ -449,6 +459,31 @@ describe('controllerPanelStore', () => {
 
     await expect(deletion).rejects.toThrow('Controller session changed')
     expect(useControllerPanelStore.getState().programs).toContainEqual({ id: 'abc', name: 'Aurora' })
+  })
+
+  it('carries the original baseline when the session changes after device deletion', async () => {
+    const confirmation = deferred<ProgramListEntry[]>()
+    let reads = 0
+    provider.listPrograms = () => {
+      reads += 1
+      return reads === 1 ? Promise.resolve([...provider.programs]) : confirmation.promise
+    }
+    const deletion = useControllerPanelStore.getState().deleteProgram('abc')
+    await vi.waitFor(() => expect(provider.deletedProgramIds).toEqual(['abc']))
+    setControllerProvider(new FakeProvider())
+    confirmation.resolve([{ id: 'def', name: 'Nebula' }])
+
+    let error: unknown
+    try {
+      await deletion
+    } catch (caught) {
+      error = caught
+    }
+    expect(error).toBeInstanceOf(ControllerProgramDeletionError)
+    expect((error as ControllerProgramDeletionError).baseline).toEqual([
+      { id: 'abc', name: 'Aurora' },
+      { id: 'def', name: 'Nebula' },
+    ])
   })
 
   it('keeps the last sequencer state when a later config poll omits the fields', async () => {

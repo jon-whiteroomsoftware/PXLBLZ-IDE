@@ -51,6 +51,12 @@ export class ControllerProgramDeletionError extends Error {
   }
 }
 
+interface ControllerProgramDeletionOptions {
+  baseline?: readonly ProgramListEntry[]
+  expectedControllerId?: string
+  expectedProvider?: ReturnType<typeof getControllerProvider>
+}
+
 const sendBrightness = throttleTrailing((write: { provider: ReturnType<typeof getControllerProvider>; value: number }) => {
   void write.provider
     .setBrightness(write.value, false)
@@ -150,7 +156,7 @@ interface ControllerPanelState {
    * safety baseline can be carried into Retry after an ambiguous attempt. */
   deleteProgram: (
     programId: string,
-    baseline?: readonly ProgramListEntry[],
+    options?: ControllerProgramDeletionOptions,
   ) => Promise<ProgramListEntry[]>
 }
 
@@ -502,11 +508,20 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     }
   },
 
-  deleteProgram: async (programId, originalBaseline) => {
+  deleteProgram: async (programId, options = {}) => {
     const session = panelSession
     const ip = seededForIp
     const provider = getControllerProvider()
-    const carriedBaseline = originalBaseline?.map((program) => ({ ...program }))
+    const carriedBaseline = options.baseline?.map((program) => ({ ...program }))
+    if (
+      (options.expectedProvider && provider !== options.expectedProvider)
+      || (options.expectedControllerId && ip !== options.expectedControllerId)
+    ) {
+      throw new ControllerProgramDeletionError(
+        'Controller session changed before Pattern deletion could start.',
+        carriedBaseline,
+      )
+    }
     let currentPrograms: ProgramListEntry[]
     try {
       currentPrograms = await provider.listPrograms()
@@ -517,11 +532,13 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
         { cause: error },
       )
     }
-    if (!controllerSessionMatches(session, provider)) {
-      throw new Error('Controller session changed before Pattern deletion could start.')
-    }
-
     const baseline = carriedBaseline ?? currentPrograms.map((program) => ({ ...program }))
+    if (!controllerSessionMatches(session, provider)) {
+      throw new ControllerProgramDeletionError(
+        'Controller session changed before Pattern deletion could start.',
+        baseline,
+      )
+    }
     const publishPrograms = (programs: ProgramListEntry[]) => set((state) => ({
       programs,
       ...(ip
@@ -564,9 +581,18 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
       )
     }
     if (!controllerSessionMatches(session, provider)) {
-      throw new Error('Controller session changed before Pattern deletion could start.')
+      throw new ControllerProgramDeletionError(
+        'Controller session changed before Pattern deletion could start.',
+        baseline,
+      )
     }
     set((state) => configPatch(state, config))
+    if (!config.activeProgramId) {
+      throw new ControllerProgramDeletionError(
+        'Controller did not identify its running Pattern; refresh before deleting.',
+        baseline,
+      )
+    }
     if (config.activeProgramId === programId) {
       throw new ControllerProgramDeletionError(
         'Running now — switch to another Pattern first',
@@ -594,7 +620,10 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
       )
     }
     if (!controllerSessionMatches(session, provider)) {
-      throw new Error('Controller session changed before Pattern deletion could be confirmed.')
+      throw new ControllerProgramDeletionError(
+        'Controller session changed before Pattern deletion could be confirmed.',
+        baseline,
+      )
     }
     publishPrograms(programs)
     verifyDeletion(programs)
