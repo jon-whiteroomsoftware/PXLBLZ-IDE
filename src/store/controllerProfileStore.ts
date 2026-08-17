@@ -610,23 +610,32 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       provider.getConfig().catch(() => null),
       live.refreshInstalledMap(active.ip),
     ])
-    // Any intervening profile mutation makes this request's captured config
-    // stale as a composite patch. A later refresh can read current device truth.
-    if (get().profiles.find((candidate) => candidate.id === profileId) !== profile) return
+    // Compare against the profile as it is *now*: profile writes are frequent
+    // while a Controller is live (reconciliation, installed-map snapshots, other
+    // refreshes), and device facts read moments ago are still true (#876). Only
+    // the name is guarded against an intervening rename: a newer profile name
+    // that no longer matches what this refresh started from wins outright.
+    const current = get().profiles.find((candidate) => candidate.id === profileId)
+    if (!current) return
+    const nameUntouched = current.name === profile.name
+      && current.lastKnownDeviceName === profile.lastKnownDeviceName
     const refreshedInstalledMap = useControllerStore.getState().controllers[active.ip]?.installedMap
     const installedMapSnapshot = refreshedInstalledMap
       ? toInstalledMapSnapshot(refreshedInstalledMap)
       : undefined
     const firmwareVersion = config?.firmwareVersion ?? active.firmwareVersion
     const liveName = config?.name ?? active.nickname
-    const board = withControllerFirmwareUpdateReport(profile.board, { firmwareVersion })
+    const board = withControllerFirmwareUpdateReport(current.board, { firmwareVersion })
     const changes: Partial<Omit<ControllerProfile, 'id'>> = {
-      ...(active.deviceId && profile.deviceId !== active.deviceId ? { deviceId: active.deviceId } : {}),
-      ...(liveName && (profile.name !== liveName || profile.lastKnownDeviceName !== liveName)
+      ...(active.deviceId && current.deviceId !== active.deviceId ? { deviceId: active.deviceId } : {}),
+      ...(nameUntouched && liveName
+        && (current.name !== liveName || current.lastKnownDeviceName !== liveName)
         ? { name: liveName, lastKnownDeviceName: liveName }
         : {}),
-      ...(profile.lastSeenIp !== active.ip ? { lastSeenIp: active.ip } : {}),
-      ...(typeof config?.pixelCount === 'number' ? { lastKnownPixelCount: config.pixelCount } : {}),
+      ...(current.lastSeenIp !== active.ip ? { lastSeenIp: active.ip } : {}),
+      ...(typeof config?.pixelCount === 'number' && current.lastKnownPixelCount !== config.pixelCount
+        ? { lastKnownPixelCount: config.pixelCount }
+        : {}),
       ...(installedMapSnapshot
         ? {
             lastKnownInstalledMap: installedMapSnapshot,
@@ -635,7 +644,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
               : {}),
           }
         : {}),
-      ...(board !== profile.board
+      ...(board !== current.board
         ? { board }
         : {}),
     }

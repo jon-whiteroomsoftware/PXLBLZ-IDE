@@ -7,6 +7,8 @@ import {
   BRIGHTNESS_SEND_INTERVAL_MS,
   ACTIVATION_CONFIRMATION_ATTEMPTS,
   ACTIVATION_CONFIRMATION_RETRY_MS,
+  PIXEL_COUNT_CONFIRMATION_ATTEMPTS,
+  PIXEL_COUNT_CONFIRMATION_RETRY_MS,
 } from './controllerPanelStore'
 import { setControllerProvider, resetControllerProvider } from '@/engine/controllerProviderRegistry'
 import {
@@ -896,7 +898,7 @@ describe('controllerPanelStore', () => {
       useControllerProfileStore.setState(controllerProfileInitialState)
     })
 
-    it('refreshes the matched profile once the write is acknowledged', async () => {
+    it('refreshes the matched profile once the Controller reports the written count', async () => {
       const { profile, refreshLiveMetadata } = seedLiveProfile()
       useControllerPanelStore.setState({ pixelCount: 256 })
       provider.config = { ...provider.config, pixelCount: 256 }
@@ -907,10 +909,55 @@ describe('controllerPanelStore', () => {
       }
 
       await useControllerPanelStore.getState().setPixelCount(300)
+      await flush()
 
       expect(provider.pixelCountWrites).toEqual([{ value: 300, save: true }])
       expect(refreshLiveMetadata).toHaveBeenCalledTimes(1)
       expect(refreshLiveMetadata).toHaveBeenCalledWith(profile.id)
+    })
+
+    it('waits for a slow saved write to be reported before refreshing (bench-measured)', async () => {
+      // The pb32 answers the read right after a saved pixel-count write with the
+      // OLD count and reports the new one a few polls later. Refresh follows the
+      // device's report, not the write.
+      const { profile, refreshLiveMetadata } = seedLiveProfile()
+      useControllerPanelStore.setState({ pixelCount: 256 })
+      provider.config = { ...provider.config, pixelCount: 256 }
+      let reads = 0
+      provider.getConfig = () => {
+        reads += 1
+        // Reads: 1 poll inside setPixelCount, then confirmation reads; report 300
+        // only from the fourth read on. (A raise avoids the reduction blackout's
+        // real dark-frame sleep under fake timers.)
+        return Promise.resolve(reads >= 4 ? { ...provider.config, pixelCount: 300 } : provider.config)
+      }
+
+      await useControllerPanelStore.getState().setPixelCount(300)
+      expect(useControllerPanelStore.getState().pixelCountPending).toBeNull()
+      await flush()
+      expect(refreshLiveMetadata).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(PIXEL_COUNT_CONFIRMATION_RETRY_MS * 3)
+      expect(refreshLiveMetadata).toHaveBeenCalledTimes(1)
+      expect(refreshLiveMetadata).toHaveBeenCalledWith(profile.id)
+      // Confirmed once; no further reads or refreshes after that.
+      const readsAfter = reads
+      await vi.advanceTimersByTimeAsync(PIXEL_COUNT_CONFIRMATION_RETRY_MS * 3)
+      expect(reads).toBe(readsAfter)
+      expect(refreshLiveMetadata).toHaveBeenCalledTimes(1)
+    })
+
+    it('never refreshes when the Controller silently drops the write (#204)', async () => {
+      const { refreshLiveMetadata } = seedLiveProfile()
+      useControllerPanelStore.setState({ pixelCount: 8 })
+      provider.config = { ...provider.config, pixelCount: 8 }
+
+      await useControllerPanelStore.getState().setPixelCount(256)
+      await vi.advanceTimersByTimeAsync(
+        PIXEL_COUNT_CONFIRMATION_RETRY_MS * (PIXEL_COUNT_CONFIRMATION_ATTEMPTS + 2),
+      )
+
+      expect(refreshLiveMetadata).not.toHaveBeenCalled()
     })
 
     it('does not refresh profile metadata when the write fails', async () => {
@@ -919,6 +966,7 @@ describe('controllerPanelStore', () => {
       provider.setPixelCount = () => Promise.reject(new Error('write failed'))
 
       await useControllerPanelStore.getState().setPixelCount(300)
+      await vi.advanceTimersByTimeAsync(PIXEL_COUNT_CONFIRMATION_RETRY_MS * 2)
 
       expect(refreshLiveMetadata).not.toHaveBeenCalled()
       expect(useControllerPanelStore.getState().pixelCountPending).toBeNull()
@@ -928,8 +976,14 @@ describe('controllerPanelStore', () => {
       const { refreshLiveMetadata } = seedLiveProfile()
       useControllerProfileStore.setState({ profiles: [] })
       useControllerPanelStore.setState({ pixelCount: 256 })
+      provider.setPixelCount = (value: number, save = true) => {
+        provider.pixelCountWrites.push({ value, save })
+        provider.config = { ...provider.config, pixelCount: value }
+        return Promise.resolve()
+      }
 
       await useControllerPanelStore.getState().setPixelCount(300)
+      await flush()
 
       expect(refreshLiveMetadata).not.toHaveBeenCalled()
     })

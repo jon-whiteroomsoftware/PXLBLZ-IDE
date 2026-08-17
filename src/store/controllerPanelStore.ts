@@ -310,6 +310,31 @@ function refreshMatchedProfileMetadata(): void {
   if (profile) void profileStore.refreshLiveMetadata(profile.id)
 }
 
+/** How long a saved pixel-count write may take before the Controller reports the
+ *  new count, and how often to look (#876). Measured on the bench pb32: the read
+ *  immediately after the write still returns the old count; the new one appears
+ *  a few polls later. Profile metadata is refreshed only once the device itself
+ *  reports the written count, so a silently dropped write refreshes nothing. */
+export const PIXEL_COUNT_CONFIRMATION_ATTEMPTS = 12
+export const PIXEL_COUNT_CONFIRMATION_RETRY_MS = 500
+
+async function refreshProfileOncePixelCountConfirmed(
+  provider: ReturnType<typeof getControllerProvider>,
+  value: number,
+): Promise<boolean> {
+  for (let attempt = 1; attempt <= PIXEL_COUNT_CONFIRMATION_ATTEMPTS; attempt += 1) {
+    if (provider !== getControllerProvider()) return false
+    const config = await provider.getConfig().catch(() => null)
+    if (provider !== getControllerProvider()) return false
+    if (config?.pixelCount === value) {
+      refreshMatchedProfileMetadata()
+      return true
+    }
+    if (attempt < PIXEL_COUNT_CONFIRMATION_ATTEMPTS) await sleep(PIXEL_COUNT_CONFIRMATION_RETRY_MS)
+  }
+  return false
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
@@ -440,16 +465,18 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     // disables the input, and the poll holds this value instead of flashing back to
     // the device's stale count while the slow saved write lands.
     set({ pixelCount: value, pixelCountPending: value })
+    const provider = getControllerProvider()
     try {
-      await applyControllerPixelCount(getControllerProvider(), value, prev)
+      await applyControllerPixelCount(provider, value, prev)
       // Poll immediately so the device's freshly-reported count clears the hold now
       // rather than after the next interval tick — re-enabling the input promptly.
       await get().poll()
       // The profile status band reads durable metadata (`lastKnownPixelCount`),
-      // which only an explicit profile Refresh used to re-read (#876). An
-      // acknowledged write is the same evidence a Refresh would gather, so
-      // re-read the matched profile's live metadata now.
-      refreshMatchedProfileMetadata()
+      // which only an explicit profile Refresh used to re-read (#876). Once the
+      // Controller itself reports the written count, that is the same evidence a
+      // Refresh would gather, so re-read the matched profile's live metadata then.
+      // Detached: the hold below releases on the panel's own schedule.
+      void refreshProfileOncePixelCountConfirmed(provider, value)
     } catch {
       // Tolerate a failed write; the finally releases the hold either way.
     } finally {

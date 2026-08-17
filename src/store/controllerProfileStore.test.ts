@@ -495,6 +495,50 @@ describe('controllerProfileStore', () => {
     })
   })
 
+  it('still lands device facts when the profile changed during the read (#876)', async () => {
+    // Profile writes are frequent while a Controller is live (reconciliation,
+    // installed-map snapshots, other refreshes). A refresh must not drop the
+    // device's reported pixel count just because some unrelated field moved
+    // while it was reading; only a concurrent rename keeps its own name.
+    const profile = defaultControllerProfile({
+      id: 'ctrl-1',
+      name: 'Burner bag',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      now: 1,
+    })
+    const provider = new FakeControllerProvider()
+    let resolveConfig!: (config: ControllerConfig) => void
+    provider.getConfig = () => new Promise((resolve) => { resolveConfig = resolve })
+    setPersonalContentProvider(memoryProvider([{ ...profile, lastKnownPixelCount: 256 }]))
+    setControllerProvider(provider)
+    useControllerStore.setState({
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          phase: 'live',
+          deviceId: profile.deviceId,
+          nickname: 'Burner bag',
+          mapDim: null,
+        },
+      },
+      activeIp: '192.168.8.224',
+    })
+    await useControllerProfileStore.getState().loadProfiles()
+
+    const refresh = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    await useControllerProfileStore.getState().updateProfile(profile.id, { keepPatternsUpToDate: true })
+    resolveConfig({ name: 'Burner bag', pixelCount: 200 })
+    await refresh
+
+    expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
+      name: 'Burner bag',
+      keepPatternsUpToDate: true,
+      lastKnownPixelCount: 200,
+      lastSeenIp: '192.168.8.224',
+    })
+  })
+
   it('auto-creates a default profile for a signed-in live controller with a stable device id', async () => {
     setPersonalContentProvider(memoryProvider())
 
