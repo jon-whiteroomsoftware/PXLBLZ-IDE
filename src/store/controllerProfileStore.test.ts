@@ -752,16 +752,21 @@ describe('controllerProfileStore', () => {
       lastKnownDeviceName: 'Device',
     })
 
-    // A user rename in the same window is still never overwritten.
+    // A user rename in the same window is still never overwritten — even a
+    // rename that lands back on the value a refresh once wrote.
     const third = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
     await Promise.resolve()
     await useControllerProfileStore.getState().updateProfile(profile.id, {
       name: 'Road case',
       lastKnownDeviceName: 'Road case',
     })
+    await useControllerProfileStore.getState().updateProfile(profile.id, {
+      name: 'Cached',
+      lastKnownDeviceName: 'Cached',
+    })
     pending[2]({ name: 'Device' })
     await third
-    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Road case')
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Cached')
   })
 
   it('fills a fact from the live entry only until the device has actually reported it (#876)', async () => {

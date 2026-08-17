@@ -203,16 +203,19 @@ let profileSettleGeneration = 0
 type LiveMetadataFact = 'pixelCount' | 'name' | 'firmware'
 let liveMetadataRefreshGeneration = 0
 const liveMetadataAppliedGeneration = new Map<string, Partial<Record<LiveMetadataFact, number>>>()
-// The device name a refresh last wrote per profile, so a later refresh can tell
-// "another refresh renamed this" (fine to overwrite) from "the user renamed
-// this" (never overwrite).
-const liveMetadataWrittenName = new Map<string, string>()
+// Write ownership of the profile name (#876): the op of the last write that
+// touched `name` per profile, and the op of the last such write a metadata
+// refresh made. A later refresh may replace the name only if the last name
+// write was a refresh write — ownership, not value equality, decides.
+const profileNameWriteOp = new Map<string, number>()
+const liveMetadataNameWriteOp = new Map<string, number>()
 
 /** Test seam: forget live-metadata refresh ordering between tests. */
 export function __resetLiveMetadataRefreshOrdering(): void {
   liveMetadataRefreshGeneration = 0
   liveMetadataAppliedGeneration.clear()
-  liveMetadataWrittenName.clear()
+  liveMetadataNameWriteOp.clear()
+  profileNameWriteOp.clear()
 }
 
 function liveMetadataFactIsCurrent(profileId: string, fact: LiveMetadataFact, generation: number): boolean {
@@ -401,6 +404,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     const patch = { ...changes, updatedAt }
     const previous = get().profiles.find((profile) => profile.id === id)
     const op = ++profileWriteSeq
+    if (Object.prototype.hasOwnProperty.call(changes, 'name')) profileNameWriteOp.set(id, op)
     set((s) => ({
       profiles: s.profiles.map((profile) =>
         profile.id === id ? patchProfile(profile, patch) : profile,
@@ -651,12 +655,12 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     // applied that fact.
     const current = get().profiles.find((candidate) => candidate.id === profileId)
     if (!current) return
-    // A name that moved since this refresh started is a user rename unless it
-    // is exactly what another refresh wrote from the device meanwhile.
+    // A name that moved since this refresh started is a user rename unless the
+    // last writer of the name was another refresh (ownership, not equality).
     const nameUntouched = (current.name === profile.name
       && current.lastKnownDeviceName === profile.lastKnownDeviceName)
-      || (current.name === liveMetadataWrittenName.get(profileId)
-        && current.lastKnownDeviceName === current.name)
+      || (liveMetadataNameWriteOp.get(profileId) !== undefined
+        && profileNameWriteOp.get(profileId) === liveMetadataNameWriteOp.get(profileId))
     const refreshedInstalledMap = useControllerStore.getState().controllers[active.ip]?.installedMap
     const installedMapSnapshot = refreshedInstalledMap
       ? toInstalledMapSnapshot(refreshedInstalledMap)
@@ -716,8 +720,15 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
         ? { board }
         : {}),
     }
-    if (changes.name) liveMetadataWrittenName.set(profileId, changes.name)
-    if (Object.keys(changes).length > 0) await get().updateProfile(profileId, changes)
+    if (Object.keys(changes).length === 0) return
+    const write = get().updateProfile(profileId, changes)
+    // updateProfile records the name write op synchronously, so right after
+    // the call it is this write's op.
+    if (changes.name) {
+      const op = profileNameWriteOp.get(profileId)
+      if (op !== undefined) liveMetadataNameWriteOp.set(profileId, op)
+    }
+    await write
   },
 }))
 
