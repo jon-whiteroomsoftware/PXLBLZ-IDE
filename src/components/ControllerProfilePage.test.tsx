@@ -59,6 +59,7 @@ import {
   __resetControllerDeviceWriteQueue,
   queueControllerDeviceWrite,
 } from '@/engine/controllerDeviceWriteQueue'
+import { expectDisabledReason } from '@/components/ui/disabled-reason.testing'
 
 const READBACK_POINTS = [
   [0, 0],
@@ -333,12 +334,16 @@ describe('ControllerProfilePage', () => {
     const runningRun = screen.getByRole('button', { name: 'Run Twinkle on the Controller' })
     expect(runningRun).toBeDisabled()
     expect(runningRun).toHaveAttribute('title', 'Running now')
+    // The running row's Delete explains itself to keyboard and assistive tech,
+    // not only to a hovering mouse (#871): focusable, aria-disabled, described.
     const runningDelete = screen.getByRole('button', { name: 'Delete Twinkle from the Controller' })
-    expect(runningDelete).toBeDisabled()
-    expect(runningDelete).toHaveAttribute(
-      'title',
-      'Running now — switch to another Pattern first',
-    )
+    expectDisabledReason(runningDelete, 'Running now — switch to another Pattern first')
+    expect(runningDelete).not.toHaveAttribute('title')
+    act(() => runningDelete.focus())
+    expect(document.activeElement).toBe(runningDelete)
+    expect(document.getElementById(runningDelete.getAttribute('aria-describedby')!)).toBeVisible()
+    fireEvent.click(runningDelete)
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
 
     const foreignRun = screen.getByRole('button', { name: 'Run sound bar kit on the Controller' })
     const foreignActions = foreignRun.parentElement!
@@ -758,8 +763,7 @@ describe('ControllerProfilePage', () => {
     const pendingDelete = screen.getByRole('button', {
       name: 'Delete Twinkle from the Controller',
     })
-    expect(pendingDelete).toBeDisabled()
-    expect(pendingDelete).toHaveAttribute('title', 'Waiting to confirm the running Pattern')
+    expectDisabledReason(pendingDelete, 'Waiting to confirm the running Pattern')
 
     act(() => {
       useControllerPanelStore.getState().noteProgramActivated('DEV1', '192.168.8.224')

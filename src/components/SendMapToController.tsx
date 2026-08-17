@@ -1,6 +1,7 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useId, useState, useSyncExternalStore } from 'react'
 import { RotateCw, Check, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DisabledReasonTip } from '@/components/ui/disabled-reason'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { useControllerStore } from '@/store/controllerStore'
 import { useMapStore, openMapForPushState } from '@/store/mapStore'
@@ -156,8 +157,12 @@ export function SendMapToController() {
 
   const target = active ? active.nickname || activeIp : null
   const name = target ?? 'Controller'
+  // The gate reason must reach keyboard and assistive-tech users (#875): a
+  // gated Send stays focusable under `aria-disabled` and describes itself
+  // through the shared tip; only an in-flight send uses `disabled`.
+  const reasonId = useId()
 
-  let title = reason
+  let title: string | undefined
   let glyph = <ArrowRight size={14} strokeWidth={2.75} aria-hidden />
   if (pushing) {
     glyph = (
@@ -179,7 +184,8 @@ export function SendMapToController() {
   }
 
   const working = pushing || !!pushResult?.ok
-  const dimClass = working ? 'opacity-95' : 'disabled:opacity-30'
+  const gated = !enabled && !working
+  const dimClass = working ? 'opacity-95' : 'disabled:opacity-30 aria-disabled:opacity-30 aria-disabled:cursor-not-allowed aria-disabled:hover:bg-zinc-800/70 aria-disabled:hover:text-zinc-400'
 
   const open = preflight !== null
   const blocking = mapPushRemedyCount !== null
@@ -196,17 +202,22 @@ export function SendMapToController() {
       title="Push map"
       testId="map-preflight-dialog"
       anchor={
-        <Button
-          size="xs"
-          variant="ghost"
-          className={`text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300 ${dimClass}`}
-          disabled={!enabled || working}
-          title={title}
-          onClick={() => void requestMapPush()}
-          data-testid="send-map-to-controller"
-        >
-          {content}
-        </Button>
+        <span className="relative inline-flex">
+          <Button
+            size="xs"
+            variant="ghost"
+            className={`text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300 ${dimClass}`}
+            disabled={working}
+            aria-disabled={gated || undefined}
+            aria-describedby={gated ? reasonId : undefined}
+            title={title}
+            onClick={() => { if (!gated) void requestMapPush() }}
+            data-testid="send-map-to-controller"
+          >
+            {content}
+          </Button>
+          {gated && <DisabledReasonTip id={reasonId}>{reason}</DisabledReasonTip>}
+        </span>
       }
     >
       <MapPushChoices

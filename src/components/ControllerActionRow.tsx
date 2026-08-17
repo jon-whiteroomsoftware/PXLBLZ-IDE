@@ -1,6 +1,7 @@
-import { useSyncExternalStore } from 'react'
+import { useId, useSyncExternalStore } from 'react'
 import { Check, Play, RotateCw, Save } from 'lucide-react'
 import { controlIcon, transportIcon } from '@/components/iconScale'
+import { DisabledReasonTip } from '@/components/ui/disabled-reason'
 import { trackEvent } from '@/analytics'
 import { describeControllerActionRow } from '@/engine/controllerActionRow'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
@@ -92,6 +93,13 @@ export function ControllerActionRow() {
       && !programs.some((program) => program.id === activeProgramId),
   })
   const target = active ? active.nickname || active.ip : 'Controller'
+  // Gate reasons reach keyboard and assistive-tech users (#875): a gated verb
+  // stays focusable under `aria-disabled` and describes itself through the
+  // shared tip; only an in-flight send uses `disabled`.
+  const runReasonId = useId()
+  const saveReasonId = useId()
+  const runGated = !view.run.enabled && !working
+  const saveGated = !view.save.enabled && !working
 
   const send = (mode: SendMode) => {
     setSaveArmed(mode === 'save')
@@ -116,31 +124,41 @@ export function ControllerActionRow() {
   }
 
   const actionClass =
-    'inline-flex h-7 items-center gap-1.5 rounded-sm px-2 text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-30'
+    'inline-flex h-7 items-center gap-1.5 rounded-sm px-2 text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:cursor-not-allowed aria-disabled:opacity-30'
 
   return (
     <div data-testid="controller-action-row" className="relative border-b border-seam px-3 py-2">
       <div className="flex min-w-0 flex-wrap items-center gap-1">
-        <button
-          type="button"
-          disabled={!view.run.enabled}
-          title={view.run.enabled ? describeSendAction('run', target).tooltip : view.run.reason}
-          onClick={() => send('run')}
-          className={`${actionClass} bg-zinc-800/80 text-zinc-300 hover:bg-zinc-700/80 hover:text-zinc-100`}
-        >
-          {glyph('run')}
-          Run
-        </button>
-        <button
-          type="button"
-          disabled={!view.save.enabled}
-          title={view.save.enabled ? describeSendAction('save', target).tooltip : view.save.reason}
-          onClick={() => send('save')}
-          className={`${actionClass} bg-zinc-800/80 text-zinc-300 hover:bg-amber-500/10 hover:text-amber-300`}
-        >
-          {glyph('save')}
-          Save
-        </button>
+        <span className="relative inline-flex">
+          <button
+            type="button"
+            disabled={working}
+            aria-disabled={runGated || undefined}
+            aria-describedby={runGated ? runReasonId : undefined}
+            title={view.run.enabled ? describeSendAction('run', target).tooltip : working ? view.run.reason : undefined}
+            onClick={() => { if (!runGated) send('run') }}
+            className={`${actionClass} bg-zinc-800/80 text-zinc-300 hover:bg-zinc-700/80 hover:text-zinc-100 aria-disabled:hover:bg-zinc-800/80 aria-disabled:hover:text-zinc-300`}
+          >
+            {glyph('run')}
+            Run
+          </button>
+          {runGated && <DisabledReasonTip id={runReasonId}>{view.run.reason}</DisabledReasonTip>}
+        </span>
+        <span className="relative inline-flex">
+          <button
+            type="button"
+            disabled={working}
+            aria-disabled={saveGated || undefined}
+            aria-describedby={saveGated ? saveReasonId : undefined}
+            title={view.save.enabled ? describeSendAction('save', target).tooltip : working ? view.save.reason : undefined}
+            onClick={() => { if (!saveGated) send('save') }}
+            className={`${actionClass} bg-zinc-800/80 text-zinc-300 hover:bg-amber-500/10 hover:text-amber-300 aria-disabled:hover:bg-zinc-800/80 aria-disabled:hover:text-zinc-300`}
+          >
+            {glyph('save')}
+            Save
+          </button>
+          {saveGated && <DisabledReasonTip id={saveReasonId}>{view.save.reason}</DisabledReasonTip>}
+        </span>
         <span
           className="ml-1.5 min-w-16 flex-1 basis-20 truncate text-[10px] text-zinc-500"
           title={view.subject ?? undefined}

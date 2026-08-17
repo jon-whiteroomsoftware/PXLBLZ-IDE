@@ -1,10 +1,11 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { act, render, screen, fireEvent } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SendMapToController } from './SendMapToController'
 import { useControllerStore, controllerInitialState } from '@/store/controllerStore'
 import { useMapStore, mapInitialState, type MapRecord } from '@/store/mapStore'
 import { setControllerProvider, resetControllerProvider } from '@/engine/controllerProviderRegistry'
 import { NullControllerProvider, type ControllerStatus } from '@/engine/ControllerProvider'
+import { expectDisabledReason, expectNotGated } from '@/components/ui/disabled-reason.testing'
 
 class ConnectedProvider extends NullControllerProvider {
   private status: ControllerStatus = {
@@ -60,9 +61,7 @@ describe('SendMapToController', () => {
   it('is disabled with an explanation when no Controller is connected', () => {
     openBakedMap()
     render(<SendMapToController />)
-    const button = screen.getByTestId('send-map-to-controller')
-    expect(button).toBeDisabled()
-    expect(button).toHaveAttribute('title', expect.stringMatching(/connect a controller/i))
+    expectDisabledReason(screen.getByTestId('send-map-to-controller'), /connect a controller/i)
   })
 
   it('is disabled until the map has baked points', () => {
@@ -72,16 +71,14 @@ describe('SendMapToController', () => {
       userMaps: [{ ...BAKED_MAP, points: undefined }],
     })
     render(<SendMapToController />)
-    const button = screen.getByTestId('send-map-to-controller')
-    expect(button).toBeDisabled()
-    expect(button).toHaveAttribute('title', expect.stringMatching(/bake/i))
+    expectDisabledReason(screen.getByTestId('send-map-to-controller'), /bake/i)
   })
 
   it('is enabled when connected with a baked map', () => {
     connect()
     openBakedMap()
     render(<SendMapToController />)
-    expect(screen.getByTestId('send-map-to-controller')).toBeEnabled()
+    expectNotGated(screen.getByTestId('send-map-to-controller'))
   })
 
   it('disables a 1D map send to firmware older than 3.66 with an explanation', () => {
@@ -91,9 +88,7 @@ describe('SendMapToController', () => {
       userMaps: [{ ...BAKED_MAP, dim: 1, points: [[0], [1]], source: '[[0], [1]]' }],
     })
     render(<SendMapToController />)
-    const button = screen.getByTestId('send-map-to-controller')
-    expect(button).toBeDisabled()
-    expect(button).toHaveAttribute('title', expect.stringMatching(/3\.66 or newer/i))
+    expectDisabledReason(screen.getByTestId('send-map-to-controller'), /3\.66 or newer/i)
   })
 
   it('opens the preflight dialog on click (a map send always confirms)', async () => {
@@ -187,7 +182,12 @@ describe('SendMapToController', () => {
     useControllerStore.setState({ lastPushedMap: { '10.0.0.9': { m1: BAKED_MAP.source as string } } })
     render(<SendMapToController />)
     const button = screen.getByTestId('send-map-to-controller')
-    expect(button).toBeDisabled()
-    expect(button).toHaveAttribute('title', expect.stringMatching(/no changes/i))
+    expectDisabledReason(button, /no changes since the last send/i)
+    // A gated Send is inert on click and reachable by keyboard focus (#875).
+    fireEvent.click(button)
+    expect(useControllerStore.getState().preflight).toBeNull()
+    act(() => button.focus())
+    expect(document.activeElement).toBe(button)
+    expect(document.getElementById(button.getAttribute('aria-describedby')!)).toBeVisible()
   })
 })

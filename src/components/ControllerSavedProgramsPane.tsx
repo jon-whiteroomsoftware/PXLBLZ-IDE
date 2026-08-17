@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import {
   ChevronDown,
   ChevronUp,
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { controlIcon, inlineIcon } from '@/components/iconScale'
 import { Button } from '@/components/ui/button'
+import { DisabledReasonTip } from '@/components/ui/disabled-reason'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import { sectionActionButtonClass } from './ControllerProfileHeaderActions'
 import { requestControllerEntryOpen } from '@/components/controllerEntryEvents'
@@ -78,7 +79,7 @@ const tableHeadClass = 'border-b border-seam pb-1.5 pr-2 text-left font-mono tex
 const EMPTY_CONTROLLER_PROGRAMS: ProgramListEntry[] = []
 const tableCellClass = 'border-t border-zinc-900/85 py-1.5 pr-2 align-middle'
 const tableClass = 'w-full table-fixed border-collapse text-xs [&_tbody_tr:first-child_td]:border-t-0'
-const iconButtonClass = 'inline-flex h-6 w-6 items-center justify-center rounded border border-transparent text-zinc-400 hover:border-zinc-700 hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-transparent disabled:hover:bg-transparent'
+const iconButtonClass = 'inline-flex h-6 w-6 items-center justify-center rounded border border-transparent text-zinc-400 hover:border-zinc-700 hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-transparent disabled:hover:bg-transparent aria-disabled:cursor-not-allowed aria-disabled:opacity-30 aria-disabled:hover:border-transparent aria-disabled:hover:bg-transparent aria-disabled:hover:text-zinc-400'
 const actionClusterClass = 'inline-flex items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100'
 
 type SavedProgramsReadStatus = 'offline' | 'loading' | 'ready' | 'error'
@@ -481,6 +482,11 @@ function SavedProgramRowActions({
   onDelete: (program: ControllerSavedProgramRow) => void
   deleteDisabledReason: string | null
 }) {
+  // The disabled reason stays reachable by mouse, keyboard, and assistive tech
+  // (#871): the control keeps focus with `aria-disabled` and describes itself
+  // through the shared tip instead of a mouse-only title on an inert button.
+  const deleteReasonId = useId()
+  const deleteBlocked = deleteDisabledReason !== null
   return (
     <span className={actionClusterClass}>
       <button
@@ -509,16 +515,23 @@ function SavedProgramRowActions({
             : <Download {...controlIcon} aria-hidden />}
         </button>
       )}
-      <button
-        type="button"
-        className={`${iconButtonClass} hover:text-red-300`}
-        aria-label={`Delete ${program.name} from the Controller`}
-        title={deleteDisabledReason ?? 'Delete from the Controller'}
-        disabled={disabled || deleteDisabledReason !== null}
-        onClick={() => onDelete(program)}
-      >
-        <Trash2 {...controlIcon} aria-hidden />
-      </button>
+      <span className="relative inline-flex">
+        <button
+          type="button"
+          className={`${iconButtonClass} hover:text-red-300`}
+          aria-label={`Delete ${program.name} from the Controller`}
+          title={deleteBlocked ? undefined : 'Delete from the Controller'}
+          disabled={disabled}
+          aria-disabled={deleteBlocked || undefined}
+          aria-describedby={deleteBlocked ? deleteReasonId : undefined}
+          onClick={() => { if (!deleteBlocked) onDelete(program) }}
+        >
+          <Trash2 {...controlIcon} aria-hidden />
+        </button>
+        {deleteBlocked && (
+          <DisabledReasonTip id={deleteReasonId}>{deleteDisabledReason}</DisabledReasonTip>
+        )}
+      </span>
     </span>
   )
 }

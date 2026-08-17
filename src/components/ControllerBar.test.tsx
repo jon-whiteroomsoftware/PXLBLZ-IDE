@@ -35,6 +35,7 @@ import {
 } from '@/engine/ControllerProvider'
 import { controllerProfileArtifactSignature } from '@/engine/controllerProfilePassRecipe'
 import { queueControllerDeviceWrite } from '@/engine/controllerDeviceWriteQueue'
+import { expectDisabledReason, expectNotGated } from '@/components/ui/disabled-reason.testing'
 
 class ConnectedProvider extends NullControllerProvider {
   constructor(private readonly reportedFps = 36) {
@@ -1100,13 +1101,13 @@ describe('ControllerBar', () => {
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
     act(() => useControllerPanelStore.setState({ activeProgramId: 'run-pattern-1' }))
-    expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+    expectDisabledReason(screen.getByRole('button', { name: 'Run' }), 'No changes since the last send')
+    expectNotGated(screen.getByRole('button', { name: 'Save' }))
 
     act(() => useControllerPanelStore.setState({ activeProgramId: 'doom-fire' }))
 
-    expect(screen.getByRole('button', { name: 'Run' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+    expectNotGated(screen.getByRole('button', { name: 'Run' }))
+    expectNotGated(screen.getByRole('button', { name: 'Save' }))
   })
 
   it('dims Run and Save outside the Studio pattern surface and keeps the reason in tooltips', () => {
@@ -1130,8 +1131,8 @@ describe('ControllerBar', () => {
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
 
-    expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    expectDisabledReason(screen.getByRole('button', { name: 'Run' }), 'Open a pattern to push it to this Controller')
+    expectDisabledReason(screen.getByRole('button', { name: 'Save' }), 'Open a pattern to push it to this Controller')
     expect(screen.getByTestId('controller-action-row')).toHaveTextContent('—')
     expect(screen.queryByText('Open a pattern to push it to this Controller.')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open Desk profile' })).toBeEnabled()

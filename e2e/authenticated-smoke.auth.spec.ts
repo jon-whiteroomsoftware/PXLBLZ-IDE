@@ -464,9 +464,10 @@ test('deletes an inactive managed Controller Pattern and re-arms Studio Save (#8
   const targetDelete = managedTable.getByRole('button', {
     name: `Delete ${pattern.name} from the Controller`,
   })
+  // The running row's Delete is aria-disabled and describes itself (#871).
   await expect(targetDelete).toBeDisabled()
-  await expect(targetDelete).toHaveAttribute(
-    'title',
+  await expect(targetDelete).toHaveAttribute('aria-disabled', 'true')
+  await expect(targetDelete).toHaveAccessibleDescription(
     'Running now — switch to another Pattern first',
   )
 

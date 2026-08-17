@@ -1,6 +1,8 @@
+import { useId } from 'react'
 import { Check, Play, RotateCw, Save } from 'lucide-react'
 import { controlIcon, transportIcon } from '@/components/iconScale'
 import { ChipGlyph, ConnectGlyph } from '@/components/ControllerGlyphs'
+import { DisabledReasonTip } from '@/components/ui/disabled-reason'
 import type { SendGate, SendMode } from '@/engine/sendToController'
 import type { PushResult } from '@/store/controllerStore'
 
@@ -39,6 +41,14 @@ export function PatternDeploymentActions({
 }: PatternDeploymentActionsProps) {
   const target = controllerName?.trim() || 'Controller'
   const working = preparing || pushing || !!pushResult?.ok
+  // A gate reason must reach keyboard and assistive-tech users, not just the
+  // mouse (#875): a gated action stays focusable under `aria-disabled` and
+  // points `aria-describedby` at the shared tip. Only the transient in-flight
+  // state uses the hard `disabled` attribute.
+  const runReasonId = useId()
+  const saveReasonId = useId()
+  const gated = (gate: SendGate) => !gate.enabled && !working
+
   const heightClass = density === 'compact' ? 'h-6 text-[10px]' : 'h-8 text-[11px]'
   const actionPadding = density === 'compact' ? 'px-2' : 'px-2.5'
   const identityWidth = density === 'compact' ? 'max-w-36' : 'max-w-44'
@@ -63,15 +73,31 @@ export function PatternDeploymentActions({
   )
 
   const actionTitle = (mode: SendMode, gate: SendGate) => {
-    if (!gate.enabled) return gate.reason
-    if (pushResult && !pushResult.ok && activeMode === mode) return pushResult.message
     if (working) return 'Sending...'
+    if (!gate.enabled) return undefined
+    if (pushResult && !pushResult.ok && activeMode === mode) return pushResult.message
     return mode === 'save' ? `Save to ${target}` : `Run on ${target}`
   }
 
+  const gateProps = (mode: SendMode, gate: SendGate) => {
+    const reasonId = mode === 'save' ? saveReasonId : runReasonId
+    return {
+      disabled: working,
+      'aria-disabled': gated(gate) || undefined,
+      'aria-describedby': gated(gate) ? reasonId : undefined,
+      title: actionTitle(mode, gate),
+    }
+  }
+
+  const gateTip = (mode: SendMode, gate: SendGate) => (
+    gated(gate)
+      ? <DisabledReasonTip id={mode === 'save' ? saveReasonId : runReasonId}>{gate.reason}</DisabledReasonTip>
+      : null
+  )
+
   if (presentation === 'facts') {
     const actionClass =
-      'inline-flex h-6 items-center justify-center gap-1.5 rounded border border-zinc-700 px-2 text-zinc-300 transition-colors hover:border-zinc-500 hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-35'
+      'inline-flex h-6 items-center justify-center gap-1.5 rounded border border-zinc-700 px-2 text-zinc-300 transition-colors hover:border-zinc-500 hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-35 aria-disabled:cursor-not-allowed aria-disabled:opacity-35 aria-disabled:hover:border-zinc-700 aria-disabled:hover:bg-transparent aria-disabled:hover:text-zinc-300'
     return (
       <span
         data-testid="pattern-deployment-actions"
@@ -94,30 +120,34 @@ export function PatternDeploymentActions({
         </span>
         {connected ? (
           <>
-            <button
-              type="button"
-              aria-label={`Run on ${target}`}
-              disabled={!runGate.enabled || working}
-              title={actionTitle('run', runGate)}
-              onClick={onRun}
-              data-testid="run-on-controller"
-              className={actionClass}
-            >
-              {actionIcon('run')}
-              {actionLabel('run')}
-            </button>
-            <button
-              type="button"
-              aria-label={`Save to ${target}`}
-              disabled={!saveGate.enabled || working}
-              title={actionTitle('save', saveGate)}
-              onClick={onSave}
-              data-testid="save-to-controller"
-              className={`${actionClass} hover:border-live/60 hover:bg-live/10 hover:text-live`}
-            >
-              {actionIcon('save')}
-              {actionLabel('save')}
-            </button>
+            <span className="relative inline-flex">
+              <button
+                type="button"
+                aria-label={`Run on ${target}`}
+                {...gateProps('run', runGate)}
+                onClick={() => { if (!gated(runGate)) onRun() }}
+                data-testid="run-on-controller"
+                className={actionClass}
+              >
+                {actionIcon('run')}
+                {actionLabel('run')}
+              </button>
+              {gateTip('run', runGate)}
+            </span>
+            <span className="relative inline-flex">
+              <button
+                type="button"
+                aria-label={`Save to ${target}`}
+                {...gateProps('save', saveGate)}
+                onClick={() => { if (!gated(saveGate)) onSave() }}
+                data-testid="save-to-controller"
+                className={`${actionClass} hover:border-live/60 hover:bg-live/10 hover:text-live`}
+              >
+                {actionIcon('save')}
+                {actionLabel('save')}
+              </button>
+              {gateTip('save', saveGate)}
+            </span>
           </>
         ) : (
           <button type="button" onClick={onConnect} className={actionClass}>
@@ -149,30 +179,34 @@ export function PatternDeploymentActions({
 
       {connected ? (
         <>
-          <button
-            type="button"
-            aria-label={`Run on ${target}`}
-            disabled={!runGate.enabled || working}
-            title={actionTitle('run', runGate)}
-            onClick={onRun}
-            data-testid="run-on-controller"
-            className={`inline-flex items-center justify-center gap-1.5 text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-35 ${actionPadding}`}
-          >
-            {actionIcon('run')}
-            <span className="show-deployment-action-label">{actionLabel('run')}</span>
-          </button>
-          <button
-            type="button"
-            aria-label={`Save to ${target}`}
-            disabled={!saveGate.enabled || working}
-            title={actionTitle('save', saveGate)}
-            onClick={onSave}
-            data-testid="save-to-controller"
-            className={`inline-flex items-center justify-center gap-1.5 border-l border-zinc-800 text-zinc-400 transition-colors hover:bg-amber-500/10 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-35 ${actionPadding}`}
-          >
-            {actionIcon('save')}
-            <span className="show-deployment-action-label">{actionLabel('save')}</span>
-          </button>
+          <span className="relative inline-flex">
+            <button
+              type="button"
+              aria-label={`Run on ${target}`}
+              {...gateProps('run', runGate)}
+              onClick={() => { if (!gated(runGate)) onRun() }}
+              data-testid="run-on-controller"
+              className={`inline-flex items-center justify-center gap-1.5 text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-35 aria-disabled:cursor-not-allowed aria-disabled:opacity-35 aria-disabled:hover:bg-transparent aria-disabled:hover:text-zinc-300 ${actionPadding}`}
+            >
+              {actionIcon('run')}
+              <span className="show-deployment-action-label">{actionLabel('run')}</span>
+            </button>
+            {gateTip('run', runGate)}
+          </span>
+          <span className="relative inline-flex">
+            <button
+              type="button"
+              aria-label={`Save to ${target}`}
+              {...gateProps('save', saveGate)}
+              onClick={() => { if (!gated(saveGate)) onSave() }}
+              data-testid="save-to-controller"
+              className={`inline-flex items-center justify-center gap-1.5 border-l border-zinc-800 text-zinc-400 transition-colors hover:bg-amber-500/10 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-35 aria-disabled:cursor-not-allowed aria-disabled:opacity-35 aria-disabled:hover:bg-transparent aria-disabled:hover:text-zinc-400 ${actionPadding}`}
+            >
+              {actionIcon('save')}
+              <span className="show-deployment-action-label">{actionLabel('save')}</span>
+            </button>
+            {gateTip('save', saveGate)}
+          </span>
         </>
       ) : (
         <button

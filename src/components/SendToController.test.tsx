@@ -17,6 +17,7 @@ import { controllerProfileArtifactSignature } from '@/engine/controllerProfilePa
 import { setControllerProvider, resetControllerProvider } from '@/engine/controllerProviderRegistry'
 import { NullControllerProvider, type ControllerStatus } from '@/engine/ControllerProvider'
 import { trackEvent } from '@/analytics'
+import { expectDisabledReason, expectNotGated } from '@/components/ui/disabled-reason.testing'
 
 vi.mock('@/analytics', () => ({
   trackEvent: vi.fn(),
@@ -287,13 +288,13 @@ describe('SendToController', () => {
     useControllerPanelStore.setState({ activeProgramId: 'run-p1' })
     usePatternStore.setState({ activePatternId: 'p1' })
     render(<SendToController />)
-    expect(screen.getByTestId('run-on-controller')).toBeDisabled()
-    expect(screen.getByTestId('save-to-controller')).toBeEnabled()
+    expectDisabledReason(screen.getByTestId('run-on-controller'), 'No changes since the last send')
+    expectNotGated(screen.getByTestId('save-to-controller'))
 
     act(() => useControllerPanelStore.setState({ activeProgramId: 'doom-fire' }))
 
-    expect(screen.getByTestId('run-on-controller')).toBeEnabled()
-    expect(screen.getByTestId('save-to-controller')).toBeEnabled()
+    expectNotGated(screen.getByTestId('run-on-controller'))
+    expectNotGated(screen.getByTestId('save-to-controller'))
   })
 
   it('re-enables Send when generated Controller Profile configuration changes', () => {
@@ -313,7 +314,7 @@ describe('SendToController', () => {
       lastPushedProfileSignature: { '10.0.0.9': { p1: previousSignature } },
     })
     render(<SendToController />)
-    expect(screen.getByTestId('run-on-controller')).toBeDisabled()
+    expectDisabledReason(screen.getByTestId('run-on-controller'), 'No changes since the last send')
 
     act(() => {
       useControllerProfileStore.setState({
