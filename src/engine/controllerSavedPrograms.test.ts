@@ -2,7 +2,9 @@ import {
   controllerSavedProgramFeatures,
   describeControllerSavedPrograms,
   describeProfileFreshness,
+  resolveControllerSavedPatternStatuses,
   sortControllerSavedPrograms,
+  summarizeControllerSavedPatternStatuses,
 } from './controllerSavedPrograms'
 import { controllerProfileArtifactSignature } from './controllerProfilePassRecipe'
 import { defaultControllerProfile } from '@/store/controllerProfileStore'
@@ -451,3 +453,69 @@ function savedProgramRow(
     freshness: kind === 'owned' ? 'current' as const : 'unmanaged' as const,
   }
 }
+
+describe('resolveControllerSavedPatternStatuses (#874)', () => {
+  const owned = [
+    savedProgramRow('A1', 'Alpha'),
+    { ...savedProgramRow('B2', 'Bravo'), freshness: 'stale' as const },
+    { ...savedProgramRow('C3', 'Charlie'), freshness: 'unmanaged' as const },
+  ]
+
+  it('lets fresh row freshness supersede a completed "current" reconciliation snapshot', () => {
+    // Right after a code-affecting profile edit the reconciliation snapshot still
+    // says current while every row already compares stale; the rows win.
+    expect(resolveControllerSavedPatternStatuses(owned, [
+      { programId: 'A1', state: 'current' },
+      { programId: 'B2', state: 'current' },
+    ])).toEqual({ A1: 'current', B2: 'stale', C3: 'unmanaged' })
+  })
+
+  it('lets live reconciliation work states supersede row freshness', () => {
+    expect(resolveControllerSavedPatternStatuses(owned, [
+      { programId: 'A1', state: 'updating' },
+      { programId: 'B2', state: 'queued' },
+      { programId: 'C3', state: 'failed' },
+    ])).toEqual({ A1: 'updating', B2: 'queued', C3: 'failed' })
+  })
+
+  it('keeps reconciliation programs that have no inventory row yet', () => {
+    expect(resolveControllerSavedPatternStatuses([], [
+      { programId: 'A1', state: 'current' },
+      { programId: 'B2', state: 'queued' },
+    ])).toEqual({ A1: 'current', B2: 'queued' })
+  })
+})
+
+describe('summarizeControllerSavedPatternStatuses (#874)', () => {
+  it('counts every resolved status so the summary can never disagree with the rows', () => {
+    expect(summarizeControllerSavedPatternStatuses({
+      A1: 'current',
+      B2: 'stale',
+      C3: 'stale',
+      D4: 'updating',
+      E5: 'queued',
+      F6: 'failed',
+      G7: 'unmanaged',
+    })).toEqual({
+      current: 1,
+      stale: 2,
+      updating: 1,
+      queued: 1,
+      failed: 1,
+      unmanaged: 1,
+      total: 7,
+    })
+  })
+
+  it('reports an empty summary as all zeros', () => {
+    expect(summarizeControllerSavedPatternStatuses({})).toEqual({
+      current: 0,
+      stale: 0,
+      updating: 0,
+      queued: 0,
+      failed: 0,
+      unmanaged: 0,
+      total: 0,
+    })
+  })
+})

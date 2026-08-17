@@ -254,8 +254,10 @@ function renderLiveProgramInventory(
       },
     },
   })
-  render(<ControllerSavedProgramsPane profile={profile} />)
-  return provider
+  const { rerender } = render(<ControllerSavedProgramsPane profile={profile} />)
+  return Object.assign(provider, {
+    rerender: (next: ReturnType<typeof seedProfile>) => rerender(<ControllerSavedProgramsPane profile={next} />),
+  })
 }
 
 describe('ControllerProfilePage', () => {
@@ -1631,7 +1633,7 @@ describe('ControllerProfilePage', () => {
     expect(screen.queryByText(/managed Patterns current/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/unmanaged programs are exempt/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText('Managed Pattern refresh progress')).toHaveTextContent(
-      '1 current, 1 updating, 1 queued, 0 failed',
+      '1 current, 0 to push again, 1 updating, 1 queued, 0 failed',
     )
 
     fireEvent.click(screen.getByRole('checkbox', { name: updateLabel }))
@@ -2012,6 +2014,90 @@ describe('ControllerProfilePage', () => {
 
     expect(await screen.findByLabelText(statusDotName.stale)).toBeInTheDocument()
     expect(screen.queryByLabelText(statusDotName.current)).not.toBeInTheDocument()
+  })
+
+  it('moves the aggregate summary and the rows to stale together on a profile change (#874)', async () => {
+    const profile = { ...seedProfile(), keepPatternsUpToDate: true }
+    useControllerProfileStore.setState({ profiles: [profile] })
+    const names = ['Alpha', 'Bravo', 'Charlie'] as const
+    const record = (name: string, bindingKey: string) => ({
+      transforms: [],
+      artifactHash: `${bindingKey}-artifact`,
+      stampedAt: '2026-08-16T00:00:00.000Z',
+      name,
+      profileSignature: controllerProfileArtifactSignature(profile, bindingKey, { mapDim: 2 }),
+    })
+    const provider = renderLiveProgramInventory(profile, {
+      storageId: 'saved-program-summary-freshness',
+      programs: names.map((name, index) => ({ id: `DEV${index + 1}`, name })),
+      bindings: { 'pat-1': 'DEV1', 'pat-2': 'DEV2', 'pat-3': 'DEV3' },
+      pushRecords: {
+        'pat-1': record('Alpha', 'pat-1'),
+        'pat-2': record('Bravo', 'pat-2'),
+        'pat-3': record('Charlie', 'pat-3'),
+      },
+    })
+    expect(await screen.findAllByLabelText(statusDotName.current)).toHaveLength(3)
+
+    // A completed reconciliation snapshot still says every row is current.
+    act(() => {
+      useControllerStore.setState({
+        controllerReconciliations: {
+          [profile.id]: {
+            phase: 'running',
+            managedCount: 3,
+            unmanagedCount: 0,
+            completedCount: 3,
+            programs: names.map((name, index) => ({
+              programId: `DEV${index + 1}`,
+              bindingKey: `pat-${index + 1}`,
+              name,
+              state: 'current' as const,
+            })),
+          },
+        },
+      })
+    })
+    const summary = () => screen.getByLabelText('Managed Pattern refresh progress')
+    expect(summary()).toHaveTextContent('3 current, 0 to push again, 0 updating, 0 queued, 0 failed')
+
+    // A code-affecting profile edit moves every row to Push again; the summary
+    // must say the same on the very same render, not after the queue catches up.
+    const edited = {
+      ...profile,
+      globalTransforms: profile.globalTransforms.map((transform) =>
+        transform.type === 'power-cap' ? { ...transform, enabled: true } : transform,
+      ),
+    }
+    act(() => {
+      useControllerProfileStore.setState({ profiles: [edited] })
+      provider.rerender(edited)
+    })
+    expect(screen.getAllByLabelText(statusDotName.stale)).toHaveLength(3)
+    expect(screen.queryByLabelText(statusDotName.current)).not.toBeInTheDocument()
+    expect(summary()).toHaveTextContent('0 current, 3 to push again, 0 updating, 0 queued, 0 failed')
+
+    // Once the reconciliation queues and syncs, rows and summary move together.
+    act(() => {
+      useControllerStore.setState({
+        controllerReconciliations: {
+          [profile.id]: {
+            phase: 'running',
+            managedCount: 3,
+            unmanagedCount: 0,
+            completedCount: 0,
+            programs: [
+              { programId: 'DEV1', bindingKey: 'pat-1', name: 'Alpha', state: 'updating' },
+              { programId: 'DEV2', bindingKey: 'pat-2', name: 'Bravo', state: 'queued' },
+              { programId: 'DEV3', bindingKey: 'pat-3', name: 'Charlie', state: 'queued' },
+            ],
+          },
+        },
+      })
+    })
+    expect(screen.getByLabelText(statusDotName.updating)).toBeInTheDocument()
+    expect(screen.getAllByLabelText(statusDotName.queued)).toHaveLength(2)
+    expect(summary()).toHaveTextContent('0 current, 0 to push again, 1 updating, 2 queued, 0 failed')
   })
 
   it('does not claim a saved Pattern needs another push while the installed map is unknown', async () => {

@@ -42,7 +42,9 @@ import { controllerForProfile } from '@/engine/controllerProfileConnection'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import {
   describeControllerSavedPrograms,
+  resolveControllerSavedPatternStatuses,
   sortControllerSavedPrograms,
+  summarizeControllerSavedPatternStatuses,
   type ControllerSavedProgramFeatures,
   type ControllerSavedPatternStatus,
   type ControllerSavedProgramSort,
@@ -260,23 +262,22 @@ function SavedProgramNameCell({
 function ManagedPatternReconciliation({
   profile,
   reconciliation,
-  managedCount,
+  statuses,
   onRetry,
 }: {
   profile: ControllerProfile
   reconciliation?: ControllerReconciliationState
-  managedCount: number
+  /** The same per-program status projection the inventory rows render (#874). */
+  statuses: Readonly<Record<string, ControllerSavedPatternStatus>>
   onRetry: () => void
 }) {
   const updateProfile = useControllerProfileStore((state) => state.updateProfile)
-  const programs = reconciliation?.programs ?? []
-  const current = programs.filter((program) => program.state === 'current').length
-  const updating = programs.filter((program) => program.state === 'updating').length
-  const queued = programs.filter((program) => program.state === 'queued').length
-  const failed = programs.filter((program) => program.state === 'failed').length
+  const summary = summarizeControllerSavedPatternStatuses(statuses)
+  const { current, stale, updating, queued, failed, unmanaged } = summary
   const phase = reconciliation?.phase ?? 'idle'
   const showProgress = profile.keepPatternsUpToDate && ['pending', 'running', 'attention'].includes(phase)
-  const total = Math.max(managedCount, 1)
+  const total = Math.max(summary.total, 1)
+  const width = (count: number) => ({ width: `${(count / total) * 100}%` })
 
   return (
     <section className="border-b border-seam bg-zinc-950/55 px-4 py-2">
@@ -304,11 +305,15 @@ function ManagedPatternReconciliation({
             aria-label="Managed Pattern refresh progress"
             className="flex h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-zinc-900"
           >
-            <span className="sr-only">{current} current, {updating} updating, {queued} queued, {failed} failed</span>
-            {current > 0 && <span className="bg-emerald-500" style={{ width: `${(current / total) * 100}%` }} />}
-            {updating > 0 && <span className="animate-pulse bg-amber-400" style={{ width: `${(updating / total) * 100}%` }} />}
-            {queued > 0 && <span className="bg-zinc-700" style={{ width: `${(queued / total) * 100}%` }} />}
-            {failed > 0 && <span className="bg-red-500" style={{ width: `${(failed / total) * 100}%` }} />}
+            <span className="sr-only">
+              {current} current, {stale} to push again, {updating} updating, {queued} queued, {failed} failed
+              {unmanaged > 0 ? `, ${unmanaged} unknown` : ''}
+            </span>
+            {current > 0 && <span className="bg-emerald-500" style={width(current)} />}
+            {stale > 0 && <span className="bg-amber-400/70" style={width(stale)} />}
+            {updating > 0 && <span className="animate-pulse bg-amber-400" style={width(updating)} />}
+            {queued > 0 && <span className="bg-zinc-700" style={width(queued)} />}
+            {failed > 0 && <span className="bg-red-500" style={width(failed)} />}
           </div>
           {phase === 'attention' && (
             <Button
@@ -578,6 +583,7 @@ function SortableTableHead({
 function SavedProgramsInventory({
   status,
   programs,
+  statuses,
   hasSnapshot,
   showsEnabled,
   activeProgramId,
@@ -591,10 +597,11 @@ function SavedProgramsInventory({
   importingProgramId,
   deletingProgramId,
   error,
-  reconciliation,
 }: {
   status: SavedProgramsReadStatus
   programs: ControllerSavedProgramsView
+  /** Effective status per program id, shared with the aggregate summary (#874). */
+  statuses: Readonly<Record<string, ControllerSavedPatternStatus>>
   hasSnapshot: boolean
   showsEnabled: boolean
   activeProgramId: string | undefined
@@ -608,23 +615,15 @@ function SavedProgramsInventory({
   importingProgramId: string | null
   deletingProgramId: string | null
   error: string | null
-  reconciliation?: ControllerReconciliationState
 }) {
   const [sort, setSort] = useState<ControllerSavedProgramSort>({
     field: 'pattern',
     direction: 'ascending',
   })
-  // `current` is a completed reconciliation snapshot, not a live assertion.
-  // Let fresh source/profile comparison supersede it while work states remain visible.
-  const statusByProgramId = Object.fromEntries(
-    (reconciliation?.programs ?? [])
-      .filter((program) => program.state !== 'current')
-      .map((program) => [program.programId, program.state]),
-  ) as Partial<Record<string, ControllerSavedPatternStatus>>
-  const presentedPrograms = sortControllerSavedPrograms(programs, sort, statusByProgramId)
+  const presentedPrograms = sortControllerSavedPrograms(programs, sort, statuses)
   const showInventory = status === 'ready' || (status === 'loading' && hasSnapshot)
   const statusFor = (program: ControllerSavedProgramRow): ControllerSavedPatternStatus => (
-    statusByProgramId[program.programId] ?? program.freshness
+    statuses[program.programId] ?? program.freshness
   )
   const updateSort = (field: ControllerSavedProgramSort['field']) => setSort((current) => ({
     field,
@@ -990,11 +989,12 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
       })),
     ],
   })
-  const inventoryManagedCount = programs.owned.filter((program) => program.freshness !== 'unmanaged').length
-  const hasReconciliationScope = reconciliation && reconciliation.phase !== 'idle'
-  const managedCount = hasReconciliationScope
-    ? reconciliation.managedCount
-    : inventoryManagedCount
+  // One status projection for the rows and the aggregate summary (#874): a
+  // completed reconciliation snapshot never outranks the rows' fresh comparison.
+  const savedPatternStatuses = resolveControllerSavedPatternStatuses(
+    programs.owned,
+    reconciliation?.programs ?? [],
+  )
 
   async function runSavedProgram(program: ControllerSavedProgramRow) {
     if (!liveIp || liveEpoch === undefined) return
@@ -1191,12 +1191,13 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
       <ManagedPatternReconciliation
         profile={profile}
         reconciliation={reconciliation}
-        managedCount={managedCount}
+        statuses={savedPatternStatuses}
         onRetry={() => void reconcileControllerProfile(profile.id)}
       />
       <SavedProgramsInventory
         status={readStatus}
         programs={programs}
+        statuses={savedPatternStatuses}
         hasSnapshot={hasInventorySnapshot}
         showsEnabled={showsEnabled}
         activeProgramId={activeProgramId}
@@ -1230,7 +1231,6 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         importingProgramId={importingProgramId}
         deletingProgramId={deletingProgramId}
         error={runError ?? importError}
-        reconciliation={reconciliation}
       />
     </div>
   )

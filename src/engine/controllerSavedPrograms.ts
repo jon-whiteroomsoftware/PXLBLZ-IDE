@@ -126,6 +126,59 @@ export type ControllerSavedProgramSort = {
   direction: 'ascending' | 'descending'
 }
 
+/** A reconciliation program's live work state, as the Controller store reports it. */
+export type ControllerSavedPatternWorkState = 'current' | 'queued' | 'updating' | 'failed'
+
+export interface ControllerSavedPatternStatusSummary {
+  current: number
+  stale: number
+  updating: number
+  queued: number
+  failed: number
+  unmanaged: number
+  total: number
+}
+
+/**
+ * Resolve one effective status per managed program (#874). Live reconciliation
+ * work states (queued, updating, failed) win; a completed `current` snapshot is
+ * historical, so the row's fresh source/profile comparison supersedes it. This
+ * single projection feeds both the inventory rows and the aggregate summary,
+ * so the summary can never claim a freshness the rows deny. Reconciliation
+ * programs without an inventory row yet keep their reported state.
+ */
+export function resolveControllerSavedPatternStatuses(
+  owned: readonly Pick<ControllerSavedProgramRow, 'programId' | 'freshness'>[],
+  reconciliationPrograms: readonly { programId: string; state: ControllerSavedPatternWorkState }[] = [],
+): Record<string, ControllerSavedPatternStatus> {
+  const statuses: Record<string, ControllerSavedPatternStatus> = {}
+  for (const program of reconciliationPrograms) statuses[program.programId] = program.state
+  for (const row of owned) {
+    const work = statuses[row.programId]
+    statuses[row.programId] = work && work !== 'current' ? work : row.freshness
+  }
+  return statuses
+}
+
+export function summarizeControllerSavedPatternStatuses(
+  statuses: Readonly<Record<string, ControllerSavedPatternStatus>>,
+): ControllerSavedPatternStatusSummary {
+  const summary: ControllerSavedPatternStatusSummary = {
+    current: 0,
+    stale: 0,
+    updating: 0,
+    queued: 0,
+    failed: 0,
+    unmanaged: 0,
+    total: 0,
+  }
+  for (const status of Object.values(statuses)) {
+    summary[status] += 1
+    summary.total += 1
+  }
+  return summary
+}
+
 export interface InstalledControllerPatternChoice {
   patternId: string
   name: string
