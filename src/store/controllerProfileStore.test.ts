@@ -699,6 +699,60 @@ describe('controllerProfileStore', () => {
     })
   })
 
+  it('does not take fallback facts from a replaced or disconnected session (#876)', async () => {
+    const profile = defaultControllerProfile({
+      id: 'ctrl-1',
+      name: 'Burner bag',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      firmwareVersion: '3.67',
+      now: 1,
+    })
+    const provider = new FakeControllerProvider()
+    const pending: Array<(config: ControllerConfig) => void> = []
+    provider.getConfig = () => new Promise((resolve) => { pending.push(resolve) })
+    setPersonalContentProvider(memoryProvider([{ ...profile, lastKnownPixelCount: 256 }]))
+    setControllerProvider(provider)
+    useControllerStore.setState({
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          phase: 'live',
+          liveEpoch: 1,
+          deviceId: profile.deviceId,
+          nickname: 'Burner bag',
+          firmwareVersion: '3.67',
+          mapDim: null,
+        },
+      },
+      activeIp: '192.168.8.224',
+    })
+    await useControllerProfileStore.getState().loadProfiles()
+
+    const refresh = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    // Another Controller takes the same IP before the read completes.
+    useControllerStore.setState({
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          phase: 'live',
+          liveEpoch: 2,
+          deviceId: 'pixelblaze_other',
+          nickname: 'Impostor',
+          firmwareVersion: '9.99',
+          mapDim: null,
+        },
+      },
+    })
+    pending[0]({ pixelCount: 200 })
+    await refresh
+
+    const after = useControllerProfileStore.getState().profiles[0]
+    expect(after.lastKnownPixelCount).toBe(200)
+    expect(after.name).toBe('Burner bag')
+    expect(after.board.firmwareVersion).toBe('3.67')
+  })
+
   it('auto-creates a default profile for a signed-in live controller with a stable device id', async () => {
     setPersonalContentProvider(memoryProvider())
 
