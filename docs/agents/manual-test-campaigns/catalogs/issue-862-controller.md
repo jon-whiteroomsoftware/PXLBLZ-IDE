@@ -30,10 +30,15 @@ is `HW`; the campaign is one serial hardware lane.
   anything else runs it cannot be restored through the UI; the campaign ends
   with a saved pre-existing Pattern running and records which one.
 - Extension: the campaign loads a copy of `extension/` whose manifest also
-  injects on the issue-runtime port and statically grants the bench IP. The
-  just-in-time per-IP grant popup is therefore not exercised (no human present
-  to accept the native prompt); a run with a human at the keyboard should use
-  the unmodified extension and observe the pending-authorization hint instead.
+  injects on the issue-runtime port and statically grants the bench IP **and
+  the FL1 decoy IP** (`192.168.8.250`, an address nothing answers). Without the
+  decoy grant the helper stops FL1 at its authorization wall and the
+  unreachable-host error is never reached; the 2026-08-16 run had only the
+  bench grant, so its FL1 PASS covers the ungranted-address path, not the
+  unreachable one. The just-in-time per-IP grant popup is not exercised on the
+  unattended lane (no human present to accept the native prompt); a run with a
+  human at the keyboard should use the unmodified extension and observe the
+  pending-authorization hint instead.
 
 ## CX. Connect and observe (5)
 
@@ -96,7 +101,7 @@ is `HW`; the campaign is one serial hardware lane.
 
 ## FL. Failure scenarios (3)
 
-- FL1 Connect by IP to `192.168.8.250` (nothing there); a visible retryable error appears; the Burner bag connection and Studio state are unaffected. Section 9.
+- FL1 Connect by IP to `192.168.8.250` (nothing there; the campaign extension copy must already grant it, see Fixtures); a visible retryable unreachable-host error appears; the Burner bag connection and Studio state are unaffected. Section 9. S.
 - FL2 Save with the Controller disconnected: Save/Run are disabled or explain the missing Controller; the Studio Pattern keeps its dirty state. Section 11.
 - FL3 Read-back failure: Refresh saved Patterns immediately after Disconnect; the UI reports offline state rather than stale rows claimed fresh. Section 10.
 

@@ -2,6 +2,7 @@
 // run, then verify by re-reading it. Run from the repo root:
 //   npx tsx docs/agents/manual-test-campaigns/harness/bench-restore-map.ts <pixelmap.dat>
 import { readFileSync } from 'node:fs'
+import WebSocket from 'ws'
 import {
   PixelblazeConnection,
   type WebSocketLike,
@@ -12,10 +13,11 @@ const file = process.argv[2]
 if (!file) throw new Error('Pass the path of the captured pixelmap.dat blob.')
 const blob = new Uint8Array(readFileSync(file))
 
+// The `ws` package (already a dependency) rather than the global WebSocket,
+// which Node 20 does not enable by default; its Buffer frames satisfy the
+// connection's binary normalisation.
 function nodeWebSocket(url: string): WebSocketLike {
-  const ws = new WebSocket(url)
-  ws.binaryType = 'arraybuffer'
-  return ws as unknown as WebSocketLike
+  return new WebSocket(url) as unknown as WebSocketLike
 }
 
 const connection = new PixelblazeConnection({
