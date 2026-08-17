@@ -15,6 +15,8 @@ import {
 import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
 import type { SendGate } from '@/engine/sendToController'
 import { queueControllerDeviceWrite } from '@/engine/controllerDeviceWriteQueue'
+import { getControllerProvider } from '@/engine/controllerProviderRegistry'
+import { useControllerStore } from '@/store/controllerStore'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
 
 interface ControllerProgramSwitchProps {
@@ -103,7 +105,24 @@ export function ControllerProgramSwitch({
     const menuLifecycle = menuLifecycleRef.current
     setFailure(null)
     try {
-      await queueControllerDeviceWrite(controllerId, () => activateProgram(row.id))
+      const expectedProvider = getControllerProvider()
+      const expectedLiveEpoch = useControllerStore.getState().controllers[controllerId]?.liveEpoch
+      const sessionIsCurrent = () => {
+        const state = useControllerStore.getState()
+        const controller = state.controllers[controllerId]
+        return state.activeIp === controllerId
+          && controller?.phase === 'live'
+          && controller.liveEpoch === expectedLiveEpoch
+          && getControllerProvider() === expectedProvider
+      }
+      if (expectedLiveEpoch === undefined || !sessionIsCurrent()) {
+        throw new Error('Controller session changed before Pattern activation could start.')
+      }
+      await queueControllerDeviceWrite(controllerId, () => activateProgram(row.id, {
+        expectedControllerId: controllerId,
+        expectedProvider,
+        sessionIsCurrent,
+      }))
       if (menuLifecycleRef.current === menuLifecycle) close(true)
     } catch (error) {
       if (menuLifecycleRef.current === menuLifecycle) setFailure(errorMessage(error))

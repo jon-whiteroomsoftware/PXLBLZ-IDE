@@ -615,8 +615,10 @@ reconnected Controller. If a reconnect follows a sent delete, the dialog keeps
 the original inventory baseline and offers an explicit same-profile/controller
 recheck; an absent target can then finish metadata cleanup, while a reused id
 with another name is rejected. App-originated Pattern switches use the same
-write queue, and deletion refuses to run while the Controller sequencer is
-active. `controllerPanelStore` re-reads the
+write queue and retain the Controller/provider/live-epoch token from the click,
+so a queued switch cannot cross onto another Controller. Deletion binds even
+its first pre-read to the selected row's id and device name, and refuses to run
+while the Controller sequencer is active. `controllerPanelStore` re-reads the
 complete inventory and proves the target absent and all unrelated id/name pairs
 present before durable metadata changes. The first inventory is retained across
 retries, so an ambiguous confirmation cannot erase evidence that an unrelated

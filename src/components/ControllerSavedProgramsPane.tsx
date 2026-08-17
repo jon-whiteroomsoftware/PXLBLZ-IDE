@@ -983,10 +983,31 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     : inventoryManagedCount
 
   async function runSavedProgram(program: ControllerSavedProgramRow) {
-    if (!liveIp) return
+    if (!liveIp || liveEpoch === undefined) return
     setRunError(null)
     try {
-      await queueControllerDeviceWrite(liveIp, () => activateProgram(program.programId))
+      const expectedProvider = getControllerProvider()
+      const expectedControllerId = liveIp
+      const expectedProfileId = profile.id
+      const expectedLiveEpoch = liveEpoch
+      const sessionIsCurrent = () => {
+        const current = currentDeleteSession.current
+        const controller = useControllerStore.getState().controllers[expectedControllerId]
+        return current.controllerId === expectedControllerId
+          && current.liveEpoch === expectedLiveEpoch
+          && current.profileId === expectedProfileId
+          && controller?.phase === 'live'
+          && controller.liveEpoch === expectedLiveEpoch
+          && getControllerProvider() === expectedProvider
+      }
+      await queueControllerDeviceWrite(expectedControllerId, () => activateProgram(
+        program.programId,
+        {
+          expectedControllerId,
+          expectedProvider,
+          sessionIsCurrent,
+        },
+      ))
     } catch (error) {
       setRunError(error instanceof Error ? error.message : 'Saved Pattern could not be run.')
     }
@@ -1085,6 +1106,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
           {
             baseline: deleteBaseline ?? undefined,
             expectedControllerId: pendingDelete.controllerId,
+            expectedProgramName: program.deviceName,
             expectedProvider: pendingDelete.provider,
             sessionIsCurrent,
           },

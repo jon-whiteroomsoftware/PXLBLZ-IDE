@@ -268,6 +268,29 @@ describe('controllerPanelStore', () => {
     })
   })
 
+  it('revalidates the authorizing Controller session during activation', async () => {
+    let sessionIsCurrent = true
+    provider.setActiveProgram = async (programId, opts = {}) => {
+      provider.activeProgramWrites.push({ programId, save: opts.save ?? true })
+      provider.config = { activeProgramId: programId }
+      sessionIsCurrent = false
+    }
+
+    await expect(useControllerPanelStore.getState().activateProgram('abc', {
+      sessionIsCurrent: () => sessionIsCurrent,
+    })).rejects.toThrow('Controller session changed')
+
+    expect(provider.activeProgramWrites).toEqual([{ programId: 'abc', save: true }])
+  })
+
+  it('rejects an expired authorizing Controller session before activation starts', async () => {
+    await expect(useControllerPanelStore.getState().activateProgram('abc', {
+      sessionIsCurrent: () => false,
+    })).rejects.toThrow('Controller session changed')
+
+    expect(provider.activeProgramWrites).toEqual([])
+  })
+
   it('rejects a late activation confirmation without overwriting the replacement Controller', async () => {
     useControllerPanelStore.setState({
       activeProgramId: 'def',
@@ -400,6 +423,19 @@ describe('controllerPanelStore', () => {
     await expect(useControllerPanelStore.getState().deleteProgram('abc', { baseline })).rejects.toThrow(
       'now identifies Replacement Pattern',
     )
+
+    expect(provider.deletedProgramIds).toEqual([])
+  })
+
+  it('binds the first deletion attempt to the selected row device name', async () => {
+    provider.programs = [
+      { id: 'abc', name: 'Replacement Pattern' },
+      { id: 'def', name: 'Nebula' },
+    ]
+
+    await expect(useControllerPanelStore.getState().deleteProgram('abc', {
+      expectedProgramName: 'Aurora',
+    })).rejects.toThrow('now identifies Replacement Pattern')
 
     expect(provider.deletedProgramIds).toEqual([])
   })

@@ -54,6 +54,13 @@ export class ControllerProgramDeletionError extends Error {
 interface ControllerProgramDeletionOptions {
   baseline?: readonly ProgramListEntry[]
   expectedControllerId?: string
+  expectedProgramName?: string
+  expectedProvider?: ReturnType<typeof getControllerProvider>
+  sessionIsCurrent?: () => boolean
+}
+
+interface ControllerProgramActivationOptions {
+  expectedControllerId?: string
   expectedProvider?: ReturnType<typeof getControllerProvider>
   sessionIsCurrent?: () => boolean
 }
@@ -152,7 +159,10 @@ interface ControllerPanelState {
    *  authoritative and can replace it after an external switch. */
   noteProgramActivated: (programId: string, controllerIp: string) => void
   /** Switch to a saved program and confirm it through an immediate poll. */
-  activateProgram: (programId: string) => Promise<void>
+  activateProgram: (
+    programId: string,
+    options?: ControllerProgramActivationOptions,
+  ) => Promise<void>
   /** Delete a saved program and refresh the Controller inventory. The first
    * safety baseline can be carried into Retry after an ambiguous attempt. */
   deleteProgram: (
@@ -446,7 +456,7 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     set({ activeProgramId: programId, configSourceIp: controllerIp })
   },
 
-  activateProgram: async (programId) => {
+  activateProgram: async (programId, options = {}) => {
     if (activationInFlight !== null) {
       throw new Error('A Controller Pattern switch is already in progress.')
     }
@@ -456,6 +466,13 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     try {
       const initiatingSession = panelSession
       const provider = getControllerProvider()
+      const activationSessionMatches = (session: number) => controllerSessionMatches(session, provider)
+        && (!options.expectedProvider || provider === options.expectedProvider)
+        && (!options.expectedControllerId || seededForIp === options.expectedControllerId)
+        && (!options.sessionIsCurrent || options.sessionIsCurrent())
+      if (!activationSessionMatches(initiatingSession)) {
+        throw new Error('Controller session changed before Pattern activation could start.')
+      }
       const previousActiveProgramId = get().activeProgramId
       const previousActiveControls = get().activeControls
       const previousControlsSeededFor = controlsSeededFor
@@ -473,7 +490,7 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
         })
       }
       await provider.setActiveProgram(programId, { save: true })
-      if (!controllerSessionMatches(initiatingSession, provider)) {
+      if (!activationSessionMatches(initiatingSession)) {
         throw new Error('Controller session changed before Pattern activation could be confirmed.')
       }
       panelSession += 1
@@ -490,7 +507,7 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
           { cause: error },
         )
       }
-      if (!controllerSessionMatches(confirmationSession, provider)) {
+      if (!activationSessionMatches(confirmationSession)) {
         rollbackOptimisticActivation()
         throw new Error('Controller session changed before Pattern activation could be confirmed.')
       }
@@ -553,7 +570,9 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     )
     const baselineTarget = baseline.find((program) => program.id === programId)
     const currentTarget = currentPrograms.find((program) => program.id === programId)
-    if (carriedBaseline && baselineTarget && currentTarget && baselineTarget.name !== currentTarget.name) {
+    const expectedProgramName = options.expectedProgramName
+      ?? (carriedBaseline ? baselineTarget?.name : undefined)
+    if (expectedProgramName && currentTarget && expectedProgramName !== currentTarget.name) {
       throw new ControllerProgramDeletionError(
         `Controller Pattern id ${programId} now identifies ${currentTarget.name}; choose the Pattern again before deleting.`,
         baseline,

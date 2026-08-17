@@ -174,6 +174,7 @@ function seedLiveController(deviceId: string | null = 'pixelblaze_pb32_3cd4ee549
         ip: '10.0.0.5',
         nickname: 'Desk',
         phase: 'live',
+        liveEpoch: 1,
         mapDim: 2,
         deviceId,
       },
@@ -857,13 +858,13 @@ describe('ControllerBar', () => {
     expect(screen.getByText('Switches what the Controller runs; Run and Save still send the open Pattern.')).toBeInTheDocument()
 
     fireEvent.click(options[1])
-    await waitFor(() => expect(activateProgram).toHaveBeenCalledWith('a'))
+    await waitFor(() => expect(activateProgram.mock.calls[0]?.[0]).toBe('a'))
     expect(screen.queryByRole('listbox', { name: 'Switch the running Pattern' })).not.toBeInTheDocument()
     expect(usePatternStore.getState().activePatternId).toBe('pattern-1')
     expect(screen.getByTestId('controller-action-row')).toHaveTextContent('Open Draft')
   })
 
-  it('serializes a saved-Pattern switch with other writes to the same Controller', async () => {
+  it('carries the originating Controller session guard into a queued saved-Pattern switch', async () => {
     setControllerProvider(new ConnectedProvider())
     seedLiveController()
     const activateProgram = vi.fn().mockResolvedValue(undefined)
@@ -882,11 +883,28 @@ describe('ControllerBar', () => {
     await Promise.resolve()
     expect(activateProgram).not.toHaveBeenCalled()
 
+    const afterSwitch = queueControllerDeviceWrite('10.0.0.5', async () => {})
+
     await act(async () => {
       releasePrior()
       await queuedPrior
+      await afterSwitch
     })
-    await waitFor(() => expect(activateProgram).toHaveBeenCalledWith('a'))
+    expect(activateProgram).toHaveBeenCalledTimes(1)
+    const options = activateProgram.mock.calls[0]?.[1]
+    expect(options).toMatchObject({ expectedControllerId: '10.0.0.5' })
+    act(() => {
+      useControllerStore.setState((state) => ({
+        controllers: {
+          ...state.controllers,
+          '10.0.0.5': {
+            ...state.controllers['10.0.0.5']!,
+            liveEpoch: 2,
+          },
+        },
+      }))
+    })
+    expect(options?.sessionIsCurrent()).toBe(false)
   })
 
   it('auto-focuses a large-list filter and supports arrow-key activation', async () => {
@@ -919,7 +937,7 @@ describe('ControllerBar', () => {
     expect(second).toHaveFocus()
     await user.keyboard('{Enter}')
 
-    await waitFor(() => expect(activateProgram).toHaveBeenCalledWith('program-1'))
+    await waitFor(() => expect(activateProgram.mock.calls[0]?.[0]).toBe('program-1'))
   })
 
   it('opens an informational menu for a run-only Pattern over a read-empty inventory', () => {
