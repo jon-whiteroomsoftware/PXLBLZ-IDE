@@ -291,6 +291,27 @@ describe('controllerPanelStore', () => {
     expect(provider.activeProgramWrites).toEqual([])
   })
 
+  it('does not roll an activation back over state from a replacement live epoch', async () => {
+    let sessionIsCurrent = true
+    provider.getConfig = async () => {
+      sessionIsCurrent = false
+      useControllerPanelStore.setState({
+        activeProgramId: 'replacement-program',
+        activeControls: { sliderReplacement: 0.6 },
+      })
+      return { activeProgramId: 'abc' }
+    }
+
+    await expect(useControllerPanelStore.getState().activateProgram('abc', {
+      sessionIsCurrent: () => sessionIsCurrent,
+    })).rejects.toThrow('Controller session changed')
+
+    expect(useControllerPanelStore.getState()).toMatchObject({
+      activeProgramId: 'replacement-program',
+      activeControls: { sliderReplacement: 0.6 },
+    })
+  })
+
   it('rejects a late activation confirmation without overwriting the replacement Controller', async () => {
     useControllerPanelStore.setState({
       activeProgramId: 'def',
@@ -436,6 +457,32 @@ describe('controllerPanelStore', () => {
     await expect(useControllerPanelStore.getState().deleteProgram('abc', {
       expectedProgramName: 'Aurora',
     })).rejects.toThrow('now identifies Replacement Pattern')
+
+    expect(provider.deletedProgramIds).toEqual([])
+  })
+
+  it('treats an empty selected device name as exact deletion identity', async () => {
+    provider.programs = [
+      { id: 'abc', name: 'Unnamed program' },
+      { id: 'def', name: 'Nebula' },
+    ]
+
+    await expect(useControllerPanelStore.getState().deleteProgram('abc', {
+      expectedProgramName: '',
+    })).rejects.toThrow('now identifies Unnamed program')
+
+    expect(provider.deletedProgramIds).toEqual([])
+  })
+
+  it('still revalidates active state when a retry finds the target already absent', async () => {
+    const baseline = [...provider.programs]
+    provider.programs = [{ id: 'def', name: 'Nebula' }]
+    provider.config = { activeProgramId: 'abc' }
+
+    await expect(useControllerPanelStore.getState().deleteProgram('abc', {
+      baseline,
+      expectedProgramName: 'Aurora',
+    })).rejects.toThrow('Running now — switch to another Pattern first')
 
     expect(provider.deletedProgramIds).toEqual([])
   })

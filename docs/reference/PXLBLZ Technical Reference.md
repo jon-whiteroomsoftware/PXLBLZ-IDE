@@ -618,7 +618,11 @@ with another name is rejected. App-originated Pattern switches use the same
 write queue and retain the Controller/provider/live-epoch token from the click,
 so a queued switch cannot cross onto another Controller. Deletion binds even
 its first pre-read to the selected row's id and device name, and refuses to run
-while the Controller sequencer is active. `controllerPanelStore` re-reads the
+while the Controller sequencer is active. The captured name remains the raw
+device value, including an empty name rather than its UI fallback. Even an
+already-absent retry rechecks the active id before metadata cleanup, and an
+activation abandoned across a live-epoch change never rolls old optimistic
+state over the new session. `controllerPanelStore` re-reads the
 complete inventory and proves the target absent and all unrelated id/name pairs
 present before durable metadata changes. The first inventory is retained across
 retries, so an ambiguous confirmation cannot erase evidence that an unrelated

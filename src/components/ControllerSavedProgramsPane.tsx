@@ -92,6 +92,7 @@ type PendingProgramDelete = {
   program: ControllerSavedProgramRow
   controllerId: string
   controllerName: string
+  expectedProgramName: string
   liveEpoch: number
   profileId: string
   provider: ReturnType<typeof getControllerProvider>
@@ -1106,7 +1107,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
           {
             baseline: deleteBaseline ?? undefined,
             expectedControllerId: pendingDelete.controllerId,
-            expectedProgramName: program.deviceName,
+            expectedProgramName: pendingDelete.expectedProgramName,
             expectedProvider: pendingDelete.provider,
             sessionIsCurrent,
           },
@@ -1199,12 +1200,15 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         onImport={(program) => void beginProgramImport(program)}
         onDelete={(program) => {
           if (!liveIp || liveEpoch === undefined) return
+          const deviceProgram = inventoryRead?.programs.find((entry) => entry.id === program.programId)
+          if (!deviceProgram) return
           setDeleteError(null)
           setDeleteBaseline(null)
           setPendingDelete({
             program,
             controllerId: liveIp,
             controllerName: profile.name,
+            expectedProgramName: deviceProgram.name,
             liveEpoch,
             profileId: profile.id,
             provider: getControllerProvider(),

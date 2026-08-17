@@ -468,6 +468,33 @@ describe('ControllerProfilePage', () => {
     expect(provider.pushRecordWrites).toBe(0)
   })
 
+  it('keeps an unnamed row bound to its exact empty device name', async () => {
+    const profile = seedProfile()
+    const provider = renderLiveProgramInventory(profile, {
+      storageId: 'unnamed-delete-identity',
+      activeProgramId: 'ACTIVE',
+      programs: [
+        { id: 'UNNAMED', name: '' },
+        { id: 'ACTIVE', name: 'Running Pattern' },
+      ],
+      bindings: {},
+      pushRecords: {},
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Unnamed program from the Controller' }))
+    provider.programs = [
+      { id: 'UNNAMED', name: 'Unnamed program' },
+      { id: 'ACTIVE', name: 'Running Pattern' },
+    ]
+    const dialog = screen.getByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete from Controller' }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'now identifies Unnamed program',
+    )
+    expect(provider.deletedProgramIds).toEqual([])
+  })
+
   it('keeps the delete dialog open and non-dismissible while the device operation is busy', async () => {
     const profile = seedProfile()
     const provider = renderLiveProgramInventory(profile, {

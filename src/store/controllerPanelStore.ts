@@ -482,6 +482,7 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
           confirmationSession == null
           || confirmationSession !== panelSession
           || provider !== getControllerProvider()
+          || (options.sessionIsCurrent && !options.sessionIsCurrent())
         ) return
         controlsSeededFor = previousControlsSeededFor
         set({
@@ -572,7 +573,7 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     const currentTarget = currentPrograms.find((program) => program.id === programId)
     const expectedProgramName = options.expectedProgramName
       ?? (carriedBaseline ? baselineTarget?.name : undefined)
-    if (expectedProgramName && currentTarget && expectedProgramName !== currentTarget.name) {
+    if (expectedProgramName !== undefined && currentTarget && expectedProgramName !== currentTarget.name) {
       throw new ControllerProgramDeletionError(
         `Controller Pattern id ${programId} now identifies ${currentTarget.name}; choose the Pattern again before deleting.`,
         baseline,
@@ -601,12 +602,6 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
           baseline,
         )
       }
-    }
-
-    if (!currentPrograms.some((program) => program.id === programId)) {
-      publishPrograms(currentPrograms)
-      verifyDeletion(currentPrograms)
-      return baseline
     }
 
     let config: ControllerConfig
@@ -639,6 +634,11 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
         'Running now — switch to another Pattern first',
         baseline,
       )
+    }
+    if (!currentTarget) {
+      publishPrograms(currentPrograms)
+      verifyDeletion(currentPrograms)
+      return baseline
     }
     if (config.runSequencer) {
       throw new ControllerProgramDeletionError(
