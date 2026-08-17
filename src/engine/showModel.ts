@@ -2104,6 +2104,9 @@ function showRecordToSceneSequenceRecipe(
     adaptations: { ...DEFAULT_ADAPTATIONS },
     restartOnEntry: false,
   }))
+  const compilerOwnedEmptyCellIds = new Set(cells.flatMap((cell, index) => (
+    cell ? [] : [`${EMPTY_SHOW_PATTERN_ID}-${show.scenes[index].id}`]
+  )))
   const transitions = show.scenes.slice(0, -1).map((scene) => showVisualTransitionAfter(show, scene.id))
   const hasPropertyTransitions = show.transitions?.some((transition) => (
     transition.kind !== 'routing' && Boolean(transition.propertyTransitions && Object.keys(transition.propertyTransitions).length > 0)
@@ -2132,8 +2135,9 @@ function showRecordToSceneSequenceRecipe(
       : lookup.byCellId[cell.id]
     if (!source) throw new Error(`Show compile requires pattern source for clip "${cell.id}".`)
     const adaptation = compilerAdaptation(cell.adaptations)
+    const compilerOwnedEmpty = compilerOwnedEmptyCellIds.has(cell.id)
     const explicitInstanceId = lookup.instanceIdByCellId?.[cell.id]
-    const continuityKey = `${cell.pattern.kind}:${cell.pattern.id}:${JSON.stringify(adaptation)}:${JSON.stringify(cell.transform ?? null)}:${JSON.stringify(cell.effects ?? [])}:${cell.evaluationPolicy ?? 'live'}`
+    const continuityKey = `${compilerOwnedEmpty ? 'compiler-empty:' : ''}${cell.pattern.kind}:${cell.pattern.id}:${JSON.stringify(adaptation)}:${JSON.stringify(cell.transform ?? null)}:${JSON.stringify(cell.effects ?? [])}:${cell.evaluationPolicy ?? 'live'}`
     const key = explicitInstanceId
       ? `composition-instance:${explicitInstanceId}`
       : cell.restartOnEntry ? `${continuityKey}:restart:${cell.id}` : continuityKey
@@ -2158,7 +2162,15 @@ function showRecordToSceneSequenceRecipe(
       if (showEffectsAreIdentity(existing.effects) && !showEffectsAreIdentity(cell.effects)) existing.effects = cell.effects
       clipIdByCellId.set(cell.id, existing.id)
     } else {
-      const clip = { id: explicitInstanceId ?? cell.id, source, ...compilerEvaluationPolicy(cell), adaptation, transform: cell.transform, effects: cell.effects }
+      const clip = {
+        id: explicitInstanceId ?? cell.id,
+        source,
+        ...(compilerOwnedEmpty ? { compilerOwnedEmpty: true } : {}),
+        ...compilerEvaluationPolicy(cell),
+        adaptation,
+        transform: cell.transform,
+        effects: cell.effects,
+      }
       Object.assign(clip, { controlTargets: cell.controlTargets })
       clipByKey.set(key, clip)
       clipIdByCellId.set(cell.id, clip.id)
@@ -2517,7 +2529,11 @@ function showRecordToRoutedSceneSequenceRecipe(
       const cells = showCompileCellsAtSlot(normalized, zone.id, scene.id, lookup)
       if (cells.length === 0) {
         if (!clipById.has(emptyClipId)) {
-          clipById.set(emptyClipId, { id: emptyClipId, source: EMPTY_SHOW_PATTERN_SOURCE })
+          clipById.set(emptyClipId, {
+            id: emptyClipId,
+            source: EMPTY_SHOW_PATTERN_SOURCE,
+            compilerOwnedEmpty: true,
+          })
         }
         continue
       }

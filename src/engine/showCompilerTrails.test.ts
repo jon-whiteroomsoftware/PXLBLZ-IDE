@@ -8,6 +8,35 @@ export function render(index) { rgb(live, 0, 0) }
 `
 
 describe('Show output Trails Effect (#537)', () => {
+  it('instruments only the generated exported renderer, not nested Pattern helpers (#878)', () => {
+    const artifact = compileShow({
+      clips: [{
+        id: 'nested-render-helper',
+        source: `
+var live = 0
+export function beforeRender(delta) {
+  function render() { return 0.25 }
+  live = render()
+}
+export function render(index) { rgb(live, 0, 0) }
+`,
+      }],
+      masterPixelCount: 1,
+      outputEffects: [{ id: 'trails', kind: 'trails', retention: 0.5 }],
+    }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 1,
+    }, {
+      mapPoints: [{ sample: [] }],
+      randomSeed: 878,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels[0]).toEqual([0.25, 0, 0])
+  })
+
   it('reuses the three-plane arena for linear-RGB previous-frame decay', () => {
     const artifact = compileShow({
       clips: [{ id: 'pulse', source: ALTERNATING_PATTERN }],

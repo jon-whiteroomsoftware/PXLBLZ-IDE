@@ -139,7 +139,11 @@ describe('Show source inventory', () => {
     const artifact = compileShow({
       clips: [
         { id: 'real', source: 'export function render2D(index, x, y) { rgb(x, y, 1) }' },
-        { id: '__pxlblz_empty-soft', source: 'export function render2D(index, x, y) { rgb(0, 0, 0) }' },
+        {
+          id: '__pxlblz_empty-soft',
+          source: 'export function render2D(index, x, y) { rgb(0, 0, 0) }',
+          compilerOwnedEmpty: true,
+        },
       ],
       routingLayouts: [{
         id: 'soft',
@@ -169,7 +173,11 @@ describe('Show source inventory', () => {
   it('does not count an empty crossfade endpoint as creator Pattern work (#878)', () => {
     const artifact = compileShow({
       clips: [
-        { id: '__pxlblz_empty-outgoing', source: 'export function render(index) { rgb(0, 0, 0) }' },
+        {
+          id: '__pxlblz_empty-outgoing',
+          source: 'export function render(index) { rgb(0, 0, 0) }',
+          compilerOwnedEmpty: true,
+        },
         { id: 'real-incoming', source: 'export function render(index) { rgb(1, 0, 0) }' },
       ],
       sceneSequence: {
@@ -189,6 +197,110 @@ describe('Show source inventory', () => {
     expect(artifact.summary.creatorPatternPressure).toEqual({
       patternCopiesRunning: { steady: 1, worst: 1 },
       patternCalculationsPerPixel: { steady: 1, worst: 1 },
+    })
+  })
+
+  it('keeps creator-owned ids with the internal-looking prefix visible (#878)', () => {
+    const artifact = compileShow({
+      clips: [{
+        id: '__pxlblz_empty-blue',
+        source: 'export function render(index) { rgb(0, 0, 1) }',
+      }],
+    }, {})
+
+    expect(artifact.summary.creatorPatternPressure).toEqual({
+      patternCopiesRunning: { steady: 1, worst: 1 },
+      patternCalculationsPerPixel: { steady: 1, worst: 1 },
+    })
+    expect(artifact.summary.sourceInventory.chunks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        category: 'pattern',
+        ownerId: '__pxlblz_empty-blue',
+        patternPart: 'compiled-pattern',
+      }),
+    ]))
+  })
+
+  it('does not share an internal blank slot with an identical creator Pattern (#878)', () => {
+    const black = 'export function render(index) { rgb(0, 0, 0) }'
+    const artifact = compileShow({
+      clips: [
+        { id: '__pxlblz_empty-routed', source: black, compilerOwnedEmpty: true },
+        { id: 'creator-black', source: black },
+      ],
+      routingLayouts: [{
+        id: 'main', name: 'Main', zones: [],
+        logical: { kind: 'single', zoneNames: ['main'] },
+      }],
+      routedSceneSequence: {
+        scenes: [
+          { holdMs: 1_000, placements: [{ zoneName: 'main', clipId: '__pxlblz_empty-routed' }] },
+          { holdMs: 1_000, placements: [{ zoneName: 'main', clipId: 'creator-black' }] },
+        ],
+      },
+      loopDurationMs: 2_000,
+    }, {}, { patternSlotSharing: 'force' })
+
+    expect(artifact.summary.creatorPatternPressure).toEqual({
+      patternCopiesRunning: { steady: 1, worst: 1 },
+      patternCalculationsPerPixel: { steady: 1, worst: 1 },
+    })
+    expect(artifact.summary.sourceInventory.chunks.some((chunk) => (
+      chunk.category === 'pattern' && chunk.ownerId === 'creator-black'
+    ))).toBe(true)
+    expect(artifact.summary.sourceInventory.chunks.some((chunk) => (
+      chunk.category === 'pattern' && chunk.ownerId === '__pxlblz_empty-routed'
+    ))).toBe(false)
+  })
+
+  it('applies Soft Split pressure only while that layout is active (#878)', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'left', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+        { id: 'right', source: 'export function render2D(index, x, y) { rgb(0, 1, 0) }' },
+        {
+          id: '__pxlblz_empty-right',
+          source: 'export function render2D(index, x, y) { rgb(0, 0, 0) }',
+          compilerOwnedEmpty: true,
+        },
+      ],
+      routingLayouts: [
+        {
+          id: 'left-only', name: 'Left only', zones: [],
+          logical: { kind: 'single', zoneNames: ['left-zone'] },
+        },
+        {
+          id: 'soft', name: 'Soft Split', zones: [],
+          logical: { kind: 'soft-split', zoneNames: ['left-zone', 'right-zone'], axis: 'x', feather: 0.2 },
+        },
+      ],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1_000,
+            placements: [
+              { zoneName: 'left-zone', clipId: 'left' },
+              { zoneName: 'right-zone', clipId: 'right' },
+            ],
+            transitionOut: { kind: 'cut', durationMs: 0 },
+          },
+          {
+            holdMs: 1_000,
+            placements: [
+              { zoneName: 'left-zone', clipId: 'left' },
+              { zoneName: 'right-zone', clipId: '__pxlblz_empty-right' },
+            ],
+          },
+        ],
+      },
+      routingSwitches: [{ atMs: 1_000, layoutId: 'soft' }],
+      loopDurationMs: 2_000,
+    }, {})
+
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(2)
+    expect(artifact.summary.creatorPatternPressure.patternCalculationsPerPixel).toEqual({
+      steady: 1,
+      worst: 1,
     })
   })
 

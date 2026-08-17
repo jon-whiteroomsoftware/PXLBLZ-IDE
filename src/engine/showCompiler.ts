@@ -180,6 +180,8 @@ import type { ShowArtifactAttribution } from './patternAttribution'
 export interface ShowClipRecipe {
   id: string
   source: string
+  /** Compiler-internal blank routing source; never inferred from creator-owned ids. */
+  compilerOwnedEmpty?: boolean
   /** Whole-frame Refresh remains diagnostic; saved Rolling Refresh fixes slices at four. */
   evaluationPolicy?: 'live' | 'freeze-at-entry' | 'refresh' | 'rolling-refresh'
   refreshIntervalMs?: number
@@ -484,8 +486,8 @@ export type ShowSourceInventoryCategory =
 
 export type ShowPatternSourcePart = 'compiled-pattern' | 'member-generated'
 
-function isCompilerEmptyShowMember(memberId: string): boolean {
-  return memberId === '__pxlblz_empty' || memberId.startsWith('__pxlblz_empty-')
+function isCompilerEmptyShowMember(member: CompiledMember): boolean {
+  return member.compilerOwnedEmpty
 }
 
 export interface ShowSourceInventoryChunk {
@@ -894,6 +896,7 @@ type Node = Record<string, any>
 
 export interface CompiledMember {
   id: string
+  compilerOwnedEmpty: boolean
   evaluationPolicy: 'live' | 'freeze-at-entry' | 'refresh' | 'rolling-refresh'
   refreshIntervalMs: number
   rollingRefreshSlices: number
@@ -1914,6 +1917,7 @@ function patternSlotPlacementKey(sceneIndex: number, placementIndex: number): st
 
 function compiledPatternMachineKey(member: CompiledMember): string {
   return JSON.stringify({
+    compilerOwnedEmpty: member.compilerOwnedEmpty,
     source: member.resourceSource,
     evaluationPolicy: member.evaluationPolicy,
     render: [member.hasRender, member.hasRender2D, member.hasRender3D, member.hasBeforeRender],
@@ -2253,8 +2257,15 @@ export function compileShow(
       const physicalIdByLogicalId = new Map<string, string>()
       for (const member of logicalMembers) {
         const assignment = assignmentByMemberId.get(member.id)!
-        const representative = representativeBySlotId.get(assignment.slotId) ?? member
+        const current = representativeBySlotId.get(assignment.slotId)
+        const representative = !current || (current.compilerOwnedEmpty && !member.compilerOwnedEmpty)
+          ? member
+          : current
         representativeBySlotId.set(assignment.slotId, representative)
+      }
+      for (const member of logicalMembers) {
+        const assignment = assignmentByMemberId.get(member.id)!
+        const representative = representativeBySlotId.get(assignment.slotId)!
         physicalIdByLogicalId.set(member.id, representative.id)
       }
       members = [...representativeBySlotId.values()]
@@ -2268,6 +2279,7 @@ export function compileShow(
       }
       for (const member of members) {
         const slotOwners = logicalMembersByPhysicalId.get(member.id) ?? [member]
+        member.compilerOwnedEmpty = slotOwners.every((owner) => owner.compilerOwnedEmpty)
         const ownerCount = slotOwners.length
         member.slotOwnerCount = ownerCount
         member.slotOwnerAdaptations = slotOwners.map((owner) => owner.adaptation)
@@ -3911,11 +3923,12 @@ function rewriteTrailsOutputHooks(source: string): string {
         text: '__pxlblz_show_trails_rgb',
       })
     }
-    if (node.type === 'FunctionDeclaration'
-      && (node.id?.name === 'render' || node.id?.name === 'render2D')) {
+    if (node.type === 'ExportNamedDeclaration'
+      && node.declaration?.type === 'FunctionDeclaration'
+      && (node.declaration.id?.name === 'render' || node.declaration.id?.name === 'render2D')) {
       rewrites.push({
-        start: node.body.start + 1,
-        end: node.body.start + 1,
+        start: node.declaration.body.start + 1,
+        end: node.declaration.body.start + 1,
         text: '\n  __pxlblz_show_trails_index = index',
       })
     }
@@ -11254,7 +11267,10 @@ function showRendererPressure(
     routingLayouts,
     () => true,
   )
-  const creator = members.some((member) => isCompilerEmptyShowMember(member.id))
+  const compilerEmptyMemberIds = new Set(
+    members.filter(isCompilerEmptyShowMember).map((member) => member.id),
+  )
+  const creator = compilerEmptyMemberIds.size > 0
     ? measureShowRendererPressure(
         recipe,
         transitionCost,
@@ -11262,7 +11278,7 @@ function showRendererPressure(
         outputDimension,
         directRoutes,
         routingLayouts,
-        (memberId) => !isCompilerEmptyShowMember(memberId),
+        (memberId) => !compilerEmptyMemberIds.has(memberId),
       )
     : runtime
   return { ...runtime, creator }
@@ -11284,7 +11300,7 @@ function measureShowRendererPressure(
     const activeMemberIds = recipe.routedSceneSequence.scenes.map((scene) => (
       new Set(scene.placements.map((placement) => placement.clipId).filter(includeMember))
     ))
-    const sceneDepths = recipe.routedSceneSequence.scenes.map((scene, sceneIndex) => {
+    const sceneZoneDepths = recipe.routedSceneSequence.scenes.map((scene, sceneIndex) => {
       const placements = scene.placements.flatMap((placement, placementIndex) => {
         if (!includeMember(placement.clipId)) return []
         return [{
@@ -11293,25 +11309,99 @@ function measureShowRendererPressure(
           consumerId: patternOutputConsumerId(sceneIndex, placementIndex),
         }]
       })
-      const evaluationsByZone = new Map([...groupRoutedPlacementsByZone(placements)].map(([zoneName, stack]) => {
+      return new Map([...groupRoutedPlacementsByZone(placements)].map(([zoneName, stack]) => {
         const depth = outputDimension === 2
           ? analyzeViewportCoverageStack(stack, outputDimension, scene.propertyTracks).plan
             ?.maxPatternEvaluationsPerPixel ?? stack.length
           : stack.length
         return [zoneName, depth] as const
       }))
-      const steady = Math.max(0, ...evaluationsByZone.values())
-      const softSplitWorst = Math.max(0, ...(recipe.routingLayouts ?? []).flatMap((layout) => (
-        layout.logical?.kind === 'soft-split' && layout.logical.feather > 0
-          ? [layout.logical.zoneNames.reduce((sum, zoneName) => sum + (evaluationsByZone.get(zoneName) ?? 0), 0)]
-          : []
-      )))
-      return { steady, worst: Math.max(steady, softSplitWorst) }
     })
-    const holdDepth = Math.max(0, ...sceneDepths.map((depth) => depth.steady))
-    const holdWorst = Math.max(0, ...sceneDepths.map((depth) => depth.worst))
+    const recipeLayouts = recipe.routingLayouts ?? []
+    const layoutById = new Map(recipeLayouts.map((layout) => [layout.id, layout]))
+    const orderedSwitches = [...(recipe.routingSwitches ?? [])].sort((left, right) => left.atMs - right.atMs)
+    const switchSegments: Array<{
+      atMs: number
+      durationMs: number
+      source: (typeof recipeLayouts)[number]
+      destination: (typeof recipeLayouts)[number]
+    }> = []
+    let activeLayout = recipeLayouts[0]
+    for (const routingSwitch of orderedSwitches) {
+      const destination = layoutById.get(routingSwitch.layoutId) ?? recipeLayouts[0]
+      if (activeLayout && destination) {
+        switchSegments.push({
+          atMs: routingSwitch.atMs,
+          durationMs: routingSwitch.durationMs ?? 0,
+          source: activeLayout,
+          destination,
+        })
+      }
+      activeLayout = destination
+    }
+    const layoutsDuring = (startMs: number, endMs: number) => {
+      if (recipeLayouts.length === 0) return []
+      let selected = recipeLayouts[0]
+      for (const segment of switchSegments) {
+        if (segment.atMs > startMs) break
+        selected = segment.destination
+      }
+      const result = new Map([[selected.id, selected]])
+      for (const segment of switchSegments) {
+        if (segment.atMs >= startMs && segment.atMs < endMs) {
+          result.set(segment.destination.id, segment.destination)
+        }
+        if (segment.durationMs > 0
+          && segment.atMs < endMs
+          && segment.atMs + segment.durationMs > startMs) {
+          result.set(segment.source.id, segment.source)
+          result.set(segment.destination.id, segment.destination)
+        }
+      }
+      return [...result.values()]
+    }
+    const pressureForLayouts = (
+      depthsByZone: ReadonlyMap<string, number>,
+      layouts: ReturnType<typeof layoutsDuring>,
+    ) => {
+      if (layouts.length === 0) {
+        const depth = Math.max(0, ...depthsByZone.values())
+        return { steady: depth, worst: depth }
+      }
+      return layouts.reduce((pressure, layout) => {
+        const zoneNames = layout.logical?.zoneNames ?? layout.zones.map((zone) => zone.name)
+        const steady = Math.max(0, ...zoneNames.map((zoneName) => depthsByZone.get(zoneName) ?? 0))
+        const worst = layout.logical?.kind === 'soft-split' && layout.logical.feather > 0
+          ? layout.logical.zoneNames.reduce((sum, zoneName) => sum + (depthsByZone.get(zoneName) ?? 0), 0)
+          : steady
+        return {
+          steady: Math.max(pressure.steady, steady),
+          worst: Math.max(pressure.worst, worst),
+        }
+      }, { steady: 0, worst: 0 })
+    }
+    let sceneCursorMs = 0
+    const sceneWindows = recipe.routedSceneSequence.scenes.map((scene) => {
+      const holdStartMs = sceneCursorMs
+      const holdEndMs = holdStartMs + scene.holdMs
+      const transitionEndMs = holdEndMs + (
+        scene.transitionOut && scene.transitionOut.kind !== 'cut' ? scene.transitionOut.durationMs : 0
+      )
+      sceneCursorMs = transitionEndMs
+      return { holdStartMs, holdEndMs, transitionEndMs }
+    })
+    const holdPressures = sceneWindows.map((window, index) => pressureForLayouts(
+      sceneZoneDepths[index],
+      layoutsDuring(window.holdStartMs, window.holdEndMs),
+    ))
+    const holdDepth = Math.max(0, ...holdPressures.map((pressure) => pressure.steady))
+    const holdWorst = Math.max(0, ...holdPressures.map((pressure) => pressure.worst))
     const transitionDepth = recipe.routedSceneSequence.scenes.slice(0, -1).reduce((worst, scene, index) => {
       if (!scene.transitionOut || scene.transitionOut.kind === 'cut') return worst
+      const window = sceneWindows[index]
+      const activeLayouts = layoutsDuring(window.holdEndMs, window.transitionEndMs)
+      const outgoingPressure = pressureForLayouts(sceneZoneDepths[index], activeLayouts)
+      const incomingPressure = pressureForLayouts(sceneZoneDepths[index + 1], activeLayouts)
       const rendersBoth = scene.transitionOut.kind === 'crossfade'
         || (scene.transitionOut.kind === 'motion' && scene.transitionOut.edgePolicy === 'blend')
         || (scene.transitionOut.kind === 'portal'
@@ -11325,8 +11415,8 @@ function measureShowRendererPressure(
           && normalizeShowDissolveSoftness(scene.transitionOut.softness ?? 0.15) > 0
           && scene.transitionOut.edgePolicy === 'blend')
       return Math.max(worst, rendersBoth
-        ? sceneDepths[index].worst + sceneDepths[index + 1].worst
-        : Math.max(sceneDepths[index].worst, sceneDepths[index + 1].worst))
+        ? outgoingPressure.worst + incomingPressure.worst
+        : Math.max(outgoingPressure.worst, incomingPressure.worst))
     }, 0)
     const controllerSteady = Math.max(0, ...activeMemberIds.map((ids) => ids.size))
     const controllerTransition = recipe.routedSceneSequence.scenes.slice(0, -1).reduce((worst, scene, index) => {
@@ -11606,7 +11696,7 @@ function showSourceAttributionForSymbol(
   if (symbol.includes('_score_')) return { category: 'score-data' }
   const member = members.find((candidate) => symbol.startsWith(`${candidate.prefix}_`))
   if (member) {
-    if (isCompilerEmptyShowMember(member.id)) return { category: 'routing-render-plans' }
+    if (isCompilerEmptyShowMember(member)) return { category: 'routing-render-plans' }
     if (/(?:effect|vignette|colorKey|contentKey|applyColor|applyOutput)/i.test(symbol)) {
       return { category: 'effects-transitions', ownerId: member.id }
     }
@@ -11657,7 +11747,7 @@ function buildShowSourceInventory(
 
   let compiledPatternSearchStart = 0
   const compiledPatternRanges = members
-    .filter((member) => !isCompilerEmptyShowMember(member.id))
+    .filter((member) => !isCompilerEmptyShowMember(member))
     .map((member) => {
       const compactedPatternCode = rewriteKnownShowSymbols(member.patternCode.trim(), compactedNames)
       const start = source.indexOf(compactedPatternCode, compiledPatternSearchStart)

@@ -218,6 +218,7 @@ export function compileMember(
 
   return {
     id: clip.id,
+    compilerOwnedEmpty: clip.compilerOwnedEmpty === true,
     evaluationPolicy: clip.evaluationPolicy === 'freeze-at-entry'
       ? 'freeze-at-entry'
       : clip.evaluationPolicy === 'refresh'
