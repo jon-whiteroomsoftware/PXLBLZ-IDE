@@ -680,8 +680,8 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     // the same live session (phase, device, epoch) this refresh started from;
     // after a disconnect or a replacement Controller on the same IP the fact
     // stays unapplied. A stand-in is a cache, not an observation: it fills a
-    // fact only while no actual device read of that fact has ever landed for
-    // this profile, and it never advances the fact's ordering.
+    // fact (firmware only) while no actual device read of that fact has ever
+    // landed for this profile, and it never advances the fact's ordering.
     const liveEntry = useControllerStore.getState().controllers[active.ip]
     const liveNow = liveEntry
       && liveEntry.phase === 'live'
@@ -702,7 +702,10 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       typeof config?.pixelCount === 'number' ? config.pixelCount : undefined,
       undefined,
     )
-    const liveName = readFact('name', config?.name || undefined, liveNow?.nickname)
+    // The device name has no stand-in: only a name the device actually
+    // returned may rename the profile, so a cached nickname can never sit
+    // between an actual read and the durable name.
+    const liveName = readFact('name', config?.name || undefined, undefined)
     const firmwareVersion = readFact('firmware', config?.firmwareVersion || undefined, liveNow?.firmwareVersion)
     const board = firmwareVersion
       ? withControllerFirmwareUpdateReport(current.board, { firmwareVersion })

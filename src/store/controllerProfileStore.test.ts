@@ -710,7 +710,7 @@ describe('controllerProfileStore', () => {
     expect(useControllerProfileStore.getState().profiles[0].board.firmwareVersion).toBe('3.71')
   })
 
-  it('lets an actual device name land after a cached stand-in renamed the profile first (#876)', async () => {
+  it('lets a later actual name read outrank an older one in either completion order (#876)', async () => {
     const profile = defaultControllerProfile({
       id: 'ctrl-1',
       name: 'Old',
@@ -740,33 +740,39 @@ describe('controllerProfileStore', () => {
     await Promise.resolve()
     const second = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
     await Promise.resolve()
-    // The later refresh lacks a name and writes the cached one first...
-    pending[1]({ pixelCount: 256 })
+    // The later refresh's actual name lands first...
+    pending[1]({ name: 'Newer' })
     await second
-    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Cached')
-    // ...then the older actual read still lands the device's name.
-    pending[0]({ name: 'Device' })
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Newer')
+    // ...and the older actual read cannot put its older name back.
+    pending[0]({ name: 'Older' })
     await first
     expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
-      name: 'Device',
-      lastKnownDeviceName: 'Device',
+      name: 'Newer',
+      lastKnownDeviceName: 'Newer',
     })
+    // A live-entry nickname is never a stand-in for the device name.
+    const third = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    await Promise.resolve()
+    pending[2]({ pixelCount: 256 })
+    await third
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Newer')
 
     // A user rename in the same window is still never overwritten — even a
     // rename that lands back on the value a refresh once wrote.
-    const third = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+    const fourth = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
     await Promise.resolve()
     await useControllerProfileStore.getState().updateProfile(profile.id, {
       name: 'Road case',
       lastKnownDeviceName: 'Road case',
     })
     await useControllerProfileStore.getState().updateProfile(profile.id, {
-      name: 'Cached',
-      lastKnownDeviceName: 'Cached',
+      name: 'Newer',
+      lastKnownDeviceName: 'Newer',
     })
-    pending[2]({ name: 'Device' })
-    await third
-    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Cached')
+    pending[3]({ name: 'Device' })
+    await fourth
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Newer')
   })
 
   it('never overwrites a user rename that returns to the name a refresh started from (#876)', async () => {
@@ -806,7 +812,7 @@ describe('controllerProfileStore', () => {
 
   it('gives name ownership back when a refresh write is rejected (#876)', async () => {
     // Older refresh A (actual name) is pending; the user renames; a newer
-    // refresh B writes a cached stand-in name and that write fails and rolls
+    // refresh B writes its own actual name and that write fails and rolls
     // back. A must not treat B's rolled-back write as refresh ownership and
     // overwrite the user's rename.
     const profile = defaultControllerProfile({
@@ -851,7 +857,7 @@ describe('controllerProfileStore', () => {
     const second = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
     await Promise.resolve()
     failNextNameWrite = true
-    pending[1]({ pixelCount: 256 })
+    pending[1]({ name: 'Cached', pixelCount: 256 })
     await expect(second).rejects.toThrow('offline')
     expect(useControllerProfileStore.getState().profiles[0].name).toBe('Road case')
     pending[0]({ name: 'Device' })
@@ -900,8 +906,8 @@ describe('controllerProfileStore', () => {
     await useControllerProfileStore.getState().updateProfile(profile.id, { name: 'Road case', lastKnownDeviceName: 'Road case' })
     const second = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
     await Promise.resolve()
-    pending[1]({ pixelCount: 256 })
-    // B's stand-in name write is now in flight (held by the provider).
+    pending[1]({ name: 'Cached', pixelCount: 256 })
+    // B's name write is now in flight (held by the provider).
     for (let i = 0; i < 5; i += 1) await Promise.resolve()
     expect(holdNameWrite).not.toBeNull()
     // A resolves while B's write is pending: it must not treat B's provisional
