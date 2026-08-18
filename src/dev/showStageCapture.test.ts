@@ -66,6 +66,30 @@ describe('runShowStageCaptureSequence', () => {
     expect(deps.paint).toHaveBeenCalledTimes(2)
   })
 
+  it('advances a driven orbit on every pre-roll step and before every frame, and re-arms it afterwards', async () => {
+    const { calls, deps } = makeDeps()
+    const orbit = {
+      driven: true,
+      advance: vi.fn((deltaMs: number) => { calls.push(`orbit:${deltaMs}`) }),
+      end: vi.fn(() => { calls.push('orbit:end') }),
+    }
+    await runShowStageCaptureSequence({ ...deps, beginOrbit: () => orbit }, { frames: 2, fps: 50, startMs: 40 })
+    expect(calls).toEqual([
+      'pause', 'reset',
+      'to:20:step20:presentfalse', 'orbit:20', 'to:40:step20:presentfalse', 'orbit:20',
+      'orbit:0', 'request:frame-00000.png', 'present:40', 'paint:frame@40',
+      'orbit:20', 'request:frame-00001.png', 'live:20', 'paint:frame@60',
+      'orbit:end',
+    ])
+  })
+
+  it('re-arms the orbit even when the sequence throws', async () => {
+    const { deps } = makeDeps()
+    const orbit = { driven: true, advance: vi.fn(), end: vi.fn() }
+    await expect(runShowStageCaptureSequence({ ...deps, beginOrbit: () => orbit }, { frames: 0, fps: 50 })).rejects.toThrow()
+    expect(orbit.end).toHaveBeenCalledTimes(1)
+  })
+
   it('refuses to record when the reset did not land the runtime at t=0', async () => {
     const { deps } = makeDeps(1234)
     await expect(runShowStageCaptureSequence(deps, { frames: 1, fps: 30 })).rejects.toThrow(/t=0/)

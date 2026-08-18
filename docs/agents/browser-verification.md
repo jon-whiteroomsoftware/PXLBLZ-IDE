@@ -154,6 +154,14 @@ Show workspace hides the stage pane. The stage canvas lands a few px short of
 `--width` because of pane padding. The runtime keeps advancing past the loop
 point rather than rewinding, matching the compiled Pattern on hardware.
 
+Both capture paths take over an armed 3D auto-orbit for the duration
+(`src/dev/captureOrbit.ts`): reset to the canonical view, disarm the wall-clock
+turntable, and advance the camera by the same virtual delta as every pattern
+step, pre-roll included. A 3D render is therefore deterministic across runs and
+`--start` values (verified: AuroraSphere `--start 2` frame 0 == t=0 frame 20 at
+10 fps, byte-identical across two t=0 runs). A camera the user has disarmed is
+held where it is.
+
 The banner and launch button are Playwright element screenshots of scratch HTML
 built from the brand tokens.
 

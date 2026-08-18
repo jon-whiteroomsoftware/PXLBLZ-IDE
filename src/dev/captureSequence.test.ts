@@ -130,6 +130,20 @@ describe('runCaptureSequence', () => {
       expect(advanced).toBe(45)
     })
 
+    it('never rounds a just-short remainder up to a whole step (no overshoot)', async () => {
+      const { deps } = makeDeps()
+      const advanceHeadless = vi.fn()
+      await runCaptureSequence({ ...deps, advanceHeadless }, { frames: 1, fps: 50, startMs: 19.999999999 })
+      expect(advanceHeadless.mock.calls).toEqual([[19.999999999]])
+      const long = vi.fn()
+      await runCaptureSequence({ ...deps, advanceHeadless: long }, { frames: 1, fps: 30, startMs: 100 })
+      const advanced = long.mock.calls.reduce((sum, [d]) => sum + d, 0)
+      expect(advanced).toBeCloseTo(100, 9)
+      // 3 x 33.33... leaves only float dust below the 1e-9 floor: no fourth step.
+      expect(long.mock.calls.length).toBe(3)
+      expect(Math.max(...long.mock.calls.map(([d]) => d))).toBeLessThanOrEqual(1000 / 30)
+    })
+
     it('never asks the sink for a capture during the pre-roll', async () => {
       const { deps } = makeDeps()
       const advanceHeadless = vi.fn()

@@ -33,6 +33,7 @@ import { withControlDescriptions } from '@/pixelblaze/controlDescriptions'
 import { snapshotWatchValue } from '@/engine/watchValue'
 import { captureEnabled, createPreviewCapture } from '@/dev/previewCapture'
 import { runCaptureSequence, type CaptureSequenceOptions } from '@/dev/captureSequence'
+import { beginCaptureOrbit } from '@/dev/captureOrbit'
 
 // Square 3D viewport size (CSS px): fill the available pane edge-to-edge (the
 // smaller of its two sides), so the 3D canvas is exactly as tall as a square 2D
@@ -562,15 +563,31 @@ export function Preview({
         const loop = loopRef.current
         if (!loop) throw new Error('No preview render loop is active.')
         loop.stop()
+        // A 3D auto-orbit otherwise keeps turning on wall-clock rAF while
+        // frames save; drive it from the capture's virtual clock instead
+        // (#879) so every run — and every --start — sees the same camera.
+        const camera = useCameraStore.getState()
+        const orbit = beginCaptureOrbit({
+          is3D: useEditorStore.getState().displayDim === 3,
+          getState: () => useCameraStore.getState(),
+          setAutoOrbit: camera.setAutoOrbit,
+          resetView: camera.resetView,
+          setCamera: camera.setCamera,
+        })
         try {
           return await runCaptureSequence({
             requestCapture: (name) => cap.request(name),
             tickFrame: (delta) => loop.tickFrame(delta),
             // startMs pre-roll (#879): advance state without painting or
             // touching the capture sink.
-            advanceHeadless: (delta) => loop.tickHeadless(delta),
+            advanceHeadless: (delta) => {
+              loop.tickHeadless(delta)
+              orbit.advance(delta)
+            },
+            onBeforeFrame: (delta) => orbit.advance(delta),
           }, opts)
         } finally {
+          orbit.end()
           if (usePreviewStore.getState().isRunning) loop.start()
         }
       },

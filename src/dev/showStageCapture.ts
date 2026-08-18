@@ -14,6 +14,7 @@ import {
   type CaptureSequenceOptions,
   type CaptureSequenceResult,
 } from './captureSequence'
+import type { CaptureOrbit } from './captureOrbit'
 
 /** The slice of FastReplayRuntime and FastReplayResult the capture needs. */
 export interface ShowStageCaptureRuntime<Frame = unknown> {
@@ -26,6 +27,9 @@ export interface ShowStageCaptureRuntime<Frame = unknown> {
 export interface ShowStageCaptureDeps<Frame = unknown> {
   /** Stop transport-driven live playback before the runtime is rebuilt. */
   pause(): void
+  /** Take over a 3D stage's auto-orbit for the capture (see captureOrbit.ts);
+   * a 2D stage returns an inert orbit. Optional so tests can omit it. */
+  beginOrbit?(): CaptureOrbit
   /** Rebuild the replay runtime at Show time 0 (a transport seek) and resolve
    * with it once the rebuild has completed and painted. */
   resetToStart(): Promise<ShowStageCaptureRuntime<Frame>>
@@ -45,13 +49,20 @@ export async function runShowStageCaptureSequence<Frame>(
   if (runtime.getElapsedMs() !== 0) {
     throw new Error(`Show stage capture expected a runtime at t=0 after reset, got ${runtime.getElapsedMs()} ms.`)
   }
-  return runCaptureSequence({
-    requestCapture: (name) => deps.requestCapture(name),
-    // Frame 0 presents the current state unadvanced; later frames advance one
-    // timestep exactly as live playback does after a seek.
-    tickFrame: (deltaMs) => deps.paint(deltaMs === 0 ? runtime.renderCurrentFrame() : runtime.advanceLive(deltaMs)),
-    advanceHeadless: (deltaMs) => {
-      runtime.advanceTo(runtime.getElapsedMs() + deltaMs, { stepMs: deltaMs, presentTargetFrame: false })
-    },
-  }, options)
+  const orbit = deps.beginOrbit?.()
+  try {
+    return await runCaptureSequence({
+      requestCapture: (name) => deps.requestCapture(name),
+      // Frame 0 presents the current state unadvanced; later frames advance one
+      // timestep exactly as live playback does after a seek.
+      tickFrame: (deltaMs) => deps.paint(deltaMs === 0 ? runtime.renderCurrentFrame() : runtime.advanceLive(deltaMs)),
+      advanceHeadless: (deltaMs) => {
+        runtime.advanceTo(runtime.getElapsedMs() + deltaMs, { stepMs: deltaMs, presentTargetFrame: false })
+        orbit?.advance(deltaMs)
+      },
+      onBeforeFrame: (deltaMs) => orbit?.advance(deltaMs),
+    }, options)
+  } finally {
+    orbit?.end()
+  }
 }

@@ -87,13 +87,16 @@ export async function runCaptureSequence(
 }
 
 /** Split startMs into whole deltaMs steps plus one shorter remainder, so the
- * pre-roll simulates at the recording's own frame rate. Floating-point drift
- * is absorbed by summing the remainder rather than the steps. */
+ * pre-roll simulates at the recording's own frame rate. Steps are taken from
+ * the remaining distance, never rounded up to a whole step, so they sum to
+ * startMs and never overshoot; only sub-nanosecond float dust is dropped. */
 export function preRollSteps(startMs: number, deltaMs: number): number[] {
-  if (startMs <= 0) return []
-  const whole = Math.floor(startMs / deltaMs + 1e-9)
-  const steps = new Array<number>(whole).fill(deltaMs)
-  const remainder = startMs - whole * deltaMs
-  if (remainder > 1e-9) steps.push(remainder)
+  const steps: number[] = []
+  let remaining = startMs
+  while (remaining > 1e-9) {
+    const step = Math.min(deltaMs, remaining)
+    steps.push(step)
+    remaining -= step
+  }
   return steps
 }

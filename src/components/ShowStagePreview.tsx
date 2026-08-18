@@ -49,6 +49,7 @@ import {
 } from '@/dev/showStagePerformance'
 import { captureEnabled, createPreviewCapture } from '@/dev/previewCapture'
 import { runShowStageCaptureSequence } from '@/dev/showStageCapture'
+import { beginCaptureOrbit } from '@/dev/captureOrbit'
 import type { CaptureSequenceOptions, CaptureSequenceResult } from '@/dev/captureSequence'
 
 /** Dev-only `?capture` automation surface for the Show stage (#879); the
@@ -513,6 +514,18 @@ export function ShowStagePreview({
       setPreview: (patch) => usePreviewStore.setState(patch),
       captureSequence: (opts) => runShowStageCaptureSequence<FastReplayResult>({
         pause: () => usePreviewStore.getState().setRunning(false),
+        // 3D stages: drive the auto-orbit from the capture clock so the
+        // camera is deterministic per frame rather than wall-clock.
+        beginOrbit: () => {
+          const camera = useCameraStore.getState()
+          return beginCaptureOrbit({
+            is3D: layout?.draw.kind === '3d',
+            getState: () => useCameraStore.getState(),
+            setAutoOrbit: camera.setAutoOrbit,
+            resetView: camera.resetView,
+            setCamera: camera.setCamera,
+          })
+        },
         resetToStart: () => new Promise<FastReplayRuntime>((resolve, reject) => {
           const transport = useShowTransportStore.getState()
           // Record from Show time, not the timeline's loop window.
@@ -538,7 +551,7 @@ export function ShowStagePreview({
     return () => {
       if (window.__pxlblzShow === api) delete window.__pxlblzShow
     }
-  }, [durationMs, paintFastFrame, showId])
+  }, [durationMs, layout, paintFastFrame, showId])
 
   useEffect(() => {
     effectiveSoloZoneIdRef.current = effectiveSoloZoneId
