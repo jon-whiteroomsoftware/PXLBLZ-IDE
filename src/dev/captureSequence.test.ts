@@ -94,4 +94,64 @@ describe('runCaptureSequence', () => {
     await expect(runCaptureSequence(deps, { frames: 1.5, fps: 60 })).rejects.toThrow()
     await expect(runCaptureSequence(deps, { frames: 1, fps: 0 })).rejects.toThrow()
   })
+
+  describe('startMs pre-roll (#879)', () => {
+    it('defaults to no pre-roll: startMs 0 leaves the call sequence unchanged', async () => {
+      const { deps, calls } = makeDeps()
+      const result = await runCaptureSequence(deps, { frames: 2, fps: 50, startMs: 0 })
+      expect(calls).toEqual([
+        'request:frame-00000.png', 'tick:0',
+        'request:frame-00001.png', 'tick:20',
+      ])
+      expect(result.startMs).toBe(0)
+    })
+
+    it('advances headless in whole 1000/fps steps before the first capture, so frame K sits at startMs + K * delta', async () => {
+      const { deps, calls } = makeDeps()
+      const advanceHeadless = vi.fn((deltaMs: number) => { calls.push(`headless:${deltaMs}`) })
+      const result = await runCaptureSequence({ ...deps, advanceHeadless }, { frames: 2, fps: 50, startMs: 60 })
+      expect(calls).toEqual([
+        'headless:20', 'headless:20', 'headless:20',
+        'request:frame-00000.png', 'tick:0',
+        'request:frame-00001.png', 'tick:20',
+      ])
+      expect(result.startMs).toBe(60)
+    })
+
+    it('finishes the pre-roll with a short remainder step when startMs is not a multiple of the frame delta', async () => {
+      const { deps, calls } = makeDeps()
+      const advanceHeadless = vi.fn((deltaMs: number) => { calls.push(`headless:${deltaMs}`) })
+      await runCaptureSequence({ ...deps, advanceHeadless }, { frames: 1, fps: 50, startMs: 45 })
+      expect(calls).toEqual([
+        'headless:20', 'headless:20', 'headless:5',
+        'request:frame-00000.png', 'tick:0',
+      ])
+      const advanced = advanceHeadless.mock.calls.reduce((sum, [d]) => sum + d, 0)
+      expect(advanced).toBe(45)
+    })
+
+    it('never asks the sink for a capture during the pre-roll', async () => {
+      const { deps } = makeDeps()
+      const advanceHeadless = vi.fn()
+      await runCaptureSequence({ ...deps, advanceHeadless }, { frames: 1, fps: 10, startMs: 1000 })
+      expect(advanceHeadless).toHaveBeenCalledTimes(10)
+      expect(deps.requestCapture).toHaveBeenCalledTimes(1)
+    })
+
+    it('falls back to painted ticks for the pre-roll when no headless advance is supplied', async () => {
+      const { deps, calls } = makeDeps()
+      await runCaptureSequence(deps, { frames: 1, fps: 50, startMs: 40 })
+      expect(calls).toEqual([
+        'tick:20', 'tick:20',
+        'request:frame-00000.png', 'tick:0',
+      ])
+    })
+
+    it('rejects a negative or non-finite startMs', async () => {
+      const { deps } = makeDeps()
+      await expect(runCaptureSequence(deps, { frames: 1, fps: 60, startMs: -1 })).rejects.toThrow()
+      await expect(runCaptureSequence(deps, { frames: 1, fps: 60, startMs: Number.NaN })).rejects.toThrow()
+      await expect(runCaptureSequence(deps, { frames: 1, fps: 60, startMs: Number.POSITIVE_INFINITY })).rejects.toThrow()
+    })
+  })
 })

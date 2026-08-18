@@ -133,6 +133,27 @@ renders 3D variants directly and replaces the old manual browser capture
 workaround. Export defaults can run far hotter than in-app slider use is tuned
 for, so shipped GIFs may use a calmer variant than the demo's defaults.
 
+Since #879 the renderer also records Shows and starts at an offset:
+
+```bash
+npm run render -- --show stock-show-showcase-distortion-effects --start 7 --seconds 2.5 --fps 30
+npm run render -- --demo <Name> --start 12 --seconds 4
+```
+
+`--start` pre-rolls headless in 1000/fps steps (no paint, no sink), so frame K
+sits at `start + K/fps` and is byte-identical to frame `start*fps + K` of a
+t=0 render at the same fps. `--show` opens `studio/shows/<id>?capture&showtime`
+signed in as the synthetic local developer session (`npm run dev:session`
+mints the same cookie), hides the IDE chrome, and drives
+`window.__pxlblzShow.captureSequence` on `ShowStagePreview`: pause, seek the
+transport to 0 for a fresh runtime, pre-roll with `advanceTo`, then step
+recorded frames with `advanceLive` (the editor's post-seek playback path) and
+save each from inside `paintFastFrame`. Stock Shows work unauthenticated to
+the API; personal Shows are out of scope. `--width` must exceed 980 or the
+Show workspace hides the stage pane. The stage canvas lands a few px short of
+`--width` because of pane padding. The runtime keeps advancing past the loop
+point rather than rewinding, matching the compiled Pattern on hardware.
+
 The banner and launch button are Playwright element screenshots of scratch HTML
 built from the brand tokens.
 

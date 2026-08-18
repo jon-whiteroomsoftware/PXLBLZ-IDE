@@ -566,6 +566,9 @@ export function Preview({
           return await runCaptureSequence({
             requestCapture: (name) => cap.request(name),
             tickFrame: (delta) => loop.tickFrame(delta),
+            // startMs pre-roll (#879): advance state without painting or
+            // touching the capture sink.
+            advanceHeadless: (delta) => loop.tickHeadless(delta),
           }, opts)
         } finally {
           if (usePreviewStore.getState().isRunning) loop.start()

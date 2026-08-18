@@ -17,7 +17,15 @@ export interface RenderConfig {
   name: string
   /** Preview diffusion override (0..1); null keeps the pattern's own setting. */
   diffusion: number | null
+  /** Show id to record from its stage preview (#879); exclusive with demo/file. */
+  show: string | null
+  /** Virtual time of the first frame, in seconds; reached by a headless pre-roll. */
+  startSeconds: number
 }
+
+/** The Show workspace hides its stage-preview pane at or below this viewport
+ * width (App.tsx `narrowShowWorkspace`), so a Show render must be wider. */
+export const SHOW_STAGE_MIN_WIDTH_PX = 981
 
 const DEFAULTS = {
   seconds: 10,
@@ -41,6 +49,14 @@ function positiveNumber(flag: string, raw: string | undefined): number {
   return value
 }
 
+function nonNegativeNumber(flag: string, raw: string | undefined): number {
+  const value = Number(raw)
+  if (raw === undefined || raw.trim() === '' || !Number.isFinite(value) || value < 0) {
+    throw new Error(`${flag} requires a non-negative number, got "${raw}".`)
+  }
+  return value
+}
+
 export function parseRenderArgs(argv: string[]): RenderConfig {
   let demo: string | null = null
   let file: string | null = null
@@ -52,6 +68,8 @@ export function parseRenderArgs(argv: string[]): RenderConfig {
   let baseUrl = DEFAULTS.baseUrl
   let name: string | null = null
   let diffusion: number | null = null
+  let show: string | null = null
+  let startSeconds = 0
 
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i]
@@ -64,6 +82,8 @@ export function parseRenderArgs(argv: string[]): RenderConfig {
     switch (flag) {
       case '--demo': demo = value(); break
       case '--file': file = value(); break
+      case '--show': show = value(); break
+      case '--start': startSeconds = nonNegativeNumber(flag, value()); break
       case '--seconds': seconds = positiveNumber(flag, value()); break
       case '--fps': fps = positiveNumber(flag, value()); break
       case '--width': width = Math.round(positiveNumber(flag, value())); break
@@ -83,13 +103,23 @@ export function parseRenderArgs(argv: string[]): RenderConfig {
     }
   }
 
-  if (demo === null && file === null) {
-    throw new Error('Pass --demo <DemoName>, --file <pattern.js>, or both (--demo names the mount point for the file).')
+  if (show !== null && (demo !== null || file !== null)) {
+    throw new Error('--show records a Show from its stage preview and cannot be combined with --demo or --file.')
   }
-  const baseName = name ?? (file ? fileBasename(file) : demo!)
+  if (show === null && demo === null && file === null) {
+    throw new Error('Pass --show <ShowId>, --demo <DemoName>, --file <pattern.js>, or --file with --demo (--demo names the mount point for the file).')
+  }
+  if (show !== null && width < SHOW_STAGE_MIN_WIDTH_PX) {
+    throw new Error(`--width must be at least ${SHOW_STAGE_MIN_WIDTH_PX} for a Show render; narrower workspaces hide the stage preview.`)
+  }
+  const baseName = name ?? (show ? showBasename(show) : file ? fileBasename(file) : demo!)
   const slug = renderSlug(baseName)
   if (!slug) throw new Error(`Cannot derive a usable name from "${baseName}"; pass --name.`)
-  return { demo, file, seconds, fps, width, out, keepFrames, baseUrl, name: slug, diffusion }
+  return { demo, file, seconds, fps, width, out, keepFrames, baseUrl, name: slug, diffusion, show, startSeconds }
+}
+
+function showBasename(showId: string): string {
+  return showId.replace(/^stock-show-/, '')
 }
 
 function fileBasename(path: string): string {

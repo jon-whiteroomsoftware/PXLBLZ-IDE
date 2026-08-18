@@ -47,10 +47,27 @@ import {
   createShowStagePerformanceProbe,
   type ShowStagePerformanceProbe,
 } from '@/dev/showStagePerformance'
+import { captureEnabled, createPreviewCapture } from '@/dev/previewCapture'
+import { runShowStageCaptureSequence } from '@/dev/showStageCapture'
+import type { CaptureSequenceOptions, CaptureSequenceResult } from '@/dev/captureSequence'
+
+/** Dev-only `?capture` automation surface for the Show stage (#879); the
+ * Pattern preview's counterpart is `window.__pxlblz` in Preview.tsx. */
+export interface ShowStageCaptureApi {
+  showId: string
+  /** Show loop length in ms, so a driver can sanity-check start + length. */
+  loopDurationMs(): number
+  /** Merge into the shared preview store (diffusion, brightness, ...). */
+  setPreview(patch: Parameters<typeof usePreviewStore.setState>[0]): void
+  /** Pause, rebuild the runtime at t=0, pre-roll to startMs, then save one
+   * frame per fixed 1000/fps timestep through the /__capture sink. */
+  captureSequence(opts: CaptureSequenceOptions): Promise<CaptureSequenceResult>
+}
 
 declare global {
   interface Window {
     __pxlblzShowStagePerformance?: ShowStagePerformanceProbe
+    __pxlblzShow?: ShowStageCaptureApi
   }
 }
 
@@ -132,6 +149,7 @@ export function ShowStagePreview({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const captureRef = useRef(createPreviewCapture())
   const replayRef = useRef<FastReplayRuntime | null>(null)
   const replayKeyRef = useRef<string | null>(null)
   const checkpointStoreRef = useRef<FastReplayCheckpointStore<string> | null>(null)
@@ -476,12 +494,51 @@ export function ShowStagePreview({
       usePreviewStore.getState().brightness,
       false,
     )
+    // Fulfil a pending `?capture` request with exactly the frame just drawn.
+    captureRef.current.afterPaint(canvasRef.current)
     const paintEnded = performance.now()
     return {
       stageMaskMs: maskEnded - maskStarted,
       webglPaintMs: paintEnded - maskEnded,
     }
   }, [layout, stageMaskPlan])
+
+  // Dev-only deterministic capture surface (#879). Inert without `?capture`.
+  useEffect(() => {
+    if (!captureEnabled()) return
+    const cap = captureRef.current
+    const api: ShowStageCaptureApi = {
+      showId,
+      loopDurationMs: () => durationMs,
+      setPreview: (patch) => usePreviewStore.setState(patch),
+      captureSequence: (opts) => runShowStageCaptureSequence<FastReplayResult>({
+        pause: () => usePreviewStore.getState().setRunning(false),
+        resetToStart: () => new Promise<FastReplayRuntime>((resolve, reject) => {
+          const transport = useShowTransportStore.getState()
+          // Record from Show time, not the timeline's loop window.
+          transport.clearPlaybackWindow(showId)
+          const requestId = transport.requestSeek(showId, 0)
+          if (requestId < 0) {
+            reject(new Error(`Show transport is not open for "${showId}".`))
+            return
+          }
+          const unsubscribe = useShowTransportStore.subscribe((state) => {
+            if (state.seekRequest?.id === requestId) return
+            unsubscribe()
+            const runtime = replayRef.current
+            if (state.seekStatus === 'idle' && runtime) resolve(runtime)
+            else reject(new Error('Show seek to t=0 was cancelled or superseded.'))
+          })
+        }),
+        paint: (result) => { paintFastFrame(result) },
+        requestCapture: (name) => cap.request(name),
+      }, opts),
+    }
+    window.__pxlblzShow = api
+    return () => {
+      if (window.__pxlblzShow === api) delete window.__pxlblzShow
+    }
+  }, [durationMs, paintFastFrame, showId])
 
   useEffect(() => {
     effectiveSoloZoneIdRef.current = effectiveSoloZoneId

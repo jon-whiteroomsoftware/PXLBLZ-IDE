@@ -230,10 +230,14 @@ check the local D1 schema first.
 - Under `?capture`, call `window.__pxlblz.setPreview(patch)` and then
   `window.__pxlblz.capture(name)`. Captures are written to
   `/tmp/pxlblz-captures/` by the dev-only sink.
-- `npm run render -- (--demo <Name> | --file <pattern.js>) [--seconds N]`
-  renders a deterministic headless pattern video through the same sink
-  (`scripts/render-pattern.ts`, #576): fixed-timestep frames from pattern t=0,
-  assembled into an mp4 when `ffmpeg` is on PATH, else kept as PNGs.
+- `npm run render -- (--demo <Name> | --file <pattern.js> | --show <id>)
+  [--start SECONDS] [--seconds N]` renders a deterministic headless video
+  through the same sink (`scripts/render-pattern.ts`, #576, #879): fixed-
+  timestep frames from t=0, or from `--start` after a headless pre-roll,
+  assembled into an mp4 when `ffmpeg` is on PATH, else kept as PNGs. `--show`
+  records a stock Show from its stage preview (`window.__pxlblzShow`; the
+  route is signed in as the local developer session and needs `--width` above
+  980). See "Producing README assets" in `docs/agents/browser-verification.md`.
 - Check desktop and narrow-window behavior, console errors, keyboard flow, and
   relevant accessibility basics for substantial UI changes.
 

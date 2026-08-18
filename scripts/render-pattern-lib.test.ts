@@ -15,6 +15,8 @@ describe('parseRenderArgs', () => {
       baseUrl: 'http://localhost:5174/PXLBLZ-IDE/',
       name: 'plasmanebula',
       diffusion: null,
+      show: null,
+      startSeconds: 0,
     })
   })
 
@@ -54,8 +56,46 @@ describe('parseRenderArgs', () => {
     expect(config.name).toBe('aurora-calm')
   })
 
-  it('requires at least one of --demo and --file', () => {
-    expect(() => parseRenderArgs([])).toThrow(/--demo|--file/)
+  it('requires at least one of --demo, --file, and --show', () => {
+    expect(() => parseRenderArgs([])).toThrow(/--demo|--file|--show/)
+  })
+
+  describe('--show and --start (#879)', () => {
+    it('parses a Show render, naming it from the show id without the stock prefix', () => {
+      const config = parseRenderArgs(['--show', 'stock-show-showcase-distortion-effects'])
+      expect(config.show).toBe('stock-show-showcase-distortion-effects')
+      expect(config.demo).toBeNull()
+      expect(config.file).toBeNull()
+      expect(config.name).toBe('showcase-distortion-effects')
+    })
+
+    it('keeps a non-stock show id as the name verbatim (slugged)', () => {
+      expect(parseRenderArgs(['--show', 'My Show 01']).name).toBe('my-show-01')
+    })
+
+    it('rejects --show combined with --demo or --file', () => {
+      expect(() => parseRenderArgs(['--show', 'stock-show-x', '--demo', 'PlasmaNebula'])).toThrow(/--show/)
+      expect(() => parseRenderArgs(['--show', 'stock-show-x', '--file', '/tmp/a.js'])).toThrow(/--show/)
+    })
+
+    it('defaults --start to 0 seconds and accepts a non-negative offset in either mode', () => {
+      expect(parseRenderArgs(['--demo', 'A']).startSeconds).toBe(0)
+      expect(parseRenderArgs(['--demo', 'A', '--start', '12.5']).startSeconds).toBe(12.5)
+      expect(parseRenderArgs(['--show', 'stock-show-x', '--start', '0']).startSeconds).toBe(0)
+      expect(parseRenderArgs(['--file', '/tmp/a.js', '--start', '3']).startSeconds).toBe(3)
+    })
+
+    it('rejects a negative or non-numeric --start', () => {
+      expect(() => parseRenderArgs(['--demo', 'A', '--start', '-1'])).toThrow(/--start/)
+      expect(() => parseRenderArgs(['--demo', 'A', '--start', 'later'])).toThrow(/--start/)
+      expect(() => parseRenderArgs(['--demo', 'A', '--start'])).toThrow(/--start/)
+    })
+
+    it('rejects a Show render narrower than the stage-preview breakpoint', () => {
+      expect(() => parseRenderArgs(['--show', 'stock-show-x', '--width', '980'])).toThrow(/--width/)
+      expect(parseRenderArgs(['--show', 'stock-show-x', '--width', '981']).width).toBe(981)
+      expect(parseRenderArgs(['--demo', 'A', '--width', '560']).width).toBe(560)
+    })
   })
 
   it('rejects non-positive or non-numeric seconds, fps, and width', () => {
