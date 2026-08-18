@@ -20,7 +20,7 @@ import {
 } from '@/engine/fastReplayCheckpoints'
 import { createRenderer } from '@/engine/renderer'
 import { applyNormalizeMode, type MapPoint, type PixelMap } from '@/engine/maps'
-import { advanceAutoOrbit } from '@/engine/camera'
+import { advanceAutoOrbit, type OrbitCamera } from '@/engine/camera'
 import {
   applyShowStageMaskPacked,
   buildShowStageProjection,
@@ -151,6 +151,10 @@ export function ShowStagePreview({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const captureRef = useRef(createPreviewCapture())
+  // Camera driven by a capture sequence (#879); paintFastFrame prefers it over
+  // the store so per-step orbit updates never wake the store's repaint
+  // subscriber mid-capture.
+  const captureCameraRef = useRef<OrbitCamera | null>(null)
   const replayRef = useRef<FastReplayRuntime | null>(null)
   const replayKeyRef = useRef<string | null>(null)
   const checkpointStoreRef = useRef<FastReplayCheckpointStore<string> | null>(null)
@@ -484,7 +488,7 @@ export function ShowStagePreview({
     if (!renderer || !layout || !stageMaskPlan) return
     if (layout.draw.kind === '3d') {
       const view = useCameraStore.getState()
-      renderer.setCamera(view.camera)
+      renderer.setCamera(captureCameraRef.current ?? view.camera)
       renderer.setZoom(view.zoom)
     }
     const maskStarted = performance.now()
@@ -523,7 +527,11 @@ export function ShowStagePreview({
             getState: () => useCameraStore.getState(),
             setAutoOrbit: camera.setAutoOrbit,
             resetView: camera.resetView,
-            setCamera: camera.setCamera,
+            applyCamera: (cam) => { captureCameraRef.current = cam },
+            commitCamera: (cam) => {
+              captureCameraRef.current = null
+              camera.setCamera(cam)
+            },
           })
         },
         resetToStart: () => new Promise<FastReplayRuntime>((resolve, reject) => {

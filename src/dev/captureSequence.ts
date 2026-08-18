@@ -86,17 +86,26 @@ export async function runCaptureSequence(
   return { frames, deltaMs, startMs, names, failures }
 }
 
+/** Below this many ms a remainder is float dust from the division, not a
+ * real step: it is dropped, or — when it is this close to a whole step —
+ * snapped up to exactly deltaMs so a frame-aligned start receives the same
+ * identical deltas as a t=0 capture. Well above IEEE noise (~1e-14 ms) and
+ * well below anything a Pattern can observe. */
+const PRE_ROLL_DUST_MS = 1e-10
+
 /** Split startMs into whole deltaMs steps plus one shorter remainder, so the
- * pre-roll simulates at the recording's own frame rate. Steps are taken from
- * the remaining distance, never rounded up to a whole step, so they sum to
- * startMs and never overshoot; only sub-nanosecond float dust is dropped. */
+ * pre-roll simulates at the recording's own frame rate. Whole steps are the
+ * exact 1000/fps delta (never a subtraction-drifted copy), the remainder is
+ * exact, and only PRE_ROLL_DUST_MS of float dust is ever dropped or snapped. */
 export function preRollSteps(startMs: number, deltaMs: number): number[] {
-  const steps: number[] = []
-  let remaining = startMs
-  while (remaining > 1e-9) {
-    const step = Math.min(deltaMs, remaining)
-    steps.push(step)
-    remaining -= step
+  if (startMs <= 0) return []
+  let whole = Math.floor(startMs / deltaMs)
+  let remainder = startMs - whole * deltaMs
+  if (deltaMs - remainder <= PRE_ROLL_DUST_MS) {
+    whole += 1
+    remainder = 0
   }
+  const steps = new Array<number>(whole).fill(deltaMs)
+  if (remainder > PRE_ROLL_DUST_MS) steps.push(remainder)
   return steps
 }

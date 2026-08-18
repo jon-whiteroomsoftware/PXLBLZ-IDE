@@ -18,15 +18,21 @@ export interface CaptureOrbitDeps {
   setAutoOrbit(autoOrbit: boolean): void
   /** Restore the canonical view (camera, zoom) that opening a 3D layout uses. */
   resetView(): void
-  /** Push a camera into the store so the renderer sees it on its next paint. */
-  setCamera(camera: OrbitCamera): void
+  /** Apply a camera for the next paint without going through the store —
+   * store writes wake the paused-repaint subscribers, which would insert extra
+   * Pattern renders between capture steps. */
+  applyCamera(camera: OrbitCamera): void
+  /** Write the final camera to the store once the capture has finished, so
+   * the visible view state agrees with the last frame. */
+  commitCamera(camera: OrbitCamera): void
 }
 
 export interface CaptureOrbit {
   /** True when the capture drives the orbit; false when it is held still. */
   driven: boolean
   advance(deltaMs: number): void
-  /** Re-arm the wall-clock drive; call from a finally block. */
+  /** Commit the final camera and re-arm the wall-clock drive; call from a
+   * finally block. */
   end(): void
 }
 
@@ -38,7 +44,9 @@ export function beginCaptureOrbit(deps: CaptureOrbitDeps): CaptureOrbit {
     return { driven: false, advance: () => undefined, end: () => undefined }
   }
   // Reset first (it re-arms auto-orbit), then disarm so the wall-clock rAF
-  // stops advancing for the duration of the capture.
+  // stops advancing for the duration of the capture. Both are store writes
+  // that happen once, before any pattern step, so a t=0 and a --start capture
+  // see the same operations from here on.
   deps.resetView()
   deps.setAutoOrbit(false)
   let camera = deps.getState().camera
@@ -47,9 +55,10 @@ export function beginCaptureOrbit(deps: CaptureOrbitDeps): CaptureOrbit {
     advance(deltaMs) {
       if (deltaMs <= 0) return
       camera = advanceAutoOrbit(camera, deltaMs)
-      deps.setCamera(camera)
+      deps.applyCamera(camera)
     },
     end() {
+      deps.commitCamera(camera)
       deps.setAutoOrbit(true)
     },
   }

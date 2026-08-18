@@ -12,13 +12,14 @@ function makeDeps(overrides: { is3D?: boolean; autoOrbit?: boolean } = {}) {
     getState: () => state,
     setAutoOrbit: vi.fn((autoOrbit: boolean) => { state.autoOrbit = autoOrbit; calls.push(`arm:${autoOrbit}`) }),
     resetView: vi.fn(() => { state.camera = { ...DEFAULT }; state.autoOrbit = true; calls.push('reset') }),
-    setCamera: vi.fn((camera: OrbitCamera) => { state.camera = camera; calls.push(`cam:${camera.azimuth.toFixed(4)}`) }),
+    applyCamera: vi.fn((camera: OrbitCamera) => { calls.push(`cam:${camera.azimuth.toFixed(4)}`) }),
+    commitCamera: vi.fn((camera: OrbitCamera) => { state.camera = camera; calls.push(`commit:${camera.azimuth.toFixed(4)}`) }),
   }
   return { calls, state, deps }
 }
 
 describe('beginCaptureOrbit', () => {
-  it('resets the view, disarms the wall-clock drive, and advances the camera by each virtual delta', () => {
+  it('resets the view, disarms the wall-clock drive, applies each virtual delta outside the store, then commits once', () => {
     const { calls, deps } = makeDeps()
     const orbit = beginCaptureOrbit(deps)
     expect(orbit.driven).toBe(true)
@@ -31,8 +32,10 @@ describe('beginCaptureOrbit', () => {
     expect(calls).toEqual([
       'reset', 'arm:false',
       `cam:${step1.azimuth.toFixed(4)}`, `cam:${step2.azimuth.toFixed(4)}`,
-      'arm:true',
+      `commit:${step2.azimuth.toFixed(4)}`, 'arm:true',
     ])
+    // No store camera write between begin and end.
+    expect(deps.commitCamera).toHaveBeenCalledTimes(1)
   })
 
   it('accumulates the same azimuth for one long step as for its parts (pre-roll equivalence)', () => {
@@ -42,6 +45,8 @@ describe('beginCaptureOrbit', () => {
     const orbitB = beginCaptureOrbit(b.deps)
     orbitA.advance(1000)
     for (let i = 0; i < 50; i += 1) orbitB.advance(20)
+    orbitA.end()
+    orbitB.end()
     expect(b.state.camera.azimuth).toBeCloseTo(a.state.camera.azimuth, 9)
   })
 

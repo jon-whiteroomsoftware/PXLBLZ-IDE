@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { runCaptureSequence, sequenceFrameName } from './captureSequence'
+import { preRollSteps, runCaptureSequence, sequenceFrameName } from './captureSequence'
 
 // Deps whose capture resolves immediately, recording the interleaving of
 // request/tick calls so ordering (request BEFORE the paint that fulfils it)
@@ -135,13 +135,23 @@ describe('runCaptureSequence', () => {
       const advanceHeadless = vi.fn()
       await runCaptureSequence({ ...deps, advanceHeadless }, { frames: 1, fps: 50, startMs: 19.999999999 })
       expect(advanceHeadless.mock.calls).toEqual([[19.999999999]])
-      const long = vi.fn()
-      await runCaptureSequence({ ...deps, advanceHeadless: long }, { frames: 1, fps: 30, startMs: 100 })
-      const advanced = long.mock.calls.reduce((sum, [d]) => sum + d, 0)
-      expect(advanced).toBeCloseTo(100, 9)
-      // 3 x 33.33... leaves only float dust below the 1e-9 floor: no fourth step.
-      expect(long.mock.calls.length).toBe(3)
-      expect(Math.max(...long.mock.calls.map(([d]) => d))).toBeLessThanOrEqual(1000 / 30)
+    })
+
+    it('gives a frame-aligned start the exact 1000/fps delta every step, matching a t=0 capture', async () => {
+      const { deps } = makeDeps()
+      const advanceHeadless = vi.fn()
+      await runCaptureSequence({ ...deps, advanceHeadless }, { frames: 1, fps: 30, startMs: 100 })
+      // 100 / (1000/30) is 3 up to float dust: three identical whole steps,
+      // never a subtraction-drifted final step and never a fourth dust step.
+      expect(advanceHeadless.mock.calls).toEqual([[1000 / 30], [1000 / 30], [1000 / 30]])
+    })
+
+    it('matches preRollSteps against the deltas a t=0 capture would have ticked', () => {
+      for (const [fps, startFrames] of [[30, 3], [60, 121], [24, 7], [50, 1000]] as const) {
+        const delta = 1000 / fps
+        const steps = preRollSteps(startFrames * delta, delta)
+        expect(steps).toEqual(new Array(startFrames).fill(delta))
+      }
     })
 
     it('never asks the sink for a capture during the pre-roll', async () => {

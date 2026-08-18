@@ -572,7 +572,10 @@ export function Preview({
           getState: () => useCameraStore.getState(),
           setAutoOrbit: camera.setAutoOrbit,
           resetView: camera.resetView,
-          setCamera: camera.setCamera,
+          // Straight to the renderer: a store write would wake the paused
+          // camera subscriber above and insert a repaint between steps.
+          applyCamera: (cam) => rendererRef.current?.setCamera(cam),
+          commitCamera: camera.setCamera,
         })
         try {
           return await runCaptureSequence({
