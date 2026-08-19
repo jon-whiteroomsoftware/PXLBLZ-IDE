@@ -22,9 +22,13 @@ have a controller, install the companion
 [Chrome extension](https://chromewebstore.google.com/detail/pxlblz-ide-controller-hel/hjdkmngopeofakdbjfkaomcmgkcidoeg)
 and connect to it live.
 
-[![MagneticFilaments, a built-in 2D Pattern, rendering in the preview](docs/screenshots/magnetic-filaments.gif)](https://pxlblz-ide.whiteroomsoftware.com/p/magnetic-filaments)
+<img align="left" src="docs/screenshots/quadrille-rejoined.gif" alt="Quadrille, a built-in Show, in its final scene: four mirrored quarters of Wavy Bands and Line Dancer 2D rejoin into one pinwheel" width="560">
 
-*MagneticFilaments — [watch it live](https://pxlblz-ide.whiteroomsoftware.com/p/magnetic-filaments).*
+*Quadrille* by PXLBLZ, with *Wavy Bands* and *Line Dancer 2D* by ZRanger1.
+
+Four mirrored quarters, rejoined for the finale. Two Pattern instances, one compiled Pattern.
+
+<br clear="all">
 
 ## Shows
 
@@ -77,9 +81,13 @@ controls, and routes different work to different zones stopped being a
 fantasy and became the obvious next step. PXLBLZ has gone well beyond the
 tool I originally wished for. I was not dreaming big enough.
 
-[![AuroraSphere, a built-in 3D Pattern, rendering in the preview](docs/screenshots/aurora-sphere.gif)](https://pxlblz-ide.whiteroomsoftware.com/p/aurora-sphere)
+<a href="https://pxlblz-ide.whiteroomsoftware.com/p/magnetic-filaments"><img align="left" src="docs/screenshots/magnetic-filaments.gif" alt="MagneticFilaments, a built-in 2D Pattern, rendering in the preview" width="560"></a>
 
-*AuroraSphere — [watch it live](https://pxlblz-ide.whiteroomsoftware.com/p/aurora-sphere).*
+*MagneticFilaments*, a built-in 2D Pattern.
+
+[Watch it live](https://pxlblz-ide.whiteroomsoftware.com/p/magnetic-filaments).
+
+<br clear="all">
 
 ## The rest of the tour
 
@@ -108,9 +116,13 @@ code review on every commit, mutation testing on the high-risk engines, and
 full end-to-end suites before anything ships. The process is documented
 throughout the repo, starting in [`docs/agents/`](docs/agents/).
 
-[![Harmonograph, a built-in 2D Pattern, rendering in the preview](docs/screenshots/harmonograph.gif)](https://pxlblz-ide.whiteroomsoftware.com/p/harmonograph)
+<a href="https://pxlblz-ide.whiteroomsoftware.com/p/aurora-sphere"><img align="left" src="docs/screenshots/aurora-sphere.gif" alt="AuroraSphere, a built-in 3D Pattern, rendering in the preview" width="560"></a>
 
-*Harmonograph — [watch it live](https://pxlblz-ide.whiteroomsoftware.com/p/harmonograph).*
+*AuroraSphere*, a built-in 3D Pattern.
+
+[Watch it live](https://pxlblz-ide.whiteroomsoftware.com/p/aurora-sphere).
+
+<br clear="all">
 
 ## What it deliberately does not do
 
@@ -158,3 +170,11 @@ reports and suggestions are welcome on the
 [issue tracker](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues);
 general project mail can go to
 [pxlblz@whiteroomsoftware.com](mailto:pxlblz@whiteroomsoftware.com).
+
+<a href="https://pxlblz-ide.whiteroomsoftware.com/p/harmonograph"><img align="left" src="docs/screenshots/harmonograph.gif" alt="Harmonograph, a built-in 2D Pattern, rendering in the preview" width="560"></a>
+
+*Harmonograph*, a built-in 2D Pattern.
+
+[Watch it live](https://pxlblz-ide.whiteroomsoftware.com/p/harmonograph).
+
+<br clear="all">
