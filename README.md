@@ -24,7 +24,7 @@ and connect to it live.
 
 <br>
 
-<img align="left" src="docs/screenshots/quadrille-rejoined.gif" alt="Quadrille, a built-in Show, in its final scene: four mirrored quarters of Wavy Bands and Line Dancer 2D rejoin into one pinwheel" width="560">
+<img align="left" hspace="16" src="docs/screenshots/quadrille-rejoined.gif" alt="Quadrille, a built-in Show, in its final scene: four mirrored quarters of Wavy Bands and Line Dancer 2D rejoin into one pinwheel" width="560">
 
 *Quadrille* by PXLBLZ, with *Wavy Bands* and *Line Dancer 2D* by ZRanger1.
 
@@ -85,7 +85,7 @@ tool I originally wished for. I was not dreaming big enough.
 
 <br>
 
-<a href="https://pxlblz-ide.whiteroomsoftware.com/p/magnetic-filaments"><img align="left" src="docs/screenshots/magnetic-filaments.gif" alt="MagneticFilaments, a built-in 2D Pattern, rendering in the preview" width="560"></a>
+<a href="https://pxlblz-ide.whiteroomsoftware.com/p/magnetic-filaments"><img align="left" hspace="16" src="docs/screenshots/magnetic-filaments.gif" alt="MagneticFilaments, a built-in 2D Pattern, rendering in the preview" width="560"></a>
 
 *MagneticFilaments*, a built-in 2D Pattern.
 
@@ -122,7 +122,7 @@ throughout the repo, starting in [`docs/agents/`](docs/agents/).
 
 <br>
 
-<a href="https://pxlblz-ide.whiteroomsoftware.com/p/aurora-sphere"><img align="left" src="docs/screenshots/aurora-sphere.gif" alt="AuroraSphere, a built-in 3D Pattern, rendering in the preview" width="560"></a>
+<a href="https://pxlblz-ide.whiteroomsoftware.com/p/aurora-sphere"><img align="left" hspace="16" src="docs/screenshots/aurora-sphere.gif" alt="AuroraSphere, a built-in 3D Pattern, rendering in the preview" width="560"></a>
 
 *AuroraSphere*, a built-in 3D Pattern.
 
@@ -179,7 +179,7 @@ general project mail can go to
 
 <br>
 
-<a href="https://pxlblz-ide.whiteroomsoftware.com/p/harmonograph"><img align="left" src="docs/screenshots/harmonograph.gif" alt="Harmonograph, a built-in 2D Pattern, rendering in the preview" width="560"></a>
+<a href="https://pxlblz-ide.whiteroomsoftware.com/p/harmonograph"><img align="left" hspace="16" src="docs/screenshots/harmonograph.gif" alt="Harmonograph, a built-in 2D Pattern, rendering in the preview" width="560"></a>
 
 *Harmonograph*, a built-in 2D Pattern.
 
