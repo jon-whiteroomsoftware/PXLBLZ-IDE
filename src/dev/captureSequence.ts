@@ -86,26 +86,30 @@ export async function runCaptureSequence(
   return { frames, deltaMs, startMs, names, failures }
 }
 
-/** Below this many ms a remainder is float dust from the division, not a
- * real step: it is dropped, or — when it is this close to a whole step —
- * snapped up to exactly deltaMs so a frame-aligned start receives the same
- * identical deltas as a t=0 capture. Well above IEEE noise (~1e-14 ms) and
- * well below anything a Pattern can observe. */
-const PRE_ROLL_DUST_MS = 1e-10
+/** Float dust tolerance for the pre-roll split, in ms: a few dozen ulps of
+ * the larger operand. `whole * deltaMs` and the division each err by at most
+ * an ulp or so of startMs, so this scales with long offsets (an hour at 30 fps
+ * is ~2.5e-8 ms) while staying far below anything a Pattern can observe and
+ * far below a deliberately short remainder such as 19.999999999 vs 20. */
+function preRollDustMs(startMs: number, deltaMs: number): number {
+  return 32 * Number.EPSILON * Math.max(startMs, deltaMs, 1)
+}
 
 /** Split startMs into whole deltaMs steps plus one shorter remainder, so the
  * pre-roll simulates at the recording's own frame rate. Whole steps are the
- * exact 1000/fps delta (never a subtraction-drifted copy), the remainder is
- * exact, and only PRE_ROLL_DUST_MS of float dust is ever dropped or snapped. */
+ * exact 1000/fps delta (never a subtraction-drifted copy); a remainder within
+ * float dust of a whole step is snapped up to it, one within dust of zero is
+ * dropped, and any other remainder is kept exact. */
 export function preRollSteps(startMs: number, deltaMs: number): number[] {
   if (startMs <= 0) return []
+  const dust = preRollDustMs(startMs, deltaMs)
   let whole = Math.floor(startMs / deltaMs)
   let remainder = startMs - whole * deltaMs
-  if (deltaMs - remainder <= PRE_ROLL_DUST_MS) {
+  if (deltaMs - remainder <= dust) {
     whole += 1
     remainder = 0
   }
   const steps = new Array<number>(whole).fill(deltaMs)
-  if (remainder > PRE_ROLL_DUST_MS) steps.push(remainder)
+  if (remainder > dust) steps.push(remainder)
   return steps
 }

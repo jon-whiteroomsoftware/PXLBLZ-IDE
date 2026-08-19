@@ -21,7 +21,7 @@ import { compileLibraries } from '@/engine/libraries'
 import { createRenderer } from '@/engine/renderer'
 import { createRenderLoop, type RenderLoop } from '@/engine/renderLoop'
 import { createVirtualClock } from '@/engine/virtualClock'
-import { clampPixelCount, advanceAutoOrbit } from '@/engine/camera'
+import { clampPixelCount, advanceAutoOrbit, type OrbitCamera } from '@/engine/camera'
 import { cappedPreviewPixelCount } from '@/engine/previewPixelCount'
 import { layoutSource as buildLayoutSource } from '@/store/mapStore'
 import { resolveLayout } from '@/engine/layout'
@@ -70,6 +70,7 @@ export function Preview({
   const rendererRef = useRef<ReturnType<typeof createRenderer> | null>(null)
   // Dev-only (`?capture`): snapshots the frame from inside paint(); inert otherwise.
   const captureRef = useRef(createPreviewCapture())
+  const captureCameraRef = useRef<OrbitCamera | null>(null)
   const isRunning = usePreviewStore((s) => s.isRunning)
   const brightness = usePreviewStore((s) => s.brightness)
   const lightSize = usePreviewStore((s) => s.lightSize)
@@ -341,7 +342,9 @@ export function Preview({
     const paint = (pixels: [number, number, number][], brightness: number, dimmed: boolean) => {
       if (positions3D) {
         const view = useCameraStore.getState()
-        renderer.setCamera(view.camera)
+        // A running capture sequence drives the orbit itself (#879) and parks
+        // its camera in a ref so no store write repaints mid-capture.
+        renderer.setCamera(captureCameraRef.current ?? view.camera)
         renderer.setZoom(view.zoom)
       }
       renderer.paint(pixels, brightness, dimmed)
@@ -572,10 +575,14 @@ export function Preview({
           getState: () => useCameraStore.getState(),
           setAutoOrbit: camera.setAutoOrbit,
           resetView: camera.resetView,
-          // Straight to the renderer: a store write would wake the paused
-          // camera subscriber above and insert a repaint between steps.
-          applyCamera: (cam) => rendererRef.current?.setCamera(cam),
-          commitCamera: camera.setCamera,
+          // Parked in a ref the paint wrapper prefers: a store write would
+          // wake the paused camera subscriber and repaint between steps, and
+          // the wrapper re-reads the store camera on every paint otherwise.
+          applyCamera: (cam) => { captureCameraRef.current = cam },
+          commitCamera: (cam) => {
+            captureCameraRef.current = null
+            camera.setCamera(cam)
+          },
         })
         try {
           return await runCaptureSequence({

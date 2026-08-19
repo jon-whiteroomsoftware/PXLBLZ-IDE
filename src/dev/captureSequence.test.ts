@@ -146,12 +146,24 @@ describe('runCaptureSequence', () => {
       expect(advanceHeadless.mock.calls).toEqual([[1000 / 30], [1000 / 30], [1000 / 30]])
     })
 
-    it('matches preRollSteps against the deltas a t=0 capture would have ticked', () => {
-      for (const [fps, startFrames] of [[30, 3], [60, 121], [24, 7], [50, 1000]] as const) {
+    it('matches preRollSteps against the deltas a t=0 capture would have ticked, including hour-long offsets', () => {
+      for (const [fps, startFrames] of [[30, 3], [60, 121], [24, 7], [50, 1000], [30, 108_000], [60, 216_000]] as const) {
         const delta = 1000 / fps
         const steps = preRollSteps(startFrames * delta, delta)
-        expect(steps).toEqual(new Array(startFrames).fill(delta))
+        expect(steps.length).toBe(startFrames)
+        expect(steps.every((step) => step === delta)).toBe(true)
       }
+      // The reviewer's case: 3_600_000 ms at 30 fps is 108000 exact steps.
+      const hour = preRollSteps(3_600_000, 1000 / 30)
+      expect(hour.length).toBe(108_000)
+      expect(hour[hour.length - 1]).toBe(1000 / 30)
+    })
+
+    it('keeps a genuinely short remainder exact even at long offsets', () => {
+      const delta = 1000 / 30
+      const steps = preRollSteps(3_600_000 + delta / 2, delta)
+      expect(steps.length).toBe(108_001)
+      expect(steps[steps.length - 1]).toBeCloseTo(delta / 2, 6)
     })
 
     it('never asks the sink for a capture during the pre-roll', async () => {
