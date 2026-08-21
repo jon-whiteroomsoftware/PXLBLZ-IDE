@@ -1019,7 +1019,18 @@ export function ShowEditor({
   const clearArtifactPushResult = useControllerStore((state) => state.clearArtifactPushResult)
   const reportArtifactPushFailure = useControllerStore((state) => state.reportArtifactPushFailure)
   const selection = useShowEditorViewStore((state) => state.selection)
-  const setSelection = useShowEditorViewStore((state) => state.setSelection)
+  // Alive flag restoring the semantics useState gave for free: a stale async
+  // continuation from an unmounted editor must not write into the global
+  // store that a newer editor instance now owns.
+  const editorAliveRef = useRef(true)
+  useEffect(() => {
+    editorAliveRef.current = true
+    return () => { editorAliveRef.current = false }
+  }, [])
+  const setSelection = useCallback((next: ShowSelection) => {
+    if (!editorAliveRef.current) return
+    useShowEditorViewStore.getState().setSelection(next)
+  }, [])
   const resetShowEditorView = useShowEditorViewStore((state) => state.resetShowEditorView)
   const resetHoveredClip = useShowClipHoverStore((state) => state.resetHoveredClip)
   const [isolatedGroupOccurrenceId, setIsolatedGroupOccurrenceId] = useState<string | null>(null)
@@ -3818,11 +3829,26 @@ function ShowTimelineWorkspace({
   ), [isolatedGroupOccurrenceId, unifiedCompositionTimeline])
   const isolatedGroupOccurrence = timelineComposition?.groupOccurrences
     ?.find((occurrence) => occurrence.id === isolatedGroupOccurrenceId) ?? null
+  useEffect(() => {
+    const hovered = useShowClipHoverStore.getState().hoveredClipId
+    if (!hovered) return
+    const exists = unifiedCompositionTimeline?.zones.some((zone) =>
+      zone.layers.some((layer) => layer.clips.some((clip) => clip.id === hovered)))
+    if (!exists) useShowClipHoverStore.getState().resetHoveredClip()
+  }, [unifiedCompositionTimeline])
   const isolatedGroupDefinition = timelineComposition?.groupDefinitions
     ?.find((definition) => definition.id === isolatedGroupOccurrence?.definitionId) ?? null
   const fittedViewport = useMemo(() => fitShowTimelineViewport(timeline.durationMs), [timeline.durationMs])
   const storedViewport = useShowEditorViewStore((state) => state.viewport) ?? fittedViewport
-  const setViewport = useShowEditorViewStore((state) => state.setViewport)
+  const timelineAliveRef = useRef(true)
+  useEffect(() => {
+    timelineAliveRef.current = true
+    return () => { timelineAliveRef.current = false }
+  }, [])
+  const setViewport = useCallback((viewport: ShowTimelineViewport | null) => {
+    if (!timelineAliveRef.current) return
+    useShowEditorViewStore.getState().setViewport(viewport)
+  }, [])
   const snapEnabled = useShowEditorSessionStore((state) => state.snapEnabled)
   const setSnapEnabled = useShowEditorSessionStore((state) => state.setSnapEnabled)
   const markersVisible = useShowEditorSessionStore((state) => state.markersVisible)
