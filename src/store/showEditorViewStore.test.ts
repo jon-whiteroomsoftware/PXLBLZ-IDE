@@ -30,13 +30,35 @@ describe('showEditorViewStore (#884)', () => {
     expect(useShowEditorViewStore.getState().viewport).toBeNull()
   })
 
-  it('resetShowEditorView returns both slices to the neutral view', () => {
+  it('resetShowEditorView returns both slices to the neutral view for the new owner', () => {
     useShowEditorViewStore.getState().setSelection({ kind: 'zone', zoneId: 'zone-1' })
     useShowEditorViewStore.getState().setViewport({
       totalMs: 60_000, startMs: 0, durationMs: 5_000, minDurationMs: 1_000,
     })
-    useShowEditorViewStore.getState().resetShowEditorView()
+    useShowEditorViewStore.getState().resetShowEditorView('show-b')
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'show' })
     expect(useShowEditorViewStore.getState().viewport).toBeNull()
+    expect(useShowEditorViewStore.getState().ownerShowId).toBe('show-b')
+  })
+
+  it('drops owner-tagged writes from a Show that no longer owns the view', () => {
+    useShowEditorViewStore.getState().resetShowEditorView('show-a')
+    useShowEditorViewStore.getState().setSelection({ kind: 'clip', clipId: 'a-clip' }, 'show-a')
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'clip', clipId: 'a-clip' })
+
+    // The editor switches to show-b; a stale continuation from show-a
+    // resolves afterwards and must not land.
+    useShowEditorViewStore.getState().resetShowEditorView('show-b')
+    useShowEditorViewStore.getState().setSelection({ kind: 'clip', clipId: 'a-clip' }, 'show-a')
+    useShowEditorViewStore.getState().setViewport(
+      { totalMs: 1_000, startMs: 0, durationMs: 500, minDurationMs: 100 },
+      'show-a',
+    )
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'show' })
+    expect(useShowEditorViewStore.getState().viewport).toBeNull()
+
+    // Untagged writes (tests, tooling) still land unconditionally.
+    useShowEditorViewStore.getState().setSelection({ kind: 'zone', zoneId: 'z' })
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'zone', zoneId: 'z' })
   })
 })

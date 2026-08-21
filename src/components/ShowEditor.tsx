@@ -1029,8 +1029,12 @@ export function ShowEditor({
   }, [])
   const setSelection = useCallback((next: ShowSelection) => {
     if (!editorAliveRef.current) return
-    useShowEditorViewStore.getState().setSelection(next)
-  }, [])
+    // The captured showId is the ownership epoch: a continuation started on
+    // an earlier Show resolves with that Show's id and is dropped by the
+    // store after the editor moved on (the instance is reused, so mount
+    // lifetime alone cannot tell the two apart).
+    useShowEditorViewStore.getState().setSelection(next, showId)
+  }, [showId])
   const resetShowEditorView = useShowEditorViewStore((state) => state.resetShowEditorView)
   const resetHoveredClip = useShowClipHoverStore((state) => state.resetHoveredClip)
   const [isolatedGroupOccurrenceId, setIsolatedGroupOccurrenceId] = useState<string | null>(null)
@@ -1114,7 +1118,7 @@ export function ShowEditor({
   useEffect(() => {
     if (detailShowIdRef.current === showId) return
     detailShowIdRef.current = showId
-    resetShowEditorView()
+    resetShowEditorView(showId)
     resetHoveredClip()
     setDetailPanelOpen(false)
     setDetailAnchor(null)
@@ -3847,8 +3851,8 @@ function ShowTimelineWorkspace({
   }, [])
   const setViewport = useCallback((viewport: ShowTimelineViewport | null) => {
     if (!timelineAliveRef.current) return
-    useShowEditorViewStore.getState().setViewport(viewport)
-  }, [])
+    useShowEditorViewStore.getState().setViewport(viewport, show.id)
+  }, [show.id])
   const snapEnabled = useShowEditorSessionStore((state) => state.snapEnabled)
   const setSnapEnabled = useShowEditorSessionStore((state) => state.setSnapEnabled)
   const markersVisible = useShowEditorSessionStore((state) => state.markersVisible)

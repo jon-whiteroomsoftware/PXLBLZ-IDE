@@ -23,23 +23,31 @@ export type ShowSelection =
   | { kind: 'show' }
 
 export interface ShowEditorViewState {
+  /** The Show whose editor currently owns this view state. */
+  ownerShowId: string | null
   selection: ShowSelection
-  setSelection: (selection: ShowSelection) => void
+  /** With ownerShowId given, the write lands only while that Show still owns the view (stale async continuations from an earlier Show are dropped). */
+  setSelection: (selection: ShowSelection, ownerShowId?: string) => void
   /** The visible time range; null means fitted to the whole Show. */
   viewport: ShowTimelineViewport | null
-  setViewport: (viewport: ShowTimelineViewport | null) => void
-  /** Return to the neutral view: Show-level selection, fitted viewport. */
-  resetShowEditorView: () => void
+  setViewport: (viewport: ShowTimelineViewport | null, ownerShowId?: string) => void
+  /** Return to the neutral view for the given Show: Show-level selection, fitted viewport. */
+  resetShowEditorView: (ownerShowId: string) => void
 }
 
 export const showEditorViewInitialState = {
+  ownerShowId: null as string | null,
   selection: { kind: 'show' } as ShowSelection,
   viewport: null as ShowTimelineViewport | null,
 }
 
 export const useShowEditorViewStore = create<ShowEditorViewState>()((set) => ({
   ...showEditorViewInitialState,
-  setSelection: (selection) => set({ selection }),
-  setViewport: (viewport) => set({ viewport }),
-  resetShowEditorView: () => set({ ...showEditorViewInitialState }),
+  setSelection: (selection, ownerShowId) => set((state) => (
+    ownerShowId === undefined || state.ownerShowId === ownerShowId ? { selection } : state
+  )),
+  setViewport: (viewport, ownerShowId) => set((state) => (
+    ownerShowId === undefined || state.ownerShowId === ownerShowId ? { viewport } : state
+  )),
+  resetShowEditorView: (ownerShowId) => set({ ...showEditorViewInitialState, ownerShowId }),
 }))
