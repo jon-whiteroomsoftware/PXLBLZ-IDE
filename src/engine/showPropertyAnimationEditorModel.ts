@@ -319,11 +319,26 @@ export function applyShowGroupPropertyAnimationChange(
   const definition = draft.groupDefinitions?.find((candidate) => candidate.id === owner.definitionId)
   if (!occurrence || occurrence.definitionId !== owner.definitionId || !definition) return composition
   // Accept materialized occurrence-prefixed ids, like the Group transition
-  // functions do; the definition stores the local form.
+  // functions do; the definition stores the local form. An exact
+  // definition-local match always wins, so an authored id that merely looks
+  // prefixed is never corrupted.
   const prefix = `${occurrence.id}:`
-  const localId = (id: string): string => (id.startsWith(prefix) ? id.slice(prefix.length) : id)
-  if ('trackId' in change) change = { ...change, trackId: localId(change.trackId) }
-  if ('keyframeId' in change) change = { ...change, keyframeId: localId(change.keyframeId) }
+  if ('trackId' in change) {
+    const suppliedTrackId = change.trackId
+    const exact = definition.propertyTracks?.some((candidate) => candidate.id === suppliedTrackId)
+    if (!exact && suppliedTrackId.startsWith(prefix)) {
+      change = { ...change, trackId: suppliedTrackId.slice(prefix.length) }
+    }
+  }
+  if ('keyframeId' in change) {
+    const localTrackId = change.trackId
+    const suppliedKeyframeId = change.keyframeId
+    const track = definition.propertyTracks?.find((candidate) => candidate.id === localTrackId)
+    const exact = track?.keyframes.some((candidate) => candidate.id === suppliedKeyframeId)
+    if (!exact && suppliedKeyframeId.startsWith(prefix)) {
+      change = { ...change, keyframeId: suppliedKeyframeId.slice(prefix.length) }
+    }
+  }
   if (change.kind === 'add-track') {
     const durationMs = Math.max(
       0,

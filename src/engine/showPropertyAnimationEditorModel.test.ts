@@ -413,6 +413,96 @@ describe('Property animation editor time projection (#648)', () => {
     expect(refused).toBe(trimmed)
   })
 
+  it('resolves exact definition-local ids before stripping a materialized occurrence prefix', () => {
+    const show = twoSceneShow()
+    const definition: ShowGroupDefinition = {
+      id: 'definition-1',
+      name: 'Adversarial ids',
+      patternInstances: [{
+        id: 'inside-instance',
+        pattern: { kind: 'stock', id: 'hue-wave' },
+        patternName: 'Hue Wave',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      placements: [{
+        id: 'inside-placement',
+        instanceId: 'inside-instance',
+        layerOffset: 0,
+        startMs: 0,
+        durationMs: 4_000,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }],
+      propertyTracks: [
+        // An authored local id that merely looks occurrence-prefixed.
+        {
+          id: 'occurrence-a:track',
+          target: { kind: 'placement-view', placementId: 'inside-placement', property: 'brightness' },
+          keyframes: [
+            { id: 'kf-1', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+            { id: 'kf-2', timeMs: 4_000, value: 0.5, easing: { curve: 'linear' } },
+          ],
+        },
+        {
+          id: 'track',
+          target: { kind: 'placement-view', placementId: 'inside-placement', property: 'phase' },
+          keyframes: [
+            { id: 'kf-3', timeMs: 0, value: 0, easing: { curve: 'linear' } },
+            { id: 'kf-4', timeMs: 4_000, value: 0.5, easing: { curve: 'linear' } },
+          ],
+        },
+      ],
+    }
+    const composition: ShowCompositionV1 = {
+      version: 1,
+      patternInstances: [],
+      scenes: [
+        { sceneId: show.scenes[0].id, zones: [] },
+        { sceneId: 'scene-2', zones: [{ zoneId: 'zone-1', main: [], overlays: [] }] },
+      ],
+      groupDefinitions: [definition],
+      groupOccurrences: [{
+        id: 'occurrence-a',
+        definitionId: definition.id,
+        sceneId: 'scene-2',
+        zoneId: 'zone-1',
+        startMs: 1_000,
+        baseLayer: 0,
+        translationX: 0,
+        translationY: 0,
+      }],
+    }
+    show.composition = composition
+    const owner = {
+      kind: 'group' as const,
+      definitionId: definition.id,
+      occurrenceId: 'occurrence-a',
+    }
+
+    // The exact local id wins: this edits 'occurrence-a:track', not 'track'.
+    const exact = applyShowGroupPropertyAnimationChange(show, composition, owner, {
+      kind: 'update-keyframe',
+      trackId: 'occurrence-a:track',
+      keyframeId: 'kf-2',
+      changes: { value: 0.25 },
+    }, () => 'unused')
+    expect(exact).not.toBe(composition)
+    expect(exact.groupDefinitions?.[0].propertyTracks
+      ?.find((track) => track.id === 'occurrence-a:track')?.keyframes[1].value).toBe(0.25)
+    expect(exact.groupDefinitions?.[0].propertyTracks
+      ?.find((track) => track.id === 'track')?.keyframes[1].value).toBe(0.5)
+
+    // A materialized id with no exact local match still strips to its local form.
+    const materialized = applyShowGroupPropertyAnimationChange(show, composition, owner, {
+      kind: 'update-keyframe',
+      trackId: 'occurrence-a:track',
+      keyframeId: 'occurrence-a:kf-2',
+      changes: { value: 0.1 },
+    }, () => 'unused')
+    expect(materialized.groupDefinitions?.[0].propertyTracks
+      ?.find((track) => track.id === 'occurrence-a:track')?.keyframes[1].value).toBe(0.1)
+  })
+
   it('removes one orphaned Group track even when another invalid track remains', () => {
     const show = twoSceneShow()
     const definition: ShowGroupDefinition = {
