@@ -497,7 +497,7 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     // Moving the chain off the Scene boundary canonicalizes the broken
     // boundary transition to a Cut through the Show-level wrapper.
     const pinned = boundaryPinnedChain()
-    const pulled = applyOk(pinned.record, 'move_connected_clip', { clip_id: 'clip-c', start_ms: 20_000 })
+    const pulled = applyOk(pinned.record, 'move_connected_clip', { clip_id: 'clip-b', start_ms: 11_000 })
     expect(pulled.record.transitions?.some((candidate) => candidate.kind === 'crossfade')).toBe(false)
   },
 }
@@ -617,6 +617,39 @@ describe('Show command refusal partitions (#885)', () => {
       'update_boundary_transition_parameter',
       { transition_id: 'transition-scene-1', parameter: 'feather', value: 0.4 },
       'unknown-parameter',
+    )
+  })
+
+  it('a cut boundary requires an explicit duration and refuses retiming and bad enum values', () => {
+    const cut = applyOk(showCommandFixture(), 'set_boundary_transition', {
+      transition_id: 'transition-scene-1',
+      kind: 'cut',
+    })
+    applyRefused(
+      cut.record,
+      'set_boundary_transition',
+      { transition_id: 'transition-scene-1', kind: 'wipe' },
+      'invalid-duration',
+    )
+    applyRefused(
+      cut.record,
+      'set_boundary_transition_timing',
+      { transition_id: 'transition-scene-1', duration_ms: 1_000 },
+      'invalid-argument',
+    )
+    const restored = applyOk(cut.record, 'set_boundary_transition', {
+      transition_id: 'transition-scene-1',
+      kind: 'crossfade',
+      duration_ms: 1_500,
+    })
+    const stored = restored.record.transitions?.find((candidate) => candidate.id === 'transition-scene-1')
+    expect(stored?.kind).toBe('crossfade')
+    expect(stored && 'crossfadePolicy' in stored && stored.crossfadePolicy).toBe('snapshot-live')
+    applyRefused(
+      showCommandFixture(),
+      'update_boundary_transition_parameter',
+      { transition_id: 'transition-scene-1', parameter: 'crossfadePolicy', value: 'typo' },
+      'invalid-argument',
     )
   })
 

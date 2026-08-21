@@ -6,7 +6,7 @@ import { newPersonalContentId } from '../personalContentMetadata'
 import type { ShowLayerTransition, ShowRecord } from '../personalContentRecords'
 import {
   insertShowLayerTransition,
-  moveShowConnectedClipInShowAtGlobalTime,
+  moveShowConnectedClipAtGlobalTime,
   planShowLayerTransitionInsertion,
   resetShowLayerTransitionToCut,
   resizeShowLayerTransition,
@@ -22,7 +22,6 @@ import {
 import {
   canonicalizeBoundaryAfterShift,
   engineIdentityRefusal,
-  monotonicRecord,
   resolveCommandClip,
 } from './support'
 
@@ -228,16 +227,19 @@ const moveConnectedClip: ShowCommandDescriptor = {
           layerIndex: clip.layerIndex,
           globalStartMs: input.start_ms as number,
         }
-    const result = moveShowConnectedClipInShowAtGlobalTime(record, composition, { owner, target })
-    if (result === record) {
+    const result = moveShowConnectedClipAtGlobalTime(record, composition, { owner, target })
+    if (result === composition) {
       return engineIdentityRefusal(
         'move_connected_clip',
-        'The destination may be occupied, outside the Show, or the start unchanged.',
+        'The destination may be occupied or outside the Show.',
       )
     }
+    // Canonicalize every boundary junction the chain shift broke - the
+    // Show-level engine wrapper only checks junctions touching the selected
+    // clip, and any clip of the chain may sit on a Scene boundary.
     return {
       ok: true,
-      record: monotonicRecord(record, withComposition(result, result.composition!)),
+      record: withComposition(canonicalizeBoundaryAfterShift(record, composition, result), result),
       changes: [{
         command: 'move_connected_clip',
         targetId: clip.id,

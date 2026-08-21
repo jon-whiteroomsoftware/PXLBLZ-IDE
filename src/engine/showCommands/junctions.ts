@@ -17,26 +17,37 @@ import { monotonicRecord } from './support'
 const BOUNDARY_KINDS = ['cut', 'crossfade', 'fade-color', 'wipe', 'dither', 'portal', 'motion'] as const
 
 /** Parameter fields a boundary transition may carry, with their value types. */
-const PARAMETER_FIELDS: Record<string, 'number' | 'boolean' | 'string'> = {
-  direction: 'number',
-  wipeVariant: 'string',
-  wipeMode: 'string',
-  orientation: 'string',
-  count: 'number',
-  phase: 'number',
-  clockwise: 'boolean',
-  edgePolicy: 'string',
-  dissolveVariant: 'string',
-  seed: 'number',
-  blockSize: 'number',
-  softness: 'number',
-  feather: 'number',
-  shape: 'string',
-  motionVariant: 'string',
-  color: 'string',
-  crossfadePolicy: 'string',
-  featherPolicy: 'string',
-  holdMs: 'number',
+type ParameterSpec = { kind: 'number' } | { kind: 'boolean' } | { kind: 'enum'; values: readonly string[] }
+const PARAMETER_FIELDS: Record<string, ParameterSpec> = {
+  direction: { kind: 'number' },
+  wipeVariant: { kind: 'enum', values: ['linear', 'split', 'barn-doors', 'blinds', 'clock', 'checker', 'grid'] },
+  wipeMode: { kind: 'enum', values: ['center-out', 'center-in'] },
+  orientation: { kind: 'enum', values: ['horizontal', 'vertical'] },
+  count: { kind: 'number' },
+  phase: { kind: 'number' },
+  clockwise: { kind: 'boolean' },
+  edgePolicy: { kind: 'enum', values: ['hard', 'dither', 'blend'] },
+  dissolveVariant: { kind: 'enum', values: ['pixel', 'block', 'coherent-noise', 'soft-threshold'] },
+  seed: { kind: 'number' },
+  blockSize: { kind: 'number' },
+  softness: { kind: 'number' },
+  feather: { kind: 'number' },
+  shape: {
+    kind: 'enum',
+    values: [
+      'circle', 'ellipse', 'box', 'rounded-box', 'diamond', 'cross', 'ring',
+      'heart', 'star', 'crescent', 'polygon', 'cloud',
+      'cat-head', 'cat-side-profile', 'bastet',
+    ],
+  },
+  motionVariant: {
+    kind: 'enum',
+    values: ['cover', 'reveal', 'push', 'content-grow', 'content-shrink', 'zoom-in', 'zoom-out'],
+  },
+  color: { kind: 'number' },
+  crossfadePolicy: { kind: 'enum', values: ['snapshot-live', 'live-live'] },
+  featherPolicy: { kind: 'enum', values: ['dither', 'blend'] },
+  holdMs: { kind: 'number' },
 }
 
 function resolveBoundaryTransition(
@@ -94,14 +105,32 @@ const setBoundaryTransition: ShowCommandDescriptor = {
         }],
       }
     }
+    // Normalization treats a zero duration as a Cut, so switching away from
+    // a Cut needs an explicit positive duration.
+    const durationMs = (input.duration_ms as number | undefined) ?? resolved.transition.durationMs
+    if (durationMs <= 0) {
+      return refuseShowCommand({
+        code: 'invalid-duration',
+        message:
+          `set_boundary_transition: this boundary is a cut (0 ms); give duration_ms to make it a ${kind}.`,
+      })
+    }
     const result = updateShowBoundaryTransition(record, resolved.transition.id, {
       kind,
-      ...(input.duration_ms !== undefined ? { durationMs: input.duration_ms as number } : {}),
+      durationMs,
+      // The authored crossfade default; the low-level normalizer would fall
+      // back to the legacy live-live policy when the field is absent.
+      ...(kind === 'crossfade' && resolved.transition.crossfadePolicy === undefined
+        ? { crossfadePolicy: 'snapshot-live' as const }
+        : {}),
     })
-    if (result === record) {
+    const stored = result.transitions?.find((candidate) => candidate.id === resolved.transition.id)
+    if (result === record || stored?.kind !== kind) {
       return refuseShowCommand({
         code: 'engine-refused',
-        message: `set_boundary_transition: the engine declined to change ${resolved.transition.id}.`,
+        message:
+          `set_boundary_transition: the engine stored ${stored?.kind ?? 'nothing'} instead of ${kind} ` +
+          `for ${resolved.transition.id}.`,
       })
     }
     return {
@@ -111,8 +140,7 @@ const setBoundaryTransition: ShowCommandDescriptor = {
         command: 'set_boundary_transition',
         targetId: resolved.transition.id,
         description:
-          `Boundary after ${resolved.transition.afterSceneId} is now a ${kind}` +
-          `${input.duration_ms !== undefined ? ` over ${input.duration_ms} ms` : ''}.`,
+          `Boundary after ${resolved.transition.afterSceneId} is now a ${kind} over ${stored.durationMs} ms.`,
       }],
     }
   },
@@ -146,8 +174,17 @@ const setBoundaryTransitionTiming: ShowCommandDescriptor = {
         message: `Boundary transition ${resolved.transition.id} already runs ${durationMs} ms.`,
       })
     }
+    if (resolved.transition.durationMs === 0) {
+      return refuseShowCommand({
+        code: 'invalid-argument',
+        message:
+          `set_boundary_transition_timing: ${resolved.transition.id} is a cut; a cut has no duration.`,
+        remedy: 'Give the boundary a kind first with set_boundary_transition.',
+      })
+    }
     const result = updateShowBoundaryTransition(record, resolved.transition.id, { durationMs })
-    if (result === record) {
+    const stored = result.transitions?.find((candidate) => candidate.id === resolved.transition.id)
+    if (result === record || stored?.durationMs !== durationMs) {
       return refuseShowCommand({
         code: 'engine-refused',
         message: `set_boundary_transition_timing: the engine declined to retime ${resolved.transition.id}.`,
@@ -190,15 +227,17 @@ const updateBoundaryTransitionParameter: ShowCommandDescriptor = {
       })
     }
     const value = input.value
-    const validType = expected === 'number'
+    const validType = expected.kind === 'number'
       ? typeof value === 'number' && Number.isFinite(value)
-      : expected === 'boolean'
+      : expected.kind === 'boolean'
         ? typeof value === 'boolean'
-        : typeof value === 'string'
+        : typeof value === 'string' && expected.values.includes(value)
     if (!validType) {
       return refuseShowCommand({
         code: 'invalid-argument',
-        message: `update_boundary_transition_parameter: "${parameter}" takes a ${expected}.`,
+        message:
+          `update_boundary_transition_parameter: "${parameter}" takes ${
+            expected.kind === 'enum' ? `one of ${expected.values.join(', ')}` : `a ${expected.kind}`}.`,
       })
     }
     const result = updateShowBoundaryTransition(record, resolved.transition.id, {
