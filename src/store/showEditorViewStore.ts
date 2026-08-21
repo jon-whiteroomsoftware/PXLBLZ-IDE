@@ -23,31 +23,58 @@ export type ShowSelection =
   | { kind: 'show' }
 
 export interface ShowEditorViewState {
-  /** The Show whose editor currently owns this view state. */
+  /** The Show whose editor currently owns this view state (for readers). */
   ownerShowId: string | null
+  /**
+   * Ownership generation: bumped on every reset. Show ids repeat when the
+   * user revisits a Show, so writers tag writes with the epoch their closure
+   * was created under, never the Show id.
+   */
+  viewEpoch: number
   selection: ShowSelection
-  /** With ownerShowId given, the write lands only while that Show still owns the view (stale async continuations from an earlier Show are dropped). */
-  setSelection: (selection: ShowSelection, ownerShowId?: string) => void
+  /**
+   * With epoch given, the write lands only while that epoch still owns the
+   * view; returns whether it landed so callers can abort the rest of their
+   * transaction (opening panels, anchoring) on a stale write.
+   */
+  setSelection: (selection: ShowSelection, epoch?: number) => boolean
   /** The visible time range; null means fitted to the whole Show. */
   viewport: ShowTimelineViewport | null
-  setViewport: (viewport: ShowTimelineViewport | null, ownerShowId?: string) => void
-  /** Return to the neutral view for the given Show: Show-level selection, fitted viewport. */
+  setViewport: (viewport: ShowTimelineViewport | null, epoch?: number) => boolean
+  /** Return to the neutral view for the given Show: Show-level selection, fitted viewport, new epoch. */
   resetShowEditorView: (ownerShowId: string) => void
 }
 
 export const showEditorViewInitialState = {
   ownerShowId: null as string | null,
+  viewEpoch: 0,
   selection: { kind: 'show' } as ShowSelection,
   viewport: null as ShowTimelineViewport | null,
 }
 
 export const useShowEditorViewStore = create<ShowEditorViewState>()((set) => ({
   ...showEditorViewInitialState,
-  setSelection: (selection, ownerShowId) => set((state) => (
-    ownerShowId === undefined || state.ownerShowId === ownerShowId ? { selection } : state
-  )),
-  setViewport: (viewport, ownerShowId) => set((state) => (
-    ownerShowId === undefined || state.ownerShowId === ownerShowId ? { viewport } : state
-  )),
-  resetShowEditorView: (ownerShowId) => set({ ...showEditorViewInitialState, ownerShowId }),
+  setSelection: (selection, epoch) => {
+    let landed = false
+    set((state) => {
+      if (epoch !== undefined && state.viewEpoch !== epoch) return state
+      landed = true
+      return { selection }
+    })
+    return landed
+  },
+  setViewport: (viewport, epoch) => {
+    let landed = false
+    set((state) => {
+      if (epoch !== undefined && state.viewEpoch !== epoch) return state
+      landed = true
+      return { viewport }
+    })
+    return landed
+  },
+  resetShowEditorView: (ownerShowId) => set((state) => ({
+    ...showEditorViewInitialState,
+    ownerShowId,
+    viewEpoch: state.viewEpoch + 1,
+  })),
 }))

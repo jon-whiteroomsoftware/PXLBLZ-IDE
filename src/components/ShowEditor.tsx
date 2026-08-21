@@ -1027,14 +1027,16 @@ export function ShowEditor({
     editorAliveRef.current = true
     return () => { editorAliveRef.current = false }
   }, [])
-  const setSelection = useCallback((next: ShowSelection) => {
-    if (!editorAliveRef.current) return
-    // The captured showId is the ownership epoch: a continuation started on
-    // an earlier Show resolves with that Show's id and is dropped by the
-    // store after the editor moved on (the instance is reused, so mount
-    // lifetime alone cannot tell the two apart).
-    useShowEditorViewStore.getState().setSelection(next, showId)
-  }, [showId])
+  const viewEpoch = useShowEditorViewStore((state) => state.viewEpoch)
+  // The captured epoch discriminates stale continuations: the closure holds
+  // the epoch of the visit that created it, the store bumps the epoch on
+  // every Show switch or remount, and a write tagged with an old epoch is
+  // dropped (Show ids repeat across visits, so the id alone cannot serve).
+  // Returns whether the write landed so callers abort dependent UI steps.
+  const setSelection = useCallback((next: ShowSelection): boolean => {
+    if (!editorAliveRef.current) return false
+    return useShowEditorViewStore.getState().setSelection(next, viewEpoch)
+  }, [viewEpoch])
   const resetShowEditorView = useShowEditorViewStore((state) => state.resetShowEditorView)
   const resetHoveredClip = useShowClipHoverStore((state) => state.resetHoveredClip)
   const [isolatedGroupOccurrenceId, setIsolatedGroupOccurrenceId] = useState<string | null>(null)
@@ -1090,7 +1092,7 @@ export function ShowEditor({
       return
     }
     if (next.kind === 'show') lastTimelineFocusRef.current = timelineWorkspaceRef.current
-    setSelection(next)
+    if (!setSelection(next)) return
     setDetailPanelOpen(true)
     setDetailAnchor(anchor ?? null)
     if (!anchor) {
@@ -1098,8 +1100,8 @@ export function ShowEditor({
     }
   }, [closeDetailPanel, detailPanelOpen, pinnedDetail, selection, setSelection])
   const selectGroupCandidates = useCallback((groupSelection: ShowGroupSelection) => {
+    if (!setSelection({ kind: 'multi', groupSelection })) return
     closeDetailPanel()
-    setSelection({ kind: 'multi', groupSelection })
   }, [closeDetailPanel, setSelection])
   const reanchorOpenDetails = useCallback((target: ShowSelection) => {
     window.setTimeout(() => {
@@ -3849,10 +3851,11 @@ function ShowTimelineWorkspace({
     timelineAliveRef.current = true
     return () => { timelineAliveRef.current = false }
   }, [])
+  const timelineViewEpoch = useShowEditorViewStore((state) => state.viewEpoch)
   const setViewport = useCallback((viewport: ShowTimelineViewport | null) => {
     if (!timelineAliveRef.current) return
-    useShowEditorViewStore.getState().setViewport(viewport, show.id)
-  }, [show.id])
+    useShowEditorViewStore.getState().setViewport(viewport, timelineViewEpoch)
+  }, [timelineViewEpoch])
   const snapEnabled = useShowEditorSessionStore((state) => state.snapEnabled)
   const setSnapEnabled = useShowEditorSessionStore((state) => state.setSnapEnabled)
   const markersVisible = useShowEditorSessionStore((state) => state.markersVisible)

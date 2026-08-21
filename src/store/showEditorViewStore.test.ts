@@ -41,24 +41,32 @@ describe('showEditorViewStore (#884)', () => {
     expect(useShowEditorViewStore.getState().ownerShowId).toBe('show-b')
   })
 
-  it('drops owner-tagged writes from a Show that no longer owns the view', () => {
+  it('drops epoch-tagged writes from a visit that no longer owns the view', () => {
     useShowEditorViewStore.getState().resetShowEditorView('show-a')
-    useShowEditorViewStore.getState().setSelection({ kind: 'clip', clipId: 'a-clip' }, 'show-a')
+    const firstVisitEpoch = useShowEditorViewStore.getState().viewEpoch
+    expect(useShowEditorViewStore.getState().setSelection({ kind: 'clip', clipId: 'a-clip' }, firstVisitEpoch))
+      .toBe(true)
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'clip', clipId: 'a-clip' })
 
-    // The editor switches to show-b; a stale continuation from show-a
-    // resolves afterwards and must not land.
+    // Navigate show-a -> show-b -> show-a. The Show id repeats but the
+    // epoch does not, so a continuation from the first visit is dropped
+    // even though the id matches again — and the caller learns it.
     useShowEditorViewStore.getState().resetShowEditorView('show-b')
-    useShowEditorViewStore.getState().setSelection({ kind: 'clip', clipId: 'a-clip' }, 'show-a')
-    useShowEditorViewStore.getState().setViewport(
+    useShowEditorViewStore.getState().resetShowEditorView('show-a')
+    const secondVisitEpoch = useShowEditorViewStore.getState().viewEpoch
+    useShowEditorViewStore.getState().setSelection({ kind: 'zone', zoneId: 'fresh' }, secondVisitEpoch)
+    expect(useShowEditorViewStore.getState().setSelection({ kind: 'clip', clipId: 'a-clip' }, firstVisitEpoch))
+      .toBe(false)
+    expect(useShowEditorViewStore.getState().setViewport(
       { totalMs: 1_000, startMs: 0, durationMs: 500, minDurationMs: 100 },
-      'show-a',
-    )
-    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'show' })
+      firstVisitEpoch,
+    )).toBe(false)
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'zone', zoneId: 'fresh' })
     expect(useShowEditorViewStore.getState().viewport).toBeNull()
+    expect(useShowEditorViewStore.getState().ownerShowId).toBe('show-a')
 
     // Untagged writes (tests, tooling) still land unconditionally.
-    useShowEditorViewStore.getState().setSelection({ kind: 'zone', zoneId: 'z' })
+    expect(useShowEditorViewStore.getState().setSelection({ kind: 'zone', zoneId: 'z' })).toBe(true)
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'zone', zoneId: 'z' })
   })
 })
