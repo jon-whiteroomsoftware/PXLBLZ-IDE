@@ -139,7 +139,7 @@ const addLayoutInterval: ShowCommandDescriptor = {
     'Add an empty Zone Layout occurrence of the given duration: at the end of the Show (omit at_ms) ' +
     'or inserted at a global time. Inserting inside held content splits it at that point; refused ' +
     'where the boundary would cut a Transition window or a multi-part clip.',
-  touches: ['/scenes', '/transitions', '/composition', '/cells', '/updatedAt'],
+  touches: ['/scenes', '/transitions', '/composition', '/cells', '/routingLayouts', '/updatedAt'],
   fields: {
     layout_id: { kind: 'string', description: 'The Zone Layout id the occurrence routes through' },
     duration_ms: { kind: 'integer', description: 'Occurrence duration in milliseconds (positive)' },

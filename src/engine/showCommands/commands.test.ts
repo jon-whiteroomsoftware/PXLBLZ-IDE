@@ -679,6 +679,23 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
       at_ms: 10_000,
     })
     expect(projectShowLayoutIntervals(inserted.record).length).toBeGreaterThanOrEqual(2)
+
+    // Inserting at time zero with a different layout reorders the layouts so
+    // the selected one leads the Show.
+    const appended = applyOk(showCommandFixture(), 'add_layout_interval', {
+      layout_id: 'layout-1',
+      duration_ms: 10_000,
+    })
+    const unique = applyOk(appended.record, 'make_layout_interval_unique', {
+      interval_id: appended.changes[0].details?.intervalId as string,
+    })
+    const secondLayoutId = unique.record.routingLayouts[1].id
+    const leading = applyOk(unique.record, 'add_layout_interval', {
+      layout_id: secondLayoutId,
+      duration_ms: 5_000,
+      at_ms: 0,
+    })
+    expect(leading.record.routingLayouts[0].id).toBe(secondLayoutId)
   },
   duplicate_layout_interval: () => {
     const { record } = applyOk(showCommandFixture(), 'duplicate_layout_interval', {
