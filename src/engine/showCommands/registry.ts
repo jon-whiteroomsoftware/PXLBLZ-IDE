@@ -149,11 +149,15 @@ export function validateShowCommandInput(
 
 // Family modules import only types and helpers from this module.
 import { SHOW_CLIP_COMMANDS } from './clips'
+import { SHOW_JUNCTION_COMMANDS } from './junctions'
+import { SHOW_LAYER_TRANSITION_COMMANDS } from './layerTransitions'
 import { SHOW_TIMELINE_COMMANDS } from './timeline'
 
 export const SHOW_COMMANDS: ShowCommandDescriptor[] = [
   ...SHOW_CLIP_COMMANDS,
   ...SHOW_TIMELINE_COMMANDS,
+  ...SHOW_JUNCTION_COMMANDS,
+  ...SHOW_LAYER_TRANSITION_COMMANDS,
 ]
 
 const commandByName = () => new Map(SHOW_COMMANDS.map((command) => [command.name, command]))

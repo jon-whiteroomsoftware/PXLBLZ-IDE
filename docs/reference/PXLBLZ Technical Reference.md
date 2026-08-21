@@ -808,8 +808,9 @@ and an engine identity return becomes an explicit refusal. Adding a command
 is one descriptor in the right family module plus a golden accepted case
 and refusal partition in the command tests - the faithfulness sweep fails
 any entry whose goldens write outside its declared `touches` or leave a
-declared pattern unexercised. Families land incrementally; clip and
-timeline commands exist today.
+declared pattern unexercised. Families land incrementally; clip,
+timeline, junction (boundary transition), and layer-transition commands
+exist today.
 
 `showSummaryProjection.ts` renders one compact summary of a Show as the
 editor presents it — Scenes with global ranges, Zones with their layers,

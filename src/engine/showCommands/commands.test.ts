@@ -353,6 +353,100 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     const { record } = applyOk(showCommandFixture(), 'remove_marker', { marker_id: 'marker-1' })
     expect(record.composition?.markers ?? []).toEqual([])
   },
+  set_boundary_transition: () => {
+    const { record } = applyOk(showCommandFixture(), 'set_boundary_transition', {
+      transition_id: 'transition-scene-1',
+      kind: 'wipe',
+      duration_ms: 1_500,
+    })
+    const transition = record.transitions?.find((candidate) => candidate.id === 'transition-scene-1')
+    expect(transition?.kind).toBe('wipe')
+    expect(transition?.durationMs).toBe(1_500)
+
+    // Setting cut removes the visual transition.
+    const cut = applyOk(record, 'set_boundary_transition', {
+      transition_id: 'transition-scene-1',
+      kind: 'cut',
+    })
+    expect(cut.record.transitions?.find((candidate) => candidate.id === 'transition-scene-1')?.kind)
+      .not.toBe('wipe')
+  },
+  set_boundary_transition_timing: () => {
+    const { record } = applyOk(showCommandFixture(), 'set_boundary_transition_timing', {
+      transition_id: 'transition-scene-1',
+      duration_ms: 3_500,
+    })
+    expect(record.transitions?.find((candidate) => candidate.id === 'transition-scene-1')?.durationMs)
+      .toBe(3_500)
+  },
+  update_boundary_transition_parameter: () => {
+    const wipe = applyOk(showCommandFixture(), 'set_boundary_transition', {
+      transition_id: 'transition-scene-1',
+      kind: 'wipe',
+    })
+    const { record } = applyOk(wipe.record, 'update_boundary_transition_parameter', {
+      transition_id: 'transition-scene-1',
+      parameter: 'feather',
+      value: 0.4,
+    })
+    const transition = record.transitions?.find((candidate) => candidate.id === 'transition-scene-1')
+    expect(transition && 'feather' in transition && transition.feather).toBe(0.4)
+  },
+  insert_layer_transition: () => {
+    const adjacent = applyOk(trackedCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 10_000 })
+    const inserted = applyOk(adjacent.record, 'insert_layer_transition', {
+      from_clip_id: 'clip-a',
+      to_clip_id: 'clip-b',
+      duration_ms: 1_000,
+    })
+    const transition = inserted.record.composition?.transitions
+      ?.find((candidate) => candidate.id === inserted.changes[0].targetId)
+    expect(transition?.kind).toBe('crossfade')
+    expect(transition?.durationMs).toBe(1_000)
+    expect(summaryClips(inserted.record).find((clip) => clip.clipId === 'clip-b')?.startMs).toBe(11_000)
+  },
+  resize_layer_transition: () => {
+    const adjacent = applyOk(trackedCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 10_000 })
+    const inserted = applyOk(adjacent.record, 'insert_layer_transition', {
+      from_clip_id: 'clip-a',
+      to_clip_id: 'clip-b',
+      duration_ms: 1_000,
+    })
+    const resized = applyOk(inserted.record, 'resize_layer_transition', {
+      transition_id: inserted.changes[0].targetId as string,
+      duration_ms: 2_000,
+    })
+    expect(resized.record.composition?.transitions?.[0].durationMs).toBe(2_000)
+    expect(summaryClips(resized.record).find((clip) => clip.clipId === 'clip-b')?.startMs).toBe(12_000)
+  },
+  reset_layer_transition_to_cut: () => {
+    const adjacent = applyOk(trackedCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 10_000 })
+    const inserted = applyOk(adjacent.record, 'insert_layer_transition', {
+      from_clip_id: 'clip-a',
+      to_clip_id: 'clip-b',
+      duration_ms: 1_000,
+    })
+    const reset = applyOk(inserted.record, 'reset_layer_transition_to_cut', {
+      transition_id: inserted.changes[0].targetId as string,
+    })
+    expect(reset.record.composition?.transitions ?? []).toEqual([])
+    expect(summaryClips(reset.record).find((clip) => clip.clipId === 'clip-b')?.startMs).toBe(10_000)
+  },
+  move_connected_clip: () => {
+    const adjacent = applyOk(trackedCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 10_000 })
+    const inserted = applyOk(adjacent.record, 'insert_layer_transition', {
+      from_clip_id: 'clip-a',
+      to_clip_id: 'clip-b',
+      duration_ms: 1_000,
+    })
+    const moved = applyOk(inserted.record, 'move_connected_clip', {
+      clip_id: 'clip-a',
+      start_ms: 2_000,
+    })
+    expect(summaryClips(moved.record).find((clip) => clip.clipId === 'clip-a')?.startMs).toBe(2_000)
+    expect(summaryClips(moved.record).find((clip) => clip.clipId === 'clip-b')?.startMs).toBe(13_000)
+    expect(moved.record.composition?.transitions).toHaveLength(1)
+  },
 }
 
 describe('Show command goldens (#885)', () => {
@@ -436,6 +530,86 @@ describe('Show command refusal partitions (#885)', () => {
     applyRefused(showCommandFixture(), 'update_marker', { marker_id: 'nope', name: 'X' }, 'unknown-marker')
     applyRefused(showCommandFixture(), 'remove_marker', { marker_id: 'nope' }, 'unknown-marker')
     applyRefused(showCommandFixture(), 'update_marker', { marker_id: 'marker-1' }, 'invalid-argument')
+  })
+
+  it('boundary transition commands refuse unknown ids, bad durations, and inapplicable parameters', () => {
+    const issues = applyRefused(
+      showCommandFixture(),
+      'set_boundary_transition',
+      { transition_id: 'nope', kind: 'wipe' },
+      'unknown-transition',
+    )
+    expect(issues[0].candidates).toEqual(['transition-scene-1'])
+    applyRefused(
+      showCommandFixture(),
+      'set_boundary_transition_timing',
+      { transition_id: 'transition-scene-1', duration_ms: 0 },
+      'invalid-duration',
+    )
+    applyRefused(
+      showCommandFixture(),
+      'set_boundary_transition_timing',
+      { transition_id: 'transition-scene-1', duration_ms: 2_000 },
+      'no-change',
+    )
+    applyRefused(
+      showCommandFixture(),
+      'update_boundary_transition_parameter',
+      { transition_id: 'transition-scene-1', parameter: 'sparkles', value: 1 },
+      'unknown-parameter',
+    )
+    // feather does not apply to a crossfade; normalization drops it.
+    applyRefused(
+      showCommandFixture(),
+      'update_boundary_transition_parameter',
+      { transition_id: 'transition-scene-1', parameter: 'feather', value: 0.4 },
+      'unknown-parameter',
+    )
+  })
+
+  it('layer transition commands refuse unknown ids, non-touching clips, and excessive durations', () => {
+    applyRefused(
+      showCommandFixture(),
+      'resize_layer_transition',
+      { transition_id: 'nope', duration_ms: 500 },
+      'unknown-transition',
+    )
+    applyRefused(
+      showCommandFixture(),
+      'reset_layer_transition_to_cut',
+      { transition_id: 'nope' },
+      'unknown-transition',
+    )
+    // clip-a and clip-b do not touch (12 s vs 10 s), so insertion refuses.
+    applyRefused(
+      showCommandFixture(),
+      'insert_layer_transition',
+      { from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 500 },
+      'transition-refused',
+    )
+    const adjacent = applyOk(showCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 10_000 })
+    applyRefused(
+      adjacent.record,
+      'insert_layer_transition',
+      { from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 999_999 },
+      'invalid-duration',
+    )
+  })
+
+  it('move_connected_clip refuses a colliding chain move', () => {
+    const adjacent = applyOk(showCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 10_000 })
+    const inserted = applyOk(adjacent.record, 'insert_layer_transition', {
+      from_clip_id: 'clip-a',
+      to_clip_id: 'clip-b',
+      duration_ms: 1_000,
+    })
+    applyRefused(
+      inserted.record,
+      'move_connected_clip',
+      { clip_id: 'clip-a', start_ms: 5_000 },
+      'engine-refused',
+    )
+    applyRefused(inserted.record, 'move_connected_clip', { clip_id: 'nope', start_ms: 0 }, 'unknown-clip')
   })
 
   it('group children refuse the direct clip commands', () => {
