@@ -109,7 +109,7 @@ describe('schema coverage gate (#887)', () => {
     const snapshot = JSON.parse(readFileSync(
       join(repoRoot, 'src', 'test', 'showCommandCoverage.snapshot.json'),
       'utf8',
-    )) as { specific: string[]; structuralOnly: string[]; unreachable: string[]; allowlisted: string[] }
+    )) as { leafDeclared: string[]; subtreeOnly: string[]; unreachable: string[]; allowlisted: string[] }
 
     // The snapshot pins every path's tier: a new schema node fails here by
     // name whatever tier it would land in - a broad subtree pattern
@@ -118,7 +118,7 @@ describe('schema coverage gate (#887)', () => {
     // command covers it. Regenerate deliberately with npm run
     // coverage:show-commands and review the diff.
     const current = coverageSnapshot(coverage)
-    for (const tier of ['specific', 'structuralOnly', 'unreachable', 'allowlisted'] as const) {
+    for (const tier of ['leafDeclared', 'subtreeOnly', 'unreachable', 'allowlisted'] as const) {
       const pinned = new Set(snapshot[tier])
       const arrived = current[tier].filter((path) => !pinned.has(path))
       expect(arrived, `new ${tier} paths; regenerate and review the snapshot`).toEqual([])
@@ -144,10 +144,12 @@ describe('schema coverage gate (#887)', () => {
     expect(paths).toContain('/name')
     expect(paths.some((path) => path.startsWith('/composition/scenes/*/zones'))).toBe(true)
     const snapshot = coverageSnapshot(computeShowCommandCoverage(repoRoot))
-    expect(snapshot.specific.length).toBeGreaterThan(200)
-    // Transition easing and propertyTransitions have no deliberate command
-    // today; structural rewrites still reach them, so they sit in the
-    // structural-only tier rather than unreachable.
-    expect(snapshot.structuralOnly.some((path) => path.startsWith('/transitions/*/easing'))).toBe(true)
+    expect(snapshot.leafDeclared.length).toBeGreaterThan(30)
+    // Transition easing has no deliberate command today; subtree rewrites
+    // still reach it, so it sits in the subtree-only tier, not unreachable.
+    expect(snapshot.subtreeOnly.some((path) => path.startsWith('/transitions/*/easing'))).toBe(true)
+    // And a leaf a command addresses by name is leaf-declared.
+    expect(snapshot.leafDeclared).toContain('/name')
+    expect(snapshot.leafDeclared).toContain('/transitions/*/kind')
   })
 })

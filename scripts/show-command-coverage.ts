@@ -21,7 +21,7 @@ writeFileSync(
   `${JSON.stringify(coverageSnapshot(coverage), null, 2)}\n`,
 )
 console.log(
-  `coverage: ${coverage.covered.size + coverage.structuralOnly.length + coverage.unreachable.length} paths, ` +
-  `${coverage.covered.size} specific, ${coverage.structuralOnly.length} structural-only, ` +
+  `coverage: ${coverage.covered.size + coverage.subtreeOnly.length + coverage.unreachable.length} paths, ` +
+  `${coverage.covered.size} leaf-declared, ${coverage.subtreeOnly.length} subtree-only, ` +
   `${coverage.unreachable.length} unreachable, ${coverage.allowlisted.length} allowlisted`,
 )

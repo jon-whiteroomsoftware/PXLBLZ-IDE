@@ -819,14 +819,14 @@ requires it.
 ShowRecord type (`npm run schema:show-record`; a drift test keeps it exact),
 and `npm run coverage:show-commands` regenerates
 `docs/reference/show-command-coverage.md` plus the reviewed snapshot the
-suite enforces. Reading the report: **specifically covered** paths have a
-command whose declared touches reach them deliberately; **structural-only**
-paths are reachable solely as side effects of whole-subtree rewrites
-(insert time, Zone Layout occurrences) — today that is the legacy `/cells`
-compatibility mirror and the Group subtrees, which edit through their own
-Group functions; the **allowlist** excludes identity and derived fields
-with a written reason each; and **unreachable** paths stand as reviewed
-gaps until a command covers them. The snapshot pins every path's tier, so
+suite enforces. Reading the report: **leaf-declared** paths have a
+command whose declared touches address that exact leaf; **subtree-only**
+paths are reached solely through shallower declarations — rewrites that
+carry the leaf along without any command addressing it by name (the legacy
+`/cells` compatibility mirror, the Group subtrees, placement and Effect
+internals rebuilt wholesale); the **allowlist** excludes identity and
+derived fields with a written reason each; and **unreachable** paths stand
+as reviewed gaps until a command covers them. The snapshot pins every path's tier, so
 any new ShowRecord field — whatever tier it would land in, including one a
 blanket allowlist rule would swallow — fails the suite by name until the
 snapshot is regenerated and the diff reviewed.
