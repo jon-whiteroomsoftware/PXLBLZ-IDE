@@ -91,6 +91,18 @@ const setBoundaryTransition: ShowCommandDescriptor = {
     const resolved = resolveBoundaryTransition(record, input.transition_id as string)
     if (!resolved.ok) return resolved
     const kind = input.kind as ShowBoundaryTransition['kind']
+    const alreadyKind = resolved.transition.kind === kind
+      || (kind === 'cut' && resolved.transition.durationMs === 0)
+    if (alreadyKind && (
+      kind === 'cut'
+      || input.duration_ms === undefined
+      || input.duration_ms === resolved.transition.durationMs
+    )) {
+      return refuseShowCommand({
+        code: 'no-change',
+        message: `Boundary transition ${resolved.transition.id} is already ${kind === 'cut' ? 'a cut' : `a ${kind}${input.duration_ms !== undefined ? ` over ${input.duration_ms} ms` : ''}`}.`,
+      })
+    }
     if (kind === 'cut') {
       const result = removeShowBoundaryTransition(record, resolved.transition.id)
       if (result === record) {
@@ -266,13 +278,23 @@ const updateBoundaryTransitionParameter: ShowCommandDescriptor = {
     const stored = (result.transitions?.find((candidate) => candidate.id === resolved.transition.id) as
       | Record<string, unknown>
       | undefined)?.[parameter]
-    if (stored === undefined || JSON.stringify(stored) === JSON.stringify(previous)) {
+    if (stored === undefined) {
       return refuseShowCommand({
         code: 'unknown-parameter',
         message:
           `"${parameter}" does not apply to a ${resolved.transition.kind} transition ` +
           '(normalization dropped the value).',
         remedy: 'Switch the kind first with set_boundary_transition, or choose a parameter of this kind.',
+      })
+    }
+    if (JSON.stringify(stored) === JSON.stringify(previous)) {
+      // The parameter applies, but normalization clamped the request back to
+      // the current value - a no-change, not an inapplicable parameter.
+      return refuseShowCommand({
+        code: 'no-change',
+        message:
+          `Boundary transition ${resolved.transition.id}: ${parameter} stays ${JSON.stringify(previous)} ` +
+          `(the request normalized to the current value).`,
       })
     }
     return {

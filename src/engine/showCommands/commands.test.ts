@@ -659,6 +659,29 @@ describe('Show command refusal partitions (#885)', () => {
       { transition_id: 'transition-scene-1', parameter: 'crossfadePolicy', value: 'snapshot-live' },
       'no-change',
     )
+    // So is re-selecting the current kind, and a request normalization
+    // clamps back to the current value.
+    applyRefused(
+      showCommandFixture(),
+      'set_boundary_transition',
+      { transition_id: 'transition-scene-1', kind: 'crossfade' },
+      'no-change',
+    )
+    const wiped = applyOk(showCommandFixture(), 'set_boundary_transition', {
+      transition_id: 'transition-scene-1',
+      kind: 'wipe',
+    })
+    const feathered = applyOk(wiped.record, 'update_boundary_transition_parameter', {
+      transition_id: 'transition-scene-1',
+      parameter: 'feather',
+      value: 1,
+    })
+    applyRefused(
+      feathered.record,
+      'update_boundary_transition_parameter',
+      { transition_id: 'transition-scene-1', parameter: 'feather', value: 2 },
+      'no-change',
+    )
   })
 
   it('layer transition commands refuse unknown ids, non-touching clips, and excessive durations', () => {
