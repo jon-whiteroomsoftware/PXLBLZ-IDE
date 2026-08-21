@@ -66,6 +66,34 @@ function summaryClips(record: ShowRecord) {
  * so shifting the chain earlier breaks the boundary junction and exercises
  * the Cut canonicalization of ShowRecord.transitions.
  */
+/**
+ * Every field the visual-transition write set declares, authored onto one
+ * record at once. Collapsing this transition to a Cut removes them all, so
+ * a single removal golden exercises every declared leaf - kind-accurate
+ * combinations are covered by the kind and parameter sweeps.
+ */
+const ALL_TRANSITION_FIELDS: Record<string, unknown> = {
+  crossfadePolicy: 'snapshot-live', feather: 0.4, color: '#ff8800',
+  dissolveVariant: 'block', shape: 'star', motionVariant: 'push', featherPolicy: 'blend',
+  centerX: 0.4, centerY: 0.6, aspect: 1.2, rotation: 0.1, revealMode: 'grow-incoming',
+  anchorX: 0.3, anchorY: 0.7, contentScale: 1.1, spinDirection: 'clockwise',
+  addressPolicy: 'wrap', starPoints: 6, starInner: 0.4, wipeVariant: 'blinds',
+  wipeMode: 'center-in', orientation: 'vertical', count: 4, phase: 0.2, clockwise: false,
+  edgePolicy: 'blend', seed: 9, blockSize: 12, scale: 5, softness: 0.25, direction: 0.3,
+  ringWidth: 0.15, cornerRadius: 0.2, crossWidth: 0.3, crescentOffset: 0.4, polygonSides: 7,
+  spin: 0.5,
+  propertyTransitions: { brightness: { durationMs: 500, easing: { curve: 'linear' } } },
+}
+
+function withAllTransitionFields(record: ShowRecord): ShowRecord {
+  return {
+    ...record,
+    transitions: record.transitions?.map((candidate) => candidate.id === 'transition-scene-1'
+      ? { ...candidate, ...ALL_TRANSITION_FIELDS }
+      : candidate),
+  } as ShowRecord
+}
+
 function boundaryPinnedChain(): { record: ShowRecord; transitionId: string } {
   const adjacent = applyOk(showCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 14_000 })
   const inserted = applyOk(adjacent.record, 'insert_layer_transition', {
@@ -442,6 +470,17 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(transition?.kind).toBe('wipe')
     expect(transition?.durationMs).toBe(1_500)
 
+    // Every kind stores with its parameter defaults filled.
+    let swept = showCommandFixture()
+    for (const kind of ['wipe', 'fade-color', 'dither', 'portal', 'motion', 'crossfade'] as const) {
+      swept = applyOk(swept, 'set_boundary_transition', {
+        transition_id: 'transition-scene-1',
+        kind,
+      }).record
+      expect(swept.transitions?.find((candidate) => candidate.id === 'transition-scene-1')?.kind)
+        .toBe(kind)
+    }
+
     // Setting cut removes the visual transition.
     const cut = applyOk(record, 'set_boundary_transition', {
       transition_id: 'transition-scene-1',
@@ -449,6 +488,58 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     expect(cut.record.transitions?.find((candidate) => candidate.id === 'transition-scene-1')?.kind)
       .not.toBe('wipe')
+
+    // Collapsing to a cut removes authored property ramps too.
+    const rampBase = showCommandFixture()
+    const withRamp = {
+      ...rampBase,
+      transitions: rampBase.transitions?.map((candidate) => candidate.id === 'transition-scene-1'
+        ? {
+            ...candidate,
+            propertyTransitions: { brightness: { durationMs: 500, easing: { curve: 'linear' as const } } },
+          }
+        : candidate),
+    } as ShowRecord
+    const rampCut = applyOk(withRamp, 'set_boundary_transition', {
+      transition_id: 'transition-scene-1',
+      kind: 'cut',
+    })
+    expect(rampCut.record.transitions?.find((candidate) => candidate.id === 'transition-scene-1'))
+      .not.toHaveProperty('propertyTransitions')
+
+    // Collapsing a fully-authored transition removes every parameter field.
+    const allCut = applyOk(withAllTransitionFields(showCommandFixture()), 'set_boundary_transition', {
+      transition_id: 'transition-scene-1',
+      kind: 'cut',
+    })
+    const cutStored = allCut.record.transitions?.find((candidate) => candidate.id === 'transition-scene-1')
+    expect(cutStored && 'feather' in cutStored).toBe(false)
+
+    // Kind switches remove the previous kind's stale parameters wholesale.
+    const removalSetups: Array<{ kind: string; sets: Array<[string, unknown]>; next: string }> = [
+      { kind: 'wipe', sets: [['wipeVariant', 'blinds'], ['count', 5], ['orientation', 'horizontal']], next: 'fade-color' },
+      { kind: 'wipe', sets: [['wipeVariant', 'barn-doors'], ['wipeMode', 'center-in']], next: 'crossfade' },
+      { kind: 'dither', sets: [['dissolveVariant', 'soft-threshold'], ['softness', 0.3]], next: 'motion' },
+    ]
+    for (const setup of removalSetups) {
+      let staged = applyOk(showCommandFixture(), 'set_boundary_transition', {
+        transition_id: 'transition-scene-1',
+        kind: setup.kind,
+      }).record
+      for (const [parameter, value] of setup.sets) {
+        staged = applyOk(staged, 'update_boundary_transition_parameter', {
+          transition_id: 'transition-scene-1',
+          parameter,
+          value,
+        }).record
+      }
+      const switched = applyOk(staged, 'set_boundary_transition', {
+        transition_id: 'transition-scene-1',
+        kind: setup.next,
+      })
+      expect(switched.record.transitions?.find((candidate) => candidate.id === 'transition-scene-1')?.kind)
+        .toBe(setup.next)
+    }
   },
   set_boundary_transition_timing: () => {
     const { record } = applyOk(showCommandFixture(), 'set_boundary_transition_timing', {
@@ -457,6 +548,26 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     expect(record.transitions?.find((candidate) => candidate.id === 'transition-scene-1')?.durationMs)
       .toBe(3_500)
+
+    // Retiming clamps authored property ramps to the new duration.
+    const base = showCommandFixture()
+    const withRamp = {
+      ...base,
+      transitions: base.transitions?.map((candidate) => candidate.id === 'transition-scene-1'
+        ? {
+            ...candidate,
+            propertyTransitions: { brightness: { durationMs: 1_500, easing: { curve: 'linear' as const } } },
+          }
+        : candidate),
+    } as ShowRecord
+    const retimed = applyOk(withRamp, 'set_boundary_transition_timing', {
+      transition_id: 'transition-scene-1',
+      duration_ms: 1_000,
+    })
+    const stored = retimed.record.transitions?.find((candidate) => candidate.id === 'transition-scene-1')
+    expect(stored && 'propertyTransitions' in stored
+      && (stored.propertyTransitions as { brightness?: { durationMs: number } }).brightness?.durationMs)
+      .toBe(1_000)
   },
   update_boundary_transition_parameter: () => {
     const wipe = applyOk(showCommandFixture(), 'set_boundary_transition', {
@@ -470,6 +581,38 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     const transition = record.transitions?.find((candidate) => candidate.id === 'transition-scene-1')
     expect(transition && 'feather' in transition && transition.feather).toBe(0.4)
+
+    // A representative parameter per kind stores through the same command.
+    const sweep: Array<{ kind: string; sets: Array<[string, unknown]> }> = [
+      { kind: 'wipe', sets: [['direction', 0.25], ['wipeVariant', 'blinds'], ['count', 5], ['phase', 0.25], ['edgePolicy', 'blend'], ['orientation', 'vertical'], ['wipeVariant', 'split'], ['wipeMode', 'center-in'], ['wipeVariant', 'clock'], ['clockwise', false]] },
+      { kind: 'fade-color', sets: [['color', '#ff8800']] },
+      { kind: 'dither', sets: [['dissolveVariant', 'soft-threshold'], ['softness', 0.3], ['scale', 4], ['dissolveVariant', 'block'], ['seed', 7], ['blockSize', 12]] },
+      { kind: 'portal', sets: [['shape', 'ring'], ['shape', 'rounded-box'], ['shape', 'cross'], ['shape', 'crescent'], ['shape', 'polygon'], ['shape', 'diamond'], ['shape', 'star'], ['featherPolicy', 'blend']] },
+      { kind: 'motion', sets: [['motionVariant', 'push'], ['motionVariant', 'zoom-in']] },
+      { kind: 'crossfade', sets: [['crossfadePolicy', 'live-live']] },
+    ]
+    let swept = showCommandFixture()
+    for (const step of sweep) {
+      swept = applyOk(swept, 'set_boundary_transition', {
+        transition_id: 'transition-scene-1',
+        kind: step.kind,
+      }).record
+      for (const [parameter, value] of step.sets) {
+        const outcome = applyShowCommand(swept, 'update_boundary_transition_parameter', {
+          transition_id: 'transition-scene-1',
+          parameter,
+          value,
+        })
+        if (outcome.ok) {
+          APPLIED.push({ command: 'update_boundary_transition_parameter', before: swept, after: outcome.record })
+          swept = outcome.record
+          const stored = swept.transitions?.find((candidate) => candidate.id === 'transition-scene-1') as
+            | Record<string, unknown>
+            | undefined
+          expect(stored?.[parameter]).toEqual(value)
+        }
+      }
+    }
   },
   insert_layer_transition: () => {
     const adjacent = applyOk(trackedCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 10_000 })
@@ -499,9 +642,9 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(summaryClips(resized.record).find((clip) => clip.clipId === 'clip-b')?.startMs).toBe(12_000)
 
     // Shrinking pulls the chain off the Scene boundary; the broken boundary
-    // transition canonicalizes to a Cut.
+    // transition canonicalizes to a Cut, whatever it carried.
     const pinned = boundaryPinnedChain()
-    const shrunk = applyOk(pinned.record, 'resize_layer_transition', {
+    const shrunk = applyOk(withAllTransitionFields(pinned.record), 'resize_layer_transition', {
       transition_id: pinned.transitionId,
       duration_ms: 500,
     })
@@ -521,9 +664,9 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(summaryClips(reset.record).find((clip) => clip.clipId === 'clip-b')?.startMs).toBe(10_000)
 
     // Closing the transition pulls the chain off the Scene boundary; the
-    // broken boundary transition canonicalizes to a Cut.
+    // broken boundary transition canonicalizes to a Cut, whatever it carried.
     const pinned = boundaryPinnedChain()
-    const closed = applyOk(pinned.record, 'reset_layer_transition_to_cut', {
+    const closed = applyOk(withAllTransitionFields(pinned.record), 'reset_layer_transition_to_cut', {
       transition_id: pinned.transitionId,
     })
     expect(closed.record.transitions?.some((candidate) => candidate.kind === 'crossfade')).toBe(false)
@@ -642,6 +785,18 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(record.composition?.scenes.find((scene) => scene.sceneId === 'scene-1')?.propertyTracks ?? [])
       .toEqual([])
   },
+  rename_show: () => {
+    const { record } = applyOk(showCommandFixture(), 'rename_show', { name: '  Night Set  ' })
+    expect(record.name).toBe('Night Set')
+  },
+  set_target_controller_profile: () => {
+    const { record } = applyOk(showCommandFixture(), 'set_target_controller_profile', {
+      profile_id: 'profile-pi',
+    })
+    expect(record.targetControllerProfileId).toBe('profile-pi')
+    const cleared = applyOk(record, 'set_target_controller_profile', { profile_id: null })
+    expect('targetControllerProfileId' in cleared.record).toBe(false)
+  },
   set_output_contract: () => {
     const { record } = applyOk(showCommandFixture(), 'set_output_contract', {
       kind: 'portable-2d',
@@ -743,9 +898,13 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(moved.record.composition?.transitions).toHaveLength(1)
 
     // Moving the chain off the Scene boundary canonicalizes the broken
-    // boundary transition to a Cut through the Show-level wrapper.
+    // boundary transition to a Cut, whatever it carried, selecting any clip
+    // of the chain.
     const pinned = boundaryPinnedChain()
-    const pulled = applyOk(pinned.record, 'move_connected_clip', { clip_id: 'clip-b', start_ms: 11_000 })
+    const pulled = applyOk(withAllTransitionFields(pinned.record), 'move_connected_clip', {
+      clip_id: 'clip-b',
+      start_ms: 11_000,
+    })
     expect(pulled.record.transitions?.some((candidate) => candidate.kind === 'crossfade')).toBe(false)
   },
 }
@@ -1082,6 +1241,10 @@ describe('Show command refusal partitions (#885)', () => {
       'no-change',
     )
     applyRefused(showCommandFixture(), 'set_output_trails', { enabled: false }, 'no-change')
+    applyRefused(showCommandFixture(), 'rename_show', { name: '   ' }, 'invalid-argument')
+    applyRefused(showCommandFixture(), 'rename_show', { name: 'Command fixture' }, 'no-change')
+    applyRefused(showCommandFixture(), 'set_target_controller_profile', { profile_id: null }, 'no-change')
+    applyRefused(showCommandFixture(), 'set_target_controller_profile', { profile_id: '   ' }, 'invalid-argument')
     applyRefused(
       showCommandFixture(),
       'add_layout_interval',
@@ -1169,14 +1332,20 @@ function changedPaths(before: unknown, after: unknown, prefix = ''): string[] {
   return paths
 }
 
-/** A path matches a pattern when one is a prefix of the other, '*' matching any segment. */
+/**
+ * A declared pattern matches a changed path only when it generalizes it:
+ * shallower or equal depth, '*' matching any segment, literals matching
+ * exactly. A pattern deeper than the changed node never matches, so a
+ * declaration cannot hide behind a narrower claim than the write.
+ */
 function pathMatches(path: string, pattern: string): boolean {
   const pathSegments = path.split('/').slice(1)
   const patternSegments = pattern.split('/').slice(1)
-  const shared = Math.min(pathSegments.length, patternSegments.length)
-  for (let index = 0; index < shared; index += 1) {
+  if (patternSegments.length > pathSegments.length) return false
+  for (let index = 0; index < patternSegments.length; index += 1) {
     const patternSegment = patternSegments[index]
-    if (patternSegment !== '*' && patternSegment !== pathSegments[index]) return false
+    if (patternSegment === '*') continue
+    if (patternSegment !== pathSegments[index]) return false
   }
   return true
 }

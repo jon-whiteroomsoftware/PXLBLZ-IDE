@@ -12,7 +12,7 @@ import {
   type ShowCommandDescriptor,
   type ShowCommandRefusal,
 } from './registry'
-import { monotonicRecord } from './support'
+import { UPDATE_PARAMETER_TRANSITION_TOUCHES, VISUAL_TRANSITION_PARAMETER_TOUCHES, monotonicRecord } from './support'
 
 const BOUNDARY_KINDS = ['cut', 'crossfade', 'fade-color', 'wipe', 'dither', 'portal', 'motion'] as const
 
@@ -51,7 +51,6 @@ const PARAMETER_FIELDS: Record<string, ParameterSpec> = {
   color: { kind: 'string' },
   crossfadePolicy: { kind: 'enum', values: ['snapshot-live', 'live-live'] },
   featherPolicy: { kind: 'enum', values: ['dither', 'blend'] },
-  holdMs: { kind: 'number' },
 }
 
 function resolveBoundaryTransition(
@@ -81,7 +80,7 @@ const setBoundaryTransition: ShowCommandDescriptor = {
     'or cut) and optionally its duration. Switching kinds fills that kind\'s parameter defaults; ' +
     'setting cut removes the visual transition. Addressed by the boundary transition id the timeline ' +
     'reports.',
-  touches: ['/transitions', '/updatedAt'],
+  touches: [...VISUAL_TRANSITION_PARAMETER_TOUCHES, '/updatedAt'],
   fields: {
     transition_id: { kind: 'string', description: 'The boundary transition id' },
     kind: { kind: 'string', enum: BOUNDARY_KINDS, description: 'The new transition kind' },
@@ -168,7 +167,9 @@ const setBoundaryTransitionTiming: ShowCommandDescriptor = {
     'Set a Scene-boundary transition\'s duration without changing its kind or parameters. The engine ' +
     'normalizes the surrounding Scene timing; a zero or negative duration refuses (use ' +
     'set_boundary_transition with kind cut to remove one).',
-  touches: ['/transitions', '/updatedAt'],
+  // Normalization clamps every authored property ramp to the new duration,
+  // so retiming may rewrite the ramps too.
+  touches: ['/transitions/*/durationMs', '/transitions/*/propertyTransitions', '/updatedAt'],
   fields: {
     transition_id: { kind: 'string', description: 'The boundary transition id' },
     duration_ms: { kind: 'integer', description: 'New duration in milliseconds (positive)' },
@@ -224,7 +225,7 @@ const updateBoundaryTransitionParameter: ShowCommandDescriptor = {
     'Set one parameter field on a Scene-boundary transition (for example feather, softness, direction, ' +
     'count, seed, or wipeVariant). The engine normalizes the result; parameters outside the ' +
     'transition\'s kind are dropped by normalization rather than stored.',
-  touches: ['/transitions', '/updatedAt'],
+  touches: [...UPDATE_PARAMETER_TRANSITION_TOUCHES, '/updatedAt'],
   fields: {
     transition_id: { kind: 'string', description: 'The boundary transition id' },
     parameter: { kind: 'string', description: 'The parameter field name (for example feather)' },

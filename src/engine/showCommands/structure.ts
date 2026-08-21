@@ -33,6 +33,77 @@ function unknownInterval(record: ShowRecord, intervalId: string): ShowCommandRef
   })
 }
 
+const renameShow: ShowCommandDescriptor = {
+  name: 'rename_show',
+  description: 'Rename the Show. The name is display metadata; ids and content are unaffected.',
+  touches: ['/name', '/updatedAt'],
+  fields: {
+    name: { kind: 'string', description: 'The new Show name; leading and trailing whitespace is trimmed' },
+  },
+  apply(record, input) {
+    const name = (input.name as string).trim()
+    if (name.length === 0) {
+      return refuseShowCommand({ code: 'invalid-argument', message: 'The Show name cannot be empty.' })
+    }
+    if (name === record.name) {
+      return refuseShowCommand({ code: 'no-change', message: `The Show is already named "${name}".` })
+    }
+    return {
+      ok: true,
+      record: { ...record, name, updatedAt: Math.max(Date.now(), record.updatedAt + 1) },
+      changes: [{
+        command: 'rename_show',
+        targetId: record.id,
+        description: `Show renamed from "${record.name}" to "${name}".`,
+      }],
+    }
+  },
+}
+
+const setTargetControllerProfile: ShowCommandDescriptor = {
+  name: 'set_target_controller_profile',
+  description:
+    'Set or clear the controller profile the Show targets for compile estimates and sends; null ' +
+    'returns the Show to automatic profile selection.',
+  touches: ['/targetControllerProfileId', '/updatedAt'],
+  fields: {
+    profile_id: { kind: 'string', nullable: true, description: 'The controller profile id; null for automatic' },
+  },
+  apply(record, input) {
+    const profileId = input.profile_id === null ? null : (input.profile_id as string).trim()
+    if (profileId !== null && profileId.length === 0) {
+      return refuseShowCommand({
+        code: 'invalid-argument',
+        message:
+          'set_target_controller_profile: a blank profile id is not a target; pass null to return to ' +
+          'automatic selection.',
+      })
+    }
+    if ((record.targetControllerProfileId ?? null) === profileId) {
+      return refuseShowCommand({
+        code: 'no-change',
+        message: profileId === null
+          ? 'The Show already selects its controller profile automatically.'
+          : `The Show already targets profile ${profileId}.`,
+      })
+    }
+    const next = { ...record, updatedAt: Math.max(Date.now(), record.updatedAt + 1) }
+    if (profileId === null) delete next.targetControllerProfileId
+    else next.targetControllerProfileId = profileId
+    return {
+      ok: true,
+      record: next,
+      changes: [{
+        command: 'set_target_controller_profile',
+        targetId: record.id,
+        description: profileId === null
+          ? 'The Show selects its controller profile automatically.'
+          : `The Show targets controller profile ${profileId}.`,
+      }],
+    }
+  },
+}
+
 const setOutputContract: ShowCommandDescriptor = {
   name: 'set_output_contract',
   description:
@@ -266,6 +337,8 @@ const makeLayoutIntervalUnique: ShowCommandDescriptor = {
 }
 
 export const SHOW_STRUCTURE_COMMANDS: ShowCommandDescriptor[] = [
+  renameShow,
+  setTargetControllerProfile,
   setOutputContract,
   setOutputTrails,
   addLayoutInterval,

@@ -122,7 +122,9 @@
     "devbench": "tsx test/perf-harness/devbench.ts",
     "spike": "tsx test/capability-spike/spike.ts",
     "prototype:scene-composition": "tsx scripts/prototypes/show-scene-composition.ts",
-    "prepare": "husky"
+    "prepare": "husky",
+    "schema:show-record": "node scripts/show-record-schema.mjs",
+    "coverage:show-commands": "npm run check:node && tsx scripts/show-command-coverage.ts"
   },
   "engines": {
     "node": "^20.19.0 || ^22.13.0 || >=24"
@@ -161,6 +163,7 @@
     "husky": "^9.1.7",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4.3.0",
+    "ts-json-schema-generator": "^2.4.0",
     "tsx": "^4.22.3",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.4",

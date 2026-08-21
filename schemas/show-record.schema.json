@@ -1,0 +1,3094 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ShowRecord",
+  "definitions": {
+    "ShowRecord": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "scenes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowScene"
+          }
+        },
+        "zones": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowZone"
+          }
+        },
+        "cells": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowCell"
+          }
+        },
+        "routingLayouts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowRoutingLayout"
+          }
+        },
+        "transitions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowBoundaryTransition"
+          },
+          "description": "Canonical visual and routing events on Scene boundaries."
+        },
+        "targetControllerProfileId": {
+          "type": "string"
+        },
+        "stageMapId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "outputContract": {
+          "$ref": "#/definitions/ShowOutputContract",
+          "description": "Immutable authored promise for the Show's output."
+        },
+        "composition": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ShowCompositionV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional additive local composition alongside the global timeline."
+        },
+        "outputEffects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowOutputEffect"
+          },
+          "description": "Ordered full-Show output Effects, after clip composition and Transitions."
+        },
+        "importMetadata": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "show-file"
+            },
+            "originalShowId": {
+              "type": "string"
+            },
+            "appVersion": {
+              "type": "string"
+            },
+            "exportedAt": {
+              "type": "string"
+            },
+            "importedAt": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "originalShowId",
+            "appVersion",
+            "exportedAt",
+            "importedAt"
+          ],
+          "additionalProperties": false,
+          "description": "Durable provenance for a Show created from a portable authored bundle."
+        },
+        "updatedAt": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "scenes",
+        "zones",
+        "cells",
+        "routingLayouts",
+        "transitions",
+        "outputContract",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    },
+    "ShowScene": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "durationMs": {
+          "type": "number"
+        },
+        "routingTargets": {
+          "$ref": "#/definitions/ShowRoutingTargets",
+          "description": "Show-wide property targets that take effect during this scene."
+        },
+        "sampleTargets": {
+          "$ref": "#/definitions/ShowSampleTargets"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "durationMs"
+      ],
+      "additionalProperties": false
+    },
+    "ShowRoutingTargets": {
+      "type": "object",
+      "properties": {
+        "splitPosition": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ShowSampleTargets": {
+      "type": "object",
+      "properties": {
+        "repeatScale": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ShowZone": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "nominalPixelCount": {
+          "type": "number"
+        },
+        "color": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string",
+          "description": "Optional stable visual identifier used when timeline headers become narrow."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "nominalPixelCount"
+      ],
+      "additionalProperties": false
+    },
+    "ShowCell": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "zoneId": {
+          "type": "string"
+        },
+        "sceneId": {
+          "type": "string"
+        },
+        "sceneSpan": {
+          "type": "number"
+        },
+        "zoneSpan": {
+          "type": "number"
+        },
+        "zoneMode": {
+          "type": "string",
+          "enum": [
+            "span",
+            "repeat"
+          ],
+          "description": "How a multi-zone clip maps its Pattern domain. Defaults to one continuous span."
+        },
+        "pattern": {
+          "$ref": "#/definitions/ShowPatternRef"
+        },
+        "patternName": {
+          "type": "string"
+        },
+        "adaptations": {
+          "$ref": "#/definitions/ShowCellAdaptations"
+        },
+        "restartOnEntry": {
+          "type": "boolean",
+          "description": "Start this destination with a fresh Pattern instance instead of continuing matching state."
+        },
+        "evaluationPolicy": {
+          "$ref": "#/definitions/ShowClipEvaluationPolicy",
+          "description": "Evaluate continuously, freeze one complete entry frame, or refresh one quarter of pixels per frame."
+        },
+        "presentation": {
+          "$ref": "#/definitions/ShowClipPresentation",
+          "description": "Placement-owned RGB presentation. Live is the default when omitted."
+        },
+        "blink": {
+          "$ref": "#/definitions/ShowClipBlink",
+          "description": "Placement-owned visibility gate; Pattern-instance time continues while hidden."
+        },
+        "controlTargets": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Scene-owned 0..1 targets for public slider control functions."
+        },
+        "transform": {
+          "$ref": "#/definitions/ShowClipTransform",
+          "description": "Canonical placement transform, applied before optional ordered Effects. Missing is neutral."
+        },
+        "viewport": {
+          "$ref": "#/definitions/ShowClipViewport",
+          "description": "Preserved when disabled so later re-enable restores the authored frame."
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowClipEffect"
+          },
+          "description": "Ordered single-source visual Effects. Affine operation order is significant."
+        }
+      },
+      "required": [
+        "id",
+        "zoneId",
+        "sceneId",
+        "sceneSpan",
+        "pattern",
+        "patternName",
+        "adaptations"
+      ],
+      "additionalProperties": false
+    },
+    "ShowPatternRef": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "user"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "stock"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ShowCellAdaptations": {
+      "type": "object",
+      "properties": {
+        "mirror": {
+          "type": "boolean"
+        },
+        "phase": {
+          "type": "number"
+        },
+        "brightness": {
+          "type": "number"
+        },
+        "timeScale": {
+          "type": "number"
+        },
+        "lightShutter": {
+          "$ref": "#/definitions/ShowLightShutter"
+        },
+        "steppedClock": {
+          "$ref": "#/definitions/ShowSteppedClock"
+        },
+        "timeOffsetMs": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "mirror",
+        "phase",
+        "brightness",
+        "timeScale"
+      ],
+      "additionalProperties": false
+    },
+    "ShowLightShutter": {
+      "type": "object",
+      "properties": {
+        "rateHz": {
+          "type": "number"
+        },
+        "duty": {
+          "type": "number"
+        },
+        "phase": {
+          "type": "number"
+        },
+        "clockBehavior": {
+          "type": "string",
+          "enum": [
+            "continue",
+            "freeze"
+          ]
+        }
+      },
+      "required": [
+        "rateHz",
+        "duty",
+        "phase",
+        "clockBehavior"
+      ],
+      "additionalProperties": false
+    },
+    "ShowSteppedClock": {
+      "type": "object",
+      "properties": {
+        "stepMs": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "stepMs"
+      ],
+      "additionalProperties": false
+    },
+    "ShowClipEvaluationPolicy": {
+      "type": "string",
+      "enum": [
+        "live",
+        "freeze-at-entry",
+        "rolling-refresh"
+      ]
+    },
+    "ShowClipPresentation": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "const": "live"
+            }
+          },
+          "required": [
+            "mode"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "const": "freeze"
+            }
+          },
+          "required": [
+            "mode"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "const": "strobe"
+            },
+            "cadenceMs": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "mode",
+            "cadenceMs"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ShowClipBlink": {
+      "type": "object",
+      "properties": {
+        "rateHz": {
+          "type": "number"
+        },
+        "duty": {
+          "type": "number"
+        },
+        "phase": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "rateHz",
+        "duty",
+        "phase"
+      ],
+      "additionalProperties": false
+    },
+    "ShowClipTransform": {
+      "type": "object",
+      "properties": {
+        "positionX": {
+          "type": "number"
+        },
+        "positionY": {
+          "type": "number"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "scaleX": {
+          "type": "number"
+        },
+        "scaleY": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "positionX",
+        "positionY",
+        "rotation",
+        "scaleX",
+        "scaleY"
+      ],
+      "additionalProperties": false,
+      "description": "Stable placement-owned affine pose. Rotation is persisted in signed turns around (0.5, 0.5)."
+    },
+    "ShowClipViewport": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "width": {
+          "type": "number"
+        },
+        "height": {
+          "type": "number"
+        },
+        "aperture": {
+          "$ref": "#/definitions/ShowClipApertureShape",
+          "description": "Aperture silhouette inscribed in the frame. Missing = rectangle (#591)."
+        },
+        "edge": {
+          "$ref": "#/definitions/ShowClipApertureEdge",
+          "description": "Edge treatment. Missing defaults Soft for every aperture shape."
+        },
+        "feather": {
+          "type": "number",
+          "description": "Authored soft-band width in normalized Zone units. Missing = density default."
+        },
+        "rotation": {
+          "type": "number",
+          "description": "Silhouette rotation in turns within the frame. Missing = axis-aligned (#690)."
+        },
+        "invert": {
+          "type": "boolean",
+          "description": "The silhouette cuts out instead of admitting (#690)."
+        },
+        "ringWidth": {
+          "type": "number",
+          "description": "Ring only: band thickness as a fraction of the unit radius."
+        },
+        "cornerRadius": {
+          "type": "number",
+          "description": "Rounded-box only: corner radius as a fraction of the half-side."
+        },
+        "crossWidth": {
+          "type": "number",
+          "description": "Cross only: arm width as a fraction of the frame half-extent."
+        },
+        "starPoints": {
+          "type": "number",
+          "description": "Star only."
+        },
+        "starInner": {
+          "type": "number",
+          "description": "Star only."
+        },
+        "crescentOffset": {
+          "type": "number",
+          "description": "Crescent only: cutout offset as a fraction of the unit radius."
+        },
+        "polygonSides": {
+          "type": "number",
+          "description": "Polygon only."
+        }
+      },
+      "required": [
+        "enabled",
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "additionalProperties": false
+    },
+    "ShowClipApertureShape": {
+      "type": "string",
+      "enum": [
+        "rectangle",
+        "ellipse",
+        "diamond",
+        "ring",
+        "rounded-box",
+        "cross",
+        "heart",
+        "star",
+        "crescent",
+        "polygon",
+        "cloud",
+        "cat-head",
+        "cat-side-profile",
+        "bastet"
+      ],
+      "description": "Optional placement-owned clipping frame in normalized Zone coordinates."
+    },
+    "ShowClipApertureEdge": {
+      "type": "string",
+      "enum": [
+        "hard",
+        "soft",
+        "dither"
+      ]
+    },
+    "ShowClipEffect": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "opacity"
+            },
+            "opacity": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "opacity"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "brightness"
+            },
+            "brightness": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "brightness"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "hue"
+            },
+            "turns": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "turns"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "saturation"
+            },
+            "saturation": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "saturation"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "contrast"
+            },
+            "contrast": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "contrast"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "invert"
+            },
+            "amount": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "threshold"
+            },
+            "threshold": {
+              "type": "number"
+            },
+            "amount": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "threshold",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "luma-key"
+            },
+            "target": {
+              "type": "number"
+            },
+            "tolerance": {
+              "type": "number"
+            },
+            "softness": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "target",
+            "tolerance",
+            "softness"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "chroma-key"
+            },
+            "color": {
+              "type": "string"
+            },
+            "tolerance": {
+              "type": "number"
+            },
+            "softness": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "color",
+            "tolerance",
+            "softness"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "posterize"
+            },
+            "levels": {
+              "type": "number"
+            },
+            "amount": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "levels",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "vignette"
+            },
+            "amount": {
+              "type": "number"
+            },
+            "radius": {
+              "type": "number"
+            },
+            "softness": {
+              "type": "number"
+            },
+            "centerX": {
+              "type": "number"
+            },
+            "centerY": {
+              "type": "number"
+            },
+            "aspect": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "amount",
+            "radius",
+            "softness",
+            "centerX",
+            "centerY",
+            "aspect"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "color-map"
+            },
+            "amount": {
+              "type": "number"
+            },
+            "shadowR": {
+              "type": "number"
+            },
+            "shadowG": {
+              "type": "number"
+            },
+            "shadowB": {
+              "type": "number"
+            },
+            "highlightR": {
+              "type": "number"
+            },
+            "highlightG": {
+              "type": "number"
+            },
+            "highlightB": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "amount",
+            "shadowR",
+            "shadowG",
+            "shadowB",
+            "highlightR",
+            "highlightG",
+            "highlightB"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "translate"
+            },
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "x",
+            "y"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "rotate"
+            },
+            "turns": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "turns"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "scale"
+            },
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "x",
+            "y"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "shear"
+            },
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "x",
+            "y"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "ripple"
+            },
+            "amount": {
+              "type": "number"
+            },
+            "frequency": {
+              "type": "number"
+            },
+            "phase": {
+              "type": "number"
+            },
+            "centerX": {
+              "type": "number"
+            },
+            "centerY": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "amount",
+            "frequency",
+            "phase",
+            "centerX",
+            "centerY"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "swirl"
+            },
+            "amount": {
+              "type": "number"
+            },
+            "radius": {
+              "type": "number"
+            },
+            "centerX": {
+              "type": "number"
+            },
+            "centerY": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "amount",
+            "radius",
+            "centerX",
+            "centerY"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "bulge"
+            },
+            "amount": {
+              "type": "number"
+            },
+            "radius": {
+              "type": "number"
+            },
+            "centerX": {
+              "type": "number"
+            },
+            "centerY": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "amount",
+            "radius",
+            "centerX",
+            "centerY"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "pixelate"
+            },
+            "amount": {
+              "type": "number"
+            },
+            "columns": {
+              "type": "number"
+            },
+            "rows": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "amount",
+            "columns",
+            "rows"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "kaleidoscope"
+            },
+            "amount": {
+              "type": "number"
+            },
+            "segments": {
+              "type": "number"
+            },
+            "rotation": {
+              "type": "number"
+            },
+            "centerX": {
+              "type": "number"
+            },
+            "centerY": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "amount",
+            "segments",
+            "rotation",
+            "centerX",
+            "centerY"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "wrap"
+            }
+          },
+          "required": [
+            "id",
+            "kind"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ShowRoutingLayout": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "zones": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowRoutingLayoutZone"
+          }
+        },
+        "logical": {
+          "$ref": "#/definitions/ShowLogicalRouting"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "zones"
+      ],
+      "additionalProperties": false
+    },
+    "ShowRoutingLayoutZone": {
+      "type": "object",
+      "properties": {
+        "zoneId": {
+          "type": "string"
+        },
+        "ranges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "start": {
+                "type": "number"
+              },
+              "end": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "start",
+              "end"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "zoneId",
+        "ranges"
+      ],
+      "additionalProperties": false
+    },
+    "ShowLogicalRouting": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "single"
+            },
+            "zoneIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "maxItems": 1
+            }
+          },
+          "required": [
+            "kind",
+            "zoneIds"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "grid"
+            },
+            "zoneIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "columns": {
+              "type": "number"
+            },
+            "rows": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "zoneIds",
+            "columns",
+            "rows"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "stripes"
+            },
+            "zoneIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "axis": {
+              "type": "string",
+              "enum": [
+                "x",
+                "y"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "zoneIds",
+            "axis"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "checker"
+            },
+            "zoneIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "columns": {
+              "type": "number"
+            },
+            "rows": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "zoneIds",
+            "columns",
+            "rows"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "rings"
+            },
+            "zoneIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "rings": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "zoneIds",
+            "rings"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "wave"
+            },
+            "zoneIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "axis": {
+              "type": "string",
+              "enum": [
+                "x",
+                "y"
+              ]
+            },
+            "bands": {
+              "type": "number"
+            },
+            "amplitude": {
+              "type": "number"
+            },
+            "frequency": {
+              "type": "number"
+            },
+            "phase": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "zoneIds",
+            "axis",
+            "bands",
+            "amplitude",
+            "frequency",
+            "phase"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "split"
+            },
+            "zoneIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "axis": {
+              "type": "string",
+              "enum": [
+                "x",
+                "y"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "zoneIds",
+            "axis"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "soft-split"
+            },
+            "zoneIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "axis": {
+              "type": "string",
+              "enum": [
+                "x",
+                "y"
+              ]
+            },
+            "feather": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "zoneIds",
+            "axis",
+            "feather"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "pinwheel"
+            },
+            "zoneIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "arms": {
+              "type": "number"
+            },
+            "twist": {
+              "type": "number"
+            },
+            "rotation": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "zoneIds",
+            "twist"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ShowBoundaryTransition": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "afterSceneId": {
+          "type": "string"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ShowTransitionKind"
+            },
+            {
+              "type": "string",
+              "const": "routing"
+            }
+          ]
+        },
+        "durationMs": {
+          "type": "number"
+        },
+        "easing": {
+          "$ref": "#/definitions/ShowStructuredEasing"
+        },
+        "crossfadePolicy": {
+          "$ref": "#/definitions/ShowCrossfadePolicy",
+          "description": "Authored only for crossfade."
+        },
+        "layoutId": {
+          "type": "string"
+        },
+        "routingDirection": {
+          "$ref": "#/definitions/ShowRoutingDirection",
+          "description": "Stable directional threshold used when a routing marker has nonzero duration."
+        },
+        "color": {
+          "type": "string"
+        },
+        "direction": {
+          "type": "number"
+        },
+        "wipeVariant": {
+          "$ref": "#/definitions/ShowWipeVariant"
+        },
+        "wipeMode": {
+          "$ref": "#/definitions/ShowWipeMode"
+        },
+        "orientation": {
+          "$ref": "#/definitions/ShowWipeOrientation"
+        },
+        "count": {
+          "type": "number"
+        },
+        "phase": {
+          "type": "number"
+        },
+        "clockwise": {
+          "type": "boolean"
+        },
+        "edgePolicy": {
+          "$ref": "#/definitions/ShowTransitionEdgePolicy"
+        },
+        "dissolveVariant": {
+          "$ref": "#/definitions/ShowDissolveVariant"
+        },
+        "seed": {
+          "type": "number"
+        },
+        "blockSize": {
+          "type": "number"
+        },
+        "softness": {
+          "type": "number"
+        },
+        "feather": {
+          "type": "number"
+        },
+        "centerX": {
+          "type": "number"
+        },
+        "centerY": {
+          "type": "number"
+        },
+        "featherPolicy": {
+          "$ref": "#/definitions/ShowPortalFeatherPolicy"
+        },
+        "shape": {
+          "$ref": "#/definitions/ShowSpatialShape"
+        },
+        "scale": {
+          "type": "number"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "spin": {
+          "type": "number"
+        },
+        "ringWidth": {
+          "type": "number"
+        },
+        "revealMode": {
+          "$ref": "#/definitions/ShowRevealMode"
+        },
+        "aspect": {
+          "type": "number"
+        },
+        "cornerRadius": {
+          "type": "number"
+        },
+        "crossWidth": {
+          "type": "number"
+        },
+        "starPoints": {
+          "type": "number"
+        },
+        "starInner": {
+          "type": "number"
+        },
+        "crescentOffset": {
+          "type": "number"
+        },
+        "polygonSides": {
+          "type": "number"
+        },
+        "motionVariant": {
+          "$ref": "#/definitions/ShowMotionTransitionVariant"
+        },
+        "anchorX": {
+          "type": "number"
+        },
+        "anchorY": {
+          "type": "number"
+        },
+        "contentScale": {
+          "type": "number"
+        },
+        "spinDirection": {
+          "$ref": "#/definitions/ShowMotionSpinDirection"
+        },
+        "addressPolicy": {
+          "$ref": "#/definitions/ShowMotionAddressPolicy"
+        },
+        "propertyTransitions": {
+          "$ref": "#/definitions/ShowPropertyTransitions",
+          "description": "Boundary-owned interpolation settings keyed by the destination clip."
+        }
+      },
+      "required": [
+        "id",
+        "afterSceneId",
+        "kind",
+        "durationMs",
+        "easing"
+      ],
+      "additionalProperties": false,
+      "description": "A selectable event on the shared boundary lane."
+    },
+    "ShowTransitionKind": {
+      "type": "string",
+      "enum": [
+        "cut",
+        "crossfade",
+        "fade-color",
+        "wipe",
+        "dither",
+        "portal",
+        "motion"
+      ]
+    },
+    "ShowStructuredEasing": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "curve": {
+              "type": "string",
+              "const": "linear"
+            }
+          },
+          "required": [
+            "curve"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "curve": {
+              "type": "string",
+              "enum": [
+                "quadratic",
+                "cubic",
+                "sine"
+              ]
+            },
+            "direction": {
+              "$ref": "#/definitions/ShowEasingDirection"
+            }
+          },
+          "required": [
+            "curve",
+            "direction"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "curve": {
+              "type": "string",
+              "const": "cubic-bezier"
+            },
+            "x1": {
+              "type": "number"
+            },
+            "y1": {
+              "type": "number"
+            },
+            "x2": {
+              "type": "number"
+            },
+            "y2": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "curve",
+            "x1",
+            "y1",
+            "x2",
+            "y2"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "curve": {
+              "type": "string",
+              "const": "steps"
+            },
+            "steps": {
+              "type": "number"
+            },
+            "position": {
+              "type": "string",
+              "enum": [
+                "start",
+                "end"
+              ]
+            }
+          },
+          "required": [
+            "curve",
+            "steps",
+            "position"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "curve": {
+              "type": "string",
+              "const": "hold"
+            },
+            "at": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "curve",
+            "at"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "curve": {
+              "type": "string",
+              "const": "back"
+            },
+            "direction": {
+              "$ref": "#/definitions/ShowEasingDirection"
+            },
+            "overshoot": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "curve",
+            "direction",
+            "overshoot"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ShowEasingDirection": {
+      "type": "string",
+      "enum": [
+        "in",
+        "out",
+        "in-out"
+      ]
+    },
+    "ShowCrossfadePolicy": {
+      "type": "string",
+      "enum": [
+        "snapshot-live",
+        "live-live"
+      ]
+    },
+    "ShowRoutingDirection": {
+      "type": "string",
+      "enum": [
+        "forward",
+        "reverse"
+      ]
+    },
+    "ShowWipeVariant": {
+      "type": "string",
+      "enum": [
+        "linear",
+        "split",
+        "barn-doors",
+        "blinds",
+        "clock",
+        "checker",
+        "grid"
+      ]
+    },
+    "ShowWipeMode": {
+      "type": "string",
+      "enum": [
+        "center-out",
+        "center-in"
+      ]
+    },
+    "ShowWipeOrientation": {
+      "type": "string",
+      "enum": [
+        "horizontal",
+        "vertical"
+      ]
+    },
+    "ShowTransitionEdgePolicy": {
+      "type": "string",
+      "enum": [
+        "hard",
+        "dither",
+        "blend"
+      ]
+    },
+    "ShowDissolveVariant": {
+      "type": "string",
+      "enum": [
+        "pixel",
+        "block",
+        "coherent-noise",
+        "soft-threshold"
+      ]
+    },
+    "ShowPortalFeatherPolicy": {
+      "type": "string",
+      "enum": [
+        "dither",
+        "blend"
+      ]
+    },
+    "ShowSpatialShape": {
+      "type": "string",
+      "enum": [
+        "circle",
+        "ellipse",
+        "box",
+        "rounded-box",
+        "diamond",
+        "cross",
+        "ring",
+        "heart",
+        "star",
+        "crescent",
+        "polygon",
+        "cloud",
+        "cat-head",
+        "cat-side-profile",
+        "bastet"
+      ]
+    },
+    "ShowRevealMode": {
+      "type": "string",
+      "enum": [
+        "grow-incoming",
+        "shrink-outgoing"
+      ]
+    },
+    "ShowMotionTransitionVariant": {
+      "type": "string",
+      "enum": [
+        "cover",
+        "reveal",
+        "push",
+        "content-grow",
+        "content-shrink",
+        "zoom-in",
+        "zoom-out"
+      ]
+    },
+    "ShowMotionSpinDirection": {
+      "type": "string",
+      "enum": [
+        "clockwise",
+        "counterclockwise"
+      ]
+    },
+    "ShowMotionAddressPolicy": {
+      "type": "string",
+      "enum": [
+        "clip",
+        "wrap"
+      ]
+    },
+    "ShowPropertyTransitions": {
+      "type": "object",
+      "properties": {
+        "timeScale": {
+          "$ref": "#/definitions/ShowPropertyTransition"
+        },
+        "brightness": {
+          "$ref": "#/definitions/ShowPropertyTransition"
+        },
+        "controls": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/ShowPropertyTransition"
+          },
+          "description": "Public Pixelblaze slider export name -> the same shared transition descriptor."
+        },
+        "transform": {
+          "type": "object",
+          "properties": {
+            "positionX": {
+              "$ref": "#/definitions/ShowPropertyTransition"
+            },
+            "positionY": {
+              "$ref": "#/definitions/ShowPropertyTransition"
+            },
+            "rotation": {
+              "$ref": "#/definitions/ShowPropertyTransition"
+            },
+            "scaleX": {
+              "$ref": "#/definitions/ShowPropertyTransition"
+            },
+            "scaleY": {
+              "$ref": "#/definitions/ShowPropertyTransition"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Stable canonical placement Transform property -> shared clip-property descriptor."
+        },
+        "routing": {
+          "type": "object",
+          "properties": {
+            "splitPosition": {
+              "$ref": "#/definitions/ShowScalarPropertyTransition"
+            }
+          },
+          "additionalProperties": false
+        },
+        "sample": {
+          "type": "object",
+          "properties": {
+            "repeatScale": {
+              "$ref": "#/definitions/ShowScalarPropertyTransition"
+            }
+          },
+          "additionalProperties": false
+        },
+        "effects": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/definitions/ShowPropertyTransition"
+            }
+          },
+          "description": "Stable Effect id -> public numeric parameter -> shared clip-property descriptor."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ShowPropertyTransition": {
+      "type": "object",
+      "properties": {
+        "fromByCellId": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "durationMs": {
+          "type": "number"
+        },
+        "easing": {
+          "$ref": "#/definitions/ShowStructuredEasing"
+        }
+      },
+      "required": [
+        "fromByCellId"
+      ],
+      "additionalProperties": false
+    },
+    "ShowScalarPropertyTransition": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "number"
+        },
+        "durationMs": {
+          "type": "number"
+        },
+        "easing": {
+          "$ref": "#/definitions/ShowStructuredEasing"
+        }
+      },
+      "required": [
+        "from"
+      ],
+      "additionalProperties": false
+    },
+    "ShowOutputContract": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Portable2DShowOutputContract"
+        },
+        {
+          "$ref": "#/definitions/InstallationShowOutputContract"
+        }
+      ]
+    },
+    "Portable2DShowOutputContract": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "kind": {
+          "type": "string",
+          "const": "portable-2d"
+        },
+        "referenceMapId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "referencePixelCount": {
+          "type": "number"
+        },
+        "compatibility": {
+          "type": "object",
+          "properties": {
+            "dimensions": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "const": 2
+              },
+              "minItems": 1,
+              "maxItems": 1
+            },
+            "mapClass": {
+              "type": "string",
+              "const": "continuous-surface"
+            },
+            "resolution": {
+              "type": "string",
+              "const": "variable"
+            }
+          },
+          "required": [
+            "dimensions",
+            "mapClass",
+            "resolution"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "version",
+        "kind",
+        "referenceMapId",
+        "referencePixelCount",
+        "compatibility"
+      ],
+      "additionalProperties": false
+    },
+    "InstallationShowOutputContract": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "kind": {
+          "type": "string",
+          "const": "installation"
+        },
+        "pixelCount": {
+          "type": "number"
+        },
+        "outputMapId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resolution": {
+          "type": "string",
+          "const": "fixed"
+        }
+      },
+      "required": [
+        "version",
+        "kind",
+        "pixelCount",
+        "outputMapId",
+        "resolution"
+      ],
+      "additionalProperties": false
+    },
+    "ShowCompositionV1": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "executionModel": {
+          "type": "string",
+          "const": "deterministic-loop",
+          "description": "New timeline execution contract; absent preserves legacy compiled artifacts."
+        },
+        "patternInstances": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowPatternInstance"
+          }
+        },
+        "scenes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowSceneComposition"
+          }
+        },
+        "durationMs": {
+          "type": "number",
+          "description": "Explicit deterministic loop boundary in absolute Show time."
+        },
+        "markers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowTimelineMarker"
+          },
+          "description": "Global guides; Markers may remain dormant beyond Show End."
+        },
+        "transitions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowLayerTransition"
+          },
+          "description": "Non-Cut transitions; endpoint-owned Cuts remain implicit and lossless."
+        },
+        "groupDefinitions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowGroupDefinition"
+          },
+          "description": "Reusable choreography definitions, omitted when the Show has no Groups."
+        },
+        "groupOccurrences": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowGroupOccurrence"
+          },
+          "description": "Zone- and Layout-interval-local placements of Group definitions."
+        }
+      },
+      "required": [
+        "version",
+        "patternInstances",
+        "scenes"
+      ],
+      "additionalProperties": false,
+      "description": "Additive Scene-composition sidecar. Version 1 carries mutually exclusive Main schedules, manually ordered overlay layers, typed Scene-local property animation tracks, and endpoint-owned non-Cut Layer transitions."
+    },
+    "ShowPatternInstance": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "pattern": {
+          "$ref": "#/definitions/ShowPatternRef"
+        },
+        "patternName": {
+          "type": "string"
+        },
+        "evaluationPolicy": {
+          "$ref": "#/definitions/ShowClipEvaluationPolicy",
+          "description": "Evaluate continuously, freeze one complete entry frame, or refresh one quarter of pixels per frame."
+        },
+        "time": {
+          "type": "object",
+          "properties": {
+            "timeScale": {
+              "type": "number"
+            },
+            "timeOffsetMs": {
+              "type": "number"
+            },
+            "lightShutter": {
+              "$ref": "#/definitions/ShowLightShutter"
+            },
+            "steppedClock": {
+              "$ref": "#/definitions/ShowSteppedClock"
+            }
+          },
+          "required": [
+            "timeScale",
+            "timeOffsetMs"
+          ],
+          "additionalProperties": false
+        },
+        "controlTargets": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "pattern",
+        "patternName",
+        "time"
+      ],
+      "additionalProperties": false,
+      "description": "Show-owned private Pattern state referenced by one or more local placements."
+    },
+    "ShowSceneComposition": {
+      "type": "object",
+      "properties": {
+        "sceneId": {
+          "type": "string"
+        },
+        "propertyTracks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowPropertyAnimationTrack"
+          },
+          "description": "Authored tracks only. Static values remain inline on their typed owners."
+        },
+        "zones": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowZoneComposition"
+          }
+        }
+      },
+      "required": [
+        "sceneId",
+        "zones"
+      ],
+      "additionalProperties": false
+    },
+    "ShowPropertyAnimationTrack": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/definitions/ShowPropertyAnimationTarget"
+        },
+        "keyframes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowPropertyAnimationKeyframe"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "target",
+        "keyframes"
+      ],
+      "additionalProperties": false
+    },
+    "ShowPropertyAnimationTarget": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "instance-time-scale"
+            },
+            "instanceId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "instanceId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "instance-control"
+            },
+            "instanceId": {
+              "type": "string"
+            },
+            "exportName": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "instanceId",
+            "exportName"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "placement-opacity"
+            },
+            "placementId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "placementId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "placement-view"
+            },
+            "placementId": {
+              "type": "string"
+            },
+            "property": {
+              "type": "string",
+              "enum": [
+                "brightness",
+                "phase"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "placementId",
+            "property"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "placement-transform"
+            },
+            "placementId": {
+              "type": "string"
+            },
+            "property": {
+              "type": "string",
+              "enum": [
+                "positionX",
+                "positionY",
+                "rotation",
+                "scaleX",
+                "scaleY"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "placementId",
+            "property"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "placement-viewport"
+            },
+            "placementId": {
+              "type": "string"
+            },
+            "property": {
+              "type": "string",
+              "enum": [
+                "x",
+                "y",
+                "width",
+                "height"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "placementId",
+            "property"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "placement-effect"
+            },
+            "placementId": {
+              "type": "string"
+            },
+            "effectId": {
+              "type": "string"
+            },
+            "effectKind": {
+              "type": "string",
+              "enum": [
+                "opacity",
+                "brightness",
+                "hue",
+                "saturation",
+                "contrast",
+                "invert",
+                "threshold",
+                "luma-key",
+                "chroma-key",
+                "posterize",
+                "vignette",
+                "color-map",
+                "translate",
+                "rotate",
+                "scale",
+                "shear",
+                "ripple",
+                "swirl",
+                "bulge",
+                "pixelate",
+                "kaleidoscope",
+                "wrap"
+              ]
+            },
+            "parameterId": {
+              "type": "string",
+              "description": "Visual-toolkit parameter id, such as translateX or amount."
+            }
+          },
+          "required": [
+            "kind",
+            "placementId",
+            "effectId",
+            "effectKind",
+            "parameterId"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "description": "Structured identity for one numeric value authored inside a Scene."
+    },
+    "ShowPropertyAnimationKeyframe": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "timeMs": {
+          "type": "number",
+          "description": "Whole milliseconds relative to the owning Scene."
+        },
+        "value": {
+          "type": "number"
+        },
+        "easing": {
+          "$ref": "#/definitions/ShowStructuredEasing",
+          "description": "Interpolation used while leaving this keyframe."
+        }
+      },
+      "required": [
+        "id",
+        "timeMs",
+        "value",
+        "easing"
+      ],
+      "additionalProperties": false
+    },
+    "ShowZoneComposition": {
+      "type": "object",
+      "properties": {
+        "zoneId": {
+          "type": "string"
+        },
+        "main": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowMainPlacement"
+          }
+        },
+        "overlays": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowOverlayLayer"
+          }
+        }
+      },
+      "required": [
+        "zoneId",
+        "main",
+        "overlays"
+      ],
+      "additionalProperties": false
+    },
+    "ShowMainPlacement": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "logicalClipId": {
+          "type": "string",
+          "description": "Stable visible Clip id when one logical Clip is partitioned across hidden internal Scene owners. The first segment keeps that id directly."
+        },
+        "instanceId": {
+          "type": "string"
+        },
+        "startMs": {
+          "type": "number"
+        },
+        "durationMs": {
+          "type": "number"
+        },
+        "view": {
+          "$ref": "#/definitions/ShowPlacementView"
+        },
+        "presentation": {
+          "$ref": "#/definitions/ShowClipPresentation",
+          "description": "Placement-owned RGB presentation. Live is the default when omitted."
+        },
+        "blink": {
+          "$ref": "#/definitions/ShowClipBlink",
+          "description": "Placement-owned visibility gate; Pattern-instance time continues while hidden."
+        },
+        "transform": {
+          "$ref": "#/definitions/ShowClipTransform",
+          "description": "Canonical placement transform, applied before optional ordered Effects. Missing is neutral."
+        },
+        "viewport": {
+          "$ref": "#/definitions/ShowClipViewport",
+          "description": "Preserved when disabled so later re-enable restores the authored frame."
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowClipEffect"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "instanceId",
+        "startMs",
+        "durationMs",
+        "view"
+      ],
+      "additionalProperties": false
+    },
+    "ShowPlacementView": {
+      "type": "object",
+      "properties": {
+        "mirror": {
+          "type": "boolean"
+        },
+        "phase": {
+          "type": "number"
+        },
+        "brightness": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "mirror",
+        "phase",
+        "brightness"
+      ],
+      "additionalProperties": false,
+      "description": "Placement-owned render values; simulation and exported controls stay on the instance."
+    },
+    "ShowOverlayLayer": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "placements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowOverlayPlacement"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "placements"
+      ],
+      "additionalProperties": false,
+      "description": "Front-to-back manual order; the first layer renders visually on top."
+    },
+    "ShowOverlayPlacement": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "logicalClipId": {
+          "type": "string",
+          "description": "Stable visible Clip id when one logical Clip is partitioned across hidden internal Scene owners. The first segment keeps that id directly."
+        },
+        "instanceId": {
+          "type": "string"
+        },
+        "startMs": {
+          "type": "number"
+        },
+        "durationMs": {
+          "type": "number"
+        },
+        "presentation": {
+          "$ref": "#/definitions/ShowClipPresentation",
+          "description": "Placement-owned RGB presentation. Live is the default when omitted."
+        },
+        "blink": {
+          "$ref": "#/definitions/ShowClipBlink",
+          "description": "Placement-owned visibility gate; Pattern-instance time continues while hidden."
+        },
+        "transform": {
+          "$ref": "#/definitions/ShowClipTransform",
+          "description": "Canonical placement transform, applied before optional ordered Effects. Missing is neutral."
+        },
+        "viewport": {
+          "$ref": "#/definitions/ShowClipViewport",
+          "description": "Preserved when disabled so later re-enable restores the authored frame."
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowClipEffect"
+          }
+        },
+        "opacity": {
+          "type": "number"
+        },
+        "view": {
+          "$ref": "#/definitions/ShowPlacementView"
+        }
+      },
+      "required": [
+        "durationMs",
+        "id",
+        "instanceId",
+        "opacity",
+        "startMs",
+        "view"
+      ],
+      "additionalProperties": false
+    },
+    "ShowTimelineMarker": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "timeMs": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "timeMs"
+      ],
+      "additionalProperties": false,
+      "description": "A Show-owned alignment guide in absolute Show time."
+    },
+    "ShowLayerTransition": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "durationMs": {
+          "type": "number"
+        },
+        "easing": {
+          "$ref": "#/definitions/ShowStructuredEasing"
+        },
+        "crossfadePolicy": {
+          "$ref": "#/definitions/ShowCrossfadePolicy",
+          "description": "Authored only for crossfade."
+        },
+        "color": {
+          "type": "string"
+        },
+        "direction": {
+          "type": "number"
+        },
+        "wipeVariant": {
+          "$ref": "#/definitions/ShowWipeVariant"
+        },
+        "wipeMode": {
+          "$ref": "#/definitions/ShowWipeMode"
+        },
+        "orientation": {
+          "$ref": "#/definitions/ShowWipeOrientation"
+        },
+        "count": {
+          "type": "number"
+        },
+        "phase": {
+          "type": "number"
+        },
+        "clockwise": {
+          "type": "boolean"
+        },
+        "edgePolicy": {
+          "$ref": "#/definitions/ShowTransitionEdgePolicy"
+        },
+        "dissolveVariant": {
+          "$ref": "#/definitions/ShowDissolveVariant"
+        },
+        "seed": {
+          "type": "number"
+        },
+        "blockSize": {
+          "type": "number"
+        },
+        "softness": {
+          "type": "number"
+        },
+        "feather": {
+          "type": "number"
+        },
+        "centerX": {
+          "type": "number"
+        },
+        "centerY": {
+          "type": "number"
+        },
+        "featherPolicy": {
+          "$ref": "#/definitions/ShowPortalFeatherPolicy"
+        },
+        "shape": {
+          "$ref": "#/definitions/ShowSpatialShape"
+        },
+        "scale": {
+          "type": "number"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "spin": {
+          "type": "number"
+        },
+        "ringWidth": {
+          "type": "number"
+        },
+        "revealMode": {
+          "$ref": "#/definitions/ShowRevealMode"
+        },
+        "aspect": {
+          "type": "number"
+        },
+        "cornerRadius": {
+          "type": "number"
+        },
+        "crossWidth": {
+          "type": "number"
+        },
+        "starPoints": {
+          "type": "number"
+        },
+        "starInner": {
+          "type": "number"
+        },
+        "crescentOffset": {
+          "type": "number"
+        },
+        "polygonSides": {
+          "type": "number"
+        },
+        "motionVariant": {
+          "$ref": "#/definitions/ShowMotionTransitionVariant"
+        },
+        "anchorX": {
+          "type": "number"
+        },
+        "anchorY": {
+          "type": "number"
+        },
+        "contentScale": {
+          "type": "number"
+        },
+        "spinDirection": {
+          "$ref": "#/definitions/ShowMotionSpinDirection"
+        },
+        "addressPolicy": {
+          "$ref": "#/definitions/ShowMotionAddressPolicy"
+        },
+        "fromPlacementId": {
+          "type": "string"
+        },
+        "toPlacementId": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "crossfade",
+            "fade-color",
+            "wipe",
+            "dither",
+            "portal",
+            "motion"
+          ]
+        }
+      },
+      "required": [
+        "durationMs",
+        "easing",
+        "fromPlacementId",
+        "id",
+        "kind",
+        "toPlacementId"
+      ],
+      "additionalProperties": false,
+      "description": "A visible, positive-duration transition between two consecutive placements on one Layer. Cuts are derived from abutting placement endpoints and are not persisted."
+    },
+    "ShowGroupDefinition": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "patternInstances": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowPatternInstance"
+          }
+        },
+        "placements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowGroupPlacement"
+          }
+        },
+        "transitions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowLayerTransition"
+          }
+        },
+        "propertyTracks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowPropertyAnimationTrack"
+          },
+          "description": "Definition-local time and owner ids."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "patternInstances",
+        "placements"
+      ],
+      "additionalProperties": false,
+      "description": "Zone-agnostic reusable choreography. Group definitions cannot contain Groups."
+    },
+    "ShowGroupPlacement": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "logicalClipId": {
+          "type": "string",
+          "description": "Stable visible Clip id when one logical Clip is partitioned across hidden internal Scene owners. The first segment keeps that id directly."
+        },
+        "instanceId": {
+          "type": "string"
+        },
+        "startMs": {
+          "type": "number"
+        },
+        "durationMs": {
+          "type": "number"
+        },
+        "presentation": {
+          "$ref": "#/definitions/ShowClipPresentation",
+          "description": "Placement-owned RGB presentation. Live is the default when omitted."
+        },
+        "blink": {
+          "$ref": "#/definitions/ShowClipBlink",
+          "description": "Placement-owned visibility gate; Pattern-instance time continues while hidden."
+        },
+        "transform": {
+          "$ref": "#/definitions/ShowClipTransform",
+          "description": "Canonical placement transform, applied before optional ordered Effects. Missing is neutral."
+        },
+        "viewport": {
+          "$ref": "#/definitions/ShowClipViewport",
+          "description": "Preserved when disabled so later re-enable restores the authored frame."
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ShowClipEffect"
+          }
+        },
+        "opacity": {
+          "type": "number"
+        },
+        "view": {
+          "$ref": "#/definitions/ShowPlacementView"
+        },
+        "layerOffset": {
+          "type": "number",
+          "description": "Zero is the occurrence's base Layer; positive values move upward."
+        }
+      },
+      "required": [
+        "durationMs",
+        "id",
+        "instanceId",
+        "layerOffset",
+        "opacity",
+        "startMs",
+        "view"
+      ],
+      "additionalProperties": false,
+      "description": "One definition-local Clip. Time and layer are relative to its Group occurrence."
+    },
+    "ShowGroupOccurrence": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "definitionId": {
+          "type": "string"
+        },
+        "sceneId": {
+          "type": "string"
+        },
+        "zoneId": {
+          "type": "string"
+        },
+        "startMs": {
+          "type": "number"
+        },
+        "baseLayer": {
+          "type": "number",
+          "description": "Zero is Main; positive values count overlay Layers upward from Main."
+        },
+        "translationX": {
+          "type": "number"
+        },
+        "translationY": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "definitionId",
+        "sceneId",
+        "zoneId",
+        "startMs",
+        "baseLayer",
+        "translationX",
+        "translationY"
+      ],
+      "additionalProperties": false,
+      "description": "One Zone- and Layout-interval-local use of a Group definition."
+    },
+    "ShowOutputEffect": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "const": "trails"
+        },
+        "retention": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "retention"
+      ],
+      "additionalProperties": false,
+      "description": "Ordered Effects applied once to the fully composed physical Show output."
+    }
+  }
+}

@@ -20,6 +20,7 @@ import {
   type ShowCommandRefusal,
 } from './registry'
 import {
+  VISUAL_TRANSITION_PARAMETER_TOUCHES,
   canonicalizeBoundaryAfterShift,
   engineIdentityRefusal,
   resolveCommandClip,
@@ -129,7 +130,7 @@ const resizeLayerTransition: ShowCommandDescriptor = {
   description:
     'Resize a layer transition, shifting the transition-connected chain after it. A duration of zero ' +
     'closes it into a cut. Refused when growth would collide with a later clip.',
-  touches: ['/composition/transitions', '/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/transitions', '/updatedAt'],
+  touches: ['/composition/transitions', '/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', ...VISUAL_TRANSITION_PARAMETER_TOUCHES, '/updatedAt'],
   fields: {
     transition_id: { kind: 'string', description: 'The layer transition id' },
     duration_ms: { kind: 'integer', description: 'New duration in milliseconds; 0 closes to a cut' },
@@ -174,7 +175,7 @@ const resetLayerTransitionToCut: ShowCommandDescriptor = {
   description:
     'Remove a layer transition, closing its interval so the two clips meet at a cut again; the ' +
     'connected chain after it shifts earlier by the removed duration.',
-  touches: ['/composition/transitions', '/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/transitions', '/updatedAt'],
+  touches: ['/composition/transitions', '/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', ...VISUAL_TRANSITION_PARAMETER_TOUCHES, '/updatedAt'],
   fields: {
     transition_id: { kind: 'string', description: 'The layer transition id' },
   },
@@ -205,7 +206,7 @@ const moveConnectedClip: ShowCommandDescriptor = {
   description:
     'Move a transition-connected clip, carrying its whole rigid chain (every clip joined to it by ' +
     'layer transitions) to keep the transitions intact. Use move_clip for unconnected clips.',
-  touches: ['/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/transitions', '/updatedAt'],
+  touches: ['/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', ...VISUAL_TRANSITION_PARAMETER_TOUCHES, '/updatedAt'],
   fields: {
     clip_id: { kind: 'string', description: 'Any clip of the connected chain' },
     start_ms: { kind: 'number', description: 'New global start time for that clip' },

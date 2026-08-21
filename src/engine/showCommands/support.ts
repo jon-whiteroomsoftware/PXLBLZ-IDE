@@ -93,6 +93,46 @@ export function planRefusal(
   })
 }
 
+/**
+ * Every non-routing parameter leaf of a boundary transition. A kind switch
+ * writes all of them - the normalizer fills the new kind's defaults and
+ * removes the old kind's stale fields - and the parameter command stores
+ * any of them its per-kind validation admits. Routing-only fields
+ * (layoutId, routingDirection) and easing are absent: no command writes
+ * them deliberately, and claiming them would fake coverage.
+ * propertyTransitions is present because collapsing a transition to a Cut
+ * removes it.
+ */
+export const VISUAL_TRANSITION_PARAMETER_TOUCHES = [
+  '/transitions/*/kind', '/transitions/*/durationMs', '/transitions/*/crossfadePolicy',
+  '/transitions/*/feather', '/transitions/*/color', '/transitions/*/dissolveVariant',
+  '/transitions/*/shape', '/transitions/*/motionVariant', '/transitions/*/featherPolicy',
+  '/transitions/*/centerX', '/transitions/*/centerY', '/transitions/*/aspect',
+  '/transitions/*/rotation', '/transitions/*/revealMode', '/transitions/*/anchorX',
+  '/transitions/*/anchorY', '/transitions/*/contentScale', '/transitions/*/spinDirection',
+  '/transitions/*/addressPolicy', '/transitions/*/starPoints', '/transitions/*/starInner',
+  '/transitions/*/wipeVariant', '/transitions/*/wipeMode', '/transitions/*/orientation',
+  '/transitions/*/count', '/transitions/*/phase', '/transitions/*/clockwise',
+  '/transitions/*/edgePolicy', '/transitions/*/seed', '/transitions/*/blockSize',
+  '/transitions/*/scale', '/transitions/*/softness', '/transitions/*/direction',
+  '/transitions/*/ringWidth', '/transitions/*/cornerRadius', '/transitions/*/crossWidth',
+  '/transitions/*/crescentOffset', '/transitions/*/polygonSides', '/transitions/*/spin',
+  '/transitions/*/propertyTransitions',
+] as const
+
+/**
+ * The subset the parameter command can write: its whitelist stores the
+ * per-kind parameter fields, and a shape switch fills that shape's
+ * geometry defaults. Kind, duration, and the motion-geometry fields it has
+ * no whitelist entry for are absent.
+ */
+export const UPDATE_PARAMETER_TRANSITION_TOUCHES = VISUAL_TRANSITION_PARAMETER_TOUCHES.filter((pattern) => ![
+  '/transitions/*/kind', '/transitions/*/durationMs', '/transitions/*/revealMode',
+  '/transitions/*/anchorX', '/transitions/*/anchorY', '/transitions/*/contentScale',
+  '/transitions/*/spinDirection', '/transitions/*/addressPolicy',
+  '/transitions/*/propertyTransitions',
+].includes(pattern))
+
 /** Clamp a Show-level engine result's stamp to stay monotonic over the input record. */
 export function monotonicRecord(record: ShowRecord, result: ShowRecord): ShowRecord {
   return result.updatedAt > record.updatedAt

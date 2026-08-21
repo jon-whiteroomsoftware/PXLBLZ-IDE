@@ -72,7 +72,7 @@ const setShowEnd: ShowCommandDescriptor = {
   description:
     'Set the Show\'s loop boundary (Show End) in global milliseconds. Content is never truncated: the ' +
     'boundary clamps to the end of the last clip. Refused when nothing would change.',
-  touches: ['/scenes', '/composition/durationMs', '/updatedAt'],
+  touches: ['/scenes/*/durationMs', '/composition/durationMs', '/updatedAt'],
   fields: {
     end_ms: { kind: 'number', description: 'Requested Show End in milliseconds' },
   },
