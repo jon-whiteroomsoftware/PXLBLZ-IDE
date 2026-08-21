@@ -318,6 +318,12 @@ export function applyShowGroupPropertyAnimationChange(
   const occurrence = draft.groupOccurrences?.find((candidate) => candidate.id === owner.occurrenceId)
   const definition = draft.groupDefinitions?.find((candidate) => candidate.id === owner.definitionId)
   if (!occurrence || occurrence.definitionId !== owner.definitionId || !definition) return composition
+  // Accept materialized occurrence-prefixed ids, like the Group transition
+  // functions do; the definition stores the local form.
+  const prefix = `${occurrence.id}:`
+  const localId = (id: string): string => (id.startsWith(prefix) ? id.slice(prefix.length) : id)
+  if ('trackId' in change) change = { ...change, trackId: localId(change.trackId) }
+  if ('keyframeId' in change) change = { ...change, keyframeId: localId(change.keyframeId) }
   if (change.kind === 'add-track') {
     const durationMs = Math.max(
       0,

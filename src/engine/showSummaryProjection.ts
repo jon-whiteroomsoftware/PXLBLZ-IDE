@@ -139,6 +139,9 @@ export function projectShowSummary(
   const occurrenceIds = (composition.groupOccurrences ?? []).map((occurrence) => occurrence.id)
   const occurrenceOf = (elementId: string): string | undefined =>
     occurrenceIds.find((occurrenceId) => elementId.startsWith(`${occurrenceId}:`))
+  const clipOccurrenceById = new Map(unified.zones.flatMap((zone) =>
+    zone.layers.flatMap((layer) => layer.clips.map((clip) => [clip.id, clip.groupOccurrenceId] as const)),
+  ))
 
   return {
     showId: show.id,
@@ -186,8 +189,12 @@ export function projectShowSummary(
           boundary: Boolean(junction.boundaryTransition),
           layerTransitionId: junction.transition?.id ?? null,
           ...(() => {
-            const occurrenceId = occurrenceOf(junction.id)
-            return occurrenceId ? { groupOccurrenceId: occurrenceId } : {}
+            // Derived Cuts carry no authored id, so ownership comes from the
+            // endpoint clips: a junction is Group-internal when both sides
+            // belong to the same occurrence.
+            const left = clipOccurrenceById.get(junction.leftClipId)
+            const right = clipOccurrenceById.get(junction.rightClipId)
+            return left !== undefined && left === right ? { groupOccurrenceId: left } : {}
           })(),
         })),
       })),

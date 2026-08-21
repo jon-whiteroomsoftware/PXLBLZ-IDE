@@ -8,6 +8,7 @@ import { createDefaultShow, updateShowZone } from './showModel'
 import { insertShowLayerTransition, resizeShowLayerTransition } from './showLayerTransitionAuthoring'
 import { duplicateShowLayoutInterval } from './showLayoutIntervals'
 import { deleteShowGroupOccurrence, resizeShowGroupLayerTransition } from './showGroupModel'
+import { applyShowGroupPropertyAnimationChange } from './showPropertyAnimationEditorModel'
 import { moveShowTimelineMarker } from './showTimelineAuthoring'
 import { resizeShowClipAtGlobalTime, type ShowTimelineClipOwner } from './showTimelineClipAuthoring'
 import { projectShowSummary, type ShowSummaryClip } from './showSummaryProjection'
@@ -331,6 +332,15 @@ describe('projectShowSummary', () => {
             view: { mirror: false, phase: 0, brightness: 1 },
             layerOffset: 0,
           },
+          {
+            id: 'g-c',
+            instanceId: 'inst-g',
+            startMs: 8_000,
+            durationMs: 2_000,
+            opacity: 1,
+            view: { mirror: false, phase: 0, brightness: 1 },
+            layerOffset: 0,
+          },
         ],
         transitions: [{
           id: 'lt-g',
@@ -366,11 +376,16 @@ describe('projectShowSummary', () => {
 
     const mainLayer = summary.zones[0].layers.find((layer) => layer.kind === 'main')!
     const children = mainLayer.clips.filter((clip) => clip.groupOccurrenceId === 'occ-1')
-    expect(children.map((clip) => clip.clipId)).toEqual(['occ-1:g-a', 'occ-1:g-b'])
+    expect(children.map((clip) => clip.clipId)).toEqual(['occ-1:g-a', 'occ-1:g-b', 'occ-1:g-c'])
 
-    const groupJunction = mainLayer.junctions.find((junction) => junction.groupOccurrenceId === 'occ-1')!
+    const groupJunction = mainLayer.junctions.find((junction) => junction.layerTransitionId !== null && junction.groupOccurrenceId === 'occ-1')!
     expect(groupJunction.junctionId).toBe('occ-1:lt-g')
     expect(groupJunction.afterClipId).toBe('occ-1:g-a')
+
+    // A derived Cut between abutting Group children carries the same owner.
+    const groupCut = mainLayer.junctions.find((junction) => junction.kind === 'cut' && junction.groupOccurrenceId === 'occ-1')!
+    expect(groupCut.afterClipId).toBe('occ-1:g-b')
+    expect(groupCut.beforeClipId).toBe('occ-1:g-c')
 
     const groupTrack = summary.tracks.find((track) => track.groupOccurrenceId === 'occ-1')!
     expect(groupTrack).toMatchObject({ trackId: 'occ-1:track-g', sceneId: 'scene-2', keyframeCount: 2 })
@@ -378,14 +393,33 @@ describe('projectShowSummary', () => {
       .toBeUndefined()
 
     // The occurrence id pairs with the materialized ids in the Group functions.
+    // Shrinking, since growing would collide with the cut-abutting g-c.
     const resized = resizeShowGroupLayerTransition(show, composition, {
       occurrenceId: groupJunction.groupOccurrenceId!,
       transitionId: groupJunction.layerTransitionId!,
-      durationMs: 2_000,
+      durationMs: 500,
     })
     expect(resized).not.toBe(composition)
     const deleted = deleteShowGroupOccurrence(composition, children[0].groupOccurrenceId!)
     expect(deleted).not.toBe(composition)
+
+    // Materialized track and keyframe ids round-trip into the Group
+    // property-animation mutation with the summary's occurrence id.
+    const changed = applyShowGroupPropertyAnimationChange(
+      show,
+      composition,
+      { kind: 'group', definitionId: 'group-1', occurrenceId: groupTrack.groupOccurrenceId! },
+      {
+        kind: 'update-keyframe',
+        trackId: groupTrack.trackId,
+        keyframeId: 'occ-1:kf-g1',
+        changes: { value: 0.5 },
+      },
+      () => 'unused-id',
+    )
+    expect(changed).not.toBe(composition)
+    expect(changed.groupDefinitions?.[0].propertyTracks?.[0].keyframes
+      .find((keyframe) => keyframe.id === 'kf-g1')?.value).toBe(0.5)
   })
 
   it('marker ids from the summary reject unknown ids the same way', () => {
