@@ -10,6 +10,7 @@ import {
 import type { ShowRecord } from '../personalContentRecords'
 import { showLoopDurationMs } from '../showModel'
 import { projectShowSummary } from '../showSummaryProjection'
+import { insertShowLayerTransition } from '../showLayerTransitionAuthoring'
 import { SHOW_COMMANDS, applyShowCommand, type ShowCommandChange } from './registry'
 
 // Golden accepted case and refusal partitions per registry entry, plus the
@@ -130,6 +131,14 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     expect(summaryClips(record).find((clip) => clip.clipId === 'clip-b')?.durationMs).toBe(9_000)
 
+    // A generous request clamps to the free time before the next clip.
+    const clamped = applyOk(showCommandFixture(), 'resize_clip', {
+      clip_id: 'clip-b',
+      duration_ms: 20_000,
+    })
+    expect(clamped.changes[0].description).toContain('clamped')
+    expect(summaryClips(clamped.record).find((clip) => clip.clipId === 'clip-b')?.durationMs).toBe(10_000)
+
     const overlay = applyOk(showCommandFixture(), 'resize_clip', {
       clip_id: 'clip-ov',
       duration_ms: 4_000,
@@ -203,6 +212,23 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     const tracked = applyOk(trackedCommandFixture(), 'remove_clip', { clip_id: 'clip-b' })
     const scene1 = tracked.record.composition?.scenes.find((scene) => scene.sceneId === 'scene-1')
     expect((scene1?.propertyTracks ?? []).some((track) => track.id === 'track-b')).toBe(false)
+
+    // Removing a transition-connected clip deletes the transition too.
+    const base = showCommandFixture()
+    const adjacent = applyOk(base, 'move_clip', { clip_id: 'clip-b', start_ms: 10_000 })
+    const withTransition = insertShowLayerTransition(adjacent.record, adjacent.record.composition!, {
+      id: 'lt-1',
+      fromPlacementId: 'clip-a',
+      toPlacementId: 'clip-b',
+      kind: 'crossfade',
+      durationMs: 1_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'snapshot-live',
+    })
+    expect(withTransition).not.toBe(adjacent.record.composition)
+    const connected = { ...adjacent.record, composition: withTransition }
+    const removedConnected = applyOk(connected, 'remove_clip', { clip_id: 'clip-b' })
+    expect(removedConnected.record.composition?.transitions ?? []).toEqual([])
   },
   make_clip_pattern_independent: () => {
     const { record, changes } = applyOk(showCommandFixture(), 'make_clip_pattern_independent', {
@@ -269,6 +295,11 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     expect(record.composition?.markers?.find((marker) => marker.id === changes[0].targetId))
       .toMatchObject({ timeMs: 15_000, name: 'Chorus', color: '#ff8800' })
+
+    // The change list reports the clamped time the engine stores.
+    const clamped = applyOk(showCommandFixture(), 'add_marker', { at_ms: -50 })
+    expect(clamped.changes[0].description).toContain('at 0 ms')
+    expect(clamped.record.composition?.markers?.some((marker) => marker.timeMs === 0)).toBe(true)
   },
   move_marker: () => {
     const { record } = applyOk(showCommandFixture(), 'move_marker', {

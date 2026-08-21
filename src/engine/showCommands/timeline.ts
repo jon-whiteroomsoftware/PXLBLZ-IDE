@@ -111,7 +111,8 @@ const addMarker: ShowCommandDescriptor = {
   apply(record, input) {
     const marker = {
       id: newPersonalContentId(),
-      timeMs: input.at_ms as number,
+      // The engine rounds and clamps to zero; report what it will store.
+      timeMs: Math.max(0, Math.round(input.at_ms as number)),
       ...(input.name !== undefined ? { name: input.name as string } : {}),
       ...(input.color !== undefined ? { color: input.color as string } : {}),
     }
@@ -140,7 +141,8 @@ const moveMarker: ShowCommandDescriptor = {
     at_ms: { kind: 'number', description: 'New global time in milliseconds' },
   },
   apply(record, input) {
-    const result = moveShowTimelineMarker(record, input.marker_id as string, input.at_ms as number)
+    const timeMs = Math.max(0, Math.round(input.at_ms as number))
+    const result = moveShowTimelineMarker(record, input.marker_id as string, timeMs)
     if (result === record) return unknownMarker(record, input.marker_id as string)
     return {
       ok: true,
@@ -148,7 +150,7 @@ const moveMarker: ShowCommandDescriptor = {
       changes: [{
         command: 'move_marker',
         targetId: input.marker_id as string,
-        description: `Marker ${input.marker_id} moved to ${Math.round(input.at_ms as number)} ms.`,
+        description: `Marker ${input.marker_id} moved to ${timeMs} ms.`,
       }],
     }
   },

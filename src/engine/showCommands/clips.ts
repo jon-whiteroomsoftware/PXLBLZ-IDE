@@ -196,10 +196,23 @@ const resizeClip: ShowCommandDescriptor = {
     const found = resolveCommandClip(record, composition, input.clip_id as string)
     if (!found.ok) return found
     const { clip, owner, zoneName } = found.context
+    // Clamp into the free time before the next clip on the same layer, so a
+    // generous request lands instead of refusing on the neighbor.
+    const nextStartMs = found.context.siblings
+      .filter((sibling) => (
+        sibling.clip.zoneId === clip.zoneId
+        && sibling.clip.layerId === clip.layerId
+        && sibling.clip.kind === clip.kind
+        && sibling.clip.startMs > clip.startMs
+      ))
+      .reduce((nearest, sibling) => Math.min(nearest, sibling.clip.startMs), Number.POSITIVE_INFINITY)
+    const availableMs = Math.min(nextStartMs, found.context.timelineDurationMs) - clip.startMs
+    const requestedMs = Math.round(input.duration_ms as number)
+    const durationMs = Math.min(requestedMs, availableMs)
     const result = resizeShowClipAtGlobalTime(record, composition, {
       owner,
       globalStartMs: clip.startMs,
-      durationMs: input.duration_ms as number,
+      durationMs,
     })
     if (result === composition) {
       return engineIdentityRefusal(
@@ -214,7 +227,9 @@ const resizeClip: ShowCommandDescriptor = {
       changes: [{
         command: 'resize_clip',
         targetId: clip.id,
-        description: `Clip ${clip.patternName} resized to ${Math.round(input.duration_ms as number)} ms.`,
+        description:
+          `Clip ${clip.patternName} resized to ${durationMs} ms` +
+          `${durationMs < requestedMs ? ' (clamped to the free time)' : ''}.`,
       }],
     }
   },
@@ -311,7 +326,7 @@ const removeClip: ShowCommandDescriptor = {
   description:
     'Remove a clip (every Scene segment of it) and its placement-owned property tracks. The last clip ' +
     'of a Show refuses; a Show keeps at least one clip.',
-  touches: ['/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/updatedAt'],
+  touches: ['/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/composition/transitions', '/updatedAt'],
   fields: {
     clip_id: { kind: 'string', description: 'The clip to remove' },
   },
