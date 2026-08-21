@@ -2,6 +2,7 @@
 // unified timeline projection, owner construction, and refusal shapes over
 // plan results. Pure logic only.
 import type { ShowCompositionV1, ShowRecord } from '../personalContentRecords'
+import { removeShowBoundaryTransition } from '../showModel'
 import type { ShowTimelineClipOwner } from '../showTimelineClipAuthoring'
 import {
   projectShowUnifiedTimeline,
@@ -90,6 +91,39 @@ export function planRefusal(
     message: `${context}: ${plan.reason}`,
     ...(remedy ? { remedy } : {}),
   })
+}
+
+/** Clamp a Show-level engine result's stamp to stay monotonic over the input record. */
+export function monotonicRecord(record: ShowRecord, result: ShowRecord): ShowRecord {
+  return result.updatedAt > record.updatedAt
+    ? result
+    : { ...result, updatedAt: record.updatedAt + 1 }
+}
+
+/**
+ * A chain shift can move a clip away from a Scene-boundary junction; the
+ * boundary transition then holds hidden time with no junction left. Compare
+ * the boundary junctions before and after and replace any broken one with a
+ * Cut, the same canonicalization the Show-level move and resize wrappers
+ * perform.
+ */
+export function canonicalizeBoundaryAfterShift(
+  record: ShowRecord,
+  before: ShowCompositionV1,
+  after: ShowCompositionV1,
+): ShowRecord {
+  const boundaryJunctions = (composition: ShowCompositionV1) =>
+    projectShowUnifiedTimeline(record, composition).zones
+      .flatMap((zone) => zone.layers.flatMap((layer) => layer.junctions))
+      .filter((junction) => junction.boundaryTransition)
+  const surviving = new Set(boundaryJunctions(after).map((junction) => junction.id))
+  const brokenIds = boundaryJunctions(before)
+    .filter((junction) => !surviving.has(junction.id))
+    .map((junction) => junction.boundaryTransition!.id)
+  return brokenIds.reduce(
+    (current, transitionId) => removeShowBoundaryTransition(current, transitionId),
+    record,
+  )
 }
 
 /** An engine identity refusal, when no plan explains it. */

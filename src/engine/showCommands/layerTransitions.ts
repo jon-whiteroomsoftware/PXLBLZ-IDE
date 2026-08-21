@@ -6,7 +6,7 @@ import { newPersonalContentId } from '../personalContentMetadata'
 import type { ShowLayerTransition, ShowRecord } from '../personalContentRecords'
 import {
   insertShowLayerTransition,
-  moveShowConnectedClipAtGlobalTime,
+  moveShowConnectedClipInShowAtGlobalTime,
   planShowLayerTransitionInsertion,
   resetShowLayerTransitionToCut,
   resizeShowLayerTransition,
@@ -19,7 +19,12 @@ import {
   type ShowCommandDescriptor,
   type ShowCommandRefusal,
 } from './registry'
-import { engineIdentityRefusal, resolveCommandClip } from './support'
+import {
+  canonicalizeBoundaryAfterShift,
+  engineIdentityRefusal,
+  monotonicRecord,
+  resolveCommandClip,
+} from './support'
 
 function resolveLayerTransition(
   record: ShowRecord,
@@ -125,7 +130,7 @@ const resizeLayerTransition: ShowCommandDescriptor = {
   description:
     'Resize a layer transition, shifting the transition-connected chain after it. A duration of zero ' +
     'closes it into a cut. Refused when growth would collide with a later clip.',
-  touches: ['/composition/transitions', '/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/updatedAt'],
+  touches: ['/composition/transitions', '/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/transitions', '/updatedAt'],
   fields: {
     transition_id: { kind: 'string', description: 'The layer transition id' },
     duration_ms: { kind: 'integer', description: 'New duration in milliseconds; 0 closes to a cut' },
@@ -152,7 +157,7 @@ const resizeLayerTransition: ShowCommandDescriptor = {
     }
     return {
       ok: true,
-      record: withComposition(record, result),
+      record: withComposition(canonicalizeBoundaryAfterShift(record, composition, result), result),
       changes: [{
         command: 'resize_layer_transition',
         targetId: found.transition.id,
@@ -170,7 +175,7 @@ const resetLayerTransitionToCut: ShowCommandDescriptor = {
   description:
     'Remove a layer transition, closing its interval so the two clips meet at a cut again; the ' +
     'connected chain after it shifts earlier by the removed duration.',
-  touches: ['/composition/transitions', '/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/updatedAt'],
+  touches: ['/composition/transitions', '/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/transitions', '/updatedAt'],
   fields: {
     transition_id: { kind: 'string', description: 'The layer transition id' },
   },
@@ -186,7 +191,7 @@ const resetLayerTransitionToCut: ShowCommandDescriptor = {
     }
     return {
       ok: true,
-      record: withComposition(record, result),
+      record: withComposition(canonicalizeBoundaryAfterShift(record, composition, result), result),
       changes: [{
         command: 'reset_layer_transition_to_cut',
         targetId: found.transition.id,
@@ -201,7 +206,7 @@ const moveConnectedClip: ShowCommandDescriptor = {
   description:
     'Move a transition-connected clip, carrying its whole rigid chain (every clip joined to it by ' +
     'layer transitions) to keep the transitions intact. Use move_clip for unconnected clips.',
-  touches: ['/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/updatedAt'],
+  touches: ['/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/transitions', '/updatedAt'],
   fields: {
     clip_id: { kind: 'string', description: 'Any clip of the connected chain' },
     start_ms: { kind: 'number', description: 'New global start time for that clip' },
@@ -223,16 +228,16 @@ const moveConnectedClip: ShowCommandDescriptor = {
           layerIndex: clip.layerIndex,
           globalStartMs: input.start_ms as number,
         }
-    const result = moveShowConnectedClipAtGlobalTime(record, composition, { owner, target })
-    if (result === composition) {
+    const result = moveShowConnectedClipInShowAtGlobalTime(record, composition, { owner, target })
+    if (result === record) {
       return engineIdentityRefusal(
         'move_connected_clip',
-        'The destination may be occupied or outside the Show.',
+        'The destination may be occupied, outside the Show, or the start unchanged.',
       )
     }
     return {
       ok: true,
-      record: withComposition(record, result),
+      record: monotonicRecord(record, withComposition(result, result.composition!)),
       changes: [{
         command: 'move_connected_clip',
         targetId: clip.id,

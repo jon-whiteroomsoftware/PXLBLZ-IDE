@@ -12,15 +12,32 @@ import {
   type ShowCommandDescriptor,
   type ShowCommandRefusal,
 } from './registry'
+import { monotonicRecord } from './support'
 
 const BOUNDARY_KINDS = ['cut', 'crossfade', 'fade-color', 'wipe', 'dither', 'portal', 'motion'] as const
 
-/** Numeric and boolean parameter fields a boundary transition may carry. */
-const PARAMETER_FIELDS = new Set([
-  'direction', 'wipeVariant', 'wipeMode', 'orientation', 'count', 'phase', 'clockwise',
-  'edgePolicy', 'dissolveVariant', 'seed', 'blockSize', 'softness', 'feather',
-  'shape', 'motionVariant', 'color', 'crossfadePolicy', 'featherPolicy', 'holdMs',
-])
+/** Parameter fields a boundary transition may carry, with their value types. */
+const PARAMETER_FIELDS: Record<string, 'number' | 'boolean' | 'string'> = {
+  direction: 'number',
+  wipeVariant: 'string',
+  wipeMode: 'string',
+  orientation: 'string',
+  count: 'number',
+  phase: 'number',
+  clockwise: 'boolean',
+  edgePolicy: 'string',
+  dissolveVariant: 'string',
+  seed: 'number',
+  blockSize: 'number',
+  softness: 'number',
+  feather: 'number',
+  shape: 'string',
+  motionVariant: 'string',
+  color: 'string',
+  crossfadePolicy: 'string',
+  featherPolicy: 'string',
+  holdMs: 'number',
+}
 
 function resolveBoundaryTransition(
   record: ShowRecord,
@@ -69,7 +86,7 @@ const setBoundaryTransition: ShowCommandDescriptor = {
       }
       return {
         ok: true,
-        record: result,
+        record: monotonicRecord(record, result),
         changes: [{
           command: 'set_boundary_transition',
           targetId: resolved.transition.id,
@@ -89,7 +106,7 @@ const setBoundaryTransition: ShowCommandDescriptor = {
     }
     return {
       ok: true,
-      record: result,
+      record: monotonicRecord(record, result),
       changes: [{
         command: 'set_boundary_transition',
         targetId: resolved.transition.id,
@@ -138,7 +155,7 @@ const setBoundaryTransitionTiming: ShowCommandDescriptor = {
     }
     return {
       ok: true,
-      record: result,
+      record: monotonicRecord(record, result),
       changes: [{
         command: 'set_boundary_transition_timing',
         targetId: resolved.transition.id,
@@ -164,11 +181,24 @@ const updateBoundaryTransitionParameter: ShowCommandDescriptor = {
     const resolved = resolveBoundaryTransition(record, input.transition_id as string)
     if (!resolved.ok) return resolved
     const parameter = input.parameter as string
-    if (!PARAMETER_FIELDS.has(parameter)) {
+    const expected = PARAMETER_FIELDS[parameter]
+    if (!expected) {
       return refuseShowCommand({
         code: 'unknown-parameter',
         message: `"${parameter}" is not a boundary transition parameter.`,
-        candidates: [...PARAMETER_FIELDS],
+        candidates: Object.keys(PARAMETER_FIELDS),
+      })
+    }
+    const value = input.value
+    const validType = expected === 'number'
+      ? typeof value === 'number' && Number.isFinite(value)
+      : expected === 'boolean'
+        ? typeof value === 'boolean'
+        : typeof value === 'string'
+    if (!validType) {
+      return refuseShowCommand({
+        code: 'invalid-argument',
+        message: `update_boundary_transition_parameter: "${parameter}" takes a ${expected}.`,
       })
     }
     const result = updateShowBoundaryTransition(record, resolved.transition.id, {
@@ -196,11 +226,12 @@ const updateBoundaryTransitionParameter: ShowCommandDescriptor = {
     }
     return {
       ok: true,
-      record: result,
+      record: monotonicRecord(record, result),
       changes: [{
         command: 'update_boundary_transition_parameter',
         targetId: resolved.transition.id,
-        description: `Boundary transition ${resolved.transition.id}: ${parameter} is now ${JSON.stringify(input.value)}.`,
+        // Report what normalization stored, which may differ from the input.
+        description: `Boundary transition ${resolved.transition.id}: ${parameter} is now ${JSON.stringify(stored)}.`,
       }],
     }
   },

@@ -59,6 +59,36 @@ function summaryClips(record: ShowRecord) {
     .flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
 }
 
+/**
+ * A transition-connected chain whose last clip ends exactly at the Scene
+ * boundary, with a Scene-2 clip on the far side of the boundary crossfade -
+ * so shifting the chain earlier breaks the boundary junction and exercises
+ * the Cut canonicalization of ShowRecord.transitions.
+ */
+function boundaryPinnedChain(): { record: ShowRecord; transitionId: string } {
+  const adjacent = applyOk(showCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 14_000 })
+  const inserted = applyOk(adjacent.record, 'insert_layer_transition', {
+    from_clip_id: 'clip-b',
+    to_clip_id: 'clip-c',
+    duration_ms: 1_000,
+  })
+  // Chain (clip-b, clip-c): slide it so clip-c ends at the boundary...
+  const pinned = applyOk(inserted.record, 'move_connected_clip', { clip_id: 'clip-c', start_ms: 24_000 })
+  // ...then add the far-side clip after the boundary crossfade window.
+  const farSide = applyOk(pinned.record, 'add_clip', {
+    zone_id: 'zone-1',
+    start_ms: 32_000,
+    duration_ms: 5_000,
+    pattern_kind: 'stock',
+    pattern_id: 'CometLoom',
+  })
+  expect(summaryClips(farSide.record).find((clip) => clip.clipId === 'clip-c')?.endMs).toBe(30_000)
+  const junctions = projectShowSummary(farSide.record, farSide.record.composition!).zones
+    .flatMap((zone) => zone.layers.flatMap((layer) => layer.junctions))
+  expect(junctions.some((junction) => junction.boundary)).toBe(true)
+  return { record: farSide.record, transitionId: inserted.changes[0].targetId as string }
+}
+
 export const GOLDEN_RUNS: Record<string, () => void> = {
   add_clip: () => {
     const { record, changes } = applyOk(showCommandFixture(), 'add_clip', {
@@ -418,6 +448,15 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     expect(resized.record.composition?.transitions?.[0].durationMs).toBe(2_000)
     expect(summaryClips(resized.record).find((clip) => clip.clipId === 'clip-b')?.startMs).toBe(12_000)
+
+    // Shrinking pulls the chain off the Scene boundary; the broken boundary
+    // transition canonicalizes to a Cut.
+    const pinned = boundaryPinnedChain()
+    const shrunk = applyOk(pinned.record, 'resize_layer_transition', {
+      transition_id: pinned.transitionId,
+      duration_ms: 500,
+    })
+    expect(shrunk.record.transitions?.some((candidate) => candidate.kind === 'crossfade')).toBe(false)
   },
   reset_layer_transition_to_cut: () => {
     const adjacent = applyOk(trackedCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 10_000 })
@@ -431,6 +470,14 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     expect(reset.record.composition?.transitions ?? []).toEqual([])
     expect(summaryClips(reset.record).find((clip) => clip.clipId === 'clip-b')?.startMs).toBe(10_000)
+
+    // Closing the transition pulls the chain off the Scene boundary; the
+    // broken boundary transition canonicalizes to a Cut.
+    const pinned = boundaryPinnedChain()
+    const closed = applyOk(pinned.record, 'reset_layer_transition_to_cut', {
+      transition_id: pinned.transitionId,
+    })
+    expect(closed.record.transitions?.some((candidate) => candidate.kind === 'crossfade')).toBe(false)
   },
   move_connected_clip: () => {
     const adjacent = applyOk(trackedCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 10_000 })
@@ -446,6 +493,12 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(summaryClips(moved.record).find((clip) => clip.clipId === 'clip-a')?.startMs).toBe(2_000)
     expect(summaryClips(moved.record).find((clip) => clip.clipId === 'clip-b')?.startMs).toBe(13_000)
     expect(moved.record.composition?.transitions).toHaveLength(1)
+
+    // Moving the chain off the Scene boundary canonicalizes the broken
+    // boundary transition to a Cut through the Show-level wrapper.
+    const pinned = boundaryPinnedChain()
+    const pulled = applyOk(pinned.record, 'move_connected_clip', { clip_id: 'clip-c', start_ms: 20_000 })
+    expect(pulled.record.transitions?.some((candidate) => candidate.kind === 'crossfade')).toBe(false)
   },
 }
 
