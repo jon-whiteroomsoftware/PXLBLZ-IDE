@@ -145,6 +145,40 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     expect(summaryClips(overlay.record).find((clip) => clip.clipId === 'clip-ov')?.durationMs).toBe(4_000)
 
+    // Overlay layers join across Scenes by index: the clamp sees the next
+    // Scene's overlay clip even though its Scene-local layer id differs.
+    const base = boundaryFreeTrackedFixture()
+    const crossScene = {
+      ...base,
+      composition: {
+        ...base.composition!,
+        scenes: base.composition!.scenes.map((scene) => scene.sceneId === 'scene-2'
+          ? {
+              ...scene,
+              zones: scene.zones.map((zone) => ({
+                ...zone,
+                overlays: [{
+                  id: 'overlay-2',
+                  name: 'Overlay 2',
+                  placements: [{
+                    id: 'clip-ov2',
+                    instanceId: 'instance-ov',
+                    startMs: 6_000,
+                    durationMs: 4_000,
+                    opacity: 1,
+                    view: { mirror: false, phase: 0, brightness: 1 },
+                  }],
+                }],
+              })),
+            }
+          : scene),
+      },
+    }
+    const crossClamped = applyOk(crossScene, 'resize_clip', { clip_id: 'clip-ov', duration_ms: 90_000 })
+    expect(crossClamped.changes[0].description).toContain('clamped')
+    expect(summaryClips(crossClamped.record).find((clip) => clip.clipId === 'clip-ov')?.durationMs)
+      .toBe(34_000)
+
     // Growing a clip whose sole-use instance carries an instance track
     // across the Scene boundary splits that track segment per Scene.
     const grown = applyOk(boundaryFreeInstanceTrackedFixture(), 'resize_clip', {

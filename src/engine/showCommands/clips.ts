@@ -198,11 +198,14 @@ const resizeClip: ShowCommandDescriptor = {
     const { clip, owner, zoneName } = found.context
     // Clamp into the free time before the next clip on the same layer, so a
     // generous request lands instead of refusing on the neighbor.
+    // Siblings on the same projected layer: the unified timeline joins
+    // overlay layers across Scenes by index, and overlay layer ids are
+    // Scene-local, so position (zone, kind, layerIndex) is the identity.
     const nextStartMs = found.context.siblings
       .filter((sibling) => (
         sibling.clip.zoneId === clip.zoneId
-        && sibling.clip.layerId === clip.layerId
         && sibling.clip.kind === clip.kind
+        && sibling.clip.layerIndex === clip.layerIndex
         && sibling.clip.startMs > clip.startMs
       ))
       .reduce((nearest, sibling) => Math.min(nearest, sibling.clip.startMs), Number.POSITIVE_INFINITY)
