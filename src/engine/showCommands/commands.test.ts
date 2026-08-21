@@ -11,6 +11,7 @@ import type { ShowRecord } from '../personalContentRecords'
 import { showLoopDurationMs } from '../showModel'
 import { projectShowSummary } from '../showSummaryProjection'
 import { insertShowLayerTransition } from '../showLayerTransitionAuthoring'
+import { projectShowLayoutIntervals } from '../showLayoutIntervals'
 import { SHOW_COMMANDS, applyShowCommand, type ShowCommandChange } from './registry'
 
 // Golden accepted case and refusal partitions per registry entry, plus the
@@ -87,6 +88,54 @@ function boundaryPinnedChain(): { record: ShowRecord; transitionId: string } {
     .flatMap((zone) => zone.layers.flatMap((layer) => layer.junctions))
   expect(junctions.some((junction) => junction.boundary)).toBe(true)
   return { record: farSide.record, transitionId: inserted.changes[0].targetId as string }
+}
+
+function effectsOf(record: ShowRecord, placementId: string) {
+  for (const scene of record.composition?.scenes ?? []) {
+    for (const zone of scene.zones) {
+      const main = zone.main.find((candidate) => candidate.id === placementId)
+      if (main) return main.effects ?? []
+      for (const layer of zone.overlays) {
+        const overlay = layer.placements.find((candidate) => candidate.id === placementId)
+        if (overlay) return overlay.effects ?? []
+      }
+    }
+  }
+  return []
+}
+
+/** clip-a carrying one brightness Effect. */
+function withEffect(): { record: ShowRecord; effectId: string } {
+  const { record, changes } = applyOk(showCommandFixture(), 'add_clip_effect', {
+    clip_id: 'clip-a',
+    kind: 'brightness',
+    parameters: { brightness: 0.4 },
+  })
+  return { record, effectId: changes[0].targetId as string }
+}
+
+/** A brightness track on clip-a with keyframes at global 0 and 8000 ms. */
+function withTrack(): { record: ShowRecord; trackId: string } {
+  const { record, changes } = applyOk(showCommandFixture(), 'add_property_track', {
+    target: { kind: 'placement-view', placementId: 'clip-a', property: 'brightness' },
+    keyframes: [
+      { time_ms: 0, value: 1 },
+      { time_ms: 8_000, value: 0.2 },
+    ],
+  })
+  return { record, trackId: changes[0].targetId as string }
+}
+
+function record0Track(record: ShowRecord, trackId: string) {
+  const track = record.composition?.scenes
+    .flatMap((scene) => scene.propertyTracks ?? [])
+    .find((candidate) => candidate.id === trackId)
+  expect(track).toBeDefined()
+  return track!
+}
+
+function trackTimes(record: ShowRecord, trackId: string): number[] {
+  return record0Track(record, trackId).keyframes.map((keyframe) => keyframe.timeMs)
 }
 
 export const GOLDEN_RUNS: Record<string, () => void> = {
@@ -479,6 +528,165 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     expect(closed.record.transitions?.some((candidate) => candidate.kind === 'crossfade')).toBe(false)
   },
+  add_clip_effect: () => {
+    const { record, changes } = applyOk(showCommandFixture(), 'add_clip_effect', {
+      clip_id: 'clip-a',
+      kind: 'brightness',
+      parameters: { brightness: 0.4 },
+    })
+    const effects = effectsOf(record, 'clip-a')
+    expect(effects).toHaveLength(1)
+    expect(effects[0].id).toBe(changes[0].targetId)
+    expect('brightness' in effects[0] && effects[0].brightness).toBe(0.4)
+
+    const overlay = applyOk(showCommandFixture(), 'add_clip_effect', { clip_id: 'clip-ov', kind: 'hue' })
+    expect(effectsOf(overlay.record, 'clip-ov')).toHaveLength(1)
+  },
+  update_clip_effect: () => {
+    const base = withEffect()
+    const { record } = applyOk(base.record, 'update_clip_effect', {
+      clip_id: 'clip-a',
+      effect_id: base.effectId,
+      parameter: 'brightness',
+      value: 0.7,
+    })
+    const effect = effectsOf(record, 'clip-a')[0]
+    expect('brightness' in effect && effect.brightness).toBe(0.7)
+  },
+  duplicate_clip_effect: () => {
+    const base = withEffect()
+    const { record, changes } = applyOk(base.record, 'duplicate_clip_effect', {
+      clip_id: 'clip-a',
+      effect_id: base.effectId,
+    })
+    expect(effectsOf(record, 'clip-a').map((effect) => effect.id))
+      .toEqual([base.effectId, changes[0].targetId])
+  },
+  move_clip_effect: () => {
+    const base = withEffect()
+    const withHue = applyOk(base.record, 'add_clip_effect', { clip_id: 'clip-a', kind: 'hue' })
+    const hueId = withHue.changes[0].targetId as string
+    const { record } = applyOk(withHue.record, 'move_clip_effect', {
+      clip_id: 'clip-a',
+      effect_id: hueId,
+      direction: 'earlier',
+    })
+    expect(effectsOf(record, 'clip-a').map((effect) => effect.id)).toEqual([hueId, base.effectId])
+  },
+  remove_clip_effect: () => {
+    const base = withEffect()
+    const { record } = applyOk(base.record, 'remove_clip_effect', {
+      clip_id: 'clip-a',
+      effect_id: base.effectId,
+    })
+    expect(effectsOf(record, 'clip-a')).toEqual([])
+  },
+  add_property_track: () => {
+    const { record, changes } = applyOk(showCommandFixture(), 'add_property_track', {
+      target: { kind: 'placement-view', placementId: 'clip-a', property: 'brightness' },
+      keyframes: [
+        { time_ms: 0, value: 1 },
+        { time_ms: 8_000, value: 0.2 },
+      ],
+    })
+    const track = record.composition?.scenes.find((scene) => scene.sceneId === 'scene-1')
+      ?.propertyTracks?.find((candidate) => candidate.id === changes[0].targetId)
+    expect(track?.keyframes.map((keyframe) => keyframe.timeMs)).toEqual([0, 8_000])
+
+    // A Scene-2 target converts global times to that Scene's local time.
+    const moved = applyOk(showCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 34_000 })
+    const sceneTwo = applyOk(moved.record, 'add_property_track', {
+      target: { kind: 'placement-view', placementId: 'clip-b', property: 'brightness' },
+      keyframes: [
+        { time_ms: 34_000, value: 1 },
+        { time_ms: 40_000, value: 0.5 },
+      ],
+    })
+    const track2 = sceneTwo.record.composition?.scenes.find((scene) => scene.sceneId === 'scene-2')
+      ?.propertyTracks?.find((candidate) => candidate.id === sceneTwo.changes[0].targetId)
+    expect(track2?.keyframes.map((keyframe) => keyframe.timeMs)).toEqual([2_000, 8_000])
+  },
+  add_keyframe: () => {
+    const base = withTrack()
+    const { record } = applyOk(base.record, 'add_keyframe', {
+      track_id: base.trackId,
+      time_ms: 5_000,
+      value: 0.6,
+    })
+    expect(trackTimes(record, base.trackId)).toEqual([0, 5_000, 8_000])
+  },
+  update_keyframe: () => {
+    const base = withTrack()
+    const track = record0Track(base.record, base.trackId)
+    const { record } = applyOk(base.record, 'update_keyframe', {
+      track_id: base.trackId,
+      keyframe_id: track.keyframes[1].id,
+      value: 0.4,
+      time_ms: 7_000,
+    })
+    const updated = record0Track(record, base.trackId)
+    expect(updated.keyframes[1]).toMatchObject({ timeMs: 7_000, value: 0.4 })
+  },
+  delete_keyframe: () => {
+    const base = withTrack()
+    const middle = applyOk(base.record, 'add_keyframe', { track_id: base.trackId, time_ms: 5_000, value: 0.6 })
+    const { record } = applyOk(middle.record, 'delete_keyframe', {
+      track_id: base.trackId,
+      keyframe_id: middle.changes[0].targetId as string,
+    })
+    expect(trackTimes(record, base.trackId)).toEqual([0, 8_000])
+  },
+  delete_property_track: () => {
+    const base = withTrack()
+    const { record } = applyOk(base.record, 'delete_property_track', { track_id: base.trackId })
+    expect(record.composition?.scenes.find((scene) => scene.sceneId === 'scene-1')?.propertyTracks ?? [])
+      .toEqual([])
+  },
+  set_output_contract: () => {
+    const { record } = applyOk(showCommandFixture(), 'set_output_contract', {
+      kind: 'portable-2d',
+      map_id: 'plane',
+      pixel_count: 512,
+    })
+    expect(record.outputContract.kind).toBe('portable-2d')
+    expect(record.outputContract.kind === 'portable-2d' && record.outputContract.referencePixelCount)
+      .toBe(512)
+    expect(record.stageMapId).toBe('plane')
+  },
+  set_output_trails: () => {
+    const { record } = applyOk(showCommandFixture(), 'set_output_trails', {
+      enabled: true,
+      retention: 0.5,
+    })
+    expect(record.outputEffects).toEqual([{ id: 'trails', kind: 'trails', retention: 0.5 }])
+    const off = applyOk(record, 'set_output_trails', { enabled: false })
+    expect(off.record.outputEffects).toEqual([])
+  },
+  add_layout_interval: () => {
+    const { record, changes } = applyOk(showCommandFixture(), 'add_layout_interval', {
+      layout_id: 'layout-1',
+      duration_ms: 10_000,
+    })
+    expect(showLoopDurationMs(record)).toBe(72_000)
+    const intervals = projectShowLayoutIntervals(record)
+    expect(intervals[intervals.length - 1].id).toBe(changes[0].details?.intervalId)
+  },
+  duplicate_layout_interval: () => {
+    const { record } = applyOk(showCommandFixture(), 'duplicate_layout_interval', {
+      interval_id: 'layout-occurrence-scene-1',
+    })
+    expect(projectShowLayoutIntervals(record)).toHaveLength(2)
+  },
+  make_layout_interval_unique: () => {
+    const appended = applyOk(showCommandFixture(), 'add_layout_interval', {
+      layout_id: 'layout-1',
+      duration_ms: 10_000,
+    })
+    const { record } = applyOk(appended.record, 'make_layout_interval_unique', {
+      interval_id: appended.changes[0].details?.intervalId as string,
+    })
+    expect(record.routingLayouts).toHaveLength(2)
+  },
   move_connected_clip: () => {
     const adjacent = applyOk(trackedCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 10_000 })
     const inserted = applyOk(adjacent.record, 'insert_layer_transition', {
@@ -727,6 +935,128 @@ describe('Show command refusal partitions (#885)', () => {
       'engine-refused',
     )
     applyRefused(inserted.record, 'move_connected_clip', { clip_id: 'nope', start_ms: 0 }, 'unknown-clip')
+  })
+
+  it('effect commands refuse unknown effects, unknown parameters, no-changes, and stage edges', () => {
+    const base = withEffect()
+    const issues = applyRefused(
+      base.record,
+      'update_clip_effect',
+      { clip_id: 'clip-a', effect_id: 'nope', parameter: 'brightness', value: 0.5 },
+      'unknown-effect',
+    )
+    expect(issues[0].candidates).toEqual([base.effectId])
+    applyRefused(
+      base.record,
+      'update_clip_effect',
+      { clip_id: 'clip-a', effect_id: base.effectId, parameter: 'sparkle', value: 1 },
+      'unknown-parameter',
+    )
+    applyRefused(
+      base.record,
+      'update_clip_effect',
+      { clip_id: 'clip-a', effect_id: base.effectId, parameter: 'brightness', value: 0.4 },
+      'no-change',
+    )
+    applyRefused(
+      showCommandFixture(),
+      'add_clip_effect',
+      { clip_id: 'clip-a', kind: 'brightness', parameters: { sparkle: 1 } },
+      'unknown-parameter',
+    )
+    applyRefused(
+      base.record,
+      'move_clip_effect',
+      { clip_id: 'clip-a', effect_id: base.effectId, direction: 'earlier' },
+      'no-change',
+    )
+    applyRefused(base.record, 'remove_clip_effect', { clip_id: 'nope', effect_id: base.effectId }, 'unknown-clip')
+  })
+
+  it('animation commands refuse unknown ids, out-of-Scene times, duplicate targets, and the keyframe floor', () => {
+    applyRefused(
+      showCommandFixture(),
+      'add_keyframe',
+      { track_id: 'nope', time_ms: 1_000, value: 1 },
+      'unknown-track',
+    )
+    const base = withTrack()
+    applyRefused(
+      base.record,
+      'add_keyframe',
+      { track_id: base.trackId, time_ms: 45_000, value: 1 },
+      'outside-scene',
+    )
+    applyRefused(
+      base.record,
+      'update_keyframe',
+      { track_id: base.trackId, keyframe_id: 'nope', value: 1 },
+      'unknown-keyframe',
+    )
+    const track = base.record.composition!.scenes
+      .flatMap((scene) => scene.propertyTracks ?? [])
+      .find((candidate) => candidate.id === base.trackId)!
+    applyRefused(
+      base.record,
+      'update_keyframe',
+      { track_id: base.trackId, keyframe_id: track.keyframes[0].id },
+      'invalid-argument',
+    )
+    applyRefused(
+      base.record,
+      'delete_keyframe',
+      { track_id: base.trackId, keyframe_id: track.keyframes[0].id },
+      'minimum-keyframes',
+    )
+    // A second track on the same target refuses through the validator.
+    applyRefused(
+      base.record,
+      'add_property_track',
+      {
+        target: { kind: 'placement-view', placementId: 'clip-a', property: 'brightness' },
+        keyframes: [
+          { time_ms: 0, value: 1 },
+          { time_ms: 4_000, value: 0.5 },
+        ],
+      },
+      'engine-refused',
+    )
+    applyRefused(
+      showCommandFixture(),
+      'add_property_track',
+      { target: { kind: 'imaginary' }, keyframes: [{ time_ms: 0, value: 1 }, { time_ms: 1_000, value: 0 }] },
+      'invalid-argument',
+    )
+  })
+
+  it('structure commands refuse no-change contracts, unknown layouts and intervals, and window insertions', () => {
+    const portable = applyOk(showCommandFixture(), 'set_output_contract', {
+      kind: 'portable-2d',
+      map_id: 'plane',
+      pixel_count: 512,
+    })
+    applyRefused(
+      portable.record,
+      'set_output_contract',
+      { kind: 'portable-2d', map_id: 'plane', pixel_count: 512 },
+      'no-change',
+    )
+    applyRefused(showCommandFixture(), 'set_output_trails', { enabled: false }, 'no-change')
+    applyRefused(
+      showCommandFixture(),
+      'add_layout_interval',
+      { layout_id: 'nope', duration_ms: 5_000 },
+      'unknown-layout',
+    )
+    // Inserting inside the boundary Transition window refuses via the engine.
+    applyRefused(
+      showCommandFixture(),
+      'add_layout_interval',
+      { layout_id: 'layout-1', duration_ms: 5_000, at_ms: 31_000 },
+      'engine-refused',
+    )
+    applyRefused(showCommandFixture(), 'duplicate_layout_interval', { interval_id: 'nope' }, 'unknown-interval')
+    applyRefused(showCommandFixture(), 'make_layout_interval_unique', { interval_id: 'nope' }, 'unknown-interval')
   })
 
   it('group children refuse the direct clip commands', () => {
