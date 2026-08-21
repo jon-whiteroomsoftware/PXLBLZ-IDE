@@ -294,12 +294,12 @@ import type {
   ShowGroupOccurrence,
   ShowLayerTransition,
   ShowRecord,
-  ShowOutputEffect,
   ShowPatternRef,
   ShowRoutingLayout,
   ShowAutomatableProperty,
 } from '@/engine/personalContentRecords'
-import { DEFAULT_SHOW_TRAILS_RETENTION, normalizeShowOutputEffects } from '@/engine/showPreviousRgbFeedback'
+import { normalizeShowOutputEffects } from '@/engine/showPreviousRgbFeedback'
+import { setShowOutputTrails, type SetShowOutputTrailsInput } from '@/engine/showOutputEffectAuthoring'
 import { normalizeShowClipTransform } from '@/engine/showClipTransform'
 import { validateShowLogicalRouting, type ShowLogicalRouting } from '@/engine/showLogicalRouting'
 import {
@@ -2774,11 +2774,10 @@ export function ShowEditor({
                     outputContract: createPortableShowOutputContract({ referenceMapId, referencePixelCount }),
                     updatedAt: Date.now(),
                   })}
-                  onUpdateOutputEffects={(outputEffects) => updateShowInBackground(activeShow.id, {
-                    ...activeShow,
-                    outputEffects: normalizeShowOutputEffects(outputEffects),
-                    updatedAt: Date.now(),
-                  })}
+                  onUpdateOutputTrails={(input) => updateShowInBackground(
+                    activeShow.id,
+                    setShowOutputTrails(activeShow, input),
+                  )}
                   onPatternCommit={returnFocusToTimelineSelection}
                   onRemoveClip={(clip) => {
                     closeDetailPanel()
@@ -7951,7 +7950,7 @@ function ContextualInspector({
   onOpenSpatialSelection,
   onUpdateTargetProfile,
   onUpdatePortableReference,
-  onUpdateOutputEffects,
+  onUpdateOutputTrails,
   onPatternCommit,
   onRemoveClip,
   onUpdateAdaptations,
@@ -8003,7 +8002,7 @@ function ContextualInspector({
   onOpenSpatialSelection: (zoneId: string) => void
   onUpdateTargetProfile: (targetControllerProfileId: string) => void
   onUpdatePortableReference: (referenceMapId: string | null, referencePixelCount: number) => void
-  onUpdateOutputEffects: (outputEffects: ShowOutputEffect[]) => void
+  onUpdateOutputTrails: (input: SetShowOutputTrailsInput) => void
   onPatternCommit: () => void
   onRemoveClip: (clip: ShowCell) => void
   onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
@@ -8248,7 +8247,7 @@ function ContextualInspector({
       userMaps={userMaps}
       onUpdateTargetProfile={onUpdateTargetProfile}
       onUpdatePortableReference={onUpdatePortableReference}
-      onUpdateOutputEffects={onUpdateOutputEffects}
+      onUpdateOutputTrails={onUpdateOutputTrails}
       compiledOutputEffects={compiledOutputEffects}
     />
   )
@@ -9760,7 +9759,7 @@ function ShowSetupInspector({
   userMaps,
   onUpdateTargetProfile,
   onUpdatePortableReference,
-  onUpdateOutputEffects,
+  onUpdateOutputTrails,
   compiledOutputEffects,
 }: {
   show: ShowRecord
@@ -9768,7 +9767,7 @@ function ShowSetupInspector({
   userMaps: MapRecord[]
   onUpdateTargetProfile: (targetControllerProfileId: string) => void
   onUpdatePortableReference: (referenceMapId: string | null, referencePixelCount: number) => void
-  onUpdateOutputEffects: (outputEffects: ShowOutputEffect[]) => void
+  onUpdateOutputTrails: (input: SetShowOutputTrailsInput) => void
   compiledOutputEffects?: import('@/engine/showCompiler').ShowCompileSummary['outputEffects']
 }) {
   const zonePixels = show.zones.reduce((sum, zone) => sum + zone.nominalPixelCount, 0)
@@ -9909,9 +9908,7 @@ function ShowSetupInspector({
                 aria-label="Enable Trails"
                 type="checkbox"
                 checked={Boolean(trails)}
-                onChange={(event) => onUpdateOutputEffects(event.target.checked
-                  ? [{ id: 'trails', kind: 'trails', retention: DEFAULT_SHOW_TRAILS_RETENTION }]
-                  : [])}
+                onChange={(event) => onUpdateOutputTrails({ enabled: event.target.checked })}
                 className="accent-live"
               />
               Trails
@@ -9926,10 +9923,7 @@ function ShowSetupInspector({
                   max={1}
                   step={0.015625}
                   value={trails.retention}
-                  onChange={(retention) => onUpdateOutputEffects([{
-                    ...trails,
-                    retention,
-                  }])}
+                  onChange={(retention) => onUpdateOutputTrails({ enabled: true, retention })}
                 />
               </div>
             )}
