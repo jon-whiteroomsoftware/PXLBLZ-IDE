@@ -793,6 +793,24 @@ spatial authoring as pure index-set operations), and `ShowZoneSpatialSelector`
 (screen-space zone editing over the resolved output map, exact-count 2D
 only).
 
+**Show command registry.** `src/engine/showCommands/` holds one typed data
+table over the pure Show mutations: each `ShowCommandDescriptor` carries a
+stable snake_case name, a one-paragraph description, a dependency-free input
+schema (`fields`), the ShowRecord JSON-pointer patterns it may write
+(`touches`, `'*'` matching one segment), and an `apply` that calls the
+existing engine function at the global-time layer. `applyShowCommand`
+validates input against the schema and dispatches;
+`runShowCommandTransaction` folds a command list over the Show
+all-or-nothing, so a composed edit persists once and stays one undo step.
+Refusals are typed (`code`, `message`, optional `remedy` and `candidates`)
+and never silent: plan-backed commands surface the refusing plan's reason,
+and an engine identity return becomes an explicit refusal. Adding a command
+is one descriptor in the right family module plus a golden accepted case
+and refusal partition in the command tests - the faithfulness sweep fails
+any entry whose goldens write outside its declared `touches` or leave a
+declared pattern unexercised. Families land incrementally; clip and
+timeline commands exist today.
+
 `showSummaryProjection.ts` renders one compact summary of a Show as the
 editor presents it — Scenes with global ranges, Zones with their layers,
 clips (owner coordinates, pattern names, instances, time ranges), junctions
