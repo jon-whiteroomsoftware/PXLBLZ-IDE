@@ -17,7 +17,11 @@ import { monotonicRecord } from './support'
 const BOUNDARY_KINDS = ['cut', 'crossfade', 'fade-color', 'wipe', 'dither', 'portal', 'motion'] as const
 
 /** Parameter fields a boundary transition may carry, with their value types. */
-type ParameterSpec = { kind: 'number' } | { kind: 'boolean' } | { kind: 'enum'; values: readonly string[] }
+type ParameterSpec =
+  | { kind: 'number' }
+  | { kind: 'boolean' }
+  | { kind: 'string' }
+  | { kind: 'enum'; values: readonly string[] }
 const PARAMETER_FIELDS: Record<string, ParameterSpec> = {
   direction: { kind: 'number' },
   wipeVariant: { kind: 'enum', values: ['linear', 'split', 'barn-doors', 'blinds', 'clock', 'checker', 'grid'] },
@@ -44,7 +48,7 @@ const PARAMETER_FIELDS: Record<string, ParameterSpec> = {
     kind: 'enum',
     values: ['cover', 'reveal', 'push', 'content-grow', 'content-shrink', 'zoom-in', 'zoom-out'],
   },
-  color: { kind: 'number' },
+  color: { kind: 'string' },
   crossfadePolicy: { kind: 'enum', values: ['snapshot-live', 'live-live'] },
   featherPolicy: { kind: 'enum', values: ['dither', 'blend'] },
   holdMs: { kind: 'number' },
@@ -231,13 +235,23 @@ const updateBoundaryTransitionParameter: ShowCommandDescriptor = {
       ? typeof value === 'number' && Number.isFinite(value)
       : expected.kind === 'boolean'
         ? typeof value === 'boolean'
-        : typeof value === 'string' && expected.values.includes(value)
+        : expected.kind === 'string'
+          ? typeof value === 'string'
+          : typeof value === 'string' && expected.values.includes(value)
     if (!validType) {
       return refuseShowCommand({
         code: 'invalid-argument',
         message:
           `update_boundary_transition_parameter: "${parameter}" takes ${
             expected.kind === 'enum' ? `one of ${expected.values.join(', ')}` : `a ${expected.kind}`}.`,
+      })
+    }
+    const previous = (resolved.transition as unknown as Record<string, unknown>)[parameter]
+    if (JSON.stringify(previous) === JSON.stringify(value)) {
+      return refuseShowCommand({
+        code: 'no-change',
+        message:
+          `Boundary transition ${resolved.transition.id} already has ${parameter} = ${JSON.stringify(value)}.`,
       })
     }
     const result = updateShowBoundaryTransition(record, resolved.transition.id, {
@@ -252,14 +266,12 @@ const updateBoundaryTransitionParameter: ShowCommandDescriptor = {
     const stored = (result.transitions?.find((candidate) => candidate.id === resolved.transition.id) as
       | Record<string, unknown>
       | undefined)?.[parameter]
-    if (stored === undefined || JSON.stringify(stored) === JSON.stringify(
-      (resolved.transition as unknown as Record<string, unknown>)[parameter],
-    )) {
+    if (stored === undefined || JSON.stringify(stored) === JSON.stringify(previous)) {
       return refuseShowCommand({
         code: 'unknown-parameter',
         message:
           `"${parameter}" does not apply to a ${resolved.transition.kind} transition ` +
-          '(normalization dropped or kept the previous value).',
+          '(normalization dropped the value).',
         remedy: 'Switch the kind first with set_boundary_transition, or choose a parameter of this kind.',
       })
     }

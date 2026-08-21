@@ -651,6 +651,14 @@ describe('Show command refusal partitions (#885)', () => {
       { transition_id: 'transition-scene-1', parameter: 'crossfadePolicy', value: 'typo' },
       'invalid-argument',
     )
+    // An applicable parameter already at the requested value is a no-change,
+    // not an inapplicable parameter.
+    applyRefused(
+      showCommandFixture(),
+      'update_boundary_transition_parameter',
+      { transition_id: 'transition-scene-1', parameter: 'crossfadePolicy', value: 'snapshot-live' },
+      'no-change',
+    )
   })
 
   it('layer transition commands refuse unknown ids, non-touching clips, and excessive durations', () => {

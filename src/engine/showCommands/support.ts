@@ -112,15 +112,24 @@ export function canonicalizeBoundaryAfterShift(
   before: ShowCompositionV1,
   after: ShowCompositionV1,
 ): ShowRecord {
-  const boundaryJunctions = (composition: ShowCompositionV1) =>
-    projectShowUnifiedTimeline(record, composition).zones
-      .flatMap((zone) => zone.layers.flatMap((layer) => layer.junctions))
-      .filter((junction) => junction.boundaryTransition)
-  const surviving = new Set(boundaryJunctions(after).map((junction) => junction.id))
-  const brokenIds = boundaryJunctions(before)
-    .filter((junction) => !surviving.has(junction.id))
-    .map((junction) => junction.boundaryTransition!.id)
-  return brokenIds.reduce(
+  // Survival is per lane: the same Show-level boundary transition appears as
+  // a junction on every Zone lane it spans, so breaking any one lane's
+  // junction collapses the transition (matching the engine's selected-clip
+  // canonicalization), even while another lane stays aligned.
+  const laneJunctions = (composition: ShowCompositionV1) =>
+    projectShowUnifiedTimeline(record, composition).zones.flatMap((zone) =>
+      zone.layers.flatMap((layer) =>
+        layer.junctions
+          .filter((junction) => junction.boundaryTransition)
+          .map((junction) => ({
+            key: `${zone.id}:${layer.kind}:${layer.layerIndex}:${junction.id}`,
+            transitionId: junction.boundaryTransition!.id,
+          }))))
+  const surviving = new Set(laneJunctions(after).map((lane) => lane.key))
+  const brokenIds = laneJunctions(before)
+    .filter((lane) => !surviving.has(lane.key))
+    .map((lane) => lane.transitionId)
+  return [...new Set(brokenIds)].reduce(
     (current, transitionId) => removeShowBoundaryTransition(current, transitionId),
     record,
   )
