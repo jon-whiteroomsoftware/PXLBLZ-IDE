@@ -8,7 +8,6 @@ import {
   deleteShowMainPlacement,
   deleteShowOverlayPlacement,
 } from '../showCompositionModel'
-import type { ShowCompositionV1 } from '../personalContentRecords'
 import {
   addShowClipAtGlobalTime,
   addShowClipAtGlobalTimeExtendingShow,
@@ -38,17 +37,6 @@ import {
   resolveCommandClip,
 } from './support'
 
-/** Placement count sharing one Pattern instance across the whole composition. */
-function instanceUseCount(composition: ShowCompositionV1, instanceId: string): number {
-  return composition.scenes.reduce((count, scene) => count + scene.zones.reduce((zoneCount, zone) => (
-    zoneCount
-    + zone.main.filter((placement) => placement.instanceId === instanceId).length
-    + zone.overlays.reduce((layerCount, layer) => (
-      layerCount + layer.placements.filter((placement) => placement.instanceId === instanceId).length
-    ), 0)
-  ), 0), 0)
-}
-
 /** The overlays-array index the engine's target shape expects, from a unified clip. */
 function overlayLayerIndex(
   record: Parameters<typeof resolveCommandClip>[0],
@@ -67,7 +55,7 @@ const addClip: ShowCommandDescriptor = {
     '(overlay_layer_index, 0 = topmost). The duration clamps to the free time before the next clip; ' +
     'with extend_show true, adding at Show End grows the Show to fit. Refused inside a Transition, on ' +
     'occupied time, or outside the Show.',
-  touches: ['/composition/patternInstances', '/composition/scenes/*/zones', '/composition/durationMs', '/scenes', '/updatedAt'],
+  touches: ['/composition/patternInstances', '/composition/scenes/*/zones', '/composition/durationMs', '/composition/executionModel', '/scenes', '/updatedAt'],
   fields: {
     zone_id: { kind: 'string', description: 'The Zone to place the clip on' },
     start_ms: { kind: 'number', description: 'Global start time in milliseconds' },
@@ -196,7 +184,7 @@ const resizeClip: ShowCommandDescriptor = {
   description:
     'Resize a clip to a new duration with its start fixed, clamping into the free time after it. ' +
     'Transition-connected clips refuse here.',
-  touches: ['/composition/scenes/*/zones', '/updatedAt'],
+  touches: ['/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/updatedAt'],
   fields: {
     clip_id: { kind: 'string', description: 'The clip to resize' },
     duration_ms: { kind: 'number', description: 'New duration in milliseconds' },
@@ -280,7 +268,7 @@ const duplicateClip: ShowCommandDescriptor = {
     'Duplicate a clip immediately after itself: independent by default (its own Pattern instance), or ' +
     'linked (sharing the instance) with linked true. Refused when the tail is occupied or the copy ' +
     'would cross a boundary the engine protects.',
-  touches: ['/composition/patternInstances', '/composition/scenes/*/zones', '/updatedAt'],
+  touches: ['/composition/patternInstances', '/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/composition/executionModel', '/updatedAt'],
   fields: {
     clip_id: { kind: 'string', description: 'The clip to duplicate' },
     linked: { kind: 'boolean', optional: true, description: 'Share the Pattern instance (default false)' },
@@ -360,7 +348,7 @@ const makeClipPatternIndependent: ShowCommandDescriptor = {
   description:
     'Give a clip its own copy of its Pattern instance, so editing controls or timing no longer affects ' +
     'the other clips that shared it. Refused when the clip is already the instance\'s only user.',
-  touches: ['/composition/patternInstances', '/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/updatedAt'],
+  touches: ['/composition/patternInstances', '/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/composition/executionModel', '/updatedAt'],
   fields: {
     clip_id: { kind: 'string', description: 'The clip to make independent' },
   },
@@ -371,7 +359,11 @@ const makeClipPatternIndependent: ShowCommandDescriptor = {
     const found = resolveCommandClip(record, composition, input.clip_id as string)
     if (!found.ok) return found
     const { clip } = found.context
-    if (instanceUseCount(composition, clip.instanceId) <= 1) {
+    // Siblings are logical clips (one entry per multi-Scene clip), so this
+    // counts logical users of the instance, not physical Scene segments.
+    const users = found.context.siblings
+      .filter((sibling) => sibling.clip.instanceId === clip.instanceId).length
+    if (users <= 1) {
       return refuseShowCommand({
         code: 'already-independent',
         message: `Clip ${clip.id} is already the only user of instance ${clip.instanceId}.`,
@@ -401,7 +393,7 @@ const rejoinClipPatternInstance: ShowCommandDescriptor = {
   description:
     'Point a clip at another clip\'s Pattern instance of the same Pattern, re-linking their controls ' +
     'and timing. Refused for incompatible Patterns or an already-shared instance.',
-  touches: ['/composition/patternInstances', '/composition/scenes/*/zones', '/updatedAt'],
+  touches: ['/composition/patternInstances', '/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/composition/executionModel', '/updatedAt'],
   fields: {
     clip_id: { kind: 'string', description: 'The clip to re-link' },
     target_clip_id: { kind: 'string', description: 'A clip whose instance to join' },

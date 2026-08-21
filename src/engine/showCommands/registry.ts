@@ -78,9 +78,21 @@ export function commandComposition(
 }
 
 export function withComposition(record: ShowRecord, composition: ShowCompositionV1): ShowRecord {
+  // The deterministic-loop proof binds to the authored cast: any command
+  // that added or removed a Pattern instance forfeits the stamp, the same
+  // way the extending-add engine path does.
+  const castBefore = new Set((record.composition?.patternInstances ?? []).map((instance) => instance.id))
+  const castAfter = composition.patternInstances.map((instance) => instance.id)
+  const castChanged = castAfter.length !== castBefore.size
+    || castAfter.some((id) => !castBefore.has(id))
+  let next = composition
+  if (castChanged && composition.executionModel !== undefined) {
+    next = { ...composition }
+    delete next.executionModel
+  }
   // Monotonic even when a prior rapid edit stamped updatedAt ahead of the
   // clock; the store's durable rollback baseline relies on this.
-  return { ...record, composition, updatedAt: Math.max(Date.now(), record.updatedAt + 1) }
+  return { ...record, composition: next, updatedAt: Math.max(Date.now(), record.updatedAt + 1) }
 }
 
 function fieldTypeMatches(field: ShowCommandField, value: unknown): boolean {
@@ -125,7 +137,7 @@ export function validateShowCommandInput(
     }
   }
   for (const name of Object.keys(input)) {
-    if (!(name in descriptor.fields)) {
+    if (!Object.prototype.hasOwnProperty.call(descriptor.fields, name)) {
       issues.push({
         code: 'invalid-argument',
         message: `${descriptor.name}: unknown field "${name}". Fields: ${Object.keys(descriptor.fields).join(', ')}.`,

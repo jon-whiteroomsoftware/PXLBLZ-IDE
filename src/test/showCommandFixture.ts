@@ -112,9 +112,65 @@ export function trackedCommandFixture(): ShowRecord {
                   { id: 'kf-4', timeMs: 27_000, value: 0.5, easing: { curve: 'linear' } },
                 ],
               },
+              {
+                id: 'track-inst-b',
+                target: { kind: 'instance-time-scale', instanceId: 'instance-b' },
+                keyframes: [
+                  { id: 'kf-5', timeMs: 12_000, value: 1, easing: { curve: 'linear' } },
+                  { id: 'kf-6', timeMs: 19_000, value: 0.75, easing: { curve: 'linear' } },
+                ],
+              },
             ],
           }
         : scene),
+    },
+  }
+}
+
+/** The fixture stamped with the deterministic-loop proof, to observe its forfeit. */
+export function stampedCommandFixture(): ShowRecord {
+  const record = showCommandFixture()
+  return {
+    ...record,
+    composition: { ...record.composition!, executionModel: 'deterministic-loop' },
+  }
+}
+
+/**
+ * Boundary-free tracked variant: no Scene-boundary transition and no clip-c,
+ * so the tracked clip-b can grow across the Scene boundary.
+ */
+export function boundaryFreeTrackedFixture(): ShowRecord {
+  const record = trackedCommandFixture()
+  const composition = record.composition!
+  return {
+    ...record,
+    transitions: [],
+    composition: {
+      ...composition,
+      scenes: composition.scenes.map((scene) => ({
+        ...scene,
+        zones: scene.zones.map((zone) => ({
+          ...zone,
+          main: zone.main.filter((placement) => placement.id !== 'clip-c'),
+        })),
+      })),
+    },
+  }
+}
+
+/** Boundary-free with only instance tracks: a placement-tracked clip cannot cross a Scene boundary. */
+export function boundaryFreeInstanceTrackedFixture(): ShowRecord {
+  const record = boundaryFreeTrackedFixture()
+  const composition = record.composition!
+  return {
+    ...record,
+    composition: {
+      ...composition,
+      scenes: composition.scenes.map((scene) => ({
+        ...scene,
+        propertyTracks: scene.propertyTracks?.filter((track) => track.id !== 'track-b'),
+      })),
     },
   }
 }

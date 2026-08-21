@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { showCommandFixture } from '../../test/showCommandFixture'
+import { showCommandFixture, stampedCommandFixture } from '../../test/showCommandFixture'
 import { projectShowUnifiedTimeline } from '../showUnifiedTimelineProjection'
 import {
   SHOW_COMMANDS,
@@ -48,6 +48,31 @@ describe('Show command registry core (#885)', () => {
     })
     expect(enumIssue).toHaveLength(1)
     expect(enumIssue[0].message).toContain('stock')
+  })
+
+  it('rejects prototype-named unknown fields like any other unknown field', () => {
+    const move = SHOW_COMMANDS.find((command) => command.name === 'move_clip')!
+    const issues = validateShowCommandInput(move, JSON.parse(
+      '{"clip_id":"clip-a","start_ms":1,"constructor":true,"toString":1}',
+    ) as Record<string, unknown>)
+    expect(issues).toHaveLength(2)
+    expect(issues[0].code).toBe('invalid-argument')
+  })
+
+  it('keeps the deterministic-loop proof through cast-preserving commands only', () => {
+    const stamped = stampedCommandFixture()
+    const moved = applyShowCommand(stamped, 'move_clip', { clip_id: 'clip-b', start_ms: 34_000 })
+    expect(moved.ok && moved.record.composition?.executionModel).toBe('deterministic-loop')
+    const removed = applyShowCommand(stamped, 'remove_clip', { clip_id: 'clip-b' })
+    // remove_clip leaves the orphan instance in the cast, so the proof holds.
+    expect(removed.ok && removed.record.composition?.executionModel).toBe('deterministic-loop')
+    const added = applyShowCommand(stamped, 'add_clip', {
+      zone_id: 'zone-1',
+      start_ms: 34_000,
+      pattern_kind: 'stock',
+      pattern_id: 'CometLoom',
+    })
+    expect(added.ok && added.record.composition?.executionModel).toBeUndefined()
   })
 
   it('never mutates the input record, on acceptance or refusal', () => {

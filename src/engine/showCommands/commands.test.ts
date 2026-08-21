@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { showCommandFixture, singleClipCommandFixture, trackedCommandFixture } from '../../test/showCommandFixture'
+import {
+  boundaryFreeInstanceTrackedFixture,
+  boundaryFreeTrackedFixture,
+  showCommandFixture,
+  singleClipCommandFixture,
+  stampedCommandFixture,
+  trackedCommandFixture,
+} from '../../test/showCommandFixture'
 import type { ShowRecord } from '../personalContentRecords'
 import { showLoopDurationMs } from '../showModel'
 import { projectShowSummary } from '../showSummaryProjection'
@@ -87,6 +94,15 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     const overlayClip = summaryClips(overlay.record)
       .find((clip) => clip.kind === 'overlay' && clip.startMs === 10_000)
     expect(overlayClip?.layerId).toBe('overlay-1')
+
+    // A cast change forfeits the deterministic-loop proof.
+    const stamped = applyOk(stampedCommandFixture(), 'add_clip', {
+      zone_id: 'zone-1',
+      start_ms: 34_000,
+      pattern_kind: 'stock',
+      pattern_id: 'CometLoom',
+    })
+    expect(stamped.record.composition?.executionModel).toBeUndefined()
   },
   move_clip: () => {
     const { record } = applyOk(showCommandFixture(), 'move_clip', {
@@ -119,6 +135,18 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
       duration_ms: 4_000,
     })
     expect(summaryClips(overlay.record).find((clip) => clip.clipId === 'clip-ov')?.durationMs).toBe(4_000)
+
+    // Growing a clip whose sole-use instance carries an instance track
+    // across the Scene boundary splits that track segment per Scene.
+    const grown = applyOk(boundaryFreeInstanceTrackedFixture(), 'resize_clip', {
+      clip_id: 'clip-b',
+      duration_ms: 20_000,
+    })
+    const grownClip = summaryClips(grown.record).find((clip) => clip.clipId === 'clip-b')
+    expect(grownClip?.endMs).toBe(32_000)
+    const scene2Tracks = grown.record.composition?.scenes
+      .find((scene) => scene.sceneId === 'scene-2')?.propertyTracks ?? []
+    expect(scene2Tracks.length).toBe(1)
   },
   split_clip: () => {
     const { record, changes } = applyOk(showCommandFixture(), 'split_clip', {
@@ -152,6 +180,17 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     const linked = applyOk(showCommandFixture(), 'duplicate_clip', { clip_id: 'clip-ov', linked: true })
     expect(summaryClips(linked.record).find((clip) => clip.clipId === linked.changes[0].targetId)?.instanceId)
       .toBe('instance-ov')
+
+    // Duplicating a tracked clip clones its tracks; an independent copy of a
+    // stamped Show forfeits the deterministic-loop proof.
+    const base = boundaryFreeTrackedFixture()
+    const tracked = applyOk({
+      ...base,
+      composition: { ...base.composition!, executionModel: 'deterministic-loop' as const },
+    }, 'duplicate_clip', { clip_id: 'clip-b' })
+    const scene1 = tracked.record.composition?.scenes.find((scene) => scene.sceneId === 'scene-1')
+    expect((scene1?.propertyTracks ?? []).length).toBeGreaterThan(3)
+    expect(tracked.record.composition?.executionModel).toBeUndefined()
   },
   remove_clip: () => {
     const { record } = applyOk(showCommandFixture(), 'remove_clip', { clip_id: 'clip-b' })
@@ -182,6 +221,11 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
       .filter((track) => track.target.kind === 'instance-time-scale')
       .map((track) => ('instanceId' in track.target ? track.target.instanceId : null))
     expect(instanceTargets.length).toBeGreaterThanOrEqual(2)
+
+    const stamped = applyOk(stampedCommandFixture(), 'make_clip_pattern_independent', {
+      clip_id: 'clip-c',
+    })
+    expect(stamped.record.composition?.executionModel).toBeUndefined()
   },
   rejoin_clip_pattern_instance: () => {
     const { record } = applyOk(showCommandFixture(), 'rejoin_clip_pattern_instance', {
@@ -189,6 +233,18 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
       target_clip_id: 'clip-a',
     })
     expect(summaryClips(record).find((clip) => clip.clipId === 'clip-b')?.instanceId).toBe('instance-a')
+
+    // Rejoining the sole user of an instance discards that instance, its
+    // instance-targeted tracks, and any deterministic-loop proof.
+    const tracked = applyOk({
+      ...trackedCommandFixture(),
+      composition: { ...trackedCommandFixture().composition!, executionModel: 'deterministic-loop' as const },
+    }, 'rejoin_clip_pattern_instance', { clip_id: 'clip-b', target_clip_id: 'clip-a' })
+    expect(tracked.record.composition?.patternInstances.some((instance) => instance.id === 'instance-b'))
+      .toBe(false)
+    const scene1 = tracked.record.composition?.scenes.find((scene) => scene.sceneId === 'scene-1')
+    expect((scene1?.propertyTracks ?? []).some((track) => track.id === 'track-inst-b')).toBe(false)
+    expect(tracked.record.composition?.executionModel).toBeUndefined()
   },
   insert_time: () => {
     const base = showCommandFixture()
