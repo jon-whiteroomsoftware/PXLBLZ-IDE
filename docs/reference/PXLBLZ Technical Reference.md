@@ -793,6 +793,16 @@ spatial authoring as pure index-set operations), and `ShowZoneSpatialSelector`
 (screen-space zone editing over the resolved output map, exact-count 2D
 only).
 
+`showSummaryProjection.ts` renders one compact summary of a Show as the
+editor presents it — Scenes with global ranges, Zones with their layers,
+clips (owner coordinates, pattern names, instances, time ranges), junctions
+(kinds, durations, Layer-transition ids), markers, Zone Layout definitions
+and occurrences, and property tracks with keyframe counts — assembled from
+the existing projections (unified timeline, timeline ranges, Zone Layout
+occurrences), never from the raw record. Every id in the summary is the id
+the matching mutation function accepts, so the projection drives command
+palettes, diagnostics, and table-driven tests without a resolution layer.
+
 ## 20. Timeline editor and Stage preview
 
 `ShowEditor` renders one proportional grid: ruler, Zone/Layer stacks, Clips,
