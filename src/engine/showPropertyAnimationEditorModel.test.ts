@@ -413,7 +413,7 @@ describe('Property animation editor time projection (#648)', () => {
     expect(refused).toBe(trimmed)
   })
 
-  it('resolves exact definition-local ids before stripping a materialized occurrence prefix', () => {
+  it('refuses genuinely ambiguous Group track ids and resolves unambiguous ones', () => {
     const show = twoSceneShow()
     const definition: ShowGroupDefinition = {
       id: 'definition-1',
@@ -434,7 +434,8 @@ describe('Property animation editor time projection (#648)', () => {
         view: { mirror: false, phase: 0, brightness: 1 },
       }],
       propertyTracks: [
-        // An authored local id that merely looks occurrence-prefixed.
+        // An authored local id that collides with the materialized form of
+        // its sibling 'track'.
         {
           id: 'occurrence-a:track',
           target: { kind: 'placement-view', placementId: 'inside-placement', property: 'brightness' },
@@ -479,28 +480,48 @@ describe('Property animation editor time projection (#648)', () => {
       occurrenceId: 'occurrence-a',
     }
 
-    // The exact local id wins: this edits 'occurrence-a:track', not 'track'.
-    const exact = applyShowGroupPropertyAnimationChange(show, composition, owner, {
+    // 'occurrence-a:track' is both an exact local id and the materialized
+    // form of the sibling 'track': the reference is ambiguous, so every
+    // operation refuses by identity instead of guessing.
+    const ambiguousUpdate = applyShowGroupPropertyAnimationChange(show, composition, owner, {
       kind: 'update-keyframe',
       trackId: 'occurrence-a:track',
       keyframeId: 'kf-2',
       changes: { value: 0.25 },
     }, () => 'unused')
+    expect(ambiguousUpdate).toBe(composition)
+    const ambiguousDelete = applyShowGroupPropertyAnimationChange(show, composition, owner, {
+      kind: 'delete-track',
+      trackId: 'occurrence-a:track',
+    }, () => 'unused')
+    expect(ambiguousDelete).toBe(composition)
+
+    // The unambiguous bare local id still resolves exactly.
+    const exact = applyShowGroupPropertyAnimationChange(show, composition, owner, {
+      kind: 'update-keyframe',
+      trackId: 'track',
+      keyframeId: 'kf-4',
+      changes: { value: 0.75 },
+    }, () => 'unused')
     expect(exact).not.toBe(composition)
     expect(exact.groupDefinitions?.[0].propertyTracks
-      ?.find((track) => track.id === 'occurrence-a:track')?.keyframes[1].value).toBe(0.25)
-    expect(exact.groupDefinitions?.[0].propertyTracks
-      ?.find((track) => track.id === 'track')?.keyframes[1].value).toBe(0.5)
+      ?.find((track) => track.id === 'track')?.keyframes[1].value).toBe(0.75)
 
-    // A materialized id with no exact local match still strips to its local form.
-    const materialized = applyShowGroupPropertyAnimationChange(show, composition, owner, {
+    // Without a collision, materialized occurrence-prefixed ids strip to
+    // their local form, keyframes included.
+    const collisionFree: ShowCompositionV1 = structuredClone(composition)
+    collisionFree.groupDefinitions![0].propertyTracks = collisionFree
+      .groupDefinitions![0].propertyTracks!.filter((track) => track.id !== 'occurrence-a:track')
+    show.composition = collisionFree
+    const materialized = applyShowGroupPropertyAnimationChange(show, collisionFree, owner, {
       kind: 'update-keyframe',
       trackId: 'occurrence-a:track',
-      keyframeId: 'occurrence-a:kf-2',
+      keyframeId: 'occurrence-a:kf-4',
       changes: { value: 0.1 },
     }, () => 'unused')
+    expect(materialized).not.toBe(collisionFree)
     expect(materialized.groupDefinitions?.[0].propertyTracks
-      ?.find((track) => track.id === 'occurrence-a:track')?.keyframes[1].value).toBe(0.1)
+      ?.find((track) => track.id === 'track')?.keyframes[1].value).toBe(0.1)
   })
 
   it('removes one orphaned Group track even when another invalid track remains', () => {

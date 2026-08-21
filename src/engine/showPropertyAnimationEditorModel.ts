@@ -319,25 +319,41 @@ export function applyShowGroupPropertyAnimationChange(
   const definition = draft.groupDefinitions?.find((candidate) => candidate.id === owner.definitionId)
   if (!occurrence || occurrence.definitionId !== owner.definitionId || !definition) return composition
   // Accept materialized occurrence-prefixed ids, like the Group transition
-  // functions do; the definition stores the local form. An exact
-  // definition-local match always wins, so an authored id that merely looks
-  // prefixed is never corrupted.
+  // functions do; the definition stores the local form. When an id resolves
+  // both as an exact local id and as a materialized form of a different
+  // local id, the reference is genuinely ambiguous: refuse by identity
+  // rather than silently editing either candidate.
   const prefix = `${occurrence.id}:`
+  const AMBIGUOUS = Symbol('ambiguous')
+  const resolveLocal = (
+    supplied: string,
+    existsLocal: (candidate: string) => boolean,
+  ): string | typeof AMBIGUOUS => {
+    const exact = existsLocal(supplied)
+    const strippedCandidate = supplied.startsWith(prefix) ? supplied.slice(prefix.length) : null
+    const stripped = strippedCandidate !== null && strippedCandidate !== supplied
+      && existsLocal(strippedCandidate)
+    if (exact && stripped) return AMBIGUOUS
+    if (!exact && stripped) return strippedCandidate!
+    return supplied
+  }
   if ('trackId' in change) {
-    const suppliedTrackId = change.trackId
-    const exact = definition.propertyTracks?.some((candidate) => candidate.id === suppliedTrackId)
-    if (!exact && suppliedTrackId.startsWith(prefix)) {
-      change = { ...change, trackId: suppliedTrackId.slice(prefix.length) }
-    }
+    const resolved = resolveLocal(
+      change.trackId,
+      (candidate) => definition.propertyTracks?.some((track) => track.id === candidate) ?? false,
+    )
+    if (resolved === AMBIGUOUS) return composition
+    change = { ...change, trackId: resolved }
   }
   if ('keyframeId' in change) {
     const localTrackId = change.trackId
-    const suppliedKeyframeId = change.keyframeId
     const track = definition.propertyTracks?.find((candidate) => candidate.id === localTrackId)
-    const exact = track?.keyframes.some((candidate) => candidate.id === suppliedKeyframeId)
-    if (!exact && suppliedKeyframeId.startsWith(prefix)) {
-      change = { ...change, keyframeId: suppliedKeyframeId.slice(prefix.length) }
-    }
+    const resolved = resolveLocal(
+      change.keyframeId,
+      (candidate) => track?.keyframes.some((keyframe) => keyframe.id === candidate) ?? false,
+    )
+    if (resolved === AMBIGUOUS) return composition
+    change = { ...change, keyframeId: resolved }
   }
   if (change.kind === 'add-track') {
     const durationMs = Math.max(
