@@ -4,6 +4,7 @@ import type {
   ShowRecord,
   ShowTransitionKind,
 } from './personalContentRecords'
+import { materializeShowGroupOccurrences } from './showGroupModel'
 import { projectShowLayoutIntervals } from './showLayoutIntervals'
 import { projectShowTimeline } from './showModel'
 import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
@@ -29,6 +30,8 @@ export interface ShowSummaryClip {
   endMs: number
   durationMs: number
   logicalClipId?: string
+  /** Set on a Group child; mutate through the Group functions with this occurrence id. */
+  groupOccurrenceId?: string
   effectKinds: string[]
 }
 
@@ -44,6 +47,8 @@ export interface ShowSummaryJunction {
   boundary: boolean
   /** The endpoint-owned Layer transition id, when one exists; the id resize/reset accept. */
   layerTransitionId: string | null
+  /** Set on a Group-internal junction; resize through the Group transition functions. */
+  groupOccurrenceId?: string
 }
 
 export interface ShowSummaryLayer {
@@ -95,6 +100,8 @@ export interface ShowSummaryTrack {
   sceneId: string
   target: ShowPropertyAnimationTarget
   keyframeCount: number
+  /** Set on a Group-definition track materialized into the Scene by an occurrence. */
+  groupOccurrenceId?: string
 }
 
 export interface ShowSummary {
@@ -116,7 +123,10 @@ export interface ShowSummary {
  * mutation function accepts: clip ids resolve in the clip authoring
  * functions, layer transition ids in the Layer transition authoring
  * functions, marker ids in the timeline marker functions, Zone and Layout
- * ids in the Show model functions. Useful for a command palette,
+ * ids in the Show model functions. Group children appear materialized, as
+ * the editor presents them, carrying their groupOccurrenceId; their
+ * occurrence-prefixed ids round-trip through the Group authoring functions
+ * paired with that occurrence id. Useful for a command palette,
  * diagnostics, and table-driven tests.
  */
 export function projectShowSummary(
@@ -125,6 +135,10 @@ export function projectShowSummary(
 ): ShowSummary {
   const timeline = projectShowTimeline(show)
   const unified = projectShowUnifiedTimeline(show, composition)
+  const materialized = materializeShowGroupOccurrences(composition)
+  const occurrenceIds = (composition.groupOccurrences ?? []).map((occurrence) => occurrence.id)
+  const occurrenceOf = (elementId: string): string | undefined =>
+    occurrenceIds.find((occurrenceId) => elementId.startsWith(`${occurrenceId}:`))
 
   return {
     showId: show.id,
@@ -156,6 +170,9 @@ export function projectShowSummary(
           endMs: clip.endMs,
           durationMs: clip.durationMs,
           ...(clip.logicalClipId !== undefined ? { logicalClipId: clip.logicalClipId } : {}),
+          ...(clip.groupOccurrenceId !== undefined
+            ? { groupOccurrenceId: clip.groupOccurrenceId }
+            : {}),
           effectKinds: [...clip.effectKinds],
         })),
         junctions: layer.junctions.map((junction) => ({
@@ -168,6 +185,10 @@ export function projectShowSummary(
           durationMs: junction.durationMs,
           boundary: Boolean(junction.boundaryTransition),
           layerTransitionId: junction.transition?.id ?? null,
+          ...(() => {
+            const occurrenceId = occurrenceOf(junction.id)
+            return occurrenceId ? { groupOccurrenceId: occurrenceId } : {}
+          })(),
         })),
       })),
       groups: zone.groups.map((group) => ({
@@ -196,12 +217,16 @@ export function projectShowSummary(
       startMs: interval.startMs,
       endMs: interval.endMs,
     })),
-    tracks: composition.scenes.flatMap((scene) =>
+    tracks: materialized.scenes.flatMap((scene) =>
       (scene.propertyTracks ?? []).map((track) => ({
         trackId: track.id,
         sceneId: scene.sceneId,
         target: track.target,
         keyframeCount: track.keyframes.length,
+        ...(() => {
+          const occurrenceId = occurrenceOf(track.id)
+          return occurrenceId ? { groupOccurrenceId: occurrenceId } : {}
+        })(),
       })),
     ),
   }

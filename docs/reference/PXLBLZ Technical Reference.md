@@ -800,8 +800,11 @@ clips (owner coordinates, pattern names, instances, time ranges), junctions
 and occurrences, and property tracks with keyframe counts — assembled from
 the existing projections (unified timeline, timeline ranges, Zone Layout
 occurrences), never from the raw record. Every id in the summary is the id
-the matching mutation function accepts, so the projection drives command
-palettes, diagnostics, and table-driven tests without a resolution layer.
+the matching mutation function accepts; Group children appear materialized
+with their `groupOccurrenceId`, and their occurrence-prefixed ids round-trip
+through the Group authoring functions paired with that occurrence id. The
+projection drives command palettes, diagnostics, and table-driven tests
+without a resolution layer.
 
 ## 20. Timeline editor and Stage preview
 

@@ -7,6 +7,7 @@ import type {
 import { createDefaultShow, updateShowZone } from './showModel'
 import { insertShowLayerTransition, resizeShowLayerTransition } from './showLayerTransitionAuthoring'
 import { duplicateShowLayoutInterval } from './showLayoutIntervals'
+import { deleteShowGroupOccurrence, resizeShowGroupLayerTransition } from './showGroupModel'
 import { moveShowTimelineMarker } from './showTimelineAuthoring'
 import { resizeShowClipAtGlobalTime, type ShowTimelineClipOwner } from './showTimelineClipAuthoring'
 import { projectShowSummary, type ShowSummaryClip } from './showSummaryProjection'
@@ -296,6 +297,95 @@ describe('projectShowSummary', () => {
       { withContent: false },
     )
     expect(duplicated).not.toBe(show)
+  })
+
+  it('summarizes Group children as the editor presents them, carrying the occurrence id', () => {
+    const base = fixture()
+    const composition: ShowCompositionV1 = {
+      ...base.composition,
+      groupDefinitions: [{
+        id: 'group-1',
+        name: 'Chase pair',
+        patternInstances: [{
+          id: 'inst-g',
+          pattern: { kind: 'stock', id: 'Rings' },
+          patternName: 'Rings',
+          time: { timeScale: 1, timeOffsetMs: 0 },
+        }],
+        placements: [
+          {
+            id: 'g-a',
+            instanceId: 'inst-g',
+            startMs: 0,
+            durationMs: 4_000,
+            opacity: 1,
+            view: { mirror: false, phase: 0, brightness: 1 },
+            layerOffset: 0,
+          },
+          {
+            id: 'g-b',
+            instanceId: 'inst-g',
+            startMs: 5_000,
+            durationMs: 3_000,
+            opacity: 1,
+            view: { mirror: false, phase: 0, brightness: 1 },
+            layerOffset: 0,
+          },
+        ],
+        transitions: [{
+          id: 'lt-g',
+          fromPlacementId: 'g-a',
+          toPlacementId: 'g-b',
+          kind: 'crossfade',
+          durationMs: 1_000,
+          easing: { curve: 'linear' },
+          crossfadePolicy: 'snapshot-live',
+        }],
+        propertyTracks: [{
+          id: 'track-g',
+          target: { kind: 'placement-view', placementId: 'g-a', property: 'brightness' },
+          keyframes: [
+            { id: 'kf-g1', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+            { id: 'kf-g2', timeMs: 3_000, value: 0.4, easing: { curve: 'linear' } },
+          ],
+        }],
+      }],
+      groupOccurrences: [{
+        id: 'occ-1',
+        definitionId: 'group-1',
+        sceneId: 'scene-2',
+        zoneId: 'zone-1',
+        startMs: 10_000,
+        baseLayer: 0,
+        translationX: 0,
+        translationY: 0,
+      }],
+    }
+    const show: ShowRecord = { ...base.show, composition }
+    const summary = projectShowSummary(show, composition)
+
+    const mainLayer = summary.zones[0].layers.find((layer) => layer.kind === 'main')!
+    const children = mainLayer.clips.filter((clip) => clip.groupOccurrenceId === 'occ-1')
+    expect(children.map((clip) => clip.clipId)).toEqual(['occ-1:g-a', 'occ-1:g-b'])
+
+    const groupJunction = mainLayer.junctions.find((junction) => junction.groupOccurrenceId === 'occ-1')!
+    expect(groupJunction.junctionId).toBe('occ-1:lt-g')
+    expect(groupJunction.afterClipId).toBe('occ-1:g-a')
+
+    const groupTrack = summary.tracks.find((track) => track.groupOccurrenceId === 'occ-1')!
+    expect(groupTrack).toMatchObject({ trackId: 'occ-1:track-g', sceneId: 'scene-2', keyframeCount: 2 })
+    expect(summary.tracks.find((track) => track.trackId === 'track-1')?.groupOccurrenceId)
+      .toBeUndefined()
+
+    // The occurrence id pairs with the materialized ids in the Group functions.
+    const resized = resizeShowGroupLayerTransition(show, composition, {
+      occurrenceId: groupJunction.groupOccurrenceId!,
+      transitionId: groupJunction.layerTransitionId!,
+      durationMs: 2_000,
+    })
+    expect(resized).not.toBe(composition)
+    const deleted = deleteShowGroupOccurrence(composition, children[0].groupOccurrenceId!)
+    expect(deleted).not.toBe(composition)
   })
 
   it('marker ids from the summary reject unknown ids the same way', () => {
