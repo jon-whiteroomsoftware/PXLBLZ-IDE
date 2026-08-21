@@ -280,6 +280,8 @@ import { useShowStore } from '@/store/showStore'
 import { useRouterStore } from '@/store/routerStore'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
+import { useShowClipHoverStore } from '@/store/showClipHoverStore'
+import { useShowEditorViewStore, type ShowSelection } from '@/store/showEditorViewStore'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { docExternalHref } from '@/docs/catalog'
 import { stockShowById, type StockShowNote } from '@/pixelblaze/stock/shows'
@@ -366,15 +368,6 @@ function ShowEasingOptions() {
 const ZONE_RAIL_OPEN_PX = 108
 const ZONE_RAIL_MICRO_PX = 32
 
-type ShowSelection =
-  | { kind: 'clip'; clipId: string }
-  | { kind: 'transition'; transitionId: string }
-  | { kind: 'zone'; zoneId: string }
-  | { kind: 'zone-layout'; layoutId: string; intervalId?: string }
-  | { kind: 'group'; occurrenceId: string }
-  | { kind: 'group-clip'; occurrenceId: string; placementId: string }
-  | { kind: 'multi'; groupSelection: ShowGroupSelection }
-  | { kind: 'show' }
 
 type BlockedDeleteFeedback = {
   selectionKey: string
@@ -1025,7 +1018,10 @@ export function ShowEditor({
   const pushGeneratedArtifact = useControllerStore((state) => state.pushGeneratedArtifact)
   const clearArtifactPushResult = useControllerStore((state) => state.clearArtifactPushResult)
   const reportArtifactPushFailure = useControllerStore((state) => state.reportArtifactPushFailure)
-  const [selection, setSelection] = useState<ShowSelection>({ kind: 'show' })
+  const selection = useShowEditorViewStore((state) => state.selection)
+  const setSelection = useShowEditorViewStore((state) => state.setSelection)
+  const resetShowEditorView = useShowEditorViewStore((state) => state.resetShowEditorView)
+  const resetHoveredClip = useShowClipHoverStore((state) => state.resetHoveredClip)
   const [isolatedGroupOccurrenceId, setIsolatedGroupOccurrenceId] = useState<string | null>(null)
   const [generatedSnapshot, setGeneratedSnapshot] = useState<ShowCompilationSnapshot | null>(null)
   const [showSendMode, setShowSendMode] = useState<SendMode>('run')
@@ -1047,7 +1043,10 @@ export function ShowEditor({
   // A refused insertion used to return silently, so choosing a Transition did
   // nothing at all: no change, no error, no closed panel (#363).
   const [layerTransitionApplyError, setLayerTransitionApplyError] = useState<string | null>(null)
-  const detailShowIdRef = useRef(showId)
+  // Seeded null so the reset effect below also fires on a fresh mount: the
+  // view store is global, and a new editor instance must not inherit the
+  // previous instance's selection or viewport.
+  const detailShowIdRef = useRef<string | null>(null)
   const timelineWorkspaceRef = useRef<HTMLElement>(null)
   const lastTimelineFocusRef = useRef<HTMLElement | null>(null)
   const closeDetailPanel = useCallback((restoreFocus = false) => {
@@ -1082,11 +1081,11 @@ export function ShowEditor({
     if (!anchor) {
       window.setTimeout(() => setDetailAnchor(findShowSelectionAnchor(next)), 0)
     }
-  }, [closeDetailPanel, detailPanelOpen, pinnedDetail, selection])
+  }, [closeDetailPanel, detailPanelOpen, pinnedDetail, selection, setSelection])
   const selectGroupCandidates = useCallback((groupSelection: ShowGroupSelection) => {
     closeDetailPanel()
     setSelection({ kind: 'multi', groupSelection })
-  }, [closeDetailPanel])
+  }, [closeDetailPanel, setSelection])
   const reanchorOpenDetails = useCallback((target: ShowSelection) => {
     window.setTimeout(() => {
       const anchor = findShowSelectionAnchor(target)
@@ -1104,7 +1103,8 @@ export function ShowEditor({
   useEffect(() => {
     if (detailShowIdRef.current === showId) return
     detailShowIdRef.current = showId
-    setSelection({ kind: 'show' })
+    resetShowEditorView()
+    resetHoveredClip()
     setDetailPanelOpen(false)
     setDetailAnchor(null)
     setPinnedDetail(null)
@@ -1118,7 +1118,7 @@ export function ShowEditor({
     pendingDeliveryRef.current = null
     setPendingSendMode(null)
     setGeneratedSnapshot(null)
-  }, [showId])
+  }, [resetHoveredClip, resetShowEditorView, showId])
   useEffect(() => {
     const pendingDelivery = pendingDeliveryRef.current
     if (!pendingDelivery || pendingDelivery.controllerIp === activeIp) return
@@ -1358,7 +1358,7 @@ export function ShowEditor({
       return true
     }
     return false
-  }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, removeBoundaryTransition, removeClip, removeZone, updateShowInBackground])
+  }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, removeBoundaryTransition, removeClip, removeZone, setSelection, updateShowInBackground])
   useEffect(() => {
     if (!blockedDeleteFeedback) return
     const timeout = window.setTimeout(() => setBlockedDeleteFeedback(null), 1100)
@@ -1390,7 +1390,7 @@ export function ShowEditor({
       window.setTimeout(() => timelineWorkspaceRef.current?.focus(), 0)
       return true
     },
-  }), [closeDetailPanel, detailPanelOpen, isolatedGroupOccurrenceId, pinnedDetail, selection.kind, transitionPaletteId])
+  }), [closeDetailPanel, detailPanelOpen, isolatedGroupOccurrenceId, pinnedDetail, selection.kind, setSelection, transitionPaletteId])
   useEffect(() => {
     if (!detailPanelOpen) return
     const handleOutsidePointerDown = (event: PointerEvent) => {
@@ -1597,7 +1597,7 @@ export function ShowEditor({
       setSelection({ kind: 'show' })
     }, 0)
     return () => window.clearTimeout(timeout)
-  }, [closeDetailPanel, isolatedGroupOccurrenceId, timelineComposition])
+  }, [closeDetailPanel, isolatedGroupOccurrenceId, setSelection, timelineComposition])
   useEffect(() => {
     if (!activeShow) return
     const pinnedSelectionMissing = Boolean(
@@ -1614,7 +1614,7 @@ export function ShowEditor({
       }
     }, 0)
     return () => window.clearTimeout(timeout)
-  }, [activeShow, closeDetailPanel, detailPanelOpen, pinnedDetail, selection, timelineComposition])
+  }, [activeShow, closeDetailPanel, detailPanelOpen, pinnedDetail, selection, setSelection, timelineComposition])
   const inspectorShow = activeShow && timelineComposition && !activeShow.composition
     ? { ...activeShow, composition: timelineComposition }
     : activeShow
@@ -3820,8 +3820,9 @@ function ShowTimelineWorkspace({
     ?.find((occurrence) => occurrence.id === isolatedGroupOccurrenceId) ?? null
   const isolatedGroupDefinition = timelineComposition?.groupDefinitions
     ?.find((definition) => definition.id === isolatedGroupOccurrence?.definitionId) ?? null
-  const fittedViewport = fitShowTimelineViewport(timeline.durationMs)
-  const [storedViewport, setViewport] = useState<ShowTimelineViewport>(fittedViewport)
+  const fittedViewport = useMemo(() => fitShowTimelineViewport(timeline.durationMs), [timeline.durationMs])
+  const storedViewport = useShowEditorViewStore((state) => state.viewport) ?? fittedViewport
+  const setViewport = useShowEditorViewStore((state) => state.setViewport)
   const snapEnabled = useShowEditorSessionStore((state) => state.snapEnabled)
   const setSnapEnabled = useShowEditorSessionStore((state) => state.setSnapEnabled)
   const markersVisible = useShowEditorSessionStore((state) => state.markersVisible)
@@ -4047,8 +4048,14 @@ function ShowTimelineWorkspace({
     const transport = useShowTransportStore.getState()
     const anchorMs = transport.showId === show.id ? transport.positionMs : 0
     viewport = zoomShowTimelineViewport(fittedViewport, zoom, Math.min(anchorMs, fittedViewport.totalMs))
-    setViewport(viewport)
   }
+  // Persist the rescaled range outside the render pass: a store write during
+  // render would notify subscribers mid-render, unlike the local useState
+  // this slice replaced.
+  const reconciledViewport = viewport
+  useEffect(() => {
+    if (reconciledViewport !== storedViewport) setViewport(reconciledViewport)
+  }, [reconciledViewport, setViewport, storedViewport])
   const scrollRef = useRef<HTMLDivElement>(null)
   const timelineRulerRef = useRef<HTMLDivElement>(null)
   const initialTransport = useShowTransportStore.getState()
@@ -4441,8 +4448,9 @@ function ShowTimelineWorkspace({
     if (Math.abs(element.scrollLeft - next) > 1) element.scrollLeft = next
   }, [timelineScale, viewport])
   const updateViewport = useCallback((next: SetStateAction<ShowTimelineViewport>) => {
-    setViewport(next)
-  }, [setViewport])
+    const current = useShowEditorViewStore.getState().viewport ?? fittedViewport
+    setViewport(typeof next === 'function' ? next(current) : next)
+  }, [fittedViewport, setViewport])
   const timelineIsFitted = viewport.startMs === fittedViewport.startMs
     && viewport.durationMs === fittedViewport.durationMs
     && viewport.totalMs === fittedViewport.totalMs
@@ -5862,6 +5870,8 @@ function ShowTimelineWorkspace({
                       data-show-composition-clip="true"
                       data-show-group-occurrence={group?.id}
                       draggable={!readOnly && !group}
+                      onPointerEnter={() => useShowClipHoverStore.getState().setHoveredClip(clip.id)}
+                      onPointerLeave={() => useShowClipHoverStore.getState().clearHoveredClip(clip.id)}
                       onPointerDown={(event) => {
                         if (!event.shiftKey || event.button !== 0 || readOnly || group) return
                         event.stopPropagation()

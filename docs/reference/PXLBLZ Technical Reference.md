@@ -813,6 +813,17 @@ per-Layer Transition junctions, disclosed property lanes, Markers, Show End,
 playhead. This section names the seams; the interaction details live in the
 modules and their tests.
 
+**Editor state ownership.** What the editor is looking at lives in store
+slices, not component state: `showEditorViewStore` holds the timeline
+selection and the visible time range (null meaning fitted), and
+`showClipHoverStore` holds the clip under the pointer — a separate store so
+pointer-frequency writes never re-render selection or viewport subscribers.
+Components write these slices on events and read them for rendering; the
+pure selection and viewport algebra stays in the engine. Both reset when the
+editor mounts or switches Shows, and non-component code (tests, tooling,
+commands) can read them without a component handle. Playhead position was
+already store-owned (`showTransportStore`).
+
 **Viewport and snapping.** `showTimelineViewport.ts` owns zoom, pan, Navigator
 geometry, and magnetic playhead snapping; `snapShowTimelineTime` layers an
 always-on quantize grid (whole seconds refining along the ruler's 1/2/5 tick
