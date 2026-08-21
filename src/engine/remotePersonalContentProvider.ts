@@ -128,10 +128,19 @@ export function createRemotePersonalContentProvider(
       })
     },
     updateShow: async (id, changes) => {
+      // A patch that carries targetControllerProfileId as undefined means
+      // "clear it": JSON would drop the key and the D1 update would skip the
+      // column, resurrecting the stale id on reload. Translate the clear to
+      // an explicit wire-level null here, keeping the typed provider
+      // contract (string | undefined) intact for every other provider.
+      const wireChanges = 'targetControllerProfileId' in changes
+        && changes.targetControllerProfileId === undefined
+        ? { ...changes, targetControllerProfileId: null }
+        : changes
       await requestJson(fetcher, `/api/shows/${encodeURIComponent(id)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(changes),
+        body: JSON.stringify(wireChanges),
       })
     },
     deleteShow: async (id) => {

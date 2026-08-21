@@ -735,11 +735,7 @@ function showPersistenceChanges(next: ShowRecord): Partial<Omit<ShowRecord, 'id'
     transitions: next.transitions,
     composition: next.composition ?? null,
     outputEffects: next.outputEffects,
-    // An absent profile must persist as an explicit NULL: undefined is
-    // dropped by JSON and skipped by the D1 update, leaving a stale id. The
-    // record type spells the field string|undefined, but the wire and D1
-    // column accept null and the read side maps falsy back to absent.
-    targetControllerProfileId: (next.targetControllerProfileId ?? null) as unknown as string | undefined,
+    targetControllerProfileId: next.targetControllerProfileId,
     stageMapId: next.stageMapId ?? null,
     outputContract: next.outputContract,
     importMetadata: next.importMetadata,
