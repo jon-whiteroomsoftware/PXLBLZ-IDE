@@ -670,12 +670,28 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(showLoopDurationMs(record)).toBe(72_000)
     const intervals = projectShowLayoutIntervals(record)
     expect(intervals[intervals.length - 1].id).toBe(changes[0].details?.intervalId)
+
+    // Inserting at a clip boundary splits the held Scene, and the legacy
+    // compatibility cells split with it.
+    const inserted = applyOk(showCommandFixture(), 'add_layout_interval', {
+      layout_id: 'layout-1',
+      duration_ms: 5_000,
+      at_ms: 10_000,
+    })
+    expect(projectShowLayoutIntervals(inserted.record).length).toBeGreaterThanOrEqual(2)
   },
   duplicate_layout_interval: () => {
     const { record } = applyOk(showCommandFixture(), 'duplicate_layout_interval', {
       interval_id: 'layout-occurrence-scene-1',
     })
     expect(projectShowLayoutIntervals(record)).toHaveLength(2)
+
+    // Duplicating with content copies the occurrence's cells too.
+    const withContent = applyOk(showCommandFixture(), 'duplicate_layout_interval', {
+      interval_id: 'layout-occurrence-scene-1',
+      with_content: true,
+    })
+    expect(withContent.record.cells.length).toBeGreaterThan(showCommandFixture().cells.length)
   },
   make_layout_interval_unique: () => {
     const appended = applyOk(showCommandFixture(), 'add_layout_interval', {
@@ -686,6 +702,13 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
       interval_id: appended.changes[0].details?.intervalId as string,
     })
     expect(record.routingLayouts).toHaveLength(2)
+
+    // Making the content-bearing occurrence unique mints new Zones, and its
+    // cells remap onto them.
+    const contentUnique = applyOk(appended.record, 'make_layout_interval_unique', {
+      interval_id: 'layout-occurrence-scene-1',
+    })
+    expect(contentUnique.record.zones.length).toBeGreaterThan(1)
   },
   move_connected_clip: () => {
     const adjacent = applyOk(trackedCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 10_000 })

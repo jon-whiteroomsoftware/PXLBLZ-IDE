@@ -21,11 +21,13 @@ import {
 } from './registry'
 import { monotonicRecord, resolveCommandClip, type CommandClipContext } from './support'
 
+// Trails is a Show-level output Effect (set_output_trails), not a clip
+// Effect; the clip normalizer drops it, so it is not offered here.
 export const SHOW_CLIP_EFFECT_KINDS = [
   'opacity', 'brightness', 'hue', 'saturation', 'contrast', 'invert', 'threshold',
   'luma-key', 'chroma-key', 'posterize', 'vignette', 'color-map',
   'translate', 'rotate', 'scale', 'shear', 'ripple', 'swirl', 'bulge',
-  'pixelate', 'kaleidoscope', 'wrap', 'trails',
+  'pixelate', 'kaleidoscope', 'wrap',
 ] as const
 
 function inspectorOwner(context: CommandClipContext): ShowClipInspectorOwner {

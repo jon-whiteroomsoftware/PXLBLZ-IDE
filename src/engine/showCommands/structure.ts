@@ -63,7 +63,11 @@ const setOutputContract: ShowCommandDescriptor = {
     const contract = kind === 'portable-2d'
       ? createPortableShowOutputContract({ referenceMapId: mapId, referencePixelCount: pixelCount })
       : createInstallationShowOutputContract({ outputMapId: mapId, pixelCount })
-    if (JSON.stringify(contract) === JSON.stringify(record.outputContract)) {
+    // Report and store what the contract creator normalized (it trims the
+    // map id and clamps the pixel count).
+    const storedMapId = contract.kind === 'portable-2d' ? contract.referenceMapId : contract.outputMapId
+    const storedPixelCount = contract.kind === 'portable-2d' ? contract.referencePixelCount : contract.pixelCount
+    if (JSON.stringify(contract) === JSON.stringify(record.outputContract) && record.stageMapId === storedMapId) {
       return refuseShowCommand({
         code: 'no-change',
         message: `The Show already has exactly this ${kind} output contract.`,
@@ -74,7 +78,7 @@ const setOutputContract: ShowCommandDescriptor = {
       record: {
         ...record,
         outputContract: contract,
-        stageMapId: mapId,
+        stageMapId: storedMapId,
         updatedAt: Math.max(Date.now(), record.updatedAt + 1),
       },
       changes: [{
@@ -82,8 +86,8 @@ const setOutputContract: ShowCommandDescriptor = {
         targetId: 'output-contract',
         description:
           kind === 'portable-2d'
-            ? `Output contract is now portable-2d (${pixelCount} px reference, map ${mapId ?? 'none'}).`
-            : `Output contract is now installation (${pixelCount} px fixed, map ${mapId ?? 'none'}).`,
+            ? `Output contract is now portable-2d (${storedPixelCount} px reference, map ${storedMapId ?? 'none'}).`
+            : `Output contract is now installation (${storedPixelCount} px fixed, map ${storedMapId ?? 'none'}).`,
       }],
     }
   },
@@ -135,7 +139,7 @@ const addLayoutInterval: ShowCommandDescriptor = {
     'Add an empty Zone Layout occurrence of the given duration: at the end of the Show (omit at_ms) ' +
     'or inserted at a global time. Inserting inside held content splits it at that point; refused ' +
     'where the boundary would cut a Transition window or a multi-part clip.',
-  touches: ['/scenes', '/transitions', '/composition', '/updatedAt'],
+  touches: ['/scenes', '/transitions', '/composition', '/cells', '/updatedAt'],
   fields: {
     layout_id: { kind: 'string', description: 'The Zone Layout id the occurrence routes through' },
     duration_ms: { kind: 'integer', description: 'Occurrence duration in milliseconds (positive)' },
@@ -191,7 +195,7 @@ const duplicateLayoutInterval: ShowCommandDescriptor = {
   description:
     'Duplicate a Zone Layout occurrence immediately after itself: empty (default) or with its content ' +
     '(with_content true). Refused when a multi-part clip crosses the occurrence boundary.',
-  touches: ['/scenes', '/transitions', '/composition', '/updatedAt'],
+  touches: ['/scenes', '/transitions', '/composition', '/cells', '/updatedAt'],
   fields: {
     interval_id: { kind: 'string', description: 'The Layout occurrence id (from the interval projection)' },
     with_content: { kind: 'boolean', optional: true, description: 'Copy the occurrence\'s clips as well (default false)' },
@@ -231,7 +235,7 @@ const makeLayoutIntervalUnique: ShowCommandDescriptor = {
     'Give one Zone Layout occurrence its own copy of the layout and its Zone identities (new Zones ' +
     'are minted for the copy), so editing them no longer affects the other occurrences that shared ' +
     'the layout.',
-  touches: ['/routingLayouts', '/zones', '/composition/scenes/*/zones', '/transitions', '/updatedAt'],
+  touches: ['/routingLayouts', '/zones', '/composition/scenes/*/zones', '/cells', '/transitions', '/updatedAt'],
   fields: {
     interval_id: { kind: 'string', description: 'The Layout occurrence id (from the interval projection)' },
   },
