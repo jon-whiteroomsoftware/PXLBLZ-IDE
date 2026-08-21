@@ -18,9 +18,12 @@ export interface SetShowOutputTrailsInput {
  */
 export function setShowOutputTrails(show: ShowRecord, input: SetShowOutputTrailsInput): ShowRecord {
   const trails = normalizeShowOutputEffects(show.outputEffects).find((effect) => effect.kind === 'trails')
+  // Monotonic even when a prior rapid edit stamped updatedAt ahead of the
+  // clock; the store's durable rollback baseline relies on this.
+  const updatedAt = Math.max(Date.now(), show.updatedAt + 1)
   if (!input.enabled) {
     if (!trails) return show
-    return { ...show, outputEffects: [], updatedAt: Date.now() }
+    return { ...show, outputEffects: [], updatedAt }
   }
   const retention = Number.isFinite(input.retention)
     ? Math.max(0, Math.min(1, input.retention as number))
@@ -31,6 +34,6 @@ export function setShowOutputTrails(show: ShowRecord, input: SetShowOutputTrails
     outputEffects: normalizeShowOutputEffects([
       { id: trails?.id ?? 'trails', kind: 'trails', retention },
     ]),
-    updatedAt: Date.now(),
+    updatedAt,
   }
 }

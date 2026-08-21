@@ -61,6 +61,15 @@ describe('setShowOutputTrails', () => {
     expect(setShowOutputTrails(show, { enabled: true, retention: 0.5 })).toBe(show)
   })
 
+  it('keeps updatedAt monotonic when the record is stamped ahead of the clock', () => {
+    const future = Date.now() + 60_000
+    const ahead = { ...createDefaultShow('show-trails', 'Trails test', future) }
+    const enabled = setShowOutputTrails(ahead as ShowRecord, { enabled: true })
+    expect(enabled.updatedAt).toBeGreaterThan(future)
+    const disabled = setShowOutputTrails(enabled, { enabled: false })
+    expect(disabled.updatedAt).toBeGreaterThan(enabled.updatedAt)
+  })
+
   it('normalizes an un-normalized stored list on change', () => {
     const show = showWith([
       { id: '', kind: 'trails', retention: Number.NaN },
