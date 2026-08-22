@@ -571,15 +571,15 @@ function clamp(value: number, min: number, max: number): number {
 
 /**
  * Parameter words for an Effect lane: the Effect's own name is dropped from
- * the parameter ('X scale' under scale reads 'X'), and words lowercase except
- * single-letter axes, so a lane reads 'scale X' or 'rotate turns', never
- * 'scale X scale' or 'rotate Turns' (#63).
+ * the parameter ('X scale' under scale reads 'x'), and every word lowercases
+ * like every other lane family, so a lane reads 'scale x' or 'rotate turns',
+ * never 'scale X scale' or 'rotate Turns' (#63).
  */
 function effectLanePropertyWords(effectKind: string, parameterLabel: string): string {
   const kindWords = new Set(effectKind.split('-').map((word) => word.toLowerCase()))
   const words = parameterLabel
     .split(' ')
     .filter((word) => !kindWords.has(word.toLowerCase()))
-    .map((word) => (word.length > 1 ? word.toLowerCase() : word))
+    .map((word) => word.toLowerCase())
   return words.length > 0 ? words.join(' ') : parameterLabel.toLowerCase()
 }

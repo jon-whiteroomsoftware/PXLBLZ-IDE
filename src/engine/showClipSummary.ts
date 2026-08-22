@@ -437,7 +437,7 @@ function compositionAnimationItem(
     return {
       kind: 'view',
       itemId: `viewport-${target.property}`,
-      label: `Viewport ${humanizeIdentifier(target.property)}`,
+      label: `Viewport ${humanizeIdentifier(target.property).toLowerCase()}`,
       tersePrefix: short,
       format: formatNumber,
     }
@@ -725,15 +725,15 @@ function viewItems(
   }
   const transform = normalizeShowClipTransform(cell.transform)
   // Position and scale axes pair up on the Clip row (#63); Clip Detail keeps each axis.
-  if (transform.positionX !== 0) items.push({ id: 'transform-position-x', label: 'Position X', value: formatNumber(transform.positionX) })
-  if (transform.positionY !== 0) items.push({ id: 'transform-position-y', label: 'Position Y', value: formatNumber(transform.positionY) })
+  if (transform.positionX !== 0) items.push({ id: 'transform-position-x', label: 'Position x', value: formatNumber(transform.positionX) })
+  if (transform.positionY !== 0) items.push({ id: 'transform-position-y', label: 'Position y', value: formatNumber(transform.positionY) })
   // The circular-arrow icon names rotation on the Clip row; no text prefix.
   if (transform.rotation !== 0) items.push({ id: 'transform-rotation', label: 'Rotation', value: formatAngleValue('rotation', transform.rotation) })
   if (transform.scaleX !== 1) {
-    items.push({ id: 'transform-scale-x', label: 'Scale X', value: formatSummaryDomainNumber('multiplier', transform.scaleX, 0.01) })
+    items.push({ id: 'transform-scale-x', label: 'Scale x', value: formatSummaryDomainNumber('multiplier', transform.scaleX, 0.01) })
   }
   if (transform.scaleY !== 1) {
-    items.push({ id: 'transform-scale-y', label: 'Scale Y', value: formatSummaryDomainNumber('multiplier', transform.scaleY, 0.01) })
+    items.push({ id: 'transform-scale-y', label: 'Scale y', value: formatSummaryDomainNumber('multiplier', transform.scaleY, 0.01) })
   }
   const authoredViewport = compactShowClipViewport(cell.viewport)
   if (authoredViewport) {
@@ -798,12 +798,18 @@ function collectAnimatedProperty(
   }
 }
 
+/** Sentence case, axes included: 'positionX' -> 'Position x', like every other summary label (#63). */
 function humanizeIdentifier(value: string): string {
   const words = value
     .replace(/[-_]+/g, ' ')
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .trim()
-  return words ? words[0].toUpperCase() + words.slice(1) : 'Property'
+  return words ? words[0].toUpperCase() + words.slice(1).toLowerCase() : 'Property'
+}
+
+/** Toolkit parameter labels arrive Title Cased ('Center X'); summaries read in sentence case ('Center x'). */
+function sentenceCaseLabel(label: string): string {
+  return label ? label[0].toUpperCase() + label.slice(1).toLowerCase() : label
 }
 
 function formatNumber(value: number): string {
@@ -845,7 +851,9 @@ function compactEffectParameterLabel(label: string, effectKind: string): string 
   const kept = label.split(' ').filter((word) => (
     !effectWords.some((effectWord) => effectWord.toLowerCase() === word.toLowerCase())
   ))
-  return kept.join(' ') || label
+  const compact = kept.join(' ') || label
+  // A lone axis reads lowercase, as it does on the property lanes.
+  return /^[XYZ]$/i.test(compact) ? compact.toLowerCase() : sentenceCaseLabel(compact)
 }
 
 const TIMELINE_PARAMETER_CONTRACTIONS: Readonly<Record<string, string>> = {

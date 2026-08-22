@@ -79,24 +79,24 @@ describe('resolvePropertyLaneDisplayLabels (#631)', () => {
 
   it('shows the display property in place of the full label, keeping the qualifier rule (#63)', () => {
     expect(resolvePropertyLaneDisplayLabels([
-      { propertyLabel: 'translate X', family: 'effect', ownerName: 'CompassRose', displayProperty: 'X' },
-      { propertyLabel: 'translate X', family: 'effect', ownerName: 'SignalMandala', displayProperty: 'X' },
+      { propertyLabel: 'translate x', family: 'effect', ownerName: 'CompassRose', displayProperty: 'x' },
+      { propertyLabel: 'translate x', family: 'effect', ownerName: 'SignalMandala', displayProperty: 'x' },
       { propertyLabel: 'rotate turns', family: 'effect', ownerName: 'CompassRose', displayProperty: 'turns' },
-    ])).toEqual(['CR X', 'SM X', 'turns'])
+    ])).toEqual(['CR x', 'SM x', 'turns'])
   })
 
   it('contests names on what is shown - family, glyph, and text - not the raw property (#63 review)', () => {
     // A Zone-level 'scale x' lane and a Clip's 'scaleX' animation both render
     // as the scale glyph with 'X'; they must qualify each other.
     expect(resolvePropertyLaneDisplayLabels([
-      { propertyLabel: 'scale x', family: 'transform', displayProperty: 'X', glyph: 'scale' },
-      { propertyLabel: 'scaleX', family: 'transform', ownerName: 'CompassRose', displayProperty: 'X', glyph: 'scale' },
-    ])).toEqual(['X', 'CR X'])
+      { propertyLabel: 'scale x', family: 'transform', displayProperty: 'x', glyph: 'scale' },
+      { propertyLabel: 'scaleX', family: 'transform', ownerName: 'CompassRose', displayProperty: 'x', glyph: 'scale' },
+    ])).toEqual(['x', 'CR x'])
     // Different glyphs with the same text stay distinct.
     expect(resolvePropertyLaneDisplayLabels([
-      { propertyLabel: 'positionX', family: 'transform', ownerName: 'CompassRose', displayProperty: 'X', glyph: 'move' },
-      { propertyLabel: 'scaleX', family: 'transform', ownerName: 'SignalMandala', displayProperty: 'X', glyph: 'scale' },
-    ])).toEqual(['X', 'X'])
+      { propertyLabel: 'positionX', family: 'transform', ownerName: 'CompassRose', displayProperty: 'x', glyph: 'move' },
+      { propertyLabel: 'scaleX', family: 'transform', ownerName: 'SignalMandala', displayProperty: 'x', glyph: 'scale' },
+    ])).toEqual(['x', 'x'])
   })
 
   it('abbreviates single-word Clip names without internal capitals', () => {

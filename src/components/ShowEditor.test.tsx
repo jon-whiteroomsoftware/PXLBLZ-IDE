@@ -2823,7 +2823,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
 
     await user.click(within(summary).getByRole('button', {
-      name: 'Position X 0.25; go to Place Position X field',
+      name: 'Position x 0.25; go to Place Position X field',
     }))
     await waitFor(() => {
       expect(within(panel).getByRole('tab', { name: /^Place/ })).toHaveAttribute('aria-selected', 'true')

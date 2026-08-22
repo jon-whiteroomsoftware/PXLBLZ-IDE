@@ -35,15 +35,15 @@ describe('Show property lane families (#631)', () => {
 
 describe('propertyLanePresentation (#63)', () => {
   it.each([
-    ['transform', 'position x', 'move', 'X'],
-    ['transform', 'positionY', 'move', 'Y'],
+    ['transform', 'position x', 'move', 'x'],
+    ['transform', 'positionY', 'move', 'y'],
     ['transform', 'rotation', 'rotate', 'turns'],
-    ['transform', 'scale y', 'scale', 'Y'],
-    ['transform', 'scaleX', 'scale', 'X'],
-    ['effect', 'translate X', 'move', 'X'],
+    ['transform', 'scale y', 'scale', 'y'],
+    ['transform', 'scaleX', 'scale', 'x'],
+    ['effect', 'translate x', 'move', 'x'],
     ['effect', 'rotate turns', 'rotate', 'turns'],
-    ['effect', 'scale X', 'scale', 'X'],
-    ['effect', 'shear Y', 'shear', 'Y'],
+    ['effect', 'scale x', 'scale', 'x'],
+    ['effect', 'shear y', 'shear', 'y'],
   ] as const)('%s %s reads as a %s glyph with %s', (family, propertyLabel, glyph, displayProperty) => {
     expect(propertyLanePresentation(family, propertyLabel)).toEqual({ glyph, displayProperty })
   })

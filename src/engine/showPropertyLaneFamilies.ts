@@ -58,9 +58,10 @@ const TRANSFORM_GLYPHS: Readonly<Record<string, ShowPropertyLaneGlyph>> = {
 
 /**
  * How a lane presents its property: a transform kind becomes a glyph and the
- * remaining words stay ('translate X' -> move glyph + 'X', 'rotation' ->
- * rotate glyph + 'turns'); everything else keeps its text. Accessible names
- * and hover text keep the full property label (#63).
+ * remaining words stay ('translate x' -> move glyph + 'x', 'rotation' ->
+ * rotate glyph + 'turns'); everything else keeps its text. Lane text is
+ * lowercase in every family, axes included. Accessible names and hover text
+ * keep the full property label (#63).
  */
 export function propertyLanePresentation(
   family: ShowPropertyLaneFamily,
@@ -73,6 +74,6 @@ export function propertyLanePresentation(
   const rest = match[2].trim()
   const displayProperty = glyph === 'rotate'
     ? (rest || 'turns')
-    : rest.length === 1 ? rest.toUpperCase() : rest
+    : rest.toLowerCase()
   return { glyph, displayProperty }
 }

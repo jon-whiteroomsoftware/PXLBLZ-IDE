@@ -498,8 +498,8 @@ describe('Show Clip summary', () => {
 
     expect(summary.find((section) => section.kind === 'view')?.items).toEqual([
       { id: 'transform-rotation', label: 'Rotation', value: '-90–90°', animated: true },
-      { id: 'transform-scale-x', label: 'Scale X', value: '0.5–2.51x', animated: true },
-      { id: 'viewport-width', label: 'Viewport Width', value: '1–2', timelineValue: 'w 1–2', animated: true },
+      { id: 'transform-scale-x', label: 'Scale x', value: '0.5–2.51x', animated: true },
+      { id: 'viewport-width', label: 'Viewport width', value: '1–2', timelineValue: 'w 1–2', animated: true },
       { id: 'phase', label: 'Phase', value: '0–0.5', animated: true },
     ])
     expect(summary.find((section) => section.kind === 'controls')?.items).toEqual([
@@ -607,7 +607,7 @@ describe('Show Clip summary', () => {
       expect.objectContaining({ label: 'Animation speed', value: 'animated' }),
     )
     expect(showClipInlineSummary(summary)).toBe(
-      'Animation speed 0.35x · Speed 28% · Sharpness 42% · Brightness 80% · Scale X 0.8x, Y 0.8x · Hue 0.1t · Animation speed animated',
+      'Animation speed 0.35x · Speed 28% · Sharpness 42% · Brightness 80% · Scale x 0.8x, y 0.8x · Hue 0.1t · Animation speed animated',
     )
   })
 
@@ -650,7 +650,7 @@ describe('Show Clip summary', () => {
       expect.objectContaining({ label: 'Hue', value: '0.1t' }),
       expect.objectContaining({
         label: 'Scale',
-        value: 'X 2.51x, Y 0.75x',
+        value: 'x 2.51x, y 0.75x',
         // The Clip row shows values only; names live in Clip Detail (#63).
         timelineValue: '2.51×0.75x',
       }),
@@ -673,12 +673,12 @@ describe('Show Clip summary', () => {
 
     const summary = projectGlobalShowClipSummary(show, cellId)
     expect(summary.find((section) => section.kind === 'view')?.items).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: 'Position X', value: '0.25' }),
+      expect.objectContaining({ label: 'Position x', value: '0.25' }),
       expect.objectContaining({ label: 'Rotation', value: '90°' }),
-      expect.objectContaining({ label: 'Scale X', value: '2.51x' }),
+      expect.objectContaining({ label: 'Scale x', value: '2.51x' }),
     ]))
     expect(summary.find((section) => section.kind === 'animation')?.items).toContainEqual(
-      expect.objectContaining({ label: 'Position X', value: 'animated' }),
+      expect.objectContaining({ label: 'Position x', value: 'animated' }),
     )
   })
 
@@ -725,7 +725,7 @@ describe('Show Clip summary', () => {
     const timelineEffect = projectShowClipTimelineSummary(summary, null)
       .find((section) => section.kind === 'effects')?.items[0]
 
-    expect(effect?.value).toBe('Amount 0.32, Frequency 4, Phase 0t, Center X 0.5, Center Y 0.5')
+    expect(effect?.value).toBe('Amount 0.32, Frequency 4, Phase 0t, Center x 0.5, Center y 0.5')
     // The Clip row keeps only parameters authored away from their defaults,
     // as values only - names live in Clip Detail (#666, #63).
     expect(timelineEffect?.displayValue).toBe('.32 / 4')
@@ -746,7 +746,7 @@ describe('Show Clip summary', () => {
     ])
     // Clip Detail and the tooltip keep every axis as its own fact.
     expect(showClipInlineSummary(summary)).toBe(
-      'Position X -0.25 · Position Y 0.25 · Rotation 45° · Scale X 0.5x · Scale Y 0.5x',
+      'Position x -0.25 · Position y 0.25 · Rotation 45° · Scale x 0.5x · Scale y 0.5x',
     )
   })
 
@@ -855,6 +855,6 @@ describe('Show Clip summary', () => {
     // A pair prints both axes even when one is at its default; a uniform
     // scale collapses to one value; pixelate reads as a grid size.
     expect(effects).toEqual(['.2,0', '.5x', '.1,.3', '100% / 8×12', '#ff0000 / 12%'])
-    expect(showClipInlineSummary(summary)).toContain('Translate X 0.2, Y 0')
+    expect(showClipInlineSummary(summary)).toContain('Translate x 0.2, y 0')
   })
 })

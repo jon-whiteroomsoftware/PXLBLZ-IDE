@@ -156,12 +156,13 @@ describe('Show property lane projection (#483)', () => {
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-transform-effects')!
     const labels = new Set(projectGlobalShowScenePropertyLanes(stock.show).map((lane) => lane.propertyLabel))
 
-    expect(labels).toContain('translate X')
-    expect(labels).toContain('scale X')
+    expect(labels).toContain('translate x')
+    expect(labels).toContain('scale x')
     expect(labels).toContain('rotate turns')
-    expect(labels).toContain('shear X')
+    expect(labels).toContain('shear x')
+    // Lane text is lowercase in every family, axes included.
     for (const label of labels) {
-      expect(label).not.toMatch(/scale X scale|Turns|shear X shear/)
+      expect(label).toBe(label.toLowerCase())
     }
   })
 })
