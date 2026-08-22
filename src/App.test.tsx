@@ -1202,10 +1202,17 @@ describe('routing (#308)', () => {
     expect(await screen.findByTestId('controller-ip-input')).toBeInTheDocument()
   })
 
-  it('shows a graceful message for unknown paths', () => {
+  it('shows a graceful message for unknown paths whose action leads to the public Gallery', async () => {
+    const user = userEvent.setup()
     window.history.replaceState(null, '', '/bogus')
     render(<App />)
-    expect(screen.getByTestId('route-message')).toHaveTextContent('Nothing at this address')
+    const message = screen.getByTestId('route-message')
+    expect(message).toHaveTextContent('Nothing at this address')
+
+    await user.click(within(message).getByRole('button', { name: 'Browse the Gallery' }))
+
+    expect(window.location.pathname).toBe('/gallery')
+    expect(screen.queryByTestId('route-message')).not.toBeInTheDocument()
   })
 
   it('opens the docs reader at /docs/<id> and redirects legacy hash links', () => {

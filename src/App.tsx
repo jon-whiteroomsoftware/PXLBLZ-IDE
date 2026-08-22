@@ -967,8 +967,8 @@ function StudioApp() {
         <RouteMessage
           title="Nothing at this address"
           detail={`There's no page at ${route.kind === 'docs' ? `/docs/${route.docId}` : route.kind === 'api-reference' ? `/reference/${route.libraryId}` : route.path}.`}
-          actionLabel="Back to Studio"
-          onAction={() => navigate({ kind: 'studio', entity: null }, { replace: true })}
+          actionLabel="Browse the Gallery"
+          onAction={() => navigate({ kind: 'gallery' }, { replace: true })}
         />
       ) : route.kind === 'docs' && activeDoc ? (
         <DocsWorkspace doc={activeDoc} />
