@@ -21,7 +21,7 @@ import { useRouterStore } from '@/store/routerStore'
 import { GalleryLivePreview } from './GalleryLivePreview'
 
 const DIM_OPTIONS: { label: string; value: DimLens }[] = [
-  { label: 'All', value: 'all' },
+  { label: 'Any dimension', value: 'all' },
   { label: '1D', value: 1 },
   { label: '2D', value: 2 },
   { label: '3D', value: 3 },
@@ -29,32 +29,6 @@ const DIM_OPTIONS: { label: string; value: DimLens }[] = [
 
 export function galleryAnchorId(slug: string): string {
   return `gallery-${slug}`
-}
-
-function FilterChip({
-  active,
-  children,
-  onClick,
-}: {
-  active: boolean
-  children: React.ReactNode
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={[
-        'rounded-full border px-[9px] py-[3px] font-mono text-[11px] transition-colors',
-        active
-          ? 'border-live/40 bg-live/15 text-live'
-          : 'border-seam bg-panel text-zinc-400 hover:border-zinc-600 hover:text-zinc-200',
-      ].join(' ')}
-    >
-      {children}
-    </button>
-  )
 }
 
 const DENSITY_PRESENTATION: Record<GalleryDensity, { label: string; Icon: typeof Columns2; grid: string }> = {
@@ -176,17 +150,28 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
             Pattern Gallery
           </h1>
         </div>
-        <div role="radiogroup" aria-label="Dimension filter" className="flex flex-wrap gap-1.5">
-          {DIM_OPTIONS.map((option) => (
-            <FilterChip
-              key={String(option.value)}
-              active={lens === option.value}
-              onClick={() => setLens(option.value)}
-            >
-              {option.label}
-            </FilterChip>
-          ))}
-        </div>
+        <label className="relative flex w-full min-w-0 items-center rounded-none border-b border-zinc-800 bg-transparent font-mono text-[11.5px] text-zinc-300 transition-colors focus-within:border-live sm:w-auto sm:min-w-[120px]">
+          <select
+            value={String(lens)}
+            onChange={(event) => {
+              const selected = DIM_OPTIONS.find((option) => String(option.value) === event.target.value)
+              setLens(selected?.value ?? 'all')
+            }}
+            aria-label="Dimension filter"
+            className="w-full appearance-none bg-transparent py-1 pl-2.5 pr-8 outline-none"
+          >
+            {DIM_OPTIONS.map((option) => (
+              <option key={String(option.value)} value={String(option.value)} className="bg-zinc-950 text-zinc-200">
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            size={13}
+            aria-hidden
+            className="pointer-events-none absolute right-2 text-structural"
+          />
+        </label>
         <label className="relative flex w-full min-w-0 items-center rounded-none border-b border-zinc-800 bg-transparent font-mono text-[11.5px] text-zinc-300 transition-colors focus-within:border-live sm:w-auto sm:min-w-[120px]">
           <select
             value={category}

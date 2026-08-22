@@ -18,11 +18,17 @@ feature is for, where to find it, and where the deeper guides pick up.
 
 ## 1. Gallery
 
-`/gallery` is the front door: the built-in Pattern catalogue, every card
-running the real preview engine. Browse by dimension, folder, or name. Each
-Pattern has a shareable detail page (`/p/<slug>`) with a large live preview,
-the Pattern's own controls, and read-only source, displayed with the map and
-look its author intended.
+`/gallery` is the front door: the built-in Pattern catalogue. Every card shows
+a still of its Pattern, and the six cards nearest your pointer run the real
+preview engine; move the mouse and the animation follows it, while cards that
+leave the set freeze where they were and pick up again from there. Without a
+pointer (touch), the cards nearest the top of the screen animate; a card with
+keyboard focus always does. The density control in the header shows two, three,
+or four cards per row and is remembered on this browser; 1D Patterns render as
+wide strips. Browse by folder, dimension, or name. Each Pattern has a shareable
+detail page (`/p/<slug>`) with a large live preview, the Pattern's own
+controls, and read-only source, displayed with the map and look its author
+intended.
 
 From a detail page you can go two directions: **Open in Studio** to read or
 clone the code, or **Run** and **Save** to put it straight onto a connected

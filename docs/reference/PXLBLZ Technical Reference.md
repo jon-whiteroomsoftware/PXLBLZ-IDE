@@ -93,6 +93,25 @@ frame. Cards, Pattern detail, and Studio resolve one shared recommended
 presentation per Pattern. The `ZRanger1` section keeps its published popularity
 order; other sections are alphabetical.
 
+**Gallery live pool (#888).** Every card is poster-first. `GalleryLivePreview`
+owns a 2D poster canvas and mounts a WebGL canvas only while the card is
+`live` or `warm`. `galleryLiveSelection.ts` (pure) ranks viewport-intersecting
+cards by pointer distance to the card center — top-of-viewport proximity with
+no pointer, keyboard focus first — and applies rank-gap hysteresis: a holder
+keeps its slot while ranked below `poolSize + keepMargin`, and yields only to
+an entrant more than `keepMargin` ranks better, so the nearest card always
+gets a slot without boundary flicker. `galleryLiveCoordinator.ts` (DOM) keeps
+the registry, ignores touch pointer positions, re-ranks on pointer, scroll
+(capture), resize, and focus after a 100 ms trailing debounce, and grants one
+`warm` slot at a time so fresh cards render a single frame for their poster
+(stepping forward a few frames if the first is dark) without exceeding
+`poolSize + 1` contexts. A card leaving the pool paints one last frame,
+copies it into the poster synchronously (the drawing buffer is not preserved
+across composites), records its virtual time, and resumes from it on the next
+grant; a blank capture never replaces a lit poster. Pool size is 6 and the
+margin 2; the density preference (`galleryDensity.ts`, localStorage) sets 2,
+3, or 4 columns, and 1D Patterns span two columns.
+
 **Analytics** flow through a typed seam; local development and tests send
 nothing. OAuth intent and callback outcome events use only the provider,
 outcome, and coarse failure code, never account or profile data.
