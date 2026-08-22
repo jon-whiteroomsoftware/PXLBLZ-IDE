@@ -125,6 +125,34 @@ describe('ShowPropertySparkline (#483)', () => {
     ).toBeInTheDocument()
   })
 
+  it('moves the label after a span that starts under it, and keeps it at the start otherwise (#63)', () => {
+    const lane = (startMs: number, endMs: number) => projectShowPropertyLane({
+      durationMs: 10_000,
+      constraint: { min: 0, max: 1 },
+      defaultValue: 0.5,
+      segments: [{ id: 'ramp', startMs, endMs, from: 0.1, to: 0.9, easing: { curve: 'linear' } }],
+      beats: [
+        { id: 'a', timeMs: startMs, value: 0.1, kind: 'authored' },
+        { id: 'b', timeMs: endMs, value: 0.9, kind: 'authored' },
+      ],
+    })
+    const render_ = (projection: ReturnType<typeof lane>) => render(
+      <ShowPropertySparkline ariaLabel="Brightness lane" label="brightness" family="appearance" projection={projection} />,
+    )
+
+    const early = render_(lane(0, 2_000))
+    const moved = screen.getByTestId('show-property-lane-inline-label')
+    expect(moved).toHaveAttribute('data-placement', 'after-span')
+    expect(moved).toHaveClass('absolute')
+    expect(moved).toHaveStyle({ left: '21%' })
+    early.unmount()
+
+    render_(lane(5_000, 8_000))
+    const kept = screen.getByTestId('show-property-lane-inline-label')
+    expect(kept).toHaveAttribute('data-placement', 'start')
+    expect(kept).toHaveClass('sticky')
+  })
+
   it('retires the label once its animation is behind the scrolled viewport (#631)', () => {
     const projection = projectShowPropertyLane({
       durationMs: 10_000,

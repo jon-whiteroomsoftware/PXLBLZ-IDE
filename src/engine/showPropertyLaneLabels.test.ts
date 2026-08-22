@@ -5,6 +5,7 @@ import {
   propertyLaneAnimatedSpanMs,
   propertyLaneAnimationIsPast,
   propertyLaneLabelObscuresCurve,
+  propertyLaneLabelPlacement,
   resolvePropertyLaneDisplayLabels,
 } from './showPropertyLaneLabels'
 
@@ -213,5 +214,42 @@ describe('propertyLaneLabelObscuresCurve (#631)', () => {
 
   it('treats a label covering nothing as clear', () => {
     expect(propertyLaneLabelObscuresCurve(lane(0, 2_000), { from: 0, to: 0 })).toBe(false)
+  })
+})
+
+describe('propertyLaneLabelPlacement (#63)', () => {
+  const lane = (startMs: number, endMs: number) => projectShowPropertyLane({
+    durationMs: 10_000,
+    constraint: { min: 0, max: 1 },
+    defaultValue: 0.5,
+    segments: [{ id: 'ramp', startMs, endMs, from: 0.1, to: 0.9, easing: { curve: 'linear' } }],
+    beats: [
+      { id: 'a', timeMs: startMs, value: 0.1, kind: 'authored' },
+      { id: 'b', timeMs: endMs, value: 0.9, kind: 'authored' },
+    ],
+  })
+
+  it('keeps the label at the start when the animation begins after it would end', () => {
+    expect(propertyLaneLabelPlacement(lane(5_000, 8_000), 0.2)).toEqual({ side: 'start' })
+  })
+
+  it('moves the label to just after a span that starts under it', () => {
+    expect(propertyLaneLabelPlacement(lane(0, 2_000), 0.2)).toEqual({ side: 'after-span', leftFraction: 0.21 })
+  })
+
+  it('stays at the start when neither side has room', () => {
+    expect(propertyLaneLabelPlacement(lane(500, 9_500), 0.2)).toEqual({ side: 'start' })
+  })
+
+  it('measures the start against the scrolled viewport rather than the lane origin', () => {
+    // Scrolled to 40%, a span at 50-70% begins under a 20%-wide label, and the
+    // room after it is on screen.
+    expect(propertyLaneLabelPlacement(lane(5_000, 7_000), 0.2, 0.4)).toEqual({ side: 'after-span', leftFraction: 0.71 })
+  })
+
+  it('leaves a lane with no animation at the start', () => {
+    expect(propertyLaneLabelPlacement(projectShowPropertyLane({
+      durationMs: 10_000, constraint: { min: 0, max: 1 }, defaultValue: 0.5, segments: [], beats: [],
+    }), 0.2)).toEqual({ side: 'start' })
   })
 })

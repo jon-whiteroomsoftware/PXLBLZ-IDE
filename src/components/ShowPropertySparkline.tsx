@@ -1,6 +1,11 @@
 import type { ShowPropertyLaneBeat, ShowPropertyLaneProjection } from '@/engine/showPropertyLaneProjection'
 import type { ShowPropertyLaneFamily, ShowPropertyLaneGlyph } from '@/engine/showPropertyLaneFamilies'
-import { propertyLaneAnimatedSpanMs, propertyLaneAnimationIsPast, propertyLaneLabelObscuresCurve } from '@/engine/showPropertyLaneLabels'
+import {
+  propertyLaneAnimatedSpanMs,
+  propertyLaneAnimationIsPast,
+  propertyLaneLabelObscuresCurve,
+  propertyLaneLabelPlacement,
+} from '@/engine/showPropertyLaneLabels'
 import { useShowTransportStore } from '@/store/showTransportStore'
 import { ShowPropertyLaneFamilyGlyph } from '@/components/ShowPropertyLaneFamilyGlyph'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -89,6 +94,9 @@ export function ShowPropertySparkline({
     window.addEventListener('scroll', onScroll, { capture: true, passive: true })
     return () => window.removeEventListener('scroll', onScroll, { capture: true })
   }, [label])
+  // The label moves off the curve when the lane has room after the animated
+  // span (#63); width is measured, so the choice cannot oscillate with position.
+  const placement = propertyLaneLabelPlacement(projection, covered.to - covered.from, covered.visibleFrom)
   const obscuresCurve = Boolean(label) && propertyLaneLabelObscuresCurve(projection, covered)
   // Selecting a boolean rather than the position keeps a playing Show from
   // re-rendering every lane on every frame: this flips at most once per pass.
@@ -134,12 +142,17 @@ export function ShowPropertySparkline({
             data-testid="show-property-lane-inline-label"
             data-obscures-curve={obscuresCurve ? 'true' : 'false'}
             data-retired={retired ? 'true' : 'false'}
-            className={`sticky flex max-w-[calc(100%-8px)] items-center gap-1 rounded-sm px-1 text-[10px] font-medium leading-[14px] transition-opacity duration-300 motion-reduce:transition-none ${
+            data-placement={placement.side}
+            className={`${placement.side === 'start' ? 'sticky' : 'absolute'} flex max-w-[calc(100%-8px)] items-center gap-1 rounded-sm px-1 text-[10px] font-medium leading-[14px] transition-opacity duration-300 motion-reduce:transition-none ${
               obscuresCurve
                 ? 'bg-black/25 shadow-none'
                 : 'bg-black/75 shadow-[0_1px_2px_rgba(0,0,0,0.8)]'
             }`}
-            style={{ color, left: stickyLeftPx + 4, opacity: retired ? 0 : 1 }}
+            style={{
+              color,
+              left: placement.side === 'start' ? stickyLeftPx + 4 : `${placement.leftFraction * 100}%`,
+              opacity: retired ? 0 : 1,
+            }}
           >
             {showFamilyGlyph && family && <ShowPropertyLaneFamilyGlyph family={family} glyph={glyph} size={8} className="shrink-0" />}
             <span className="truncate">{label}</span>

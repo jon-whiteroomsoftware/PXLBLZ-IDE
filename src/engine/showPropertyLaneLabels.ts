@@ -146,3 +146,36 @@ export function propertyLaneLabelObscuresCurve(
   const durationMs = Math.max(1, projection.durationMs)
   return span.startMs / durationMs < covered.to && span.endMs / durationMs > covered.from
 }
+
+export type PropertyLaneLabelPlacement =
+  | { side: 'start' }
+  | { side: 'after-span'; leftFraction: number }
+
+const LABEL_GAP_FRACTION = 0.01
+
+/**
+ * Where the inline label sits so it never covers the curve it describes (#63).
+ * It stays at the visible start when the animated span begins after the label
+ * would end; otherwise it moves to just after the span when the lane has room
+ * there. With room on neither side it stays at the start, where the component
+ * thins its backing instead. `labelWidthFraction` is the label's measured
+ * width as a fraction of the lane, so the decision depends on the label's
+ * size but not on its current position and cannot oscillate.
+ */
+export function propertyLaneLabelPlacement(
+  projection: ShowPropertyLaneProjection,
+  labelWidthFraction: number,
+  visibleFrom = 0,
+): PropertyLaneLabelPlacement {
+  const span = propertyLaneAnimatedSpanMs(projection)
+  if (span === null) return { side: 'start' }
+  const durationMs = Math.max(1, projection.durationMs)
+  const startFraction = span.startMs / durationMs
+  const endFraction = span.endMs / durationMs
+  if (startFraction >= visibleFrom + labelWidthFraction + LABEL_GAP_FRACTION) return { side: 'start' }
+  const leftFraction = Number((endFraction + LABEL_GAP_FRACTION).toFixed(4))
+  if (leftFraction + labelWidthFraction <= 1 && leftFraction >= visibleFrom) {
+    return { side: 'after-span', leftFraction }
+  }
+  return { side: 'start' }
+}
