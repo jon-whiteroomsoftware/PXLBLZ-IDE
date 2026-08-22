@@ -76,6 +76,14 @@ describe('resolvePropertyLaneDisplayLabels (#631)', () => {
     ])).toEqual(['CR translate X', 'CR translate X', 'SM translate X'])
   })
 
+  it('shows the display property in place of the full label, keeping the qualifier rule (#63)', () => {
+    expect(resolvePropertyLaneDisplayLabels([
+      { propertyLabel: 'translate X', family: 'effect', ownerName: 'CompassRose', displayProperty: 'X' },
+      { propertyLabel: 'translate X', family: 'effect', ownerName: 'SignalMandala', displayProperty: 'X' },
+      { propertyLabel: 'rotate turns', family: 'effect', ownerName: 'CompassRose', displayProperty: 'turns' },
+    ])).toEqual(['CR X', 'SM X', 'turns'])
+  })
+
   it('abbreviates single-word Clip names without internal capitals', () => {
     expect(resolvePropertyLaneDisplayLabels([
       { propertyLabel: 'brightness', family: 'appearance', ownerName: 'Caustics' },

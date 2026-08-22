@@ -487,7 +487,7 @@ function describeScenePropertyTrack(
   return [{
     zoneId: owner.zoneId,
     patternName,
-    propertyLabel: `${effect.kind} ${parameter.label}`,
+    propertyLabel: `${effect.kind} ${effectLanePropertyWords(effect.kind, parameter.label)}`,
     family: 'effect',
     valueKind: 'number',
     defaultValue: value,
@@ -567,4 +567,19 @@ function globalTransitionDescriptor(
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
+}
+
+/**
+ * Parameter words for an Effect lane: the Effect's own name is dropped from
+ * the parameter ('X scale' under scale reads 'X'), and words lowercase except
+ * single-letter axes, so a lane reads 'scale X' or 'rotate turns', never
+ * 'scale X scale' or 'rotate Turns' (#63).
+ */
+function effectLanePropertyWords(effectKind: string, parameterLabel: string): string {
+  const kindWords = new Set(effectKind.split('-').map((word) => word.toLowerCase()))
+  const words = parameterLabel
+    .split(' ')
+    .filter((word) => !kindWords.has(word.toLowerCase()))
+    .map((word) => (word.length > 1 ? word.toLowerCase() : word))
+  return words.length > 0 ? words.join(' ') : parameterLabel.toLowerCase()
 }

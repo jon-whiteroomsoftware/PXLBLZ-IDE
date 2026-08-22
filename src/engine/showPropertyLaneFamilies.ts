@@ -43,3 +43,36 @@ export function qualifiedPropertyLabel(
   if (family === 'control') return `${propertyLabel} control`
   return propertyLabel
 }
+
+/** Transform kinds that read as a glyph on the lane instead of a word (#63). */
+export type ShowPropertyLaneGlyph = 'move' | 'rotate' | 'scale' | 'shear'
+
+const TRANSFORM_GLYPHS: Readonly<Record<string, ShowPropertyLaneGlyph>> = {
+  position: 'move',
+  translate: 'move',
+  rotation: 'rotate',
+  rotate: 'rotate',
+  scale: 'scale',
+  shear: 'shear',
+}
+
+/**
+ * How a lane presents its property: a transform kind becomes a glyph and the
+ * remaining words stay ('translate X' -> move glyph + 'X', 'rotation' ->
+ * rotate glyph + 'turns'); everything else keeps its text. Accessible names
+ * and hover text keep the full property label (#63).
+ */
+export function propertyLanePresentation(
+  family: ShowPropertyLaneFamily,
+  propertyLabel: string,
+): { glyph: ShowPropertyLaneGlyph | null; displayProperty: string } {
+  if (family !== 'transform' && family !== 'effect') return { glyph: null, displayProperty: propertyLabel }
+  const match = propertyLabel.match(/^(position|translate|rotation|rotate|scale|shear)(?:\s+|(?=[XY]$))?(.*)$/i)
+  if (!match) return { glyph: null, displayProperty: propertyLabel }
+  const glyph = TRANSFORM_GLYPHS[match[1].toLowerCase()]
+  const rest = match[2].trim()
+  const displayProperty = glyph === 'rotate'
+    ? (rest || 'turns')
+    : rest.length === 1 ? rest.toUpperCase() : rest
+  return { glyph, displayProperty }
+}

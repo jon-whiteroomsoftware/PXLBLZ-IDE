@@ -151,4 +151,17 @@ describe('Show property lane projection (#483)', () => {
 
     expect(lane.samples.find((sample) => sample.timeMs === 30_400)?.value).toBeCloseTo(0.25)
   })
+
+  it('names Effect lanes by kind and parameter without repeating the kind (#63)', () => {
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-transform-effects')!
+    const labels = new Set(projectGlobalShowScenePropertyLanes(stock.show).map((lane) => lane.propertyLabel))
+
+    expect(labels).toContain('translate X')
+    expect(labels).toContain('scale X')
+    expect(labels).toContain('rotate turns')
+    expect(labels).toContain('shear X')
+    for (const label of labels) {
+      expect(label).not.toMatch(/scale X scale|Turns|shear X shear/)
+    }
+  })
 })

@@ -1,5 +1,5 @@
 import type { ShowPropertyLaneBeat, ShowPropertyLaneProjection } from '@/engine/showPropertyLaneProjection'
-import type { ShowPropertyLaneFamily } from '@/engine/showPropertyLaneFamilies'
+import type { ShowPropertyLaneFamily, ShowPropertyLaneGlyph } from '@/engine/showPropertyLaneFamilies'
 import { propertyLaneAnimatedSpanMs, propertyLaneAnimationIsPast, propertyLaneLabelObscuresCurve } from '@/engine/showPropertyLaneLabels'
 import { useShowTransportStore } from '@/store/showTransportStore'
 import { ShowPropertyLaneFamilyGlyph } from '@/components/ShowPropertyLaneFamilyGlyph'
@@ -13,6 +13,7 @@ export function ShowPropertySparkline({
   ariaLabel,
   label,
   family,
+  glyph = null,
   hoverText,
   showId,
   stickyLeftPx = 0,
@@ -29,6 +30,8 @@ export function ShowPropertySparkline({
   ariaLabel: string
   label?: string
   family?: ShowPropertyLaneFamily
+  /** Transform kind drawn in place of the family glyph (#63). */
+  glyph?: ShowPropertyLaneGlyph | null
   hoverText?: string
   /** Show whose playhead retires this label once it passes the animated span. */
   showId?: string
@@ -138,7 +141,7 @@ export function ShowPropertySparkline({
             }`}
             style={{ color, left: stickyLeftPx + 4, opacity: retired ? 0 : 1 }}
           >
-            {showFamilyGlyph && family && <ShowPropertyLaneFamilyGlyph family={family} size={8} className="shrink-0" />}
+            {showFamilyGlyph && family && <ShowPropertyLaneFamilyGlyph family={family} glyph={glyph} size={8} className="shrink-0" />}
             <span className="truncate">{label}</span>
           </span>
         </span>

@@ -31,7 +31,7 @@ import { ShowZoneSpatialSelector } from '@/components/ShowZoneSpatialSelector'
 import { ShowEntityDetailPanel } from '@/components/ShowEntityDetailPanel'
 import { ShowPropertySparkline } from '@/components/ShowPropertySparkline'
 import { describePropertyLaneHover, resolvePropertyLaneDisplayLabels } from '@/engine/showPropertyLaneLabels'
-import { propertyLaneFamilyColor, type ShowPropertyLaneFamily } from '@/engine/showPropertyLaneFamilies'
+import { propertyLaneFamilyColor, type ShowPropertyLaneFamily, propertyLanePresentation } from '@/engine/showPropertyLaneFamilies'
 import { ShowPropertyLaneFamilyGlyph } from '@/components/ShowPropertyLaneFamilyGlyph'
 import { ShowClipEntityDetail, type ShowClipEntityDetailHandle } from '@/components/ShowClipEntityDetail'
 import { formatAngleValue } from '@/engine/anglePresentation'
@@ -4442,13 +4442,17 @@ function ShowTimelineWorkspace({
       // The lane itself is named by property alone; the owning Clip returns,
       // abbreviated, only where a property would otherwise repeat (#631).
       const visible = candidates.filter((candidate) => candidate.projection.timeVarying)
-      const displayLabels = resolvePropertyLaneDisplayLabels(visible.map((candidate) => ({
+      // A transform kind reads as a glyph with the axis or unit as text (#63).
+      const presentations = visible.map((candidate) => propertyLanePresentation(candidate.family, candidate.propertyLabel))
+      const displayLabels = resolvePropertyLaneDisplayLabels(visible.map((candidate, index) => ({
         propertyLabel: candidate.propertyLabel,
         family: candidate.family,
         ownerName: candidate.ownerName,
+        displayProperty: presentations[index].displayProperty,
       })))
       return [zone.id, visible.map((candidate, index) => ({
         ...candidate,
+        glyph: presentations[index].glyph,
         displayLabel: displayLabels[index],
         hoverText: describePropertyLaneHover({
           ownerName: candidate.ownerName,
@@ -6295,13 +6299,13 @@ function ShowTimelineWorkspace({
                     {showMicroZonePicker ? (
                       <>
                         <span data-testid="show-property-lane-compact-mark" className="shrink-0">
-                          <ShowPropertyLaneFamilyGlyph family={lane.family} size={10} />
+                          <ShowPropertyLaneFamilyGlyph family={lane.family} glyph={lane.glyph} size={10} />
                         </span>
                         <span className="sr-only">{lane.label}</span>
                       </>
                     ) : (
                       <>
-                        <ShowPropertyLaneFamilyGlyph family={lane.family} size={9} className="mr-1 shrink-0" />
+                        <ShowPropertyLaneFamilyGlyph family={lane.family} glyph={lane.glyph} size={9} className="mr-1 shrink-0" />
                         <span className="truncate">{lane.displayLabel}</span>
                       </>
                     )}
@@ -6314,6 +6318,7 @@ function ShowTimelineWorkspace({
                       ariaLabel={lane.ariaLabel}
                       label={zonesOpen ? undefined : lane.displayLabel}
                       family={lane.family}
+                      glyph={lane.glyph}
                       hoverText={lane.hoverText}
                       showId={show.id}
                       stickyLeftPx={zonesOpen ? ZONE_RAIL_OPEN_PX : hasMultipleZones ? ZONE_RAIL_MICRO_PX : 0}

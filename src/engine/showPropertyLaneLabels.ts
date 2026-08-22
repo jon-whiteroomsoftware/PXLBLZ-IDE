@@ -13,6 +13,8 @@ export interface PropertyLaneLabelInput {
   family: ShowPropertyLaneFamily
   /** Owning Clip's Pattern name; absent for Zone-level lanes. */
   ownerName?: string
+  /** Text shown for the property when a glyph carries part of it (#63); defaults to `propertyLabel`. */
+  displayProperty?: string
 }
 
 export function resolvePropertyLaneDisplayLabels(lanes: readonly PropertyLaneLabelInput[]): string[] {
@@ -42,11 +44,12 @@ export function resolvePropertyLaneDisplayLabels(lanes: readonly PropertyLaneLab
   }
 
   return lanes.map((lane) => {
-    if (lane.ownerName === undefined || !contested.has(key(lane))) return lane.propertyLabel
+    const property = lane.displayProperty ?? lane.propertyLabel
+    if (lane.ownerName === undefined || !contested.has(key(lane))) return property
     const qualifier = abbreviationWorks.get(key(lane))
       ? abbreviateOwnerName(lane.ownerName)
       : lane.ownerName
-    return `${qualifier} ${lane.propertyLabel}`
+    return `${qualifier} ${property}`
   })
 }
 
