@@ -12,9 +12,12 @@ describe('Show render-target residual-headroom census (#514)', () => {
     // summary count moves by exactly +7 and the rejection list is unchanged.
     // LumaMarquee (#840) joins the family the same way: array-free, fits the
     // residual budget, +1 to each summary count.
-    expect(report.summary.stockPatternCount).toBe(102)
+    // Recensused after retiring Doom Fire v1 (#63): it carried two 16x17
+    // member arrays and fit the residual budget, so the corpus and fitting
+    // counts move by -1 each, the array-free count and rejections hold.
+    expect(report.summary.stockPatternCount).toBe(101)
     expect(report.summary.stockPatternsWithNoMemberArrays).toBe(62)
-    expect(report.summary.stockPatternsFittingResidualBudget).toBe(97)
+    expect(report.summary.stockPatternsFittingResidualBudget).toBe(96)
     expect(report.summary.stockPatternRejections).toHaveLength(5)
     expect(report.summary.stockPatternRejections.map((entry) => entry.id)).toEqual([
       'pattern:AuroraSphere',
