@@ -645,3 +645,89 @@ function unpackFrame(frame: Float64Array): [number, number, number][] {
   }
   return pixels
 }
+
+// ---------------------------------------------------------------------------
+// JSON codec (#888). A snapshot carries typed-array frames, Symbol-tagged
+// Pattern arrays, and non-finite numbers, none of which survive JSON.stringify.
+// The encoded form is plain JSON so stored keyframes can ship as assets.
+
+export interface FastReplaySnapshotJson {
+  elapsedMs: number
+  simulatedFrames: number
+  /** RGB triplets, rounded to four decimals. */
+  frame: number[]
+  patternFunctionBindings: Record<string, unknown>
+  runtimeState: Record<string, unknown>
+  shim: unknown
+}
+
+const FRAME_DECIMALS = 4
+
+function encodeSnapshotValue(value: unknown): unknown {
+  if (typeof value === 'number') {
+    if (Number.isNaN(value)) return { $num: 'NaN' }
+    if (value === Infinity) return { $num: 'Infinity' }
+    if (value === -Infinity) return { $num: '-Infinity' }
+    return value
+  }
+  if (value === undefined) return { $undefined: true }
+  if (!value || typeof value !== 'object') return value
+  if (Array.isArray(value)) {
+    const items: unknown[] = []
+    for (let index = 0; index < value.length; index += 1) {
+      items.push(index in value ? encodeSnapshotValue(value[index]) : { $hole: true })
+    }
+    return { $array: getSnapshotArrayKind(value), items }
+  }
+  const out: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value)) out[key] = encodeSnapshotValue(item)
+  return out
+}
+
+function decodeSnapshotValue(value: unknown): unknown {
+  if (!value || typeof value !== 'object') return value
+  if (Array.isArray(value)) return value.map(decodeSnapshotValue)
+  const record = value as Record<string, unknown>
+  if (typeof record.$num === 'string') {
+    return record.$num === 'NaN' ? NaN : record.$num === 'Infinity' ? Infinity : -Infinity
+  }
+  if (record.$undefined === true) return undefined
+  if (record.$hole === true) return undefined
+  if (typeof record.$array === 'string' && Array.isArray(record.items)) {
+    const kind = record.$array === 'pattern' ? 'pattern' : 'plain'
+    const array = tagSnapshotArray([], kind)
+    array.length = record.items.length
+    record.items.forEach((item, index) => {
+      const entry = item as Record<string, unknown> | null
+      if (entry && typeof entry === 'object' && entry.$hole === true) return
+      array[index] = decodeSnapshotValue(item)
+    })
+    return array
+  }
+  const out: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(record)) out[key] = decodeSnapshotValue(item)
+  return out
+}
+
+export function encodeFastReplaySnapshot(snapshot: FastReplaySnapshot): FastReplaySnapshotJson {
+  const scale = 10 ** FRAME_DECIMALS
+  return {
+    elapsedMs: snapshot.elapsedMs,
+    simulatedFrames: snapshot.simulatedFrames,
+    frame: Array.from(snapshot.frame, (value) => Math.round(value * scale) / scale),
+    patternFunctionBindings: encodeSnapshotValue(snapshot.patternFunctionBindings) as Record<string, unknown>,
+    runtimeState: encodeSnapshotValue(snapshot.runtimeState) as Record<string, unknown>,
+    shim: encodeSnapshotValue(snapshot.shim),
+  }
+}
+
+export function decodeFastReplaySnapshot(json: FastReplaySnapshotJson): FastReplaySnapshot {
+  return {
+    elapsedMs: json.elapsedMs,
+    simulatedFrames: json.simulatedFrames,
+    frame: Float64Array.from(json.frame),
+    patternFunctionBindings: decodeSnapshotValue(json.patternFunctionBindings) as Record<string, unknown>,
+    runtimeState: decodeSnapshotValue(json.runtimeState) as Record<string, unknown>,
+    shim: decodeSnapshotValue(json.shim) as ShimSnapshot,
+  }
+}
