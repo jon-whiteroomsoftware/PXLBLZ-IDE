@@ -25,7 +25,11 @@ export const RETIRED_STOCK_PATTERN_IDS: Readonly<Record<string, string>> = {
 }
 
 export function resolveStockPatternId(id: string): string {
-  return RETIRED_STOCK_PATTERN_IDS[id] ?? id
+  // Ids arrive from durable and imported data; an own-property check keeps
+  // "constructor" or "__proto__" from resolving to Object.prototype members.
+  return Object.prototype.hasOwnProperty.call(RETIRED_STOCK_PATTERN_IDS, id)
+    ? RETIRED_STOCK_PATTERN_IDS[id]
+    : id
 }
 
 export const DEMO_AUTHORS: Record<string, string[]> = Object.fromEntries(

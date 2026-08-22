@@ -145,5 +145,7 @@ describe('retired stock Pattern ids (#63)', () => {
       expect(resolveStockPatternId(retired)).toBe(successor)
     }
     expect(resolveStockPatternId('TestPattern1D')).toBe('TestPattern1D')
+    expect(resolveStockPatternId('constructor')).toBe('constructor')
+    expect(resolveStockPatternId('__proto__')).toBe('__proto__')
   })
 })
