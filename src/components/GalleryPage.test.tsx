@@ -35,6 +35,8 @@ describe('Gallery presentation', () => {
     expect(strip).toHaveClass('md:col-span-2')
     expect(strip).not.toHaveClass('aspect-square')
     expect(screen.getByRole('button', { name: /IridescentFibers/ })).not.toHaveAttribute('data-gallery-strip')
+    // Dense auto-placement backfills the cell a two-column strip cannot use.
+    expect(screen.getByTestId('gallery-grid')).toHaveClass('grid-flow-dense')
   })
 })
 

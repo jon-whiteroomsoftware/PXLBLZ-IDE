@@ -36,11 +36,46 @@ let listenersInstalled = false
 let poolSize = GALLERY_LIVE_POOL_SIZE
 let keepMargin = GALLERY_LIVE_KEEP_MARGIN
 
-function measure(): GalleryLiveCard[] {
+interface Frame {
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
+/**
+ * The eligibility viewport: the window, clipped to the Gallery scrollport
+ * (`[data-gallery-scrollport]`) when the cards live inside one, so a card
+ * scrolled under the header or past the scrollport's bottom is not eligible.
+ * Measurements are expressed relative to the frame's origin.
+ */
+function viewportFrame(): Frame {
+  const first = cards.values().next().value as RegisteredCard | undefined
+  const scrollport = first?.element.closest('[data-gallery-scrollport]')
+  const windowFrame: Frame = { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }
+  if (!scrollport) return windowFrame
+  const rect = scrollport.getBoundingClientRect()
+  const left = Math.max(rect.left, 0)
+  const top = Math.max(rect.top, 0)
+  return {
+    left,
+    top,
+    width: Math.max(0, Math.min(rect.right, window.innerWidth) - left),
+    height: Math.max(0, Math.min(rect.bottom, window.innerHeight) - top),
+  }
+}
+
+function measure(frame: Frame): GalleryLiveCard[] {
   const out: GalleryLiveCard[] = []
   for (const card of cards.values()) {
     const rect = card.element.getBoundingClientRect()
-    out.push({ id: card.id, left: rect.left, top: rect.top, width: rect.width, height: rect.height })
+    out.push({
+      id: card.id,
+      left: rect.left - frame.left,
+      top: rect.top - frame.top,
+      width: rect.width,
+      height: rect.height,
+    })
   }
   return out
 }
@@ -54,13 +89,14 @@ function setMode(card: RegisteredCard, mode: GalleryLiveMode): void {
 function rerank(): void {
   rerankTimer = null
   if (cards.size === 0) return
-  const measured = measure()
+  const frame = viewportFrame()
+  const measured = measure(frame)
   const current = [...cards.values()].filter((card) => card.mode === 'live').map((card) => card.id)
   const live = new Set(
     selectGalleryLiveCards({
       cards: measured,
-      viewport: { width: window.innerWidth, height: window.innerHeight },
-      pointer,
+      viewport: { width: frame.width, height: frame.height },
+      pointer: pointer ? { x: pointer.x - frame.left, y: pointer.y - frame.top } : null,
       focusedId,
       current,
       poolSize,
@@ -75,12 +111,11 @@ function rerank(): void {
       setMode(card, 'frozen')
     }
   }
-  grantWarm(measured)
+  grantWarm(measured, frame)
 }
 
-function grantWarm(measured: GalleryLiveCard[]): void {
+function grantWarm(measured: GalleryLiveCard[], viewport: Frame): void {
   if (warmingId !== null) return
-  const viewport = { width: window.innerWidth, height: window.innerHeight }
   const visible = new Set(
     measured
       .filter((c) => c.left < viewport.width && c.left + c.width > 0 && c.top < viewport.height && c.top + c.height > 0)
@@ -102,15 +137,18 @@ export function scheduleGalleryRerank(): void {
 }
 
 function onPointerMove(event: PointerEvent): void {
-  // Touch has no hover position; keep the top-of-viewport fallback.
-  if (event.pointerType === 'touch') return
-  pointer = { x: event.clientX, y: event.clientY }
+  // Touch has no hover position: drop any stale mouse position so ranking
+  // returns to the top-of-viewport fallback.
+  pointer = event.pointerType === 'touch' ? null : { x: event.clientX, y: event.clientY }
   scheduleGalleryRerank()
 }
 
 function onFocusIn(event: FocusEvent): void {
   const target = event.target as HTMLElement | null
-  const host = target?.closest?.('[data-gallery-live-id]') as HTMLElement | null
+  // The focusable card wraps the registered preview host, so look inside the
+  // target as well as above it.
+  const host = (target?.closest?.('[data-gallery-live-id]') ??
+    target?.querySelector?.('[data-gallery-live-id]')) as HTMLElement | null
   focusedId = host?.dataset.galleryLiveId ?? null
   scheduleGalleryRerank()
 }

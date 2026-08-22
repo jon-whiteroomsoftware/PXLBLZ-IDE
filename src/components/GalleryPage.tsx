@@ -142,7 +142,7 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
   }, [])
 
   return (
-    <main className="flex-1 overflow-auto bg-zinc-950" data-testid="gallery-page">
+    <main className="flex-1 overflow-auto bg-zinc-950" data-testid="gallery-page" data-gallery-scrollport>
       <div className="mx-auto flex max-w-[1180px] flex-wrap items-center gap-x-5 gap-y-2 px-4 pb-2 pt-[18px] sm:px-[22px]">
         <div className="mr-auto">
           <h1 className="flex items-center gap-2 font-mono text-[19px] font-semibold tracking-normal text-zinc-100">
@@ -228,7 +228,7 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
         <div
           data-testid="gallery-grid"
           data-density={density}
-          className={`mx-auto grid max-w-[1180px] grid-cols-1 gap-x-4 gap-y-5 px-4 pb-[26px] pt-4 sm:px-[22px] ${DENSITY_PRESENTATION[density].grid}`}
+          className={`mx-auto grid max-w-[1180px] grid-flow-dense grid-cols-1 gap-x-4 gap-y-5 px-4 pb-[26px] pt-4 sm:px-[22px] ${DENSITY_PRESENTATION[density].grid}`}
         >
           {patterns.map((pattern, index) => (
             <GalleryCard key={pattern.name} pattern={pattern} index={index} />

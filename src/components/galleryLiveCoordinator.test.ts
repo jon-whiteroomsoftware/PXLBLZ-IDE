@@ -122,19 +122,51 @@ describe('galleryLiveCoordinator', () => {
     expect(b.current()).toBe('live')
   })
 
-  it('puts the keyboard-focused card first', () => {
+  it('puts the keyboard-focused card first when the focused button wraps the preview host', () => {
     configureGalleryLivePool({ poolSize: 1, keepMargin: 0 })
     const a = register('a', 0)
     const c = register('c', 200)
     settle()
     expect(a.current()).toBe('live')
+    // Production shape: <button> (focusable card) > preview host (registered).
     const button = document.createElement('button')
-    c.element.appendChild(button)
-    button.focus()
-    window.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
-    // focusin target resolution uses event.target; dispatch from the button.
+    c.element.replaceWith(button)
+    button.appendChild(c.element)
     button.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
     settle()
+    expect(c.current()).toBe('live')
+    expect(a.current()).toBe('frozen')
+  })
+
+  it('a touch pointer clears a stale mouse position', () => {
+    configureGalleryLivePool({ poolSize: 1, keepMargin: 0 })
+    const a = register('a', 0)
+    const b = register('b', 200)
+    settle()
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 50, clientY: 250, pointerType: 'mouse' }))
+    settle()
+    expect(b.current()).toBe('live')
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 50, clientY: 250, pointerType: 'touch' }))
+    settle()
+    expect(a.current()).toBe('live')
+    expect(b.current()).toBe('frozen')
+  })
+
+  it('treats a card scrolled under the scrollport edge as off-screen', () => {
+    configureGalleryLivePool({ poolSize: 2, keepMargin: 0 })
+    const scrollport = document.createElement('main')
+    scrollport.dataset.galleryScrollport = ''
+    scrollport.getBoundingClientRect = () =>
+      ({ top: 100, left: 0, width: 400, height: 200, right: 400, bottom: 300, x: 0, y: 100, toJSON() {} }) as DOMRect
+    document.body.appendChild(scrollport)
+    // a sits in the window viewport but above the scrollport's top edge (under a header).
+    const a = register('a', 0)
+    const b = register('b', 120)
+    const c = register('c', 240)
+    for (const card of [a, b, c]) scrollport.appendChild(card.element)
+    settle()
+    expect(a.current()).toBe('frozen')
+    expect(b.current()).toBe('live')
     expect(c.current()).toBe('live')
   })
 

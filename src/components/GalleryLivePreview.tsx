@@ -87,6 +87,8 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
   >(null)
   const widthRef = useRef(240)
   const resumeAtMsRef = useRef(galleryStartOffsetMs(index))
+  // The 3D orbit persists across pool grants so a card resumes its view.
+  const cameraRef = useRef(DEFAULT_ORBIT)
   const [mode, setMode] = useState<GalleryLiveMode>('frozen')
   const [error, setError] = useState<string | null>(null)
   const [painted, setPainted] = useState(false)
@@ -230,7 +232,7 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
         lightSize: settings.lightSize,
       })
       rendererRef.current = renderer
-      let camera = DEFAULT_ORBIT
+      let camera = cameraRef.current
       let lastCameraTs = performance.now()
       if (layout.draw.kind === '3d') {
         drawRef.current = {
@@ -268,6 +270,7 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
           if (layout.draw.kind === '3d') {
             const now = performance.now()
             camera = advanceAutoOrbit(camera, now - lastCameraTs)
+            cameraRef.current = camera
             lastCameraTs = now
             renderer.setCamera(camera)
           }
