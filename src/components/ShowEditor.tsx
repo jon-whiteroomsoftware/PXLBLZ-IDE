@@ -1075,8 +1075,13 @@ export function ShowEditor({
     if (!import.meta.env.DEV || readOnly) return
     const w = window as unknown as { __pxlblzEditor?: unknown }
     const api = {
-      getShow: (): ShowRecord | undefined =>
-        useShowStore.getState().resolveEditableShow(showId),
+      // Cloned both ways: handing out the live store object would let
+      // tooling alias state (an in-place mutation defeats the identity
+      // check in updateShow and corrupts the history snapshot).
+      getShow: (): ShowRecord | undefined => {
+        const record = useShowStore.getState().resolveEditableShow(showId)
+        return record ? structuredClone(record) : undefined
+      },
       getEditorFocus: () => ({
         showId,
         selection: useShowEditorViewStore.getState().selection,
@@ -1087,8 +1092,12 @@ export function ShowEditor({
           : 0,
       }),
       applyShow: async (record: ShowRecord): Promise<boolean> => {
+        // A retained bridge object dies with its install: after a Show
+        // switch or unmount this instance is no longer the window value,
+        // and a stale apply must not persist an inactive Show.
+        if (w.__pxlblzEditor !== api) return false
         if (!record || record.id !== showId) return false
-        await useShowStore.getState().updateShow(showId, record)
+        await useShowStore.getState().updateShow(showId, structuredClone(record))
         return true
       },
     }
