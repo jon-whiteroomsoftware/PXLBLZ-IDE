@@ -168,6 +168,26 @@ describe('fast replay snapshot codec', () => {
     expect(decoded.patternFunctionBindings.__c).toBe(a)
   })
 
+  it('keeps Pattern-owned keys that look like graph metadata', () => {
+    const prepared = prepareFastReplay(DEMOS.TestPattern2D, LIBRARIES)
+    const runtime = createFastReplayRuntime(prepared, { mapPoints: gridPoints(4), randomSeed: 7, fidelity: 'fast' })
+    runtime.advanceTo(100, { stepMs: 1000 / 60 })
+    const snapshot = runtime.snapshot()
+    const tricky: unknown[] & { $ref?: number } = [1]
+    tricky.$ref = 9
+    snapshot.runtimeState.__meta = { $id: 'mine', $ref: 5, $obj: { nested: true }, $num: 'NaN', $array: 'pattern', items: [tricky] }
+    const decoded = decodeFastReplaySnapshot(JSON.parse(JSON.stringify(encodeFastReplaySnapshot(snapshot))))
+    const meta = decoded.runtimeState.__meta as Record<string, unknown>
+    expect(meta.$id).toBe('mine')
+    expect(meta.$ref).toBe(5)
+    expect(meta.$obj).toEqual({ nested: true })
+    expect(meta.$num).toBe('NaN')
+    expect(meta.$array).toBe('pattern')
+    const items = meta.items as (unknown[] & { $ref?: number })[]
+    expect(Array.from(items[0])).toEqual([1])
+    expect(items[0].$ref).toBe(9)
+  })
+
   it('restoring a keyframe presents the stored frame without ticking the runtime', () => {
     const prepared = prepareFastReplay(DEMOS.TestPattern2D, LIBRARIES)
     const mapPoints = gridPoints(8)

@@ -678,8 +678,10 @@ function isIndexKey(key: string, length: number): boolean {
 
 // Objects and arrays carry an `$id` on first encounter and `$ref` afterwards,
 // so shared references (two variables holding one Pattern array) survive the
-// round trip with identity intact. Non-index array properties are encoded
-// under `props`.
+// round trip with identity intact. Pattern-owned entries never share a
+// namespace with this metadata: object entries live under `$obj`, array
+// items under `items`, and non-index array properties under `props`, so a
+// Pattern key such as "$id" round-trips untouched.
 function encodeSnapshotValue(value: unknown, context: EncodeContext): unknown {
   if (typeof value === 'number') {
     if (Number.isNaN(value)) return { $num: 'NaN' }
@@ -706,9 +708,9 @@ function encodeSnapshotValue(value: unknown, context: EncodeContext): unknown {
     }
     return { $id: id, $array: getSnapshotArrayKind(value), items, ...(props ? { props } : {}) }
   }
-  const out: Record<string, unknown> = { $id: id }
-  for (const [key, item] of Object.entries(value)) out[key] = encodeSnapshotValue(item, context)
-  return out
+  const entries: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value)) entries[key] = encodeSnapshotValue(item, context)
+  return { $id: id, $obj: entries }
 }
 
 function decodeSnapshotValue(value: unknown, context: DecodeContext): unknown {
@@ -742,10 +744,12 @@ function decodeSnapshotValue(value: unknown, context: DecodeContext): unknown {
     }
     return array
   }
+  if (!record.$obj || typeof record.$obj !== 'object') {
+    throw new Error('Fast replay snapshot JSON contains an object without a $obj envelope.')
+  }
   const out: Record<string, unknown> = {}
   if (id !== null) context.byId.set(id, out)
-  for (const [key, item] of Object.entries(record)) {
-    if (key === '$id') continue
+  for (const [key, item] of Object.entries(record.$obj as Record<string, unknown>)) {
     out[key] = decodeSnapshotValue(item, context)
   }
   return out
