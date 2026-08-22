@@ -313,3 +313,49 @@ test('unknown paths fail gracefully', async ({ page }) => {
   await page.goto('no-such-page')
   await expect(page.getByTestId('route-message')).toContainText('Nothing at this address')
 })
+
+test('Gallery animates the cards nearest the pointer and freezes the rest on posters (#888)', async ({ page }) => {
+  await page.goto('gallery')
+  const live = page.locator('[data-testid="gallery-live-preview"][data-gallery-mode="live"]')
+  // The pool holds at most six cards, all of them on screen.
+  const allLiveOnScreen = () =>
+    live.evaluateAll((elements) =>
+      elements.length > 0 && elements.length <= 6 && elements.every((element) => {
+        const rect = element.getBoundingClientRect()
+        return rect.bottom > 0 && rect.top < window.innerHeight
+      }),
+    )
+  await expect.poll(allLiveOnScreen).toBe(true)
+
+  const cards = page.locator('[id^="gallery-"]')
+  const first = cards.first().locator('[data-testid="gallery-live-preview"]')
+  await expect(first).toHaveAttribute('data-gallery-mode', 'live')
+
+  // Hover a card outside the initial set: it goes live, the pool stays bounded,
+  // and the card that left the set keeps a captured poster.
+  const target = cards.nth(8)
+  await target.scrollIntoViewIfNeeded()
+  await target.hover()
+  await expect(target.locator('[data-testid="gallery-live-preview"]')).toHaveAttribute('data-gallery-mode', 'live')
+  await expect.poll(allLiveOnScreen).toBe(true)
+  await expect(first).toHaveAttribute('data-gallery-mode', 'frozen')
+  await expect(first.locator('[data-testid="gallery-poster"]')).toHaveAttribute('data-has-poster', 'true')
+
+  // Scrolling moves the live set to the new viewport.
+  await page.getByTestId('gallery-page').evaluate((element) => { element.scrollTop = 3000 })
+  await expect.poll(allLiveOnScreen).toBe(true)
+  // Frozen cards in view receive posters one at a time.
+  await expect.poll(() => page.locator('[data-gallery-mode="frozen"] [data-has-poster="true"]').count()).toBeGreaterThan(1)
+})
+
+test('Gallery density picker changes the grid and persists (#888)', async ({ page }) => {
+  await page.goto('gallery')
+  const grid = page.getByTestId('gallery-grid')
+  await expect(grid).toHaveAttribute('data-density', '3')
+  await expect(page.locator('[data-gallery-strip="true"]').first()).toBeAttached()
+
+  await page.getByRole('radio', { name: 'Small cards, 4 per row' }).click()
+  await expect(grid).toHaveAttribute('data-density', '4')
+  await page.reload()
+  await expect(page.getByTestId('gallery-grid')).toHaveAttribute('data-density', '4')
+})

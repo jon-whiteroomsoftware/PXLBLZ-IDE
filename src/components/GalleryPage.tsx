@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, ChevronDown, Images, Search, X } from 'lucide-react'
+import { ChevronDown, Columns2, Columns3, Columns4, Images, Search, X } from 'lucide-react'
 import { inlineIcon } from '@/components/iconScale'
 import {
   GALLERY_ALL_CATEGORY,
@@ -11,6 +11,12 @@ import {
   type GalleryPattern,
 } from '@/engine/galleryCatalog'
 import type { DimLens } from '@/engine/dimLens'
+import {
+  GALLERY_DENSITY_OPTIONS,
+  readGalleryDensity,
+  writeGalleryDensity,
+  type GalleryDensity,
+} from '@/engine/galleryDensity'
 import { useRouterStore } from '@/store/routerStore'
 import { GalleryLivePreview } from './GalleryLivePreview'
 
@@ -51,10 +57,46 @@ function FilterChip({
   )
 }
 
+const DENSITY_PRESENTATION: Record<GalleryDensity, { label: string; Icon: typeof Columns2; grid: string }> = {
+  2: { label: 'Large cards, 2 per row', Icon: Columns2, grid: 'md:grid-cols-2 gap-x-6 gap-y-[30px]' },
+  3: { label: 'Medium cards, 3 per row', Icon: Columns3, grid: 'md:grid-cols-3 gap-x-[18px] gap-y-6' },
+  4: { label: 'Small cards, 4 per row', Icon: Columns4, grid: 'md:grid-cols-4 gap-x-[18px] gap-y-[18px]' },
+}
+
+function DensityPicker({ density, onChange }: { density: GalleryDensity; onChange: (d: GalleryDensity) => void }) {
+  return (
+    <div role="radiogroup" aria-label="Card density" className="flex overflow-hidden rounded-full border border-seam bg-panel">
+      {GALLERY_DENSITY_OPTIONS.map((option) => {
+        const { label, Icon } = DENSITY_PRESENTATION[option]
+        const active = density === option
+        return (
+          <button
+            key={option}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            aria-label={label}
+            title={label}
+            onClick={() => onChange(option)}
+            className={[
+              'grid h-[25px] w-[30px] place-items-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-live/70',
+              active ? 'bg-live/15 text-live' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
+            ].join(' ')}
+          >
+            <Icon size={13} aria-hidden />
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function GalleryCard({ pattern, index }: { pattern: GalleryPattern; index: number }) {
   const navigate = useRouterStore((s) => s.navigate)
-  const [attended, setAttended] = useState(false)
   const anchorId = galleryAnchorId(pattern.slug)
+  // 1D Patterns render as two-column strips that take the row's height: a
+  // strip in a square wastes most of the box.
+  const strip = pattern.dim === 1
 
   return (
     <button
@@ -68,30 +110,19 @@ function GalleryCard({ pattern, index }: { pattern: GalleryPattern; index: numbe
           { historyState: { galleryReturnPath: galleryUrl } },
         )
       }}
-      onFocus={() => setAttended(true)}
-      onBlur={() => setAttended(false)}
-      onMouseEnter={() => setAttended(true)}
-      onMouseLeave={() => setAttended(false)}
-      className="group min-w-0 text-left focus-visible:outline-none"
+      data-gallery-strip={strip || undefined}
+      className={[
+        'group relative min-w-0 overflow-hidden rounded-[4px] bg-black text-left transition-shadow hover:ring-1 hover:ring-live/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live/70',
+        strip ? 'min-h-[96px] md:col-span-2' : 'aspect-square',
+      ].join(' ')}
     >
-      <div className="relative aspect-square overflow-hidden rounded-[4px] bg-black transition-shadow group-hover:ring-1 group-hover:ring-live/60 group-focus-visible:ring-2 group-focus-visible:ring-live/70">
-        <GalleryLivePreview
-          name={pattern.name}
-          src={pattern.src}
-          dimmed={false}
-          index={index}
-          priority={attended}
-        />
-        <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded border border-live/35 bg-zinc-950/75 px-2 py-1 font-mono text-[10.5px] text-live opacity-0 shadow-[0_0_18px_rgba(0,0,0,0.45)] backdrop-blur-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-          View pattern
-          <ArrowRight size={12} aria-hidden />
-        </span>
-      </div>
-      <div className="flex min-w-0 items-baseline gap-2 px-px pt-2 font-mono">
-          <span className="min-w-0 truncate text-[12.5px] text-zinc-100">{pattern.name}</span>
+      <GalleryLivePreview name={pattern.name} src={pattern.src} index={index} />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent px-[9px] pb-[7px] pt-7 font-mono">
+        <div className="flex min-w-0 items-baseline gap-[6px]">
+          <span className="min-w-0 truncate text-[11.5px] text-zinc-100">{pattern.name}</span>
           <span
             data-pattern-dimension
-            className="shrink-0 text-[10px] uppercase tracking-[0.08em] text-structural"
+            className="shrink-0 text-[9.5px] uppercase tracking-[0.08em] text-zinc-400"
           >
             {pattern.dim}D
           </span>
@@ -103,6 +134,7 @@ function GalleryCard({ pattern, index }: { pattern: GalleryPattern; index: numbe
             </span>
           ))}
         </span>
+        </div>
       </div>
     </button>
   )
@@ -111,7 +143,14 @@ function GalleryCard({ pattern, index }: { pattern: GalleryPattern; index: numbe
 export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
   const [lens, setLens] = useState<DimLens>('all')
   const [query, setQuery] = useState('')
+  const [density, setDensity] = useState<GalleryDensity>(() =>
+    readGalleryDensity(typeof localStorage === 'undefined' ? null : localStorage),
+  )
   const navigate = useRouterStore((state) => state.navigate)
+  const changeDensity = (next: GalleryDensity) => {
+    setDensity(next)
+    writeGalleryDensity(typeof localStorage === 'undefined' ? null : localStorage, next)
+  }
   const category = directory?.label ?? GALLERY_ALL_CATEGORY
 
   const patterns = useMemo(
@@ -197,10 +236,15 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
             </button>
           )}
         </label>
+        <DensityPicker density={density} onChange={changeDensity} />
       </div>
 
       {patterns.length > 0 ? (
-        <div className="mx-auto grid max-w-[1180px] grid-cols-1 gap-x-4 gap-y-5 px-4 pb-[26px] pt-4 sm:px-[22px] md:grid-cols-2">
+        <div
+          data-testid="gallery-grid"
+          data-density={density}
+          className={`mx-auto grid max-w-[1180px] grid-cols-1 gap-x-4 gap-y-5 px-4 pb-[26px] pt-4 sm:px-[22px] ${DENSITY_PRESENTATION[density].grid}`}
+        >
           {patterns.map((pattern, index) => (
             <GalleryCard key={pattern.name} pattern={pattern} index={index} />
           ))}
