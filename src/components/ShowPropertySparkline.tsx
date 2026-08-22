@@ -8,7 +8,7 @@ import {
 } from '@/engine/showPropertyLaneLabels'
 import { useShowTransportStore } from '@/store/showTransportStore'
 import { ShowPropertyLaneFamilyGlyph } from '@/components/ShowPropertyLaneFamilyGlyph'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 const VERTICAL_INSET = 0.1
 const VERTICAL_SPAN = 1 - VERTICAL_INSET * 2
@@ -56,8 +56,8 @@ export function ShowPropertySparkline({
   const labelRef = useRef<HTMLSpanElement>(null)
   // How much of the lane the label covers changes with zoom and window width,
   // so the fade is recomputed from measured geometry rather than guessed (#631).
-  const [covered, setCovered] = useState({ from: 0, to: 0, visibleFrom: 0 })
-  const measureCovered = () => {
+  const [covered, setCovered] = useState({ from: 0, to: 0, visibleFrom: 0, labelStart: 0 })
+  const measureCovered = useCallback(() => {
     const root = rootRef.current
     const labelElement = labelRef.current
     if (!root || !labelElement) return
@@ -67,16 +67,20 @@ export function ShowPropertySparkline({
     const clamp = (value: number) => Math.min(1, Math.max(0, value))
     const viewport = scrollParentRect(root)
     setCovered((current) => {
+      const visibleLeft = viewport === null ? lane.left : viewport.left
       const next = {
         from: clamp((box.left - lane.left) / lane.width),
         to: clamp((box.right - lane.left) / lane.width),
-        visibleFrom: viewport === null ? 0 : clamp((viewport.left - lane.left) / lane.width),
+        visibleFrom: clamp((visibleLeft - lane.left) / lane.width),
+        // Where a start-placed label actually begins: past the sticky gutter (#63 review).
+        labelStart: clamp((visibleLeft + stickyLeftPx + 4 - lane.left) / lane.width),
       }
-      return next.from === current.from && next.to === current.to && next.visibleFrom === current.visibleFrom
+      return next.from === current.from && next.to === current.to
+        && next.visibleFrom === current.visibleFrom && next.labelStart === current.labelStart
         ? current
         : next
     })
-  }
+  }, [stickyLeftPx])
   useLayoutEffect(() => {
     if (!label || typeof ResizeObserver === 'undefined') return
     // ResizeObserver delivers an initial callback on observe, which supplies the
@@ -85,7 +89,7 @@ export function ShowPropertySparkline({
     if (rootRef.current) observer.observe(rootRef.current)
     if (labelRef.current) observer.observe(labelRef.current)
     return () => observer.disconnect()
-  }, [label])
+  }, [label, measureCovered])
   useEffect(() => {
     if (!label) return
     // The label sticks to the viewport, so scrolling moves which slice of the
@@ -93,10 +97,10 @@ export function ShowPropertySparkline({
     const onScroll = () => measureCovered()
     window.addEventListener('scroll', onScroll, { capture: true, passive: true })
     return () => window.removeEventListener('scroll', onScroll, { capture: true })
-  }, [label])
+  }, [label, measureCovered])
   // The label moves off the curve when the lane has room after the animated
   // span (#63); width is measured, so the choice cannot oscillate with position.
-  const placement = propertyLaneLabelPlacement(projection, covered.to - covered.from, covered.visibleFrom)
+  const placement = propertyLaneLabelPlacement(projection, covered.to - covered.from, covered.labelStart)
   const obscuresCurve = Boolean(label) && propertyLaneLabelObscuresCurve(projection, covered)
   // Selecting a boolean rather than the position keeps a playing Show from
   // re-rendering every lane on every frame: this flips at most once per pass.

@@ -4,7 +4,7 @@
 // and its family is carried by a glyph. The owning Clip is reintroduced,
 // abbreviated, only where a property repeats within one family in one Zone.
 
-import { propertyLaneFamilyName, type ShowPropertyLaneFamily } from './showPropertyLaneFamilies'
+import { propertyLaneFamilyName, type ShowPropertyLaneFamily, type ShowPropertyLaneGlyph } from './showPropertyLaneFamilies'
 import type { ShowPropertyLaneProjection } from './showPropertyLaneProjection'
 
 export interface PropertyLaneLabelInput {
@@ -15,12 +15,19 @@ export interface PropertyLaneLabelInput {
   ownerName?: string
   /** Text shown for the property when a glyph carries part of it (#63); defaults to `propertyLabel`. */
   displayProperty?: string
+  /** Glyph drawn for the property, part of what the reader sees (#63). */
+  glyph?: ShowPropertyLaneGlyph | null
 }
 
 export function resolvePropertyLaneDisplayLabels(lanes: readonly PropertyLaneLabelInput[]): string[] {
   // Two lanes only compete for a name inside one family: across families the
   // glyph already tells a Pattern control named 'speed' from animation speed.
-  const key = (lane: PropertyLaneLabelInput) => `${lane.family} ${lane.propertyLabel}`
+  // Names compete on what the reader sees - family, glyph, and shown text - so
+  // a Zone-level 'scale x' and a Clip's 'scaleX', both a scale glyph with 'X',
+  // contest the same name (#63 review).
+  const key = (lane: PropertyLaneLabelInput) => (
+    `${lane.family} ${lane.glyph ?? ''} ${lane.displayProperty ?? lane.propertyLabel}`
+  )
   // A repeat only contests the name when the repeats have different owners.
   // One Clip animating one property across several Scenes repeats the lane,
   // but its name tells those lanes apart no better than the curve does (#63).

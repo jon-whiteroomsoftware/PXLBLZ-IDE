@@ -4449,6 +4449,7 @@ function ShowTimelineWorkspace({
         family: candidate.family,
         ownerName: candidate.ownerName,
         displayProperty: presentations[index].displayProperty,
+        glyph: presentations[index].glyph,
       })))
       return [zone.id, visible.map((candidate, index) => ({
         ...candidate,

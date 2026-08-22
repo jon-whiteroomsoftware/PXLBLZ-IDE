@@ -85,6 +85,20 @@ describe('resolvePropertyLaneDisplayLabels (#631)', () => {
     ])).toEqual(['CR X', 'SM X', 'turns'])
   })
 
+  it('contests names on what is shown - family, glyph, and text - not the raw property (#63 review)', () => {
+    // A Zone-level 'scale x' lane and a Clip's 'scaleX' animation both render
+    // as the scale glyph with 'X'; they must qualify each other.
+    expect(resolvePropertyLaneDisplayLabels([
+      { propertyLabel: 'scale x', family: 'transform', displayProperty: 'X', glyph: 'scale' },
+      { propertyLabel: 'scaleX', family: 'transform', ownerName: 'CompassRose', displayProperty: 'X', glyph: 'scale' },
+    ])).toEqual(['X', 'CR X'])
+    // Different glyphs with the same text stay distinct.
+    expect(resolvePropertyLaneDisplayLabels([
+      { propertyLabel: 'positionX', family: 'transform', ownerName: 'CompassRose', displayProperty: 'X', glyph: 'move' },
+      { propertyLabel: 'scaleX', family: 'transform', ownerName: 'SignalMandala', displayProperty: 'X', glyph: 'scale' },
+    ])).toEqual(['X', 'X'])
+  })
+
   it('abbreviates single-word Clip names without internal capitals', () => {
     expect(resolvePropertyLaneDisplayLabels([
       { propertyLabel: 'brightness', family: 'appearance', ownerName: 'Caustics' },
