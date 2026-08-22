@@ -620,7 +620,14 @@ function playbackItems(cell: Pick<ShowCell, 'adaptations' | 'restartOnEntry'>): 
     })
   }
   if ((cell.adaptations.timeOffsetMs ?? 0) !== 0) {
-    items.push({ id: 'time-offset', label: 'Start offset', value: `${formatNumber(cell.adaptations.timeOffsetMs ?? 0)} ms` })
+    const offsetMs = cell.adaptations.timeOffsetMs ?? 0
+    items.push({
+      id: 'time-offset',
+      label: 'Start offset',
+      value: `${formatNumber(offsetMs)} ms`,
+      // A signed offset reads as a shift on the Clip row (#63).
+      timelineValue: `${offsetMs > 0 ? '+' : ''}${formatNumber(offsetMs)}ms`,
+    })
   }
   if (cell.adaptations.lightShutter) {
     const shutter = cell.adaptations.lightShutter
@@ -633,6 +640,14 @@ function playbackItems(cell: Pick<ShowCell, 'adaptations' | 'restartOnEntry'>): 
         ...(shutter.phase !== 0 ? [`phase ${formatNumber(shutter.phase)}`] : []),
         `${shutter.clockBehavior} clock`,
       ].join(', '),
+      // Rate and duty carry the shutter on the Clip row; phase and the
+      // frozen clock appear only when authored away from their defaults (#63).
+      timelineValue: [
+        `${formatNumber(shutter.rateHz)}Hz`,
+        `${Math.round(shutter.duty * 100)}%`,
+        ...(shutter.phase !== 0 ? [`φ${formatNumber(shutter.phase)}`] : []),
+        ...(shutter.clockBehavior === 'freeze' ? ['❄'] : []),
+      ].join(' '),
     })
   }
   return items

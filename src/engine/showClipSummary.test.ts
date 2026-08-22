@@ -806,4 +806,34 @@ describe('Show Clip summary', () => {
       ['mirror', '', 'mirror'],
     ])
   })
+  it('contracts the light shutter and start offset on the Clip row (#63)', () => {
+    let show = createDefaultShow('show-clip-summary-shutter', 'Clip summary shutter', 1_000)
+    show = updateShowCellAdaptations(show, show.cells[0].id, {
+      timeOffsetMs: 500,
+      lightShutter: { rateHz: 8, duty: 0.5, phase: 0, clockBehavior: 'continue' },
+    })
+    show = updateShowCellAdaptations(show, show.cells[1].id, {
+      timeOffsetMs: 250,
+      lightShutter: { rateHz: 8, duty: 0.5, phase: 0.25, clockBehavior: 'freeze' },
+    })
+    const rows = [show.cells[0].id, show.cells[1].id].map((cellId) => (
+      projectShowClipTimelineSummary(projectGlobalShowClipSummary(show, cellId), null)
+        .find((section) => section.kind === 'playback')?.items
+        .map((item) => [item.id, item.displayValue, item.glyph])
+    ))
+
+    // Defaults (phase 0, continuing clock) stay silent; freeze reads as a snowflake.
+    expect(rows[0]).toEqual([
+      ['time-offset', '+500ms', 'clock'],
+      ['light-shutter', '8Hz 50%', 'shutter'],
+    ])
+    expect(rows[1]).toEqual([
+      ['time-offset', '+250ms', 'clock'],
+      ['light-shutter', '8Hz 50% φ.25 ❄', 'shutter'],
+    ])
+    // The complete summary keeps the long form.
+    expect(showClipInlineSummary(projectGlobalShowClipSummary(show, show.cells[1].id))).toBe(
+      'Start offset 250 ms · Light shutter 8 Hz, 50% on, phase 0.25, freeze clock',
+    )
+  })
 })
