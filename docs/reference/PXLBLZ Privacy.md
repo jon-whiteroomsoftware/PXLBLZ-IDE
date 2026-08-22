@@ -8,7 +8,7 @@ of your account data. Questions and requests can be sent to
 [privacy@whiteroomsoftware.com](mailto:privacy@whiteroomsoftware.com).
 
 The PXLBLZ Controller Helper Chrome extension has a separate
-[extension privacy policy](https://jon-whiteroomsoftware.github.io/PXLBLZ-IDE/privacy.html).
+[extension privacy policy](https://pxlblz-ide.whiteroomsoftware.com/privacy).
 The extension does not have an account or analytics and does not store personal
 data for White Room Software.
 

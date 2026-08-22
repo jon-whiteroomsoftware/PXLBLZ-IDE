@@ -13,9 +13,10 @@ and the retired ADR-0015 (`git show 106ec4c^:docs/adr/0015-extension-host-permis
 
 ## Privacy policy URL
 
-> https://jon-whiteroomsoftware.github.io/PXLBLZ-IDE/privacy.html
+> https://pxlblz-ide.whiteroomsoftware.com/privacy
 
-Source: `public/privacy.html` (deployed to GitHub Pages with the app). States the
+Source: `public/privacy.html` (deployed to Cloudflare Pages with the app; the
+retired GitHub Pages URL now returns 404). States the
 extension collects/transmits no user data; controller traffic is relayed locally and
 never sent anywhere; the one off-LAN request is the user-triggered cloud discovery
 call to Electromage.

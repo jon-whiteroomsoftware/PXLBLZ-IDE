@@ -137,7 +137,7 @@ The reviewer-facing paperwork (privacy policy URL, single-purpose statement, per
 permission justifications, listing-metadata checklist, store description) lives in
 `docs/chrome-web-store-submission.md` (#234). The hosted privacy policy is
 `public/privacy.html`, deployed with the app to
-`https://jon-whiteroomsoftware.github.io/PXLBLZ-IDE/privacy.html`. The manifest is
+`https://pxlblz-ide.whiteroomsoftware.com/privacy`. The manifest is
 distribution-agnostic: the same artifact loads unpacked or ships from the Store.
 
 ## Known gaps (by design)
