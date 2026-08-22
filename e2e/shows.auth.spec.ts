@@ -10,15 +10,17 @@ test.describe('authenticated Show authoring', () => {
 
     const guide = page.getByRole('region', { name: 'Property Animation guide' })
     const picker = guide.getByRole('combobox', { name: 'Try with Pattern' })
+    const swapPattern = 'TestPattern2D'
     const chooseTestPattern = async () => {
       await picker.click()
-      await picker.fill('TestPattern2D')
-      await page.getByRole('option', { name: 'TestPattern2D' }).click()
+      await picker.fill(swapPattern)
+      await page.getByRole('option', { name: swapPattern }).click()
     }
 
     await expect(picker).toHaveValue('CompassRose')
     await chooseTestPattern()
-    let dialog = page.getByRole('alertdialog', { name: 'Use TestPattern2D?' })
+    // The swap dialog is titled by the chosen Pattern's runtime name.
+    let dialog = page.getByRole('alertdialog', { name: `Use ${swapPattern}?` })
     await expect(dialog).toContainText(
       "TestPattern2D doesn't have the Speed control. The Speed animation will be removed.",
     )
@@ -28,10 +30,10 @@ test.describe('authenticated Show authoring', () => {
     await expect(picker).toHaveValue('CompassRose')
 
     await chooseTestPattern()
-    dialog = page.getByRole('alertdialog', { name: 'Use TestPattern2D?' })
-    await dialog.getByRole('button', { name: 'Use TestPattern2D' }).click()
+    dialog = page.getByRole('alertdialog', { name: `Use ${swapPattern}?` })
+    await dialog.getByRole('button', { name: `Use ${swapPattern}` }).click()
     await expect(dialog).toBeHidden()
-    await expect(picker).toHaveValue('TestPattern2D')
+    await expect(picker).toHaveValue(swapPattern)
 
     await page.getByRole('button', { name: 'Show actions' }).click()
     const viewCode = page.getByRole('menuitem', { name: 'View code' })

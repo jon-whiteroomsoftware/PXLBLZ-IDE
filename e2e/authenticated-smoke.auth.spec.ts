@@ -4,10 +4,14 @@ import { installFakeControllerHelper } from './fixtures/fakeControllerHelper'
 import { controllerProfileArtifactSignature } from '../src/engine/controllerProfilePassRecipe'
 import { artifactHash } from '../src/engine/artifactStamp'
 import type { ControllerProfile } from '../src/engine/controllerProfile'
+import { studioOperationRetryLabelFor } from '../src/store/studioOperationStore'
+
+/** Monaco names its own input textarea; this label is not produced by live source. */
+const MONACO_TEXTBOX_NAME = 'Editor content'
 
 /** Replace the complete Monaco model through its public keyboard surface. */
 async function replaceEditorSource(page: Page, editor: Locator, source: string): Promise<void> {
-  const input = editor.getByRole('textbox', { name: 'Editor content' })
+  const input = editor.getByRole('textbox', { name: MONACO_TEXTBOX_NAME })
   const viewLines = editor.locator('.view-lines')
   // textContent preserves the one-line model text without layout-only wraps;
   // Monaco renders ordinary spaces as NBSPs inside view-lines.
@@ -1179,7 +1183,7 @@ test.describe('silent save-failure feedback (#810)', () => {
 
       // Reproduce the publication-only race deterministically: Monaco can
       // lose the first select-all keydown even after its textarea has focus.
-      await editor.getByRole('textbox', { name: 'Editor content' }).evaluate((input) => {
+      await editor.getByRole('textbox', { name: MONACO_TEXTBOX_NAME }).evaluate((input) => {
         const swallowFirstSelectAll = (event: KeyboardEvent) => {
           if (!event.ctrlKey || event.code !== 'KeyA') return
           event.preventDefault()
@@ -1399,7 +1403,7 @@ test.describe('one-shot Studio operation failure feedback (#830)', () => {
     await expect(page).toHaveURL(/\/studio\/patterns\/TestPattern1D$/)
 
     blockClone = false
-    await notice.getByRole('button', { name: 'Retry clone pattern' }).click()
+    await notice.getByRole('button', { name: studioOperationRetryLabelFor('clone', 'pattern', 'TestPattern1D') }).click()
 
     await expect(notice).toHaveCount(0)
     await expect(page).toHaveURL(/\/studio\/patterns\/[a-z0-9-]+$/)
@@ -1426,19 +1430,20 @@ test.describe('one-shot Studio operation failure feedback (#830)', () => {
     await page.getByRole('treeitem', { name: pattern.name, exact: true }).hover()
     await page.getByRole('button', { name: `More actions for ${pattern.name}` }).click()
     await page.getByRole('button', { name: 'Rename', exact: true }).click()
-    await page.getByRole('textbox', { name: 'Rename item' }).fill('Requested Rename Bench')
+    const requestedName = 'Requested Rename Bench'
+    await page.getByRole('textbox', { name: 'Rename item' }).fill(requestedName)
     await page.getByRole('textbox', { name: 'Rename item' }).press('Enter')
 
     const notice = page.getByTestId('studio-rail-operation-failure')
     await expect(notice).toContainText(`Could not rename pattern "${pattern.name}".`)
     await expect(page.getByRole('treeitem', { name: pattern.name, exact: true })).toBeVisible()
-    await expect(page.getByRole('treeitem', { name: 'Requested Rename Bench', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('treeitem', { name: requestedName, exact: true })).toHaveCount(0)
 
     blockRename = false
-    await notice.getByRole('button', { name: 'Retry rename pattern' }).click()
+    await notice.getByRole('button', { name: studioOperationRetryLabelFor('rename', 'pattern', pattern.name) }).click()
 
     await expect(notice).toHaveCount(0)
-    await expect(page.getByRole('treeitem', { name: 'Requested Rename Bench', exact: true })).toBeVisible()
+    await expect(page.getByRole('treeitem', { name: requestedName, exact: true })).toBeVisible()
   })
 
   test('a failed permanent Pattern Delete keeps the record open until Retry succeeds', async ({ page, request }) => {
@@ -1468,7 +1473,7 @@ test.describe('one-shot Studio operation failure feedback (#830)', () => {
     await expect(page.getByRole('button', { name: `Rename pattern ${pattern.name}` })).toBeVisible()
 
     blockDelete = false
-    await notice.getByRole('button', { name: 'Retry delete pattern' }).click()
+    await notice.getByRole('button', { name: studioOperationRetryLabelFor('delete', 'pattern', pattern.name) }).click()
 
     await expect(notice).toHaveCount(0)
     await expect(page).toHaveURL(/\/studio\/patterns$/)

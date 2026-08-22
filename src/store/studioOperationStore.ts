@@ -21,9 +21,21 @@ export interface StudioOperationFailure {
   operation: StudioOperationSpec
 }
 
+/**
+ * Accessible name of the Retry control for a failed Studio operation. Specs
+ * derive their locators from this helper so the label has one source.
+ */
+export function studioOperationRetryLabelFor(
+  action: StudioOperationAction,
+  entityKind: StudioOperationEntityKind,
+  entityName: string,
+): string {
+  if (action === 'empty-trash') return `Retry empty ${entityName}`
+  return `Retry ${action} ${entityKind}`
+}
+
 export function studioOperationRetryLabel(failure: StudioOperationFailure): string {
-  if (failure.action === 'empty-trash') return `Retry empty ${failure.entityName}`
-  return `Retry ${failure.action} ${failure.entityKind}`
+  return studioOperationRetryLabelFor(failure.action, failure.entityKind, failure.entityName)
 }
 
 export function studioOperationDismissLabel(failure: StudioOperationFailure): string {
