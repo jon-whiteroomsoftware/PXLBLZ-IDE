@@ -19,11 +19,12 @@ local D1 database) behind `/api/*`; without it, "Open in Studio" reports
 "Studio access unavailable". Start the full runtime with:
 
 ```bash
-cp .dev.vars.example .dev.vars
+cp -n .dev.vars.example .dev.vars
 npm run dev:main
 ```
 
-`dev:main` applies migrations, provisions local synthetic sign-in identities,
+`cp -n` keeps an existing `.dev.vars` untouched. `dev:main` applies
+migrations, provisions local synthetic sign-in identities,
 and starts Vite on `5174` and Wrangler on `8788` when they are not already
 running. OAuth credentials in `.dev.vars` are only needed to test real GitHub or
 Google sign-in; see
