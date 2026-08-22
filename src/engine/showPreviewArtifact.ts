@@ -8,7 +8,7 @@ import { portableCompatibilityBlockingMessage, validatePortableShowCompatibility
 import type { PatternRecord, ShowCell, ShowPatternRef, ShowRecord } from './personalContentRecords'
 import { compileShow, type GeneratedShowArtifact, type ShowCompileOptions } from './showCompiler'
 import { showRecordToCompileRecipe } from './showModel'
-import { DEMO_AUTHORS, DEMOS } from '@/pixelblaze/stock/patterns'
+import { DEMO_AUTHORS, DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { SHOW_MAX_OUTPUT_PIXELS } from './showVmResourceLedger'
 import { extractPatternAuthors, normalizePatternAuthors, PXLBLZ_AUTHOR, type ShowArtifactAttribution, type ShowPatternAttribution } from './patternAttribution'
@@ -159,7 +159,7 @@ export function sourceForShowCell(cell: ShowCell, userPatterns: PatternRecord[])
 }
 
 export function sourceForShowPatternRef(pattern: ShowPatternRef, userPatterns: PatternRecord[]): string {
-  if (pattern.kind === 'stock') return DEMOS[pattern.id] ?? DEMOS.TestPattern1D
+  if (pattern.kind === 'stock') return DEMOS[resolveStockPatternId(pattern.id)] ?? DEMOS.TestPattern1D
   return userPatterns.find((candidate) => candidate.id === pattern.id)?.src ?? DEMOS.TestPattern1D
 }
 
@@ -190,7 +190,8 @@ function authorsForShowPatternRef(
   userPatterns: readonly PatternRecord[],
 ): string[] {
   if (pattern.kind === 'stock') {
-    return normalizePatternAuthors(DEMO_AUTHORS[pattern.id] ?? extractPatternAuthors(DEMOS[pattern.id] ?? ''))
+    const stockId = resolveStockPatternId(pattern.id)
+    return normalizePatternAuthors(DEMO_AUTHORS[stockId] ?? extractPatternAuthors(DEMOS[stockId] ?? ''))
   }
   const record = userPatterns.find((candidate) => candidate.id === pattern.id)
   if (!record) return []

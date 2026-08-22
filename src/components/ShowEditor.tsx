@@ -109,6 +109,7 @@ import {
   type ShowClipSummarySection,
   type ShowClipTimelineGlyph,
 } from '@/engine/showClipSummary'
+import { resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import {
   projectShowClipInspector,
   updateShowClipInspector,
@@ -1229,7 +1230,7 @@ export function ShowEditor({
       ?? (builtInContext?.reference?.patternSlots ? [builtInContext.reference.patternSlots] : undefined)
   ), [builtInContext?.reference?.patternSlots, builtInContext?.patternSlots])
   const slotPatternNameFor = useCallback((ref: ShowCell['pattern']) => (
-    ref.kind === 'stock' ? ref.id : userPatterns.find((pattern) => pattern.id === ref.id)?.name
+    ref.kind === 'stock' ? resolveStockPatternId(ref.id) : userPatterns.find((pattern) => pattern.id === ref.id)?.name
   ), [userPatterns])
   const activeShow = useMemo(() => (
     editableShow && builtInSlotGroups && selectedReferencePatterns
@@ -1539,7 +1540,7 @@ export function ShowEditor({
       ? userPatterns.find((pattern) => pattern.id === cell.pattern.id)?.controls ?? {}
       : {}
     try {
-      return [cell.id, discoverAutomatablePatternControls(sourceForShowCell(cell, userPatterns), saved, cell.pattern.kind === 'stock' ? cell.pattern.id : undefined)]
+      return [cell.id, discoverAutomatablePatternControls(sourceForShowCell(cell, userPatterns), saved, cell.pattern.kind === 'stock' ? resolveStockPatternId(cell.pattern.id) : undefined)]
     } catch {
       return [cell.id, []]
     }
@@ -1625,7 +1626,7 @@ export function ShowEditor({
       ]
     : []).map((instance) => {
     try {
-      return [instance.id, discoverAutomatablePatternControls(sourceForShowPatternRef(instance.pattern, userPatterns), {}, instance.pattern.kind === 'stock' ? instance.pattern.id : undefined)]
+      return [instance.id, discoverAutomatablePatternControls(sourceForShowPatternRef(instance.pattern, userPatterns), {}, instance.pattern.kind === 'stock' ? resolveStockPatternId(instance.pattern.id) : undefined)]
     } catch {
       return [instance.id, []]
     }
@@ -1900,7 +1901,7 @@ export function ShowEditor({
     const referencePatterns = useShowEditorSessionStore.getState().referencePatternsByShowId[showId]
     if (currentShow && referencePatterns && builtInSlotGroups) {
       currentShow = applyShowPatternSlotSelections(currentShow, builtInSlotGroups, referencePatterns, (ref) => (
-        ref.kind === 'stock' ? ref.id : currentPatterns.find((pattern) => pattern.id === ref.id)?.name
+        ref.kind === 'stock' ? resolveStockPatternId(ref.id) : currentPatterns.find((pattern) => pattern.id === ref.id)?.name
       ), (ref) => bundledPatternSliderNames(sourceForShowPatternRef(ref, currentPatterns), currentLibrarySet))
     }
     if (!currentShow) return null

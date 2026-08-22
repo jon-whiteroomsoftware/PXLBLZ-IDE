@@ -12,7 +12,7 @@ import {
   validateShowCompositionTimelineMetadata,
 } from './showCompositionModel'
 import { requireShowOutputContract } from './showOutputContract'
-import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 
 export interface ShowImportLibrary {
   patterns: readonly PatternRecord[]
@@ -90,14 +90,15 @@ export function planShowImport(
   const patterns: ShowImportPlan['patterns'] = { builtIn: [], reused: [], added: [], copied: [] }
   for (const reference of buildShowArtifactAttribution(bundle.show, bundle.patterns).patterns) {
     if (reference.kind === 'stock') {
-      if (!Object.prototype.hasOwnProperty.call(DEMOS, reference.id)) {
+      const stockId = resolveStockPatternId(reference.id)
+      if (!Object.prototype.hasOwnProperty.call(DEMOS, stockId)) {
         throw new ShowImportPlanError(
           'unknown_stock_pattern',
           `Show "${bundle.show.name}" needs the built-in Pattern "${reference.id}", which this version of PXLBLZ does not include. Update PXLBLZ or re-export from a matching version.`,
           reference.id,
         )
       }
-      patterns.builtIn.push({ id: reference.id, name: reference.name })
+      patterns.builtIn.push({ id: stockId, name: reference.name })
       continue
     }
     const bundled = bundledById.get(reference.id)

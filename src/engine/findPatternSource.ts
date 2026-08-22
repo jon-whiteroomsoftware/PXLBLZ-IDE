@@ -1,4 +1,4 @@
-import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import type { PatternRecord } from '@/engine/personalContentRecords'
 
 // Resolve a pattern NAME to its source code, looking across the built-in demos and
@@ -10,6 +10,7 @@ export function findPatternSource(
   name: string,
   userPatterns: PatternRecord[],
 ): string | null {
-  if (DEMOS[name] !== undefined) return DEMOS[name]
+  const stockId = resolveStockPatternId(name)
+  if (DEMOS[stockId] !== undefined) return DEMOS[stockId]
   return userPatterns.find((p) => p.name === name)?.src ?? null
 }

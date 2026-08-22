@@ -319,6 +319,30 @@ describe('Show import planning', () => {
     expect(validateShowComposition(applied.show, applied.show.composition!)).toEqual([])
   })
 
+  it('resolves a retired built-in Pattern id to its successor during planning (#63)', () => {
+    const show = createDefaultShow('show-retired', 'Retired Show', 20)
+    show.cells[0] = {
+      ...show.cells[0],
+      pattern: { kind: 'stock', id: 'DoomFire' },
+      patternName: 'Doom Fire',
+    }
+    const bundle: ShowFileBundleV1 = {
+      version: 1,
+      show,
+      patterns: [],
+      maps: [],
+      provenance: {
+        appVersion: '2.0.0',
+        exportedAt: '2026-08-14T12:00:00.000Z',
+        originalShowId: show.id,
+      },
+    }
+
+    const plan = planShowImport(bundle, { patterns: [], maps: [], showNames: [] })
+    expect(plan.patterns.builtIn.map((item) => item.id)).toContain('DoomFireV20_2D')
+    expect(plan.patterns.builtIn.map((item) => item.id)).not.toContain('DoomFire')
+  })
+
   it('rejects an unknown built-in Pattern by id during planning', () => {
     const show = createDefaultShow('show-source', 'Future Show', 20)
     show.cells[0] = {

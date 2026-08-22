@@ -2,7 +2,9 @@ import {
   compileShowForArtifact,
   compileShowForPreview,
   resolveShowCompilationControllerZones,
+  sourceForShowPatternRef,
 } from './showPreviewArtifact'
+import { DEMOS } from '@/pixelblaze/stock/patterns'
 import {
   addShowZone,
   createDefaultShow,
@@ -23,6 +25,15 @@ import { createInstallationShowOutputContract, createPortableShowOutputContract 
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
 import { LIBRARIES } from '@/pixelblaze/libs'
+
+describe('retired stock Pattern references (#63)', () => {
+  it('resolves a retired stock id to its successor source', () => {
+    const retired = { kind: 'stock' as const, id: 'DoomFire' }
+    const successor = { kind: 'stock' as const, id: 'DoomFireV20_2D' }
+    expect(sourceForShowPatternRef(retired, [])).toBe(sourceForShowPatternRef(successor, []))
+    expect(sourceForShowPatternRef(retired, [])).not.toBe(DEMOS.TestPattern1D)
+  })
+})
 
 describe('compileShowForPreview temporal adaptations (#379)', () => {
   it('reuses one compiled artifact across equivalent preview and artifact consumers', () => {

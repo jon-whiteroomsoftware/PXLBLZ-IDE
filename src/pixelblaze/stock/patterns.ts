@@ -14,6 +14,20 @@ export const DEMOS: Record<string, string> = Object.fromEntries(
   }),
 )
 
+/**
+ * Stock ids retired from the catalogue that durable Shows and exported
+ * bundles may still carry, mapped to the Pattern that superseded them. A
+ * reference resolves through this table so an older Show keeps its content
+ * instead of silently falling back to the placeholder (#63).
+ */
+export const RETIRED_STOCK_PATTERN_IDS: Readonly<Record<string, string>> = {
+  DoomFire: 'DoomFireV20_2D',
+}
+
+export function resolveStockPatternId(id: string): string {
+  return RETIRED_STOCK_PATTERN_IDS[id] ?? id
+}
+
 export const DEMO_AUTHORS: Record<string, string[]> = Object.fromEntries(
   Object.entries(DEMOS).map(([name, src]) => [name, extractPatternAuthors(src)]),
 )

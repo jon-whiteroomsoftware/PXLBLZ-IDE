@@ -5,7 +5,7 @@ import { SHAPES } from '@/engine/shapes'
 import { SURFACES } from '@/engine/surfaces'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { STOCK_MAPS, isMapWrappable } from '@/store/mapStore'
-import { DEMO_AUTHORS, DEMOS, RECOMMENDED_SETTINGS } from './patterns'
+import { DEMO_AUTHORS, DEMOS, RECOMMENDED_SETTINGS, RETIRED_STOCK_PATTERN_IDS, resolveStockPatternId } from './patterns'
 
 const INTENTIONAL_LOW_DENSITY = new Set([
   'AnalogWiggleFinder',
@@ -136,3 +136,14 @@ describe('stock Pattern source manifests', () => {
 function identifierWords(value: string): string {
   return value.replace(/[^A-Za-z0-9]/g, '').toLowerCase()
 }
+
+describe('retired stock Pattern ids (#63)', () => {
+  it('maps every retired id to a shipped successor and never to itself', () => {
+    for (const [retired, successor] of Object.entries(RETIRED_STOCK_PATTERN_IDS)) {
+      expect(DEMOS[retired]).toBeUndefined()
+      expect(DEMOS[successor]).toBeDefined()
+      expect(resolveStockPatternId(retired)).toBe(successor)
+    }
+    expect(resolveStockPatternId('TestPattern1D')).toBe('TestPattern1D')
+  })
+})
