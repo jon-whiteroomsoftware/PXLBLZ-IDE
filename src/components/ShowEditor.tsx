@@ -1064,6 +1064,39 @@ export function ShowEditor({
   // view store is global, and a new editor instance must not inherit the
   // previous instance's selection or viewport.
   const detailShowIdRef = useRef<string | null>(null)
+
+  // Dev-only local-tooling bridge on window, same species as the `?capture`
+  // automation API and `__pxlblzShow` capture hooks: expose the active Show
+  // record and the editor's focus (selection, hover, viewport, playhead) to
+  // local scripts, and apply a replacement record as one ordinary persisted
+  // update - one history snapshot, one undo step. Lets external dev tooling
+  // script the editor without a component handle.
+  useEffect(() => {
+    if (!import.meta.env.DEV || readOnly) return
+    const w = window as unknown as { __pxlblzEditor?: unknown }
+    const api = {
+      getShow: (): ShowRecord | undefined =>
+        useShowStore.getState().resolveEditableShow(showId),
+      getEditorFocus: () => ({
+        showId,
+        selection: useShowEditorViewStore.getState().selection,
+        viewport: useShowEditorViewStore.getState().viewport,
+        hoveredClipId: useShowClipHoverStore.getState().hoveredClipId,
+        playheadMs: useShowTransportStore.getState().showId === showId
+          ? useShowTransportStore.getState().positionMs
+          : 0,
+      }),
+      applyShow: async (record: ShowRecord): Promise<boolean> => {
+        if (!record || record.id !== showId) return false
+        await useShowStore.getState().updateShow(showId, record)
+        return true
+      },
+    }
+    w.__pxlblzEditor = api
+    return () => {
+      if (w.__pxlblzEditor === api) delete w.__pxlblzEditor
+    }
+  }, [readOnly, showId])
   const timelineWorkspaceRef = useRef<HTMLElement>(null)
   const lastTimelineFocusRef = useRef<HTMLElement | null>(null)
   const closeDetailPanel = useCallback((restoreFocus = false) => {
