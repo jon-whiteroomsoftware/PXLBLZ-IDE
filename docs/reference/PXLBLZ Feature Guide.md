@@ -18,9 +18,9 @@ feature is for, where to find it, and where the deeper guides pick up.
 
 ## 1. Gallery
 
-`/gallery` is the front door: the built-in Pattern catalogue. Every card shows
-a still of its Pattern, and the six cards nearest your pointer run the real
-preview engine; move the mouse and the animation follows it, while cards that
+`/gallery` is the front door: the built-in Pattern catalogue. Every card opens
+on a chosen keyframe of its Pattern, and the six cards nearest your pointer
+run the real preview engine from that moment; move the mouse and the animation follows it, while cards that
 leave the set freeze where they were and pick up again from there. Without a
 pointer (touch), the cards nearest the top of the screen animate; a card with
 keyboard focus always does. The density control in the header shows two, three,

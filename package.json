@@ -45,6 +45,7 @@
     "review:push": "npm run check:node && wrsp-review-push",
     "pack:extension": "node scripts/pack-extension.mjs",
     "render": "npm run check:node && tsx scripts/render-pattern.ts",
+    "gallery:keyframes": "npm run check:node && tsx scripts/gallery-keyframes.ts",
     "harness": "tsx test/divergence-harness/harness.ts",
     "profile": "tsx test/perf-harness/profiler.ts",
     "census": "vitest run src/pixelblaze/stock/showResourceCensus.test.ts --reporter=verbose",

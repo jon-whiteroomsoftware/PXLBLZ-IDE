@@ -330,6 +330,8 @@ test('Gallery animates the cards nearest the pointer and freezes the rest on pos
   const cards = page.locator('[id^="gallery-"]')
   const first = cards.first().locator('[data-testid="gallery-live-preview"]')
   await expect(first).toHaveAttribute('data-gallery-mode', 'live')
+  // Wait for the card to paint (its keyframe fetch has settled) before displacing it.
+  await expect(first.locator('canvas[aria-label]')).toHaveCSS('opacity', '1')
 
   // Hover a card outside the initial set: it goes live, the pool stays bounded,
   // and the card that left the set keeps a captured poster.

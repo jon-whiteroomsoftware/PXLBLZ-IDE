@@ -71,7 +71,12 @@ export function scoreKeyframe(frame: ArrayLike<number>): number {
   let sumSquares = 0
   for (let index = 0; index < pixelCount; index += 1) {
     const offset = index * 3
-    const luminance = 0.2126 * frame[offset] + 0.7152 * frame[offset + 1] + 0.0722 * frame[offset + 2]
+    // Patterns may emit values outside [0,1]; the renderer clamps, so score
+    // what is displayed.
+    const r = Math.min(1, Math.max(0, frame[offset]))
+    const g = Math.min(1, Math.max(0, frame[offset + 1]))
+    const b = Math.min(1, Math.max(0, frame[offset + 2]))
+    const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
     if (luminance > 0.05) lit += 1
     sum += luminance
     sumSquares += luminance * luminance

@@ -1,35 +1,37 @@
 // Poster-first Gallery card preview (#888). Every card shows a still (its
 // "poster"); a small pool of cards nearest the pointer animate live. The
 // coordinator decides which cards are live, warm (one-frame poster render), or
-// frozen; this component builds and tears down the runtime per mode and keeps
-// the poster up to date. A frozen card remembers its virtual time and resumes
-// from it, so a card that goes live again continues rather than restarting.
-// Stored keyframe snapshots will later pre-populate the poster and resume time.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { bundle } from '@/engine/bundle'
+// frozen; this component builds and tears down the fast-replay runtime per
+// mode and keeps the poster up to date.
+//
+// State continuity: a card's first activation restores its stored keyframe
+// (a scored fast-replay snapshot shipped with the catalogue) when the
+// artifact's key matches this runtime; afterwards each freeze keeps an
+// in-session snapshot that the next activation restores, so a card that goes
+// live again continues exactly where it stopped. Without a matching keyframe
+// the card opens at a per-card offset into its first seconds.
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { advanceAutoOrbit, DEFAULT_ORBIT } from '@/engine/camera'
 import { createRenderer, type Renderer } from '@/engine/renderer'
-import { createRenderLoop, type RenderLoop } from '@/engine/renderLoop'
-import { createShim } from '@/engine/shim'
-import { createVirtualClock } from '@/engine/virtualClock'
-import { loadPattern, nativeDimension } from '@/engine/loadPattern'
-import { selectRenderCompatibility } from '@/engine/renderCompatibility'
-import { resolveLayout } from '@/engine/layout'
-import { GALLERY_THUMBNAIL_PIXEL_COUNT_CAPS, galleryThumbnailPixelCount } from '@/engine/previewPixelCount'
-import { DEV_DEFAULTS } from '@/engine/settings'
-import type { SurfaceId } from '@/engine/surfaces'
-import { LIBRARIES } from '@/pixelblaze/libs'
-import { recommendedSettingsFor } from '@/pixelblaze/stock/patterns'
 import {
-  DEFAULT_MAP_ID,
-  DEFAULT_SHAPE_PIXEL_COUNT,
-  defaultPixelCountForDim,
-  layoutSource,
-  resolveMap,
-} from '@/store/mapStore'
+  createFastReplayRuntime,
+  prepareFastReplay,
+  type FastReplayRuntime,
+  type FastReplaySnapshot,
+} from '@/engine/fastReplay'
+import {
+  GALLERY_KEYFRAME_RANDOM_SEED,
+  galleryKeyframeKey,
+  galleryKeyframeMatches,
+  restoreGalleryKeyframe,
+  type GalleryKeyframeArtifact,
+} from '@/engine/galleryKeyframes'
+import { resolveGalleryThumbnailLayout, galleryThumbnailSettings } from '@/engine/galleryThumbnailLayout'
+import { LIBRARIES } from '@/pixelblaze/libs'
+import { loadGalleryKeyframe } from '@/pixelblaze/stock/galleryKeyframes'
 import { galleryCardWarmed, registerGalleryLiveCard, type GalleryLiveMode } from './galleryLiveCoordinator'
 
-/** Until stored keyframes exist, a card's first frame comes from a per-card
+/** Without a stored keyframe, a card's first frame comes from a per-card
  * offset into the Pattern's opening seconds so the page does not open on a
  * wall of identical dark frame-zeros. Deterministic per card index. */
 export const GALLERY_START_OFFSET_SPAN_MS = 2000
@@ -40,6 +42,8 @@ export function galleryStartOffsetMs(index: number): number {
 /** Warm renders step forward this many times looking for a lit frame. */
 const WARM_POSTER_ATTEMPTS = 4
 const WARM_POSTER_STEP_MS = 250
+/** Live frames never advance the Pattern by more than this per rAF tick. */
+const MAX_LIVE_DELTA_MS = 100
 
 function isBlank(ctx: CanvasRenderingContext2D, width: number, height: number): boolean {
   if (width === 0 || height === 0) return true
@@ -77,8 +81,9 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
   const hostRef = useRef<HTMLDivElement>(null)
   const glCanvasRef = useRef<HTMLCanvasElement>(null)
   const posterCanvasRef = useRef<HTMLCanvasElement>(null)
-  const loopRef = useRef<RenderLoop | null>(null)
+  const runtimeRef = useRef<FastReplayRuntime | null>(null)
   const rendererRef = useRef<Renderer | null>(null)
+  const repaintRef = useRef<(() => void) | null>(null)
   const generationRef = useRef(0)
   const drawRef = useRef<
     | { kind: '2d'; positions: [number, number][] }
@@ -86,16 +91,22 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
     | null
   >(null)
   const widthRef = useRef(240)
-  const resumeAtMsRef = useRef(galleryStartOffsetMs(index))
+  /** In-session state from the last freeze; restored on the next activation. */
+  const resumeSnapshotRef = useRef<FastReplaySnapshot | null>(null)
+  /** Stored keyframe for this Pattern, or null once the lookup settled empty. */
+  const keyframeRef = useRef<GalleryKeyframeArtifact | null>(null)
+  /** The keyframe lookup runs on first activation, not on mount, so only cards
+   * that actually render fetch their artifact. */
+  const [keyframeSettled, setKeyframeSettled] = useState(false)
+  const keyframeLookupStartedRef = useRef(false)
   // The 3D orbit persists across pool grants so a card resumes its view.
   const cameraRef = useRef(DEFAULT_ORBIT)
   const [mode, setMode] = useState<GalleryLiveMode>('frozen')
   const [error, setError] = useState<string | null>(null)
-  const [painted, setPainted] = useState(false)
   const reducedMotion = usePrefersReducedMotion()
 
-  const settings = useMemo(() => ({ ...DEV_DEFAULTS, ...recommendedSettingsFor(name) }), [name])
-  const active = (mode === 'live' || mode === 'warm') && error === null
+  const granted = (mode === 'live' || mode === 'warm') && error === null
+  const active = granted && keyframeSettled
 
   useEffect(() => {
     const host = hostRef.current
@@ -104,8 +115,23 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
   }, [name])
 
   useEffect(() => {
+    if (!granted || keyframeLookupStartedRef.current) return
+    keyframeLookupStartedRef.current = true
+    let unmounted = false
+    loadGalleryKeyframe(name).then((artifact) => {
+      if (unmounted) return
+      keyframeRef.current = artifact
+      setKeyframeSettled(true)
+    })
+    return () => {
+      unmounted = true
+    }
+  }, [granted, name])
+
+  useEffect(() => {
     const host = hostRef.current
     if (!host) return
+    const lightSize = galleryThumbnailSettings(name).lightSize
 
     const measure = () => {
       const rect = host.getBoundingClientRect()
@@ -123,36 +149,30 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
           normals: draw.normals,
         })
       } else {
-        renderer.resize2D({
-          containerWidth: nextWidth,
-          lightSize: settings.lightSize,
-        })
+        renderer.resize2D({ containerWidth: nextWidth, lightSize })
       }
-      loopRef.current?.renderPreviewFrame()
+      repaintRef.current?.()
     }
     measure()
 
     const ro = new ResizeObserver(measure)
     ro.observe(host)
     return () => ro.disconnect()
-  }, [settings.lightSize])
+  }, [name])
 
   useLayoutEffect(() => {
     const canvas = glCanvasRef.current
     if (!canvas || !active) return
     const generation = generationRef.current + 1
     generationRef.current = generation
+    // Visibility is DOM-direct: the canvas reveals on its first paint.
     canvas.style.opacity = '0'
     canvas.style.visibility = 'hidden'
     let paintedOnce = false
-    queueMicrotask(() => {
-      if (generationRef.current !== generation) return
-      setPainted(false)
-    })
 
     // Copy the GL canvas into the poster canvas. Valid only synchronously after
     // a paint in the same task: the drawing buffer is not preserved across
-    // composites.
+    // composites. A blank capture never replaces a lit poster.
     const capturePoster = () => {
       const poster = posterCanvasRef.current
       if (!poster || !paintedOnce) return false
@@ -169,9 +189,8 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
       }
       ctx.clearRect(0, 0, poster.width, poster.height)
       ctx.drawImage(canvas, 0, 0)
-      if (poster.dataset.hasPoster === 'true' && isBlank(ctx, poster.width, poster.height)) {
-        // A momentarily dark frame must not replace a lit poster: restore it.
-        ctx.putImageData(previousPoster!, 0, 0)
+      if (previousPoster && isBlank(ctx, poster.width, poster.height)) {
+        ctx.putImageData(previousPoster, 0, 0)
         return false
       }
       // DOM-direct so a freeze never waits on a React commit.
@@ -180,47 +199,16 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
       return true
     }
 
+    let rafId: number | null = null
     try {
-      const bundled = bundle(src, LIBRARIES)
-      const nativeDim = nativeDimension(bundled.metadata.renderFns)
-      const pixelCount = galleryThumbnailPixelCount(
-        nativeDim,
-        settings.pixelCount,
-        defaultPixelCountForDim(nativeDim),
-      )
-      const source = layoutSource({ userMaps: [] })
-      const layout = resolveLayout(
-        {
-          selection: {
-            mapId: settings.mapId,
-            shapeId: settings.shapeId,
-            surfaceId: settings.surfaceId as SurfaceId,
-          },
-          nativeDim,
-          source,
-          persistedCount: pixelCount,
-          normalizeMode: settings.normalize,
-          poleCols: null,
-          shapeDefaultCount: DEFAULT_SHAPE_PIXEL_COUNT,
-          maxPixelCount: GALLERY_THUMBNAIL_PIXEL_COUNT_CAPS[nativeDim],
-        },
-        {
-          resolveMap: (mapId) => resolveMap(mapId ?? DEFAULT_MAP_ID, []),
-          defaultCountForDim: defaultPixelCountForDim,
-        },
-      )
-      const clock = createVirtualClock()
-      const renderCompatibility = selectRenderCompatibility(
-        layout.mapDim,
-        bundled.metadata.renderFns,
-      )
-      const shim = createShim({
+      const prepared = prepareFastReplay(src, LIBRARIES)
+      const { settings, layout } = resolveGalleryThumbnailLayout(name, prepared)
+      const runtime = createFastReplayRuntime(prepared, {
         mapPoints: layout.mapPoints,
-        pixelCount: layout.pixelCount,
-        dimensions: layout.mapDim,
-        getVirtualTime: () => clock.getTime(),
+        randomSeed: GALLERY_KEYFRAME_RANDOM_SEED,
+        fidelity: 'fast',
       })
-      const handle = loadPattern(bundled.code, bundled.metadata, shim.builtins)
+      runtimeRef.current = runtime
 
       const currentWidth = Math.max(
         1,
@@ -255,74 +243,94 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
       }
       renderer.setDiffusion(settings.diffusion)
 
-      const loop = createRenderLoop({
-        handle,
-        shim,
-        clock,
+      let lastFrame: Float64Array | null = null
+      const paintFrame = (frame: Float64Array, advanceCamera: boolean) => {
+        if (generationRef.current !== generation) return
+        if (layout.draw.kind === '3d') {
+          const now = performance.now()
+          if (advanceCamera) camera = advanceAutoOrbit(camera, now - lastCameraTs)
+          lastCameraTs = now
+          cameraRef.current = camera
+          renderer.setCamera(camera)
+        }
+        lastFrame = frame
+        renderer.paint(frame, settings.brightness, false)
+        if (!paintedOnce) {
+          paintedOnce = true
+          canvas.style.visibility = 'visible'
+          canvas.style.opacity = '1'
+        }
+      }
+      repaintRef.current = () => {
+        if (lastFrame) paintFrame(lastFrame, false)
+      }
+
+      // Establish the starting state: in-session resume, stored keyframe, or
+      // the per-card opening offset.
+      const resume = resumeSnapshotRef.current
+      const keyframe = keyframeRef.current
+      const key = galleryKeyframeKey({
+        code: prepared.code,
         mapPoints: layout.mapPoints,
-        pixelCount: layout.pixelCount,
-        renderCompatibility,
-        getSpeed: () => settings.speed,
-        getBrightness: () => settings.brightness,
-        isDimmed: () => false,
-        paint: (pixels, brightness, isPreviewDimmed) => {
-          if (generationRef.current !== generation) return
-          if (layout.draw.kind === '3d') {
-            const now = performance.now()
-            camera = advanceAutoOrbit(camera, now - lastCameraTs)
-            cameraRef.current = camera
-            lastCameraTs = now
-            renderer.setCamera(camera)
-          }
-          renderer.paint(pixels, brightness, isPreviewDimmed)
-          if (!paintedOnce) {
-            paintedOnce = true
-            canvas.style.visibility = 'visible'
-            canvas.style.opacity = '1'
-            setPainted(true)
-          }
-        },
-        onError: (err) => {
-          if (generationRef.current !== generation) return
-          setError(err.message)
-          galleryCardWarmed(name)
-        },
+        randomSeed: GALLERY_KEYFRAME_RANDOM_SEED,
       })
-      loopRef.current = loop
-      // Resume where this card left off (or at its opening offset).
-      if (resumeAtMsRef.current > 0) loop.tickHeadless(resumeAtMsRef.current)
-      loop.renderPreviewFrame()
+      if (resume && resume.frame.length === layout.mapPoints.length * 3) {
+        runtime.renderCurrentFrame()
+        runtime.restore(resume)
+        paintFrame(runtime.renderCurrentFrame().frame, false)
+      } else if (galleryKeyframeMatches(keyframe, key) && keyframe.pixelCount === layout.mapPoints.length) {
+        restoreGalleryKeyframe(runtime, keyframe)
+        paintFrame(runtime.renderCurrentFrame().frame, false)
+      } else {
+        const offset = galleryStartOffsetMs(index)
+        paintFrame(runtime.advanceLive(offset).frame, false)
+      }
 
       if (mode === 'warm') {
         // Some Patterns open dark; step forward a few frames for a lit poster.
         for (let attempt = 0; attempt < WARM_POSTER_ATTEMPTS; attempt++) {
           if (capturePoster() && !isBlankPoster(posterCanvasRef.current)) break
-          loop.tickFrame(WARM_POSTER_STEP_MS)
+          paintFrame(runtime.advanceLive(WARM_POSTER_STEP_MS).frame, false)
         }
         galleryCardWarmed(name)
       } else if (!reducedMotion) {
-        loop.start()
+        let lastTs: number | null = null
+        const tick = (ts: number) => {
+          rafId = null
+          if (generationRef.current !== generation) return
+          const delta = lastTs === null ? 0 : Math.min(MAX_LIVE_DELTA_MS, ts - lastTs)
+          lastTs = ts
+          try {
+            paintFrame(runtime.advanceLive(delta * settings.speed).frame, true)
+          } catch (err) {
+            setError(err instanceof Error ? err.message : String(err))
+            galleryCardWarmed(name)
+            return
+          }
+          rafId = requestAnimationFrame(tick)
+        }
+        rafId = requestAnimationFrame(tick)
       }
 
       return () => {
-        loop.stop()
-        // Freeze: paint one last frame and keep it as the poster. This must run
-        // before the generation bump, which makes the paint callback ignore
-        // further paints.
+        if (rafId !== null) cancelAnimationFrame(rafId)
+        // Freeze: keep the current frame as the poster and the runtime state
+        // for the next activation. This must run before the generation bump,
+        // which makes paintFrame ignore further paints.
         try {
-          loop.renderPreviewFrame()
+          repaintRef.current?.()
           if (capturePoster()) galleryCardWarmed(name)
+          resumeSnapshotRef.current = runtime.snapshot()
         } catch {
-          // A lost context leaves the previous poster in place.
+          // A lost context leaves the previous poster and state in place.
         }
         generationRef.current += 1
-        resumeAtMsRef.current = clock.getTime()
         canvas.style.opacity = '0'
         canvas.style.visibility = 'hidden'
-        loopRef.current = null
+        runtimeRef.current = null
         rendererRef.current = null
+        repaintRef.current = null
         drawRef.current = null
-        setPainted(false)
         canvas.getContext('webgl')?.getExtension('WEBGL_lose_context')?.loseContext()
       }
     } catch (err) {
@@ -333,7 +341,7 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
       })
       galleryCardWarmed(name)
     }
-  }, [src, settings, active, mode, reducedMotion, name])
+  }, [src, active, mode, reducedMotion, name, index])
 
   return (
     <div ref={hostRef} className="absolute inset-0 bg-black" data-testid="gallery-live-preview" data-gallery-mode={mode}>
@@ -347,7 +355,7 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
         <canvas
           ref={glCanvasRef}
           aria-label={`${name} live preview`}
-          className={`absolute inset-0 h-full w-full transition-opacity duration-75 ${painted ? 'opacity-100' : 'opacity-0'}`}
+          className="absolute inset-0 h-full w-full transition-opacity duration-75"
         />
       )}
       {error && (

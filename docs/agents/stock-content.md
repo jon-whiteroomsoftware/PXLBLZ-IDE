@@ -8,6 +8,23 @@ repeatedly, so work the chain deliberately instead.
 The governing rule throughout: **measure, never guess**. Re-pinning a census
 without understanding what moved turns a real capacity finding into paper.
 
+## Gallery keyframes
+
+Every public Gallery Pattern ships a stored keyframe (#888) in
+`src/pixelblaze/stock/keyframes/<Name>.json.gz`, keyed by its compiled code,
+thumbnail map, seed, and format version. After adding, editing, retiring, or
+re-tuning the recommended settings of a stock Pattern — or changing the engine
+in a way that alters compiled output — run:
+
+```bash
+npm run gallery:keyframes            # all public Gallery Patterns (~30 s)
+npm run gallery:keyframes -- Name    # one Pattern
+```
+
+`src/pixelblaze/stock/galleryKeyframes.test.ts` fails when any public Pattern
+is missing a keyframe or its key is stale. To hand-pick a poster moment, add
+the Pattern to `src/pixelblaze/stock/keyframeOverrides.ts` and re-run.
+
 ## Adding a stock demo Pattern
 
 Stock demos are built in themed cohorts of three, one per dimensionality

@@ -107,10 +107,27 @@ the registry, ignores touch pointer positions, re-ranks on pointer, scroll
 (stepping forward a few frames if the first is dark) without exceeding
 `poolSize + 1` contexts. A card leaving the pool paints one last frame,
 copies it into the poster synchronously (the drawing buffer is not preserved
-across composites), records its virtual time, and resumes from it on the next
-grant; a blank capture never replaces a lit poster. Pool size is 6 and the
-margin 2; the density preference (`galleryDensity.ts`, localStorage) sets 2,
-3, or 4 columns, and 1D Patterns span two columns.
+across composites), and keeps a fast-replay snapshot of its runtime that the
+next grant restores, so it continues exactly where it stopped; a blank
+capture never replaces a lit poster. Pool size is 6 and the margin 2; the
+density preference (`galleryDensity.ts`, localStorage) sets 2, 3, or 4
+columns, and 1D Patterns span two columns.
+
+**Gallery keyframes.** Cards run on `createFastReplayRuntime` (fast fidelity,
+seed `GALLERY_KEYFRAME_RANDOM_SEED`) over the geometry from
+`galleryThumbnailLayout.ts`, so a stored snapshot restores into exactly the
+runtime that captured it. `galleryKeyframes.ts` scores sampled frames over
+0.5–6 s (lit coverage x spatial contrast, channels clamped) and captures a
+`FastReplaySnapshot` at the best time in a fresh runtime; the JSON codec in
+`fastReplay.ts` carries typed-array frames, Symbol-tagged Pattern arrays,
+holes, and non-finite numbers. Artifacts live in
+`src/pixelblaze/stock/keyframes/<Name>.json.gz`, keyed by compiled code, map
+points, seed, and format version, and are loaded lazily
+(`stock/galleryKeyframes.ts`) on a card's first activation; a stale or missing
+key degrades to the per-card opening offset. `npm run gallery:keyframes`
+regenerates them through Vite SSR (`scripts/gallery-keyframes.ts`);
+`keyframeOverrides.ts` pins a Pattern's poster time. A test asserts every
+public Gallery Pattern has a current keyframe.
 
 **Analytics** flow through a typed seam; local development and tests send
 nothing. OAuth intent and callback outcome events use only the provider,

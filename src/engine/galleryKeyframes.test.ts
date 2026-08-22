@@ -40,6 +40,13 @@ describe('scoreKeyframe', () => {
     expect(scoreKeyframe(half)).toBeGreaterThan(scoreKeyframe(white))
   })
 
+  it('clamps out-of-range channels so an overdriven frame scores like a full-white one', () => {
+    const overdriven = new Float64Array(64 * 3).fill(40)
+    const negative = new Float64Array(64 * 3).fill(-3)
+    expect(scoreKeyframe(overdriven)).toBeCloseTo(scoreKeyframe(white), 12)
+    expect(scoreKeyframe(negative)).toBe(0)
+  })
+
   it('treats an empty frame as unscorable', () => {
     expect(scoreKeyframe(new Float64Array(0))).toBe(0)
   })
