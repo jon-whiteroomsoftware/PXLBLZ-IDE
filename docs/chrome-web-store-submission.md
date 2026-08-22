@@ -21,6 +21,16 @@ extension collects/transmits no user data; controller traffic is relayed locally
 never sent anywhere; the one off-LAN request is the user-triggered cloud discovery
 call to Electromage.
 
+## Homepage and support URLs
+
+Dashboard "Additional fields":
+
+> Homepage URL: https://pxlblz-ide.whiteroomsoftware.com/
+> Support URL: https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues
+
+The homepage matches `manifest.json` `homepage_url`. Support points at the
+repository issue tracker; there is no separate support page.
+
 ## Store listing URL
 
 > https://chromewebstore.google.com/detail/pxlblz-ide-controller-hel/hjdkmngopeofakdbjfkaomcmgkcidoeg
