@@ -57,6 +57,25 @@ describe('resolvePropertyLaneDisplayLabels (#631)', () => {
     ])).toEqual(['CompassRose brightness', 'ColorRipple brightness'])
   })
 
+  it('leaves a repeated property bare when every contender is the same Clip (#63)', () => {
+    // The same Pattern animating the same property in several Scenes repeats
+    // the lane, but its name distinguishes nothing: the lanes differ only in
+    // time, which the curve already shows.
+    expect(resolvePropertyLaneDisplayLabels([
+      { propertyLabel: 'translate X', family: 'effect', ownerName: 'CompassRose' },
+      { propertyLabel: 'translate X', family: 'effect', ownerName: 'CompassRose' },
+      { propertyLabel: 'translate X', family: 'effect', ownerName: 'CompassRose' },
+    ])).toEqual(['translate X', 'translate X', 'translate X'])
+  })
+
+  it('still qualifies a repeated property once a second Clip joins it (#63)', () => {
+    expect(resolvePropertyLaneDisplayLabels([
+      { propertyLabel: 'translate X', family: 'effect', ownerName: 'CompassRose' },
+      { propertyLabel: 'translate X', family: 'effect', ownerName: 'CompassRose' },
+      { propertyLabel: 'translate X', family: 'effect', ownerName: 'SignalMandala' },
+    ])).toEqual(['CR translate X', 'CR translate X', 'SM translate X'])
+  })
+
   it('abbreviates single-word Clip names without internal capitals', () => {
     expect(resolvePropertyLaneDisplayLabels([
       { propertyLabel: 'brightness', family: 'appearance', ownerName: 'Caustics' },

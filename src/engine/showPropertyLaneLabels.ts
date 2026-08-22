@@ -19,19 +19,25 @@ export function resolvePropertyLaneDisplayLabels(lanes: readonly PropertyLaneLab
   // Two lanes only compete for a name inside one family: across families the
   // glyph already tells a Pattern control named 'speed' from animation speed.
   const key = (lane: PropertyLaneLabelInput) => `${lane.family} ${lane.propertyLabel}`
+  // A repeat only contests the name when the repeats have different owners.
+  // One Clip animating one property across several Scenes repeats the lane,
+  // but its name tells those lanes apart no better than the curve does (#63).
+  const ownersByKey = new Map<string, Set<string | undefined>>()
+  for (const lane of lanes) {
+    const owners = ownersByKey.get(key(lane)) ?? new Set<string | undefined>()
+    owners.add(lane.ownerName)
+    ownersByKey.set(key(lane), owners)
+  }
   const contested = new Set(
-    lanes
-      .map(key)
-      .filter((candidate, index, all) => all.indexOf(candidate) !== index),
+    [...ownersByKey].flatMap(([candidate, owners]) => (owners.size > 1 ? [candidate] : [])),
   )
 
   // Within one contested property, abbreviations only disambiguate when they
   // stay distinct; otherwise that property falls back to full Clip names.
   const abbreviationWorks = new Map<string, boolean>()
   for (const contestedKey of contested) {
-    const qualifiers = lanes
-      .filter((lane) => key(lane) === contestedKey)
-      .map((lane) => (lane.ownerName === undefined ? '' : abbreviateOwnerName(lane.ownerName)))
+    const qualifiers = [...ownersByKey.get(contestedKey) ?? []]
+      .map((owner) => (owner === undefined ? '' : abbreviateOwnerName(owner)))
     abbreviationWorks.set(contestedKey, new Set(qualifiers).size === qualifiers.length)
   }
 
