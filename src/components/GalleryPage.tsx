@@ -39,7 +39,7 @@ const DENSITY_PRESENTATION: Record<GalleryDensity, { label: string; Icon: typeof
 
 function DensityPicker({ density, onChange }: { density: GalleryDensity; onChange: (d: GalleryDensity) => void }) {
   return (
-    <div role="radiogroup" aria-label="Card density" className="flex overflow-hidden rounded-full border border-seam bg-panel">
+    <div role="radiogroup" aria-label="Card density" className="hidden overflow-hidden rounded-full border border-seam bg-panel md:flex">
       {GALLERY_DENSITY_OPTIONS.map((option) => {
         const { label, Icon } = DENSITY_PRESENTATION[option]
         const active = density === option
