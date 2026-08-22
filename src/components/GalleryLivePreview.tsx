@@ -114,18 +114,15 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
     return registerGalleryLiveCard(name, host, setMode, true)
   }, [name])
 
+  // The lookup is never cancelled: a grant that lapses while the fetch is in
+  // flight must still settle, or the card could never activate again.
   useEffect(() => {
     if (!granted || keyframeLookupStartedRef.current) return
     keyframeLookupStartedRef.current = true
-    let unmounted = false
     loadGalleryKeyframe(name).then((artifact) => {
-      if (unmounted) return
       keyframeRef.current = artifact
       setKeyframeSettled(true)
     })
-    return () => {
-      unmounted = true
-    }
   }, [granted, name])
 
   useEffect(() => {
@@ -274,13 +271,15 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
         mapPoints: layout.mapPoints,
         randomSeed: GALLERY_KEYFRAME_RANDOM_SEED,
       })
+      // A restored snapshot is presented from its own frame: ticking the
+      // runtime to render would advance state (render can consume random())
+      // and the first shown frame would no longer be the snapshot's.
       if (resume && resume.frame.length === layout.mapPoints.length * 3) {
         runtime.renderCurrentFrame()
         runtime.restore(resume)
-        paintFrame(runtime.renderCurrentFrame().frame, false)
+        paintFrame(resume.frame, false)
       } else if (galleryKeyframeMatches(keyframe, key) && keyframe.pixelCount === layout.mapPoints.length) {
-        restoreGalleryKeyframe(runtime, keyframe)
-        paintFrame(runtime.renderCurrentFrame().frame, false)
+        paintFrame(restoreGalleryKeyframe(runtime, keyframe).frame, false)
       } else {
         const offset = galleryStartOffsetMs(index)
         paintFrame(runtime.advanceLive(offset).frame, false)

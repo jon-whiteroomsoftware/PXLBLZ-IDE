@@ -663,7 +663,24 @@ export interface FastReplaySnapshotJson {
 
 const FRAME_DECIMALS = 4
 
-function encodeSnapshotValue(value: unknown): unknown {
+interface EncodeContext {
+  ids: Map<object, number>
+}
+
+interface DecodeContext {
+  byId: Map<number, unknown>
+}
+
+function isIndexKey(key: string, length: number): boolean {
+  const index = Number(key)
+  return Number.isInteger(index) && index >= 0 && index < length && String(index) === key
+}
+
+// Objects and arrays carry an `$id` on first encounter and `$ref` afterwards,
+// so shared references (two variables holding one Pattern array) survive the
+// round trip with identity intact. Non-index array properties are encoded
+// under `props`.
+function encodeSnapshotValue(value: unknown, context: EncodeContext): unknown {
   if (typeof value === 'number') {
     if (Number.isNaN(value)) return { $num: 'NaN' }
     if (value === Infinity) return { $num: 'Infinity' }
@@ -672,62 +689,97 @@ function encodeSnapshotValue(value: unknown): unknown {
   }
   if (value === undefined) return { $undefined: true }
   if (!value || typeof value !== 'object') return value
+  const seen = context.ids.get(value)
+  if (seen !== undefined) return { $ref: seen }
+  const id = context.ids.size + 1
+  context.ids.set(value, id)
   if (Array.isArray(value)) {
     const items: unknown[] = []
     for (let index = 0; index < value.length; index += 1) {
-      items.push(index in value ? encodeSnapshotValue(value[index]) : { $hole: true })
+      items.push(index in value ? encodeSnapshotValue(value[index], context) : { $hole: true })
     }
-    return { $array: getSnapshotArrayKind(value), items }
+    let props: Record<string, unknown> | undefined
+    for (const key of Object.keys(value)) {
+      if (isIndexKey(key, value.length)) continue
+      props ??= {}
+      props[key] = encodeSnapshotValue((value as unknown as Record<string, unknown>)[key], context)
+    }
+    return { $id: id, $array: getSnapshotArrayKind(value), items, ...(props ? { props } : {}) }
   }
-  const out: Record<string, unknown> = {}
-  for (const [key, item] of Object.entries(value)) out[key] = encodeSnapshotValue(item)
+  const out: Record<string, unknown> = { $id: id }
+  for (const [key, item] of Object.entries(value)) out[key] = encodeSnapshotValue(item, context)
   return out
 }
 
-function decodeSnapshotValue(value: unknown): unknown {
+function decodeSnapshotValue(value: unknown, context: DecodeContext): unknown {
   if (!value || typeof value !== 'object') return value
-  if (Array.isArray(value)) return value.map(decodeSnapshotValue)
+  if (Array.isArray(value)) return value.map((item) => decodeSnapshotValue(item, context))
   const record = value as Record<string, unknown>
   if (typeof record.$num === 'string') {
     return record.$num === 'NaN' ? NaN : record.$num === 'Infinity' ? Infinity : -Infinity
   }
   if (record.$undefined === true) return undefined
   if (record.$hole === true) return undefined
+  if (typeof record.$ref === 'number') {
+    if (!context.byId.has(record.$ref)) throw new Error(`Fast replay snapshot reference ${record.$ref} precedes its definition.`)
+    return context.byId.get(record.$ref)
+  }
+  const id = typeof record.$id === 'number' ? record.$id : null
   if (typeof record.$array === 'string' && Array.isArray(record.items)) {
     const kind = record.$array === 'pattern' ? 'pattern' : 'plain'
     const array = tagSnapshotArray([], kind)
+    if (id !== null) context.byId.set(id, array)
     array.length = record.items.length
     record.items.forEach((item, index) => {
       const entry = item as Record<string, unknown> | null
       if (entry && typeof entry === 'object' && entry.$hole === true) return
-      array[index] = decodeSnapshotValue(item)
+      array[index] = decodeSnapshotValue(item, context)
     })
+    if (record.props && typeof record.props === 'object') {
+      for (const [key, item] of Object.entries(record.props as Record<string, unknown>)) {
+        ;(array as unknown as Record<string, unknown>)[key] = decodeSnapshotValue(item, context)
+      }
+    }
     return array
   }
   const out: Record<string, unknown> = {}
-  for (const [key, item] of Object.entries(record)) out[key] = decodeSnapshotValue(item)
+  if (id !== null) context.byId.set(id, out)
+  for (const [key, item] of Object.entries(record)) {
+    if (key === '$id') continue
+    out[key] = decodeSnapshotValue(item, context)
+  }
   return out
 }
 
 export function encodeFastReplaySnapshot(snapshot: FastReplaySnapshot): FastReplaySnapshotJson {
   const scale = 10 ** FRAME_DECIMALS
+  // One identity space across the three sections: a Pattern array referenced
+  // from both a binding and a runtime variable stays one array after decode.
+  const context: EncodeContext = { ids: new Map() }
+  const patternFunctionBindings = encodeSnapshotValue(snapshot.patternFunctionBindings, context) as Record<string, unknown>
+  const runtimeState = encodeSnapshotValue(snapshot.runtimeState, context) as Record<string, unknown>
+  const shim = encodeSnapshotValue(snapshot.shim, context)
   return {
     elapsedMs: snapshot.elapsedMs,
     simulatedFrames: snapshot.simulatedFrames,
     frame: Array.from(snapshot.frame, (value) => Math.round(value * scale) / scale),
-    patternFunctionBindings: encodeSnapshotValue(snapshot.patternFunctionBindings) as Record<string, unknown>,
-    runtimeState: encodeSnapshotValue(snapshot.runtimeState) as Record<string, unknown>,
-    shim: encodeSnapshotValue(snapshot.shim),
+    patternFunctionBindings,
+    runtimeState,
+    shim,
   }
 }
 
 export function decodeFastReplaySnapshot(json: FastReplaySnapshotJson): FastReplaySnapshot {
+  const context: DecodeContext = { byId: new Map() }
+  const patternFunctionBindings = decodeSnapshotValue(json.patternFunctionBindings, context) as Record<string, unknown>
+  const runtimeState = decodeSnapshotValue(json.runtimeState, context) as Record<string, unknown>
+  const shim = decodeSnapshotValue(json.shim, context) as ShimSnapshot
   return {
     elapsedMs: json.elapsedMs,
     simulatedFrames: json.simulatedFrames,
     frame: Float64Array.from(json.frame),
-    patternFunctionBindings: decodeSnapshotValue(json.patternFunctionBindings) as Record<string, unknown>,
-    runtimeState: decodeSnapshotValue(json.runtimeState) as Record<string, unknown>,
-    shim: decodeSnapshotValue(json.shim) as ShimSnapshot,
+    patternFunctionBindings,
+    runtimeState,
+    shim,
   }
 }

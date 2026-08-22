@@ -11,6 +11,7 @@ import {
   decodeFastReplaySnapshot,
   encodeFastReplaySnapshot,
   type FastReplayRuntime,
+  type FastReplaySnapshot,
   type FastReplaySnapshotJson,
   type PreparedFastReplay,
 } from './fastReplay'
@@ -172,7 +173,10 @@ export function buildGalleryKeyframe(options: BuildGalleryKeyframeOptions): Gall
 export function restoreGalleryKeyframe(
   runtime: Pick<FastReplayRuntime, 'renderCurrentFrame' | 'restore'>,
   artifact: GalleryKeyframeArtifact,
-): void {
+): FastReplaySnapshot {
   runtime.renderCurrentFrame()
-  runtime.restore(decodeFastReplaySnapshot(artifact.snapshot))
+  const snapshot = decodeFastReplaySnapshot(artifact.snapshot)
+  runtime.restore(snapshot)
+  // Returned so callers can present the snapshot's own frame without ticking.
+  return snapshot
 }

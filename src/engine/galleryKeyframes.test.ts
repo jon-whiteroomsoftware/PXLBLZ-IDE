@@ -148,4 +148,33 @@ describe('fast replay snapshot codec', () => {
     expect(decoded.frame.length).toBe(snapshot.frame.length)
     expect(decoded.elapsedMs).toBe(snapshot.elapsedMs)
   })
+
+  it('preserves shared references and non-index array properties across the round trip', () => {
+    const prepared = prepareFastReplay(DEMOS.TestPattern2D, LIBRARIES)
+    const runtime = createFastReplayRuntime(prepared, { mapPoints: gridPoints(4), randomSeed: 7, fidelity: 'fast' })
+    runtime.advanceTo(100, { stepMs: 1000 / 60 })
+    const snapshot = runtime.snapshot()
+    const shared: unknown[] & { label?: string } = [1, 2, 3]
+    shared.label = 'shared'
+    snapshot.runtimeState.__a = shared
+    snapshot.runtimeState.__b = { inner: shared }
+    snapshot.patternFunctionBindings.__c = shared
+    const decoded = decodeFastReplaySnapshot(JSON.parse(JSON.stringify(encodeFastReplaySnapshot(snapshot))))
+    const a = decoded.runtimeState.__a as unknown[] & { label?: string }
+    const b = decoded.runtimeState.__b as { inner: unknown[] }
+    expect(Array.from(a)).toEqual([1, 2, 3])
+    expect(a.label).toBe('shared')
+    expect(b.inner).toBe(a)
+    expect(decoded.patternFunctionBindings.__c).toBe(a)
+  })
+
+  it('restoring a keyframe presents the stored frame without ticking the runtime', () => {
+    const prepared = prepareFastReplay(DEMOS.TestPattern2D, LIBRARIES)
+    const mapPoints = gridPoints(8)
+    const artifact = buildGalleryKeyframe({ name: 'TestPattern2D', prepared, mapPoints, posterTimeMs: 800 })
+    const runtime = createFastReplayRuntime(prepared, { mapPoints, randomSeed: artifact.randomSeed, fidelity: 'fast' })
+    const presented = restoreGalleryKeyframe(runtime, artifact)
+    expect(Array.from(presented.frame)).toEqual(artifact.snapshot.frame)
+    expect(runtime.getElapsedMs()).toBe(800)
+  })
 })
