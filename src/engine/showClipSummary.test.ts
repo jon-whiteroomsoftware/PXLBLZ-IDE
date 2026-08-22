@@ -498,7 +498,7 @@ describe('Show Clip summary', () => {
 
     expect(summary.find((section) => section.kind === 'view')?.items).toEqual([
       { id: 'transform-rotation', label: 'Rotation', value: '-90–90°', animated: true },
-      { id: 'transform-scale-x', label: 'Scale X', value: '0.5–2.51x', timelineValue: 'sx 0.5–2.51x', animated: true },
+      { id: 'transform-scale-x', label: 'Scale X', value: '0.5–2.51x', animated: true },
       { id: 'viewport-width', label: 'Viewport Width', value: '1–2', timelineValue: 'w 1–2', animated: true },
       { id: 'phase', label: 'Phase', value: '0–0.5', animated: true },
     ])
@@ -511,7 +511,7 @@ describe('Show Clip summary', () => {
     expect(timeline.flatMap((section) => section.items.map((item) => item.displayValue))).toEqual([
       '10–80%',
       '-90–90°',
-      'sx .5–2.51x',
+      '.5–2.51×1x',
       'w 1–2',
       '0–.5',
     ])
@@ -675,7 +675,7 @@ describe('Show Clip summary', () => {
     expect(summary.find((section) => section.kind === 'view')?.items).toEqual(expect.arrayContaining([
       expect.objectContaining({ label: 'Position X', value: '0.25' }),
       expect.objectContaining({ label: 'Rotation', value: '90°' }),
-      expect.objectContaining({ label: 'Scale X', value: '2.51x', timelineValue: 'sx 2.51x' }),
+      expect.objectContaining({ label: 'Scale X', value: '2.51x' }),
     ]))
     expect(summary.find((section) => section.kind === 'animation')?.items).toContainEqual(
       expect.objectContaining({ label: 'Position X', value: 'animated' }),
@@ -729,5 +729,81 @@ describe('Show Clip summary', () => {
     // The Clip row keeps only parameters authored away from their defaults,
     // as values only - names live in Clip Detail (#666, #63).
     expect(timelineEffect?.displayValue).toBe('.32 / 4')
+  })
+  it('pairs Transform axes on the Clip row under one glyph (#63)', () => {
+    const show = createDefaultShow('show-clip-summary-pairs', 'Clip summary pairs', 1_000)
+    show.cells[0] = {
+      ...show.cells[0],
+      transform: { positionX: -0.25, positionY: 0.25, rotation: 0.125, scaleX: 0.5, scaleY: 0.5 },
+    }
+    const summary = projectGlobalShowClipSummary(show, show.cells[0].id)
+    const view = projectShowClipTimelineSummary(summary, null).find((section) => section.kind === 'view')
+
+    expect(view?.items.map((item) => [item.id, item.displayValue, item.glyph])).toEqual([
+      ['transform-position', '-.25,.25', 'move'],
+      ['transform-rotation', '45°', 'rotate'],
+      ['transform-scale', '.5x', 'scale'],
+    ])
+    // Clip Detail and the tooltip keep every axis as its own fact.
+    expect(showClipInlineSummary(summary)).toBe(
+      'Position X -0.25 · Position Y 0.25 · Rotation 45° · Scale X 0.5x · Scale Y 0.5x',
+    )
+  })
+
+  it('keeps both axes in a pair when only one is authored or they differ (#63)', () => {
+    const show = createDefaultShow('show-clip-summary-pair-axes', 'Clip summary pair axes', 1_000)
+    show.cells[0] = {
+      ...show.cells[0],
+      transform: { positionX: 0, positionY: 0.25, rotation: 0, scaleX: 0.5, scaleY: 0.75 },
+    }
+    const summary = projectGlobalShowClipSummary(show, show.cells[0].id)
+    const view = projectShowClipTimelineSummary(summary, null).find((section) => section.kind === 'view')
+
+    expect(view?.items.map((item) => [item.id, item.displayValue])).toEqual([
+      ['transform-position', '0,.25'],
+      ['transform-scale', '.5×.75x'],
+    ])
+  })
+
+  it('shows a pair when either axis changes from the preceding Clip (#63)', () => {
+    const show = createDefaultShow('show-clip-summary-pair-delta', 'Clip summary pair delta', 1_000)
+    show.cells[0] = { ...show.cells[0], transform: { positionX: 0.1, positionY: 0.2, rotation: 0, scaleX: 1, scaleY: 1 } }
+    show.cells[1] = { ...show.cells[1], transform: { positionX: 0.1, positionY: 0.3, rotation: 0, scaleX: 1, scaleY: 1 } }
+    const first = projectGlobalShowClipSummary(show, show.cells[0].id)
+    const second = projectGlobalShowClipSummary(show, show.cells[1].id)
+
+    const unchanged = projectShowClipTimelineSummary(first, first).find((section) => section.kind === 'view')
+    expect(unchanged?.items[0]).toEqual(expect.objectContaining({ id: 'transform-position', showValue: false }))
+    const changed = projectShowClipTimelineSummary(second, first).find((section) => section.kind === 'view')
+    expect(changed?.items[0]).toEqual(expect.objectContaining({ id: 'transform-position', displayValue: '.1,.3', showValue: true }))
+  })
+
+  it('renders the Viewport as an origin pair and size, or off (#63)', () => {
+    const show = createDefaultShow('show-clip-summary-viewport', 'Clip summary viewport', 1_000)
+    show.cells[0] = { ...show.cells[0], viewport: { enabled: true, x: 0, y: 0.5, width: 0.25, height: 0.5 } }
+    show.cells[1] = { ...show.cells[1], viewport: { enabled: false, x: 0, y: 0.5, width: 0.25, height: 0.5 } }
+    const on = projectShowClipTimelineSummary(projectGlobalShowClipSummary(show, show.cells[0].id), null)
+      .find((section) => section.kind === 'view')?.items[0]
+    const off = projectShowClipTimelineSummary(projectGlobalShowClipSummary(show, show.cells[1].id), null)
+      .find((section) => section.kind === 'view')?.items[0]
+
+    expect(on).toEqual(expect.objectContaining({ id: 'viewport', displayValue: '0,.5 .25×.5', glyph: 'viewport' }))
+    expect(off).toEqual(expect.objectContaining({ id: 'viewport', displayValue: 'off', glyph: 'viewport-off' }))
+  })
+
+  it('assigns Clip row glyphs per fact family and leaves boolean facts glyph-only (#63)', () => {
+    let show = createDefaultShow('show-clip-summary-glyphs', 'Clip summary glyphs', 1_000)
+    show = updateShowCellAdaptations(show, show.cells[0].id, { timeScale: 1.5, brightness: 0.8, mirror: true })
+    show.cells[0] = { ...show.cells[0], controlTargets: { sliderSpeed: 0.4, sliderWidth: 0.75 } }
+    const items = projectShowClipTimelineSummary(projectGlobalShowClipSummary(show, show.cells[0].id), null)
+      .flatMap((section) => section.items)
+
+    expect(items.map((item) => [item.id, item.displayValue, item.glyph])).toEqual([
+      ['time-scale', '1.5x', 'clock'],
+      ['control:sliderSpeed', '40%', 'controls'],
+      ['control:sliderWidth', '75%', 'controls'],
+      ['brightness', '80%', 'sun'],
+      ['mirror', '', 'mirror'],
+    ])
   })
 })

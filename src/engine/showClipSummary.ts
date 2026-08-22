@@ -39,9 +39,32 @@ export interface ShowClipSummaryDestination {
   destinationLabel: string
 }
 
+/**
+ * Glyph that leads a fact on the Clip row (#63). The row draws a glyph when
+ * it differs from the preceding shown fact's, so sibling facts (two Pattern
+ * controls, two Effects) share one. Boolean facts carry an empty display
+ * value and speak through the glyph alone.
+ */
+export type ShowClipTimelineGlyph =
+  | 'clock'
+  | 'restart'
+  | 'shutter'
+  | 'controls'
+  | 'eye'
+  | 'sun'
+  | 'mirror'
+  | 'move'
+  | 'rotate'
+  | 'scale'
+  | 'viewport'
+  | 'viewport-off'
+  | 'effects'
+  | 'animation'
+
 export interface ShowClipTimelineSummaryItem extends ShowClipSummaryItem {
   showValue: boolean
   displayValue?: string
+  glyph: ShowClipTimelineGlyph
 }
 
 export interface ShowClipTimelineSummarySection extends Omit<ShowClipSummarySection, 'items'> {
@@ -388,13 +411,14 @@ function compositionAnimationItem(
     }
   }
   if (target.kind === 'placement-transform') {
-    // Item ids and terse prefixes match the static transform facts exactly.
+    // Item ids match the static transform facts exactly.
     const presentation: Record<string, { itemId: string; tersePrefix?: string; format: (value: number) => string }> = {
-      positionX: { itemId: 'transform-position-x', tersePrefix: 'x', format: formatNumber },
-      positionY: { itemId: 'transform-position-y', tersePrefix: 'y', format: formatNumber },
+      // Axes pair up on the Clip row (#63), so no terse prefix here.
+      positionX: { itemId: 'transform-position-x', format: formatNumber },
+      positionY: { itemId: 'transform-position-y', format: formatNumber },
       rotation: { itemId: 'transform-rotation', format: (value) => formatAngleValue('rotation', value) },
-      scaleX: { itemId: 'transform-scale-x', tersePrefix: 'sx', format: multiplier },
-      scaleY: { itemId: 'transform-scale-y', tersePrefix: 'sy', format: multiplier },
+      scaleX: { itemId: 'transform-scale-x', format: multiplier },
+      scaleY: { itemId: 'transform-scale-y', format: multiplier },
     }
     const transform = presentation[target.property]
     if (!transform) return null
@@ -461,20 +485,121 @@ export function projectShowClipTimelineSummary(
   // formats identically but must stay visible as newly animated.
   const factKey = (item: ShowClipSummaryItem) => `${item.animated ? 'animated:' : ''}${item.value}`
   const previousValues = new Map((previousSummary ?? []).flatMap((section) => (
-    section.items.map((item) => [`${section.kind}:${item.id}`, factKey(item)] as const)
+    pairTimelineAxes(section.kind, section.items)
+      .map((item) => [`${section.kind}:${item.id}`, factKey(item)] as const)
   )))
   return summary.map((section) => ({
     ...section,
-    items: section.items.map((item) => {
-      const displayValue = item.timelineValue ?? item.value
+    items: pairTimelineAxes(section.kind, section.items).map((item) => {
+      const displayValue = timelineDisplayValue(section.kind, item)
       return {
         ...item,
         ...(displayValue !== undefined ? { displayValue: compactTimelineNumberText(displayValue) } : {}),
         showValue: item.value !== undefined
           && previousValues.get(`${section.kind}:${item.id}`) !== factKey(item),
+        glyph: timelineGlyph(section.kind, item.id, item.value),
       }
     }),
   }))
+}
+
+const GLYPH_ONLY_ITEMS = new Set(['restart', 'mirror'])
+
+/** Boolean facts read through their glyph alone on the Clip row (#63). */
+function timelineDisplayValue(kind: ShowClipSummaryKind, item: ShowClipSummaryItem): string | undefined {
+  if (kind === 'view' || kind === 'playback') {
+    if (GLYPH_ONLY_ITEMS.has(item.id) && !item.animated) return ''
+  }
+  return item.timelineValue ?? item.value
+}
+
+function timelineGlyph(kind: ShowClipSummaryKind, itemId: string, value: string | undefined): ShowClipTimelineGlyph {
+  if (kind === 'playback') {
+    if (itemId === 'restart') return 'restart'
+    if (itemId === 'light-shutter') return 'shutter'
+    return 'clock'
+  }
+  if (kind === 'controls') return 'controls'
+  if (kind === 'effects') return 'effects'
+  if (kind === 'animation') return 'animation'
+  if (itemId === 'brightness') return 'sun'
+  if (itemId === 'mirror') return 'mirror'
+  if (itemId === 'transform-rotation') return 'rotate'
+  if (itemId === 'transform-position') return 'move'
+  if (itemId === 'transform-scale') return 'scale'
+  if (itemId === 'viewport') return value?.startsWith('Off') ? 'viewport-off' : 'viewport'
+  if (itemId.startsWith('viewport-')) return 'viewport'
+  return 'eye'
+}
+
+interface TimelineAxisPair {
+  id: string
+  label: string
+  axes: readonly [string, string]
+  /** Text for an axis left at its default. */
+  neutral: string
+  /** Unit suffix shared by both axes and hoisted to the pair's end. */
+  unit: string
+  separator: string
+  /** Whether two equal set axes collapse to a single value. */
+  collapseUniform: boolean
+}
+
+const TIMELINE_AXIS_PAIRS: readonly TimelineAxisPair[] = [
+  {
+    id: 'transform-position',
+    label: 'Position',
+    axes: ['transform-position-x', 'transform-position-y'],
+    neutral: '0',
+    unit: '',
+    separator: ',',
+    collapseUniform: false,
+  },
+  {
+    id: 'transform-scale',
+    label: 'Scale',
+    axes: ['transform-scale-x', 'transform-scale-y'],
+    neutral: '1',
+    unit: 'x',
+    separator: '×',
+    collapseUniform: true,
+  },
+]
+
+/**
+ * Fold per-axis Transform facts into one Clip-row pair (#63): `-.25,.25`
+ * for position, `.5×.75x` for scale, collapsing a uniform scale to `.5x`.
+ * A defaulted axis still appears so the pair always reads as (x, y). The
+ * pair takes the position of its first axis and inherits animation from
+ * either axis; the complete per-axis summary is untouched.
+ */
+function pairTimelineAxes(kind: ShowClipSummaryKind, items: ShowClipSummaryItem[]): ShowClipSummaryItem[] {
+  if (kind !== 'view') return items
+  let result = items
+  for (const pair of TIMELINE_AXIS_PAIRS) {
+    const first = result.findIndex((item) => pair.axes.includes(item.id))
+    if (first < 0) continue
+    const axes = pair.axes.map((axisId) => result.find((item) => item.id === axisId))
+    const texts = axes.map((axis) => {
+      if (!axis?.value) return pair.neutral
+      return pair.unit && axis.value.endsWith(pair.unit)
+        ? axis.value.slice(0, axis.value.length - pair.unit.length)
+        : axis.value
+    })
+    const animated = axes.some((axis) => axis?.animated)
+    const uniform = pair.collapseUniform && !animated && axes.every(Boolean) && texts[0] === texts[1]
+    const value = `${uniform ? texts[0] : texts.join(pair.separator)}${pair.unit}`
+    const paired: ShowClipSummaryItem = {
+      id: pair.id,
+      label: pair.label,
+      value,
+      ...(animated ? { animated: true } : {}),
+    }
+    result = result.flatMap((item, index) => (
+      index === first ? [paired] : pair.axes.includes(item.id) ? [] : [item]
+    ))
+  }
+  return result
 }
 
 function playbackItems(cell: Pick<ShowCell, 'adaptations' | 'restartOnEntry'>): ShowClipSummaryItem[] {
@@ -528,17 +653,16 @@ function viewItems(
     items.push({ id: 'phase', label: 'Phase', value: formatNumber(cell.adaptations.phase) })
   }
   const transform = normalizeShowClipTransform(cell.transform)
-  if (transform.positionX !== 0) items.push({ id: 'transform-position-x', label: 'Position X', value: formatNumber(transform.positionX), timelineValue: `x ${formatNumber(transform.positionX)}` })
-  if (transform.positionY !== 0) items.push({ id: 'transform-position-y', label: 'Position Y', value: formatNumber(transform.positionY), timelineValue: `y ${formatNumber(transform.positionY)}` })
+  // Position and scale axes pair up on the Clip row (#63); Clip Detail keeps each axis.
+  if (transform.positionX !== 0) items.push({ id: 'transform-position-x', label: 'Position X', value: formatNumber(transform.positionX) })
+  if (transform.positionY !== 0) items.push({ id: 'transform-position-y', label: 'Position Y', value: formatNumber(transform.positionY) })
   // The circular-arrow icon names rotation on the Clip row; no text prefix.
   if (transform.rotation !== 0) items.push({ id: 'transform-rotation', label: 'Rotation', value: formatAngleValue('rotation', transform.rotation) })
   if (transform.scaleX !== 1) {
-    const value = formatSummaryDomainNumber('multiplier', transform.scaleX, 0.01)
-    items.push({ id: 'transform-scale-x', label: 'Scale X', value, timelineValue: `sx ${value}` })
+    items.push({ id: 'transform-scale-x', label: 'Scale X', value: formatSummaryDomainNumber('multiplier', transform.scaleX, 0.01) })
   }
   if (transform.scaleY !== 1) {
-    const value = formatSummaryDomainNumber('multiplier', transform.scaleY, 0.01)
-    items.push({ id: 'transform-scale-y', label: 'Scale Y', value, timelineValue: `sy ${value}` })
+    items.push({ id: 'transform-scale-y', label: 'Scale Y', value: formatSummaryDomainNumber('multiplier', transform.scaleY, 0.01) })
   }
   const authoredViewport = compactShowClipViewport(cell.viewport)
   if (authoredViewport) {
@@ -547,8 +671,12 @@ function viewItems(
       id: 'viewport',
       label: 'Viewport',
       value: `${viewport.enabled ? 'On' : 'Off'} · x ${formatNumber(viewport.x)}, y ${formatNumber(viewport.y)}, ${formatNumber(viewport.width)} × ${formatNumber(viewport.height)}`,
-      // Whitespace separates well enough on the Clip row; commas cost width.
-      timelineValue: `${viewport.enabled ? 'On' : 'Off'} x ${formatNumber(viewport.x)} y ${formatNumber(viewport.y)} ${formatNumber(viewport.width)}×${formatNumber(viewport.height)}`,
+      // The Viewport glyph carries identity on the Clip row: origin pair,
+      // then size. A disabled Viewport clips nothing, so its geometry is
+      // noise there (#63).
+      timelineValue: viewport.enabled
+        ? `${formatNumber(viewport.x)},${formatNumber(viewport.y)} ${formatNumber(viewport.width)}×${formatNumber(viewport.height)}`
+        : 'off',
     })
   }
   return items

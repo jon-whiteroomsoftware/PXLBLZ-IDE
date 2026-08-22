@@ -1,6 +1,6 @@
 import { Fragment, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
-import { Activity, BookOpen, ChevronDown, ChevronRight, Clock3, Code2, Copy, CopyPlus, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, Square, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
+import { Activity, BookOpen, ChevronDown, ChevronRight, Clock3, Code2, Copy, CopyPlus, Download, Eye, Flag, FlipHorizontal2, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scaling, Scissors, Settings2, SkipBack, SlidersHorizontal, Square, SquareDashed, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ActionsMenu, type ActionsMenuItem } from '@/components/ActionsMenu'
 import { controlIcon } from '@/components/iconScale'
@@ -107,6 +107,7 @@ import {
   type ShowClipSummaryItem,
   type ShowClipSummaryKind,
   type ShowClipSummarySection,
+  type ShowClipTimelineGlyph,
 } from '@/engine/showClipSummary'
 import {
   projectShowClipInspector,
@@ -10564,7 +10565,8 @@ function ClipSummaryInline({
     >
       {summary.length === 0 && <span className="show-clip-summary-copy shrink-0">defaults</span>}
       {timelineSummary.map((section) => {
-        const values = section.items.filter((item) => item.showValue && item.displayValue)
+        // Boolean facts show as a glyph alone (empty display value).
+        const values = section.items.filter((item) => item.showValue && item.displayValue !== undefined)
         return (
           <span
             key={section.kind}
@@ -10575,7 +10577,10 @@ function ClipSummaryInline({
             {values.map((item, index) => (
               <span key={item.id} className="show-clip-summary-value inline-flex items-center gap-1 font-mono text-zinc-400">
                 {index > 0 && <span className="text-zinc-700">·</span>}
-                <span>{item.displayValue}</span>
+                {(index === 0 || values[index - 1].glyph !== item.glyph) && (
+                  <span className="inline-flex text-zinc-500"><ClipTimelineGlyph glyph={item.glyph} size={10} /></span>
+                )}
+                {item.displayValue !== '' && <span>{item.displayValue}</span>}
               </span>
             ))}
           </span>
@@ -10722,6 +10727,24 @@ function ClipSummaryItemIcon({ icon, size }: { icon: ClipSummaryItemIconKind; si
   if (icon === 'transform') return <Move size={size} aria-hidden />
   if (icon === 'rotation') return <RotateCw size={size} aria-hidden />
   return <Square size={size} aria-hidden />
+}
+
+/** Glyph that leads a fact on the timeline Clip row (#63); see ShowClipTimelineGlyph. */
+function ClipTimelineGlyph({ glyph, size }: { glyph: ShowClipTimelineGlyph; size: number }) {
+  if (glyph === 'clock') return <Clock3 size={size} aria-hidden />
+  if (glyph === 'restart') return <SkipBack size={size} aria-hidden />
+  if (glyph === 'shutter') return <Lightbulb size={size} aria-hidden />
+  if (glyph === 'controls') return <SlidersHorizontal size={size} aria-hidden />
+  if (glyph === 'sun') return <Sun size={size} aria-hidden />
+  if (glyph === 'mirror') return <FlipHorizontal2 size={size} aria-hidden />
+  if (glyph === 'move') return <Move size={size} aria-hidden />
+  if (glyph === 'rotate') return <RotateCw size={size} aria-hidden />
+  if (glyph === 'scale') return <Scaling size={size} aria-hidden />
+  if (glyph === 'viewport') return <Square size={size} aria-hidden />
+  if (glyph === 'viewport-off') return <SquareDashed size={size} aria-hidden />
+  if (glyph === 'effects') return <WandSparkles size={size} aria-hidden />
+  if (glyph === 'animation') return <Activity size={size} aria-hidden />
+  return <Eye size={size} aria-hidden />
 }
 
 function clipSummaryTone(kind: ShowClipSummaryKind): string {
