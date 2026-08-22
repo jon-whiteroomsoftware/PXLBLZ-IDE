@@ -55,7 +55,6 @@ describe('built-in entity organization', () => {
       'BlueHolidayCandle2D',
       'Stairmaster2D',
       'AllLasersFire',
-      'DoomFire',
       'CrawlingSpider2D',
       'BubbleColumn',
       'Raindrops2D',

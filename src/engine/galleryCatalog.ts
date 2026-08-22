@@ -24,8 +24,10 @@ export const BRAND_NEW_DEMOS = ['PlasmaNebula', 'Caustics', 'ShaderShowcase', 'R
 // ZRanger1's original Patterns with at least three favorites in the public
 // Pixelblaze Pattern Library as of 2026-08-06. Favorites break the primary tie
 // by downloads, and third-party remixes are excluded. Distinct published
-// versions remain distinct entries. Keep this declared popularity order rather
-// than alphabetizing the author folder.
+// versions remain distinct entries unless one strictly supersedes the other:
+// Doom Fire v2.0 carries every v1 control plus Wind, so v1 is not shipped
+// (#63). Keep this declared popularity order rather than alphabetizing the
+// author folder.
 export const ZRANGER1_DEMOS = [
   'Oasis',
   'LineDancer2D',
@@ -46,7 +48,6 @@ export const ZRANGER1_DEMOS = [
   'BlueHolidayCandle2D',
   'Stairmaster2D',
   'AllLasersFire',
-  'DoomFire',
   'CrawlingSpider2D',
   'BubbleColumn',
   'Raindrops2D',

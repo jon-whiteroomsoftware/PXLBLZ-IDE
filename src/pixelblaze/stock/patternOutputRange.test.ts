@@ -24,7 +24,6 @@ const ACCEPTED_NEGATIVE_MEAN_CHANNEL_FLOORS: Record<string, number> = {
   BlueHolidayStar2D: -0.06,
   CarriesHolidayStar2D: -0.07,
   CoronalMassEjection: -0.15,
-  DoomFire: -0.01,
   DoomFireV20_2D: -0.01,
   PerlinFireWindTunnel: -0.03,
   Raindrops2D: -0.02,

@@ -93,7 +93,6 @@ export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
   CoronalMassEjection: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 1, lightSize: 0.75, diffusion: 0.6 },
   CrawlingSpider2D: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'contain', brightness: 0.9, lightSize: 0.68, diffusion: 0.46 },
   CyclicCellularAutomata2D: { mapId: 'plane', surfaceId: 'flat', pixelCount: 256, normalize: 'fill', brightness: 0.9, lightSize: 0.78, diffusion: 0.5 },
-  DoomFire: { mapId: 'plane', surfaceId: 'flat', pixelCount: 256, normalize: 'fill', brightness: 1, lightSize: 0.78, diffusion: 0.64 },
   DoomFireV20_2D: { mapId: 'plane', surfaceId: 'flat', pixelCount: 256, normalize: 'fill', brightness: 1, lightSize: 0.78, diffusion: 0.64 },
   EasedSweep: { mapId: 'wide', surfaceId: 'flat', pixelCount: 256, normalize: 'contain', brightness: 0.9, lightSize: 0.45, diffusion: 0.67 },
   EventHorizon: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 1, lightSize: 0.8, diffusion: 0.62 },

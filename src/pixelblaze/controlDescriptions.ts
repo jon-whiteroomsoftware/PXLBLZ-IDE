@@ -91,12 +91,6 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderLifetime: 'Time before the field is randomized again; zero runs indefinitely.',
     sliderMode: 'Switches between Greenberg–Hastings and ordinary cyclic cellular automata.',
   },
-  DoomFire: {
-    hsvPickerHue: 'Base colour and brightness of the flame.',
-    sliderFlameHeight: 'How far the flame rises from its source row.',
-    sliderDragonMode: 'Switches between classic fire and enhanced dragon-breath mode.',
-    sliderSpeed: 'Delay between fire simulation steps — higher advances more slowly.',
-  },
   DoomFireV20_2D: {
     hsvPickerHue: 'Base colour of the flame.',
     sliderFlameHeight: 'How far the flame rises from its source row.',
