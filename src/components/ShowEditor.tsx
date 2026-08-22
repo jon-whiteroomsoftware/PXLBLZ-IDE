@@ -10580,7 +10580,7 @@ function ClipSummaryInline({
                 {(index === 0 || values[index - 1].glyph !== item.glyph) && (
                   <span className="inline-flex text-zinc-500"><ClipTimelineGlyph glyph={item.glyph} size={10} /></span>
                 )}
-                {item.displayValue !== '' && <span>{item.displayValue}</span>}
+                {item.displayValue !== '' && <ClipTimelineValue text={item.displayValue ?? ''} />}
               </span>
             ))}
           </span>
@@ -10727,6 +10727,33 @@ function ClipSummaryItemIcon({ icon, size }: { icon: ClipSummaryItemIconKind; si
   if (icon === 'transform') return <Move size={size} aria-hidden />
   if (icon === 'rotation') return <RotateCw size={size} aria-hidden />
   return <Square size={size} aria-hidden />
+}
+
+const TIMELINE_COLOR_TOKEN = /(#[0-9a-f]{6}\b)(?: \/ (?=#[0-9a-f]{6}\b))?/gi
+
+/**
+ * Clip-row value text with each `#rrggbb` token drawn as a swatch (#63): a
+ * colour is its own smallest representation. Adjacent swatches drop the
+ * ` / ` between them. The hex stays in the tooltip and Clip Detail.
+ */
+function ClipTimelineValue({ text }: { text: string }) {
+  const parts = text.split(TIMELINE_COLOR_TOKEN)
+  if (parts.length === 1) return <span>{text}</span>
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      {parts.map((part, index) => (
+        index % 2 === 1
+          ? (
+            <span
+              key={index}
+              className="show-clip-summary-swatch inline-block h-2 w-2 shrink-0 rounded-full ring-1 ring-zinc-600"
+              style={{ backgroundColor: part }}
+            />
+          )
+          : part ? <span key={index}>{part}</span> : null
+      ))}
+    </span>
+  )
 }
 
 /** Glyph that leads a fact on the timeline Clip row (#63); see ShowClipTimelineGlyph. */

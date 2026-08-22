@@ -246,6 +246,7 @@ function projectClipSummary(
         const raw = showClipEffectParameterValue(effect, parameter.id)
         const range = overlays.effectRanges.get(`${effect.id}:${parameter.id}`)
         return {
+          id: parameter.id,
           label: compactEffectParameterLabel(parameter.label, effect.kind),
           value: range ?? formatToolkitValue(raw, parameter.unit, parameter.presentation, parameter.step),
           animated: range !== undefined,
@@ -267,7 +268,7 @@ function projectClipSummary(
         value,
         timelineValue: parameters.length === 1
           ? (parameters[0].authored ? parameters[0].value : '')
-          : authored.map((parameter) => parameter.value).join(' / '),
+          : pairEffectTimelineValues(effect.kind, parameters, authored),
         ...(parameters.some((parameter) => parameter.animated) ? { animated: true } : {}),
       }
     }),
@@ -453,6 +454,61 @@ function compositionAnimationItem(
     itemId: `${target.effectId}:${target.parameterId}`,
     format: (value) => formatToolkitValue(value, parameter.unit, parameter.presentation, parameter.step),
   }
+}
+
+interface EffectAxisPair {
+  axes: readonly [string, string]
+  unit: string
+  separator: string
+  collapseUniform: boolean
+}
+
+/** Two-axis Effect parameters that read as one pair on the Clip row (#63). */
+const EFFECT_AXIS_PAIRS: Readonly<Record<string, EffectAxisPair>> = {
+  translate: { axes: ['translateX', 'translateY'], unit: '', separator: ',', collapseUniform: false },
+  scale: { axes: ['scaleX', 'scaleY'], unit: 'x', separator: '×', collapseUniform: true },
+  shear: { axes: ['shearX', 'shearY'], unit: '', separator: ',', collapseUniform: false },
+  pixelate: { axes: ['columns', 'rows'], unit: '', separator: '×', collapseUniform: false },
+}
+
+interface EffectTimelineParameter {
+  id: string
+  value: string
+  animated: boolean
+  authored: boolean
+}
+
+/**
+ * Join an Effect's authored parameter values for the Clip row, folding a
+ * known axis pair into `x,y` / `w×h` form. The pair prints both axes when
+ * either is authored, so it always reads as a pair; everything else keeps
+ * the existing ` / ` join in parameter order.
+ */
+function pairEffectTimelineValues(
+  kind: string,
+  parameters: readonly EffectTimelineParameter[],
+  authored: readonly EffectTimelineParameter[],
+): string {
+  const pair = EFFECT_AXIS_PAIRS[kind]
+  if (!pair) return authored.map((parameter) => parameter.value).join(' / ')
+  const axes = pair.axes.map((axisId) => parameters.find((parameter) => parameter.id === axisId))
+  const parts: string[] = []
+  let pairPlaced = false
+  for (const parameter of parameters) {
+    if (pair.axes.includes(parameter.id)) {
+      if (pairPlaced || !axes.some((axis) => axis?.authored)) continue
+      pairPlaced = true
+      const texts = axes.map((axis) => {
+        const text = axis?.value ?? ''
+        return pair.unit && text.endsWith(pair.unit) ? text.slice(0, text.length - pair.unit.length) : text
+      })
+      const uniform = pair.collapseUniform && !axes.some((axis) => axis?.animated) && texts[0] === texts[1]
+      parts.push(`${uniform ? texts[0] : texts.join(pair.separator)}${pair.unit}`)
+    } else if (parameter.authored) {
+      parts.push(parameter.value)
+    }
+  }
+  return parts.join(' / ')
 }
 
 /** Full terse text for the timeline Clip. CSS may crop it; the model never drops facts. */

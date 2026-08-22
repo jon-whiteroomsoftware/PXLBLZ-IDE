@@ -652,7 +652,7 @@ describe('Show Clip summary', () => {
         label: 'Scale',
         value: 'X 2.51x, Y 0.75x',
         // The Clip row shows values only; names live in Clip Detail (#63).
-        timelineValue: '2.51x / 0.75x',
+        timelineValue: '2.51×0.75x',
       }),
       expect.objectContaining({ label: 'Vignette', value: expect.stringContaining('Aspect 16:9') }),
     ])
@@ -835,5 +835,26 @@ describe('Show Clip summary', () => {
     expect(showClipInlineSummary(projectGlobalShowClipSummary(show, show.cells[1].id))).toBe(
       'Start offset 250 ms · Light shutter 8 Hz, 50% on, phase 0.25, freeze clock',
     )
+  })
+  it('pairs two-axis Effect parameters and keeps colours as hex tokens on the Clip row (#63)', () => {
+    const show = createDefaultShow('show-clip-summary-effect-pairs', 'Effect pairs', 1_000)
+    show.cells[0] = {
+      ...show.cells[0],
+      effects: [
+        { id: 'translate', kind: 'translate', x: 0.2, y: 0 },
+        { id: 'scale', kind: 'scale', x: 0.5, y: 0.5 },
+        { id: 'shear', kind: 'shear', x: 0.1, y: 0.3 },
+        { id: 'pixelate', kind: 'pixelate', amount: 1, columns: 8, rows: 12 },
+        { id: 'chroma', kind: 'chroma-key', color: '#ff0000', tolerance: 0.12, softness: 0.05 },
+      ],
+    }
+    const summary = projectGlobalShowClipSummary(show, show.cells[0].id)
+    const effects = projectShowClipTimelineSummary(summary, null)
+      .find((section) => section.kind === 'effects')?.items.map((item) => item.displayValue)
+
+    // A pair prints both axes even when one is at its default; a uniform
+    // scale collapses to one value; pixelate reads as a grid size.
+    expect(effects).toEqual(['.2,0', '.5x', '.1,.3', '100% / 8×12', '#ff0000 / 12%'])
+    expect(showClipInlineSummary(summary)).toContain('Translate X 0.2, Y 0')
   })
 })
