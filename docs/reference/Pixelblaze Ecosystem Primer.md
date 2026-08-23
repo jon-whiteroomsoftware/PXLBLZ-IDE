@@ -186,6 +186,16 @@ has visible edges. The official Language Reference documents the numeric model,
 and **Optimizing Pixelblaze patterns** covers measured hardware costs and porting
 tactics.
 
+Generated packed tables expose two advanced edges of that measuring tape.
+Neither `32768` nor `65536` is representable as a positive 16.16 value, so a
+decoder must stage large multiplies; for example, materialize a 15-bit fraction
+lane as `((fraction * 256) * 128)` instead of multiplying by `32768`. Firmware
+3.67 also parsed about 0.5% of sampled 32-bit packed decimal words one ULP low,
+with no decimal spelling that reached the missing word exactly. PXLBLZ's packed
+format leaves the low lane odd: a one-ULP loss consumes that guard bit without
+changing either decoded 15-bit value or borrowing from the high lane. Ordinary
+Pattern constants do not need this scheme; generated binary-packed data does.
+
 ## 6. The whole trip from idea to LEDs
 
 A typical first Pattern takes this path:
@@ -229,6 +239,21 @@ Useful guardrails:
   closures are available.
 - Check the Language Reference shown by the Controller's own editor when exact
   behavior depends on installed firmware.
+
+The small language has two scopes in the firmware 3.67 compiler: module globals
+and function locals. `var` is function-scoped even when written inside a block;
+it hoists to the function entry, and reading it before assignment yields `0`
+rather than JavaScript's `undefined`. Assignment without `var` always creates or
+writes a global. Top-level functions hoist, but a nested function cannot close
+over an outer function's locals; attempting that is a compile error.
+
+Array literals also carry some history. Older v3-era documentation described
+them as unsupported, so much community code still fills `array(size)` one
+element at a time. The firmware 3.30 language reference includes array literals,
+and firmware 3.67 compiles numeric literals into a dense data segment. That makes
+the modern form both clearer and much smaller on the Controller; the
+**Optimizing Pixelblaze patterns** guide gives the measured prices and the cases
+where packed literals are worth the decode.
 
 ElectroMage's [Language Reference](https://electromage.com/docs/language-reference/)
 is the authoritative syntax and built-in catalogue. This primer should give you

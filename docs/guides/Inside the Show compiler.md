@@ -29,7 +29,7 @@ of any one of them is fatal on its own:
 |---|---|---|
 | Array memory | 10,240 words | every array, plus a 4-word header each |
 | Persistent globals | 256 | member Pattern state, compiler scalars |
-| Program size | ~68 KB observed activation ceiling | generated source and its bytecode |
+| Program size | 68,384-byte conservative budget | delivered source and estimated Controller bytecode |
 | Renderer depth | warn at 3–4, block at 5 | simultaneous Pattern evaluations per pixel |
 | Frame time | whatever's left | everything above, per pixel, per frame |
 
@@ -39,6 +39,31 @@ artifact can still crawl because it evaluates three Patterns per pixel. The
 compiler keeps these axes separate. The Show editor keeps delivered source and
 VM words visible, surfaces actionable warnings, and leaves deeper breakdowns in
 the source inventory and compiler model.
+
+Program size needs one extra distinction. Source spelling is not Controller
+bytecode: a generated `table[i] = value` costs 20 bytecode bytes per value, a
+numeric array literal costs about 4.25, and a guarded packed 2x15 literal reaches
+2.25 per value at 2,048 values. The compiler therefore keeps the delivered-source
+inventory and a bytecode-axis estimate side by side, repricing the measured data
+forms while leaving ordinary code at source parity. The Controller compiler is
+still authoritative when a device is available; neither planning proxy pretends
+to be the final bytecode measurement.
+
+The 68,384-byte limit stays deliberately conservative. Literal-heavy hardware
+probes on firmware 3.67 activated at largest observed sizes from 70,475 to 77,111
+bytes depending on device state; the same 76,579-byte artifact failed in one run
+and activated in another. Every observed failure was above 70,607 bytes. The
+spread is the reason not to spend the higher number: 68,384 remains below the
+measured uncertain band and applies consistently to generated Shows.
+
+Run `npm run census` to see the current stock catalogue on both axes. It compiles
+every stock Show, rejects any resource blocker, and prints VM words by owner
+category, delivered artifact bytes, the bytecode estimate, and budget percentage.
+Source-inventory chunks retain their category and owner. When a Show emits
+Scene-owned routing/render plans, the census groups the `routing-render-plans`
+bytes by Scene, so an oversized plan is attributed to the part of the score that
+created it instead of disappearing into one whole-artifact total. Set
+`SHOW_CENSUS_OUT` when the same rows and per-Scene attribution are needed as JSON.
 
 There's also a limit no compiler pass can touch: the wire. WS281x-family LEDs
 receive data at a fixed 800 kHz, which works out to roughly 30 microseconds

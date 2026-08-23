@@ -353,6 +353,41 @@ octave sums, kaleidoscope folds). Two flavours:
 > slower even as the *device* gets much faster. Trust the checksum and
 > `devbench`, not the bench stopwatch.
 
+### Price table initialization separately [hardware-wisdom]
+
+Large constant tables have an activation cost as well as a frame cost. The
+firmware 3.67 compiler gives three common encodings very different bytecode
+prices:
+
+| Encoding | Controller bytecode per stored value | Runtime consequence |
+|---|---:|---|
+| `table[i] = value` assignment | 20 B | Five VM instruction words for every value |
+| Numeric array literal | 4.25 B | Effective data segment plus about 6% framing |
+| Two guarded 15-bit values per literal word | 2.25 B at 2,048 values | Requires a one-time unpack loop |
+
+Prefer a plain array literal when it fits: it is about 4.7 times denser than
+per-element assignments and needs no decode. Reserve packed 2x15 data for tables
+large enough that another roughly twofold reduction matters. The measured unpack
+cost was 7.1-7.6 microseconds per packed word. Running it every frame cost
+3.6-3.9 ms for 512 words; running even a roughly 4,000-word worst case once at
+activation costs about 30 ms beside an approximately one-second activation. In
+other words: unpack once, never in `render*`, and not repeatedly in
+`beforeRender`.
+
+Array traffic is not free. On the same device an array read measured 1.6 times
+the cost of a multiply, while local and persistent-global reads were
+indistinguishable from their paired baselines. Cache expensive stable fields
+such as noise or rendered output; recomputing a few multiplies is often cheaper
+than reading a table. This is why the compiler's failed coordinate cache made a
+Show slower despite removing arithmetic.
+
+Treat storage as three separate limits, not one pool: up to 256 live stack
+variables along a call path, 256 persistent globals, and 10,240 array words
+(including array headers). They have different lifetimes and access costs, so
+free capacity on one axis cannot repair an overflow on another. The measurements,
+fixtures, checksums, and safe packed decoder are recorded in
+[the #715 pricing results](../plans/issue-715-packed-data-pricing-results.md).
+
 ### Two hoisting traps that drift the Precise checksum [bench-verifiable]
 
 An output-preserving hoist must mirror the original's exact operation grouping,
