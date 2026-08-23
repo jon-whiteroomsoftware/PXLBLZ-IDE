@@ -243,9 +243,10 @@ Useful guardrails:
 The small language has two scopes in the firmware 3.67 compiler: module globals
 and function locals. `var` is function-scoped even when written inside a block;
 it hoists to the function entry, and reading it before assignment yields `0`
-rather than JavaScript's `undefined`. Assignment without `var` always creates or
-writes a global. Top-level functions hoist, but a nested function cannot close
-over an outer function's locals; attempting that is a compile error.
+rather than JavaScript's `undefined`. Assigning an otherwise undeclared name
+without `var` creates a global; assigning an existing local or parameter updates
+that local binding. Top-level functions hoist, but a nested function cannot
+close over an outer function's locals; attempting that is a compile error.
 
 Array literals also carry some history. Older v3-era documentation described
 them as unsupported, so much community code still fills `array(size)` one

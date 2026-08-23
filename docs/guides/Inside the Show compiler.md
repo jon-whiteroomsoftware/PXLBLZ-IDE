@@ -21,24 +21,27 @@ real measurement on a Pixelblaze 32 running firmware 3.67, not an estimate.
 
 ## The machine we're compiling for
 
-Everything the compiler does follows from the budgets it has to live inside.
-A generated Show has to fit five independent limits at once, and running out
-of any one of them is fatal on its own:
+Everything the compiler does follows from the resource axes it has to live
+inside. A generated Show has to satisfy four runtime constraints while staying
+within one conservative program-size planning scale:
 
 | Budget | Limit | What consumes it |
 |---|---|---|
 | Array memory | 10,240 words | every array, plus a 4-word header each |
 | Persistent globals | 256 | member Pattern state, compiler scalars |
-| Program size | 68,384-byte conservative budget | delivered source and estimated Controller bytecode |
+| Program-size planning | 68,384-byte advisory scale | delivered source and estimated Controller bytecode |
 | Renderer depth | warn at 3–4, block at 5 | simultaneous Pattern evaluations per pixel |
 | Frame time | whatever's left | everything above, per pixel, per frame |
 
-These budgets don't trade against each other. A Show can have plenty of free
-memory and still fail to activate because its source is too large; a tiny
-artifact can still crawl because it evaluates three Patterns per pixel. The
-compiler keeps these axes separate. The Show editor keeps delivered source and
-VM words visible, surfaces actionable warnings, and leaves deeper breakdowns in
-the source inventory and compiler model.
+These axes don't trade against each other. A Show can have plenty of free memory
+and still fail to activate because its compiled program is too large; a tiny
+artifact can still crawl because it evaluates three Patterns per pixel. VM words,
+globals, and renderer depth can block directly; frame time determines whether the
+result is usable. The 68,384-byte program-size figure is advisory because only
+the Controller compiler can decide actual bytecode fit. The compiler keeps the
+axes separate. The Show editor keeps delivered source and VM words visible,
+surfaces actionable warnings, and leaves deeper breakdowns in the source
+inventory and compiler model.
 
 Program size needs one extra distinction. Source spelling is not Controller
 bytecode: a generated `table[i] = value` costs 20 bytecode bytes per value, a
