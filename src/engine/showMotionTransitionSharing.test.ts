@@ -17,10 +17,11 @@ const motionReference = (id = 'stock-show-reference-zoom-spin-transitions') => {
 
 describe('shared routed motion-transition emission (#525)', () => {
   it.each([
-    ['stock-show-reference-slide-transitions', { none: 30_598, structure: 25_383, exact: 26_363, boundaries: 6, exactKernels: 4 }],
-    ['stock-show-reference-zoom-spin-transitions', { none: 33_913, structure: 27_719, exact: 28_208, boundaries: 7, exactKernels: 5 }],
-  ] as const)('fits the three-instance %s under the activation budget', (id, pins) => {
+    ['stock-show-reference-slide-transitions', { none: 23_465, structure: 18_594, exact: 19_048, boundaries: 6, exactKernels: 4 }],
+    ['stock-show-reference-zoom-spin-transitions', { none: 26_706, structure: 20_922, exact: 20_872, boundaries: 7, exactKernels: 5 }],
+  ] as const)('fits the two-instance %s under the activation budget', (id, pins) => {
     // Historical #525 boundary: pin passes that postdate its pinned bytes.
+    // Re-pinned 2026-08-22 when the references dropped their backdrop (#63).
     const baseline = compileShowForArtifact(motionReference(id), [], undefined, {}, {
       stageDimension: 2,
       motionTransitionSharing: 'none',
@@ -38,7 +39,7 @@ describe('shared routed motion-transition emission (#525)', () => {
     })
     const production = compileShowForArtifact(motionReference(id), [], undefined, {}, { stageDimension: 2, ...compilerVintageOptions('motion-transition-sharing') })
 
-    expect(baseline.artifact?.summary.clipCount).toBe(3)
+    expect(baseline.artifact?.summary.clipCount).toBe(2)
     expect(baseline.artifact?.summary.artifactBytes).toBe(pins.none)
     expect(structural.error).toBeNull()
     expect(structural.artifact?.summary.artifactBytes).toBe(pins.structure)

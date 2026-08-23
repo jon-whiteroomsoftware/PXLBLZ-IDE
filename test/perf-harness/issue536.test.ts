@@ -114,16 +114,17 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // TunnelOfSquares2D, Distortion on Mandelbrot2D, Color Adjustment on
     // BlueHolidayCandle2D, the latter two on one held instance; Blend and
     // Fade, Wipes, Dissolves, and Shape Reveals: Geometric recast their
-    // content pair, and every Transition reference drops the Murmuration
-    // backdrop) move it -917 member and -185 reclaimable globals. The
+    // content pair, every Transition reference drops the Murmuration
+    // backdrop, and Shape Reveals: Figures recasts to NeonCircuitBoard over
+    // MoireCathedral) move it -923 member and -185 reclaimable globals. The
     // reclaim percent stays 0,
     // the weighted figure dilutes, and the stop verdict is unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 2_750,
+      representativeMemberGlobals: 2_744,
       representativeReclaimedGlobals: 21,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.00763636, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.00765306, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

@@ -8911,12 +8911,22 @@ var __pxlblz_show_portal_distance = max(abs(__pxlblz_show_portal_rx) / ${Math.sq
 var __pxlblz_show_portal_sx = __pxlblz_show_portal_rx / ${rootAspect}
 var __pxlblz_show_portal_sy = __pxlblz_show_portal_ry * ${rootAspect}
 ${catalogueMetric.prelude ? `${catalogueMetric.prelude}\n` : ''}var __pxlblz_show_portal_distance = ${catalogueMetric.expression}`
+  // Ring and Crescent fill in over the reveal's last quarter-power so they
+  // end covered instead of cutting (#63); mirrors showShapeRevealSignedDistance.
+  const fraction = revealMode === 'shrink-outgoing' ? '(1 - __pxlblz_show_mix)' : '__pxlblz_show_mix'
+  const fillPrelude = shape === 'ring' || shape === 'crescent'
+    ? `\nvar __pxlblz_show_portal_fraction = ${fraction}\nvar __pxlblz_show_portal_fill = 1 - __pxlblz_show_portal_fraction * __pxlblz_show_portal_fraction * __pxlblz_show_portal_fraction * __pxlblz_show_portal_fraction`
+    : ''
   const crescentSigned = `max(
   hypot(__pxlblz_show_portal_sx, __pxlblz_show_portal_sy) - __pxlblz_show_portal_radius,
-  __pxlblz_show_portal_radius * 0.78 - hypot(__pxlblz_show_portal_sx - ${crescentOffset} * __pxlblz_show_portal_radius, __pxlblz_show_portal_sy)
+  __pxlblz_show_portal_radius * 0.78 * __pxlblz_show_portal_fill - hypot(__pxlblz_show_portal_sx - ${crescentOffset} * __pxlblz_show_portal_radius, __pxlblz_show_portal_sy)
+)`
+  const ringSigned = `max(
+  __pxlblz_show_portal_distance - __pxlblz_show_portal_radius - ${ringWidth / 2},
+  (__pxlblz_show_portal_radius - ${ringWidth / 2}) * __pxlblz_show_portal_fill - __pxlblz_show_portal_distance
 )`
   const signedDistance = shape === 'ring'
-    ? `abs(__pxlblz_show_portal_distance - __pxlblz_show_portal_radius) - ${ringWidth / 2}`
+    ? revealMode === 'shrink-outgoing' ? `-(${ringSigned})` : ringSigned
     : shape === 'crescent'
       ? revealMode === 'shrink-outgoing' ? `-(${crescentSigned})` : crescentSigned
     : revealMode === 'shrink-outgoing'
@@ -8966,7 +8976,7 @@ if (__pxlblz_show_portal_mix >= 1 || (__pxlblz_show_portal_mix > 0 && __pxlblz_s
   }
 
   return `${distancePrelude}
-var __pxlblz_show_portal_radius = ${radius}
+var __pxlblz_show_portal_radius = ${radius}${fillPrelude}
 var __pxlblz_show_portal_signed = ${signedDistance}
 ${transitionBody}`
 }

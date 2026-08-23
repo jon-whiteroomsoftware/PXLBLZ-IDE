@@ -49,6 +49,14 @@ export function showShapeRevealDistance(input: {
       Math.max(Math.abs(sx) / width, Math.abs(sy)),
     )
   }
+  if (input.shape === 'heart') {
+    // The classic construction (#63): a 45-degree square with a semicircle
+    // on each upper edge. The gauge is the union's - the minimum of the
+    // diamond gauge and each lobe's chord gauge (both lobe circles pass
+    // through the center, so a ray's chord is 2 * (c . unit)). The old
+    // polar bumps could only make a gummy-bear head.
+    return heartGauge(sx, sy)
+  }
   const angle = Math.atan2(sy, sx)
   if (input.shape === 'polygon') {
     const sides = Math.round(clamp(input.polygonSides ?? 6, 3, 8))
@@ -57,22 +65,15 @@ export function showShapeRevealDistance(input: {
     return radial * Math.cos(local) / Math.cos(Math.PI / sides)
   }
   if (input.shape === 'star') {
+    // A straight-edged star polygon pointing up (#63): within each half
+    // sector the boundary is the line from an outer tip to an inner vertex,
+    // in polar form. The old polar tent gave curved edges and a sideways tip.
     const points = Math.round(clamp(input.starPoints ?? 5, 3, 12))
     const inner = clamp(input.starInner ?? 0.45, 0.2, 0.8)
-    const phase = modulo(angle / TAU * points, 1)
-    const spike = 1 - 2 * Math.abs(phase - 0.5)
-    return radial / (inner + (1 - inner) * spike)
-  }
-  if (input.shape === 'heart') {
-    // Two round lobes astride an up-center cleft, and a linear tent for the
-    // sharp bottom point; the old smooth-trig boundary could only make an
-    // egg (#692).
-    const lobes = 0.32 * (
-      smoothAngularBump(angle, -Math.PI / 2 - 0.72, 0.9)
-      + smoothAngularBump(angle, -Math.PI / 2 + 0.72, 0.9)
-    )
-    const point = 0.46 * angularBump(angle, Math.PI / 2, 1.9)
-    return radial / (0.54 + lobes + point)
+    const half = Math.PI / points
+    const phase = modulo((angle + Math.PI / 2) / TAU * points, 1)
+    const psi = Math.min(phase, 1 - phase) * 2 * half
+    return radial * (inner * Math.sin(half - psi) + Math.sin(psi)) / (inner * Math.sin(half))
   }
   if (input.shape === 'cloud') {
     // Cumulus gauge: a taller center lobe flanked by two side lobes (union by
@@ -231,11 +232,14 @@ function concaveGaugeDirectionLipschitz(input: {
 }): number | null {
   if (input.shape === 'cross') return 1 / clamp(input.crossWidth ?? 0.32, 0.1, 0.9)
   if (input.shape === 'star') {
+    // |d/dpsi| of (inner * sin(half - psi) + sin(psi)) / (inner * sin(half)).
     const points = Math.round(clamp(input.starPoints ?? 5, 3, 12))
     const inner = clamp(input.starInner ?? 0.45, 0.2, 0.8)
-    return ((1 - inner) * 2 * points / TAU) / (inner * inner)
+    return (1 + inner) / (inner * Math.sin(Math.PI / points))
   }
-  if (input.shape === 'heart') return 4.7
+  // The diamond's unit gauge slopes at most 1 / d; each lobe chord hands
+  // over to the diamond at exactly that slope.
+  if (input.shape === 'heart') return 1 / HEART_HALF_DIAGONAL * 1.05
   if (input.shape === 'cloud') return 26
   if (input.shape === 'cat-head') return 4.3
   if (input.shape === 'cat-side-profile') return 6.7
@@ -253,7 +257,7 @@ function concaveGaugeNotchAngles(input: {
   }
   if (input.shape === 'star') {
     const points = Math.round(clamp(input.starPoints ?? 5, 3, 12))
-    return Array.from({ length: points }, (_, index) => (index / points) * TAU)
+    return Array.from({ length: points }, (_, index) => ((index + 0.5) / points) * TAU - Math.PI / 2)
   }
   if (input.shape === 'heart') return [-Math.PI / 2]
   // Bump-built silhouettes have wide valleys; the dense sweep finds them.
@@ -317,7 +321,18 @@ export function showShapeRevealSignedDistance(input: {
     * (input.revealMode === 'shrink-outgoing' ? 1 - progress : progress)
     * Math.min(2, Math.max(0.25, input.scale ?? 1))
   const distance = showShapeRevealDistance(input)
-  if (input.shape === 'ring') return Math.abs(distance - radius) - (input.ringWidth ?? 0.12) / 2
+  // Ring and Crescent cannot end covered on their own silhouette, so both
+  // fill in as the reveal completes (#63): the ring's inside floods once
+  // the band nears the edge, and the crescent's cutout closes. `fill` runs
+  // 1 -> 0 over the reveal's late quarter-power so the figure holds its
+  // character for most of the move.
+  const fraction = input.revealMode === 'shrink-outgoing' ? 1 - progress : progress
+  const fill = 1 - fraction * fraction * fraction * fraction
+  if (input.shape === 'ring') {
+    const halfWidth = (input.ringWidth ?? 0.12) / 2
+    const ring = Math.max(distance - radius - halfWidth, (radius - halfWidth) * fill - distance)
+    return input.revealMode === 'shrink-outgoing' ? -ring : ring
+  }
   if (input.shape === 'crescent') {
     const angle = (input.rotation ?? 0) * TAU
     const dx = input.x - input.centerX
@@ -329,11 +344,29 @@ export function showShapeRevealSignedDistance(input: {
     const sy = ry * Math.sqrt(aspect)
     const offset = clamp(input.crescentOffset ?? 0.45, 0.15, 0.8) * radius
     const outer = Math.hypot(sx, sy) - radius
-    const hole = radius * 0.78 - Math.hypot(sx - offset, sy)
+    const hole = radius * 0.78 * fill - Math.hypot(sx - offset, sy)
     const crescent = Math.max(outer, hole)
     return input.revealMode === 'shrink-outgoing' ? -crescent : crescent
   }
   return input.revealMode === 'shrink-outgoing' ? radius - distance : distance - radius
+}
+
+/** Half-diagonal of the heart's square; lobes are radius d / sqrt(2) at (+-d/2, -d/2). */
+export const HEART_HALF_DIAGONAL = 0.8
+
+/** Union gauge of the heart over centered, scaled coordinates (y down). */
+export function heartGauge(sx: number, sy: number): number {
+  const d = HEART_HALF_DIAGONAL
+  const r2 = sx * sx + sy * sy
+  let gauge = (Math.abs(sx) + Math.abs(sy)) / d
+  const left = -(d / 2) * (sx + sy)
+  const right = (d / 2) * (sx - sy)
+  // A ray only meets a lobe's far boundary when it points into that lobe;
+  // the 0.001 floor skips chords the diamond already dominates and keeps the
+  // 16.16 division bounded.
+  if (left > 0.001) gauge = Math.min(gauge, r2 / (2 * left))
+  if (right > 0.001) gauge = Math.min(gauge, r2 / (2 * right))
+  return gauge
 }
 
 function angularBump(angle: number, target: number, width: number): number {

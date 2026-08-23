@@ -5,14 +5,14 @@ describe('issue #525 shared motion-transition harness', () => {
   it('pins both candidates, production fit, and exact output', () => {
     // Re-measured 2026-08-02 against the Zoom and Spin reference after the
     // showcase repartition retired the original twenty-boundary Motion
-    // fixture.
+    // fixture, and 2026-08-22 when the reference dropped its backdrop (#63).
     expect(report).toMatchObject({
       sceneCount: 8,
       boundaryCount: 7,
       representations: {
-        baseline: { sourceBytes: 33_913 },
+        baseline: { sourceBytes: 26_706 },
         structural: {
-          sourceBytes: 27_719,
+          sourceBytes: 20_922,
           motionTransitions: {
             representation: 'exact-shared-environment',
             stackPlanCount: 2,
@@ -21,7 +21,7 @@ describe('issue #525 shared motion-transition harness', () => {
           },
         },
         selected: {
-          sourceBytes: 28_208,
+          sourceBytes: 20_872,
           motionTransitions: {
             representation: 'exact-family-kernels',
             stackPlanCount: 2,

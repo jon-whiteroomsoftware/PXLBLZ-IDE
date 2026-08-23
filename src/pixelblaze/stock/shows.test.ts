@@ -140,11 +140,24 @@ describe('stock Show curriculum (#363)', () => {
       .find((family) => family.kind === 'transition' && family.id === familyId)!.variants.map((variant) => variant.id)
     // Silhouettes split across the Geometric and Figures references (#514
     // caught one fifteen-boundary matrix over the activation ceiling);
-    // together they still cover the registry.
+    // together they cover the registry except the three silhouettes too busy
+    // to read as a moving reveal (#63), which stay aperture-only in practice.
+    const UNDEMONSTRATED_REVEALS = ['cloud', 'cat-side-profile', 'bastet']
     expect(new Set([
       ...(shapeGeometric.show.transitions?.filter((transition) => transition.kind === 'portal').map((transition) => transition.shape) ?? []),
       ...(shapeFigures.show.transitions?.filter((transition) => transition.kind === 'portal').map((transition) => transition.shape) ?? []),
-    ])).toEqual(new Set(transitionVariants('shape-reveal')))
+    ])).toEqual(new Set(transitionVariants('shape-reveal').filter((id) => !UNDEMONSTRATED_REVEALS.includes(id))))
+    // Every figure reveals both ways, out then in (#63).
+    const figureModes = shapeFigures.show.transitions!.filter((transition) => transition.kind === 'portal')
+      .map((transition) => `${transition.shape}:${transition.revealMode}`)
+    expect(figureModes).toEqual([
+      'heart:shrink-outgoing', 'heart:grow-incoming',
+      'ring:shrink-outgoing', 'ring:grow-incoming',
+      'star:shrink-outgoing', 'star:grow-incoming',
+      'crescent:shrink-outgoing', 'crescent:grow-incoming',
+      'polygon:shrink-outgoing', 'polygon:grow-incoming',
+      'cat-head:shrink-outgoing', 'cat-head:grow-incoming',
+    ])
     expect(new Set(wipe.show.transitions?.filter((transition) => transition.kind === 'wipe').map((transition) => transition.wipeVariant)))
       .toEqual(new Set(transitionVariants('wipe')))
     // Motion variants split across the Slide and Zoom-and-Spin references;
@@ -235,6 +248,7 @@ describe('stock Show curriculum (#363)', () => {
         'stock-show-reference-wipe-transitions': ['InfinityFlower2D', 'MetaballGarden'],
         'stock-show-reference-dissolve-transitions': ['WavyBands', 'GeometryMorphingDemo2D'],
         'stock-show-reference-shape-reveal-transitions': ['IridescentFibers', 'MagneticFilaments'],
+        'stock-show-reference-shape-reveal-figures': ['NeonCircuitBoard', 'MoireCathedral'],
       }
       const [referenceSide, selectedSide] = RECASTS[item.id] ?? ['IQPalettes', 'MetaballGarden']
       expect(composition.patternInstances.map((instance) => instance.patternName), item.name).toEqual([

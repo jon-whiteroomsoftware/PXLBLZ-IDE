@@ -6,6 +6,8 @@
 // tests a radius-scaled silhouette and `(gauge - 1) * minorRadius` restores an
 // approximately real-width signed distance for feather bands.
 
+import { HEART_HALF_DIAGONAL } from './showShapeReveal'
+
 const PI = Math.PI
 const TAU = Math.PI * 2
 
@@ -56,15 +58,22 @@ const HELPER_SOURCES: ReadonlyArray<{ name: string; source: string }> = [
   {
     name: '__pxlblz_show_gauge_star',
     source: `function __pxlblz_show_gauge_star(u, v, points, inner) {
-  var spike = 1 - 2 * abs(frac((atan2(v, u) / ${TAU} + 1) * points) - 0.5)
-  return hypot(u, v) / (inner + (1 - inner) * spike)
+  var half = ${PI} / points
+  var phase = frac((atan2(v, u) + ${PI / 2} + ${TAU}) / ${TAU} * points)
+  var psi = min(phase, 1 - phase) * 2 * half
+  return hypot(u, v) * (inner * sin(half - psi) + sin(psi)) / (inner * sin(half))
 }`,
   },
   {
     name: '__pxlblz_show_gauge_heart',
     source: `function __pxlblz_show_gauge_heart(u, v) {
-  var angle = atan2(v, u)
-  return hypot(u, v) / (0.54 + 0.32 * (__pxlblz_show_gauge_bump(angle, ${-Math.PI / 2 - 0.72}, 0.9) + __pxlblz_show_gauge_bump(angle, ${-Math.PI / 2 + 0.72}, 0.9)) + 0.46 * __pxlblz_show_gauge_tent(angle, ${Math.PI / 2}, 1.9))
+  var r2 = u * u + v * v
+  var g = (abs(u) + abs(v)) / ${HEART_HALF_DIAGONAL}
+  var left = ${-HEART_HALF_DIAGONAL / 2} * (u + v)
+  var right = ${HEART_HALF_DIAGONAL / 2} * (u - v)
+  if (left > 0.001) g = min(g, r2 / (2 * left))
+  if (right > 0.001) g = min(g, r2 / (2 * right))
+  return g
 }`,
   },
   {

@@ -2,8 +2,7 @@ import {
   normalizeShowRevealMode,
   showShapeRevealDistance,
   showShapeRevealMaxDistance,
-  showShapeRevealSignedDistance,
-} from './showShapeReveal'
+  showShapeRevealSignedDistance, HEART_HALF_DIAGONAL } from './showShapeReveal'
 import { createDefaultShow, normalizeShowTransitionState, showRecordToCompileRecipe } from './showModel'
 import { compileShow } from './showCompiler'
 
@@ -123,7 +122,7 @@ describe('common and signature SDF catalogue (#452)', () => {
     })
   })
 
-  it('shapes the Heart with lobes, a cleft, and a sharp point (#692)', () => {
+  it('shapes the Heart as a square with two round lobes (#63)', () => {
     const radius = 0.5
     const metricAt = (angle: number) => showShapeRevealDistance({
       x: 0.5 + radius * Math.cos(angle), y: 0.5 + radius * Math.sin(angle),
@@ -132,11 +131,33 @@ describe('common and signature SDF catalogue (#452)', () => {
     // Cleft: the up-center boundary dips below both lobe peaks.
     expect(metricAt(-Math.PI / 2)).toBeGreaterThan(metricAt(-Math.PI / 2 - 0.72))
     expect(metricAt(-Math.PI / 2)).toBeGreaterThan(metricAt(-Math.PI / 2 + 0.72))
-    // Point: down-center reaches farther than the down-diagonals.
+    // Point: down-center reaches farther than the down-diagonals, and the
+    // diamond's straight sides make the point sharp (linear in the angle).
     expect(metricAt(Math.PI / 2)).toBeLessThan(metricAt(Math.PI / 2 - 0.7))
     expect(metricAt(Math.PI / 2)).toBeLessThan(metricAt(Math.PI / 2 + 0.7))
-    // The point is farther out than the lobes: hearts are bottom-heavy.
-    expect(metricAt(Math.PI / 2)).toBeLessThan(metricAt(-Math.PI / 2 - 0.72))
+    expect(metricAt(Math.PI / 2)).toBeCloseTo(radius / HEART_HALF_DIAGONAL, 10)
+    // Each lobe peaks along its own center, a full chord out, and the cleft
+    // sits exactly where the lobes meet the diamond's top vertex.
+    expect(metricAt(-3 * Math.PI / 4)).toBeCloseTo(radius / (Math.SQRT2 * HEART_HALF_DIAGONAL), 10)
+    expect(metricAt(-Math.PI / 2)).toBeCloseTo(radius / HEART_HALF_DIAGONAL, 10)
+  })
+
+  it('shapes the Star with straight edges and an upward tip (#63)', () => {
+    const at = (angle: number, radius: number) => showShapeRevealDistance({
+      x: 0.5 + radius * Math.cos(angle), y: 0.5 + radius * Math.sin(angle),
+      centerX: 0.5, centerY: 0.5, shape: 'star', aspect: 1, starPoints: 5, starInner: 0.4,
+    })
+    // Tip straight up at unit radius; inner vertex a half sector away at 0.4.
+    expect(at(-Math.PI / 2, 1)).toBeCloseTo(1, 10)
+    expect(at(-Math.PI / 2 + Math.PI / 5, 0.4)).toBeCloseTo(1, 10)
+    // Straight edge: the boundary midpoint between tip and inner vertex lies
+    // on the chord joining them.
+    const tip = [0, -1]
+    const inner = [0.4 * Math.cos(-Math.PI / 2 + Math.PI / 5), 0.4 * Math.sin(-Math.PI / 2 + Math.PI / 5)]
+    const mid = [(tip[0] + inner[0]) / 2, (tip[1] + inner[1]) / 2]
+    expect(showShapeRevealDistance({
+      x: 0.5 + mid[0], y: 0.5 + mid[1], centerX: 0.5, centerY: 0.5, shape: 'star', aspect: 1, starPoints: 5, starInner: 0.4,
+    })).toBeCloseTo(1, 10)
   })
 
   // ~17s solo; full-suite worker contention has been observed to stretch it
@@ -195,13 +216,13 @@ describe('common and signature SDF catalogue (#452)', () => {
     // The interval bound is only rigorous while the documented constants
     // dominate |d(unit gauge)/d(angle)|; estimate the slope numerically.
     const shapes = [
-      ['heart', 4.7, {}],
+      ['heart', 1.05 / HEART_HALF_DIAGONAL, {}],
       ['cloud', 26, {}],
       ['cat-head', 4.3, {}],
       ['cat-side-profile', 6.7, {}],
       ['bastet', 9.4, {}],
       ['cross', 10, { crossWidth: 0.1 }],
-      ['star', 76.5, { starPoints: 12, starInner: 0.2 }],
+      ['star', 1.2 / (0.2 * Math.sin(Math.PI / 12)), { starPoints: 12, starInner: 0.2 }],
     ] as const
     const epsilon = 1e-4
     for (const [shape, constant, parameters] of shapes) {

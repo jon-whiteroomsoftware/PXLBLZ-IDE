@@ -2157,20 +2157,44 @@ function shapeRevealGeometricReference(): StockShow {
   })
 }
 
+// Every figure reveals both ways, out then in (#63): Shrink Outgoing first
+// so the figure appears whole and collapses, then Grow Incoming. Ring and
+// Crescent fill in as they complete (see showShapeReveal.ts), so no figure
+// ends on a cut. Cloud, the side-profile cat, and Bastet stay in the
+// toolkit for Viewport apertures, where a held silhouette reads, but are
+// too busy to read as a moving reveal and are not demonstrated here.
+function shapeRevealFigurePairSpecs(
+  shapes: ReadonlyArray<readonly [string, string, Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>?]>,
+): TransitionReferenceSpec[] {
+  return shapes.flatMap(([id, label, changes]) => [
+    {
+      id: `shape-${id}-out`, label: `${label}: shrink outgoing`, familyId: 'shape-reveal' as const, variantId: id,
+      changes: { ...changes, revealMode: 'shrink-outgoing' as const }, holdSeconds: 1.5, transitionSeconds: 1.2,
+    },
+    {
+      id: `shape-${id}-in`, label: `${label}: grow incoming`, familyId: 'shape-reveal' as const, variantId: id,
+      changes: { ...changes, revealMode: 'grow-incoming' as const }, holdSeconds: 1.5, transitionSeconds: 1.2,
+    },
+  ])
+}
+
 function shapeRevealFigureReference(): StockShow {
+  // A pentagram's inner radius is 0.382 of its tip radius; the toolkit
+  // default stays 0.45 for apertures, the reference shows the regular star.
   const specs: TransitionReferenceSpec[] = [
-    { id: 'shape-heart', label: 'Heart: grow incoming', familyId: 'shape-reveal', variantId: 'heart', changes: { revealMode: 'grow-incoming' }, holdSeconds: 3, transitionSeconds: 2.5 },
-    ...shapeRevealShapeSpecs([
-      ['ring', 'Ring'], ['star', 'Star'], ['crescent', 'Crescent'], ['polygon', 'Regular polygon'],
-      ['cloud', 'Cloud'], ['cat-head', 'Cat head'], ['cat-side-profile', 'Side-profile cat'], ['bastet', 'Bastet'],
+    { id: 'shape-heart-out', label: 'Heart: shrink outgoing', familyId: 'shape-reveal', variantId: 'heart', changes: { revealMode: 'shrink-outgoing' }, holdSeconds: 3, transitionSeconds: 2.5 },
+    { id: 'shape-heart-in', label: 'Heart: grow incoming', familyId: 'shape-reveal', variantId: 'heart', changes: { revealMode: 'grow-incoming' }, holdSeconds: 1.5, transitionSeconds: 1.2 },
+    ...shapeRevealFigurePairSpecs([
+      ['ring', 'Ring'], ['star', 'Star', { starInner: 0.38 }], ['crescent', 'Crescent'],
+      ['polygon', 'Regular polygon'], ['cat-head', 'Cat head'],
     ]),
   ]
   return transitionReferenceShow({
     id: 'stock-show-reference-shape-reveal-figures', title: 'Shape Reveals: Figures', order: 10,
-    purpose: 'The picture shapes - heart, star, crescent, polygon, cloud, and the three cats - with one slow Heart and the rest at speed.',
-    notice: 'Built like the geometric showcase: the Patterns, center, size, and edge never move, so the shape is all that changes.',
-    prompts: ['Slow a cat reveal down and watch its edge.', 'Flip the Bastet reveal between growing in and shrinking out.'],
-    guideHeading: 'shape-reveal-figures-reference', specs,
+    purpose: 'The picture shapes - heart, ring, star, crescent, polygon, and cat head - each shrinking out, then growing in. One slow Heart to start; the rest at speed.',
+    notice: 'Built like the geometric showcase: the Patterns, center, size, and edge never move, so the shape is all that changes. Ring and Crescent fill in as they finish, so nothing ends on a cut.',
+    prompts: ['Slow the Cat head reveal down and watch its ears.', 'Change the Star to 6 points, or widen the Ring.'],
+    guideHeading: 'shape-reveal-figures-reference', specs, referencePattern: 'NeonCircuitBoard', selectedPattern: 'MoireCathedral',
   })
 }
 
