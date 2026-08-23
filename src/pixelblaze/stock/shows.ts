@@ -2851,6 +2851,28 @@ function effectShowcase(kind: ShowcaseKind): StockShow {
       }
     }
     composition = normalizeShowComposition({ scenes, zones }, composition)
+  } else {
+    // One held instance with a placement per row (#63): the rows differ only
+    // in their Effect stack, and a separate instance per row multiplies the
+    // source's persistent globals past the artifact budget.
+    const instanceId = `instance-${kind}-effects`
+    composition = normalizeShowComposition({ scenes, zones }, {
+      version: 1,
+      patternInstances: [instance(instanceId, config.source, 0.35)],
+      scenes: scenes.map((item, index) => ({
+        sceneId: item.id,
+        zones: [{
+          zoneId: 'zone-1',
+          overlays: [],
+          main: [{
+            ...placement(`clip-${kind}-effect-${index + 1}`, instanceId, 0, item.durationMs / 1_000),
+            view: { mirror: false, phase: 0, brightness: 0.9 },
+            ...(config.rows[index][1].length ? { effects: config.rows[index][1].map((effect) => ({ ...effect })) } : {}),
+          }],
+        }],
+      })),
+      durationMs: scenes.reduce((sum, item) => sum + item.durationMs, 0),
+    })
   }
   return catalogue({
     id: config.id, title: config.title, track: 'portable', collection: 'showcases', level: null, order: config.order,
