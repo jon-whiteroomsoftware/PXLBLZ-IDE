@@ -24,15 +24,16 @@ import { DocsWorkspace } from '@/components/DocsWorkspace'
 import { ApiReferenceWorkspace } from '@/components/ApiReferenceWorkspace'
 import { SendToController } from '@/components/SendToController'
 import { PatternActionsMenu } from '@/components/PatternActionsMenu'
-import { GalleryPage } from '@/components/GalleryPage'
+import { GalleryPage, SHOWS_DIRECTORY } from '@/components/GalleryPage'
 import { PatternDetailPage } from '@/components/PatternDetailPage'
+import { ShowDetailPage } from '@/components/ShowDetailPage'
+import { galleryShowBySlug } from '@/engine/galleryShows'
 import { ControllerProfilePage } from '@/components/ControllerProfilePage'
 import { ControllerProfileHeaderActions } from '@/components/ControllerProfileHeaderActions'
 import { ControllerSavedProgramsPane } from '@/components/ControllerSavedProgramsPane'
 import { ControllerProfilesEmptyState } from '@/components/ControllerProfilesEmptyState'
 import { ShowEditor } from '@/components/ShowEditor'
 import { ShowEditorOverhaulPrototype } from '@/components/ShowEditorOverhaulPrototype'
-import { GalleryShowBandPrototype } from '@/components/GalleryShowBandPrototype'
 import { ShowStagePreview } from '@/components/ShowStagePreview'
 import { ShowCreationFlow, type ShowCreationMapOption } from '@/components/ShowCreationFlow'
 import { useControllerStore } from '@/store/controllerStore'
@@ -325,9 +326,6 @@ function StudioWelcomePage({
 export default function App() {
   if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('prototype') === 'show-overhaul') {
     return <ShowEditorOverhaulPrototype />
-  }
-  if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('prototype') === 'gallery-show-band') {
-    return <GalleryShowBandPrototype />
   }
   return <StudioApp />
 }
@@ -801,15 +799,16 @@ function StudioApp() {
     : null
   const invalidApiReferenceRoute = route.kind === 'api-reference' && activeApiReference === null
   const galleryDirectory = route.kind === 'gallery' && route.directorySlug !== undefined
-    ? galleryDirectoryBySlug(route.directorySlug)
+    ? (route.directorySlug === SHOWS_DIRECTORY.slug ? SHOWS_DIRECTORY : galleryDirectoryBySlug(route.directorySlug))
     : undefined
   const invalidGalleryDirectoryRoute =
     route.kind === 'gallery' && route.directorySlug !== undefined && galleryDirectory === undefined
-  const browseRoute = route.kind === 'gallery' || route.kind === 'pattern-detail'
+  const browseRoute = route.kind === 'gallery' || route.kind === 'pattern-detail' || route.kind === 'show-detail'
   const studioRoute = route.kind === 'studio'
   const studioAccessUnavailable = studioRoute && personalWorkspaceUnavailable
   const studioAccessPending = studioRoute && !personalWorkspaceResolved && !personalWorkspaceUnavailable
   const detailPattern = route.kind === 'pattern-detail' ? galleryPatternBySlug(route.slug) : undefined
+  const detailShow = route.kind === 'show-detail' ? galleryShowBySlug(route.slug) : undefined
 
   const openDetailPatternInStudio = useCallback((pattern: GalleryPattern) => {
     openDemoPattern(pattern.name)
@@ -963,6 +962,17 @@ function StudioApp() {
           <RouteMessage
             title="Pattern not found"
             detail={`There's no built-in pattern with slug "${route.slug}".`}
+            actionLabel="Browse the Gallery"
+            onAction={() => navigate({ kind: 'gallery' })}
+          />
+        )
+      ) : route.kind === 'show-detail' ? (
+        detailShow ? (
+          <ShowDetailPage show={detailShow} />
+        ) : (
+          <RouteMessage
+            title="Show not found"
+            detail={`There's no Gallery Show with slug "${route.slug}".`}
             actionLabel="Browse the Gallery"
             onAction={() => navigate({ kind: 'gallery' })}
           />

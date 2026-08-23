@@ -794,3 +794,12 @@
 .docs-article :target {
   scroll-margin-top: 20px;
 }
+
+/* Gallery spotlight (#894): while a Show band is hovered or focused, every
+   other grid item dims so the Show reads against quiet neighbours. */
+[data-testid="gallery-grid"] > * {
+  transition: opacity 500ms ease;
+}
+[data-testid="gallery-grid"][data-spotlight] > *:not([data-spotlit]) {
+  opacity: 0.4;
+}

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { GalleryPage } from './GalleryPage'
 import { routerInitialState, useRouterStore } from '@/store/routerStore'
@@ -83,5 +83,52 @@ describe('Gallery return anchors', () => {
     const card = screen.getByRole('button', { name: /IridescentFibers/ })
     expect(card).toHaveAttribute('id', 'gallery-iridescent-fibers')
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' }))
+  })
+})
+
+describe('Gallery Shows (#894)', () => {
+  it('leads with the hero band, spreads the rest, and sizes each to its stage', () => {
+    render(<GalleryPage />)
+    const bands = screen.getAllByTestId('gallery-show-band')
+    expect(bands).toHaveLength(4)
+    const grid = screen.getByTestId('gallery-grid')
+    expect(grid.firstElementChild).toBe(bands[0])
+    expect(bands[0]).toHaveTextContent('Overture Installation')
+    expect(within(bands[0]).getByRole('button', { name: /Overture Installation, a Show/ })).toHaveAttribute('id', 'show-overture-installation')
+    // Bands are ordered and interleaved, not clustered.
+    const children = [...grid.children]
+    const bandIndexes = bands.map((band) => children.indexOf(band))
+    expect(bandIndexes[1]).toBeGreaterThan(bandIndexes[0] + 1)
+    expect(bandIndexes[2]).toBeGreaterThan(bandIndexes[1] + 1)
+    // Caption is capped relative to its preview.
+    const preview = within(bands[0]).getByRole('button') as HTMLElement
+    const caption = bands[0].lastElementChild as HTMLElement
+    expect(parseFloat(caption.style.maxWidth)).toBeLessThanOrEqual(parseFloat(preview.style.width) * 0.8 + 1)
+  })
+
+  it('hides bands under a Pattern directory, a dimension lens, or a search', () => {
+    render(<GalleryPage directory={{ label: 'ZRanger1', slug: 'zranger1' }} />)
+    expect(screen.queryAllByTestId('gallery-show-band')).toHaveLength(0)
+  })
+
+  it('lists only bands in the Shows directory', () => {
+    render(<GalleryPage directory={{ label: 'Shows', slug: 'shows' }} />)
+    expect(screen.getAllByTestId('gallery-show-band')).toHaveLength(4)
+    expect(screen.queryByRole('button', { name: /IridescentFibers/ })).not.toBeInTheDocument()
+  })
+
+  it('dims everything else while a band is hovered or focused, and only for Shows', () => {
+    render(<GalleryPage />)
+    const grid = screen.getByTestId('gallery-grid')
+    const bands = screen.getAllByTestId('gallery-show-band')
+    expect(grid).not.toHaveAttribute('data-spotlight')
+    fireEvent.mouseEnter(bands[1])
+    expect(grid).toHaveAttribute('data-spotlight', 'stock-show-remix-quadrille')
+    expect(bands[1]).toHaveAttribute('data-spotlit', 'true')
+    expect(bands[0]).not.toHaveAttribute('data-spotlit')
+    fireEvent.mouseLeave(bands[1])
+    expect(grid).not.toHaveAttribute('data-spotlight')
+    fireEvent.mouseEnter(screen.getByRole('button', { name: /IridescentFibers/ }))
+    expect(grid).not.toHaveAttribute('data-spotlight')
   })
 })

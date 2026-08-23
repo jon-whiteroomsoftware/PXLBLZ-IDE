@@ -2,16 +2,10 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { gunzipSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
-import { prepareFastReplay } from '@/engine/fastReplay'
 import { GALLERY_PATTERNS } from '@/engine/galleryCatalog'
-import {
-  GALLERY_KEYFRAME_RANDOM_SEED,
-  galleryKeyframeKey,
-  galleryKeyframeMatches,
-  type GalleryKeyframeArtifact,
-} from '@/engine/galleryKeyframes'
-import { resolveGalleryThumbnailLayout } from '@/engine/galleryThumbnailLayout'
-import { LIBRARIES } from '@/pixelblaze/libs'
+import { galleryKeyframeSubjects } from '@/engine/galleryKeyframeBatch'
+import { galleryKeyframeMatches, type GalleryKeyframeArtifact } from '@/engine/galleryKeyframes'
+import { gallerySubjectKey, resolveGallerySubject } from '@/engine/gallerySubject'
 import { decodeGalleryKeyframe, hasGalleryKeyframe, loadGalleryKeyframe } from './galleryKeyframes'
 
 const KEYFRAME_DIR = join(__dirname, 'keyframes')
@@ -35,22 +29,21 @@ describe('stored Gallery keyframes', () => {
     await expect(decodeGalleryKeyframe(new Uint8Array(gunzipSync(packed)))).resolves.toEqual(expected)
   })
 
-  it('every public Gallery Pattern has a stored keyframe whose key matches the current runtime', () => {
+  it('every public Gallery Pattern and Gallery Show has a stored keyframe whose key matches the current runtime', () => {
     const stale: string[] = []
     const missing: string[] = []
-    for (const pattern of GALLERY_PATTERNS) {
-      if (!hasGalleryKeyframe(pattern.name)) {
-        missing.push(pattern.name)
+    for (const { subject } of galleryKeyframeSubjects()) {
+      const name = gallerySubjectKey(subject)
+      if (!hasGalleryKeyframe(name)) {
+        missing.push(name)
         continue
       }
-      const artifact = readStoredKeyframe(pattern.name)
-      const prepared = prepareFastReplay(pattern.src, LIBRARIES)
-      const { layout } = resolveGalleryThumbnailLayout(pattern.name, prepared)
-      const key = galleryKeyframeKey({ code: prepared.code, mapPoints: layout.mapPoints, randomSeed: GALLERY_KEYFRAME_RANDOM_SEED })
-      if (!galleryKeyframeMatches(artifact, key) || artifact.pixelCount !== layout.mapPoints.length) stale.push(pattern.name)
+      const artifact = readStoredKeyframe(name)
+      const resolved = resolveGallerySubject(subject)
+      if (!galleryKeyframeMatches(artifact, resolved.keyframeKey) || artifact.pixelCount !== resolved.mapPoints.length) stale.push(name)
     }
     // Regenerate with `npm run gallery:keyframes` after changing a stock
-    // Pattern, its recommended settings, the thumbnail caps, or the engine.
+    // Pattern or Show, recommended settings, the thumbnail caps, or the engine.
     expect({ missing, stale }).toEqual({ missing: [], stale: [] })
   })
 })

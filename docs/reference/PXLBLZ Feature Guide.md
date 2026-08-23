@@ -18,9 +18,18 @@ feature is for, where to find it, and where the deeper guides pick up.
 
 ## 1. Gallery
 
-`/gallery` is the front door: the built-in Pattern catalogue. Every card opens
-on a chosen keyframe of its Pattern, and the six cards nearest your pointer
-run the real preview engine from that moment; move the mouse and the animation follows it, while cards that
+`/gallery` is the front door: the built-in Pattern catalogue, with the
+Gallery Shows set among the Patterns as marquee bands. A band is a Show's
+stage at its natural proportions — wide for an installation, square for a
+portable Show — with a caption beside it: title, byline, premise, and loop
+length; a thin bar along the bottom tracks how far through the loop it is.
+The first thing on the page is a Show, and the others are spread down the
+grid; the **Shows** directory lists only them. A band opens the Show's own
+page (`/s/<slug>`) with the stage at full size and its scenes as an arc.
+
+Every Pattern card opens on a chosen keyframe of its Pattern, and the cards
+nearest your pointer run the real preview engine from that moment, within a
+pixel budget (a Show at 2,000 pixels takes the room of about two Patterns); move the mouse and the animation follows it, while cards that
 leave the set freeze where they were and pick up again from there. Without a
 pointer (touch), the cards nearest the top of the screen animate; a card with
 keyboard focus always does. The density control in the header shows two, three,

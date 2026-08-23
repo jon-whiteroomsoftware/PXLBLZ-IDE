@@ -1,8 +1,13 @@
-// Poster-first Gallery card preview (#888). Every card shows a still (its
-// "poster"); a small pool of cards nearest the pointer animate live. The
-// coordinator decides which cards are live, warm (one-frame poster render), or
-// frozen; this component builds and tears down the fast-replay runtime per
-// mode and keeps the poster up to date.
+// Poster-first Gallery card preview (#888, #894). Every card shows a still (its
+// "poster"); the cards nearest the pointer animate live within a pixel
+// budget. The coordinator decides which cards are live, warm (one-frame
+// poster render), or frozen; this component builds and tears down the
+// fast-replay runtime per mode and keeps the poster up to date.
+//
+// A card's subject is a stock Pattern or a Gallery Show; both resolve through
+// gallerySubject.ts to one set of runtime inputs. A Show card also drives a
+// loop thermometer: a thin bar along the bottom edge tracking elapsed time
+// through the Show's loop.
 //
 // State continuity: a card's first activation restores its stored keyframe
 // (a scored fast-replay snapshot shipped with the catalogue) when the
@@ -15,24 +20,21 @@ import { advanceAutoOrbit, DEFAULT_ORBIT } from '@/engine/camera'
 import { createRenderer, type Renderer } from '@/engine/renderer'
 import {
   createFastReplayRuntime,
-  prepareFastReplay,
   type FastReplayRuntime,
   type FastReplaySnapshot,
 } from '@/engine/fastReplay'
 import {
   GALLERY_KEYFRAME_RANDOM_SEED,
-  galleryKeyframeKey,
   galleryKeyframeMatches,
   restoreGalleryKeyframe,
   type GalleryKeyframeArtifact,
 } from '@/engine/galleryKeyframes'
-import { resolveGalleryThumbnailLayout, galleryThumbnailSettings } from '@/engine/galleryThumbnailLayout'
-import { LIBRARIES } from '@/pixelblaze/libs'
+import { gallerySubjectKey, resolveGallerySubject, type GallerySubject } from '@/engine/gallerySubject'
 import { loadGalleryKeyframe } from '@/pixelblaze/stock/galleryKeyframes'
 import { galleryCardWarmed, registerGalleryLiveCard, type GalleryLiveMode } from './galleryLiveCoordinator'
 
 /** Without a stored keyframe, a card's first frame comes from a per-card
- * offset into the Pattern's opening seconds so the page does not open on a
+ * offset into the subject's opening seconds so the page does not open on a
  * wall of identical dark frame-zeros. Deterministic per card index. */
 export const GALLERY_START_OFFSET_SPAN_MS = 2000
 export function galleryStartOffsetMs(index: number): number {
@@ -42,7 +44,7 @@ export function galleryStartOffsetMs(index: number): number {
 /** Warm renders step forward this many times looking for a lit frame. */
 const WARM_POSTER_ATTEMPTS = 4
 const WARM_POSTER_STEP_MS = 250
-/** Live frames never advance the Pattern by more than this per rAF tick. */
+/** Live frames never advance the subject by more than this per rAF tick. */
 const MAX_LIVE_DELTA_MS = 100
 
 function isBlank(ctx: CanvasRenderingContext2D, width: number, height: number): boolean {
@@ -77,10 +79,34 @@ function usePrefersReducedMotion(): boolean {
   return reduced
 }
 
-export function GalleryLivePreview({ name, src, index }: { name: string; src: string; index: number }) {
+export function GalleryLivePreview({
+  subject,
+  index,
+  cost,
+  loopMs = null,
+  label,
+}: {
+  subject: GallerySubject
+  index: number
+  /** Estimated pixel cost for live-pool admission. */
+  cost: number
+  /** Loop length for the thermometer; null hides it. */
+  loopMs?: number | null
+  /** Accessible name for the live canvas. */
+  label: string
+}) {
+  const key = gallerySubjectKey(subject)
+  // The runtime effect keys on the subject's identity string, never on the
+  // subject object: a parent re-render must not rebuild a live runtime (and
+  // lose its WebGL context under a still-mounted canvas).
+  const subjectRef = useRef(subject)
+  useEffect(() => {
+    subjectRef.current = subject
+  }, [subject])
   const hostRef = useRef<HTMLDivElement>(null)
   const glCanvasRef = useRef<HTMLCanvasElement>(null)
   const posterCanvasRef = useRef<HTMLCanvasElement>(null)
+  const progressRef = useRef<HTMLDivElement>(null)
   const runtimeRef = useRef<FastReplayRuntime | null>(null)
   const rendererRef = useRef<Renderer | null>(null)
   const repaintRef = useRef<(() => void) | null>(null)
@@ -90,13 +116,12 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
     | { kind: '3d'; positions: [number, number, number][]; normals: [number, number, number][] | null }
     | null
   >(null)
+  const lightSizeRef = useRef(1)
   const widthRef = useRef(240)
   /** In-session state from the last freeze; restored on the next activation. */
   const resumeSnapshotRef = useRef<FastReplaySnapshot | null>(null)
-  /** Stored keyframe for this Pattern, or null once the lookup settled empty. */
+  /** Stored keyframe for this subject, or null once the lookup settled empty. */
   const keyframeRef = useRef<GalleryKeyframeArtifact | null>(null)
-  /** The keyframe lookup runs on first activation, not on mount, so only cards
-   * that actually render fetch their artifact. */
   const [keyframeSettled, setKeyframeSettled] = useState(false)
   const keyframeLookupStartedRef = useRef(false)
   // The 3D orbit persists across pool grants so a card resumes its view.
@@ -111,24 +136,23 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
-    return registerGalleryLiveCard(name, host, setMode, true)
-  }, [name])
+    return registerGalleryLiveCard(key, host, setMode, true, cost)
+  }, [key, cost])
 
   // The lookup is never cancelled: a grant that lapses while the fetch is in
   // flight must still settle, or the card could never activate again.
   useEffect(() => {
     if (!granted || keyframeLookupStartedRef.current) return
     keyframeLookupStartedRef.current = true
-    loadGalleryKeyframe(name).then((artifact) => {
+    loadGalleryKeyframe(key).then((artifact) => {
       keyframeRef.current = artifact
       setKeyframeSettled(true)
     })
-  }, [granted, name])
+  }, [granted, key])
 
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
-    const lightSize = galleryThumbnailSettings(name).lightSize
 
     const measure = () => {
       const rect = host.getBoundingClientRect()
@@ -146,7 +170,11 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
           normals: draw.normals,
         })
       } else {
-        renderer.resize2D({ containerWidth: nextWidth, lightSize })
+        renderer.resize2D({
+          containerWidth: nextWidth,
+          containerHeight: Math.max(1, Math.round(rect.height || nextWidth)),
+          lightSize: lightSizeRef.current,
+        })
       }
       repaintRef.current?.()
     }
@@ -155,7 +183,7 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
     const ro = new ResizeObserver(measure)
     ro.observe(host)
     return () => ro.disconnect()
-  }, [name])
+  }, [key])
 
   useLayoutEffect(() => {
     const canvas = glCanvasRef.current
@@ -198,52 +226,57 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
 
     let rafId: number | null = null
     try {
-      const prepared = prepareFastReplay(src, LIBRARIES)
-      const { settings, layout } = resolveGalleryThumbnailLayout(name, prepared)
+      const resolved = resolveGallerySubject(subjectRef.current)
+      const { prepared, mapPoints, draw, look } = resolved
+      lightSizeRef.current = look.lightSize
       const runtime = createFastReplayRuntime(prepared, {
-        mapPoints: layout.mapPoints,
+        mapPoints,
         randomSeed: GALLERY_KEYFRAME_RANDOM_SEED,
         fidelity: 'fast',
       })
       runtimeRef.current = runtime
 
-      const currentWidth = Math.max(
-        1,
-        Math.round(hostRef.current?.getBoundingClientRect().width || widthRef.current),
-      )
+      const hostRect = hostRef.current?.getBoundingClientRect()
+      const currentWidth = Math.max(1, Math.round(hostRect?.width || widthRef.current))
+      const currentHeight = Math.max(1, Math.round(hostRect?.height || currentWidth))
       widthRef.current = currentWidth
       const renderer = createRenderer(canvas, {
         containerWidth: currentWidth,
-        lightSize: settings.lightSize,
+        containerHeight: currentHeight,
+        lightSize: look.lightSize,
       })
       rendererRef.current = renderer
       let camera = cameraRef.current
       let lastCameraTs = performance.now()
-      if (layout.draw.kind === '3d') {
-        drawRef.current = {
-          kind: '3d',
-          positions: layout.draw.positions,
-          normals: layout.draw.normals,
-        }
-        renderer.set3DPositions(layout.draw.positions, {
+      if (draw.kind === '3d') {
+        drawRef.current = draw
+        renderer.set3DPositions(draw.positions, {
           canvasPx: Math.round(currentWidth * 0.625),
-          normals: layout.draw.normals,
+          normals: draw.normals,
         })
         renderer.setCamera(camera)
-        renderer.setSolidity(settings.solidity)
+        renderer.setSolidity(look.solidity)
       } else {
-        drawRef.current = { kind: '2d', positions: layout.draw.positions }
-        renderer.set2DPositions(layout.draw.positions, {
+        drawRef.current = draw
+        renderer.set2DPositions(draw.positions, {
           containerWidth: currentWidth,
-          lightSize: settings.lightSize,
+          containerHeight: currentHeight,
+          lightSize: look.lightSize,
         })
       }
-      renderer.setDiffusion(settings.diffusion)
+      renderer.setDiffusion(look.diffusion)
+
+      const progress = progressRef.current
+      const updateProgress = () => {
+        if (!progress || loopMs === null || loopMs <= 0) return
+        const fraction = (runtime.getElapsedMs() % loopMs) / loopMs
+        progress.style.transform = `scaleX(${fraction.toFixed(4)})`
+      }
 
       let lastFrame: Float64Array | null = null
       const paintFrame = (frame: Float64Array, advanceCamera: boolean) => {
         if (generationRef.current !== generation) return
-        if (layout.draw.kind === '3d') {
+        if (draw.kind === '3d') {
           const now = performance.now()
           if (advanceCamera) camera = advanceAutoOrbit(camera, now - lastCameraTs)
           lastCameraTs = now
@@ -251,7 +284,8 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
           renderer.setCamera(camera)
         }
         lastFrame = frame
-        renderer.paint(frame, settings.brightness, false)
+        renderer.paint(frame, look.brightness, false)
+        updateProgress()
         if (!paintedOnce) {
           paintedOnce = true
           canvas.style.visibility = 'visible'
@@ -263,22 +297,17 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
       }
 
       // Establish the starting state: in-session resume, stored keyframe, or
-      // the per-card opening offset.
+      // the per-card opening offset. A restored snapshot is presented from its
+      // own frame: ticking the runtime to render would advance state (render
+      // can consume random()) and the first shown frame would no longer be
+      // the snapshot's.
       const resume = resumeSnapshotRef.current
       const keyframe = keyframeRef.current
-      const key = galleryKeyframeKey({
-        code: prepared.code,
-        mapPoints: layout.mapPoints,
-        randomSeed: GALLERY_KEYFRAME_RANDOM_SEED,
-      })
-      // A restored snapshot is presented from its own frame: ticking the
-      // runtime to render would advance state (render can consume random())
-      // and the first shown frame would no longer be the snapshot's.
-      if (resume && resume.frame.length === layout.mapPoints.length * 3) {
+      if (resume && resume.frame.length === mapPoints.length * 3) {
         runtime.renderCurrentFrame()
         runtime.restore(resume)
         paintFrame(resume.frame, false)
-      } else if (galleryKeyframeMatches(keyframe, key) && keyframe.pixelCount === layout.mapPoints.length) {
+      } else if (galleryKeyframeMatches(keyframe, resolved.keyframeKey) && keyframe.pixelCount === mapPoints.length) {
         paintFrame(restoreGalleryKeyframe(runtime, keyframe).frame, false)
       } else {
         const offset = galleryStartOffsetMs(index)
@@ -286,12 +315,12 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
       }
 
       if (mode === 'warm') {
-        // Some Patterns open dark; step forward a few frames for a lit poster.
+        // Some subjects open dark; step forward a few frames for a lit poster.
         for (let attempt = 0; attempt < WARM_POSTER_ATTEMPTS; attempt++) {
           if (capturePoster() && !isBlankPoster(posterCanvasRef.current)) break
           paintFrame(runtime.advanceLive(WARM_POSTER_STEP_MS).frame, false)
         }
-        galleryCardWarmed(name)
+        galleryCardWarmed(key)
       } else if (!reducedMotion) {
         let lastTs: number | null = null
         const tick = (ts: number) => {
@@ -300,10 +329,10 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
           const delta = lastTs === null ? 0 : Math.min(MAX_LIVE_DELTA_MS, ts - lastTs)
           lastTs = ts
           try {
-            paintFrame(runtime.advanceLive(delta * settings.speed).frame, true)
+            paintFrame(runtime.advanceLive(delta * look.speed).frame, true)
           } catch (err) {
             setError(err instanceof Error ? err.message : String(err))
-            galleryCardWarmed(name)
+            galleryCardWarmed(key)
             return
           }
           rafId = requestAnimationFrame(tick)
@@ -318,7 +347,7 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
         // which makes paintFrame ignore further paints.
         try {
           repaintRef.current?.()
-          if (capturePoster()) galleryCardWarmed(name)
+          if (capturePoster()) galleryCardWarmed(key)
           resumeSnapshotRef.current = runtime.snapshot()
         } catch {
           // A lost context leaves the previous poster and state in place.
@@ -330,7 +359,12 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
         rendererRef.current = null
         repaintRef.current = null
         drawRef.current = null
-        canvas.getContext('webgl')?.getExtension('WEBGL_lose_context')?.loseContext()
+        // Free the context only once the canvas has left the DOM. If the
+        // effect is merely re-running on the same mounted canvas, the next
+        // renderer reuses the context instead of inheriting a lost one.
+        queueMicrotask(() => {
+          if (!canvas.isConnected) canvas.getContext('webgl')?.getExtension('WEBGL_lose_context')?.loseContext()
+        })
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -338,9 +372,9 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
         if (generationRef.current !== generation) return
         setError(message)
       })
-      galleryCardWarmed(name)
+      galleryCardWarmed(key)
     }
-  }, [src, active, mode, reducedMotion, name, index])
+  }, [active, mode, reducedMotion, key, index, loopMs])
 
   return (
     <div ref={hostRef} className="absolute inset-0 bg-black" data-testid="gallery-live-preview" data-gallery-mode={mode}>
@@ -353,9 +387,19 @@ export function GalleryLivePreview({ name, src, index }: { name: string; src: st
       {active && (
         <canvas
           ref={glCanvasRef}
-          aria-label={`${name} live preview`}
+          aria-label={`${label} live preview`}
           className="absolute inset-0 h-full w-full transition-opacity duration-75"
         />
+      )}
+      {loopMs !== null && (
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] bg-zinc-800/60">
+          <div
+            ref={progressRef}
+            data-testid="gallery-loop-progress"
+            className="h-full w-full origin-left bg-live/70"
+            style={{ transform: 'scaleX(0)' }}
+          />
+        </div>
       )}
       {error && (
         <div className="absolute inset-x-2 bottom-2 rounded border border-red-400/30 bg-red-950/80 px-2 py-1 font-mono text-[10px] text-red-200">

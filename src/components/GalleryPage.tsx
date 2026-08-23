@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, Columns2, Columns3, Columns4, Images, Search, X } from 'lucide-react'
 import { inlineIcon } from '@/components/iconScale'
 import {
@@ -17,8 +17,23 @@ import {
   writeGalleryDensity,
   type GalleryDensity,
 } from '@/engine/galleryDensity'
+import { estimateGallerySubjectCost } from '@/engine/gallerySubject'
+import {
+  GALLERY_SHOWS,
+  GALLERY_SHOW_CAPTION_WIDTH_RATIO,
+  GALLERY_SHOW_PIXEL_COUNT,
+  galleryShowBandBox,
+  galleryShowFacts,
+  galleryShowInsertionIndexes,
+  resolveGalleryShowGeometry,
+  type GalleryShow,
+} from '@/engine/galleryShows'
 import { useRouterStore } from '@/store/routerStore'
 import { GalleryLivePreview } from './GalleryLivePreview'
+
+/** Directory label that lists only the Show bands. */
+export const GALLERY_SHOWS_CATEGORY = 'Shows'
+export const SHOWS_DIRECTORY: GalleryDirectory = { label: GALLERY_SHOWS_CATEGORY, slug: 'shows' }
 
 const DIM_OPTIONS: { label: string; value: DimLens }[] = [
   { label: 'Any dimension', value: 'all' },
@@ -68,6 +83,8 @@ function DensityPicker({ density, onChange }: { density: GalleryDensity; onChang
 function GalleryCard({ pattern, index }: { pattern: GalleryPattern; index: number }) {
   const navigate = useRouterStore((s) => s.navigate)
   const anchorId = galleryAnchorId(pattern.slug)
+  const subject = useMemo(() => ({ kind: 'pattern' as const, name: pattern.name, src: pattern.src }), [pattern.name, pattern.src])
+  const cost = useMemo(() => estimateGallerySubjectCost(subject, pattern.dim), [subject, pattern.dim])
   // 1D Patterns render as two-column strips that take the row's height: a
   // strip in a square wastes most of the box.
   const strip = pattern.dim === 1
@@ -90,7 +107,7 @@ function GalleryCard({ pattern, index }: { pattern: GalleryPattern; index: numbe
         strip ? 'min-h-[96px] md:col-span-2' : 'aspect-square',
       ].join(' ')}
     >
-      <GalleryLivePreview name={pattern.name} src={pattern.src} index={index} />
+      <GalleryLivePreview subject={subject} index={index} cost={cost} label={pattern.name} />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent px-[9px] pb-[7px] pt-7 font-mono">
         <div className="flex min-w-0 items-baseline gap-[6px]">
           <span className="min-w-0 truncate text-[11.5px] text-zinc-100">{pattern.name}</span>
@@ -114,6 +131,114 @@ function GalleryCard({ pattern, index }: { pattern: GalleryPattern; index: numbe
   )
 }
 
+function GalleryCardSlot({
+  pattern,
+  index,
+  bands,
+  gridWidth,
+  onSpotlight,
+  spotlightShowId,
+}: {
+  pattern: GalleryPattern
+  index: number
+  bands: GalleryShow[] | undefined
+  gridWidth: number
+  onSpotlight: (showId: string | null) => void
+  spotlightShowId: string | null
+}) {
+  return (
+    <>
+      {(bands ?? []).map((show) => (
+        <ShowBand key={show.id} show={show} index={index} gridWidth={gridWidth} onSpotlight={onSpotlight} spotlit={spotlightShowId === show.id} />
+      ))}
+      <GalleryCard pattern={pattern} index={index} />
+    </>
+  )
+}
+
+export function galleryShowAnchorId(slug: string): string {
+  return `show-${slug}`
+}
+
+/**
+ * A Show marquee band (#894): height-capped live preview on the left at the
+ * stage's natural width, and a caption to the right — italic title, byline,
+ * premise, and muted facts — no wider than 80% of the preview.
+ */
+function ShowBand({
+  show,
+  index,
+  gridWidth,
+  onSpotlight,
+  spotlit,
+}: {
+  show: GalleryShow
+  index: number
+  gridWidth: number
+  /** Hover or focus on a band brings the house lights down elsewhere. */
+  onSpotlight: (showId: string | null) => void
+  spotlit: boolean
+}) {
+  const navigate = useRouterStore((s) => s.navigate)
+  const facts = useMemo(() => galleryShowFacts(show), [show])
+  const aspect = useMemo(() => resolveGalleryShowGeometry(show).aspect, [show])
+  const box = galleryShowBandBox(gridWidth, aspect)
+  const anchorId = galleryShowAnchorId(show.slug)
+  const subject = useMemo(() => ({ kind: 'show' as const, id: show.id }), [show.id])
+  return (
+    <div
+      className="col-span-full flex min-w-0 items-center gap-[18px]"
+      data-testid="gallery-show-band"
+      data-show-id={show.id}
+      data-spotlit={spotlit || undefined}
+      onMouseEnter={() => onSpotlight(show.id)}
+      onMouseLeave={() => onSpotlight(null)}
+      onFocus={() => onSpotlight(show.id)}
+      onBlur={() => onSpotlight(null)}
+    >
+      <button
+        id={anchorId}
+        type="button"
+        onClick={() => {
+          const galleryUrl = `${window.location.pathname}${window.location.search}#${anchorId}`
+          window.history.replaceState(window.history.state, '', galleryUrl)
+          navigate({ kind: 'show-detail', slug: show.slug }, { historyState: { galleryReturnPath: galleryUrl } })
+        }}
+        style={{ width: box.width, height: box.height }}
+        className="group relative shrink-0 overflow-hidden rounded-[4px] bg-black text-left transition-shadow hover:ring-1 hover:ring-live/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live/70"
+        aria-label={`${facts.title}, a Show`}
+      >
+        <GalleryLivePreview
+          subject={subject}
+          index={index}
+          cost={GALLERY_SHOW_PIXEL_COUNT}
+          loopMs={facts.loopSeconds * 1000}
+          label={facts.title}
+        />
+        <span className="pointer-events-none absolute left-[9px] top-[8px] rounded border border-live/35 bg-zinc-950/75 px-[6px] py-[2px] font-mono text-[9.5px] uppercase tracking-[0.08em] text-live">
+          Show
+        </span>
+      </button>
+      <div
+        className="flex min-w-0 flex-col justify-center gap-2 px-1 font-mono"
+        style={{ maxWidth: Math.round(box.width * GALLERY_SHOW_CAPTION_WIDTH_RATIO) }}
+      >
+        <div className="text-[15px] text-zinc-100">
+          <em>{facts.title}</em>
+          <span className="text-[11.5px] text-zinc-400"> {show.byline}</span>
+        </div>
+        <p className="text-[12.5px] leading-relaxed text-zinc-300">{show.premise}</p>
+        <div className="flex flex-wrap gap-3 text-[10px] uppercase tracking-[0.08em] text-structural">
+          <span>{facts.loopSeconds}s loop</span>
+          <span>{facts.sceneCount} scenes</span>
+          <span>{facts.zoneCount} zones</span>
+          <span>{facts.track}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
   const [lens, setLens] = useState<DimLens>('all')
   const [query, setQuery] = useState('')
@@ -127,10 +252,39 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
   }
   const category = directory?.label ?? GALLERY_ALL_CATEGORY
 
+  const showsOnly = category === GALLERY_SHOWS_CATEGORY
   const patterns = useMemo(
-    () => filterGalleryPatterns(GALLERY_PATTERNS, { lens, category, query }),
-    [lens, category, query],
+    () => (showsOnly ? [] : filterGalleryPatterns(GALLERY_PATTERNS, { lens, category, query })),
+    [lens, category, query, showsOnly],
   )
+  // Bands appear in the unfiltered Gallery and in the Shows directory only:
+  // a dimension lens, a Pattern directory, or a search is about Patterns.
+  const showsVisible = (category === GALLERY_ALL_CATEGORY && lens === 'all' && query.trim() === '') || showsOnly
+  const bandBefore = useMemo(() => {
+    const map = new Map<number, GalleryShow[]>()
+    if (!showsVisible) return map
+    galleryShowInsertionIndexes(GALLERY_SHOWS.length, patterns.length).forEach((at, i) => {
+      map.set(at, [...(map.get(at) ?? []), GALLERY_SHOWS[i]])
+    })
+    return map
+  }, [patterns.length, showsVisible])
+  const gridRef = useRef<HTMLDivElement>(null)
+  const [gridWidth, setGridWidth] = useState(1136)
+  // Spotlight: while a band is hovered or focused, everything else dims.
+  const [spotlightShowId, setSpotlightShowId] = useState<string | null>(null)
+  useEffect(() => {
+    const grid = gridRef.current
+    if (!grid || typeof ResizeObserver === 'undefined') return
+    const measure = () => {
+      const style = getComputedStyle(grid)
+      const inner = grid.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+      if (inner > 0) setGridWidth(inner)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(grid)
+    return () => ro.disconnect()
+  }, [showsVisible])
 
   useEffect(() => {
     const anchorId = decodeURIComponent(window.location.hash.slice(1))
@@ -147,7 +301,7 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
         <div className="mr-auto">
           <h1 className="flex items-center gap-2 font-mono text-[19px] font-semibold tracking-normal text-zinc-100">
             <Images size={18} aria-hidden className="text-live" />
-            Pattern Gallery
+            Gallery
           </h1>
         </div>
         <label className="relative flex w-full min-w-0 items-center rounded-none border-b border-zinc-800 bg-transparent font-mono text-[11.5px] text-zinc-300 transition-colors focus-within:border-live sm:w-auto sm:min-w-[120px]">
@@ -176,7 +330,7 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
           <select
             value={category}
             onChange={(event) => {
-              const selected = GALLERY_DIRECTORIES.find(
+              const selected = [...GALLERY_DIRECTORIES, SHOWS_DIRECTORY].find(
                 (candidate) => candidate.label === event.target.value,
               )
               navigate(
@@ -188,7 +342,7 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
             aria-label="Directory filter"
             className="w-full appearance-none bg-transparent py-1 pl-2.5 pr-8 outline-none"
           >
-            {GALLERY_CATEGORIES.map((option) => (
+            {[...GALLERY_CATEGORIES, GALLERY_SHOWS_CATEGORY].map((option) => (
               <option key={option} value={option} className="bg-zinc-950 text-zinc-200">
                 {option}
               </option>
@@ -224,14 +378,27 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
         <DensityPicker density={density} onChange={changeDensity} />
       </div>
 
-      {patterns.length > 0 ? (
+      {patterns.length > 0 || (showsVisible && GALLERY_SHOWS.length > 0) ? (
         <div
+          ref={gridRef}
           data-testid="gallery-grid"
           data-density={density}
+          data-spotlight={spotlightShowId ?? undefined}
           className={`mx-auto grid max-w-[1180px] grid-flow-dense grid-cols-1 gap-x-4 gap-y-5 px-4 pb-[26px] pt-4 sm:px-[22px] ${DENSITY_PRESENTATION[density].grid}`}
         >
           {patterns.map((pattern, index) => (
-            <GalleryCard key={pattern.name} pattern={pattern} index={index} />
+            <GalleryCardSlot
+              key={pattern.name}
+              pattern={pattern}
+              index={index}
+              bands={bandBefore.get(index)}
+              gridWidth={gridWidth}
+              onSpotlight={setSpotlightShowId}
+              spotlightShowId={spotlightShowId}
+            />
+          ))}
+          {(bandBefore.get(patterns.length) ?? []).map((show) => (
+            <ShowBand key={show.id} show={show} index={patterns.length} gridWidth={gridWidth} onSpotlight={setSpotlightShowId} spotlit={spotlightShowId === show.id} />
           ))}
         </div>
       ) : (

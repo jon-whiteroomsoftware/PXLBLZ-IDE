@@ -127,7 +127,26 @@ points, seed, and format version, and are loaded lazily
 key degrades to the per-card opening offset. `npm run gallery:keyframes`
 regenerates them through Vite SSR (`scripts/gallery-keyframes.ts`);
 `keyframeOverrides.ts` pins a Pattern's poster time. A test asserts every
-public Gallery Pattern has a current keyframe.
+public Gallery Pattern and Gallery Show has a current keyframe.
+
+**Gallery Shows (#894).** `galleryShows.ts` is the curated, ordered list
+(Overture, Quadrille, Redline, Coronal) with byline and premise, the band
+geometry rules (height 0.4 x grid width, width from the stage's aspect, capped
+at 0.7 x grid width; caption at most 0.8 x preview width), and
+`resolveGalleryShowGeometry` / `prepareGalleryShow`, which resolve the Show's
+own stage map at `GALLERY_SHOW_PIXEL_COUNT` (2,000) with 'contain'
+normalization and compile it through `compileShowForPreview` exactly as the
+stage preview does. `gallerySubject.ts` resolves a Pattern or a Show to one
+runtime shape (prepared artifact, geometry, look, keyframe key, pixel cost), so
+`GalleryLivePreview` has a single code path; a Show card adds a loop
+thermometer driven from the runtime's elapsed time. `GalleryPage` inserts
+bands before the Pattern indexes `galleryShowInsertionIndexes` returns (hero
+first, the rest evenly spread), only in the unfiltered Gallery and the
+`shows` directory. The live pool admits by pixel budget
+(`GALLERY_LIVE_PIXEL_BUDGET`, 8,000 evaluations per frame); the first-ranked
+card always gets in. `/s/<slug>` renders `ShowDetailPage`: the stage at full
+size, caption, and the scene list. Show keyframes are scored across the whole
+loop at one sample per second and stored as `show--<id>.json.gz`.
 
 **Analytics** flow through a typed seam; local development and tests send
 nothing. OAuth intent and callback outcome events use only the provider,

@@ -148,6 +148,9 @@ describe('routePath', () => {
       '/studio/libraries/Shader',
     )
     expect(routePath({ kind: 'pattern-detail', slug: 's' }, '/')).toBe('/p/s')
+    expect(routePath({ kind: 'show-detail', slug: 'quadrille' }, '/')).toBe('/s/quadrille')
+    expect(parseRoute('/s/quadrille', '/')).toEqual({ kind: 'show-detail', slug: 'quadrille' })
+    expect(parseRoute('/s/a/b', '/')).toEqual(expect.objectContaining({ kind: 'not-found' }))
     expect(routePath({ kind: 'docs', docId: 'feature-guide' }, '/')).toBe('/docs/feature-guide')
     expect(routePath({ kind: 'api-reference', libraryId: 'Anim' }, '/')).toBe('/reference/Anim')
   })

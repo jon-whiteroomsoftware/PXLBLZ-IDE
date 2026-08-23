@@ -10,7 +10,7 @@ without understanding what moved turns a real capacity finding into paper.
 
 ## Gallery keyframes
 
-Every public Gallery Pattern ships a stored keyframe (#888) in
+Every public Gallery Pattern and Gallery Show (`galleryShows.ts`, #894) ships a stored keyframe (#888) in
 `src/pixelblaze/stock/keyframes/<Name>.json.gz`, keyed by its compiled code,
 thumbnail map, seed, and format version. After adding, editing, retiring, or
 re-tuning the recommended settings of a stock Pattern — or changing the engine
@@ -22,7 +22,8 @@ npm run gallery:keyframes -- Name    # one Pattern
 ```
 
 `src/pixelblaze/stock/galleryKeyframes.test.ts` fails when any public Pattern
-is missing a keyframe or its key is stale. To hand-pick a poster moment, add
+or Gallery Show is missing a keyframe or its key is stale (Show artifacts are
+named `show--<id>.json.gz`; pass the Show id to regenerate one). To hand-pick a poster moment, add
 the Pattern to `src/pixelblaze/stock/keyframeOverrides.ts` and re-run.
 
 ## Adding a stock demo Pattern

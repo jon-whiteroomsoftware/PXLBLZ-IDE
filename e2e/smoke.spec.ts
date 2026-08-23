@@ -361,3 +361,46 @@ test('Gallery density picker changes the grid and persists (#888)', async ({ pag
   await page.reload()
   await expect(page.getByTestId('gallery-grid')).toHaveAttribute('data-density', '4')
 })
+
+test('Gallery leads with a Show band and opens its detail page (#894)', async ({ page }) => {
+  await page.goto('gallery')
+  const bands = page.getByTestId('gallery-show-band')
+  await expect(bands).toHaveCount(4)
+  // The hero band comes before the first Pattern card, and keeps the stage's shape.
+  const hero = page.locator('#show-overture-installation')
+  await expect(hero).toBeVisible()
+  const heroBox = await hero.boundingBox()
+  const firstCard = await page.locator('[id^="gallery-"]').first().boundingBox()
+  expect(heroBox!.y).toBeLessThan(firstCard!.y)
+  expect(heroBox!.width).toBeGreaterThan(heroBox!.height)
+  // The hero is live, and its loop thermometer advances.
+  const heroPreview = hero.locator('[data-testid="gallery-live-preview"]')
+  await expect(heroPreview).toHaveAttribute('data-gallery-mode', 'live')
+  await expect.poll(() =>
+    hero.locator('[data-testid="gallery-loop-progress"]').evaluate((el) => el.style.transform),
+  ).not.toBe('scaleX(0)')
+
+  // The Shows directory lists only bands; a search hides them.
+  await page.getByLabel('Directory filter').selectOption('Shows')
+  await expect(page).toHaveURL(/\/gallery\/shows$/)
+  await expect(bands).toHaveCount(4)
+  await expect(page.locator('[id^="gallery-"]')).toHaveCount(0)
+  await page.goto('gallery')
+  await page.getByLabel('Search patterns').fill('aurora')
+  await expect(bands).toHaveCount(0)
+
+  // A band opens the Show's page; Back returns to the band.
+  await page.goto('gallery')
+  await hero.click()
+  await expect(page).toHaveURL(/\/s\/overture-installation$/)
+  await expect(page.getByTestId('show-detail-stage')).toBeVisible()
+  await expect(page.getByTestId('show-detail-scenes').locator('li')).toHaveCount(4)
+  await page.getByRole('button', { name: 'Gallery', exact: true }).click()
+  await expect(page).toHaveURL(/\/gallery#show-overture-installation$/)
+})
+
+test('unknown Show routes fail gracefully (#894)', async ({ page }) => {
+  await page.goto('s/not-a-show')
+  await expect(page.getByTestId('route-message')).toContainText('Show not found')
+  await expect(page.getByRole('button', { name: 'Browse the Gallery' })).toBeVisible()
+})

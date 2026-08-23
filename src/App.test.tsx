@@ -1306,7 +1306,7 @@ describe('routing (#308)', () => {
   it('renders the Gallery grid at /gallery', () => {
     window.history.replaceState(null, '', '/gallery')
     render(<App />)
-    expect(screen.getByTestId('gallery-page')).toHaveTextContent('Pattern Gallery')
+    expect(screen.getByTestId('gallery-page')).toHaveTextContent('Gallery')
     expect(screen.getByRole('button', { name: /IridescentFibers/i })).toBeInTheDocument()
   })
 
@@ -1325,7 +1325,7 @@ describe('routing (#308)', () => {
 
     await userEvent.click(galleryLink)
     expect(window.location.pathname).toBe('/gallery')
-    expect(screen.getByTestId('gallery-page')).toHaveTextContent('Pattern Gallery')
+    expect(screen.getByTestId('gallery-page')).toHaveTextContent('Gallery')
   })
 
   it('persists broken Pattern source on departure and reopens it without stale pixels (#818)', async () => {
@@ -1357,7 +1357,7 @@ describe('routing (#308)', () => {
 
     expect(screen.queryByRole('alertdialog', { name: 'Discard broken source?' })).not.toBeInTheDocument()
     await waitFor(() => expect(window.location.pathname).toBe('/gallery'))
-    expect(screen.getByTestId('gallery-page')).toHaveTextContent('Pattern Gallery')
+    expect(screen.getByTestId('gallery-page')).toHaveTextContent('Gallery')
     expect(usePatternStore.getState().userPatterns[0]?.src).toBe(brokenSource)
     expect(useEditorStore.getState()).toMatchObject({
       source: brokenSource,
