@@ -137,7 +137,7 @@ export function Preview({
       if (rendererRef.current) {
         rendererRef.current.resize2D(nextViewport)
         const canvasPx = cube3DCanvasPx(containerWidth, containerHeight)
-        rendererRef.current.resize3D(canvasPx)
+        rendererRef.current.resize3D(canvasPx, lightSize)
         if (useEditorStore.getState().displayDim === 3) canvas3DPxRef.current = canvasPx
         if (!usePreviewStore.getState().isRunning) loopRef.current?.renderPreviewFrame()
       }

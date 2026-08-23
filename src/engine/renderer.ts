@@ -59,9 +59,10 @@ export interface Renderer {
     positions: [number, number, number][] | null,
     opts?: { canvasPx?: number; normals?: [number, number, number][] | null },
   ): void
-  // Re-fit an existing 3D canvas without remeasuring positions or rebuilding
-  // static buffers. No-op unless the renderer is in 3D mode.
-  resize3D(canvasPx: number): void
+  // Re-fit an existing 3D canvas and optionally update its light size without
+  // remeasuring positions or rebuilding static buffers. No-op unless the
+  // renderer is in 3D mode.
+  resize3D(canvasPx: number, lightSize?: number): void
   // Update the orbit camera (auto-orbit advance, drag, reset). No-op in 2D mode.
   setCamera(camera: OrbitCamera): void
   // Magnify the active 3D projection over its automatic fit. No-op in 2D mode.
@@ -216,7 +217,8 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
           canvas.height = px
         }
       },
-      resize3D(canvasPx) {
+      resize3D(canvasPx, nextLightSize) {
+        lightSize = nextLightSize ?? lightSize
         const px = Math.max(1, Math.round(canvasPx))
         canvas.width = px
         canvas.height = px
@@ -509,8 +511,9 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
     }
   }
 
-  function resize3D(canvasPx: number): void {
+  function resize3D(canvasPx: number, nextLightSize?: number): void {
     if (!pos3D) return
+    lightSize = nextLightSize ?? lightSize
     const px = Math.max(1, Math.round(canvasPx))
     canvas.width = px
     canvas.height = px

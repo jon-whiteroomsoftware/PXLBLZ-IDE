@@ -681,7 +681,7 @@ export function ShowStagePreview({
     const renderer = rendererRef.current
     if (!renderer || !layout) return
     if (layout.draw.kind === '3d') {
-      renderer.resize3D(cube3DCanvasPx(viewportWidth))
+      renderer.resize3D(cube3DCanvasPx(viewportWidth), lightSize)
     } else {
       renderer.resize2D({ containerWidth: viewportWidth, lightSize })
     }
