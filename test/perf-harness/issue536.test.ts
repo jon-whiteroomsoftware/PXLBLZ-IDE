@@ -115,16 +115,17 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // BlueHolidayCandle2D, the latter two on one held instance; Blend and
     // Fade, Wipes, Dissolves, and Shape Reveals: Geometric recast their
     // content pair, every Transition reference drops the Murmuration
-    // backdrop, and Shape Reveals: Figures recasts to NeonCircuitBoard over
-    // MoireCathedral) move it -923 member and -185 reclaimable globals. The
-    // reclaim percent stays 0,
+    // backdrop, Shape Reveals: Figures recasts to NeonCircuitBoard over
+    // MoireCathedral, and Slide to ShapeShifter over TopographicBloom) move
+    // it -930 member and -185 reclaimable globals. The reclaim percent
+    // stays 0,
     // the weighted figure dilutes, and the stop verdict is unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 2_744,
+      representativeMemberGlobals: 2_737,
       representativeReclaimedGlobals: 21,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.00765306, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.00767263, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

@@ -2214,7 +2214,7 @@ function slideTransitionReference(): StockShow {
     purpose: 'Cover, Reveal, and Push are the three ways one picture slides in: over, out from under, or alongside the other. One slow Cover, then the rest at speed.',
     notice: 'Cover moves the new picture, Reveal moves the old one, Push moves both. Diagonal directions are a setting away in the inspector.',
     prompts: ['Change a quick Cover to a diagonal direction.', 'Switch Addressing from Clip to Wrap and compare moving edges.'],
-    guideHeading: 'slide-transition-reference', specs,
+    guideHeading: 'slide-transition-reference', specs, referencePattern: 'ShapeShifter', selectedPattern: 'TopographicBloom',
   })
 }
 
