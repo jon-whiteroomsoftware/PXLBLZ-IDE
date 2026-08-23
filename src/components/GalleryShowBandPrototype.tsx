@@ -19,14 +19,14 @@ import { GalleryLivePreview } from './GalleryLivePreview'
 
 const GALLERY_SHOWS: { id: string; byline: string; premise: string }[] = [
   {
-    id: 'stock-show-remix-quadrille',
-    byline: 'by PXLBLZ, with Wavy Bands and Line Dancer 2D by ZRanger1',
-    premise: 'Four mirrored quarters, rejoined for the finale. Two Pattern instances, one compiled Pattern.',
-  },
-  {
     id: 'stock-show-remix-overture',
     byline: 'by PXLBLZ',
     premise: 'An opening movement across the whole stage: themes introduced one at a time, then played together.',
+  },
+  {
+    id: 'stock-show-remix-quadrille',
+    byline: 'by PXLBLZ, with Wavy Bands and Line Dancer 2D by ZRanger1',
+    premise: 'Four mirrored quarters, rejoined for the finale. Two Pattern instances, one compiled Pattern.',
   },
   {
     id: 'stock-show-showcase-redline-installation',
@@ -41,6 +41,7 @@ const GALLERY_SHOWS: { id: string; byline: string; premise: string }[] = [
 ]
 
 const PX_OPTIONS = [500, 1000, 2000, 4000]
+const SHOW_BAND_DIFFUSION = 0.8
 
 function stableShowSeed(showId: string): number {
   let hash = 0x811c9dc5
@@ -146,7 +147,8 @@ function ShowBandPreview({
       )
       const params = new URLSearchParams(window.location.search)
       const lightSize = Number(params.get('ls') ?? DEV_DEFAULTS.lightSize)
-      const diffusion = Number(params.get('df') ?? DEV_DEFAULTS.diffusion)
+      // Shows read best smoothed; default above the Pattern default of 0.5.
+      const diffusion = Number(params.get('df') ?? SHOW_BAND_DIFFUSION)
       const brightness = Number(params.get('br') ?? 1)
       // StrictMode runs mount effects twice; losing the context in the first
       // cleanup would blank the second renderer. Prototype keeps the context.
@@ -279,14 +281,12 @@ function ShowBand({
   cols,
   entry,
   pixelCount,
-  rowHeight,
   gridWidth,
   onStats,
 }: {
   cols: number
   entry: (typeof GALLERY_SHOWS)[number]
   pixelCount: number
-  rowHeight: number
   gridWidth: number
   onStats: Parameters<typeof ShowBandPreview>[0]['onStats']
 }) {
@@ -294,11 +294,13 @@ function ShowBand({
   const show = stock?.show
   const durationS = show ? Math.round(showLoopDurationMs(show) / 1000) : 0
   const geometry = useMemo(() => resolveStageGeometry(entry.id, pixelCount), [entry.id, pixelCount])
-  // Two card rows tall at three and four columns, one row at two; a wide stage
-  // keeps its aspect by giving up height rather than breaking the shape.
-  const rowsHeight = cols >= 3 ? rowHeight * 2 + (cols === 3 ? 24 : 18) : rowHeight
-  const maxWidth = gridWidth * 0.7
-  const width = Math.round(Math.min(rowsHeight * geometry.aspect, maxWidth))
+  // Capped by height: every band is the same height (set so the wide
+  // installation stages fill ~70% of the grid width), and the width follows
+  // each stage's natural aspect. Square stages come out narrower.
+  const params = new URLSearchParams(window.location.search)
+  const heightRatio = Number(params.get('hr') ?? 0.4)
+  const bandHeight = Math.round(gridWidth * heightRatio)
+  const width = Math.round(Math.min(bandHeight * geometry.aspect, gridWidth * 0.7))
   const height = Math.round(width / geometry.aspect)
   return (
     <div className={`col-span-full flex min-w-0 items-center ${cols === 2 ? 'gap-6' : 'gap-[18px]'}`}>
@@ -351,7 +353,6 @@ export function GalleryShowBandPrototype() {
   const entry = GALLERY_SHOWS[showIndex]
   const patterns = GALLERY_PATTERNS.slice(0, 16)
   const gridRef = useRef<HTMLDivElement>(null)
-  const [rowHeight, setRowHeight] = useState(240)
   const [gridWidth, setGridWidth] = useState(1100)
   useEffect(() => {
     const grid = gridRef.current
@@ -359,9 +360,7 @@ export function GalleryShowBandPrototype() {
     const measure = () => {
       const style = getComputedStyle(grid)
       const inner = grid.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
-      const gapX = cols === 2 ? 24 : 18
       setGridWidth(inner)
-      setRowHeight(Math.max(1, (inner - gapX * (cols - 1)) / cols))
     }
     measure()
     const ro = new ResizeObserver(measure)
@@ -373,14 +372,14 @@ export function GalleryShowBandPrototype() {
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <main className="overflow-auto" data-gallery-scrollport>
         <div className="mx-auto flex max-w-[1180px] items-baseline gap-3 px-4 pt-5 font-mono sm:px-[22px]">
-          <span className="text-[19px] font-semibold text-zinc-100">Pattern Gallery</span>
+          <span className="text-[19px] font-semibold text-zinc-100">Gallery</span>
           <span className="text-[10.5px] text-structural">show band prototype · #894</span>
         </div>
         <div ref={gridRef} className={`mx-auto grid max-w-[1180px] grid-flow-dense grid-cols-1 px-4 pb-[26px] pt-4 sm:px-[22px] ${GRID_BY_COLS[cols] ?? GRID_BY_COLS[4]}`}>
           {patterns.slice(0, heroAfter).map((pattern, index) => (
             <PatternCard key={pattern.name} pattern={pattern} index={index} />
           ))}
-          <ShowBand cols={cols} entry={entry} pixelCount={pixelCount} rowHeight={rowHeight} gridWidth={gridWidth} onStats={setStats} />
+          <ShowBand cols={cols} entry={entry} pixelCount={pixelCount} gridWidth={gridWidth} onStats={setStats} />
           {patterns.slice(heroAfter).map((pattern, index) => (
             <PatternCard key={pattern.name} pattern={pattern} index={heroAfter + index} />
           ))}
