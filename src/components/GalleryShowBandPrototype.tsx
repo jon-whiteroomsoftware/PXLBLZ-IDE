@@ -3,7 +3,7 @@
 // The band runs a real compiled stock Show through the fast-replay runtime on
 // its own stage map so proportions, pixel count, and cost can be judged
 // against real Gallery cards (which use the landed live pool untouched).
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { DEFAULT_ORBIT, advanceAutoOrbit } from '@/engine/camera'
 import { createFastReplayRuntime } from '@/engine/fastReplay'
@@ -60,14 +60,56 @@ function writeParam(name: string, value: string): void {
   window.history.replaceState(window.history.state, '', url)
 }
 
+interface StageGeometry {
+  mapId: string
+  dim: number
+  mapPoints: MapPoint[]
+  /** Width over height of the stage's position bounds (1 for 3D). */
+  aspect: number
+}
+
+/** The band's geometry is known before the runtime exists, so the box can take
+ * the stage's natural shape and the renderer can fit it exactly. */
+function resolveStageGeometry(showId: string, pixelCount: number): StageGeometry {
+  const stock = stockShowById(showId)
+  if (!stock) throw new Error(`No stock Show ${showId}`)
+  const show = stock.show
+  const map = resolveMap(show.stageMapId ?? 'plane', [])
+  const resolved = applyNormalizeMode(map.resolve(Math.max(1, pixelCount)), 'contain')
+  const mapPoints: MapPoint[] = resolved.map((point) => {
+    const raw = point.pos ?? point.sample
+    const pos = map.dim === 3
+      ? ([raw[0] ?? 0.5, raw[1] ?? 0.5, raw[2] ?? 0.5] as [number, number, number])
+      : ([raw[0] ?? 0.5, raw[1] ?? 0.5] as [number, number])
+    return { sample: [...pos], pos } as MapPoint
+  })
+  let aspect = 1
+  if (map.dim !== 3) {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+    for (const point of mapPoints) {
+      const [x, y] = point.pos as [number, number]
+      if (x < minX) minX = x
+      if (x > maxX) maxX = x
+      if (y < minY) minY = y
+      if (y > maxY) maxY = y
+    }
+    aspect = maxY > minY && maxX > minX ? (maxX - minX) / (maxY - minY) : 1
+  }
+  return { mapId: map.id, dim: map.dim, mapPoints, aspect }
+}
+
 /** Always-live Show preview (no pool) with an FPS readout. */
 function ShowBandPreview({
   showId,
-  pixelCount,
+  geometry,
+  width,
+  height,
   onStats,
 }: {
   showId: string
-  pixelCount: number
+  geometry: StageGeometry
+  width: number
+  height: number
   onStats: (stats: { fps: number; pixels: number; dim: number; compileMs: number; frameMax: number; frameMean: number }) => void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -84,21 +126,14 @@ function ShowBandPreview({
       const stock = stockShowById(showId)
       if (!stock) throw new Error(`No stock Show ${showId}`)
       const show = stock.show
-      const map = resolveMap(show.stageMapId ?? 'plane', [])
+      const { mapPoints, dim } = geometry
+      const map = { dim }
       const t0 = performance.now()
       const compiled = compileShowForPreview(show, [], resolveShowCompilationControllerZones(show), {}, {
-        stageDimension: map.dim,
+        stageDimension: dim as 1 | 2 | 3,
       })
       const compileMs = performance.now() - t0
       if (!compiled.artifact) throw new Error(compiled.error ?? 'Show did not compile')
-      const resolved = applyNormalizeMode(map.resolve(Math.max(1, pixelCount)), 'contain')
-      const mapPoints: MapPoint[] = resolved.map((point) => {
-        const raw = point.pos ?? point.sample
-        const pos = map.dim === 3
-          ? ([raw[0] ?? 0.5, raw[1] ?? 0.5, raw[2] ?? 0.5] as [number, number, number])
-          : ([raw[0] ?? 0.5, raw[1] ?? 0.5] as [number, number])
-        return { sample: [...pos], pos } as MapPoint
-      })
       const artifact = compiled.artifact
       const runtime = createFastReplayRuntime(
         {
@@ -116,8 +151,7 @@ function ShowBandPreview({
       // StrictMode runs mount effects twice; losing the context in the first
       // cleanup would blank the second renderer. Prototype keeps the context.
       const loseOnCleanup = params.get('lose') === '1'
-      const width = Math.max(1, Math.round(host.getBoundingClientRect().width || 400))
-      const renderer = createRenderer(canvas, { containerWidth: width, lightSize })
+      const renderer = createRenderer(canvas, { containerWidth: width, containerHeight: height, lightSize })
       let camera = DEFAULT_ORBIT
       let lastCameraTs = performance.now()
       if (map.dim === 3) {
@@ -130,6 +164,7 @@ function ShowBandPreview({
       } else {
         renderer.set2DPositions(mapPoints.map((p) => p.pos as [number, number]), {
           containerWidth: width,
+          containerHeight: height,
           lightSize,
         })
       }
@@ -185,11 +220,11 @@ function ShowBandPreview({
       const message = err instanceof Error ? err.message : String(err)
       queueMicrotask(() => setError(message))
     }
-  }, [showId, pixelCount, onStats])
+  }, [showId, geometry, width, height, onStats])
 
   return (
     <div ref={hostRef} className="absolute inset-0 bg-black">
-      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+      <canvas ref={canvasRef} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
       {error && (
         <div className="absolute inset-x-2 bottom-2 rounded border border-red-400/30 bg-red-950/80 px-2 py-1 font-mono text-[10px] text-red-200">
           {error}
@@ -244,50 +279,63 @@ function ShowBand({
   cols,
   entry,
   pixelCount,
+  rowHeight,
+  gridWidth,
   onStats,
 }: {
   cols: number
   entry: (typeof GALLERY_SHOWS)[number]
   pixelCount: number
+  rowHeight: number
+  gridWidth: number
   onStats: Parameters<typeof ShowBandPreview>[0]['onStats']
 }) {
   const stock = stockShowById(entry.id)
   const show = stock?.show
   const durationS = show ? Math.round(showLoopDurationMs(show) / 1000) : 0
-  const previewSpan = cols >= 3 ? 'md:col-span-2 md:row-span-2' : ''
-  const textSpan = cols >= 4 ? 'md:col-span-2 md:row-span-2' : cols === 3 ? 'md:col-span-1 md:row-span-2' : ''
+  const geometry = useMemo(() => resolveStageGeometry(entry.id, pixelCount), [entry.id, pixelCount])
+  // Two card rows tall at three and four columns, one row at two; a wide stage
+  // keeps its aspect by giving up height rather than breaking the shape.
+  const rowsHeight = cols >= 3 ? rowHeight * 2 + (cols === 3 ? 24 : 18) : rowHeight
+  const maxWidth = gridWidth * 0.7
+  const width = Math.round(Math.min(rowsHeight * geometry.aspect, maxWidth))
+  const height = Math.round(width / geometry.aspect)
   return (
-    <>
+    <div className={`col-span-full flex min-w-0 items-center ${cols === 2 ? 'gap-6' : 'gap-[18px]'}`}>
       <a
         href="#"
         onClick={(e) => e.preventDefault()}
-        className={`group relative aspect-square min-w-0 overflow-hidden rounded-[4px] bg-black transition-shadow hover:ring-1 hover:ring-live/60 ${previewSpan}`}
+        style={{ width, height }}
+        className="group relative shrink-0 overflow-hidden rounded-[4px] bg-black transition-shadow hover:ring-1 hover:ring-live/60"
       >
-        <ShowBandPreview showId={entry.id} pixelCount={pixelCount} onStats={onStats} />
+        <ShowBandPreview showId={entry.id} geometry={geometry} width={width} height={height} onStats={onStats} />
         <span className="pointer-events-none absolute left-[9px] top-[8px] rounded border border-live/35 bg-zinc-950/75 px-[6px] py-[2px] font-mono text-[9.5px] uppercase tracking-[0.08em] text-live">
           Show
         </span>
       </a>
-      <div className={`flex min-w-0 flex-col justify-center gap-2 px-1 font-mono ${textSpan}`}>
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-2 px-1 font-mono">
         <div className="text-[15px] text-zinc-100">
           <em>{stock?.name ?? entry.id}</em>
           <span className="text-[11.5px] text-zinc-400"> {entry.byline}</span>
         </div>
         <p className="max-w-[46ch] text-[12.5px] leading-relaxed text-zinc-300">{entry.premise}</p>
-        <div className="flex gap-3 text-[10px] uppercase tracking-[0.08em] text-structural">
+        <div className="flex flex-wrap gap-3 text-[10px] uppercase tracking-[0.08em] text-structural">
           <span>{durationS}s loop</span>
           <span>{show?.scenes.length ?? 0} scenes</span>
           <span>{show?.zones.length ?? 0} zones</span>
           <span>{stock?.track}</span>
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
 export function GalleryShowBandPrototype() {
   const [cols, setColsState] = useState(() => Number(readParam('cols', '4')) || 4)
   const [pixelCount, setPxState] = useState(() => Number(readParam('px', '2000')) || 2000)
+  /** Pattern cards placed before the band: 0 = the band is the hero. */
+  const [heroAfter, setHeroAfterState] = useState(() => Number(readParam('hero', '0')) || 0)
+  const setHeroAfter = (n: number) => { writeParam('hero', String(n)); setHeroAfterState(n) }
   const [showIndex, setShowIndexState] = useState(() => {
     const id = readParam('show', GALLERY_SHOWS[0].id)
     return Math.max(0, GALLERY_SHOWS.findIndex((s) => s.id === id))
@@ -302,6 +350,24 @@ export function GalleryShowBandPrototype() {
   }
   const entry = GALLERY_SHOWS[showIndex]
   const patterns = GALLERY_PATTERNS.slice(0, 16)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const [rowHeight, setRowHeight] = useState(240)
+  const [gridWidth, setGridWidth] = useState(1100)
+  useEffect(() => {
+    const grid = gridRef.current
+    if (!grid) return
+    const measure = () => {
+      const style = getComputedStyle(grid)
+      const inner = grid.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+      const gapX = cols === 2 ? 24 : 18
+      setGridWidth(inner)
+      setRowHeight(Math.max(1, (inner - gapX * (cols - 1)) / cols))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(grid)
+    return () => ro.disconnect()
+  }, [cols])
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -310,10 +376,13 @@ export function GalleryShowBandPrototype() {
           <span className="text-[19px] font-semibold text-zinc-100">Pattern Gallery</span>
           <span className="text-[10.5px] text-structural">show band prototype · #894</span>
         </div>
-        <div className={`mx-auto grid max-w-[1180px] grid-flow-dense grid-cols-1 px-4 pb-[26px] pt-4 sm:px-[22px] ${GRID_BY_COLS[cols] ?? GRID_BY_COLS[4]}`}>
-          <ShowBand cols={cols} entry={entry} pixelCount={pixelCount} onStats={setStats} />
-          {patterns.map((pattern, index) => (
+        <div ref={gridRef} className={`mx-auto grid max-w-[1180px] grid-flow-dense grid-cols-1 px-4 pb-[26px] pt-4 sm:px-[22px] ${GRID_BY_COLS[cols] ?? GRID_BY_COLS[4]}`}>
+          {patterns.slice(0, heroAfter).map((pattern, index) => (
             <PatternCard key={pattern.name} pattern={pattern} index={index} />
+          ))}
+          <ShowBand cols={cols} entry={entry} pixelCount={pixelCount} rowHeight={rowHeight} gridWidth={gridWidth} onStats={setStats} />
+          {patterns.slice(heroAfter).map((pattern, index) => (
+            <PatternCard key={pattern.name} pattern={pattern} index={heroAfter + index} />
           ))}
         </div>
       </main>
@@ -325,6 +394,12 @@ export function GalleryShowBandPrototype() {
           cols
           {[2, 3, 4].map((n) => (
             <button key={n} type="button" aria-pressed={cols === n} onClick={() => setCols(n)} className={`rounded px-[6px] py-[1px] ${cols === n ? 'bg-amber-400/25 text-amber-100' : 'hover:bg-zinc-800'}`}>{n}</button>
+          ))}
+        </span>
+        <span className="flex items-center gap-1 border-l border-amber-400/30 pl-2">
+          hero
+          {[0, 1, 2].map((rows) => (
+            <button key={rows} type="button" aria-pressed={heroAfter === rows * cols} onClick={() => setHeroAfter(rows * cols)} className={`rounded px-[6px] py-[1px] ${heroAfter === rows * cols ? 'bg-amber-400/25 text-amber-100' : 'hover:bg-zinc-800'}`}>{rows === 0 ? 'first' : `after ${rows}`}</button>
           ))}
         </span>
         <span className="flex items-center gap-1 border-l border-amber-400/30 pl-2">
