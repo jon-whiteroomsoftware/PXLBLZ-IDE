@@ -32,6 +32,7 @@ import { ControllerSavedProgramsPane } from '@/components/ControllerSavedProgram
 import { ControllerProfilesEmptyState } from '@/components/ControllerProfilesEmptyState'
 import { ShowEditor } from '@/components/ShowEditor'
 import { ShowEditorOverhaulPrototype } from '@/components/ShowEditorOverhaulPrototype'
+import { GalleryShowBandPrototype } from '@/components/GalleryShowBandPrototype'
 import { ShowStagePreview } from '@/components/ShowStagePreview'
 import { ShowCreationFlow, type ShowCreationMapOption } from '@/components/ShowCreationFlow'
 import { useControllerStore } from '@/store/controllerStore'
@@ -324,6 +325,9 @@ function StudioWelcomePage({
 export default function App() {
   if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('prototype') === 'show-overhaul') {
     return <ShowEditorOverhaulPrototype />
+  }
+  if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('prototype') === 'gallery-show-band') {
+    return <GalleryShowBandPrototype />
   }
   return <StudioApp />
 }
