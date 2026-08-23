@@ -138,7 +138,7 @@ type CatalogueInput = {
   reference?: ShowReferenceGuide
 }
 
-const UPDATED_AT = 363
+const UPDATED_AT = 364
 // 44 x 44. The largest complete square under SHOW_MAX_OUTPUT_PIXELS (2,000):
 // the plane map derives cols = ceil(sqrt(n)), so 2,000 leaves a 45-wide grid
 // with a ragged 20-pixel final row.
@@ -2715,8 +2715,8 @@ function effectShowcase(kind: ShowcaseKind): StockShow {
   const configs = {
     transform: {
       id: 'stock-show-showcase-transform-effects', title: 'Transform and Address Effects', order: 1,
-      source: 'CompassRose',
-      purpose: 'The compass moves continuously between affine Effect states, so each coordinate transformation is visible on its cardinal points; Wrap then changes the address policy rather than a coordinate.',
+      source: 'TunnelOfSquares2D',
+      purpose: 'The tunnel moves continuously between affine Effect states, so each coordinate transformation is visible on its nested square edges; Wrap then changes the address policy rather than a coordinate.',
       notice: 'Translate, Scale, Rotate, and Shear interpolate as one stable Effect stack. Wrap is discrete because it changes where out-of-range samples come from, not where pixels go.',
       prompts: ['Change Rotate from 0.125 to 0.25 turns.', 'Move Wrap before Translate and compare the result.'] as const,
       heading: 'transform-and-address-effects',
@@ -2794,7 +2794,9 @@ function effectShowcase(kind: ShowcaseKind): StockShow {
     )
     composition = {
       version: 1,
-      executionModel: 'deterministic-loop',
+      // deterministic-loop withheld (#823): TunnelOfSquares2D member state
+      // drifts at the Show End wrap (measured, #63); upgrade path is engine
+      // state snapshot/restore (#841).
       patternInstances: [
         instance(affineInstanceId, config.source, 0.35),
         instance(wrapInstanceId, config.source, 0.35),

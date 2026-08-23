@@ -766,7 +766,7 @@ describe('stock Show curriculum (#363)', () => {
       })
     }
 
-    expect(slotPatternNames('stock-show-showcase-transform-effects')).toEqual(['CompassRose'])
+    expect(slotPatternNames('stock-show-showcase-transform-effects')).toEqual(['TunnelOfSquares2D'])
     expect(slotPatternNames('stock-show-reference-aperture-shapes')).toEqual([
       'MetaballGarden',
       'CompassRose',
