@@ -2693,9 +2693,9 @@ type ShowcaseKind = 'transform' | 'distortion' | 'color-adjustment'
 
 // Effects references are recast from TestPattern2D to real Patterns that
 // still diagnose. CompassRose's cardinal points make translation, rotation,
-// and address wrap unmistakable; StainedGlassWeather's leaded panes bend
-// visibly under distortion and carry enough distinct hues to expose every
-// color adjustment (probe: lum 0.317, flux 0.069 - the calmest bright
+// and address wrap unmistakable; Mandelbrot2D's coastline bends visibly
+// under distortion; StainedGlassWeather's leaded panes carry enough
+// distinct hues to expose every color adjustment (probe: lum 0.317, flux 0.069 - the calmest bright
 // multi-hue source in the corpus). Pacing follows the editor rule: a
 // reference beat, one exemplar long enough to study, then quicker cuts.
 function effectShowcase(kind: ShowcaseKind): StockShow {
@@ -2731,9 +2731,9 @@ function effectShowcase(kind: ShowcaseKind): StockShow {
     },
     distortion: {
       id: 'stock-show-showcase-distortion-effects', title: 'Distortion Effects', order: 2,
-      source: 'StainedGlassWeather',
-      purpose: 'Distortion Effects bend the picture without touching the Pattern. The leaded panes of the glass warp, ripple, and shatter, so the shape and strength of each bend is easy to see.',
-      notice: 'Ripple gets the long look; the others pass quickly because they differ at a glance. Every one of them bends the same slow glass.',
+      source: 'Mandelbrot2D',
+      purpose: 'Distortion Effects bend the picture without touching the Pattern. The fractal\'s coastline warps, ripples, and shatters, so the shape and strength of each bend is easy to see.',
+      notice: 'Ripple gets the long look; the others pass quickly because they differ at a glance. Every one of them bends the same slow fractal.',
       prompts: ['Move the Swirl center to 0.25, 0.50.', 'Reduce Kaleidoscope segments from 6 to 3.'] as const,
       heading: 'distortion-effects',
       rows: [
