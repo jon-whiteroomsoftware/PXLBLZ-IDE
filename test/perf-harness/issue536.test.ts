@@ -113,15 +113,16 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // frozen vintage. The #63 showcase recasts (Transform on
     // TunnelOfSquares2D, Distortion on Mandelbrot2D, Color Adjustment on
     // BlueHolidayCandle2D, the latter two on one held instance; Blend and
-    // Fade's reference side on MetaballsOfFire2D) move it -164 member and
-    // -52 reclaimable globals. The reclaim percent stays 0,
+    // Fade, Wipes, and Dissolves recast their content pair and, with Easing,
+    // drop the Murmuration backdrop) move it -681 member and -155
+    // reclaimable globals. The reclaim percent stays 0,
     // the weighted figure dilutes, and the stop verdict is unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 3_503,
-      representativeReclaimedGlobals: 154,
+      representativeMemberGlobals: 2_986,
+      representativeReclaimedGlobals: 51,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.04396232, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.01707971, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(
