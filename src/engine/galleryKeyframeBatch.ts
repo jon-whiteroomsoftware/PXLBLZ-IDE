@@ -15,7 +15,7 @@ export function galleryKeyframeSubjects(): { subject: GallerySubject; selection?
     ...GALLERY_PATTERNS.map((pattern) => ({ subject: { kind: 'pattern' as const, name: pattern.name, src: pattern.src } })),
     ...GALLERY_SHOWS.map((show) => ({
       subject: { kind: 'show' as const, id: show.id },
-      selection: { startMs: 1000, endMs: galleryShowFacts(show).loopSeconds * 1000, sampleMs: GALLERY_SHOW_KEYFRAME_SAMPLE_MS },
+      selection: { startMs: 1000, endMs: galleryShowFacts(show).loopMs, sampleMs: GALLERY_SHOW_KEYFRAME_SAMPLE_MS },
     })),
   ]
 }

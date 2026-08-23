@@ -6,8 +6,8 @@ import { ArrowLeft } from 'lucide-react'
 import { controlIcon } from '@/components/iconScale'
 import { Button } from '@/components/ui/button'
 import {
-  GALLERY_SHOW_PIXEL_COUNT,
   galleryShowFacts,
+  galleryShowPixelCount,
   galleryShowStock,
   resolveGalleryShowGeometry,
   type GalleryShow,
@@ -65,8 +65,8 @@ export function ShowDetailPage({ show }: { show: GalleryShow }) {
             <GalleryLivePreview
               subject={subject}
               index={0}
-              cost={GALLERY_SHOW_PIXEL_COUNT}
-              loopMs={facts.loopSeconds * 1000}
+              cost={galleryShowPixelCount(show)}
+              loopMs={facts.loopMs}
               label={facts.title}
             />
           </div>

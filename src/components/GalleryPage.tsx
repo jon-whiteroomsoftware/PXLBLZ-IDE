@@ -21,8 +21,8 @@ import { estimateGallerySubjectCost } from '@/engine/gallerySubject'
 import {
   GALLERY_SHOWS,
   GALLERY_SHOW_CAPTION_WIDTH_RATIO,
-  GALLERY_SHOW_PIXEL_COUNT,
   galleryShowBandBox,
+  galleryShowPixelCount,
   galleryShowFacts,
   galleryShowInsertionIndexes,
   resolveGalleryShowGeometry,
@@ -185,16 +185,18 @@ function ShowBand({
   const box = galleryShowBandBox(gridWidth, aspect)
   const anchorId = galleryShowAnchorId(show.slug)
   const subject = useMemo(() => ({ kind: 'show' as const, id: show.id }), [show.id])
+  // Spotlight holds while either the pointer or keyboard focus is on the band.
+  const attention = useRef({ hover: false, focus: false })
   return (
     <div
       className="col-span-full flex min-w-0 items-center gap-[18px]"
       data-testid="gallery-show-band"
       data-show-id={show.id}
       data-spotlit={spotlit || undefined}
-      onMouseEnter={() => onSpotlight(show.id)}
-      onMouseLeave={() => onSpotlight(null)}
-      onFocus={() => onSpotlight(show.id)}
-      onBlur={() => onSpotlight(null)}
+      onMouseEnter={() => { attention.current.hover = true; onSpotlight(show.id) }}
+      onMouseLeave={() => { attention.current.hover = false; if (!attention.current.focus) onSpotlight(null) }}
+      onFocus={() => { attention.current.focus = true; onSpotlight(show.id) }}
+      onBlur={() => { attention.current.focus = false; if (!attention.current.hover) onSpotlight(null) }}
     >
       <button
         id={anchorId}
@@ -211,8 +213,8 @@ function ShowBand({
         <GalleryLivePreview
           subject={subject}
           index={index}
-          cost={GALLERY_SHOW_PIXEL_COUNT}
-          loopMs={facts.loopSeconds * 1000}
+          cost={galleryShowPixelCount(show)}
+          loopMs={facts.loopMs}
           label={facts.title}
         />
         <span className="pointer-events-none absolute left-[9px] top-[8px] rounded border border-live/35 bg-zinc-950/75 px-[6px] py-[2px] font-mono text-[9.5px] uppercase tracking-[0.08em] text-live">
@@ -259,7 +261,7 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
   )
   // Bands appear in the unfiltered Gallery and in the Shows directory only:
   // a dimension lens, a Pattern directory, or a search is about Patterns.
-  const showsVisible = (category === GALLERY_ALL_CATEGORY && lens === 'all' && query.trim() === '') || showsOnly
+  const showsVisible = (category === GALLERY_ALL_CATEGORY || showsOnly) && lens === 'all' && query.trim() === ''
   const bandBefore = useMemo(() => {
     const map = new Map<number, GalleryShow[]>()
     if (!showsVisible) return map
@@ -288,7 +290,7 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
 
   useEffect(() => {
     const anchorId = decodeURIComponent(window.location.hash.slice(1))
-    if (!anchorId.startsWith('gallery-')) return
+    if (!anchorId.startsWith('gallery-') && !anchorId.startsWith('show-')) return
     const frame = window.requestAnimationFrame(() => {
       document.getElementById(anchorId)?.scrollIntoView({ block: 'center' })
     })
@@ -403,7 +405,7 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
         </div>
       ) : (
         <div className="mx-auto max-w-[1180px] px-4 py-10 font-mono text-sm text-structural sm:px-[22px]">
-          No patterns match those filters.
+          {showsOnly ? 'Shows are listed without a dimension or search filter.' : 'No patterns match those filters.'}
         </div>
       )}
     </main>

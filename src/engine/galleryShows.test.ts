@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { createFastReplayRuntime } from './fastReplay'
 import {
   GALLERY_SHOWS,
+  GALLERY_SHOW_PIXEL_COUNT,
   galleryShowBandBox,
+  galleryShowPixelCount,
+  galleryShowStock,
   galleryShowBySlug,
   galleryShowFacts,
   galleryShowInsertionIndexes,
@@ -39,6 +42,16 @@ describe('Gallery Shows catalogue', () => {
       const result = runtime.advanceLive(16)
       expect(result.frame.length).toBe(geometry.mapPoints.length * 3)
     }
+  })
+
+  it('resolves installation Shows at their contract count and portable Shows at the Gallery count', () => {
+    for (const show of GALLERY_SHOWS) {
+      const contract = galleryShowStock(show).show.outputContract
+      const expected = contract?.kind === 'installation' ? contract.pixelCount : GALLERY_SHOW_PIXEL_COUNT
+      expect(galleryShowPixelCount(show)).toBe(expected)
+      expect(resolveGalleryShowGeometry(show).mapPoints.length).toBe(expected)
+    }
+    expect(GALLERY_SHOWS.some((show) => galleryShowStock(show).show.outputContract?.kind === 'installation')).toBe(true)
   })
 
   it('keeps a wide stage wide and a 3D stage square', () => {

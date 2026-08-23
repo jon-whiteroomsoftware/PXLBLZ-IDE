@@ -74,6 +74,8 @@ export function galleryShowStock(show: GalleryShow): StockShow {
 
 export interface GalleryShowFacts {
   title: string
+  /** Exact loop length; the thermometer and keyframe window use this. */
+  loopMs: number
   loopSeconds: number
   sceneCount: number
   zoneCount: number
@@ -82,9 +84,11 @@ export interface GalleryShowFacts {
 
 export function galleryShowFacts(show: GalleryShow): GalleryShowFacts {
   const stock = galleryShowStock(show)
+  const loopMs = showLoopDurationMs(stock.show)
   return {
     title: stock.name,
-    loopSeconds: Math.round(showLoopDurationMs(stock.show) / 1000),
+    loopMs,
+    loopSeconds: Math.round(loopMs / 1000),
     sceneCount: stock.show.scenes.length,
     zoneCount: stock.show.zones.length,
     track: stock.track,
@@ -99,12 +103,20 @@ export interface GalleryShowGeometry {
   aspect: number
 }
 
-/** The Show's own stage map, resolved at the Gallery pixel count with the
- * stage's true proportions kept ('contain'), so a wide installation reads as
- * the installation, gaps between zones included. */
+/** An installation Show is compiled for a fixed output count; its stage map
+ * only lays out correctly at that count. Portable Shows scale to the Gallery
+ * count. */
+export function galleryShowPixelCount(show: GalleryShow): number {
+  const contract = galleryShowStock(show).show.outputContract
+  return contract?.kind === 'installation' && contract.pixelCount > 0 ? contract.pixelCount : GALLERY_SHOW_PIXEL_COUNT
+}
+
+/** The Show's own stage map, resolved at the Show's Gallery pixel count with
+ * the stage's true proportions kept ('contain'), so a wide installation reads
+ * as the installation, gaps between zones included. */
 export function resolveGalleryShowGeometry(
   show: GalleryShow,
-  pixelCount = GALLERY_SHOW_PIXEL_COUNT,
+  pixelCount = galleryShowPixelCount(show),
 ): GalleryShowGeometry {
   const stock = galleryShowStock(show)
   const map = resolveMap(stock.show.stageMapId ?? 'plane', [])

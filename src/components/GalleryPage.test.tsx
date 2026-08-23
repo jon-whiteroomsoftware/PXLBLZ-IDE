@@ -111,10 +111,33 @@ describe('Gallery Shows (#894)', () => {
     expect(screen.queryAllByTestId('gallery-show-band')).toHaveLength(0)
   })
 
-  it('lists only bands in the Shows directory', () => {
+  it('lists only bands in the Shows directory, and honours lens and search there too', () => {
     render(<GalleryPage directory={{ label: 'Shows', slug: 'shows' }} />)
     expect(screen.getAllByTestId('gallery-show-band')).toHaveLength(4)
     expect(screen.queryByRole('button', { name: /IridescentFibers/ })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Search patterns'), { target: { value: 'x' } })
+    expect(screen.queryAllByTestId('gallery-show-band')).toHaveLength(0)
+    expect(screen.getByText('Shows are listed without a dimension or search filter.')).toBeInTheDocument()
+  })
+
+  it('keeps the spotlight while the band is focused after the pointer leaves', () => {
+    render(<GalleryPage />)
+    const grid = screen.getByTestId('gallery-grid')
+    const band = screen.getAllByTestId('gallery-show-band')[0]
+    fireEvent.focus(band)
+    fireEvent.mouseEnter(band)
+    fireEvent.mouseLeave(band)
+    expect(grid).toHaveAttribute('data-spotlight')
+    fireEvent.blur(band)
+    expect(grid).not.toHaveAttribute('data-spotlight')
+  })
+
+  it('restores a bookmarked Show band into view', async () => {
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+    window.history.replaceState(null, '', '/gallery#show-quadrille')
+    render(<GalleryPage />)
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' }))
   })
 
   it('dims everything else while a band is hovered or focused, and only for Shows', () => {

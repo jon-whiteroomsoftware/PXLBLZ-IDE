@@ -134,7 +134,8 @@ public Gallery Pattern and Gallery Show has a current keyframe.
 geometry rules (height 0.4 x grid width, width from the stage's aspect, capped
 at 0.7 x grid width; caption at most 0.8 x preview width), and
 `resolveGalleryShowGeometry` / `prepareGalleryShow`, which resolve the Show's
-own stage map at `GALLERY_SHOW_PIXEL_COUNT` (2,000) with 'contain'
+own stage map — at its output contract's count for an installation Show, at
+`GALLERY_SHOW_PIXEL_COUNT` (2,000) for a portable one — with 'contain'
 normalization and compile it through `compileShowForPreview` exactly as the
 stage preview does. `gallerySubject.ts` resolves a Pattern or a Show to one
 runtime shape (prepared artifact, geometry, look, keyframe key, pixel cost), so

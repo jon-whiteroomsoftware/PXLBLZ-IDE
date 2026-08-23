@@ -6,8 +6,8 @@ import { prepareFastReplay, type PreparedFastReplay } from './fastReplay'
 import { GALLERY_KEYFRAME_RANDOM_SEED, galleryKeyframeKey } from './galleryKeyframes'
 import {
   GALLERY_SHOW_DIFFUSION,
-  GALLERY_SHOW_PIXEL_COUNT,
   galleryShowById,
+  galleryShowPixelCount,
   prepareGalleryShow,
   resolveGalleryShowGeometry,
   type GalleryShow,
@@ -91,7 +91,10 @@ export function resolveGalleryShowSubject(show: GalleryShow): ResolvedGallerySub
 /** Pixel cost without compiling: enough for live-pool admission. The exact
  * cost comes with the resolved subject. */
 export function estimateGallerySubjectCost(subject: GallerySubject, dim: 1 | 2 | 3): number {
-  if (subject.kind === 'show') return GALLERY_SHOW_PIXEL_COUNT
+  if (subject.kind === 'show') {
+    const show = galleryShowById(subject.id)
+    return show ? galleryShowPixelCount(show) : 0
+  }
   const settings = galleryThumbnailSettings(subject.name)
   return galleryThumbnailPixelCount(dim, settings.pixelCount, defaultPixelCountForDim(dim))
 }
