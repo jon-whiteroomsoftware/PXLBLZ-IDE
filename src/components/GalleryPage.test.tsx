@@ -132,6 +132,23 @@ describe('Gallery Shows (#894)', () => {
     expect(grid).not.toHaveAttribute('data-spotlight')
   })
 
+  it('arbitrates overlapping attention across bands: pointer wins while present, focus otherwise', () => {
+    render(<GalleryPage />)
+    const grid = screen.getByTestId('gallery-grid')
+    const [a, b] = screen.getAllByTestId('gallery-show-band')
+    fireEvent.focus(a)
+    expect(grid).toHaveAttribute('data-spotlight', a.dataset.showId)
+    fireEvent.mouseEnter(b)
+    expect(grid).toHaveAttribute('data-spotlight', b.dataset.showId)
+    fireEvent.mouseLeave(b)
+    expect(grid).toHaveAttribute('data-spotlight', a.dataset.showId)
+    // A stale leave from a band that is not the hovered one changes nothing.
+    fireEvent.mouseLeave(b)
+    expect(grid).toHaveAttribute('data-spotlight', a.dataset.showId)
+    fireEvent.blur(a)
+    expect(grid).not.toHaveAttribute('data-spotlight')
+  })
+
   it('restores a bookmarked Show band into view', async () => {
     const scrollIntoView = vi.fn()
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })

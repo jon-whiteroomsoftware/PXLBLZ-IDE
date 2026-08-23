@@ -136,20 +136,20 @@ function GalleryCardSlot({
   index,
   bands,
   gridWidth,
-  onSpotlight,
+  onAttention,
   spotlightShowId,
 }: {
   pattern: GalleryPattern
   index: number
   bands: GalleryShow[] | undefined
   gridWidth: number
-  onSpotlight: (showId: string | null) => void
+  onAttention: (kind: 'hover' | 'focus', showId: string, present: boolean) => void
   spotlightShowId: string | null
 }) {
   return (
     <>
       {(bands ?? []).map((show) => (
-        <ShowBand key={show.id} show={show} index={index} gridWidth={gridWidth} onSpotlight={onSpotlight} spotlit={spotlightShowId === show.id} />
+        <ShowBand key={show.id} show={show} index={index} gridWidth={gridWidth} onAttention={onAttention} spotlit={spotlightShowId === show.id} />
       ))}
       <GalleryCard pattern={pattern} index={index} />
     </>
@@ -169,14 +169,14 @@ function ShowBand({
   show,
   index,
   gridWidth,
-  onSpotlight,
+  onAttention,
   spotlit,
 }: {
   show: GalleryShow
   index: number
   gridWidth: number
   /** Hover or focus on a band brings the house lights down elsewhere. */
-  onSpotlight: (showId: string | null) => void
+  onAttention: (kind: 'hover' | 'focus', showId: string, present: boolean) => void
   spotlit: boolean
 }) {
   const navigate = useRouterStore((s) => s.navigate)
@@ -185,18 +185,16 @@ function ShowBand({
   const box = galleryShowBandBox(gridWidth, aspect)
   const anchorId = galleryShowAnchorId(show.slug)
   const subject = useMemo(() => ({ kind: 'show' as const, id: show.id }), [show.id])
-  // Spotlight holds while either the pointer or keyboard focus is on the band.
-  const attention = useRef({ hover: false, focus: false })
   return (
     <div
       className="col-span-full flex min-w-0 items-center gap-[18px]"
       data-testid="gallery-show-band"
       data-show-id={show.id}
       data-spotlit={spotlit || undefined}
-      onMouseEnter={() => { attention.current.hover = true; onSpotlight(show.id) }}
-      onMouseLeave={() => { attention.current.hover = false; if (!attention.current.focus) onSpotlight(null) }}
-      onFocus={() => { attention.current.focus = true; onSpotlight(show.id) }}
-      onBlur={() => { attention.current.focus = false; if (!attention.current.hover) onSpotlight(null) }}
+      onMouseEnter={() => onAttention('hover', show.id, true)}
+      onMouseLeave={() => onAttention('hover', show.id, false)}
+      onFocus={() => onAttention('focus', show.id, true)}
+      onBlur={() => onAttention('focus', show.id, false)}
     >
       <button
         id={anchorId}
@@ -272,8 +270,18 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
   }, [patterns.length, showsVisible])
   const gridRef = useRef<HTMLDivElement>(null)
   const [gridWidth, setGridWidth] = useState(1136)
-  // Spotlight: while a band is hovered or focused, everything else dims.
-  const [spotlightShowId, setSpotlightShowId] = useState<string | null>(null)
+  // Spotlight: while a band is hovered or focused, everything else dims. Hover
+  // and focus are tracked per source so overlapping attention (focus on one
+  // band, pointer passing over another) never strands or clears the light;
+  // the pointer wins while present, focus otherwise.
+  const [attention, setAttention] = useState<{ hover: string | null; focus: string | null }>({ hover: null, focus: null })
+  const onAttention = (kind: 'hover' | 'focus', showId: string, present: boolean) =>
+    setAttention((prev) => {
+      const current = prev[kind]
+      if (present) return current === showId ? prev : { ...prev, [kind]: showId }
+      return current === showId ? { ...prev, [kind]: null } : prev
+    })
+  const spotlightShowId = attention.hover ?? attention.focus
   useEffect(() => {
     const grid = gridRef.current
     if (!grid || typeof ResizeObserver === 'undefined') return
@@ -395,12 +403,12 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
               index={index}
               bands={bandBefore.get(index)}
               gridWidth={gridWidth}
-              onSpotlight={setSpotlightShowId}
+              onAttention={onAttention}
               spotlightShowId={spotlightShowId}
             />
           ))}
           {(bandBefore.get(patterns.length) ?? []).map((show) => (
-            <ShowBand key={show.id} show={show} index={patterns.length} gridWidth={gridWidth} onSpotlight={setSpotlightShowId} spotlit={spotlightShowId === show.id} />
+            <ShowBand key={show.id} show={show} index={patterns.length} gridWidth={gridWidth} onAttention={onAttention} spotlit={spotlightShowId === show.id} />
           ))}
         </div>
       ) : (
