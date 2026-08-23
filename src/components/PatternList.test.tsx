@@ -827,7 +827,7 @@ describe('PatternList', () => {
     expect(within(builtInTree).getByRole('treeitem', { name: /^Showcases/ })).toHaveAttribute('aria-expanded', 'true')
     expect(within(builtInTree).getByRole('treeitem', { name: /^Portable Shows/ })).toHaveAttribute('aria-expanded', 'true')
     expect(within(builtInTree).getByRole('treeitem', { name: /^Installations/ })).toHaveAttribute('aria-expanded', 'true')
-    expect(within(builtInTree).getByText('Coronal Mass Ejection PXLBLZ remix')).toBeInTheDocument()
+    expect(within(builtInTree).getByText('Coronal Mass Ejection Remix')).toBeInTheDocument()
     expect(within(builtInTree).getByText('Quadrille')).toBeInTheDocument()
     expect(within(builtInTree).getByText('Redline Installation')).toBeInTheDocument()
     expect(within(builtInTree).getByText('Overture Installation')).toBeInTheDocument()

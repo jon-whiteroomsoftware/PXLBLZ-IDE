@@ -2183,7 +2183,7 @@ describe('ControllerProfilePage', () => {
           transforms: [],
           artifactHash: 'remix-hash',
           stampedAt: '2026-08-07T00:00:00.000Z',
-          name: 'Coronal Mass Ejection PXLBLZ remix',
+          name: 'Coronal Mass Ejection Remix',
           showOutputContract: {
             version: 1,
             kind: 'portable-2d',
@@ -2196,7 +2196,7 @@ describe('ControllerProfilePage', () => {
     })
 
     const showLink = await screen.findByRole('button', {
-      name: 'Coronal Mass Ejection PXLBLZ remix',
+      name: 'Coronal Mass Ejection Remix',
     })
     expect(showLink).toHaveClass('truncate')
     expect(screen.getByText('Show output · Portable 2D')).toBeInTheDocument()
@@ -2223,7 +2223,7 @@ describe('ControllerProfilePage', () => {
           transforms: [],
           artifactHash: 'remix-hash',
           stampedAt: '2026-08-07T00:00:00.000Z',
-          name: 'Coronal Mass Ejection PXLBLZ remix',
+          name: 'Coronal Mass Ejection Remix',
           showOutputContract: {
             version: 1,
             kind: 'portable-2d',
@@ -2235,9 +2235,9 @@ describe('ControllerProfilePage', () => {
       },
     })
 
-    expect(await screen.findByText('Coronal Mass Ejection PXLBLZ remix')).toBeInTheDocument()
+    expect(await screen.findByText('Coronal Mass Ejection Remix')).toBeInTheDocument()
     expect(screen.queryByRole('button', {
-      name: 'Coronal Mass Ejection PXLBLZ remix',
+      name: 'Coronal Mass Ejection Remix',
     })).not.toBeInTheDocument()
     expect(screen.getByText('Show output · Portable 2D')).toBeInTheDocument()
   })

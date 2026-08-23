@@ -73,7 +73,7 @@ describe('stock Show curriculum (#363)', () => {
       ['Zone Layouts: Stripes & Grid', 'showcases', null, 18],
       ['Zone Layouts: Radial', 'showcases', null, 19],
       ['Redline Installation', 'installations', null, 1],
-      ['Coronal Mass Ejection PXLBLZ remix', 'portable-shows', null, 1],
+      ['Coronal Mass Ejection Remix', 'portable-shows', null, 1],
       ['Quadrille', 'portable-shows', null, 2],
       ['Overture Installation', 'installations', null, 2],
     ])
@@ -1790,7 +1790,7 @@ describe('stock Show curriculum (#363)', () => {
       expect(item.note.label).toBe('Portable Shows')
       expect([item.note.purpose, item.note.notice].join(' ')).toContain('ZRanger1')
       const show = item.show
-      expect(show.name).toBe('Coronal Mass Ejection PXLBLZ remix')
+      expect(show.name).toBe('Coronal Mass Ejection Remix')
       expect(show.cells).toHaveLength(1)
       expect(show.cells[0]).toMatchObject({
         sceneSpan: 2,

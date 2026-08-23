@@ -3296,7 +3296,7 @@ function remixTrack(
 
 function remixCoronalMassEjection(): StockShow {
   const id = 'stock-show-remix-coronal-mass-ejection'
-  const name = 'Coronal Mass Ejection PXLBLZ remix'
+  const name = 'Coronal Mass Ejection Remix'
   const INTRO_MS = 8_000
   /** 36s gesture plus two bars of black before the loop restarts. */
   const DURATION_MS = 40_000

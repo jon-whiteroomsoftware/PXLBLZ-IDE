@@ -12,7 +12,7 @@
 // scrolling turbulence field is thresholded with smoothstep into discrete
 // flares, and hue rides the flare field so the core stays white-hot while
 // ejecta cool toward the rim. This is the Pattern the built-in "Coronal Mass
-// Ejection PXLBLZ remix" Show choreographs.
+// Ejection Remix" Show choreographs.
 
 // Coronal Mass Ejection 2D
 // A demonstration of Pixelblaze's Perlin noise and smoothstep functions
