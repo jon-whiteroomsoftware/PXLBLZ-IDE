@@ -58,7 +58,7 @@ import {
   normalizeShowDissolveSeed,
   normalizeShowDissolveSoftness,
 } from './showDissolve'
-import { normalizeShowRevealMode, showShapeRevealMaxDistance } from './showShapeReveal'
+import { normalizeShowRevealMode, showShapeRevealMaxDistance, crescentGeometry, CRESCENT_HOLE_RATIO } from './showShapeReveal'
 import { normalizeShowMotionTransition, showMotionTransitionVector } from './showMotionTransition'
 import {
   applyShowEffectsToSample,
@@ -8911,15 +8911,18 @@ var __pxlblz_show_portal_distance = max(abs(__pxlblz_show_portal_rx) / ${Math.sq
 var __pxlblz_show_portal_sx = __pxlblz_show_portal_rx / ${rootAspect}
 var __pxlblz_show_portal_sy = __pxlblz_show_portal_ry * ${rootAspect}
 ${catalogueMetric.prelude ? `${catalogueMetric.prelude}\n` : ''}var __pxlblz_show_portal_distance = ${catalogueMetric.expression}`
-  // Ring and Crescent fill in over the reveal's last quarter-power so they
-  // end covered instead of cutting (#63); mirrors showShapeRevealSignedDistance.
+  // Ring floods its inside over the reveal's last quarter-power so it ends
+  // covered instead of cutting (#63); mirrors showShapeRevealSignedDistance.
   const fraction = revealMode === 'shrink-outgoing' ? '(1 - __pxlblz_show_mix)' : '__pxlblz_show_mix'
-  const fillPrelude = shape === 'ring' || shape === 'crescent'
+  const fillPrelude = shape === 'ring'
     ? `\nvar __pxlblz_show_portal_fraction = ${fraction}\nvar __pxlblz_show_portal_fill = 1 - __pxlblz_show_portal_fraction * __pxlblz_show_portal_fraction * __pxlblz_show_portal_fraction * __pxlblz_show_portal_fraction`
     : ''
+  // The crescent keeps its proportions and slides right as it scales so its
+  // thickest point stays at the reveal center; mirrors crescentGeometry.
+  const crescentUnit = crescentGeometry(crescentOffset, 1)
   const crescentSigned = `max(
-  hypot(__pxlblz_show_portal_sx, __pxlblz_show_portal_sy) - __pxlblz_show_portal_radius,
-  __pxlblz_show_portal_radius * 0.78 * __pxlblz_show_portal_fill - hypot(__pxlblz_show_portal_sx - ${crescentOffset} * __pxlblz_show_portal_radius, __pxlblz_show_portal_sy)
+  hypot(__pxlblz_show_portal_sx - ${crescentUnit.centerShift} * __pxlblz_show_portal_radius, __pxlblz_show_portal_sy) - ${crescentUnit.outerRadius} * __pxlblz_show_portal_radius,
+  ${CRESCENT_HOLE_RATIO * crescentUnit.outerRadius} * __pxlblz_show_portal_radius - hypot(__pxlblz_show_portal_sx - ${crescentUnit.centerShift + crescentUnit.holeOffset} * __pxlblz_show_portal_radius, __pxlblz_show_portal_sy)
 )`
   const ringSigned = `max(
   __pxlblz_show_portal_distance - __pxlblz_show_portal_radius - ${ringWidth / 2},

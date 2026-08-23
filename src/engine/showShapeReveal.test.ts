@@ -2,7 +2,7 @@ import {
   normalizeShowRevealMode,
   showShapeRevealDistance,
   showShapeRevealMaxDistance,
-  showShapeRevealSignedDistance, HEART_HALF_DIAGONAL } from './showShapeReveal'
+  showShapeRevealSignedDistance, HEART_HALF_DIAGONAL, crescentGeometry, CRESCENT_HOLE_RATIO } from './showShapeReveal'
 import { createDefaultShow, normalizeShowTransitionState, showRecordToCompileRecipe } from './showModel'
 import { compileShow } from './showCompiler'
 
@@ -241,13 +241,31 @@ describe('common and signature SDF catalogue (#452)', () => {
   it('cuts a real crescent hole while preserving Grow and Shrink polarity', () => {
     const shared = {
       centerX: 0.5, centerY: 0.5, shape: 'crescent' as const,
-      progress: 0.65, scale: 1, crescentOffset: 0.45,
+      progress: 0.3, scale: 1, crescentOffset: 0.45,
     }
+    // The thick part sits at the center; the cutout opens to the right.
     const litCrescent = showShapeRevealSignedDistance({ ...shared, x: 0.32, y: 0.5, revealMode: 'grow-incoming' })
-    const cutout = showShapeRevealSignedDistance({ ...shared, x: 0.58, y: 0.5, revealMode: 'grow-incoming' })
+    const cutout = showShapeRevealSignedDistance({ ...shared, x: 0.9, y: 0.5, revealMode: 'grow-incoming' })
     expect(litCrescent).toBeLessThan(0)
     expect(cutout).toBeGreaterThan(0)
     expect(showShapeRevealSignedDistance({ ...shared, x: 0.32, y: 0.5, revealMode: 'shrink-outgoing' }))
       .toBeGreaterThan(0)
+  })
+
+  it('ends the Crescent covered with its thickest point at the center (#63)', () => {
+    const shared = { centerX: 0.5, centerY: 0.5, shape: 'crescent' as const, scale: 1, crescentOffset: 0.45 }
+    // At full progress every stage corner is inside the thick part.
+    for (const [x, y] of [[0, 0], [1, 0], [0, 1], [1, 1], [0.5, 0.5]] as const) {
+      expect(showShapeRevealSignedDistance({ ...shared, x, y, progress: 1, revealMode: 'grow-incoming' })).toBeLessThanOrEqual(0)
+    }
+    // The crescent's proportions do not change with progress: the cutout's
+    // left edge sits at a fixed multiple of the reveal radius.
+    const { outerRadius, centerShift, holeOffset } = crescentGeometry(0.45, 1)
+    const edge = centerShift + holeOffset - CRESCENT_HOLE_RATIO * outerRadius
+    for (const progress of [0.2, 0.4]) {
+      const radius = progress * Math.SQRT1_2
+      expect(showShapeRevealSignedDistance({ ...shared, x: 0.5 + edge * radius - 0.002, y: 0.5, progress, revealMode: 'grow-incoming' })).toBeLessThan(0)
+      expect(showShapeRevealSignedDistance({ ...shared, x: 0.5 + edge * radius + 0.002, y: 0.5, progress, revealMode: 'grow-incoming' })).toBeGreaterThan(0)
+    }
   })
 })

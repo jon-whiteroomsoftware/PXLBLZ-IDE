@@ -321,11 +321,9 @@ export function showShapeRevealSignedDistance(input: {
     * (input.revealMode === 'shrink-outgoing' ? 1 - progress : progress)
     * Math.min(2, Math.max(0.25, input.scale ?? 1))
   const distance = showShapeRevealDistance(input)
-  // Ring and Crescent cannot end covered on their own silhouette, so both
-  // fill in as the reveal completes (#63): the ring's inside floods once
-  // the band nears the edge, and the crescent's cutout closes. `fill` runs
-  // 1 -> 0 over the reveal's late quarter-power so the figure holds its
-  // character for most of the move.
+  // Ring cannot end covered on its own silhouette, so its inside floods
+  // over the reveal's late quarter-power (#63): `fill` runs 1 -> 0 so the
+  // band holds its character for most of the move.
   const fraction = input.revealMode === 'shrink-outgoing' ? 1 - progress : progress
   const fill = 1 - fraction * fraction * fraction * fraction
   if (input.shape === 'ring') {
@@ -334,6 +332,10 @@ export function showShapeRevealSignedDistance(input: {
     return input.revealMode === 'shrink-outgoing' ? -ring : ring
   }
   if (input.shape === 'crescent') {
+    // The crescent keeps its proportions and slides sideways as it scales so
+    // its thickest point stays pinned at the reveal center (#63); the
+    // thick part alone covers the stage at full radius and the cutout has
+    // left the stage to the right, so the reveal ends covered with no cut.
     const angle = (input.rotation ?? 0) * TAU
     const dx = input.x - input.centerX
     const dy = input.y - input.centerY
@@ -342,13 +344,38 @@ export function showShapeRevealSignedDistance(input: {
     const aspect = clamp(input.aspect ?? 1, 0.25, 4)
     const sx = rx / Math.sqrt(aspect)
     const sy = ry * Math.sqrt(aspect)
-    const offset = clamp(input.crescentOffset ?? 0.45, 0.15, 0.8) * radius
-    const outer = Math.hypot(sx, sy) - radius
-    const hole = radius * 0.78 * fill - Math.hypot(sx - offset, sy)
+    const { outerRadius, centerShift, holeOffset } = crescentGeometry(input.crescentOffset, radius)
+    const cx = sx - centerShift
+    const outer = Math.hypot(cx, sy) - outerRadius
+    const hole = CRESCENT_HOLE_RATIO * outerRadius - Math.hypot(cx - holeOffset, sy)
     const crescent = Math.max(outer, hole)
     return input.revealMode === 'shrink-outgoing' ? -crescent : crescent
   }
   return input.revealMode === 'shrink-outgoing' ? radius - distance : distance - radius
+}
+
+/** The crescent's cutout radius as a fraction of its outer radius. */
+export const CRESCENT_HOLE_RATIO = 0.78
+
+/**
+ * Crescent placement for a reveal radius: `radius` is the half-thickness
+ * of the crescent's widest part, which sits at the reveal center. The outer
+ * circle's center therefore sits `centerShift` to the right, and the cutout
+ * `holeOffset` further right of that.
+ */
+export function crescentGeometry(crescentOffset: number | undefined, radius: number): {
+  outerRadius: number
+  centerShift: number
+  holeOffset: number
+} {
+  const offset = clamp(crescentOffset ?? 0.45, 0.15, 0.8)
+  const halfThickness = (1 + offset - CRESCENT_HOLE_RATIO) / 2
+  const outerRadius = radius / halfThickness
+  return {
+    outerRadius,
+    centerShift: ((1 + CRESCENT_HOLE_RATIO - offset) / 2) * outerRadius,
+    holeOffset: offset * outerRadius,
+  }
 }
 
 /** Half-diagonal of the heart's square; lobes are radius d / sqrt(2) at (+-d/2, -d/2). */
