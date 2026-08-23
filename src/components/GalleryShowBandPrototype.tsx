@@ -315,12 +315,13 @@ function ShowBand({
           Show
         </span>
       </a>
-      <div className="flex min-w-0 flex-1 flex-col justify-center gap-2 px-1 font-mono">
+      {/* Caption width: no wider than ~62% of the preview it describes. */}
+      <div className="flex min-w-0 flex-col justify-center gap-2 px-1 font-mono" style={{ maxWidth: Math.round(width * 0.62) }}>
         <div className="text-[15px] text-zinc-100">
           <em>{stock?.name ?? entry.id}</em>
           <span className="text-[11.5px] text-zinc-400"> {entry.byline}</span>
         </div>
-        <p className="max-w-[46ch] text-[12.5px] leading-relaxed text-zinc-300">{entry.premise}</p>
+        <p className="text-[12.5px] leading-relaxed text-zinc-300">{entry.premise}</p>
         <div className="flex flex-wrap gap-3 text-[10px] uppercase tracking-[0.08em] text-structural">
           <span>{durationS}s loop</span>
           <span>{show?.scenes.length ?? 0} scenes</span>
