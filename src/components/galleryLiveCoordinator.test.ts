@@ -20,7 +20,7 @@ function fakeCard(top: number, left = 0): HTMLElement {
 function register(id: string, top: number, wantsWarm = false) {
   const modes: GalleryLiveMode[] = []
   const element = fakeCard(top)
-  const unregister = registerGalleryLiveCard(id, element, (mode) => modes.push(mode), wantsWarm)
+  const unregister = registerGalleryLiveCard(id, element, (mode) => modes.push(mode), wantsWarm, 1)
   return { modes, element, unregister, current: () => modes[modes.length - 1] ?? 'frozen' }
 }
 
@@ -41,7 +41,7 @@ describe('galleryLiveCoordinator', () => {
   })
 
   it('grants live slots to the nearest on-screen cards after the debounce, not before', () => {
-    configureGalleryLivePool({ poolSize: 2, keepMargin: 0 })
+    configureGalleryLivePool({ budget: 2, keepMargin: 0 })
     const a = register('a', 0)
     const b = register('b', 120)
     const c = register('c', 240)
@@ -52,7 +52,7 @@ describe('galleryLiveCoordinator', () => {
   })
 
   it('re-ranks on pointer movement and coalesces a burst into one re-rank', () => {
-    configureGalleryLivePool({ poolSize: 1, keepMargin: 0 })
+    configureGalleryLivePool({ budget: 1, keepMargin: 0 })
     const a = register('a', 0)
     const b = register('b', 200)
     settle()
@@ -69,7 +69,7 @@ describe('galleryLiveCoordinator', () => {
   })
 
   it('ignores touch pointer positions and keeps the top-of-viewport ordering', () => {
-    configureGalleryLivePool({ poolSize: 1, keepMargin: 0 })
+    configureGalleryLivePool({ budget: 1, keepMargin: 0 })
     const a = register('a', 0)
     const b = register('b', 200)
     settle()
@@ -80,7 +80,7 @@ describe('galleryLiveCoordinator', () => {
   })
 
   it('re-ranks on scroll using fresh measurements', () => {
-    configureGalleryLivePool({ poolSize: 1, keepMargin: 0 })
+    configureGalleryLivePool({ budget: 1, keepMargin: 0 })
     const a = register('a', 0)
     const b = register('b', 200)
     settle()
@@ -94,7 +94,7 @@ describe('galleryLiveCoordinator', () => {
   })
 
   it('warms one poster-less frozen card at a time and releases it when warmed', () => {
-    configureGalleryLivePool({ poolSize: 1, keepMargin: 0 })
+    configureGalleryLivePool({ budget: 1, keepMargin: 0 })
     const a = register('a', 0)
     const b = register('b', 120, true)
     const c = register('c', 240, true)
@@ -112,7 +112,7 @@ describe('galleryLiveCoordinator', () => {
   })
 
   it('a warm card that becomes the nearest goes live instead', () => {
-    configureGalleryLivePool({ poolSize: 1, keepMargin: 0 })
+    configureGalleryLivePool({ budget: 1, keepMargin: 0 })
     register('a', 0)
     const b = register('b', 200, true)
     settle()
@@ -123,7 +123,7 @@ describe('galleryLiveCoordinator', () => {
   })
 
   it('puts the keyboard-focused card first when the focused button wraps the preview host', () => {
-    configureGalleryLivePool({ poolSize: 1, keepMargin: 0 })
+    configureGalleryLivePool({ budget: 1, keepMargin: 0 })
     const a = register('a', 0)
     const c = register('c', 200)
     settle()
@@ -139,7 +139,7 @@ describe('galleryLiveCoordinator', () => {
   })
 
   it('a touch pointer clears a stale mouse position', () => {
-    configureGalleryLivePool({ poolSize: 1, keepMargin: 0 })
+    configureGalleryLivePool({ budget: 1, keepMargin: 0 })
     const a = register('a', 0)
     const b = register('b', 200)
     settle()
@@ -153,7 +153,7 @@ describe('galleryLiveCoordinator', () => {
   })
 
   it('treats a card scrolled under the scrollport edge as off-screen', () => {
-    configureGalleryLivePool({ poolSize: 2, keepMargin: 0 })
+    configureGalleryLivePool({ budget: 2, keepMargin: 0 })
     const scrollport = document.createElement('main')
     scrollport.dataset.galleryScrollport = ''
     scrollport.getBoundingClientRect = () =>
@@ -171,7 +171,7 @@ describe('galleryLiveCoordinator', () => {
   })
 
   it('unregistering a live card frees its slot for the next card', () => {
-    configureGalleryLivePool({ poolSize: 1, keepMargin: 0 })
+    configureGalleryLivePool({ budget: 1, keepMargin: 0 })
     const a = register('a', 0)
     const b = register('b', 200)
     settle()

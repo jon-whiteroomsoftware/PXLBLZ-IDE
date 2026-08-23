@@ -8,13 +8,15 @@
 //   warm   - granted a one-frame render to produce its poster, then released
 //   frozen - shows its poster (or nothing yet)
 // Warm grants are issued one at a time so a page of fresh cards never opens
-// more than poolSize + 1 WebGL contexts.
+// more than one WebGL context beyond the live set.
 
 import { selectGalleryLiveCards, type GalleryLiveCard } from '@/engine/galleryLiveSelection'
 
 export type GalleryLiveMode = 'live' | 'warm' | 'frozen'
 
-export const GALLERY_LIVE_POOL_SIZE = 6
+/** Pixel evaluations per frame spent on live cards: about six Patterns at
+ * their Gallery counts, or one 2,000-pixel Show plus four. */
+export const GALLERY_LIVE_PIXEL_BUDGET = 8000
 export const GALLERY_LIVE_KEEP_MARGIN = 2
 /** Trailing debounce on pointer, scroll, and resize before re-ranking. */
 export const GALLERY_LIVE_RERANK_DELAY_MS = 100
@@ -25,6 +27,7 @@ interface RegisteredCard {
   onMode: (mode: GalleryLiveMode) => void
   mode: GalleryLiveMode
   wantsWarm: boolean
+  cost: number
 }
 
 const cards = new Map<string, RegisteredCard>()
@@ -33,7 +36,7 @@ let focusedId: string | null = null
 let warmingId: string | null = null
 let rerankTimer: ReturnType<typeof setTimeout> | null = null
 let listenersInstalled = false
-let poolSize = GALLERY_LIVE_POOL_SIZE
+let budget = GALLERY_LIVE_PIXEL_BUDGET
 let keepMargin = GALLERY_LIVE_KEEP_MARGIN
 
 interface Frame {
@@ -75,6 +78,7 @@ function measure(frame: Frame): GalleryLiveCard[] {
       top: rect.top - frame.top,
       width: rect.width,
       height: rect.height,
+      cost: card.cost,
     })
   }
   return out
@@ -99,7 +103,7 @@ function rerank(): void {
       pointer: pointer ? { x: pointer.x - frame.left, y: pointer.y - frame.top } : null,
       focusedId,
       current,
-      poolSize,
+      budget,
       keepMargin,
     }),
   )
@@ -181,9 +185,10 @@ export function registerGalleryLiveCard(
   element: HTMLElement,
   onMode: (mode: GalleryLiveMode) => void,
   wantsWarm: boolean,
+  cost = 1000,
 ): () => void {
   element.dataset.galleryLiveId = id
-  cards.set(id, { id, element, onMode, mode: 'frozen', wantsWarm })
+  cards.set(id, { id, element, onMode, mode: 'frozen', wantsWarm, cost })
   installListeners()
   scheduleGalleryRerank()
   return () => {
@@ -213,9 +218,9 @@ export function galleryCardWarmed(id: string): void {
   }
 }
 
-/** Test and tuning hook: override pool size and hysteresis margin. */
-export function configureGalleryLivePool(options: { poolSize?: number; keepMargin?: number }): void {
-  if (options.poolSize !== undefined) poolSize = options.poolSize
+/** Test and tuning hook: override the pixel budget and hysteresis margin. */
+export function configureGalleryLivePool(options: { budget?: number; keepMargin?: number }): void {
+  if (options.budget !== undefined) budget = options.budget
   if (options.keepMargin !== undefined) keepMargin = options.keepMargin
   scheduleGalleryRerank()
 }
@@ -226,7 +231,7 @@ export function resetGalleryLiveCoordinator(): void {
   pointer = null
   focusedId = null
   warmingId = null
-  poolSize = GALLERY_LIVE_POOL_SIZE
+  budget = GALLERY_LIVE_PIXEL_BUDGET
   keepMargin = GALLERY_LIVE_KEEP_MARGIN
   removeListeners()
   if (rerankTimer !== null) {

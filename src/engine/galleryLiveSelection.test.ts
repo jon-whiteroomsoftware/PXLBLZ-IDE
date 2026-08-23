@@ -3,7 +3,7 @@ import { selectGalleryLiveCards, type GalleryLiveCard } from './galleryLiveSelec
 
 // A 3-wide grid of 100px cards with a 20px gap inside a 400x300 viewport.
 function card(id: string, col: number, row: number): GalleryLiveCard {
-  return { id, left: col * 120, top: row * 120, width: 100, height: 100 }
+  return { id, left: col * 120, top: row * 120, width: 100, height: 100, cost: 1 }
 }
 
 const VIEWPORT = { width: 400, height: 300 }
@@ -21,7 +21,7 @@ function select(overrides: Partial<Parameters<typeof selectGalleryLiveCards>[0]>
     pointer: null,
     focusedId: null,
     current: [],
-    poolSize: 3,
+    budget: 3,
     keepMargin: 2,
     ...overrides,
   })
@@ -35,7 +35,7 @@ describe('selectGalleryLiveCards', () => {
 
   it('never selects a card outside the viewport, however near the pointer', () => {
     // Pointer at the bottom edge: row 3 (off-screen) is nearer than row 0 but ineligible.
-    const picked = select({ pointer: { x: 170, y: 299 }, poolSize: 12 })
+    const picked = select({ pointer: { x: 170, y: 299 }, budget: 12 })
     expect(picked).toEqual(expect.arrayContaining(['g', 'h', 'i']))
     expect(picked).not.toEqual(expect.arrayContaining(['j', 'k', 'l']))
     expect(picked).toHaveLength(9)
@@ -93,9 +93,20 @@ describe('selectGalleryLiveCards', () => {
     expect(select({ pointer: { x: 172, y: 169 }, current: ['e', 'b', 'd'], keepMargin: 3 })).toEqual(['e', 'b', 'd'])
   })
 
+  it('admits by pixel cost: a costly card takes the room of several cheap ones, and the nearest card always gets in', () => {
+    // e costs 2 of a budget of 3: e plus one more; with current holders b and d,
+    // only the better-ranked holder stays.
+    const cards = GRID.map((c) => (c.id === 'e' ? { ...c, cost: 2 } : c))
+    expect(select({ cards, pointer: { x: 170, y: 170 } })).toEqual(['e', 'b'])
+    expect(select({ cards, pointer: { x: 170, y: 170 }, current: ['b', 'd'] })).toEqual(['e', 'b'])
+    // A card costlier than the whole budget is still admitted when it ranks first.
+    const huge = GRID.map((c) => (c.id === 'e' ? { ...c, cost: 99 } : c))
+    expect(select({ cards: huge, pointer: { x: 170, y: 170 } })).toEqual(['e'])
+  })
+
   it('handles pool sizes of zero and larger than the candidate set', () => {
-    expect(select({ poolSize: 0 })).toEqual([])
-    expect(select({ poolSize: 50, pointer: { x: 0, y: 0 } })).toHaveLength(9)
+    expect(select({ budget: 0 })).toEqual([])
+    expect(select({ budget: 50, pointer: { x: 0, y: 0 } })).toHaveLength(9)
   })
 
   it('does not mutate its inputs', () => {
