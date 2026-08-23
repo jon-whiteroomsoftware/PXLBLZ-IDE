@@ -2694,9 +2694,8 @@ type ShowcaseKind = 'transform' | 'distortion' | 'color-adjustment'
 // Effects references are recast from TestPattern2D to real Patterns that
 // still diagnose. CompassRose's cardinal points make translation, rotation,
 // and address wrap unmistakable; Mandelbrot2D's coastline bends visibly
-// under distortion; StainedGlassWeather's leaded panes carry enough
-// distinct hues to expose every color adjustment (probe: lum 0.317, flux 0.069 - the calmest bright
-// multi-hue source in the corpus). Pacing follows the editor rule: a
+// under distortion; BlueHolidayCandle2D's flame carries a few clear hues
+// that expose every color adjustment. Pacing follows the editor rule: a
 // reference beat, one exemplar long enough to study, then quicker cuts.
 function effectShowcase(kind: ShowcaseKind): StockShow {
   const affineEffects = (
@@ -2747,10 +2746,10 @@ function effectShowcase(kind: ShowcaseKind): StockShow {
     },
     'color-adjustment': {
       id: 'stock-show-showcase-color-adjustment-effects', title: 'Color Adjustment Effects', order: 3,
-      source: 'StainedGlassWeather',
-      purpose: 'Color Effects change the colors of a Clip and nothing else. The glass holds every hue at once, so each Effect is easy to name on sight.',
+      source: 'BlueHolidayCandle2D',
+      purpose: 'Color Effects change the colors of a Clip and nothing else. The candle holds a few clear hues, so each Effect is easy to name on sight.',
       notice: 'A long opening shows the true colors, then each adjustment passes quickly. Opacity sits beside Brightness so you can compare them; the key Effects live in the Compositing and Key showcase, where there is a layer underneath to reveal.',
-      prompts: ['Compare Contrast against Brightness on the same pane.', 'Change Posterize from 4 levels to 2.'] as const,
+      prompts: ['Compare Contrast against Brightness on the same flame.', 'Change Posterize from 4 levels to 2.'] as const,
       heading: 'color-adjustment-effects',
       rows: [
         ['Reference', [], 4],
