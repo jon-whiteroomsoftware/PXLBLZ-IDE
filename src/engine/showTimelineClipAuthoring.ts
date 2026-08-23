@@ -159,8 +159,7 @@ function appendLogicalClipGlobalSpan(
       durationMs: Math.round(slice.durationMs),
     }
     if (input.target.kind === 'main') {
-      const { opacity: _opacity, ...mainPlacement } = placement as typeof placement & { opacity?: number }
-      zone.main.push(mainPlacement)
+      zone.main.push(placement)
     } else {
       const layer = zone.overlays[input.target.layerIndex]
       if (!layer) return false
@@ -675,15 +674,14 @@ export function moveShowClipAtGlobalTime(
   const sourceStartMs = sourcePlacement.startMs
 
   if (input.target.kind === 'main') {
-    const { opacity: _opacity, ...mainPlacement } = sourcePlacement as typeof sourcePlacement & { opacity?: number }
-    targetZone.main.push({ ...mainPlacement, startMs })
+    targetZone.main.push({ ...sourcePlacement, startMs })
   } else {
     const targetLayer = targetZone.overlays[input.target.layerIndex]
     if (!targetLayer) return composition
     targetLayer.placements.push({
       ...sourcePlacement,
       startMs,
-      opacity: 'opacity' in sourcePlacement ? sourcePlacement.opacity : 1,
+      opacity: sourcePlacement.opacity ?? 1,
     })
   }
 

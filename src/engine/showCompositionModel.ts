@@ -380,6 +380,9 @@ export function validateShowComposition(
         if (placement.startMs < 0 || placement.durationMs <= 0 || (owner && placement.startMs + placement.durationMs > owner.durationMs)) {
           addIssue(issues, `${path}.durationMs`, 'out-of-bounds', 'Main placement must stay inside positive Scene-local time.')
         }
+        if (placement.opacity !== undefined && (!Number.isFinite(placement.opacity) || placement.opacity < 0 || placement.opacity > 1)) {
+          addIssue(issues, `${path}.opacity`, 'out-of-bounds', 'Main opacity must be between 0 and 1.')
+        }
         const previous = ordered[orderedIndex - 1]
         if (previous && previous.startMs + previous.durationMs > placement.startMs) {
           addIssue(issues, `${path}.startMs`, 'overlap', 'Main placements in one Scene and Zone cannot overlap.')

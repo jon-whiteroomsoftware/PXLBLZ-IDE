@@ -70,7 +70,7 @@ export function projectShowGroupClipInspector(
     local: {
       startMs: sceneRange.startMs + occurrence.startMs + placement.startMs,
       durationMs: placement.durationMs,
-      ...(absoluteLayer > 0 ? { opacity: placement.opacity } : {}),
+      opacity: placement.opacity,
     },
   }
 }

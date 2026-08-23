@@ -73,7 +73,7 @@ Deliberate-mutation probes during #658 established the division of labor:
 | --- | --- |
 | Dialog emits a distorted value (halved Brightness) | Matrix round-trip rows |
 | Engine clamp drifts (`timeScale` clamp narrowed) | Matrix round-trip rows |
-| Capability cut loosened (`sourceOverOpacity` for `scene-main`) | `showClipInspectorModel.test.ts` capability pinning |
+| Capability cut loosened (`placementOpacity` for `global`) | `showClipInspectorModel.test.ts` capability pinning |
 | InspectorPanel read-only fieldset neutralized | Matrix read-only sweep |
 
 The capability sweeps in the matrix intentionally derive their expectations

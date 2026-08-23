@@ -34,7 +34,7 @@ function value(scope: ShowClipInspectorValue['scope']): ShowClipInspectorValue {
     ...(scene ? {
       placementId: 'placement-1',
       instanceId: 'instance-1',
-      local: { startMs: 1_000, durationMs: 2_000, ...(overlay ? { opacity: 0.75 } : {}) },
+      local: { startMs: 1_000, durationMs: 2_000, opacity: overlay ? 0.75 : 1 },
     } : {}),
     ...(overlay ? { layerId: 'layer-1' } : {}),
   }
@@ -225,11 +225,11 @@ describe('persistent Clip header fields (#641)', () => {
     expect(screen.getByTestId('clip-header-fields')).toHaveClass('grid-cols-4')
   })
 
-  it('drops Opacity for a main-layer Clip without leaving a hole', () => {
+  it('carries Opacity for a main-layer Clip with the same compact header layout', () => {
     render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
 
-    expect(headerFields()).toEqual(['start', 'duration', 'brightness'])
-    expect(screen.getByTestId('clip-header-fields')).toHaveClass('grid-cols-3')
+    expect(headerFields()).toEqual(['start', 'duration', 'brightness', 'opacity'])
+    expect(screen.getByTestId('clip-header-fields')).toHaveClass('grid-cols-4')
   })
 
   it('keeps only Brightness when the scope has no local timing', () => {
@@ -292,7 +292,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
 
   it.each([
     ['global', false, false, false],
-    ['scene-main', true, false, false],
+    ['scene-main', true, false, true],
     ['scene-overlay', true, true, true],
   ] as const)('renders the capability matrix for %s', (scope, localTiming, layer, opacity) => {
     render(<ShowClipEntityDetail {...commonProps(scope)} />)
@@ -958,7 +958,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
 
 describe('per-parameter animation affordances (#648)', () => {
   it('puts an accessible diamond beside every rendered animatable Clip parameter', () => {
-    const props = commonProps('scene-overlay')
+    const props = commonProps('scene-main')
     const animatedValue: ShowClipInspectorValue = {
       ...props.value,
       viewport: { enabled: true, x: 0.1, y: 0.2, width: 0.8, height: 0.7 },

@@ -425,7 +425,7 @@ export function createShowGroupFromSelection(
       .map(cloneJson),
     placements: selected.map((item): ShowGroupPlacement => ({
       ...cloneJson(item.placement),
-      opacity: 'opacity' in item.placement ? item.placement.opacity : 1,
+      opacity: item.placement.opacity ?? 1,
       startMs: item.placement.startMs - startMs,
       layerOffset: item.absoluteLayer - baseLayer,
     })).sort((left, right) => left.layerOffset - right.layerOffset || left.startMs - right.startMs || left.id.localeCompare(right.id)),
@@ -561,7 +561,7 @@ function materializeOccurrence(
     const absoluteLayer = occurrence.baseLayer + child.layerOffset
     const placement = materializedPlacement(child, occurrence, placementId(child.id), instanceId(child.instanceId))
     if (absoluteLayer === 0) {
-      const { opacity: _opacity, layerOffset: _layerOffset, ...main } = placement
+      const { layerOffset: _layerOffset, ...main } = placement
       zone.main.push(main)
     } else {
       const overlayIndex = zone.overlays.length - absoluteLayer

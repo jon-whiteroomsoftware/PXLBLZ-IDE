@@ -780,7 +780,7 @@ describe('Clip detail scope capability sweep (#658)', () => {
     const expected = [
       ...(capabilities.localTiming ? ['start', 'duration'] : []),
       'brightness',
-      ...(capabilities.sourceOverOpacity ? ['opacity'] : []),
+      ...(capabilities.placementOpacity ? ['opacity'] : []),
     ]
     expect(rendered).toEqual(expected)
   })

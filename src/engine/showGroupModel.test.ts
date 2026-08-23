@@ -290,6 +290,7 @@ describe('Show Group model', () => {
       ['group-use-1:a', 2_000],
       ['group-use-1:b', 3_250],
     ])
+    expect(zone.main.map((placement) => placement.opacity)).toEqual([1, 1])
     expect(zone.overlays).toHaveLength(1)
     expect(zone.overlays[0].placements[0]).toMatchObject({
       id: 'group-use-1:accent',

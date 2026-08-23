@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultShow, showRecordToCompileRecipe } from './showModel'
 import { compileShow } from './showCompiler'
+import { createFastReplayRuntime } from './fastReplay'
 import { lowerShowCompositionForCompile } from './showCompositionLowering'
 import type { ShowCompositionV1, ShowRecord } from './personalContentRecords'
 import { insertShowLayerTransition } from './showLayerTransitionAuthoring'
@@ -496,6 +497,77 @@ describe('Show composition compiler lowering (#488)', () => {
     ])
     expect(recipe.clips.map((clip) => clip.id)).toEqual(expect.arrayContaining(['instance-a', 'instance-b']))
     expect(recipe.clips.filter((clip) => clip.id === 'instance-a')).toHaveLength(1)
+  })
+
+  it('carries static and animated Main opacity through authored lowering, compilation, and Blink gating (#882)', () => {
+    const show = fixture()
+    show.scenes = show.scenes.slice(0, 2).map((scene) => ({ ...scene, durationMs: 1_000 }))
+    show.transitions = [{
+      id: 'cut-after-main-opacity',
+      afterSceneId: show.scenes[0].id,
+      kind: 'cut',
+      durationMs: 0,
+      easing: { curve: 'linear' },
+    }]
+    const mainScene: ShowCompositionV1['scenes'][number] = {
+      sceneId: show.scenes[0].id,
+      propertyTracks: [{
+        id: 'main-opacity',
+        target: { kind: 'placement-opacity', placementId: 'placement-main' },
+        keyframes: [
+          { id: 'opacity-start', timeMs: 0, value: 0, easing: { curve: 'linear' } },
+          { id: 'opacity-end', timeMs: 1_000, value: 1, easing: { curve: 'linear' } },
+        ],
+      }],
+      zones: [{
+        zoneId: show.zones[0].id,
+        main: [{
+          id: 'placement-main',
+          instanceId: 'instance-a',
+          startMs: 0,
+          durationMs: 1_000,
+          opacity: 0.6,
+          blink: { rateHz: 1, duty: 0.5, phase: 0 },
+          view: { mirror: false, phase: 0, brightness: 1 },
+        }],
+        overlays: [],
+      }],
+    }
+    show.composition!.scenes = [mainScene, {
+      sceneId: show.scenes[1].id,
+      zones: [{
+        zoneId: show.zones[0].id,
+        main: [{
+          id: 'placement-after',
+          instanceId: 'instance-a',
+          startMs: 0,
+          durationMs: 1_000,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        }],
+        overlays: [],
+      }],
+    }]
+
+    const recipe = showRecordToCompileRecipe(show, lookup(show))
+    expect(recipe.routedSceneSequence?.scenes[0].placements[0]).toMatchObject({
+      placementId: 'placement-main',
+      stackOrder: 0,
+      opacity: 0.6,
+    })
+
+    const artifact = compileShow(recipe, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 1,
+    }, {
+      mapPoints: [{ sample: [0, 0], pos: [0, 0] }],
+      randomSeed: 1,
+    })
+
+    expect(runtime.advanceTo(250, { stepMs: 50 }).pixels[0]).toEqual([0.25, 0, 0])
+    expect(runtime.advanceTo(750, { stepMs: 50 }).pixels[0]).toEqual([0, 0, 0])
   })
 
   it('remaps parent-boundary property starts onto the first derived local cell', () => {

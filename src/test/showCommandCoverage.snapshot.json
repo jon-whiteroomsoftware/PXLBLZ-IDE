@@ -356,6 +356,7 @@
     "/composition/scenes/*/zones/*/main/*/effects/*/y",
     "/composition/scenes/*/zones/*/main/*/instanceId",
     "/composition/scenes/*/zones/*/main/*/logicalClipId",
+    "/composition/scenes/*/zones/*/main/*/opacity",
     "/composition/scenes/*/zones/*/main/*/presentation/cadenceMs",
     "/composition/scenes/*/zones/*/main/*/presentation/mode",
     "/composition/scenes/*/zones/*/main/*/startMs",

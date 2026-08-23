@@ -56,7 +56,7 @@ export interface ShowClipInspectorCapabilities {
   structural: boolean
   localTiming: boolean
   layerAssignment: boolean
-  sourceOverOpacity: boolean
+  placementOpacity: boolean
   localActions: boolean
   propertyAnimation: 'boundary-ramp' | 'local-keyframes'
 }
@@ -120,7 +120,7 @@ export function showClipInspectorCapabilities(scope: ShowClipInspectorScope): Sh
       structural: true,
       localTiming: false,
       layerAssignment: false,
-      sourceOverOpacity: false,
+      placementOpacity: false,
       localActions: false,
       propertyAnimation: 'boundary-ramp',
     }
@@ -130,7 +130,7 @@ export function showClipInspectorCapabilities(scope: ShowClipInspectorScope): Sh
     structural: false,
     localTiming: true,
     layerAssignment: scope === 'scene-overlay',
-    sourceOverOpacity: scope === 'scene-overlay',
+    placementOpacity: true,
     localActions: true,
     propertyAnimation: 'local-keyframes',
   }
@@ -172,7 +172,7 @@ export function projectShowClipInspector(
     local: {
       startMs: logicalRange?.globalStartMs ?? placement.startMs,
       durationMs: logicalRange?.durationMs ?? placement.durationMs,
-      ...(owner.kind === 'scene-overlay' ? { opacity: (placement as ShowOverlayPlacement).opacity } : {}),
+      opacity: placement.opacity ?? 1,
     },
   }
 }
@@ -246,7 +246,7 @@ export function updateShowClipInspector(
     const localBasis = composition
     const current = resolveCompositionOwner(localBasis, owner)?.placement
     if (!current) return show
-    const stagedLocal = owner.kind === 'scene-overlay' && patch.local.opacity !== undefined
+    const stagedLocal = patch.local.opacity !== undefined
       ? mapPlacement(localBasis, owner, (placement) => ({
           ...placement,
           opacity: clamp01(patch.local!.opacity!),

@@ -346,7 +346,7 @@ function projectPlacement(input: {
     startMs,
     endMs: startMs + input.placement.durationMs,
     durationMs: input.placement.durationMs,
-    opacity: input.kind === 'overlay' ? (input.placement as ShowOverlayPlacement).opacity : 1,
+    opacity: input.placement.opacity ?? 1,
     effectKinds: (input.placement.effects ?? []).map((effect) => effect.kind),
     ...(input.groupByPlacementId.get(input.placement.id)
       ? { groupOccurrenceId: input.groupByPlacementId.get(input.placement.id) }

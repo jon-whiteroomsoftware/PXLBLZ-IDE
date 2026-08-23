@@ -2604,6 +2604,10 @@
         "durationMs": {
           "type": "number"
         },
+        "opacity": {
+          "type": "number",
+          "description": "Final Clip composition weight. Missing preserves the historical fully opaque Main default."
+        },
         "view": {
           "$ref": "#/definitions/ShowPlacementView"
         },

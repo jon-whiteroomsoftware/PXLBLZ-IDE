@@ -956,8 +956,9 @@ clamping. `showClipInspectorModel.ts` normalizes flat cells and composition
 placements into one owner model with a capability matrix; update adapters
 translate patches back to the owning record shape. `ShowClipEntityDetail`
 renders the Pattern chooser, Animation speed (commit-on-release because a
-time-scale change rebuilds the compiled preview), Brightness, the placement
-surface, controls, Effect stack, and the inline Add Effect takeover with its
+time-scale change rebuilds the compiled preview), Brightness, placement-owned
+Opacity for Main and overlay Clips, the placement surface, controls, Effect
+stack, and the inline Add Effect takeover with its
 family/compatibility filters. The public control catalogue derives from the
 visible composition, so the first render matches post-edit state.
 

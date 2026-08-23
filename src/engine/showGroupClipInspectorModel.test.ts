@@ -98,6 +98,19 @@ describe('Show Group Clip inspector model', () => {
     })
   })
 
+  it('projects Opacity when a Group child lands on Main (#882)', () => {
+    const show = fixture()
+    show.composition!.groupDefinitions![0].placements[0].layerOffset = 0
+
+    expect(projectShowGroupClipInspector(show, {
+      occurrenceId: 'use-a',
+      placementId: 'inside-clip',
+    })).toMatchObject({
+      scope: 'scene-main',
+      local: { opacity: 0.75 },
+    })
+  })
+
   it('converts a Show-global Start edit back to the shared Group offset (#634)', () => {
     const show = fixture()
     const original = structuredClone(show)

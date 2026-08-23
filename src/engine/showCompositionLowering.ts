@@ -141,7 +141,7 @@ export function lowerShowCompositionForCompile(
           stackOrder: number
           opacity: number
         }> = [
-          ...(main ? [{ placement: main, stackOrder: 0, opacity: 1 }] : []),
+          ...(main ? [{ placement: main, stackOrder: 0, opacity: main.opacity ?? 1 }] : []),
           ...activeOverlays.map(({ placement, stackOrder }) => ({ placement, stackOrder, opacity: placement.opacity })),
         ].sort((left, right) => left.stackOrder - right.stackOrder)
 

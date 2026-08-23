@@ -8,6 +8,7 @@ import {
   unprojectShowPropertyLaneValue,
 } from './showPropertyLaneProjection'
 import { STOCK_SHOWS } from '../pixelblaze/stock/shows'
+import type { ShowCompositionV1 } from './personalContentRecords'
 
 describe('Show property lane projection (#483)', () => {
   it('keeps flat normalized tracks at their truthful vertical level (#496)', () => {
@@ -101,6 +102,52 @@ describe('Show property lane projection (#483)', () => {
       12.5 / 16.5,
       14.5 / 16.5,
       16.5 / 16.5,
+    ])
+  })
+
+  it('projects a Main Clip opacity track with the fully opaque default (#882)', () => {
+    const show = createDefaultShow('show-main-opacity-lane', 'Main opacity lane', 1_000)
+    const instance = {
+      id: 'instance-main',
+      pattern: { kind: 'stock' as const, id: 'Rings' },
+      patternName: 'Rings',
+      time: { timeScale: 1, timeOffsetMs: 0 },
+    }
+    show.composition = {
+      version: 1,
+      patternInstances: [instance],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        ...(index === 0 ? {
+          propertyTracks: [{
+            id: 'main-opacity',
+            target: { kind: 'placement-opacity', placementId: `main-${index}` },
+            keyframes: [
+              { id: 'opacity-start', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+              { id: 'opacity-end', timeMs: scene.durationMs, value: 0.4, easing: { curve: 'linear' } },
+            ],
+          }],
+        } : {}),
+        zones: [{
+          zoneId: show.zones[0].id,
+          main: [{
+            id: `main-${index}`,
+            instanceId: instance.id,
+            startMs: 0,
+            durationMs: scene.durationMs,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }],
+          overlays: [],
+        }],
+      })),
+    } satisfies ShowCompositionV1
+
+    expect(projectGlobalShowScenePropertyLanes(show)).toEqual([
+      expect.objectContaining({
+        patternName: 'Rings',
+        propertyLabel: 'opacity',
+        valueKind: 'percent',
+      }),
     ])
   })
 

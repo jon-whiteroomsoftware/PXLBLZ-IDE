@@ -125,7 +125,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
   // Narrowed once so the header can both gate rendering and count its columns
   // from the same predicate.
   const localTiming = capabilities.localTiming && value.local !== undefined
-  const showOpacity = capabilities.sourceOverOpacity && value.local !== undefined
+  const showOpacity = capabilities.placementOpacity && value.local !== undefined
   const headerFieldCount = 1 + (localTiming ? 2 : 0) + (showOpacity ? 1 : 0)
   const controlTargets = value.simulation.controlTargets
   const [placementFocus, setPlacementFocus] = useState<PlacementFocus>('content')
@@ -343,8 +343,8 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
           every open.
 
           The column count follows the scope's real capabilities rather than a
-          fixed four: a global-scope Clip has no local timing, and overlay is the
-          only scope with source-over Opacity. A fixed grid would leave holes.
+          fixed four: a global-scope Clip has no local timing or placement
+          Opacity. A fixed grid would leave holes.
         */}
         <div
           data-testid="clip-header-fields"

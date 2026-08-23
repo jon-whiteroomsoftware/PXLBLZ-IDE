@@ -361,7 +361,9 @@ take an independent copy with **Make Pattern Independent**.
 
 Presentation belongs to the Clip: **Live**, **Freeze** (hold the entry
 frame), **Strobe**, **Blink**, or **Stutter** (quantize the shared clock so
-linked Clips step together), plus **Opacity** on overlay Layers. 2D Clips add
+linked Clips step together). Every Clip also owns **Opacity**: Main fades
+toward black, while higher Layers source-over composite against the content
+below. **Brightness** adjusts the Pattern view before that composition. 2D Clips add
 a **Transform** (position, rotation, scale), an optional **Aperture** mask
 from the shape catalogue, and an ordered **Effect stack**: transforms,
 distortions, address policies, and color Effects such as Luma key, Chroma
@@ -380,7 +382,7 @@ Patterns only inside the band.
 
 Property animation uses one model everywhere: the destination owns the
 value; the incoming boundary owns start, duration, and easing. Animation
-speed, brightness, Transform, exported sliders, and split position all
+speed, brightness, opacity, Transform, exported sliders, and split position all
 animate the same way and appear as sparklines beneath their Zones. The
 diamond beside any animatable field creates or reopens its ramp, and the
 Clip's **Animations** overview is the one place to see and remove every

@@ -278,7 +278,6 @@ function validateTarget(
     return undefined
   }
   if (target.kind === 'placement-opacity') {
-    if (!('opacity' in placement)) addIssue(issues, path, 'missing-placement', 'Only overlay placements own source-over opacity.')
     return { min: 0, max: 1 }
   }
   if (target.kind === 'placement-view') return { min: 0, max: 1 }

@@ -614,6 +614,7 @@ describe('global timeline Clip authoring (#580)', () => {
       opacity: 1,
       view: { mirror: false, phase: 0.25, brightness: 0.8 },
     })
+    overlay.scenes[0].zones[0].overlays[0].placements[0].opacity = 0.4
 
     const main = moveShowClipAtGlobalTime(show, overlay, {
       owner: {
@@ -631,11 +632,11 @@ describe('global timeline Clip authoring (#580)', () => {
     })
 
     expect(main.scenes[0].zones[0].overlays[0].placements).toEqual([])
-    expect(main.scenes[0].zones[0].main[0]).not.toHaveProperty('opacity')
     expect(main.scenes[0].zones[0].main[0]).toMatchObject({
       id: 'placement-move',
       startMs: 7_000,
       durationMs: 2_000,
+      opacity: 0.4,
     })
   })
 

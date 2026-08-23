@@ -110,21 +110,21 @@ describe('shared Clip inspector owner model (#498)', () => {
       structural: true,
       localTiming: false,
       layerAssignment: false,
-      sourceOverOpacity: false,
+      placementOpacity: false,
       propertyAnimation: 'boundary-ramp',
     })
     expect(showClipInspectorCapabilities('scene-main')).toMatchObject({
       structural: false,
       localTiming: true,
       layerAssignment: false,
-      sourceOverOpacity: false,
+      placementOpacity: true,
       propertyAnimation: 'local-keyframes',
     })
     expect(showClipInspectorCapabilities('scene-overlay')).toMatchObject({
       structural: false,
       localTiming: true,
       layerAssignment: true,
-      sourceOverOpacity: true,
+      placementOpacity: true,
       propertyAnimation: 'local-keyframes',
     })
   })
@@ -141,7 +141,7 @@ describe('shared Clip inspector owner model (#498)', () => {
       scope: 'scene-main',
       placementId: 'placement-main',
       simulation: { timeScale: 1 },
-      local: { startMs: 0, durationMs: show.scenes[0].durationMs },
+      local: { startMs: 0, durationMs: show.scenes[0].durationMs, opacity: 1 },
     })
     expect(projectShowClipInspector(show, overlayOwner(show))).toMatchObject({
       scope: 'scene-overlay',
@@ -578,6 +578,18 @@ describe('shared Clip inspector owner model (#498)', () => {
       effects: [{ id: 'effect-1' }],
       local: { startMs: 2_000, durationMs: 3_000, opacity: 0.4 },
     })
+  })
+
+  it('projects the default Main opacity and commits a clamped Main edit (#882)', () => {
+    const show = fixture()
+    const updated = updateShowClipInspector(show, mainOwner(show), {
+      local: { opacity: 0.4 },
+    })
+
+    expect(projectShowClipInspector(updated, mainOwner(updated))?.local).toMatchObject({
+      opacity: 0.4,
+    })
+    expect(show.composition!.scenes[0].zones[0].main[0]).not.toHaveProperty('opacity')
   })
 
   it('prunes only Effect Property tracks whose referent the inspector removes (#607)', () => {

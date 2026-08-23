@@ -193,6 +193,18 @@ describe('Scene-local property animation (#490)', () => {
     expect(propertyTargetKey(transformTrack.target)).toBe('placement-transform:placement-a:positionX')
   })
 
+  it('accepts placement Opacity tracks for Main Clips as well as overlays (#882)', () => {
+    const { show, composition } = fixture()
+    const mainOpacity = track({
+      target: { kind: 'placement-opacity', placementId: 'placement-a' },
+    })
+
+    expect(validateShowPropertyTracks(show, {
+      ...composition,
+      scenes: [{ ...composition.scenes[0], propertyTracks: [mainOpacity] }],
+    })).toEqual([])
+  })
+
   it('validates placement-owned Viewport targets with the same normalized bounds as static Viewports (#585)', () => {
     const { show, composition } = fixture()
     const viewportTrack = track({

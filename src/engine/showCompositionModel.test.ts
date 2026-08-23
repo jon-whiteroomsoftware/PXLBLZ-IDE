@@ -89,6 +89,20 @@ function fixture(): { show: ShowRecord; composition: ShowCompositionV1 } {
 }
 
 describe('Show composition v1 Main schedule (#488)', () => {
+  it('accepts omitted or normalized Main opacity and rejects values outside 0–1 (#882)', () => {
+    const { show, composition } = fixture()
+    expect(validateShowComposition(show, composition)).toEqual([])
+
+    composition.scenes[0].zones[0].main[0].opacity = 0.6
+    expect(validateShowComposition(show, composition)).toEqual([])
+
+    composition.scenes[0].zones[0].main[0].opacity = 1.01
+    expect(validateShowComposition(show, composition)).toContainEqual(expect.objectContaining({
+      path: 'scenes[0].zones[0].main[0].opacity',
+      code: 'out-of-bounds',
+    }))
+  })
+
   it('does not delete the final remaining Clip', () => {
     const { composition } = fixture()
     const oneClip = deleteShowMainPlacement(composition, {

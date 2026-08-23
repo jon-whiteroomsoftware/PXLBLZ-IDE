@@ -436,8 +436,7 @@ function describeScenePropertyTrack(
   const instance = instances.get(owner.placement.instanceId)
   const patternName = instance?.patternName ?? 'Clip'
   if (target.kind === 'placement-opacity') {
-    if (!('opacity' in owner.placement)) return []
-    return [{ zoneId: owner.zoneId, patternName, propertyLabel: 'opacity', family: 'appearance', valueKind: 'percent', defaultValue: owner.placement.opacity, constraint: { min: 0, max: 1 } }]
+    return [{ zoneId: owner.zoneId, patternName, propertyLabel: 'opacity', family: 'appearance', valueKind: 'percent', defaultValue: owner.placement.opacity ?? 1, constraint: { min: 0, max: 1 } }]
   }
   if (target.kind === 'placement-view') {
     return [{

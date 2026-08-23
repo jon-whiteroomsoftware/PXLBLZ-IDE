@@ -497,6 +497,8 @@ export interface ShowMainPlacement {
   instanceId: string
   startMs: number
   durationMs: number
+  /** Final Clip composition weight. Missing preserves the historical fully opaque Main default. */
+  opacity?: number
   view: ShowPlacementView
   /** Placement-owned RGB presentation. Live is the default when omitted. */
   presentation?: ShowClipPresentation
@@ -509,7 +511,7 @@ export interface ShowMainPlacement {
   effects?: ShowClipEffect[]
 }
 
-export interface ShowOverlayPlacement extends Omit<ShowMainPlacement, 'view'> {
+export interface ShowOverlayPlacement extends Omit<ShowMainPlacement, 'opacity' | 'view'> {
   opacity: number
   view: ShowPlacementView
 }

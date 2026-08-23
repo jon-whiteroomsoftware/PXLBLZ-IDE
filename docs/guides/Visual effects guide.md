@@ -391,7 +391,7 @@ study tempo and the zoom and spin presets cut past.
 ### Property animation reference
 
 Clip-owned tracks animate Pattern speed, a public control, placement
-brightness and phase, overlay opacity, and an Effect parameter;
+brightness and phase, Clip opacity, and an Effect parameter;
 boundary-owned tracks animate the Zone split and sample repeat scale. The
 sparklines identify each value's owner on the timeline.
 
