@@ -1759,8 +1759,8 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
       title: 'Zone Layouts: Splits & Checker',
       order: 17,
       voiceCount: 2,
-      purpose: 'Four ways to hand one Stage to two voices: the full surface, a hard moving split, the same boundary feathered soft, and a 4 x 4 checker. The two Patterns never change - the Layout is the only variable.',
-      notice: 'Every boundary is an atomic routing switch, never a visual Transition: pixels are re-dealt in one step while both Pattern clocks run straight through. The soft split is the one Layout without hard ownership - inside its feather band, both neighbours render and blend.',
+      purpose: 'Four ways to share one Stage between two Patterns: the whole surface, a hard split that moves, the same split with a soft edge, and a 4 x 4 checker. The Patterns never change; only the Layout does.',
+      notice: 'Each Layout change is a clean switch, not a Transition: pixels change hands in one step and both Patterns keep playing. The soft split is the exception - inside its feathered edge, both Patterns blend.',
       prompts: ['Drag the split position on the Moving split interval in the Layouts lane - the boundary is an interval value, and neither Pattern notices it move.', 'Select the Soft split chip and widen its feather - the blend band grows while both voices keep playing.'],
       summary: 'Full surface, moving split, soft split, and checker over two constant voices.',
       passages: [
@@ -1786,8 +1786,8 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
       title: 'Zone Layouts: Stripes & Grid',
       order: 18,
       voiceCount: 4,
-      purpose: 'One surface dealt to four voices: equal stripes, then a 2 x 2 grid. A green garden, warm embers, blue water, and dark glyph rain never change - only the geometry that routes them does.',
-      notice: 'Both boundaries are atomic routing switches: the surface becomes bands, and the bands become cells, in one step each, while all four Pattern clocks run straight through. The dark rain voice is deliberate negative space - its quiet band and cell are what keep the partitions legible.',
+      purpose: 'One surface shared by four Patterns: equal stripes, then a 2 x 2 grid. Green garden, warm embers, blue water, and dark glyph rain never change; only the Layout that places them does.',
+      notice: 'Each Layout change is a clean switch: stripes become cells in one step while all four Patterns keep playing. The dark rain is there on purpose - its quiet band and cell keep the other three readable.',
       prompts: ['Add a fifth Zone in the Zone Map and give it a Clip - the stripes simply deal it in, and the grid becomes stripes to make room.', 'Solo one Zone across the whole timeline - the same voice owns a band, then a cell.'],
       summary: 'Stripes and a 2 x 2 grid deal four constant voices around the Stage.',
       passages: [
@@ -1807,8 +1807,8 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
       title: 'Zone Layouts: Radial',
       order: 19,
       voiceCount: 2,
-      purpose: 'The radial half of the vocabulary: rings, a wave, and a pinwheel route the same two voices from the center out. The bullseye reads Garden-Ember-Garden because rings cycle through the Zones in order.',
-      notice: 'The entry into the rings is the one switch in this family that sweeps, so you can watch the geometry travel; the wave and pinwheel switches are atomic. Neither Pattern ever restarts: a Layout switch changes where pixels go, never Pattern state.',
+      purpose: 'Rings, a wave, and a pinwheel place the same two Patterns from the center outward. The bullseye reads Garden-Ember-Garden because rings take turns through the Zones.',
+      notice: 'The move into the rings sweeps across the Stage so you can watch it happen; the wave and pinwheel switch in one step. Neither Pattern ever restarts - a Layout change moves pixels, not Patterns.',
       prompts: ['Select the Pinwheel chip and raise its Twist turns - the arms curl tighter while both Patterns play on.', 'Give the Rings chip five rings - the bullseye gains bands without touching either Pattern.'],
       summary: 'Rings, a wave, and a pinwheel route two constant voices radially.',
       passages: [
@@ -2074,8 +2074,8 @@ function blendAndFadeTransitionReference(): StockShow {
   ]
   return transitionReferenceShow({
     id: 'stock-show-reference-blend-fade-transitions', title: 'Blend and Fade Transitions', order: 6,
-    purpose: 'The junction vocabulary everyone starts with: a bare Cut, one slow Crossfade to study, and the two through-color Fades.',
-    notice: 'The Crossfade is the exemplar and takes its time; the Fades pass more quickly because their character is the color they pass through.',
+    purpose: 'The basic ways to get from one Clip to the next: a plain Cut, one slow Crossfade, and two Fades through a color.',
+    notice: 'The Crossfade takes its time so you can watch it; the Fades go faster because the color they pass through is the whole point.',
     prompts: ['Stretch the Crossfade and watch the two worlds coexist.', 'Change the Fade color from black to a deep blue in the inspector.'],
     guideHeading: 'blend-and-fade-transition-reference', specs,
   })
@@ -2097,9 +2097,9 @@ function wipeTransitionReference(): StockShow {
   ]
   return transitionReferenceShow({
     id: 'stock-show-reference-wipe-transitions', title: 'Wipes', order: 7,
-    purpose: 'One eastward Linear Wipe slow enough to study its edge, then quick cuts through the other cardinal directions and every patterned Wipe.',
-    notice: 'After the exemplar, each sibling changes exactly one idea - direction, split, doors, blinds, clock, checker, grid - at quick-cut tempo. Diagonals and center-in modes stay as inspector edits.',
-    prompts: ['Compare hard, dithered, and blended edges on the exemplar Wipe.', 'Stretch any quick cut back into a slow study.'],
+    purpose: 'One slow Wipe to the right, then a quick tour of the other directions and every patterned Wipe.',
+    notice: 'After the slow one, each Wipe changes one thing - direction, split, doors, blinds, clock, checker, grid - and moves on. Diagonal and center-in versions are a setting away in the inspector.',
+    prompts: ['Compare hard, dithered, and blended edges on the slow Wipe.', 'Slow any of the quick Wipes down.'],
     guideHeading: 'wipe-transition-reference', specs,
   })
 }
@@ -2114,8 +2114,8 @@ function dissolveTransitionReference(): StockShow {
   ]
   return transitionReferenceShow({
     id: 'stock-show-reference-dissolve-transitions', title: 'Dissolves', order: 8,
-    purpose: 'Four ways to take one picture apart and assemble the next: per-pixel, in blocks, along coherent noise, and through a soft threshold.',
-    notice: 'The pixel dissolve is the slow exemplar; the other three differ only in the structure of what crumbles.',
+    purpose: 'Four ways to crumble one picture into the next: pixel by pixel, in blocks, in cloudy patches, and through a soft edge.',
+    notice: 'The pixel Dissolve plays slowly; the other three differ only in the shape of what crumbles.',
     prompts: ['Change the block dissolve grid in the inspector.', 'Compare coherent-noise with soft-threshold at the same duration.'],
     guideHeading: 'dissolve-transition-reference', specs,
   })
@@ -2150,9 +2150,9 @@ function shapeRevealGeometricReference(): StockShow {
   ]
   return transitionReferenceShow({
     id: 'stock-show-reference-shape-reveal-transitions', title: 'Shape Reveals: Geometric', order: 9,
-    purpose: 'One slow Circle reveal to study, then quick cuts through the geometric silhouettes while the Pattern pair, center, scale, and edge hold steady.',
-    notice: 'Circle appears in both reveal modes at study tempo; the remaining silhouettes alternate modes at quick-cut tempo so shape stays the only question. The figure silhouettes have their own reference.',
-    prompts: ['Stretch any silhouette back to study tempo.', 'Move the center away from 0.5, 0.5 and compare asymmetric shapes.'],
+    purpose: 'One slow Circle reveal, then a quick tour of the geometric shapes. The Patterns, center, size, and edge stay put, so the shape is all that changes.',
+    notice: 'Circle plays slowly both ways - growing in and shrinking out; the other shapes alternate at speed. Hearts, stars, and cats have their own showcase.',
+    prompts: ['Slow any shape down to watch its edge.', 'Move the center away from 0.5, 0.5 and compare asymmetric shapes.'],
     guideHeading: 'shape-reveal-transition-reference', specs,
   })
 }
@@ -2167,9 +2167,9 @@ function shapeRevealFigureReference(): StockShow {
   ]
   return transitionReferenceShow({
     id: 'stock-show-reference-shape-reveal-figures', title: 'Shape Reveals: Figures', order: 10,
-    purpose: 'The figurative silhouettes - heart, star, crescent, polygon, cloud, and the three cats - with one slow Heart to study and the rest as quick cuts.',
-    notice: 'Same construction as the geometric reference: the pair, center, scale, and edge never move, so the silhouette is the only question.',
-    prompts: ['Stretch a cat silhouette to study tempo and watch its edge.', 'Swap the reveal mode on the Bastet silhouette.'],
+    purpose: 'The picture shapes - heart, star, crescent, polygon, cloud, and the three cats - with one slow Heart and the rest at speed.',
+    notice: 'Built like the geometric showcase: the Patterns, center, size, and edge never move, so the shape is all that changes.',
+    prompts: ['Slow a cat reveal down and watch its edge.', 'Flip the Bastet reveal between growing in and shrinking out.'],
     guideHeading: 'shape-reveal-figures-reference', specs,
   })
 }
@@ -2186,8 +2186,8 @@ function slideTransitionReference(): StockShow {
   ]
   return transitionReferenceShow({
     id: 'stock-show-reference-slide-transitions', title: 'Slide Transitions', order: 11,
-    purpose: 'Cover, Reveal, and Push are the three ways one picture slides over, out from under, or alongside another: one slow Cover, then the family and its directions as quick cuts.',
-    notice: 'Cover moves the incoming picture, Reveal moves the outgoing one, Push moves both. After the three-way comparison the directions run at quick-cut tempo; diagonals stay continuous in the inspector.',
+    purpose: 'Cover, Reveal, and Push are the three ways one picture slides in: over, out from under, or alongside the other. One slow Cover, then the rest at speed.',
+    notice: 'Cover moves the new picture, Reveal moves the old one, Push moves both. Diagonal directions are a setting away in the inspector.',
     prompts: ['Change a quick Cover to a diagonal direction.', 'Switch Addressing from Clip to Wrap and compare moving edges.'],
     guideHeading: 'slide-transition-reference', specs,
   })
@@ -2206,9 +2206,9 @@ function zoomSpinTransitionReference(): StockShow {
   ]
   return transitionReferenceShow({
     id: 'stock-show-reference-zoom-spin-transitions', title: 'Zoom and Spin Transitions', order: 12,
-    purpose: 'Scaling and spinning arrivals: Content grow at study tempo, then its siblings and the zoom and spin presets as quick cuts.',
-    notice: 'Content transitions scale the picture inside its frame; Zoom transitions scale the frame itself; the spin presets differ only in rotation.',
-    prompts: ['Compare Content grow with Zoom in at the same duration.', 'Stack zoom-and-spin against plain spin at study tempo.'],
+    purpose: 'Arrivals that grow, shrink, or spin: one slow Content grow, then the rest at speed.',
+    notice: 'Content transitions scale the picture inside its frame; Zoom transitions scale the frame itself. The spin presets only add rotation.',
+    prompts: ['Compare Content grow with Zoom in at the same duration.', 'Compare zoom-and-spin with plain spin at the same duration.'],
     guideHeading: 'zoom-and-spin-transition-reference', specs,
   })
 }
@@ -2374,9 +2374,9 @@ function propertyAnimationReference(): StockShow {
   }
   return catalogue({
     id, title: 'Property Animation', track: 'portable', collection: 'showcases', level: null, order: 13,
-    purpose: 'Nine examples show where values can change over time: Pattern state, placement view, Clip Transform, the Viewport aperture, layering, Effect parameters, routing, and sample remapping. The right Zone runs the same Pattern unanimated, so the animated value is the only difference between the columns.',
-    notice: "The first seven examples use Clip-owned sparklines - including a Clip Transform pan and a Soft-edged aperture breathing - while Split position and Repeat scale use boundary-owned Property transitions. The unanimated twin is the control: whatever the columns don't share is the property at work.",
-    prompts: ['Open each Clip and compare the highlighted sparkline owner.', 'Change one midpoint value while leaving its endpoints fixed.'],
+    purpose: 'Nine examples of a value changing over time - a Pattern control, brightness, a Clip Transform, a Viewport, a layer, an Effect setting, a Layout, and a Repeat. The right column plays the same Pattern with nothing animated, so the difference between the columns is the animation.',
+    notice: 'The first seven are animated on the Clip; the last two, Split position and Repeat scale, are animated across a boundary. Compare against the still column: whatever differs is the property at work.',
+    prompts: ['Open each Clip and see which one owns the animation.', 'Change one midpoint value while leaving its endpoints fixed.'],
     guideHeading: 'property-animation-reference', output: portableOutput(), zones,
     defaultOpen: true,
     layouts: [splitLayout('layout-property-split', 'Property split', zones, 'x')], scenes, transitions, composition,
@@ -2416,8 +2416,8 @@ function easingReference(): StockShow {
   }))
   return transitionReferenceShow({
     id: 'stock-show-reference-easing', title: 'Easing', order: 14,
-    purpose: 'One eastward Linear Wipe holds its Patterns, endpoints, direction, and duration constant while every easing curve changes the timing.',
-    notice: 'This isolates easing from Transition geometry. Identical durations are deliberate - easing is when progress happens - and the live header names the current curve and draws its progression.',
+    purpose: 'The same Wipe, over and over, with only its easing changed. Easing decides how a move speeds up and slows down on its way from start to finish.',
+    notice: 'Every Wipe takes the same time on purpose - easing changes when the progress happens, not how long it takes. The header names the current curve and draws it.',
     prompts: ['Compare quadratic in with quadratic out.', 'Watch where Steps and Hold curves spend their time.'],
     guideHeading: 'easing-reference', specs,
   })
@@ -2484,9 +2484,9 @@ function apertureShapesReference(): StockShow {
   }
   return catalogue({
     id, title: 'Aperture Shapes: Geometric', track: 'portable', collection: 'showcases', level: null, order: 15,
-    purpose: 'Every geometric Clip Viewport silhouette over one held frame, then one silhouette across its three edge treatments. The subject, bed, frame, and clocks never change, so each passage has exactly one attributable variable. Icons, the Signature cats, rotation, and Cut-out mode have their own reference.',
-    notice: 'The first seven passages change only the silhouette at its Soft default, the wide-radius passage shows corner radius is shape rather than edge, and the last three hold the Ring while only its edge treatment changes - Soft, then the deliberate Hard cut, then Stable Dither.',
-    prompts: ['Swap the subject Pattern and watch every silhouette keep its geometry.', 'Open any passage and drag the corner radius, arm width, sides, or edge softness - the reference values are starting points, not limits.'],
+    purpose: 'Every geometric Viewport shape over the same picture, then one shape with each of its three edge styles. Only one thing changes at a time. Icons, the cats, rotation, and Cut out have their own showcase.',
+    notice: 'The first seven change only the shape, with a soft edge. The wide-radius one shows corner radius is part of the shape, not the edge. The last three hold the Ring and change only the edge: Soft, Hard, then Stable Dither.',
+    prompts: ['Swap the Pattern and watch every shape stay the same.', 'Open any passage and drag the corner radius, arm width, sides, or edge softness - the reference values are starting points, not limits.'],
     guideHeading: 'aperture-shapes-reference',
     defaultOpen: true,
     output: portableOutput(), zones, layouts: [singleLayout(zones)],
@@ -2563,9 +2563,9 @@ function apertureIconsReference(): StockShow {
   }
   return catalogue({
     id, title: 'Aperture Icons & Signature', track: 'portable', collection: 'showcases', level: null, order: 16,
-    purpose: 'The icon and signature silhouettes - Heart, Star, Crescent, Cloud, and the three cats - over the same held frame as the geometric reference, then rotation and the Cut-out mode. Each passage still changes exactly one thing.',
-    notice: 'The first seven passages change only the silhouette at its Soft default. The last two hold a silhouette and change one control: rotation turns the star while the frame stays axis-aligned, and Cut out inverts the cloud so the silhouette becomes the hole.',
-    prompts: ['Drag the rotation on the turned star - the frame never moves, only the silhouette.', "Flip any passage's Mode between Admit inside and Cut out - both sides share one boundary and one feather."],
+    purpose: 'The icon shapes - Heart, Star, Crescent, Cloud, and the three cats - over the same picture as the geometric showcase, then rotation and Cut out. Only one thing changes at a time.',
+    notice: 'The first seven change only the shape. The last two hold a shape and change one control: rotation turns the star while the frame stays still, and Cut out flips the cloud so the shape becomes the hole.',
+    prompts: ['Drag the rotation on the turned star - the frame never moves, only the shape.', "Flip any passage's Mode between Admit inside and Cut out - both sides share one boundary and one feather."],
     guideHeading: 'aperture-icons-and-signature-reference',
     defaultOpen: true,
     output: portableOutput(), zones, layouts: [singleLayout(zones)],
@@ -2732,8 +2732,8 @@ function effectShowcase(kind: ShowcaseKind): StockShow {
     distortion: {
       id: 'stock-show-showcase-distortion-effects', title: 'Distortion Effects', order: 2,
       source: 'StainedGlassWeather',
-      purpose: 'Distortions remap where a Clip samples its Pattern. The leaded panes of the glass bend, ripple, and shatter, so the shape, center, and strength of each remap stays readable.',
-      notice: 'The Ripple is the slow exemplar; the others cut past more quickly because their silhouettes differ at a glance. Every distortion here samples the same unhurried glass.',
+      purpose: 'Distortion Effects bend the picture without touching the Pattern. The leaded panes of the glass warp, ripple, and shatter, so the shape and strength of each bend is easy to see.',
+      notice: 'Ripple gets the long look; the others pass quickly because they differ at a glance. Every one of them bends the same slow glass.',
       prompts: ['Move the Swirl center to 0.25, 0.50.', 'Reduce Kaleidoscope segments from 6 to 3.'] as const,
       heading: 'distortion-effects',
       rows: [
@@ -2748,8 +2748,8 @@ function effectShowcase(kind: ShowcaseKind): StockShow {
     'color-adjustment': {
       id: 'stock-show-showcase-color-adjustment-effects', title: 'Color Adjustment Effects', order: 3,
       source: 'StainedGlassWeather',
-      purpose: 'Color adjustments change a rendered Clip without changing its geometry. The glass carries every hue at once, so each operation identifies itself in a single look.',
-      notice: 'A long reference beat establishes the true colors, then each adjustment cuts past quickly. Opacity fades toward black beside Brightness for comparison; the key Effects live in the Compositing and Key reference, where a lower Layer gives them something to reveal.',
+      purpose: 'Color Effects change the colors of a Clip and nothing else. The glass holds every hue at once, so each Effect is easy to name on sight.',
+      notice: 'A long opening shows the true colors, then each adjustment passes quickly. Opacity sits beside Brightness so you can compare them; the key Effects live in the Compositing and Key showcase, where there is a layer underneath to reveal.',
       prompts: ['Compare Contrast against Brightness on the same pane.', 'Change Posterize from 4 levels to 2.'] as const,
       heading: 'color-adjustment-effects',
       rows: [
@@ -3073,8 +3073,8 @@ function compositingKeyShowcase(): StockShow {
   }
   return catalogue({
     id, title: 'Compositing and Key Effects', track: 'portable', collection: 'showcases', level: null, order: 4,
-    purpose: "Opacity, Luma Key, Chroma Key, and Vignette decide which of a Clip's pixels reach the mix, so they only mean something over a lower Layer. A warm bed runs underneath the whole reference; every pixel these Effects remove shows the bed instead.",
-    notice: 'Each Effect rides the subject that shows it best: grayscale Luma Rings for the opacities and Luma Key - the matte is the image - DoomFire for Chroma Key, and the closing Vignette over keyed waves. Every key targets black, so gray edges blend as gradient opacity.',
+    purpose: "Opacity, Luma Key, Chroma Key, and Vignette decide which of a Clip's pixels show through, so they only make sense with something underneath. A warm bed runs under the whole Show; wherever an Effect removes a pixel, you see the bed instead.",
+    notice: 'Each Effect gets the picture that shows it best: grayscale rings for Opacity and Luma Key, fire for Chroma Key, and a Vignette over keyed waves to close. Every key removes black, so gray edges fade rather than cut.',
     prompts: ['Raise the Luma Key tolerance until only the brightest ring cores survive.', 'Point the Chroma Key at the fire\'s yellow instead and watch the cores vanish.'],
     guideHeading: 'compositing-and-key-effects',
     defaultOpen: true,
@@ -3217,9 +3217,9 @@ function lumaSourcesShowcase(): StockShow {
   }
   return catalogue({
     id, title: 'Luma Sources', track: 'portable', collection: 'showcases', level: null, order: 5,
-    purpose: 'The seven Luma Patterns are grayscale key sources with one shared control set. Each gets one beat: bare first, then a single animated property chosen for its character - the family controls are ordinary animatable properties.',
-    notice: 'Stripes fattens Width, Sine Waves tips Lean into breaking sawtooths, Chevron breathes Fold, Rings pours Spacing, Pinwheel glides off-center, Dots wheels its lattice, Weave boils its pace, and Spiral zooms its winding. Grayscale throughout: keying them is the Compositing and Key reference\'s job.',
-    prompts: ['Drag any beat\'s animated control yourself and feel the same range.', 'Add a Luma Key over any beat and watch the field become a matte.'],
+    purpose: 'The Luma Patterns are grayscale shapes made to be used as keys, and they share one set of controls. Each one plays plain first, then with a single control animated.',
+    notice: 'Stripes widen, Sine Waves lean, Chevron folds, Rings spread, Pinwheel drifts off-center, Dots turn, Weave speeds up, and Spiral tightens. They stay grayscale here; the Compositing and Key showcase turns them into keys.',
+    prompts: ['Drag any animated control yourself and see the same range.', 'Add a Luma Key to any Clip and watch the shape become a key.'],
     guideHeading: 'luma-sources',
     defaultOpen: true,
     output: portableOutput(), zones, layouts: [singleLayout(zones)],
