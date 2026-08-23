@@ -2716,8 +2716,8 @@ function effectShowcase(kind: ShowcaseKind): StockShow {
     transform: {
       id: 'stock-show-showcase-transform-effects', title: 'Transform and Address Effects', order: 1,
       source: 'TunnelOfSquares2D',
-      purpose: 'The tunnel moves continuously between affine Effect states, so each coordinate transformation is visible on its nested square edges; Wrap then changes the address policy rather than a coordinate.',
-      notice: 'Translate, Scale, Rotate, and Shear interpolate as one stable Effect stack. Wrap is discrete because it changes where out-of-range samples come from, not where pixels go.',
+      purpose: 'The same tunnel slides, shrinks, turns, and leans as each Transform Effect eases in, so the square edges show exactly what moved. Wrap then decides what fills the space left behind.',
+      notice: 'Translate, Scale, Rotate, and Shear glide between values. Wrap switches on or off: it picks where missing pixels come from rather than where pixels go.',
       prompts: ['Change Rotate from 0.125 to 0.25 turns.', 'Move Wrap before Translate and compare the result.'] as const,
       heading: 'transform-and-address-effects',
       rows: [
