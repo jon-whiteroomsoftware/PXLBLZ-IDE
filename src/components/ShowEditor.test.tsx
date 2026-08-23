@@ -5441,7 +5441,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       const draft = useShowStore.getState().stockShowDrafts[stock.id]
       expect(draft.composition?.patternInstances.length).toBeGreaterThan(0)
       expect(draft.composition?.patternInstances.every((instance) => (
-        instance.pattern.kind === 'stock' && instance.pattern.id === 'CompassRose'
+        instance.pattern.kind === 'stock' && instance.pattern.id === 'TunnelOfSquares2D'
       ))).toBe(true)
     })
 
@@ -5460,7 +5460,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.getAllByRole('button', { name: 'Select Caustics' }).length).toBeGreaterThan(0)
 
     await user.click(screen.getByRole('button', { name: 'Reset built-in Show' }))
-    expect(screen.getAllByRole('button', { name: 'Select CompassRose' }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('button', { name: 'Select TunnelOfSquares2D' }).length).toBeGreaterThan(0)
   })
 
   it('keeps Clip resize grab zones clear of the junction band (#363)', () => {

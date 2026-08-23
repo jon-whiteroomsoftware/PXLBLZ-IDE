@@ -110,14 +110,17 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // figure by -1 at this vintage. The #823 review fixes (deterministic-loop
     // stamps withheld where the wrap census cannot prove exact reset, ramp
     // anchors accumulating transition extensions) move it -6 more at this
-    // frozen vintage. The reclaim percent stays 0, the weighted figure
-    // dilutes, and the stop verdict is unchanged.
+    // frozen vintage. The #63 showcase recasts (Transform on
+    // TunnelOfSquares2D, Distortion on Mandelbrot2D, Color Adjustment on
+    // BlueHolidayCandle2D, the latter two on one held instance) move it
+    // -159 member and -52 reclaimable globals. The reclaim percent stays 0,
+    // the weighted figure dilutes, and the stop verdict is unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 3_667,
-      representativeReclaimedGlobals: 206,
+      representativeMemberGlobals: 3_508,
+      representativeReclaimedGlobals: 154,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.05617671, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.04389966, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(
