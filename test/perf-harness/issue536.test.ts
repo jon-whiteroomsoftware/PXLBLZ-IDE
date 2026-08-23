@@ -112,15 +112,16 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // anchors accumulating transition extensions) move it -6 more at this
     // frozen vintage. The #63 showcase recasts (Transform on
     // TunnelOfSquares2D, Distortion on Mandelbrot2D, Color Adjustment on
-    // BlueHolidayCandle2D, the latter two on one held instance) move it
-    // -159 member and -52 reclaimable globals. The reclaim percent stays 0,
+    // BlueHolidayCandle2D, the latter two on one held instance; Blend and
+    // Fade's reference side on MetaballsOfFire2D) move it -164 member and
+    // -52 reclaimable globals. The reclaim percent stays 0,
     // the weighted figure dilutes, and the stop verdict is unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 3_508,
+      representativeMemberGlobals: 3_503,
       representativeReclaimedGlobals: 154,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.04389966, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.04396232, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

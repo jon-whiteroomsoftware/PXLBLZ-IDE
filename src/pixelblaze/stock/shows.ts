@@ -2078,6 +2078,7 @@ function blendAndFadeTransitionReference(): StockShow {
     notice: 'The Crossfade takes its time so you can watch it; the Fades go faster because the color they pass through is the whole point.',
     prompts: ['Stretch the Crossfade and watch the two worlds coexist.', 'Change the Fade color from black to a deep blue in the inspector.'],
     guideHeading: 'blend-and-fade-transition-reference', specs,
+    referencePattern: 'MetaballsOfFire2D',
   })
 }
 
@@ -2597,7 +2598,10 @@ function transitionReferenceShow(input: {
   prompts: readonly [string, string]
   guideHeading: string
   specs: TransitionReferenceSpec[]
+  /** The reference-side content Pattern; IQPalettes unless a reference recasts it (#63). */
+  referencePattern?: string
 }): StockShow {
+  const referencePattern = input.referencePattern ?? 'IQPalettes'
   const zones = logicalZones(['Main'], 2_000)
   const scenes = Array.from({ length: input.specs.length + 1 }, (_, index) => {
     const selected = index % 2 === 1
@@ -2608,7 +2612,7 @@ function transitionReferenceShow(input: {
       `reference-${index + 1}`,
       index === 0 ? 'Reference' : input.specs[index - 1].label,
       holdSeconds,
-      [clip('zone-1', selected ? 'MetaballGarden' : 'IQPalettes', 0.32)],
+      [clip('zone-1', selected ? 'MetaballGarden' : referencePattern, 0.32)],
     )
   })
   const transitions = cutBoundaries(scenes)

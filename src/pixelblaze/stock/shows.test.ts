@@ -230,10 +230,11 @@ describe('stock Show curriculum (#363)', () => {
       // clock, IQPalettes and MetaballGarden are the two calmest
       // equally-bright fields with the widest sustained hue contrast, so
       // every boundary reads as one world replacing another.
+      // Blend and Fade recasts its reference side to MetaballsOfFire2D (#63).
       const composition = item.show.composition!
       expect(composition.patternInstances.map((instance) => instance.patternName), item.name).toEqual([
         'Murmuration',
-        'IQPalettes',
+        item.id === 'stock-show-reference-blend-fade-transitions' ? 'MetaballsOfFire2D' : 'IQPalettes',
         'MetaballGarden',
       ])
       expect(new Set(composition.scenes.map((scene) => (
@@ -774,7 +775,7 @@ describe('stock Show curriculum (#363)', () => {
     // Declarations scope the swap surface (#822): the Murmuration backdrop
     // is doctrine-fixed and no longer offers a swap box.
     expect(slotPatternNames('stock-show-reference-blend-fade-transitions')).toEqual([
-      'IQPalettes',
+      'MetaballsOfFire2D',
       'MetaballGarden',
     ])
   })
