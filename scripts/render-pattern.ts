@@ -177,12 +177,13 @@ async function renderFrames(config: RenderConfig): Promise<number> {
       ? fs.readFileSync(config.file, 'utf8')
       : await page.evaluate(() =>
         (window as unknown as { __pxlblz: PxlblzCaptureApi }).__pxlblz.getPreviewSource())
-    await page.evaluate(({ code, diffusion }) => {
+    await page.evaluate(({ code, diffusion, lightSize }) => {
       const api = (window as unknown as { __pxlblz: PxlblzCaptureApi }).__pxlblz
       api.setPreview({ isRunning: false })
       // Store overrides land before the rebuild below, which reads them when
       // wiring the fresh renderer.
       if (diffusion !== null) api.setPreview({ diffusion })
+      if (lightSize !== null) api.setPreview({ lightSize })
       api.loadSource('')
       // Defer the reload a macrotask so React commits the teardown first.
       return new Promise<void>((resolve) => {
@@ -191,7 +192,7 @@ async function renderFrames(config: RenderConfig): Promise<number> {
           resolve()
         }, 50)
       })
-    }, { code: source, diffusion: config.diffusion })
+    }, { code: source, diffusion: config.diffusion, lightSize: config.lightSize })
     // The preview loop rebuilds in a React effect; give it a beat, then make
     // sure no compile/runtime error is covering the canvas.
     await page.waitForTimeout(750)
@@ -273,9 +274,14 @@ async function renderShowFrames(
   ).catch((error: unknown) => fail(
     `stage preview did not come up for Show "${config.show}" — check the show id and that the route loaded (${url}). ${String(error)}`,
   ))
-  if (config.diffusion !== null) {
+  if (config.diffusion !== null || config.lightSize !== null) {
     // The stage preview reads the same preview store as the Pattern preview.
-    await page.evaluate((diffusion) => window.__pxlblzShow!.setPreview({ diffusion }), config.diffusion)
+    await page.evaluate(({ diffusion, lightSize }) => {
+      window.__pxlblzShow!.setPreview({
+        ...(diffusion !== null ? { diffusion } : {}),
+        ...(lightSize !== null ? { lightSize } : {}),
+      })
+    }, { diffusion: config.diffusion, lightSize: config.lightSize })
   }
   // The stage sits inside the pane's own padding, so its canvas lands a few
   // px short of the viewport; gate with that slack rather than exactly.
@@ -361,7 +367,7 @@ async function main(): Promise<void> {
   } catch (error) {
     fail(String(error instanceof Error ? error.message : error) +
       '\nUsage: npm run render -- (--demo <DemoName> | --file <pattern.js> [--demo <MountDemo>] | --show <ShowId>) ' +
-      '[--start SECONDS] [--seconds N] [--fps N] [--width PX] [--diffusion 0..1] [--out FILE.mp4] [--name SLUG] [--base-url URL] [--keep-frames]')
+      '[--start SECONDS] [--seconds N] [--fps N] [--width PX] [--diffusion 0..1] [--light-size 0.15..0.95] [--out FILE.mp4] [--name SLUG] [--base-url URL] [--keep-frames]')
   }
   if (config.file && !fs.existsSync(config.file)) fail(`no such file: ${config.file}`)
   await assertServerReachable(config.baseUrl)

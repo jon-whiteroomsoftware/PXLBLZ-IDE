@@ -124,8 +124,23 @@ The README's animated GIFs come from the deterministic renderer plus ffmpeg:
 npm run render -- --demo <Name> --seconds 6 --fps 30      # needs dev:main on 5174
 ```
 
-then a palettegen/paletteuse pass at `fps=12,scale=560:-1:flags=lanczos` with
-`max_colors=128` and `-loop 0`. Each GIF lands between 4 and 7 MB.
+Pass `--diffusion 0..1` or `--light-size 0.15..0.95` to override the mounted
+Pattern or Show presentation without changing its saved settings. For example,
+the Quadrille launch GIF uses `--diffusion 0.8 --light-size 0.7`.
+
+Encode a looping GIF with an ordered Bayer dither:
+
+```bash
+ffmpeg -y -i /tmp/pxlblz-renders/<name>.mp4 \
+  -filter_complex "fps=12,scale=560:-1:flags=lanczos,split[base][palette];[palette]palettegen=max_colors=128[colors];[base][colors]paletteuse=dither=bayer:bayer_scale=5" \
+  -loop 0 <name>.gif
+```
+
+The ordered dither is visually indistinguishable from Floyd-Steinberg on the
+LED dot grid and reduced the measured Quadrille GIF from 10.5 MB to 7.1 MB at
+diffusion 0.5. The diffusion 0.8 / light size 0.7 version measured 7.9 MB.
+Busy multi-Zone Shows run near 1 MB/s at 560 px; smoother diffusion generally
+compresses better.
 
 Since #697 the render script accepts `--file <variant.js> --demo <MountDemo>`,
 where the demo names the mount point whose map and preview config are used. This

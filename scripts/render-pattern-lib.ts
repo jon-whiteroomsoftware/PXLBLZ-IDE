@@ -17,6 +17,8 @@ export interface RenderConfig {
   name: string
   /** Preview diffusion override (0..1); null keeps the pattern's own setting. */
   diffusion: number | null
+  /** Preview light-size override (0.15..0.95); null keeps the pattern's own setting. */
+  lightSize: number | null
   /** Show id to record from its stage preview (#879); exclusive with demo/file. */
   show: string | null
   /** Virtual time of the first frame, in seconds; reached by a headless pre-roll. */
@@ -68,6 +70,7 @@ export function parseRenderArgs(argv: string[]): RenderConfig {
   let baseUrl = DEFAULTS.baseUrl
   let name: string | null = null
   let diffusion: number | null = null
+  let lightSize: number | null = null
   let show: string | null = null
   let startSeconds = 0
 
@@ -98,6 +101,14 @@ export function parseRenderArgs(argv: string[]): RenderConfig {
         diffusion = v
         break
       }
+      case '--light-size': {
+        const v = Number(value())
+        if (!Number.isFinite(v) || v < 0.15 || v > 0.95) {
+          throw new Error(`--light-size requires a number in 0.15..0.95, got "${argv[i]}".`)
+        }
+        lightSize = v
+        break
+      }
       case '--keep-frames': keepFrames = true; break
       default: throw new Error(`Unknown flag ${flag}.`)
     }
@@ -115,7 +126,7 @@ export function parseRenderArgs(argv: string[]): RenderConfig {
   const baseName = name ?? (show ? showBasename(show) : file ? fileBasename(file) : demo!)
   const slug = renderSlug(baseName)
   if (!slug) throw new Error(`Cannot derive a usable name from "${baseName}"; pass --name.`)
-  return { demo, file, seconds, fps, width, out, keepFrames, baseUrl, name: slug, diffusion, show, startSeconds }
+  return { demo, file, seconds, fps, width, out, keepFrames, baseUrl, name: slug, diffusion, lightSize, show, startSeconds }
 }
 
 function showBasename(showId: string): string {

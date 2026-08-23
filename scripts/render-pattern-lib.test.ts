@@ -15,6 +15,7 @@ describe('parseRenderArgs', () => {
       baseUrl: 'http://localhost:5174/PXLBLZ-IDE/',
       name: 'plasmanebula',
       diffusion: null,
+      lightSize: null,
       show: null,
       startSeconds: 0,
     })
@@ -47,6 +48,16 @@ describe('parseRenderArgs', () => {
     expect(parseRenderArgs(['--demo', 'A', '--diffusion', '0']).diffusion).toBe(0)
     expect(() => parseRenderArgs(['--demo', 'A', '--diffusion', '1.5'])).toThrow()
     expect(() => parseRenderArgs(['--demo', 'A', '--diffusion', 'soft'])).toThrow()
+  })
+
+  it('defaults light size to null and accepts the complete 0.15..0.95 preview range (#881)', () => {
+    expect(parseRenderArgs(['--demo', 'A']).lightSize).toBeNull()
+    expect(parseRenderArgs(['--demo', 'A', '--light-size', '0.7']).lightSize).toBe(0.7)
+    expect(parseRenderArgs(['--demo', 'A', '--light-size', '0.15']).lightSize).toBe(0.15)
+    expect(parseRenderArgs(['--show', 'stock-show-x', '--light-size', '0.95']).lightSize).toBe(0.95)
+    expect(() => parseRenderArgs(['--demo', 'A', '--light-size', '0.149'])).toThrow(/--light-size/)
+    expect(() => parseRenderArgs(['--demo', 'A', '--light-size', '0.951'])).toThrow(/--light-size/)
+    expect(() => parseRenderArgs(['--demo', 'A', '--light-size', 'large'])).toThrow(/--light-size/)
   })
 
   it('accepts --file with --demo naming the mount point, keeping the file name', () => {
