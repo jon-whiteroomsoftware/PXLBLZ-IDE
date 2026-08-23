@@ -71,8 +71,8 @@ const HELPER_SOURCES: ReadonlyArray<{ name: string; source: string }> = [
   var g = (abs(u) + abs(v)) / ${HEART_HALF_DIAGONAL}
   var left = ${-HEART_HALF_DIAGONAL / 2} * (u + v)
   var right = ${HEART_HALF_DIAGONAL / 2} * (u - v)
-  if (left > 0.001) g = min(g, r2 / (2 * left))
-  if (right > 0.001) g = min(g, r2 / (2 * right))
+  if (left > 0.001 && r2 * 0.5 < left * g) g = r2 / (2 * left)
+  if (right > 0.001 && r2 * 0.5 < right * g) g = r2 / (2 * right)
   return g
 }`,
   },

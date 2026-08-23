@@ -388,11 +388,15 @@ export function heartGauge(sx: number, sy: number): number {
   let gauge = (Math.abs(sx) + Math.abs(sy)) / d
   const left = -(d / 2) * (sx + sy)
   const right = (d / 2) * (sx - sy)
-  // A ray only meets a lobe's far boundary when it points into that lobe;
-  // the 0.001 floor skips chords the diamond already dominates and keeps the
-  // 16.16 division bounded.
-  if (left > 0.001) gauge = Math.min(gauge, r2 / (2 * left))
-  if (right > 0.001) gauge = Math.min(gauge, r2 / (2 * right))
+  // A ray only meets a lobe's far boundary when it points into that lobe,
+  // and the chord quotient is only evaluated when it would reduce the gauge
+  // (cross-multiplied: r2 / (2 left) < g). That keeps the 16.16 emission
+  // bounded for tiny apertures, where a far pixel's quotient can exceed the
+  // signed range and wrap negative even though the diamond already wins;
+  // left * g <= (|sx| + |sy|)^2 / 2 <= r2, so the test itself cannot overflow
+  // while r2 is representable (#63 review).
+  if (left > 0.001 && r2 * 0.5 < left * gauge) gauge = r2 / (2 * left)
+  if (right > 0.001 && r2 * 0.5 < right * gauge) gauge = r2 / (2 * right)
   return gauge
 }
 

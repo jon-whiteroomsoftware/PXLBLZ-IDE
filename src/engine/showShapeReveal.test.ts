@@ -2,7 +2,7 @@ import {
   normalizeShowRevealMode,
   showShapeRevealDistance,
   showShapeRevealMaxDistance,
-  showShapeRevealSignedDistance, HEART_HALF_DIAGONAL, crescentGeometry, CRESCENT_HOLE_RATIO } from './showShapeReveal'
+  showShapeRevealSignedDistance, HEART_HALF_DIAGONAL, heartGauge, crescentGeometry, CRESCENT_HOLE_RATIO } from './showShapeReveal'
 import { createDefaultShow, normalizeShowTransitionState, showRecordToCompileRecipe } from './showModel'
 import { compileShow } from './showCompiler'
 
@@ -140,6 +140,20 @@ describe('common and signature SDF catalogue (#452)', () => {
     // sits exactly where the lobes meet the diamond's top vertex.
     expect(metricAt(-3 * Math.PI / 4)).toBeCloseTo(radius / (Math.SQRT2 * HEART_HALF_DIAGONAL), 10)
     expect(metricAt(-Math.PI / 2)).toBeCloseTo(radius / HEART_HALF_DIAGONAL, 10)
+  })
+
+  it('only evaluates a Heart lobe chord when it can reduce the gauge (#63 review)', () => {
+    // A 0.01 x 0.01 aperture puts a far stage corner ~100 units out in frame
+    // space. The diamond gauge is ~249 there; the unguarded chord quotient
+    // would be ~49,751, outside the 16.16 range. The model must agree with
+    // the plain min (the quotient never wins) so the emitted guard is exact.
+    const sx = -100, sy = 99.5
+    const d = HEART_HALF_DIAGONAL
+    expect(heartGauge(sx, sy)).toBeCloseTo((Math.abs(sx) + Math.abs(sy)) / d, 10)
+    // And the guard's cross-multiplied terms stay within r2's magnitude.
+    const r2 = sx * sx + sy * sy
+    const left = -(d / 2) * (sx + sy)
+    expect(left * ((Math.abs(sx) + Math.abs(sy)) / d)).toBeLessThanOrEqual(r2)
   })
 
   it('shapes the Star with straight edges and an upward tip (#63)', () => {
