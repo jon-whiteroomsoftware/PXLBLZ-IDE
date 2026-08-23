@@ -315,8 +315,8 @@ function ShowBand({
           Show
         </span>
       </a>
-      {/* Caption width: no wider than ~62% of the preview it describes. */}
-      <div className="flex min-w-0 flex-col justify-center gap-2 px-1 font-mono" style={{ maxWidth: Math.round(width * 0.62) }}>
+      {/* Caption width: no wider than ~80% of the preview it describes. */}
+      <div className="flex min-w-0 flex-col justify-center gap-2 px-1 font-mono" style={{ maxWidth: Math.round(width * 0.8) }}>
         <div className="text-[15px] text-zinc-100">
           <em>{stock?.name ?? entry.id}</em>
           <span className="text-[11.5px] text-zinc-400"> {entry.byline}</span>
