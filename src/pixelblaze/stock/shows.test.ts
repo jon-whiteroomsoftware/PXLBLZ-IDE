@@ -183,7 +183,7 @@ describe('stock Show curriculum (#363)', () => {
     ]))
   })
 
-  it('places Transition references over one fixed diagnostic backdrop (#506)', () => {
+  it('places Transition references as one content Clip per passage with no backdrop (#63)', () => {
     const references = [
       'stock-show-reference-blend-fade-transitions',
       'stock-show-reference-wipe-transitions',
@@ -195,37 +195,16 @@ describe('stock Show curriculum (#363)', () => {
       'stock-show-reference-easing',
     ].map((id) => STOCK_SHOWS.find((candidate) => candidate.id === id)!)
 
-    // Only the families whose Transitions open gaps keep the backdrop (#63);
-    // Blend, Wipe, Dissolve, and Easing always cover the frame and drop it.
-    const BACKDROP_REFERENCES = new Set([
-      'stock-show-reference-shape-reveal-transitions',
-      'stock-show-reference-shape-reveal-figures',
-      'stock-show-reference-slide-transitions',
-      'stock-show-reference-zoom-spin-transitions',
-    ])
     for (const item of references) {
+      // A Transition blends two whole-stage frames, so no family ever exposed
+      // the former Murmuration bed beyond an 18% tint (measured, #63).
       expect(item.show.composition?.scenes).toHaveLength(item.show.scenes.length)
-      if (BACKDROP_REFERENCES.has(item.id)) {
-        // Murmuration by measurement: the calmest dim voice in the corpus
-        // (flux 0.015); the old Caustics backdrop measured 0.53 and fought
-        // the comparison running above it.
-        expect(item.show.composition?.patternInstances).toContainEqual(expect.objectContaining({
-          id: 'instance-reference-backdrop',
-          patternName: 'Murmuration',
-        }))
-        expect(item.show.composition?.scenes.every((scene) => (
-          scene.zones[0].main.some((placement) => placement.instanceId === 'instance-reference-backdrop')
-          && scene.zones[0].overlays[0]?.placements[0]?.opacity === 0.82
-        ))).toBe(true)
-      } else {
-        expect(item.show.composition?.patternInstances.map((instance) => instance.id), item.name)
-          .not.toContain('instance-reference-backdrop')
-        expect(item.show.composition?.scenes.every((scene) => (
-          scene.zones[0].main.length === 1 && scene.zones[0].overlays.length === 0
-        )), item.name).toBe(true)
-      }
+      expect(item.show.composition?.patternInstances.map((instance) => instance.id), item.name)
+        .not.toContain('instance-reference-backdrop')
+      expect(item.show.composition?.scenes.every((scene) => (
+        scene.zones[0].main.length === 1 && scene.zones[0].overlays.length === 0
+      )), item.name).toBe(true)
       expect(item.reference?.patternSlots?.instanceIds.length).toBeGreaterThan(0)
-      expect(item.reference?.patternSlots?.instanceIds).not.toContain('instance-reference-backdrop')
     }
   })
 
@@ -247,31 +226,29 @@ describe('stock Show curriculum (#363)', () => {
       // equally-bright fields with the widest sustained hue contrast, so
       // every boundary reads as one world replacing another.
       // Blend and Fade recasts its reference side to MetaballsOfFire2D and
-      // Wipes to InfinityFlower2D, and Dissolves to WavyBands over
-      // GeometryMorphingDemo2D (#63); the backdrop is per family.
+      // Wipes to InfinityFlower2D, Dissolves to WavyBands over
+      // GeometryMorphingDemo2D, and Shape Reveals: Geometric to
+      // IridescentFibers over MagneticFilaments (#63).
       const composition = item.show.composition!
       const RECASTS: Record<string, [string, string]> = {
         'stock-show-reference-blend-fade-transitions': ['MetaballsOfFire2D', 'MetaballGarden'],
         'stock-show-reference-wipe-transitions': ['InfinityFlower2D', 'MetaballGarden'],
         'stock-show-reference-dissolve-transitions': ['WavyBands', 'GeometryMorphingDemo2D'],
+        'stock-show-reference-shape-reveal-transitions': ['IridescentFibers', 'MagneticFilaments'],
       }
       const [referenceSide, selectedSide] = RECASTS[item.id] ?? ['IQPalettes', 'MetaballGarden']
-      const hasBackdrop = composition.patternInstances.some((instance) => instance.id === 'instance-reference-backdrop')
       expect(composition.patternInstances.map((instance) => instance.patternName), item.name).toEqual([
-        ...(hasBackdrop ? ['Murmuration'] : []),
         referenceSide,
         selectedSide,
       ])
-      expect(new Set(composition.scenes.map((scene) => (
-        hasBackdrop ? scene.zones[0].overlays[0].placements[0].instanceId : scene.zones[0].main[0].instanceId
-      ))), item.name).toEqual(new Set([
+      expect(new Set(composition.scenes.map((scene) => scene.zones[0].main[0].instanceId)), item.name).toEqual(new Set([
         'instance-reference-content-reference',
         'instance-reference-content-selected',
       ]))
 
       const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
       expect(compiled.error, item.name).toBeNull()
-      expect(compiled.artifact?.summary.clipCount, item.name).toBe(hasBackdrop ? 3 : 2)
+      expect(compiled.artifact?.summary.clipCount, item.name).toBe(2)
     }
   })
 
@@ -797,8 +774,7 @@ describe('stock Show curriculum (#363)', () => {
       'MetaballGarden',
       'CompassRose',
     ])
-    // Declarations scope the swap surface (#822): the Murmuration backdrop
-    // is doctrine-fixed and no longer offers a swap box.
+    // Declarations scope the swap surface (#822) to the two content sides.
     expect(slotPatternNames('stock-show-reference-blend-fade-transitions')).toEqual([
       'MetaballsOfFire2D',
       'MetaballGarden',

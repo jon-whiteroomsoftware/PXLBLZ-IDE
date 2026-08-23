@@ -2060,10 +2060,9 @@ type TransitionReferenceSpec = {
 // 0.013/200ms) and IQPalettes (warm, lum 0.41, flux 0.016) are the two
 // calmest equally-bright fields with the widest sustained hue contrast, so
 // every boundary reads as one world replacing another and neither side ever
-// looks dead. The backdrop recasts to Murmuration, the calmest dim voice in
-// the corpus (flux 0.015); the old Caustics backdrop measured 0.53 flux and
-// fought the comparison it was under. Pacing follows the packet's editor
-// rule: one slow exemplar per family, then quick cuts of its siblings.
+// looks dead. Several references recast the pair by eye (#63). Pacing
+// follows the packet's editor rule: one slow exemplar per family, then
+// quick cuts of its siblings.
 
 function blendAndFadeTransitionReference(): StockShow {
   const specs: TransitionReferenceSpec[] = [
@@ -2077,7 +2076,7 @@ function blendAndFadeTransitionReference(): StockShow {
     purpose: 'The basic ways to get from one Clip to the next: a plain Cut, one slow Crossfade, and two Fades through a color.',
     notice: 'The Crossfade takes its time so you can watch it; the Fades go faster because the color they pass through is the whole point.',
     prompts: ['Stretch the Crossfade and watch the two worlds coexist.', 'Change the Fade color from black to a deep blue in the inspector.'],
-    guideHeading: 'blend-and-fade-transition-reference', specs, backdrop: false,
+    guideHeading: 'blend-and-fade-transition-reference', specs,
     referencePattern: 'MetaballsOfFire2D',
   })
 }
@@ -2101,7 +2100,7 @@ function wipeTransitionReference(): StockShow {
     purpose: 'One slow Wipe to the right, then a quick tour of the other directions and every patterned Wipe.',
     notice: 'After the slow one, each Wipe changes one thing - direction, split, doors, blinds, clock, checker, grid - and moves on. Diagonal and center-in versions are a setting away in the inspector.',
     prompts: ['Compare hard, dithered, and blended edges on the slow Wipe.', 'Slow any of the quick Wipes down.'],
-    guideHeading: 'wipe-transition-reference', specs, backdrop: false, referencePattern: 'InfinityFlower2D',
+    guideHeading: 'wipe-transition-reference', specs, referencePattern: 'InfinityFlower2D',
   })
 }
 
@@ -2118,7 +2117,7 @@ function dissolveTransitionReference(): StockShow {
     purpose: 'Four ways to crumble one picture into the next: pixel by pixel, in blocks, in cloudy patches, and through a soft edge.',
     notice: 'The pixel Dissolve plays slowly; the other three differ only in the shape of what crumbles.',
     prompts: ['Change the block dissolve grid in the inspector.', 'Compare coherent-noise with soft-threshold at the same duration.'],
-    guideHeading: 'dissolve-transition-reference', specs, backdrop: false, referencePattern: 'WavyBands', selectedPattern: 'GeometryMorphingDemo2D',
+    guideHeading: 'dissolve-transition-reference', specs, referencePattern: 'WavyBands', selectedPattern: 'GeometryMorphingDemo2D',
   })
 }
 
@@ -2154,7 +2153,7 @@ function shapeRevealGeometricReference(): StockShow {
     purpose: 'One slow Circle reveal, then a quick tour of the geometric shapes. The Patterns, center, size, and edge stay put, so the shape is all that changes.',
     notice: 'Circle plays slowly both ways - growing in and shrinking out; the other shapes alternate at speed. Hearts, stars, and cats have their own showcase.',
     prompts: ['Slow any shape down to watch its edge.', 'Move the center away from 0.5, 0.5 and compare asymmetric shapes.'],
-    guideHeading: 'shape-reveal-transition-reference', specs, backdrop: true,
+    guideHeading: 'shape-reveal-transition-reference', specs, referencePattern: 'IridescentFibers', selectedPattern: 'MagneticFilaments',
   })
 }
 
@@ -2171,7 +2170,7 @@ function shapeRevealFigureReference(): StockShow {
     purpose: 'The picture shapes - heart, star, crescent, polygon, cloud, and the three cats - with one slow Heart and the rest at speed.',
     notice: 'Built like the geometric showcase: the Patterns, center, size, and edge never move, so the shape is all that changes.',
     prompts: ['Slow a cat reveal down and watch its edge.', 'Flip the Bastet reveal between growing in and shrinking out.'],
-    guideHeading: 'shape-reveal-figures-reference', specs, backdrop: true,
+    guideHeading: 'shape-reveal-figures-reference', specs,
   })
 }
 
@@ -2190,7 +2189,7 @@ function slideTransitionReference(): StockShow {
     purpose: 'Cover, Reveal, and Push are the three ways one picture slides in: over, out from under, or alongside the other. One slow Cover, then the rest at speed.',
     notice: 'Cover moves the new picture, Reveal moves the old one, Push moves both. Diagonal directions are a setting away in the inspector.',
     prompts: ['Change a quick Cover to a diagonal direction.', 'Switch Addressing from Clip to Wrap and compare moving edges.'],
-    guideHeading: 'slide-transition-reference', specs, backdrop: true,
+    guideHeading: 'slide-transition-reference', specs,
   })
 }
 
@@ -2210,7 +2209,7 @@ function zoomSpinTransitionReference(): StockShow {
     purpose: 'Arrivals that grow, shrink, or spin: one slow Content grow, then the rest at speed.',
     notice: 'Content transitions scale the picture inside its frame; Zoom transitions scale the frame itself. The spin presets only add rotation.',
     prompts: ['Compare Content grow with Zoom in at the same duration.', 'Compare zoom-and-spin with plain spin at the same duration.'],
-    guideHeading: 'zoom-and-spin-transition-reference', specs, backdrop: true,
+    guideHeading: 'zoom-and-spin-transition-reference', specs,
   })
 }
 
@@ -2420,7 +2419,7 @@ function easingReference(): StockShow {
     purpose: 'The same Wipe, over and over, with only its easing changed. Easing decides how a move speeds up and slows down on its way from start to finish.',
     notice: 'Every Wipe takes the same time on purpose - easing changes when the progress happens, not how long it takes. The header names the current curve and draws it.',
     prompts: ['Compare quadratic in with quadratic out.', 'Watch where Steps and Hold curves spend their time.'],
-    guideHeading: 'easing-reference', specs, backdrop: false,
+    guideHeading: 'easing-reference', specs,
   })
 }
 
@@ -2602,13 +2601,6 @@ function transitionReferenceShow(input: {
   referencePattern?: string
   /** The selected-side content Pattern; MetaballGarden unless a reference recasts it (#63). */
   selectedPattern?: string
-  /**
-   * Families whose Transitions open gaps (Slide, Zoom, Shape Reveal) keep a
-   * dim Murmuration backdrop under the content Layer; families that always
-   * cover the frame (Blend, Wipe, Dissolve, Easing) drop it (#63), since it
-   * only ever showed through as an 18% tint.
-   */
-  backdrop: boolean
 }): StockShow {
   const referencePattern = input.referencePattern ?? 'IQPalettes'
   const selectedPattern = input.selectedPattern ?? 'MetaballGarden'
@@ -2632,8 +2624,11 @@ function transitionReferenceShow(input: {
   const contentInstanceScenes = scenes.slice(0, 2)
   const composition: ShowCompositionV1 = {
     version: 1,
+    // No backdrop (#63): a Transition blends two whole-stage frames, so a
+    // Slide's vacated strip or the outside of a reveal silhouette shows the
+    // other Clip, never a lower Layer. The former Murmuration bed under an
+    // 82% content Layer was measured as an invisible tint in every family.
     patternInstances: [
-      ...(input.backdrop ? [instance('instance-reference-backdrop', 'Murmuration', 0.18)] : []),
       ...contentInstanceScenes.map((item, index) => instance(
         contentInstanceId(index),
         item.clips[0].pattern,
@@ -2644,35 +2639,17 @@ function transitionReferenceShow(input: {
       sceneId: item.id,
       zones: [{
         zoneId: 'zone-1',
-        main: input.backdrop
-          ? [{
-            ...placement(`placement-reference-backdrop-${index + 1}`, 'instance-reference-backdrop', 0, item.durationMs / 1_000),
-            view: { mirror: false, phase: 0, brightness: 0.55 },
-          }]
-          : [placement(`placement-reference-content-${index + 1}`, contentInstanceId(index), 0, item.durationMs / 1_000)],
-        overlays: input.backdrop
-          ? [{
-            id: `layer-reference-content-${index + 1}`,
-            name: 'Transition subject',
-            placements: [{
-              ...placement(`placement-reference-content-${index + 1}`, contentInstanceId(index), 0, item.durationMs / 1_000),
-              opacity: 0.82,
-            }],
-          }]
-          : [],
+        main: [placement(`placement-reference-content-${index + 1}`, contentInstanceId(index), 0, item.durationMs / 1_000)],
+        overlays: [],
       }],
     })),
   }
   const reference: ShowReferenceGuide = {
-    summary: input.backdrop
-      ? 'Each boundary compares two content Patterns over a third quiet moving backdrop; the arrow names which side is incoming, and both content sides are swappable.'
-      : 'Each boundary compares two content Patterns; the arrow names which side is incoming, and both content sides are swappable.',
+    summary: 'Each boundary compares two content Patterns; the arrow names which side is incoming, and both content sides are swappable.',
     patternSlots: {
       cellIds: scenes.filter((_, index) => index % 2 === 1).map((item) => cellId(item.id, 'zone-1')),
-      // Declarations scope the generated swap surface (#822). Both content
-      // sides are swappable; the quiet backdrop is deliberately fixed (the
-      // placement doctrine keeps it out of instanceIds), which also removes
-      // its previously-offered swap box.
+      // Declarations scope the generated swap surface (#822): both content
+      // sides are swappable.
       instanceIds: [contentInstanceId(0), contentInstanceId(1)],
     },
     examples: input.specs.map((spec, index) => ({
