@@ -2234,7 +2234,7 @@ function zoomSpinTransitionReference(): StockShow {
     purpose: 'Arrivals that grow, shrink, or spin: one slow Content grow, then the rest at speed.',
     notice: 'Content transitions scale the picture inside its frame; Zoom transitions scale the frame itself. The spin presets only add rotation.',
     prompts: ['Compare Content grow with Zoom in at the same duration.', 'Compare zoom-and-spin with plain spin at the same duration.'],
-    guideHeading: 'zoom-and-spin-transition-reference', specs,
+    guideHeading: 'zoom-and-spin-transition-reference', specs, referencePattern: 'Caustics', selectedPattern: 'GlyphRain',
   })
 }
 

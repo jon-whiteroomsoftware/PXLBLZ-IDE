@@ -32,10 +32,10 @@ describe('issue #542 baseline census', () => {
         persistentGlobals: 578,
       },
       {
-        authoredJsonBytes: 7_753,
-        generatedSourceBytes: 20_872,
+        authoredJsonBytes: 7_683,
+        generatedSourceBytes: 22_716,
         patternInstanceCount: 2,
-        persistentGlobals: 76,
+        persistentGlobals: 73,
         motionTransitions: {
           representation: 'exact-family-kernels',
           stackPlanCount: 2,
@@ -53,7 +53,7 @@ describe('issue #542 baseline census', () => {
       { patternInstanceCount: 2, generatedSourceBytes: 27_254, persistentGlobals: 79 },
       { patternInstanceCount: 2, generatedSourceBytes: 23_677, persistentGlobals: 63 },
       { patternInstanceCount: 2, generatedSourceBytes: 15_465, persistentGlobals: 73 },
-      { patternInstanceCount: 2, generatedSourceBytes: 20_872, persistentGlobals: 76 },
+      { patternInstanceCount: 2, generatedSourceBytes: 22_716, persistentGlobals: 73 },
     ])
   })
 })

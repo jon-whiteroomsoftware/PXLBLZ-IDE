@@ -250,6 +250,7 @@ describe('stock Show curriculum (#363)', () => {
         'stock-show-reference-shape-reveal-transitions': ['IridescentFibers', 'MagneticFilaments'],
         'stock-show-reference-shape-reveal-figures': ['NeonCircuitBoard', 'MoireCathedral'],
         'stock-show-reference-slide-transitions': ['ClockworkIris', 'CompassRose'],
+        'stock-show-reference-zoom-spin-transitions': ['Caustics', 'GlyphRain'],
       }
       const [referenceSide, selectedSide] = RECASTS[item.id] ?? ['IQPalettes', 'MetaballGarden']
       expect(composition.patternInstances.map((instance) => instance.patternName), item.name).toEqual([

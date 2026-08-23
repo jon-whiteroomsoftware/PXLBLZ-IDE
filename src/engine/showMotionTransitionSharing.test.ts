@@ -18,7 +18,7 @@ const motionReference = (id = 'stock-show-reference-zoom-spin-transitions') => {
 describe('shared routed motion-transition emission (#525)', () => {
   it.each([
     ['stock-show-reference-slide-transitions', { none: 20_591, structure: 15_720, exact: 16_174, boundaries: 6, exactKernels: 4 }],
-    ['stock-show-reference-zoom-spin-transitions', { none: 26_706, structure: 20_922, exact: 20_872, boundaries: 7, exactKernels: 5 }],
+    ['stock-show-reference-zoom-spin-transitions', { none: 28_548, structure: 22_755, exact: 22_716, boundaries: 7, exactKernels: 5 }],
   ] as const)('fits the two-instance %s under the activation budget', (id, pins) => {
     // Historical #525 boundary: pin passes that postdate its pinned bytes.
     // Re-pinned 2026-08-22 when the references dropped their backdrop (#63).
