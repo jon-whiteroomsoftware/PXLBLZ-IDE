@@ -5,10 +5,10 @@
     </marker>
   </defs>
   <rect width="900" height="500" fill="#14171c"/>
-  <text x="36" y="30" font-size="12" font-weight="bold" fill="#dde3ea">the browser helps you build; the Controller keeps performing</text>
+  <text x="36" y="30" font-size="12" font-weight="bold" fill="#dde3ea">the browser helps you build; the Controller keeps running</text>
 
   <rect x="36" y="52" width="340" height="330" rx="9" fill="#191e24" stroke="#59626d" stroke-width="1.5"/>
-  <text x="56" y="80" font-size="12" font-weight="bold" fill="#dde3ea">BROWSER WORKBENCH</text>
+  <text x="56" y="80" font-size="12" font-weight="bold" fill="#dde3ea">BROWSER</text>
   <text x="56" y="100" font-size="10.5" fill="#97a1ac">present while authoring or controlling</text>
 
   <rect x="58" y="126" width="296" height="60" rx="6" fill="#1d232b" stroke="#dde3ea"/>
@@ -56,5 +56,5 @@
     <circle cx="828" cy="456" r="10"/>
   </g>
   <text x="524" y="460" text-anchor="end" font-size="11" font-weight="bold" fill="#dde3ea">LED DATA</text>
-  <text x="206" y="449" text-anchor="middle" font-size="10.5" fill="#97a1ac">WiFi is the workbench connection, not the finished installation's render engine</text>
+  <text x="206" y="449" text-anchor="middle" font-size="10.5" fill="#97a1ac">WiFi carries editing and control; the installation renders without it</text>
 </svg>

@@ -24,15 +24,17 @@ the embedded-software work: WiFi setup, live code editing, Pattern storage,
 controls, mapping, and the LED timing engine already exist. You still build the
 lighting object; you do not also have to invent its firmware toolchain.
 
-Three comparisons carry most of the system:
+Three facts orient everything else:
 
-- A **Pattern is a recipe, not a recording**. It describes how to generate light
-  from time, position, controls, and optional sensor input.
-- A **pixel map is a seating chart**. Wiring order says which LED receives data
-  first; the map says where each LED should be treated as living in space.
-- The **browser is the workbench; the Controller is the machine**. You edit and
-  inspect from a browser, but the physical Pixelblaze stores and performs the
-  Pattern after the browser goes away.
+- A **Pattern is code, not a recording**. The Controller evaluates it every
+  frame, for every LED, using time, position, controls, and optional sensor
+  input. Computed frames are why one Pattern adapts to different installations.
+- A **pixel map separates wiring order from position**. The wire fixes the
+  order LEDs receive data; the map tells the Pattern where each LED sits in
+  space.
+- The **Controller serves its own web app**. The browser is only the editor:
+  the physical Pixelblaze stores and runs the Pattern after the browser goes
+  away.
 
 This primer explains that shape for someone encountering the ecosystem for the
 first time. ElectroMage's [official documentation](https://electromage.com/docs)
@@ -62,9 +64,9 @@ is not part of the finished installation. Once configured, a Controller can sit
 inside a sculpture, costume, sign, vehicle, or room and continue running on its
 own.
 
-That makes Pixelblaze closer to a tiny lighting instrument than a video player:
-it continuously generates the result instead of streaming a pre-rendered frame
-sequence from somewhere else.
+Nothing streams video to it. The Controller computes every frame itself, which
+is what lets a Pattern respond to controls, sensors, and time instead of
+replaying a fixed sequence.
 
 ElectroMage sells several form factors and optional boards. Those choices affect
 wiring, size, sensors, power distribution, and output channels much more than
@@ -72,12 +74,12 @@ the basic Pattern model. Start with the official
 [Quick Start and hardware guides](https://electromage.com/docs) for the exact
 board in your hand.
 
-## 2. The browser is the workbench
+## 2. The Controller serves its own web app
 
-Every Pixelblaze serves its own web app. Point a browser at the Controller's IP
-address and you can choose Patterns, edit code, create a map, configure hardware,
-and see live values. The browser is the workbench around the machine; closing
-the workbench does not stop the machine.
+Point a browser at the Controller's IP address and the built-in app appears:
+choose Patterns, edit code, create a map, configure hardware, and watch live
+values. The relationship is the same as a router's admin page: the page is a
+view into the device, and closing the tab does not stop the device.
 
 ![The browser authors and observes; the Pixelblaze Controller stores and runs](../images/device-browser-boundary.svg)
 
@@ -91,11 +93,11 @@ The boundary matters:
   is running.
 
 ElectroMage's [Pixelblaze App User Interface](https://electromage.com/docs/user-interface/)
-guide covers the built-in app screen by screen. PXLBLZ-IDE is another workbench
+guide covers the built-in app screen by screen. PXLBLZ-IDE is another editor
 for the same underlying Pattern and Controller concepts; it does not replace the
 Controller's Settings and WiFi administration.
 
-## 3. A Pattern is a recipe for light
+## 3. A Pattern is code that generates the light
 
 A **Pattern** is a small program written in Pixelblaze's JavaScript-like
 language. It does not say "LED 12 is blue at 1.3 seconds." It gives the Controller
@@ -123,23 +125,24 @@ new frame
 ```
 
 The Pattern is evaluated rather than played back, so the same source can adapt
-to a different pixel count, map, speed, or user control. More pixels or more
-expensive math means each frame takes longer; there is no hidden GPU evaluating
-all LEDs in parallel.
+to a different pixel count, map, speed, or user control. (If you have written
+shaders: `render2D` is a fragment shader in miniature, a function from position
+and time to colour.) More pixels or more expensive math means each frame takes
+longer; there is no hidden GPU evaluating all LEDs in parallel.
 
-### Controls are knobs on the recipe
+### Exported functions become controls
 
 A Pattern can ask its host app to create a slider, toggle, button, or colour
 picker simply by exporting a specially named function such as
 `sliderSpeed(value)`. Moving that **control** changes the running Pattern without
 editing its source. Values are remembered per Pattern.
 
-This is one of Pixelblaze's friendliest ideas: the author decides which parts of
-the recipe should become knobs, and the interface appears automatically. The
+This is one of Pixelblaze's friendliest ideas: the author decides which values
+deserve a knob, and the interface appears automatically. The
 official [Language Reference](https://electromage.com/docs/language-reference/)
 lists every control type and its naming convention.
 
-## 4. A pixel map is a seating chart
+## 4. A pixel map separates wiring order from position
 
 LEDs have at least two kinds of position:
 
@@ -150,10 +153,9 @@ Those are often unrelated. A matrix may snake left-to-right on one row and
 right-to-left on the next. A sculpture may be wired in whatever order made it
 possible to reach the next physical point.
 
-A **pixel map** translates wiring order into Pattern coordinates. It is like a
-seating chart: "person 37" is the identity in the list; "row 4, seat 6" is where
-that person sits. With a map installed, the Pattern receives LED #37's `x`, `y`,
-and possibly `z` position instead of having to reverse-engineer the wire.
+A **pixel map** translates wiring order into Pattern coordinates. With a map
+installed, the Pattern receives LED #37's `x`, `y`, and possibly `z` position
+instead of having to reverse-engineer the wire.
 
 That separation makes Patterns portable. The same 2D Pattern can run on a small
 matrix, a curtain of vertical strips, or a triangular wall if each installation
@@ -164,13 +166,13 @@ layer, read ElectroMage's [Intro to Mapping](https://electromage.com/docs/intro-
 for the official workflow and **Understanding Maps** in this repository for the
 full map-function, normalization, and `pixelCount` mental model.
 
-## 5. Fixed-point is a measuring tape with limits
+## 5. Numbers are 16.16 fixed-point
 
-Browser JavaScript normally represents numbers with a huge floating-point
-range. A Pixelblaze Pattern uses **16.16 fixed-point** numbers instead. Imagine a
-measuring tape with evenly spaced marks and a finite length: values between the
-marks are rounded, and calculations that run off one end wrap around rather than
-continuing forever.
+Browser JavaScript represents numbers with a huge floating-point range. A
+Pixelblaze Pattern uses **16.16 fixed-point** instead: 16 bits of integer, 16
+bits of fraction. Values span roughly `-32768..32768` in steps of `1/65536`;
+results between steps are rounded, and arithmetic that runs past either end
+wraps, the same way integer overflow wraps.
 
 For ordinary Pattern work, three habits do most of the job:
 
@@ -180,13 +182,12 @@ For ordinary Pattern work, three habits do most of the job:
 - Expect ports from browser shaders or desktop JavaScript to need numerical
   adaptation, not just syntax changes.
 
-The exact range is roughly `-32768..32768`, with steps of `1/65536`. You rarely
-need those numbers to get started; you do need the intuition that the arithmetic
-has visible edges. The official Language Reference documents the numeric model,
-and **Optimizing Pixelblaze patterns** covers measured hardware costs and porting
-tactics.
+You rarely need the exact limits to get started; you do need the intuition that
+the arithmetic has visible edges. The official Language Reference documents the
+numeric model, and **Optimizing Pixelblaze patterns** covers measured hardware
+costs and porting tactics.
 
-Generated packed tables expose two advanced edges of that measuring tape.
+Generated packed tables press against two advanced edges of that range.
 Neither `32768` nor `65536` is representable as a positive 16.16 value, so a
 decoder must stage large multiplies; for example, materialize a 15-bit fraction
 lane as `((fraction * 256) * 128)` instead of multiplying by `32768`. Firmware
