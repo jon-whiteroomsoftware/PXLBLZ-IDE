@@ -546,8 +546,12 @@ function collectAlreadyCachedRanges(ast: Node): Array<readonly [number, number]>
         const expression = valueExprByName.get(name)
         if (!expression) continue
         if (!testReferences.has(name)) continue
+        // Boundary is the END OF THE TEST, not the if's start: `if (++v)`
+        // executes the update before branching, so a definition inside the
+        // test still intervenes between the cache load and the fill.
+        const testEnd = (node.test as Node)?.end as number ?? node.start as number
         const priorDefinitions = (definitionsByName.get(name) ?? [])
-          .filter((definition) => definition.position < (node.start as number))
+          .filter((definition) => definition.position < testEnd)
           .sort((left, right) => left.position - right.position)
         const latest = priorDefinitions[priorDefinitions.length - 1]
         if (!latest || !latest.readsArrays.has(array)) continue
@@ -622,32 +626,34 @@ function readStaticLoop(node: Node): { inductionVar: string; tripCount: number }
   })
   if (bodyWritesInduction) return null
 
-  const span = bound - initValue
-  if (span < 0 || (span === 0 && test.operator === '<')) return null
-  // `<`: iterations while i < bound; `<=`: one more when the boundary lands
-  // exactly. Both forms are correct for fractional steps
-  // (for (i=0; i<=1; i+=0.5) runs three times, not four).
-  const tripCount = test.operator === '<'
-    ? Math.ceil(span / step)
-    : Math.floor(span / step) + 1
-  if (tripCount <= 0) return null
-  // Fractional bounds must count identically in device 16.16: 0.1 rounds to
-  // 6554/65536, so for (i=0; i<=1; i+=0.1) runs 10 times on hardware but 11
-  // in float64. A loop whose count differs between modes cannot be tabled
-  // exactly with one trip count.
-  if (!Number.isInteger(initValue) || !Number.isInteger(bound) || !Number.isInteger(step)) {
-    const to16 = (value: number): number => Math.round(value * 65536)
-    let fixed = to16(initValue)
-    const bound16 = to16(bound)
-    const step16 = to16(step)
-    if (step16 <= 0) return null
-    let fixedCount = 0
-    while ((test.operator === '<' ? fixed < bound16 : fixed <= bound16) && fixedCount <= 200) {
-      fixedCount += 1
-      fixed += step16
-    }
-    if (fixedCount !== tripCount) return null
+  // Count by SIMULATING both execution modes, never by closed form: Fast
+  // float64 accumulates the rounded step (i <= 0.6 by 0.1 runs 7 times, the
+  // division estimate says 6), and the device accumulates 16.16 raw values
+  // in wrapped int32 (32769 wraps to -32767, so i < 32769 from 32767 runs
+  // zero times). The loop is statically counted only when both simulations
+  // agree; that shared count is the table size.
+  const CAP = 200
+  let float = initValue
+  let floatCount = 0
+  while ((test.operator === '<' ? float < bound : float <= bound) && floatCount <= CAP) {
+    floatCount += 1
+    float += step
   }
+  const to16 = (value: number): number => (Math.round(value * 65536) | 0)
+  let fixed = to16(initValue)
+  const bound16 = to16(bound)
+  const step16 = to16(step)
+  if (step16 <= 0) return null
+  // Literals beyond +/-32768 do not survive the 16.16 conversion unwrapped.
+  if (Math.abs(initValue) >= 32768 || Math.abs(bound) >= 32768 || Math.abs(step) >= 32768) return null
+  let fixedCount = 0
+  while ((test.operator === '<' ? fixed < bound16 : fixed <= bound16) && fixedCount <= CAP) {
+    fixedCount += 1
+    fixed = (fixed + step16) | 0
+  }
+  if (floatCount !== fixedCount) return null
+  const tripCount = floatCount
+  if (tripCount <= 0 || tripCount > CAP) return null
   return { inductionVar, tripCount }
 }
 
@@ -840,6 +846,22 @@ function computeOutVarClasses(input: {
     for (const writer of writers) {
       if (!ok) break
       if (ENTRY_FNS.has(writer)) continue
+      // The writer must assign before any return path: setU(v){ if (v > .5)
+      // return; u = v } can exit without writing, so a call to it does not
+      // dominate later reads.
+      const writerFn = functions.get(writer)!
+      let earliestReturn = Infinity
+      let earliestAssign = Infinity
+      visitNode(writerFn.body, (child) => {
+        if (child.type === 'ReturnStatement') {
+          earliestReturn = Math.min(earliestReturn, child.start as number)
+        }
+        if (child.type === 'AssignmentExpression' && child.left?.type === 'Identifier'
+          && child.left.name === name) {
+          earliestAssign = Math.min(earliestAssign, child.start as number)
+        }
+      })
+      if (earliestAssign > earliestReturn) { ok = false; break }
       for (const [callerName, callerFn] of functions) {
         if (!ok) break
         const checkCalls = (node: Node, guarded: boolean): void => {
@@ -891,8 +913,15 @@ function computeOutVarClasses(input: {
           else if (child && typeof child === 'object') scan(child as Node, childGuarded)
         }
       }
+      // An establishment event after a possible early return may be skipped;
+      // only events before the function's first return dominate.
+      let earliestReturn = Infinity
+      visitNode(fn.body, (child) => {
+        if (child.type === 'ReturnStatement') earliestReturn = Math.min(earliestReturn, child.start as number)
+      })
       scan(fn.body, false)
-      if (reads.some((position) => position < earliestEstablish)) ok = false
+      const dominating = earliestEstablish < earliestReturn ? earliestEstablish : Infinity
+      if (reads.some((position) => position < dominating)) ok = false
     }
     if (ok) candidates.add(name)
   }
