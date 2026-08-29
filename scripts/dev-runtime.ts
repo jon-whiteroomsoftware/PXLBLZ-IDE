@@ -276,7 +276,8 @@ async function releaseIssueRuntime(
     console.log(`Issue ${issue} has no runtime assignment.`)
     return
   }
-  const portState = classifyAssignmentPort(assignment, listenerPids(assignment.uiPort))
+  const uiListeners = listenerPids(assignment.uiPort)
+  const portState = classifyAssignmentPort(assignment, uiListeners)
   if (portState === 'foreign') {
     throw new Error(
       `Port ${assignment.uiPort} is no longer owned by issue ${issue}; refusing to terminate or release it.`,
@@ -292,18 +293,19 @@ async function releaseIssueRuntime(
       `Port ${assignment.apiPort} is no longer owned by issue ${issue}; refusing to terminate or release it.`,
     )
   }
-  if (portState === 'owned' && assignment.uiPid !== undefined) {
-    stopProcessGroup(assignment.uiPid)
-    await waitForPortFree(assignment.uiPort, 10_000)
-  }
-  if (assignment.profile === 'isolated' && assignment.apiPort !== assignment.uiPort) {
-    // Legacy two-process assignments only; single-process runtimes (#900)
-    // self-target their UI port and have no separate API service.
-    if (apiState === 'owned' && assignment.apiPid !== undefined) {
-      stopProcessGroup(assignment.apiPid)
-      await waitForPortFree(assignment.apiPort, 10_000)
-    }
-  }
+  // Registry PID equality alone never authorizes a signal: both halves'
+  // groups are validated member-by-member before either is terminated, and
+  // termination is proven by the groups being gone — a Vite that drops its
+  // listener while workerd survives would otherwise orphan children with no
+  // registry record left to find them by.
+  const uiGroups = portState === 'owned'
+    ? validateOwnedGroups(uiListeners, assignment.worktree)
+    : []
+  const apiGroups = apiState === 'owned'
+    ? validateOwnedGroups(listenerPids(assignment.apiPort), assignment.worktree)
+    : []
+  await terminateGroups(uiGroups)
+  await terminateGroups(apiGroups)
   await releaseRuntimeAssignment(context.runtimeDirectory, issue)
   console.log(`Released issue ${issue} runtime assignment on port ${assignment.uiPort}.`)
 }
