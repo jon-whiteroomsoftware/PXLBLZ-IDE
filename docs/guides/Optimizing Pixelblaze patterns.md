@@ -472,10 +472,14 @@ Use the cost table (§8); the emulator can't see these:
 ### Take the free `x` argument instead of dividing [hardware-wisdom]
 
 `render(index, x)` receives `x = index / pixelCount` from the firmware at
-no per-pixel cost (and 1D pixel maps feed the same argument since v3.66).
-Ben measured the stock rainbow at 464 -> 535 FPS (+15%) from dropping that
-one division (forum 1251). If your 1D pattern computes
-`index / pixelCount`, take the argument instead. This is authored-Pattern
+no per-pixel cost **on unmapped 1D output**. Ben measured the stock
+rainbow at 464 -> 535 FPS (+15%) from dropping that one division (forum
+1251). If your 1D pattern computes `index / pixelCount`, take the
+argument instead — but only when no pixel map is installed. With a 1D
+pixel map (fed to `render` since v3.66), `x` is the map coordinate, which
+a map may reverse, warp, or virtualize away from wire order; a pattern
+that means "normalized wire position" must keep the division, and taking
+`x` under a map is a deliberate opt-in to map-coordinate semantics. This is authored-Pattern
 advice only: generated Show code never divides by pixelCount (zone-local
 coordinates derive from zone-local indices, where the global `x` would be
 wrong), so the compiler has nothing to substitute (#910 census).
