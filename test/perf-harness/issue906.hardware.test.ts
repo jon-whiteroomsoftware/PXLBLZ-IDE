@@ -103,19 +103,30 @@ describe('short-circuit probe on hardware (#906)', () => {
     } catch (error) {
       runError = error
     } finally {
+      // The socket may have dropped during the push. A dropped
+      // PixelblazeConnection is never reused: its delayed close handler
+      // would race a second socket generation's pending requests, so
+      // restoration builds a fresh connection object instead.
+      let restore = connection
       try {
         if (original?.activeProgramId) {
-          // The socket may have dropped during the push; reconnect before
-          // restoring so a dead connection cannot strand the probe Pattern.
           try {
             await connection.getConfig()
           } catch {
+            connection.close()
             await sleep(2_000)
-            await connection.connect()
+            restore = new PixelblazeConnection({
+              host: ip,
+              webSocketFactory: nodeWebSocketFactory,
+              requestTimeoutMs: 15_000,
+              pingIntervalMs: 0,
+            })
+            restore.on('error', (error) => console.error('restore socket:', error))
+            await restore.connect()
           }
-          connection.setActiveProgram(original.activeProgramId)
+          restore.setActiveProgram(original.activeProgramId)
           const restored = await waitForControllerConfig(
-            () => connection.getConfig(),
+            () => restore.getConfig(),
             { activeProgramId: original.activeProgramId },
           )
           if (restored.activeProgramId !== original.activeProgramId) {
@@ -124,6 +135,7 @@ describe('short-circuit probe on hardware (#906)', () => {
           }
         }
       } finally {
+        if (restore !== connection) restore.close()
         connection.close()
       }
     }
