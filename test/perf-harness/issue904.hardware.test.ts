@@ -144,16 +144,29 @@ describe('identity-blend fold probe on hardware (#904)', () => {
     } catch (error) {
       runError = error
     } finally {
+      // The socket may have dropped during the run. A dropped
+      // PixelblazeConnection is never reused: its delayed close handler
+      // would race a second socket generation's pending requests, so
+      // restoration builds a fresh connection object instead (#906).
+      let restore = connection
       try {
         try {
           await connection.getConfig()
         } catch {
+          connection.close()
           await sleep(2_000)
-          await connection.connect()
+          restore = new PixelblazeConnection({
+            host: ip,
+            webSocketFactory: nodeWebSocketFactory,
+            requestTimeoutMs: 15_000,
+            pingIntervalMs: 0,
+          })
+          restore.on('error', (error) => console.error('restore socket:', error))
+          await restore.connect()
         }
-        connection.setActiveProgram(original.activeProgramId)
+        restore.setActiveProgram(original.activeProgramId)
         const restored = await waitForControllerConfig(
-          () => connection.getConfig(),
+          () => restore.getConfig(),
           { activeProgramId: original.activeProgramId },
         )
         if (restored.activeProgramId !== original.activeProgramId) {
@@ -163,6 +176,7 @@ describe('identity-blend fold probe on hardware (#904)', () => {
             : new AggregateError([runError, restoreError], 'Probe and restoration both failed.')
         }
       } finally {
+        if (restore !== connection) restore.close()
         connection.close()
       }
     }

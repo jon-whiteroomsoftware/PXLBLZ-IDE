@@ -126,17 +126,30 @@ describe('transition-arm dedup ladder on hardware (#905 stage 1)', () => {
     } catch (error) {
       runError = error
     } finally {
+      // The socket may have dropped during the run. A dropped
+      // PixelblazeConnection is never reused: its delayed close handler
+      // would race a second socket generation's pending requests, so
+      // restoration builds a fresh connection object instead (#906).
+      let restore = connection
       try {
         try {
           await connection.getConfig()
         } catch {
+          connection.close()
           await sleep(2_000)
-          await connection.connect()
+          restore = new PixelblazeConnection({
+            host: ip,
+            webSocketFactory: nodeWebSocketFactory,
+            requestTimeoutMs: 15_000,
+            pingIntervalMs: 0,
+          })
+          restore.on('error', (error) => console.error('restore socket:', error))
+          await restore.connect()
         }
-        connection.setActiveProgram(original.activeProgramId)
-        if (original.pixelCount != null) connection.setPixelCount(original.pixelCount, false)
+        restore.setActiveProgram(original.activeProgramId)
+        if (original.pixelCount != null) restore.setPixelCount(original.pixelCount, false)
         const restored = await waitForControllerConfig(
-          () => connection.getConfig(),
+          () => restore.getConfig(),
           { activeProgramId: original.activeProgramId, pixelCount: original.pixelCount },
         )
         if (
@@ -151,6 +164,7 @@ describe('transition-arm dedup ladder on hardware (#905 stage 1)', () => {
             : new AggregateError([runError, restoreError], 'Ladder and restoration both failed.')
         }
       } finally {
+        if (restore !== connection) restore.close()
         connection.close()
       }
     }
