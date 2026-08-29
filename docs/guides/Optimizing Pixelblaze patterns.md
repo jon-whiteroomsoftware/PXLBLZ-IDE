@@ -469,6 +469,17 @@ Use the cost table (§8); the emulator can't see these:
   will do.
 - Inverse trig (`asin`/`acos`, 4.8–5.5×) is a hot spot if used per-pixel.
 
+### Take the free `x` argument instead of dividing [hardware-wisdom]
+
+`render(index, x)` receives `x = index / pixelCount` from the firmware at
+no per-pixel cost (and 1D pixel maps feed the same argument since v3.66).
+Ben measured the stock rainbow at 464 -> 535 FPS (+15%) from dropping that
+one division (forum 1251). If your 1D pattern computes
+`index / pixelCount`, take the argument instead. This is authored-Pattern
+advice only: generated Show code never divides by pixelCount (zone-local
+coordinates derive from zone-local indices, where the global `x` would be
+wrong), so the compiler has nothing to substitute (#910 census).
+
 ### Prefer the native array helpers for bulk passes [hardware-wisdom]
 
 For a full pass over an array, the native helpers beat an interpreted
