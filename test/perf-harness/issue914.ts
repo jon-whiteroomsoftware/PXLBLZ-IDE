@@ -833,9 +833,12 @@ function computeOutVarClasses(input: {
       walk(fn.body, false)
     }
     if (!ok) continue
-    // Any assignment from inside a nested function expression (a deferred
-    // callback) executes at an unmodeled time; such a global is not an
-    // out-var.
+    // Nested function expressions (deferred callbacks) execute at unmodeled
+    // times. A candidate survives them only when they provably cannot touch
+    // it: no assignment or update to the global, and no call except to pure
+    // builtins (a call to ANY user-defined function could reach a writer —
+    // `var cb = () => setU(y)` invoked conditionally would couple the global
+    // to control state the analysis cannot see).
     for (const fn of functions.values()) {
       if (!ok) break
       const findNested = (node: Node): void => {
@@ -847,6 +850,12 @@ function computeOutVarClasses(input: {
               && child.left.name === name) ok = false
             if (child.type === 'UpdateExpression' && child.argument?.type === 'Identifier'
               && child.argument.name === name) ok = false
+            if (child.type === 'CallExpression') {
+              const callee = child.callee?.type === 'Identifier' ? child.callee.name as string : null
+              const isPureBuiltin = callee !== null && PURE_CALLS.has(callee)
+                && !functions.has(callee) && !globals.has(callee)
+              if (!isPureBuiltin) ok = false
+            }
           })
           return
         }
