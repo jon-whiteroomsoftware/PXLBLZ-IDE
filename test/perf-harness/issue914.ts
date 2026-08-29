@@ -181,8 +181,27 @@ export function analyzeIssue914(source: string): Issue914PatternReport {
   const mutatedAnywhere = collectMutatedGlobals(new Set(functions.keys()), functions, globals)
   const immutableGlobals = new Set([...globals].filter((name) => !mutatedAnywhere.has(name)))
   const pureFunctions = collectPureValueFunctions(functions, globals, immutableGlobals)
+  // Non-simple parameter lists (defaults, rest, destructuring) carry
+  // call-time initializer execution and a separate parameter environment —
+  // corners of JavaScript scoping this spike's out-var model deliberately
+  // does not model (review rounds 10-11: a top-level default like
+  // `render(index, cb = () => setU(knob))` runs the writer per call, and a
+  // body-local `var sin` does NOT shadow a builtin used in a default). A
+  // module containing any such parameter is outside the modeled subset and
+  // gets no out-var candidates; every render-mutated global classifies
+  // conservatively as render-mutation. No stock Pattern uses them.
+  let hasNonSimpleParams = false
+  visitNode(ast, (child) => {
+    if (child.type === 'FunctionDeclaration' || child.type === 'FunctionExpression'
+      || child.type === 'ArrowFunctionExpression') {
+      for (const param of (child.params as Node[]) ?? []) {
+        if (param?.type !== 'Identifier') hasNonSimpleParams = true
+      }
+    }
+  })
   const { classes: outVarClasses, paramClassesByFn } = computeOutVarClasses({
     functions, globals, immutableGlobals, frameMutated, controls, renderMutated, pureFunctions,
+    disableOutVars: hasNonSimpleParams,
   })
 
   // Position-stability taint from per-frame coordinate transforms. Per-frame
@@ -782,6 +801,8 @@ function computeOutVarClasses(input: {
   controls: Set<string>
   renderMutated: Set<string>
   pureFunctions: Set<string>
+  /** Module is outside the modeled scoping subset: no out-var candidates. */
+  disableOutVars?: boolean
 }): {
   classes: Map<string, Set<Issue914Dependency>>
   paramClassesByFn: Map<string, Array<Set<Issue914Dependency>>>
@@ -795,7 +816,8 @@ function computeOutVarClasses(input: {
     'IfStatement', 'ConditionalExpression', 'LogicalExpression', 'SwitchStatement',
     'ForStatement', 'WhileStatement', 'DoWhileStatement',
   ])
-  for (const name of renderMutated) {
+  const outVarNames = input.disableOutVars ? new Set<string>() : renderMutated
+  for (const name of outVarNames) {
     if (frameMutated.has(name) || controls.has(name)) continue
     let ok = true
     for (const fn of functions.values()) {
