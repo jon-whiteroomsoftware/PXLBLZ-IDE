@@ -1,0 +1,32 @@
+{
+  "generatedAt": "2026-08-29",
+  "showsCensused": 45,
+  "contentionRejections": [],
+  "candidateCounts": [
+    {
+      "showId": "stock-show-106-built-from-basics",
+      "selected": 1,
+      "rejected": 0
+    },
+    {
+      "showId": "stock-show-204-presentation-modes",
+      "selected": 2,
+      "rejected": 0
+    },
+    {
+      "showId": "stock-show-reference-blend-fade-transitions",
+      "selected": 1,
+      "rejected": 0
+    },
+    {
+      "showId": "stock-show-reference-dissolve-transitions",
+      "selected": 2,
+      "rejected": 0
+    },
+    {
+      "showId": "fixture:five-pattern-acceptance",
+      "selected": 2,
+      "rejected": 0
+    }
+  ]
+}
