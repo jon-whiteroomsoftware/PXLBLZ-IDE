@@ -56,6 +56,21 @@ though connect and push both succeeded. Slow patterns also need a longer
 devbench complements the emulator: `npm run bench` gives op count and checksum,
 `npm run profile` gives per-built-in cost.
 
+## Static pricing without hardware: the bytecode oracle (#906)
+
+`test/perf-harness/bytecodeOracle.ts` runs the Controller's own compiler
+headless and counts compiled 32-bit words (~0.35 us/word on the pb32), so an
+emission idiom can be priced as a word diff before any device time is spent.
+Populate the local compiler cache once with a reachable device
+(`ISSUE906_REFRESH=1 PIXELBLAZE_IP=<ip> npx vitest run
+test/perf-harness/issue906.oracle.test.ts`); after that the oracle works
+offline. The cache directory is ignored, never committed. Measured codegen
+facts — statement and select shapes, loop overhead, the short-circuit
+verdict — live in `test/perf-harness/codegen-facts.md`
+(`ISSUE906_FACTS=1` regenerates it) and
+`test/perf-harness/issue906-shortcircuit.json`. Word counts are a planning
+proxy: a shipped idiom still gets one hardware probe.
+
 ## Two failures that look like bugs
 
 **A stale extension.** After changing `extension/background.js`, reload the

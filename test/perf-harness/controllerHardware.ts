@@ -78,7 +78,7 @@ function buildBytecode(program: CompiledProgram): Uint8Array {
   return new Uint8Array(buffer)
 }
 
-async function fetchControllerCompilerEnvironment(ip: string): Promise<string> {
+export async function fetchControllerCompilerEnvironment(ip: string): Promise<string> {
   let webUi = ''
   let lastError: unknown
   for (let attempt = 1; attempt <= 3; attempt += 1) {

@@ -1,0 +1,13 @@
+{
+  "generatedAt": "2026-08-29T03:50:36.688Z",
+  "firmwareVersion": "3.67",
+  "orBump": 0,
+  "andBump": 0,
+  "orValue": 1,
+  "andValue": 0,
+  "done": 1,
+  "verdict": {
+    "orShortCircuits": true,
+    "andShortCircuits": true
+  }
+}
