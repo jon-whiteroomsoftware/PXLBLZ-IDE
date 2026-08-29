@@ -22,6 +22,12 @@
     "VITE_BASE_PATH": "/",
     "VITE_PERSONAL_CONTENT_PROVIDER": "remote-api"
   },
+  // Production custom domain (#902 cutover). Attached via `wrangler deploy`
+  // because the dashboard Connect-domain dialog failed to match the zone.
+  // Deploy-time only: `wrangler dev` and the Vite plugin ignore routes.
+  "routes": [
+    { "pattern": "pxlblz-ide.whiteroomsoftware.com", "custom_domain": true }
+  ],
   "d1_databases": [
     {
       "binding": "PXLBLZ_DB",
