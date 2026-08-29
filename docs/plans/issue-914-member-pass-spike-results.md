@@ -120,9 +120,10 @@ What the repository claims, precisely:
   this issue. The tail counts carry the tool's residual scope/aliasing
   approximations (reviews found edge cases in constructs no stock
   Pattern uses); the counts themselves are
-  analyzer-derived. What hardware verified is the ECONOMICS: the four
-  probed transforms' FPS deltas and checksum parity — and the economics,
-  not the counts, are what the decline rests on.
+  analyzer-derived. What was verified is the ECONOMICS: the four
+  probed transforms' FPS deltas on the pb32, with bit-exactness proven
+  separately by the emulator checksum test — and the economics, not the
+  counts, are what the decline rests on.
 - Re-running the census is part of any future build proposal or major
   catalogue change, using the archived tool or a successor — a deliberate
   step, not an auto-running suite with implied soundness.
