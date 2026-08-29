@@ -94,32 +94,37 @@ pre-optimization sources from git history (`5cace60a^`); tests in
 - Shipped NeonSquircles: zero Rule A sites. Shipped Kishimisu: zero exact
   `exp` sites; one already-cached.
 
-## Modeled subset and claim scope
+## Methodology, claim scope, and where the census tool lives
 
-The analyzer reasons about execution order with a deliberately small
-language model: top-level function declarations, simple identifier
-parameters, plain assignments, no nested function expressions. A module
-using anything outside that subset — arrow callbacks, function tables or
-aliases (a named function referenced as a value escapes call-graph
-reachability), `mapPixels` callbacks, destructuring, default parameters —
-is **excluded from analysis entirely** and reported `outsideScopeSubset`
-with no sites (18 stock Patterns, costing the census five
-below-breakeven sites and nothing in any decision-bearing class).
-Builtin names shadowed by module globals or function locals (`var scale`)
-are correctly not treated as builtin references. Exclusion can only
-under-count the census; it can never mislabel a site as exact.
+The census was produced by a spike-local static analyzer (detection rules
+over acorn ASTs, extending the #513/#566 frame-invariant classification
+with loop-index and position signals, a device cost model, and a modeled
+language subset with conservative exclusion). Its final state is archived
+in git history at commit feee49f1 (`test/perf-harness/issue914.ts` plus
+the recall/precision/census tests, all passing there); it is deliberately
+NOT kept in the tree as tested infrastructure. Nineteen candidate-review
+rounds demonstrated why: a committed analyzer implicitly claims soundness
+over arbitrary member source, an unbounded surface that adversarial
+review probes indefinitely, while the census it produces had not moved in
+any decision-bearing class for the final eight rounds. The tool is
+methodology; the repository keeps its evidence.
 
-This boundary is the product of the candidate's review history: ten
-rounds of defending the scope model construct-by-construct (conditional
-callbacks, shadowed builtin names, comma-expression sentinels,
-default-parameter initializers) did not converge, because a sound
-analysis of arbitrary JavaScript is an unbounded surface. The census
-test is accordingly a **catalogue snapshot** — this analyzer over these
-101 Patterns yields exactly the pinned totals — not a soundness theorem;
-the verdicts that matter were verified by paired hardware measurement
-and per-mode checksum parity, and any change to the pinned totals (new
-Pattern, edited Pattern, or analyzer change) must be re-ratified against
-this document.
+What the repository claims, precisely:
+
+- The paired hardware measurements (`issue914-transform-pairs.json`) and
+  the per-mode checksum parity of the four hand-generated transforms
+  (`issue914.test.ts`, executing only the emulator bench over committed
+  fixtures) are reproducible, executable evidence.
+- The committed census (`issue914-eligibility-census.json`) is a dated
+  data artifact: the archived tool over the 101-Pattern catalogue as of
+  this issue. The tail counts carry the tool's residual scope/aliasing
+  approximations (reviews found edge cases in constructs no stock
+  Pattern uses); the decision-bearing classes — zero exact memo sites,
+  one tabling site — were additionally verified by hardware measurement,
+  which is the evidence the decline rests on.
+- Re-running the census is part of any future build proposal or major
+  catalogue change, using the archived tool or a successor — a deliberate
+  step, not an auto-running suite with implied soundness.
 
 ## Eligibility census (all 101 stock Patterns)
 

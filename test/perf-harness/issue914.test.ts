@@ -1,24 +1,28 @@
-// #914 design spike: detection-rule recall/precision against the hand-proven
-// ground truth, plus the eligible-site census across the stock catalogue.
+// #914 design spike evidence. Two claims, both bounded and executable:
 //
-// Recall: the rules must find the sites the hand pass actually tabled or
-// memoized, using the pre-optimization sources preserved from git history
-// (fixtures/issue914/*, provenance in each header). Precision: the shipped
-// hand-optimized sources should show those same sites already consumed.
+// 1. Checksum parity: the four hand-generated transforms are bit-identical
+//    to their shipped bases in Fast float64 AND Precise 16.16, via the
+//    emulator bench over committed fixtures. (The emulator is the checksum
+//    guard, not the stopwatch — guide §9: it reads table/memo wins
+//    backwards. The FPS verdicts live in issue914-transform-pairs.json,
+//    measured paired on the pb32.)
 //
-// Census JSON is written only under ISSUE914_CENSUS_OUT=1 (a date-free,
-// deterministic report) so ordinary test runs never dirty the checkout.
+// 2. Data consistency: the committed census artifact
+//    (issue914-eligibility-census.json — the archived spike tool over the
+//    101-Pattern catalogue; see the results doc's methodology section, tool
+//    at commit feee49f1) agrees with the totals the results document and
+//    the #914 decline rest on.
+//
+// Deliberately absent: no static analyzer runs here. The census tool is
+// archived methodology, not tested infrastructure — the results doc
+// explains the claim scope and why.
 
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
-import { bundle } from '../../src/engine/bundle'
-import { stripPatternManifest } from '../../src/engine/patternManifest'
-import { inlineShowMemberHelpers } from '../../src/engine/showHelperInlining'
 import { benchDemo } from './benchCore'
-import { analyzeIssue914, type Issue914PatternReport } from './issue914'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PATTERNS_DIR = join(HERE, '../../src/pixelblaze/stock/patterns')
@@ -35,18 +39,6 @@ function loadLibraries(): Record<string, string> {
 
 const LIBRARIES = loadLibraries()
 
-/** The exact preparation the member-lowering pipeline applies before its
- * analysis passes run: bundle -> strip manifest -> tiny-helper inlining. */
-function prepareMemberSource(source: string): string {
-  const bundled = bundle(source, LIBRARIES).code
-  const stripped = stripPatternManifest(bundled)
-  return inlineShowMemberHelpers(stripped).source
-}
-
-function analyzePrepared(source: string): Issue914PatternReport {
-  return analyzeIssue914(prepareMemberSource(source))
-}
-
 function readFixture(name: string): string {
   return readFileSync(join(FIXTURES_DIR, name), 'utf8')
 }
@@ -55,71 +47,7 @@ function readStock(name: string): string {
   return readFileSync(join(PATTERNS_DIR, `${name}.js`), 'utf8')
 }
 
-describe('issue914 detection rules', () => {
-  it('Rule A recall: pre-optimization NeonSquircles exposes the hand-tabled ring sites', () => {
-    const report = analyzePrepared(readFixture('NeonSquircles.preopt.js'))
-    expect(report.parseError).toBeUndefined()
-    const moduleSites = report.indexTabling.filter((site) => site.flavor === 'module-table')
-    const frameSites = report.indexTabling.filter((site) => site.flavor === 'frame-table')
-    // The hand pass moved the three colour cos terms into a module-scope table
-    // and the anim (index+time) term into a beforeRender table.
-    expect(moduleSites.length).toBeGreaterThanOrEqual(3)
-    expect(moduleSites.some((site) => site.subtreeSource.includes('cos'))).toBe(true)
-    expect(frameSites.length).toBeGreaterThanOrEqual(1)
-    expect(report.indexTabling.every((site) => site.tripCount === 20)).toBe(true)
-  })
-
-  it('Rule B recall: pre-optimization Kishimisu exposes the hand-memoized exp site', () => {
-    const report = analyzePrepared(readFixture('Kishimisu.preopt.js'))
-    expect(report.parseError).toBeUndefined()
-    const exact = report.positionMemo.filter((site) => site.kind === 'exact')
-    expect(exact.some((site) => site.subtreeSource.includes('exp('))).toBe(true)
-  })
-
-  it('breakeven: single-atan2 sites price below the lazy read path (measured loss)', () => {
-    // issue914-transform-pairs.json: memoizing atan2(y,x) measured -12.9%
-    // (CoronalMassEjection) and -5.5% (TunnelOfSquares2D) median FPS — atan2
-    // at 2.7x mul cannot beat the ~7x-mul read path. The detector must keep
-    // these visible as below-breakeven, never offer them as exact sites.
-    for (const name of ['CoronalMassEjection', 'TunnelOfSquares2D']) {
-      const report = analyzePrepared(readStock(name))
-      const atanSites = report.positionMemo.filter((site) => site.subtreeSource.includes('atan2'))
-      expect(atanSites.length).toBeGreaterThanOrEqual(1)
-      expect(atanSites.every((site) => site.kind === 'below-breakeven')).toBe(true)
-    }
-  })
-
-  it('breakeven: op-chain sites past the total threshold are still not exact (measured loss)', () => {
-    // ClockworkIris's band site (est 11.4x mul, clamp/frac/abs chain) measured
-    // -7.3% median FPS memoized — an exact site must contain an exp/pow-class
-    // call, not merely sum cheap ops past the threshold.
-    const report = analyzePrepared(readStock('ClockworkIris'))
-    const bandSites = report.positionMemo.filter((site) => site.subtreeSource.includes('frac((r - 0.05)'))
-    expect(bandSites.length).toBeGreaterThanOrEqual(1)
-    expect(bandSites.every((site) => site.kind === 'below-breakeven')).toBe(true)
-  })
-
-  it('precision: the shipped hand-optimized sources no longer offer those sites', () => {
-    const squircles = analyzePrepared(readStock('NeonSquircles'))
-    const kishimisu = analyzePrepared(readStock('Kishimisu'))
-    expect(squircles.parseError).toBeUndefined()
-    expect(kishimisu.parseError).toBeUndefined()
-    // The shipped NeonSquircles reads its tables inside the ring loop; nothing
-    // index-only remains to table. The shipped Kishimisu's lazy-fill arm still
-    // contains exp(-len0), but the store-into-subscript idiom classifies it
-    // already-cached, so a pass would not stack a second redundant cache.
-    expect(squircles.indexTabling).toHaveLength(0)
-    expect(kishimisu.positionMemo.filter((site) => site.kind === 'exact'
-      && site.subtreeSource.includes('exp('))).toHaveLength(0)
-    expect(kishimisu.positionMemo.filter((site) => site.kind === 'already-cached'
-      && site.subtreeSource.includes('exp('))).toHaveLength(1)
-  })
-})
-
 describe('issue914 hand-generated transforms: checksum parity', () => {
-  // The emulator's job here is the checksum guard, not the stopwatch (§9: it
-  // reads table/memo wins backwards). Equal per-mode checksums prove the
-  // generated output is bit-identical in Fast float64 AND Precise 16.16.
   const CASES = [
     { base: 'CoronalMassEjection', transformed: 'CoronalMassEjection.memoized.js' },
     { base: 'TunnelOfSquares2D', transformed: 'TunnelOfSquares2D.memoized.js' },
@@ -135,97 +63,13 @@ describe('issue914 hand-generated transforms: checksum parity', () => {
   })
 })
 
-describe('issue914 stock-catalogue census', () => {
-  it('analyzes the full catalogue and reports eligible sites', () => {
-    const names = readdirSync(PATTERNS_DIR)
-      .filter((file) => file.endsWith('.js'))
-      .map((file) => file.replace(/\.js$/, ''))
-      .sort()
-    expect(names.length).toBeGreaterThanOrEqual(95)
-
-    const rows: Array<{
-      name: string
-      credit: string | null
-      indexTablingModule: number
-      indexTablingFrame: number
-      positionMemoExact: number
-      positionMemoBelowBreakeven: number
-      positionMemoInvalidation: number
-      paletteSpecialization: number
-      maxMemoCostXMul: number
-      outsideScopeSubset: boolean
-      parseError?: string
-    }> = []
-    for (const name of names) {
-      const source = readStock(name)
-      const creditMatch = source.match(/Credit:.*?by ([^\n-]+)/)
-      let report: Issue914PatternReport
-      try {
-        report = analyzePrepared(source)
-      } catch (error) {
-        report = {
-          indexTabling: [],
-          positionMemo: [],
-          paletteSpecialization: 0,
-          parseError: error instanceof Error ? error.message : String(error),
-        }
-      }
-      rows.push({
-        name,
-        credit: creditMatch ? creditMatch[1].trim() : null,
-        indexTablingModule: report.indexTabling.filter((site) => site.flavor === 'module-table').length,
-        indexTablingFrame: report.indexTabling.filter((site) => site.flavor === 'frame-table').length,
-        positionMemoExact: report.positionMemo.filter((site) => site.kind === 'exact').length,
-        positionMemoBelowBreakeven: report.positionMemo.filter((site) => site.kind === 'below-breakeven').length,
-        positionMemoInvalidation: report.positionMemo.filter((site) => site.kind === 'needs-invalidation').length,
-        paletteSpecialization: report.paletteSpecialization,
-        maxMemoCostXMul: report.positionMemo.reduce((max, site) => Math.max(max, site.estCostXMul), 0),
-        outsideScopeSubset: report.outsideScopeSubset ?? false,
-        parseError: report.parseError,
-      })
-    }
-
-    // Coverage invariants: the census is only meaningful if analysis actually
-    // ran across the catalogue. Bundling/parse failures must stay rare and
-    // visible, not silently zero the counts.
-    const failed = rows.filter((row) => row.parseError !== undefined)
-    expect(failed.map((row) => `${row.name}: ${row.parseError}`)).toEqual([])
-
-    const totals = {
-      patterns: rows.length,
-      withAnySite: rows.filter((row) => row.indexTablingModule + row.indexTablingFrame
-        + row.positionMemoExact + row.positionMemoBelowBreakeven + row.positionMemoInvalidation > 0).length,
-      indexTablingModule: rows.reduce((sum, row) => sum + row.indexTablingModule, 0),
-      indexTablingFrame: rows.reduce((sum, row) => sum + row.indexTablingFrame, 0),
-      positionMemoExact: rows.reduce((sum, row) => sum + row.positionMemoExact, 0),
-      positionMemoBelowBreakeven: rows.reduce((sum, row) => sum + row.positionMemoBelowBreakeven, 0),
-      positionMemoInvalidation: rows.reduce((sum, row) => sum + row.positionMemoInvalidation, 0),
-      paletteSpecialization: rows.reduce((sum, row) => sum + row.paletteSpecialization, 0),
-      outsideScopeSubset: rows.filter((row) => row.outsideScopeSubset).length,
-    }
-
-
-    if (process.env.ISSUE914_CENSUS_OUT === '1') {
-      writeFileSync(
-        join(HERE, 'issue914-eligibility-census.json'),
-        `${JSON.stringify({ totals, rows }, null, 2)}\n`,
-      )
-    }
-
-    // CATALOGUE SNAPSHOT — the claim this test makes, precisely: running THIS
-    // analyzer over THIS stock catalogue yields exactly these totals. It is a
-    // regression pin over known inputs, not a soundness theorem about
-    // arbitrary JavaScript; the analyzer's verdicts on real sites were
-    // verified by paired hardware measurement and per-mode checksum parity
-    // (issue914-transform-pairs.json), and modules outside the modeled scope
-    // subset are conservatively excluded rather than analyzed.
-    //
-    // Any change here — a new or edited stock Pattern, or an analyzer change
-    // — must be re-ratified against docs/plans/issue-914-member-pass-spike-
-    // results.md. In particular, positionMemoExact moving off 0 or
-    // indexTablingFrame moving off 1 reopens the #914 build-or-decline
-    // question with the evidence already collected.
-    expect(totals).toEqual({
+describe('issue914 committed evidence consistency', () => {
+  it('census artifact totals match the documented decline basis', () => {
+    const census = JSON.parse(readFileSync(join(HERE, 'issue914-eligibility-census.json'), 'utf8'))
+    // The exact totals the results doc and the #914 decline cite. Editing the
+    // census artifact or the doc's numbers requires updating both — this is
+    // consistency between committed data and committed prose, nothing more.
+    expect(census.totals).toEqual({
       patterns: 101,
       withAnySite: 36,
       indexTablingModule: 0,
@@ -236,8 +80,27 @@ describe('issue914 stock-catalogue census', () => {
       paletteSpecialization: 2,
       outsideScopeSubset: 18,
     })
+    expect(census.rows).toHaveLength(101)
+  })
 
-    // eslint-disable-next-line no-console
-    console.log('[issue914] census totals:', JSON.stringify(totals))
+  it('hardware pairs artifact carries the four measured verdicts', () => {
+    const pairs = JSON.parse(readFileSync(join(HERE, 'issue914-transform-pairs.json'), 'utf8'))
+    const byPattern = new Map<string, Record<string, { fps: { median: number } }>>()
+    for (const row of pairs.rows) {
+      const entry = byPattern.get(row.pattern) ?? {}
+      entry[row.variant] = row
+      byPattern.set(row.pattern, entry)
+    }
+    expect([...byPattern.keys()].sort()).toEqual([
+      'ClockworkIris', 'CoronalMassEjection', 'IridescentFibers', 'TunnelOfSquares2D',
+    ])
+    // The signs the decline rests on: three memo transforms measured as
+    // losses, the one tabling transform as a gain.
+    for (const loser of ['CoronalMassEjection', 'TunnelOfSquares2D', 'ClockworkIris']) {
+      const entry = byPattern.get(loser)!
+      expect(entry.transformed.fps.median).toBeLessThan(entry.base.fps.median)
+    }
+    const tabled = byPattern.get('IridescentFibers')!
+    expect(tabled.transformed.fps.median).toBeGreaterThan(tabled.base.fps.median)
   })
 })
