@@ -161,19 +161,24 @@ async function main(): Promise<void> {
 async function stopServer(server: ChildProcess | undefined): Promise<void> {
   if (!server?.pid) return
   const group = server.pid
-  try {
-    process.kill(-group, 'SIGTERM')
-  } catch {
-    return
-  }
+  if (signalGroup(group, 'SIGTERM') === 'gone') return
   if (await waitForGroupExit(group, 5_000)) return
-  try {
-    process.kill(-group, 'SIGKILL')
-  } catch {
-    return
-  }
+  if (signalGroup(group, 'SIGKILL') === 'gone') return
   if (!await waitForGroupExit(group, 5_000)) {
     throw new Error(`Worker smoke process group ${group} survived SIGKILL; inspect it manually.`)
+  }
+}
+
+// Only ESRCH proves the group is gone; any other signaling error (EPERM, ...)
+// propagates so the smoke fails loudly and preserves its state for
+// inspection instead of deleting it under a possibly-live group.
+function signalGroup(group: number, signal: NodeJS.Signals): 'signaled' | 'gone' {
+  try {
+    process.kill(-group, signal)
+    return 'signaled'
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ESRCH') return 'gone'
+    throw error
   }
 }
 
@@ -182,8 +187,9 @@ function groupAlive(group: number): boolean {
   try {
     process.kill(-group, 0)
     return true
-  } catch {
-    return false
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false
+    throw error
   }
 }
 
