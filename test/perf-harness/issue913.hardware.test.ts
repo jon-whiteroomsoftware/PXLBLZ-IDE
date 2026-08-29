@@ -35,7 +35,7 @@ describe('spatial sample-and-hold ladder on hardware (#913 spike)', () => {
     await connection.connect()
     let runError: unknown
     let original: Awaited<ReturnType<typeof connection.getConfig>> | undefined
-    let baselineProgramIds: Set<string> | undefined
+    const pushedProgramIds: string[] = []
     const rows: Array<{
       pixelCount: number
       variant: string
@@ -53,10 +53,14 @@ describe('spatial sample-and-hold ladder on hardware (#913 spike)', () => {
           `Active Pattern ${original.activeProgramId} is not in the saved inventory; refusing a non-restorable probe.`,
         )
       }
-      // Baseline for post-run cleanup (see issue914.hardware.test.ts: pushes
-      // do not create inventory entries on fw 3.67, but the diff keeps the
-      // probe safe on firmware where they might).
-      baselineProgramIds = new Set(savedPrograms.map((program) => program.id))
+      // Live control tuning cannot be restored via the WS API (bound variable
+      // values, not UI inputs — see issue914.hardware.test.ts); warn so any
+      // loss is visible rather than silent.
+      if (original.activeControls && Object.keys(original.activeControls).length > 0) {
+        console.warn(
+          'Active Pattern has live control values; restoration reloads stored values (live tuning is not recoverable via the WS API).',
+        )
+      }
 
       for (const pixelCount of WAVE2_PIXEL_COUNTS) {
         connection.setPixelCount(pixelCount, false)
@@ -83,6 +87,7 @@ describe('spatial sample-and-hold ladder on hardware (#913 spike)', () => {
             artifact.summary.resources.totalWords,
             measurementOptions,
           )
+          pushedProgramIds.push(measured.programId)
           rows.push({
             pixelCount,
             variant: variant.name,
@@ -130,16 +135,14 @@ describe('spatial sample-and-hold ladder on hardware (#913 spike)', () => {
             () => restore.getConfig(),
             { activeProgramId: original.activeProgramId, pixelCount: original.pixelCount },
           )
-          // Reactivating reloads STORED control values; put back the live
-          // (possibly unsaved) values the session started with.
-          if (original.activeControls && Object.keys(original.activeControls).length > 0) {
-            restore.setControls(original.activeControls)
-          }
-          if (baselineProgramIds) {
+          // Delete ONLY inventory entries this probe minted itself — never an
+          // inventory diff (see issue914.hardware.test.ts).
+          if (pushedProgramIds.length > 0) {
             try {
               const afterPrograms = await restore.listPrograms()
-              for (const program of afterPrograms) {
-                if (!baselineProgramIds.has(program.id)) restore.deleteProgram(program.id)
+              const persisted = new Set(afterPrograms.map((program) => program.id))
+              for (const id of pushedProgramIds) {
+                if (persisted.has(id)) restore.deleteProgram(id)
               }
             } catch (cleanupError) {
               console.error('probe-program cleanup failed:', cleanupError)

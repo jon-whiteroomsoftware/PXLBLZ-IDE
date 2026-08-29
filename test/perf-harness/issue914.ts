@@ -228,9 +228,15 @@ export function analyzeIssue914(source: string): Issue914PatternReport {
     )
     // The mechanical cache is addressed by the render index; a helper that
     // never receives it (LineDancer2D's kal, SceneSplice's cutField) cannot
-    // key a per-pixel entry, so its sites are never exact.
+    // key a per-pixel entry, so its sites are never exact. The param class
+    // must be EXACTLY render-index: a joined class that also carries
+    // position means some call site passes a coordinate there, which would
+    // address the cache with a coordinate instead of an index.
     const indexInScope = isEntry
-      || params.some((param) => paramClasses?.get(param)?.has('render-index'))
+      || params.some((param) => {
+        const cls = paramClasses?.get(param)
+        return cls !== undefined && cls.size === 1 && cls.has('render-index')
+      })
     const baseContext: ClassifyContext = {
       globals,
       immutableGlobals,
@@ -253,6 +259,22 @@ export function analyzeIssue914(source: string): Issue914PatternReport {
       if (node.type !== 'ForStatement') return
       const loop = readStaticLoop(node)
       if (!loop || loop.tripCount < 2 || loop.tripCount > 128) return
+      // A loop-local induction variable is unreachable from callees (the
+      // language has no closures), but a GLOBAL induction variable can be
+      // rewritten by any called helper (`bump(){ i = i + 100 }`), making the
+      // static count a lie. For global induction, admit the loop only when
+      // every body call is a pure builtin or a pure-value function.
+      if (!locals.has(loop.inductionVar)) {
+        let bodyCallsImpure = false
+        visitNode(node.body as Node, (child) => {
+          if (child.type !== 'CallExpression') return
+          const callee = child.callee?.type === 'Identifier' ? child.callee.name as string : null
+          const isPureBuiltin = callee !== null && PURE_CALLS.has(callee)
+            && !functions.has(callee) && !globals.has(callee)
+          if (callee === null || (!isPureBuiltin && !pureFunctions.has(callee))) bodyCallsImpure = true
+        })
+        if (bodyCallsImpure) return
+      }
       const loopContext: ClassifyContext = {
         ...baseContext,
         loopIndices: new Set([...baseContext.loopIndices, loop.inductionVar]),
@@ -445,28 +467,34 @@ function collectAlreadyCachedRanges(ast: Node): Array<readonly [number, number]>
     if (declaration?.type !== 'FunctionDeclaration') continue
     const fnBody = declaration.body as Node
 
-    // Leg 3 prerequisite: which locals were loaded from which arrays, and where.
-    const loadsByName = new Map<string, Array<{ array: string; position: number }>>()
-    const recordLoads = (targetName: string, expression: Node, position: number): void => {
+    // Leg 3 prerequisite: EVERY definition of each var, with position and the
+    // arrays its RHS reads. The sentinel check is only proven when the
+    // variable's LATEST definition before the if-test is the array load —
+    // an intervening overwrite (`v = A[i]; v = x; if (v) ...`) breaks the
+    // idiom and must not suppress the candidate.
+    const definitionsByName = new Map<string, Array<{ position: number; readsArrays: Set<string> }>>()
+    const recordDefinition = (targetName: string, expression: Node, position: number): void => {
+      const readsArrays = new Set<string>()
       visitNode(expression, (read) => {
         if (read.type === 'MemberExpression' && read.computed && read.object?.type === 'Identifier') {
-          const loads = loadsByName.get(targetName) ?? []
-          loads.push({ array: read.object.name as string, position })
-          loadsByName.set(targetName, loads)
+          readsArrays.add(read.object.name as string)
         }
       })
+      const definitions = definitionsByName.get(targetName) ?? []
+      definitions.push({ position, readsArrays })
+      definitionsByName.set(targetName, definitions)
     }
     visitNode(fnBody, (child) => {
       if (child.type === 'VariableDeclaration') {
         for (const item of child.declarations as Node[]) {
           if (item.id?.type === 'Identifier' && item.init) {
-            recordLoads(item.id.name as string, item.init as Node, item.start as number)
+            recordDefinition(item.id.name as string, item.init as Node, item.start as number)
           }
         }
       }
       if (child.type === 'AssignmentExpression' && child.operator === '='
         && child.left?.type === 'Identifier' && child.right) {
-        recordLoads(child.left.name as string, child.right as Node, child.start as number)
+        recordDefinition(child.left.name as string, child.right as Node, child.start as number)
       }
     })
 
@@ -496,8 +524,11 @@ function collectAlreadyCachedRanges(ast: Node): Array<readonly [number, number]>
         const expression = valueExprByName.get(name)
         if (!expression) continue
         if (!testReferences.has(name)) continue
-        const priorLoads = loadsByName.get(name) ?? []
-        if (!priorLoads.some((load) => load.array === array && load.position < (node.start as number))) continue
+        const priorDefinitions = (definitionsByName.get(name) ?? [])
+          .filter((definition) => definition.position < (node.start as number))
+          .sort((left, right) => left.position - right.position)
+        const latest = priorDefinitions[priorDefinitions.length - 1]
+        if (!latest || !latest.readsArrays.has(array)) continue
         ranges.push([expression.start as number, expression.end as number])
       }
     })
@@ -750,6 +781,45 @@ function computeOutVarClasses(input: {
         }
       }
       walk(fn.body, false)
+    }
+    if (!ok) continue
+    // An unconditional assignment inside the writer is not enough: the WRITER
+    // itself must run on every evaluation, or the out-var still carries
+    // prior-pixel state (`if (x > .5) setU(x); ... exp(u)`). Require every
+    // call site of every non-entry writer to be an unguarded call from a
+    // firmware entry point (render*/beforeRender).
+    const ENTRY_FNS = new Set(['render', 'render2D', 'render3D', 'beforeRender'])
+    const writers = [...functions.keys()].filter((fnName) => {
+      const fn = functions.get(fnName)!
+      let writes = false
+      visitNode(fn.body, (node) => {
+        if (node.type === 'AssignmentExpression' && node.left?.type === 'Identifier'
+          && node.left.name === name) writes = true
+      })
+      return writes
+    })
+    for (const writer of writers) {
+      if (!ok) break
+      if (ENTRY_FNS.has(writer)) continue
+      for (const [callerName, callerFn] of functions) {
+        if (!ok) break
+        const checkCalls = (node: Node, guarded: boolean): void => {
+          if (!ok || !node || typeof node !== 'object') return
+          if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression'
+            || node.type === 'ArrowFunctionExpression') return
+          if (node.type === 'CallExpression' && node.callee?.type === 'Identifier'
+            && node.callee.name === writer) {
+            if (guarded || !ENTRY_FNS.has(callerName)) ok = false
+          }
+          const childGuarded = guarded || GUARDED_TYPES.has(node.type as string)
+          for (const [key, child] of Object.entries(node)) {
+            if (key === 'start' || key === 'end' || key === 'loc') continue
+            if (Array.isArray(child)) child.forEach((item) => checkCalls(item as Node, childGuarded))
+            else if (child && typeof child === 'object') checkCalls(child as Node, childGuarded)
+          }
+        }
+        checkCalls(callerFn.body, false)
+      }
     }
     if (ok) candidates.add(name)
   }

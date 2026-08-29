@@ -56,7 +56,7 @@ describe('generated member-pass transforms on hardware (#914 spike)', () => {
     await connection.connect()
     let runError: unknown
     let original: Awaited<ReturnType<typeof connection.getConfig>> | undefined
-    let baselineProgramIds: Set<string> | undefined
+    const pushedProgramIds: string[] = []
     const rows: Array<{
       pattern: string
       rule: string
@@ -75,12 +75,18 @@ describe('generated member-pass transforms on hardware (#914 spike)', () => {
           `Active Pattern ${original.activeProgramId} is not in the saved inventory; refusing a non-restorable probe.`,
         )
       }
-      // Baseline for post-run cleanup. Empirically (fw 3.67, Burner bag), the
-      // setCode + putByteCode push sequence does NOT create saved-inventory
-      // entries — dozens of probe pushes left the 16-entry inventory
-      // unchanged — but the diff-and-delete below keeps the probe safe on
-      // firmware where it might.
-      baselineProgramIds = new Set(savedPrograms.map((program) => program.id))
+      // Live control tuning cannot be restored: getConfig's activeControls are
+      // the controls' BOUND VARIABLE values, not their 0..1 UI inputs (see
+      // docs/reference/Pixelblaze device behaviour notes.md on drifted live
+      // control values), so replaying them through setControls could feed a
+      // nonlinear handler the wrong input and alter state instead of
+      // restoring it. Reactivation below reloads the Pattern's stored values;
+      // warn when live tuning exists so its loss is visible, not silent.
+      if (original.activeControls && Object.keys(original.activeControls).length > 0) {
+        console.warn(
+          'Active Pattern has live control values; restoration reloads stored values (live tuning is not recoverable via the WS API).',
+        )
+      }
 
       for (const testCase of CASES) {
         const variants = [
@@ -97,6 +103,7 @@ describe('generated member-pass transforms on hardware (#914 spike)', () => {
             0,
             measurementOptions,
           )
+          pushedProgramIds.push(measured.programId)
           rows.push({
             pattern: testCase.name,
             rule: testCase.rule,
@@ -145,18 +152,18 @@ describe('generated member-pass transforms on hardware (#914 spike)', () => {
             await sleep(250)
             restored = await restore.getConfig()
           }
-          // Reactivating reloads STORED control values; put back the live
-          // (possibly unsaved) values the session started with.
-          if (original.activeControls && Object.keys(original.activeControls).length > 0) {
-            restore.setControls(original.activeControls)
-          }
-          // Delete any inventory entries the probe created (none expected on
-          // fw 3.67 — see the baseline note above).
-          if (baselineProgramIds) {
+          // Delete ONLY inventory entries this probe minted itself — never an
+          // inventory diff, which would destroy a Pattern saved by another
+          // client mid-run. Empirically (fw 3.67, Burner bag) the setCode +
+          // putByteCode push creates no inventory entries at all — dozens of
+          // probe pushes left the 16-entry inventory unchanged — so this is
+          // defensive for firmware where it might.
+          if (pushedProgramIds.length > 0) {
             try {
               const afterPrograms = await restore.listPrograms()
-              for (const program of afterPrograms) {
-                if (!baselineProgramIds.has(program.id)) restore.deleteProgram(program.id)
+              const persisted = new Set(afterPrograms.map((program) => program.id))
+              for (const id of pushedProgramIds) {
+                if (persisted.has(id)) restore.deleteProgram(id)
               }
             } catch (cleanupError) {
               console.error('probe-program cleanup failed:', cleanupError)

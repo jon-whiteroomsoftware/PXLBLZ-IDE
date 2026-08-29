@@ -224,6 +224,7 @@ export async function pushAndMeasureControllerSource(
     ? (sorted[middle - 1] + sorted[middle]) / 2
     : sorted[middle]
   return {
+    programId,
     sourceBytes: new TextEncoder().encode(source).length,
     bytecodeBytes: bytecode.length,
     activationMs,
