@@ -155,30 +155,45 @@ async function main(): Promise<void> {
   console.log('\nAll worker smoke checks passed.')
 }
 
-// Graceful teardown: SIGTERM the detached group, wait for the process to
-// exit, and escalate to SIGKILL — a wedged workerd can ignore SIGTERM.
+// Graceful teardown: SIGTERM the detached group, then decide escalation from
+// group liveness — not from the Wrangler child's exit event, which can fire
+// while a wedged workerd descendant lingers in the group holding the port.
 async function stopServer(server: ChildProcess | undefined): Promise<void> {
   if (!server?.pid) return
-  const exited = server.exitCode !== null || server.signalCode !== null
-    ? Promise.resolve()
-    : new Promise<void>((resolveExit) => server.once('exit', () => resolveExit()))
+  const group = server.pid
   try {
-    process.kill(-server.pid, 'SIGTERM')
+    process.kill(-group, 'SIGTERM')
   } catch {
     return
   }
-  const graceful = await Promise.race([
-    exited.then(() => true),
-    new Promise<boolean>((resolveWait) => setTimeout(resolveWait, 5_000, false)),
-  ])
-  if (!graceful) {
-    try {
-      process.kill(-server.pid, 'SIGKILL')
-    } catch {
-      /* already gone */
-    }
-    await exited
+  if (await waitForGroupExit(group, 5_000)) return
+  try {
+    process.kill(-group, 'SIGKILL')
+  } catch {
+    return
   }
+  if (!await waitForGroupExit(group, 5_000)) {
+    throw new Error(`Worker smoke process group ${group} survived SIGKILL; inspect it manually.`)
+  }
+}
+
+// kill(-group, 0) succeeds while any member of the group is still alive.
+function groupAlive(group: number): boolean {
+  try {
+    process.kill(-group, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function waitForGroupExit(group: number, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (!groupAlive(group)) return true
+    await new Promise((resolveWait) => setTimeout(resolveWait, 150))
+  }
+  return !groupAlive(group)
 }
 
 async function check(
