@@ -519,6 +519,18 @@ async function ensureMainRuntime(
     await stopWedgedListeners(legacyPids, manifest.shared.wranglerPort, context.mainWorktree)
   }
   if (runtimeAction === 'recover') {
+    if (!expectProxyGroup) {
+      // A wedged worker runtime may have recovered to answering (even with
+      // errors) since the first probe; an answering worker-dev group is
+      // never terminated, so recheck at the last async boundary before the
+      // signal.
+      const recheck = await probeService(apiUrl, serviceProbeTimeoutMs)
+      if (recheck !== 'unresponsive') {
+        throw new Error(
+          `Port ${manifest.shared.vitePort} began answering ${apiUrl} again (${recheck}); refusing to terminate a live worker runtime. Re-run dev:main to re-evaluate.`,
+        )
+      }
+    }
     // The no-workerd constraint travels into the stop: if workerd appears in
     // the group between the decision above and the signal, the guard refuses
     // rather than killing what has become a live worker runtime.
