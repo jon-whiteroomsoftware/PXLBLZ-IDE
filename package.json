@@ -7,7 +7,7 @@
     "doc": "docs"
   },
   "scripts": {
-    "check:node": "wrsp-check-node",
+    "check:node": "wrsp-check-node && node scripts/check-node-floor.mjs",
     "dev": "vite",
     "dev:main": "npm run check:node && tsx scripts/dev-runtime.ts main",
     "dev:issue": "npm run check:node && tsx scripts/dev-runtime.ts start",
