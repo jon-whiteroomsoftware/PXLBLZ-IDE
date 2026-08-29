@@ -33,6 +33,11 @@ function stackedRecipe(
       { id: 'red', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
       { id: 'blue', source: 'export function render2D(index, x, y) { rgb(0, 0, 1) }' },
       { id: 'green', source: 'export function render2D(index, x, y) { rgb(0, 1, 0) }' },
+      {
+        id: 'keyedTop',
+        source: 'export function render2D(index, x, y) { if (x < 0.5) rgb(0, 0, 0); else rgb(0, 0, 1) }',
+        effects: [{ id: 'top-key', kind: 'luma-key', target: 0, tolerance: 0, softness: 0 }],
+      },
     ],
     zones,
     routingLayouts: [{ id: 'default', name: 'Default', zones }],
@@ -113,6 +118,16 @@ describe('identity-blend fold in routed placement stacks (#904)', () => {
     handle.beforeRender(400)
     handle.render2D(0, 0.25, 0.75)
     expect(pixel()).toEqual([0.5, 0, 0.5])
+  })
+
+  it('excludes content-key stacks from the blend-bypass census', () => {
+    const artifact = compileShow(stackedRecipe({
+      clipId: 'keyedTop',
+    }, {}, {}), {}, {})
+    // The keyed stack routes through the content-key emitter, so its opaque
+    // bottom never reaches the #904 direct-assignment branch and must not
+    // count as a bypass; the second scene's solo placement still does.
+    expect(artifact.summary.specializations.contentKeys?.fullWeightBlendBypasses).toBe(1)
   })
 
   it('reproduces the pre-fold emission under the vintage counterfactual', () => {

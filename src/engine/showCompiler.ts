@@ -6985,12 +6985,19 @@ function describeContentKeySpecialization(
       ...placement,
       member: memberById.get(placement.clipId)!,
       consumerId: '',
-    })))].flatMap(([, stack]) => stack.map((placement) => ({
-      placement,
-      stack,
-      propertyTracks: scene.propertyTracks,
-      endpointActive: routedStackHasEndpointOptimization(stack, scene.propertyTracks),
-    })))
+    })))].flatMap(([, stack]) => {
+      // Mirror emitRoutedPlacementStackCapture's early returns: stacks taken
+      // by the content-key or viewport-coverage emitters never reach the
+      // #904 direct-assignment branch and must not count as bypasses.
+      if (routedContentKeyStackReason(stack, outputDimension, scene.propertyTracks) === 'selected') return []
+      if (analyzeViewportCoverageStack(stack, outputDimension, scene.propertyTracks).plan != null) return []
+      return stack.map((placement) => ({
+        placement,
+        stack,
+        propertyTracks: scene.propertyTracks,
+        endpointActive: routedStackHasEndpointOptimization(stack, scene.propertyTracks),
+      }))
+    })
   )) ?? []
   const staticZero = endpointPlacements.filter(({ placement, propertyTracks }) => (
     routedPlacementStaticOpacity(placement, propertyTracks) === 0
