@@ -28,7 +28,9 @@ export default defineConfig({
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
   ],
   webServer: {
-    command: `VITE_PORT=${vitePort} VITE_CF_PERSIST_STATE=${shellArgument(persistenceDirectory)} npm run dev`,
+    // VITE_API_PROXY_TARGET is cleared explicitly: an inherited value would
+    // silently select legacy proxy mode and point the suite at another D1.
+    command: `VITE_API_PROXY_TARGET= VITE_PORT=${vitePort} VITE_CF_PERSIST_STATE=${shellArgument(persistenceDirectory)} npm run dev`,
     // /api/me proves the in-process Worker and its D1 store, not just Vite.
     url: `http://localhost:${vitePort}/api/me`,
     reuseExistingServer: false,

@@ -103,12 +103,14 @@ async function main(): Promise<void> {
     now: () => new Date().toISOString(),
     portIsAvailable,
   })
-  mkdirSync(persistStateDirectory, { recursive: true })
   const environment = publicPlaywrightEnvironment(assignment, persistStateDirectory, manifest.basePath)
   console.log(
     `Public e2e target: ${environment.PLAYWRIGHT_STUDIO_URL} (hermetic candidate-owned server for ${context.worktree})`,
   )
   try {
+    // Inside the cleanup scope: a failed mkdir must still release the
+    // reserved assignment.
+    mkdirSync(persistStateDirectory, { recursive: true })
     const migrate = spawnSync(process.execPath, [
       resolve(context.worktree, 'node_modules/wrangler/bin/wrangler.js'),
       'd1', 'migrations', 'apply', 'pxlblz-ide',

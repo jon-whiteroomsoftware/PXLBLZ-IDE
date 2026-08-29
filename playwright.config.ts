@@ -42,7 +42,9 @@ export default defineConfig({
     ? {
         // Hermetic single-process candidate server (#901): the candidate's
         // Worker and a throwaway migrated D1 run inside the Vite process.
-        command: `VITE_PORT=${vitePort} VITE_CF_PERSIST_STATE=${shellArgument(persistState)} npm run dev`,
+        // VITE_API_PROXY_TARGET is cleared explicitly: an inherited value would
+        // silently select legacy proxy mode and bypass the candidate Worker.
+        command: `VITE_API_PROXY_TARGET= VITE_PORT=${vitePort} VITE_CF_PERSIST_STATE=${shellArgument(persistState)} npm run dev`,
         url: `http://localhost:${vitePort}/api/me`,
         reuseExistingServer: false,
         timeout: 120_000,
