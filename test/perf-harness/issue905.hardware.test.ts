@@ -57,7 +57,10 @@ describe('transition-arm dedup ladder on hardware (#905 stage 1)', () => {
     // Restoration reselects a *saved* Pattern; a transient run-only Pattern
     // would be destroyed by the probe push. Refuse unless the active id is
     // in the device inventory.
-    const savedPrograms = await connection.listPrograms()
+    const savedPrograms = await connection.listPrograms().catch((error) => {
+      connection.close()
+      throw error
+    })
     if (!savedPrograms.some((program) => program.id === original.activeProgramId)) {
       connection.close()
       throw new Error(
