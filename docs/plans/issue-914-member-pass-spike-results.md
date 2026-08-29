@@ -133,7 +133,7 @@ library helpers are visible as top-level functions.
 | A module-table | 0 | — |
 | A frame-table | 1 | IridescentFibers (10-iteration `sin(t + layer)` term) |
 | B exact (≥10× mul total AND an exp/pow-class call, position-stable) | **0** | — |
-| B below-breakeven | 98 | the `atan2`/`hypot`/`clamp`/`frac` tail across 35 Patterns — including four op-chain sites past the total threshold (ClockworkIris 11.4×, HelixForge3D 13.1×, NebulaSphere 13.1×, SceneSplice 13.5×) that the measured op-chain loss demotes |
+| B below-breakeven | 95 | the `atan2`/`hypot`/`clamp`/`frac` tail across 35 Patterns — including four op-chain sites past the total threshold (ClockworkIris 11.4×, HelixForge3D 13.1×, NebulaSphere 13.1×, SceneSplice 13.5×) that the measured op-chain loss demotes |
 | B needs-invalidation (control-coupled) | 8 | ImpactEngine ×2, LavaLamp3D, LineDancer2D, NebulaShells3D, PerlinKaleidoscope2D, SceneSplice, SceneSplice3D |
 | B disqualified by animated transforms | — | BlueHolidayStar2D and CarriesHolidayStar2D's 31× mul triple-`pow` star distances (per-frame `rotate()`) |
 | C palette | 2 | NebulaSphere, PlasmaNebula |

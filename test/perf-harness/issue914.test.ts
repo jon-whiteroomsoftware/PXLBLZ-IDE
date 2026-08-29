@@ -231,7 +231,7 @@ describe('issue914 stock-catalogue census', () => {
       indexTablingModule: 0,
       indexTablingFrame: 1,
       positionMemoExact: 0,
-      positionMemoBelowBreakeven: 98,
+      positionMemoBelowBreakeven: 95,
       positionMemoInvalidation: 8,
       paletteSpecialization: 2,
       outsideScopeSubset: 14,

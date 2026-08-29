@@ -225,7 +225,7 @@ export function analyzeIssue914(source: string): Issue914PatternReport {
     }
     if (child.type === 'TryStatement' || child.type === 'CatchClause'
       || child.type === 'ThrowStatement' || child.type === 'ClassDeclaration'
-      || child.type === 'ClassExpression') {
+      || child.type === 'ClassExpression' || child.type === 'LabeledStatement') {
       outsideScopeSubset = true
     }
   })
@@ -559,6 +559,7 @@ function maxSingleCallCost(node: Node, context: ClassifyContext): number {
     if (child.type !== 'CallExpression' || child.callee?.type !== 'Identifier') return
     const callee = child.callee.name as string
     const shadowed = context.functions.has(callee) || context.globals.has(callee)
+      || context.locals.has(callee)
     if (!shadowed && DEVICE_COST_X_MUL[callee] !== undefined) {
       max = Math.max(max, DEVICE_COST_X_MUL[callee])
     }
@@ -575,8 +576,9 @@ function estimateSubtreeCost(node: Node, context: ClassifyContext): number {
     if (child.type === 'CallExpression' && child.callee?.type === 'Identifier') {
       const callee = child.callee.name as string
       const shadowed = context.functions.has(callee) || context.globals.has(callee)
+        || context.locals.has(callee)
       if (!shadowed && DEVICE_COST_X_MUL[callee] !== undefined) cost += DEVICE_COST_X_MUL[callee]
-      else if (context.pureFunctions.has(callee)) cost += 3
+      else if (!shadowed && context.pureFunctions.has(callee)) cost += 3
       return
     }
     if (child.type === 'BinaryExpression' || child.type === 'LogicalExpression'
@@ -833,8 +835,11 @@ function classifyExpression(node: Node, context: ClassifyContext, depth = 0): Cl
   }
   if (node.type === 'CallExpression') {
     const callee = node.callee?.type === 'Identifier' ? node.callee.name as string : null
+    // Locals shadow builtins too: `var exp = random; exp(index)` must not
+    // resolve as the pure builtin (review round-14 P1).
     const shadowed = callee !== null
-      && (context.functions.has(callee) || context.globals.has(callee))
+      && (context.functions.has(callee) || context.globals.has(callee)
+        || context.locals.has(callee))
     if (callee !== null && !shadowed && FRAME_SOURCE_CALLS.has(callee)) {
       const parts = ((node.arguments as Node[]) ?? []).map((argument) => classifyExpression(argument, context, depth + 1))
       return combine([...parts, classified(['frame'], 0)], 1, 1)
@@ -1182,9 +1187,9 @@ function collectPureValueFunctions(
         if (node.type === 'CallExpression') {
           const callee = node.callee?.type === 'Identifier' ? node.callee.name as string : null
           if (callee === null) { ok = false; return }
-          const shadowedByGlobal = globals.has(callee)
-          const isPureBuiltin = PURE_CALLS.has(callee) && !functions.has(callee) && !shadowedByGlobal
-          if (!isPureBuiltin && !pure.has(callee)) ok = false
+          const shadowed = globals.has(callee) || locals.has(callee)
+          const isPureBuiltin = PURE_CALLS.has(callee) && !functions.has(callee) && !shadowed
+          if (!isPureBuiltin && (shadowed || !pure.has(callee))) ok = false
           return
         }
         if (node.type === 'Identifier') {
