@@ -24,7 +24,7 @@ proof), and one shippable pattern edit (IridescentFibers +5.3%).
 
 Both rules extend the #513/#566 frame-invariant analysis
 (`src/engine/showFrameInvariantHoisting.ts`) with signals it deliberately
-lacks; the spike's port lives in `test/perf-harness/issue914.ts`.
+lacks; the spike's port is archived at commit feee49f1 (see Evidence).
 
 - **Rule A — loop-index tabling.** In render-reachable code, a `for` loop
   with a statically-known trip count (2–128; init/test/update literals,
@@ -119,9 +119,10 @@ What the repository claims, precisely:
   data artifact: the archived tool over the 101-Pattern catalogue as of
   this issue. The tail counts carry the tool's residual scope/aliasing
   approximations (reviews found edge cases in constructs no stock
-  Pattern uses); the decision-bearing classes — zero exact memo sites,
-  one tabling site — were additionally verified by hardware measurement,
-  which is the evidence the decline rests on.
+  Pattern uses); the counts themselves are
+  analyzer-derived. What hardware verified is the ECONOMICS: the four
+  probed transforms' FPS deltas and checksum parity — and the economics,
+  not the counts, are what the decline rests on.
 - Re-running the census is part of any future build proposal or major
   catalogue change, using the archived tool or a successor — a deliberate
   step, not an auto-running suite with implied soundness.
@@ -248,11 +249,24 @@ against `SHOW_ARTIFACT_BUDGET_BYTES` like `selectShowFrameInvariantHoists`.
 
 ## Evidence
 
-- `test/perf-harness/issue914.ts` — detection rules (spike-local port).
-- `test/perf-harness/issue914.test.ts` — recall/precision, checksum
-  parity, census with coverage invariants.
+In the tree:
+
+- `test/perf-harness/issue914.test.ts` — checksum parity of the four
+  hand-generated transforms (emulator bench over committed fixtures) and
+  consistency of the committed artifacts with this document's numbers.
 - `test/perf-harness/fixtures/issue914/` — pre-optimization ground truth
-  (provenance in headers) and the three generated transforms.
-- `test/perf-harness/issue914-eligibility-census.json` — full census.
+  (provenance in headers) and the four generated transforms.
+- `test/perf-harness/issue914-eligibility-census.json` — the census as a
+  dated data artifact.
 - `test/perf-harness/issue914-transform-pairs.json` — paired hardware
   measurements.
+- `test/perf-harness/issue914.hardware.test.ts` — the paired probe
+  (rerunnable against the bench controller).
+
+Archived at commit feee49f1 (retrieve with
+`git show feee49f1:test/perf-harness/issue914.ts`, and the same commit's
+`issue914.test.ts` for the recall/precision/census tests, all passing
+there):
+
+- the census tool — detection rules, classifier, cost model, and the
+  modeled-subset guard — used to produce the census artifact above.
