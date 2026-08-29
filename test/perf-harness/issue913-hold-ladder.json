@@ -1,0 +1,154 @@
+{
+  "generatedAt": "2026-08-29",
+  "device": "Burner bag",
+  "boardType": "pb32",
+  "firmwareVersion": "3.67",
+  "outputProfile": "native-serial (assumed)",
+  "fixture": "hsv-steady-state (directColorSinks: false)",
+  "rows": [
+    {
+      "pixelCount": 256,
+      "variant": "baseline",
+      "bytecodeBytes": 6870,
+      "fps": {
+        "mean": 49.33413166666666,
+        "median": 49.28586,
+        "min": 48.22834,
+        "max": 50.59524,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "variant": "hold-k2",
+      "bytecodeBytes": 7098,
+      "fps": {
+        "mean": 79.37561750000002,
+        "median": 79.064375,
+        "min": 77.92207,
+        "max": 81.02767,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "variant": "hold-k4",
+      "bytecodeBytes": 7098,
+      "fps": {
+        "mean": 124.39874999999995,
+        "median": 124.3781,
+        "min": 124.3781,
+        "max": 124.502,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "variant": "hold-k8",
+      "bytecodeBytes": 7098,
+      "fps": {
+        "mean": 124.5226833333333,
+        "median": 124.502,
+        "min": 124.502,
+        "max": 124.6261,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 1000,
+      "variant": "baseline",
+      "bytecodeBytes": 6870,
+      "fps": {
+        "mean": 12.754387083333333,
+        "median": 12.96112,
+        "min": 12.45211,
+        "max": 13.0719,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 1000,
+      "variant": "hold-k2",
+      "bytecodeBytes": 7098,
+      "fps": {
+        "mean": 20.57101041666667,
+        "median": 20.47782,
+        "min": 20.19231,
+        "max": 21.01241,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 1000,
+      "variant": "hold-k4",
+      "bytecodeBytes": 7098,
+      "fps": {
+        "mean": 32.874095,
+        "median": 32.884975,
+        "min": 32.80318,
+        "max": 32.93413,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 1000,
+      "variant": "hold-k8",
+      "bytecodeBytes": 7098,
+      "fps": {
+        "mean": 32.95058,
+        "median": 32.95058,
+        "min": 32.93413,
+        "max": 32.96703,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 2000,
+      "variant": "baseline",
+      "bytecodeBytes": 6870,
+      "fps": {
+        "mean": 6.375219416666668,
+        "median": 6.381039,
+        "min": 6.233304,
+        "max": 6.542056,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 2000,
+      "variant": "hold-k2",
+      "bytecodeBytes": 7098,
+      "fps": {
+        "mean": 10.301183749999998,
+        "median": 10.261915,
+        "min": 10.12891,
+        "max": 10.52632,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 2000,
+      "variant": "hold-k4",
+      "bytecodeBytes": 7098,
+      "fps": {
+        "mean": 16.51768208333333,
+        "median": 16.512970000000003,
+        "min": 16.45692,
+        "max": 16.5692,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 2000,
+      "variant": "hold-k8",
+      "bytecodeBytes": 7098,
+      "fps": {
+        "mean": 16.569200000000006,
+        "median": 16.5692,
+        "min": 16.5692,
+        "max": 16.5692,
+        "samples": 24
+      }
+    }
+  ]
+}
