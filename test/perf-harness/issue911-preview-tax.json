@@ -1,0 +1,99 @@
+{
+  "generatedAt": "2026-08-29",
+  "device": "Burner bag",
+  "boardType": "pb32",
+  "firmwareVersion": "3.67",
+  "outputProfile": "native-serial (assumed)",
+  "pattern": "Caustics",
+  "sampleMs": 8000,
+  "rows": [
+    {
+      "pixelCount": 256,
+      "state": "closed",
+      "fps": {
+        "median": 8.166969,
+        "min": 8.159564,
+        "max": 8.166969,
+        "samples": 32
+      },
+      "observerPreviewFrames": 0
+    },
+    {
+      "pixelCount": 256,
+      "state": "idle-default",
+      "fps": {
+        "median": 8.152174,
+        "min": 8.144796,
+        "max": 8.159564,
+        "samples": 32
+      },
+      "observerPreviewFrames": 0
+    },
+    {
+      "pixelCount": 256,
+      "state": "updates-off",
+      "fps": {
+        "median": 8.152174,
+        "min": 8.144796,
+        "max": 8.152174,
+        "samples": 32
+      },
+      "observerPreviewFrames": 0
+    },
+    {
+      "pixelCount": 256,
+      "state": "updates-on",
+      "fps": {
+        "median": 8.122744,
+        "min": 8.122744,
+        "max": 8.130081,
+        "samples": 32
+      },
+      "observerPreviewFrames": 66
+    },
+    {
+      "pixelCount": 2000,
+      "state": "closed",
+      "fps": {
+        "median": 1.046572,
+        "min": 1.046025,
+        "max": 1.04712,
+        "samples": 32
+      },
+      "observerPreviewFrames": 0
+    },
+    {
+      "pixelCount": 2000,
+      "state": "idle-default",
+      "fps": {
+        "median": 1.045478,
+        "min": 1.044386,
+        "max": 1.045478,
+        "samples": 32
+      },
+      "observerPreviewFrames": 0
+    },
+    {
+      "pixelCount": 2000,
+      "state": "updates-off",
+      "fps": {
+        "median": 1.046025,
+        "min": 1.044932,
+        "max": 1.046572,
+        "samples": 32
+      },
+      "observerPreviewFrames": 0
+    },
+    {
+      "pixelCount": 2000,
+      "state": "updates-on",
+      "fps": {
+        "median": 1.042753,
+        "min": 1.04221,
+        "max": 1.044386,
+        "samples": 32
+      },
+      "observerPreviewFrames": 9
+    }
+  ]
+}

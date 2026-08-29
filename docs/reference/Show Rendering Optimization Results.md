@@ -364,11 +364,12 @@ candidate map is `docs/plans/controller-performance-wave4-advisory.md`.
 | 03 | #909 array-helper pricing | verified paired probes (512-element passes, witness slots proven identical between forms): for-loop write fill 7.320 us/element vs `mutate` 0.684 (**10.7x**), for-loop read accumulate 5.800 vs `forEach` 1.280 (**4.5x**), native `sum()` below measurement noise — far beyond the forum's "2-3x"; callbacks see globals and own parameters only (no closures), and helpers always visit every element. Stage-2 verdict: no eligible per-frame generated `for` loops remain in current emission (the #717 scheduler scan is an early-exit `while`; table init runs once at activation), so no lowering ships. Stage-3 verdict: the pricing justifies a mutate-fill buffered-frame design spike, folded into #718's plane planning |
 
 | 04 | #908 packed-routing re-price | **verified already complete**: #717 slice 1 made the chooser the emitter, so the packed byte estimate prices exactly what `emitIntegerDataTable` will produce (literal ~4.25 B/element, pinned in showDataTableEmission.test.ts) — the 20 B/element assumption the #715 doc flagged was consumed before this issue was picked up. The 13-comparison depth gate is a runtime break-even (17.3 us/pixel packed overhead, issue573-depth-negative.json) that literal pricing does not move. Catalogue census: 36 stock Shows route by coordinate predicates, 4 by range branches with max 3-4 comparisons/pixel — no decision can flip at any byte price; zero packed selections today, and the deep-interleave shape that pays (+197%, #573) remains correctly gated |
+| 05 | #911 preview-stream tax | **closed question, no product change**: the device streams type-5 preview frames only to a client that sends `sendUpdates: true` — zero frames observed on closed, idle, and updates-off sockets — and the IDE never requests them, so its connections are already quiet by default. Measured tax with a compute-bound Pattern (Caustics): ~0.36% median FPS at 256 px (8.152 -> 8.123) and ~0.29% at 2,000 px with the stream on; an idle extra socket costs ~0.2%; rate-capped and wire-floor-bound states measure 0.00% (both ceilings hide any delta — the whole-frame model's dilution warning in action). Stream cadence: throttled to ~25 frames/s at the firmware cap, one per render frame below it (issue911-preview-tax.json) |
 
 Raw wave-4 slice data: `test/perf-harness/issue904-blend-probe.json`,
 `issue904-fold-ladder.json`, `issue905-dedup-ladder.json`,
-`issue907-static-verdicts.md`, `issue907-idiom-probe.json`, and
-`issue909-array-probe.json`.
+`issue907-static-verdicts.md`, `issue907-idiom-probe.json`,
+`issue909-array-probe.json`, and `issue911-preview-tax.json`.
 
 ## General rules established by the evidence
 
