@@ -32,7 +32,13 @@ describe('transition-arm dedup ladder on hardware (#905 stage 1)', () => {
   it.skipIf(!runHardware)('measures the baseline/deduped pair at three sizes and restores Controller state', async () => {
     const artifact = buildTransitionHeavyArtifact()
     const deduped = dedupTransitionArms(artifact.code)
-    if (deduped.duplicateDecodes === 0) throw new Error('Fixture lost its duplicate decodes; re-derive the transform.')
+    // Historical measurement tool: with the #905 emitter dedupe landed, the
+    // compiler emits the deduped form natively, so this ladder has nothing
+    // to pair. The recorded pre-pass run lives in issue905-dedup-ladder.json.
+    if (deduped.dedupedArms === 0) {
+      console.log('The compiler no longer emits duplicate transition decodes (#905 landed); nothing to measure.')
+      return
+    }
 
     const compile = await fetchControllerCompiler(ip)
     const connection = new PixelblazeConnection({
@@ -100,9 +106,7 @@ describe('transition-arm dedup ladder on hardware (#905 stage 1)', () => {
           ...measurementOptions,
         },
         transform: {
-          duplicateDecodes: deduped.duplicateDecodes,
-          duplicateCoordinates: deduped.duplicateCoordinates,
-          guardReductions: deduped.guardReductions,
+          dedupedArms: deduped.dedupedArms,
           wrapperCopyChains: deduped.wrapperCopyChains,
         },
         rows,
