@@ -845,6 +845,23 @@ function computeOutVarClasses(input: {
         if (!ok || !node || typeof node !== 'object') return
         if (node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression'
           || (node.type === 'FunctionDeclaration' && node !== fn)) {
+          // A builtin name is only trustworthy when nothing in the callback
+          // scope shadows it: `(sin, v) => sin(v)` invoked as
+          // `invoke(setU, knob)` calls the writer, not the builtin.
+          const shadowNames = new Set<string>()
+          visitNode(node, (child) => {
+            if (child.type === 'FunctionExpression' || child.type === 'ArrowFunctionExpression'
+              || child.type === 'FunctionDeclaration') {
+              for (const param of (child.params as Node[]) ?? []) {
+                if (param?.type === 'Identifier') shadowNames.add(param.name as string)
+              }
+            }
+            if (child.type === 'VariableDeclaration') {
+              for (const item of child.declarations as Node[]) {
+                if (item.id?.type === 'Identifier') shadowNames.add(item.id.name as string)
+              }
+            }
+          })
           visitNode(node, (child) => {
             if (child.type === 'AssignmentExpression' && child.left?.type === 'Identifier'
               && child.left.name === name) ok = false
@@ -853,7 +870,7 @@ function computeOutVarClasses(input: {
             if (child.type === 'CallExpression') {
               const callee = child.callee?.type === 'Identifier' ? child.callee.name as string : null
               const isPureBuiltin = callee !== null && PURE_CALLS.has(callee)
-                && !functions.has(callee) && !globals.has(callee)
+                && !functions.has(callee) && !globals.has(callee) && !shadowNames.has(callee)
               if (!isPureBuiltin) ok = false
             }
           })
