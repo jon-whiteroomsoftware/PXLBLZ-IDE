@@ -200,8 +200,21 @@ async function startIssueRuntime(
         uiPid: pid,
         updatedAt: new Date().toISOString(),
       }))
-      await waitForUrl(issueUrl(assignment, manifest), 30_000)
-      await waitForUrl(`${assignment.apiTarget}/api/me`, 30_000)
+      try {
+        await waitForUrl(issueUrl(assignment, manifest), 30_000)
+        await waitForUrl(`${assignment.apiTarget}/api/me`, 30_000)
+      } catch (error) {
+        // Roll the failed startup back so the next run does not mistake the
+        // registered-but-broken process for a healthy owned runtime.
+        stopProcessGroup(pid)
+        await waitForPortFree(assignment.uiPort, 10_000).catch(() => {})
+        await updateRuntimeAssignment(context.runtimeDirectory, assignment.issue, (current) => ({
+          ...current,
+          uiPid: undefined,
+          updatedAt: new Date().toISOString(),
+        }))
+        throw error
+      }
     } else {
       const pid = startVite(context.worktree, assignment, context.runtimeDirectory, {
         kind: 'proxy',
@@ -341,42 +354,27 @@ async function ensureMainRuntime(
   const uiUrl = `http://localhost:${manifest.shared.vitePort}${manifest.basePath}`
   const apiUrl = `http://localhost:${manifest.shared.vitePort}/api/me`
 
-  const legacyPids = listenerPids(manifest.shared.wranglerPort)
-  if (legacyPids.length > 0) {
-    const legacyListeners: MainApiListener[] = legacyPids.map((pid) => ({ pid, command: processCommand(pid) }))
-    const unowned = legacyListeners.filter((listener) => !isRepositoryRuntimeCommand(listener.command, context.mainWorktree))
-    if (unowned.length > 0) {
-      throw new Error(
-        `Port ${manifest.shared.wranglerPort} is occupied by processes that are not this repository's legacy Wrangler; refusing to retire them:\n`
-        + unowned.map((listener) => `  ${listener.pid} ${listener.command || '(unreadable command)'}`).join('\n'),
-      )
-    }
-    console.log(
-      `Retiring the legacy two-process pair (#900): stopping wrangler pages dev on ${manifest.shared.wranglerPort}`
-      + ` (PIDs ${legacyPids.join(', ')}).`,
-    )
-    await stopWedgedListeners(legacyPids, manifest.shared.wranglerPort, context.mainWorktree)
-  }
-
+  // Every refusal happens before any signal is sent, so a refused run leaves
+  // whatever topology it found intact.
   const uiPids = listenerPids(manifest.shared.vitePort)
   const apiProbe = uiPids.length > 0
     ? await probeService(apiUrl, serviceProbeTimeoutMs)
     : 'unresponsive'
   const uiListeners: MainApiListener[] = uiPids.map((pid) => ({ pid, command: processCommand(pid) }))
   let runtimeAction = decideMainApiAction(uiListeners, apiProbe, context.mainWorktree)
+  const uiGroupMembers = uiPids
+    .map(processGroupId)
+    .filter(Number.isInteger)
+    .flatMap((group) => processGroupMembers(group))
   if (runtimeAction === 'unhealthy') {
     // A worker-dev runtime carries workerd in its process group; a legacy
     // proxy-mode Vite does not. An owned, workerd-less group answering 5xx is
-    // the beheaded proxy whose 8788 target retired — restart it as the
-    // single process. A group with workerd is a live application erroring
+    // the beheaded proxy whose standalone API target retired — restart it as
+    // the single process. A group with workerd is a live application erroring
     // and is never terminated.
-    const members = uiPids
-      .map(processGroupId)
-      .filter(Number.isInteger)
-      .flatMap((group) => processGroupMembers(group))
-    const beheadedProxy = members.length > 0
-      && unownedGroupMembers(members, context.mainWorktree).length === 0
-      && !groupIndicatesWorkerRuntime(members)
+    const beheadedProxy = uiGroupMembers.length > 0
+      && unownedGroupMembers(uiGroupMembers, context.mainWorktree).length === 0
+      && !groupIndicatesWorkerRuntime(uiGroupMembers)
     if (!beheadedProxy) {
       throw new Error(
         `Port ${manifest.shared.vitePort} answers ${apiUrl} with server errors; the process is alive, so`
@@ -395,14 +393,51 @@ async function ensureMainRuntime(
       + uiListeners.map((listener) => `  ${listener.pid} ${listener.command || '(unreadable command)'}`).join('\n'),
     )
   }
-  if (runtimeAction === 'recover') {
-    // A proxy-mode legacy Vite whose 8788 target just retired probes as
-    // unresponsive/erroring here and restarts as the single-process runtime.
+
+  const legacyPids = listenerPids(manifest.shared.wranglerPort)
+  if (legacyPids.length > 0) {
+    const legacyListeners: MainApiListener[] = legacyPids.map((pid) => ({ pid, command: processCommand(pid) }))
+    const unowned = legacyListeners.filter((listener) => !isRepositoryRuntimeCommand(listener.command, context.mainWorktree))
+    if (unowned.length > 0) {
+      throw new Error(
+        `Port ${manifest.shared.wranglerPort} is occupied by processes that are not this repository's legacy Wrangler; refusing to retire them:\n`
+        + unowned.map((listener) => `  ${listener.pid} ${listener.command || '(unreadable command)'}`).join('\n'),
+      )
+    }
+  }
+  if (runtimeAction === 'none' && legacyPids.length > 0 && !groupIndicatesWorkerRuntime(uiGroupMembers)) {
+    // A healthy 5174 answering only through a live legacy 8788 is the old
+    // proxy topology; both halves restart as the single process.
     console.log(
-      `Port ${manifest.shared.vitePort} does not answer ${apiUrl}; `
-      + `restarting the main runtime as a single worker-dev process (PIDs ${uiPids.join(', ')}).`,
+      `Port ${manifest.shared.vitePort} is a legacy proxy-mode Vite answering through ${manifest.shared.wranglerPort} (#900); `
+      + 'restarting it as the single-process runtime.',
     )
-    await stopWedgedListeners(uiPids, manifest.shared.vitePort, context.mainWorktree)
+    runtimeAction = 'recover'
+  }
+
+  // All refusals are behind us: retire the legacy standalone Wrangler, then
+  // any Vite this run replaces.
+  if (legacyPids.length > 0) {
+    console.log(
+      `Retiring the legacy two-process pair (#900): stopping wrangler pages dev on ${manifest.shared.wranglerPort}`
+      + ` (PIDs ${legacyPids.join(', ')}).`,
+    )
+    await stopWedgedListeners(legacyPids, manifest.shared.wranglerPort, context.mainWorktree)
+  }
+  if (runtimeAction === 'recover') {
+    // The no-workerd constraint travels into the stop: if workerd appears in
+    // the group between the decision above and the signal, the guard refuses
+    // rather than killing what has become a live worker runtime.
+    const requireProxyGroup = apiProbe === 'error'
+      ? (members: readonly MainApiListener[]) => {
+          if (groupIndicatesWorkerRuntime(members)) {
+            throw new Error(
+              'Refusing to terminate: the group now contains workerd, so it is a live worker runtime, not a beheaded proxy.',
+            )
+          }
+        }
+      : undefined
+    await stopWedgedListeners(uiPids, manifest.shared.vitePort, context.mainWorktree, requireProxyGroup)
   }
   if (runtimeAction === 'none') {
     // A healthy /api does not prove the UI: probe the base path too, and
@@ -521,10 +556,18 @@ function startDetached(
   mkdirSync(resolve(logPath, '..'), { recursive: true })
   const log = openSync(logPath, 'a')
   try {
+    // Topology-selecting variables must come only from the caller: an
+    // inherited proxy target or persistence path from the invoking shell
+    // would silently flip a runtime's mode or point it at the wrong D1.
+    const merged: NodeJS.ProcessEnv = { ...process.env }
+    for (const key of ['VITE_PORT', 'VITE_API_PROXY_TARGET', 'VITE_CF_PERSIST_STATE', 'VITE_BASE_PATH']) {
+      delete merged[key]
+    }
+    Object.assign(merged, env)
     const child = spawn(command, args, {
       cwd,
       detached: true,
-      env: { ...process.env, ...env },
+      env: merged,
       stdio: ['ignore', log, log],
     })
     child.unref()
@@ -606,15 +649,11 @@ function stopProcessGroup(processGroupId: number): void {
   }
 }
 
-// A wedged workerd may ignore SIGTERM (it sat for six days ignoring a broken
-// control channel in the #895 incident), so escalate to SIGKILL per group.
-// Signals go to whole process groups, so every group member must first prove
-// ownership — a wrangler started from a non-job-control shell can share its
-// group with that shell, and recovery must never take out a bystander.
 async function stopWedgedListeners(
   pids: readonly number[],
   port: number,
   mainWorktree: string,
+  requireGroup?: (members: readonly MainApiListener[]) => void,
 ): Promise<void> {
   const groupsByPid = pids.map((pid) => ({ pid, group: processGroupId(pid) }))
   const unresolved = groupsByPid.filter(({ group }) => !Number.isInteger(group))
@@ -638,6 +677,7 @@ async function stopWedgedListeners(
         + unowned.map((member) => `  ${member.pid} ${member.command || '(unreadable command)'}`).join('\n'),
       )
     }
+    requireGroup?.(members)
   }
   for (const group of groups) stopProcessGroup(group)
   try {
