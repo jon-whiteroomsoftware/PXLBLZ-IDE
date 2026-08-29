@@ -854,6 +854,9 @@ function computeOutVarClasses(input: {
             const bindings = new Set<string>()
             for (const param of (fnNode.params as Node[]) ?? []) {
               if (param?.type === 'Identifier') bindings.add(param.name as string)
+              if (param?.type === 'AssignmentPattern' && param.left?.type === 'Identifier') {
+                bindings.add(param.left.name as string)
+              }
             }
             visitOwnBody(fnNode.body as Node, (child) => {
               if (child.type === 'VariableDeclaration') {
@@ -868,7 +871,11 @@ function computeOutVarClasses(input: {
             if (!ok || !child || typeof child !== 'object') return
             if (child !== node && (child.type === 'FunctionExpression'
               || child.type === 'ArrowFunctionExpression' || child.type === 'FunctionDeclaration')) {
-              scopeWalk(child.body as Node, [...scopeChain, ownBindings(child)])
+              const childChain = [...scopeChain, ownBindings(child)]
+              // Default-parameter initializers execute at call time — walk
+              // them under the child scope alongside the body.
+              for (const param of (child.params as Node[]) ?? []) scopeWalk(param, childChain)
+              scopeWalk(child.body as Node, childChain)
               return
             }
             if (child.type === 'AssignmentExpression' && child.left?.type === 'Identifier'
@@ -888,7 +895,9 @@ function computeOutVarClasses(input: {
               else if (grandchild && typeof grandchild === 'object') scopeWalk(grandchild as Node, scopeChain)
             }
           }
-          scopeWalk(node.body as Node, [ownBindings(node)])
+          const rootChain = [ownBindings(node)]
+          for (const param of (node.params as Node[]) ?? []) scopeWalk(param, rootChain)
+          scopeWalk(node.body as Node, rootChain)
           return
         }
         for (const [key, child] of Object.entries(node)) {
