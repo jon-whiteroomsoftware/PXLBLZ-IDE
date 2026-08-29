@@ -6031,8 +6031,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     render(<ShowEditor showId={show.id} />)
 
-    usePreviewStore.setState({ isRunning: true })
-    useShowTransportStore.getState().setPosition(show.id, 61_500)
+    act(() => usePreviewStore.setState({ isRunning: true }))
+    act(() => useShowTransportStore.getState().setPosition(show.id, 61_500))
     fireEvent.keyDown(document.body, { key: 'a', metaKey: true })
     expect(useShowTransportStore.getState().seekRequest).toBeNull()
     fireEvent.keyDown(document.body, { key: 'a' })
@@ -6040,7 +6040,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(usePreviewStore.getState().isRunning).toBe(true)
     const goToStart = screen.getByRole('button', { name: 'Go to Show start' })
     expect(goToStart).toHaveAttribute('title', 'Go to Show start (A)')
-    useShowTransportStore.getState().setPosition(show.id, 5_000)
+    act(() => useShowTransportStore.getState().setPosition(show.id, 5_000))
     fireEvent.click(goToStart)
     expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 0 })
     expect(usePreviewStore.getState().isRunning).toBe(true)
@@ -6056,8 +6056,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const viewportStart = navigator.getAttribute('aria-valuenow')
     const clip = screen.getByRole('button', { name: 'Select TestPattern1D' })
     clip.focus()
-    usePreviewStore.setState({ isRunning: true })
-    useShowTransportStore.getState().setPosition(show.id, 10_000)
+    act(() => usePreviewStore.setState({ isRunning: true }))
+    act(() => useShowTransportStore.getState().setPosition(show.id, 10_000))
 
     fireEvent.keyDown(clip, { key: 'ArrowRight' })
     const seekAfterInitialPress = useShowTransportStore.getState().seekRequest
@@ -6075,7 +6075,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(usePreviewStore.getState().isRunning).toBe(true)
     expect(navigator).toHaveAttribute('aria-valuenow', viewportStart)
 
-    usePreviewStore.setState({ isRunning: false })
+    act(() => usePreviewStore.setState({ isRunning: false }))
     fireEvent.keyDown(clip, { key: 'ArrowLeft' })
     expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 5_000 })
     expect(usePreviewStore.getState().isRunning).toBe(false)
@@ -6087,8 +6087,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     render(<ShowEditor showId={show.id} />)
 
-    usePreviewStore.setState({ isRunning: true })
-    useShowTransportStore.getState().setPosition(show.id, 10_000)
+    act(() => usePreviewStore.setState({ isRunning: true }))
+    act(() => useShowTransportStore.getState().setPosition(show.id, 10_000))
     document.body.focus()
 
     fireEvent.keyDown(document.body, { key: 'ArrowRight' })
@@ -6102,7 +6102,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     render(<ShowEditor showId={show.id} />)
 
-    useShowTransportStore.getState().setPosition(show.id, 10_000)
+    act(() => useShowTransportStore.getState().setPosition(show.id, 10_000))
     const input = document.createElement('input')
     input.type = 'text'
     document.body.append(input)
@@ -6127,7 +6127,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     render(<ShowEditor showId={show.id} />)
 
-    useShowTransportStore.getState().setPosition(show.id, 10_000)
+    act(() => useShowTransportStore.getState().setPosition(show.id, 10_000))
     fireEvent.keyDown(document.body, { key: 'ArrowRight', ...modifier })
 
     expect(useShowTransportStore.getState()).toMatchObject({
@@ -6143,7 +6143,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
     useShowTransportStore.getState().openShow('other-show', 62_000)
     useShowTransportStore.getState().setPosition('other-show', 25_000)
-    usePreviewStore.setState({ isRunning: true })
+    act(() => usePreviewStore.setState({ isRunning: true }))
     const toggle = vi.spyOn(usePreviewStore.getState(), 'toggle')
 
     fireEvent.keyDown(document.body, { key: 'ArrowRight' })
@@ -6169,7 +6169,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     folder.setAttribute('aria-expanded', expanded)
     folder.setAttribute('data-studio-space-preview', 'true')
     document.body.append(folder)
-    useShowTransportStore.getState().setPosition(show.id, 10_000)
+    act(() => useShowTransportStore.getState().setPosition(show.id, 10_000))
 
     fireEvent.keyDown(folder, { key })
 
@@ -6186,11 +6186,11 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     render(<ShowEditor showId={show.id} />)
 
     const clip = screen.getByRole('button', { name: 'Select TestPattern1D' })
-    useShowTransportStore.getState().setPosition(show.id, 2_000)
+    act(() => useShowTransportStore.getState().setPosition(show.id, 2_000))
     fireEvent.keyDown(clip, { key: 'ArrowLeft' })
     expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 0 })
 
-    useShowTransportStore.getState().setPosition(show.id, 60_000)
+    act(() => useShowTransportStore.getState().setPosition(show.id, 60_000))
     fireEvent.keyDown(clip, { key: 'ArrowRight' })
     expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 62_000 })
   })
@@ -6205,7 +6205,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(usePreviewStore.getState()).toMatchObject({ speed: 1, isRunning: false })
     fireEvent.keyDown(document, { key: '2' })
     expect(usePreviewStore.getState()).toMatchObject({ speed: 2, isRunning: false })
-    usePreviewStore.setState({ isRunning: true })
+    act(() => usePreviewStore.setState({ isRunning: true }))
     fireEvent.keyDown(document, { key: '3' })
     expect(usePreviewStore.getState()).toMatchObject({ speed: 3, isRunning: true })
 
@@ -6360,7 +6360,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     usePreviewStore.setState({ isRunning: false, speed: 4 })
     const view = render(<ShowEditor showId={show.id} />)
-    useShowTransportStore.getState().setPosition(show.id, 5_000)
+    act(() => useShowTransportStore.getState().setPosition(show.id, 5_000))
 
     view.unmount()
     fireEvent.keyDown(document, { key: 'ArrowRight' })

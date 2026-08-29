@@ -509,7 +509,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(labels).toEqual(['-360', '-180', '0', '180', '360'])
   })
 
-  it('keeps placement slider preview local to the adjacent pad until one commit (#680)', () => {
+  it('keeps placement slider preview local to the adjacent pad until one commit (#680)', async () => {
     const onPatch = vi.fn()
     const onPreviewPatch = vi.fn()
     const onPreviewEnd = vi.fn()
@@ -553,6 +553,11 @@ describe('shared Clip Entity Detail sections (#498)', () => {
       name: 'Position slider',
       description: 'Content Y',
     })).toBeInTheDocument()
+    // The commit's finishCommit clears the preview in a microtask; let it land
+    // inside act instead of after the test body (#917).
+    await act(async () => {
+      await Promise.resolve()
+    })
   })
 
   it('keeps a newer axis preview when an earlier placement save finishes (#661)', async () => {

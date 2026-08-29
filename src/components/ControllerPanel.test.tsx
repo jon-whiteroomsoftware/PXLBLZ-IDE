@@ -1,4 +1,4 @@
-import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ControllerPanel } from './ControllerPanel'
 import {
@@ -86,9 +86,22 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  // Unmount first (act-wrapped) so stop() below has no mounted subscribers
+  // left to re-render outside act() (#917).
+  cleanup()
   useControllerPanelStore.getState().stop()
   resetControllerProvider()
 })
+
+// Panel mounts start seed/poll provider promise chains that outlive a
+// synchronous test body and then re-render mounted components outside act().
+// Tests that trigger them finish with this act-wrapped drain so those updates
+// land inside act instead (#917).
+async function settlePanelAsync() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+}
 
 describe('ControllerPanel', () => {
   it('renders nothing when no Controller is connected', () => {
@@ -125,7 +138,7 @@ describe('ControllerPanel', () => {
     expect(map.compareDocumentPosition(fps) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('shows where to install available firmware in the Controller web UI', () => {
+  it('shows where to install available firmware in the Controller web UI', async () => {
     setControllerProvider(new ConnectedProvider())
     useControllerStore.setState({
       activeIp: '10.0.0.9',
@@ -147,6 +160,7 @@ describe('ControllerPanel', () => {
     const link = screen.getByRole('link', { name: 'Open Pixelblaze' })
     expect(link).toHaveAttribute('href', 'http://10.0.0.9/')
     expect(link).toHaveAttribute('target', '_blank')
+    await settlePanelAsync()
   })
 
   it('shows the installed map name, map dimension, and point count in order', async () => {
@@ -316,6 +330,7 @@ describe('ControllerPanel', () => {
       },
     })))
     expect(screen.getByText('Map unavailable')).toBeInTheDocument()
+    await settlePanelAsync()
   })
 
   it('renders the running pattern controls and watched vars when connected', async () => {
@@ -501,13 +516,14 @@ describe('ControllerPanel', () => {
 
     // Load the matching pattern metadata with a description → the "?" appears, and
     // its content describes the control.
-    useEditorStore.getState().setControls([
+    act(() => useEditorStore.getState().setControls([
       { exportName: 'sliderSpeed', kind: 'slider', label: 'Speed', description: 'How fast it goes.' },
-    ])
+    ]))
     rerender(<ControllerPanel />)
     const help = await screen.findByLabelText('About the pattern controls section')
     fireEvent.click(help)
     expect(screen.getByText(/How fast it goes\./)).toBeInTheDocument()
+    await settlePanelAsync()
   })
 
   it('shows drifted or uninitialized control values as an explicit unset state, never a fabricated 0.50 (#873)', async () => {

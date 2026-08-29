@@ -48,7 +48,7 @@ describe('entity mode headers', () => {
     await user.type(screen.getByRole('textbox', { name: 'Map name' }), 'Night Map{Enter}')
     expect(renameMap).toHaveBeenCalledWith(map.id, 'Night Map')
 
-    useMapStore.setState({ editingMap: { kind: 'stock', id: 'plane' } })
+    act(() => useMapStore.setState({ editingMap: { kind: 'stock', id: 'plane' } }))
     rerender(<MapModeHeader />)
     expect(screen.queryByRole('button', { name: /Rename map/ })).not.toBeInTheDocument()
   })
@@ -64,7 +64,7 @@ describe('entity mode headers', () => {
     await user.click(screen.getByRole('button', { name: 'Apply mixin name' }))
     expect(renameMixin).toHaveBeenCalledWith(mixin.id, 'Night Mixin')
 
-    useMixinStore.setState({ editingMixin: { kind: 'stock', id: 'input-bind' } })
+    act(() => useMixinStore.setState({ editingMixin: { kind: 'stock', id: 'input-bind' } }))
     rerender(<MixinModeHeader />)
     expect(screen.queryByRole('button', { name: /Rename mixin/ })).not.toBeInTheDocument()
   })
@@ -95,9 +95,9 @@ describe('entity mode headers', () => {
     expect(renameLibrary).toHaveBeenLastCalledWith(library.id, 'DawnLib')
     expect(confirm).not.toHaveBeenCalled()
 
-    useLibraryStore.setState({ editingLibrary: { kind: 'stock', id: 'Color' } })
-    usePatternStore.setState({ activeLibraryName: 'Color' })
-    useEditorStore.setState({ isReadOnly: true })
+    act(() => useLibraryStore.setState({ editingLibrary: { kind: 'stock', id: 'Color' } }))
+    act(() => usePatternStore.setState({ activeLibraryName: 'Color' }))
+    act(() => useEditorStore.setState({ isReadOnly: true }))
     rerender(<LibraryModeHeader />)
     expect(screen.queryByRole('button', { name: /Rename library/ })).not.toBeInTheDocument()
   })

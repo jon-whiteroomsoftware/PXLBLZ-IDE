@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ControllerProfilePage } from './ControllerProfilePage'
 import { ControllerProfileHeaderActions } from './ControllerProfileHeaderActions'
@@ -180,11 +180,25 @@ function enableShowtime() {
 }
 
 afterEach(() => {
+  // Unmount first (act-wrapped) so the teardown below has no mounted
+  // subscribers left to re-render outside act() (#917).
+  cleanup()
   __resetControllerDeviceWriteQueue()
   resetControllerProvider()
   resetControllerMetadataStorage()
   resetPersonalContentProvider()
 })
+
+
+// Saved-program sync, metadata cleanup, and panel publish chains outlive a
+// test body's last act window and then re-render mounted components outside
+// act(). Tests that trigger them finish with this act-wrapped drain so those
+// updates land inside act instead (#917).
+async function settleProfileAsync() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+}
 
 function seedProfile() {
   const profile = defaultControllerProfile({
@@ -382,7 +396,7 @@ describe('ControllerProfilePage', () => {
         bindings: { 'pat-1': 'DEV1' },
         pushRecords: {},
       })
-      useControllerPanelStore.setState({ activateProgram })
+      act(() => useControllerPanelStore.setState({ activateProgram }))
       fireEvent.click(await screen.findByRole('button', { name: 'Run Twinkle on the Controller' }))
       expect(await screen.findByRole('alert')).toHaveTextContent(
         'Controller session changed before Pattern activation could be confirmed.',
@@ -405,7 +419,7 @@ describe('ControllerProfilePage', () => {
       act(() => useControllerPanelStore.setState({ activeProgramId: 'OTHER' }))
       expect(screen.getByRole('alert')).toBeInTheDocument()
     } finally {
-      useControllerPanelStore.setState({ activateProgram: originalActivate })
+      act(() => useControllerPanelStore.setState({ activateProgram: originalActivate }))
     }
   })
 
@@ -628,13 +642,18 @@ describe('ControllerProfilePage', () => {
     const observedBindings = queueControllerDeviceWrite('192.168.8.224', async () => (
       structuredClone(provider.bindings)
     ))
-    await Promise.resolve()
+    await act(async () => {
+      await Promise.resolve()
+    })
     expect(provider.deletedProgramIds).toEqual([])
 
     priorWrite.resolve()
-    await queuedPrior
-    await expect(observedBindings).resolves.toEqual({ '192.168.8.224': {} })
+    await act(async () => {
+      await queuedPrior
+      await expect(observedBindings).resolves.toEqual({ '192.168.8.224': {} })
+    })
     expect(provider.deletedProgramIds).toEqual(['DEV1'])
+    await settleProfileAsync()
   })
 
   it('does not let a queued deletion cross to a newly active Controller', async () => {
@@ -714,7 +733,9 @@ describe('ControllerProfilePage', () => {
       }))
     })
     priorWrite.resolve()
-    await queuedPrior
+    await act(async () => {
+      await queuedPrior
+    })
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       'Controller session changed before Pattern deletion could start.',
@@ -1524,14 +1545,14 @@ describe('ControllerProfilePage', () => {
     })
   })
 
-  it('uses the shared controller traffic-light vocabulary for profile status', () => {
+  it('uses the shared controller traffic-light vocabulary for profile status', async () => {
     seedProfile()
 
     const { rerender } = render(<ControllerProfilePage profileId="ctrl-1" />)
     expect(screen.getByText('Offline')).toBeInTheDocument()
     expect(screen.getByTestId('controller-profile-status-dot')).toHaveClass('bg-zinc-700')
 
-    useControllerStore.setState({
+    act(() => useControllerStore.setState({
       controllers: {
         '192.168.8.224': {
           ip: '192.168.8.224',
@@ -1541,13 +1562,13 @@ describe('ControllerProfilePage', () => {
           mapDim: null,
         },
       },
-    })
+    }))
     rerender(<ControllerProfilePage profileId="ctrl-1" />)
     expect(screen.getByText('Trying to connect')).toBeInTheDocument()
     expect(screen.getByTestId('controller-profile-status-dot')).toHaveClass('bg-amber-400')
     expect(screen.getByTestId('controller-profile-status-dot')).toHaveClass('animate-blink-connect')
 
-    useControllerStore.setState({
+    act(() => useControllerStore.setState({
       controllers: {
         '192.168.8.224': {
           ip: '192.168.8.224',
@@ -1558,12 +1579,12 @@ describe('ControllerProfilePage', () => {
           mapDim: null,
         },
       },
-    })
+    }))
     rerender(<ControllerProfilePage profileId="ctrl-1" />)
     expect(screen.getByText('Connect failed')).toBeInTheDocument()
     expect(screen.getByTestId('controller-profile-status-dot')).toHaveClass('bg-red-400')
 
-    useControllerStore.setState({
+    act(() => useControllerStore.setState({
       controllers: {
         '192.168.8.224': {
           ip: '192.168.8.224',
@@ -1573,10 +1594,11 @@ describe('ControllerProfilePage', () => {
           mapDim: 2,
         },
       },
-    })
+    }))
     rerender(<ControllerProfilePage profileId="ctrl-1" />)
     expect(screen.getByText('Connected')).toBeInTheDocument()
     expect(screen.getByTestId('controller-profile-status-dot')).toHaveClass('bg-ok')
+    await settleProfileAsync()
   })
 
   it('shows the last-known firmware update state read-only while the Controller is offline', () => {
@@ -1615,7 +1637,7 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByTitle('Connect this controller to refresh its metadata')).toBeDisabled()
     expect(screen.getByTitle('Connect this controller to import its installed pixel map')).toBeDisabled()
 
-    useControllerStore.setState({
+    act(() => useControllerStore.setState({
       controllers: {
         '192.168.8.224': {
           ip: '192.168.8.224',
@@ -1625,7 +1647,7 @@ describe('ControllerProfilePage', () => {
           mapDim: 2,
         },
       },
-    })
+    }))
     rerender(<ControllerProfileHeaderActions profile={profile} />)
     const refresh = screen.getByTitle('Refresh controller metadata')
     expect(refresh).toBeEnabled()
@@ -1707,7 +1729,7 @@ describe('ControllerProfilePage', () => {
     expect(screen.queryByText(/updates pending/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText('Managed Pattern refresh progress')).toBeInTheDocument()
 
-    useControllerStore.setState({
+    act(() => useControllerStore.setState({
       controllerReconciliations: {
         'ctrl-1': {
           phase: 'current',
@@ -1720,7 +1742,7 @@ describe('ControllerProfilePage', () => {
           ],
         },
       },
-    })
+    }))
     rerender(<ControllerSavedProgramsPane profile={profile} />)
 
     expect(screen.queryByText(/managed Patterns current/i)).not.toBeInTheDocument()
@@ -1971,7 +1993,7 @@ describe('ControllerProfilePage', () => {
     render(<ControllerSavedProgramsPane profile={profile} />)
     expect(await screen.findByLabelText(statusDotName.current)).toBeInTheDocument()
 
-    useControllerStore.setState({
+    act(() => useControllerStore.setState({
       controllerReconciliations: {
         'ctrl-1': {
           phase: 'running',
@@ -1983,7 +2005,7 @@ describe('ControllerProfilePage', () => {
           ],
         },
       },
-    })
+    }))
 
     await act(async () => {
       await setPushRecords({
@@ -1998,7 +2020,7 @@ describe('ControllerProfilePage', () => {
     expect(screen.queryByLabelText(statusDotName.current)).not.toBeInTheDocument()
 
     resolveReread(records)
-    useControllerStore.setState({ controllerReconciliations: {} })
+    act(() => useControllerStore.setState({ controllerReconciliations: {} }))
     expect(await screen.findByLabelText(statusDotName.current)).toBeInTheDocument()
     expect(readCount).toBe(2)
   })
@@ -2037,7 +2059,7 @@ describe('ControllerProfilePage', () => {
     })
     expect(await screen.findByLabelText(statusDotName.current)).toBeInTheDocument()
 
-    useControllerStore.setState({
+    act(() => useControllerStore.setState({
       controllerReconciliations: {
         [profile.id]: {
           phase: 'current',
@@ -2052,7 +2074,7 @@ describe('ControllerProfilePage', () => {
           }],
         },
       },
-    })
+    }))
     await act(async () => {
       await usePatternStore.getState().updatePatternSrc(pattern.id, editedSource)
     })

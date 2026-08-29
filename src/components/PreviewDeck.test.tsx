@@ -321,7 +321,7 @@ describe('PreviewDeck (smoke)', () => {
     const { rerender } = render(<PreviewDeck />)
     expect(screen.queryByText('layout')).not.toBeInTheDocument()
 
-    useEditorStore.setState({ layoutLabel: '10×10' })
+    act(() => useEditorStore.setState({ layoutLabel: '10×10' }))
     rerender(<PreviewDeck />)
     expect(screen.getByText('layout')).toBeInTheDocument()
     expect(screen.getByText('10×10')).toBeInTheDocument()
@@ -341,7 +341,7 @@ describe('PreviewDeck (smoke)', () => {
     const { rerender } = render(<PreviewDeck />)
     expect(screen.queryByRole('slider', { name: /Interior opacity/ })).not.toBeInTheDocument()
 
-    useEditorStore.setState({ solidEligible: true })
+    act(() => useEditorStore.setState({ solidEligible: true }))
     rerender(<PreviewDeck />)
     expect(screen.getByRole('slider', { name: /Interior opacity/ })).toBeInTheDocument()
   })
@@ -352,10 +352,10 @@ describe('PreviewDeck (smoke)', () => {
     expect(screen.queryByRole('button', { name: 'Reset preview' })).not.toBeInTheDocument()
 
     // A user pattern with an override surfaces the icon.
-    usePatternStore.setState({
+    act(() => usePatternStore.setState({
       activePatternId: 'p1',
       userPatterns: [{ id: 'p1', name: 'P1', src: '', controls: {}, updatedAt: 1, settings: { brightness: 0.5 } }],
-    })
+    }))
     rerender(<PreviewDeck />)
     const reset = screen.getByRole('button', { name: 'Reset preview' })
     const display = screen.getByRole('button', { name: 'Display' })

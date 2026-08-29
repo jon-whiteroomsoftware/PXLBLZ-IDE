@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ControllerBar } from './ControllerBar'
@@ -72,6 +72,11 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  // Unmount first (act-wrapped, flushing pending passive effects inside act)
+  // so the store teardown below has no mounted subscribers left to re-render;
+  // otherwise every stop() lands an un-act()ed update on live components and
+  // the gate output floods with "not wrapped in act(...)" warnings (#917).
+  cleanup()
   useControllerPanelStore.getState().stop()
   __resetControllerProviders()
   resetControllerProvider()
@@ -192,6 +197,18 @@ function seedSignedInProfiles(profiles: ControllerProfile[]) {
   useControllerProfileStore.setState({ profiles, profilesLoaded: true })
 }
 
+
+// Opening the panel (seed + poll) and seeding a signed-in live Controller
+// (profile auto-create, installed-map refresh) start provider promise chains
+// that outlive a synchronous test body and then re-render mounted components
+// outside act(). Tests that trigger them finish with this act-wrapped drain
+// so those updates land inside act instead (#917).
+async function settleControllerAsync() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+}
+
 describe('ControllerBar', () => {
   it('offers the install pitch when no extension is present', () => {
     render(<ControllerBar />)
@@ -219,11 +236,12 @@ describe('ControllerBar', () => {
     await waitFor(() => expect(reloadPage).toHaveBeenCalledTimes(1))
   })
 
-  it('offers the IP form when the extension is present and no Controller is connected', () => {
+  it('offers the IP form when the extension is present and no Controller is connected', async () => {
     useControllerStore.setState({ extensionPresent: true })
     render(<ControllerBar />)
     fireEvent.click(screen.getByTestId('controller-entry-button'))
     expect(screen.getByTestId('controller-ip-input')).toBeInTheDocument()
+    await settleControllerAsync()
   })
 
   it('renders a pill per connected Controller with the nickname and a status dot', () => {
@@ -242,7 +260,7 @@ describe('ControllerBar', () => {
     expect(screen.getByTestId('controller-entry-button')).toHaveTextContent('+')
   })
 
-  it('keeps managed Pattern refresh activity visible after leaving the profile page', () => {
+  it('keeps managed Pattern refresh activity visible after leaving the profile page', async () => {
     const controllerProfile = profile('profile-1', 'device-1', 1, 'Desk')
     seedSignedInProfiles([controllerProfile])
     useControllerStore.setState({
@@ -277,6 +295,7 @@ describe('ControllerBar', () => {
       kind: 'studio',
       entity: { kind: 'controllers', id: 'profile-1' },
     })
+    await settleControllerAsync()
   })
 
   it('adds a firmware reminder without replacing the connected status dot', () => {
@@ -772,7 +791,7 @@ describe('ControllerBar', () => {
     expect(screen.queryByText('Create profile for this device')).not.toBeInTheDocument()
   })
 
-  it('renders the action row first and dispatches Run and Save through the shared push flow', () => {
+  it('renders the action row first and dispatches Run and Save through the shared push flow', async () => {
     setControllerProvider(new ConnectedProvider())
     const requestPush = vi.fn()
     seedLiveController()
@@ -824,6 +843,7 @@ describe('ControllerBar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(useControllerStore.getState().saveArmed).toBe(true)
     expect(requestPush).toHaveBeenCalledTimes(2)
+    await settleControllerAsync()
   })
 
   it('switches among a flat alphabetized saved-Pattern list without changing the open Studio Pattern', async () => {
@@ -894,7 +914,9 @@ describe('ControllerBar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
     fireEvent.click(screen.getByRole('button', { name: 'Switch running Pattern' }))
     fireEvent.click(screen.getByRole('option', { name: 'Aurora' }))
-    await Promise.resolve()
+    await act(async () => {
+      await Promise.resolve()
+    })
     expect(activateProgram).not.toHaveBeenCalled()
 
     const afterSwitch = queueControllerDeviceWrite('10.0.0.5', async () => {})
@@ -919,6 +941,7 @@ describe('ControllerBar', () => {
       }))
     })
     expect(options?.sessionIsCurrent()).toBe(false)
+    await settleControllerAsync()
   })
 
   it('clears a stale Switch failure once the Controller reports the target running (#877)', async () => {
@@ -1011,7 +1034,7 @@ describe('ControllerBar', () => {
     await waitFor(() => expect(activateProgram.mock.calls[0]?.[0]).toBe('program-1'))
   })
 
-  it('opens an informational menu for a run-only Pattern over a read-empty inventory', () => {
+  it('opens an informational menu for a run-only Pattern over a read-empty inventory', async () => {
     setControllerProvider(new ConnectedProvider())
     seedLiveController()
     useControllerPanelStore.setState({
@@ -1031,6 +1054,7 @@ describe('ControllerBar', () => {
     expect(runOnly).toBeDisabled()
     expect(runOnly).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText('No saved Patterns match.')).toBeInTheDocument()
+    await settleControllerAsync()
   })
 
   it('marks only the selected row as switching and disables the list in flight', async () => {
@@ -1101,7 +1125,7 @@ describe('ControllerBar', () => {
     expect(screen.getByRole('option', { name: 'Aurora' })).toBeEnabled()
   })
 
-  it('closes the switch menu on Escape and restores focus to its trigger', () => {
+  it('closes the switch menu on Escape and restores focus to its trigger', async () => {
     setControllerProvider(new ConnectedProvider())
     seedLiveController()
     useControllerPanelStore.setState({
@@ -1117,9 +1141,10 @@ describe('ControllerBar', () => {
 
     expect(screen.queryByRole('listbox', { name: 'Switch the running Pattern' })).not.toBeInTheDocument()
     expect(trigger).toHaveFocus()
+    await settleControllerAsync()
   })
 
-  it('closes only the switch menu on a click elsewhere in the Controller popover', () => {
+  it('closes only the switch menu on a click elsewhere in the Controller popover', async () => {
     setControllerProvider(new ConnectedProvider())
     seedLiveController()
     useControllerPanelStore.setState({
@@ -1134,9 +1159,10 @@ describe('ControllerBar', () => {
 
     expect(screen.queryByRole('listbox', { name: 'Switch the running Pattern' })).not.toBeInTheDocument()
     expect(screen.getByTestId('controller-panel-popover')).toBeVisible()
+    await settleControllerAsync()
   })
 
-  it('re-enables the popover Run action when the Controller switches programs', () => {
+  it('re-enables the popover Run action when the Controller switches programs', async () => {
     setControllerProvider(new ConnectedProvider())
     seedLiveController()
     const activeProfile = profile('profile-1', 'pixelblaze_pb32_3cd4ee549434', 1)
@@ -1178,9 +1204,10 @@ describe('ControllerBar', () => {
 
     expectNotGated(screen.getByRole('button', { name: 'Run' }))
     expectNotGated(screen.getByRole('button', { name: 'Save' }))
+    await settleControllerAsync()
   })
 
-  it('dims Run and Save outside the Studio pattern surface and keeps the reason in tooltips', () => {
+  it('dims Run and Save outside the Studio pattern surface and keeps the reason in tooltips', async () => {
     setControllerProvider(new ConnectedProvider())
     seedLiveController()
     useRouterStore.setState({ route: { kind: 'gallery' } })
@@ -1206,9 +1233,10 @@ describe('ControllerBar', () => {
     expect(screen.getByTestId('controller-action-row')).toHaveTextContent('—')
     expect(screen.queryByText('Open a pattern to push it to this Controller.')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open Desk profile' })).toBeEnabled()
+    await settleControllerAsync()
   })
 
-  it('links to the newest matching controller profile by device id when signed in', () => {
+  it('links to the newest matching controller profile by device id when signed in', async () => {
     seedLiveController()
     seedSignedInProfiles([
       profile('old', 'pixelblaze_pb32_3cd4ee549434', 1, 'Old Desk'),
@@ -1220,6 +1248,7 @@ describe('ControllerBar', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Open Desk profile' }))
 
     expect(window.location.pathname).toBe('/studio/controllers/new')
+    await settleControllerAsync()
   })
 
   it('auto-creates a claimed profile for a connected device with a known id', async () => {
@@ -1239,6 +1268,7 @@ describe('ControllerBar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
     fireEvent.click(screen.getByRole('link', { name: 'Open Desk profile' }))
     expect(window.location.pathname).toBe(`/studio/controllers/${created.id}`)
+    await settleControllerAsync()
   })
 
   it('creates an unclaimed profile when the live controller has no recoverable id', async () => {

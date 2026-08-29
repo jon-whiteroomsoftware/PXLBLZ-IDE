@@ -428,6 +428,26 @@ failed. Run whole suites rather than filtered tests when validating a
 gate-covered surface, and never run two authenticated suites concurrently: they
 collide on ports and shared D1.
 
+### React act() warnings hide behind the console intercept (#917)
+
+Vitest's console intercept drops jsdom console output that lands outside a
+test's execution window — which is exactly when most React "not wrapped in
+act(...)" warnings fire (async store chains finishing after a synchronous test
+body returns). A piped `npx vitest run` can therefore report a clean-looking
+run while the same suites flood the gate's TTY output with warnings. To audit
+or reproduce them deterministically, disable the intercept:
+
+```bash
+npx vitest run --project jsdom --disableConsoleIntercept 2>&1 | grep -c "not wrapped in act"
+```
+
+The count must be zero. When a warning appears, the fix belongs in the test:
+wrap direct store mutations made while components are mounted in `act()`, let
+provider promise chains land inside an act-wrapped drain or an RTL async wait
+(`waitFor`/`findBy*` disable the act environment while polling), and in a
+suite-level `afterEach` call `cleanup()` before store teardown so `stop()`-style
+resets find no mounted subscribers. Never silence the warning channel itself.
+
 ## Show authoring edit contracts
 
 Pure Show composition edits use

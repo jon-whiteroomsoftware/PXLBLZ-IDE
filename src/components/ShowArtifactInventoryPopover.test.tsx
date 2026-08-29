@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ShowArtifactInventoryPopover } from './ShowArtifactInventoryPopover'
 import type { DeliveredShowSourceInventory, ShowArtifactInventoryModel } from '@/engine/showSourceInventory'
 
@@ -96,7 +96,10 @@ describe('ShowArtifactInventoryPopover', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Show source inventory' })).not.toBeInTheDocument())
     expect(trigger).toHaveFocus()
     trigger.blur()
-    await new Promise((resolve) => window.setTimeout(resolve, 0))
+    // The blur close is deferred through setTimeout(0); let it land inside act.
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
 
     fireEvent.pointerEnter(trigger)
     const hoveredInventory = screen.getByRole('dialog', { name: 'Show source inventory' })

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { NavigationPreflightDialog } from './NavigationPreflightDialog'
 import { editorInitialState, useEditorStore } from '@/store/editorStore'
@@ -63,7 +63,7 @@ describe('NavigationPreflightDialog (#831)', () => {
     expect(transition).not.toHaveBeenCalled()
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
 
-    requestBufferReplacement(transition)
+    act(() => requestBufferReplacement(transition))
     const action = await screen.findByRole('button', { name: 'Discard and continue' })
     action.focus()
     await user.keyboard('{Enter}')

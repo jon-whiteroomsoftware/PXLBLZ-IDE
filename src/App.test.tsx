@@ -479,6 +479,14 @@ describe('routing (#308)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Preview Stage' }))
     const dialog = screen.getByRole('dialog', { name: 'Show Stage preview' })
+    // Mounting the Stage preview mid-Show reconstructs its replay runtime
+    // asynchronously, yielding between chunks via setTimeout(0); drain those
+    // turns inside act instead of letting the finish land in a later gap (#917).
+    await act(async () => {
+      for (let turn = 0; turn < 20; turn++) {
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+    })
     act(() => usePreviewStore.getState().setRunning(true))
     const positionBeforeClose = useShowTransportStore.getState().positionMs
     callbacks.clear()
@@ -507,6 +515,14 @@ describe('routing (#308)', () => {
 
     expect(within(screen.getByTestId('preview-pane')).getByLabelText('Show stage')).toBeInTheDocument()
     expect(usePreviewStore.getState().isRunning).toBe(true)
+    // Widening remounts the Stage mid-Show, which reconstructs its replay
+    // runtime asynchronously; drain those setTimeout(0) turns inside act so
+    // the finish does not land outside act after the test body (#917).
+    await act(async () => {
+      for (let turn = 0; turn < 20; turn++) {
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+    })
   })
 
   it.each([

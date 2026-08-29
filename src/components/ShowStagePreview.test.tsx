@@ -762,6 +762,9 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
 
       expect(usePreviewStore.getState().isRunning).toBe(false)
       expect(useShowTransportStore.getState().positionMs).toBe(0)
+      // The rewind requests an async seek; wait for it to finish so its
+      // completion does not land outside act after the test body (#917).
+      await waitFor(() => expect(useShowTransportStore.getState().seekStatus).toBe('idle'))
     } finally {
       vi.unstubAllGlobals()
     }

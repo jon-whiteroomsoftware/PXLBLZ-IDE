@@ -210,14 +210,14 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
     await screen.findByText('Seed Pattern')
-    usePatternStore.setState({
+    act(() => usePatternStore.setState({
       userPatterns: [first, second],
       patternsLoaded: true,
       activePatternId: first.id,
-    })
-    useRouterStore.setState({
+    }))
+    act(() => useRouterStore.setState({
       route: { kind: 'studio', entity: { kind: 'patterns', id: first.id } },
-    })
+    }))
     useEditorStore.setState({
       editorFlavor: 'pattern',
       source: 'broken(',
@@ -247,10 +247,10 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
     await screen.findByText('Seed Pattern')
-    usePatternStore.setState({ activePatternId: SEED_PATTERN.id })
-    useRouterStore.setState({
+    act(() => usePatternStore.setState({ activePatternId: SEED_PATTERN.id }))
+    act(() => useRouterStore.setState({
       route: { kind: 'studio', entity: { kind: 'patterns', id: SEED_PATTERN.id } },
-    })
+    }))
     useEditorStore.setState({
       editorFlavor: 'pattern',
       source: 'broken(',
@@ -291,10 +291,10 @@ describe('PatternList', () => {
     usePatternStore.setState({ addPattern })
     render(<PatternList />)
     await screen.findByText('Seed Pattern')
-    usePatternStore.setState({ activePatternId: SEED_PATTERN.id, addPattern })
-    useRouterStore.setState({
+    act(() => usePatternStore.setState({ activePatternId: SEED_PATTERN.id, addPattern }))
+    act(() => useRouterStore.setState({
       route: { kind: 'studio', entity: { kind: 'patterns', id: SEED_PATTERN.id } },
-    })
+    }))
     useEditorStore.setState({
       editorFlavor: 'pattern',
       source: 'first broken edit(',
@@ -341,10 +341,10 @@ describe('PatternList', () => {
     usePatternStore.setState({ addPattern })
     render(<PatternList />)
     await screen.findByText('Seed Pattern')
-    usePatternStore.setState({ activePatternId: SEED_PATTERN.id, addPattern })
-    useRouterStore.setState({
+    act(() => usePatternStore.setState({ activePatternId: SEED_PATTERN.id, addPattern }))
+    act(() => useRouterStore.setState({
       route: { kind: 'studio', entity: { kind: 'patterns', id: SEED_PATTERN.id } },
-    })
+    }))
     useEditorStore.setState({
       editorFlavor: 'pattern',
       source: SEED_PATTERN.src,

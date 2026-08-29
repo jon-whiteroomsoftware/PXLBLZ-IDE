@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createRef } from 'react'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { EntityOrganizationV1 } from '@/engine/entityOrganization'
@@ -482,7 +482,8 @@ describe('EntityOrganizationTree', () => {
     const dialog = screen.getByRole('alertdialog', { name: 'Empty Trash?' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Empty Trash' }))
 
-    await vi.waitFor(() => expect(onEmptyTrash).toHaveBeenCalledWith(['gone']))
+    await waitFor(() => expect(onEmptyTrash).toHaveBeenCalledWith(['gone']))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
     expect(onOrganizationChange).not.toHaveBeenCalled()
   })
 
@@ -563,7 +564,8 @@ describe('EntityOrganizationTree', () => {
     expect(within(dialog).getByText('2 items will be permanently deleted and cannot be recovered.')).toBeVisible()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Empty Trash' }))
 
-    await vi.waitFor(() => expect(onEmptyTrash).toHaveBeenCalledWith(['gone', 'lost']))
+    await waitFor(() => expect(onEmptyTrash).toHaveBeenCalledWith(['gone', 'lost']))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
   })
 
   it('clears a drag cue when the pointer leaves the tree', () => {
