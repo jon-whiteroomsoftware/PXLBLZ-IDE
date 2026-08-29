@@ -1,5 +1,13 @@
 # Controller performance wave 4: optimize the generated code itself
 
+> **Point-in-time advisory (2026-08-28).** Every candidate below has since
+> run to a verdict; the epic (#903) checklist and the wave-4 ledger in
+> `docs/reference/Show Rendering Optimization Results.md` are authoritative
+> for outcomes. Where an investigation corrected a premise, the issue wins —
+> notably #911: the device streams type-5 preview frames only to a client
+> that requests them and the IDE never does, so connections are already
+> quiet and no save-time playback re-arm exists to build.
+
 Status: proposed candidates, experiments not yet run
 Date: 2026-08-28
 Baseline: pb32 "Burner bag", firmware 3.67, native-serial output profile

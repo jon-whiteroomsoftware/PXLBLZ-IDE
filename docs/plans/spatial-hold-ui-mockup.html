@@ -77,7 +77,7 @@ select{background:var(--chip);color:var(--text);border:1px solid var(--line);bor
           <div class="label">Spatial hold</div>
           <div class="help">Renders every Nth pixel and holds it across the run — an authored approximation. Measured on this hardware class: ×2 ≈ +60% FPS (near-invisible), ×4 ≈ +150% (visible softening). With auto sync on, changing this recompiles and re-pushes everything on this controller.</div>
         </div>
-        <div class="seg"><button class="on">Off</button><button>×2</button><button>×4</button></div>
+        <div class="seg"><button>Off</button><button class="on">×2</button><button>×4</button></div>
       </div>
     </div>
   </div>
@@ -90,7 +90,7 @@ select{background:var(--chip);color:var(--text);border:1px solid var(--line);bor
         <span class="chip">Fast</span><span class="chip">Precise</span>
         <span class="spacer"></span>
         <span class="fps">Hold:</span>
-        <div class="seg"><button class="on">Off</button><button>×2</button><button>×4</button></div>
+        <div class="seg"><button>Off</button><button class="on">×2</button><button>×4</button></div>
       </div>
       <div class="disclose">Preview hold mirrors the selected controller's profile by default; flipping it here is a session override for exploration and doesn't touch the profile.</div>
     </div>
@@ -124,7 +124,7 @@ select{background:var(--chip);color:var(--text);border:1px solid var(--line);bor
       </div>
       <div class="row" style="padding-left:14px">
         <div><div class="label" style="font-weight:500">Spatial hold</div></div>
-        <select><option>Off</option><option>×2 — ≈ +60% FPS, near-invisible</option><option>×4 — ≈ +150% FPS, visible softening</option></select>
+        <select><option>Off</option><option selected>×2 — ≈ +60% FPS, near-invisible</option><option>×4 — ≈ +150% FPS, visible softening</option></select>
       </div>
       <div class="disclose">Authored approximation, disclosed on every compile. Auto sync recompiles and re-pushes on change.</div>
     </div>
