@@ -296,14 +296,16 @@ export function analyzeIssue914(source: string): Issue914PatternReport {
   // outside the aliasing model. Writes through module-global bases stay
   // in-subset.
   if (!outsideScopeSubset) {
-    const programGlobals = collectTopLevelGlobals(ast)
     for (const declarationNode of topLevelFunctionNodes) {
       const fnLocals = collectFunctionLocals(declarationNode)
       visitOwnBody(declarationNode.body as Node, (child) => {
-        if (child.type === 'AssignmentExpression' && child.left?.type === 'MemberExpression'
-          && child.left.object?.type === 'Identifier') {
-          const base = child.left.object.name as string
-          if (fnLocals.has(base) && !programGlobals.has(base)) outsideScopeSubset = true
+        const target = child.type === 'AssignmentExpression' ? child.left
+          : child.type === 'UpdateExpression' ? child.argument : null
+        if (target?.type === 'MemberExpression' && target.object?.type === 'Identifier') {
+          const base = target.object.name as string
+          // A local/param base is an alias no matter what module names it
+          // shares — locals shadow globals.
+          if (fnLocals.has(base)) outsideScopeSubset = true
         }
       })
     }
@@ -1274,6 +1276,13 @@ function countPaletteSpecializationSites(
   shadowedNames: Set<string>,
 ): number {
   if (shadowedNames.has('setPalette')) return 0
+  const paletteShadowedFns = new Set<Node>()
+  visitNode(ast, (child) => {
+    if (child.type === 'FunctionDeclaration'
+      && collectFunctionLocals(child).has('setPalette')) {
+      paletteShadowedFns.add(child)
+    }
+  })
   const literalArrayGlobals = new Set<string>()
   for (const statement of ast.body as Node[]) {
     const declaration = statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement
@@ -1288,7 +1297,7 @@ function countPaletteSpecializationSites(
     }
   }
   let count = 0
-  visitNode(ast, (node) => {
+  const countIn = (root: Node): void => visitNode(root, (node) => {
     if (node.type !== 'CallExpression' || node.callee?.type !== 'Identifier') return
     if (node.callee.name !== 'setPalette') return
     const argument = (node.arguments as Node[] | undefined)?.[0]
@@ -1296,6 +1305,15 @@ function countPaletteSpecializationSites(
     if (argument.type === 'ArrayExpression'
       || (argument.type === 'Identifier' && literalArrayGlobals.has(argument.name as string))) count++
   })
+  visitOwnBody(ast, (node) => {
+    if (node.type === 'ExpressionStatement') countIn(node)
+  })
+  for (const statement of ast.body as Node[]) {
+    const declaration = statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement
+    if (declaration?.type === 'FunctionDeclaration' && !paletteShadowedFns.has(declaration)) {
+      countIn(declaration.body as Node)
+    }
+  }
   return count
 }
 
@@ -1311,24 +1329,28 @@ function collectTopLevelGlobals(ast: Node): Set<string> {
       if (item.id?.type === 'Identifier') result.add(item.id.name as string)
     }
   })
-  // Implicit globals: assignment to a name never declared anywhere creates a
-  // module global on the device (`tmp = hypot(x, y)`, and crucially
-  // `exp = random` rebinding a builtin). Collect assignment targets that no
-  // function declares as a local or parameter.
-  const declaredSomewhere = new Set<string>(result)
-  for (const statement of ast.body as Node[]) {
-    const declaration = statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement
-    if (declaration?.type === 'FunctionDeclaration') {
-      for (const name of collectFunctionLocals(declaration)) declaredSomewhere.add(name)
-      if (declaration.id?.name) declaredSomewhere.add(declaration.id.name as string)
-    }
-  }
-  visitNode(ast, (child) => {
+  // Implicit globals: assignment to a name not declared in the ASSIGNING
+  // scope creates a module global on the device (`tmp = hypot(x, y)`, and
+  // crucially `exp = random` rebinding a builtin). Declarations are
+  // function-scoped, so the check is per containing function — an unrelated
+  // function's `var exp` must not hide another function's implicit global.
+  visitOwnBody(ast, (child) => {
     if (child.type === 'AssignmentExpression' && child.left?.type === 'Identifier'
-      && !declaredSomewhere.has(child.left.name as string)) {
+      && !result.has(child.left.name as string)) {
       result.add(child.left.name as string)
     }
   })
+  for (const statement of ast.body as Node[]) {
+    const declaration = statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement
+    if (declaration?.type !== 'FunctionDeclaration') continue
+    const fnLocals = collectFunctionLocals(declaration)
+    visitOwnBody(declaration.body as Node, (child) => {
+      if (child.type === 'AssignmentExpression' && child.left?.type === 'Identifier'
+        && !fnLocals.has(child.left.name as string) && !result.has(child.left.name as string)) {
+        result.add(child.left.name as string)
+      }
+    })
+  }
   return result
 }
 
