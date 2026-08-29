@@ -53,14 +53,14 @@ export const PROFILE907_OPS: Profile2Op[] = [
   {
     fn: 4, name: 'hsv eager q and t (current)', group: 'baseline', baselineFn: 4, baseline: true,
     kind: 'before-render',
-    body: 'm = pV * (1 - pS * x)\nl = pV * (1 - (1 - pS) * x)\nw = pK ? m : l\nx = frac(w + 0.123)',
+    body: 'm = pV * (1 - x * pS)\nl = pV * (1 - (1 - x) * pS)\nw = pK ? m : l\nx = frac(w + 0.123)',
   },
   {
     fn: 5, name: 'hsv lane in branch', group: 'hsv-dead-lane', baselineFn: 4, kind: 'before-render',
-    body: 'w = pK ? pV * (1 - pS * x) : pV * (1 - (1 - pS) * x)\nx = frac(w + 0.123)',
+    body: 'w = pK ? pV * (1 - x * pS) : pV * (1 - (1 - x) * pS)\nx = frac(w + 0.123)',
     exchange: {
-      probe: 'w = pK ? pV * (1 - pS * x) : pV * (1 - (1 - pS) * x)',
-      baseline: 'm = pV * (1 - pS * x)\nl = pV * (1 - (1 - pS) * x)\nw = pK ? m : l',
+      probe: 'w = pK ? pV * (1 - x * pS) : pV * (1 - (1 - x) * pS)',
+      baseline: 'm = pV * (1 - x * pS)\nl = pV * (1 - (1 - x) * pS)\nw = pK ? m : l',
     },
   },
 ]

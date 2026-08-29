@@ -49,8 +49,8 @@ export const IDIOM_FAMILIES: IdiomFamily[] = [
   {
     id: 'hsv-dead-lane',
     description: 'shared HSV chain computes q and t eagerly when each sector consumes one',
-    before: '  a = c * (1 - d * b)\n  i = c * (1 - (1 - d) * b)\n  a = k ? a : i',
-    after: '  a = k ? c * (1 - d * b) : c * (1 - (1 - d) * b)',
+    before: '  a = c * (1 - b * d)\n  i = c * (1 - (1 - b) * d)\n  a = k ? a : i',
+    after: '  a = k ? c * (1 - b * d) : c * (1 - (1 - b) * d)',
     exactness: 'exact',
   },
   {

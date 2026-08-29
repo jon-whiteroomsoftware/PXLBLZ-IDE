@@ -12,10 +12,11 @@
 import type { ShowCompileOptions } from './showCompiler'
 
 export const COMPILER_VINTAGES = {
-  /** #514 no-emission resource census (pre-#559/#566). */
+  /** #514 no-emission resource census (pre-#559/#566/#907). */
   'issue-514-resource-census': {
     hsvCaptureChainSpecialization: false,
     inlineCallHoisting: false,
+    hsvSharedChainLaneScoping: false,
   },
   /** #525 motion-representation census (pre-#559/#566/#904/#907). */
   'issue-525-motion-census': {
@@ -24,13 +25,14 @@ export const COMPILER_VINTAGES = {
     identityBlendFold: false,
     hsvSharedChainLaneScoping: false,
   },
-  /** #536 score-representation census (pre-wave-2 emission diet). */
+  /** #536 score-representation census (pre-wave-2 emission diet, pre-#907). */
   'issue-536-score-census': {
     colorCoefficientHoisting: false,
     capturePrologueSimplification: false,
     pixelCountWriteHoisting: false,
     hsvCaptureChainSpecialization: false,
     inlineCallHoisting: false,
+    hsvSharedChainLaneScoping: false,
   },
   /** #513 Redline frame-invariant plan census (pre-#565/#566: helper
    * inlining and inline call-subtree hoisting both change the candidate
