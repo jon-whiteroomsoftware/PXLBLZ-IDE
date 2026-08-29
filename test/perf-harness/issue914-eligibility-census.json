@@ -8,7 +8,7 @@
     "positionMemoBelowBreakeven": 98,
     "positionMemoInvalidation": 8,
     "paletteSpecialization": 2,
-    "outsideScopeSubset": 14
+    "outsideScopeSubset": 18
   },
   "rows": [
     {
@@ -81,7 +81,7 @@
       "positionMemoInvalidation": 0,
       "paletteSpecialization": 0,
       "maxMemoCostXMul": 0,
-      "outsideScopeSubset": false
+      "outsideScopeSubset": true
     },
     {
       "name": "BubbleColumn",
@@ -213,7 +213,7 @@
       "positionMemoInvalidation": 0,
       "paletteSpecialization": 0,
       "maxMemoCostXMul": 0,
-      "outsideScopeSubset": false
+      "outsideScopeSubset": true
     },
     {
       "name": "CrystalLattice3D",
@@ -417,7 +417,7 @@
       "positionMemoInvalidation": 0,
       "paletteSpecialization": 0,
       "maxMemoCostXMul": 0,
-      "outsideScopeSubset": false
+      "outsideScopeSubset": true
     },
     {
       "name": "ImpactEngine",
@@ -693,7 +693,7 @@
       "positionMemoInvalidation": 0,
       "paletteSpecialization": 0,
       "maxMemoCostXMul": 0,
-      "outsideScopeSubset": false
+      "outsideScopeSubset": true
     },
     {
       "name": "MetroLines",

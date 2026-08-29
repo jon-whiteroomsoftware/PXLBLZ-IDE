@@ -234,7 +234,7 @@ describe('issue914 stock-catalogue census', () => {
       positionMemoBelowBreakeven: 98,
       positionMemoInvalidation: 8,
       paletteSpecialization: 2,
-      outsideScopeSubset: 14,
+      outsideScopeSubset: 18,
     })
 
     // eslint-disable-next-line no-console

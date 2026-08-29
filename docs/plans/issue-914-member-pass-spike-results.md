@@ -103,7 +103,7 @@ using anything outside that subset — arrow callbacks, function tables or
 aliases (a named function referenced as a value escapes call-graph
 reachability), `mapPixels` callbacks, destructuring, default parameters —
 is **excluded from analysis entirely** and reported `outsideScopeSubset`
-with no sites (14 stock Patterns, costing the census five
+with no sites (18 stock Patterns, costing the census five
 below-breakeven sites and nothing in any decision-bearing class).
 Builtin names shadowed by module globals or function locals (`var scale`)
 are correctly not treated as builtin references. Exclusion can only

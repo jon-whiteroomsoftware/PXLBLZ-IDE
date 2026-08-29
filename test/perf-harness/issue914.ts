@@ -290,6 +290,24 @@ export function analyzeIssue914(source: string): Issue914PatternReport {
     }
   }
   valueRefWalk(ast, null, null, new Set())
+  // A subscript write through a base that is a LOCAL or PARAMETER aliases an
+  // array the analysis cannot identify (`tick(a){ a[0] = time(.1) }` mutates
+  // the global passed at the call site, invisibly to mutation collection) —
+  // outside the aliasing model. Writes through module-global bases stay
+  // in-subset.
+  if (!outsideScopeSubset) {
+    const programGlobals = collectTopLevelGlobals(ast)
+    for (const declarationNode of topLevelFunctionNodes) {
+      const fnLocals = collectFunctionLocals(declarationNode)
+      visitOwnBody(declarationNode.body as Node, (child) => {
+        if (child.type === 'AssignmentExpression' && child.left?.type === 'MemberExpression'
+          && child.left.object?.type === 'Identifier') {
+          const base = child.left.object.name as string
+          if (fnLocals.has(base) && !programGlobals.has(base)) outsideScopeSubset = true
+        }
+      })
+    }
+  }
   // A local or parameter that REBINDS a top-level function name breaks every
   // name-based graph analysis (reachability, purity, param-class joins):
   // `var heavy = exp; heavy(index)` calls the alias while the analyses charge
@@ -360,10 +378,12 @@ export function analyzeIssue914(source: string): Issue914PatternReport {
       || beforeRenderReachable.has(fnName)
     const controlFn = isControlName(fnName) || controlReachable.has(fnName)
     if (!perFrame && !controlFn) continue
+    const taintLocals = collectFunctionLocals(fn)
     visitNode(fn.body, (node) => {
       if (node.type !== 'CallExpression' || node.callee?.type !== 'Identifier') return
       const callee = node.callee.name as string
-      if (!TRANSFORM_CALLS.has(callee) || functions.has(callee) || globals.has(callee)) return
+      if (!TRANSFORM_CALLS.has(callee) || functions.has(callee) || globals.has(callee)
+        || taintLocals.has(callee)) return
       if (perFrame) positionAnimated = true
       else positionControlCoupled = true
     })
@@ -518,7 +538,11 @@ export function analyzeIssue914(source: string): Issue914PatternReport {
   return {
     indexTabling,
     positionMemo: dedupedMemo,
-    paletteSpecialization: countPaletteSpecializationSites(ast, immutableGlobals),
+    paletteSpecialization: countPaletteSpecializationSites(
+      ast,
+      immutableGlobals,
+      new Set([...functions.keys(), ...globals]),
+    ),
   }
 }
 
@@ -1244,7 +1268,12 @@ function collectPureValueFunctions(
 
 // ── palette specialization (Rule C, census only) ─────────────────────────────
 
-function countPaletteSpecializationSites(ast: Node, immutableGlobals: Set<string>): number {
+function countPaletteSpecializationSites(
+  ast: Node,
+  immutableGlobals: Set<string>,
+  shadowedNames: Set<string>,
+): number {
+  if (shadowedNames.has('setPalette')) return 0
   const literalArrayGlobals = new Set<string>()
   for (const statement of ast.body as Node[]) {
     const declaration = statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement
@@ -1274,13 +1303,32 @@ function countPaletteSpecializationSites(ast: Node, immutableGlobals: Set<string
 
 function collectTopLevelGlobals(ast: Node): Set<string> {
   const result = new Set<string>()
-  for (const statement of ast.body as Node[]) {
-    const declaration = statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement
-    if (declaration?.type !== 'VariableDeclaration') continue
-    for (const item of declaration.declarations as Node[]) {
+  // Hoisting-accurate: `var` declarations anywhere at program scope (inside
+  // top-level blocks and loops, but not inside functions) are module globals.
+  visitOwnBody(ast, (child) => {
+    if (child.type !== 'VariableDeclaration') return
+    for (const item of child.declarations as Node[]) {
       if (item.id?.type === 'Identifier') result.add(item.id.name as string)
     }
+  })
+  // Implicit globals: assignment to a name never declared anywhere creates a
+  // module global on the device (`tmp = hypot(x, y)`, and crucially
+  // `exp = random` rebinding a builtin). Collect assignment targets that no
+  // function declares as a local or parameter.
+  const declaredSomewhere = new Set<string>(result)
+  for (const statement of ast.body as Node[]) {
+    const declaration = statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement
+    if (declaration?.type === 'FunctionDeclaration') {
+      for (const name of collectFunctionLocals(declaration)) declaredSomewhere.add(name)
+      if (declaration.id?.name) declaredSomewhere.add(declaration.id.name as string)
+    }
   }
+  visitNode(ast, (child) => {
+    if (child.type === 'AssignmentExpression' && child.left?.type === 'Identifier'
+      && !declaredSomewhere.has(child.left.name as string)) {
+      result.add(child.left.name as string)
+    }
+  })
   return result
 }
 
