@@ -185,11 +185,16 @@ export function analyzeIssue914(source: string): Issue914PatternReport {
     functions, globals, immutableGlobals, frameMutated, controls, renderMutated, pureFunctions,
   })
 
-  // Position-stability taint from per-frame coordinate transforms.
+  // Position-stability taint from per-frame coordinate transforms. Per-frame
+  // code is beforeRender, everything render-reachable, AND helpers reachable
+  // only from beforeRender (beforeRender(){ spin() } with spin(){ rotate(...) }
+  // animates the mapping just the same).
+  const beforeRenderReachable = collectReachableFrom(functions, ['beforeRender'])
   let positionAnimated = false
   let positionControlCoupled = false
   for (const [fnName, fn] of functions) {
     const perFrame = fnName === 'beforeRender' || reachable.has(fnName)
+      || beforeRenderReachable.has(fnName)
     const controlFn = fnName.startsWith('slider') || fnName.startsWith('toggle')
       || fnName.startsWith('rgbPicker') || fnName.startsWith('hsvPicker') || fnName.startsWith('trigger')
     if (!perFrame && !controlFn) continue
@@ -221,6 +226,11 @@ export function analyzeIssue914(source: string): Issue914PatternReport {
     const paramClasses = isEntry ? undefined : new Map<string, Set<Issue914Dependency>>(
       params.map((param, index) => [param, helperParamArray?.[index] ?? new Set<Issue914Dependency>(['unknown'])]),
     )
+    // The mechanical cache is addressed by the render index; a helper that
+    // never receives it (LineDancer2D's kal, SceneSplice's cutField) cannot
+    // key a per-pixel entry, so its sites are never exact.
+    const indexInScope = isEntry
+      || params.some((param) => paramClasses?.get(param)?.has('render-index'))
     const baseContext: ClassifyContext = {
       globals,
       immutableGlobals,
@@ -288,7 +298,9 @@ export function analyzeIssue914(source: string): Issue914PatternReport {
       const cost = estimateSubtreeCost(node, baseContext)
       if (cost < 2.5) return null
       if (deps.has('control') || (usesPosition && positionControlCoupled)) return 'needs-invalidation'
-      return cost >= MEMO_BREAKEVEN_X_MUL && maxSingleCallCost(node, baseContext) >= MEMO_HEAVY_CALL_X_MUL
+      return indexInScope
+        && cost >= MEMO_BREAKEVEN_X_MUL
+        && maxSingleCallCost(node, baseContext) >= MEMO_HEAVY_CALL_X_MUL
         ? 'exact'
         : 'below-breakeven'
     }, (site, kind, node) => {
@@ -420,34 +432,76 @@ function estimateSubtreeCost(node: Node, context: ClassifyContext): number {
 
 // ── already-cached suppression ───────────────────────────────────────────────
 
-/** Ranges of expressions assigned to a variable that the same if-body stores
- * into a computed array subscript — the authored lazy-fill idiom. */
+/** Ranges of expressions inside the authored lazy-fill idiom: within one
+ * function, `V = <expr>` and `A[i] = V` in an if-body whose TEST reads V,
+ * where V was earlier loaded from a read of the same array A (the sentinel
+ * check). All three legs are required — a bare conditional output-buffer
+ * write (`if (cond) { v = f(x); buf[i] = v }`) is NOT a cache and must not
+ * hide its expression from the census. */
 function collectAlreadyCachedRanges(ast: Node): Array<readonly [number, number]> {
   const ranges: Array<readonly [number, number]> = []
-  visitNode(ast, (node) => {
-    if (node.type !== 'IfStatement') return
-    const body = node.consequent as Node
-    const statements: Node[] = body?.type === 'BlockStatement' ? body.body as Node[] : body ? [body] : []
-    const valueExprByName = new Map<string, Node>()
-    const storedNames = new Set<string>()
-    const scan = (statement: Node): void => {
-      visitNode(statement, (child) => {
-        if (child.type !== 'AssignmentExpression' || child.operator !== '=') return
-        if (child.left?.type === 'Identifier' && child.right) {
-          valueExprByName.set(child.left.name as string, child.right as Node)
-        }
-        if (child.left?.type === 'MemberExpression' && child.left.computed
-          && child.right?.type === 'Identifier') {
-          storedNames.add(child.right.name as string)
+  for (const statement of ast.body as Node[]) {
+    const declaration = statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement
+    if (declaration?.type !== 'FunctionDeclaration') continue
+    const fnBody = declaration.body as Node
+
+    // Leg 3 prerequisite: which locals were loaded from which arrays, and where.
+    const loadsByName = new Map<string, Array<{ array: string; position: number }>>()
+    const recordLoads = (targetName: string, expression: Node, position: number): void => {
+      visitNode(expression, (read) => {
+        if (read.type === 'MemberExpression' && read.computed && read.object?.type === 'Identifier') {
+          const loads = loadsByName.get(targetName) ?? []
+          loads.push({ array: read.object.name as string, position })
+          loadsByName.set(targetName, loads)
         }
       })
     }
-    statements.forEach(scan)
-    for (const name of storedNames) {
-      const expression = valueExprByName.get(name)
-      if (expression) ranges.push([expression.start as number, expression.end as number])
-    }
-  })
+    visitNode(fnBody, (child) => {
+      if (child.type === 'VariableDeclaration') {
+        for (const item of child.declarations as Node[]) {
+          if (item.id?.type === 'Identifier' && item.init) {
+            recordLoads(item.id.name as string, item.init as Node, item.start as number)
+          }
+        }
+      }
+      if (child.type === 'AssignmentExpression' && child.operator === '='
+        && child.left?.type === 'Identifier' && child.right) {
+        recordLoads(child.left.name as string, child.right as Node, child.start as number)
+      }
+    })
+
+    visitNode(fnBody, (node) => {
+      if (node.type !== 'IfStatement') return
+      const body = node.consequent as Node
+      const statements: Node[] = body?.type === 'BlockStatement' ? body.body as Node[] : body ? [body] : []
+      const valueExprByName = new Map<string, Node>()
+      const storedInto = new Map<string, string>()
+      for (const statement of statements) {
+        visitNode(statement, (child) => {
+          if (child.type !== 'AssignmentExpression' || child.operator !== '=') return
+          if (child.left?.type === 'Identifier' && child.right) {
+            valueExprByName.set(child.left.name as string, child.right as Node)
+          }
+          if (child.left?.type === 'MemberExpression' && child.left.computed
+            && child.left.object?.type === 'Identifier' && child.right?.type === 'Identifier') {
+            storedInto.set(child.right.name as string, child.left.object.name as string)
+          }
+        })
+      }
+      const testReferences = new Set<string>()
+      visitNode(node.test as Node, (child) => {
+        if (child.type === 'Identifier') testReferences.add(child.name as string)
+      })
+      for (const [name, array] of storedInto) {
+        const expression = valueExprByName.get(name)
+        if (!expression) continue
+        if (!testReferences.has(name)) continue
+        const priorLoads = loadsByName.get(name) ?? []
+        if (!priorLoads.some((load) => load.array === array && load.position < (node.start as number))) continue
+        ranges.push([expression.start as number, expression.end as number])
+      }
+    })
+  }
   return ranges
 }
 
@@ -503,9 +557,28 @@ function readStaticLoop(node: Node): { inductionVar: string; tripCount: number }
   }
   if (step === null) return null
 
-  const span = test.operator === '<' ? bound - initValue : bound - initValue + 1
-  if (span <= 0) return null
-  return { inductionVar, tripCount: Math.ceil(span / step) }
+  // A body write to the induction variable makes the "index" arbitrary
+  // (possibly position-derived or fractional); the loop is not statically
+  // counted no matter what init/test/update say.
+  let bodyWritesInduction = false
+  visitNode(node.body as Node, (child) => {
+    if (child.type === 'AssignmentExpression' && child.left?.type === 'Identifier'
+      && child.left.name === inductionVar) bodyWritesInduction = true
+    if (child.type === 'UpdateExpression' && child.argument?.type === 'Identifier'
+      && child.argument.name === inductionVar) bodyWritesInduction = true
+  })
+  if (bodyWritesInduction) return null
+
+  const span = bound - initValue
+  if (span < 0 || (span === 0 && test.operator === '<')) return null
+  // `<`: iterations while i < bound; `<=`: one more when the boundary lands
+  // exactly. Both forms are correct for fractional steps
+  // (for (i=0; i<=1; i+=0.5) runs three times, not four).
+  const tripCount = test.operator === '<'
+    ? Math.ceil(span / step)
+    : Math.floor(span / step) + 1
+  if (tripCount <= 0) return null
+  return { inductionVar, tripCount }
 }
 
 // ── classifier (spike-local port of showFrameInvariantHoisting + extensions) ──
@@ -637,29 +710,46 @@ function computeOutVarClasses(input: {
   // Candidate filter: written only from plain identifier assignments whose RHS
   // never reads a render-mutated global.
   const candidates = new Set<string>()
+  const GUARDED_TYPES = new Set([
+    'IfStatement', 'ConditionalExpression', 'LogicalExpression', 'SwitchStatement',
+    'ForStatement', 'WhileStatement', 'DoWhileStatement',
+  ])
   for (const name of renderMutated) {
     if (frameMutated.has(name) || controls.has(name)) continue
     let ok = true
     for (const fn of functions.values()) {
-      visitNode(fn.body, (node) => {
-        if (!ok) return
+      // Depth-tracked walk: an assignment nested under any conditional or loop
+      // may not execute on every call, so the out-var can carry a PRIOR
+      // pixel's value (setU(v){ if (v > .5) u = v }) — such a global is state,
+      // not a return value, and must stay render-mutation.
+      const walk = (node: Node, guarded: boolean): void => {
+        if (!ok || !node || typeof node !== 'object') return
+        if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression'
+          || node.type === 'ArrowFunctionExpression') return
         if (node.type === 'AssignmentExpression') {
           const target = node.left as Node
           const targetsName = (target?.type === 'Identifier' && target.name === name)
             || (target?.type === 'MemberExpression' && target.object?.type === 'Identifier'
               && target.object.name === name)
-          if (!targetsName) return
-          if (target.type === 'MemberExpression') { ok = false; return }
-          if (node.operator !== '=') { ok = false; return }
-          visitNode(node.right as Node, (read) => {
-            if (read.type === 'Identifier' && renderMutated.has(read.name as string)) ok = false
-          })
+          if (targetsName) {
+            if (guarded || target.type === 'MemberExpression' || node.operator !== '=') { ok = false; return }
+            visitNode(node.right as Node, (read) => {
+              if (read.type === 'Identifier' && renderMutated.has(read.name as string)) ok = false
+            })
+          }
         }
         if (node.type === 'UpdateExpression') {
           const target = node.argument as Node
-          if (target?.type === 'Identifier' && target.name === name) ok = false
+          if (target?.type === 'Identifier' && target.name === name) { ok = false; return }
         }
-      })
+        const childGuarded = guarded || GUARDED_TYPES.has(node.type as string)
+        for (const [key, child] of Object.entries(node)) {
+          if (key === 'start' || key === 'end' || key === 'loc') continue
+          if (Array.isArray(child)) child.forEach((item) => walk(item as Node, childGuarded))
+          else if (child && typeof child === 'object') walk(child as Node, childGuarded)
+        }
+      }
+      walk(fn.body, false)
     }
     if (ok) candidates.add(name)
   }
@@ -861,8 +951,12 @@ function collectTopLevelFunctions(ast: Node): Map<string, Node> {
 }
 
 function collectRenderReachableFunctions(functions: Map<string, Node>): Set<string> {
+  return collectReachableFrom(functions, ['render', 'render2D', 'render3D'])
+}
+
+function collectReachableFrom(functions: Map<string, Node>, seeds: string[]): Set<string> {
   const result = new Set<string>()
-  const pending = ['render', 'render2D', 'render3D'].filter((name) => functions.has(name))
+  const pending = seeds.filter((name) => functions.has(name))
   while (pending.length > 0) {
     const name = pending.pop()!
     if (result.has(name)) continue

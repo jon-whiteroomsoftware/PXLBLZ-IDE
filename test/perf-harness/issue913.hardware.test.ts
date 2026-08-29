@@ -35,6 +35,7 @@ describe('spatial sample-and-hold ladder on hardware (#913 spike)', () => {
     await connection.connect()
     let runError: unknown
     let original: Awaited<ReturnType<typeof connection.getConfig>> | undefined
+    let baselineProgramIds: Set<string> | undefined
     const rows: Array<{
       pixelCount: number
       variant: string
@@ -52,6 +53,10 @@ describe('spatial sample-and-hold ladder on hardware (#913 spike)', () => {
           `Active Pattern ${original.activeProgramId} is not in the saved inventory; refusing a non-restorable probe.`,
         )
       }
+      // Baseline for post-run cleanup (see issue914.hardware.test.ts: pushes
+      // do not create inventory entries on fw 3.67, but the diff keeps the
+      // probe safe on firmware where they might).
+      baselineProgramIds = new Set(savedPrograms.map((program) => program.id))
 
       for (const pixelCount of WAVE2_PIXEL_COUNTS) {
         connection.setPixelCount(pixelCount, false)
@@ -125,6 +130,21 @@ describe('spatial sample-and-hold ladder on hardware (#913 spike)', () => {
             () => restore.getConfig(),
             { activeProgramId: original.activeProgramId, pixelCount: original.pixelCount },
           )
+          // Reactivating reloads STORED control values; put back the live
+          // (possibly unsaved) values the session started with.
+          if (original.activeControls && Object.keys(original.activeControls).length > 0) {
+            restore.setControls(original.activeControls)
+          }
+          if (baselineProgramIds) {
+            try {
+              const afterPrograms = await restore.listPrograms()
+              for (const program of afterPrograms) {
+                if (!baselineProgramIds.has(program.id)) restore.deleteProgram(program.id)
+              }
+            } catch (cleanupError) {
+              console.error('probe-program cleanup failed:', cleanupError)
+            }
+          }
           if (
             restored.activeProgramId !== original.activeProgramId
             || restored.pixelCount !== original.pixelCount
