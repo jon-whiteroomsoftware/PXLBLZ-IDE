@@ -833,6 +833,32 @@ function computeOutVarClasses(input: {
       walk(fn.body, false)
     }
     if (!ok) continue
+    // Any assignment from inside a nested function expression (a deferred
+    // callback) executes at an unmodeled time; such a global is not an
+    // out-var.
+    for (const fn of functions.values()) {
+      if (!ok) break
+      const findNested = (node: Node): void => {
+        if (!ok || !node || typeof node !== 'object') return
+        if (node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression'
+          || (node.type === 'FunctionDeclaration' && node !== fn)) {
+          visitNode(node, (child) => {
+            if (child.type === 'AssignmentExpression' && child.left?.type === 'Identifier'
+              && child.left.name === name) ok = false
+            if (child.type === 'UpdateExpression' && child.argument?.type === 'Identifier'
+              && child.argument.name === name) ok = false
+          })
+          return
+        }
+        for (const [key, child] of Object.entries(node)) {
+          if (key === 'start' || key === 'end' || key === 'loc') continue
+          if (Array.isArray(child)) child.forEach((item) => findNested(item as Node))
+          else if (child && typeof child === 'object') findNested(child as Node)
+        }
+      }
+      findNested(fn.body)
+    }
+    if (!ok) continue
     // An unconditional assignment inside the writer is not enough: the WRITER
     // itself must run on every evaluation, or the out-var still carries
     // prior-pixel state (`if (x > .5) setU(x); ... exp(u)`). Require every
@@ -857,13 +883,16 @@ function computeOutVarClasses(input: {
       // (`return u = v`) executes as part of that return and counts at the
       // return's own position.
       const writerFn = functions.get(writer)!
+      // Own-body walk only: a return or assignment inside a nested function
+      // expression (a deferred arrow callback) does not execute when the
+      // writer is called, so it must count for neither side.
       const returnRanges: Array<readonly [number, number]> = []
-      visitNode(writerFn.body, (child) => {
+      visitOwnBody(writerFn.body, (child) => {
         if (child.type === 'ReturnStatement') returnRanges.push([child.start as number, child.end as number])
       })
       const earliestReturn = returnRanges.reduce((min, [start]) => Math.min(min, start), Infinity)
       let earliestAssign = Infinity
-      visitNode(writerFn.body, (child) => {
+      visitOwnBody(writerFn.body, (child) => {
         if (child.type === 'AssignmentExpression' && child.left?.type === 'Identifier'
           && child.left.name === name) {
           const start = child.start as number
@@ -1243,6 +1272,20 @@ function visitFunctionStatements(node: Node, visitor: (statement: Node) => void)
     if (key === 'start' || key === 'end' || key === 'loc') continue
     if (Array.isArray(child)) child.forEach((item) => visitFunctionStatements(item as Node, visitor))
     else if (child && typeof child === 'object') visitFunctionStatements(child as Node, visitor)
+  }
+}
+
+/** visitNode variant that does not descend into nested function bodies —
+ * for reasoning about what executes when the enclosing function runs. */
+function visitOwnBody(node: Node, visitor: (node: Node) => void): void {
+  if (!node || typeof node !== 'object') return
+  if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression'
+    || node.type === 'ArrowFunctionExpression') return
+  visitor(node)
+  for (const [key, child] of Object.entries(node)) {
+    if (key === 'start' || key === 'end' || key === 'loc') continue
+    if (Array.isArray(child)) child.forEach((item) => visitOwnBody(item as Node, visitor))
+    else if (child && typeof child === 'object') visitOwnBody(child as Node, visitor)
   }
 }
 
