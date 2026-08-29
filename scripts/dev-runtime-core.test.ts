@@ -109,17 +109,21 @@ describe('runtime manifest', () => {
 
 describe('main API health classification', () => {
   it('is stopped with no listeners, whatever the probe said', () => {
-    expect(classifyMainApiHealth(0, false)).toBe('stopped')
-    expect(classifyMainApiHealth(0, true)).toBe('stopped')
+    expect(classifyMainApiHealth(0, 'unresponsive')).toBe('stopped')
+    expect(classifyMainApiHealth(0, 'ok')).toBe('stopped')
   })
 
   it('is ok when the port both listens and answers', () => {
-    expect(classifyMainApiHealth(1, true)).toBe('ok')
+    expect(classifyMainApiHealth(1, 'ok')).toBe('ok')
+  })
+
+  it('is erroring, not wedged, when the port answers with server errors', () => {
+    expect(classifyMainApiHealth(1, 'error')).toBe('erroring')
   })
 
   it('is wedged when the port listens but never answers', () => {
-    expect(classifyMainApiHealth(1, false)).toBe('wedged')
-    expect(classifyMainApiHealth(3, false)).toBe('wedged')
+    expect(classifyMainApiHealth(1, 'unresponsive')).toBe('wedged')
+    expect(classifyMainApiHealth(3, 'unresponsive')).toBe('wedged')
   })
 })
 
@@ -145,6 +149,22 @@ describe('repository wrangler ownership', () => {
     expect(isRepositoryWranglerCommand(`python3 ${mainWorktree}/serve.py`, mainWorktree)).toBe(false)
     expect(isRepositoryWranglerCommand('', mainWorktree)).toBe(false)
   })
+
+  it('rejects paths that traverse out of node_modules and lookalike names outside it', () => {
+    expect(isRepositoryWranglerCommand(
+      `node ${mainWorktree}/node_modules/../foreign/workerd-server.js`,
+      mainWorktree,
+    )).toBe(false)
+    expect(isRepositoryWranglerCommand(
+      `node ${mainWorktree}/node_modules/./evil/../../outside/wrangler/cli.js`,
+      mainWorktree,
+    )).toBe(false)
+    // A wrangler-adjacent package name under node_modules does not qualify.
+    expect(isRepositoryWranglerCommand(
+      `node ${mainWorktree}/node_modules/not-wrangler/cli.js`,
+      mainWorktree,
+    )).toBe(false)
+  })
 })
 
 describe('main API recovery decision', () => {
@@ -156,22 +176,27 @@ describe('main API recovery decision', () => {
   const foreign = { pid: 4242, command: 'python3 -m http.server 8788' }
 
   it('starts a fresh pair when nothing listens', () => {
-    expect(decideMainApiAction([], false, mainWorktree)).toBe('start')
+    expect(decideMainApiAction([], 'unresponsive', mainWorktree)).toBe('start')
   })
 
   it('leaves a responding server alone', () => {
-    expect(decideMainApiAction([owned], true, mainWorktree)).toBe('none')
-    expect(decideMainApiAction([foreign], true, mainWorktree)).toBe('none')
+    expect(decideMainApiAction([owned], 'ok', mainWorktree)).toBe('none')
+    expect(decideMainApiAction([foreign], 'ok', mainWorktree)).toBe('none')
+  })
+
+  it('never recovers a server that answers with errors: alive is not wedged', () => {
+    expect(decideMainApiAction([owned], 'error', mainWorktree)).toBe('unhealthy')
+    expect(decideMainApiAction([foreign], 'error', mainWorktree)).toBe('unhealthy')
   })
 
   it('recovers a wedged listener only when every listener is the repository wrangler', () => {
-    expect(decideMainApiAction([owned], false, mainWorktree)).toBe('recover')
+    expect(decideMainApiAction([owned], 'unresponsive', mainWorktree)).toBe('recover')
   })
 
   it('refuses when any wedged listener is not the repository wrangler', () => {
-    expect(decideMainApiAction([foreign], false, mainWorktree)).toBe('refuse')
-    expect(decideMainApiAction([owned, foreign], false, mainWorktree)).toBe('refuse')
-    expect(decideMainApiAction([{ pid: 7780, command: '' }], false, mainWorktree)).toBe('refuse')
+    expect(decideMainApiAction([foreign], 'unresponsive', mainWorktree)).toBe('refuse')
+    expect(decideMainApiAction([owned, foreign], 'unresponsive', mainWorktree)).toBe('refuse')
+    expect(decideMainApiAction([{ pid: 7780, command: '' }], 'unresponsive', mainWorktree)).toBe('refuse')
   })
 })
 

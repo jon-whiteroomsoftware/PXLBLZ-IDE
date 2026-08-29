@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import {
   ensureSharedDevVarsLink,
   parseDevRuntimeArgs,
-  probeUrl,
+  probeService,
   runtimeBranchLabel,
   touchWranglerTmpEntries,
 } from './dev-runtime'
@@ -49,24 +49,22 @@ describe('development runtime command', () => {
 })
 
 describe('bounded service probe', () => {
-  it('reports success for an answering endpoint and failure for a server error', async () => {
-    expect(await probeUrl('http://localhost:1/api/me', 1_000, async () => new Response('{}', { status: 200 }))).toBe(true)
-    expect(await probeUrl('http://localhost:1/api/me', 1_000, async () => new Response('', { status: 502 }))).toBe(false)
+  it('distinguishes an answering endpoint from one answering with server errors', async () => {
+    expect(await probeService('http://localhost:1/api/me', 1_000, async () => new Response('{}', { status: 200 }))).toBe('ok')
+    expect(await probeService('http://localhost:1/api/me', 1_000, async () => new Response('', { status: 502 }))).toBe('error')
   })
 
-  it('reports failure when the request itself fails', async () => {
-    expect(await probeUrl('http://localhost:1/api/me', 1_000, async () => {
+  it('reports unresponsive when the request itself fails', async () => {
+    expect(await probeService('http://localhost:1/api/me', 1_000, async () => {
       throw new Error('connection refused')
-    })).toBe(false)
+    })).toBe('unresponsive')
   })
 
-  it('gives up on a hanging endpoint within the timeout instead of waiting forever', async () => {
+  it('gives up within the timeout even when the fetcher ignores its abort signal', async () => {
     const startedAt = Date.now()
-    const hangingFetch: typeof fetch = (_input, init) => new Promise((_, reject) => {
-      init?.signal?.addEventListener('abort', () => reject(new Error('aborted')))
-    })
+    const neverSettles: typeof fetch = () => new Promise(() => {})
 
-    expect(await probeUrl('http://localhost:1/api/me', 100, hangingFetch)).toBe(false)
+    expect(await probeService('http://localhost:1/api/me', 100, neverSettles)).toBe('unresponsive')
     expect(Date.now() - startedAt).toBeLessThan(2_000)
   })
 })

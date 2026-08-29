@@ -130,17 +130,23 @@ export function classifyAssignmentPort(
   return 'foreign'
 }
 
-export type MainApiHealth = 'ok' | 'wedged' | 'stopped'
+// A wedge is a transport-level failure: the port accepts TCP but no response
+// ever arrives. A server that answers — even with a 5xx — has proven it is
+// running and must never be terminated by recovery.
+export type ProbeOutcome = 'ok' | 'error' | 'unresponsive'
 
-// A port that accepts TCP but never answers is wedged, not listening: since
-// wrangler's 24h tmp sweep can delete a live server's bundle dir out from
-// under it (#895), occupancy alone says nothing about health.
+export type MainApiHealth = 'ok' | 'erroring' | 'wedged' | 'stopped'
+
+// Occupancy alone says nothing about health: since wrangler's 24h tmp sweep
+// can delete a live server's bundle dir out from under it (#895), a listening
+// port may hang every request forever.
 export function classifyMainApiHealth(
   listenerCount: number,
-  probeResponded: boolean,
+  probe: ProbeOutcome,
 ): MainApiHealth {
   if (listenerCount === 0) return 'stopped'
-  return probeResponded ? 'ok' : 'wedged'
+  if (probe === 'ok') return 'ok'
+  return probe === 'error' ? 'erroring' : 'wedged'
 }
 
 export interface MainApiListener {
@@ -148,23 +154,45 @@ export interface MainApiListener {
   command: string
 }
 
-export type MainApiAction = 'none' | 'start' | 'recover' | 'refuse'
+export type MainApiAction = 'none' | 'start' | 'recover' | 'refuse' | 'unhealthy'
 
 // Recovery may only terminate processes provably ours: the repository's own
-// wrangler CLI or its workerd child, resolved under the main worktree. An
-// unreadable command (ps failed, process gone) is not proof of ownership.
+// wrangler CLI or its workerd child, resolved under the main worktree's
+// node_modules. Tokens are path-normalized so `..` segments cannot smuggle a
+// foreign script past a substring check, and an unreadable command (ps
+// failed, process gone) is not proof of ownership.
 export function isRepositoryWranglerCommand(command: string, mainWorktree: string): boolean {
-  if (!command.includes(`${mainWorktree}/node_modules/`)) return false
-  return command.includes('/wrangler/') || command.includes('workerd')
+  const moduleRoot = `${mainWorktree}/node_modules/`
+  return command.split(/\s+/).some((token) => {
+    const normalized = normalizePathish(token)
+    if (!normalized.startsWith(moduleRoot)) return false
+    const relative = normalized.slice(moduleRoot.length)
+    return relative.startsWith('wrangler/') || relative.includes('workerd')
+  })
+}
+
+function normalizePathish(token: string): string {
+  const segments: string[] = []
+  for (const segment of token.split('/')) {
+    if (segment === '' && segments.length > 0) continue
+    if (segment === '.') continue
+    if (segment === '..') {
+      segments.pop()
+      continue
+    }
+    segments.push(segment)
+  }
+  return segments.join('/')
 }
 
 export function decideMainApiAction(
   listeners: readonly MainApiListener[],
-  probeResponded: boolean,
+  probe: ProbeOutcome,
   mainWorktree: string,
 ): MainApiAction {
   if (listeners.length === 0) return 'start'
-  if (probeResponded) return 'none'
+  if (probe === 'ok') return 'none'
+  if (probe === 'error') return 'unhealthy'
   return listeners.every((listener) => isRepositoryWranglerCommand(listener.command, mainWorktree))
     ? 'recover'
     : 'refuse'

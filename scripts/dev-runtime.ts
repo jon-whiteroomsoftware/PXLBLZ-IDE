@@ -22,6 +22,7 @@ import {
   decideMainApiAction,
   parseRuntimeManifest,
   type MainApiListener,
+  type ProbeOutcome,
   type RuntimeAssignment,
   type RuntimeManifest,
   type RuntimeProfile,
@@ -200,8 +201,10 @@ async function printStatus(
   keepMainWranglerTmpFresh(context)
   const apiUrl = `http://localhost:${manifest.shared.wranglerPort}/api/me`
   const apiListeners = listenerPids(manifest.shared.wranglerPort)
-  const apiResponded = apiListeners.length > 0 && await probeUrl(apiUrl, serviceProbeTimeoutMs)
-  const apiHealth = classifyMainApiHealth(apiListeners.length, apiResponded)
+  const apiProbe = apiListeners.length > 0
+    ? await probeService(apiUrl, serviceProbeTimeoutMs)
+    : 'unresponsive'
+  const apiHealth = classifyMainApiHealth(apiListeners.length, apiProbe)
   const mainStatus = {
     issue: 'main',
     description: 'stable reviewed main',
@@ -248,15 +251,22 @@ async function ensureMainRuntime(
   const apiUrl = `http://localhost:${manifest.shared.wranglerPort}/api/me`
   const uiPids = listenerPids(manifest.shared.vitePort)
   const apiPids = listenerPids(manifest.shared.wranglerPort)
-  const [uiHealthy, apiResponded] = await Promise.all([
-    uiPids.length > 0 ? probeUrl(uiUrl, serviceProbeTimeoutMs) : Promise.resolve(false),
-    apiPids.length > 0 ? probeUrl(apiUrl, serviceProbeTimeoutMs) : Promise.resolve(false),
+  const [uiProbe, apiProbe] = await Promise.all([
+    uiPids.length > 0 ? probeService(uiUrl, serviceProbeTimeoutMs) : Promise.resolve<ProbeOutcome>('unresponsive'),
+    apiPids.length > 0 ? probeService(apiUrl, serviceProbeTimeoutMs) : Promise.resolve<ProbeOutcome>('unresponsive'),
   ])
+  const uiHealthy = uiProbe === 'ok'
   if (uiPids.length > 0 && !uiHealthy) {
     throw new Error(`Port ${manifest.shared.vitePort} is occupied but ${uiUrl} is unhealthy.`)
   }
   const apiListeners: MainApiListener[] = apiPids.map((pid) => ({ pid, command: processCommand(pid) }))
-  const apiAction = decideMainApiAction(apiListeners, apiResponded, context.mainWorktree)
+  const apiAction = decideMainApiAction(apiListeners, apiProbe, context.mainWorktree)
+  if (apiAction === 'unhealthy') {
+    throw new Error(
+      `Port ${manifest.shared.wranglerPort} answers ${apiUrl} with server errors; the process is alive, so`
+      + ' recovery will not terminate it. Inspect the main Wrangler log and stop it manually if a restart is needed.',
+    )
+  }
   if (apiAction === 'refuse') {
     throw new Error(
       `Port ${manifest.shared.wranglerPort} is occupied but ${apiUrl} is unresponsive, and the listener is not this repository's Wrangler; refusing to terminate it:\n`
@@ -304,11 +314,12 @@ async function requireHealthySharedRuntime(manifest: RuntimeManifest): Promise<v
   const uiUrl = `http://localhost:${manifest.shared.vitePort}${manifest.basePath}`
   const apiUrl = `http://localhost:${manifest.shared.wranglerPort}/api/me`
   const apiListenerCount = listenerPids(manifest.shared.wranglerPort).length
-  const [uiHealthy, apiResponded] = await Promise.all([
-    probeUrl(uiUrl, serviceProbeTimeoutMs),
-    probeUrl(apiUrl, serviceProbeTimeoutMs),
+  const [uiProbe, apiProbe] = await Promise.all([
+    probeService(uiUrl, serviceProbeTimeoutMs),
+    probeService(apiUrl, serviceProbeTimeoutMs),
   ])
-  const apiHealth = classifyMainApiHealth(apiListenerCount, apiResponded)
+  const uiHealthy = uiProbe === 'ok'
+  const apiHealth = classifyMainApiHealth(apiListenerCount, apiProbe)
   if (!uiHealthy || apiHealth !== 'ok') {
     throw new Error(
       `Stable main runtime is not healthy (${uiUrl}: ${uiHealthy ? 'ok' : 'down'},`
@@ -686,7 +697,7 @@ export async function portIsAvailable(port: number): Promise<boolean> {
 async function waitForUrl(url: string, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
-    if (await probeUrl(url, serviceProbeTimeoutMs)) return
+    if (await probeService(url, serviceProbeTimeoutMs) === 'ok') return
     await new Promise((resolveWait) => setTimeout(resolveWait, 250))
   }
   throw new Error(`Timed out waiting for ${url}.`)
@@ -703,22 +714,31 @@ async function waitForPortFree(port: number, timeoutMs: number): Promise<void> {
 
 export const serviceProbeTimeoutMs = 3_000
 
-// Bounded replacement for a bare fetch: a wedged server accepts the TCP
-// connection and then never answers, so an untimed probe hangs forever.
-export async function probeUrl(
+// Hard-bounded tri-state probe: a wedged server accepts the TCP connection
+// and then never answers, so the timeout must win even against a fetcher that
+// ignores its abort signal — the race, not the abort, enforces the bound. An
+// answered request, whatever its status, proves the process is alive; only
+// silence is 'unresponsive'.
+export async function probeService(
   url: string,
   timeoutMs: number,
   fetcher: typeof fetch = fetch,
-): Promise<boolean> {
+): Promise<ProbeOutcome> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<ProbeOutcome>((resolveTimeout) => {
+    timer = setTimeout(() => {
+      controller.abort()
+      resolveTimeout('unresponsive')
+    }, timeoutMs)
+  })
+  const request = fetcher(url, { redirect: 'manual', signal: controller.signal })
+    .then((response): ProbeOutcome => (response.status < 500 ? 'ok' : 'error'))
+    .catch((): ProbeOutcome => 'unresponsive')
   try {
-    const response = await fetcher(url, { redirect: 'manual', signal: controller.signal })
-    return response.status < 500
-  } catch {
-    return false
+    return await Promise.race([request, timeout])
   } finally {
-    clearTimeout(timer)
+    if (timer !== undefined) clearTimeout(timer)
   }
 }
 
