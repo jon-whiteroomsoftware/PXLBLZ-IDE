@@ -8,6 +8,7 @@ import {
   emptyRuntimeRegistry,
   isRepositoryWranglerCommand,
   parseRuntimeManifest,
+  unownedGroupMembers,
   type RuntimeManifest,
 } from './dev-runtime-core'
 
@@ -139,6 +140,27 @@ describe('repository wrangler ownership', () => {
       `node ${mainWorktree}/node_modules/wrangler/bin/wrangler.js pages dev dist --port 8788`,
       mainWorktree,
     )).toBe(true)
+    // The pages child interposes node flags before its script path.
+    expect(isRepositoryWranglerCommand(
+      `/opt/fnm/node-versions/v24/bin/node --no-warnings --experimental-vm-modules ${mainWorktree}/node_modules/wrangler/wrangler-dist/cli.js pages dev dist`,
+      mainWorktree,
+    )).toBe(true)
+  })
+
+  it('ignores wrangler paths in non-executable argv positions and lookalike packages', () => {
+    // A process merely reading a file under the wrangler package is not ours.
+    expect(isRepositoryWranglerCommand(
+      `tail -f ${mainWorktree}/node_modules/wrangler/dev.log`,
+      mainWorktree,
+    )).toBe(false)
+    expect(isRepositoryWranglerCommand(
+      `node ${mainWorktree}/node_modules/not-workerd/server.js`,
+      mainWorktree,
+    )).toBe(false)
+    expect(isRepositoryWranglerCommand(
+      `node ${mainWorktree}/node_modules/@cloudflare/workerdish/server.js`,
+      mainWorktree,
+    )).toBe(false)
   })
 
   it('rejects wrangler from another worktree, unrelated commands, and unknown commands', () => {
@@ -197,6 +219,16 @@ describe('main API recovery decision', () => {
     expect(decideMainApiAction([foreign], 'unresponsive', mainWorktree)).toBe('refuse')
     expect(decideMainApiAction([owned, foreign], 'unresponsive', mainWorktree)).toBe('refuse')
     expect(decideMainApiAction([{ pid: 7780, command: '' }], 'unresponsive', mainWorktree)).toBe('refuse')
+  })
+
+  it('flags process-group members that are not provably ours so no signal reaches a bystander', () => {
+    const shell = { pid: 500, command: '/bin/zsh' }
+    const wranglerCli = {
+      pid: 7771,
+      command: `node ${mainWorktree}/node_modules/wrangler/bin/wrangler.js pages dev dist`,
+    }
+    expect(unownedGroupMembers([wranglerCli, owned], mainWorktree)).toEqual([])
+    expect(unownedGroupMembers([wranglerCli, shell, owned], mainWorktree)).toEqual([shell])
   })
 })
 

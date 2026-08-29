@@ -157,12 +157,13 @@ The coordinator defends against this in three layers:
   shared-profile `dev:issue` fails fast with the same diagnosis and names
   `npm run dev:main` instead of hanging.
 - **Recovery.** `npm run dev:main` recovers a wedged pair unattended: it
-  verifies every `8788` listener is this repository's Wrangler or workerd (by
-  path-normalized process command), terminates the process groups (SIGTERM,
-  then SIGKILL), rebuilds, and restarts. Wedged means transport silence only:
-  a server that answers `/api/me` with 5xx errors is alive and is never
+  verifies every `8788` listener — and every member of each process group it
+  would signal — is this repository's Wrangler or workerd (by path-normalized
+  executable/script command), then terminates those groups (SIGTERM, then
+  SIGKILL), rebuilds, and restarts. Wedged means transport silence only: a
+  server that answers `/api/me` with 5xx errors is alive and is never
   terminated (`dev:status` reports it as `erroring`). Recovery still refuses,
-  with the listener commands in the error, when the occupant is not provably
+  with the offending commands in the error, when any process is not provably
   ours — that case stays manual.
 
 If a wedge is suspected anyway, probe directly:

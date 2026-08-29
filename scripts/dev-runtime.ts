@@ -21,6 +21,7 @@ import {
   classifyProcessGroupPort,
   decideMainApiAction,
   parseRuntimeManifest,
+  unownedGroupMembers,
   type MainApiListener,
   type ProbeOutcome,
   type RuntimeAssignment,
@@ -278,7 +279,7 @@ async function ensureMainRuntime(
       `Port ${manifest.shared.wranglerPort} is wedged (accepts TCP, never answers ${apiUrl}); `
       + `recovering by restarting the main Wrangler (PIDs ${apiPids.join(', ')}).`,
     )
-    await stopWedgedListeners(apiPids, manifest.shared.wranglerPort)
+    await stopWedgedListeners(apiPids, manifest.shared.wranglerPort, context.mainWorktree)
   }
   prepareD1(context.mainWorktree, resolve(context.mainWorktree, '.wrangler/state'), manifest)
   if (apiAction !== 'none') {
@@ -510,6 +511,24 @@ function processCommand(pid: number): string {
   }
 }
 
+// All processes in a group, from one full-table ps read; [] when ps fails.
+function processGroupMembers(group: number): MainApiListener[] {
+  let output: string
+  try {
+    output = execFileSync('ps', ['-axo', 'pid=,pgid=,command='], { encoding: 'utf8' })
+  } catch {
+    return []
+  }
+  const members: MainApiListener[] = []
+  for (const line of output.split('\n')) {
+    const match = line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/)
+    if (!match) continue
+    if (Number(match[2]) !== group) continue
+    members.push({ pid: Number(match[1]), command: match[3] })
+  }
+  return members
+}
+
 function stopProcessGroup(processGroupId: number): void {
   try {
     process.kill(-processGroupId, 'SIGTERM')
@@ -520,8 +539,31 @@ function stopProcessGroup(processGroupId: number): void {
 
 // A wedged workerd may ignore SIGTERM (it sat for six days ignoring a broken
 // control channel in the #895 incident), so escalate to SIGKILL per group.
-async function stopWedgedListeners(pids: readonly number[], port: number): Promise<void> {
+// Signals go to whole process groups, so every group member must first prove
+// ownership — a wrangler started from a non-job-control shell can share its
+// group with that shell, and recovery must never take out a bystander.
+async function stopWedgedListeners(
+  pids: readonly number[],
+  port: number,
+  mainWorktree: string,
+): Promise<void> {
   const groups = [...new Set(pids.map(processGroupId).filter(Number.isInteger))]
+  if (groups.length === 0) {
+    throw new Error(`Cannot resolve process groups for PIDs ${pids.join(', ')}; refusing to signal them.`)
+  }
+  for (const group of groups) {
+    const members = processGroupMembers(group)
+    if (members.length === 0) {
+      throw new Error(`Cannot enumerate process group ${group}; refusing to signal it.`)
+    }
+    const unowned = unownedGroupMembers(members, mainWorktree)
+    if (unowned.length > 0) {
+      throw new Error(
+        `Process group ${group} contains processes that are not this repository's Wrangler; refusing to terminate it:\n`
+        + unowned.map((member) => `  ${member.pid} ${member.command || '(unreadable command)'}`).join('\n'),
+      )
+    }
+  }
   for (const group of groups) stopProcessGroup(group)
   try {
     await waitForPortFree(port, 5_000)

@@ -158,17 +158,38 @@ export type MainApiAction = 'none' | 'start' | 'recover' | 'refuse' | 'unhealthy
 
 // Recovery may only terminate processes provably ours: the repository's own
 // wrangler CLI or its workerd child, resolved under the main worktree's
-// node_modules. Tokens are path-normalized so `..` segments cannot smuggle a
-// foreign script past a substring check, and an unreadable command (ps
-// failed, process gone) is not proof of ownership.
+// node_modules. Only the executable and node-script argv positions count — a
+// process merely mentioning a wrangler path in a later argument is not ours.
+// Tokens are path-normalized so `..` segments cannot smuggle a foreign script
+// past a prefix check, package prefixes are exact (`wrangler/`,
+// `@cloudflare/workerd[-platform]/`) so lookalike packages fail, and an
+// unreadable command (ps failed, process gone) is not proof of ownership.
 export function isRepositoryWranglerCommand(command: string, mainWorktree: string): boolean {
+  const tokens = command.split(/\s+/).filter(Boolean)
+  if (tokens.length === 0) return false
+  if (matchesRepositoryWranglerPath(tokens[0], mainWorktree)) return true
+  const executable = tokens[0].split('/').pop()
+  if (executable !== 'node') return false
+  const script = tokens.slice(1).find((token) => !token.startsWith('-'))
+  return script !== undefined && matchesRepositoryWranglerPath(script, mainWorktree)
+}
+
+function matchesRepositoryWranglerPath(token: string, mainWorktree: string): boolean {
   const moduleRoot = `${mainWorktree}/node_modules/`
-  return command.split(/\s+/).some((token) => {
-    const normalized = normalizePathish(token)
-    if (!normalized.startsWith(moduleRoot)) return false
-    const relative = normalized.slice(moduleRoot.length)
-    return relative.startsWith('wrangler/') || relative.includes('workerd')
-  })
+  const normalized = normalizePathish(token)
+  if (!normalized.startsWith(moduleRoot)) return false
+  const relative = normalized.slice(moduleRoot.length)
+  return relative.startsWith('wrangler/') || /^@cloudflare\/workerd(?:-[a-z0-9-]+)?\//.test(relative)
+}
+
+// Everything recovery would signal must be provably ours: signals go to whole
+// process groups, so every member — not just the port listener — needs to
+// pass the ownership check before any signal is sent.
+export function unownedGroupMembers(
+  members: readonly MainApiListener[],
+  mainWorktree: string,
+): MainApiListener[] {
+  return members.filter((member) => !isRepositoryWranglerCommand(member.command, mainWorktree))
 }
 
 function normalizePathish(token: string): string {
