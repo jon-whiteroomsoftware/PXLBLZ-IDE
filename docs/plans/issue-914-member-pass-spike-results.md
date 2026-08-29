@@ -126,7 +126,7 @@ What the repository claims, precisely:
   catalogue change, using the archived tool or a successor — a deliberate
   step, not an auto-running suite with implied soundness.
 
-## Eligibility census (all 101 stock Patterns)
+## Eligibility census (101 stock Patterns; 83 analyzed, 18 outside the subset)
 
 Analysis runs where a real pass would sit: post-bundle, post-manifest-strip,
 post-tiny-helper-inlining (the `showMemberLowering.ts` step-3 seam), so
@@ -137,7 +137,7 @@ library helpers are visible as top-level functions.
 |---|---:|---|
 | A module-table | 0 | — |
 | A frame-table | 1 | IridescentFibers (10-iteration `sin(t + layer)` term) |
-| B exact (≥10× mul total AND an exp/pow-class call, position-stable) | **0** | — |
+| B exact (≥10× mul total AND an exp/pow-class call, position-stable) | **0** | — (among the 83 analyzed; the 18 excluded are unknown, and the decline is robust to them — see Recommendation) |
 | B below-breakeven | 98 | the `atan2`/`hypot`/`clamp`/`frac` tail across 35 Patterns — including four op-chain sites past the total threshold (ClockworkIris 11.4×, HelixForge3D 13.1×, NebulaSphere 13.1×, SceneSplice 13.5×) that the measured op-chain loss demotes |
 | B needs-invalidation (control-coupled) | 8 | ImpactEngine ×2, LavaLamp3D, LineDancer2D, NebulaShells3D, PerlinKaleidoscope2D, SceneSplice, SceneSplice3D |
 | B disqualified by animated transforms | — | BlueHolidayStar2D and CarriesHolidayStar2D's 31× mul triple-`pow` star distances (per-frame `rotate()`) |
@@ -222,12 +222,20 @@ against `SHOW_ARTIFACT_BUDGET_BYTES` like `selectShowFrameInvariantHoists`.
   checksum-proven `IridescentFibers.tabled.js` fixture is the edit,
   proposed as a small follow-up (stock-content edits fan out across census
   suites, `docs/agents/stock-content.md`).
-- **Rule B (lazy memoization):** the profitable class — position-stable,
+- **Rule B (lazy memoization):** among the 83 Patterns inside the
+  modeled subset, the profitable class — position-stable,
   exp/pow-dominated, sentinel-provable, `index` in scope — has **zero**
-  remaining sites; every broader class measured negative. The census
-  assertion in `issue914.test.ts` is the living falsifier: a future stock
-  Pattern with a qualifying site fails the pinned zero and reopens the
-  question with the detector already built.
+  sites; every broader class measured negative on hardware. The 18
+  excluded Patterns are unknown to the tool, and the decline does not
+  need them to be: it rests on the measured economics. Only
+  exp/pow-class subtrees clear the ~7×-mul lazy read path, and the
+  strongest single-call site ever measured (Kishimisu's `exp(-len0)`,
+  13.3× est) bought +2.5% — so a qualifying site, wherever one exists
+  or appears, is worth a Kishimisu-style hand edit to that one Pattern,
+  never a compiler pass. Reopening the pass question requires new
+  economics (a cheaper read path or a heavier eligible class), not a
+  new site; re-running the archived census is the first step of any
+  such proposal.
 - **Rule C (palette specialization):** two static-stop sites
   (NebulaSphere, PlasmaNebula); stays a census-recorded candidate of the
   #907 family, not built from this issue.
