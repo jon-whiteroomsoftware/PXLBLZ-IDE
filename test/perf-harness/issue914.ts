@@ -121,6 +121,10 @@ export interface Issue914PatternReport {
   indexTabling: Issue914IndexTablingSite[]
   positionMemo: Issue914PositionMemoSite[]
   paletteSpecialization: number
+  /** Module uses constructs outside the out-var scope model (nested function
+   * expressions, non-simple parameters); out-var classification was disabled
+   * and render-mutated globals classified conservatively. */
+  outsideScopeSubset?: boolean
   parseError?: string
 }
 
@@ -166,6 +170,39 @@ export function analyzeIssue914(source: string): Issue914PatternReport {
       parseError: error instanceof Error ? error.message : String(error),
     }
   }
+  // MODELED SUBSET GUARD — total, not partial. Every analysis below (global
+  // mutation collection, immutability, purity, out-vars, loop shapes)
+  // assumes code runs where it is written: top-level function declarations,
+  // simple identifier parameters, no nested function expressions. A default
+  // initializer (`render(index, x = (u = time(.1)))`) mutates state that
+  // collectMutatedGlobals never sees; a callback can capture and invoke a
+  // writer. Ten review rounds of defending individual constructs did not
+  // converge; the durable rule is to refuse the whole module: it is reported
+  // outsideScopeSubset with NO sites, which can only under-count the census,
+  // never mislabel a site as exact.
+  let outsideScopeSubset = false
+  const topLevelFunctionNodes = new Set<Node>()
+  for (const statement of ast.body as Node[]) {
+    const declaration = statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement
+    if (declaration?.type === 'FunctionDeclaration') topLevelFunctionNodes.add(declaration)
+  }
+  visitNode(ast, (child) => {
+    if (child.type === 'FunctionExpression' || child.type === 'ArrowFunctionExpression') {
+      outsideScopeSubset = true
+    }
+    if (child.type === 'FunctionDeclaration' && !topLevelFunctionNodes.has(child)) {
+      outsideScopeSubset = true
+    }
+    if (child.type === 'FunctionDeclaration' || child.type === 'FunctionExpression'
+      || child.type === 'ArrowFunctionExpression') {
+      for (const param of (child.params as Node[]) ?? []) {
+        if (param?.type !== 'Identifier') outsideScopeSubset = true
+      }
+    }
+  })
+  if (outsideScopeSubset) {
+    return { indexTabling: [], positionMemo: [], paletteSpecialization: 0, outsideScopeSubset: true }
+  }
   const globals = collectTopLevelGlobals(ast)
   const functions = collectTopLevelFunctions(ast)
   const reachable = collectRenderReachableFunctions(functions)
@@ -181,27 +218,8 @@ export function analyzeIssue914(source: string): Issue914PatternReport {
   const mutatedAnywhere = collectMutatedGlobals(new Set(functions.keys()), functions, globals)
   const immutableGlobals = new Set([...globals].filter((name) => !mutatedAnywhere.has(name)))
   const pureFunctions = collectPureValueFunctions(functions, globals, immutableGlobals)
-  // Non-simple parameter lists (defaults, rest, destructuring) carry
-  // call-time initializer execution and a separate parameter environment —
-  // corners of JavaScript scoping this spike's out-var model deliberately
-  // does not model (review rounds 10-11: a top-level default like
-  // `render(index, cb = () => setU(knob))` runs the writer per call, and a
-  // body-local `var sin` does NOT shadow a builtin used in a default). A
-  // module containing any such parameter is outside the modeled subset and
-  // gets no out-var candidates; every render-mutated global classifies
-  // conservatively as render-mutation. No stock Pattern uses them.
-  let hasNonSimpleParams = false
-  visitNode(ast, (child) => {
-    if (child.type === 'FunctionDeclaration' || child.type === 'FunctionExpression'
-      || child.type === 'ArrowFunctionExpression') {
-      for (const param of (child.params as Node[]) ?? []) {
-        if (param?.type !== 'Identifier') hasNonSimpleParams = true
-      }
-    }
-  })
   const { classes: outVarClasses, paramClassesByFn } = computeOutVarClasses({
     functions, globals, immutableGlobals, frameMutated, controls, renderMutated, pureFunctions,
-    disableOutVars: hasNonSimpleParams,
   })
 
   // Position-stability taint from per-frame coordinate transforms. Per-frame
@@ -801,8 +819,6 @@ function computeOutVarClasses(input: {
   controls: Set<string>
   renderMutated: Set<string>
   pureFunctions: Set<string>
-  /** Module is outside the modeled scoping subset: no out-var candidates. */
-  disableOutVars?: boolean
 }): {
   classes: Map<string, Set<Issue914Dependency>>
   paramClassesByFn: Map<string, Array<Set<Issue914Dependency>>>
@@ -816,8 +832,7 @@ function computeOutVarClasses(input: {
     'IfStatement', 'ConditionalExpression', 'LogicalExpression', 'SwitchStatement',
     'ForStatement', 'WhileStatement', 'DoWhileStatement',
   ])
-  const outVarNames = input.disableOutVars ? new Set<string>() : renderMutated
-  for (const name of outVarNames) {
+  for (const name of renderMutated) {
     if (frameMutated.has(name) || controls.has(name)) continue
     let ok = true
     for (const fn of functions.values()) {
@@ -855,81 +870,6 @@ function computeOutVarClasses(input: {
       walk(fn.body, false)
     }
     if (!ok) continue
-    // Nested function expressions (deferred callbacks) execute at unmodeled
-    // times. A candidate survives them only when they provably cannot touch
-    // it: no assignment or update to the global, and no call except to pure
-    // builtins (a call to ANY user-defined function could reach a writer —
-    // `var cb = () => setU(y)` invoked conditionally would couple the global
-    // to control state the analysis cannot see).
-    for (const fn of functions.values()) {
-      if (!ok) break
-      const findNested = (node: Node): void => {
-        if (!ok || !node || typeof node !== 'object') return
-        if (node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression'
-          || (node.type === 'FunctionDeclaration' && node !== fn)) {
-          // A builtin name is trustworthy only when no binding on the call's
-          // OWN lexical scope chain shadows it: `(sin, v) => sin(v)` invoked
-          // as `invoke(setU, knob)` calls the writer, while an unused inner
-          // parameter named `sin` must not poison calls in the enclosing
-          // callback. Walk with a proper scope stack.
-          const ownBindings = (fnNode: Node): Set<string> => {
-            const bindings = new Set<string>()
-            for (const param of (fnNode.params as Node[]) ?? []) {
-              if (param?.type === 'Identifier') bindings.add(param.name as string)
-              if (param?.type === 'AssignmentPattern' && param.left?.type === 'Identifier') {
-                bindings.add(param.left.name as string)
-              }
-            }
-            visitOwnBody(fnNode.body as Node, (child) => {
-              if (child.type === 'VariableDeclaration') {
-                for (const item of child.declarations as Node[]) {
-                  if (item.id?.type === 'Identifier') bindings.add(item.id.name as string)
-                }
-              }
-            })
-            return bindings
-          }
-          const scopeWalk = (child: Node, scopeChain: Array<Set<string>>): void => {
-            if (!ok || !child || typeof child !== 'object') return
-            if (child !== node && (child.type === 'FunctionExpression'
-              || child.type === 'ArrowFunctionExpression' || child.type === 'FunctionDeclaration')) {
-              const childChain = [...scopeChain, ownBindings(child)]
-              // Default-parameter initializers execute at call time — walk
-              // them under the child scope alongside the body.
-              for (const param of (child.params as Node[]) ?? []) scopeWalk(param, childChain)
-              scopeWalk(child.body as Node, childChain)
-              return
-            }
-            if (child.type === 'AssignmentExpression' && child.left?.type === 'Identifier'
-              && child.left.name === name) ok = false
-            if (child.type === 'UpdateExpression' && child.argument?.type === 'Identifier'
-              && child.argument.name === name) ok = false
-            if (child.type === 'CallExpression') {
-              const callee = child.callee?.type === 'Identifier' ? child.callee.name as string : null
-              const shadowed = callee !== null && scopeChain.some((scope) => scope.has(callee))
-              const isPureBuiltin = callee !== null && PURE_CALLS.has(callee)
-                && !functions.has(callee) && !globals.has(callee) && !shadowed
-              if (!isPureBuiltin) ok = false
-            }
-            for (const [key, grandchild] of Object.entries(child)) {
-              if (key === 'start' || key === 'end' || key === 'loc') continue
-              if (Array.isArray(grandchild)) grandchild.forEach((item) => scopeWalk(item as Node, scopeChain))
-              else if (grandchild && typeof grandchild === 'object') scopeWalk(grandchild as Node, scopeChain)
-            }
-          }
-          const rootChain = [ownBindings(node)]
-          for (const param of (node.params as Node[]) ?? []) scopeWalk(param, rootChain)
-          scopeWalk(node.body as Node, rootChain)
-          return
-        }
-        for (const [key, child] of Object.entries(node)) {
-          if (key === 'start' || key === 'end' || key === 'loc') continue
-          if (Array.isArray(child)) child.forEach((item) => findNested(item as Node))
-          else if (child && typeof child === 'object') findNested(child as Node)
-        }
-      }
-      findNested(fn.body)
-    }
     if (!ok) continue
     // An unconditional assignment inside the writer is not enough: the WRITER
     // itself must run on every evaluation, or the out-var still carries

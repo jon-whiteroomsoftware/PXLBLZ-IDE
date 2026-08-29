@@ -153,6 +153,7 @@ describe('issue914 stock-catalogue census', () => {
       positionMemoInvalidation: number
       paletteSpecialization: number
       maxMemoCostXMul: number
+      outsideScopeSubset: boolean
       parseError?: string
     }> = []
     for (const name of names) {
@@ -179,6 +180,7 @@ describe('issue914 stock-catalogue census', () => {
         positionMemoInvalidation: report.positionMemo.filter((site) => site.kind === 'needs-invalidation').length,
         paletteSpecialization: report.paletteSpecialization,
         maxMemoCostXMul: report.positionMemo.reduce((max, site) => Math.max(max, site.estCostXMul), 0),
+        outsideScopeSubset: report.outsideScopeSubset ?? false,
         parseError: report.parseError,
       })
     }
@@ -199,21 +201,9 @@ describe('issue914 stock-catalogue census', () => {
       positionMemoBelowBreakeven: rows.reduce((sum, row) => sum + row.positionMemoBelowBreakeven, 0),
       positionMemoInvalidation: rows.reduce((sum, row) => sum + row.positionMemoInvalidation, 0),
       paletteSpecialization: rows.reduce((sum, row) => sum + row.paletteSpecialization, 0),
+      outsideScopeSubset: rows.filter((row) => row.outsideScopeSubset).length,
     }
 
-    // Population invariants first, so the zero below cannot be vacuous: the
-    // analysis must actually find the candidate tail across the catalogue.
-    expect(totals.withAnySite).toBeGreaterThanOrEqual(30)
-    expect(totals.positionMemoBelowBreakeven).toBeGreaterThanOrEqual(50)
-    // Living falsifier for the #914 decline: under the measured gates
-    // (subtree >= 10x mul AND an exp/pow-class call AND position-stable AND
-    // index in scope), the stock catalogue has ZERO exact memo sites and one
-    // frame-table site. A new stock Pattern that breaks either zero fails
-    // here with the evidence already collected — that, and only that,
-    // reopens the build question.
-    expect(totals.positionMemoExact).toBe(0)
-    expect(totals.indexTablingModule).toBe(0)
-    expect(totals.indexTablingFrame).toBe(1)
 
     if (process.env.ISSUE914_CENSUS_OUT === '1') {
       writeFileSync(
@@ -221,6 +211,31 @@ describe('issue914 stock-catalogue census', () => {
         `${JSON.stringify({ totals, rows }, null, 2)}\n`,
       )
     }
+
+    // CATALOGUE SNAPSHOT — the claim this test makes, precisely: running THIS
+    // analyzer over THIS stock catalogue yields exactly these totals. It is a
+    // regression pin over known inputs, not a soundness theorem about
+    // arbitrary JavaScript; the analyzer's verdicts on real sites were
+    // verified by paired hardware measurement and per-mode checksum parity
+    // (issue914-transform-pairs.json), and modules outside the modeled scope
+    // subset are conservatively excluded rather than analyzed.
+    //
+    // Any change here — a new or edited stock Pattern, or an analyzer change
+    // — must be re-ratified against docs/plans/issue-914-member-pass-spike-
+    // results.md. In particular, positionMemoExact moving off 0 or
+    // indexTablingFrame moving off 1 reopens the #914 build-or-decline
+    // question with the evidence already collected.
+    expect(totals).toEqual({
+      patterns: 101,
+      withAnySite: 38,
+      indexTablingModule: 0,
+      indexTablingFrame: 1,
+      positionMemoExact: 0,
+      positionMemoBelowBreakeven: 103,
+      positionMemoInvalidation: 8,
+      paletteSpecialization: 2,
+      outsideScopeSubset: 4,
+    })
 
     // eslint-disable-next-line no-console
     console.log('[issue914] census totals:', JSON.stringify(totals))

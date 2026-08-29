@@ -94,6 +94,30 @@ pre-optimization sources from git history (`5cace60a^`); tests in
 - Shipped NeonSquircles: zero Rule A sites. Shipped Kishimisu: zero exact
   `exp` sites; one already-cached.
 
+## Modeled subset and claim scope
+
+The analyzer reasons about execution order with a deliberately small
+language model: top-level function declarations, simple identifier
+parameters, plain assignments, no nested function expressions. A module
+using anything outside that subset — arrow callbacks, function tables,
+default or destructured parameters — is **excluded from analysis
+entirely** and reported `outsideScopeSubset` with no sites (four stock
+Patterns: FastPaletteBlending, GeometryMorphingDemo2D, Newfire, Stacker;
+none contributed sites under the full analysis either). Exclusion can
+only under-count the census; it can never mislabel a site as exact.
+
+This boundary is the product of the candidate's review history: ten
+rounds of defending the scope model construct-by-construct (conditional
+callbacks, shadowed builtin names, comma-expression sentinels,
+default-parameter initializers) did not converge, because a sound
+analysis of arbitrary JavaScript is an unbounded surface. The census
+test is accordingly a **catalogue snapshot** — this analyzer over these
+101 Patterns yields exactly the pinned totals — not a soundness theorem;
+the verdicts that matter were verified by paired hardware measurement
+and per-mode checksum parity, and any change to the pinned totals (new
+Pattern, edited Pattern, or analyzer change) must be re-ratified against
+this document.
+
 ## Eligibility census (all 101 stock Patterns)
 
 Analysis runs where a real pass would sit: post-bundle, post-manifest-strip,
