@@ -196,7 +196,7 @@ function matchesRepositoryWranglerPath(token: string, mainWorktree: string): boo
   const relative = normalized.slice(moduleRoot.length)
   return relative.startsWith('wrangler/')
     || relative === '.bin/vite'
-    || relative.startsWith('vite/bin/')
+    || relative === 'vite/bin/vite.js'
     || /^@cloudflare\/workerd(?:-[a-z0-9-]+)?\//.test(relative)
     || /^@esbuild\/[a-z0-9_-]+\/bin\/esbuild$/.test(relative)
 }
@@ -247,7 +247,7 @@ export function isRepositoryViteCommand(command: string, mainWorktree: string): 
     const normalized = normalizePathish(token)
     if (!normalized.startsWith(moduleRoot)) return false
     const relative = normalized.slice(moduleRoot.length)
-    return relative === '.bin/vite' || relative.startsWith('vite/bin/')
+    return relative === '.bin/vite' || relative === 'vite/bin/vite.js'
   }
   if (viteEntry(tokens[0])) return true
   const executable = tokens[0].split('/').pop()

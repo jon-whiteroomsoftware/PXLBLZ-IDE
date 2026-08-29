@@ -169,7 +169,7 @@ describe('repository wrangler ownership', () => {
     // Only the vite entry points qualify — not arbitrary scripts inside the
     // vite package.
     expect(isRepositoryRuntimeCommand(
-      `node ${mainWorktree}/node_modules/vite/misc/true.js`,
+      `node ${mainWorktree}/node_modules/vite/bin/openChrome.js`,
       mainWorktree,
     )).toBe(false)
   })

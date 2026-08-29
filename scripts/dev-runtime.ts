@@ -183,8 +183,8 @@ async function startIssueRuntime(
     const uiGroups = uiState === 'owned'
       ? validateOwnedGroups(legacyUiListeners, assignment.worktree)
       : []
-    await terminateGroups(apiGroups)
-    await terminateGroups(uiGroups)
+    await terminateGroups(apiGroups, assignment.worktree)
+    await terminateGroups(uiGroups, assignment.worktree)
     const updated = await updateRuntimeAssignment(context.runtimeDirectory, assignment.issue, (current) => ({
       ...current,
       apiPort: current.uiPort,
@@ -297,15 +297,19 @@ async function releaseIssueRuntime(
   // groups are validated member-by-member before either is terminated, and
   // termination is proven by the groups being gone — a Vite that drops its
   // listener while workerd survives would otherwise orphan children with no
-  // registry record left to find them by.
+  // registry record left to find them by. A listenerless port with a stored
+  // PID still gets its leader group swept for owned survivors before the
+  // record that names them is deleted.
   const uiGroups = portState === 'owned'
     ? validateOwnedGroups(uiListeners, assignment.worktree)
-    : []
+    : orphanedOwnedGroups(assignment.uiPid, assignment.worktree)
   const apiGroups = apiState === 'owned'
     ? validateOwnedGroups(listenerPids(assignment.apiPort), assignment.worktree)
-    : []
-  await terminateGroups(uiGroups)
-  await terminateGroups(apiGroups)
+    : assignment.profile === 'isolated' && assignment.apiPort !== assignment.uiPort
+      ? orphanedOwnedGroups(assignment.apiPid, assignment.worktree)
+      : []
+  await terminateGroups(uiGroups, assignment.worktree)
+  await terminateGroups(apiGroups, assignment.worktree)
   await releaseRuntimeAssignment(context.runtimeDirectory, issue)
   console.log(`Released issue ${issue} runtime assignment on port ${assignment.uiPort}.`)
 }
@@ -738,7 +742,28 @@ async function stopStartedProcess(pid: number, worktreeRoot: string, startupErro
       { cause: startupError },
     )
   }
-  await terminateGroups([group])
+  await terminateGroups([group], worktreeRoot)
+}
+
+// A detached leader's group id is its own pid. When a port has no listener
+// but the registry still stores a PID, the leader's group may hold surviving
+// owned children (Vite gone, workerd alive); they must be retired before the
+// registry record naming them is deleted. Unowned survivors refuse.
+function orphanedOwnedGroups(pid: number | undefined, ownershipRoot: string): number[] {
+  if (pid === undefined) return []
+  const members = processGroupMembers(pid)
+  if (members.length === 0) {
+    if (groupGone(pid)) return []
+    throw new Error(`Process group ${pid} is alive but cannot be enumerated; refusing to release its assignment.`)
+  }
+  const unowned = unownedGroupMembers(members, ownershipRoot)
+  if (unowned.length > 0) {
+    throw new Error(
+      `Process group ${pid} contains processes that are not this repository's runtime; refusing to release its assignment:\n`
+      + unowned.map((member) => `  ${member.pid} ${member.command || '(unreadable command)'}`).join('\n'),
+    )
+  }
+  return [pid]
 }
 
 // Only ESRCH proves a group is gone; other probe errors propagate.
@@ -759,7 +784,7 @@ async function stopWedgedListeners(
   requireGroup?: (members: readonly MainApiListener[]) => void,
 ): Promise<void> {
   const groups = validateOwnedGroups(pids, ownershipRoot, requireGroup)
-  await terminateGroups(groups)
+  await terminateGroups(groups, ownershipRoot, requireGroup)
 }
 
 // Resolves and validates the process groups for a set of PIDs without
@@ -801,16 +826,40 @@ function validateOwnedGroups(
 
 // Termination is proven by every group being gone — not by the TCP port
 // closing, which a dying Vite can release while workerd or esbuild children
-// survive in the group.
-async function terminateGroups(groups: readonly number[]): Promise<void> {
-  for (const group of groups) stopProcessGroup(group)
-  if (await waitForAllGroupsGone(groups, 5_000)) return
-  for (const group of groups) {
+// survive in the group. Ownership is revalidated at each signal boundary:
+// PGIDs can be reused or gain members between an up-front validation and the
+// signal, so the enumeration that authorizes each SIGTERM/SIGKILL is taken
+// immediately before it. The residual window is the gap between that ps read
+// and the kill syscall — the narrowest POSIX allows.
+async function terminateGroups(
+  groups: readonly number[],
+  ownershipRoot: string,
+  requireGroup?: (members: readonly MainApiListener[]) => void,
+): Promise<void> {
+  const signalValidated = (group: number, signal: NodeJS.Signals): void => {
+    const members = processGroupMembers(group)
+    if (members.length === 0) {
+      if (groupGone(group)) return
+      throw new Error(`Process group ${group} is alive but cannot be enumerated; refusing to signal it.`)
+    }
+    const unowned = unownedGroupMembers(members, ownershipRoot)
+    if (unowned.length > 0) {
+      throw new Error(
+        `Process group ${group} no longer consists only of this repository's runtime; refusing to signal it:\n`
+        + unowned.map((member) => `  ${member.pid} ${member.command || '(unreadable command)'}`).join('\n'),
+      )
+    }
+    requireGroup?.(members)
     try {
-      process.kill(-group, 'SIGKILL')
+      process.kill(-group, signal)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
     }
+  }
+  for (const group of groups) signalValidated(group, 'SIGTERM')
+  if (await waitForAllGroupsGone(groups, 5_000)) return
+  for (const group of groups) {
+    if (!groupGone(group)) signalValidated(group, 'SIGKILL')
   }
   if (!await waitForAllGroupsGone(groups, 10_000)) {
     const survivors = groups.filter((group) => !groupGone(group))
