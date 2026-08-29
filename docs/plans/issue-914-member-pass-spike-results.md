@@ -99,12 +99,15 @@ pre-optimization sources from git history (`5cace60a^`); tests in
 The analyzer reasons about execution order with a deliberately small
 language model: top-level function declarations, simple identifier
 parameters, plain assignments, no nested function expressions. A module
-using anything outside that subset — arrow callbacks, function tables,
-default or destructured parameters — is **excluded from analysis
-entirely** and reported `outsideScopeSubset` with no sites (four stock
-Patterns: FastPaletteBlending, GeometryMorphingDemo2D, Newfire, Stacker;
-none contributed sites under the full analysis either). Exclusion can
-only under-count the census; it can never mislabel a site as exact.
+using anything outside that subset — arrow callbacks, function tables or
+aliases (a named function referenced as a value escapes call-graph
+reachability), `mapPixels` callbacks, destructuring, default parameters —
+is **excluded from analysis entirely** and reported `outsideScopeSubset`
+with no sites (14 stock Patterns, costing the census five
+below-breakeven sites and nothing in any decision-bearing class).
+Builtin names shadowed by module globals or function locals (`var scale`)
+are correctly not treated as builtin references. Exclusion can only
+under-count the census; it can never mislabel a site as exact.
 
 This boundary is the product of the candidate's review history: ten
 rounds of defending the scope model construct-by-construct (conditional

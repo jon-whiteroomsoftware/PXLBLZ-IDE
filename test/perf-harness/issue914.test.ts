@@ -227,14 +227,14 @@ describe('issue914 stock-catalogue census', () => {
     // question with the evidence already collected.
     expect(totals).toEqual({
       patterns: 101,
-      withAnySite: 38,
+      withAnySite: 36,
       indexTablingModule: 0,
       indexTablingFrame: 1,
       positionMemoExact: 0,
-      positionMemoBelowBreakeven: 103,
+      positionMemoBelowBreakeven: 98,
       positionMemoInvalidation: 8,
       paletteSpecialization: 2,
-      outsideScopeSubset: 4,
+      outsideScopeSubset: 14,
     })
 
     // eslint-disable-next-line no-console

@@ -1,14 +1,14 @@
 {
   "totals": {
     "patterns": 101,
-    "withAnySite": 38,
+    "withAnySite": 36,
     "indexTablingModule": 0,
     "indexTablingFrame": 1,
     "positionMemoExact": 0,
-    "positionMemoBelowBreakeven": 103,
+    "positionMemoBelowBreakeven": 98,
     "positionMemoInvalidation": 8,
     "paletteSpecialization": 2,
-    "outsideScopeSubset": 4
+    "outsideScopeSubset": 14
   },
   "rows": [
     {
@@ -45,7 +45,7 @@
       "positionMemoInvalidation": 0,
       "paletteSpecialization": 0,
       "maxMemoCostXMul": 0,
-      "outsideScopeSubset": false
+      "outsideScopeSubset": true
     },
     {
       "name": "BlueHolidayCandle2D",
@@ -53,11 +53,11 @@
       "indexTablingModule": 0,
       "indexTablingFrame": 0,
       "positionMemoExact": 0,
-      "positionMemoBelowBreakeven": 3,
+      "positionMemoBelowBreakeven": 0,
       "positionMemoInvalidation": 0,
       "paletteSpecialization": 0,
-      "maxMemoCostXMul": 8.5,
-      "outsideScopeSubset": false
+      "maxMemoCostXMul": 0,
+      "outsideScopeSubset": true
     },
     {
       "name": "BlueHolidayStar2D",
@@ -245,11 +245,11 @@
       "indexTablingModule": 0,
       "indexTablingFrame": 0,
       "positionMemoExact": 0,
-      "positionMemoBelowBreakeven": 2,
+      "positionMemoBelowBreakeven": 0,
       "positionMemoInvalidation": 0,
       "paletteSpecialization": 0,
-      "maxMemoCostXMul": 6.2,
-      "outsideScopeSubset": false
+      "maxMemoCostXMul": 0,
+      "outsideScopeSubset": true
     },
     {
       "name": "DoomFireV20_2D",
@@ -261,7 +261,7 @@
       "positionMemoInvalidation": 0,
       "paletteSpecialization": 0,
       "maxMemoCostXMul": 0,
-      "outsideScopeSubset": false
+      "outsideScopeSubset": true
     },
     {
       "name": "EasedSweep",
@@ -441,7 +441,7 @@
       "positionMemoInvalidation": 0,
       "paletteSpecialization": 0,
       "maxMemoCostXMul": 0,
-      "outsideScopeSubset": false
+      "outsideScopeSubset": true
     },
     {
       "name": "IridescentFibers",
@@ -729,7 +729,7 @@
       "positionMemoInvalidation": 0,
       "paletteSpecialization": 0,
       "maxMemoCostXMul": 0,
-      "outsideScopeSubset": false
+      "outsideScopeSubset": true
     },
     {
       "name": "Murmuration",
@@ -813,7 +813,7 @@
       "positionMemoInvalidation": 0,
       "paletteSpecialization": 0,
       "maxMemoCostXMul": 0,
-      "outsideScopeSubset": false
+      "outsideScopeSubset": true
     },
     {
       "name": "Orrery3D",
@@ -849,7 +849,7 @@
       "positionMemoInvalidation": 0,
       "paletteSpecialization": 0,
       "maxMemoCostXMul": 0,
-      "outsideScopeSubset": false
+      "outsideScopeSubset": true
     },
     {
       "name": "PerlinKaleidoscope2D",
@@ -921,7 +921,7 @@
       "positionMemoInvalidation": 0,
       "paletteSpecialization": 0,
       "maxMemoCostXMul": 0,
-      "outsideScopeSubset": false
+      "outsideScopeSubset": true
     },
     {
       "name": "RedlineMachine",
@@ -1185,7 +1185,7 @@
       "positionMemoInvalidation": 0,
       "paletteSpecialization": 0,
       "maxMemoCostXMul": 0,
-      "outsideScopeSubset": false
+      "outsideScopeSubset": true
     },
     {
       "name": "VoxelFireflies3D",

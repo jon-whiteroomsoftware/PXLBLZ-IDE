@@ -186,6 +186,9 @@ export function analyzeIssue914(source: string): Issue914PatternReport {
     const declaration = statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement
     if (declaration?.type === 'FunctionDeclaration') topLevelFunctionNodes.add(declaration)
   }
+  const topLevelFunctionNames = new Set<string>(
+    [...topLevelFunctionNodes].map((declaration) => declaration.id?.name as string).filter(Boolean),
+  )
   visitNode(ast, (child) => {
     if (child.type === 'FunctionExpression' || child.type === 'ArrowFunctionExpression') {
       outsideScopeSubset = true
@@ -199,7 +202,78 @@ export function analyzeIssue914(source: string): Issue914PatternReport {
         if (param?.type !== 'Identifier') outsideScopeSubset = true
       }
     }
+    // Destructuring targets escape plain mutation collection
+    // (`[u] = [time(.1)]` mutates u invisibly) — non-plain assignment and
+    // declarator targets, and pattern-binding loop heads, exit the subset.
+    if (child.type === 'AssignmentExpression' && child.left?.type !== 'Identifier'
+      && child.left?.type !== 'MemberExpression') {
+      outsideScopeSubset = true
+    }
+    if (child.type === 'VariableDeclarator' && child.id?.type !== 'Identifier') {
+      outsideScopeSubset = true
+    }
+    if (child.type === 'ForInStatement' || child.type === 'ForOfStatement') {
+      outsideScopeSubset = true
+    }
   })
+  // Functions used as VALUES (tables, aliases, arguments) escape the direct-
+  // call reachability every analysis rests on: `var transforms = [rotate];
+  // beforeRender(){ transforms[0](time(.1)) }` rotates per frame invisibly.
+  // Any reference to a user function, coordinate transform, or frame-source
+  // builtin in non-callee position exits the subset. (Pure builtins as values
+  // stay pure wherever they are called; they do not endanger the model.)
+  // A builtin name declared as a module global is SHADOWED — `var scale` makes
+  // every bare `scale` the variable, and the real builtin unreachable — so
+  // shadowed names are not value-sensitive.
+  const moduleGlobalNames = collectTopLevelGlobals(ast)
+  const valueSensitiveNames = new Set<string>([
+    ...topLevelFunctionNames,
+    ...[...TRANSFORM_CALLS, ...FRAME_SOURCE_CALLS].filter((builtin) => (
+      !moduleGlobalNames.has(builtin) && !topLevelFunctionNames.has(builtin)
+    )),
+  ])
+  // Function-local declarations shadow builtins too (`var scale = 1 + i * dvv`
+  // inside render makes bare `scale` the local, not the transform). By this
+  // point the earlier checks guarantee only top-level function declarations
+  // with simple params exist, so one shadow set per function suffices.
+  const valueRefWalk = (node: Node, parent: Node | null, field: string | null, shadows: Set<string>): void => {
+    if (outsideScopeSubset || !node || typeof node !== 'object') return
+    if (node.type === 'FunctionDeclaration' && node.body) {
+      const fnShadows = new Set(shadows)
+      for (const param of (node.params as Node[]) ?? []) {
+        if (param?.type === 'Identifier') fnShadows.add(param.name as string)
+      }
+      visitOwnBody(node.body as Node, (child) => {
+        if (child.type === 'VariableDeclaration') {
+          for (const item of child.declarations as Node[]) {
+            if (item.id?.type === 'Identifier') fnShadows.add(item.id.name as string)
+          }
+        }
+      })
+      valueRefWalk(node.body as Node, node, 'body', fnShadows)
+      return
+    }
+    if (node.type === 'Identifier') {
+      const isDirectCallee = parent?.type === 'CallExpression' && field === 'callee'
+      const isDeclarationName = (parent?.type === 'FunctionDeclaration' && field === 'id')
+        || (parent?.type === 'VariableDeclarator' && field === 'id')
+        || field === 'params'
+      const isStaticMemberProperty = parent?.type === 'MemberExpression' && field === 'property'
+        && parent.computed !== true
+      const isPropertyKey = parent?.type === 'Property' && field === 'key' && parent.computed !== true
+      if (!isDirectCallee && !isDeclarationName && !isStaticMemberProperty && !isPropertyKey
+        && valueSensitiveNames.has(node.name as string) && !shadows.has(node.name as string)) {
+        outsideScopeSubset = true
+      }
+      return
+    }
+    for (const [key, child] of Object.entries(node)) {
+      if (key === 'start' || key === 'end' || key === 'loc') continue
+      if (Array.isArray(child)) child.forEach((item) => valueRefWalk(item as Node, node, key, shadows))
+      else if (child && typeof child === 'object') valueRefWalk(child as Node, node, key, shadows)
+    }
+  }
+  valueRefWalk(ast, null, null, new Set())
   if (outsideScopeSubset) {
     return { indexTabling: [], positionMemo: [], paletteSpecialization: 0, outsideScopeSubset: true }
   }
