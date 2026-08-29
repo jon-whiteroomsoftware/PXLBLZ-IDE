@@ -100,9 +100,6 @@ Preserve these invariants:
   reopen closed findings. Hold a candidate unlanded only for P0/P1 findings.
   The clean-receipt tail the push gate requires belongs to publication;
   satisfy it with a short corrective candidate on main, not a long chain.
-- Work done in a worktree is not complete until its verified commit is reachable
-  from the shared local `main`. If local landing must wait, report it as awaiting
-  landing; do not leave finished work only on an isolated branch.
 - Pushing `main` is a separate publication step, and it is a production deploy:
   the Cloudflare Pages project (`pxlblz-ide`, the v2 site) is git-integrated and
   auto-builds every push to `main`. Pages env vars and secrets also take effect
@@ -111,10 +108,8 @@ Preserve these invariants:
   times per day, or push when the user asks, needs hosting, or requests a
   published handoff. Do not push after every issue merely to mark the work
   complete.
-- After landing locally, remove the worktree and delete its local branch. Delete
-  a remote branch only if one was explicitly created. Finish by verifying that
-  shared local `main` contains the commit and that no abandoned worktrees or
-  branches remain.
+- Delete a remote branch only if one was explicitly created. Finish by
+  verifying no abandoned worktrees or branches remain.
 
 Use the managed local runtime described in `docs/agents/dev-runtime.md`. The
 stable reviewed-main checkout owns Vite `5174`, Wrangler `8788`, and the shared
@@ -188,9 +183,8 @@ reviewer is unavailable, the gate falls back to a same-family review and
 records the downgrade on the receipt; it never blocks on the missing
 counterpart and never records the downgrade silently.
 
-Use TDD for behavior changes: fail, implement, refactor. Concentrate coverage
-on pure engine logic; keep component tests light and add Playwright coverage
-for cross-layer flows.
+Concentrate coverage on pure engine logic; keep component tests light and add
+Playwright coverage for cross-layer flows.
 
 Use targeted mutation qualification after changing a high-risk transformation
 engine or strengthening its shared contract. It is deliberate evidence for
@@ -243,23 +237,19 @@ check the local D1 schema first.
 
 ## Search, issues, and documentation
 
-- Start open-ended code exploration with Morph Warp Grip
-  (`codebase_search`). Use `github_codebase_search` for public upstream
-  repositories and dependency investigations. These MCP tools may be lazily
-  loaded; successful host tool discovery means they are available. Use `rg`
-  for exact literals, known files, and narrow verification.
+- Use `github_codebase_search` for public upstream repositories and
+  dependency investigations.
 - Use GitHub Issues as implementation state. Follow
   `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`, and the
   `issue-workflow` skill for claiming, progress, review state, and commits.
-- GitHub CLI credentials are stored in macOS Keychain. A sandboxed
-  `gh auth status` may falsely report an invalid token when Keychain access is
-  denied. Re-run the same read-only check outside the sandbox before asking the
-  user to authenticate; only an unsandboxed failure is evidence that login is
-  actually stale.
 - Use `docs/agents/domain.md` when preparing issues, plans, or architectural
   work. Name concepts exactly as `CONTEXT.md` defines them.
-- Use `doc-sweep` after feature or issue completion. Keep current truth in
-  `docs/reference/`, future intent in `docs/plans/`, vocabulary in `CONTEXT.md`,
-  and executable progress in issues.
-- Keep `CLAUDE.md` as a symlink to this file unless genuinely Claude-specific
-  guidance is required.
+- Use `doc-sweep` after feature or issue completion.
+
+## Global overrides
+
+- Every substantive slice runs in a worktree, stricter than the global
+  default: shared `main` serves the managed runtime and serialized landings.
+- Pushes batch a couple of times per day without asking, because a push here
+  is routine publication to the auto-deploying Pages site; push sooner when
+  the user asks, needs hosting, or requests a published handoff.
