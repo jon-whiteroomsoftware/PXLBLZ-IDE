@@ -215,6 +215,19 @@ export function analyzeIssue914(source: string): Issue914PatternReport {
     if (child.type === 'ForInStatement' || child.type === 'ForOfStatement') {
       outsideScopeSubset = true
     }
+    // The model's declarations are function-wide `var` (Pixelblaze device
+    // code has no block scoping): `let`/`const` introduce block-scoped
+    // shadows the function-wide shadow sets misattribute, and a
+    // `catch (u)` binding shadows a module global invisibly to every local
+    // collector. All of it exits the subset, along with classes.
+    if (child.type === 'VariableDeclaration' && child.kind !== 'var') {
+      outsideScopeSubset = true
+    }
+    if (child.type === 'TryStatement' || child.type === 'CatchClause'
+      || child.type === 'ThrowStatement' || child.type === 'ClassDeclaration'
+      || child.type === 'ClassExpression') {
+      outsideScopeSubset = true
+    }
   })
   // Functions used as VALUES (tables, aliases, arguments) escape the direct-
   // call reachability every analysis rests on: `var transforms = [rotate];
