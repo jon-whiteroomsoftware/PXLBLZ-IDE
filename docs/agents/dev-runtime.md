@@ -7,19 +7,21 @@ committing machine-local state.
 
 ## Runtime profiles
 
-The stable main checkout owns Vite `5174`, Wrangler `8788`, and the shared local
-D1 store in its `.wrangler/state`. `npm run dev:main` applies pending migrations,
-provisions local synthetic identities, and starts either persistent service
-when it is absent. It refuses to replace an occupied but unhealthy port.
+The stable main checkout owns Vite `5174` and the shared local D1 store in
+its `.wrangler/state`. Since #900 the main runtime is one worker-dev process:
+the Cloudflare Vite plugin serves the Worker (from `wrangler.workers.jsonc`)
+and local D1 inside the Vite process, so UI and `/api` share the single port.
+`npm run dev:main` applies pending migrations, provisions local synthetic
+identities, and starts that process when it is absent. On sight of the legacy
+two-process pair it retires the `wrangler pages dev` on `8788` (after proving
+ownership) and restarts main as the single process.
 
-A bare `npm run dev` (no `VITE_API_PROXY_TARGET` in the environment) is a
-single-process server (#899): the Cloudflare Vite plugin runs the Worker from
-`wrangler.workers.jsonc` and local D1 inside the Vite process, reading
+A bare `npm run dev` is the same single-process shape for ad-hoc use, reading
 `.dev.vars` and persisting to the checkout's `.wrangler/state` — the same
-database `npm run db:migrate:local` targets. Managed runtimes (`dev:main`,
-`dev:issue`) and the Playwright wrappers still set `VITE_API_PROXY_TARGET`
-and use the two-process proxy topology until #900/#901 move the coordinator
-over; the plugin never loads for Vitest or `vite build`.
+database `npm run db:migrate:local` targets. Setting `VITE_API_PROXY_TARGET`
+selects the proxy topology instead; shared issue runtimes and the Playwright
+wrappers use it. The plugin never loads for Vitest, `vite build`, or
+`vite preview`.
 
 Most issue work uses the shared profile:
 
@@ -30,12 +32,12 @@ npm run dev:issue -- \
   --profile shared
 ```
 
-The command reserves a Vite port in `5175-5199`, proxies `/api` to the shared
-Wrangler on `8788`, and provisions a unique local user in the shared D1. Use
-this profile for UI and product work whose Functions and schema contract already
-exists on main.
+The command reserves a Vite port in `5175-5199`, proxies `/api` to the stable
+main single-process server on `5174`, and provisions a unique local user in
+the shared D1. Use this profile for UI and product work whose API and schema
+contract already exists on main.
 
-Use the isolated profile when the issue changes Pages Functions, migrations,
+Use the isolated profile when the issue changes the Worker API, migrations,
 authentication, or another API contract that is not on main:
 
 ```bash
@@ -45,10 +47,11 @@ npm run dev:issue -- \
   --profile isolated
 ```
 
-The command reserves a Vite port in `5200-5299` and a Wrangler port in
-`8789-8888`, applies migrations to an issue-specific D1 store, builds the
-worktree, and starts both services. The profile must be explicit so a task
-cannot silently test against the wrong API or database.
+The command reserves a Vite port in `5200-5299`, applies migrations and
+identity seeds to an issue-specific D1 store, and starts one worker-dev Vite
+process serving that worktree's UI and Worker against it (no separate API
+port, no worktree build). The profile must be explicit so a task cannot
+silently test against the wrong API or database.
 
 The successful command prints the URL, API target, local identity, and canonical
 task title:
@@ -88,8 +91,8 @@ npm run dev:session -- --issue 627 --json
 
 The JSON form is suitable for a separate automated browser context. Agents must
 not overwrite the user's Chrome cookies or rely on a personal OAuth session.
-Real OAuth remains available on the fixed Wrangler callback port `8788` when a
-human needs to exercise the provider loop.
+Real OAuth remains available on the stable main origin (`5174`) when a human
+needs to exercise the provider loop.
 
 `.dev.vars` remains canonical in the main checkout. The coordinator links each
 worktree to that ignored file; it never copies secrets into worktrees or the
@@ -103,7 +106,7 @@ npm run dev:release -- --issue 627
 
 Release checks listener ownership before sending a signal. It refuses to stop a
 port that now belongs to another process. Never release or stop the stable main
-pair during ordinary task cleanup.
+runtime during ordinary task cleanup.
 
 ## Playwright suites
 
@@ -142,48 +145,42 @@ the same worktree, set `PLAYWRIGHT_STUDIO_URL` to that runtime's URL.
 - Logs and isolated D1 state live under `.git/pxlblz/dev-runtime/v1/` in the
   repository's common Git directory.
 
-### The wedged main Wrangler: cause, prevention, recovery (#895)
+### The wedged main runtime: cause, prevention, recovery (#895, #900)
 
-A wedged main Wrangler means `8788` still accepts TCP but never answers
-`/api/me`, and its log under `.git/pxlblz/dev-runtime/v1/logs/` ends in a
-failed esbuild rebuild (`Could not resolve
-.wrangler/tmp/bundle-*/middleware-loader.entry.ts`). The cause is upstream:
-since wrangler 4.86 every wrangler invocation sweeps `.wrangler/tmp/*` entries
-whose mtime is older than 24 hours (workers-sdk#13930). A live `pages dev`
-server's bundle dir only refreshes its mtime on rebuild, so once the main
-server runs a day without one, the next unrelated wrangler command in the main
-checkout (`db:migrate:local`, `dev:session`, anything) deletes the live bundle
-dir; the next watcher rebuild fails and workerd hangs every request.
-
-The coordinator defends against this in three layers:
+A wedged runtime means the port still accepts TCP but never answers
+`/api/me`. Under the retired two-process topology the classic cause was
+upstream: since wrangler 4.86 every wrangler invocation sweeps
+`.wrangler/tmp/*` entries whose mtime is older than 24 hours
+(workers-sdk#13930), and a live server's bundle dir only refreshed its mtime
+on rebuild — the next unrelated wrangler command deleted it and workerd hung
+every request. The single-process runtime embeds the same wrangler machinery,
+so the defenses remain:
 
 - **Prevention.** `dev:main`, `dev:status`, and `dev:issue` refresh the mtimes
   of the main checkout's `.wrangler/tmp/*` directories on every run, keeping a
-  live server permanently outside the sweep window. Routine agent activity is
-  far more frequent than daily, so the wedge should no longer occur.
+  live server permanently outside the sweep window.
 - **Detection.** Health probes are bounded (3s). `npm run dev:status` reports
   the main API as `wedged` when the port listens but does not answer, and a
   shared-profile `dev:issue` fails fast with the same diagnosis and names
   `npm run dev:main` instead of hanging.
-- **Recovery.** `npm run dev:main` recovers a wedged pair unattended: it
-  verifies every `8788` listener — and every member of each process group it
-  would signal — is this repository's Wrangler or workerd (by path-normalized
-  executable/script command), then terminates those groups (SIGTERM, then
-  SIGKILL), rebuilds, and restarts. Wedged means transport silence only: a
-  server that answers `/api/me` with 5xx errors is alive and is never
-  terminated (`dev:status` reports it as `erroring`). Recovery still refuses,
-  with the offending commands in the error, when any process is not provably
-  ours — that case stays manual.
+- **Recovery.** `npm run dev:main` recovers unattended: it verifies every
+  `5174` listener — and every member of each process group it would signal —
+  is this repository's runtime (vite, wrangler, workerd, or the esbuild
+  service, by path-normalized executable/script command), terminates those
+  groups (SIGTERM, then SIGKILL), and restarts the single process. Wedged
+  means transport silence only: a server that answers `/api/me` with 5xx
+  errors is alive and is never terminated (`dev:status` reports it as
+  `erroring`). Recovery still refuses, with the offending commands in the
+  error, when any process is not provably ours — that case stays manual.
 
 If a wedge is suspected anyway, probe directly:
 
 ```bash
-curl -s -m 3 http://localhost:8788/api/me
+curl -s -m 3 http://localhost:5174/api/me
 ```
 
-The UI can answer in milliseconds while the API behind it is dead; run
-`npm run dev:main` to recover, then re-run the `dev:issue` command — it
-completes in seconds once `8788` is healthy.
+Run `npm run dev:main` to recover, then re-run the `dev:issue` command — it
+completes in seconds once the main runtime is healthy.
 
 Treat any dev-runtime command exceeding about 30 seconds as a signal to probe
 rather than keep waiting, and run these commands unsandboxed: the sandbox cannot

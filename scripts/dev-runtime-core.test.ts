@@ -6,8 +6,9 @@ import {
   classifyProcessGroupPort,
   decideMainApiAction,
   emptyRuntimeRegistry,
-  isRepositoryWranglerCommand,
+  isRepositoryRuntimeCommand,
   parseRuntimeManifest,
+  groupIndicatesWorkerRuntime,
   unownedGroupMembers,
   type RuntimeManifest,
 } from './dev-runtime-core'
@@ -55,7 +56,10 @@ describe('runtime assignment allocation', () => {
     expect(second.assignment).toEqual(first.assignment)
     expect(second.registry.assignments).toHaveLength(1)
     expect(second.assignment.uiPort).toBe(5175)
-    expect(second.assignment.apiTarget).toBe('http://localhost:8788')
+    // Shared runtimes proxy /api to the stable main single-process server
+    // (#900), which serves UI and API from the one Vite port.
+    expect(second.assignment.apiTarget).toBe('http://localhost:5174')
+    expect(second.assignment.apiPort).toBe(5174)
   })
 
   it('refuses to assign one issue to two worktrees', async () => {
@@ -132,19 +136,35 @@ describe('repository wrangler ownership', () => {
   const mainWorktree = '/Users/dev/src/pixelblaze-v2'
 
   it('recognizes the repository wrangler CLI and its workerd child', () => {
-    expect(isRepositoryWranglerCommand(
+    expect(isRepositoryRuntimeCommand(
       `${mainWorktree}/node_modules/@cloudflare/workerd-darwin-arm64/bin/workerd serve --binary`,
       mainWorktree,
     )).toBe(true)
-    expect(isRepositoryWranglerCommand(
+    expect(isRepositoryRuntimeCommand(
       `node ${mainWorktree}/node_modules/wrangler/bin/wrangler.js pages dev dist --port 8788`,
       mainWorktree,
     )).toBe(true)
     // The pages child interposes node flags before its script path.
-    expect(isRepositoryWranglerCommand(
+    expect(isRepositoryRuntimeCommand(
       `/opt/fnm/node-versions/v24/bin/node --no-warnings --experimental-vm-modules ${mainWorktree}/node_modules/wrangler/wrangler-dist/cli.js pages dev dist`,
       mainWorktree,
     )).toBe(true)
+  })
+
+  it('recognizes the single-process runtime: the vite binary and its plugin children', () => {
+    expect(isRepositoryRuntimeCommand(
+      `/opt/fnm/node-versions/v24.14.0/installation/bin/node ${mainWorktree}/node_modules/.bin/vite`,
+      mainWorktree,
+    )).toBe(true)
+    expect(isRepositoryRuntimeCommand(
+      `node ${mainWorktree}/node_modules/vite/bin/vite.js --port 5174`,
+      mainWorktree,
+    )).toBe(true)
+    // A vite path from another worktree stays foreign.
+    expect(isRepositoryRuntimeCommand(
+      'node /Users/dev/src/worktrees/other/node_modules/.bin/vite',
+      mainWorktree,
+    )).toBe(false)
   })
 
   it('recognizes every member of a live wrangler pages dev process group', () => {
@@ -157,22 +177,22 @@ describe('repository wrangler ownership', () => {
       `${mainWorktree}/node_modules/@cloudflare/workerd-darwin-arm64/bin/workerd serve --binary --experimental --socket-addr=entry=127.0.0.1:65235`,
     ]
     for (const command of liveGroup) {
-      expect(isRepositoryWranglerCommand(command, mainWorktree)).toBe(true)
+      expect(isRepositoryRuntimeCommand(command, mainWorktree)).toBe(true)
     }
   })
 
   it('refuses node option operands and unknown node flags instead of trusting them as scripts', () => {
     // --require consumes the wrangler path; the real script is foreign.
-    expect(isRepositoryWranglerCommand(
+    expect(isRepositoryRuntimeCommand(
       `node --require ${mainWorktree}/node_modules/wrangler/bin/wrangler.js /tmp/foreign-server.js`,
       mainWorktree,
     )).toBe(false)
-    expect(isRepositoryWranglerCommand(
+    expect(isRepositoryRuntimeCommand(
       `node --loader ts-node/esm ${mainWorktree}/node_modules/wrangler/bin/wrangler.js`,
       mainWorktree,
     )).toBe(false)
     // An esbuild path outside bin/esbuild does not qualify either.
-    expect(isRepositoryWranglerCommand(
+    expect(isRepositoryRuntimeCommand(
       `${mainWorktree}/node_modules/@esbuild/darwin-arm64/bin/other-tool`,
       mainWorktree,
     )).toBe(false)
@@ -180,40 +200,40 @@ describe('repository wrangler ownership', () => {
 
   it('ignores wrangler paths in non-executable argv positions and lookalike packages', () => {
     // A process merely reading a file under the wrangler package is not ours.
-    expect(isRepositoryWranglerCommand(
+    expect(isRepositoryRuntimeCommand(
       `tail -f ${mainWorktree}/node_modules/wrangler/dev.log`,
       mainWorktree,
     )).toBe(false)
-    expect(isRepositoryWranglerCommand(
+    expect(isRepositoryRuntimeCommand(
       `node ${mainWorktree}/node_modules/not-workerd/server.js`,
       mainWorktree,
     )).toBe(false)
-    expect(isRepositoryWranglerCommand(
+    expect(isRepositoryRuntimeCommand(
       `node ${mainWorktree}/node_modules/@cloudflare/workerdish/server.js`,
       mainWorktree,
     )).toBe(false)
   })
 
   it('rejects wrangler from another worktree, unrelated commands, and unknown commands', () => {
-    expect(isRepositoryWranglerCommand(
+    expect(isRepositoryRuntimeCommand(
       'node /Users/dev/src/worktrees/pixelblaze-v2-issue-1/node_modules/wrangler/bin/wrangler.js pages dev dist',
       mainWorktree,
     )).toBe(false)
-    expect(isRepositoryWranglerCommand(`python3 ${mainWorktree}/serve.py`, mainWorktree)).toBe(false)
-    expect(isRepositoryWranglerCommand('', mainWorktree)).toBe(false)
+    expect(isRepositoryRuntimeCommand(`python3 ${mainWorktree}/serve.py`, mainWorktree)).toBe(false)
+    expect(isRepositoryRuntimeCommand('', mainWorktree)).toBe(false)
   })
 
   it('rejects paths that traverse out of node_modules and lookalike names outside it', () => {
-    expect(isRepositoryWranglerCommand(
+    expect(isRepositoryRuntimeCommand(
       `node ${mainWorktree}/node_modules/../foreign/workerd-server.js`,
       mainWorktree,
     )).toBe(false)
-    expect(isRepositoryWranglerCommand(
+    expect(isRepositoryRuntimeCommand(
       `node ${mainWorktree}/node_modules/./evil/../../outside/wrangler/cli.js`,
       mainWorktree,
     )).toBe(false)
     // A wrangler-adjacent package name under node_modules does not qualify.
-    expect(isRepositoryWranglerCommand(
+    expect(isRepositoryRuntimeCommand(
       `node ${mainWorktree}/node_modules/not-wrangler/cli.js`,
       mainWorktree,
     )).toBe(false)
@@ -250,6 +270,17 @@ describe('main API recovery decision', () => {
     expect(decideMainApiAction([foreign], 'unresponsive', mainWorktree)).toBe('refuse')
     expect(decideMainApiAction([owned, foreign], 'unresponsive', mainWorktree)).toBe('refuse')
     expect(decideMainApiAction([{ pid: 7780, command: '' }], 'unresponsive', mainWorktree)).toBe('refuse')
+  })
+
+  it('distinguishes a worker-dev group (workerd present) from a plain proxy Vite group', () => {
+    const vite = { pid: 100, command: `node ${mainWorktree}/node_modules/.bin/vite` }
+    const workerd = {
+      pid: 101,
+      command: `${mainWorktree}/node_modules/@cloudflare/workerd-darwin-arm64/bin/workerd serve`,
+    }
+    expect(groupIndicatesWorkerRuntime([vite, workerd])).toBe(true)
+    expect(groupIndicatesWorkerRuntime([vite])).toBe(false)
+    expect(groupIndicatesWorkerRuntime([])).toBe(false)
   })
 
   it('flags process-group members that are not provably ours so no signal reaches a bystander', () => {

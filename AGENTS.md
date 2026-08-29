@@ -112,9 +112,10 @@ Preserve these invariants:
   verifying no abandoned worktrees or branches remain.
 
 Use the managed local runtime described in `docs/agents/dev-runtime.md`. The
-stable reviewed-main checkout owns Vite `5174`, Wrangler `8788`, and the shared
-local D1. Run `npm run dev:main` to migrate, provision, and recover that pair;
-never stop it during ordinary task cleanup.
+stable reviewed-main checkout owns Vite `5174` — a single worker-dev process
+serving UI, `/api`, and the shared local D1 (#900). Run `npm run dev:main` to
+migrate, provision, and recover it; never stop it during ordinary task
+cleanup.
 
 Every issue runtime must declare its isolation boundary:
 

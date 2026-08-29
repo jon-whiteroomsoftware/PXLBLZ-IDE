@@ -20,6 +20,8 @@ import {
   classifyMainApiHealth,
   classifyProcessGroupPort,
   decideMainApiAction,
+  groupIndicatesWorkerRuntime,
+  isRepositoryRuntimeCommand,
   parseRuntimeManifest,
   unownedGroupMembers,
   type MainApiListener,
@@ -134,8 +136,19 @@ async function startIssueRuntime(
     now: () => new Date().toISOString(),
     portIsAvailable,
   })
-  if (args.profile === 'isolated') {
-    await ensureIsolatedApi(context, manifest, assignment)
+  if (args.profile === 'isolated' && assignment.apiPort !== assignment.uiPort) {
+    // Coordinator-started isolated runtimes are single-process (#900): the
+    // Worker runs inside the Vite process, so the assignment self-targets its
+    // UI origin. (The authenticated Playwright wrapper still reserves and
+    // serves a distinct API port until #901; it does not pass through here.)
+    const updated = await updateRuntimeAssignment(context.runtimeDirectory, assignment.issue, (current) => ({
+      ...current,
+      apiPort: current.uiPort,
+      apiTarget: `http://localhost:${current.uiPort}`,
+      updatedAt: new Date().toISOString(),
+    }))
+    assignment.apiPort = updated.apiPort
+    assignment.apiTarget = updated.apiTarget
   }
 
   const portState = classifyAssignmentPort(assignment, listenerPids(assignment.uiPort))
@@ -145,13 +158,32 @@ async function startIssueRuntime(
     )
   }
   if (portState === 'free') {
-    const pid = startVite(context.worktree, assignment, context.runtimeDirectory)
-    await updateRuntimeAssignment(context.runtimeDirectory, assignment.issue, (current) => ({
-      ...current,
-      uiPid: pid,
-      updatedAt: new Date().toISOString(),
-    }))
-    await waitForUrl(issueUrl(assignment, manifest), 30_000)
+    if (args.profile === 'isolated') {
+      const persistence = isolatedPersistence(context.runtimeDirectory, assignment.issue)
+      prepareD1(context.worktree, persistence, manifest)
+      const pid = startVite(context.worktree, assignment, context.runtimeDirectory, {
+        kind: 'worker',
+        persistState: persistence,
+      })
+      await updateRuntimeAssignment(context.runtimeDirectory, assignment.issue, (current) => ({
+        ...current,
+        uiPid: pid,
+        updatedAt: new Date().toISOString(),
+      }))
+      await waitForUrl(issueUrl(assignment, manifest), 30_000)
+      await waitForUrl(`${assignment.apiTarget}/api/me`, 30_000)
+    } else {
+      const pid = startVite(context.worktree, assignment, context.runtimeDirectory, {
+        kind: 'proxy',
+        target: assignment.apiTarget,
+      })
+      await updateRuntimeAssignment(context.runtimeDirectory, assignment.issue, (current) => ({
+        ...current,
+        uiPid: pid,
+        updatedAt: new Date().toISOString(),
+      }))
+      await waitForUrl(issueUrl(assignment, manifest), 30_000)
+    }
   }
   console.log(runtimeStartSummary(assignment, manifest))
 }
@@ -172,7 +204,9 @@ async function releaseIssueRuntime(
       `Port ${assignment.uiPort} is no longer owned by issue ${issue}; refusing to terminate or release it.`,
     )
   }
-  const apiState = assignment.profile === 'isolated'
+  // Single-process runtimes (#900) self-target their UI port; only legacy
+  // two-process assignments have a separate API service to classify.
+  const apiState = assignment.profile === 'isolated' && assignment.apiPort !== assignment.uiPort
     ? classifyApiPort(assignment)
     : 'free'
   if (apiState === 'foreign') {
@@ -184,7 +218,9 @@ async function releaseIssueRuntime(
     stopProcessGroup(assignment.uiPid)
     await waitForPortFree(assignment.uiPort, 10_000)
   }
-  if (assignment.profile === 'isolated') {
+  if (assignment.profile === 'isolated' && assignment.apiPort !== assignment.uiPort) {
+    // Legacy two-process assignments only; single-process runtimes (#900)
+    // self-target their UI port and have no separate API service.
     if (apiState === 'owned' && assignment.apiPid !== undefined) {
       stopProcessGroup(assignment.apiPid)
       await waitForPortFree(assignment.apiPort, 10_000)
@@ -200,8 +236,8 @@ async function printStatus(
   json: boolean,
 ): Promise<void> {
   keepMainWranglerTmpFresh(context)
-  const apiUrl = `http://localhost:${manifest.shared.wranglerPort}/api/me`
-  const apiListeners = listenerPids(manifest.shared.wranglerPort)
+  const apiUrl = `http://localhost:${manifest.shared.vitePort}/api/me`
+  const apiListeners = listenerPids(manifest.shared.vitePort)
   const apiProbe = apiListeners.length > 0
     ? await probeService(apiUrl, serviceProbeTimeoutMs)
     : 'unresponsive'
@@ -214,7 +250,7 @@ async function printStatus(
     profile: 'shared',
     uiPort: manifest.shared.vitePort,
     uiUrl: `http://localhost:${manifest.shared.vitePort}${manifest.basePath}`,
-    apiTarget: `http://localhost:${manifest.shared.wranglerPort}`,
+    apiTarget: `http://localhost:${manifest.shared.vitePort}`,
     uiState: listenerPids(manifest.shared.vitePort).length > 0 ? 'listening' : 'stopped',
     apiState: apiHealth === 'ok' ? 'listening' : apiHealth,
   }
@@ -240,6 +276,10 @@ async function printStatus(
   ].join('\n'))
 }
 
+// The stable main runtime is one worker-dev Vite process (#900): the
+// Cloudflare plugin serves the Worker and local D1 from the Vite port, and
+// the legacy `wrangler pages dev` on the manifest's wranglerPort is retired
+// on sight. Recovery still refuses any process that is not provably ours.
 async function ensureMainRuntime(
   context: RepositoryContext,
   manifest: RuntimeManifest,
@@ -249,50 +289,73 @@ async function ensureMainRuntime(
   }
   keepMainWranglerTmpFresh(context)
   const uiUrl = `http://localhost:${manifest.shared.vitePort}${manifest.basePath}`
-  const apiUrl = `http://localhost:${manifest.shared.wranglerPort}/api/me`
-  const uiPids = listenerPids(manifest.shared.vitePort)
-  const apiPids = listenerPids(manifest.shared.wranglerPort)
-  const [uiProbe, apiProbe] = await Promise.all([
-    uiPids.length > 0 ? probeService(uiUrl, serviceProbeTimeoutMs) : Promise.resolve<ProbeOutcome>('unresponsive'),
-    apiPids.length > 0 ? probeService(apiUrl, serviceProbeTimeoutMs) : Promise.resolve<ProbeOutcome>('unresponsive'),
-  ])
-  const uiHealthy = uiProbe === 'ok'
-  if (uiPids.length > 0 && !uiHealthy) {
-    throw new Error(`Port ${manifest.shared.vitePort} is occupied but ${uiUrl} is unhealthy.`)
-  }
-  const apiListeners: MainApiListener[] = apiPids.map((pid) => ({ pid, command: processCommand(pid) }))
-  const apiAction = decideMainApiAction(apiListeners, apiProbe, context.mainWorktree)
-  if (apiAction === 'unhealthy') {
-    throw new Error(
-      `Port ${manifest.shared.wranglerPort} answers ${apiUrl} with server errors; the process is alive, so`
-      + ' recovery will not terminate it. Inspect the main Wrangler log and stop it manually if a restart is needed.',
-    )
-  }
-  if (apiAction === 'refuse') {
-    throw new Error(
-      `Port ${manifest.shared.wranglerPort} is occupied but ${apiUrl} is unresponsive, and the listener is not this repository's Wrangler; refusing to terminate it:\n`
-      + apiListeners.map((listener) => `  ${listener.pid} ${listener.command || '(unreadable command)'}`).join('\n'),
-    )
-  }
-  if (apiAction === 'recover') {
+  const apiUrl = `http://localhost:${manifest.shared.vitePort}/api/me`
+
+  const legacyPids = listenerPids(manifest.shared.wranglerPort)
+  if (legacyPids.length > 0) {
+    const legacyListeners: MainApiListener[] = legacyPids.map((pid) => ({ pid, command: processCommand(pid) }))
+    const unowned = legacyListeners.filter((listener) => !isRepositoryRuntimeCommand(listener.command, context.mainWorktree))
+    if (unowned.length > 0) {
+      throw new Error(
+        `Port ${manifest.shared.wranglerPort} is occupied by processes that are not this repository's legacy Wrangler; refusing to retire them:\n`
+        + unowned.map((listener) => `  ${listener.pid} ${listener.command || '(unreadable command)'}`).join('\n'),
+      )
+    }
     console.log(
-      `Port ${manifest.shared.wranglerPort} is wedged (accepts TCP, never answers ${apiUrl}); `
-      + `recovering by restarting the main Wrangler (PIDs ${apiPids.join(', ')}).`,
+      `Retiring the legacy two-process pair (#900): stopping wrangler pages dev on ${manifest.shared.wranglerPort}`
+      + ` (PIDs ${legacyPids.join(', ')}).`,
     )
-    await stopWedgedListeners(apiPids, manifest.shared.wranglerPort, context.mainWorktree)
+    await stopWedgedListeners(legacyPids, manifest.shared.wranglerPort, context.mainWorktree)
+  }
+
+  const uiPids = listenerPids(manifest.shared.vitePort)
+  const apiProbe = uiPids.length > 0
+    ? await probeService(apiUrl, serviceProbeTimeoutMs)
+    : 'unresponsive'
+  const uiListeners: MainApiListener[] = uiPids.map((pid) => ({ pid, command: processCommand(pid) }))
+  let runtimeAction = decideMainApiAction(uiListeners, apiProbe, context.mainWorktree)
+  if (runtimeAction === 'unhealthy') {
+    // A worker-dev runtime carries workerd in its process group; a legacy
+    // proxy-mode Vite does not. An owned, workerd-less group answering 5xx is
+    // the beheaded proxy whose 8788 target retired — restart it as the
+    // single process. A group with workerd is a live application erroring
+    // and is never terminated.
+    const members = uiPids
+      .map(processGroupId)
+      .filter(Number.isInteger)
+      .flatMap((group) => processGroupMembers(group))
+    const beheadedProxy = members.length > 0
+      && unownedGroupMembers(members, context.mainWorktree).length === 0
+      && !groupIndicatesWorkerRuntime(members)
+    if (!beheadedProxy) {
+      throw new Error(
+        `Port ${manifest.shared.vitePort} answers ${apiUrl} with server errors; the process is alive, so`
+        + ' recovery will not terminate it. Inspect the main runtime log and stop it manually if a restart is needed.',
+      )
+    }
+    console.log(
+      `Port ${manifest.shared.vitePort} is a legacy proxy-mode Vite without its API target (#900); `
+      + 'restarting it as the single-process runtime.',
+    )
+    runtimeAction = 'recover'
+  }
+  if (runtimeAction === 'refuse') {
+    throw new Error(
+      `Port ${manifest.shared.vitePort} is occupied but ${apiUrl} is unresponsive, and the listener is not this repository's runtime; refusing to terminate it:\n`
+      + uiListeners.map((listener) => `  ${listener.pid} ${listener.command || '(unreadable command)'}`).join('\n'),
+    )
+  }
+  if (runtimeAction === 'recover') {
+    // A proxy-mode legacy Vite whose 8788 target just retired probes as
+    // unresponsive/erroring here and restarts as the single-process runtime.
+    console.log(
+      `Port ${manifest.shared.vitePort} does not answer ${apiUrl}; `
+      + `restarting the main runtime as a single worker-dev process (PIDs ${uiPids.join(', ')}).`,
+    )
+    await stopWedgedListeners(uiPids, manifest.shared.vitePort, context.mainWorktree)
   }
   prepareD1(context.mainWorktree, resolve(context.mainWorktree, '.wrangler/state'), manifest)
-  if (apiAction !== 'none') {
-    buildWorktree(context.mainWorktree)
-    startWrangler(
-      context.mainWorktree,
-      manifest.shared.wranglerPort,
-      resolve(context.mainWorktree, '.wrangler/state'),
-      join(context.runtimeDirectory, 'logs', 'main-wrangler.log'),
-    )
-    await waitForUrl(apiUrl, 30_000)
-  }
-  if (!uiHealthy) {
+  if (runtimeAction !== 'none') {
     startDetached(
       process.execPath,
       [resolve(context.mainWorktree, 'node_modules/vite/bin/vite.js')],
@@ -300,21 +363,21 @@ async function ensureMainRuntime(
       join(context.runtimeDirectory, 'logs', 'main-vite.log'),
       {
         VITE_PORT: String(manifest.shared.vitePort),
-        VITE_API_PROXY_TARGET: `http://localhost:${manifest.shared.wranglerPort}`,
       },
     )
+    await waitForUrl(apiUrl, 60_000)
     await waitForUrl(uiUrl, 30_000)
   }
   console.log(
     `Stable main is available at http://localhost:${manifest.shared.vitePort}${manifest.basePath}`
-    + ` with shared API ${manifest.shared.wranglerPort}.`,
+    + ` serving UI and /api from one process.`,
   )
 }
 
 async function requireHealthySharedRuntime(manifest: RuntimeManifest): Promise<void> {
   const uiUrl = `http://localhost:${manifest.shared.vitePort}${manifest.basePath}`
-  const apiUrl = `http://localhost:${manifest.shared.wranglerPort}/api/me`
-  const apiListenerCount = listenerPids(manifest.shared.wranglerPort).length
+  const apiUrl = `http://localhost:${manifest.shared.vitePort}/api/me`
+  const apiListenerCount = listenerPids(manifest.shared.vitePort).length
   const [uiProbe, apiProbe] = await Promise.all([
     probeService(uiUrl, serviceProbeTimeoutMs),
     probeService(apiUrl, serviceProbeTimeoutMs),
@@ -326,17 +389,22 @@ async function requireHealthySharedRuntime(manifest: RuntimeManifest): Promise<v
       `Stable main runtime is not healthy (${uiUrl}: ${uiHealthy ? 'ok' : 'down'},`
       + ` ${apiUrl}: ${apiHealth}). Run \`npm run dev:main\` to `
       + (apiHealth === 'wedged'
-        ? 'recover the wedged main Wrangler'
-        : 'start the persistent 5174/8788 pair')
+        ? 'recover the wedged main runtime'
+        : 'start the single-process main runtime')
       + ' before assigning shared issue runtimes.',
     )
   }
 }
 
+type ViteMode =
+  | { kind: 'proxy'; target: string }
+  | { kind: 'worker'; persistState: string }
+
 function startVite(
   worktree: string,
   assignment: RuntimeAssignment,
   runtimeDirectory: string,
+  mode: ViteMode,
 ): number {
   return startDetached(
     process.execPath,
@@ -345,44 +413,11 @@ function startVite(
     join(runtimeDirectory, 'logs', `issue-${assignment.issue}-vite.log`),
     {
       VITE_PORT: String(assignment.uiPort),
-      VITE_API_PROXY_TARGET: assignment.apiTarget,
+      ...(mode.kind === 'proxy'
+        ? { VITE_API_PROXY_TARGET: mode.target }
+        : { VITE_CF_PERSIST_STATE: mode.persistState }),
     },
   )
-}
-
-async function ensureIsolatedApi(
-  context: RepositoryContext,
-  manifest: RuntimeManifest,
-  assignment: RuntimeAssignment,
-): Promise<void> {
-  const state = classifyApiPort(assignment)
-  if (state === 'foreign') {
-    throw new Error(
-      `Port ${assignment.apiPort} is owned by a process other than issue ${assignment.issue}; refusing to reuse it.`,
-    )
-  }
-  if (state === 'owned') return
-  const persistence = isolatedPersistence(context.runtimeDirectory, assignment.issue)
-  prepareD1(context.worktree, persistence, manifest)
-  buildWorktree(context.worktree)
-  const pid = startWrangler(
-    context.worktree,
-    assignment.apiPort,
-    persistence,
-    join(context.runtimeDirectory, 'logs', `issue-${assignment.issue}-wrangler.log`),
-  )
-  await updateRuntimeAssignment(context.runtimeDirectory, assignment.issue, (current) => ({
-    ...current,
-    apiPid: pid,
-    updatedAt: new Date().toISOString(),
-  }))
-  assignment.apiPid = pid
-  try {
-    await waitForUrl(`${assignment.apiTarget}/api/me`, 30_000)
-  } catch (error) {
-    stopProcessGroup(pid)
-    throw error
-  }
 }
 
 function prepareD1(
@@ -413,33 +448,6 @@ function prepareD1(
     '--command',
     localIdentitySeedSql(manifest),
   ], worktree, 'provision local identities')
-}
-
-function buildWorktree(worktree: string): void {
-  runChecked('npm', ['run', 'build'], worktree, 'build the worktree')
-}
-
-function startWrangler(
-  worktree: string,
-  port: number,
-  persistence: string,
-  logPath: string,
-): number {
-  return startDetached(
-    process.execPath,
-    [
-      resolve(worktree, 'node_modules/wrangler/bin/wrangler.js'),
-      'pages',
-      'dev',
-      'dist',
-      '--port',
-      String(port),
-      '--persist-to',
-      persistence,
-    ],
-    worktree,
-    logPath,
-  )
 }
 
 function startDetached(

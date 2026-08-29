@@ -202,10 +202,13 @@ export default defineConfig(async ({ command, mode, isPreview }): Promise<ViteUs
   // preview serves that dist without plugin build metadata), so it is
   // imported dynamically only when this serve actually uses it.
   const workerDevMode = command === 'serve' && !isPreview && !process.env.VITEST && !apiProxyTarget
+  // The managed coordinator points isolated runtimes at their own throwaway
+  // D1 store (#900); everyone else persists to the checkout's .wrangler/state.
+  const persistStatePath = env.VITE_CF_PERSIST_STATE?.trim()
   const workerDevPlugins = workerDevMode
     ? [(await import('@cloudflare/vite-plugin')).cloudflare({
         configPath: 'wrangler.workers.jsonc',
-        persistState: true,
+        persistState: persistStatePath ? { path: persistStatePath } : true,
       })]
     : []
 

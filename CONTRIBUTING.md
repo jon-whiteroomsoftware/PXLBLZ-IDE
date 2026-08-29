@@ -12,11 +12,12 @@ npm install
 npm run dev
 ```
 
-The Vite development server runs at `http://localhost:5174/PXLBLZ-IDE/`.
-Vite alone serves the public surfaces: the Gallery, pattern pages, and the
-in-app docs. Studio and Shows need the local workspace service (Wrangler plus a
-local D1 database) behind `/api/*`; without it, "Open in Studio" reports
-"Studio access unavailable". Start the full runtime with:
+The Vite development server runs at `http://localhost:5174/PXLBLZ-IDE/` and
+serves everything from one process: the public surfaces (Gallery, pattern
+pages, in-app docs) plus the `/api/*` Worker and a local D1 database via the
+Cloudflare Vite plugin. Studio and Shows need that local database migrated
+and provisioned; without it, "Open in Studio" reports "Studio access
+unavailable". Set up the full runtime with:
 
 ```bash
 cp -n .dev.vars.example .dev.vars
@@ -24,9 +25,9 @@ npm run dev:main
 ```
 
 `cp -n` keeps an existing `.dev.vars` untouched. `dev:main` applies
-migrations, provisions local synthetic sign-in identities,
-and starts Vite on `5174` and Wrangler on `8788` when they are not already
-running. OAuth credentials in `.dev.vars` are only needed to test real GitHub or
+migrations, provisions local synthetic sign-in identities, and starts the
+single-process server on `5174` when it is not already running. OAuth
+credentials in `.dev.vars` are only needed to test real GitHub or
 Google sign-in; see
 [Cloudflare Operations](docs/reference/Cloudflare%20Operations.md) and
 [`docs/agents/dev-runtime.md`](docs/agents/dev-runtime.md).

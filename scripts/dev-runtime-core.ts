@@ -164,7 +164,7 @@ export type MainApiAction = 'none' | 'start' | 'recover' | 'refuse' | 'unhealthy
 // past a prefix check, package prefixes are exact (`wrangler/`,
 // `@cloudflare/workerd[-platform]/`) so lookalike packages fail, and an
 // unreadable command (ps failed, process gone) is not proof of ownership.
-export function isRepositoryWranglerCommand(command: string, mainWorktree: string): boolean {
+export function isRepositoryRuntimeCommand(command: string, mainWorktree: string): boolean {
   const tokens = command.split(/\s+/).filter(Boolean)
   if (tokens.length === 0) return false
   if (matchesRepositoryWranglerPath(tokens[0], mainWorktree)) return true
@@ -184,17 +184,30 @@ export function isRepositoryWranglerCommand(command: string, mainWorktree: strin
 
 const wranglerChildNodeFlags = new Set(['--no-warnings', '--experimental-vm-modules'])
 
-// The allowlist is grounded in the observed process group of a live
-// `wrangler pages dev` (4.106.0): the wrangler CLI script, its pages child,
-// two workerd processes, and one esbuild service binary.
+// The allowlist is grounded in observed process groups: a live
+// `wrangler pages dev` (wrangler CLI script, its pages child, two workerd
+// processes, one esbuild service binary) and the single-process Vite runtime
+// (#900: the vite binary, whose plugin spawns the same workerd/esbuild
+// children into its group).
 function matchesRepositoryWranglerPath(token: string, mainWorktree: string): boolean {
   const moduleRoot = `${mainWorktree}/node_modules/`
   const normalized = normalizePathish(token)
   if (!normalized.startsWith(moduleRoot)) return false
   const relative = normalized.slice(moduleRoot.length)
   return relative.startsWith('wrangler/')
+    || relative === '.bin/vite'
+    || relative.startsWith('vite/')
     || /^@cloudflare\/workerd(?:-[a-z0-9-]+)?\//.test(relative)
     || /^@esbuild\/[a-z0-9_-]+\/bin\/esbuild$/.test(relative)
+}
+
+// A worker-dev runtime always carries workerd inside its process group (the
+// Cloudflare plugin spawns it); a plain proxy-mode Vite never does. This
+// distinguishes a beheaded legacy proxy (5xx because its API target is gone,
+// safe to restart during migration) from a live single-process runtime whose
+// application is erroring (never terminated).
+export function groupIndicatesWorkerRuntime(members: readonly MainApiListener[]): boolean {
+  return members.some((member) => member.command.includes('workerd'))
 }
 
 // Everything recovery would signal must be provably ours: signals go to whole
@@ -204,7 +217,7 @@ export function unownedGroupMembers(
   members: readonly MainApiListener[],
   mainWorktree: string,
 ): MainApiListener[] {
-  return members.filter((member) => !isRepositoryWranglerCommand(member.command, mainWorktree))
+  return members.filter((member) => !isRepositoryRuntimeCommand(member.command, mainWorktree))
 }
 
 function normalizePathish(token: string): string {
@@ -229,7 +242,7 @@ export function decideMainApiAction(
   if (listeners.length === 0) return 'start'
   if (probe === 'ok') return 'none'
   if (probe === 'error') return 'unhealthy'
-  return listeners.every((listener) => isRepositoryWranglerCommand(listener.command, mainWorktree))
+  return listeners.every((listener) => isRepositoryRuntimeCommand(listener.command, mainWorktree))
     ? 'recover'
     : 'refuse'
 }
@@ -279,8 +292,12 @@ export async function allocateRuntimeAssignment(
     registry.assignments.map((assignment) => assignment.uiPort),
     dependencies.portIsAvailable,
   )
+  // Shared runtimes proxy /api to the stable main single-process server
+  // (#900), which serves UI and API from its one Vite port. Isolated
+  // assignments still reserve a distinct API port: the authenticated
+  // Playwright wrapper spawns its own server on it until #901.
   const apiPort = request.profile === 'shared'
-    ? manifest.shared.wranglerPort
+    ? manifest.shared.vitePort
     : await firstAvailablePort(
         manifest.isolated.wranglerPorts,
         registry.assignments.map((assignment) => assignment.apiPort),
