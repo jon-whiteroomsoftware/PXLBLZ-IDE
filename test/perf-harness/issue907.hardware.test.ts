@@ -132,7 +132,10 @@ describe('idiom probes on hardware (#907)', () => {
       connection.close()
       throw new Error('Controller did not report an active Pattern; refusing a non-reversible probe.')
     }
-    const savedPrograms = await connection.listPrograms()
+    const savedPrograms = await connection.listPrograms().catch((error) => {
+      connection.close()
+      throw error
+    })
     if (!savedPrograms.some((program) => program.id === original.activeProgramId)) {
       connection.close()
       throw new Error(
