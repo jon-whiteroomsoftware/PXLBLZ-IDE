@@ -131,8 +131,10 @@ describe('preview-stream tax on hardware (#911)', () => {
           () => connection.getConfig(),
           { activeProgramId: programId, pixelCount },
         )
-        if (applied.pixelCount !== pixelCount) {
-          throw new Error(`Controller did not apply pixelCount ${pixelCount} (reports ${applied.pixelCount}).`)
+        if (applied.pixelCount !== pixelCount || applied.activeProgramId !== programId) {
+          throw new Error(
+            `Controller state drifted before sampling (pixelCount ${applied.pixelCount}, program ${applied.activeProgramId}).`,
+          )
         }
         for (const state of OBSERVER_STATES) {
           process.stdout.write(`  ${state} @ ${pixelCount} px ... `)
