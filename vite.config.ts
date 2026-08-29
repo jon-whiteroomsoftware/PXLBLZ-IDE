@@ -1,4 +1,5 @@
 import { defineConfig, loadEnv } from 'vite'
+import { cloudflare } from '@cloudflare/vite-plugin'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { defaultExclude } from 'vitest/config'
@@ -181,14 +182,23 @@ function redirectBaseTrailingSlash(base: string) {
   }
 }
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ command, mode }) => {
   // loadEnv reads .env files only. Keep shell-provided values authoritative so
   // isolated Playwright smoke servers can select their own Vite port and API
   // proxy target instead of accidentally using the persistent dev pair.
   const env = { ...loadEnv(mode, process.cwd(), ''), ...process.env }
   const base = env.VITE_BASE_PATH?.trim() || DEFAULT_BASE
-  const apiProxyTarget = env.VITE_API_PROXY_TARGET?.trim() || DEFAULT_API_PROXY_TARGET
+  const apiProxyTarget = env.VITE_API_PROXY_TARGET?.trim()
   const port = Number(env.VITE_PORT ?? 5174)
+
+  // Single-process dev (#899): a bare `vite` serve runs the Worker and local
+  // D1 in-process through the Cloudflare plugin instead of proxying /api to a
+  // separate `wrangler pages dev`. Setting VITE_API_PROXY_TARGET selects the
+  // legacy proxy topology — the managed dev-runtime coordinator and the
+  // Playwright wrappers still provide it until #900/#901 move them over. The
+  // plugin never loads for Vitest or `vite build`: the production build must
+  // keep producing the plain Pages `dist` until cutover (#902).
+  const workerDevMode = command === 'serve' && !process.env.VITEST && !apiProxyTarget
 
   const testProjects = createVitestTestProjects()
   const appVersion = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf8')).version as string
@@ -204,6 +214,12 @@ export default defineConfig(({ mode }) => {
       identityEndpoint(),
       react(),
       tailwindcss(),
+      // Local D1 persists in .wrangler/state (wrangler's default), so
+      // `npm run db:migrate:local` and the in-process Worker read the same
+      // database.
+      ...(workerDevMode
+        ? [cloudflare({ configPath: 'wrangler.workers.jsonc', persistState: true })]
+        : []),
     ],
     server: {
       port,
@@ -216,12 +232,16 @@ export default defineConfig(({ mode }) => {
       fs: {
         allow: [path.resolve(__dirname), fs.realpathSync(path.resolve(__dirname, 'node_modules'))],
       },
-      proxy: {
-        '/api': {
-          target: apiProxyTarget,
-          changeOrigin: true,
-        },
-      },
+      ...(workerDevMode
+        ? {}
+        : {
+            proxy: {
+              '/api': {
+                target: apiProxyTarget || DEFAULT_API_PROXY_TARGET,
+                changeOrigin: true,
+              },
+            },
+          }),
     },
     resolve: {
       alias: {

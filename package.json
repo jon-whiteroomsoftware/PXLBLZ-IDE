@@ -144,6 +144,7 @@
   },
   "homepage": "https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE#readme",
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.54.2",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.60.0",
     "@stryker-mutator/core": "^9.6.1",
@@ -171,7 +172,7 @@
     "typescript-eslint": "^8.59.4",
     "vite": "^8.0.14",
     "vitest": "^4.1.7",
-    "wrangler": "^4.106.0",
+    "wrangler": "^4.127.1",
     "ws": "^8.21.0"
   },
   "dependencies": {

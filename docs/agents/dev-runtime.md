@@ -12,6 +12,15 @@ D1 store in its `.wrangler/state`. `npm run dev:main` applies pending migrations
 provisions local synthetic identities, and starts either persistent service
 when it is absent. It refuses to replace an occupied but unhealthy port.
 
+A bare `npm run dev` (no `VITE_API_PROXY_TARGET` in the environment) is a
+single-process server (#899): the Cloudflare Vite plugin runs the Worker from
+`wrangler.workers.jsonc` and local D1 inside the Vite process, reading
+`.dev.vars` and persisting to the checkout's `.wrangler/state` — the same
+database `npm run db:migrate:local` targets. Managed runtimes (`dev:main`,
+`dev:issue`) and the Playwright wrappers still set `VITE_API_PROXY_TARGET`
+and use the two-process proxy topology until #900/#901 move the coordinator
+over; the plugin never loads for Vitest or `vite build`.
+
 Most issue work uses the shared profile:
 
 ```bash
