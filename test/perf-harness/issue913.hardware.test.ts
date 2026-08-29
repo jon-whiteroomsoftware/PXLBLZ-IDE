@@ -15,6 +15,8 @@ import { HOLD_FACTORS, applySpatialHold, buildHoldBaseArtifact } from './issue91
 const runHardware = process.env.ISSUE913_HARDWARE === '1'
 const ip = process.env.PIXELBLAZE_IP ?? '192.168.8.224'
 const measurementOptions = { activationTimeoutMs: 20_000, settleMs: 2_000, sampleMs: 6_000 }
+// Probe ids are recorded via onPushed at push time, before activation or
+// sampling can throw, so cleanup covers failed measurements too.
 
 describe('spatial sample-and-hold ladder on hardware (#913 spike)', () => {
   it.skipIf(!runHardware)('measures baseline and K=2/4/8 holds at three sizes and restores Controller state', async () => {
@@ -85,9 +87,8 @@ describe('spatial sample-and-hold ladder on hardware (#913 spike)', () => {
             variant.code,
             compile,
             artifact.summary.resources.totalWords,
-            measurementOptions,
+            { ...measurementOptions, onPushed: (id) => pushedProgramIds.push(id) },
           )
-          pushedProgramIds.push(measured.programId)
           rows.push({
             pixelCount,
             variant: variant.name,

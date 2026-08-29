@@ -190,13 +190,22 @@ export function analyzeIssue914(source: string): Issue914PatternReport {
   // only from beforeRender (beforeRender(){ spin() } with spin(){ rotate(...) }
   // animates the mapping just the same).
   const beforeRenderReachable = collectReachableFrom(functions, ['beforeRender'])
+  const isControlName = (fnName: string): boolean => fnName.startsWith('slider')
+    || fnName.startsWith('toggle') || fnName.startsWith('rgbPicker')
+    || fnName.startsWith('hsvPicker') || fnName.startsWith('trigger')
+  // Control taint propagates through helpers too: sliderAngle(v){ applyAngle(v) }
+  // with applyAngle calling rotate() couples position to the control just as a
+  // direct call would.
+  const controlReachable = collectReachableFrom(
+    functions,
+    [...functions.keys()].filter(isControlName),
+  )
   let positionAnimated = false
   let positionControlCoupled = false
   for (const [fnName, fn] of functions) {
     const perFrame = fnName === 'beforeRender' || reachable.has(fnName)
       || beforeRenderReachable.has(fnName)
-    const controlFn = fnName.startsWith('slider') || fnName.startsWith('toggle')
-      || fnName.startsWith('rgbPicker') || fnName.startsWith('hsvPicker') || fnName.startsWith('trigger')
+    const controlFn = isControlName(fnName) || controlReachable.has(fnName)
     if (!perFrame && !controlFn) continue
     visitNode(fn.body, (node) => {
       if (node.type !== 'CallExpression' || node.callee?.type !== 'Identifier') return
@@ -492,9 +501,22 @@ function collectAlreadyCachedRanges(ast: Node): Array<readonly [number, number]>
           }
         }
       }
-      if (child.type === 'AssignmentExpression' && child.operator === '='
-        && child.left?.type === 'Identifier' && child.right) {
-        recordDefinition(child.left.name as string, child.right as Node, child.start as number)
+      if (child.type === 'AssignmentExpression' && child.left?.type === 'Identifier' && child.right) {
+        // Compound assignments (v += x) depend on the prior value — they are
+        // definitions that do NOT carry the array-load provenance, so an
+        // intervening one correctly breaks the lazy-fill chain below.
+        if (child.operator === '=') {
+          recordDefinition(child.left.name as string, child.right as Node, child.start as number)
+        } else {
+          const definitions = definitionsByName.get(child.left.name as string) ?? []
+          definitions.push({ position: child.start as number, readsArrays: new Set() })
+          definitionsByName.set(child.left.name as string, definitions)
+        }
+      }
+      if (child.type === 'UpdateExpression' && child.argument?.type === 'Identifier') {
+        const definitions = definitionsByName.get(child.argument.name as string) ?? []
+        definitions.push({ position: child.start as number, readsArrays: new Set() })
+        definitionsByName.set(child.argument.name as string, definitions)
       }
     })
 
@@ -609,6 +631,23 @@ function readStaticLoop(node: Node): { inductionVar: string; tripCount: number }
     ? Math.ceil(span / step)
     : Math.floor(span / step) + 1
   if (tripCount <= 0) return null
+  // Fractional bounds must count identically in device 16.16: 0.1 rounds to
+  // 6554/65536, so for (i=0; i<=1; i+=0.1) runs 10 times on hardware but 11
+  // in float64. A loop whose count differs between modes cannot be tabled
+  // exactly with one trip count.
+  if (!Number.isInteger(initValue) || !Number.isInteger(bound) || !Number.isInteger(step)) {
+    const to16 = (value: number): number => Math.round(value * 65536)
+    let fixed = to16(initValue)
+    const bound16 = to16(bound)
+    const step16 = to16(step)
+    if (step16 <= 0) return null
+    let fixedCount = 0
+    while ((test.operator === '<' ? fixed < bound16 : fixed <= bound16) && fixedCount <= 200) {
+      fixedCount += 1
+      fixed += step16
+    }
+    if (fixedCount !== tripCount) return null
+  }
   return { inductionVar, tripCount }
 }
 
@@ -820,6 +859,40 @@ function computeOutVarClasses(input: {
         }
         checkCalls(callerFn.body, false)
       }
+    }
+    if (!ok) continue
+    // Establishment must DOMINATE every read: an unguarded write (direct
+    // assignment or writer call) must textually precede each read of the
+    // out-var within its function, or the read observes prior-pixel state
+    // (`render(index){ color(exp(u)); setU(index) }` reads before writing).
+    for (const [, fn] of functions) {
+      if (!ok) break
+      let earliestEstablish = Infinity
+      const reads: number[] = []
+      const scan = (node: Node, guarded: boolean): void => {
+        if (!node || typeof node !== 'object') return
+        if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression'
+          || node.type === 'ArrowFunctionExpression') return
+        if (node.type === 'AssignmentExpression' && node.left?.type === 'Identifier'
+          && node.left.name === name) {
+          if (!guarded) earliestEstablish = Math.min(earliestEstablish, node.start as number)
+          scan(node.right as Node, guarded)
+          return
+        }
+        if (node.type === 'CallExpression' && node.callee?.type === 'Identifier'
+          && writers.includes(node.callee.name as string) && !guarded) {
+          earliestEstablish = Math.min(earliestEstablish, node.start as number)
+        }
+        if (node.type === 'Identifier' && node.name === name) reads.push(node.start as number)
+        const childGuarded = guarded || GUARDED_TYPES.has(node.type as string)
+        for (const [key, child] of Object.entries(node)) {
+          if (key === 'start' || key === 'end' || key === 'loc') continue
+          if (Array.isArray(child)) child.forEach((item) => scan(item as Node, childGuarded))
+          else if (child && typeof child === 'object') scan(child as Node, childGuarded)
+        }
+      }
+      scan(fn.body, false)
+      if (reads.some((position) => position < earliestEstablish)) ok = false
     }
     if (ok) candidates.add(name)
   }

@@ -21,6 +21,8 @@ import {
 const runHardware = process.env.ISSUE914_HARDWARE === '1'
 const ip = process.env.PIXELBLAZE_IP ?? '192.168.8.224'
 const measurementOptions = { activationTimeoutMs: 20_000, settleMs: 2_000, sampleMs: 6_000 }
+// Probe ids are recorded via onPushed at push time, before activation or
+// sampling can throw, so cleanup covers failed measurements too.
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PATTERNS_DIR = join(HERE, '../../src/pixelblaze/stock/patterns')
@@ -101,9 +103,8 @@ describe('generated member-pass transforms on hardware (#914 spike)', () => {
             bundled,
             compile,
             0,
-            measurementOptions,
+            { ...measurementOptions, onPushed: (id) => pushedProgramIds.push(id) },
           )
-          pushedProgramIds.push(measured.programId)
           rows.push({
             pattern: testCase.name,
             rule: testCase.rule,

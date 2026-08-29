@@ -186,6 +186,10 @@ export interface ControllerMeasurementOptions {
   /** Optional delay after activation so an earlier Pattern's last FPS packet cannot enter the sample window. */
   settleMs?: number
   sampleMs?: number
+  /** Called with the minted program id immediately after the push frames are
+   *  sent, BEFORE activation/sampling can fail — so a caller's cleanup list
+   *  covers probes whose measurement later throws. */
+  onPushed?: (programId: string) => void
 }
 
 export async function pushAndMeasureControllerSource(
@@ -199,6 +203,7 @@ export async function pushAndMeasureControllerSource(
   const programId = makeProgramId()
   const activationStartedMs = Date.now()
   connection.pushByteCode(bytecode, { id: programId, name: '' })
+  options.onPushed?.(programId)
   const activationTimeoutMs = options.activationTimeoutMs ?? 10_000
   const activationDeadline = Date.now() + activationTimeoutMs
   let activeProgramId: string | undefined
