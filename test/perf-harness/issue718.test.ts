@@ -47,9 +47,9 @@ describe('render-target plane contention census (#718)', () => {
     // deliberately SELECTS overlapping previous-rgb and snapshot roles and
     // resolves them by suspending Trails (an authored, disclosed policy,
     // #537). Those coexistences are enumerated here rather than asserted,
-    // because the suspension is acceptable by design — but each listed Show
-    // is exactly where packed one-plane RGB would remove the suspension if
-    // it were ever judged visually unacceptable.
+    // because the suspension is acceptable by design. Removing a listed
+    // suspension would take the packed one-plane snapshot AND a fourth
+    // plane together (Trails already occupies all three planes).
     const trailsSuspensionCoexistences: string[] = []
     const candidates: Array<{ showId: string; selected: number; rejected: number }> = []
     const record = (showId: string, plan: { decisions?: Array<ContentionRow & { status: string }> } | undefined) => {

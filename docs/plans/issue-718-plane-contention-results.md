@@ -45,10 +45,12 @@ One contention shape never appears as a rejection by design: Trails
 overlapping a required Transition snapshot is resolved by suspending
 Trails, an authored and disclosed policy (#537), so the census
 *enumerates* those coexistences (currently zero in stock) instead of
-asserting on them. A Show appearing in that list is exactly where the
-packed one-plane RGB snapshot would remove the suspension; judging a
-listed suspension visually unacceptable is the other event that reopens
-this question (Rule 9).
+asserting on them. A Show appearing in that list is where the remedy
+would be the packed one-plane snapshot AND a fourth plane together:
+Trails' previous-rgb role occupies all three existing planes, so the
+packed snapshot needs a fourth (4 x 2,004 = 8,016 words fits, residual
+2,224). Judging a listed suspension visually unacceptable is the other
+event that reopens this question (Rule 9).
 
 ## Premises recorded for a future reopening
 
