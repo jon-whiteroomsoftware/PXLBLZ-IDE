@@ -1,0 +1,82 @@
+{
+  "generatedAt": "2026-08-29",
+  "device": "Burner bag",
+  "boardType": "pb32",
+  "firmwareVersion": "3.67",
+  "outputProfile": "native-serial (assumed)",
+  "iterations": 2593,
+  "repetitions": 5,
+  "rows": [
+    {
+      "name": "mul",
+      "baselineName": "identity baseline",
+      "medianNetUs": 0.8079637485537989,
+      "meanNetUs": 0.8079166988044737,
+      "minNetUs": 0.8026802930967992,
+      "maxNetUs": 0.8139645198611651,
+      "relativeToMultiply": 1
+    },
+    {
+      "name": "posterize endpoint branch",
+      "baselineName": "posterize identity blend (current)",
+      "medianNetUs": -5.855784805244891,
+      "meanNetUs": -5.853021210952566,
+      "minNetUs": -5.861237948322406,
+      "maxNetUs": -5.836953335904357,
+      "relativeToMultiply": -7.247583589890455
+    },
+    {
+      "name": "hsv lane in branch",
+      "baselineName": "hsv eager q and t (current)",
+      "medianNetUs": -6.659899730042421,
+      "meanNetUs": -6.661871962977247,
+      "minNetUs": -6.6772271500192835,
+      "maxNetUs": -6.649544928654068,
+      "relativeToMultiply": -8.242819980430058
+    }
+  ],
+  "rawSamplesByFn": {
+    "0": [
+      17.48656,
+      17.48874,
+      17.51456,
+      17.48376,
+      17.50047
+    ],
+    "1": [
+      19.57538,
+      19.58755,
+      19.62517,
+      19.57881,
+      19.58182
+    ],
+    "2": [
+      40.34848,
+      40.38722,
+      40.34412,
+      40.48898,
+      40.36328
+    ],
+    "3": [
+      25.16443,
+      25.18903,
+      25.1622,
+      25.35376,
+      25.17824
+    ],
+    "4": [
+      50.05981,
+      50.15182,
+      50.07591,
+      50.25974,
+      50.10405
+    ],
+    "5": [
+      32.81754,
+      32.83777,
+      32.80679,
+      32.99808,
+      32.81998
+    ]
+  }
+}

@@ -111,7 +111,7 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
     // fixture. The per-member HSV conversions alone would cross the
     // activation ceiling here, so the #559 byte-budget fallback keeps the
     // shared chain.
-    expect(baseline.summary.artifactBytes).toBe(82_727)
+    expect(baseline.summary.artifactBytes).toBe(82_771)
     expect(selected.summary.artifactBytes).toBe(57_701)
     // #717 interning shrank the fixture enough that the #559 byte-budget
     // fallback no longer binds: the faster per-member HSV chain fits.
@@ -151,8 +151,8 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
     expect(selected.summary.artifactBytes).toBeLessThan(baseline.summary.artifactBytes)
     // Refreshed 2026-07-20 after the wave-2 emission changes (#557-#566);
     // #571's prologue-rebinding removal trimmed both builds again.
-    expect(baseline.summary.artifactBytes).toBe(73_188)
-    expect(selected.summary.artifactBytes).toBe(65_886)
+    expect(baseline.summary.artifactBytes).toBe(73_232)
+    expect(selected.summary.artifactBytes).toBe(65_930)
     expect(selected.summary.resources).toMatchObject({
       auxiliaryCacheWords: 216,
       totalWords: 708,
@@ -161,7 +161,7 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
       remainingGlobals: 5,
       // Was -692 before wave-2: the emission diet brought this fixture back
       // under the activation ceiling; #571 added 240 more bytes of headroom.
-      remainingArtifactBytes: 2498,
+      remainingArtifactBytes: 2454,
     })
     expect(checksums(selected, installationShow, 'fast')).toEqual(checksums(baseline, installationShow, 'fast'))
     expect(checksums(selected, installationShow, 'fidelity')).toEqual(checksums(baseline, installationShow, 'fidelity'))

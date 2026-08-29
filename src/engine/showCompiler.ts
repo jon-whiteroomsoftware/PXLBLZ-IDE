@@ -1132,6 +1132,10 @@ export interface ShowCompileOptions {
    * (same-domain transition decode sharing, wrapper copy propagation);
    * production always uses the default `true`. */
   perPixelDedup?: boolean
+  /** Benchmark/vintage counterfactual for the #907 shared-HSV-chain lane
+   * scoping (each sector evaluates only its own q/t lane); production
+   * always uses the default `true`. */
+  hsvSharedChainLaneScoping?: boolean
   /** Benchmark counterfactual for #561 per-pixel pixelCount constant-write
    * hoisting; production always uses the default `true`. */
   pixelCountWriteHoisting?: boolean
@@ -2699,6 +2703,7 @@ export function compileShow(
       hsvCaptureChainSpecialization: options.hsvCaptureChainSpecialization,
       identityBlendFold: options.identityBlendFold,
       perPixelDedup: options.perPixelDedup,
+      hsvSharedChainLaneScoping: options.hsvSharedChainLaneScoping,
     },
   )
   for (const member of members) member.binding = bindingPolicies.get(member.id)
@@ -10503,6 +10508,9 @@ function emitRuntimePrelude(
   const directSinkMemberIds = options.directSinkMemberIds ?? new Set<string>()
   const functionValuedSinks = options.functionValuedSinks ?? false
   const hsvCapturePolicy = selectHsvCaptureChainPolicy(members)
+  const laneScopedSharedChain = !members.some((member) => (
+    member.binding?.hsvSharedChainLaneScoping === false
+  ))
   const samplePropertyRamps = members[0]?.samplePropertyRamps
   const sampleRuntime = emitSampleRemappingRuntime(samplePropertyRamps)
   const sharedEffectKernelPlan = buildGeneratedEffectKernelPlan(members, outputDimension)
@@ -10869,7 +10877,25 @@ ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) $
     ...(usesHsv ? [`function __pxlblz_show_capture_rgb(slot, r, g, b) {
   ${captureBranches}
 }`,
-    `function __pxlblz_show_capture_hsv(slot, h, s, v) {
+    // #907: each sector consumes exactly one of the q/t lanes, so the
+    // shared chain computes the lane inside the taken branch (the #559
+    // specialized conversions already have this shape). The eager form
+    // measured 6.660 us/call slower (issue907-idiom-probe.json); the
+    // counterfactual reproduces it for vintage pins.
+    laneScopedSharedChain
+      ? `function __pxlblz_show_capture_hsv(slot, h, s, v) {
+  h = h - floor(h)
+  var i = floor(h * 6)
+  var f = h * 6 - i
+  var p = v * (1 - s)
+  if (i == 0) __pxlblz_show_capture_rgb(slot, v, v * (1 - (1 - f) * s), p)
+  else if (i == 1) __pxlblz_show_capture_rgb(slot, v * (1 - f * s), v, p)
+  else if (i == 2) __pxlblz_show_capture_rgb(slot, p, v, v * (1 - (1 - f) * s))
+  else if (i == 3) __pxlblz_show_capture_rgb(slot, p, v * (1 - f * s), v)
+  else if (i == 4) __pxlblz_show_capture_rgb(slot, v * (1 - (1 - f) * s), p, v)
+  else __pxlblz_show_capture_rgb(slot, v, p, v * (1 - f * s))
+}`
+      : `function __pxlblz_show_capture_hsv(slot, h, s, v) {
   h = h - floor(h)
   var i = floor(h * 6)
   var f = h * 6 - i

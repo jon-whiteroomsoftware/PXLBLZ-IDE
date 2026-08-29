@@ -36,6 +36,8 @@ export interface MemberBindingPolicy {
   /** #905: option carrier for per-pixel dedupe (same-domain transition
    * decode sharing, wrapper copy propagation). */
   perPixelDedup: boolean
+  /** #907: option carrier for shared-HSV-chain lane scoping. */
+  hsvSharedChainLaneScoping: boolean
   /** #559: the whole recipe proves phase adaptation is identically zero, so
    * the per-pixel `+ adapt_phase` add strips. */
   phaseAdaptationIdentity: boolean
@@ -49,6 +51,7 @@ export interface MemberBindingPolicyOptions {
   hsvCaptureChainSpecialization?: boolean
   identityBlendFold?: boolean
   perPixelDedup?: boolean
+  hsvSharedChainLaneScoping?: boolean
 }
 
 /** The per-member facts the policy needs that only the compiled member
@@ -226,6 +229,7 @@ export function planMemberBindingPolicies(
       hsvCaptureSpecialization: options.hsvCaptureChainSpecialization ?? true,
       identityBlendFold: options.identityBlendFold ?? true,
       perPixelDedup: options.perPixelDedup ?? true,
+      hsvSharedChainLaneScoping: options.hsvSharedChainLaneScoping ?? true,
       phaseAdaptationIdentity: member.adaptationPhase === 0
         && !phaseBlocked.has(member.id)
         && !rampMovesPhase

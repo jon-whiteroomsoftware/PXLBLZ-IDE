@@ -10,12 +10,12 @@ describe('Restart Pattern machine-slot qualification (#546)', () => {
     // fixture after the shipping Property Animation reference consolidated
     // to shared voices (#514/#536 ceilings). The exchange grows to 19 -> 7
     // machines with the recast; the fixture keeps the #559 byte-budget
-    // fallback (shared HSV chain); the 205 fixture sits 2,498 B (post-#905)
+    // fallback (shared HSV chain); the 205 fixture sits 2,454 B (post-#907)
     // under the activation ceiling.
     expect(issue546Report.fixtures).toMatchObject([
       {
         id: 'fixture-property-slot-qualification',
-        baseline: { sourceBytes: 82_727, physicalMachines: 19 },
+        baseline: { sourceBytes: 82_771, physicalMachines: 19 },
         selected: {
           sourceBytes: 57_701,
           physicalMachines: 7,
@@ -27,13 +27,13 @@ describe('Restart Pattern machine-slot qualification (#546)', () => {
       },
       {
         id: 'fixture-installation-composition',
-        baseline: { sourceBytes: 73_188, physicalMachines: 12 },
+        baseline: { sourceBytes: 73_232, physicalMachines: 12 },
         selected: {
-          sourceBytes: 65_886,
+          sourceBytes: 65_930,
           physicalMachines: 10,
           auxiliaryCacheWords: 216,
           persistentGlobals: 251,
-          remainingArtifactBytes: 2498,
+          remainingArtifactBytes: 2454,
         },
         sourceChangePercent: expect.closeTo(-9.98, 1),
       },
