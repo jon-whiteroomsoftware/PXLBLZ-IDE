@@ -30,6 +30,9 @@ export interface MemberBindingPolicy {
   uniformPixelCountBinding: boolean
   /** #559: option carrier for the per-member HSV conversion. */
   hsvCaptureSpecialization: boolean
+  /** #904: option carrier for the identity-blend fold (direct assignment for
+   * statically opaque, unmasked, keyless stack placements). */
+  identityBlendFold: boolean
   /** #559: the whole recipe proves phase adaptation is identically zero, so
    * the per-pixel `+ adapt_phase` add strips. */
   phaseAdaptationIdentity: boolean
@@ -41,6 +44,7 @@ export interface MemberBindingPolicyOptions {
   placementPrologueHoisting?: boolean
   pixelCountWriteHoisting?: boolean
   hsvCaptureChainSpecialization?: boolean
+  identityBlendFold?: boolean
 }
 
 /** The per-member facts the policy needs that only the compiled member
@@ -216,6 +220,7 @@ export function planMemberBindingPolicies(
         && colorCoefficientHoisting,
       uniformPixelCountBinding: pixelCountUniform(member.id),
       hsvCaptureSpecialization: options.hsvCaptureChainSpecialization ?? true,
+      identityBlendFold: options.identityBlendFold ?? true,
       phaseAdaptationIdentity: member.adaptationPhase === 0
         && !phaseBlocked.has(member.id)
         && !rampMovesPhase

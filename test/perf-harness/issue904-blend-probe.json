@@ -1,0 +1,88 @@
+{
+  "generatedAt": "2026-08-29",
+  "device": "Burner bag",
+  "boardType": "pb32",
+  "firmwareVersion": "3.67",
+  "outputProfile": "native-serial (assumed)",
+  "pixelCount": 256,
+  "iterations": 2593,
+  "repetitions": 5,
+  "rows": [
+    {
+      "name": "mul",
+      "baselineName": "identity baseline",
+      "medianNetUs": 0.8090435788661773,
+      "meanNetUs": 0.8167759352101813,
+      "minNetUs": 0.8023254917084458,
+      "maxNetUs": 0.8566833783262631,
+      "relativeToMultiply": 1
+    },
+    {
+      "name": "identity blend (1 channel)",
+      "baselineName": "direct assignment (1 channel)",
+      "medianNetUs": 3.4407597377554957,
+      "meanNetUs": 3.4532194369456235,
+      "minNetUs": 3.43421905129194,
+      "maxNetUs": 3.4961627458542237,
+      "relativeToMultiply": 4.252873179683967
+    },
+    {
+      "name": "emitted three-channel blend (dead inits + identity blends)",
+      "baselineName": "folded three-channel sink",
+      "medianNetUs": 13.897601234091784,
+      "meanNetUs": 13.900124180485923,
+      "minNetUs": 13.88151947551099,
+      "maxNetUs": 13.915665252603164,
+      "relativeToMultiply": 17.177815382415346
+    }
+  ],
+  "rawSamplesByFn": {
+    "0": [
+      17.4816,
+      17.52754,
+      17.48108,
+      17.46872,
+      17.50595
+    ],
+    "1": [
+      19.56203,
+      19.74892,
+      19.56865,
+      19.56657,
+      19.60822
+    ],
+    "2": [
+      21.29494,
+      21.28734,
+      21.29448,
+      21.28831,
+      21.33174
+    ],
+    "3": [
+      30.21677,
+      30.20923,
+      30.25127,
+      30.19324,
+      30.39729
+    ],
+    "4": [
+      42.67381,
+      42.72775,
+      42.7047,
+      42.8559,
+      42.70158
+    ],
+    "5": [
+      78.70633,
+      78.81107,
+      78.74118,
+      78.85068,
+      78.76959
+    ]
+  },
+  "projections": {
+    "perLineUs": 3.4407597377554957,
+    "perPlacementBlockUs": 13.897601234091784,
+    "msPerFrameAt2000px": 27.795202468183568
+  }
+}

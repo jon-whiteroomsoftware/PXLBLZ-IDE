@@ -17,10 +17,11 @@ export const COMPILER_VINTAGES = {
     hsvCaptureChainSpecialization: false,
     inlineCallHoisting: false,
   },
-  /** #525 motion-representation census (pre-#559/#566). */
+  /** #525 motion-representation census (pre-#559/#566/#904). */
   'issue-525-motion-census': {
     hsvCaptureChainSpecialization: false,
     inlineCallHoisting: false,
+    identityBlendFold: false,
   },
   /** #536 score-representation census (pre-wave-2 emission diet). */
   'issue-536-score-census': {
@@ -37,16 +38,18 @@ export const COMPILER_VINTAGES = {
     helperCallInlining: false,
     inlineCallHoisting: false,
   },
-  /** #542 score baseline census (pre-wave-2 emission diet). */
+  /** #542 score baseline census (pre-wave-2 emission diet, pre-#904). */
   'issue-542-score-census': {
     hsvCaptureChainSpecialization: false,
     inlineCallHoisting: false,
     helperCallInlining: false,
+    identityBlendFold: false,
   },
-  /** Motion-transition sharing goldens (pre-#559/#566). */
+  /** Motion-transition sharing goldens (pre-#559/#566/#904). */
   'motion-transition-sharing': {
     hsvCaptureChainSpecialization: false,
     inlineCallHoisting: false,
+    identityBlendFold: false,
   },
 } satisfies Record<string, ShowCompileOptions>
 

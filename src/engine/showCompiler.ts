@@ -1125,6 +1125,9 @@ export interface ShowCompileOptions {
   /** Benchmark counterfactual for #562 capture-prologue assignment
    * reduction; production always uses the default `true`. */
   capturePrologueSimplification?: boolean
+  /** Benchmark/vintage counterfactual for the #904 identity-blend fold;
+   * production always uses the default `true`. */
+  identityBlendFold?: boolean
   /** Benchmark counterfactual for #561 per-pixel pixelCount constant-write
    * hoisting; production always uses the default `true`. */
   pixelCountWriteHoisting?: boolean
@@ -2690,6 +2693,7 @@ export function compileShow(
       placementPrologueHoisting: options.placementPrologueHoisting,
       pixelCountWriteHoisting: options.pixelCountWriteHoisting,
       hsvCaptureChainSpecialization: options.hsvCaptureChainSpecialization,
+      identityBlendFold: options.identityBlendFold,
     },
   )
   for (const member of members) member.binding = bindingPolicies.get(member.id)
@@ -6973,6 +6977,21 @@ function describeContentKeySpecialization(
         }))
       : [])
   )) ?? []
+  // #904: the direct-assignment bypass also reaches single-placement stacks
+  // (capture wrappers), so its census walks every stack, not only the
+  // multi-layer ones the endpoint metrics describe.
+  const allStackPlacements = recipe.routedSceneSequence?.scenes.flatMap((scene) => (
+    [...groupRoutedPlacementsByZone(scene.placements.map((placement) => ({
+      ...placement,
+      member: memberById.get(placement.clipId)!,
+      consumerId: '',
+    })))].flatMap(([, stack]) => stack.map((placement) => ({
+      placement,
+      stack,
+      propertyTracks: scene.propertyTracks,
+      endpointActive: routedStackHasEndpointOptimization(stack, scene.propertyTracks),
+    })))
+  )) ?? []
   const staticZero = endpointPlacements.filter(({ placement, propertyTracks }) => (
     routedPlacementStaticOpacity(placement, propertyTracks) === 0
   ))
@@ -6993,10 +7012,14 @@ function describeContentKeySpecialization(
     zeroWeightRequiredCallsRetained: staticZero.filter(({ placement, stack }) => (
       !routedPlacementCanSkipEvaluation(placement, stack, outputDimension)
     )).length,
-    fullWeightBlendBypasses: endpointPlacements.filter(({ placement, propertyTracks, endpointActive }) => (
-      endpointActive
-      && routedPlacementStaticOpacity(placement, propertyTracks) === 1
-      && !routedPlacementHasContentKey(placement)
+    // #904: mirrors the emission predicate — endpoint-context bypasses, plus
+    // the first-contributor fold when its counterfactual is not disabled —
+    // over every stack including single-placement capture wrappers.
+    fullWeightBlendBypasses: allStackPlacements.filter(({ placement, stack, propertyTracks, endpointActive }) => (
+      (endpointActive
+        || (placement.member.binding?.identityBlendFold !== false
+          && placement === stack.find((candidate) => routedPlacementStaticOpacity(candidate, propertyTracks) !== 0)))
+      && routedPlacementTakesDirectAssignment(placement, propertyTracks)
     )).length,
     trackedEndpointLayersEligible: trackedOpacity.filter(({ placement, stack }) => (
       routedPlacementCanSkipEvaluation(placement, stack, outputDimension)
@@ -7311,7 +7334,6 @@ function emitRoutedPlacementStackCapture(
   localTimeExpression?: string,
   viewportCoordinates?: { x: string; y: string; index: string },
 ): string {
-  const endpointOptimizationActive = routedStackHasEndpointOptimization(placements, propertyTracks)
   const viewportCoverage = viewportCoordinates
     ? analyzeViewportCoverageStack(placements, outputDimension, propertyTracks)
     : null
@@ -7356,10 +7378,25 @@ function emitRoutedPlacementStackCapture(
       viewportCoordinates,
     )
   }
+  // #904: the identityBlendFold binding carries the compile option so
+  // vintage pins can reproduce the pre-fold emission exactly.
+  const foldDisabled = placements.some((placement) => (
+    placement.member.binding?.identityBlendFold === false
+  ))
+  const endpointOptimizationActive = routedStackHasEndpointOptimization(placements, propertyTracks)
+  // #904: when the first contributing placement overwrites the accumulator
+  // unconditionally, the zero initializers are dead stores; a bare `var`
+  // keeps identical semantics (locals default to zero) at fewer VM words.
+  const firstContributor = placements.find((placement) => (
+    routedPlacementStaticOpacity(placement, propertyTracks) !== 0
+  ))
+  const firstContributorOverwrites = !foldDisabled
+    && firstContributor != null
+    && routedPlacementTakesDirectAssignment(firstContributor, propertyTracks)
   return [
-    `var ${target}_r = 0`,
-    `var ${target}_g = 0`,
-    `var ${target}_b = 0`,
+    `var ${target}_r${firstContributorOverwrites ? '' : ' = 0'}`,
+    `var ${target}_g${firstContributorOverwrites ? '' : ' = 0'}`,
+    `var ${target}_b${firstContributorOverwrites ? '' : ' = 0'}`,
     ...placements.flatMap((placement, placementIndex) => {
       const rendered = emitRoutedPlacementCapture(
         placement,
@@ -7375,10 +7412,16 @@ function emitRoutedPlacementStackCapture(
           ? []
           : rendered.lines
       }
-      if (endpointOptimizationActive
-        && staticOpacity === 1
-        && routedPlacementIsOpaque(placement, propertyTracks)
-        && !memberHasContentKey(member)) {
+      // #904: for the stack's FIRST contributor the accumulator is provably
+      // the literal 0, so `m * (1) + t * (1 - (1))` is `m` in 16.16 AND in
+      // Fast float64 (m + 0*0), including non-finite m — the direct form is
+      // bit-identical at the quantized output surface. Later opaque layers
+      // keep the blend outside the endpoint context: in Fast float64 a
+      // non-finite lower-layer accumulator propagates through `t * 0`, and
+      // direct assignment would hide it. The elided blend measured
+      // 3.44 us/pixel per line on fw 3.67 (issue904-blend-probe.json).
+      if ((endpointOptimizationActive || (!foldDisabled && placement === firstContributor))
+        && routedPlacementTakesDirectAssignment(placement, propertyTracks)) {
         return [
           ...rendered.lines,
           `${target}_r = ${member.prefix}_r`,
@@ -7871,6 +7914,16 @@ function routedPlacementIsOpaque(
     && (!placement.blink || placement.blink.duty >= 1)
     && !routedPlacementHasOpacityTrack(placement, propertyTracks)
     && clampNumber(placement.opacity ?? 1, 0, 1) === 1
+}
+
+/** #904: the placement's stack contribution is exactly its own RGB. */
+function routedPlacementTakesDirectAssignment(
+  placement: ResolvedRoutedScenePlacement,
+  propertyTracks?: ShowPropertyAnimationTrack[],
+): boolean {
+  return routedPlacementStaticOpacity(placement, propertyTracks) === 1
+    && routedPlacementIsOpaque(placement, propertyTracks)
+    && !memberHasContentKey(placement.member)
 }
 
 /** #557: per-scene activation context for steady-state direct color sinks. */

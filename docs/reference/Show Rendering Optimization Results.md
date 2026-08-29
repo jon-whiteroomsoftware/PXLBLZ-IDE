@@ -349,6 +349,18 @@ lives in `docs/plans/archive/show-rendering-next-wave-measurement-ledger.md`.
 
 Wave-2 slice ledgers with full axes live as comments on #554.
 
+### Wave-4 measured additions (epic #903)
+
+Wave 4 targets the generated code itself; the advisory with the full
+candidate map is `docs/plans/controller-performance-wave4-advisory.md`.
+
+| Step | Slice | Primary measured result |
+| ---: | --- | --- |
+| 00 | #904 identity-blend fold | probe: one emitted blend line 3.441 us/pixel over direct assignment, the full three-channel block with dead inits 13.898 us/pixel (17.2x mul); hand-fold ladder: five-pattern acceptance **+8.45/+6.92/+5.50%** median FPS at 256/1,000/2,000 px, hsv-steady and effect-tax neutral (their blends sit on the #557-bypassed capture path); emitter takes the direct form for a stack's statically opaque unmasked **first contributor** (accumulator provably zero, so the fold is exact in 16.16 and in Fast float64 including non-finite values) and bares dead accumulator initializers; later opaque layers keep the blend outside the endpoint context because Fast float64 must propagate a non-finite lower-layer accumulator through `t * 0`; every blend the ladder measured was a first-contributor site, so the restriction costs none of the measured win; `identityBlendFold: false` reproduces pre-fold emission for vintages |
+
+Raw wave-4 slice data: `test/perf-harness/issue904-blend-probe.json` and
+`issue904-fold-ladder.json`.
+
 ## General rules established by the evidence
 
 1. Remove dead work before caching it.
