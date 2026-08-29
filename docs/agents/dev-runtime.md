@@ -110,9 +110,10 @@ runtime during ordinary task cleanup.
 
 ## Playwright suites
 
-Authenticated suites reserve an isolated Vite/Wrangler pair from the same
-registry, use an explicit temporary D1 persistence directory, migrate and seed
-that store before startup, and release it after the run:
+Authenticated suites reserve an isolated port from the registry and start one
+worker-dev Vite process (#901) serving the candidate's UI, its Worker, and a
+temporary D1 store the wrapper migrates and seeds before startup and removes
+after the run:
 
 ```bash
 npm run test:e2e:auth-smoke
@@ -120,10 +121,12 @@ npm run test:e2e:shows
 ```
 
 The public suite reserves a shared-profile UI port from the registry and
-starts a candidate-owned dev server, because the stable main pair on `5174`
-would otherwise be silently reused and test old main instead of the worktree
-under test (#746). Its global setup verifies the served worktree through the
-dev-only `/__identity` endpoint and fails closed on any mismatch:
+starts a hermetic candidate-owned single-process server against its own
+throwaway migrated D1 (#901) — the push gate does not depend on the stable
+main runtime being healthy, and the stable `5174` server is never silently
+reused to test old main instead of the worktree under test (#746). Its global
+setup verifies the served worktree through the dev-only `/__identity`
+endpoint and fails closed on any mismatch:
 
 ```bash
 npm run test:e2e

@@ -9,7 +9,8 @@
 // runtime that is already serving this worktree — the wrapper reserves
 // nothing and the global setup's identity check remains the gate.
 import { spawnSync } from 'node:child_process'
-import { resolve } from 'node:path'
+import { mkdirSync, rmSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { RuntimeAssignment } from './dev-runtime-core'
 import {
@@ -24,14 +25,18 @@ import {
 
 export function publicPlaywrightEnvironment(
   assignment: RuntimeAssignment,
+  persistStateDirectory: string,
   basePath = '/PXLBLZ-IDE/',
 ): Record<string, string> {
-  // VITE_BASE_PATH must bind to the same manifest base the Studio URL is
-  // built from; an inherited shell or .env value would otherwise make
+  // The candidate server is hermetic (#901): one worker-dev Vite process
+  // serving the candidate's UI, its Worker, and a throwaway migrated D1 —
+  // the push gate no longer depends on the stable main runtime being
+  // healthy. VITE_BASE_PATH must bind to the same manifest base the Studio
+  // URL is built from; an inherited shell or .env value would otherwise make
   // Playwright target one base while the spawned Vite serves another.
   return {
     PLAYWRIGHT_PUBLIC_VITE_PORT: String(assignment.uiPort),
-    PLAYWRIGHT_PUBLIC_API_PROXY_TARGET: assignment.apiTarget,
+    PLAYWRIGHT_PUBLIC_PERSIST_STATE: persistStateDirectory,
     PLAYWRIGHT_STUDIO_URL: `http://localhost:${assignment.uiPort}${basePath}`,
     VITE_BASE_PATH: basePath,
   }
@@ -84,6 +89,7 @@ async function main(): Promise<void> {
 
   const manifest = loadManifest(context.worktree)
   const runId = `playwright-public-${process.pid}-${Date.now()}`
+  const persistStateDirectory = join(context.runtimeDirectory, 'playwright', runId)
   const assignment = await reserveRuntimeAssignment({
     directory: context.runtimeDirectory,
     request: {
@@ -97,14 +103,24 @@ async function main(): Promise<void> {
     now: () => new Date().toISOString(),
     portIsAvailable,
   })
-  const environment = publicPlaywrightEnvironment(assignment, manifest.basePath)
+  mkdirSync(persistStateDirectory, { recursive: true })
+  const environment = publicPlaywrightEnvironment(assignment, persistStateDirectory, manifest.basePath)
   console.log(
-    `Public e2e target: ${environment.PLAYWRIGHT_STUDIO_URL} (candidate-owned server for ${context.worktree})`,
+    `Public e2e target: ${environment.PLAYWRIGHT_STUDIO_URL} (hermetic candidate-owned server for ${context.worktree})`,
   )
   try {
+    const migrate = spawnSync(process.execPath, [
+      resolve(context.worktree, 'node_modules/wrangler/bin/wrangler.js'),
+      'd1', 'migrations', 'apply', 'pxlblz-ide',
+      '--local', '--persist-to', persistStateDirectory,
+    ], { cwd: context.worktree, stdio: 'inherit' })
+    if (migrate.status !== 0) {
+      throw new Error(`Migrating the throwaway public-suite D1 exited ${migrate.status ?? 'without a status'}.`)
+    }
     runPlaywright(context.worktree, testArgs, { ...process.env, ...environment })
   } finally {
     await releaseRuntimeAssignment(context.runtimeDirectory, runId)
+    rmSync(persistStateDirectory, { recursive: true, force: true })
   }
 }
 

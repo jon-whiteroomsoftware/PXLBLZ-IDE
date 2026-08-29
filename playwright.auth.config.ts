@@ -1,13 +1,11 @@
 import { defineConfig, devices } from '@playwright/test'
 import { authenticatedPlaywrightWorkerCount } from './scripts/authenticated-playwright-user'
 
-// Authenticated smoke owns its two ports. The persistent 5174/8788 dev pair can
-// belong to another worktree, and reusing only one of that pair silently points
-// Vite at a different local D1 database.
+// Authenticated smoke owns its port. One worker-dev Vite process (#901)
+// serves UI, /api, and the suite's isolated D1 store; reusing another
+// runtime's server would silently point the suite at a different database.
 const vitePort = requireEnvironment('PLAYWRIGHT_AUTH_SMOKE_VITE_PORT')
-const wranglerPort = requireEnvironment('PLAYWRIGHT_AUTH_SMOKE_WRANGLER_PORT')
 const studioBaseUrl = process.env.PLAYWRIGHT_STUDIO_URL ?? `http://localhost:${vitePort}/PXLBLZ-IDE/`
-const wranglerUrl = `http://localhost:${wranglerPort}`
 const persistenceDirectory = requireEnvironment('PXLBLZ_D1_PERSIST_TO')
 requireEnvironment('PXLBLZ_DEV_VARS_FILE')
 
@@ -18,9 +16,9 @@ export default defineConfig({
   workers: authenticatedPlaywrightWorkerCount,
   reporter: 'list',
   globalSetup: './e2e/auth.global-setup.ts',
-  // All workers share one wrangler pages dev process, so /api/me and personal
-  // content loads can push a Studio route's first paint past Playwright's 5s
-  // default under full-suite parallel load (#683).
+  // All workers share one in-process Worker, so /api/me and personal content
+  // loads can push a Studio route's first paint past Playwright's 5s default
+  // under full-suite parallel load (#683).
   expect: { timeout: 15_000 },
   use: {
     baseURL: studioBaseUrl,
@@ -29,25 +27,13 @@ export default defineConfig({
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
   ],
-  webServer: [
-    {
-      command: [
-        'npx wrangler pages dev dist',
-        `--port ${wranglerPort}`,
-        `--persist-to ${shellArgument(persistenceDirectory)}`,
-        '--show-interactive-dev-session=false',
-      ].join(' '),
-      url: `${wranglerUrl}/api/me`,
-      reuseExistingServer: false,
-      timeout: 120_000,
-    },
-    {
-      command: `VITE_PORT=${vitePort} VITE_API_PROXY_TARGET=${wranglerUrl} npm run dev`,
-      url: studioBaseUrl,
-      reuseExistingServer: false,
-      timeout: 120_000,
-    },
-  ],
+  webServer: {
+    command: `VITE_PORT=${vitePort} VITE_CF_PERSIST_STATE=${shellArgument(persistenceDirectory)} npm run dev`,
+    // /api/me proves the in-process Worker and its D1 store, not just Vite.
+    url: `http://localhost:${vitePort}/api/me`,
+    reuseExistingServer: false,
+    timeout: 120_000,
+  },
 })
 
 function requireEnvironment(name: string): string {

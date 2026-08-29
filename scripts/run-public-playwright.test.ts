@@ -20,17 +20,17 @@ const assignment: RuntimeAssignment = {
 }
 
 describe('public Playwright runtime', () => {
-  it('binds the suite and its candidate-owned server to the reserved assignment', () => {
-    expect(publicPlaywrightEnvironment(assignment, '/PXLBLZ-IDE/')).toEqual({
+  it('binds the suite to a hermetic single-process candidate server', () => {
+    expect(publicPlaywrightEnvironment(assignment, '/tmp/runtime/public-123', '/PXLBLZ-IDE/')).toEqual({
       PLAYWRIGHT_PUBLIC_VITE_PORT: '5183',
-      PLAYWRIGHT_PUBLIC_API_PROXY_TARGET: 'http://localhost:8788',
+      PLAYWRIGHT_PUBLIC_PERSIST_STATE: '/tmp/runtime/public-123',
       PLAYWRIGHT_STUDIO_URL: 'http://localhost:5183/PXLBLZ-IDE/',
       VITE_BASE_PATH: '/PXLBLZ-IDE/',
     })
   })
 
   it('derives the Studio URL and served base from the manifest base path', () => {
-    expect(publicPlaywrightEnvironment(assignment, '/other-base/')).toMatchObject({
+    expect(publicPlaywrightEnvironment(assignment, '/tmp/runtime/public-123', '/other-base/')).toMatchObject({
       PLAYWRIGHT_STUDIO_URL: 'http://localhost:5183/other-base/',
       VITE_BASE_PATH: '/other-base/',
     })

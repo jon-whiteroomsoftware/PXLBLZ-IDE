@@ -23,7 +23,6 @@ export function authenticatedPlaywrightEnvironment(
 ): Record<string, string> {
   return {
     PLAYWRIGHT_AUTH_SMOKE_VITE_PORT: String(assignment.uiPort),
-    PLAYWRIGHT_AUTH_SMOKE_WRANGLER_PORT: String(assignment.apiPort),
     PLAYWRIGHT_STUDIO_URL: `http://localhost:${assignment.uiPort}${basePath}`,
     PXLBLZ_D1_PERSIST_TO: persistenceDirectory,
     PXLBLZ_DEV_VARS_FILE: devVarsFile,
@@ -58,7 +57,6 @@ async function main(): Promise<void> {
       worktree: context.worktree,
       branch: context.branch,
       profile: 'isolated',
-      separateApiPort: true,
     },
     manifest,
     now: () => new Date().toISOString(),
@@ -96,7 +94,6 @@ async function main(): Promise<void> {
       '--command',
       authenticatedPlaywrightSeedSql(Math.floor(Date.now() / 1000)),
     ], context.worktree, env)
-    run('npm', ['run', 'build'], context.worktree, env)
     run(process.execPath, [
       resolve(context.worktree, 'node_modules/playwright/cli.js'),
       'test',

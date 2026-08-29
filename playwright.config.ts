@@ -19,7 +19,11 @@ if (!studioUrl) {
   )
 }
 const vitePort = process.env.PLAYWRIGHT_PUBLIC_VITE_PORT
-const apiProxyTarget = process.env.PLAYWRIGHT_PUBLIC_API_PROXY_TARGET ?? 'http://localhost:8788'
+const persistState = process.env.PLAYWRIGHT_PUBLIC_PERSIST_STATE
+
+function shellArgument(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`
+}
 
 export default defineConfig({
   testDir: './e2e',
@@ -34,10 +38,12 @@ export default defineConfig({
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
   ],
-  webServer: vitePort
+  webServer: vitePort && persistState
     ? {
-        command: `VITE_PORT=${vitePort} VITE_API_PROXY_TARGET=${apiProxyTarget} npm run dev`,
-        url: studioUrl,
+        // Hermetic single-process candidate server (#901): the candidate's
+        // Worker and a throwaway migrated D1 run inside the Vite process.
+        command: `VITE_PORT=${vitePort} VITE_CF_PERSIST_STATE=${shellArgument(persistState)} npm run dev`,
+        url: `http://localhost:${vitePort}/api/me`,
         reuseExistingServer: false,
         timeout: 120_000,
       }
