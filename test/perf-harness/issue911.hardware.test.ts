@@ -124,8 +124,16 @@ describe('preview-stream tax on hardware (#911)', () => {
         observerPreviewFrames: number
       }> = []
       for (const pixelCount of PIXEL_COUNTS) {
+        // setPixelCount is fire-and-forget; confirm the device applied it
+        // before labeling rows with the requested count (review P2).
         connection.setPixelCount(pixelCount, false)
-        await sleep(1_000)
+        const applied = await waitForControllerConfig(
+          () => connection.getConfig(),
+          { activeProgramId: programId, pixelCount },
+        )
+        if (applied.pixelCount !== pixelCount) {
+          throw new Error(`Controller did not apply pixelCount ${pixelCount} (reports ${applied.pixelCount}).`)
+        }
         for (const state of OBSERVER_STATES) {
           process.stdout.write(`  ${state} @ ${pixelCount} px ... `)
           if (state !== 'closed') {

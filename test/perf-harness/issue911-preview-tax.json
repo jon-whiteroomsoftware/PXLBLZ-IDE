@@ -24,7 +24,7 @@
       "fps": {
         "median": 8.152174,
         "min": 8.144796,
-        "max": 8.159564,
+        "max": 8.152174,
         "samples": 32
       },
       "observerPreviewFrames": 0
@@ -46,18 +46,18 @@
       "fps": {
         "median": 8.122744,
         "min": 8.122744,
-        "max": 8.130081,
+        "max": 8.122744,
         "samples": 32
       },
-      "observerPreviewFrames": 66
+      "observerPreviewFrames": 65
     },
     {
       "pixelCount": 2000,
       "state": "closed",
       "fps": {
-        "median": 1.046572,
+        "median": 1.04712,
         "min": 1.046025,
-        "max": 1.04712,
+        "max": 4.412576,
         "samples": 32
       },
       "observerPreviewFrames": 0
@@ -67,8 +67,8 @@
       "state": "idle-default",
       "fps": {
         "median": 1.045478,
-        "min": 1.044386,
-        "max": 1.045478,
+        "min": 1.045478,
+        "max": 1.046025,
         "samples": 32
       },
       "observerPreviewFrames": 0
@@ -77,9 +77,9 @@
       "pixelCount": 2000,
       "state": "updates-off",
       "fps": {
-        "median": 1.046025,
+        "median": 1.045478,
         "min": 1.044932,
-        "max": 1.046572,
+        "max": 1.045478,
         "samples": 32
       },
       "observerPreviewFrames": 0
@@ -88,9 +88,9 @@
       "pixelCount": 2000,
       "state": "updates-on",
       "fps": {
-        "median": 1.042753,
-        "min": 1.04221,
-        "max": 1.044386,
+        "median": 1.04221,
+        "min": 1.041667,
+        "max": 1.042753,
         "samples": 32
       },
       "observerPreviewFrames": 9
