@@ -35,8 +35,8 @@ describe('transition-arm dedup ladder on hardware (#905 stage 1)', () => {
     // Historical measurement tool: with the #905 emitter dedupe landed, the
     // compiler emits the deduped form natively, so this ladder has nothing
     // to pair. The recorded pre-pass run lives in issue905-dedup-ladder.json.
-    if (deduped.dedupedArms === 0) {
-      console.log('The compiler no longer emits duplicate transition decodes (#905 landed); nothing to measure.')
+    if (deduped.code === artifact.code) {
+      console.log('The compiler already emits the deduped form (#905 landed); nothing to measure.')
       return
     }
 
