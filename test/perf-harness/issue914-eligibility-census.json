@@ -5,7 +5,7 @@
     "indexTablingModule": 0,
     "indexTablingFrame": 1,
     "positionMemoExact": 0,
-    "positionMemoBelowBreakeven": 95,
+    "positionMemoBelowBreakeven": 98,
     "positionMemoInvalidation": 8,
     "paletteSpecialization": 2,
     "outsideScopeSubset": 14
@@ -20,7 +20,7 @@
       "positionMemoBelowBreakeven": 1,
       "positionMemoInvalidation": 0,
       "paletteSpecialization": 0,
-      "maxMemoCostXMul": 3.6,
+      "maxMemoCostXMul": 6.6,
       "outsideScopeSubset": false
     },
     {
@@ -401,7 +401,7 @@
       "indexTablingModule": 0,
       "indexTablingFrame": 0,
       "positionMemoExact": 0,
-      "positionMemoBelowBreakeven": 4,
+      "positionMemoBelowBreakeven": 5,
       "positionMemoInvalidation": 0,
       "paletteSpecialization": 0,
       "maxMemoCostXMul": 9,
@@ -428,7 +428,7 @@
       "positionMemoBelowBreakeven": 2,
       "positionMemoInvalidation": 2,
       "paletteSpecialization": 0,
-      "maxMemoCostXMul": 5.1,
+      "maxMemoCostXMul": 8.1,
       "outsideScopeSubset": false
     },
     {
@@ -713,7 +713,7 @@
       "indexTablingModule": 0,
       "indexTablingFrame": 0,
       "positionMemoExact": 0,
-      "positionMemoBelowBreakeven": 7,
+      "positionMemoBelowBreakeven": 9,
       "positionMemoInvalidation": 0,
       "paletteSpecialization": 0,
       "maxMemoCostXMul": 7.2,
@@ -764,7 +764,7 @@
       "positionMemoBelowBreakeven": 1,
       "positionMemoInvalidation": 0,
       "paletteSpecialization": 1,
-      "maxMemoCostXMul": 10.1,
+      "maxMemoCostXMul": 13.1,
       "outsideScopeSubset": false
     },
     {
@@ -884,7 +884,7 @@
       "positionMemoBelowBreakeven": 1,
       "positionMemoInvalidation": 0,
       "paletteSpecialization": 1,
-      "maxMemoCostXMul": 6,
+      "maxMemoCostXMul": 9,
       "outsideScopeSubset": false
     },
     {

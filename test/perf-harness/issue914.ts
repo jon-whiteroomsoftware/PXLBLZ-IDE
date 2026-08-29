@@ -575,10 +575,12 @@ function estimateSubtreeCost(node: Node, context: ClassifyContext): number {
   visitNode(node, (child) => {
     if (child.type === 'CallExpression' && child.callee?.type === 'Identifier') {
       const callee = child.callee.name as string
-      const shadowed = context.functions.has(callee) || context.globals.has(callee)
-        || context.locals.has(callee)
-      if (!shadowed && DEVICE_COST_X_MUL[callee] !== undefined) cost += DEVICE_COST_X_MUL[callee]
-      else if (!shadowed && context.pureFunctions.has(callee)) cost += 3
+      const rebound = context.globals.has(callee) || context.locals.has(callee)
+      if (!rebound && !context.functions.has(callee) && DEVICE_COST_X_MUL[callee] !== undefined) {
+        cost += DEVICE_COST_X_MUL[callee]
+      } else if (!rebound && context.pureFunctions.has(callee)) {
+        cost += 3
+      }
       return
     }
     if (child.type === 'BinaryExpression' || child.type === 'LogicalExpression'
@@ -844,7 +846,8 @@ function classifyExpression(node: Node, context: ClassifyContext, depth = 0): Cl
       const parts = ((node.arguments as Node[]) ?? []).map((argument) => classifyExpression(argument, context, depth + 1))
       return combine([...parts, classified(['frame'], 0)], 1, 1)
     }
-    if (callee !== null && context.pureFunctions.has(callee)) {
+    if (callee !== null && context.pureFunctions.has(callee)
+      && !context.locals.has(callee) && !context.globals.has(callee)) {
       // Interprocedural: a pure-value top-level function's result depends only
       // on its arguments (plus immutable globals). Library helpers like
       // smoothstep arrive as top-level functions post-bundle; without this the
