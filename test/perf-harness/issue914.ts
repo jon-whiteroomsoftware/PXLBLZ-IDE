@@ -845,35 +845,50 @@ function computeOutVarClasses(input: {
         if (!ok || !node || typeof node !== 'object') return
         if (node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression'
           || (node.type === 'FunctionDeclaration' && node !== fn)) {
-          // A builtin name is only trustworthy when nothing in the callback
-          // scope shadows it: `(sin, v) => sin(v)` invoked as
-          // `invoke(setU, knob)` calls the writer, not the builtin.
-          const shadowNames = new Set<string>()
-          visitNode(node, (child) => {
-            if (child.type === 'FunctionExpression' || child.type === 'ArrowFunctionExpression'
-              || child.type === 'FunctionDeclaration') {
-              for (const param of (child.params as Node[]) ?? []) {
-                if (param?.type === 'Identifier') shadowNames.add(param.name as string)
-              }
+          // A builtin name is trustworthy only when no binding on the call's
+          // OWN lexical scope chain shadows it: `(sin, v) => sin(v)` invoked
+          // as `invoke(setU, knob)` calls the writer, while an unused inner
+          // parameter named `sin` must not poison calls in the enclosing
+          // callback. Walk with a proper scope stack.
+          const ownBindings = (fnNode: Node): Set<string> => {
+            const bindings = new Set<string>()
+            for (const param of (fnNode.params as Node[]) ?? []) {
+              if (param?.type === 'Identifier') bindings.add(param.name as string)
             }
-            if (child.type === 'VariableDeclaration') {
-              for (const item of child.declarations as Node[]) {
-                if (item.id?.type === 'Identifier') shadowNames.add(item.id.name as string)
+            visitOwnBody(fnNode.body as Node, (child) => {
+              if (child.type === 'VariableDeclaration') {
+                for (const item of child.declarations as Node[]) {
+                  if (item.id?.type === 'Identifier') bindings.add(item.id.name as string)
+                }
               }
+            })
+            return bindings
+          }
+          const scopeWalk = (child: Node, scopeChain: Array<Set<string>>): void => {
+            if (!ok || !child || typeof child !== 'object') return
+            if (child !== node && (child.type === 'FunctionExpression'
+              || child.type === 'ArrowFunctionExpression' || child.type === 'FunctionDeclaration')) {
+              scopeWalk(child.body as Node, [...scopeChain, ownBindings(child)])
+              return
             }
-          })
-          visitNode(node, (child) => {
             if (child.type === 'AssignmentExpression' && child.left?.type === 'Identifier'
               && child.left.name === name) ok = false
             if (child.type === 'UpdateExpression' && child.argument?.type === 'Identifier'
               && child.argument.name === name) ok = false
             if (child.type === 'CallExpression') {
               const callee = child.callee?.type === 'Identifier' ? child.callee.name as string : null
+              const shadowed = callee !== null && scopeChain.some((scope) => scope.has(callee))
               const isPureBuiltin = callee !== null && PURE_CALLS.has(callee)
-                && !functions.has(callee) && !globals.has(callee) && !shadowNames.has(callee)
+                && !functions.has(callee) && !globals.has(callee) && !shadowed
               if (!isPureBuiltin) ok = false
             }
-          })
+            for (const [key, grandchild] of Object.entries(child)) {
+              if (key === 'start' || key === 'end' || key === 'loc') continue
+              if (Array.isArray(grandchild)) grandchild.forEach((item) => scopeWalk(item as Node, scopeChain))
+              else if (grandchild && typeof grandchild === 'object') scopeWalk(grandchild as Node, scopeChain)
+            }
+          }
+          scopeWalk(node.body as Node, [ownBindings(node)])
           return
         }
         for (const [key, child] of Object.entries(node)) {
