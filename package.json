@@ -21,6 +21,7 @@
     "check:layout-gate": "wrsp-check-layout-gate",
     "preview": "vite preview",
     "cf:build": "VITE_BASE_PATH=/ npm run build",
+    "smoke:worker": "npm run check:node && tsx scripts/worker-smoke.ts",
     "cf:dev": "wrangler pages dev dist",
     "cf:dev:local": "wrangler pages dev dist --port 8788",
     "cf:session": "npm run dev:session -- --developer",

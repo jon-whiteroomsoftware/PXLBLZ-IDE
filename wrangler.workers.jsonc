@@ -1,0 +1,33 @@
+// Workers-migration transition config (#898; plan:
+// docs/plans/pages-to-workers-migration.md). Selected explicitly with
+// `--config wrangler.workers.jsonc`; the default wrangler.jsonc keeps
+// describing the production Pages project until cutover (#902), when this
+// file renames into its place and the Worker takes the final name.
+//
+// The two assets settings replicate what the Pages platform provided
+// implicitly: the SPA fallback that deep links depend on, and worker-first
+// routing so /api/* can never be answered by asset matching.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pxlblz-ide-worker",
+  "compatibility_date": "2026-06-30",
+  "main": "src/worker/index.ts",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "vars": {
+    "VITE_BASE_PATH": "/",
+    "VITE_PERSONAL_CONTENT_PROVIDER": "remote-api"
+  },
+  "d1_databases": [
+    {
+      "binding": "PXLBLZ_DB",
+      "database_name": "pxlblz-ide",
+      "database_id": "df318f37-a9ce-4eef-9502-f09d75e4ef26",
+      "migrations_dir": "./migrations"
+    }
+  ]
+}
