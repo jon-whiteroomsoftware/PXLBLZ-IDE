@@ -425,12 +425,34 @@ first visit (with a sentinel for "unfilled"), because that uses the exact
 per-pixel coordinates `render2D` receives. Prefilling via `mapPixels` risks a
 coordinate-normalisation mismatch and a checksum drift.
 
+> **The breakeven is higher than it looks (#914, measured).** The lazy read
+> path — `floor` the index, bound-check it, read the array, test the
+> sentinel, branch — runs roughly 7× a multiply, and three of four
+> mechanically generated memos measured as hardware losses: a single
+> `atan2` (2.7×mul) lost 12.9% and 5.5% on two patterns, and even an
+> 11×mul `clamp`/`frac` op chain lost 7.3%. Only subtrees containing an
+> `exp`/`pow`-class call have measured positive (`exp(-len0)` +2.5%; the
+> PulseLoom exp bumps +37.6%). Don't memoize cheap inverse-trig or summed
+> cheap ops — the table read is dearer than the math
+> (`docs/plans/issue-914-member-pass-spike-results.md`).
+
+> **Two silent exactness traps (#914).** A per-frame coordinate transform —
+> `rotate()`, `translate()`, `scale()`, or `resetTransform()` called from
+> `beforeRender` — animates the mapping that feeds `render2D`'s `x`/`y`, so
+> a position-keyed cache freezes frame-one coordinates and corrupts the
+> picture even though the cached expression "only reads position". And the
+> sentinel must be provably outside the value's range: shifting the stored
+> value (`cache[i] = v + 1`) is exact in 16.16 but NOT in Fast float64
+> (`(0.1 + 1) - 1 !== 0.1`), so when 0 is a legitimate value the cache
+> recomputes those pixels each frame and the win shrinks by their share of
+> the panel.
+
 > **Memory cost: weigh it deliberately.** Arrays are the only dynamically
 > allocated type and **cannot be freed**, so a `pixelCount` cache is permanent,
 > leaks the old one on any grid-change reallocation, and scales with LED count.
 > Fine at a 256-px panel (~1 KB); a liability on a multi-thousand-LED install.
 > Reach for this only when the memoized built-in is genuinely expensive
-> (`exp`/`pow`/inverse-trig) and the pixel count is bounded. Don't memoize a
+> (`exp`/`pow`-class) and the pixel count is bounded. Don't memoize a
 > `sin`; do consider it for a per-pixel `exp`.
 
 > **Device array gotchas (fw 3.67).** `array(0)` is rejected — bare-declare the

@@ -1,0 +1,113 @@
+{
+  "device": "Burner bag",
+  "boardType": "pb32",
+  "firmwareVersion": "3.67",
+  "pixelCount": 256,
+  "outputProfile": "native-serial (assumed)",
+  "rows": [
+    {
+      "pattern": "CoronalMassEjection",
+      "rule": "B below-breakeven (lazy atan2 memo)",
+      "variant": "base",
+      "bytecodeBytes": 462,
+      "fps": {
+        "mean": 70.87607500000001,
+        "median": 70.85828,
+        "min": 70.78764,
+        "max": 71,
+        "samples": 24
+      }
+    },
+    {
+      "pattern": "CoronalMassEjection",
+      "rule": "B below-breakeven (lazy atan2 memo)",
+      "variant": "transformed",
+      "bytecodeBytes": 666,
+      "fps": {
+        "mean": 61.745308749999985,
+        "median": 61.75299,
+        "min": 61.69154,
+        "max": 61.75299,
+        "samples": 24
+      }
+    },
+    {
+      "pattern": "TunnelOfSquares2D",
+      "rule": "B below-breakeven (lazy atan2 memo)",
+      "variant": "base",
+      "bytecodeBytes": 702,
+      "fps": {
+        "mean": 27.832999999999984,
+        "median": 27.833,
+        "min": 27.833,
+        "max": 27.833,
+        "samples": 24
+      }
+    },
+    {
+      "pattern": "TunnelOfSquares2D",
+      "rule": "B below-breakeven (lazy atan2 memo)",
+      "variant": "transformed",
+      "bytecodeBytes": 906,
+      "fps": {
+        "mean": 26.315789999999996,
+        "median": 26.31579,
+        "min": 26.31579,
+        "max": 26.31579,
+        "samples": 24
+      }
+    },
+    {
+      "pattern": "IridescentFibers",
+      "rule": "A (beforeRender table)",
+      "variant": "base",
+      "bytecodeBytes": 1428,
+      "fps": {
+        "mean": 4.380682124999997,
+        "median": 4.382121,
+        "min": 4.378284,
+        "max": 4.382121,
+        "samples": 24
+      }
+    },
+    {
+      "pattern": "IridescentFibers",
+      "rule": "A (beforeRender table)",
+      "variant": "transformed",
+      "bytecodeBytes": 1544,
+      "fps": {
+        "mean": 4.614143499999998,
+        "median": 4.612546,
+        "min": 4.612546,
+        "max": 4.616806,
+        "samples": 24
+      }
+    },
+    {
+      "pattern": "ClockworkIris",
+      "rule": "B exact-class (lazy op-chain memo)",
+      "variant": "base",
+      "bytecodeBytes": 1450,
+      "fps": {
+        "mean": 37.79690166666668,
+        "median": 37.81094,
+        "min": 37.73585,
+        "max": 37.84861,
+        "samples": 24
+      }
+    },
+    {
+      "pattern": "ClockworkIris",
+      "rule": "B exact-class (lazy op-chain memo)",
+      "variant": "transformed",
+      "bytecodeBytes": 1654,
+      "fps": {
+        "mean": 35.021812083333316,
+        "median": 35.05355,
+        "min": 34.96503,
+        "max": 35.05355,
+        "samples": 24
+      }
+    }
+  ]
+}
