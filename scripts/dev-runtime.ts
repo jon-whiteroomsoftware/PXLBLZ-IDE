@@ -159,17 +159,27 @@ async function startIssueRuntime(
     // registry entry stops describing them. (The authenticated Playwright
     // wrapper still reserves and serves a distinct API port until #901; it
     // does not pass through here.)
+    // Validate both halves before touching either, so a refusal leaves the
+    // legacy runtime whole instead of half-dismantled.
     const apiState = classifyApiPort(assignment)
     if (apiState === 'foreign') {
       throw new Error(
         `Port ${assignment.apiPort} is owned by a process other than issue ${assignment.issue}; refusing to reuse it.`,
       )
     }
-    if (apiState === 'owned' && assignment.apiPid !== undefined) {
-      stopProcessGroup(assignment.apiPid)
-      await waitForPortFree(assignment.apiPort, 10_000)
+    const legacyUiListeners = listenerPids(assignment.uiPort)
+    const uiState = classifyAssignmentPort(assignment, legacyUiListeners)
+    if (uiState === 'foreign') {
+      throw new Error(
+        `Port ${assignment.uiPort} is owned by a process other than issue ${assignment.issue}; refusing to reuse it.`,
+      )
     }
-    await stopOwnedUiProcess(assignment)
+    if (apiState === 'owned') {
+      await stopWedgedListeners(listenerPids(assignment.apiPort), assignment.apiPort, assignment.worktree)
+    }
+    if (uiState === 'owned') {
+      await stopWedgedListeners(legacyUiListeners, assignment.uiPort, assignment.worktree)
+    }
     const updated = await updateRuntimeAssignment(context.runtimeDirectory, assignment.issue, (current) => ({
       ...current,
       apiPort: current.uiPort,
@@ -205,9 +215,11 @@ async function startIssueRuntime(
         await waitForUrl(`${assignment.apiTarget}/api/me`, 30_000)
       } catch (error) {
         // Roll the failed startup back so the next run does not mistake the
-        // registered-but-broken process for a healthy owned runtime.
-        stopProcessGroup(pid)
-        await waitForPortFree(assignment.uiPort, 10_000).catch(() => {})
+        // registered-but-broken process for a healthy owned runtime. The
+        // ownership record is cleared only once the process is verifiably
+        // gone; a survivor keeps its registry entry so nothing leaks as
+        // unowned.
+        await stopStartedProcess(pid, context.worktree, error)
         await updateRuntimeAssignment(context.runtimeDirectory, assignment.issue, (current) => ({
           ...current,
           uiPid: undefined,
@@ -233,17 +245,19 @@ async function startIssueRuntime(
 
 // Stops an assignment's owned UI process (its proxy or worker-dev Vite)
 // ahead of a topology rewrite; a foreign occupant refuses, a free port is a
-// no-op.
+// no-op. A registry PID match alone does not authorize the signal — PIDs get
+// reused — so the stop verifies every member of the process group against
+// the assignment's own worktree before anything is signaled.
 async function stopOwnedUiProcess(assignment: RuntimeAssignment): Promise<void> {
-  const uiState = classifyAssignmentPort(assignment, listenerPids(assignment.uiPort))
+  const uiListeners = listenerPids(assignment.uiPort)
+  const uiState = classifyAssignmentPort(assignment, uiListeners)
   if (uiState === 'foreign') {
     throw new Error(
       `Port ${assignment.uiPort} is owned by a process other than issue ${assignment.issue}; refusing to reuse it.`,
     )
   }
-  if (uiState === 'owned' && assignment.uiPid !== undefined) {
-    stopProcessGroup(assignment.uiPid)
-    await waitForPortFree(assignment.uiPort, 10_000)
+  if (uiState === 'owned') {
+    await stopWedgedListeners(uiListeners, assignment.uiPort, assignment.worktree)
   }
 }
 
@@ -392,6 +406,33 @@ async function ensureMainRuntime(
       `Port ${manifest.shared.vitePort} is occupied but ${apiUrl} is unresponsive, and the listener is not this repository's runtime; refusing to terminate it:\n`
       + uiListeners.map((listener) => `  ${listener.pid} ${listener.command || '(unreadable command)'}`).join('\n'),
     )
+  }
+  if (uiPids.length > 0) {
+    // A healthy probe does not prove identity: another worktree's healthy
+    // worker-dev on this port must never be reported as reviewed main. And
+    // the full 5174 group must be provably ours before the legacy 8788 is
+    // touched, so a later group refusal cannot leave the topology beheaded.
+    const unownedListeners = uiListeners.filter(
+      (listener) => !isRepositoryRuntimeCommand(listener.command, context.mainWorktree),
+    )
+    if (unownedListeners.length > 0) {
+      throw new Error(
+        `Port ${manifest.shared.vitePort} is served by a process that is not the reviewed-main runtime; refusing to adopt or replace it:\n`
+        + unownedListeners.map((listener) => `  ${listener.pid} ${listener.command || '(unreadable command)'}`).join('\n'),
+      )
+    }
+    if (uiGroupMembers.length === 0) {
+      throw new Error(
+        `Cannot enumerate the process group serving port ${manifest.shared.vitePort}; refusing to proceed.`,
+      )
+    }
+    const unownedMembers = unownedGroupMembers(uiGroupMembers, context.mainWorktree)
+    if (unownedMembers.length > 0) {
+      throw new Error(
+        `The process group serving port ${manifest.shared.vitePort} contains processes that are not this repository's runtime; refusing to proceed:\n`
+        + unownedMembers.map((member) => `  ${member.pid} ${member.command || '(unreadable command)'}`).join('\n'),
+      )
+    }
   }
 
   const legacyPids = listenerPids(manifest.shared.wranglerPort)
@@ -647,6 +688,59 @@ function stopProcessGroup(processGroupId: number): void {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
   }
+}
+
+// Retires a process this run just started: group membership is re-verified
+// under the launching worktree before any signal, SIGTERM escalates to
+// SIGKILL, and a survivor (or a group no longer provably ours) throws so the
+// caller keeps its ownership record instead of leaking an unowned process.
+async function stopStartedProcess(pid: number, worktreeRoot: string, startupError: unknown): Promise<void> {
+  const group = processGroupId(pid)
+  if (!Number.isInteger(group)) return
+  const members = processGroupMembers(group)
+  if (members.length === 0) return
+  const unowned = unownedGroupMembers(members, worktreeRoot)
+  if (unowned.length > 0) {
+    throw new Error(
+      `Startup failed and process group ${group} can no longer be proven ours; leaving it and its registry record in place:\n`
+      + unowned.map((member) => `  ${member.pid} ${member.command || '(unreadable command)'}`).join('\n'),
+      { cause: startupError },
+    )
+  }
+  stopProcessGroup(group)
+  if (await waitForGroupGone(group, 5_000)) return
+  try {
+    process.kill(-group, 'SIGKILL')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
+    return
+  }
+  if (!await waitForGroupGone(group, 5_000)) {
+    throw new Error(
+      `Startup failed and process group ${group} survived SIGKILL; leaving its registry record in place.`,
+      { cause: startupError },
+    )
+  }
+}
+
+// Only ESRCH proves a group is gone; other probe errors propagate.
+function groupGone(group: number): boolean {
+  try {
+    process.kill(-group, 0)
+    return false
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ESRCH') return true
+    throw error
+  }
+}
+
+async function waitForGroupGone(group: number, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (groupGone(group)) return true
+    await new Promise((resolveWait) => setTimeout(resolveWait, 150))
+  }
+  return groupGone(group)
 }
 
 async function stopWedgedListeners(
