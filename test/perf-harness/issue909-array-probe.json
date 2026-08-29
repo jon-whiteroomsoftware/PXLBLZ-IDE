@@ -1,0 +1,91 @@
+{
+  "generatedAt": "2026-08-29",
+  "device": "Burner bag",
+  "boardType": "pb32",
+  "firmwareVersion": "3.67",
+  "outputProfile": "native-serial (assumed)",
+  "elements": 512,
+  "passes": 4,
+  "repetitions": 5,
+  "rows": [
+    {
+      "name": "for-loop write fill",
+      "perElementUs": 7.31953271484375,
+      "minPerElementUs": 7.31344384765625,
+      "maxPerElementUs": 7.3423745117187496,
+      "vsForLoop": null
+    },
+    {
+      "name": "mutate write fill",
+      "perElementUs": 0.6843432617187504,
+      "minPerElementUs": 0.6819365234375001,
+      "maxPerElementUs": 0.6906987304687497,
+      "vsForLoop": 0.09349548507801964
+    },
+    {
+      "name": "for-loop read accumulate",
+      "perElementUs": 5.800284667968751,
+      "minPerElementUs": 5.79696923828125,
+      "maxPerElementUs": 5.84282861328125,
+      "vsForLoop": null
+    },
+    {
+      "name": "forEach read accumulate",
+      "perElementUs": 1.2797573242187503,
+      "minPerElementUs": 1.2764321289062504,
+      "maxPerElementUs": 1.3070717773437501,
+      "vsForLoop": 0.22063698550625085
+    },
+    {
+      "name": "native sum",
+      "perElementUs": -0.001273925781249824,
+      "minPerElementUs": -0.0018256835937497523,
+      "maxPerElementUs": -0.0007153320312498074,
+      "vsForLoop": -0.00021963159640851738
+    }
+  ],
+  "rawSamplesByFn": {
+    "0": [
+      8.030396,
+      8.037689,
+      8.001282,
+      8.034027,
+      8.031357
+    ],
+    "1": [
+      23.06854,
+      23.00929,
+      23.02464,
+      23.02176,
+      23.01846
+    ],
+    "2": [
+      9.427963,
+      9.431152,
+      9.435089,
+      9.445908,
+      9.432892
+    ],
+    "3": [
+      19.99747,
+      19.91249,
+      19.91034,
+      19.90703,
+      19.90355
+    ],
+    "4": [
+      10.70824,
+      10.6523,
+      10.65698,
+      10.64995,
+      10.64549
+    ],
+    "5": [
+      8.029892,
+      8.027618,
+      8.028748,
+      8.029602,
+      8.028519
+    ]
+  }
+}

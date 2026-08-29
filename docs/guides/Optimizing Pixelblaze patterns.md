@@ -469,6 +469,25 @@ Use the cost table (§8); the emulator can't see these:
   will do.
 - Inverse trig (`asin`/`acos`, 4.8–5.5×) is a hot spot if used per-pixel.
 
+### Prefer the native array helpers for bulk passes [hardware-wisdom]
+
+For a full pass over an array, the native helpers beat an interpreted
+`for` loop by far more than the folklore "2-3x" (measured on fw 3.67,
+512-element passes, callbacks doing real work, outputs verified identical
+to the loop forms — `test/perf-harness/issue909-array-probe.json`):
+
+| pass | for loop | helper | speedup |
+|---|---:|---:|---:|
+| write fill (`arr.mutate(fn)`) | 7.32 us/element | 0.68 | **10.7x** |
+| read accumulate (`arr.forEach(fn)`) | 5.80 us/element | 1.28 | **4.5x** |
+| summation (`arr.sum()`) | 5.80 us/element | ~0 | below measurement noise |
+
+The loop pays index resolution, bounds arithmetic, and loop machinery per
+element; the helpers run all of that natively and only interpret the
+callback body. Two constraints: callbacks are not closures (they see
+globals and their own parameters only — `function f(v, i)`), and a helper
+always visits every element, so an early-exit scan keeps the loop.
+
 ### Don't allocate in the hot path
 
 Arrays are the only allocatable type and cannot be freed; allocating per-pixel or
