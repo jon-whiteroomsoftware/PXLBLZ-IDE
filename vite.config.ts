@@ -1,8 +1,9 @@
-import { defineConfig, loadEnv } from 'vite'
-import { cloudflare } from '@cloudflare/vite-plugin'
+import { loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { defaultExclude } from 'vitest/config'
+// Vitest's defineConfig accepts the async config function and the `test`
+// projects; Vite's own overloads reject the promise-returning form here.
+import { defaultExclude, defineConfig, type ViteUserConfig } from 'vitest/config'
 import { playwright } from '@vitest/browser-playwright'
 import path from 'path'
 import fs from 'fs'
@@ -182,7 +183,7 @@ function redirectBaseTrailingSlash(base: string) {
   }
 }
 
-export default defineConfig(({ command, mode }) => {
+export default defineConfig(async ({ command, mode, isPreview }): Promise<ViteUserConfig> => {
   // loadEnv reads .env files only. Keep shell-provided values authoritative so
   // isolated Playwright smoke servers can select their own Vite port and API
   // proxy target instead of accidentally using the persistent dev pair.
@@ -196,9 +197,17 @@ export default defineConfig(({ command, mode }) => {
   // separate `wrangler pages dev`. Setting VITE_API_PROXY_TARGET selects the
   // legacy proxy topology — the managed dev-runtime coordinator and the
   // Playwright wrappers still provide it until #900/#901 move them over. The
-  // plugin never loads for Vitest or `vite build`: the production build must
-  // keep producing the plain Pages `dist` until cutover (#902).
-  const workerDevMode = command === 'serve' && !process.env.VITEST && !apiProxyTarget
+  // plugin stays out of Vitest, `vite build`, and `vite preview` (the build
+  // must keep producing the plain Pages `dist` until cutover (#902), and
+  // preview serves that dist without plugin build metadata), so it is
+  // imported dynamically only when this serve actually uses it.
+  const workerDevMode = command === 'serve' && !isPreview && !process.env.VITEST && !apiProxyTarget
+  const workerDevPlugins = workerDevMode
+    ? [(await import('@cloudflare/vite-plugin')).cloudflare({
+        configPath: 'wrangler.workers.jsonc',
+        persistState: true,
+      })]
+    : []
 
   const testProjects = createVitestTestProjects()
   const appVersion = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf8')).version as string
@@ -217,9 +226,7 @@ export default defineConfig(({ command, mode }) => {
       // Local D1 persists in .wrangler/state (wrangler's default), so
       // `npm run db:migrate:local` and the in-process Worker read the same
       // database.
-      ...(workerDevMode
-        ? [cloudflare({ configPath: 'wrangler.workers.jsonc', persistState: true })]
-        : []),
+      ...workerDevPlugins,
     ],
     server: {
       port,

@@ -129,7 +129,7 @@
     "coverage:show-commands": "npm run check:node && tsx scripts/show-command-coverage.ts"
   },
   "engines": {
-    "node": "^20.19.0 || ^22.13.0 || >=24"
+    "node": "^22.13.0 || >=24"
   },
   "repository": {
     "type": "git",
