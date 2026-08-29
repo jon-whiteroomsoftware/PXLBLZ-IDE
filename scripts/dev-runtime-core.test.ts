@@ -147,6 +147,37 @@ describe('repository wrangler ownership', () => {
     )).toBe(true)
   })
 
+  it('recognizes every member of a live wrangler pages dev process group', () => {
+    // Observed verbatim (paths relocated) from wrangler 4.106.0 serving 8788.
+    const liveGroup = [
+      `/opt/fnm/node-versions/v24.14.0/installation/bin/node ${mainWorktree}/node_modules/wrangler/bin/wrangler.js pages dev dist --port 8788`,
+      `/opt/fnm/node-versions/v24.14.0/installation/bin/node --no-warnings --experimental-vm-modules ${mainWorktree}/node_modules/wrangler/wrangler-dist/cli.js pages dev dist`,
+      `${mainWorktree}/node_modules/@esbuild/darwin-arm64/bin/esbuild --service=0.28.1 --ping`,
+      `${mainWorktree}/node_modules/@cloudflare/workerd-darwin-arm64/bin/workerd serve --binary --experimental --socket-addr=entry=localhost:8788`,
+      `${mainWorktree}/node_modules/@cloudflare/workerd-darwin-arm64/bin/workerd serve --binary --experimental --socket-addr=entry=127.0.0.1:65235`,
+    ]
+    for (const command of liveGroup) {
+      expect(isRepositoryWranglerCommand(command, mainWorktree)).toBe(true)
+    }
+  })
+
+  it('refuses node option operands and unknown node flags instead of trusting them as scripts', () => {
+    // --require consumes the wrangler path; the real script is foreign.
+    expect(isRepositoryWranglerCommand(
+      `node --require ${mainWorktree}/node_modules/wrangler/bin/wrangler.js /tmp/foreign-server.js`,
+      mainWorktree,
+    )).toBe(false)
+    expect(isRepositoryWranglerCommand(
+      `node --loader ts-node/esm ${mainWorktree}/node_modules/wrangler/bin/wrangler.js`,
+      mainWorktree,
+    )).toBe(false)
+    // An esbuild path outside bin/esbuild does not qualify either.
+    expect(isRepositoryWranglerCommand(
+      `${mainWorktree}/node_modules/@esbuild/darwin-arm64/bin/other-tool`,
+      mainWorktree,
+    )).toBe(false)
+  })
+
   it('ignores wrangler paths in non-executable argv positions and lookalike packages', () => {
     // A process merely reading a file under the wrangler package is not ours.
     expect(isRepositoryWranglerCommand(

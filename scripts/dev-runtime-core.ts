@@ -170,16 +170,31 @@ export function isRepositoryWranglerCommand(command: string, mainWorktree: strin
   if (matchesRepositoryWranglerPath(tokens[0], mainWorktree)) return true
   const executable = tokens[0].split('/').pop()
   if (executable !== 'node') return false
-  const script = tokens.slice(1).find((token) => !token.startsWith('-'))
-  return script !== undefined && matchesRepositoryWranglerPath(script, mainWorktree)
+  // Node options can consume a following operand (--require, --loader, ...),
+  // so a generic skip-the-dashes scan can mistake an operand for the script.
+  // Only the exact no-operand flags wrangler's own child uses are allowed;
+  // any other flag refuses conservatively.
+  let index = 1
+  while (index < tokens.length && tokens[index].startsWith('-')) {
+    if (!wranglerChildNodeFlags.has(tokens[index])) return false
+    index += 1
+  }
+  return index < tokens.length && matchesRepositoryWranglerPath(tokens[index], mainWorktree)
 }
 
+const wranglerChildNodeFlags = new Set(['--no-warnings', '--experimental-vm-modules'])
+
+// The allowlist is grounded in the observed process group of a live
+// `wrangler pages dev` (4.106.0): the wrangler CLI script, its pages child,
+// two workerd processes, and one esbuild service binary.
 function matchesRepositoryWranglerPath(token: string, mainWorktree: string): boolean {
   const moduleRoot = `${mainWorktree}/node_modules/`
   const normalized = normalizePathish(token)
   if (!normalized.startsWith(moduleRoot)) return false
   const relative = normalized.slice(moduleRoot.length)
-  return relative.startsWith('wrangler/') || /^@cloudflare\/workerd(?:-[a-z0-9-]+)?\//.test(relative)
+  return relative.startsWith('wrangler/')
+    || /^@cloudflare\/workerd(?:-[a-z0-9-]+)?\//.test(relative)
+    || /^@esbuild\/[a-z0-9_-]+\/bin\/esbuild$/.test(relative)
 }
 
 // Everything recovery would signal must be provably ours: signals go to whole

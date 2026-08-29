@@ -547,10 +547,16 @@ async function stopWedgedListeners(
   port: number,
   mainWorktree: string,
 ): Promise<void> {
-  const groups = [...new Set(pids.map(processGroupId).filter(Number.isInteger))]
-  if (groups.length === 0) {
-    throw new Error(`Cannot resolve process groups for PIDs ${pids.join(', ')}; refusing to signal them.`)
+  const groupsByPid = pids.map((pid) => ({ pid, group: processGroupId(pid) }))
+  const unresolved = groupsByPid.filter(({ group }) => !Number.isInteger(group))
+  if (groupsByPid.length === 0 || unresolved.length > 0) {
+    // Signaling only the resolvable groups would partially terminate the
+    // runtime and then time out on the survivor; all-or-nothing keeps state.
+    throw new Error(
+      `Cannot resolve process groups for PIDs ${(unresolved.length > 0 ? unresolved.map(({ pid }) => pid) : [...pids]).join(', ')}; refusing to signal any of them.`,
+    )
   }
+  const groups = [...new Set(groupsByPid.map(({ group }) => group))]
   for (const group of groups) {
     const members = processGroupMembers(group)
     if (members.length === 0) {
