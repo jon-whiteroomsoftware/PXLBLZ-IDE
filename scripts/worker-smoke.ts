@@ -7,7 +7,7 @@
 //
 //   npm run smoke:worker              # build, serve, check
 //   npm run smoke:worker -- --skip-build   # reuse the existing dist/
-import { execFileSync, spawn } from 'node:child_process'
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -31,29 +31,55 @@ async function main(): Promise<void> {
   }
   const indexHtml = readFileSync(join(worktree, 'dist', 'index.html'), 'utf8')
 
-  const state = mkdtempSync(join(tmpdir(), 'pxlblz-worker-smoke-'))
-  const wranglerBin = resolve(worktree, 'node_modules/wrangler/bin/wrangler.js')
-  console.log('Applying migrations to a throwaway local D1...')
-  run(process.execPath, [
-    wranglerBin, 'd1', 'migrations', 'apply', 'pxlblz-ide',
-    '--local', '--persist-to', state, '--config', workerConfig,
-  ], worktree)
-
-  const port = await firstFreePort(8900, 8929)
-  console.log(`Serving wrangler dev --config ${workerConfig} on ${port}...`)
-  const server = spawn(process.execPath, [
-    wranglerBin, 'dev',
-    '--config', workerConfig,
-    '--port', String(port),
-    '--inspector-port', '0',
-    '--persist-to', state,
-  ], { cwd: worktree, detached: true, stdio: ['ignore', 'pipe', 'pipe'] })
+  let state: string | undefined
+  let server: ChildProcess | undefined
   const serverLog: string[] = []
-  server.stdout?.on('data', (chunk: Buffer) => serverLog.push(chunk.toString()))
-  server.stderr?.on('data', (chunk: Buffer) => serverLog.push(chunk.toString()))
+  // A canceled smoke must not leave the detached group or the throwaway D1
+  // behind; the signal path is blunt (immediate SIGKILL escalation) because
+  // it cannot await.
+  const abruptCleanup = () => {
+    if (server?.pid) {
+      for (const signal of ['SIGTERM', 'SIGKILL'] as const) {
+        try {
+          process.kill(-server.pid, signal)
+        } catch {
+          /* already gone */
+        }
+      }
+    }
+    if (state) rmSync(state, { recursive: true, force: true })
+  }
+  process.on('SIGINT', () => {
+    abruptCleanup()
+    process.exit(130)
+  })
+  process.on('SIGTERM', () => {
+    abruptCleanup()
+    process.exit(143)
+  })
 
   const failures: SmokeFailure[] = []
   try {
+    state = mkdtempSync(join(tmpdir(), 'pxlblz-worker-smoke-'))
+    const wranglerBin = resolve(worktree, 'node_modules/wrangler/bin/wrangler.js')
+    console.log('Applying migrations to a throwaway local D1...')
+    run(process.execPath, [
+      wranglerBin, 'd1', 'migrations', 'apply', 'pxlblz-ide',
+      '--local', '--persist-to', state, '--config', workerConfig,
+    ], worktree)
+
+    const port = await firstFreePort(8900, 8929)
+    console.log(`Serving wrangler dev --config ${workerConfig} on ${port}...`)
+    server = spawn(process.execPath, [
+      wranglerBin, 'dev',
+      '--config', workerConfig,
+      '--port', String(port),
+      '--inspector-port', '0',
+      '--persist-to', state,
+    ], { cwd: worktree, detached: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    server.stdout?.on('data', (chunk: Buffer) => serverLog.push(chunk.toString()))
+    server.stderr?.on('data', (chunk: Buffer) => serverLog.push(chunk.toString()))
+
     await waitForOk(`http://localhost:${port}/api/me`, 60_000)
     const base = `http://localhost:${port}`
 
@@ -98,6 +124,12 @@ async function main(): Promise<void> {
       expectEqual(JSON.stringify(await response.json()), '{"error":"Not found"}', 'payload')
     })
 
+    await check(failures, 'bare /api is worker-first, not the SPA fallback', async () => {
+      const response = await fetch(`${base}/api`)
+      expectEqual(response.status, 404, 'status')
+      expectEqual(JSON.stringify(await response.json()), '{"error":"Not found"}', 'payload')
+    })
+
     await check(failures, 'unsupported method answers 405 with Allow', async () => {
       const response = await fetch(`${base}/api/me`, { method: 'PATCH' })
       expectEqual(response.status, 405, 'status')
@@ -109,14 +141,8 @@ async function main(): Promise<void> {
       expectEqual(response.status, 401, 'status')
     })
   } finally {
-    if (server.pid) {
-      try {
-        process.kill(-server.pid, 'SIGTERM')
-      } catch {
-        /* already gone */
-      }
-    }
-    rmSync(state, { recursive: true, force: true })
+    await stopServer(server)
+    if (state) rmSync(state, { recursive: true, force: true })
   }
 
   if (failures.length > 0) {
@@ -127,6 +153,32 @@ async function main(): Promise<void> {
     return
   }
   console.log('\nAll worker smoke checks passed.')
+}
+
+// Graceful teardown: SIGTERM the detached group, wait for the process to
+// exit, and escalate to SIGKILL — a wedged workerd can ignore SIGTERM.
+async function stopServer(server: ChildProcess | undefined): Promise<void> {
+  if (!server?.pid) return
+  const exited = server.exitCode !== null || server.signalCode !== null
+    ? Promise.resolve()
+    : new Promise<void>((resolveExit) => server.once('exit', () => resolveExit()))
+  try {
+    process.kill(-server.pid, 'SIGTERM')
+  } catch {
+    return
+  }
+  const graceful = await Promise.race([
+    exited.then(() => true),
+    new Promise<boolean>((resolveWait) => setTimeout(resolveWait, 5_000, false)),
+  ])
+  if (!graceful) {
+    try {
+      process.kill(-server.pid, 'SIGKILL')
+    } catch {
+      /* already gone */
+    }
+    await exited
+  }
 }
 
 async function check(
