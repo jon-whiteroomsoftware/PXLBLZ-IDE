@@ -133,25 +133,44 @@ the same worktree, set `PLAYWRIGHT_STUDIO_URL` to that runtime's URL.
 - Logs and isolated D1 state live under `.git/pxlblz/dev-runtime/v1/` in the
   repository's common Git directory.
 
-### A hanging dev:issue is usually a wedged main Wrangler
+### The wedged main Wrangler: cause, prevention, recovery (#895)
 
-`npm run dev:issue` sitting silent for minutes generally means the main Wrangler
-on `8788` is wedged: the port still accepts TCP but never answers `/api/me`, and
-its log under `.git/pxlblz/dev-runtime/v1/logs/` typically ends in a failed
-esbuild rebuild. The coordinator's health probe is a `fetch` with no timeout, so
-it waits rather than reporting.
+A wedged main Wrangler means `8788` still accepts TCP but never answers
+`/api/me`, and its log under `.git/pxlblz/dev-runtime/v1/logs/` ends in a
+failed esbuild rebuild (`Could not resolve
+.wrangler/tmp/bundle-*/middleware-loader.entry.ts`). The cause is upstream:
+since wrangler 4.86 every wrangler invocation sweeps `.wrangler/tmp/*` entries
+whose mtime is older than 24 hours (workers-sdk#13930). A live `pages dev`
+server's bundle dir only refreshes its mtime on rebuild, so once the main
+server runs a day without one, the next unrelated wrangler command in the main
+checkout (`db:migrate:local`, `dev:session`, anything) deletes the live bundle
+dir; the next watcher rebuild fails and workerd hangs every request.
 
-`npm run dev:status` will not reveal this. It reports "API listening" from port
-occupancy alone and does not make an HTTP request. Probe the API directly:
+The coordinator defends against this in three layers:
+
+- **Prevention.** `dev:main`, `dev:status`, and `dev:issue` refresh the mtimes
+  of the main checkout's `.wrangler/tmp/*` directories on every run, keeping a
+  live server permanently outside the sweep window. Routine agent activity is
+  far more frequent than daily, so the wedge should no longer occur.
+- **Detection.** Health probes are bounded (3s). `npm run dev:status` reports
+  the main API as `wedged` when the port listens but does not answer, and a
+  shared-profile `dev:issue` fails fast with the same diagnosis and names
+  `npm run dev:main` instead of hanging.
+- **Recovery.** `npm run dev:main` recovers a wedged pair unattended: it
+  verifies every `8788` listener is this repository's Wrangler or workerd (by
+  process command), terminates the process groups (SIGTERM, then SIGKILL),
+  rebuilds, and restarts. It still refuses, with the listener commands in the
+  error, when the occupant is not provably ours — that case stays manual.
+
+If a wedge is suspected anyway, probe directly:
 
 ```bash
 curl -s -m 3 http://localhost:8788/api/me
 ```
 
-The UI can answer in milliseconds while the API behind it is dead. To recover,
-`kill -9` the Wrangler trio (`wrangler.js`, its Pages child, and `workerd`), run
-`npm run dev:main` from the stable checkout to rebuild and restart the pair, then
-re-run the `dev:issue` command — it completes in seconds once `8788` is healthy.
+The UI can answer in milliseconds while the API behind it is dead; run
+`npm run dev:main` to recover, then re-run the `dev:issue` command — it
+completes in seconds once `8788` is healthy.
 
 Treat any dev-runtime command exceeding about 30 seconds as a signal to probe
 rather than keep waiting, and run these commands unsandboxed: the sandbox cannot

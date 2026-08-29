@@ -6,17 +6,22 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  readdirSync,
   realpathSync,
   symlinkSync,
   unlinkSync,
+  utimesSync,
 } from 'node:fs'
 import { createServer } from 'node:net'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import {
   classifyAssignmentPort,
+  classifyMainApiHealth,
   classifyProcessGroupPort,
+  decideMainApiAction,
   parseRuntimeManifest,
+  type MainApiListener,
   type RuntimeAssignment,
   type RuntimeManifest,
   type RuntimeProfile,
@@ -89,7 +94,7 @@ async function main(): Promise<void> {
       return
     }
     if (args.command === 'status') {
-      printStatus(context, manifest, args.json)
+      await printStatus(context, manifest, args.json)
       return
     }
     if (args.command === 'release') {
@@ -108,6 +113,7 @@ async function startIssueRuntime(
   manifest: RuntimeManifest,
   args: Extract<DevRuntimeArgs, { command: 'start' }>,
 ): Promise<void> {
+  keepMainWranglerTmpFresh(context)
   ensureSharedDevVarsLink(context)
   if (args.profile === 'shared') {
     await requireHealthySharedRuntime(manifest)
@@ -186,11 +192,16 @@ async function releaseIssueRuntime(
   console.log(`Released issue ${issue} runtime assignment on port ${assignment.uiPort}.`)
 }
 
-function printStatus(
+async function printStatus(
   context: RepositoryContext,
   manifest: RuntimeManifest,
   json: boolean,
-): void {
+): Promise<void> {
+  keepMainWranglerTmpFresh(context)
+  const apiUrl = `http://localhost:${manifest.shared.wranglerPort}/api/me`
+  const apiListeners = listenerPids(manifest.shared.wranglerPort)
+  const apiResponded = apiListeners.length > 0 && await probeUrl(apiUrl, serviceProbeTimeoutMs)
+  const apiHealth = classifyMainApiHealth(apiListeners.length, apiResponded)
   const mainStatus = {
     issue: 'main',
     description: 'stable reviewed main',
@@ -201,7 +212,7 @@ function printStatus(
     uiUrl: `http://localhost:${manifest.shared.vitePort}${manifest.basePath}`,
     apiTarget: `http://localhost:${manifest.shared.wranglerPort}`,
     uiState: listenerPids(manifest.shared.vitePort).length > 0 ? 'listening' : 'stopped',
-    apiState: listenerPids(manifest.shared.wranglerPort).length > 0 ? 'listening' : 'stopped',
+    apiState: apiHealth === 'ok' ? 'listening' : apiHealth,
   }
   const assignments = loadRuntimeRegistry(context.runtimeDirectory).assignments.map((assignment) => ({
     ...assignment,
@@ -232,22 +243,35 @@ async function ensureMainRuntime(
   if (!existsSync(join(context.mainWorktree, '.dev.vars'))) {
     throw new Error(`Shared main .dev.vars is required: ${join(context.mainWorktree, '.dev.vars')}`)
   }
+  keepMainWranglerTmpFresh(context)
   const uiUrl = `http://localhost:${manifest.shared.vitePort}${manifest.basePath}`
   const apiUrl = `http://localhost:${manifest.shared.wranglerPort}/api/me`
   const uiPids = listenerPids(manifest.shared.vitePort)
   const apiPids = listenerPids(manifest.shared.wranglerPort)
-  const [uiHealthy, apiHealthy] = await Promise.all([
-    uiPids.length > 0 ? urlResponds(uiUrl) : Promise.resolve(false),
-    apiPids.length > 0 ? urlResponds(apiUrl) : Promise.resolve(false),
+  const [uiHealthy, apiResponded] = await Promise.all([
+    uiPids.length > 0 ? probeUrl(uiUrl, serviceProbeTimeoutMs) : Promise.resolve(false),
+    apiPids.length > 0 ? probeUrl(apiUrl, serviceProbeTimeoutMs) : Promise.resolve(false),
   ])
   if (uiPids.length > 0 && !uiHealthy) {
     throw new Error(`Port ${manifest.shared.vitePort} is occupied but ${uiUrl} is unhealthy.`)
   }
-  if (apiPids.length > 0 && !apiHealthy) {
-    throw new Error(`Port ${manifest.shared.wranglerPort} is occupied but ${apiUrl} is unhealthy.`)
+  const apiListeners: MainApiListener[] = apiPids.map((pid) => ({ pid, command: processCommand(pid) }))
+  const apiAction = decideMainApiAction(apiListeners, apiResponded, context.mainWorktree)
+  if (apiAction === 'refuse') {
+    throw new Error(
+      `Port ${manifest.shared.wranglerPort} is occupied but ${apiUrl} is unresponsive, and the listener is not this repository's Wrangler; refusing to terminate it:\n`
+      + apiListeners.map((listener) => `  ${listener.pid} ${listener.command || '(unreadable command)'}`).join('\n'),
+    )
+  }
+  if (apiAction === 'recover') {
+    console.log(
+      `Port ${manifest.shared.wranglerPort} is wedged (accepts TCP, never answers ${apiUrl}); `
+      + `recovering by restarting the main Wrangler (PIDs ${apiPids.join(', ')}).`,
+    )
+    await stopWedgedListeners(apiPids, manifest.shared.wranglerPort)
   }
   prepareD1(context.mainWorktree, resolve(context.mainWorktree, '.wrangler/state'), manifest)
-  if (!apiHealthy) {
+  if (apiAction !== 'none') {
     buildWorktree(context.mainWorktree)
     startWrangler(
       context.mainWorktree,
@@ -279,14 +303,20 @@ async function ensureMainRuntime(
 async function requireHealthySharedRuntime(manifest: RuntimeManifest): Promise<void> {
   const uiUrl = `http://localhost:${manifest.shared.vitePort}${manifest.basePath}`
   const apiUrl = `http://localhost:${manifest.shared.wranglerPort}/api/me`
-  const [uiHealthy, apiHealthy] = await Promise.all([
-    urlResponds(uiUrl),
-    urlResponds(apiUrl),
+  const apiListenerCount = listenerPids(manifest.shared.wranglerPort).length
+  const [uiHealthy, apiResponded] = await Promise.all([
+    probeUrl(uiUrl, serviceProbeTimeoutMs),
+    probeUrl(apiUrl, serviceProbeTimeoutMs),
   ])
-  if (!uiHealthy || !apiHealthy) {
+  const apiHealth = classifyMainApiHealth(apiListenerCount, apiResponded)
+  if (!uiHealthy || apiHealth !== 'ok') {
     throw new Error(
       `Stable main runtime is not healthy (${uiUrl}: ${uiHealthy ? 'ok' : 'down'},`
-      + ` ${apiUrl}: ${apiHealthy ? 'ok' : 'down'}). Start the persistent 5174/8788 pair before assigning shared issue runtimes.`,
+      + ` ${apiUrl}: ${apiHealth}). Run \`npm run dev:main\` to `
+      + (apiHealth === 'wedged'
+        ? 'recover the wedged main Wrangler'
+        : 'start the persistent 5174/8788 pair')
+      + ' before assigning shared issue runtimes.',
     )
   }
 }
@@ -461,12 +491,69 @@ function processGroupId(pid: number): number {
   }
 }
 
+function processCommand(pid: number): string {
+  try {
+    return execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8' }).trim()
+  } catch {
+    return ''
+  }
+}
+
 function stopProcessGroup(processGroupId: number): void {
   try {
     process.kill(-processGroupId, 'SIGTERM')
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
   }
+}
+
+// A wedged workerd may ignore SIGTERM (it sat for six days ignoring a broken
+// control channel in the #895 incident), so escalate to SIGKILL per group.
+async function stopWedgedListeners(pids: readonly number[], port: number): Promise<void> {
+  const groups = [...new Set(pids.map(processGroupId).filter(Number.isInteger))]
+  for (const group of groups) stopProcessGroup(group)
+  try {
+    await waitForPortFree(port, 5_000)
+    return
+  } catch {
+    for (const group of groups) {
+      try {
+        process.kill(-group, 'SIGKILL')
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
+      }
+    }
+  }
+  await waitForPortFree(port, 10_000)
+}
+
+// Every wrangler invocation deletes .wrangler/tmp entries whose mtime is older
+// than 24h (workers-sdk#13930), including a live pages dev server's bundle dir
+// once it goes a day without a rebuild — the #895 wedge. Coordinator commands
+// run far more often than daily, so refreshing the mtimes here keeps the main
+// server's entries permanently outside the sweep window.
+export function touchWranglerTmpEntries(tmpRoot: string, now = new Date()): number {
+  let entries
+  try {
+    entries = readdirSync(tmpRoot, { withFileTypes: true })
+  } catch {
+    return 0
+  }
+  let touched = 0
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    try {
+      utimesSync(join(tmpRoot, entry.name), now, now)
+      touched += 1
+    } catch {
+      /* best effort — the entry may be gone already */
+    }
+  }
+  return touched
+}
+
+function keepMainWranglerTmpFresh(context: RepositoryContext): void {
+  touchWranglerTmpEntries(join(context.mainWorktree, '.wrangler', 'tmp'))
 }
 
 export function repositoryContext(cwd: string): RepositoryContext {
@@ -599,7 +686,7 @@ export async function portIsAvailable(port: number): Promise<boolean> {
 async function waitForUrl(url: string, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
-    if (await urlResponds(url)) return
+    if (await probeUrl(url, serviceProbeTimeoutMs)) return
     await new Promise((resolveWait) => setTimeout(resolveWait, 250))
   }
   throw new Error(`Timed out waiting for ${url}.`)
@@ -614,12 +701,24 @@ async function waitForPortFree(port: number, timeoutMs: number): Promise<void> {
   throw new Error(`Timed out waiting for port ${port} to stop.`)
 }
 
-async function urlResponds(url: string): Promise<boolean> {
+export const serviceProbeTimeoutMs = 3_000
+
+// Bounded replacement for a bare fetch: a wedged server accepts the TCP
+// connection and then never answers, so an untimed probe hangs forever.
+export async function probeUrl(
+  url: string,
+  timeoutMs: number,
+  fetcher: typeof fetch = fetch,
+): Promise<boolean> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const response = await fetch(url, { redirect: 'manual' })
+    const response = await fetcher(url, { redirect: 'manual', signal: controller.signal })
     return response.status < 500
   } catch {
     return false
+  } finally {
+    clearTimeout(timer)
   }
 }
 

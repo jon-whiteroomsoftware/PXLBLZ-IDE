@@ -130,6 +130,46 @@ export function classifyAssignmentPort(
   return 'foreign'
 }
 
+export type MainApiHealth = 'ok' | 'wedged' | 'stopped'
+
+// A port that accepts TCP but never answers is wedged, not listening: since
+// wrangler's 24h tmp sweep can delete a live server's bundle dir out from
+// under it (#895), occupancy alone says nothing about health.
+export function classifyMainApiHealth(
+  listenerCount: number,
+  probeResponded: boolean,
+): MainApiHealth {
+  if (listenerCount === 0) return 'stopped'
+  return probeResponded ? 'ok' : 'wedged'
+}
+
+export interface MainApiListener {
+  pid: number
+  command: string
+}
+
+export type MainApiAction = 'none' | 'start' | 'recover' | 'refuse'
+
+// Recovery may only terminate processes provably ours: the repository's own
+// wrangler CLI or its workerd child, resolved under the main worktree. An
+// unreadable command (ps failed, process gone) is not proof of ownership.
+export function isRepositoryWranglerCommand(command: string, mainWorktree: string): boolean {
+  if (!command.includes(`${mainWorktree}/node_modules/`)) return false
+  return command.includes('/wrangler/') || command.includes('workerd')
+}
+
+export function decideMainApiAction(
+  listeners: readonly MainApiListener[],
+  probeResponded: boolean,
+  mainWorktree: string,
+): MainApiAction {
+  if (listeners.length === 0) return 'start'
+  if (probeResponded) return 'none'
+  return listeners.every((listener) => isRepositoryWranglerCommand(listener.command, mainWorktree))
+    ? 'recover'
+    : 'refuse'
+}
+
 export function classifyProcessGroupPort(
   processGroupId: number | undefined,
   listenerPids: readonly number[],

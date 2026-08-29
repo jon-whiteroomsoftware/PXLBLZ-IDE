@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   allocateRuntimeAssignment,
   classifyAssignmentPort,
+  classifyMainApiHealth,
   classifyProcessGroupPort,
+  decideMainApiAction,
   emptyRuntimeRegistry,
+  isRepositoryWranglerCommand,
   parseRuntimeManifest,
   type RuntimeManifest,
 } from './dev-runtime-core'
@@ -101,6 +104,74 @@ describe('runtime manifest', () => {
         issueVitePorts: { start: 5174, end: 5199 },
       },
     })).toThrow('issue Vite port range overlaps stable main Vite port 5174')
+  })
+})
+
+describe('main API health classification', () => {
+  it('is stopped with no listeners, whatever the probe said', () => {
+    expect(classifyMainApiHealth(0, false)).toBe('stopped')
+    expect(classifyMainApiHealth(0, true)).toBe('stopped')
+  })
+
+  it('is ok when the port both listens and answers', () => {
+    expect(classifyMainApiHealth(1, true)).toBe('ok')
+  })
+
+  it('is wedged when the port listens but never answers', () => {
+    expect(classifyMainApiHealth(1, false)).toBe('wedged')
+    expect(classifyMainApiHealth(3, false)).toBe('wedged')
+  })
+})
+
+describe('repository wrangler ownership', () => {
+  const mainWorktree = '/Users/dev/src/pixelblaze-v2'
+
+  it('recognizes the repository wrangler CLI and its workerd child', () => {
+    expect(isRepositoryWranglerCommand(
+      `${mainWorktree}/node_modules/@cloudflare/workerd-darwin-arm64/bin/workerd serve --binary`,
+      mainWorktree,
+    )).toBe(true)
+    expect(isRepositoryWranglerCommand(
+      `node ${mainWorktree}/node_modules/wrangler/bin/wrangler.js pages dev dist --port 8788`,
+      mainWorktree,
+    )).toBe(true)
+  })
+
+  it('rejects wrangler from another worktree, unrelated commands, and unknown commands', () => {
+    expect(isRepositoryWranglerCommand(
+      'node /Users/dev/src/worktrees/pixelblaze-v2-issue-1/node_modules/wrangler/bin/wrangler.js pages dev dist',
+      mainWorktree,
+    )).toBe(false)
+    expect(isRepositoryWranglerCommand(`python3 ${mainWorktree}/serve.py`, mainWorktree)).toBe(false)
+    expect(isRepositoryWranglerCommand('', mainWorktree)).toBe(false)
+  })
+})
+
+describe('main API recovery decision', () => {
+  const mainWorktree = '/Users/dev/src/pixelblaze-v2'
+  const owned = {
+    pid: 7780,
+    command: `${mainWorktree}/node_modules/@cloudflare/workerd-darwin-arm64/bin/workerd serve`,
+  }
+  const foreign = { pid: 4242, command: 'python3 -m http.server 8788' }
+
+  it('starts a fresh pair when nothing listens', () => {
+    expect(decideMainApiAction([], false, mainWorktree)).toBe('start')
+  })
+
+  it('leaves a responding server alone', () => {
+    expect(decideMainApiAction([owned], true, mainWorktree)).toBe('none')
+    expect(decideMainApiAction([foreign], true, mainWorktree)).toBe('none')
+  })
+
+  it('recovers a wedged listener only when every listener is the repository wrangler', () => {
+    expect(decideMainApiAction([owned], false, mainWorktree)).toBe('recover')
+  })
+
+  it('refuses when any wedged listener is not the repository wrangler', () => {
+    expect(decideMainApiAction([foreign], false, mainWorktree)).toBe('refuse')
+    expect(decideMainApiAction([owned, foreign], false, mainWorktree)).toBe('refuse')
+    expect(decideMainApiAction([{ pid: 7780, command: '' }], false, mainWorktree)).toBe('refuse')
   })
 })
 
