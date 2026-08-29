@@ -852,12 +852,16 @@ function classifyExpression(node: Node, context: ClassifyContext, depth = 0): Cl
   if (node.type === 'Literal') return classified([], 0)
   if (node.type === 'Identifier') {
     const name = node.name as string
-    if (name === 'pixelCount') return classified(['position'], 0)
     if (context.loopIndices.has(name)) return classified(['loop-index'], 0)
     const paramClass = context.paramClasses?.get(name)
     if (paramClass) return { dependencies: new Set(paramClass), operations: 0, calls: 0 }
     const paramIndex = context.params.indexOf(name)
     if (paramIndex >= 0) return classified([paramIndex === 0 ? 'render-index' : 'position'], 0)
+    // The firmware position source only when nothing shadows the spelling —
+    // a parameter named pixelCount carries its call-site class instead.
+    if (name === 'pixelCount' && !context.locals.has(name) && !context.globals.has(name)) {
+      return classified(['position'], 0)
+    }
     if (context.locals.has(name)) {
       // Copy-propagate through the local's declarator initializer for reads
       // the initial value still reaches (before the kill position). Ground
@@ -1305,9 +1309,7 @@ function countPaletteSpecializationSites(
     if (argument.type === 'ArrayExpression'
       || (argument.type === 'Identifier' && literalArrayGlobals.has(argument.name as string))) count++
   })
-  visitOwnBody(ast, (node) => {
-    if (node.type === 'ExpressionStatement') countIn(node)
-  })
+  countInProgramScope(ast, countIn)
   for (const statement of ast.body as Node[]) {
     const declaration = statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement
     if (declaration?.type === 'FunctionDeclaration' && !paletteShadowedFns.has(declaration)) {
@@ -1315,6 +1317,24 @@ function countPaletteSpecializationSites(
     }
   }
   return count
+}
+
+/** Run a counter over every program-scope expression (declarator
+ * initializers, loop heads, conditionals included), without descending into
+ * function bodies — those are counted per function with shadow awareness. */
+function countInProgramScope(ast: Node, countIn: (root: Node) => void): void {
+  const walk = (node: Node): void => {
+    if (!node || typeof node !== 'object') return
+    if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression'
+      || node.type === 'ArrowFunctionExpression') return
+    if (node.type === 'CallExpression') { countIn(node); return }
+    for (const [key, child] of Object.entries(node)) {
+      if (key === 'start' || key === 'end' || key === 'loc') continue
+      if (Array.isArray(child)) child.forEach((item) => walk(item as Node))
+      else if (child && typeof child === 'object') walk(child as Node)
+    }
+  }
+  walk(ast)
 }
 
 // ── structural helpers (ported unchanged from showFrameInvariantHoisting) ────
@@ -1443,6 +1463,7 @@ const LOOP_TYPES = new Set(['ForStatement', 'WhileStatement', 'DoWhileStatement'
 
 function collectLocalKillPositions(body: Node, bindings: Set<string>): Map<string, number> {
   const result = new Map<string, number>()
+  const initializedOnce = new Set<string>()
   const kill = (name: string, position: number): void => {
     result.set(name, Math.min(result.get(name) ?? Infinity, position))
   }
@@ -1459,6 +1480,16 @@ function collectLocalKillPositions(body: Node, bindings: Set<string>): Map<strin
       // A reassignment kills from its own position, or from the outermost
       // enclosing loop's start (earlier iterations' reads see later values).
       kill(target.name as string, nextStack.length > 0 ? nextStack[0] : node.start as number)
+    }
+    // A REPEATED `var v = init` re-initializes the same binding: every
+    // initialized declarator after the first is a kill too.
+    if (node.type === 'VariableDeclarator' && node.id?.type === 'Identifier' && node.init
+      && bindings.has(node.id.name as string)) {
+      if (initializedOnce.has(node.id.name as string)) {
+        kill(node.id.name as string, nextStack.length > 0 ? nextStack[0] : node.start as number)
+      } else {
+        initializedOnce.add(node.id.name as string)
+      }
     }
     for (const [key, child] of Object.entries(node)) {
       if (key === 'start' || key === 'end' || key === 'loc') continue
