@@ -34,12 +34,21 @@ measured, and the acceptance criteria exclude synthetic scenes.
 
 ## The census is a living falsifier
 
-`test/perf-harness/issue718.test.ts` asserts the zero and writes the census
-JSON on every run. The day a Show class introduces a real collision, the
-suite fails with the offending candidate, reason, conflict set, and
-estimated saved work already collected — the evidence this issue demanded
-as its entry condition. That failure, not fresh optimism, reopens the
-fourth-plane/packed-RGB question (Rule 9).
+`test/perf-harness/issue718.test.ts` asserts the zero (refreshing the
+pinned census JSON only under `ISSUE718_CENSUS_OUT=1`). The falsifier
+covers planner rejections: the day a Show class produces a
+contention-class rejection, the suite fails with the offending candidate,
+reason, conflict set, and estimated saved work already collected — the
+evidence this issue demanded as its entry condition.
+
+One contention shape never appears as a rejection by design: Trails
+overlapping a required Transition snapshot is resolved by suspending
+Trails, an authored and disclosed policy (#537), so the census
+*enumerates* those coexistences (currently zero in stock) instead of
+asserting on them. A Show appearing in that list is exactly where the
+packed one-plane RGB snapshot would remove the suspension; judging a
+listed suspension visually unacceptable is the other event that reopens
+this question (Rule 9).
 
 ## Premises recorded for a future reopening
 
