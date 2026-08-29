@@ -53,23 +53,22 @@ describe('short-circuit probe on hardware (#906)', () => {
     })
     connection.on('error', (error) => console.error('controller socket:', error))
     await connection.connect()
-    const original = await connection.getConfig()
-    if (!original.activeProgramId) {
-      connection.close()
-      throw new Error('Controller did not report an active Pattern; refusing a non-reversible probe.')
-    }
-    // Restoration reselects a *saved* Pattern; a transient run-only Pattern
-    // would be destroyed by the probe push. Refuse unless the active id is
-    // in the device inventory.
-    const savedPrograms = await connection.listPrograms()
-    if (!savedPrograms.some((program) => program.id === original.activeProgramId)) {
-      connection.close()
-      throw new Error(
-        `Active Pattern ${original.activeProgramId} is not in the saved inventory; refusing a non-restorable probe.`,
-      )
-    }
     let runError: unknown
+    let original: Awaited<ReturnType<typeof connection.getConfig>> | undefined
     try {
+      original = await connection.getConfig()
+      if (!original.activeProgramId) {
+        throw new Error('Controller did not report an active Pattern; refusing a non-reversible probe.')
+      }
+      // Restoration reselects a *saved* Pattern; a transient run-only Pattern
+      // would be destroyed by the probe push. Refuse unless the active id is
+      // in the device inventory.
+      const savedPrograms = await connection.listPrograms()
+      if (!savedPrograms.some((program) => program.id === original.activeProgramId)) {
+        throw new Error(
+          `Active Pattern ${original.activeProgramId} is not in the saved inventory; refusing a non-restorable probe.`,
+        )
+      }
       const bytecode = compile(PROBE_SOURCE)
       const programId = makeProgramId()
       connection.pushByteCode(bytecode, { id: programId, name: '' })
@@ -80,6 +79,12 @@ describe('short-circuit probe on hardware (#906)', () => {
       if (activated.activeProgramId !== programId) throw new Error(`Probe ${programId} did not activate.`)
       await sleep(2_000)
       const variables = await connection.getVars()
+      // The verdict is only meaningful after beforeRender has run the probe
+      // statements; never overwrite the recorded artifact with zeroed
+      // counters from a not-yet-executed frame.
+      if (variables.done !== 1) {
+        throw new Error(`Probe activated but did not execute (done=${variables.done}); verdict not recorded.`)
+      }
       const report = {
         generatedAt: new Date().toISOString(),
         firmwareVersion: original.firmwareVersion ?? 'unknown',
@@ -95,19 +100,28 @@ describe('short-circuit probe on hardware (#906)', () => {
       }
       writeFileSync(join(process.cwd(), 'test/perf-harness/issue906-shortcircuit.json'), `${JSON.stringify(report, null, 2)}\n`)
       console.log(JSON.stringify(report, null, 2))
-      expect(variables.done).toBe(1)
     } catch (error) {
       runError = error
     } finally {
       try {
-        connection.setActiveProgram(original.activeProgramId)
-        const restored = await waitForControllerConfig(
-          () => connection.getConfig(),
-          { activeProgramId: original.activeProgramId },
-        )
-        if (restored.activeProgramId !== original.activeProgramId) {
-          const restoreError = new Error(`Controller state did not restore (program=${restored.activeProgramId}).`)
-          runError = runError == null ? restoreError : new AggregateError([runError, restoreError], 'Probe and restore failed.')
+        if (original?.activeProgramId) {
+          // The socket may have dropped during the push; reconnect before
+          // restoring so a dead connection cannot strand the probe Pattern.
+          try {
+            await connection.getConfig()
+          } catch {
+            await sleep(2_000)
+            await connection.connect()
+          }
+          connection.setActiveProgram(original.activeProgramId)
+          const restored = await waitForControllerConfig(
+            () => connection.getConfig(),
+            { activeProgramId: original.activeProgramId },
+          )
+          if (restored.activeProgramId !== original.activeProgramId) {
+            const restoreError = new Error(`Controller state did not restore (program=${restored.activeProgramId}).`)
+            runError = runError == null ? restoreError : new AggregateError([runError, restoreError], 'Probe and restore failed.')
+          }
         }
       } finally {
         connection.close()
