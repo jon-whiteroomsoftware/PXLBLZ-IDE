@@ -7,6 +7,7 @@ import {
   decideMainApiAction,
   emptyRuntimeRegistry,
   isRepositoryRuntimeCommand,
+  isRepositoryViteCommand,
   parseRuntimeManifest,
   groupIndicatesWorkerRuntime,
   unownedGroupMembers,
@@ -276,6 +277,27 @@ describe('main API recovery decision', () => {
     expect(decideMainApiAction([foreign], 'unresponsive', mainWorktree)).toBe('refuse')
     expect(decideMainApiAction([owned, foreign], 'unresponsive', mainWorktree)).toBe('refuse')
     expect(decideMainApiAction([{ pid: 7780, command: '' }], 'unresponsive', mainWorktree)).toBe('refuse')
+  })
+
+  it('adoption identity accepts only the vite entry points, not other owned runtime commands', () => {
+    expect(isRepositoryViteCommand(
+      `node ${mainWorktree}/node_modules/.bin/vite`,
+      mainWorktree,
+    )).toBe(true)
+    expect(isRepositoryViteCommand(
+      `node ${mainWorktree}/node_modules/vite/bin/vite.js`,
+      mainWorktree,
+    )).toBe(true)
+    // Owned wrangler/workerd are legitimate signal targets but never adoptable
+    // as the single-process runtime.
+    expect(isRepositoryViteCommand(
+      `node ${mainWorktree}/node_modules/wrangler/bin/wrangler.js pages dev dist --port 5174`,
+      mainWorktree,
+    )).toBe(false)
+    expect(isRepositoryViteCommand(
+      `${mainWorktree}/node_modules/@cloudflare/workerd-darwin-arm64/bin/workerd serve`,
+      mainWorktree,
+    )).toBe(false)
   })
 
   it('distinguishes a worker-dev group (workerd present) from a plain proxy Vite group', () => {

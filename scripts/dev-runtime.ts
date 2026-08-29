@@ -22,6 +22,7 @@ import {
   decideMainApiAction,
   groupIndicatesWorkerRuntime,
   isRepositoryRuntimeCommand,
+  isRepositoryViteCommand,
   parseRuntimeManifest,
   unownedGroupMembers,
   type MainApiListener,
@@ -174,12 +175,16 @@ async function startIssueRuntime(
         `Port ${assignment.uiPort} is owned by a process other than issue ${assignment.issue}; refusing to reuse it.`,
       )
     }
-    if (apiState === 'owned') {
-      await stopWedgedListeners(listenerPids(assignment.apiPort), assignment.apiPort, assignment.worktree)
-    }
-    if (uiState === 'owned') {
-      await stopWedgedListeners(legacyUiListeners, assignment.uiPort, assignment.worktree)
-    }
+    // Validate every group of both halves before any signal, so a group
+    // refusal cannot leave the legacy runtime half-dismantled.
+    const apiGroups = apiState === 'owned'
+      ? validateOwnedGroups(listenerPids(assignment.apiPort), assignment.worktree)
+      : []
+    const uiGroups = uiState === 'owned'
+      ? validateOwnedGroups(legacyUiListeners, assignment.worktree)
+      : []
+    await terminateGroups(apiGroups)
+    await terminateGroups(uiGroups)
     const updated = await updateRuntimeAssignment(context.runtimeDirectory, assignment.issue, (current) => ({
       ...current,
       apiPort: current.uiPort,
@@ -420,6 +425,20 @@ async function ensureMainRuntime(
         `Port ${manifest.shared.vitePort} is served by a process that is not the reviewed-main runtime; refusing to adopt or replace it:\n`
         + unownedListeners.map((listener) => `  ${listener.pid} ${listener.command || '(unreadable command)'}`).join('\n'),
       )
+    }
+    if (runtimeAction === 'none') {
+      // Adoption is stricter than signal authorization: only the vite entry
+      // point may be reported as the single-process runtime. A repository
+      // wrangler answering healthily here is refused, not adopted.
+      const nonVite = uiListeners.filter(
+        (listener) => !isRepositoryViteCommand(listener.command, context.mainWorktree),
+      )
+      if (nonVite.length > 0) {
+        throw new Error(
+          `Port ${manifest.shared.vitePort} answers healthily but is not the worker-dev Vite runtime; refusing to adopt it as reviewed main:\n`
+          + nonVite.map((listener) => `  ${listener.pid} ${listener.command || '(unreadable command)'}`).join('\n'),
+        )
+      }
     }
     if (uiGroupMembers.length === 0) {
       throw new Error(
@@ -695,10 +714,20 @@ function stopProcessGroup(processGroupId: number): void {
 // SIGKILL, and a survivor (or a group no longer provably ours) throws so the
 // caller keeps its ownership record instead of leaking an unowned process.
 async function stopStartedProcess(pid: number, worktreeRoot: string, startupError: unknown): Promise<void> {
-  const group = processGroupId(pid)
-  if (!Number.isInteger(group)) return
+  // A detached spawn makes the child its own group leader, so the group id is
+  // the pid itself — resolvable even after the leader exits with surviving
+  // workerd/esbuild children.
+  const group = pid
   const members = processGroupMembers(group)
-  if (members.length === 0) return
+  if (members.length === 0) {
+    if (groupGone(group)) return
+    // The group is alive but ps could not enumerate it: not proven gone, so
+    // the caller must keep its ownership record.
+    throw new Error(
+      `Startup failed and process group ${group} is alive but cannot be enumerated; leaving its registry record in place.`,
+      { cause: startupError },
+    )
+  }
   const unowned = unownedGroupMembers(members, worktreeRoot)
   if (unowned.length > 0) {
     throw new Error(
@@ -707,20 +736,7 @@ async function stopStartedProcess(pid: number, worktreeRoot: string, startupErro
       { cause: startupError },
     )
   }
-  stopProcessGroup(group)
-  if (await waitForGroupGone(group, 5_000)) return
-  try {
-    process.kill(-group, 'SIGKILL')
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
-    return
-  }
-  if (!await waitForGroupGone(group, 5_000)) {
-    throw new Error(
-      `Startup failed and process group ${group} survived SIGKILL; leaving its registry record in place.`,
-      { cause: startupError },
-    )
-  }
+  await terminateGroups([group])
 }
 
 // Only ESRCH proves a group is gone; other probe errors propagate.
@@ -734,21 +750,26 @@ function groupGone(group: number): boolean {
   }
 }
 
-async function waitForGroupGone(group: number, timeoutMs: number): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    if (groupGone(group)) return true
-    await new Promise((resolveWait) => setTimeout(resolveWait, 150))
-  }
-  return groupGone(group)
-}
-
 async function stopWedgedListeners(
   pids: readonly number[],
   port: number,
-  mainWorktree: string,
+  ownershipRoot: string,
   requireGroup?: (members: readonly MainApiListener[]) => void,
 ): Promise<void> {
+  const groups = validateOwnedGroups(pids, ownershipRoot, requireGroup)
+  await terminateGroups(groups)
+}
+
+// Resolves and validates the process groups for a set of PIDs without
+// signaling anything: all-or-nothing resolution, every member of every group
+// proven owned under ownershipRoot, plus an optional per-group constraint.
+// Splitting validation from termination lets multi-group retirements (the
+// legacy isolated pair) prove every group safe before any signal is sent.
+function validateOwnedGroups(
+  pids: readonly number[],
+  ownershipRoot: string,
+  requireGroup?: (members: readonly MainApiListener[]) => void,
+): number[] {
   const groupsByPid = pids.map((pid) => ({ pid, group: processGroupId(pid) }))
   const unresolved = groupsByPid.filter(({ group }) => !Number.isInteger(group))
   if (groupsByPid.length === 0 || unresolved.length > 0) {
@@ -764,29 +785,44 @@ async function stopWedgedListeners(
     if (members.length === 0) {
       throw new Error(`Cannot enumerate process group ${group}; refusing to signal it.`)
     }
-    const unowned = unownedGroupMembers(members, mainWorktree)
+    const unowned = unownedGroupMembers(members, ownershipRoot)
     if (unowned.length > 0) {
       throw new Error(
-        `Process group ${group} contains processes that are not this repository's Wrangler; refusing to terminate it:\n`
+        `Process group ${group} contains processes that are not this repository's runtime; refusing to terminate it:\n`
         + unowned.map((member) => `  ${member.pid} ${member.command || '(unreadable command)'}`).join('\n'),
       )
     }
     requireGroup?.(members)
   }
+  return groups
+}
+
+// Termination is proven by every group being gone — not by the TCP port
+// closing, which a dying Vite can release while workerd or esbuild children
+// survive in the group.
+async function terminateGroups(groups: readonly number[]): Promise<void> {
   for (const group of groups) stopProcessGroup(group)
-  try {
-    await waitForPortFree(port, 5_000)
-    return
-  } catch {
-    for (const group of groups) {
-      try {
-        process.kill(-group, 'SIGKILL')
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
-      }
+  if (await waitForAllGroupsGone(groups, 5_000)) return
+  for (const group of groups) {
+    try {
+      process.kill(-group, 'SIGKILL')
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
     }
   }
-  await waitForPortFree(port, 10_000)
+  if (!await waitForAllGroupsGone(groups, 10_000)) {
+    const survivors = groups.filter((group) => !groupGone(group))
+    throw new Error(`Process group(s) ${survivors.join(', ')} survived SIGKILL; inspect them manually.`)
+  }
+}
+
+async function waitForAllGroupsGone(groups: readonly number[], timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (groups.every(groupGone)) return true
+    await new Promise((resolveWait) => setTimeout(resolveWait, 150))
+  }
+  return groups.every(groupGone)
 }
 
 // Every wrangler invocation deletes .wrangler/tmp entries whose mtime is older

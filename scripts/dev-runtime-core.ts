@@ -234,6 +234,32 @@ function normalizePathish(token: string): string {
   return segments.join('/')
 }
 
+// Adoption identity is stricter than signal authorization: only the vite
+// entry points may be adopted as the single-process runtime, while wrangler,
+// workerd, and esbuild remain acceptable group members to signal. A
+// repository-owned `wrangler pages dev` on the main port is refused, never
+// reported as the reviewed-main worker-dev runtime.
+export function isRepositoryViteCommand(command: string, mainWorktree: string): boolean {
+  const tokens = command.split(/\s+/).filter(Boolean)
+  if (tokens.length === 0) return false
+  const viteEntry = (token: string): boolean => {
+    const moduleRoot = `${mainWorktree}/node_modules/`
+    const normalized = normalizePathish(token)
+    if (!normalized.startsWith(moduleRoot)) return false
+    const relative = normalized.slice(moduleRoot.length)
+    return relative === '.bin/vite' || relative.startsWith('vite/bin/')
+  }
+  if (viteEntry(tokens[0])) return true
+  const executable = tokens[0].split('/').pop()
+  if (executable !== 'node') return false
+  let index = 1
+  while (index < tokens.length && tokens[index].startsWith('-')) {
+    if (!wranglerChildNodeFlags.has(tokens[index])) return false
+    index += 1
+  }
+  return index < tokens.length && viteEntry(tokens[index])
+}
+
 export function decideMainApiAction(
   listeners: readonly MainApiListener[],
   probe: ProbeOutcome,
