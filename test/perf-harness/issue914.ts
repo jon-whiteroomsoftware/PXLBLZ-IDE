@@ -201,6 +201,9 @@ export function analyzeIssue914(source: string): Issue914PatternReport {
       for (const param of (child.params as Node[]) ?? []) {
         if (param?.type !== 'Identifier') outsideScopeSubset = true
       }
+      // Async and generator bodies do not execute synchronously at the call
+      // (a generator body not at all) — outside the execution model.
+      if (child.async === true || child.generator === true) outsideScopeSubset = true
     }
     // Destructuring targets escape plain mutation collection
     // (`[u] = [time(.1)]` mutates u invisibly) — non-plain assignment and
@@ -287,6 +290,32 @@ export function analyzeIssue914(source: string): Issue914PatternReport {
     }
   }
   valueRefWalk(ast, null, null, new Set())
+  // A local or parameter that REBINDS a top-level function name breaks every
+  // name-based graph analysis (reachability, purity, param-class joins):
+  // `var heavy = exp; heavy(index)` calls the alias while the analyses charge
+  // the uncalled top-level `heavy`. Such rebinding exits the subset.
+  // (Rebinding a builtin name — ZippyZaps' `var scale` — stays in-subset:
+  // builtins participate only in per-call classification, which respects
+  // local shadowing.)
+  if (!outsideScopeSubset) {
+    visitNode(ast, (child) => {
+      if (child.type === 'FunctionDeclaration') {
+        for (const param of (child.params as Node[]) ?? []) {
+          if (param?.type === 'Identifier' && topLevelFunctionNames.has(param.name as string)) {
+            outsideScopeSubset = true
+          }
+        }
+      }
+      if (child.type === 'VariableDeclarator' && child.id?.type === 'Identifier'
+        && topLevelFunctionNames.has(child.id.name as string)
+        && !topLevelFunctionNodes.has(child as Node)) {
+        // A top-level `var f = ...` naming a function is itself the module
+        // binding only when no function declaration exists; any declarator
+        // reusing a declared function's name rebinds it somewhere.
+        outsideScopeSubset = true
+      }
+    })
+  }
   if (outsideScopeSubset) {
     return { indexTabling: [], positionMemo: [], paletteSpecialization: 0, outsideScopeSubset: true }
   }
