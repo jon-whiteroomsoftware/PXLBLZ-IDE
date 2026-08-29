@@ -179,10 +179,10 @@ async function startIssueRuntime(
     // refusal cannot leave the legacy runtime half-dismantled.
     const apiGroups = apiState === 'owned'
       ? validateOwnedGroups(listenerPids(assignment.apiPort), assignment.worktree)
-      : []
+      : orphanedOwnedGroups(assignment.apiPid, assignment.worktree)
     const uiGroups = uiState === 'owned'
       ? validateOwnedGroups(legacyUiListeners, assignment.worktree)
-      : []
+      : orphanedOwnedGroups(assignment.uiPid, assignment.worktree)
     await terminateGroups(apiGroups, assignment.worktree)
     await terminateGroups(uiGroups, assignment.worktree)
     const updated = await updateRuntimeAssignment(context.runtimeDirectory, assignment.issue, (current) => ({
@@ -263,6 +263,9 @@ async function stopOwnedUiProcess(assignment: RuntimeAssignment): Promise<void> 
   }
   if (uiState === 'owned') {
     await stopWedgedListeners(uiListeners, assignment.uiPort, assignment.worktree)
+  }
+  if (uiState === 'free') {
+    await terminateGroups(orphanedOwnedGroups(assignment.uiPid, assignment.worktree), assignment.worktree)
   }
 }
 
@@ -391,6 +394,11 @@ async function ensureMainRuntime(
     .map(processGroupId)
     .filter(Number.isInteger)
     .flatMap((group) => processGroupMembers(group))
+  const legacyPids = listenerPids(manifest.shared.wranglerPort)
+  // Tracks whether a recover decision determined the 5174 group to be a
+  // plain proxy Vite; the no-workerd guard at the signal boundary is keyed on
+  // this decision, not on a probe value that can change before the signal.
+  let expectProxyGroup = false
   if (runtimeAction === 'unhealthy') {
     // A worker-dev runtime carries workerd in its process group; a legacy
     // proxy-mode Vite does not. An owned, workerd-less group answering 5xx is
@@ -411,6 +419,7 @@ async function ensureMainRuntime(
       + 'restarting it as the single-process runtime.',
     )
     runtimeAction = 'recover'
+    expectProxyGroup = true
   }
   if (runtimeAction === 'refuse') {
     throw new Error(
@@ -445,6 +454,14 @@ async function ensureMainRuntime(
           + nonVite.map((listener) => `  ${listener.pid} ${listener.command || '(unreadable command)'}`).join('\n'),
         )
       }
+      if (!groupIndicatesWorkerRuntime(uiGroupMembers) && legacyPids.length === 0) {
+        // A healthy Vite with no workerd in its group is proxying /api
+        // somewhere, and with no legacy 8788 to explain it, that somewhere is
+        // not a backend this coordinator knows: refuse rather than adopt.
+        throw new Error(
+          `Port ${manifest.shared.vitePort} answers healthily but is a proxy-mode Vite with no known API target; refusing to adopt it as reviewed main.`,
+        )
+      }
     }
     if (uiGroupMembers.length === 0) {
       throw new Error(
@@ -460,7 +477,6 @@ async function ensureMainRuntime(
     }
   }
 
-  const legacyPids = listenerPids(manifest.shared.wranglerPort)
   if (legacyPids.length > 0) {
     const legacyListeners: MainApiListener[] = legacyPids.map((pid) => ({ pid, command: processCommand(pid) }))
     const unowned = legacyListeners.filter((listener) => !isRepositoryRuntimeCommand(listener.command, context.mainWorktree))
@@ -479,6 +495,7 @@ async function ensureMainRuntime(
       + 'restarting it as the single-process runtime.',
     )
     runtimeAction = 'recover'
+    expectProxyGroup = true
   }
 
   // All refusals are behind us: retire the legacy standalone Wrangler, then
@@ -494,7 +511,7 @@ async function ensureMainRuntime(
     // The no-workerd constraint travels into the stop: if workerd appears in
     // the group between the decision above and the signal, the guard refuses
     // rather than killing what has become a live worker runtime.
-    const requireProxyGroup = apiProbe === 'error'
+    const requireProxyGroup = expectProxyGroup
       ? (members: readonly MainApiListener[]) => {
           if (groupIndicatesWorkerRuntime(members)) {
             throw new Error(
@@ -518,7 +535,7 @@ async function ensureMainRuntime(
   }
   prepareD1(context.mainWorktree, resolve(context.mainWorktree, '.wrangler/state'), manifest)
   if (runtimeAction !== 'none') {
-    startDetached(
+    const pid = startDetached(
       process.execPath,
       [resolve(context.mainWorktree, 'node_modules/vite/bin/vite.js')],
       context.mainWorktree,
@@ -527,8 +544,16 @@ async function ensureMainRuntime(
         VITE_PORT: String(manifest.shared.vitePort),
       },
     )
-    await waitForUrl(apiUrl, 60_000)
-    await waitForUrl(uiUrl, 30_000)
+    try {
+      await waitForUrl(apiUrl, 60_000)
+      await waitForUrl(uiUrl, 30_000)
+    } catch (error) {
+      // A runtime that never became healthy must not survive detached: a
+      // later dev:main would see an erroring worker group it refuses to
+      // terminate, leaving manual cleanup as the only recovery.
+      await stopStartedProcess(pid, context.mainWorktree, error)
+      throw error
+    }
   }
   console.log(
     `Stable main is available at http://localhost:${manifest.shared.vitePort}${manifest.basePath}`
