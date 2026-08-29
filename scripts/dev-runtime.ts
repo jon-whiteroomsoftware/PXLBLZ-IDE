@@ -518,6 +518,13 @@ async function ensureMainRuntime(
     )
     await stopWedgedListeners(legacyPids, manifest.shared.wranglerPort, context.mainWorktree)
   }
+  if (runtimeAction === 'recover' && !expectProxyGroup && !groupIndicatesWorkerRuntime(uiGroupMembers)) {
+    // A wedged group without workerd is proxy-shaped even though the probe
+    // said unresponsive rather than error: after the legacy Wrangler above
+    // retires, such a proxy may wake into 5xx, and recovery must still
+    // converge in one pass. Treat it as the proxy determination it is.
+    expectProxyGroup = true
+  }
   if (runtimeAction === 'recover') {
     if (!expectProxyGroup) {
       // A wedged worker runtime may have recovered to answering (even with
