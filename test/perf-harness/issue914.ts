@@ -546,15 +546,20 @@ function collectAlreadyCachedRanges(ast: Node): Array<readonly [number, number]>
         const expression = valueExprByName.get(name)
         if (!expression) continue
         if (!testReferences.has(name)) continue
-        // Boundary is the END OF THE TEST, not the if's start: `if (++v)`
-        // executes the update before branching, so a definition inside the
-        // test still intervenes between the cache load and the fill.
+        // A definition inside the if-TEST (`if (++v)`, comma expressions,
+        // short-circuit assignments) executes before branching but proving it
+        // controls the branch value is beyond this idiom check — treat any
+        // such definition purely as a provenance BREAKER, never as the
+        // establishing load. The establishing load must sit strictly before
+        // the if statement and be the variable's latest definition up to the
+        // end of the test.
         const testEnd = (node.test as Node)?.end as number ?? node.start as number
         const priorDefinitions = (definitionsByName.get(name) ?? [])
           .filter((definition) => definition.position < testEnd)
           .sort((left, right) => left.position - right.position)
         const latest = priorDefinitions[priorDefinitions.length - 1]
-        if (!latest || !latest.readsArrays.has(array)) continue
+        if (!latest || latest.position >= (node.start as number)) continue
+        if (!latest.readsArrays.has(array)) continue
         ranges.push([expression.start as number, expression.end as number])
       }
     })
@@ -848,17 +853,22 @@ function computeOutVarClasses(input: {
       if (ENTRY_FNS.has(writer)) continue
       // The writer must assign before any return path: setU(v){ if (v > .5)
       // return; u = v } can exit without writing, so a call to it does not
-      // dominate later reads.
+      // dominate later reads. An assignment INSIDE a return's argument
+      // (`return u = v`) executes as part of that return and counts at the
+      // return's own position.
       const writerFn = functions.get(writer)!
-      let earliestReturn = Infinity
+      const returnRanges: Array<readonly [number, number]> = []
+      visitNode(writerFn.body, (child) => {
+        if (child.type === 'ReturnStatement') returnRanges.push([child.start as number, child.end as number])
+      })
+      const earliestReturn = returnRanges.reduce((min, [start]) => Math.min(min, start), Infinity)
       let earliestAssign = Infinity
       visitNode(writerFn.body, (child) => {
-        if (child.type === 'ReturnStatement') {
-          earliestReturn = Math.min(earliestReturn, child.start as number)
-        }
         if (child.type === 'AssignmentExpression' && child.left?.type === 'Identifier'
           && child.left.name === name) {
-          earliestAssign = Math.min(earliestAssign, child.start as number)
+          const start = child.start as number
+          const enclosingReturn = returnRanges.find(([from, to]) => start >= from && (child.end as number) <= to)
+          earliestAssign = Math.min(earliestAssign, enclosingReturn ? enclosingReturn[0] : start)
         }
       })
       if (earliestAssign > earliestReturn) { ok = false; break }
@@ -913,15 +923,13 @@ function computeOutVarClasses(input: {
           else if (child && typeof child === 'object') scan(child as Node, childGuarded)
         }
       }
-      // An establishment event after a possible early return may be skipped;
-      // only events before the function's first return dominate.
-      let earliestReturn = Infinity
-      visitNode(fn.body, (child) => {
-        if (child.type === 'ReturnStatement') earliestReturn = Math.min(earliestReturn, child.start as number)
-      })
+      // Reader-side returns do not undo domination: if a guard returns early,
+      // the read after it never executes on that path, and every path that
+      // DOES reach the read passed the establishment first. Position order
+      // alone decides (`if (index == 0) return; setU(index); exp(u)` is
+      // established).
       scan(fn.body, false)
-      const dominating = earliestEstablish < earliestReturn ? earliestEstablish : Infinity
-      if (reads.some((position) => position < dominating)) ok = false
+      if (reads.some((position) => position < earliestEstablish)) ok = false
     }
     if (ok) candidates.add(name)
   }
