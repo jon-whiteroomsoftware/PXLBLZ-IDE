@@ -39,7 +39,11 @@ export function resolveRoute<Env>(
   for (const route of routes) {
     const params = matchSegments(pathSegments(route.path), requestSegments)
     if (!params) continue
-    const handler = route.methods[method]
+    // Own-property lookup only: an arbitrary client method token such as
+    // "constructor" must not resolve through the object prototype.
+    const handler = Object.prototype.hasOwnProperty.call(route.methods, method)
+      ? route.methods[method]
+      : undefined
     if (!handler) return { kind: 'method-not-allowed', allowed: Object.keys(route.methods) }
     return { kind: 'matched', handler, params }
   }

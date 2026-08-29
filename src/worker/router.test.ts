@@ -38,6 +38,15 @@ describe('worker route resolution', () => {
     expect(resolveRoute(routes, 'PATCH', '/api/patterns//').kind).toBe('no-route')
   })
 
+  it('never resolves prototype members as handlers for arbitrary method tokens', () => {
+    for (const method of ['constructor', 'toString', 'hasOwnProperty', '__proto__']) {
+      expect(resolveRoute(routes, method, '/api/me')).toEqual({
+        kind: 'method-not-allowed',
+        allowed: ['GET'],
+      })
+    }
+  })
+
   it('reports the allowed methods for a known path with the wrong method', () => {
     const resolution = resolveRoute(routes, 'DELETE', '/api/me')
     expect(resolution).toEqual({ kind: 'method-not-allowed', allowed: ['GET'] })
