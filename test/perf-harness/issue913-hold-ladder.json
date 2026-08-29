@@ -11,41 +11,41 @@
       "variant": "baseline",
       "bytecodeBytes": 6870,
       "fps": {
-        "mean": 49.33413166666666,
-        "median": 49.28586,
-        "min": 48.22834,
-        "max": 50.59524,
+        "mean": 49.35031083333333,
+        "median": 49.130885,
+        "min": 48.27586,
+        "max": 50.64548,
         "samples": 24
       }
     },
     {
       "pixelCount": 256,
       "variant": "hold-k2",
-      "bytecodeBytes": 7098,
+      "bytecodeBytes": 7030,
       "fps": {
-        "mean": 79.37561750000002,
-        "median": 79.064375,
-        "min": 77.92207,
-        "max": 81.02767,
+        "mean": 76.40568833333333,
+        "median": 76.23671999999999,
+        "min": 75.09882,
+        "max": 77.92207,
         "samples": 24
       }
     },
     {
       "pixelCount": 256,
       "variant": "hold-k4",
-      "bytecodeBytes": 7098,
+      "bytecodeBytes": 7030,
       "fps": {
-        "mean": 124.39874999999995,
-        "median": 124.3781,
-        "min": 124.3781,
-        "max": 124.502,
+        "mean": 123.04748333333329,
+        "median": 122.94704999999999,
+        "min": 121.7565,
+        "max": 124.3781,
         "samples": 24
       }
     },
     {
       "pixelCount": 256,
       "variant": "hold-k8",
-      "bytecodeBytes": 7098,
+      "bytecodeBytes": 7030,
       "fps": {
         "mean": 124.5226833333333,
         "median": 124.502,
@@ -59,9 +59,9 @@
       "variant": "baseline",
       "bytecodeBytes": 6870,
       "fps": {
-        "mean": 12.754387083333333,
-        "median": 12.96112,
-        "min": 12.45211,
+        "mean": 12.732412500000002,
+        "median": 12.665985,
+        "min": 12.44019,
         "max": 13.0719,
         "samples": 24
       }
@@ -69,31 +69,31 @@
     {
       "pixelCount": 1000,
       "variant": "hold-k2",
-      "bytecodeBytes": 7098,
+      "bytecodeBytes": 7030,
       "fps": {
-        "mean": 20.57101041666667,
-        "median": 20.47782,
-        "min": 20.19231,
-        "max": 21.01241,
+        "mean": 19.788328333333325,
+        "median": 19.746634999999998,
+        "min": 19.45525,
+        "max": 20.19231,
         "samples": 24
       }
     },
     {
       "pixelCount": 1000,
       "variant": "hold-k4",
-      "bytecodeBytes": 7098,
+      "bytecodeBytes": 7030,
       "fps": {
-        "mean": 32.874095,
-        "median": 32.884975,
-        "min": 32.80318,
-        "max": 32.93413,
+        "mean": 32.282385833333315,
+        "median": 32.19515,
+        "min": 31.80914,
+        "max": 32.80318,
         "samples": 24
       }
     },
     {
       "pixelCount": 1000,
       "variant": "hold-k8",
-      "bytecodeBytes": 7098,
+      "bytecodeBytes": 7030,
       "fps": {
         "mean": 32.95058,
         "median": 32.95058,
@@ -107,9 +107,9 @@
       "variant": "baseline",
       "bytecodeBytes": 6870,
       "fps": {
-        "mean": 6.375219416666668,
-        "median": 6.381039,
-        "min": 6.233304,
+        "mean": 6.377905874999999,
+        "median": 6.334842,
+        "min": 6.238859,
         "max": 6.542056,
         "samples": 24
       }
@@ -117,31 +117,31 @@
     {
       "pixelCount": 2000,
       "variant": "hold-k2",
-      "bytecodeBytes": 7098,
+      "bytecodeBytes": 7030,
       "fps": {
-        "mean": 10.301183749999998,
-        "median": 10.261915,
-        "min": 10.12891,
-        "max": 10.52632,
+        "mean": 9.920004333333333,
+        "median": 9.861933,
+        "min": 9.737099,
+        "max": 10.12891,
         "samples": 24
       }
     },
     {
       "pixelCount": 2000,
       "variant": "hold-k4",
-      "bytecodeBytes": 7098,
+      "bytecodeBytes": 7030,
       "fps": {
-        "mean": 16.51768208333333,
-        "median": 16.512970000000003,
-        "min": 16.45692,
-        "max": 16.5692,
+        "mean": 16.191004999999997,
+        "median": 16.137304999999998,
+        "min": 15.95214,
+        "max": 16.47287,
         "samples": 24
       }
     },
     {
       "pixelCount": 2000,
       "variant": "hold-k8",
-      "bytecodeBytes": 7098,
+      "bytecodeBytes": 7030,
       "fps": {
         "mean": 16.569200000000006,
         "median": 16.5692,

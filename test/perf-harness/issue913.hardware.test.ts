@@ -55,7 +55,20 @@ describe('spatial sample-and-hold ladder on hardware (#913 spike)', () => {
 
       for (const pixelCount of WAVE2_PIXEL_COUNTS) {
         connection.setPixelCount(pixelCount, false)
-        await sleep(1_000)
+        // setPixelCount is fire-and-forget: read the applied count back before
+        // recording rows under it, so a delayed or rejected write cannot label
+        // measurements with a pixel count the device never adopted.
+        const applyDeadline = Date.now() + 10_000
+        let applied = await connection.getConfig()
+        while (Date.now() < applyDeadline && applied.pixelCount !== pixelCount) {
+          await sleep(250)
+          applied = await connection.getConfig()
+        }
+        if (applied.pixelCount !== pixelCount) {
+          throw new Error(
+            `Controller did not apply pixelCount ${pixelCount} (reports ${applied.pixelCount}).`,
+          )
+        }
         for (const variant of variants) {
           process.stdout.write(`  ${variant.name} @ ${pixelCount} px ... `)
           const measured = await pushAndMeasureControllerSource(

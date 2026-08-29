@@ -30,37 +30,45 @@ export function buildHoldBaseArtifact(): GeneratedShowArtifact {
 
 export interface HoldResult {
   code: string
-  emitFunctions: number
+  paintSites: number
 }
 
 /**
  * Wrap the artifact with a K-contiguous spatial hold: the render dispatcher
- * replays the latched RGB for non-anchor pixels, and every emit function
- * latches what it paints. Exact for anchor pixels; held pixels are the
+ * replays the latched RGB for non-anchor pixels, and EVERY paint call in the
+ * artifact latches what it emits by routing through one helper. Total
+ * coverage matters: the crossfade arm and the out-of-range fallback paint
+ * through direct outer rgb(...) calls, not the shared emit wrappers, and a
+ * latch that misses them replays stale pre-transition color on held pixels
+ * (the first review's P1). Exact for anchor pixels; held pixels are the
  * authored approximation under review.
  */
 export function applySpatialHold(source: string, k: number): HoldResult {
-  let emitFunctions = 0
-  // Latch inside every `_emit()` body: `rgb(a, b, c)` becomes a latch of the
-  // same three reads plus the paint.
-  let code = source.replace(
-    /function (__pxlblz_\w+)\(\) \{ rgb\((__pxlblz_\w+), (__pxlblz_\w+), (__pxlblz_\w+)\) \}/g,
-    (_match, name, r, g, b) => {
-      emitFunctions += 1
-      return `function ${name}() { __pxlblz_hold_r = ${r}\n__pxlblz_hold_g = ${g}\n__pxlblz_hold_b = ${b}\nrgb(${r}, ${g}, ${b}) }`
-    },
-  )
-  if (emitFunctions === 0) throw new Error('No emit sinks found to latch; compile with directColorSinks: false.')
+  const paintSites = [...source.matchAll(/\brgb\(/g)].length
+  if (paintSites === 0) throw new Error('No rgb paint sites found to latch.')
+  if (/\bhsv\(/.test(source)) {
+    // The latch replays RGB; an hsv paint would need its own latch kind.
+    throw new Error('Artifact paints via hsv(); the RGB-only hold latch would miss it.')
+  }
+  let code = source.replace(/\brgb\(/g, '__pxlblz_hold_emit(')
   const dispatcher = /export function render2D\(index, x, y\) \{\n/
   if (!dispatcher.test(code)) throw new Error('render2D dispatcher not found.')
+  // The gate and the helper are inserted AFTER the global rewrite so their own
+  // rgb(...) calls stay native.
   code = code.replace(dispatcher, `export function render2D(index, x, y) {
   if (index % ${k} != 0) { rgb(__pxlblz_hold_r, __pxlblz_hold_g, __pxlblz_hold_b); return }
 `)
   code = `var __pxlblz_hold_r = 0
 var __pxlblz_hold_g = 0
 var __pxlblz_hold_b = 0
+function __pxlblz_hold_emit(__pxlblz_hold_er, __pxlblz_hold_eg, __pxlblz_hold_eb) {
+  __pxlblz_hold_r = __pxlblz_hold_er
+  __pxlblz_hold_g = __pxlblz_hold_eg
+  __pxlblz_hold_b = __pxlblz_hold_eb
+  rgb(__pxlblz_hold_er, __pxlblz_hold_eg, __pxlblz_hold_eb)
+}
 ${code}`
-  return { code, emitFunctions }
+  return { code, paintSites }
 }
 
 export { WAVE2_MASTER_PIXEL_COUNT }
