@@ -165,6 +165,12 @@ describe('repository wrangler ownership', () => {
       'node /Users/dev/src/worktrees/other/node_modules/.bin/vite',
       mainWorktree,
     )).toBe(false)
+    // Only the vite entry points qualify — not arbitrary scripts inside the
+    // vite package.
+    expect(isRepositoryRuntimeCommand(
+      `node ${mainWorktree}/node_modules/vite/misc/true.js`,
+      mainWorktree,
+    )).toBe(false)
   })
 
   it('recognizes every member of a live wrangler pages dev process group', () => {

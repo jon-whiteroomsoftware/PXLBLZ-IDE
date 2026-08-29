@@ -196,7 +196,7 @@ function matchesRepositoryWranglerPath(token: string, mainWorktree: string): boo
   const relative = normalized.slice(moduleRoot.length)
   return relative.startsWith('wrangler/')
     || relative === '.bin/vite'
-    || relative.startsWith('vite/')
+    || relative.startsWith('vite/bin/')
     || /^@cloudflare\/workerd(?:-[a-z0-9-]+)?\//.test(relative)
     || /^@esbuild\/[a-z0-9_-]+\/bin\/esbuild$/.test(relative)
 }

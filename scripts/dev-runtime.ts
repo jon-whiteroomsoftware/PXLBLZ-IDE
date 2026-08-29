@@ -136,19 +136,49 @@ async function startIssueRuntime(
     now: () => new Date().toISOString(),
     portIsAvailable,
   })
+  if (args.profile === 'shared' && assignment.apiPort !== manifest.shared.vitePort) {
+    // A persisted pre-#900 shared assignment still targets the retired
+    // standalone Wrangler port. Stop its stale proxy Vite (which froze that
+    // target at spawn), repoint the assignment at the main origin, and let
+    // the normal start path below bring up a fresh proxy.
+    await stopOwnedUiProcess(assignment)
+    const updated = await updateRuntimeAssignment(context.runtimeDirectory, assignment.issue, (current) => ({
+      ...current,
+      apiPort: manifest.shared.vitePort,
+      apiTarget: `http://localhost:${manifest.shared.vitePort}`,
+      uiPid: undefined,
+      updatedAt: new Date().toISOString(),
+    }))
+    Object.assign(assignment, updated)
+  }
   if (args.profile === 'isolated' && assignment.apiPort !== assignment.uiPort) {
     // Coordinator-started isolated runtimes are single-process (#900): the
     // Worker runs inside the Vite process, so the assignment self-targets its
-    // UI origin. (The authenticated Playwright wrapper still reserves and
-    // serves a distinct API port until #901; it does not pass through here.)
+    // UI origin. A persisted two-process assignment first retires its owned
+    // legacy API service and proxy Vite so nothing is orphaned when the
+    // registry entry stops describing them. (The authenticated Playwright
+    // wrapper still reserves and serves a distinct API port until #901; it
+    // does not pass through here.)
+    const apiState = classifyApiPort(assignment)
+    if (apiState === 'foreign') {
+      throw new Error(
+        `Port ${assignment.apiPort} is owned by a process other than issue ${assignment.issue}; refusing to reuse it.`,
+      )
+    }
+    if (apiState === 'owned' && assignment.apiPid !== undefined) {
+      stopProcessGroup(assignment.apiPid)
+      await waitForPortFree(assignment.apiPort, 10_000)
+    }
+    await stopOwnedUiProcess(assignment)
     const updated = await updateRuntimeAssignment(context.runtimeDirectory, assignment.issue, (current) => ({
       ...current,
       apiPort: current.uiPort,
       apiTarget: `http://localhost:${current.uiPort}`,
+      apiPid: undefined,
+      uiPid: undefined,
       updatedAt: new Date().toISOString(),
     }))
-    assignment.apiPort = updated.apiPort
-    assignment.apiTarget = updated.apiTarget
+    Object.assign(assignment, updated)
   }
 
   const portState = classifyAssignmentPort(assignment, listenerPids(assignment.uiPort))
@@ -186,6 +216,22 @@ async function startIssueRuntime(
     }
   }
   console.log(runtimeStartSummary(assignment, manifest))
+}
+
+// Stops an assignment's owned UI process (its proxy or worker-dev Vite)
+// ahead of a topology rewrite; a foreign occupant refuses, a free port is a
+// no-op.
+async function stopOwnedUiProcess(assignment: RuntimeAssignment): Promise<void> {
+  const uiState = classifyAssignmentPort(assignment, listenerPids(assignment.uiPort))
+  if (uiState === 'foreign') {
+    throw new Error(
+      `Port ${assignment.uiPort} is owned by a process other than issue ${assignment.issue}; refusing to reuse it.`,
+    )
+  }
+  if (uiState === 'owned' && assignment.uiPid !== undefined) {
+    stopProcessGroup(assignment.uiPid)
+    await waitForPortFree(assignment.uiPort, 10_000)
+  }
 }
 
 async function releaseIssueRuntime(
@@ -260,7 +306,11 @@ async function printStatus(
     uiState: classifyAssignmentPort(assignment, listenerPids(assignment.uiPort)),
     apiState: assignment.profile === 'shared'
       ? (listenerPids(assignment.apiPort).length > 0 ? 'shared' : 'stopped')
-      : classifyApiPort(assignment),
+      : assignment.apiPort === assignment.uiPort
+        // Self-targeted single-process runtimes (#900): the API lives in the
+        // UI process, so its state is the UI process's state.
+        ? classifyAssignmentPort(assignment, listenerPids(assignment.uiPort))
+        : classifyApiPort(assignment),
   }))
   if (json) {
     console.log(JSON.stringify({ main: mainStatus, assignments }, null, 2))
@@ -353,6 +403,17 @@ async function ensureMainRuntime(
       + `restarting the main runtime as a single worker-dev process (PIDs ${uiPids.join(', ')}).`,
     )
     await stopWedgedListeners(uiPids, manifest.shared.vitePort, context.mainWorktree)
+  }
+  if (runtimeAction === 'none') {
+    // A healthy /api does not prove the UI: probe the base path too, and
+    // refuse to report a partially-broken runtime as available.
+    const uiProbe = await probeService(uiUrl, serviceProbeTimeoutMs)
+    if (uiProbe !== 'ok') {
+      throw new Error(
+        `Port ${manifest.shared.vitePort} serves ${apiUrl} but ${uiUrl} is unhealthy;`
+        + ' inspect the main runtime log and stop it manually if a restart is needed.',
+      )
+    }
   }
   prepareD1(context.mainWorktree, resolve(context.mainWorktree, '.wrangler/state'), manifest)
   if (runtimeAction !== 'none') {
