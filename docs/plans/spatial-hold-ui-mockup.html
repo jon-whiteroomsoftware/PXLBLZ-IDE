@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spatial hold — UI affordance mockup (#913)</title>
+<!-- PROTOTYPE / THROWAWAY. Three variants of the spatial-hold affordances
+     across the Controller profile, web preview, and Controller control
+     panel. Switch with the bottom bar or arrow keys. The winner's shape
+     feeds the follow-up build issue; this file never ships. -->
+<style>
+:root{
+  --bg:#111318; --panel:#1a1e26; --panel2:#20252f; --line:#2c333f;
+  --text:#e6e9ef; --dim:#8b93a3; --accent:#4fb6ff; --good:#5fd39a;
+  --warn:#e8b84f; --chip:#262c37; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:28px 28px 96px}
+h1{font-size:17px;margin-bottom:4px}
+.sub{color:var(--dim);font-size:13px;margin-bottom:22px}
+.surface{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:18px;overflow:hidden}
+.surface>header{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel2)}
+.surface>header .where{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+.surface .pad{padding:16px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:none}
+.row .label{font-weight:600}
+.row .help{color:var(--dim);font-size:12px;margin-top:3px;max-width:520px}
+.seg{display:inline-flex;background:var(--chip);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{background:none;border:none;color:var(--dim);padding:6px 14px;font:inherit;cursor:pointer}
+.seg button.on{background:var(--accent);color:#0b1016;font-weight:700}
+select{background:var(--chip);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font:inherit}
+.chip{display:inline-block;background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12px;color:var(--dim)}
+.chip.on{color:var(--good);border-color:var(--good)}
+.chip.stale{color:var(--warn);border-color:var(--warn)}
+.preview{position:relative;height:120px;border-radius:8px;background:
+  repeating-linear-gradient(90deg,#ff5c5c 0 14px,#ffb35c 14px 28px,#ffe75c 28px 42px,#7bff8a 42px 56px,#5cc8ff 56px 70px,#b45cff 70px 84px);
+  filter:saturate(.9) brightness(.9);overflow:hidden}
+.preview.hold2{background:repeating-linear-gradient(90deg,#ff5c5c 0 28px,#ffe75c 28px 56px,#5cc8ff 56px 84px)}
+.preview::after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,rgba(10,12,16,.55),transparent 40%)}
+.ptoolbar{display:flex;align-items:center;gap:10px;margin-top:10px}
+.ptoolbar .spacer{flex:1}
+.fps{font-family:var(--mono);font-size:12px;color:var(--dim)}
+.fps b{color:var(--good)}
+.panelrow{display:flex;gap:20px;align-items:baseline;font-family:var(--mono);font-size:13px;flex-wrap:wrap}
+.panelrow .k{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.note{font-size:12px;color:var(--warn);margin-top:8px}
+.note.ok{color:var(--dim)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.two h4{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px}
+.disclose{font-size:12px;color:var(--dim);border-left:3px solid var(--accent);padding:6px 10px;background:var(--chip);border-radius:0 6px 6px 0;margin-top:10px}
+.variant{display:none}
+.variant.on{display:block}
+#bar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);display:flex;align-items:center;gap:14px;background:#000c;border:1px solid var(--line);backdrop-filter:blur(6px);border-radius:999px;padding:8px 16px;font-size:13px;z-index:10}
+#bar button{background:var(--chip);color:var(--text);border:1px solid var(--line);border-radius:999px;width:28px;height:28px;cursor:pointer}
+#bar .name{min-width:280px;text-align:center;color:var(--text)}
+.toggle{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.toggle .track{width:34px;height:19px;border-radius:999px;background:var(--chip);border:1px solid var(--line);position:relative}
+.toggle .track::after{content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:var(--dim)}
+.toggle.on .track{background:var(--accent)}
+.toggle.on .track::after{left:17px;background:#0b1016}
+</style>
+</head>
+<body>
+<h1>Spatial hold — UI affordances (#913 follow-up)</h1>
+<div class="sub">Three variants; ← → or the bottom bar to switch. Each shows the same three surfaces: Controller profile (configure), Web preview (explore), Controller control panel (observe, read-only).</div>
+
+<!-- ============ VARIANT A — segmented row in the profile ============ -->
+<div class="variant" id="vA">
+  <div class="surface">
+    <header><span class="where">Controller profile — Burner bag</span><span class="chip">Auto sync: on</span></header>
+    <div class="pad">
+      <div class="row"><div><div class="label">Pixels</div></div><span class="fps">256</span></div>
+      <div class="row"><div><div class="label">Declared output</div></div><select><option>Native serial</option></select></div>
+      <div class="row">
+        <div>
+          <div class="label">Spatial hold</div>
+          <div class="help">Renders every Nth pixel and holds it across the run — an authored approximation. Measured on this hardware class: ×2 ≈ +60% FPS (near-invisible), ×4 ≈ +150% (visible softening). With auto sync on, changing this recompiles and re-pushes everything on this controller.</div>
+        </div>
+        <div class="seg"><button class="on">Off</button><button>×2</button><button>×4</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="surface">
+    <header><span class="where">Web preview — Pattern / Show editor</span><span class="fps">preview fps <b>49.3</b></span></header>
+    <div class="pad">
+      <div class="preview"></div>
+      <div class="ptoolbar">
+        <span class="chip">Fast</span><span class="chip">Precise</span>
+        <span class="spacer"></span>
+        <span class="fps">Hold:</span>
+        <div class="seg"><button class="on">Off</button><button>×2</button><button>×4</button></div>
+      </div>
+      <div class="disclose">Preview hold mirrors the selected controller's profile by default; flipping it here is a session override for exploration and doesn't touch the profile.</div>
+    </div>
+  </div>
+
+  <div class="surface">
+    <header><span class="where">Controller control panel — live</span><span class="fps">device fps <b>124.5</b></span></header>
+    <div class="pad two">
+      <div>
+        <h4>In sync</h4>
+        <div class="panelrow"><span class="k">Running</span><span>Quadrille (Show)</span><span class="k">Hold</span><span class="chip on">×2 · as pushed</span></div>
+        <div class="note ok">Matches the profile. New pushes use ×2.</div>
+      </div>
+      <div>
+        <h4>Profile changed since push (auto sync off)</h4>
+        <div class="panelrow"><span class="k">Running</span><span>Quadrille (Show)</span><span class="k">Hold</span><span class="chip stale">Off · as pushed</span></div>
+        <div class="note">Profile is now ×2 — applies on next push (or turn auto sync on).</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ VARIANT B — performance disclosure card ============ -->
+<div class="variant" id="vB">
+  <div class="surface">
+    <header><span class="where">Controller profile — Burner bag</span><span class="chip">Auto sync: on</span></header>
+    <div class="pad">
+      <div class="row"><div><div class="label">Performance</div><div class="help">Trades applied at compile time for this controller.</div></div></div>
+      <div class="row" style="padding-left:14px">
+        <div><div class="label" style="font-weight:500">Declared output</div></div><select><option>Native serial</option></select>
+      </div>
+      <div class="row" style="padding-left:14px">
+        <div><div class="label" style="font-weight:500">Spatial hold</div></div>
+        <select><option>Off</option><option>×2 — ≈ +60% FPS, near-invisible</option><option>×4 — ≈ +150% FPS, visible softening</option></select>
+      </div>
+      <div class="disclose">Authored approximation, disclosed on every compile. Auto sync recompiles and re-pushes on change.</div>
+    </div>
+  </div>
+
+  <div class="surface">
+    <header><span class="where">Web preview</span><span class="fps">preview fps <b>49.3</b></span></header>
+    <div class="pad">
+      <div class="preview hold2"></div>
+      <div class="ptoolbar">
+        <span class="chip">Fast</span><span class="chip">Precise</span>
+        <span class="spacer"></span>
+        <label class="toggle on"><span class="track"></span><span>Match controller (×2)</span></label>
+      </div>
+    </div>
+  </div>
+
+  <div class="surface">
+    <header><span class="where">Controller control panel — live</span><span class="fps">device fps <b>79.1</b></span></header>
+    <div class="pad">
+      <div class="panelrow"><span class="k">Running</span><span>Quadrille (Show)</span><span class="k">Output</span><span>Native serial</span><span class="k">Hold</span><span class="chip on">×2 · as pushed</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ VARIANT C — preview-first exploration ============ -->
+<div class="variant" id="vC">
+  <div class="surface">
+    <header><span class="where">Web preview — exploration first</span><span class="fps">preview fps <b>49.3</b> → holding: <b>79.0</b></span></header>
+    <div class="pad">
+      <div class="preview hold2"></div>
+      <div class="ptoolbar">
+        <span class="fps">Spatial hold</span>
+        <div class="seg"><button>Off</button><button class="on">×2</button><button>×4</button></div>
+        <span class="fps">est. device gain <b>+60%</b></span>
+        <span class="spacer"></span>
+        <button style="background:var(--accent);border:none;border-radius:8px;padding:6px 12px;font-weight:700;color:#0b1016;cursor:pointer">Save to profile</button>
+      </div>
+      <div class="disclose">Try it live against any pattern or Show; “Save to profile” persists the choice to the selected controller (auto sync then re-pushes).</div>
+    </div>
+  </div>
+
+  <div class="surface">
+    <header><span class="where">Controller profile — Burner bag</span><span class="chip">Auto sync: on</span></header>
+    <div class="pad">
+      <div class="row">
+        <div><div class="label">Spatial hold</div><div class="help">Set from the preview, or here.</div></div>
+        <select><option>Off</option><option selected>×2</option><option>×4</option></select>
+      </div>
+    </div>
+  </div>
+
+  <div class="surface">
+    <header><span class="where">Controller control panel — live</span><span class="fps">device fps <b>79.1</b></span></header>
+    <div class="pad">
+      <div class="panelrow"><span class="k">Running</span><span>Quadrille (Show)</span><span class="k">Hold</span><span class="chip on">×2 · as pushed</span></div>
+    </div>
+  </div>
+</div>
+
+<div id="bar">
+  <button onclick="cycle(-1)">←</button>
+  <span class="name" id="vname"></span>
+  <button onclick="cycle(1)">→</button>
+</div>
+
+<script>
+const variants = [
+  ['vA', 'A — Segmented row in the profile'],
+  ['vB', 'B — Performance disclosure card'],
+  ['vC', 'C — Preview-first, save to profile'],
+]
+let index = Math.max(0, variants.findIndex(([id]) => id === location.hash.slice(1)))
+function show() {
+  variants.forEach(([id], i) => document.getElementById(id).classList.toggle('on', i === index))
+  document.getElementById('vname').textContent = variants[index][1]
+  history.replaceState(null, '', '#' + variants[index][0])
+}
+function cycle(d) { index = (index + d + variants.length) % variants.length; show() }
+addEventListener('keydown', (event) => {
+  if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return
+  if (event.key === 'ArrowLeft') cycle(-1)
+  if (event.key === 'ArrowRight') cycle(1)
+})
+show()
+</script>
+</body>
+</html>
