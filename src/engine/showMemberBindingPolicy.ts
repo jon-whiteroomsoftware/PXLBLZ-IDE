@@ -33,6 +33,9 @@ export interface MemberBindingPolicy {
   /** #904: option carrier for the identity-blend fold (direct assignment for
    * statically opaque, unmasked, keyless stack placements). */
   identityBlendFold: boolean
+  /** #905: option carrier for per-pixel dedupe (same-domain transition
+   * decode sharing, wrapper copy propagation). */
+  perPixelDedup: boolean
   /** #559: the whole recipe proves phase adaptation is identically zero, so
    * the per-pixel `+ adapt_phase` add strips. */
   phaseAdaptationIdentity: boolean
@@ -45,6 +48,7 @@ export interface MemberBindingPolicyOptions {
   pixelCountWriteHoisting?: boolean
   hsvCaptureChainSpecialization?: boolean
   identityBlendFold?: boolean
+  perPixelDedup?: boolean
 }
 
 /** The per-member facts the policy needs that only the compiled member
@@ -221,6 +225,7 @@ export function planMemberBindingPolicies(
       uniformPixelCountBinding: pixelCountUniform(member.id),
       hsvCaptureSpecialization: options.hsvCaptureChainSpecialization ?? true,
       identityBlendFold: options.identityBlendFold ?? true,
+      perPixelDedup: options.perPixelDedup ?? true,
       phaseAdaptationIdentity: member.adaptationPhase === 0
         && !phaseBlocked.has(member.id)
         && !rampMovesPhase

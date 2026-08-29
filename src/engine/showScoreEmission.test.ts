@@ -60,7 +60,7 @@ describe('table-driven routed Show score emission (#542)', () => {
     // again 2026-08-02 when the reference pair recast to the measured
     // MetaballGarden/IQPalettes diagnostic over a Murmuration backdrop, and
     // 2026-08-22 when every Transition reference dropped that backdrop (#63).
-    expect(baseline.artifact?.summary.artifactBytes).toBe(24_974)
+    expect(baseline.artifact?.summary.artifactBytes).toBe(24_698)
     expect(candidate.error).toBeNull()
     expect(candidate.artifact?.summary.specializations.showScore).toMatchObject({
       selected: true,

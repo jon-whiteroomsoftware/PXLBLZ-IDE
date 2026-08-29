@@ -151,8 +151,8 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
     expect(selected.summary.artifactBytes).toBeLessThan(baseline.summary.artifactBytes)
     // Refreshed 2026-07-20 after the wave-2 emission changes (#557-#566);
     // #571's prologue-rebinding removal trimmed both builds again.
-    expect(baseline.summary.artifactBytes).toBe(75_386)
-    expect(selected.summary.artifactBytes).toBe(68_084)
+    expect(baseline.summary.artifactBytes).toBe(73_188)
+    expect(selected.summary.artifactBytes).toBe(65_886)
     expect(selected.summary.resources).toMatchObject({
       auxiliaryCacheWords: 216,
       totalWords: 708,
@@ -161,7 +161,7 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
       remainingGlobals: 5,
       // Was -692 before wave-2: the emission diet brought this fixture back
       // under the activation ceiling; #571 added 240 more bytes of headroom.
-      remainingArtifactBytes: 300,
+      remainingArtifactBytes: 2498,
     })
     expect(checksums(selected, installationShow, 'fast')).toEqual(checksums(baseline, installationShow, 'fast'))
     expect(checksums(selected, installationShow, 'fidelity')).toEqual(checksums(baseline, installationShow, 'fidelity'))

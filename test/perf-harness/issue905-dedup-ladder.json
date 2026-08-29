@@ -1,0 +1,102 @@
+{
+  "generatedAt": "2026-08-29T04:43:01.008Z",
+  "controller": {
+    "ip": "192.168.8.224",
+    "name": "Burner bag",
+    "boardType": "pb32",
+    "firmwareVersion": "3.67",
+    "outputProfile": "native-serial (assumed)",
+    "activationTimeoutMs": 20000,
+    "settleMs": 2000,
+    "sampleMs": 19000
+  },
+  "transform": {
+    "wrapperCopyChains": 2
+  },
+  "rows": [
+    {
+      "pixelCount": 256,
+      "variant": "baseline",
+      "sourceBytes": 13805,
+      "bytecodeBytes": 8066,
+      "activationMs": 565,
+      "fps": {
+        "mean": 11.742876052631582,
+        "median": 5.976096,
+        "min": 5.946482,
+        "max": 69,
+        "samples": 76
+      }
+    },
+    {
+      "pixelCount": 256,
+      "variant": "deduped",
+      "sourceBytes": 13131,
+      "bytecodeBytes": 7698,
+      "activationMs": 545,
+      "fps": {
+        "mean": 13.235433526315786,
+        "median": 6.244424,
+        "min": 6.21118,
+        "max": 68.65672,
+        "samples": 76
+      }
+    },
+    {
+      "pixelCount": 1000,
+      "variant": "baseline",
+      "sourceBytes": 13805,
+      "bytecodeBytes": 8066,
+      "activationMs": 539,
+      "fps": {
+        "mean": 3.1780524342105276,
+        "median": 1.532567,
+        "min": 1.523229,
+        "max": 18.11249,
+        "samples": 76
+      }
+    },
+    {
+      "pixelCount": 1000,
+      "variant": "deduped",
+      "sourceBytes": 13131,
+      "bytecodeBytes": 7698,
+      "activationMs": 665,
+      "fps": {
+        "mean": 3.5050929605263157,
+        "median": 1.6,
+        "min": 1.59109,
+        "max": 17.98202,
+        "samples": 76
+      }
+    },
+    {
+      "pixelCount": 2000,
+      "variant": "baseline",
+      "sourceBytes": 13805,
+      "bytecodeBytes": 8066,
+      "activationMs": 619,
+      "fps": {
+        "mean": 1.8921973684210525,
+        "median": 0.766284,
+        "min": 0.761615,
+        "max": 8.814887,
+        "samples": 76
+      }
+    },
+    {
+      "pixelCount": 2000,
+      "variant": "deduped",
+      "sourceBytes": 13131,
+      "bytecodeBytes": 7698,
+      "activationMs": 1467,
+      "fps": {
+        "mean": 1.6977704736842107,
+        "median": 0.801282,
+        "min": 0.796178,
+        "max": 8.910892,
+        "samples": 76
+      }
+    }
+  ]
+}

@@ -1128,6 +1128,10 @@ export interface ShowCompileOptions {
   /** Benchmark/vintage counterfactual for the #904 identity-blend fold;
    * production always uses the default `true`. */
   identityBlendFold?: boolean
+  /** Benchmark/vintage counterfactual for the #905 per-pixel dedupe
+   * (same-domain transition decode sharing, wrapper copy propagation);
+   * production always uses the default `true`. */
+  perPixelDedup?: boolean
   /** Benchmark counterfactual for #561 per-pixel pixelCount constant-write
    * hoisting; production always uses the default `true`. */
   pixelCountWriteHoisting?: boolean
@@ -2694,6 +2698,7 @@ export function compileShow(
       pixelCountWriteHoisting: options.pixelCountWriteHoisting,
       hsvCaptureChainSpecialization: options.hsvCaptureChainSpecialization,
       identityBlendFold: options.identityBlendFold,
+      perPixelDedup: options.perPixelDedup,
     },
   )
   for (const member of members) member.binding = bindingPolicies.get(member.id)
@@ -7167,29 +7172,53 @@ function emitRoutedSceneStackWrapper(
   localTimeExpression?: string,
   includeClear = false,
 ): string {
-  const capture = emitRoutedPlacementStackCapture(
-    stack,
-    (placement) => outputDimension === 2
-      ? `${placement.member.prefix}_renderCapture2D(index, x, y)`
-      : `${placement.member.prefix}_renderCapture(index)`,
-    `${prefix}_capture`,
-    outputDimension,
-    propertyTracks,
-    localTimeExpression,
-    outputDimension === 2 ? { x: 'x', y: 'y', index: 'index' } : undefined,
-  )
+  const captureCall = (placement: ResolvedRoutedScenePlacement) => outputDimension === 2
+    ? `${placement.member.prefix}_renderCapture2D(index, x, y)`
+    : `${placement.member.prefix}_renderCapture(index)`
+  // #905: a single statically opaque, unmasked, keyless placement writes its
+  // member RGB straight into the wrapper globals — the #904-folded capture
+  // accumulators were pure pass-throughs (three dead locals and three local
+  // writes per pixel). Measured as part of the transition-heavy ladder
+  // (issue905-dedup-ladder.json).
+  const solo = stack.length === 1 ? stack[0] : null
+  const directSolo = solo != null
+    && solo.member.binding?.perPixelDedup !== false
+    && solo.member.binding?.identityBlendFold !== false
+    && routedPlacementTakesDirectAssignment(solo, propertyTracks)
+  const capture = directSolo
+    ? (() => {
+        const rendered = emitRoutedPlacementCapture(
+          solo,
+          captureCall(solo),
+          propertyTracks,
+          localTimeExpression,
+          outputDimension === 2 ? { x: 'x', y: 'y', index: 'index' } : undefined,
+        )
+        return [
+          ...rendered.lines,
+          `${prefix}_r = ${solo.member.prefix}_r`,
+          `${prefix}_g = ${solo.member.prefix}_g`,
+          `${prefix}_b = ${solo.member.prefix}_b`,
+        ].join('\n')
+      })()
+    : `${emitRoutedPlacementStackCapture(
+        stack,
+        captureCall,
+        `${prefix}_capture`,
+        outputDimension,
+        propertyTracks,
+        localTimeExpression,
+        outputDimension === 2 ? { x: 'x', y: 'y', index: 'index' } : undefined,
+      )}
+${prefix}_r = ${prefix}_capture_r
+${prefix}_g = ${prefix}_capture_g
+${prefix}_b = ${prefix}_capture_b`
   const captureFunction = outputDimension === 2
     ? `function ${prefix}_renderCapture2D(index, x, y) {
 ${indentBlock(capture, 2)}
-  ${prefix}_r = ${prefix}_capture_r
-  ${prefix}_g = ${prefix}_capture_g
-  ${prefix}_b = ${prefix}_capture_b
 }`
     : `function ${prefix}_renderCapture(index) {
 ${indentBlock(capture, 2)}
-  ${prefix}_r = ${prefix}_capture_r
-  ${prefix}_g = ${prefix}_capture_g
-  ${prefix}_b = ${prefix}_capture_b
 }`
   return `var ${prefix}_r = 0
 var ${prefix}_g = 0
@@ -8241,13 +8270,20 @@ function emitPhysicalSceneZoneTransition(
   scalarField?: SelectedScalarField,
 ): string {
   const fromLocal = `__pxlblz_show_scene_zone_${zoneIndex}_from_index`
-  const toLocal = `__pxlblz_show_scene_zone_${zoneIndex}_to_index`
+  // #905: a same-domain transition decodes one route index and one
+  // coordinate pair; the to-side reads the from-side locals. Identical
+  // ranges give an identical local-index mapping and identical synthesized
+  // width/height, so the alias is exact. Measured +4.40-4.57% median FPS on
+  // the transition-heavy fixture (issue905-dedup-ladder.json).
+  const sameDomain = from.binding?.perPixelDedup !== false
+    && zoneRangesIdentical(fromZone, toZone)
+  const toLocal = sameDomain ? fromLocal : `__pxlblz_show_scene_zone_${zoneIndex}_to_index`
   const fromPixelCount = Math.max(1, controllerZonePixelCount(fromZone))
   const toPixelCount = Math.max(1, controllerZonePixelCount(toZone))
   const localX = `__pxlblz_show_scene_zone_${zoneIndex}_x`
   const localY = `__pxlblz_show_scene_zone_${zoneIndex}_y`
-  const toLocalX = `__pxlblz_show_scene_zone_${zoneIndex}_to_x`
-  const toLocalY = `__pxlblz_show_scene_zone_${zoneIndex}_to_y`
+  const toLocalX = sameDomain ? localX : `__pxlblz_show_scene_zone_${zoneIndex}_to_x`
+  const toLocalY = sameDomain ? localY : `__pxlblz_show_scene_zone_${zoneIndex}_to_y`
   const width = Math.max(1, Math.ceil(Math.sqrt(fromPixelCount)))
   const height = Math.max(1, Math.ceil(fromPixelCount / width))
   const toWidth = Math.max(1, Math.ceil(Math.sqrt(toPixelCount)))
@@ -8256,8 +8292,10 @@ function emitPhysicalSceneZoneTransition(
     ? [
         `  var ${localX} = ${width === 1 ? '0.5' : `(${fromLocal} % ${width}) / ${width - 1}`}`,
         `  var ${localY} = ${height === 1 ? '0.5' : `floor(${fromLocal} / ${width}) / ${height - 1}`}`,
-        `  var ${toLocalX} = ${toWidth === 1 ? '0.5' : `(${toLocal} % ${toWidth}) / ${toWidth - 1}`}`,
-        `  var ${toLocalY} = ${toHeight === 1 ? '0.5' : `floor(${toLocal} / ${toWidth}) / ${toHeight - 1}`}`,
+        ...(sameDomain ? [] : [
+          `  var ${toLocalX} = ${toWidth === 1 ? '0.5' : `(${toLocal} % ${toWidth}) / ${toWidth - 1}`}`,
+          `  var ${toLocalY} = ${toHeight === 1 ? '0.5' : `floor(${toLocal} / ${toWidth}) / ${toHeight - 1}`}`,
+        ]),
       ]
     : []
   const fromCapture = outputDimension === 2
@@ -8282,9 +8320,13 @@ function emitPhysicalSceneZoneTransition(
   return [
     `var ${fromLocal} = -1`,
     ...emitZoneLocalAssignments(fromZone, fromLocal),
-    `var ${toLocal} = -1`,
-    ...emitZoneLocalAssignments(toZone, toLocal),
-    `if (${fromLocal} >= 0 && ${toLocal} >= 0) {`,
+    ...(sameDomain ? [] : [
+      `var ${toLocal} = -1`,
+      ...emitZoneLocalAssignments(toZone, toLocal),
+    ]),
+    sameDomain
+      ? `if (${fromLocal} >= 0) {`
+      : `if (${fromLocal} >= 0 && ${toLocal} >= 0) {`,
     ...[...new Set([...fromMembers, from])].flatMap((member) => (member.binding?.uniformPixelCountBinding ? [] : [`  ${member.pixelCountName} = ${fromPixelCount}`])),
     ...[...new Set([...toMembers, to])].flatMap((member) => (member.binding?.uniformPixelCountBinding ? [] : [`  ${member.pixelCountName} = ${toPixelCount}`])),
     ...coordinatePrelude,
@@ -8299,6 +8341,14 @@ function transitionAppliesToZone(
   zoneName: string,
 ): boolean {
   return transition.scopeZoneName === undefined || transition.scopeZoneName === zoneName
+}
+
+/** #905: identical range lists give an identical local-index mapping. */
+function zoneRangesIdentical(a: ControllerZone, b: ControllerZone): boolean {
+  return a.ranges.length === b.ranges.length
+    && a.ranges.every((range, index) => (
+      range.start === b.ranges[index].start && range.end === b.ranges[index].end
+    ))
 }
 
 function emitSceneTransitionWithCaptures(

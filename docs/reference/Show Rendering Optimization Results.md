@@ -358,8 +358,10 @@ candidate map is `docs/plans/controller-performance-wave4-advisory.md`.
 | ---: | --- | --- |
 | 00 | #904 identity-blend fold | probe: one emitted blend line 3.441 us/pixel over direct assignment, the full three-channel block with dead inits 13.898 us/pixel (17.2x mul); hand-fold ladder: five-pattern acceptance **+8.45/+6.92/+5.50%** median FPS at 256/1,000/2,000 px, hsv-steady and effect-tax neutral (their blends sit on the #557-bypassed capture path); emitter takes the direct form for a stack's statically opaque unmasked **first contributor** (accumulator provably zero, so the fold is exact in 16.16 and in Fast float64 including non-finite values) and bares dead accumulator initializers; later opaque layers keep the blend outside the endpoint context because Fast float64 must propagate a non-finite lower-layer accumulator through `t * 0`; every blend the ladder measured was a first-contributor site, so the restriction costs none of the measured win; `identityBlendFold: false` reproduces pre-fold emission for vintages |
 
-Raw wave-4 slice data: `test/perf-harness/issue904-blend-probe.json` and
-`issue904-fold-ladder.json`.
+| 01 | #905 per-pixel dedupe | hand-dedup ladder on a transition-dominated fixture (1 s holds, 8 s live/live crossfades, ~84% of the loop in the arm): **+4.49/+4.40/+4.57%** median FPS at 256/1,000/2,000 px, bytecode -368 B, steady phases unchanged; emitter now shares one route decode and coordinate pair across a same-domain transition (identical zone ranges give an identical local-index mapping) and writes member RGB straight to the wrapper globals for a single direct placement (the #904-folded accumulators were pure pass-throughs); scoping fact recorded for future generated-code rewriting: mangled names are REUSED across generated helpers, so renames must stay inside the enclosing block; `perPixelDedup: false` reproduces the dual-decode emission |
+
+Raw wave-4 slice data: `test/perf-harness/issue904-blend-probe.json`,
+`issue904-fold-ladder.json`, and `issue905-dedup-ladder.json`.
 
 ## General rules established by the evidence
 
