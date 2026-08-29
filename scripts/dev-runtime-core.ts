@@ -31,6 +31,11 @@ export interface RuntimeAssignmentRequest {
   worktree: string
   branch: string
   profile: RuntimeProfile
+  // Isolated runtimes are single-process (#900) and self-target their UI
+  // port by default; only a caller that will itself serve a separate API
+  // process (the authenticated Playwright wrapper, until #901) reserves a
+  // distinct port from the wrangler range.
+  separateApiPort?: boolean
 }
 
 export interface RuntimeAssignment extends RuntimeAssignmentRequest {
@@ -320,18 +325,21 @@ export async function allocateRuntimeAssignment(
   )
   // Shared runtimes proxy /api to the stable main single-process server
   // (#900), which serves UI and API from its one Vite port. Isolated
-  // assignments still reserve a distinct API port: the authenticated
-  // Playwright wrapper spawns its own server on it until #901.
+  // runtimes self-target their UI port unless the caller will serve a
+  // separate API process itself and asked for a distinct reservation.
   const apiPort = request.profile === 'shared'
     ? manifest.shared.vitePort
-    : await firstAvailablePort(
-        manifest.isolated.wranglerPorts,
-        registry.assignments.map((assignment) => assignment.apiPort),
-        dependencies.portIsAvailable,
-      )
+    : request.separateApiPort
+      ? await firstAvailablePort(
+          manifest.isolated.wranglerPorts,
+          registry.assignments.map((assignment) => assignment.apiPort),
+          dependencies.portIsAvailable,
+        )
+      : uiPort
   const now = dependencies.now()
+  const { separateApiPort: _separateApiPort, ...persistedRequest } = request
   const assignment: RuntimeAssignment = {
-    ...request,
+    ...persistedRequest,
     uiPort,
     apiPort,
     apiTarget: `http://localhost:${apiPort}`,

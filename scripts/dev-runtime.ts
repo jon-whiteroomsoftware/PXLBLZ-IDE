@@ -210,26 +210,29 @@ async function startIssueRuntime(
         kind: 'worker',
         persistState: persistence,
       })
-      await updateRuntimeAssignment(context.runtimeDirectory, assignment.issue, (current) => ({
-        ...current,
-        uiPid: pid,
-        updatedAt: new Date().toISOString(),
-      }))
+      // The rollback covers everything after the spawn, including the
+      // registry update itself: a failed PID record would otherwise leave a
+      // detached process no later command can classify as owned.
       try {
+        await updateRuntimeAssignment(context.runtimeDirectory, assignment.issue, (current) => ({
+          ...current,
+          uiPid: pid,
+          updatedAt: new Date().toISOString(),
+        }))
         await waitForUrl(issueUrl(assignment, manifest), 30_000)
         await waitForUrl(`${assignment.apiTarget}/api/me`, 30_000)
       } catch (error) {
-        // Roll the failed startup back so the next run does not mistake the
-        // registered-but-broken process for a healthy owned runtime. The
-        // ownership record is cleared only once the process is verifiably
+        // The ownership record is cleared only once the process is verifiably
         // gone; a survivor keeps its registry entry so nothing leaks as
-        // unowned.
+        // unowned. The clearing update is best-effort: after a verified stop
+        // a stale PID names a dead process, which later commands classify as
+        // free.
         await stopStartedProcess(pid, context.worktree, error)
         await updateRuntimeAssignment(context.runtimeDirectory, assignment.issue, (current) => ({
           ...current,
           uiPid: undefined,
           updatedAt: new Date().toISOString(),
-        }))
+        })).catch(() => {})
         throw error
       }
     } else {
@@ -452,6 +455,14 @@ async function ensureMainRuntime(
         throw new Error(
           `Port ${manifest.shared.vitePort} answers healthily but is not the worker-dev Vite runtime; refusing to adopt it as reviewed main:\n`
           + nonVite.map((listener) => `  ${listener.pid} ${listener.command || '(unreadable command)'}`).join('\n'),
+        )
+      }
+      if (new Set(uiPids.map(processGroupId)).size > 1) {
+        // One runtime means one process group; two owned groups listening on
+        // different interfaces of the same port is an inconsistent state to
+        // refuse, not adopt.
+        throw new Error(
+          `Port ${manifest.shared.vitePort} is served by more than one process group; refusing to adopt it as reviewed main.`,
         )
       }
       if (!groupIndicatesWorkerRuntime(uiGroupMembers) && legacyPids.length === 0) {

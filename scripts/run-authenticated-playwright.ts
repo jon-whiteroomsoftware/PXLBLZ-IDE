@@ -58,6 +58,7 @@ async function main(): Promise<void> {
       worktree: context.worktree,
       branch: context.branch,
       profile: 'isolated',
+      separateApiPort: true,
     },
     manifest,
     now: () => new Date().toISOString(),
