@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ControllerBar } from './ControllerBar'
 import {
   useControllerStore,
-  controllerInitialState,
   __resetControllerProviders,
 } from '@/store/controllerStore'
 import {
@@ -60,7 +59,7 @@ beforeEach(() => {
   __resetControllerProviders()
   resetPersonalContentProvider()
   __resetControllerProfileAutoCreateGuards()
-  useControllerStore.setState(controllerInitialState)
+  useControllerStore.setState(useControllerStore.getInitialState(), true)
   useControllerProfileStore.setState(controllerProfileInitialState)
   useRouterStore.setState(routerInitialState)
   useWorkspaceStore.setState(workspaceInitialState)
@@ -185,6 +184,10 @@ function seedLiveController(deviceId: string | null = 'pixelblaze_pb32_3cd4ee549
         deviceId,
       },
     },
+    // These tests seed a synthetic live entry without the store's private
+    // provider map. Keep pill activation on that synthetic entry instead of
+    // asking the production action to resolve a provider that cannot exist.
+    setActive: (ip) => useControllerStore.setState({ activeIp: ip }),
   })
 }
 
@@ -523,6 +526,7 @@ describe('ControllerBar', () => {
         '10.0.0.5': { acknowledged: 'unknown', pending: null },
       },
       setRendererPaused,
+      setActive: (ip) => useControllerStore.setState({ activeIp: ip }),
     })
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
@@ -547,6 +551,7 @@ describe('ControllerBar', () => {
         '10.0.0.5': { acknowledged: 'unknown', pending: null },
       },
       setRendererPaused,
+      setActive: (ip) => useControllerStore.setState({ activeIp: ip }),
     })
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
@@ -566,6 +571,7 @@ describe('ControllerBar', () => {
       rendererStates: {
         '10.0.0.5': { acknowledged: 'unknown', pending: null },
       },
+      setActive: (ip) => useControllerStore.setState({ activeIp: ip }),
     })
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
@@ -863,7 +869,11 @@ describe('ControllerBar', () => {
       }],
     })
     const activateProgram = vi.fn().mockResolvedValue(undefined)
-    useControllerPanelStore.setState({
+
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    await settleControllerAsync()
+    act(() => useControllerPanelStore.setState({
       activeProgramId: 'run-only',
       programLabels: { 'run-only': 'Live Draft' },
       programs: [{ id: 'foreign', name: 'Foreign Controller Pattern' }],
@@ -874,10 +884,7 @@ describe('ControllerBar', () => {
         ],
       },
       activateProgram,
-    })
-
-    render(<ControllerBar />)
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    }))
     const trigger = screen.getByRole('button', { name: 'Switch running Pattern' })
     fireEvent.click(trigger)
 
@@ -893,7 +900,7 @@ describe('ControllerBar', () => {
 
     fireEvent.click(options[1])
     await waitFor(() => expect(activateProgram.mock.calls[0]?.[0]).toBe('a'))
-    expect(screen.queryByRole('listbox', { name: 'Switch the running Pattern' })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('listbox', { name: 'Switch the running Pattern' })).not.toBeInTheDocument())
     expect(usePatternStore.getState().activePatternId).toBe('pattern-1')
     expect(screen.getByTestId('controller-action-row')).toHaveTextContent('Open Draft')
   })
