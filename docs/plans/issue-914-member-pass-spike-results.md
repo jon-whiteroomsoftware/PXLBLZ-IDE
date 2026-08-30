@@ -10,15 +10,17 @@ source, and is there enough eligible stock content to justify building them?
 verdicts as living evidence.** The detection rules work — proven by recall
 against the pre-optimization sources of the hand-optimized demos and
 precision against the shipped versions — but the measured economics say no
-pass is worth building today: the hand sweep exhausted Rule A (one site
-remains catalogue-wide), and Rule B's naive opportunity class evaporated
+pass is worth building today: the hand sweep exhausted Rule A (the one
+remaining catalogue site shipped directly in #916), and Rule B's naive
+opportunity class evaporated
 under paired hardware measurement — single cheap-call memoization is a
 measured **loss**, per-frame coordinate transforms disqualify the
 biggest-looking sites, and the surviving exact class is four marginal
 op-chain sites. The spike's lasting value is the refined cost model
 (subtree pricing against the profiled table, a ~10× mul memo breakeven),
 two soundness rules the guide now needs (transform taint, sentinel range
-proof), and one shippable pattern edit (IridescentFibers +5.3%).
+proof), and one shippable pattern edit (IridescentFibers +5.3%, shipped by
+#916).
 
 ## Detection rules
 
@@ -138,7 +140,7 @@ library helpers are visible as top-level functions.
 | Rule | Sites | Where |
 |---|---:|---|
 | A module-table | 0 | — |
-| A frame-table | 1 | IridescentFibers (10-iteration `sin(t + layer)` term) |
+| A frame-table | 0 | — (IridescentFibers shipped its 10-iteration table in #916) |
 | B exact (≥10× mul total AND an exp/pow-class call, position-stable) | **0** | — (among the 83 analyzed; the 18 excluded are unknown, and the decline is robust to them — see Recommendation) |
 | B below-breakeven | 98 | the `atan2`/`hypot`/`clamp`/`frac` tail across 35 Patterns — including four op-chain sites past the total threshold (ClockworkIris 11.4×, HelixForge3D 13.1×, NebulaSphere 13.1×, SceneSplice 13.5×) that the measured op-chain loss demotes |
 | B needs-invalidation (control-coupled) | 8 | ImpactEngine ×2, LavaLamp3D, LineDancer2D, NebulaShells3D, PerlinKaleidoscope2D, SceneSplice, SceneSplice3D |
@@ -146,7 +148,8 @@ library helpers are visible as top-level functions.
 | C palette | 2 | NebulaSphere, PlasmaNebula |
 
 Reading: the hand sweep (#248/#266) genuinely exhausted Rule A on IDE
-content, and the external cohort's loops are dynamic-bound
+content; #916 shipped its final eligible site directly, and the external
+cohort's loops are dynamic-bound
 (`octavesM`-style) or accumulator-carried, which the rules correctly
 refuse. The ZRanger1 cohort — the unoptimized class this spike hoped to
 harvest — ends with **zero exact sites**: its per-pixel `atan2`s price
@@ -160,16 +163,17 @@ where `index` is not in scope; recorded as an eligibility precondition —
 
 ## Hand-generated transforms, measured
 
-Four fixtures apply the mechanical generation shape (bare module cache +
-built stamp, allocate-once in `beforeRender` when `pixelCount > 0`,
+Three transformed fixtures apply the mechanical generation shape (bare
+module cache + built stamp, allocate-once in `beforeRender` when
+`pixelCount > 0`,
 floored and bounded index, sentinel 0; table fills replicate dependent
 locals verbatim): `CoronalMassEjection.memoized.js` and
 `TunnelOfSquares2D.memoized.js` (the below-breakeven `atan2` class, kept
-as the negative evidence), `IridescentFibers.tabled.js` (Rule A
-frame-table), and `ClockworkIris.memoized.js` (the surviving exact class —
-an op-chain site whose value is legitimately 0 in the inter-ring gaps, so
+as the negative evidence), and `ClockworkIris.memoized.js` (the surviving
+exact class — an op-chain site whose value is legitimately 0 in the inter-ring gaps, so
 the sentinel recomputes there: the honest economics of the mechanical
-sentinel rule).
+sentinel rule). `IridescentFibers.preopt.js` preserves Rule A's old source;
+the transformed partner now ships as the stock Pattern (#916).
 
 **Exactness: proven.** `benchDemo` checksums are bit-identical for all
 four pairs in Fast float64 AND Precise 16.16 (`issue914.test.ts`; the
@@ -220,10 +224,9 @@ against `SHOW_ARTIFACT_BUDGET_BYTES` like `selectShowFrameInvariantHoists`.
 - **Rule A (index tabling):** the detection works and the transform is
   measured (+5.3%, bit-exact), but the hand sweep left exactly one
   eligible site in 101 Patterns. A compiler pass for one site is pure
-  liability; the win ships as a one-line pattern edit instead — the
-  checksum-proven `IridescentFibers.tabled.js` fixture is the edit,
-  proposed as a small follow-up (stock-content edits fan out across census
-  suites, `docs/agents/stock-content.md`).
+  liability; #916 shipped the win as a direct Pattern edit instead. The
+  checksum pair now preserves `IridescentFibers.preopt.js` as the baseline
+  and treats the stock Pattern as the transformed artifact.
 - **Rule B (lazy memoization):** among the 83 Patterns inside the
   modeled subset, the profitable class — position-stable,
   exp/pow-dominated, sentinel-provable, `index` in scope — has **zero**

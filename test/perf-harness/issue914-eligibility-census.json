@@ -1,9 +1,9 @@
 {
   "totals": {
     "patterns": 101,
-    "withAnySite": 36,
+    "withAnySite": 35,
     "indexTablingModule": 0,
-    "indexTablingFrame": 1,
+    "indexTablingFrame": 0,
     "positionMemoExact": 0,
     "positionMemoBelowBreakeven": 98,
     "positionMemoInvalidation": 8,
@@ -447,7 +447,7 @@
       "name": "IridescentFibers",
       "credit": "evesira — https://www.shadertoy.com/view/tffSDr",
       "indexTablingModule": 0,
-      "indexTablingFrame": 1,
+      "indexTablingFrame": 0,
       "positionMemoExact": 0,
       "positionMemoBelowBreakeven": 0,
       "positionMemoInvalidation": 0,

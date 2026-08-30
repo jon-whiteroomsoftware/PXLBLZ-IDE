@@ -1,10 +1,5 @@
-// #914 hand-generated pass output: Rule A loop-index+time tabling applied
-// mechanically to the shipped IridescentFibers (evesira port).
-// Site: amp's initializer (index+time, one sin per iteration, trip count 10)
-// moves into a 10-entry beforeRender table. The fill loop replicates the
-// site's induction-dependent single-assignment local (layer) and computes the
-// expression verbatim, preserving operation order — bit-exact per the guide's
-// operand-tabling discipline.
+// #914 pre-optimization ground truth: IridescentFibers before #916 moved the
+// layer amplitude into a beforeRender table.
 // Pattern: Iridescent Fibers
 // Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 // Credit: "iridescent fibers" by evesira — https://www.shadertoy.com/view/tffSDr
@@ -31,8 +26,6 @@ export function sliderZoom(v) { zoom = v }
 export function sliderThickness(v) { thickness = v }
 export function sliderBrightness(v) { brightness = v }
 
-var __pxlblz_tab0 = array(10)
-
 export var t = 0
 var scale, thickBase, gain
 
@@ -50,11 +43,6 @@ export function beforeRender(delta) {
 
   thickBase = 0.012 + thickness * 0.035
   gain = 0.42 + brightness * 0.9
-
-  for (var __pxlblz_i0 = 0; __pxlblz_i0 < 10; __pxlblz_i0 = __pxlblz_i0 + 1) {
-    var layer = __pxlblz_i0 * 0.1
-    __pxlblz_tab0[__pxlblz_i0] = 0.25 + 0.25 * sin(t + layer) * (1 - layer)
-  }
 }
 
 export function render2D(index, x, y) {
@@ -66,7 +54,7 @@ export function render2D(index, x, y) {
   for (var i = 0; i < 10; i = i + 1) {
     var layer = i * 0.1
 
-    var amp = __pxlblz_tab0[i]
+    var amp = 0.25 + 0.25 * sin(t + layer) * (1 - layer)
     var phase = t * (1 - layer)
     var wx = uvx - phase
     var wy = uvy + amp * sin(2 * wx)

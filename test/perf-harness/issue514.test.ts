@@ -15,8 +15,10 @@ describe('Show render-target residual-headroom census (#514)', () => {
     // Recensused after retiring Doom Fire v1 (#63): it carried two 16x17
     // member arrays and fit the residual budget, so the corpus and fitting
     // counts move by -1 each, the array-free count and rejections hold.
+    // IridescentFibers #916 adds one ten-word frame table. It still fits the
+    // residual budget, so only the array-free count moves by -1.
     expect(report.summary.stockPatternCount).toBe(101)
-    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(62)
+    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(61)
     expect(report.summary.stockPatternsFittingResidualBudget).toBe(96)
     expect(report.summary.stockPatternRejections).toHaveLength(5)
     expect(report.summary.stockPatternRejections.map((entry) => entry.id)).toEqual([

@@ -30,10 +30,30 @@ const LIB_DIR = join(HERE, '../../src/pixelblaze/lib')
 const FIXTURES_DIR = join(HERE, 'fixtures/issue914')
 
 const CASES = [
-  { name: 'CoronalMassEjection', rule: 'B below-breakeven (lazy atan2 memo)', transformed: 'CoronalMassEjection.memoized.js' },
-  { name: 'TunnelOfSquares2D', rule: 'B below-breakeven (lazy atan2 memo)', transformed: 'TunnelOfSquares2D.memoized.js' },
-  { name: 'IridescentFibers', rule: 'A (beforeRender table)', transformed: 'IridescentFibers.tabled.js' },
-  { name: 'ClockworkIris', rule: 'B exact-class (lazy op-chain memo)', transformed: 'ClockworkIris.memoized.js' },
+  {
+    name: 'CoronalMassEjection',
+    rule: 'B below-breakeven (lazy atan2 memo)',
+    base: () => readFileSync(join(PATTERNS_DIR, 'CoronalMassEjection.js'), 'utf8'),
+    transformed: () => readFileSync(join(FIXTURES_DIR, 'CoronalMassEjection.memoized.js'), 'utf8'),
+  },
+  {
+    name: 'TunnelOfSquares2D',
+    rule: 'B below-breakeven (lazy atan2 memo)',
+    base: () => readFileSync(join(PATTERNS_DIR, 'TunnelOfSquares2D.js'), 'utf8'),
+    transformed: () => readFileSync(join(FIXTURES_DIR, 'TunnelOfSquares2D.memoized.js'), 'utf8'),
+  },
+  {
+    name: 'IridescentFibers',
+    rule: 'A (beforeRender table)',
+    base: () => readFileSync(join(FIXTURES_DIR, 'IridescentFibers.preopt.js'), 'utf8'),
+    transformed: () => readFileSync(join(PATTERNS_DIR, 'IridescentFibers.js'), 'utf8'),
+  },
+  {
+    name: 'ClockworkIris',
+    rule: 'B exact-class (lazy op-chain memo)',
+    base: () => readFileSync(join(PATTERNS_DIR, 'ClockworkIris.js'), 'utf8'),
+    transformed: () => readFileSync(join(FIXTURES_DIR, 'ClockworkIris.memoized.js'), 'utf8'),
+  },
 ] as const
 
 function loadLibraries(): Record<string, string> {
@@ -92,8 +112,8 @@ describe('generated member-pass transforms on hardware (#914 spike)', () => {
 
       for (const testCase of CASES) {
         const variants = [
-          { variant: 'base' as const, source: readFileSync(join(PATTERNS_DIR, `${testCase.name}.js`), 'utf8') },
-          { variant: 'transformed' as const, source: readFileSync(join(FIXTURES_DIR, testCase.transformed), 'utf8') },
+          { variant: 'base' as const, source: testCase.base() },
+          { variant: 'transformed' as const, source: testCase.transformed() },
         ]
         for (const { variant, source } of variants) {
           process.stdout.write(`  ${testCase.name} ${variant} ... `)

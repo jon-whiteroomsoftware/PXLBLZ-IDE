@@ -118,14 +118,15 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // backdrop, Shape Reveals: Figures recasts to NeonCircuitBoard over
     // MoireCathedral, and Slide to ClockworkIris over CompassRose, and Zoom and Spin to Caustics
     // over GlyphRain) move it -939 member and -185 reclaimable globals. The reclaim percent
-    // stays 0,
-    // the weighted figure dilutes, and the stop verdict is unchanged.
+    // stays 0. IridescentFibers #916 adds one member global for its frame
+    // table, so the weighted figure dilutes again and the stop verdict is
+    // unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 2_728,
+      representativeMemberGlobals: 2_729,
       representativeReclaimedGlobals: 21,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.00769795, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.00769513, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

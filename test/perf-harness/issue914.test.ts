@@ -1,9 +1,10 @@
 // #914 design spike evidence. Two claims, both bounded and executable:
 //
-// 1. Checksum parity: the four hand-generated transforms are bit-identical
-//    to their shipped bases in Fast float64 AND Precise 16.16, via the
-//    emulator bench over committed fixtures. (The emulator is the checksum
-//    guard, not the stopwatch — guide §9: it reads table/memo wins
+// 1. Checksum parity: the four proven transforms are bit-identical to their
+//    pre-transform sources in Fast float64 AND Precise 16.16, via the
+//    emulator bench over committed fixtures and the shipped IridescentFibers.
+//    (The emulator is the checksum guard, not the stopwatch — guide §9: it
+//    reads table/memo wins
 //    backwards. The FPS verdicts live in issue914-transform-pairs.json,
 //    measured paired on the pb32.)
 //
@@ -47,19 +48,45 @@ function readStock(name: string): string {
   return readFileSync(join(PATTERNS_DIR, `${name}.js`), 'utf8')
 }
 
-describe('issue914 hand-generated transforms: checksum parity', () => {
+describe('issue914 proven transforms: checksum parity', () => {
   const CASES = [
-    { base: 'CoronalMassEjection', transformed: 'CoronalMassEjection.memoized.js' },
-    { base: 'TunnelOfSquares2D', transformed: 'TunnelOfSquares2D.memoized.js' },
-    { base: 'IridescentFibers', transformed: 'IridescentFibers.tabled.js' },
-    { base: 'ClockworkIris', transformed: 'ClockworkIris.memoized.js' },
+    {
+      name: 'CoronalMassEjection',
+      base: () => readStock('CoronalMassEjection'),
+      transformed: () => readFixture('CoronalMassEjection.memoized.js'),
+    },
+    {
+      name: 'TunnelOfSquares2D',
+      base: () => readStock('TunnelOfSquares2D'),
+      transformed: () => readFixture('TunnelOfSquares2D.memoized.js'),
+    },
+    {
+      name: 'IridescentFibers',
+      base: () => readFixture('IridescentFibers.preopt.js'),
+      transformed: () => readStock('IridescentFibers'),
+    },
+    {
+      name: 'ClockworkIris',
+      base: () => readStock('ClockworkIris'),
+      transformed: () => readFixture('ClockworkIris.memoized.js'),
+    },
   ] as const
 
-  it.each(CASES)('$base matches its transformed output in both modes', ({ base, transformed }) => {
-    const baseline = benchDemo(readStock(base), LIBRARIES, { frames: 20 })
-    const candidate = benchDemo(readFixture(transformed), LIBRARIES, { frames: 20 })
+  it.each(CASES)('$name matches its transformed output in both modes', ({ base, transformed }) => {
+    const baseline = benchDemo(base(), LIBRARIES, { frames: 20 })
+    const candidate = benchDemo(transformed(), LIBRARIES, { frames: 20 })
     expect(candidate.fast.checksum).toBe(baseline.fast.checksum)
     expect(candidate.precise.checksum).toBe(baseline.precise.checksum)
+  })
+})
+
+describe('issue916 shipped IridescentFibers table', () => {
+  it('moves the layer amplitude from the per-pixel loop into beforeRender', () => {
+    const source = readStock('IridescentFibers')
+    expect(source).toContain('var fiberAmp = array(10)')
+    expect(source).toContain('fiberAmp[i] = 0.25 + 0.25 * sin(t + layer) * (1 - layer)')
+    expect(source).toContain('var amp = fiberAmp[i]')
+    expect(source).not.toContain('var amp = 0.25 + 0.25 * sin(t + layer) * (1 - layer)')
   })
 })
 
@@ -71,9 +98,9 @@ describe('issue914 committed evidence consistency', () => {
     // consistency between committed data and committed prose, nothing more.
     expect(census.totals).toEqual({
       patterns: 101,
-      withAnySite: 36,
+      withAnySite: 35,
       indexTablingModule: 0,
-      indexTablingFrame: 1,
+      indexTablingFrame: 0,
       positionMemoExact: 0,
       positionMemoBelowBreakeven: 98,
       positionMemoInvalidation: 8,

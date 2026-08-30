@@ -24,6 +24,8 @@ export function sliderZoom(v) { zoom = v }
 export function sliderThickness(v) { thickness = v }
 export function sliderBrightness(v) { brightness = v }
 
+var fiberAmp = array(10)
+
 export var t = 0
 var scale, thickBase, gain
 
@@ -41,6 +43,12 @@ export function beforeRender(delta) {
 
   thickBase = 0.012 + thickness * 0.035
   gain = 0.42 + brightness * 0.9
+
+  // Each layer's amplitude changes once per frame, not once per pixel.
+  for (var i = 0; i < 10; i = i + 1) {
+    var layer = i * 0.1
+    fiberAmp[i] = 0.25 + 0.25 * sin(t + layer) * (1 - layer)
+  }
 }
 
 export function render2D(index, x, y) {
@@ -52,7 +60,7 @@ export function render2D(index, x, y) {
   for (var i = 0; i < 10; i = i + 1) {
     var layer = i * 0.1
 
-    var amp = 0.25 + 0.25 * sin(t + layer) * (1 - layer)
+    var amp = fiberAmp[i]
     var phase = t * (1 - layer)
     var wx = uvx - phase
     var wy = uvy + amp * sin(2 * wx)

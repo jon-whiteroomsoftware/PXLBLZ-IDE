@@ -11,7 +11,9 @@ describe('issue #542 baseline census', () => {
     // instances. Easing is the one reference where the table-driven score
     // also engages (its uniform cadence is the control variable); the paced
     // references stay unrolled by design, and Zoom and Spin stands in as
-    // the all-motion control with shared kernels.
+    // the all-motion control with shared kernels. IridescentFibers #916 adds
+    // one table global per instance to the Shape Reveals reference; its
+    // unrolled verdict is unchanged.
     expect(issue542Census.map((entry) => entry.baseline)).toMatchObject([
       {
         authoredJsonBytes: 10_919,
@@ -21,9 +23,9 @@ describe('issue #542 baseline census', () => {
       },
       {
         authoredJsonBytes: 8_806,
-        generatedSourceBytes: 55_345,
+        generatedSourceBytes: 56_165,
         patternInstanceCount: 8,
-        persistentGlobals: 207,
+        persistentGlobals: 211,
       },
       {
         authoredJsonBytes: 20_075,
@@ -51,7 +53,7 @@ describe('issue #542 baseline census', () => {
       // #717 stack-wrapper interning: shared wrappers cut both generated
       // bytes and wrapper globals on the transition references.
       { patternInstanceCount: 2, generatedSourceBytes: 27_254, persistentGlobals: 79 },
-      { patternInstanceCount: 2, generatedSourceBytes: 23_677, persistentGlobals: 63 },
+      { patternInstanceCount: 2, generatedSourceBytes: 23_882, persistentGlobals: 64 },
       { patternInstanceCount: 2, generatedSourceBytes: 15_465, persistentGlobals: 73 },
       { patternInstanceCount: 2, generatedSourceBytes: 22_716, persistentGlobals: 73 },
     ])
