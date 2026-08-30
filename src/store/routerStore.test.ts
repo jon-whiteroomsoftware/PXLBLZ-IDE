@@ -28,20 +28,19 @@ describe('syncFromLocation', () => {
     })
   })
 
-  it('replaces a direct Show route with Patterns when showtime is absent', () => {
+  it('opens a direct Show route without requiring a query parameter', () => {
     setLocation('/studio/shows/opening-night?capture')
     useRouterStore.getState().syncFromLocation()
 
     expect(useRouterStore.getState().route).toEqual({
       kind: 'studio',
-      entity: { kind: 'patterns', id: null },
+      entity: { kind: 'shows', id: 'opening-night' },
     })
-    expect(useRouterStore.getState().featureAccess).toEqual({ shows: false })
-    expect(window.location.pathname).toBe('/studio/patterns')
+    expect(window.location.pathname).toBe('/studio/shows/opening-night')
     expect(window.location.search).toBe('?capture')
   })
 
-  it('allows Show routes while showtime is present and revokes access when history removes it', () => {
+  it('treats a legacy showtime parameter as inert when location search changes', () => {
     setLocation('/studio/shows/opening-night?capture&showtime')
     useRouterStore.getState().syncFromLocation()
 
@@ -49,17 +48,15 @@ describe('syncFromLocation', () => {
       kind: 'studio',
       entity: { kind: 'shows', id: 'opening-night' },
     })
-    expect(useRouterStore.getState().featureAccess).toEqual({ shows: true })
 
     setLocation('/studio/shows/opening-night?capture')
     useRouterStore.getState().syncFromLocation()
 
     expect(useRouterStore.getState().route).toEqual({
       kind: 'studio',
-      entity: { kind: 'patterns', id: null },
+      entity: { kind: 'shows', id: 'opening-night' },
     })
-    expect(useRouterStore.getState().featureAccess).toEqual({ shows: false })
-    expect(window.location.pathname).toBe('/studio/patterns')
+    expect(window.location.pathname).toBe('/studio/shows/opening-night')
     expect(window.location.search).toBe('?capture')
   })
 
@@ -125,7 +122,7 @@ describe('navigate', () => {
     expect(window.location.search).toBe('?capture')
   })
 
-  it('blocks internal navigation to Shows when showtime is absent', () => {
+  it('allows internal navigation to Shows without a query parameter', () => {
     setLocation('/studio?capture')
     useRouterStore.getState().syncFromLocation()
     useRouterStore.getState().navigate({
@@ -135,13 +132,13 @@ describe('navigate', () => {
 
     expect(useRouterStore.getState().route).toEqual({
       kind: 'studio',
-      entity: { kind: 'patterns', id: null },
+      entity: { kind: 'shows', id: 'opening-night' },
     })
-    expect(window.location.pathname).toBe('/studio/patterns')
+    expect(window.location.pathname).toBe('/studio/shows/opening-night')
     expect(window.location.search).toBe('?capture')
   })
 
-  it('allows internal navigation to Shows when showtime is present', () => {
+  it('preserves a legacy showtime parameter during internal navigation', () => {
     setLocation('/studio?capture&showtime')
     useRouterStore.getState().syncFromLocation()
     useRouterStore.getState().navigate({

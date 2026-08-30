@@ -128,10 +128,9 @@ function localDeveloperSessionCookie(baseUrl: string): Cookie {
 async function renderFrames(config: RenderConfig): Promise<number> {
   const frames = Math.round(config.seconds * config.fps)
   const demo = config.demo ?? FILE_MODE_BOOTSTRAP_DEMO
-  // Shows are a signed-in Studio surface behind the `showtime` access flag
-  // (src/engine/featureAccess.ts); Patterns are public.
+  // Shows are a signed-in Studio surface; Patterns are public.
   const url = config.show
-    ? `${config.baseUrl}studio/shows/${encodeURIComponent(config.show)}?capture&showtime`
+    ? `${config.baseUrl}studio/shows/${encodeURIComponent(config.show)}?capture`
     : `${config.baseUrl}studio/patterns/${encodeURIComponent(demo)}?capture`
 
   const browser = await chromium.launch({ headless: true })

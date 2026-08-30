@@ -204,12 +204,10 @@ function SavedProgramSourceNote({ program }: { program: ControllerSavedProgramRo
 function SavedProgramNameCell({
   program,
   running,
-  showsEnabled,
   onOpen,
 }: {
   program: ControllerSavedProgramRow
   running: boolean
-  showsEnabled: boolean
   onOpen: (routeId: string) => void
 }) {
   const title = [
@@ -221,7 +219,6 @@ function SavedProgramNameCell({
   ].join('\n')
   const canOpen = program.kind === 'owned'
     && program.routeId !== null
-    && (program.sourceKind !== 'show' || showsEnabled)
   const nameClass = `block max-w-full truncate text-left font-sans leading-snug ${running
     ? 'font-medium text-amber-300'
     : program.kind === 'owned'
@@ -585,7 +582,6 @@ function SavedProgramsInventory({
   programs,
   statuses,
   hasSnapshot,
-  showsEnabled,
   activeProgramId,
   activeProgramKnown,
   activatingProgramId,
@@ -603,7 +599,6 @@ function SavedProgramsInventory({
   /** Effective status per program id, shared with the aggregate summary (#874). */
   statuses: Readonly<Record<string, ControllerSavedPatternStatus>>
   hasSnapshot: boolean
-  showsEnabled: boolean
   activeProgramId: string | undefined
   activeProgramKnown: boolean
   activatingProgramId: string | null
@@ -717,7 +712,6 @@ function SavedProgramsInventory({
                   <SavedProgramNameCell
                     program={program}
                     running={running}
-                    showsEnabled={showsEnabled}
                     onOpen={onOpen}
                   />
                   <td className={tableCellClass}>
@@ -779,7 +773,6 @@ function SavedProgramsInventory({
                       <SavedProgramNameCell
                         program={program}
                         running={running}
-                        showsEnabled={showsEnabled}
                         onOpen={onOpen}
                       />
                       <td className={`${tableCellClass} text-right`}>
@@ -817,7 +810,6 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   const stockShowDrafts = useShowStore((state) => state.stockShowDrafts)
   const addPattern = usePatternStore((state) => state.addPattern)
   const navigate = useRouterStore((state) => state.navigate)
-  const showsEnabled = useRouterStore((state) => state.featureAccess.shows)
   const profileController = controllerForProfile(profile, controllers)
   const liveIp = profileController?.phase === 'live' ? profileController.ip : undefined
   const liveEpoch = profileController?.phase === 'live' ? profileController.liveEpoch : undefined
@@ -1215,7 +1207,6 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         programs={programs}
         statuses={savedPatternStatuses}
         hasSnapshot={hasInventorySnapshot}
-        showsEnabled={showsEnabled}
         activeProgramId={activeProgramId}
         activeProgramKnown={deleteSessionKnown}
         activatingProgramId={activatingProgramId}

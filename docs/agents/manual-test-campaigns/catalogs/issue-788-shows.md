@@ -32,7 +32,7 @@ itself must be reached through the UI.
 | A12 | Duplicate one of your Shows | - | Expect WALLED: no duplicate affordance anywhere | X |
 | A13 | Turn a built-in lesson into a personal Show you can keep | 18 | Expect WALLED: no fork path; note data-loss UX (authoring on a built-in is lost on reload) | X |
 | A14 | On a reference Showcase, use Try with Pattern to run your own Pattern through the choreography | 18 | Reference swap works; session-only | |
-| A15 | Open a Show, reload the app root (keep `?showtime`); the same Show restores as active | 2 | Last-active restore | |
+| A15 | Open a Show, reload the app root; the same Show restores as active | 2 | Last-active restore | |
 | A16 | Open Redline Installation; compile bar reports it inside the support envelope | 17,18 | 2,000 px flagship loads | |
 | A17 | Filter the rail by name; both personal and built-in trees filter | 2 | | |
 | A18 | Open a lesson's guide note from the header trigger | 18 | Note discloses | |

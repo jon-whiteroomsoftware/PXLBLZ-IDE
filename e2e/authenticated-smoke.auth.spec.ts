@@ -1,4 +1,4 @@
-import { expect, showtimePath, test } from './fixtures/authenticated'
+import { expect, test } from './fixtures/authenticated'
 import type { Locator, Page } from '@playwright/test'
 import { installFakeControllerHelper } from './fixtures/fakeControllerHelper'
 import { controllerProfileArtifactSignature } from '../src/engine/controllerProfilePassRecipe'
@@ -35,32 +35,27 @@ async function replaceEditorSource(page: Page, editor: Locator, source: string):
   await expect.poll(renderedSource).toBe(source)
 }
 
-test('gates functional Show access behind the showtime query parameter', async ({ page }) => {
+test('exposes functional Show access without a query parameter', async ({ page }) => {
   await page.goto('studio')
 
-  await expect(page.getByRole('radio', { name: 'Shows' })).toHaveCount(0)
+  await expect(page.getByRole('radio', { name: 'Shows' })).toBeVisible()
 
   await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
 
-  await expect(page).toHaveURL(/\/studio\/patterns$/)
-  await expect(page.getByRole('radio', { name: 'Shows' })).toHaveCount(0)
-
-  await page.goto(showtimePath('studio/shows/stock-show-101-clips-cuts-blank-time'))
-
-  await expect(page).toHaveURL(/\/studio\/shows\/stock-show-101-clips-cuts-blank-time\?showtime$/)
+  await expect(page).toHaveURL(/\/studio\/shows\/stock-show-101-clips-cuts-blank-time$/)
   await expect(page.getByRole('radio', { name: 'Shows' })).toBeVisible()
   await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
 })
 
 test('authenticated Studio creates, renames, and reloads a persisted Show', async ({ page }) => {
-  await page.goto(showtimePath('studio/shows'))
+  await page.goto('studio/shows')
 
   await expect(page.getByRole('button', { name: /Account menu for playwright-worker-\d+/i })).toBeVisible()
   await page.getByRole('button', { name: 'Add show' }).click()
   await page.getByRole('button', { name: 'New show' }).click()
   await page.getByRole('button', { name: 'Create Installation Show' }).click()
   await page.getByRole('button', { name: 'Create Show' }).click()
-  await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+\?showtime$/)
+  await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+$/)
 
   await page.getByRole('button', { name: 'Rename show Untitled Show' }).click()
   await page.getByRole('textbox', { name: 'Show name' }).fill('Opening')
@@ -89,7 +84,7 @@ test('shared Studio chrome remains legible, dense, and reachable across routes (
     { path: 'studio/maps/plane', activity: 'Maps', heading: 'Maps' },
     { path: 'studio/libraries/Shader', activity: 'Libraries', heading: 'Libraries' },
     { path: 'studio/controllers', activity: 'Controllers', heading: 'Controllers' },
-    { path: showtimePath('studio/shows/stock-show-101-clips-cuts-blank-time'), activity: 'Shows', heading: 'Shows' },
+    { path: 'studio/shows/stock-show-101-clips-cuts-blank-time', activity: 'Shows', heading: 'Shows' },
   ] as const
 
   for (const viewport of [{ width: 1440, height: 900 }, { width: 720, height: 720 }]) {
@@ -535,7 +530,7 @@ test('deletes an inactive managed Controller Pattern and re-arms Studio Save (#8
 
 test('keeps the Shows header inside the center editor pane (#758)', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto(showtimePath('studio/shows/stock-show-101-clips-cuts-blank-time'))
+  await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
 
   const geometry = await page.locator('.show-pane-header').evaluate((header) => {
     const editor = header.closest('[data-testid="editor-pane"]')
@@ -561,7 +556,7 @@ test('keeps the Shows header inside the center editor pane (#758)', async ({ pag
 
 test('Studio authoring keeps the rail and editor reachable at 390px (#622)', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto(showtimePath('studio/shows'))
+  await page.goto('studio/shows')
   await page.getByRole('button', { name: 'Add show' }).click()
   await page.getByRole('button', { name: 'New show' }).click()
   await page.getByRole('button', { name: 'Create Installation Show' }).click()
@@ -587,7 +582,7 @@ test('Studio authoring keeps the rail and editor reachable at 390px (#622)', asy
   await expect(page.getByTestId('preview-pane')).toBeHidden()
   await expect(page.getByTestId('editor-pane')).toBeInViewport()
 
-  await page.goto(showtimePath('studio/shows'))
+  await page.goto('studio/shows')
   await page.getByRole('treeitem', { name: 'Untitled Show' }).click()
   await expect.poll(
     () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
@@ -693,7 +688,7 @@ test('resized Pattern and Show previews keep their controls reachable', async ({
   await previewPane.getByRole('button', { name: 'Pattern controls', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Watch variables' })).toBeInViewport()
 
-  await page.goto(showtimePath('studio/shows/stock-show-showcase-redline-installation'))
+  await page.goto('studio/shows/stock-show-showcase-redline-installation')
   await previewPane.hover()
   await page.mouse.wheel(0, 1200)
   await expect(previewPane.getByRole('button', { name: 'Renderer' })).toBeInViewport()

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { expect, showtimePath, test } from './fixtures/authenticated'
+import { expect, test } from './fixtures/authenticated'
 
 const refreshScreenshots = process.env.UPDATE_DOC_SCREENSHOTS === '1'
 const overviewPath = resolve('docs/screenshots/show-visual-toolkit-overview.png')
@@ -10,7 +10,7 @@ test('regenerates the Visual Effects Guide screenshots from the current Show UI 
   test.skip(!refreshScreenshots, 'Run npm run docs:screenshots:visual-effects to refresh the committed guide assets.')
 
   await page.setViewportSize({ width: 1280, height: 720 })
-  await page.goto(showtimePath('studio/shows/stock-show-showcase-redline-installation'))
+  await page.goto('studio/shows/stock-show-showcase-redline-installation')
 
   await expect(page.getByRole('button', { name: 'Collapse Redline Installation guide' })).toBeVisible()
   await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()

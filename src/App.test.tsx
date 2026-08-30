@@ -142,8 +142,8 @@ function seedSignedInWorkspace() {
   })
 }
 
-function enableShowtime(path = '/studio') {
-  window.history.replaceState(null, '', `${path}?showtime`)
+function setStudioLocation(path = '/studio') {
+  window.history.replaceState(null, '', path)
 }
 
 describe('App smoke test', () => {
@@ -169,7 +169,7 @@ describe('App smoke test', () => {
   })
 
   it('collapses the shared library to its activity strip without changing entity mode automatically (#466)', async () => {
-    enableShowtime()
+    setStudioLocation()
     seedSignedInWorkspace()
     render(<App />)
 
@@ -241,7 +241,7 @@ describe('App smoke test', () => {
 
   it('remembers right-pane width per Studio mode instead of leaking it across modes (#63)', async () => {
     vi.stubGlobal('innerWidth', 1440)
-    enableShowtime()
+    setStudioLocation()
     seedSignedInWorkspace()
     const { container } = render(<App />)
 
@@ -322,7 +322,7 @@ describe('routing (#308)', () => {
     const renameShow = vi.fn()
     const show = createDefaultShow('show-header', 'Aurora Show', 1000)
     show.outputContract = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
-    enableShowtime('/studio/shows/show-header')
+    setStudioLocation('/studio/shows/show-header')
     seedSignedInWorkspace()
     useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id, renameShow })
 
@@ -380,7 +380,7 @@ describe('routing (#308)', () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-header', 'Simplest possible show', 1000)
     show.outputContract = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
-    enableShowtime('/studio/shows/show-header')
+    setStudioLocation('/studio/shows/show-header')
     seedSignedInWorkspace()
     useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
 
@@ -409,7 +409,7 @@ describe('routing (#308)', () => {
     vi.stubGlobal('innerWidth', 900)
     const show = createDefaultShow('show-narrow-stage', 'Narrow Stage', 1000)
     show.outputContract = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
-    enableShowtime('/studio/shows/show-narrow-stage')
+    setStudioLocation('/studio/shows/show-narrow-stage')
     seedSignedInWorkspace()
     useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
 
@@ -453,7 +453,7 @@ describe('routing (#308)', () => {
     vi.stubGlobal('cancelAnimationFrame', (id: number) => { callbacks.delete(id) })
     vi.stubGlobal('innerWidth', 900)
     const show = createDefaultShow('show-narrow-playback', 'Narrow playback', 1000)
-    enableShowtime('/studio/shows/show-narrow-playback')
+    setStudioLocation('/studio/shows/show-narrow-playback')
     seedSignedInWorkspace()
     useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
 
@@ -532,7 +532,7 @@ describe('routing (#308)', () => {
     const user = userEvent.setup()
     vi.stubGlobal('innerWidth', width)
     const show = createDefaultShow('show-narrow-inherited-playback', 'Inherited playback', 1000)
-    enableShowtime()
+    setStudioLocation()
     seedSignedInWorkspace()
     useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: null })
 
@@ -553,7 +553,7 @@ describe('routing (#308)', () => {
     vi.stubGlobal('innerWidth', width)
     const first = createDefaultShow('show-switch-first', 'First transition Show', 1000)
     const second = createDefaultShow('show-switch-second', 'Second transition Show', 1000)
-    enableShowtime(`/studio/shows/${first.id}`)
+    setStudioLocation(`/studio/shows/${first.id}`)
     seedSignedInWorkspace()
     useShowStore.setState({ shows: [first, second], showsLoaded: true, activeShowId: first.id })
 
@@ -580,7 +580,7 @@ describe('routing (#308)', () => {
     vi.stubGlobal('innerWidth', 1440)
     const show = createDefaultShow('show-workspace-owner', 'Workspace owner', 1000)
     show.outputContract = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
-    enableShowtime('/studio/shows/show-workspace-owner')
+    setStudioLocation('/studio/shows/show-workspace-owner')
     seedSignedInWorkspace()
     useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
 
@@ -617,7 +617,7 @@ describe('routing (#308)', () => {
   it('gives the Show editor sole ownership of the global Space shortcut (#588)', () => {
     const show = createDefaultShow('show-space-owner', 'Space owner', 1000)
     show.outputContract = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
-    enableShowtime('/studio/shows/show-space-owner')
+    setStudioLocation('/studio/shows/show-space-owner')
     seedSignedInWorkspace()
     useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
 
@@ -635,7 +635,7 @@ describe('routing (#308)', () => {
   it('projects a Showcase Pattern slot choice through the routed stock Show artifact (#506, #714)', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-wipe-transitions')!
-    enableShowtime(`/studio/shows/${stock.id}`)
+    setStudioLocation(`/studio/shows/${stock.id}`)
     seedSignedInWorkspace()
     useShowStore.setState({ shows: [], showsLoaded: true, activeShowId: null })
 
@@ -682,7 +682,7 @@ describe('routing (#308)', () => {
 
   it('toggles a Show preview only once when shared and Show shortcuts are mounted', () => {
     const show = createDefaultShow('show-space-once', 'One toggle', 1000)
-    enableShowtime(`/studio/shows/${show.id}`)
+    setStudioLocation(`/studio/shows/${show.id}`)
     seedSignedInWorkspace()
     useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
 
@@ -923,7 +923,7 @@ describe('routing (#308)', () => {
 
   it('does not show a stale Pattern push failure on a Show route (#849)', async () => {
     const show = createDefaultShow('show-stale-pattern-failure', 'Show route', 1)
-    enableShowtime(`/studio/shows/${show.id}`)
+    setStudioLocation(`/studio/shows/${show.id}`)
     seedSignedInWorkspace()
     usePatternStore.setState({
       userPatterns: [record],

@@ -157,7 +157,7 @@ npm run render -- --demo <Name> --start 12 --seconds 4
 
 `--start` pre-rolls headless in 1000/fps steps (no paint, no sink), so frame K
 sits at `start + K/fps` and is byte-identical to frame `start*fps + K` of a
-t=0 render at the same fps. `--show` opens `studio/shows/<id>?capture&showtime`
+t=0 render at the same fps. `--show` opens `studio/shows/<id>?capture`
 signed in as the synthetic local developer session (`npm run dev:session`
 mints the same cookie), hides the IDE chrome, and drives
 `window.__pxlblzShow.captureSequence` on `ShowStagePreview`: pause, seek the

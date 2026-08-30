@@ -190,8 +190,8 @@ async function switchToMixins(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('radio', { name: 'Mixins' }))
 }
 
-function enableShowtime(path = '/studio') {
-  window.history.replaceState(null, '', `${path}?showtime`)
+function setStudioLocation(path = '/studio') {
+  window.history.replaceState(null, '', path)
   useRouterStore.getState().syncFromLocation()
 }
 
@@ -656,29 +656,10 @@ describe('PatternList', () => {
     expect(await screen.findByText('Sign in')).toBeInTheDocument()
   })
 
-  it('falls back to the default Pattern when a gated session last opened a Show', async () => {
+  it('restores the last-active Show without requiring a query parameter', async () => {
     const show = createDefaultShow('saved-show', 'Saved Show', 1000)
     mockShows = [show]
     mockLastActive = { type: 'show', id: show.id }
-
-    render(<PatternList />)
-
-    await waitFor(() => {
-      expect(usePatternStore.getState().activeDemoName).toBe('IridescentFibers')
-    })
-    expect(useShowStore.getState().activeShowId).toBeNull()
-    expect(useEditorStore.getState().previewPatternName).toBe('IridescentFibers')
-    expect(useEditorStore.getState().previewSource).toBe(DEMOS.IridescentFibers)
-    expect(requests.some((request) => (
-      request.url === '/api/settings/lastActive' && request.init?.method === 'PUT'
-    ))).toBe(false)
-  })
-
-  it('restores the last-active Show when showtime access is available', async () => {
-    const show = createDefaultShow('saved-show', 'Saved Show', 1000)
-    mockShows = [show]
-    mockLastActive = { type: 'show', id: show.id }
-    enableShowtime()
 
     render(<PatternList />)
 
@@ -709,22 +690,13 @@ describe('PatternList', () => {
     expect(screen.queryByText('AuroraSphere')).not.toBeInTheDocument()
   })
 
-  it('renders only generally available entity modes in the activity strip', async () => {
+  it('renders all six entity modes in the activity strip', async () => {
     render(<PatternList />)
 
     expect(await screen.findByRole('radio', { name: 'Patterns' })).toHaveAttribute('aria-checked', 'true')
-    for (const name of ['Maps', 'Mixins', 'Libraries', 'Controllers']) {
+    for (const name of ['Shows', 'Maps', 'Mixins', 'Libraries', 'Controllers']) {
       expect(screen.getByRole('radio', { name })).toBeInTheDocument()
     }
-    expect(screen.queryByRole('radio', { name: 'Shows' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Catalog' })).not.toBeInTheDocument()
-  })
-
-  it('adds Shows to the activity strip when showtime access is available', async () => {
-    enableShowtime()
-    render(<PatternList />)
-
-    expect(await screen.findByRole('radio', { name: 'Shows' })).toBeInTheDocument()
   })
 
   it('opens a stock library read-only from the Libraries rail without changing preview source', async () => {
@@ -790,7 +762,7 @@ describe('PatternList', () => {
 
   it('opens provisional Show creation without creating a record', async () => {
     const user = userEvent.setup()
-    enableShowtime()
+    setStudioLocation()
     render(<PatternList />)
 
     await user.click(screen.getByRole('radio', { name: 'Shows' }))
@@ -805,7 +777,7 @@ describe('PatternList', () => {
 
   it('returns to an open built-in Show when flicking rail modes away and back (#63)', async () => {
     const user = userEvent.setup()
-    enableShowtime('/studio/shows/stock-show-showcase-redline-installation')
+    setStudioLocation('/studio/shows/stock-show-showcase-redline-installation')
     render(<PatternList />)
 
     await user.click(screen.getByRole('radio', { name: 'Patterns' }))
@@ -817,7 +789,7 @@ describe('PatternList', () => {
 
   it('opens the paired built-in Show curriculum without creating personal records (#363)', async () => {
     const user = userEvent.setup()
-    enableShowtime()
+    setStudioLocation()
     render(<PatternList />)
 
     await user.click(screen.getByRole('radio', { name: 'Shows' }))
@@ -1228,7 +1200,7 @@ describe('PatternList', () => {
 
   it('does not duplicate the top-bar Gallery destination in another entity mode', async () => {
     const user = userEvent.setup()
-    enableShowtime()
+    setStudioLocation()
     render(<PatternList />)
     await user.click(screen.getByRole('radio', { name: 'Shows' }))
     expect(screen.queryByRole('button', { name: 'Catalog' })).not.toBeInTheDocument()
@@ -1236,7 +1208,7 @@ describe('PatternList', () => {
 
   it('uses the shared legible hierarchy for Show organization and empty-state labels (#426, #479)', async () => {
     const user = userEvent.setup()
-    enableShowtime()
+    setStudioLocation()
     render(<PatternList />)
     await user.click(screen.getByRole('radio', { name: 'Shows' }))
 

@@ -174,11 +174,6 @@ beforeEach(() => {
   })
 })
 
-function enableShowtime() {
-  window.history.replaceState(null, '', '/studio/controllers?showtime')
-  useRouterStore.getState().syncFromLocation()
-}
-
 afterEach(() => {
   // Unmount first (act-wrapped) so the teardown below has no mounted
   // subscribers left to re-render outside act() (#917).
@@ -2191,8 +2186,7 @@ describe('ControllerProfilePage', () => {
     expect(screen.queryByLabelText(statusDotName.current)).not.toBeInTheDocument()
   })
 
-  it('links a compiled legacy built-in Show artifact to its canonical Studio Show source', async () => {
-    enableShowtime()
+  it('links a compiled legacy built-in Show artifact to its canonical Studio Show source without a query parameter', async () => {
     const profile = seedProfile()
     renderLiveProgramInventory(profile, {
       storageId: 'built-in-show-inventory-test',
@@ -2232,40 +2226,7 @@ describe('ControllerProfilePage', () => {
     })
   })
 
-  it('keeps saved Show facts visible but removes source access without showtime', async () => {
-    const profile = seedProfile()
-    renderLiveProgramInventory(profile, {
-      storageId: 'gated-built-in-show-inventory-test',
-      programs: [{ id: 'REMIX1', name: 'Coronal Mass Ejection' }],
-      bindings: {
-        'show:teaser-cme-01': 'REMIX1',
-      },
-      pushRecords: {
-        'show:teaser-cme-01': {
-          transforms: [],
-          artifactHash: 'remix-hash',
-          stampedAt: '2026-08-07T00:00:00.000Z',
-          name: 'Coronal Mass Ejection Remix',
-          showOutputContract: {
-            version: 1,
-            kind: 'portable-2d',
-            dimensions: [2],
-            mapClasses: ['surface'],
-            resolution: 'variable',
-          },
-        },
-      },
-    })
-
-    expect(await screen.findByText('Coronal Mass Ejection Remix')).toBeInTheDocument()
-    expect(screen.queryByRole('button', {
-      name: 'Coronal Mass Ejection Remix',
-    })).not.toBeInTheDocument()
-    expect(screen.getByText('Show output · Portable 2D')).toBeInTheDocument()
-  })
-
   it('prefers an exact personal Show source over a built-in legacy alias', async () => {
-    enableShowtime()
     const profile = seedProfile()
     const personalShow = {
       ...stockShowById('stock-show-remix-coronal-mass-ejection')!.show,
@@ -2297,7 +2258,6 @@ describe('ControllerProfilePage', () => {
   })
 
   it('resolves an edited built-in Installation Show through the same Show source path', async () => {
-    enableShowtime()
     const profile = seedProfile()
     const showId = 'stock-show-showcase-redline-installation'
     const pristine = stockShowById(showId)!.show

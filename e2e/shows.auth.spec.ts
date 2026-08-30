@@ -1,4 +1,4 @@
-import { expect, showtimePath, test } from './fixtures/authenticated'
+import { expect, test } from './fixtures/authenticated'
 import { installFakeControllerHelper } from './fixtures/fakeControllerHelper'
 import type { Locator, Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises'
 test.describe('authenticated Show authoring', () => {
   test('confirms a lesson Pattern swap that removes a control animation (#828)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath('studio/shows/stock-show-reference-property-animation'))
+    await page.goto('studio/shows/stock-show-reference-property-animation')
 
     const guide = page.getByRole('region', { name: 'Property Animation guide' })
     const picker = guide.getByRole('combobox', { name: 'Try with Pattern' })
@@ -49,7 +49,7 @@ test.describe('authenticated Show authoring', () => {
     })
 
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath('studio/shows/stock-show-101-clips-cuts-blank-time'))
+    await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
 
     await expect(page.getByRole('region', { name: '101 Clips, Cuts, and Blank Time guide' })).toBeVisible()
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
@@ -89,7 +89,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('previews the fitted timeline continuously while dragging Show End (#592)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath('studio/shows/stock-show-101-clips-cuts-blank-time'))
+    await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
 
     const showEnd = page.getByRole('button', { name: /Show End at/ })
     const timelineGrid = page.getByTestId('show-timeline-grid')
@@ -126,7 +126,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('signals when Delete targets the final remaining Clip (#63)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     await page.getByRole('button', { name: 'Select CometLoom', exact: true }).click()
@@ -147,7 +147,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('hides the Show End diamond when timeline zoom moves its boundary offscreen (#63)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath('studio/shows/stock-show-101-clips-cuts-blank-time'))
+    await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
 
     const showEnd = page.getByRole('button', { name: /Show End at/ })
     const scrollRegion = page.getByTestId('show-timeline-scroll-region')
@@ -164,7 +164,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('keeps the Show End diamond aligned when the preview pane resizes the timeline (#63)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath('studio/shows/stock-show-101-clips-cuts-blank-time'))
+    await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
 
     const showEnd = page.getByRole('button', { name: /Show End at/ })
     const endAnchor = page.getByTestId('show-timeline-end-anchor')
@@ -198,7 +198,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('keeps the Stage canvas inside its scrollport across the scrollbar threshold (#686)', async ({ page }) => {
     await page.setViewportSize({ width: 1950, height: 1196 })
-    await page.goto(showtimePath('studio/shows/stock-show-106-built-from-basics'))
+    await page.goto('studio/shows/stock-show-106-built-from-basics')
 
     const previewPane = page.getByTestId('preview-pane')
     const previewSplitter = page.getByRole('separator', { name: 'Resize preview pane' })
@@ -237,7 +237,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('keeps the compact sparkline gutter and time-zero playhead crisp (#63)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath('studio/shows/stock-show-reference-property-animation'))
+    await page.goto('studio/shows/stock-show-reference-property-animation')
 
     const speedLane = page.getByRole('group', { name: 'CompassRose animation speed animation for A' })
     const speedLaneLabel = page.getByTestId('show-property-lane-label').filter({ hasText: 'CompassRose animation speed' })
@@ -255,7 +255,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('does not force a property label into a zero-width gutter (#63)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath('studio/shows/stock-show-102-transitions-values'))
+    await page.goto('studio/shows/stock-show-102-transitions-values')
 
     const localAnimation = page.getByRole('group', { name: 'SignalMandala brightness animation for Main' })
     await expect(localAnimation).toBeVisible()
@@ -270,7 +270,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('keeps collapsed Zone summaries aligned, legible, and independently restorable (#63)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath('studio/shows/stock-show-106-built-from-basics'))
+    await page.goto('studio/shows/stock-show-106-built-from-basics')
 
     await expect(page.locator('[data-show-layout-interval]')).toHaveCount(0)
     await page.getByRole('button', { name: 'Open Zones' }).click()
@@ -322,7 +322,7 @@ test.describe('authenticated Show authoring', () => {
   // ruler and collapsed-summary coverage needs.
   test('keeps Zone Layout names on the ruler and Zone names in collapsed summaries (#63)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath('studio/shows/stock-show-206-changing-zone-layouts'))
+    await page.goto('studio/shows/stock-show-206-changing-zone-layouts')
 
     await page.getByRole('button', { name: 'Open Zones' }).click()
     // Collapse lives on the Zone rail; the map rows stay minimal (#63).
@@ -354,7 +354,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('projects one Scene-local animation into one main-timeline sparkline (#363, #599)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath('studio/shows/stock-show-102-transitions-values'))
+    await page.goto('studio/shows/stock-show-102-transitions-values')
 
     const localAnimation = page.getByRole('group', { name: 'SignalMandala brightness animation for Main' })
     await expect(localAnimation).toBeVisible()
@@ -366,7 +366,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('navigates from a built-in Clip summary to its field (#599, #650)', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows/stock-show-reference-property-animation'))
+    await page.goto('studio/shows/stock-show-reference-property-animation')
 
     const clip = page.getByRole('button', { name: 'Select CompassRose' }).first()
     await expect(clip).toBeVisible()
@@ -398,7 +398,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('timeline toolbar keeps transport, time, edit, and view in one visible desktop row', async ({ page }) => {
     await page.setViewportSize({ width: 2200, height: 900 })
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const toolbar = page.getByTestId('show-timeline-toolbar')
@@ -437,7 +437,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('toolbar command labels disclose as width allows', async ({ page }) => {
     await page.setViewportSize({ width: 900, height: 900 })
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const toolbar = page.getByTestId('show-timeline-toolbar')
@@ -458,7 +458,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('explains simultaneous Pattern copies separately from work on the busiest LED (#839)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath('studio/shows/stock-show-301-installation-mapping'))
+    await page.goto('studio/shows/stock-show-301-installation-mapping')
 
     const sourceMeter = page.getByRole('button', { name: /Show source inventory/ })
     await sourceMeter.hover()
@@ -494,7 +494,7 @@ test.describe('authenticated Show authoring', () => {
       pixelCount: 64,
     })
     await page.setViewportSize({ width: 1900, height: 900 })
-    await page.goto(showtimePath('studio/shows/stock-show-301-installation-mapping'))
+    await page.goto('studio/shows/stock-show-301-installation-mapping')
 
     await page.getByRole('button', { name: 'Connect a Controller' }).click()
     await page.getByRole('textbox', { name: 'Controller IP address' }).fill('192.168.8.236')
@@ -598,7 +598,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('Show header keeps its title and icon actions reachable at phone width (#836)', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 800 })
-    await page.goto(showtimePath('studio/shows/stock-show-301-installation-mapping'))
+    await page.goto('studio/shows/stock-show-301-installation-mapping')
 
     const header = page.locator('.show-pane-header')
     const geometry = await header.evaluate((element) => {
@@ -631,7 +631,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('toolbar groups stay separated and contained when space runs out', async ({ page }) => {
     await page.setViewportSize({ width: 600, height: 900 })
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const toolbar = page.getByTestId('show-timeline-toolbar')
@@ -657,7 +657,7 @@ test.describe('authenticated Show authoring', () => {
     // The previous version asserted the formatted readout ("75.0%") and a
     // compile-bar phrase ("3 planes · previous-rgb"), both presentation. Assert
     // the control's own value and that it survives a round trip (#638).
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     await page.getByRole('button', { name: 'Show properties' }).click()
@@ -681,7 +681,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('keeps vertical scroll, horizontal trackpad pan, and Shift-wheel pan distinct (#476)', async ({ page }) => {
     await page.setViewportSize({ width: 1200, height: 500 })
-    await page.goto(showtimePath('studio/shows/stock-show-showcase-redline-installation'))
+    await page.goto('studio/shows/stock-show-showcase-redline-installation')
     await zoomTimeline(page, 8)
 
     const timeline = page.getByTestId('show-timeline-scroll-region')
@@ -708,7 +708,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('hides the playhead when Show time wraps outside the panned viewport', async ({ page }) => {
     await page.setViewportSize({ width: 1200, height: 700 })
-    await page.goto(showtimePath('studio/shows/stock-show-showcase-redline-installation'))
+    await page.goto('studio/shows/stock-show-showcase-redline-installation')
 
     const playhead = page.getByTestId('show-timeline-playhead-hit-target')
     await expect(playhead).toBeVisible()
@@ -727,7 +727,7 @@ test.describe('authenticated Show authoring', () => {
   // longer exists, so the move half is rebuilt around an edit that does (#638).
 
   test('undo restores a deleted Clip and redo removes it again', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const cometLoom = page.getByRole('button', { name: 'Select CometLoom', exact: true })
@@ -744,7 +744,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('reclaims Scene-boundary Transition time after resizing its Clip away (#695)', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const leftClip = page.getByRole('button', { name: 'Select TestPattern1D', exact: true })
@@ -790,7 +790,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('keeps the Snap preference after a reload', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const snap = page.getByRole('button', { name: 'Snap playhead' })
@@ -851,7 +851,7 @@ test.describe('authenticated Show authoring', () => {
     expect(response.ok(), await response.text()).toBe(true)
 
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath(`studio/shows/${id}`))
+    await page.goto(`studio/shows/${id}`)
     const source = page.getByRole('button', { name: 'Select Option Copy Rings' })
     const overlay = page.locator('[data-show-layer-kind="overlay"]').first()
     const [sourceBounds, overlayBounds] = await Promise.all([
@@ -944,7 +944,7 @@ test.describe('authenticated Show authoring', () => {
     expect(response.ok(), await response.text()).toBe(true)
 
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath(`studio/shows/${id}`))
+    await page.goto(`studio/shows/${id}`)
     const source = page.getByRole('button', { name: 'Select Modifier Order Rings' })
     const overlay = page.locator('[data-show-layer-kind="overlay"]').first()
     const movePreview = page.getByTestId('show-clip-move-preview')
@@ -1003,7 +1003,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('places the Entity Detail Panel beside its Clip without reflowing the timeline (#665)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const timeline = page.getByRole('region', { name: 'Show timeline' })
@@ -1031,7 +1031,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('preserves an exact Clip edit across a reload', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     await selectClip(page, 'TestPattern1D')
@@ -1052,7 +1052,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('dismisses the panel with Escape and returns focus to the Clip', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const clip = page.getByRole('button', { name: 'Select TestPattern1D', exact: true })
@@ -1066,7 +1066,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('moves the panel to another Clip owner through keyboard navigation', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     await page.getByRole('button', { name: 'Select TestPattern1D', exact: true }).click()
@@ -1090,7 +1090,7 @@ test.describe('authenticated Show authoring', () => {
   // call, which passes when the endpoint is broken (#638).
 
   test('adds a Clip Effect that survives a reload', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const stack = await openClipEffects(page, 'TestPattern1D')
@@ -1105,7 +1105,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('adds and removes Mirror only through its fixed Transform row', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const stack = await openClipEffects(page, 'TestPattern1D')
@@ -1132,7 +1132,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('keeps edited Effect parameters after a reload', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const stack = await openClipEffects(page, 'TestPattern1D')
@@ -1157,7 +1157,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('browsing the Effect palette does not commit an Effect', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const stack = await openClipEffects(page, 'TestPattern1D')
@@ -1214,7 +1214,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('removes one Effect and leaves the rest of the stack', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const stack = await openClipEffects(page, 'TestPattern1D')
@@ -1231,7 +1231,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('duplicates and reorders Effects through the overflow menu', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const stack = await openClipEffects(page, 'TestPattern1D')
@@ -1257,7 +1257,7 @@ test.describe('authenticated Show authoring', () => {
   // was intact (#638).
 
   test('changes a Transition family and keeps it after a reload', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const panel = await openTransition(page)
@@ -1270,7 +1270,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('keeps edited Transition parameters after a reload', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const panel = await openTransition(page)
@@ -1299,7 +1299,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('browsing the Transition palette does not change the junction', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const panel = await openTransition(page)
@@ -1321,7 +1321,7 @@ test.describe('authenticated Show authoring', () => {
     page.on('console', (message) => {
       if (message.type() === 'error') seriousConsoleErrors.push(message.text())
     })
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await page.getByRole('button', { name: 'Add show' }).click()
     await page.getByRole('button', { name: 'New show' }).click()
 
@@ -1333,7 +1333,7 @@ test.describe('authenticated Show authoring', () => {
     await previewPixels.fill('1024')
     await page.getByRole('button', { name: 'Create Show' }).click()
 
-    await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+\?showtime$/)
+    await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+$/)
     await expect(page.getByTitle('Show output summary')).toContainText('Portable')
     await waitForCurrentShow(page, (show) => (
       show.outputContract?.kind === 'portable-2d'
@@ -1398,7 +1398,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('creates a second Show without route and active-Show synchronization looping', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
     const firstShowId = new URL(page.url()).pathname.split('/').at(-1)
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
@@ -1412,7 +1412,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('round-trips an authored Show file without writing before confirmation (#853)', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
     const originalShowId = new URL(page.url()).pathname.split('/').at(-1)!
     const before = await personalContentCounts(page)
@@ -1466,11 +1466,11 @@ test.describe('authenticated Show authoring', () => {
       patterns: before.patterns,
       maps: before.maps,
     })
-    await expect(page).toHaveURL(new RegExp(`/studio/shows/${imported.id}\\?showtime$`))
+    await expect(page).toHaveURL(new RegExp(`/studio/shows/${imported.id}$`))
   })
 
   test('Cancel and workspace Escape leave no Show record', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await page.getByRole('button', { name: 'Add show' }).click()
     await page.getByRole('button', { name: 'New show' }).click()
     await page.getByRole('button', { name: 'Cancel' }).click()
@@ -1487,7 +1487,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('empties the Shows Trash from inside the drawer only after confirmation (#793)', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     await page.getByRole('treeitem', { name: /Untitled Show/ }).hover()
@@ -1528,7 +1528,7 @@ test.describe('authenticated Show authoring', () => {
       // contract while budgeting its cumulative work under full-suite load.
       test.setTimeout(60_000)
 
-      await page.goto(showtimePath('studio/shows'))
+      await page.goto('studio/shows')
       await createInstallationShow(page)
 
       let blockWrites = true
@@ -1573,7 +1573,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('disabled Show controls explain themselves on hover and to assistive tech (#796)', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     // Clone with no usable selection stays focusable and carries its reason
@@ -1598,7 +1598,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('duplicates a Show from its rail row and clones a built-in from Show actions (#794)', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
     const sourceId = new URL(page.url()).pathname.split('/').at(-1)
 
@@ -1613,7 +1613,7 @@ test.describe('authenticated Show authoring', () => {
     expect(shows.map((show) => show.name).sort()).toEqual(['Untitled Show', 'Untitled Show copy'])
 
     // A built-in forks through Clone, keeping the work as personal.
-    await page.goto(showtimePath('studio/shows/stock-show-101-clips-cuts-blank-time'))
+    await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
     await (await getShowAction(page, 'Clone')).click()
     await expect.poll(async () => (
       ((await (await page.context().request.get('/api/shows')).json()) as { shows: PersistedShow[] }).shows.length
@@ -1623,7 +1623,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('returns timeline focus after a discrete edit and supports keyboard preview, start, and five-second seek', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     await page.getByRole('button', { name: 'Select TestPattern1D' }).first().click()
@@ -1667,7 +1667,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('keeps paused Show frames at preview brightness after scrubbing and rewind (#826)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath('studio/shows/stock-show-remix-coronal-mass-ejection?capture'))
+    await page.goto('studio/shows/stock-show-remix-coronal-mass-ejection?capture')
 
     const toolbar = page.getByTestId('show-timeline-toolbar')
     await toolbar.getByRole('button', { name: 'Play Show preview' }).click()
@@ -1694,7 +1694,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('keeps Clip Transform values after a reload', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     await selectClip(page, 'TestPattern1D')
@@ -1734,7 +1734,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('keeps a soft ellipse aperture after a reload (#591)', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     await selectClip(page, 'TestPattern1D')
@@ -1766,7 +1766,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('keeps the complete Place controls visible without any detail scrollbar', async ({ page }) => {
     await page.setViewportSize({ width: 800, height: 600 })
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     await selectClip(page, 'TestPattern1D')
@@ -1833,7 +1833,7 @@ test.describe('authenticated Show authoring', () => {
     // Layout is its own concern. Bundling it into the persistence test above
     // meant a broken field hid the layout regression and vice versa.
     await page.setViewportSize({ width: 320, height: 900 })
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     await selectClip(page, 'TestPattern1D')
@@ -1912,7 +1912,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('selects discontinuous Installation LED ranges on the saved 2D map at desktop and narrow widths', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
     const openZonesRail = page.getByRole('button', { name: 'Open Zones' })
     if (await openZonesRail.count() > 0) await openZonesRail.click()
@@ -1958,7 +1958,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('persists invalid Installation coverage and unblocks artifacts after repair', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     await openZoneLayout(page, 'Default')
@@ -2010,7 +2010,7 @@ test.describe('authenticated Show authoring', () => {
     const response = await page.context().request.post('/api/maps', { data: map })
     expect(response.ok()).toBe(true)
 
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await page.getByRole('button', { name: 'Add show' }).click()
     await page.getByRole('button', { name: 'New show' }).click()
     await page.getByRole('button', { name: 'Create Installation Show' }).click()
@@ -2032,7 +2032,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('keeps a Clip evaluation policy after a reload', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     await selectClip(page, 'TestPattern1D')
@@ -2047,7 +2047,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('authors every Clip detail tab in one pass and reloads (#658)', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     // One edit per tab against the same Clip. The per-facet reload tests above
@@ -2105,7 +2105,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('selects, edits, and reloads an appended Zone Layout interval from the timeline (#624)', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     await page.getByRole('button', { name: 'Add to Show' }).click()
@@ -2163,7 +2163,7 @@ test.describe('authenticated Show authoring', () => {
     // This full create/edit/reload/compile/narrow-window/remove sequence took
     // 32.4s under pre-push load; preserve the flow and give it explicit room.
     test.setTimeout(60_000)
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
     await page.getByRole('button', { name: 'Open Zones' }).click()
     await page.getByRole('button', { name: 'Open Zone Map' }).click()
@@ -2240,7 +2240,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('authors and reloads transition-scoped sample repeat tiling (#654)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     let panel = await openTransition(page)
@@ -2282,7 +2282,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('drafts, authors, and reloads a per-parameter Property animation (#648)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     await page.getByRole('button', { name: 'Select TestPattern1D' }).click()
@@ -2322,7 +2322,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('reloads, navigates, and removes a Scene-local animation through the overview (#490, #649)', async ({ page }) => {
     await page.setViewportSize({ width: 760, height: 900 })
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     await page.getByRole('button', { name: 'Select TestPattern1D' }).click()
@@ -2373,7 +2373,7 @@ test.describe('authenticated Show authoring', () => {
   // parameters and none of the others; assert that instead (#638).
 
   test('swaps its parameters when the Transition family changes', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const panel = await openTransition(page)
@@ -2392,7 +2392,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('keeps a spatial Transition parameter after a reload', async ({ page }) => {
-    await page.goto(showtimePath('studio/shows'))
+    await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const panel = await openTransition(page)
@@ -2462,7 +2462,7 @@ test.describe('authenticated Show authoring', () => {
     expect(listed.ok(), await listed.text()).toBe(true)
 
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(showtimePath(`studio/shows/${id}`))
+    await page.goto(`studio/shows/${id}`)
     const main = page.getByRole('button', { name: 'Select Main pulse' })
     const overlay = page.getByRole('button', { name: 'Select Overlay pulse' })
     const [mainBounds, overlayBounds, gridBounds] = await Promise.all([
@@ -2707,7 +2707,7 @@ async function createInstallationShow(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'New show' }).click()
   await page.getByRole('button', { name: 'Create Installation Show' }).click()
   await page.getByRole('button', { name: 'Create Show' }).click()
-  await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+\?showtime$/)
+  await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+$/)
 }
 
 async function listShows(page: Page): Promise<PersistedShow[]> {
