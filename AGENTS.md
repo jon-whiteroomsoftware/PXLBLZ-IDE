@@ -100,14 +100,14 @@ Preserve these invariants:
   reopen closed findings. Hold a candidate unlanded only for P0/P1 findings.
   The clean-receipt tail the push gate requires belongs to publication;
   satisfy it with a short corrective candidate on main, not a long chain.
-- Pushing `main` is a separate publication step, and it no longer deploys
-  anything by itself: the #902 cutover replaced the git-integrated Pages
-  project with the `pxlblz-ide-worker` Worker, which has no connected Git
-  repository. Production deploys are manual — `npm run cf:build` then
-  `npx wrangler deploy --config wrangler.workers.jsonc` — so `main` and the
-  live site drift until an operator deploys. The legacy v1 GitHub Pages site
-  stays manual and pinned to `v1-maintenance`. Batch pushes a couple of times
-  per day, or push when the user asks, needs hosting, or requests a published
+- Pushing `main` is a separate publication step, and it is a production
+  deploy again: Workers Builds is connected to the repository (#921), so
+  every push to `main` runs `npm run cf:build` and
+  `npx wrangler deploy --config wrangler.workers.jsonc` against the
+  `pxlblz-ide-worker` Worker. The same two commands remain the manual
+  fallback if the pipeline is down. The legacy v1 GitHub Pages site stays
+  manual and pinned to `v1-maintenance`. Batch pushes a couple of times per
+  day, or push when the user asks, needs hosting, or requests a published
   handoff. Do not push after every issue merely to mark the work complete.
 - Delete a remote branch only if one was explicitly created. Finish by
   verifying no abandoned worktrees or branches remain.
@@ -252,7 +252,7 @@ check the local D1 schema first.
 
 - Every substantive slice runs in a worktree, stricter than the global
   default: shared `main` serves the managed runtime and serialized landings.
-- Pushes batch a couple of times per day without asking; push sooner when
-  the user asks, needs hosting, or requests a published handoff. Since the
-  #902 Workers cutover a push publishes source only — production deploys are
-  a separate manual `cf:build` + `wrangler deploy` step.
+- Pushes batch a couple of times per day without asking, because a push here
+  is routine publication to the auto-deploying Worker (Workers Builds, #921);
+  push sooner when the user asks, needs hosting, or requests a published
+  handoff.
