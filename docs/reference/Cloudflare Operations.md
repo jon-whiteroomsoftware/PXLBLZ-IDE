@@ -1,6 +1,7 @@
 # Cloudflare Operations
 
-PXLBLZ-IDE's Cloudflare Pages deployment is the production cloud workspace. It
+PXLBLZ-IDE's production cloud workspace is the `pxlblz-ide-worker` Cloudflare
+Worker (the #902 Pages-to-Workers cutover retired the Pages project). It
 uses GitHub or Google OAuth for identity and Cloudflare D1 for personal
 Patterns, custom maps, personal Mixins, personal Libraries, Shows, durable Controller profiles,
 last-active state, demo overrides, controller push metadata, and controller map
@@ -9,8 +10,9 @@ workspace starts clean for each signed-in user.
 
 ## Required Configuration
 
-`wrangler.jsonc` is the source-controlled Pages Functions configuration. The
-production binding is:
+`wrangler.workers.jsonc` is the source-controlled Worker configuration
+(`wrangler.jsonc` still holds the legacy Pages-shaped config used by local
+tooling). The production binding is:
 
 - `PXLBLZ_DB` -> D1 database `pxlblz-ide`
 
@@ -19,9 +21,12 @@ The production build expects:
 - `VITE_BASE_PATH=/`
 - `VITE_GA_MEASUREMENT_ID=<Google Analytics measurement id>` from the dedicated
   GA4 property for the Cloudflare v2 deployment when production analytics should
-  be enabled
+  be enabled. Both are baked into `npm run cf:build`; Vite inlines them at
+  build time, so they must be present in the build environment, never only in
+  the Worker's runtime variables.
 
-Secrets and operator-specific values are managed in Cloudflare Pages:
+Secrets and operator-specific values are managed on the Worker under
+**Settings → Variables and Secrets**:
 
 - `GITHUB_CLIENT_ID`
 - `GITHUB_CLIENT_SECRET`
@@ -30,9 +35,13 @@ Secrets and operator-specific values are managed in Cloudflare Pages:
 - `SESSION_SECRET`
 - `GITHUB_OAUTH_REDIRECT_URI` only when overriding the default callback URL
 - `GOOGLE_OAUTH_REDIRECT_URI` only when overriding the default callback URL
-- `VITE_GA_MEASUREMENT_ID` as a Pages build variable, not a secret, when
-  analytics are enabled. Use the Cloudflare/v2 GA4 property id here; the legacy
-  GitHub Pages or marketing property id should not be reused for this deployment.
+`VITE_GA_MEASUREMENT_ID` is not a Worker variable or secret: runtime variables
+never reach the Vite build, which is why the #902 cutover silently disabled
+analytics (#920). The id is public (it ships in the client bundle) and lives
+in the `cf:build` script. Use the Cloudflare/v2 GA4 property id; the legacy
+GitHub Pages or marketing property id should not be reused for this
+deployment. Deliberately no `.env.production`: e2e suites build in production
+mode and must stay analytics-inert.
 
 GitHub OAuth must allow the `read:user user:email` scopes so the callback can
 store a verified primary email when GitHub exposes one. Google OAuth must allow
@@ -43,15 +52,15 @@ creates or enters the provider identity's stable workspace; no allowlist or D1
 access row participates in admission or later API requests. Historical
 `beta_access` tables remain in the migration history so deployed databases can
 upgrade monotonically, but the runtime does not read them. Remove obsolete
-`GITHUB_ALLOWED_*` and `GOOGLE_ALLOWED_*` values from Pages configuration when
-convenient; they have no effect.
+`GITHUB_ALLOWED_*` and `GOOGLE_ALLOWED_*` values from the Worker's
+configuration when convenient; they have no effect.
 
 ## Analytics
 
 The app has a production-only Google Analytics integration. It is inert in local
-Vite dev, Vitest, and builds without `VITE_GA_MEASUREMENT_ID`. When that build
-variable is present in a production Pages build, the client loads `gtag.js` with
-automatic page views disabled and sends:
+Vite dev, Vitest, and builds without `VITE_GA_MEASUREMENT_ID`. When that
+variable is present in a production build's environment, the client loads
+`gtag.js` with automatic page views disabled and sends:
 
 - per-route `page_view` events with the route path and coarse route title
   (`gallery`, `pattern-detail`, `studio:patterns`, `studio:maps`, etc.);
@@ -90,13 +99,20 @@ or Looker Studio dashboard.
 
 ## Deploy And Verify
 
-Before a production deploy:
+The Worker has no connected Git repository: pushing `main` deploys nothing.
+Hooking up Workers Builds for push-to-deploy is deferred follow-up from #902;
+until then every production deploy is manual from a clean checkout of the
+reviewed `main`:
 
 ```bash
 npm test
-npm run build
-VITE_BASE_PATH=/ npm run build
+npm run cf:build
+npx wrangler deploy --config wrangler.workers.jsonc
 ```
+
+`cf:build` bakes `VITE_BASE_PATH=/` and `VITE_GA_MEASUREMENT_ID` into the
+bundle (#920); a plain `npm run build` is for local verification and ships no
+analytics.
 
 The stable local Cloudflare runtime belongs to the reviewed-main checkout:
 
@@ -137,7 +153,8 @@ Parallel runs cannot collide with the persistent 5174/8788 pair or active issue
 runtimes. The commands require `SESSION_SECRET` in the main checkout's
 `.dev.vars`; OAuth client credentials are not required.
 
-After deploy, open the Pages URL and smoke-test:
+After deploy, open the production URL
+(`https://pxlblz-ide.whiteroomsoftware.com`) and smoke-test:
 
 1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"25"}` for the
    current migration set. This is the latest value written to `schema_meta`, not

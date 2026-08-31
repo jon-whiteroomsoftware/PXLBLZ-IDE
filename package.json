@@ -20,7 +20,7 @@
     "check:e2e-locators": "wrsp-check-e2e-locators",
     "check:layout-gate": "wrsp-check-layout-gate",
     "preview": "vite preview",
-    "cf:build": "VITE_BASE_PATH=/ npm run build",
+    "cf:build": "VITE_BASE_PATH=/ VITE_GA_MEASUREMENT_ID=G-XK8FDB9P0F npm run build",
     "smoke:worker": "npm run check:node && tsx scripts/worker-smoke.ts",
     "cf:dev": "wrangler pages dev dist",
     "cf:dev:local": "wrangler pages dev dist --port 8788",
