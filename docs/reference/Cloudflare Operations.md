@@ -10,9 +10,9 @@ workspace starts clean for each signed-in user.
 
 ## Required Configuration
 
-`wrangler.workers.jsonc` is the source-controlled Worker configuration
-(`wrangler.jsonc` still holds the legacy Pages-shaped config used by local
-tooling). The production binding is:
+`wrangler.jsonc` is the source-controlled Worker configuration (#922 promoted
+it from the transitional `wrangler.workers.jsonc`; the Pages-shaped config is
+retired). The production binding is:
 
 - `PXLBLZ_DB` -> D1 database `pxlblz-ide`
 
@@ -101,13 +101,9 @@ or Looker Studio dashboard.
 
 The Worker is connected to `jon-whiteroomsoftware/PXLBLZ-IDE` through Workers
 Builds (#921): every push to `main` checks out the pushed tip, runs
-`npm run cf:build`, and deploys with
-`npx wrangler deploy --config wrangler.workers.jsonc`. Build progress and
-history live on the Worker's **Deployments** and **Settings → Builds** pages.
-The dashboard may warn that `wrangler.jsonc` names a different Worker; that
-file is the retired Pages-shaped config and the deploy command bypasses it —
-#922 tracks promoting `wrangler.workers.jsonc` into its place. Close any
-auto-generated PR that tries to edit `wrangler.jsonc` for this.
+`npm run cf:build`, and deploys with `npx wrangler deploy` on the default
+`wrangler.jsonc` (#922). Build progress and history live on the Worker's
+**Deployments** and **Settings → Builds** pages.
 
 If the pipeline is unavailable, the same deploy runs manually from a clean
 checkout of the reviewed `main`:
@@ -115,7 +111,7 @@ checkout of the reviewed `main`:
 ```bash
 npm test
 npm run cf:build
-npx wrangler deploy --config wrangler.workers.jsonc
+npx wrangler deploy
 ```
 
 `cf:build` bakes `VITE_BASE_PATH=/` and `VITE_GA_MEASUREMENT_ID` into the

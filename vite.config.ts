@@ -207,7 +207,7 @@ export default defineConfig(async ({ command, mode, isPreview }): Promise<ViteUs
   const persistStatePath = env.VITE_CF_PERSIST_STATE?.trim()
   const workerDevPlugins = workerDevMode
     ? [(await import('@cloudflare/vite-plugin')).cloudflare({
-        configPath: 'wrangler.workers.jsonc',
+        configPath: 'wrangler.jsonc',
         persistState: persistStatePath ? { path: persistStatePath } : true,
       })]
     : []

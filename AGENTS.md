@@ -102,9 +102,8 @@ Preserve these invariants:
   satisfy it with a short corrective candidate on main, not a long chain.
 - Pushing `main` is a separate publication step, and it is a production
   deploy again: Workers Builds is connected to the repository (#921), so
-  every push to `main` runs `npm run cf:build` and
-  `npx wrangler deploy --config wrangler.workers.jsonc` against the
-  `pxlblz-ide-worker` Worker. The same two commands remain the manual
+  every push to `main` runs `npm run cf:build` and `npx wrangler deploy`
+  against the `pxlblz-ide-worker` Worker (default `wrangler.jsonc`, #922). The same two commands remain the manual
   fallback if the pipeline is down. The legacy v1 GitHub Pages site stays
   manual and pinned to `v1-maintenance`. Batch pushes a couple of times per
   day, or push when the user asks, needs hosting, or requests a published

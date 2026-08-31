@@ -9,7 +9,7 @@ committing machine-local state.
 
 The stable main checkout owns Vite `5174` and the shared local D1 store in
 its `.wrangler/state`. Since #900 the main runtime is one worker-dev process:
-the Cloudflare Vite plugin serves the Worker (from `wrangler.workers.jsonc`)
+the Cloudflare Vite plugin serves the Worker (from `wrangler.jsonc`)
 and local D1 inside the Vite process, so UI and `/api` share the single port.
 `npm run dev:main` applies pending migrations, provisions local synthetic
 identities, and starts that process when it is absent. On sight of the legacy
