@@ -1164,6 +1164,8 @@ export function render(index) { rgb(ticks, 0, 0) }
   })
 
   it('emits only the active output dimension for Pattern capture adapters (#499)', () => {
+    // Asserts the wrapper layer's shape, so the #929 wrapper inlining (which
+    // folds the pass-through wrapper away) is held off.
     const oneDimensionalClip = {
       id: 'shared',
       source: 'export function render(index) { rgb(1, 0, 0) }',
@@ -1172,8 +1174,8 @@ export function render(index) { rgb(ticks, 0, 0) }
       id: 'shared',
       source: 'export function render2D(index, x, y) { rgb(0, 1, 0) }',
     }
-    const oneDimensional = compileShow({ clips: [oneDimensionalClip] }, {})
-    const twoDimensional = compileShow({ clips: [twoDimensionalClip] }, {})
+    const oneDimensional = compileShow({ clips: [oneDimensionalClip] }, {}, { generatedWrapperInlining: false })
+    const twoDimensional = compileShow({ clips: [twoDimensionalClip] }, {}, { generatedWrapperInlining: false })
 
     expect(oneDimensional.expandedCode).toContain('function __pxlblz_show_c0_renderCapture(index)')
     expect(oneDimensional.expandedCode).not.toContain('function __pxlblz_show_c0_renderCapture2D(index, x, y)')
@@ -2749,7 +2751,9 @@ export function render2D(index, x, y) { rgb(${channel === 'r' ? 1 : 0}, ${channe
     handle.beforeRender(0)
     handle.render(1)
     expect(pixel()).toEqual([0, 1, 0])
-    expect(artifact.expandedCode).toMatch(/__pxlblz_show_c1_renderCapture[^]*if \(__pxlblz_show_c1_alpha < 1\) \{[^]*__pxlblz_show_c0_renderCapture/)
+    // #929 inlines the lower member's pass-through renderCapture wrapper into the
+    // arm, so the covered branch now calls the member render directly.
+    expect(artifact.expandedCode).toMatch(/__pxlblz_show_c1_renderCapture[^]*if \(__pxlblz_show_c1_alpha < 1\) \{[^]*__pxlblz_show_c0_render\(/)
 
     handle.render(0)
     expect(pixel()).toEqual([1, 0, 0])

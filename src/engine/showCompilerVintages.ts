@@ -18,13 +18,14 @@ export const COMPILER_VINTAGES = {
     inlineCallHoisting: false,
     hsvSharedChainLaneScoping: false,
   },
-  /** #525 motion-representation census (pre-#559/#566/#904/#907/#928). */
+  /** #525 motion-representation census (pre-#559/#566/#904/#907/#928/#929). */
   'issue-525-motion-census': {
     hsvCaptureChainSpecialization: false,
     inlineCallHoisting: false,
     identityBlendFold: false,
     hsvSharedChainLaneScoping: false,
     generatedFrameConstantHoisting: false,
+    generatedWrapperInlining: false,
   },
   /** #536 score-representation census (pre-wave-2 emission diet, pre-#907). */
   'issue-536-score-census': {
@@ -50,13 +51,14 @@ export const COMPILER_VINTAGES = {
     identityBlendFold: false,
     hsvSharedChainLaneScoping: false,
   },
-  /** Motion-transition sharing goldens (pre-#559/#566/#904/#907/#928). */
+  /** Motion-transition sharing goldens (pre-#559/#566/#904/#907/#928/#929). */
   'motion-transition-sharing': {
     hsvCaptureChainSpecialization: false,
     inlineCallHoisting: false,
     identityBlendFold: false,
     hsvSharedChainLaneScoping: false,
     generatedFrameConstantHoisting: false,
+    generatedWrapperInlining: false,
   },
 } satisfies Record<string, ShowCompileOptions>
 

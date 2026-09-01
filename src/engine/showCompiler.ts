@@ -111,6 +111,7 @@ import { selectRenderCompatibility } from './renderCompatibility'
 import type { ShowRendererOutputGuarantees } from './showCaptureSpecialization'
 import type { ShowFrameDependency } from './showFrameInvariantHoisting'
 import { hoistGeneratedFrameConstants } from './showGeneratedFrameConstantHoisting'
+import { inlineGeneratedWrappers } from './showGeneratedWrapperInlining'
 import {
   selectShowRenderKernelSpecialization,
   type ShowRenderKernelSelection,
@@ -1167,6 +1168,11 @@ export interface ShowCompileOptions {
    * route constants refreshed once per frame at the end of beforeRender);
    * production always uses the default `true`. */
   generatedFrameConstantHoisting?: boolean
+  /** Benchmark/vintage counterfactual for the #929 generated trivial-wrapper
+   * inlining (pass-through renderCapture, emit, and clear wrappers folded
+   * into their per-pixel call sites); production always uses the default
+   * `true`. */
+  generatedWrapperInlining?: boolean
 }
 
 /** #532/#556 price of one persistent scalar write on the measured VM. */
@@ -2820,25 +2826,30 @@ export function compileShow(
   const emittedWithInstalledMapZ = needsInstalledMapZ
     ? promoteShowRendererToInstalledMap3D(emittedWithSampleRemapping)
     : emittedWithSampleRemapping
-  // #928: last generated-code pass before compaction, so it sees every
-  // emitter's per-pixel arms and every scheduler write in one assembled text.
-  // The global budget is counted with the arena source in place, since that
-  // is the text the resource ledger will count.
+  // #928: hoist frame constants, then #929: fold trivial wrappers - the last
+  // generated-code passes before compaction, so they see every emitter's
+  // per-pixel arms and every scheduler write in one assembled text. The
+  // global budget is counted with the arena source in place, since that is
+  // the text the resource ledger will count.
   const arenaPrefix = renderTargetArenaEmission
     ? `${emitShowRenderTargetArenaSource(renderTargetPixelCount)}\n`
     : ''
+  const excludedMemberSources = members
+    .filter((member) => !isCompilerEmptyShowMember(member))
+    .map((member) => member.patternCode)
   const frameConstantHoisting = (options.generatedFrameConstantHoisting ?? true)
     ? hoistGeneratedFrameConstants(emittedWithInstalledMapZ, {
-        excludeSources: members
-          .filter((member) => !isCompilerEmptyShowMember(member))
-          .map((member) => member.patternCode),
+        excludeSources: excludedMemberSources,
         maxHoists: PIXELBLAZE_MAX_PERSISTENT_GLOBALS
           - countShowPersistentGlobals(`${arenaPrefix}${emittedWithInstalledMapZ}`),
       })
     : null
   const emittedWithFrameConstants = frameConstantHoisting?.code ?? emittedWithInstalledMapZ
   const frameConstantGlobals = frameConstantHoisting?.hoists.length ?? 0
-  const expandedCode = `${arenaPrefix}${emittedWithFrameConstants}`
+  const emittedWithWrapperInlining = (options.generatedWrapperInlining ?? true)
+    ? inlineGeneratedWrappers(emittedWithFrameConstants, { excludeSources: excludedMemberSources }).code
+    : emittedWithFrameConstants
+  const expandedCode = `${arenaPrefix}${emittedWithWrapperInlining}`
   const compacted = compactGeneratedShowSymbols(expandedCode)
   const code = compacted.code
   const sourceInventory = buildShowSourceInventory(code, compacted.names, members)
