@@ -114,7 +114,7 @@ describe('generated wrapper inlining paired ladder (#929)', () => {
       rows,
       partial: runError != null,
     }
-    const outputPath = join(process.cwd(), 'test/perf-harness/issue929-hoist-ladder.json')
+    const outputPath = join(process.cwd(), 'test/perf-harness/issue929-inline-ladder.json')
     writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`)
     console.log(`Wrote ${outputPath}`)
     if (runError != null) throw runError
