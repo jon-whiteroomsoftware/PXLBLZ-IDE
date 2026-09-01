@@ -165,6 +165,25 @@ export function render2D(index, x2, y) {
     expect(result.removedWrappers).toBe(0)
   })
 
+  it('keeps a wrapper that a copied wrapper body still references', () => {
+    const source = `var g = 0
+function outer() { inner() }
+function inner() { g = 1 }
+export function beforeRender(delta) {}
+export function render2D(index, x, y) {
+  outer()
+  inner()
+}
+`
+    const result = inlineGeneratedWrappers(source)
+    // Round 1 inlines outer (its copy calls inner) and inner; inner's
+    // declaration must survive round 1 because the copied body references
+    // it; round 2 then folds that copy too and removes both.
+    expect(result.code).toContain('export function render2D(index, x, y) {\n  g = 1\n  g = 1\n}')
+    expect(result.code).not.toContain('inner()')
+    expect(result.removedWrappers).toBe(2)
+  })
+
   it('returns the source unchanged when nothing qualifies', () => {
     const source = 'export function beforeRender(delta) {}\nexport function render(index) { rgb(0, 0, 0) }\n'
     expect(inlineGeneratedWrappers(source).code).toBe(source)

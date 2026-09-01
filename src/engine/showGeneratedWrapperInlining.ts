@@ -169,7 +169,7 @@ function inlineOnce(
 
   // Call sites: standalone expression statements inside generated functions
   // (members excluded), never inside the wrapper's own definition.
-  const edits: Array<{ start: number; end: number; text: string }> = []
+  const edits: Array<{ start: number; end: number; text: string; kind: 'site' | 'delete' }> = []
   const siteCounts = new Map<string, number>()
   const excludeCallers = options.excludeCallers ?? GENERATED_TRANSITION_HELPER_PATTERN
   for (const caller of functions) {
@@ -214,7 +214,7 @@ function inlineOnce(
       const text = wrapper.statements
         .map((statement) => substituteIdentifiers(source, statement, wrapper.params, substitution))
         .join(`\n${indent}`)
-      edits.push({ start: node.start, end: node.end, text })
+      edits.push({ start: node.start, end: node.end, text, kind: 'site' })
       siteCounts.set(wrapper.entry.name, (siteCounts.get(wrapper.entry.name) ?? 0) + 1)
     })
   }
@@ -231,8 +231,11 @@ function inlineOnce(
       if (parent?.type === 'FunctionDeclaration' && parent.id === node) return
       if (node.start >= wrapper.entry.statement.start && node.end <= wrapper.entry.statement.end) return
       // A call site being inlined no longer references the wrapper through
-      // its callee, but its arguments are copied into the replacement.
-      const site = edits.find((edit) => node.start >= edit.start && node.end <= edit.end)
+      // its callee, but its arguments are copied into the replacement, and
+      // a reference inside another wrapper's body survives in every copy of
+      // that body even when its declaration is deleted - so only the callee
+      // of a replaced call site is discounted.
+      const site = edits.find((edit) => edit.kind === 'site' && node.start >= edit.start && node.end <= edit.end)
       if (site && parent?.type === 'CallExpression' && parent.callee === node) return
       references += 1
     })
@@ -240,7 +243,7 @@ function inlineOnce(
       removed.add(name)
       const statement = wrapper.entry.statement
       const end = source[statement.end] === '\n' ? statement.end + 1 : statement.end
-      edits.push({ start: statement.start, end, text: '' })
+      edits.push({ start: statement.start, end, text: '', kind: 'delete' })
     }
   }
   const sorted = [...edits].sort((left, right) => right.start - left.start || right.end - left.end)
