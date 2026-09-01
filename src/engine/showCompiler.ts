@@ -679,6 +679,13 @@ export interface ShowCompileSummary {
       wrapperBytes: number
       inlinedBytes: number
     }
+    /** #931: member loop rewrites (idiom + unrolling); `artifact-byte-budget`
+     * means the unrolled build alone crossed the activation scale and the
+     * loop form was kept. */
+    loopRewrites: {
+      selected: boolean
+      reason: 'selected' | 'disabled' | 'artifact-byte-budget'
+    }
     renderKernels: (ShowRenderKernelSelection & {
       configurationPlanCount: number
       kernelCount: number
@@ -1193,6 +1200,9 @@ export interface ShowCompileOptions {
    * reproduces pre-#931 emission; production always uses the default
    * `true`. */
   loopUnrolling?: boolean
+  /** Test seam for the #931 byte gate: the artifact byte scale above which
+   * the loop form is kept (default: the ledger's activation budget). */
+  loopUnrollingBudgetBytes?: number
 }
 
 /** #532/#556 price of one persistent scalar write on the measured VM. */
@@ -3435,6 +3445,10 @@ export function compileShow(
         ...member.helperInliningSummary,
       })),
       wrapperInlining: wrapperInliningSummary,
+      loopRewrites: {
+        selected: options.loopUnrolling ?? true,
+        reason: (options.loopUnrolling ?? true) ? 'selected' : 'disabled',
+      },
       renderKernels: routedSceneEmission?.renderKernels ?? null,
       motionTransitions: routedSceneEmission?.motionTransitions ?? null,
       showScore: routedSceneEmission?.showScore ?? null,
@@ -3568,6 +3582,23 @@ export function compileShow(
         shared.summary.specializations.hsvCaptureChain.fallbackReason = 'artifact-byte-budget'
       }
       return shared
+    }
+  }
+
+  // #931 byte-budget fallback: unrolling grows bytecode by trip x body. When
+  // the unrolled build alone crosses the activation scale, retry once with
+  // the loop form and keep it if it clears.
+  const overLoopBudget = options.loopUnrollingBudgetBytes !== undefined
+    ? summary.artifactBytes > options.loopUnrollingBudgetBytes
+    : overByteBudget(resources)
+  if ((options.loopUnrolling ?? true) && overLoopBudget) {
+    const looped = compileShow(recipe, libraries, { ...options, loopUnrolling: false })
+    const loopedOver = options.loopUnrollingBudgetBytes !== undefined
+      ? looped.summary.artifactBytes > options.loopUnrollingBudgetBytes
+      : overByteBudget(looped.summary.resources)
+    if (!loopedOver) {
+      looped.summary.specializations.loopRewrites = { selected: false, reason: 'artifact-byte-budget' }
+      return looped
     }
   }
 

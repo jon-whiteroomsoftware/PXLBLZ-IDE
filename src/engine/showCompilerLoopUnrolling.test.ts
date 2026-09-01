@@ -68,6 +68,16 @@ describe('member loop unrolling in compiled Shows (#931)', () => {
     expect(on.summary.resources.blockers, pattern).toEqual([])
   })
 
+  it('keeps the loop form with a reason when the unrolled artifact alone would cross the byte scale', () => {
+    const off = compileShow(singleZoneRecipe('IridescentFibers'), LIBRARIES, { loopUnrolling: false })
+    const on = compileShow(singleZoneRecipe('IridescentFibers'), LIBRARIES, { loopUnrolling: true })
+    expect(on.summary.artifactBytes).toBeGreaterThan(off.summary.artifactBytes)
+    expect(on.summary.specializations.loopRewrites).toEqual({ selected: true, reason: 'selected' })
+    const gated = compileShow(singleZoneRecipe('IridescentFibers'), LIBRARIES, { loopUnrollingBudgetBytes: off.summary.artifactBytes })
+    expect(gated.summary.specializations.loopRewrites).toEqual({ selected: false, reason: 'artifact-byte-budget' })
+    expect(gated.code).toBe(off.code)
+  })
+
   it('is exact across the stock catalogue in both preview modes', () => {
     let changed = 0
     for (const item of STOCK_SHOWS) {
