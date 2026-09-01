@@ -14,6 +14,9 @@ describe('wave-5 attribution fixtures (#924)', () => {
       'heavy-steady-zippyzaps',
       'heavy-steady-caustics',
       'heavy-steady-kishimisu',
+      'heavy-steady-phantomstar',
+      'effect-tax',
+      'mirror',
       'portable-zones',
       'aperture-shapes',
       'five-pattern-acceptance',
@@ -32,7 +35,7 @@ describe('wave-5 attribution fixtures (#924)', () => {
     }
     // Heavy steady fixtures put the heavy member in the first Scene so the
     // measurement window (settle + sample after activation) sees it alone.
-    for (const member of ['ZippyZaps', 'Caustics', 'Kishimisu']) {
+    for (const member of ['ZippyZaps', 'Caustics', 'Kishimisu', 'PhantomStar']) {
       const fixture = fixtures.find((candidate) => candidate.id === `heavy-steady-${member.toLowerCase()}`)!
       expect(fixture.artifacts.production.summary.resources.blockers, fixture.id).toEqual([])
       expect(fixture.sampleMs).toBeGreaterThanOrEqual(6_000)

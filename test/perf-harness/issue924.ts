@@ -25,7 +25,7 @@ import { LIBRARIES } from '../../src/pixelblaze/libs'
 import { DEMOS } from '../../src/pixelblaze/stock/patterns'
 import { STOCK_SHOWS } from '../../src/pixelblaze/stock/shows'
 import { acceptanceRecipe } from './issue520'
-import { hsvSteadyStateRecipe, WAVE2_MASTER_PIXEL_COUNT } from './issue555'
+import { effectTaxRecipe, hsvSteadyStateRecipe, mirrorRecipe, WAVE2_MASTER_PIXEL_COUNT } from './issue555'
 import {
   buildShowAttributionArtifacts,
   type ShowAttributionArtifacts,
@@ -34,9 +34,10 @@ import {
 export const ISSUE924_PIXEL_COUNTS = [256, 500] as const
 export const ISSUE924_MASTER_PIXEL_COUNT = WAVE2_MASTER_PIXEL_COUNT
 
-/** Heavy stock members. PhantomStar (~0.24 FPS at 256 px) is excluded: a
- *  4-6 s sample window would see at most one FPS packet. */
-export const ISSUE924_HEAVY_MEMBERS = ['ZippyZaps', 'Caustics', 'Kishimisu'] as const
+/** Heavy stock members. PhantomStar (~0.24 FPS at 256 px) needs a long
+ *  sample window: the firmware's FPS report refreshes about once a second
+ *  but the value only changes per frame, so 40 s covers ~10 frames. */
+export const ISSUE924_HEAVY_MEMBERS = ['ZippyZaps', 'Caustics', 'Kishimisu', 'PhantomStar'] as const
 
 export type Issue924FixtureId =
   | 'redline-reference'
@@ -44,6 +45,9 @@ export type Issue924FixtureId =
   | 'heavy-steady-zippyzaps'
   | 'heavy-steady-caustics'
   | 'heavy-steady-kishimisu'
+  | 'heavy-steady-phantomstar'
+  | 'effect-tax'
+  | 'mirror'
   | 'portable-zones'
   | 'aperture-shapes'
   | 'five-pattern-acceptance'
@@ -172,6 +176,26 @@ export function issue924Fixtures(): Issue924Fixture[] {
       'single-zone',
       heavySteadyRecipe('Kishimisu'),
       'Kishimisu alone in one full-Stage zone (shader port with per-octave palette work).',
+      6_000,
+    ),
+    fixture(
+      'heavy-steady-phantomstar',
+      'single-zone',
+      heavySteadyRecipe('PhantomStar'),
+      'PhantomStar alone in one full-Stage zone (~0.24 FPS at 256 px; 40 s window).',
+      40_000,
+    ),
+    fixture(
+      'effect-tax',
+      'single-zone',
+      effectTaxRecipe(),
+      'Wave-2 effect-tax fixture: hsv-steady plus an animated hue-rotate and a posterize Effect per member.',
+    ),
+    fixture(
+      'mirror',
+      'single-zone',
+      mirrorRecipe(),
+      'Wave-2 mirror fixture: heavy HSV member with the horizontal Mirror Effect.',
       6_000,
     ),
     fixture(

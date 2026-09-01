@@ -101,10 +101,37 @@ Reading the table:
   window. The wave-4 audit's per-pixel constants (#928) and the wrapper
   chain (#929) live inside these numbers.
 
+## Added fixtures (separate labelled run, 256 px)
+
+The issue's remaining partitions — the slow member, and the wave-2
+effect-tax and mirror fixtures — were measured in a second, filtered run
+(`issue924-attribution.added-fixtures.json`, `partial: true` by
+construction, 256 px; the 500 px pass of that run failed on a Controller
+request timeout after these rows and is not reported):
+
+| fixture | routing | px | trivial | const | full | floor ms | Show ms | Pattern ms | full ms | Show % |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| heavy-steady-phantomstar | single | 256 | 124.502 | 82.341 | 8.162 | 8.03 | 4.11 | 110.37 | 122.51 | 3.4 |
+| effect-tax (window) | single | 256 | 124.502 | 35.000 | 28.077 | 8.03 | 20.54 | 7.04 | 35.62 | 57.7 |
+| mirror | single | 256 | 124.502 | 47.501 | 6.783 | 8.03 | 13.02 | 126.38 | 147.43 | 8.8 |
+
+- PhantomStar inside a Show runs at 8.2 FPS at 256 px (its quality slider
+  default gives 67 raymarch steps); the standalone 0.24 FPS figure in the
+  optimization guide is from a different configuration. Member-bound like
+  the other heavy members (3.4% Show).
+- The two per-member colour Effects (hue rotate, posterize) cost 16.4 ms
+  at 256 px on top of the 4.1 ms single-zone floor — ~64 µs/pixel of
+  generated Effect arithmetic, the largest machinery share measured in
+  this round. That is the #558/#907 posterize-branch territory and belongs
+  on the wave-5 list as an exact candidate.
+- The Mirror Effect's per-pixel mapping costs 8.9 ms at 256 px (~35
+  µs/pixel) over the same floor.
+
 ## Cost rows (round four of `show-runtime-costs.md`)
 
-Paired-baseline profiler, `beforeRender`, 2,596 iterations, 5 samples,
-256 px (`test/perf-harness/issue924-probe-rows.md`). The unrolled probe
+Paired-baseline profiler, `beforeRender`, 2,593 iterations, 5 samples,
+256 px (`test/perf-harness/issue924-probe-rows.md`; raw per-repetition
+frame times in `issue924-probe-rows.samples.json`). The unrolled probe
 pairs an eight-body `i++` loop against a one-body `i++` loop over the same
 body count (`n8 * 8`, `n8 = floor(n / 8)`), so the two differ only in loop
 machinery; the runner normalizes per `iters`, and `n8 * 8` is within 7 of
@@ -112,13 +139,13 @@ machinery; the runner normalizes per `iters`, and `n8 * 8` is within 7 of
 
 | operation | paired baseline | median net µs | vs mul | reading |
 |---|---|---:|---:|---|
-| loop iteration, `i = i + 1` idiom | identity `i++` loop | +1.720 | 2.1× | the catalogue's dominant increment idiom costs 1.7 µs/iteration more than `i++` |
-| unrolled ×8 body | `i++` loop, `n8 * 8` trips | −2.753 | −3.4× | −7/8 of one iteration's machinery, so an `i++` loop's compare + branch + increment is **3.15 µs/iteration**; with `i = i + 1` it is **4.87 µs/iteration** |
-| single-use local | fused expression | +1.465 | 1.8× | routing a value through a `var` read once costs the write, 1.47 µs — matching the #532 local-write row, now measured as a substitution rather than an added write |
+| loop iteration, `i = i + 1` idiom | identity `i++` loop | +1.708 | 2.1× | the catalogue's dominant increment idiom costs 1.7 µs/iteration more than `i++` |
+| unrolled ×8 body | `i++` loop, `n8 * 8` trips | −2.752 | −3.4× | −7/8 of one iteration's machinery, so an `i++` loop's compare + branch + increment is **3.15 µs/iteration**; with `i = i + 1` it is **4.85 µs/iteration** |
+| single-use local | fused expression | +1.471 | 1.8× | routing a value through a `var` read once costs the write, 1.47 µs — matching the #532 local-write row, now measured as a substitution rather than an added write |
 
 Consequences the children inherit:
 
-- #931 (unrolling): the per-iteration prize is 3.15 µs (`i++`) or 4.87 µs
+- #931 (unrolling): the per-iteration prize is 3.15 µs (`i++`) or 4.85 µs
   (`i = i + 1`); a 10-trip loop is 31–49 µs/pixel. The idiom rewrite
   `i = i + 1` → `i++` alone is a 1.7 µs/iteration exact win and needs no
   bytecode growth — it ships inside #931 as the first step.
@@ -126,9 +153,11 @@ Consequences the children inherit:
 
 ## Method notes
 
-- Sample windows: 4 s (6–8 s for heavy members, which report 3–7 FPS).
-  Every fixture's measurement window sits inside its first Scene's hold,
-  where the member under test is alone.
+- Sample windows: 4 s (6–8 s for heavy members, which report 3–7 FPS;
+  40 s for PhantomStar). The window sits inside the first Scene's hold for
+  every fixture except the two labelled `window` above (aperture-shapes and
+  the acceptance Show), whose rows attribute the choreography over seconds
+  2–6.
 - Constant-member twins are not always smaller than the full artifact (the
   aperture Show's grew 2%): a constant member loses specializations the real
   member qualified for. The ladder attributes that difference to Show
@@ -136,5 +165,6 @@ Consequences the children inherit:
 - Restoration: original active Pattern and 256-px count restored and
   verified in `finally` on a fresh connection whenever the probe socket has
   dropped (#906/#915); the pixel map was never touched.
-- PhantomStar (~0.24 FPS) was excluded: a 4–8 s window sees at most one
-  FPS packet.
+- PhantomStar (~0.24 FPS) is measured in a separate labelled run
+  (`issue924-attribution.added-fixtures.json`, 40 s windows) together with
+  the wave-2 effect-tax and mirror fixtures; see the added-fixtures table.

@@ -1,0 +1,94 @@
+{
+  "generatedAt": "2026-09-01T20:54:51.538Z",
+  "device": "Burner bag",
+  "firmwareVersion": "3.67",
+  "pixelCount": 256,
+  "iterations": 2593,
+  "repetitions": 5,
+  "operations": [
+    {
+      "fn": 0,
+      "name": "identity baseline",
+      "baselineFn": 0,
+      "frameMs": [
+        17.59813,
+        17.78786,
+        17.59425,
+        17.59367,
+        17.64665
+      ]
+    },
+    {
+      "fn": 1,
+      "name": "mul",
+      "baselineFn": 0,
+      "frameMs": [
+        19.68355,
+        19.67769,
+        19.69009,
+        19.68185,
+        19.7704
+      ]
+    },
+    {
+      "fn": 56,
+      "name": "loop iteration, i = i + 1 idiom",
+      "baselineFn": 0,
+      "frameMs": [
+        22.03085,
+        22.01932,
+        22.05112,
+        22.02373,
+        22.02399
+      ]
+    },
+    {
+      "fn": 60,
+      "name": "unrolled-pair baseline (i++ loop, n8 * 8 trips)",
+      "baselineFn": 60,
+      "frameMs": [
+        17.59492,
+        17.59451,
+        17.6609,
+        17.59224,
+        17.59346
+      ]
+    },
+    {
+      "fn": 57,
+      "name": "unrolled x8 body (net = -7/8 iteration machinery)",
+      "baselineFn": 60,
+      "frameMs": [
+        10.46892,
+        10.47226,
+        10.44476,
+        10.45543,
+        10.45027
+      ]
+    },
+    {
+      "fn": 58,
+      "name": "fused expression baseline",
+      "baselineFn": 58,
+      "frameMs": [
+        19.77452,
+        19.6873,
+        19.67317,
+        19.69859,
+        19.68166
+      ]
+    },
+    {
+      "fn": 59,
+      "name": "single-use local",
+      "baselineFn": 58,
+      "frameMs": [
+        23.49341,
+        23.50371,
+        23.48817,
+        23.57608,
+        23.48724
+      ]
+    }
+  ]
+}

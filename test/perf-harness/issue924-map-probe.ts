@@ -35,6 +35,13 @@ async function main() {
   await connection.connect()
   const original = await connection.getConfig()
   if (!original.activeProgramId) throw new Error('no active Pattern; refusing')
+  // A run-only active Pattern is destroyed by the probe push and cannot be
+  // reselected afterwards; refuse unless it is in the saved inventory.
+  const savedPrograms = await connection.listPrograms()
+  if (!savedPrograms.some((program) => program.id === original.activeProgramId)) {
+    connection.close()
+    throw new Error(`Active Pattern ${original.activeProgramId} is not in the saved inventory; refusing a non-restorable probe.`)
+  }
   const results: unknown[] = []
   try {
     const id = makeProgramId()

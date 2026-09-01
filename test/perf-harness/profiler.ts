@@ -203,6 +203,24 @@ async function main(): Promise<void> {
     const outputPath = OUTPUT_OVERRIDE ?? join(HERE, SHOW_RUNTIME_ONLY ? 'show-runtime-costs.md' : 'costs.md')
     writeFileSync(outputPath, report)
     console.log(`Cost table written to ${outputPath}`)
+    // Raw per-repetition frame times beside the table, so every net row can
+    // be recomputed from committed samples.
+    const samplesPath = outputPath.replace(/\.md$/, '') + '.samples.json'
+    writeFileSync(samplesPath, `${JSON.stringify({
+      generatedAt: new Date().toISOString(),
+      device: original.name ?? IP,
+      firmwareVersion: original.firmwareVersion ?? null,
+      pixelCount: original.pixelCount ?? null,
+      iterations,
+      repetitions: REPETITIONS,
+      operations: operations.map((operation) => ({
+        fn: operation.fn,
+        name: operation.name,
+        baselineFn: operation.baselineFn,
+        frameMs: frameMsByFn.get(operation.fn) ?? [],
+      })),
+    }, null, 2)}\n`)
+    console.log(`Raw samples written to ${samplesPath}`)
   } catch (error) {
     runError = error
   } finally {

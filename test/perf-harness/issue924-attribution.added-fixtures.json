@@ -1,0 +1,315 @@
+{
+  "generatedAt": "2026-09-01T20:57:30.766Z",
+  "label": "added-fixtures",
+  "controller": {
+    "ip": "192.168.8.224",
+    "name": "Burner bag",
+    "boardType": "pb32",
+    "firmwareVersion": "3.67",
+    "originalPixelCount": 256,
+    "originalActiveProgramId": "pxbDrxdoMmDWAhzW6",
+    "outputProfile": "native-serial (assumed)",
+    "settleMs": 2000,
+    "activationTimeoutMs": 20000
+  },
+  "fixtures": [
+    {
+      "id": "heavy-steady-phantomstar",
+      "routing": "single-zone",
+      "pixelCount": 256,
+      "masterPixelCount": 2000,
+      "notes": "PhantomStar alone in one full-Stage zone (~0.24 FPS at 256 px; 40 s window).",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "heavy-steady-phantomstar:trivial-output",
+          "sourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "activationMs": 563,
+          "fps": {
+            "mean": 124.52526874999997,
+            "median": 124.502,
+            "min": 124.502,
+            "max": 124.6261,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 8.03049862921898,
+            "median": 8.031999485952033
+          }
+        },
+        "constantMembers": {
+          "id": "heavy-steady-phantomstar:constant-members",
+          "sourceBytes": 4585,
+          "bytecodeBytes": 2734,
+          "vmWords": 6012,
+          "persistentGlobals": 36,
+          "activationMs": 539,
+          "fps": {
+            "mean": 82.34638062499998,
+            "median": 82.34127,
+            "min": 82.34127,
+            "max": 82.42304,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 12.143824566545728,
+            "median": 12.144578289841778
+          }
+        },
+        "full": {
+          "id": "heavy-steady-phantomstar:full",
+          "sourceBytes": 13331,
+          "bytecodeBytes": 6302,
+          "vmWords": 6012,
+          "persistentGlobals": 66,
+          "activationMs": 8499,
+          "fps": {
+            "mean": 34.741969243749985,
+            "median": 8.162412,
+            "min": 0.235405,
+            "max": 68.52036,
+            "samples": 160
+          },
+          "frameMs": {
+            "mean": 28.78363034012236,
+            "median": 122.51280626363874
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 8.030499,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 4.113326,
+          "patternEvaluationMs": 16.639805,
+          "fullFrameMs": 28.78363
+        },
+        "median": {
+          "outputFloorMs": 8.031999,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 4.112579,
+          "patternEvaluationMs": 110.368228,
+          "fullFrameMs": 122.512806
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 4.112579
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 110.368228
+          }
+        ]
+      }
+    },
+    {
+      "id": "effect-tax",
+      "routing": "single-zone",
+      "pixelCount": 256,
+      "masterPixelCount": 2000,
+      "notes": "Wave-2 effect-tax fixture: hsv-steady plus an animated hue-rotate and a posterize Effect per member.",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "effect-tax:trivial-output",
+          "sourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "activationMs": 4157,
+          "fps": {
+            "mean": 124.50199999999997,
+            "median": 124.502,
+            "min": 124.502,
+            "max": 124.502,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 8.031999485952035,
+            "median": 8.031999485952033
+          }
+        },
+        "constantMembers": {
+          "id": "effect-tax:constant-members",
+          "sourceBytes": 8411,
+          "bytecodeBytes": 5162,
+          "vmWords": 6012,
+          "persistentGlobals": 55,
+          "activationMs": 532,
+          "fps": {
+            "mean": 34.98688625,
+            "median": 35,
+            "min": 34.96503,
+            "max": 35,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 28.582137685945117,
+            "median": 28.571428571428573
+          }
+        },
+        "full": {
+          "id": "effect-tax:full",
+          "sourceBytes": 15783,
+          "bytecodeBytes": 9406,
+          "vmWords": 6012,
+          "persistentGlobals": 71,
+          "activationMs": 550,
+          "fps": {
+            "mean": 27.9539575,
+            "median": 28.077365,
+            "min": 27.45098,
+            "max": 28.21012,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 35.773110122242976,
+            "median": 35.61587777200603
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 8.031999,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 20.550139,
+          "patternEvaluationMs": 7.190972,
+          "fullFrameMs": 35.77311
+        },
+        "median": {
+          "outputFloorMs": 8.031999,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 20.53943,
+          "patternEvaluationMs": 7.044449,
+          "fullFrameMs": 35.615878
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 20.53943
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 7.044449
+          }
+        ]
+      }
+    },
+    {
+      "id": "mirror",
+      "routing": "single-zone",
+      "pixelCount": 256,
+      "masterPixelCount": 2000,
+      "notes": "Wave-2 mirror fixture: heavy HSV member with the horizontal Mirror Effect.",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "mirror:trivial-output",
+          "sourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "activationMs": 536,
+          "fps": {
+            "mean": 124.53302499999997,
+            "median": 124.502,
+            "min": 124.502,
+            "max": 124.6261,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 8.029998468277794,
+            "median": 8.031999485952033
+          }
+        },
+        "constantMembers": {
+          "id": "mirror:constant-members",
+          "sourceBytes": 2141,
+          "bytecodeBytes": 1398,
+          "vmWords": 6018,
+          "persistentGlobals": 18,
+          "activationMs": 553,
+          "fps": {
+            "mean": 47.501245000000004,
+            "median": 47.501245,
+            "min": 47.47774,
+            "max": 47.52475,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 21.052079792855952,
+            "median": 21.052079792855956
+          }
+        },
+        "full": {
+          "id": "mirror:full",
+          "sourceBytes": 7909,
+          "bytecodeBytes": 4690,
+          "vmWords": 6018,
+          "persistentGlobals": 30,
+          "activationMs": 552,
+          "fps": {
+            "mean": 6.782129583333332,
+            "median": 6.782946,
+            "min": 6.77638,
+            "max": 6.789525,
+            "samples": 24
+          },
+          "frameMs": {
+            "mean": 147.44631280084042,
+            "median": 147.42856569991858
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 8.029998,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 13.022082,
+          "patternEvaluationMs": 126.394233,
+          "fullFrameMs": 147.446313
+        },
+        "median": {
+          "outputFloorMs": 8.031999,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 13.020081,
+          "patternEvaluationMs": 126.376486,
+          "fullFrameMs": 147.428566
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 13.020081
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 126.376486
+          }
+        ]
+      }
+    }
+  ],
+  "dispatch": [],
+  "filter": {
+    "only": [
+      "heavy-steady-phantomstar",
+      "effect-tax",
+      "mirror"
+    ],
+    "skipDispatch": true
+  },
+  "partial": true
+}

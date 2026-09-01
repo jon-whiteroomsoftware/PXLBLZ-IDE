@@ -114,27 +114,28 @@ conversion without slot dispatch; the production chain's 39.6 us includes it.
 
 ### Round four - 2026-09-01 (#924)
 
-Same paired-baseline method (2,596 iterations, 5 samples, 256 px, native
+Same paired-baseline method (2,593 iterations, 5 samples, 256 px, native
 serial assumed). Targeted run via `PROFILE_ONLY=56,57,59` with the table
-redirected by `PROFILE_OUTPUT` (`issue924-probe-rows.md`), so the committed
-full tables above are untouched. The unrolled probe (fn 57) pairs an
-eight-body `i++` loop against a one-body `i++` loop over the same body
+redirected by `PROFILE_OUTPUT` (`issue924-probe-rows.md`; raw per-repetition
+frame times beside it in `issue924-probe-rows.samples.json`), so the
+committed full tables above are untouched. The unrolled probe (fn 57) pairs
+an eight-body `i++` loop against a one-body `i++` loop over the same body
 count (fn 60, `n8 * 8` trips), so their net is exactly -7/8 of one
 iteration's compare + branch + increment.
 
 | operation | group | paired baseline | mean net us | median net | min-max net | vs mul |
 |---|---|---|---:|---:|---:|---:|
-| `mul` | arithmetic | `identity baseline` | 0.810 | 0.807 | 0.802-0.826 | 1.0x |
-| `loop iteration, i = i + 1 idiom` | loop | `identity baseline` (an `i++` loop) | 1.718 | 1.720 | 1.703-1.741 | 2.1x |
-| `unrolled x8 body` | loop | `unrolled-pair baseline (i++ loop, n8 * 8 trips)` | -2.756 | -2.753 | -2.770--2.751 | -3.4x |
-| `single-use local` | memory | `fused expression baseline` | 1.459 | 1.465 | 1.420-1.474 | 1.8x |
+| `mul` | arithmetic | `identity baseline` | 0.793 | 0.805 | 0.729-0.819 | 1.0x |
+| `loop iteration, i = i + 1 idiom` | loop | `identity baseline` (an `i++` loop) | 1.691 | 1.708 | 1.632-1.719 | 2.1x |
+| `unrolled x8 body` | loop | `unrolled-pair baseline (i++ loop, n8 * 8 trips)` | -2.757 | -2.752 | -2.783--2.747 | -3.4x |
+| `single-use local` | memory | `fused expression baseline` | 1.468 | 1.471 | 1.434-1.495 | 1.8x |
 
 ### Round-four findings
 
 - The unrolled body removes 7/8 of an iteration's compare + branch +
-  increment, so an `i++` loop's machinery is 2.753 x 8/7 = **3.15 us per
-  iteration**; the catalogue's `i = i + 1` idiom adds 1.72 us on top
-  (**4.87 us per iteration**). Unrolling and the `i++` rewrite are both
+  increment, so an `i++` loop's machinery is 2.752 x 8/7 = **3.15 us per
+  iteration**; the catalogue's `i = i + 1` idiom adds 1.71 us on top
+  (**4.85 us per iteration**). Unrolling and the `i++` rewrite are both
   exact (#931).
 - A single-use local costs its write, 1.47 us, measured as a substitution
   against the fused expression rather than as an extra write (#532 row);
