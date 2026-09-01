@@ -91,6 +91,8 @@ export function beforeRender(delta) {
   var i = 0
   var local = x
   var arrayIndex = 0
+  var n8 = floor(n / 8)
+  var n8x8 = n8 * 8
 
   if (f == 0)  for (i = 0; i < n; i++) x = frac(x + 0.123)              // baseline — identity (loop overhead only)
   if (f == 1)  for (i = 0; i < n; i++) x = frac(x * 1.0001 + 0.123)     // multiply — the normalization unit
@@ -165,10 +167,16 @@ export function beforeRender(delta) {
   //      fn 0 is MINUS 7/8 of one iteration's compare+branch+increment machinery.
   //   58/59 pair a fused expression against the same work through a
   //      single-use local (the shape generated code emits thousands of times).
+  //   57/60 pair an eight-body loop against a one-body loop with the SAME
+  //      `i++` update over the same body count (n8 * 8, n8 = floor(n / 8)),
+  //      so their net is exactly -7/8 of one iteration's compare + branch +
+  //      increment; the runner normalizes per `iters`, and n8 * 8 differs
+  //      from n by at most 7 (< 0.3% at the auto-tuned count).
   if (f == 56) for (i = 0; i < n; i = i + 1) x = frac(x + 0.123) // loop, i = i + 1 idiom
-  if (f == 57) for (i = 0; i < n; i += 8) { x = frac(x + 0.123); x = frac(x + 0.123); x = frac(x + 0.123); x = frac(x + 0.123); x = frac(x + 0.123); x = frac(x + 0.123); x = frac(x + 0.123); x = frac(x + 0.123) } // unrolled x8 body
+  if (f == 57) for (i = 0; i < n8; i++) { x = frac(x + 0.123); x = frac(x + 0.123); x = frac(x + 0.123); x = frac(x + 0.123); x = frac(x + 0.123); x = frac(x + 0.123); x = frac(x + 0.123); x = frac(x + 0.123) } // unrolled x8 body, n8 trips
   if (f == 58) for (i = 0; i < n; i++) x = frac(x * 1.0001 + 0.123) // fused expression baseline
   if (f == 59) for (i = 0; i < n; i++) { local = x * 1.0001; x = frac(local + 0.123) } // single-use local
+  if (f == 60) for (i = 0; i < n8x8; i++) x = frac(x + 0.123) // unrolled-pair baseline: identity loop over n8 * 8 trips
 
   acc = frac(x + local * 0.0001) // carry across frames so nothing is dead code
 }

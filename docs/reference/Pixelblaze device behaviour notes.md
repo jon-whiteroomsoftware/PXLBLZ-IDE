@@ -44,6 +44,31 @@ information. The blob header is three little-endian `uint32`s —
 `[formatVersion, numDimensions, bodyBytes]` — and
 `numPixels = bodyBytes / numDimensions / formatVersion`.
 
+## Beyond the installed map, render2D still runs with x = index / pixelCount and y = 0.5
+
+Raising `pixelCount` above the installed map's point count does not stop the
+firmware from calling `render2D`, and it does not drop the map for the
+pixels the map covers. Measured on the bench pb32 (firmware 3.67, 256-point
+16x16 map) with a run-only probe that exported the coordinates seen at fixed
+indices and counted renderer calls (#924, 2026-09-01):
+
+| pixelCount | render2D calls | pixel 10 | pixel 300 | pixel 1,500 |
+| ---: | ---: | --- | --- | --- |
+| 256 | 256 | map (0.999985, 0.333328) | not rendered | not rendered |
+| 500 | 500 | map (0.999985, 0.333328) | (0.599991, 0.5) | not rendered |
+| 2,000 | 2,000 | map (0.999985, 0.333328) | (0.149994, 0.5) | (0.75, 0.5) |
+
+Pixels inside the map keep their map coordinates; pixels beyond it receive
+`x = index / pixelCount` and `y = 0.5`, and `render` (1D) is never called
+when `render2D` is exported.
+
+Consequence for the hardware ladders: every measurement above 256 px on the
+bench panel (#531, #555, wave 2-5 ladders) feeds coordinate-routed Shows a
+half-map — pixels 256 and up sit on the horizontal centre line and route by
+`x` alone. Index-routed and single-zone fixtures are unaffected; for
+coordinate-routed fixtures the rows above 256 px measure a different zone
+mix than a matching map would, and are labelled as such.
+
 ## Reducing pixel count leaves the tail lit
 
 Reducing the Controller's pixel count leaves every LED beyond the new count

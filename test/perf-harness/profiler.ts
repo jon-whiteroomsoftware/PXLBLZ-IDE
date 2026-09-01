@@ -37,9 +37,7 @@ const SHOW_RUNTIME_ONLY = process.env.PROFILE_SHOW_RUNTIME === '1'
 // PROFILE_ONLY=56,57 limits the run to those probes plus their baselines and
 // the multiply unit; PROFILE_OUTPUT redirects the table so a targeted round
 // never overwrites the committed full tables.
-const ONLY_FNS = process.env.PROFILE_ONLY
-  ? new Set(process.env.PROFILE_ONLY.split(',').map((value) => Number(value.trim())))
-  : null
+const ONLY_FNS = process.env.PROFILE_ONLY ? parseProfileOnly(process.env.PROFILE_ONLY) : null
 const OUTPUT_OVERRIDE = process.env.PROFILE_OUTPUT
 const STABILIZE_INTERVAL_MS = readPositiveInteger('PROFILE_STABILIZE_INTERVAL_MS', 250)
 const MAX_STABILIZE_MS = readPositiveInteger('PROFILE_MAX_STABILIZE_MS', 6_000)
@@ -223,6 +221,23 @@ async function main(): Promise<void> {
     }
   }
   if (runError != null) throw runError
+}
+
+/** Every requested id must name a known non-baseline probe; a typo must fail
+ *  the run rather than silently produce a table of just the multiply unit. */
+function parseProfileOnly(value: string): Set<number> {
+  const known = new Map(PROFILE_OPS.map((operation) => [operation.fn, operation]))
+  const ids = value.split(',').map((entry) => entry.trim()).filter(Boolean)
+  if (ids.length === 0) throw new Error('PROFILE_ONLY must list at least one probe id.')
+  const selected = new Set<number>()
+  for (const id of ids) {
+    const fn = Number(id)
+    const operation = Number.isInteger(fn) ? known.get(fn) : undefined
+    if (!operation) throw new Error(`PROFILE_ONLY names unknown probe "${id}"; known ids are 0-${Math.max(...known.keys())}.`)
+    if (operation.baseline) throw new Error(`PROFILE_ONLY probe ${fn} is a baseline; name the operation that uses it instead.`)
+    selected.add(fn)
+  }
+  return selected
 }
 
 function readPositiveInteger(name: string, fallback: number): number {

@@ -131,17 +131,29 @@ describe('wave-5 Controller attribution at 256/500 px (#924)', () => {
     } catch (error) {
       runError = error
     } finally {
+      // #906/#915: a dropped socket's delayed close handler can clear a
+      // reconnected socket's pending requests, so restoration never reuses
+      // the probe connection object once it has failed.
+      let restore = connection
       try {
         try {
           await connection.getConfig()
         } catch {
+          connection.close()
           await sleep(2_000)
-          await connection.connect()
+          restore = new PixelblazeConnection({
+            host: ip,
+            webSocketFactory: nodeWebSocketFactory,
+            requestTimeoutMs: 15_000,
+            pingIntervalMs: 0,
+          })
+          restore.on('error', (error) => console.error('restore socket:', error))
+          await restore.connect()
         }
-        connection.setActiveProgram(original.activeProgramId)
-        if (original.pixelCount != null) connection.setPixelCount(original.pixelCount, false)
+        restore.setActiveProgram(original.activeProgramId)
+        if (original.pixelCount != null) restore.setPixelCount(original.pixelCount, false)
         const restored = await waitForControllerConfig(
-          () => connection.getConfig(),
+          () => restore.getConfig(),
           { activeProgramId: original.activeProgramId, pixelCount: original.pixelCount },
         )
         if (restored.activeProgramId !== original.activeProgramId || restored.pixelCount !== original.pixelCount) {
@@ -151,7 +163,8 @@ describe('wave-5 Controller attribution at 256/500 px (#924)', () => {
           runError = runError == null ? restoreError : new AggregateError([runError, restoreError], 'Probe and restoration both failed.')
         }
       } finally {
-        connection.close()
+        restore.close()
+        if (restore !== connection) connection.close()
       }
     }
     const report = {
