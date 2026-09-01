@@ -54,7 +54,16 @@ though connect and push both succeeded. Slow patterns also need a longer
 `--sample` window — PhantomStar runs near 0.24 FPS.
 
 devbench complements the emulator: `npm run bench` gives op count and checksum,
-`npm run profile` gives per-built-in cost.
+`npm run profile` gives per-built-in cost. A targeted profiler round runs
+only the named probes plus their baselines and the multiply unit, and writes
+its table elsewhere so the committed full tables stay put:
+
+```bash
+PROFILE_ONLY=56,57 PROFILE_OUTPUT=$PWD/test/perf-harness/issueNNN-probe-rows.md npx tsx test/perf-harness/profiler.ts
+```
+
+Append the rows to `show-runtime-costs.md` as a dated round (#924 is the
+model).
 
 ## Static pricing without hardware: the bytecode oracle (#906)
 

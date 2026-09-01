@@ -63,6 +63,10 @@ export const PROFILE_OPS: ProfileOp[] = [
   { fn: 53, name: 'bit operation baseline', group: 'baseline', baselineFn: 53, baseline: true },
   { fn: 54, name: 'bit shift', group: 'fixed-point', baselineFn: 53 },
   { fn: 55, name: 'bit mask', group: 'fixed-point', baselineFn: 53 },
+  { fn: 56, name: 'loop iteration, i = i + 1 idiom', group: 'loop', baselineFn: 0 },
+  { fn: 57, name: 'unrolled x8 body (net = -7/8 iteration machinery)', group: 'loop', baselineFn: 0 },
+  { fn: 58, name: 'fused expression baseline', group: 'baseline', baselineFn: 58, baseline: true },
+  { fn: 59, name: 'single-use local', group: 'memory', baselineFn: 58 },
 ]
 
 export interface ProfileStats {

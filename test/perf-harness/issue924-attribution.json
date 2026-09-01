@@ -1,0 +1,1808 @@
+{
+  "generatedAt": "2026-09-01T20:19:10.668Z",
+  "label": "baseline",
+  "controller": {
+    "ip": "192.168.8.224",
+    "name": "Burner bag",
+    "boardType": "pb32",
+    "firmwareVersion": "3.67",
+    "originalPixelCount": 256,
+    "originalActiveProgramId": "pxbDrxdoMmDWAhzW6",
+    "outputProfile": "native-serial (assumed)",
+    "settleMs": 2000,
+    "activationTimeoutMs": 20000
+  },
+  "fixtures": [
+    {
+      "id": "redline-reference",
+      "routing": "index",
+      "pixelCount": 256,
+      "masterPixelCount": 2000,
+      "notes": "Stock Redline Installation: five index-routed zones; at 256/500 px only zone 0 renders.",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "redline-reference:trivial-output",
+          "sourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "activationMs": 605,
+          "fps": {
+            "mean": 124.50199999999997,
+            "median": 124.502,
+            "min": 124.502,
+            "max": 124.502,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 8.031999485952035,
+            "median": 8.031999485952033
+          }
+        },
+        "constantMembers": {
+          "id": "redline-reference:constant-members",
+          "sourceBytes": 11792,
+          "bytecodeBytes": 6214,
+          "vmWords": 6096,
+          "persistentGlobals": 34,
+          "activationMs": 567,
+          "fps": {
+            "mean": 34.82370625000001,
+            "median": 34.82587,
+            "min": 34.79125,
+            "max": 34.82587,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 28.716070392421248,
+            "median": 28.71428624755103
+          }
+        },
+        "full": {
+          "id": "redline-reference:full",
+          "sourceBytes": 17927,
+          "bytecodeBytes": 10914,
+          "vmWords": 6096,
+          "persistentGlobals": 56,
+          "activationMs": 559,
+          "fps": {
+            "mean": 17.105956874999997,
+            "median": 17.377025,
+            "min": 15.82591,
+            "max": 17.83945,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 58.45916760502766,
+            "median": 57.54724988886188
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 8.031999,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 20.684071,
+          "patternEvaluationMs": 29.743098,
+          "fullFrameMs": 58.459168
+        },
+        "median": {
+          "outputFloorMs": 8.031999,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 20.682287,
+          "patternEvaluationMs": 28.832964,
+          "fullFrameMs": 57.54725
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 20.682287
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 28.832964
+          }
+        ]
+      }
+    },
+    {
+      "id": "hsv-steady-light",
+      "routing": "single-zone",
+      "pixelCount": 256,
+      "masterPixelCount": 2000,
+      "notes": "Wave-2 hsv-steady fixture (EasedSweep first): the light-member control.",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "hsv-steady-light:trivial-output",
+          "sourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "activationMs": 542,
+          "fps": {
+            "mean": 124.53302499999997,
+            "median": 124.502,
+            "min": 124.502,
+            "max": 124.6261,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 8.029998468277794,
+            "median": 8.031999485952033
+          }
+        },
+        "constantMembers": {
+          "id": "hsv-steady-light:constant-members",
+          "sourceBytes": 4585,
+          "bytecodeBytes": 2734,
+          "vmWords": 6012,
+          "persistentGlobals": 36,
+          "activationMs": 532,
+          "fps": {
+            "mean": 82.38215499999998,
+            "median": 82.382155,
+            "min": 82.34127,
+            "max": 82.42304,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 12.138551121902555,
+            "median": 12.138551121902553
+          }
+        },
+        "full": {
+          "id": "hsv-steady-light:full",
+          "sourceBytes": 12012,
+          "bytecodeBytes": 7042,
+          "vmWords": 6012,
+          "persistentGlobals": 52,
+          "activationMs": 548,
+          "fps": {
+            "mean": 70.7700125,
+            "median": 70.78764,
+            "min": 70.71713,
+            "max": 70.78764,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 14.13027869678559,
+            "median": 14.126759982392407
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 8.029998,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 4.108553,
+          "patternEvaluationMs": 1.991728,
+          "fullFrameMs": 14.130279
+        },
+        "median": {
+          "outputFloorMs": 8.031999,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 4.106552,
+          "patternEvaluationMs": 1.988209,
+          "fullFrameMs": 14.12676
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 4.106552
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 1.988209
+          }
+        ]
+      }
+    },
+    {
+      "id": "heavy-steady-zippyzaps",
+      "routing": "single-zone",
+      "pixelCount": 256,
+      "masterPixelCount": 2000,
+      "notes": "ZippyZaps alone in one full-Stage zone (~1 FPS at 256 px).",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "heavy-steady-zippyzaps:trivial-output",
+          "sourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "activationMs": 539,
+          "fps": {
+            "mean": 124.50199999999997,
+            "median": 124.502,
+            "min": 124.502,
+            "max": 124.502,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 8.031999485952035,
+            "median": 8.031999485952033
+          }
+        },
+        "constantMembers": {
+          "id": "heavy-steady-zippyzaps:constant-members",
+          "sourceBytes": 4492,
+          "bytecodeBytes": 2674,
+          "vmWords": 6012,
+          "persistentGlobals": 36,
+          "activationMs": 541,
+          "fps": {
+            "mean": 82.36171249999998,
+            "median": 82.34127,
+            "min": 82.34127,
+            "max": 82.42304,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 12.14156395788881,
+            "median": 12.144578289841778
+          }
+        },
+        "full": {
+          "id": "heavy-steady-zippyzaps:full",
+          "sourceBytes": 12149,
+          "bytecodeBytes": 5922,
+          "vmWords": 6196,
+          "persistentGlobals": 53,
+          "activationMs": 563,
+          "fps": {
+            "mean": 6.901865281250004,
+            "median": 6.903353,
+            "min": 6.896552,
+            "max": 6.903353,
+            "samples": 32
+          },
+          "frameMs": {
+            "mean": 144.88836846999266,
+            "median": 144.85714405738776
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 8.031999,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 4.109565,
+          "patternEvaluationMs": 132.746804,
+          "fullFrameMs": 144.888368
+        },
+        "median": {
+          "outputFloorMs": 8.031999,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 4.112579,
+          "patternEvaluationMs": 132.712566,
+          "fullFrameMs": 144.857144
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 4.112579
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 132.712566
+          }
+        ]
+      }
+    },
+    {
+      "id": "heavy-steady-caustics",
+      "routing": "single-zone",
+      "pixelCount": 256,
+      "masterPixelCount": 2000,
+      "notes": "Caustics alone in one full-Stage zone (voronoi-bound).",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "heavy-steady-caustics:trivial-output",
+          "sourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "activationMs": 561,
+          "fps": {
+            "mean": 124.50199999999997,
+            "median": 124.502,
+            "min": 124.502,
+            "max": 124.502,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 8.031999485952035,
+            "median": 8.031999485952033
+          }
+        },
+        "constantMembers": {
+          "id": "heavy-steady-caustics:constant-members",
+          "sourceBytes": 4585,
+          "bytecodeBytes": 2734,
+          "vmWords": 6012,
+          "persistentGlobals": 36,
+          "activationMs": 538,
+          "fps": {
+            "mean": 82.36171249999998,
+            "median": 82.34127,
+            "min": 82.34127,
+            "max": 82.42304,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 12.14156395788881,
+            "median": 12.144578289841778
+          }
+        },
+        "full": {
+          "id": "heavy-steady-caustics:full",
+          "sourceBytes": 12012,
+          "bytecodeBytes": 7042,
+          "vmWords": 6012,
+          "persistentGlobals": 52,
+          "activationMs": 534,
+          "fps": {
+            "mean": 7.5483578333333305,
+            "median": 7.54717,
+            "min": 7.54717,
+            "max": 7.554297,
+            "samples": 24
+          },
+          "frameMs": {
+            "mean": 132.47914607121947,
+            "median": 132.49999668750007
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 8.031999,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 4.109565,
+          "patternEvaluationMs": 120.337582,
+          "fullFrameMs": 132.479146
+        },
+        "median": {
+          "outputFloorMs": 8.031999,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 4.112579,
+          "patternEvaluationMs": 120.355419,
+          "fullFrameMs": 132.499997
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 4.112579
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 120.355419
+          }
+        ]
+      }
+    },
+    {
+      "id": "heavy-steady-kishimisu",
+      "routing": "single-zone",
+      "pixelCount": 256,
+      "masterPixelCount": 2000,
+      "notes": "Kishimisu alone in one full-Stage zone (shader port with per-octave palette work).",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "heavy-steady-kishimisu:trivial-output",
+          "sourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "activationMs": 536,
+          "fps": {
+            "mean": 124.53302499999997,
+            "median": 124.502,
+            "min": 124.502,
+            "max": 124.6261,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 8.029998468277794,
+            "median": 8.031999485952033
+          }
+        },
+        "constantMembers": {
+          "id": "heavy-steady-kishimisu:constant-members",
+          "sourceBytes": 4709,
+          "bytecodeBytes": 2814,
+          "vmWords": 6012,
+          "persistentGlobals": 36,
+          "activationMs": 542,
+          "fps": {
+            "mean": 82.37193374999998,
+            "median": 82.34127,
+            "min": 82.34127,
+            "max": 82.42304,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 12.140057352969453,
+            "median": 12.144578289841778
+          }
+        },
+        "full": {
+          "id": "heavy-steady-kishimisu:full",
+          "sourceBytes": 15857,
+          "bytecodeBytes": 5630,
+          "vmWords": 8016,
+          "persistentGlobals": 69,
+          "activationMs": 596,
+          "fps": {
+            "mean": 11.204479999999997,
+            "median": 11.20448,
+            "min": 11.20448,
+            "max": 11.20448,
+            "samples": 24
+          },
+          "frameMs": {
+            "mean": 89.25001428000232,
+            "median": 89.25001428000229
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 8.029998,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 4.110059,
+          "patternEvaluationMs": 77.109957,
+          "fullFrameMs": 89.250014
+        },
+        "median": {
+          "outputFloorMs": 8.031999,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 4.112579,
+          "patternEvaluationMs": 77.105436,
+          "fullFrameMs": 89.250014
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 4.112579
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 77.105436
+          }
+        ]
+      }
+    },
+    {
+      "id": "portable-zones",
+      "routing": "coordinate",
+      "pixelCount": 256,
+      "masterPixelCount": 2000,
+      "notes": "Stock Portable zones Show: coordinate-predicate routing with per-pixel square-fill index synthesis.",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "portable-zones:trivial-output",
+          "sourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "activationMs": 537,
+          "fps": {
+            "mean": 124.53302499999997,
+            "median": 124.502,
+            "min": 124.502,
+            "max": 124.6261,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 8.029998468277794,
+            "median": 8.031999485952033
+          }
+        },
+        "constantMembers": {
+          "id": "portable-zones:constant-members",
+          "sourceBytes": 9423,
+          "bytecodeBytes": 5022,
+          "vmWords": 6012,
+          "persistentGlobals": 25,
+          "activationMs": 541,
+          "fps": {
+            "mean": 42.28122,
+            "median": 42.28122,
+            "min": 42.28122,
+            "max": 42.28122,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 23.651162383677672,
+            "median": 23.651162383677672
+          }
+        },
+        "full": {
+          "id": "portable-zones:full",
+          "sourceBytes": 18469,
+          "bytecodeBytes": 10466,
+          "vmWords": 6012,
+          "persistentGlobals": 49,
+          "activationMs": 684,
+          "fps": {
+            "mean": 8.77193,
+            "median": 8.77193,
+            "min": 8.77193,
+            "max": 8.77193,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 113.99999772000005,
+            "median": 113.99999772000005
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 8.029998,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 15.621164,
+          "patternEvaluationMs": 90.348836,
+          "fullFrameMs": 113.999998
+        },
+        "median": {
+          "outputFloorMs": 8.031999,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 15.619163,
+          "patternEvaluationMs": 90.348836,
+          "fullFrameMs": 113.999998
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 15.619163
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 90.348836
+          }
+        ]
+      }
+    },
+    {
+      "id": "aperture-shapes",
+      "routing": "coordinate",
+      "pixelCount": 256,
+      "masterPixelCount": 2000,
+      "notes": "Stock aperture-shapes reference: the densest per-pixel ceil(sqrt(...)) census hit (10 sites).",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "aperture-shapes:trivial-output",
+          "sourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "activationMs": 541,
+          "fps": {
+            "mean": 124.50975624999997,
+            "median": 124.502,
+            "min": 124.502,
+            "max": 124.6261,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 8.031499138044456,
+            "median": 8.031999485952033
+          }
+        },
+        "constantMembers": {
+          "id": "aperture-shapes:constant-members",
+          "sourceBytes": 22860,
+          "bytecodeBytes": 12186,
+          "vmWords": 6068,
+          "persistentGlobals": 30,
+          "activationMs": 549,
+          "fps": {
+            "mean": 38.93346062500001,
+            "median": 38.12317,
+            "min": 37.92415,
+            "max": 40.11742,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 25.684847530812057,
+            "median": 26.23076727355044
+          }
+        },
+        "full": {
+          "id": "aperture-shapes:full",
+          "sourceBytes": 22474,
+          "bytecodeBytes": 13074,
+          "vmWords": 6068,
+          "persistentGlobals": 54,
+          "activationMs": 602,
+          "fps": {
+            "mean": 10.661288124999997,
+            "median": 10.68999,
+            "min": 10.5871,
+            "max": 10.74219,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 93.79729618741547,
+            "median": 93.54545701165296
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 8.031499,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 17.653349,
+          "patternEvaluationMs": 68.112448,
+          "fullFrameMs": 93.797296
+        },
+        "median": {
+          "outputFloorMs": 8.031999,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 18.198768,
+          "patternEvaluationMs": 67.31469,
+          "fullFrameMs": 93.545457
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 18.198768
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 67.31469
+          }
+        ]
+      }
+    },
+    {
+      "id": "five-pattern-acceptance",
+      "routing": "index",
+      "pixelCount": 256,
+      "masterPixelCount": 2000,
+      "notes": "Unchanged five-Pattern acceptance Show for whole-Show continuity with #531/#555.",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "five-pattern-acceptance:trivial-output",
+          "sourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "activationMs": 543,
+          "fps": {
+            "mean": 124.50199999999997,
+            "median": 124.502,
+            "min": 124.502,
+            "max": 124.502,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 8.031999485952035,
+            "median": 8.031999485952033
+          }
+        },
+        "constantMembers": {
+          "id": "five-pattern-acceptance:constant-members",
+          "sourceBytes": 34107,
+          "bytecodeBytes": 18526,
+          "vmWords": 6012,
+          "persistentGlobals": 105,
+          "activationMs": 587,
+          "fps": {
+            "mean": 30.329413750000008,
+            "median": 30.8765,
+            "min": 22,
+            "max": 30.90728,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 32.97129341974174,
+            "median": 32.387090505724416
+          }
+        },
+        "full": {
+          "id": "five-pattern-acceptance:full",
+          "sourceBytes": 42153,
+          "bytecodeBytes": 24434,
+          "vmWords": 6012,
+          "persistentGlobals": 139,
+          "activationMs": 589,
+          "fps": {
+            "mean": 26.734361250000006,
+            "median": 27.69535,
+            "min": 19.98002,
+            "max": 27.72277,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 37.4050455385389,
+            "median": 36.10714434011486
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 8.031999,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 24.939294,
+          "patternEvaluationMs": 4.433753,
+          "fullFrameMs": 37.405046
+        },
+        "median": {
+          "outputFloorMs": 8.031999,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 24.355092,
+          "patternEvaluationMs": 3.720053,
+          "fullFrameMs": 36.107144
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 24.355092
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 3.720053
+          }
+        ]
+      }
+    },
+    {
+      "id": "redline-reference",
+      "routing": "index",
+      "pixelCount": 500,
+      "masterPixelCount": 2000,
+      "notes": "Stock Redline Installation: five index-routed zones; at 256/500 px only zone 0 renders.",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "redline-reference:trivial-output",
+          "sourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "activationMs": 555,
+          "fps": {
+            "mean": 65.14899374999999,
+            "median": 65.15301,
+            "min": 65.08875,
+            "max": 65.15301,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 15.349431241215452,
+            "median": 15.348485050805788
+          }
+        },
+        "constantMembers": {
+          "id": "redline-reference:constant-members",
+          "sourceBytes": 11792,
+          "bytecodeBytes": 6214,
+          "vmWords": 6096,
+          "persistentGlobals": 34,
+          "activationMs": 555,
+          "fps": {
+            "mean": 17.8970925,
+            "median": 17.89264,
+            "min": 17.89264,
+            "max": 17.91045,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 55.87499757292979,
+            "median": 55.88890180543508
+          }
+        },
+        "full": {
+          "id": "redline-reference:full",
+          "sourceBytes": 17927,
+          "bytecodeBytes": 10914,
+          "vmWords": 6096,
+          "persistentGlobals": 56,
+          "activationMs": 644,
+          "fps": {
+            "mean": 8.7514416875,
+            "median": 8.928572,
+            "min": 7.827789,
+            "max": 9.157509,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 114.26688718366668,
+            "median": 111.99999283200044
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 15.349431,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 40.525567,
+          "patternEvaluationMs": 58.391889,
+          "fullFrameMs": 114.266887
+        },
+        "median": {
+          "outputFloorMs": 15.348485,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 40.540417,
+          "patternEvaluationMs": 56.111091,
+          "fullFrameMs": 111.999993
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 40.540417
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 56.111091
+          }
+        ]
+      }
+    },
+    {
+      "id": "hsv-steady-light",
+      "routing": "single-zone",
+      "pixelCount": 500,
+      "masterPixelCount": 2000,
+      "notes": "Wave-2 hsv-steady fixture (EasedSweep first): the light-member control.",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "hsv-steady-light:trivial-output",
+          "sourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "activationMs": 534,
+          "fps": {
+            "mean": 65.15301,
+            "median": 65.15301,
+            "min": 65.15301,
+            "max": 65.15301,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 15.348485050805788,
+            "median": 15.348485050805788
+          }
+        },
+        "constantMembers": {
+          "id": "hsv-steady-light:constant-members",
+          "sourceBytes": 4585,
+          "bytecodeBytes": 2734,
+          "vmWords": 6012,
+          "persistentGlobals": 36,
+          "activationMs": 580,
+          "fps": {
+            "mean": 42.469145,
+            "median": 42.469145,
+            "min": 42.44817,
+            "max": 42.49012,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 23.546506528445533,
+            "median": 23.546506528445533
+          }
+        },
+        "full": {
+          "id": "hsv-steady-light:full",
+          "sourceBytes": 12012,
+          "bytecodeBytes": 7042,
+          "vmWords": 6012,
+          "persistentGlobals": 52,
+          "activationMs": 562,
+          "fps": {
+            "mean": 36.50490875,
+            "median": 36.48915,
+            "min": 36.48915,
+            "max": 36.52517,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 27.393576213226392,
+            "median": 27.405406812710076
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 15.348485,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 8.198022,
+          "patternEvaluationMs": 3.847069,
+          "fullFrameMs": 27.393576
+        },
+        "median": {
+          "outputFloorMs": 15.348485,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 8.198022,
+          "patternEvaluationMs": 3.8589,
+          "fullFrameMs": 27.405407
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 8.198022
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 3.8589
+          }
+        ]
+      }
+    },
+    {
+      "id": "heavy-steady-zippyzaps",
+      "routing": "single-zone",
+      "pixelCount": 500,
+      "masterPixelCount": 2000,
+      "notes": "ZippyZaps alone in one full-Stage zone (~1 FPS at 256 px).",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "heavy-steady-zippyzaps:trivial-output",
+          "sourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "activationMs": 542,
+          "fps": {
+            "mean": 65.15301,
+            "median": 65.15301,
+            "min": 65.15301,
+            "max": 65.15301,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 15.348485050805788,
+            "median": 15.348485050805788
+          }
+        },
+        "constantMembers": {
+          "id": "heavy-steady-zippyzaps:constant-members",
+          "sourceBytes": 4492,
+          "bytecodeBytes": 2674,
+          "vmWords": 6012,
+          "persistentGlobals": 36,
+          "activationMs": 540,
+          "fps": {
+            "mean": 42.471766875,
+            "median": 42.49012,
+            "min": 42.44817,
+            "max": 42.49012,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 23.545052951131787,
+            "median": 23.53488293278532
+          }
+        },
+        "full": {
+          "id": "heavy-steady-zippyzaps:full",
+          "sourceBytes": 12149,
+          "bytecodeBytes": 5922,
+          "vmWords": 6196,
+          "persistentGlobals": 53,
+          "activationMs": 702,
+          "fps": {
+            "mean": 3.539236124999999,
+            "median": 3.539823,
+            "min": 3.536693,
+            "max": 3.539823,
+            "samples": 32
+          },
+          "frameMs": {
+            "mean": 282.54684476583213,
+            "median": 282.50000070625
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 15.348485,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 8.196568,
+          "patternEvaluationMs": 259.001792,
+          "fullFrameMs": 282.546845
+        },
+        "median": {
+          "outputFloorMs": 15.348485,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 8.186398,
+          "patternEvaluationMs": 258.965118,
+          "fullFrameMs": 282.500001
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 8.186398
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 258.965118
+          }
+        ]
+      }
+    },
+    {
+      "id": "heavy-steady-caustics",
+      "routing": "single-zone",
+      "pixelCount": 500,
+      "masterPixelCount": 2000,
+      "notes": "Caustics alone in one full-Stage zone (voronoi-bound).",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "heavy-steady-caustics:trivial-output",
+          "sourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "activationMs": 555,
+          "fps": {
+            "mean": 65.14096125,
+            "median": 65.15301,
+            "min": 65.08875,
+            "max": 65.15301,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 15.351323972057596,
+            "median": 15.348485050805788
+          }
+        },
+        "constantMembers": {
+          "id": "heavy-steady-caustics:constant-members",
+          "sourceBytes": 4585,
+          "bytecodeBytes": 2734,
+          "vmWords": 6012,
+          "persistentGlobals": 36,
+          "activationMs": 553,
+          "fps": {
+            "mean": 42.477010625000005,
+            "median": 42.49012,
+            "min": 42.44817,
+            "max": 42.49012,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 23.542146334832854,
+            "median": 23.53488293278532
+          }
+        },
+        "full": {
+          "id": "heavy-steady-caustics:full",
+          "sourceBytes": 12012,
+          "bytecodeBytes": 7042,
+          "vmWords": 6012,
+          "persistentGlobals": 52,
+          "activationMs": 692,
+          "fps": {
+            "mean": 3.8678489999999983,
+            "median": 3.868472,
+            "min": 3.864734,
+            "max": 3.868472,
+            "samples": 24
+          },
+          "frameMs": {
+            "mean": 258.54163386419697,
+            "median": 258.499996898
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 15.351324,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 8.190822,
+          "patternEvaluationMs": 234.999488,
+          "fullFrameMs": 258.541634
+        },
+        "median": {
+          "outputFloorMs": 15.348485,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 8.186398,
+          "patternEvaluationMs": 234.965114,
+          "fullFrameMs": 258.499997
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 8.186398
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 234.965114
+          }
+        ]
+      }
+    },
+    {
+      "id": "heavy-steady-kishimisu",
+      "routing": "single-zone",
+      "pixelCount": 500,
+      "masterPixelCount": 2000,
+      "notes": "Kishimisu alone in one full-Stage zone (shader port with per-octave palette work).",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "heavy-steady-kishimisu:trivial-output",
+          "sourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "activationMs": 550,
+          "fps": {
+            "mean": 65.15301,
+            "median": 65.15301,
+            "min": 65.15301,
+            "max": 65.15301,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 15.348485050805788,
+            "median": 15.348485050805788
+          }
+        },
+        "constantMembers": {
+          "id": "heavy-steady-kishimisu:constant-members",
+          "sourceBytes": 4709,
+          "bytecodeBytes": 2814,
+          "vmWords": 6012,
+          "persistentGlobals": 36,
+          "activationMs": 544,
+          "fps": {
+            "mean": 42.471766875,
+            "median": 42.49012,
+            "min": 42.44817,
+            "max": 42.49012,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 23.545052951131787,
+            "median": 23.53488293278532
+          }
+        },
+        "full": {
+          "id": "heavy-steady-kishimisu:full",
+          "sourceBytes": 15857,
+          "bytecodeBytes": 5630,
+          "vmWords": 8016,
+          "persistentGlobals": 69,
+          "activationMs": 664,
+          "fps": {
+            "mean": 5.743460833333331,
+            "median": 5.741627,
+            "min": 5.736138,
+            "max": 5.747126,
+            "samples": 24
+          },
+          "frameMs": {
+            "mean": 174.11105063976387,
+            "median": 174.16666042569466
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 15.348485,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 8.196568,
+          "patternEvaluationMs": 150.565998,
+          "fullFrameMs": 174.111051
+        },
+        "median": {
+          "outputFloorMs": 15.348485,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 8.186398,
+          "patternEvaluationMs": 150.631777,
+          "fullFrameMs": 174.16666
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 8.186398
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 150.631777
+          }
+        ]
+      }
+    },
+    {
+      "id": "portable-zones",
+      "routing": "coordinate",
+      "pixelCount": 500,
+      "masterPixelCount": 2000,
+      "notes": "Stock Portable zones Show: coordinate-predicate routing with per-pixel square-fill index synthesis.",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "portable-zones:trivial-output",
+          "sourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "activationMs": 545,
+          "fps": {
+            "mean": 65.15301,
+            "median": 65.15301,
+            "min": 65.15301,
+            "max": 65.15301,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 15.348485050805788,
+            "median": 15.348485050805788
+          }
+        },
+        "constantMembers": {
+          "id": "portable-zones:constant-members",
+          "sourceBytes": 9423,
+          "bytecodeBytes": 5022,
+          "vmWords": 6012,
+          "persistentGlobals": 25,
+          "activationMs": 543,
+          "fps": {
+            "mean": 21.764670624999997,
+            "median": 21.76063,
+            "min": 21.76063,
+            "max": 21.78218,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 45.9460203753945,
+            "median": 45.954551867294285
+          }
+        },
+        "full": {
+          "id": "portable-zones:full",
+          "sourceBytes": 18469,
+          "bytecodeBytes": 10466,
+          "vmWords": 6012,
+          "persistentGlobals": 49,
+          "activationMs": 731,
+          "fps": {
+            "mean": 3.8867996875,
+            "median": 3.887269,
+            "min": 3.879728,
+            "max": 3.891051,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 257.2810745086796,
+            "median": 257.25001279818815
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 15.348485,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 30.597535,
+          "patternEvaluationMs": 211.335055,
+          "fullFrameMs": 257.281075
+        },
+        "median": {
+          "outputFloorMs": 15.348485,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 30.606067,
+          "patternEvaluationMs": 211.295461,
+          "fullFrameMs": 257.250013
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 30.606067
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 211.295461
+          }
+        ]
+      }
+    },
+    {
+      "id": "aperture-shapes",
+      "routing": "coordinate",
+      "pixelCount": 500,
+      "masterPixelCount": 2000,
+      "notes": "Stock aperture-shapes reference: the densest per-pixel ceil(sqrt(...)) census hit (10 sites).",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "aperture-shapes:trivial-output",
+          "sourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "activationMs": 542,
+          "fps": {
+            "mean": 65.14096125,
+            "median": 65.15301,
+            "min": 65.08875,
+            "max": 65.15301,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 15.351323972057596,
+            "median": 15.348485050805788
+          }
+        },
+        "constantMembers": {
+          "id": "aperture-shapes:constant-members",
+          "sourceBytes": 22860,
+          "bytecodeBytes": 12186,
+          "vmWords": 6068,
+          "persistentGlobals": 30,
+          "activationMs": 572,
+          "fps": {
+            "mean": 20.29323125,
+            "median": 20.38835,
+            "min": 19.84127,
+            "max": 20.85402,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 49.27751463927165,
+            "median": 49.047617879818624
+          }
+        },
+        "full": {
+          "id": "aperture-shapes:full",
+          "sourceBytes": 22474,
+          "bytecodeBytes": 13074,
+          "vmWords": 6068,
+          "persistentGlobals": 54,
+          "activationMs": 629,
+          "fps": {
+            "mean": 5.480978500000001,
+            "median": 5.482212499999999,
+            "min": 5.43971,
+            "max": 5.519779,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 182.44917399329333,
+            "median": 182.40810621624027
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 15.351324,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 33.926191,
+          "patternEvaluationMs": 133.171659,
+          "fullFrameMs": 182.449174
+        },
+        "median": {
+          "outputFloorMs": 15.348485,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 33.699133,
+          "patternEvaluationMs": 133.360488,
+          "fullFrameMs": 182.408106
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 33.699133
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 133.360488
+          }
+        ]
+      }
+    },
+    {
+      "id": "five-pattern-acceptance",
+      "routing": "index",
+      "pixelCount": 500,
+      "masterPixelCount": 2000,
+      "notes": "Unchanged five-Pattern acceptance Show for whole-Show continuity with #531/#555.",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "five-pattern-acceptance:trivial-output",
+          "sourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "activationMs": 536,
+          "fps": {
+            "mean": 65.136945,
+            "median": 65.15301,
+            "min": 65.08875,
+            "max": 65.15301,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 15.352270512533249,
+            "median": 15.348485050805788
+          }
+        },
+        "constantMembers": {
+          "id": "five-pattern-acceptance:constant-members",
+          "sourceBytes": 34107,
+          "bytecodeBytes": 18526,
+          "vmWords": 6012,
+          "persistentGlobals": 105,
+          "activationMs": 577,
+          "fps": {
+            "mean": 15.990838750000004,
+            "median": 16.26794,
+            "min": 11.83432,
+            "max": 16.26794,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 62.53580663490836,
+            "median": 61.47059799827145
+          }
+        },
+        "full": {
+          "id": "five-pattern-acceptance:full",
+          "sourceBytes": 42153,
+          "bytecodeBytes": 24434,
+          "vmWords": 6012,
+          "persistentGlobals": 139,
+          "activationMs": 800,
+          "fps": {
+            "mean": 12.98801375,
+            "median": 13.42282,
+            "min": 9.97009,
+            "max": 13.42282,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 76.99406693344469,
+            "median": 74.4999932950006
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 15.352271,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 47.183536,
+          "patternEvaluationMs": 14.45826,
+          "fullFrameMs": 76.994067
+        },
+        "median": {
+          "outputFloorMs": 15.348485,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 46.122113,
+          "patternEvaluationMs": 13.029395,
+          "fullFrameMs": 74.499993
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 46.122113
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 13.029395
+          }
+        ]
+      }
+    }
+  ],
+  "dispatch": [
+    {
+      "probe": "render-index",
+      "pixelCount": 256,
+      "id": "render-index@256",
+      "sourceBytes": 55,
+      "bytecodeBytes": 63,
+      "vmWords": 0,
+      "persistentGlobals": 0,
+      "activationMs": 542,
+      "fps": {
+        "mean": 124.53302499999997,
+        "median": 124.502,
+        "min": 124.502,
+        "max": 124.6261,
+        "samples": 16
+      },
+      "frameMs": {
+        "mean": 8.029998468277794,
+        "median": 8.031999485952033
+      }
+    },
+    {
+      "probe": "render2d-unused-xy",
+      "pixelCount": 256,
+      "id": "render2d-unused-xy@256",
+      "sourceBytes": 63,
+      "bytecodeBytes": 65,
+      "vmWords": 0,
+      "persistentGlobals": 0,
+      "activationMs": 572,
+      "fps": {
+        "mean": 124.53302499999997,
+        "median": 124.502,
+        "min": 124.502,
+        "max": 124.6261,
+        "samples": 16
+      },
+      "frameMs": {
+        "mean": 8.029998468277794,
+        "median": 8.031999485952033
+      }
+    },
+    {
+      "probe": "render2d-consumes-xy",
+      "pixelCount": 256,
+      "id": "render2d-consumes-xy@256",
+      "sourceBytes": 56,
+      "bytecodeBytes": 65,
+      "vmWords": 0,
+      "persistentGlobals": 0,
+      "activationMs": 542,
+      "fps": {
+        "mean": 124.53302499999997,
+        "median": 124.502,
+        "min": 124.502,
+        "max": 124.6261,
+        "samples": 16
+      },
+      "frameMs": {
+        "mean": 8.029998468277794,
+        "median": 8.031999485952033
+      }
+    },
+    {
+      "probe": "render3d-unused-xyz",
+      "pixelCount": 256,
+      "id": "render3d-unused-xyz@256",
+      "sourceBytes": 66,
+      "bytecodeBytes": 65,
+      "vmWords": 0,
+      "persistentGlobals": 0,
+      "activationMs": 532,
+      "fps": {
+        "mean": 124.50199999999997,
+        "median": 124.502,
+        "min": 124.502,
+        "max": 124.502,
+        "samples": 16
+      },
+      "frameMs": {
+        "mean": 8.031999485952035,
+        "median": 8.031999485952033
+      }
+    },
+    {
+      "probe": "render-index",
+      "pixelCount": 500,
+      "id": "render-index@500",
+      "sourceBytes": 55,
+      "bytecodeBytes": 63,
+      "vmWords": 0,
+      "persistentGlobals": 0,
+      "activationMs": 547,
+      "fps": {
+        "mean": 65.15301,
+        "median": 65.15301,
+        "min": 65.15301,
+        "max": 65.15301,
+        "samples": 16
+      },
+      "frameMs": {
+        "mean": 15.348485050805788,
+        "median": 15.348485050805788
+      }
+    },
+    {
+      "probe": "render2d-unused-xy",
+      "pixelCount": 500,
+      "id": "render2d-unused-xy@500",
+      "sourceBytes": 63,
+      "bytecodeBytes": 65,
+      "vmWords": 0,
+      "persistentGlobals": 0,
+      "activationMs": 561,
+      "fps": {
+        "mean": 65.136945,
+        "median": 65.15301,
+        "min": 65.08875,
+        "max": 65.15301,
+        "samples": 16
+      },
+      "frameMs": {
+        "mean": 15.352270512533249,
+        "median": 15.348485050805788
+      }
+    },
+    {
+      "probe": "render2d-consumes-xy",
+      "pixelCount": 500,
+      "id": "render2d-consumes-xy@500",
+      "sourceBytes": 56,
+      "bytecodeBytes": 65,
+      "vmWords": 0,
+      "persistentGlobals": 0,
+      "activationMs": 534,
+      "fps": {
+        "mean": 65.15301,
+        "median": 65.15301,
+        "min": 65.15301,
+        "max": 65.15301,
+        "samples": 16
+      },
+      "frameMs": {
+        "mean": 15.348485050805788,
+        "median": 15.348485050805788
+      }
+    },
+    {
+      "probe": "render3d-unused-xyz",
+      "pixelCount": 500,
+      "id": "render3d-unused-xyz@500",
+      "sourceBytes": 66,
+      "bytecodeBytes": 65,
+      "vmWords": 0,
+      "persistentGlobals": 0,
+      "activationMs": 533,
+      "fps": {
+        "mean": 65.15301,
+        "median": 65.15301,
+        "min": 65.15301,
+        "max": 65.15301,
+        "samples": 16
+      },
+      "frameMs": {
+        "mean": 15.348485050805788,
+        "median": 15.348485050805788
+      }
+    },
+    {
+      "probe": "render-index",
+      "pixelCount": 2000,
+      "id": "render-index@2000",
+      "sourceBytes": 55,
+      "bytecodeBytes": 63,
+      "vmWords": 0,
+      "persistentGlobals": 0,
+      "activationMs": 541,
+      "fps": {
+        "mean": 16.5692,
+        "median": 16.5692,
+        "min": 16.5692,
+        "max": 16.5692,
+        "samples": 16
+      },
+      "frameMs": {
+        "mean": 60.352944016609136,
+        "median": 60.352944016609136
+      }
+    },
+    {
+      "probe": "render2d-unused-xy",
+      "pixelCount": 2000,
+      "id": "render2d-unused-xy@2000",
+      "sourceBytes": 63,
+      "bytecodeBytes": 65,
+      "vmWords": 0,
+      "persistentGlobals": 0,
+      "activationMs": 557,
+      "fps": {
+        "mean": 16.5692,
+        "median": 16.5692,
+        "min": 16.5692,
+        "max": 16.5692,
+        "samples": 16
+      },
+      "frameMs": {
+        "mean": 60.352944016609136,
+        "median": 60.352944016609136
+      }
+    },
+    {
+      "probe": "render2d-consumes-xy",
+      "pixelCount": 2000,
+      "id": "render2d-consumes-xy@2000",
+      "sourceBytes": 56,
+      "bytecodeBytes": 65,
+      "vmWords": 0,
+      "persistentGlobals": 0,
+      "activationMs": 549,
+      "fps": {
+        "mean": 16.5692,
+        "median": 16.5692,
+        "min": 16.5692,
+        "max": 16.5692,
+        "samples": 16
+      },
+      "frameMs": {
+        "mean": 60.352944016609136,
+        "median": 60.352944016609136
+      }
+    },
+    {
+      "probe": "render3d-unused-xyz",
+      "pixelCount": 2000,
+      "id": "render3d-unused-xyz@2000",
+      "sourceBytes": 66,
+      "bytecodeBytes": 65,
+      "vmWords": 0,
+      "persistentGlobals": 0,
+      "activationMs": 617,
+      "fps": {
+        "mean": 16.576274374999997,
+        "median": 16.5692,
+        "min": 16.5692,
+        "max": 16.58537,
+        "samples": 16
+      },
+      "frameMs": {
+        "mean": 60.327186759660535,
+        "median": 60.352944016609136
+      }
+    }
+  ],
+  "partial": false
+}

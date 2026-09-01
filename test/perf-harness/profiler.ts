@@ -34,6 +34,13 @@ const SETTLE_MS = readPositiveInteger('PROFILE_SETTLE_MS', 1_800)
 const SAMPLE_INTERVAL_MS = readPositiveInteger('PROFILE_SAMPLE_INTERVAL_MS', 350)
 const REPETITIONS = readPositiveInteger('PROFILE_REPETITIONS', 5)
 const SHOW_RUNTIME_ONLY = process.env.PROFILE_SHOW_RUNTIME === '1'
+// PROFILE_ONLY=56,57 limits the run to those probes plus their baselines and
+// the multiply unit; PROFILE_OUTPUT redirects the table so a targeted round
+// never overwrites the committed full tables.
+const ONLY_FNS = process.env.PROFILE_ONLY
+  ? new Set(process.env.PROFILE_ONLY.split(',').map((value) => Number(value.trim())))
+  : null
+const OUTPUT_OVERRIDE = process.env.PROFILE_OUTPUT
 const STABILIZE_INTERVAL_MS = readPositiveInteger('PROFILE_STABILIZE_INTERVAL_MS', 250)
 const MAX_STABILIZE_MS = readPositiveInteger('PROFILE_MAX_STABILIZE_MS', 6_000)
 const STABILITY_TOLERANCE_MS = readPositiveNumber('PROFILE_STABILITY_TOLERANCE_MS', 0.15)
@@ -162,9 +169,15 @@ async function main(): Promise<void> {
     const iterations = await autoTuneIterations(connection)
     console.log(`Using iterations=${iterations}; repetitions=${REPETITIONS}.`)
 
-    const operations = SHOW_RUNTIME_ONLY
-      ? PROFILE_OPS.filter((operation) => operation.fn <= 1 || operation.fn >= 31)
-      : PROFILE_OPS
+    const operations = ONLY_FNS
+      ? PROFILE_OPS.filter((operation) => (
+          operation.fn <= 1
+          || ONLY_FNS.has(operation.fn)
+          || PROFILE_OPS.some((selected) => ONLY_FNS.has(selected.fn) && selected.baselineFn === operation.fn)
+        ))
+      : SHOW_RUNTIME_ONLY
+        ? PROFILE_OPS.filter((operation) => operation.fn <= 1 || operation.fn >= 31)
+        : PROFILE_OPS
     const frameMsByFn = new Map<number, number[]>()
     for (const operation of operations) {
       process.stdout.write(`  profiling ${operation.name} ... `)
@@ -189,7 +202,7 @@ async function main(): Promise<void> {
       iterations,
       repetitions: REPETITIONS,
     })
-    const outputPath = join(HERE, SHOW_RUNTIME_ONLY ? 'show-runtime-costs.md' : 'costs.md')
+    const outputPath = OUTPUT_OVERRIDE ?? join(HERE, SHOW_RUNTIME_ONLY ? 'show-runtime-costs.md' : 'costs.md')
     writeFileSync(outputPath, report)
     console.log(`Cost table written to ${outputPath}`)
   } catch (error) {

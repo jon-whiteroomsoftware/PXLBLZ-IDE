@@ -159,6 +159,17 @@ export function beforeRender(delta) {
   if (f == 54) for (i = 0; i < n; i++) x = frac((floor(x * 255) << 1) + 0.123) // bit shift
   if (f == 55) for (i = 0; i < n; i++) x = frac((floor(x * 255) & 255) + 0.123) // bit mask
 
+  // #924 (wave 5): loop machinery and single-use locals.
+  //   56 prices the catalogue's `i = i + 1` idiom against the `i++` identity loop (fn 0).
+  //   57 runs the identity body eight times per loop trip, so its net against
+  //      fn 0 is MINUS 7/8 of one iteration's compare+branch+increment machinery.
+  //   58/59 pair a fused expression against the same work through a
+  //      single-use local (the shape generated code emits thousands of times).
+  if (f == 56) for (i = 0; i < n; i = i + 1) x = frac(x + 0.123) // loop, i = i + 1 idiom
+  if (f == 57) for (i = 0; i < n; i += 8) { x = frac(x + 0.123); x = frac(x + 0.123); x = frac(x + 0.123); x = frac(x + 0.123); x = frac(x + 0.123); x = frac(x + 0.123); x = frac(x + 0.123); x = frac(x + 0.123) } // unrolled x8 body
+  if (f == 58) for (i = 0; i < n; i++) x = frac(x * 1.0001 + 0.123) // fused expression baseline
+  if (f == 59) for (i = 0; i < n; i++) { local = x * 1.0001; x = frac(local + 0.123) } // single-use local
+
   acc = frac(x + local * 0.0001) // carry across frames so nothing is dead code
 }
 
