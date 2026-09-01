@@ -1,0 +1,251 @@
+{
+  "generatedAt": "2026-09-01T21:09:59.860Z",
+  "controller": {
+    "ip": "192.168.8.224",
+    "name": "Burner bag",
+    "boardType": "pb32",
+    "firmwareVersion": "3.67",
+    "outputProfile": "native-serial (assumed)",
+    "activationTimeoutMs": 20000,
+    "settleMs": 2000,
+    "sampleMs": 6000
+  },
+  "pixelCount": 256,
+  "rows": [
+    {
+      "member": "ZippyZaps",
+      "variant": "baseline",
+      "k": 1,
+      "bytecodeBytes": 5782,
+      "fps": {
+        "mean": 6.8669543750000015,
+        "median": 6.86948,
+        "min": 6.862745,
+        "max": 6.86948,
+        "samples": 24
+      }
+    },
+    {
+      "member": "ZippyZaps",
+      "variant": "hold",
+      "k": 2,
+      "bytecodeBytes": 5942,
+      "fps": {
+        "mean": 13.180086666666663,
+        "median": 13.18267,
+        "min": 13.17027,
+        "max": 13.18267,
+        "samples": 24
+      }
+    },
+    {
+      "member": "ZippyZaps",
+      "variant": "parity",
+      "k": 2,
+      "bytecodeBytes": 5990,
+      "fps": {
+        "mean": 13.132697083333333,
+        "median": 13.13321,
+        "min": 13.1209,
+        "max": 13.13321,
+        "samples": 24
+      }
+    },
+    {
+      "member": "ZippyZaps",
+      "variant": "lerp",
+      "k": 2,
+      "bytecodeBytes": 6178,
+      "fps": {
+        "mean": 12.287339999999995,
+        "median": 12.28734,
+        "min": 12.28734,
+        "max": 12.28734,
+        "samples": 24
+      }
+    },
+    {
+      "member": "ZippyZaps",
+      "variant": "hold",
+      "k": 4,
+      "bytecodeBytes": 5942,
+      "fps": {
+        "mean": 25.25498499999999,
+        "median": 25.254984999999998,
+        "min": 25.24272,
+        "max": 25.26725,
+        "samples": 24
+      }
+    },
+    {
+      "member": "ZippyZaps",
+      "variant": "parity",
+      "k": 4,
+      "bytecodeBytes": 5990,
+      "fps": {
+        "mean": 25.080389999999998,
+        "median": 25.07232,
+        "min": 25.07232,
+        "max": 25.09653,
+        "samples": 24
+      }
+    },
+    {
+      "member": "ZippyZaps",
+      "variant": "lerp",
+      "k": 4,
+      "bytecodeBytes": 6178,
+      "fps": {
+        "mean": 22.512236666666663,
+        "median": 22.50489,
+        "min": 22.50489,
+        "max": 22.52693,
+        "samples": 24
+      }
+    },
+    {
+      "member": "ZippyZaps",
+      "variant": "refresh",
+      "k": 1,
+      "bytecodeBytes": 6374,
+      "fps": {
+        "mean": 6.6371693333333335,
+        "median": 6.635071,
+        "min": 6.635071,
+        "max": 6.641366,
+        "samples": 24
+      }
+    },
+    {
+      "member": "ZippyZaps",
+      "variant": "refresh",
+      "k": 2,
+      "bytecodeBytes": 6534,
+      "fps": {
+        "mean": 12.752391666666668,
+        "median": 12.7576,
+        "min": 12.7451,
+        "max": 12.7576,
+        "samples": 24
+      }
+    },
+    {
+      "member": "Caustics",
+      "variant": "baseline",
+      "k": 1,
+      "bytecodeBytes": 6870,
+      "fps": {
+        "mean": 7.1826729583333355,
+        "median": 7.181329,
+        "min": 7.181329,
+        "max": 7.18778,
+        "samples": 24
+      }
+    },
+    {
+      "member": "Caustics",
+      "variant": "hold",
+      "k": 2,
+      "bytecodeBytes": 7030,
+      "fps": {
+        "mean": 13.776707083333337,
+        "median": 13.77953,
+        "min": 13.76598,
+        "max": 13.77953,
+        "samples": 24
+      }
+    },
+    {
+      "member": "Caustics",
+      "variant": "parity",
+      "k": 2,
+      "bytecodeBytes": 7078,
+      "fps": {
+        "mean": 13.725494999999997,
+        "median": 13.72549,
+        "min": 13.71205,
+        "max": 13.73896,
+        "samples": 24
+      }
+    },
+    {
+      "member": "Caustics",
+      "variant": "lerp",
+      "k": 2,
+      "bytecodeBytes": 7266,
+      "fps": {
+        "mean": 12.805252916666673,
+        "median": 12.80788,
+        "min": 12.79527,
+        "max": 12.80788,
+        "samples": 24
+      }
+    },
+    {
+      "member": "Caustics",
+      "variant": "hold",
+      "k": 4,
+      "bytecodeBytes": 7030,
+      "fps": {
+        "mean": 26.423101666666668,
+        "median": 26.41879,
+        "min": 26.41879,
+        "max": 26.44466,
+        "samples": 24
+      }
+    },
+    {
+      "member": "Caustics",
+      "variant": "parity",
+      "k": 4,
+      "bytecodeBytes": 7078,
+      "fps": {
+        "mean": 26.228453333333334,
+        "median": 26.23907,
+        "min": 26.21359,
+        "max": 26.23907,
+        "samples": 24
+      }
+    },
+    {
+      "member": "Caustics",
+      "variant": "lerp",
+      "k": 4,
+      "bytecodeBytes": 7266,
+      "fps": {
+        "mean": 23.44895500000001,
+        "median": 23.448954999999998,
+        "min": 23.4375,
+        "max": 23.46041,
+        "samples": 24
+      }
+    },
+    {
+      "member": "Caustics",
+      "variant": "refresh",
+      "k": 1,
+      "bytecodeBytes": 7462,
+      "fps": {
+        "mean": 6.930121749999999,
+        "median": 6.930693,
+        "min": 6.923838,
+        "max": 6.930693,
+        "samples": 24
+      }
+    },
+    {
+      "member": "Caustics",
+      "variant": "refresh",
+      "k": 2,
+      "bytecodeBytes": 7622,
+      "fps": {
+        "mean": 13.313787083333331,
+        "median": 13.30798,
+        "min": 13.30798,
+        "max": 13.32065,
+        "samples": 24
+      }
+    }
+  ],
+  "partial": false
+}
