@@ -175,6 +175,11 @@ compiler just applies them with proofs instead of intuition:
 - **Inline tiny helpers.** A one-line pure helper function gets substituted
   into its call sites: a function call costs 2–3 microseconds on this VM,
   which is real money when it happens per pixel.
+- **Refresh route constants once per frame.** The routing arms used to
+  recompute `ceil(sqrt(pixelCount))` and the split-position zone sizes for
+  every pixel; those depend only on `pixelCount` and values the scheduler
+  writes once per frame, so the compiler now computes them at the end of
+  `beforeRender` and the arms read a global (+2–3% on Portable Shows).
 
 Together, the first wave of these took the Redline reference from 2.36 to
 3.04 FPS (+28.8%) without changing a single output pixel.

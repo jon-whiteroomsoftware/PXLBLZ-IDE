@@ -1,0 +1,388 @@
+{
+  "generatedAt": "2026-09-01T20:27:01.405Z",
+  "controller": {
+    "ip": "192.168.8.224",
+    "name": "Burner bag",
+    "boardType": "pb32",
+    "firmwareVersion": "3.67",
+    "outputProfile": "native-serial (assumed)",
+    "activationTimeoutMs": 20000,
+    "settleMs": 2000,
+    "sampleMs": 4000
+  },
+  "rows": [
+    {
+      "fixture": "portable-zones",
+      "pixelCount": 256,
+      "byteIdentical": false,
+      "off": [
+        {
+          "bytecodeBytes": 10466,
+          "sourceBytes": 18469,
+          "persistentGlobals": 49,
+          "fps": {
+            "mean": 8.77193,
+            "median": 8.77193,
+            "min": 8.77193,
+            "max": 8.77193,
+            "samples": 16
+          }
+        },
+        {
+          "bytecodeBytes": 10466,
+          "sourceBytes": 18469,
+          "persistentGlobals": 49,
+          "fps": {
+            "mean": 8.77193,
+            "median": 8.77193,
+            "min": 8.77193,
+            "max": 8.77193,
+            "samples": 16
+          }
+        }
+      ],
+      "on": [
+        {
+          "bytecodeBytes": 10502,
+          "sourceBytes": 18781,
+          "persistentGlobals": 60,
+          "fps": {
+            "mean": 9.066182999999999,
+            "median": 9.066183,
+            "min": 9.066183,
+            "max": 9.066183,
+            "samples": 16
+          }
+        },
+        {
+          "bytecodeBytes": 10502,
+          "sourceBytes": 18781,
+          "persistentGlobals": 60,
+          "fps": {
+            "mean": 9.066182999999999,
+            "median": 9.066183,
+            "min": 9.066183,
+            "max": 9.066183,
+            "samples": 16
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "aperture-shapes",
+      "pixelCount": 256,
+      "byteIdentical": false,
+      "off": [
+        {
+          "bytecodeBytes": 13074,
+          "sourceBytes": 22474,
+          "persistentGlobals": 54,
+          "fps": {
+            "mean": 10.660633749999999,
+            "median": 10.6486,
+            "min": 10.5871,
+            "max": 10.74219,
+            "samples": 16
+          }
+        },
+        {
+          "bytecodeBytes": 13074,
+          "sourceBytes": 22474,
+          "persistentGlobals": 54,
+          "fps": {
+            "mean": 10.660683749999999,
+            "median": 10.6383,
+            "min": 10.5871,
+            "max": 10.75269,
+            "samples": 16
+          }
+        }
+      ],
+      "on": [
+        {
+          "bytecodeBytes": 12930,
+          "sourceBytes": 22342,
+          "persistentGlobals": 56,
+          "fps": {
+            "mean": 10.862022500000004,
+            "median": 10.8538,
+            "min": 10.78431,
+            "max": 10.95618,
+            "samples": 16
+          }
+        },
+        {
+          "bytecodeBytes": 12930,
+          "sourceBytes": 22342,
+          "persistentGlobals": 56,
+          "fps": {
+            "mean": 10.864670000000004,
+            "median": 10.8538,
+            "min": 10.7949,
+            "max": 10.95618,
+            "samples": 16
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "zone-layouts-stripes-grid",
+      "pixelCount": 256,
+      "byteIdentical": false,
+      "off": [
+        {
+          "bytecodeBytes": 14954,
+          "sourceBytes": 27937,
+          "persistentGlobals": 101,
+          "fps": {
+            "mean": 16.889670625,
+            "median": 18.05226,
+            "min": 13.30798,
+            "max": 18.06083,
+            "samples": 16
+          }
+        },
+        {
+          "bytecodeBytes": 14954,
+          "sourceBytes": 27937,
+          "persistentGlobals": 101,
+          "fps": {
+            "mean": 16.790605,
+            "median": 17.871405000000003,
+            "min": 13.35878,
+            "max": 18.06083,
+            "samples": 16
+          }
+        }
+      ],
+      "on": [
+        {
+          "bytecodeBytes": 14518,
+          "sourceBytes": 27621,
+          "persistentGlobals": 105,
+          "fps": {
+            "mean": 17.17111125,
+            "median": 18.30443,
+            "min": 13.9165,
+            "max": 18.32208,
+            "samples": 16
+          }
+        },
+        {
+          "bytecodeBytes": 14518,
+          "sourceBytes": 27621,
+          "persistentGlobals": 105,
+          "fps": {
+            "mean": 17.01199625,
+            "median": 18.30443,
+            "min": 13.9165,
+            "max": 18.32208,
+            "samples": 16
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "redline-reference",
+      "pixelCount": 256,
+      "byteIdentical": true
+    },
+    {
+      "fixture": "five-pattern-acceptance",
+      "pixelCount": 256,
+      "byteIdentical": true
+    },
+    {
+      "fixture": "hsv-steady-light",
+      "pixelCount": 256,
+      "byteIdentical": true
+    },
+    {
+      "fixture": "portable-zones",
+      "pixelCount": 500,
+      "byteIdentical": false,
+      "off": [
+        {
+          "bytecodeBytes": 10466,
+          "sourceBytes": 18469,
+          "persistentGlobals": 49,
+          "fps": {
+            "mean": 3.8872690000000016,
+            "median": 3.887269,
+            "min": 3.887269,
+            "max": 3.887269,
+            "samples": 16
+          }
+        },
+        {
+          "bytecodeBytes": 10466,
+          "sourceBytes": 18469,
+          "persistentGlobals": 49,
+          "fps": {
+            "mean": 3.8863255,
+            "median": 3.887269,
+            "min": 3.883495,
+            "max": 3.887269,
+            "samples": 16
+          }
+        }
+      ],
+      "on": [
+        {
+          "bytecodeBytes": 10502,
+          "sourceBytes": 18781,
+          "persistentGlobals": 60,
+          "fps": {
+            "mean": 4.0046068125000005,
+            "median": 4.00641,
+            "min": 4,
+            "max": 4.00641,
+            "samples": 16
+          }
+        },
+        {
+          "bytecodeBytes": 10502,
+          "sourceBytes": 18781,
+          "persistentGlobals": 60,
+          "fps": {
+            "mean": 4.0046065625,
+            "median": 4.00641,
+            "min": 4,
+            "max": 4.00641,
+            "samples": 16
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "aperture-shapes",
+      "pixelCount": 500,
+      "byteIdentical": false,
+      "off": [
+        {
+          "bytecodeBytes": 13074,
+          "sourceBytes": 22474,
+          "persistentGlobals": 54,
+          "fps": {
+            "mean": 5.475007500000001,
+            "median": 5.454546,
+            "min": 5.43971,
+            "max": 5.524862,
+            "samples": 16
+          }
+        },
+        {
+          "bytecodeBytes": 13074,
+          "sourceBytes": 22474,
+          "persistentGlobals": 54,
+          "fps": {
+            "mean": 5.480978500000001,
+            "median": 5.482212499999999,
+            "min": 5.43971,
+            "max": 5.519779,
+            "samples": 16
+          }
+        }
+      ],
+      "on": [
+        {
+          "bytecodeBytes": 12930,
+          "sourceBytes": 22342,
+          "persistentGlobals": 56,
+          "fps": {
+            "mean": 5.5816229375,
+            "median": 5.586592,
+            "min": 5.545287,
+            "max": 5.628518,
+            "samples": 16
+          }
+        },
+        {
+          "bytecodeBytes": 12930,
+          "sourceBytes": 22342,
+          "persistentGlobals": 56,
+          "fps": {
+            "mean": 5.57938625,
+            "median": 5.555555,
+            "min": 5.545287,
+            "max": 5.628518,
+            "samples": 16
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "zone-layouts-stripes-grid",
+      "pixelCount": 500,
+      "byteIdentical": false,
+      "off": [
+        {
+          "bytecodeBytes": 14954,
+          "sourceBytes": 27937,
+          "persistentGlobals": 101,
+          "fps": {
+            "mean": 8.475871937500001,
+            "median": 9.372071,
+            "min": 6.102877,
+            "max": 9.380863,
+            "samples": 16
+          }
+        },
+        {
+          "bytecodeBytes": 14954,
+          "sourceBytes": 27937,
+          "persistentGlobals": 101,
+          "fps": {
+            "mean": 8.5596355,
+            "median": 9.372071,
+            "min": 6.113537,
+            "max": 9.380863,
+            "samples": 16
+          }
+        }
+      ],
+      "on": [
+        {
+          "bytecodeBytes": 14518,
+          "sourceBytes": 27621,
+          "persistentGlobals": 105,
+          "fps": {
+            "mean": 8.714648999999998,
+            "median": 9.5102255,
+            "min": 6.323397,
+            "max": 9.514748,
+            "samples": 16
+          }
+        },
+        {
+          "bytecodeBytes": 14518,
+          "sourceBytes": 27621,
+          "persistentGlobals": 105,
+          "fps": {
+            "mean": 8.755761437499999,
+            "median": 9.505703,
+            "min": 6.375227,
+            "max": 9.514748,
+            "samples": 16
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "redline-reference",
+      "pixelCount": 500,
+      "byteIdentical": true
+    },
+    {
+      "fixture": "five-pattern-acceptance",
+      "pixelCount": 500,
+      "byteIdentical": true
+    },
+    {
+      "fixture": "hsv-steady-light",
+      "pixelCount": 500,
+      "byteIdentical": true
+    }
+  ],
+  "partial": false
+}

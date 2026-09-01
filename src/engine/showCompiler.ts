@@ -110,6 +110,7 @@ import {
 import { selectRenderCompatibility } from './renderCompatibility'
 import type { ShowRendererOutputGuarantees } from './showCaptureSpecialization'
 import type { ShowFrameDependency } from './showFrameInvariantHoisting'
+import { hoistGeneratedFrameConstants } from './showGeneratedFrameConstantHoisting'
 import {
   selectShowRenderKernelSpecialization,
   type ShowRenderKernelSelection,
@@ -170,6 +171,7 @@ import {
 import {
   buildShowVmResourceLedger,
   countShowPersistentGlobals,
+  PIXELBLAZE_MAX_PERSISTENT_GLOBALS,
   inspectGeneratedShowVmAllocations,
   SHOW_ARTIFACT_BUDGET_BYTES,
   SHOW_MAX_OUTPUT_PIXELS,
@@ -1160,6 +1162,11 @@ export interface ShowCompileOptions {
   /** Benchmark counterfactual for #565 tiny pure helper call-site inlining;
    * production always uses the default `true`. */
   helperCallInlining?: boolean
+  /** Benchmark/vintage counterfactual for the #928 generated frame-constant
+   * hoist (per-pixel `ceil(sqrt(...))` / `max(1, floor(pixelCount * ...))`
+   * route constants refreshed once per frame at the end of beforeRender);
+   * production always uses the default `true`. */
+  generatedFrameConstantHoisting?: boolean
 }
 
 /** #532/#556 price of one persistent scalar write on the measured VM. */
@@ -2813,9 +2820,23 @@ export function compileShow(
   const emittedWithInstalledMapZ = needsInstalledMapZ
     ? promoteShowRendererToInstalledMap3D(emittedWithSampleRemapping)
     : emittedWithSampleRemapping
-  const expandedCode = renderTargetArenaEmission
-    ? `${emitShowRenderTargetArenaSource(renderTargetPixelCount)}\n${emittedWithInstalledMapZ}`
+  // #928: last generated-code pass before compaction, so it sees every
+  // emitter's per-pixel arms and every scheduler write in one assembled text.
+  // The global budget is counted with the arena source in place, since that
+  // is the text the resource ledger will count.
+  const arenaPrefix = renderTargetArenaEmission
+    ? `${emitShowRenderTargetArenaSource(renderTargetPixelCount)}\n`
+    : ''
+  const emittedWithFrameConstants = (options.generatedFrameConstantHoisting ?? true)
+    ? hoistGeneratedFrameConstants(emittedWithInstalledMapZ, {
+        excludeSources: members
+          .filter((member) => !isCompilerEmptyShowMember(member))
+          .map((member) => member.patternCode),
+        maxHoists: PIXELBLAZE_MAX_PERSISTENT_GLOBALS
+          - countShowPersistentGlobals(`${arenaPrefix}${emittedWithInstalledMapZ}`),
+      }).code
     : emittedWithInstalledMapZ
+  const expandedCode = `${arenaPrefix}${emittedWithFrameConstants}`
   const compacted = compactGeneratedShowSymbols(expandedCode)
   const code = compacted.code
   const sourceInventory = buildShowSourceInventory(code, compacted.names, members)

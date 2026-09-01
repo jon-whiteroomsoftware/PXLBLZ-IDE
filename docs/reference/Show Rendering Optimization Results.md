@@ -376,6 +376,22 @@ Raw wave-4 slice data: `test/perf-harness/issue904-blend-probe.json`,
 `issue909-array-probe.json`, `issue911-preview-tax.json`,
 `issue914-eligibility-census.json`, and `issue914-transform-pairs.json`.
 
+### Wave-5 measured additions (epic #923)
+
+Wave 5 targets the installed base (at most ~500 px, native serial, no
+expander); the advisory with the candidate map and scope decision is
+`docs/plans/controller-performance-wave5-advisory.md`. Every row is
+measured at 256 and 500 px on the bench pb32 (firmware 3.67, declared
+profile absent, stamped `native-serial (assumed)`).
+
+| Step | Slice | Primary measured result |
+| ---: | --- | --- |
+| 00 | #924 attribution at 256/500 px | heavy members alone (ZippyZaps, Caustics, Kishimisu) are **95-97% member work**; single-zone Show machinery is ~16 us/pixel (4.1 / 8.2 ms); choreographed Shows with light members are machinery-bound (Redline 36%, aperture-shapes 19%, Portable zones 12-14%, five-Pattern acceptance 62-67%). Cost rows: `i++` loop machinery **2.90 us/iteration**, `i = i + 1` idiom **4.6 us/iteration**, single-use local **1.47 us**. `render` vs `render2D` vs `render3D` trivial dispatch: identical medians at 256/500/2,000 px (8.032/15.348/60.353 ms) - **closed, no build** (`docs/plans/issue-924-attribution-results.md`) |
+| 01 | #928 generated frame-constant hoist | census: 286 per-pixel `ceil(sqrt(...))` / `floor(pixelCount * ...)` sites across 35 of 40 stock Shows (133 the plain `pixelCount` form wave 4 never reached, the rest split-position dependent); the pass hoists maximal pure built-in subtrees of per-pixel code whose free identifiers are frame-stable into per-frame globals refreshed at the end of `beforeRender`, and the catalogue census drops to **zero**. Paired ladder (`issue928-hoist-ladder.json`): Portable zones **+3.35 / +3.06%**, aperture-shapes **+1.98 / +1.88%**, zone-layouts stripes-grid **+1.91 / +1.45%** median FPS at 256 / 500 px; bytecode -0.3% to +0.3%; +2 to +11 persistent globals; index-routed Installation Shows byte-identical (literal zone sizes). Fast and Precise checksums identical across all 40 stock Shows; `generatedFrameConstantHoisting: false` reproduces pre-pass emission for vintages |
+
+Raw wave-5 slice data: `test/perf-harness/issue924-attribution.json`,
+`issue924-probe-rows.md`, `issue928-hoist-ladder.json`.
+
 ## General rules established by the evidence
 
 1. Remove dead work before caching it.
