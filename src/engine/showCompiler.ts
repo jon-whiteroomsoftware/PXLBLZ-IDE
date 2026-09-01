@@ -668,6 +668,17 @@ export interface ShowCompileSummary {
       removedHelperCount: number
       addedSourceBytes: number
     }>
+    /** #929: trivial generated wrappers folded into per-pixel call sites;
+     * kept as wrappers when the inlined artifact alone would cross the
+     * activation scale. */
+    wrapperInlining: {
+      selected: boolean
+      reason: 'selected' | 'disabled' | 'no-sites' | 'artifact-budget'
+      inlinedCalls: number
+      removedWrappers: number
+      wrapperBytes: number
+      inlinedBytes: number
+    }
     renderKernels: (ShowRenderKernelSelection & {
       configurationPlanCount: number
       kernelCount: number
@@ -1173,6 +1184,9 @@ export interface ShowCompileOptions {
    * into their per-pixel call sites); production always uses the default
    * `true`. */
   generatedWrapperInlining?: boolean
+  /** Test seam for the #929 byte gate: the compacted artifact scale above
+   * which the wrapper form is kept (default MEASURED_DEVICE_BUDGET_BYTES). */
+  generatedWrapperInliningBudgetBytes?: number
 }
 
 /** #532/#556 price of one persistent scalar write on the measured VM. */
@@ -2846,9 +2860,33 @@ export function compileShow(
     : null
   const emittedWithFrameConstants = frameConstantHoisting?.code ?? emittedWithInstalledMapZ
   const frameConstantGlobals = frameConstantHoisting?.hoists.length ?? 0
-  const emittedWithWrapperInlining = (options.generatedWrapperInlining ?? true)
-    ? inlineGeneratedWrappers(emittedWithFrameConstants, { excludeSources: excludedMemberSources }).code
-    : emittedWithFrameConstants
+  // The inlined form is kept only while the compacted artifact stays under
+  // the activation scale; an artifact that the wrapper form fits and the
+  // inlined form does not keeps its wrappers and says so in the report.
+  const wrapperInliningBudgetBytes = options.generatedWrapperInliningBudgetBytes ?? MEASURED_DEVICE_BUDGET_BYTES
+  const wrapperInliningCandidate = (options.generatedWrapperInlining ?? true)
+    ? inlineGeneratedWrappers(emittedWithFrameConstants, { excludeSources: excludedMemberSources })
+    : null
+  const wrapperBytes = byteLength(compactGeneratedShowSymbols(`${arenaPrefix}${emittedWithFrameConstants}`).code)
+  const inlinedBytes = wrapperInliningCandidate && wrapperInliningCandidate.inlinedCalls > 0
+    ? byteLength(compactGeneratedShowSymbols(`${arenaPrefix}${wrapperInliningCandidate.code}`).code)
+    : wrapperBytes
+  const wrapperInliningSelected = Boolean(wrapperInliningCandidate)
+    && wrapperInliningCandidate!.inlinedCalls > 0
+    && !(inlinedBytes > wrapperInliningBudgetBytes && wrapperBytes <= wrapperInliningBudgetBytes)
+  const wrapperInliningSummary = {
+    selected: wrapperInliningSelected,
+    reason: !wrapperInliningCandidate
+      ? 'disabled' as const
+      : wrapperInliningCandidate.inlinedCalls === 0
+        ? 'no-sites' as const
+        : wrapperInliningSelected ? 'selected' as const : 'artifact-budget' as const,
+    inlinedCalls: wrapperInliningSelected ? wrapperInliningCandidate!.inlinedCalls : 0,
+    removedWrappers: wrapperInliningSelected ? wrapperInliningCandidate!.removedWrappers : 0,
+    wrapperBytes,
+    inlinedBytes,
+  }
+  const emittedWithWrapperInlining = wrapperInliningSelected ? wrapperInliningCandidate!.code : emittedWithFrameConstants
   const expandedCode = `${arenaPrefix}${emittedWithWrapperInlining}`
   const compacted = compactGeneratedShowSymbols(expandedCode)
   const code = compacted.code
@@ -3389,6 +3427,7 @@ export function compileShow(
         clipId: member.id,
         ...member.helperInliningSummary,
       })),
+      wrapperInlining: wrapperInliningSummary,
       renderKernels: routedSceneEmission?.renderKernels ?? null,
       motionTransitions: routedSceneEmission?.motionTransitions ?? null,
       showScore: routedSceneEmission?.showScore ?? null,

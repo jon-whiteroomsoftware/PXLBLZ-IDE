@@ -33,9 +33,17 @@ export interface GeneratedWrapperInliningOptions {
   /** Verbatim authored member source blocks: functions inside them are
    * neither inlined nor rewritten. */
   excludeSources?: readonly string[]
+  /** Generated functions whose bodies must stay byte-identical (the #520
+   * transition helpers): never a caller, and wrappers they reference are
+   * kept. Matched against the function name. */
+  excludeCallers?: RegExp
   /** Maximum statements in an inlinable body (default 3). */
   maxBodyStatements?: number
 }
+
+/** #520: routed transition bodies are isolated in helpers whose shape is a
+ *  hardware-activation boundary; nothing rewrites them. */
+export const GENERATED_TRANSITION_HELPER_PATTERN = /transition/
 
 export interface GeneratedWrapperInliningResult {
   code: string
@@ -103,6 +111,7 @@ function inlineOnce(
   const wrappers = new Map<string, Wrapper>()
   for (const entry of functions) {
     if (entry.exported || inExcluded(entry)) continue
+    if ((options.excludeCallers ?? GENERATED_TRANSITION_HELPER_PATTERN).test(entry.name)) continue
     if (!entry.node.params.every((param: Node) => param.type === 'Identifier')) continue
     const params: string[] = entry.node.params.map((param: Node) => param.name)
     const statements: Node[] = entry.node.body.body
@@ -136,8 +145,10 @@ function inlineOnce(
   // (members excluded), never inside the wrapper's own definition.
   const edits: Array<{ start: number; end: number; text: string }> = []
   const siteCounts = new Map<string, number>()
+  const excludeCallers = options.excludeCallers ?? GENERATED_TRANSITION_HELPER_PATTERN
   for (const caller of functions) {
     if (inExcluded(caller)) continue
+    if (excludeCallers.test(caller.name)) continue
     if (caller.exported && !RENDER_EXPORTS.has(caller.name) && caller.name !== 'beforeRender') continue
     // A wrapper's own body waits for a later round, after it is either
     // inlined away or proven to stay.
