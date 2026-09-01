@@ -1190,7 +1190,9 @@ branch grouping, the table-driven scheduler and Show score, shared Motion
 transition kernels, lifetime-colored Restart Pattern machines, shared
 generated Effect kernels, tiny-helper inlining and frame-invariant hoisting,
 coefficient hoisting, prologue-rebinding elimination, per-member HSV
-conversion, and steady-state direct color sinks (whose Precise/hardware
+conversion, generated frame-constant hoisting (per-pixel route constants
+refreshed once per frame in `beforeRender`, `showGeneratedFrameConstantHoisting.ts`,
+#928), and steady-state direct color sinks (whose Precise/hardware
 divergence is a measured ~0.1 LSB at rounding boundaries). Selection is
 automatic only where the result is provably compatible and smaller or
 measured faster; failed hardware gates (the exact coordinate-field emitter)
