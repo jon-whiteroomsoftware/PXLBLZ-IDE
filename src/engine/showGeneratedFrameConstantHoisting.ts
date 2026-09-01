@@ -194,7 +194,7 @@ export function hoistGeneratedFrameConstants(
   edits.sort((left, right) => right.start - left.start || right.end - left.end)
   let code = source
   for (const edit of edits) code = `${code.slice(0, edit.start)}${edit.text}${code.slice(edit.end)}`
-  return { code, hoists, replacedSites: sites.length }
+  return { code, hoists, replacedSites: selectedSites.length }
 }
 
 function topLevelFunctions(ast: Node): TopLevelFunction[] {

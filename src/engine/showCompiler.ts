@@ -2827,15 +2827,17 @@ export function compileShow(
   const arenaPrefix = renderTargetArenaEmission
     ? `${emitShowRenderTargetArenaSource(renderTargetPixelCount)}\n`
     : ''
-  const emittedWithFrameConstants = (options.generatedFrameConstantHoisting ?? true)
+  const frameConstantHoisting = (options.generatedFrameConstantHoisting ?? true)
     ? hoistGeneratedFrameConstants(emittedWithInstalledMapZ, {
         excludeSources: members
           .filter((member) => !isCompilerEmptyShowMember(member))
           .map((member) => member.patternCode),
         maxHoists: PIXELBLAZE_MAX_PERSISTENT_GLOBALS
           - countShowPersistentGlobals(`${arenaPrefix}${emittedWithInstalledMapZ}`),
-      }).code
-    : emittedWithInstalledMapZ
+      })
+    : null
+  const emittedWithFrameConstants = frameConstantHoisting?.code ?? emittedWithInstalledMapZ
+  const frameConstantGlobals = frameConstantHoisting?.hoists.length ?? 0
   const expandedCode = `${arenaPrefix}${emittedWithFrameConstants}`
   const compacted = compactGeneratedShowSymbols(expandedCode)
   const code = compacted.code
@@ -3126,7 +3128,7 @@ export function compileShow(
     artifactBytes,
     budgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
     expectedActiveFraction: evaluationSummary.expectedActiveFraction,
-    generatedScalarGlobals: (routingParameterEstimate?.scalarGlobals ?? 0)
+    generatedScalarGlobals: frameConstantGlobals + (routingParameterEstimate?.scalarGlobals ?? 0)
       + (expandedRecipe.samplePropertyRamps ? 1 : 0)
       + new Set(selectedScalarFields.map(scalarFieldPlane)).size * 2
       + members.reduce((count, member) => (
