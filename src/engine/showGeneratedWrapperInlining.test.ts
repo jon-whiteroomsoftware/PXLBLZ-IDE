@@ -112,6 +112,30 @@ export function render2D(index, x, y) {
     expect(result.code).not.toContain('function one()')
   })
 
+  it('refuses a site whose argument the wrapper body writes, and a wrapper that references itself', () => {
+    const source = `var x = 1
+function w(a) { x = 2; sink(a) }
+function self() { sink(self) }
+export function beforeRender(delta) {}
+export function render2D(index, x2, y) {
+  w(x)
+  w(y)
+  self()
+}
+`
+    const result = inlineGeneratedWrappers(source)
+    // w(x): x is assigned by the body before the use -> kept as a call.
+    expect(result.code).toContain('  w(x)\n')
+    // w(y): y is untouched by the body -> inlined.
+    expect(result.code).toContain('  x = 2\n  sink(y)\n')
+    // self references its own name as a value -> never a candidate, never removed.
+    expect(result.code).toContain('function self() { sink(self) }')
+    expect(result.code).toContain('  self()\n')
+    expect(result.code).toContain('function w(a) { x = 2; sink(a) }')
+    expect(result.inlinedCalls).toBe(1)
+    expect(result.removedWrappers).toBe(0)
+  })
+
   it('returns the source unchanged when nothing qualifies', () => {
     const source = 'export function beforeRender(delta) {}\nexport function render(index) { rgb(0, 0, 0) }\n'
     expect(inlineGeneratedWrappers(source).code).toBe(source)

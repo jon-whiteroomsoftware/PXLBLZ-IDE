@@ -107,7 +107,7 @@ function inlineOnce(
   const inExcluded = (entry: TopLevelFunction) => excluded.some(([start, end]) => entry.statement.start >= start && entry.statement.end <= end)
 
   // Wrapper candidates.
-  interface Wrapper { entry: TopLevelFunction; params: string[]; statements: Node[]; freeNames: Set<string> }
+  interface Wrapper { entry: TopLevelFunction; params: string[]; statements: Node[]; freeNames: Set<string>; assigned: Set<string> }
   const wrappers = new Map<string, Wrapper>()
   for (const entry of functions) {
     if (entry.exported || inExcluded(entry)) continue
@@ -117,7 +117,15 @@ function inlineOnce(
     const statements: Node[] = entry.node.body.body
     if (statements.length < 1 || statements.length > maxBody) continue
     const freeNames = new Set<string>()
+    const assigned = new Set<string>()
     let trivial = true
+    // A wrapper that references its own name (as a value) is not a
+    // candidate: the copied body would keep the reference after removal.
+    let selfReference = false
+    walk(entry.node.body, (node, parent) => {
+      if (node.type === 'Identifier' && node.name === entry.name && !(parent?.type === 'CallExpression' && parent.callee === node)) selfReference = true
+    })
+    if (selfReference) continue
     for (const statement of statements) {
       if (statement.type !== 'ExpressionStatement') { trivial = false; break }
       const expression = statement.expression
@@ -130,6 +138,7 @@ function inlineOnce(
         if (expression.operator !== '=' || expression.left.type !== 'Identifier' || !isSimple(expression.right)) { trivial = false; break }
         if (params.includes(expression.left.name)) { trivial = false; break }
         freeNames.add(expression.left.name)
+        assigned.add(expression.left.name)
         if (expression.right.type === 'Identifier' && !params.includes(expression.right.name)) freeNames.add(expression.right.name)
       } else {
         trivial = false
@@ -137,7 +146,7 @@ function inlineOnce(
       }
     }
     if (!trivial) continue
-    wrappers.set(entry.name, { entry, params, statements, freeNames })
+    wrappers.set(entry.name, { entry, params, statements, freeNames, assigned })
   }
   if (wrappers.size === 0) return unchanged
 
@@ -167,6 +176,12 @@ function inlineOnce(
       // would spill past the branch.
       if (wrapper.statements.length > 1 && parent?.type !== 'BlockStatement') return
       for (const name of wrapper.freeNames) if (locals.has(name)) return
+      // A parameter is bound at entry; substituting the caller's identifier
+      // would re-read it after the body's own writes. Refuse a site whose
+      // argument names anything the body assigns.
+      for (const argument of call.arguments) {
+        if (argument.type === 'Identifier' && wrapper.assigned.has(argument.name)) return
+      }
       const substitution = new Map<string, string>()
       wrapper.params.forEach((param, index) => {
         substitution.set(param, source.slice(call.arguments[index].start, call.arguments[index].end))
