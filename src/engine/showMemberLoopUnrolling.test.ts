@@ -91,6 +91,26 @@ w = sin(x + 2 * 0.1)
     expect(result.source).not.toMatch(/,\s*b = a \+ 1/)
   })
 
+  it('never erases a module-global induction variable that other functions observe, and skips empty bodies', () => {
+    const source = wrap(`  var v = 0
+  for (i = 0; i < 3; i++) add()
+  for (var k = 0; k < 3; k++) {}
+  for (var m = 0; m < 3; m++);
+  rgb(total, v, 0)`, 'var acc = 0\nvar i = 0\nvar total = 0\nfunction add() { total = total + i }')
+    const result = unrollShowMemberLoops(source)
+    expect(result.unrolledLoops).toBe(0)
+    expect(result.source).toContain('for (i = 0; i < 3; i++) add()')
+    expect(result.source).toContain('for (var k = 0; k < 3; k++) {}')
+    expect(result.source).toContain('for (var m = 0; m < 3; m++);')
+    expect(result.skipped.map((entry) => entry.reason).sort()).toEqual(['empty-body', 'empty-body', 'global-induction'])
+    // A function-local assigned in the init is still eligible.
+    const local = wrap(`  var v = 0
+  var i
+  for (i = 0; i < 2; i++) v = v + i
+  rgb(v, 0, 0)`, 'var acc = 0')
+    expect(unrollShowMemberLoops(local).unrolledLoops).toBe(1)
+  })
+
   it('keeps the exit value when the induction variable is read after the loop', () => {
     const source = wrap(`  var v = 0
   for (var i = 0; i < 2; i++) v = v + i

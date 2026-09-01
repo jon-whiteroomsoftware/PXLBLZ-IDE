@@ -182,10 +182,16 @@ function analyzeLoop(
       from = declarator.init.value
     }
   } else if (init?.type === 'AssignmentExpression' && init.operator === '=' && init.left.type === 'Identifier' && isIntegerLiteral(init.right)) {
+    // An assignment initializer may target a module global that other
+    // functions observe (`var i = 0; function f() { total += i }`); only a
+    // local of this function is safe to erase.
+    if (!locals.has(init.left.name)) return { reason: 'global-induction' }
     induction = init.left.name
     from = init.right.value
   }
   if (induction == null || from == null) return { reason: 'init-shape' }
+  const bodyStatements: Node[] = loop.body.type === 'BlockStatement' ? loop.body.body : [loop.body]
+  if (bodyStatements.length === 0 || (loop.body.type === 'EmptyStatement')) return { reason: 'empty-body' }
   const test = loop.test
   if (!test || test.type !== 'BinaryExpression' || test.left.type !== 'Identifier' || test.left.name !== induction) {
     return { reason: 'test-shape' }
