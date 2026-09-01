@@ -136,6 +136,7 @@ describe('wave-5 Controller attribution at 256/500 px (#924)', () => {
       // the probe connection object once it has failed.
       let restore = connection
       try {
+       try {
         try {
           await connection.getConfig()
         } catch {
@@ -162,6 +163,13 @@ describe('wave-5 Controller attribution at 256/500 px (#924)', () => {
           )
           runError = runError == null ? restoreError : new AggregateError([runError, restoreError], 'Probe and restoration both failed.')
         }
+       } catch (restoreFailure) {
+        // A restoration failure (reconnect refused, config request rejected)
+        // must not escape: the completed rows still get their partial report
+        // below, and the failure is reported with the run error.
+        const restoreError = restoreFailure instanceof Error ? restoreFailure : new Error(String(restoreFailure))
+        runError = runError == null ? restoreError : new AggregateError([runError, restoreError], 'Probe and restoration both failed.')
+       }
       } finally {
         restore.close()
         if (restore !== connection) connection.close()
