@@ -1192,6 +1192,8 @@ generated Effect kernels, tiny-helper inlining and frame-invariant hoisting,
 generated trivial-wrapper inlining (pass-through renderCapture, emit, and
 clear wrappers folded into their per-pixel call sites,
 `showGeneratedWrapperInlining.ts`, #929),
+member loop rewrites (`i = i + 1` to `i++` and unrolling of small
+fixed-bound render loops, `showMemberLoopUnrolling.ts`, #931),
 coefficient hoisting, prologue-rebinding elimination, per-member HSV
 conversion, generated frame-constant hoisting (per-pixel route constants
 refreshed once per frame in `beforeRender`, `showGeneratedFrameConstantHoisting.ts`,

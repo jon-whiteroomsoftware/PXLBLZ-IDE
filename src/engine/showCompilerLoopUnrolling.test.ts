@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { createFastReplayRuntime } from './fastReplay'
 import type { MapPoint } from './maps/types'
-import { compileShow, type ShowRecipe } from './showCompiler'
+import { compileShow, type GeneratedShowArtifact, type ShowRecipe } from './showCompiler'
 import { compileShowForArtifact } from './showPreviewArtifact'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
@@ -34,7 +34,7 @@ function singleZoneRecipe(pattern: string): ShowRecipe {
   }
 }
 
-function checksums(artifact: { code: string; fxCode: string; metadata: any }, fidelity: 'fast' | 'fidelity'): string[] {
+function checksums(artifact: Pick<GeneratedShowArtifact, 'code' | 'fxCode' | 'metadata'>, fidelity: 'fast' | 'fidelity'): string[] {
   const replay = createFastReplayRuntime({
     code: artifact.code,
     fxCode: artifact.fxCode,
