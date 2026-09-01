@@ -1198,7 +1198,8 @@ fixed-bound render loops, `showMemberLoopUnrolling.ts`, #931),
 (`spatialHold: { stride, mode: 'lerp' }`, off by default, compile-option
 only; the final dispatcher renders one stride ahead at every anchor and
 blends between anchors, declined with a reason when the dispatcher consumes
-the firmware's coordinates, `showSpatialHold.ts`, #937),
+the firmware's coordinates or the Show carries a terminal-index cache —
+snapshot Crossfade, Freeze, Refresh, Trails — `showSpatialHold.ts`, #937),
 coefficient hoisting, prologue-rebinding elimination, per-member HSV
 conversion, generated frame-constant hoisting (per-pixel route constants
 refreshed once per frame in `beforeRender`, `showGeneratedFrameConstantHoisting.ts`,

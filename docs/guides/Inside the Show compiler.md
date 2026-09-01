@@ -262,9 +262,11 @@ authored policies you choose, never silent substitutions.
   member runs N/stride + 1 times per frame instead of N. It is a
   compile-time option with no editor surface yet, off by default, and it
   only applies where the compiler synthesizes coordinates from the pixel
-  index (Installation Shows and single-zone Shows); a Show routed by the
-  firmware's own map coordinates keeps full evaluation and the compile
-  report says why.
+  index (Installation Shows and single-zone Shows) and only where no
+  per-pixel cache needs every pixel visited in order (snapshot Crossfades,
+  Freeze, Refresh, and Trails decline it); a Show routed by the firmware's
+  own map coordinates keeps full evaluation, and the compile report says
+  why either way.
 
 **Trails** belongs in this section with the sign flipped: it's a visual
 affordance that **costs** a measured 35–37% FPS on native serial output,

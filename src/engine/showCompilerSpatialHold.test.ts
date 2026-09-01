@@ -24,7 +24,7 @@ function singleZone(pattern: string): ShowRecipe {
     routingLayouts: [{ id: 'stage', name: 'stage', zones: [stage] }],
     routedSceneSequence: {
       scenes: [
-        { holdMs: 20_000, placements: [{ placementId: 'p', zoneName: 'stage', clipId: 'member' }], transitionOut: { kind: 'crossfade', durationMs: 2_000 } },
+        { holdMs: 20_000, placements: [{ placementId: 'p', zoneName: 'stage', clipId: 'member' }] },
         { holdMs: 20_000, placements: [{ placementId: 'q', zoneName: 'stage', clipId: 'cheap' }] },
       ],
     },
@@ -61,6 +61,14 @@ describe('spatial hold-and-lerp compile option (#937)', () => {
         }
       }
     }
+  })
+
+  it('returns the ordinary direct-sink artifact when the hold is declined', () => {
+    const portable = STOCK_SHOWS.find((item) => item.id === 'stock-show-105-portable-zones')!
+    const plain = compileShowForArtifact(portable.show, [], undefined, {}, { stageDimension: 2 }).artifact!
+    const declined = compileShowForArtifact(portable.show, [], undefined, {}, { stageDimension: 2, spatialHold: { stride: 2, mode: 'lerp' } }).artifact!
+    expect(declined.summary.specializations.spatialHold).toMatchObject({ selected: false, reason: 'coordinate-routed' })
+    expect(declined.code).toBe(plain.code)
   })
 
   it('wraps or declines every stock Show with a recorded reason', () => {

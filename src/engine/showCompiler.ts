@@ -2091,9 +2091,15 @@ export function compileShow(
   options: ShowCompileOptions = {},
 ): GeneratedShowArtifact {
   // #937: the spatial hold latches RGB, so member sinks must capture rather
-  // than paint natively.
+  // than paint natively - but only when the hold is actually selected. A
+  // declined hold returns the ordinary artifact (direct sinks and all) with
+  // the decline recorded in its summary.
   if (options.spatialHold && options.directColorSinks !== false) {
-    options = { ...options, directColorSinks: false }
+    const held = compileShow(recipe, libraries, { ...options, directColorSinks: false })
+    if (held.summary.specializations.spatialHold.selected) return held
+    const ordinary = compileShow(recipe, libraries, { ...options, spatialHold: undefined })
+    ordinary.summary.specializations.spatialHold = held.summary.specializations.spatialHold
+    return ordinary
   }
   if (options.schedulerTable === undefined || options.schedulerTable === 'auto') {
     // #717 review P2: the size-selected table scheduler adds four table

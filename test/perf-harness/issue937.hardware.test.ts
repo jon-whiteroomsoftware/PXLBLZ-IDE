@@ -9,7 +9,7 @@ import {
   sleep,
   waitForControllerConfig,
 } from './controllerHardware'
-import { ISSUE926_PIXEL_COUNT, issue937Candidates } from './issue937'
+import { ISSUE937_PIXEL_COUNT, issue937Candidates } from './issue937'
 
 // ISSUE937_HARDWARE=1 PIXELBLAZE_IP=<ip> npx vitest run test/perf-harness/issue937.hardware.test.ts
 const runHardware = process.env.ISSUE937_HARDWARE === '1'
@@ -32,7 +32,7 @@ describe('hold-and-lerp compile option ladder (#937)', () => {
     let runError: unknown
     const rows: unknown[] = []
     try {
-      connection.setPixelCount(ISSUE926_PIXEL_COUNT, false)
+      connection.setPixelCount(ISSUE937_PIXEL_COUNT, false)
       await sleep(1_000)
       for (const candidate of issue937Candidates()) {
         process.stdout.write(`  ${candidate.id} ... `)
@@ -67,7 +67,7 @@ describe('hold-and-lerp compile option ladder (#937)', () => {
     const report = {
       generatedAt: new Date().toISOString(),
       controller: { ip, name: original.name, boardType: original.boardType, firmwareVersion: original.firmwareVersion, outputProfile: declaredOutputProfileStamp(undefined), ...measurementOptions },
-      pixelCount: ISSUE926_PIXEL_COUNT,
+      pixelCount: ISSUE937_PIXEL_COUNT,
       rows,
       partial: runError != null,
     }

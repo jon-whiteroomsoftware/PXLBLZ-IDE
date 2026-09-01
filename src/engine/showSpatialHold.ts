@@ -1,7 +1,8 @@
 // #937: spatial hold-and-lerp as a compile option (the #926 spike, built).
 //
 // Every stride-th pixel is an anchor. At an anchor the dispatcher is
-// evaluated one stride AHEAD (index + stride), the previous lookahead
+// evaluated one stride AHEAD (index + stride, clamped to the last physical
+// pixel so no generated arena access runs past its bounds), the previous lookahead
 // becomes the current anchor sample, and the stride pixels from the anchor
 // paint a linear blend between the two samples. Evaluations per frame fall
 // to N / stride + 1; measured on heavy members at 256 px, +79% at x2 and
@@ -37,7 +38,14 @@ export type SpatialHoldReason =
   | 'disabled'
   | 'coordinate-routed'
   | 'hsv-direct-paint'
+  | 'stateful-cache'
   | 'no-dispatcher'
+
+/** Generated machinery that marks itself ready at the terminal pixel index
+ *  (Freeze, Refresh, Rolling Refresh, Trails, snapshot captures): under a
+ *  hold the inner dispatcher never sees pixelCount - 1 in order, so these
+ *  Shows are declined rather than left with a cache that never completes. */
+const STATEFUL_CACHE_MARKERS = /__pxlblz_show_(freeze|refresh|rolling|trails|snapshot|capture_complete|stage_rgb|previous_rgb)/
 
 export interface SpatialHoldResult {
   code: string
@@ -119,6 +127,13 @@ export function applySpatialHold(
     })
   }
   if (hsvPaint) return { code: source, selected: false, reason: 'hsv-direct-paint', latchedPaints: 0 }
+  // Generated code only: authored members may name anything.
+  let stateful = false
+  for (const statement of ast.body) {
+    if (inExcluded(statement)) continue
+    if (STATEFUL_CACHE_MARKERS.test(source.slice(statement.start, statement.end))) { stateful = true; break }
+  }
+  if (stateful) return { code: source, selected: false, reason: 'stateful-cache', latchedPaints: 0 }
   const edits: Array<{ start: number; end: number; text: string }> = paints.map((call) => ({
     start: call.callee.start,
     end: call.callee.end,
@@ -151,7 +166,7 @@ export function ${fn.id.name}(${entryParams}) {
     ${LATCH}_cr = ${LATCH}_r
     ${LATCH}_cg = ${LATCH}_g
     ${LATCH}_cb = ${LATCH}_b
-    ${LATCH}_inner(${innerArgs(`${params[0]} + ${stride}`)})
+    ${LATCH}_inner(${innerArgs(`min(${params[0]} + ${stride}, pixelCount - 1)`)})
   }
   ${LATCH}_t = ${LATCH}_t / ${stride}
   rgb(
