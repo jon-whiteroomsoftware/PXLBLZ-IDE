@@ -1194,6 +1194,10 @@ clear wrappers folded into their per-pixel call sites,
 `showGeneratedWrapperInlining.ts`, #929),
 member loop rewrites (`i = i + 1` to `i++` and unrolling of small
 fixed-bound render loops, `showMemberLoopUnrolling.ts`, #931),
+member integer-pow lowering (`pow(b, k)` for literal 2 <= k <= 4 to a
+multiply chain with a bounded, pure base; display-exact rather than
+checksum-exact, so it ships behind `memberPowLowering`, off by default and
+never at the Exact stop — `showMemberPowLowering.ts`, #933),
 `showGeneratedWrapperInlining.ts`, #929), the authored spatial hold-and-lerp
 (`spatialHold: { stride, mode: 'lerp' }`, off by default, compile-option
 only; the final dispatcher renders one stride ahead at every anchor and
