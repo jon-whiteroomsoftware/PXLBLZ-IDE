@@ -1189,6 +1189,9 @@ record and a counterfactual option: stack and wrapper interning, body-identity
 branch grouping, the table-driven scheduler and Show score, shared Motion
 transition kernels, lifetime-colored Restart Pattern machines, shared
 generated Effect kernels, tiny-helper inlining and frame-invariant hoisting,
+generated trivial-wrapper inlining (pass-through renderCapture, emit, and
+clear wrappers folded into their per-pixel call sites,
+`showGeneratedWrapperInlining.ts`, #929),
 coefficient hoisting, prologue-rebinding elimination, per-member HSV
 conversion, generated frame-constant hoisting (per-pixel route constants
 refreshed once per frame in `beforeRender`, `showGeneratedFrameConstantHoisting.ts`,

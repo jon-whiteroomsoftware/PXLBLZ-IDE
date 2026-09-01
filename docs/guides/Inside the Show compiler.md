@@ -180,6 +180,11 @@ compiler just applies them with proofs instead of intuition:
   every pixel; those depend only on `pixelCount` and values the scheduler
   writes once per frame, so the compiler now computes them at the end of
   `beforeRender` and the arms read a global (+2–3% on Portable Shows).
+- **Fold the plumbing.** The generated wrappers between the routing arm and
+  the member — the pass-through capture wrapper, the one-line paint helper,
+  the clear sink — each cost a call boundary per pixel for no work; when
+  their bodies are trivial and their arguments are plain names, the
+  compiler pastes them into the arm and deletes the wrapper.
 
 Together, the first wave of these took the Redline reference from 2.36 to
 3.04 FPS (+28.8%) without changing a single output pixel.
