@@ -17,7 +17,15 @@
 // zone x/y from the zone-local index, so calling the dispatcher with
 // index + K evaluates the member one stride ahead. That is the Installation
 // / synthesized-coordinate case; a Portable Show fed map coordinates by the
-// firmware cannot look ahead, which is a stated limit of this variant.
+// firmware cannot look ahead, which is a stated limit of this variant. The
+// lookahead clamps to pixelCount - 1 so the final anchor interpolates toward
+// the last physical pixel, matching the shipped pass (#937).
+//
+// Fixture geometry: the recipe declares a 2,000-pixel zone, so the compiler
+// synthesizes a 45x45 coordinate domain and the 256 rendered indices cover
+// its first rows as a strip. FPS is unaffected (per-pixel member cost is
+// coordinate-independent); emulator drift figures measured on this fixture
+// describe that strip, not a 16x16 surface.
 import { compileShow, type GeneratedShowArtifact, type ShowRecipe } from '../../src/engine/showCompiler'
 import { LIBRARIES } from '../../src/pixelblaze/libs'
 import { DEMOS } from '../../src/pixelblaze/stock/patterns'
@@ -137,7 +145,7 @@ export function render2D(index, x, y) {
     __pxlblz_hold_cr = __pxlblz_hold_r
     __pxlblz_hold_cg = __pxlblz_hold_g
     __pxlblz_hold_cb = __pxlblz_hold_b
-    __pxlblz_hold_inner(index + ${k}, x, y)
+    __pxlblz_hold_inner(min(index + ${k}, pixelCount - 1), x, y)
   }
   __pxlblz_hold_t = __pxlblz_hold_t / ${k}
   rgb(
