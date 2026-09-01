@@ -65,8 +65,13 @@ async function main() {
     restore.setActiveProgram(original.activeProgramId)
     if (original.pixelCount != null) restore.setPixelCount(original.pixelCount, false)
     const restored = await waitForControllerConfig(() => restore.getConfig(), { activeProgramId: original.activeProgramId, pixelCount: original.pixelCount })
-    console.log('restored', restored.activeProgramId === original.activeProgramId, restored.pixelCount)
     restore.close()
+    // waitForControllerConfig returns the last configuration on timeout; a
+    // mismatch is a failed restoration and must fail the probe.
+    if (restored.activeProgramId !== original.activeProgramId || restored.pixelCount !== original.pixelCount) {
+      throw new Error(`Controller state did not restore (program=${restored.activeProgramId}, pixels=${restored.pixelCount}).`)
+    }
+    console.log('restored', restored.activeProgramId, restored.pixelCount)
   }
 }
 main().catch((error) => { console.error(error); process.exitCode = 1 })

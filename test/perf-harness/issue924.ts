@@ -70,7 +70,10 @@ const stageZone = {
 
 /** One full-Stage zone: the member under test holds for 20 s, then a cheap
  *  member holds, so the steady window is the heavy member alone. */
-export function heavySteadyRecipe(member: (typeof ISSUE924_HEAVY_MEMBERS)[number]): ShowRecipe {
+export function heavySteadyRecipe(
+  member: (typeof ISSUE924_HEAVY_MEMBERS)[number],
+  holdMs = 20_000,
+): ShowRecipe {
   return {
     masterPixelCount: ISSUE924_MASTER_PIXEL_COUNT,
     clips: [
@@ -82,7 +85,7 @@ export function heavySteadyRecipe(member: (typeof ISSUE924_HEAVY_MEMBERS)[number
     routedSceneSequence: {
       scenes: [
         {
-          holdMs: 20_000,
+          holdMs,
           placements: [{ placementId: 'heavy', zoneName: 'stage', clipId: 'heavy' }],
           transitionOut: { kind: 'crossfade', durationMs: 2_000 },
         },
@@ -92,7 +95,7 @@ export function heavySteadyRecipe(member: (typeof ISSUE924_HEAVY_MEMBERS)[number
         },
       ],
     },
-    loopDurationMs: 42_000,
+    loopDurationMs: holdMs + 22_000,
   }
 }
 
@@ -181,8 +184,10 @@ export function issue924Fixtures(): Issue924Fixture[] {
     fixture(
       'heavy-steady-phantomstar',
       'single-zone',
-      heavySteadyRecipe('PhantomStar'),
-      'PhantomStar alone in one full-Stage zone (~0.24 FPS at 256 px; 40 s window).',
+      // A 40 s window must sit inside the hold: 90 s here, so activation,
+      // settle, and the sample all stay in the first Scene.
+      heavySteadyRecipe('PhantomStar', 90_000),
+      'PhantomStar alone in one full-Stage zone (90 s hold; 40 s window).',
       40_000,
     ),
     fixture(

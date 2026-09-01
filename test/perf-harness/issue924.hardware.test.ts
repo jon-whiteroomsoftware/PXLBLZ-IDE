@@ -191,7 +191,7 @@ describe('wave-5 Controller attribution at 256/500 px (#924)', () => {
     // or failed runs go to a labelled sibling.
     const suffix = label !== 'baseline'
       ? `.${label}`
-      : report.partial ? `.partial-${new Date().toISOString().slice(0, 10)}` : ''
+      : report.partial ? `.partial-${report.generatedAt.replace(/[:.]/g, '-')}` : ''
     const outputPath = join(process.cwd(), `test/perf-harness/issue924-attribution${suffix}.json`)
     writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`)
     console.log(`Wrote ${outputPath}`)
