@@ -43,13 +43,17 @@ export const COMPILER_VINTAGES = {
     helperCallInlining: false,
     inlineCallHoisting: false,
   },
-  /** #542 score baseline census (pre-wave-2 emission diet, pre-#904/#907). */
+  /** #542 score baseline census (pre-wave-2 emission diet, pre-#904/#907,
+   * pre-#928/#929: the frame-constant hoist adds a global and wrapper
+   * inlining moves bytes on the pinned references). */
   'issue-542-score-census': {
     hsvCaptureChainSpecialization: false,
     inlineCallHoisting: false,
     helperCallInlining: false,
     identityBlendFold: false,
     hsvSharedChainLaneScoping: false,
+    generatedFrameConstantHoisting: false,
+    generatedWrapperInlining: false,
   },
   /** Motion-transition sharing goldens (pre-#559/#566/#904/#907/#928/#929). */
   'motion-transition-sharing': {
