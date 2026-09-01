@@ -1,0 +1,115 @@
+{
+  "generatedAt": "2026-09-01T21:50:33.381Z",
+  "controller": {
+    "ip": "192.168.8.224",
+    "name": "Burner bag",
+    "boardType": "pb32",
+    "firmwareVersion": "3.67",
+    "outputProfile": "native-serial (assumed)",
+    "activationTimeoutMs": 20000,
+    "settleMs": 2000,
+    "sampleMs": 6000
+  },
+  "rows": [
+    {
+      "id": "ZippyZaps:off",
+      "bytecodeBytes": 5646,
+      "fps": {
+        "mean": 6.941003000000002,
+        "median": 6.941003,
+        "min": 6.937562,
+        "max": 6.944444,
+        "samples": 24
+      }
+    },
+    {
+      "id": "ZippyZaps:lerp-x2",
+      "bytecodeBytes": 6042,
+      "fps": {
+        "mean": 12.403101250000004,
+        "median": 12.40458,
+        "min": 12.39275,
+        "max": 12.40458,
+        "samples": 24
+      }
+    },
+    {
+      "id": "ZippyZaps:lerp-x4",
+      "bytecodeBytes": 6042,
+      "fps": {
+        "mean": 22.716054999999994,
+        "median": 22.716055,
+        "min": 22.70484,
+        "max": 22.72727,
+        "samples": 24
+      }
+    },
+    {
+      "id": "Caustics:off",
+      "bytecodeBytes": 6734,
+      "fps": {
+        "mean": 7.2630997499999985,
+        "median": 7.266122,
+        "min": 7.259528,
+        "max": 7.266122,
+        "samples": 24
+      }
+    },
+    {
+      "id": "Caustics:lerp-x2",
+      "bytecodeBytes": 7130,
+      "fps": {
+        "mean": 12.935319999999995,
+        "median": 12.93532,
+        "min": 12.93532,
+        "max": 12.93532,
+        "samples": 24
+      }
+    },
+    {
+      "id": "Caustics:lerp-x4",
+      "bytecodeBytes": 7130,
+      "fps": {
+        "mean": 23.668639999999993,
+        "median": 23.66864,
+        "min": 23.66864,
+        "max": 23.66864,
+        "samples": 24
+      }
+    },
+    {
+      "id": "hsv-steady-light:off",
+      "bytecodeBytes": 6734,
+      "fps": {
+        "mean": 54.033217500000006,
+        "median": 54.45806,
+        "min": 52.21675,
+        "max": 55,
+        "samples": 16
+      }
+    },
+    {
+      "id": "hsv-steady-light:lerp-x2",
+      "bytecodeBytes": 7130,
+      "fps": {
+        "mean": 57.940521249999996,
+        "median": 58.179135,
+        "min": 56.94305,
+        "max": 58.58987,
+        "samples": 16
+      }
+    },
+    {
+      "id": "hsv-steady-light:lerp-x4",
+      "bytecodeBytes": 7130,
+      "fps": {
+        "mean": 83.45787999999999,
+        "median": 83.70754,
+        "min": 82.34127,
+        "max": 84.07517,
+        "samples": 16
+      }
+    }
+  ],
+  "partial": false
+}

@@ -11,13 +11,13 @@ import {
 } from './controllerHardware'
 import { ISSUE926_PIXEL_COUNT, issue937Candidates } from './issue937'
 
-// ISSUE926_HARDWARE=1 PIXELBLAZE_IP=<ip> npx vitest run test/perf-harness/issue937.hardware.test.ts
-const runHardware = process.env.ISSUE926_HARDWARE === '1'
+// ISSUE937_HARDWARE=1 PIXELBLAZE_IP=<ip> npx vitest run test/perf-harness/issue937.hardware.test.ts
+const runHardware = process.env.ISSUE937_HARDWARE === '1'
 const ip = process.env.PIXELBLAZE_IP ?? '192.168.8.224'
 const measurementOptions = { activationTimeoutMs: 20_000, settleMs: 2_000, sampleMs: 6_000 }
 
 describe('hold-and-lerp compile option ladder (#937)', () => {
-  it.skipIf(!runHardware)('measures baseline, hold, parity, lerp, and refresh variants at 256 px and restores Controller state', async () => {
+  it.skipIf(!runHardware)('measures off, lerp x2, and lerp x4 at 256 px and restores Controller state', async () => {
     const compile = await fetchControllerCompiler(ip)
     const connection = new PixelblazeConnection({ host: ip, webSocketFactory: nodeWebSocketFactory, requestTimeoutMs: 15_000, pingIntervalMs: 0 })
     connection.on('error', (error) => console.error('controller socket:', error))
@@ -71,7 +71,7 @@ describe('hold-and-lerp compile option ladder (#937)', () => {
       rows,
       partial: runError != null,
     }
-    const outputPath = join(process.cwd(), `test/perf-harness/issue937-variants-ladder${report.partial ? `.partial-${report.generatedAt.replace(/[:.]/g, '-')}` : ''}.json`)
+    const outputPath = join(process.cwd(), `test/perf-harness/issue937-lerp-ladder${report.partial ? `.partial-${report.generatedAt.replace(/[:.]/g, '-')}` : ''}.json`)
     writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`)
     console.log(`Wrote ${outputPath}`)
     if (runError != null) throw runError
