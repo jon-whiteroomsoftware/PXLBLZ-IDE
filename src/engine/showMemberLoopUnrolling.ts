@@ -133,9 +133,18 @@ function unrollOnce(source: string, budget: UnrollBudget, result: ShowMemberLoop
     const fn = byName.get(name)!
     const locals = localNames(fn)
     const loops: Node[] = []
-    walk(fn.body, (node) => { if (node.type === 'ForStatement') loops.push(node) })
+    // Loops inside nested functions have their own scope; they stay loops.
+    walkStoppingAtFunctions(fn.body, (node) => { if (node.type === 'ForStatement') loops.push(node) })
+    // (2) A nested function that names the induction variable observes it
+    // between iterations; collect every name nested functions reference.
+    const nestedReferences = new Set<string>()
+    walk(fn.body, (node) => {
+      if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') {
+        walk(node.body, (inner) => { if (inner.type === 'Identifier') nestedReferences.add(inner.name) })
+      }
+    })
     for (const loop of loops) {
-      const verdict = analyzeLoop(loop, source, constants, locals, budget.maxTripCount)
+      const verdict = analyzeLoop(loop, source, constants, locals, budget.maxTripCount, nestedReferences)
       if ('reason' in verdict) {
         // Only report loops that could plausibly have been meant for
         // unrolling: literal or constant bounds.
@@ -165,12 +174,15 @@ interface LoopVerdict {
   exitValue: number
 }
 
+const FIXED_POINT_LIMIT = 32_767
+
 function analyzeLoop(
   loop: Node,
   source: string,
   constants: Map<string, number>,
   locals: Set<string>,
   maxTripCount: number,
+  nestedReferences: Set<string> = new Set(),
 ): LoopVerdict | { reason: string } {
   const init = loop.init
   let induction: string | null = null
@@ -215,6 +227,10 @@ function analyzeLoop(
   if (!stepsByOne) return { reason: 'update-shape' }
   if (!Number.isInteger(trip) || trip < 2) return { reason: 'trip-count' }
   if (trip > maxTripCount) return { reason: 'trip-count' }
+  // (5) Every value the induction variable takes, and its exit value, must
+  // be representable in 16.16; the firmware wraps past 32767.
+  if (Math.abs(from) > FIXED_POINT_LIMIT || Math.abs(exitValue) > FIXED_POINT_LIMIT) return { reason: 'fixed-point-range' }
+  if (nestedReferences.has(induction)) return { reason: 'closure-observes-induction' }
   let hazard: string | null = null
   walk(loop.body, (node) => {
     if (hazard) return
@@ -259,26 +275,31 @@ function expandLoop(source: string, loop: Node, verdict: LoopVerdict, usedAfter:
       copies.push(substitute(0, slice.length, value))
       continue
     }
-    // Later copies assign instead of redeclaring, one statement per
-    // declarator: the Controller compiler has no comma expression, so
-    // `var a = 1, b = 2` becomes two assignment statements.
+    // Later copies assign instead of redeclaring. Each declaration becomes
+    // ONE braced statement of terminated assignments, so it stays a single
+    // statement wherever the original declaration stood (an unbraced
+    // conditional consequent included) and never joins a following line
+    // through semicolon insertion. The Controller compiler has no comma
+    // expression, so declarators are separate statements.
     const edits = declarations.map((declaration) => {
       const parts = declaration.declarations
         .filter((declarator: Node) => declarator.init)
         .map((declarator: Node) => (
-          `${source.slice(declarator.id.start, declarator.id.end)} = ${substitute(declarator.init.start - sliceStart, declarator.init.end - sliceStart, value)}`
+          `${source.slice(declarator.id.start, declarator.id.end)} = ${substitute(declarator.init.start - sliceStart, declarator.init.end - sliceStart, value)};`
         ))
-      return { start: declaration.start - sliceStart, end: declaration.end - sliceStart, text: parts.join('\n') }
+      return { start: declaration.start - sliceStart, end: declaration.end - sliceStart, text: parts.length > 0 ? `{ ${parts.join(' ')} }` : '{}' }
     })
     const outsideDeclarations = reads
       .filter((read) => !declarations.some((declaration) => read.start >= declaration.start - sliceStart && read.end <= declaration.end - sliceStart))
       .map((read) => ({ start: read.start, end: read.end, text: String(value) }))
     copies.push(applyEdits(slice, [...edits, ...outsideDeclarations]))
   }
-  const exit = usedAfter ? `\n${verdict.induction} = ${verdict.exitValue}` : ''
-  const declared = loop.init?.type === 'VariableDeclaration'
-  const declaration = declared && usedAfter ? `var ${verdict.induction}\n` : ''
-  return `${declaration}{\n${copies.join('\n')}\n}${exit}`
+  // The whole expansion is one block statement, so it is valid wherever the
+  // loop statement stood; the declaration keeps the name in function scope
+  // and the terminated exit assignment restores the loop's exit value.
+  const declaration = loop.init?.type === 'VariableDeclaration' && usedAfter ? `var ${verdict.induction};\n` : ''
+  const exit = usedAfter ? `\n${verdict.induction} = ${verdict.exitValue};` : ''
+  return `{\n${declaration}${copies.join('\n')}${exit}\n}`
 }
 
 function inductionReadOutsideLoop(fn: Node, loop: Node, induction: string): boolean {
@@ -389,6 +410,22 @@ function applyEdits(source: string, edits: Array<{ start: number; end: number; t
   let out = source
   for (const edit of sorted) out = `${out.slice(0, edit.start)}${edit.text}${out.slice(edit.end)}`
   return out
+}
+
+/** Like walk, but never descends into nested function bodies. */
+function walkStoppingAtFunctions(node: Node, visit: (node: Node) => void): void {
+  const inner = (current: Node) => {
+    if (!current || typeof current.type !== 'string') return
+    if (current.type === 'FunctionDeclaration' || current.type === 'FunctionExpression' || current.type === 'ArrowFunctionExpression') return
+    visit(current)
+    for (const childKey of Object.keys(current)) {
+      if (childKey === 'type' || childKey === 'start' || childKey === 'end') continue
+      const child = current[childKey]
+      if (Array.isArray(child)) { for (const item of child) if (item && typeof item.type === 'string') inner(item) }
+      else if (child && typeof child.type === 'string') inner(child)
+    }
+  }
+  inner(node)
 }
 
 function walk(node: Node, visit: (node: Node, parent: Node | null, key: string | null) => void): void {

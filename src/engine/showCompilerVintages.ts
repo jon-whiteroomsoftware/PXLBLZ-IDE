@@ -54,6 +54,7 @@ export const COMPILER_VINTAGES = {
     hsvSharedChainLaneScoping: false,
     generatedFrameConstantHoisting: false,
     generatedWrapperInlining: false,
+    loopUnrolling: false,
   },
   /** Motion-transition sharing goldens (pre-#559/#566/#904/#907/#928/#929). */
   'motion-transition-sharing': {

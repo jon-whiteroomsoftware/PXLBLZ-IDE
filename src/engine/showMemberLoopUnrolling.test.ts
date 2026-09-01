@@ -26,9 +26,9 @@ describe('member loop machinery rewrites (#931)', () => {
     expect(result.source).toContain(`{
 var w = sin(x + 0 * 0.1)
     v = v + w
-w = sin(x + 1 * 0.1)
+{ w = sin(x + 1 * 0.1); }
     v = v + w
-w = sin(x + 2 * 0.1)
+{ w = sin(x + 2 * 0.1); }
     v = v + w
 }`)
     expect(result.source).not.toContain('for (var i')
@@ -87,7 +87,7 @@ w = sin(x + 2 * 0.1)
   }
   rgb(v, 0, 0)`, 'var acc = 0')
     const result = unrollShowMemberLoops(source)
-    expect(result.source).toContain('var a = 0 * 2, b = a + 0, c\n    v = v + a + b\na = 1 * 2\nb = a + 1\n    v = v + a + b')
+    expect(result.source).toContain('var a = 0 * 2, b = a + 0, c\n    v = v + a + b\n{ a = 1 * 2; b = a + 1; }\n    v = v + a + b')
     expect(result.source).not.toMatch(/,\s*b = a \+ 1/)
   })
 
@@ -111,12 +111,46 @@ w = sin(x + 2 * 0.1)
     expect(unrollShowMemberLoops(local).unrolledLoops).toBe(1)
   })
 
+  it('stays a single statement in an unbraced conditional and never joins a following line', () => {
+    const source = wrap(`  var v = 0
+  if (x > 0.5) for (var i = 0; i < 2; i++) { var a = i, b = i * 2
+    v = v + a + b }
+  else v = 9
+  for (var j = 0; j < 2; j++) v = v + j
+  rgb(v, i, 0)`, 'var acc = 0')
+    const result = unrollShowMemberLoops(source)
+    expect(result.unrolledLoops).toBe(2)
+    // The if keeps one consequent (a block) and its else.
+    expect(result.source).toMatch(/if \(x > 0\.5\) \{\n[\s\S]*?\n\}\n {2}else v = 9/)
+    // Later-copy declarators are braced and terminated; the exit is
+    // terminated; the expansion is one block, so a following line can never
+    // continue an unterminated assignment.
+    expect(result.source).toContain('{ a = 1; b = 1 * 2; }')
+    expect(result.source).toContain('i = 2;\n}')
+    expect(result.source).toContain('v = v + 1\n}\n  rgb(v, i, 0)')
+  })
+
+  it('refuses a loop whose induction variable a nested function observes, a loop inside a nested function, and a 16.16 overflow range', () => {
+    const source = wrap(`  var total = 0
+  function add() { total = total + i }
+  for (var i = 0; i < 3; i++) add()
+  function inner(N) { var s = 0; for (var k = 0; k < N; k++) s = s + k; return s }
+  for (var m = 32760; m <= 32767; m++) total = total + m
+  rgb(total, inner(0), 0)`, 'var acc = 0\nvar N = 3')
+    const result = unrollShowMemberLoops(source)
+    expect(result.unrolledLoops).toBe(0)
+    expect(result.source).toContain('for (var i = 0; i < 3; i++) add()')
+    expect(result.source).toContain('for (var k = 0; k < N; k++) s = s + k')
+    expect(result.source).toContain('for (var m = 32760; m <= 32767; m++)')
+    expect(result.skipped.map((entry) => entry.reason).sort()).toEqual(['closure-observes-induction', 'fixed-point-range'])
+  })
+
   it('keeps the exit value when the induction variable is read after the loop', () => {
     const source = wrap(`  var v = 0
   for (var i = 0; i < 2; i++) v = v + i
   rgb(v, i, 0)`, 'var acc = 0')
     const result = unrollShowMemberLoops(source)
-    expect(result.source).toContain('var i\n{\nv = v + 0\nv = v + 1\n}\ni = 2\n  rgb(v, i, 0)')
+    expect(result.source).toContain('{\nvar i;\nv = v + 0\nv = v + 1\ni = 2;\n}\n  rgb(v, i, 0)')
   })
 
   it('does not unroll outside render-reachable functions and respects the growth allowance', () => {
