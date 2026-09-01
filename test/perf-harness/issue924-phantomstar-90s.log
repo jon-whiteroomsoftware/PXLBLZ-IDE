@@ -1,0 +1,9 @@
+-- 256 px
+124.564 median FPS (16 samples)
+82.341 median FPS (16 samples)
+0.236 median FPS (159 samples)
+-- 500 px
+65.153 median FPS (16 samples)
+42.469 median FPS (16 samples)
+  heavy-steady-phantomstar:full ...  × |node| test/perf-harness/issue924.hardware.test.ts > wave-5 Controller attribution at 256/500 px (#924) > measures the ladder on heavy fixtures, the dispatch probes, and restores Controller state 129439ms
+Error: Pixelblaze request timed out waiting for "activeProgram"

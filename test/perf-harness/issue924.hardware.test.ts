@@ -187,11 +187,11 @@ describe('wave-5 Controller attribution at 256/500 px (#924)', () => {
       // A filtered run is partial evidence by construction, not just on error.
       partial: runError != null || Boolean(only) || skipDispatch,
     }
-    // The unlabelled baseline file only ever holds a complete run; filtered
-    // or failed runs go to a labelled sibling.
-    const suffix = label !== 'baseline'
-      ? `.${label}`
-      : report.partial ? `.partial-${report.generatedAt.replace(/[:.]/g, '-')}` : ''
+    // The unlabelled baseline file only ever holds a complete run. Any partial
+    // run - filtered, dispatch-skipped, or failed - gets a timestamped name so
+    // repeated runs never overwrite earlier evidence, labelled or not.
+    const partialStamp = report.partial ? `.partial-${report.generatedAt.replace(/[:.]/g, '-')}` : ''
+    const suffix = `${label !== 'baseline' ? `.${label}` : ''}${partialStamp}`
     const outputPath = join(process.cwd(), `test/perf-harness/issue924-attribution${suffix}.json`)
     writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`)
     console.log(`Wrote ${outputPath}`)

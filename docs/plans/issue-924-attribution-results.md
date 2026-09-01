@@ -111,14 +111,21 @@ request timeout after these rows and is not reported):
 
 | fixture | routing | px | trivial | const | full | floor ms | Show ms | Pattern ms | full ms | Show % |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| heavy-steady-phantomstar | single | 256 | 124.502 | 82.341 | 8.162 | 8.03 | 4.11 | 110.37 | 122.51 | 3.4 |
+| heavy-steady-phantomstar (20 s hold, window overran — superseded) | single | 256 | 124.502 | 82.341 | 8.162 | 8.03 | 4.11 | 110.37 | 122.51 | 3.4 |
+| heavy-steady-phantomstar (90 s hold) | single | 256 | 124.564 | 82.341 | 0.236 | 8.03 | 4.12 | 4,225.1 | 4,237.3 | 0.1 |
 | effect-tax (window) | single | 256 | 124.502 | 35.000 | 28.077 | 8.03 | 20.54 | 7.04 | 35.62 | 57.7 |
 | mirror | single | 256 | 124.502 | 47.501 | 6.783 | 8.03 | 13.02 | 126.38 | 147.43 | 8.8 |
 
-- PhantomStar inside a Show runs at 8.2 FPS at 256 px (its quality slider
-  default gives 67 raymarch steps); the standalone 0.24 FPS figure in the
-  optimization guide is from a different configuration. Member-bound like
-  the other heavy members (3.4% Show).
+- PhantomStar: the first row's 40 s window overran its 20 s hold and
+  averaged in the crossfade and the cheap Scene (the raw samples span
+  0.235–68.5 FPS), so it is superseded. With a 90 s hold the member alone
+  measures **0.236 FPS at 256 px — 4.2 s per frame**, matching the guide's
+  standalone figure; Show machinery is 0.1% of it. The 500 px rung of that
+  run could not be measured: at ~8 s per frame the firmware answers
+  configuration requests only between frames and the 15 s request timeout
+  expires (`issue924-phantomstar-90s.log`; the JSON was not written because
+  restoration also timed out — the row above is transcribed from the run
+  log).
 - The two per-member colour Effects (hue rotate, posterize) cost 16.4 ms
   at 256 px on top of the 4.1 ms single-zone floor — ~64 µs/pixel of
   generated Effect arithmetic, the largest machinery share measured in
