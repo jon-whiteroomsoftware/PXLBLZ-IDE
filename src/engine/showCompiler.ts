@@ -112,6 +112,7 @@ import type { ShowRendererOutputGuarantees } from './showCaptureSpecialization'
 import type { ShowFrameDependency } from './showFrameInvariantHoisting'
 import { hoistGeneratedFrameConstants } from './showGeneratedFrameConstantHoisting'
 import { inlineGeneratedWrappers } from './showGeneratedWrapperInlining'
+import { applySpatialHold, type SpatialHoldOptions, type SpatialHoldReason } from './showSpatialHold'
 import {
   selectShowRenderKernelSpecialization,
   type ShowRenderKernelSelection,
@@ -668,6 +669,14 @@ export interface ShowCompileSummary {
       removedHelperCount: number
       addedSourceBytes: number
     }>
+    /** #937: authored spatial hold-and-lerp; `selected` only when the option
+     * is set and the dispatcher synthesizes its coordinates. */
+    spatialHold: {
+      selected: boolean
+      reason: SpatialHoldReason
+      stride: number | null
+      latchedPaints: number
+    }
     /** #929: trivial generated wrappers folded into per-pixel call sites;
      * kept as wrappers when the inlined artifact alone would cross the
      * activation scale. */
@@ -1186,6 +1195,12 @@ export interface ShowCompileOptions {
    * route constants refreshed once per frame at the end of beforeRender);
    * production always uses the default `true`. */
   generatedFrameConstantHoisting?: boolean
+  /** #937: authored spatial hold-and-lerp (off by default, compile-option
+   * only this wave). Every `stride`-th pixel renders one stride ahead and
+   * the pixels between anchors blend linearly; declined with a reason for
+   * dispatchers that read the firmware's coordinates. Forces
+   * `directColorSinks: false` so every paint captures into RGB globals. */
+  spatialHold?: SpatialHoldOptions
   /** Benchmark/vintage counterfactual for the #929 generated trivial-wrapper
    * inlining (pass-through renderCapture, emit, and clear wrappers folded
    * into their per-pixel call sites); production always uses the default
@@ -2075,6 +2090,11 @@ export function compileShow(
   libraries: Record<string, string>,
   options: ShowCompileOptions = {},
 ): GeneratedShowArtifact {
+  // #937: the spatial hold latches RGB, so member sinks must capture rather
+  // than paint natively.
+  if (options.spatialHold && options.directColorSinks !== false) {
+    options = { ...options, directColorSinks: false }
+  }
   if (options.schedulerTable === undefined || options.schedulerTable === 'auto') {
     // #717 review P2: the size-selected table scheduler adds four table
     // globals and two pointers, which can push a Show already at the
@@ -2904,7 +2924,19 @@ export function compileShow(
     inlinedBytes,
   }
   const emittedWithWrapperInlining = wrapperInliningSelected ? wrapperInliningCandidate!.code : emittedWithFrameConstants
-  const expandedCode = `${arenaPrefix}${emittedWithWrapperInlining}`
+  // #937: the authored hold wraps the final dispatcher, after every other
+  // generated-code pass.
+  const spatialHold = options.spatialHold
+    ? applySpatialHold(emittedWithWrapperInlining, options.spatialHold, excludedMemberSources)
+    : null
+  const spatialHoldSummary = {
+    selected: spatialHold?.selected ?? false,
+    reason: spatialHold?.reason ?? 'disabled' as SpatialHoldReason,
+    stride: spatialHold?.selected ? options.spatialHold!.stride : null,
+    latchedPaints: spatialHold?.latchedPaints ?? 0,
+  }
+  const emittedWithHold = spatialHold?.selected ? spatialHold.code : emittedWithWrapperInlining
+  const expandedCode = `${arenaPrefix}${emittedWithHold}`
   const compacted = compactGeneratedShowSymbols(expandedCode)
   const code = compacted.code
   const sourceInventory = buildShowSourceInventory(code, compacted.names, members)
@@ -3449,6 +3481,7 @@ export function compileShow(
         selected: options.loopUnrolling ?? true,
         reason: (options.loopUnrolling ?? true) ? 'selected' : 'disabled',
       },
+      spatialHold: spatialHoldSummary,
       renderKernels: routedSceneEmission?.renderKernels ?? null,
       motionTransitions: routedSceneEmission?.motionTransitions ?? null,
       showScore: routedSceneEmission?.showScore ?? null,

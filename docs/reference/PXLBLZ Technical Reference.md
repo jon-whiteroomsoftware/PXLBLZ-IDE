@@ -1194,6 +1194,11 @@ clear wrappers folded into their per-pixel call sites,
 `showGeneratedWrapperInlining.ts`, #929),
 member loop rewrites (`i = i + 1` to `i++` and unrolling of small
 fixed-bound render loops, `showMemberLoopUnrolling.ts`, #931),
+`showGeneratedWrapperInlining.ts`, #929), the authored spatial hold-and-lerp
+(`spatialHold: { stride, mode: 'lerp' }`, off by default, compile-option
+only; the final dispatcher renders one stride ahead at every anchor and
+blends between anchors, declined with a reason when the dispatcher consumes
+the firmware's coordinates, `showSpatialHold.ts`, #937),
 coefficient hoisting, prologue-rebinding elimination, per-member HSV
 conversion, generated frame-constant hoisting (per-pixel route constants
 refreshed once per frame in `beforeRender`, `showGeneratedFrameConstantHoisting.ts`,
