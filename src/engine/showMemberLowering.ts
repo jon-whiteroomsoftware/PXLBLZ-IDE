@@ -9,6 +9,7 @@ import { bundle } from './bundle'
 import { stripPatternManifest } from './patternManifest'
 import { inlineShowMemberHelpers } from './showHelperInlining'
 import { unrollShowMemberLoops } from './showMemberLoopUnrolling'
+import { lowerShowMemberPow } from './showMemberPowLowering'
 import {
   analyzeShowFrameInvariantCandidates,
   applyShowFrameInvariantHoists,
@@ -96,6 +97,8 @@ interface MemberLoweringOptions {
     inlineCallHoisting?: boolean
     helperCallInlining?: boolean
     loopUnrolling?: boolean
+    /** #933: integer-exponent pow -> multiply chain (display-exact tier; off by default). */
+    powLowering?: boolean
     generatedEffectKernelSharing?: boolean
     conditionalContentKeyEvaluation?: boolean
     coverageDirectedComposition?: boolean
@@ -146,9 +149,18 @@ export function compileMember(
   // an unrolled `sin(t + 3)` becomes a hoisting candidate in the same compile.
   // `loopUnrolling: false` reproduces pre-#931 emission exactly (neither the
   // idiom rewrite nor unrolling), the vintage/benchmark counterfactual.
-  const memberCode = loopUnrolling
+  const unrolledCode = loopUnrolling
     ? unrollShowMemberLoops(helperInlining.source).source
     : helperInlining.source
+  // #933: integer-exponent pow lowered to multiplies (display-exact tier,
+  // never at the Exact stop). Runs after unrolling so an unrolled `pow(a, i)`
+  // with a literal trip index is a candidate, and before frame-invariant
+  // analysis so a hoisted base can still lift out of the pixel loop.
+  const powLowering = passes.powLowering ?? false
+  const powLowered = powLowering
+    ? lowerShowMemberPow(unrolledCode)
+    : { source: unrolledCode, rewrittenSites: 0, hoistedTemps: 0, skipped: [] }
+  const memberCode = powLowered.source
   const prefix = `__pxlblz_show_c${index}`
   const frameCandidates = frameInvariantHoisting
     ? analyzeShowFrameInvariantCandidates(memberCode, { inlineCallSubtrees: inlineCallHoisting })
@@ -304,6 +316,11 @@ export function compileMember(
       inlinedCallCount: helperInlining.inlinedCallCount,
       removedHelperCount: helperInlining.removedHelperCount,
       addedSourceBytes: helperInlining.addedSourceBytes,
+    },
+    powLoweringSummary: {
+      rewrittenSites: powLowered.rewrittenSites,
+      hoistedTemps: powLowered.hoistedTemps,
+      skippedSites: powLowered.skipped.length,
     },
     conditionalContentKeyEvaluation,
     coverageDirectedComposition,

@@ -1,0 +1,106 @@
+{
+  "generatedAt": "2026-09-01T23:36:39.051Z",
+  "device": "Burner bag",
+  "firmwareVersion": "3.67",
+  "pixelCount": 256,
+  "iterations": 2589,
+  "repetitions": 5,
+  "operations": [
+    {
+      "fn": 0,
+      "name": "identity baseline",
+      "baselineFn": 0,
+      "frameMs": [
+        17.59004,
+        17.59113,
+        17.58025,
+        17.74896,
+        17.59738
+      ]
+    },
+    {
+      "fn": 1,
+      "name": "mul",
+      "baselineFn": 0,
+      "frameMs": [
+        19.66876,
+        19.6944,
+        19.65892,
+        19.65491,
+        19.67802
+      ]
+    },
+    {
+      "fn": 61,
+      "name": "pow(base, 2), integer exponent",
+      "baselineFn": 0,
+      "frameMs": [
+        23.50615,
+        23.60934,
+        23.49973,
+        23.50078,
+        23.52811
+      ]
+    },
+    {
+      "fn": 62,
+      "name": "multiply chain k=2 (hoisted base)",
+      "baselineFn": 0,
+      "frameMs": [
+        24.18996,
+        24.24429,
+        24.17006,
+        24.16684,
+        24.2027
+      ]
+    },
+    {
+      "fn": 63,
+      "name": "pow(base, 3), integer exponent",
+      "baselineFn": 0,
+      "frameMs": [
+        37.32504,
+        37.36852,
+        37.33276,
+        37.48309,
+        37.34937
+      ]
+    },
+    {
+      "fn": 64,
+      "name": "multiply chain k=3 (hoisted base)",
+      "baselineFn": 0,
+      "frameMs": [
+        26.94565,
+        26.98862,
+        26.94846,
+        27.14914,
+        26.97374
+      ]
+    },
+    {
+      "fn": 65,
+      "name": "pow(base, 4), integer exponent",
+      "baselineFn": 0,
+      "frameMs": [
+        37.38855,
+        37.46222,
+        37.38356,
+        37.38129,
+        37.4174
+      ]
+    },
+    {
+      "fn": 66,
+      "name": "squared-square k=4 (hoisted base)",
+      "baselineFn": 0,
+      "frameMs": [
+        30.75424,
+        30.76614,
+        30.74448,
+        30.74557,
+        30.77551
+      ]
+    }
+  ]
+}

@@ -571,3 +571,24 @@ colocated test is not a sufficient safety net:
 Documentation-only commits skip Vitest at pre-commit. The full review-and-test
 pre-push gate is unchanged by the selection result and remains the final
 authority.
+
+## Qualification tiers for Pattern transformations (#933)
+
+Three tiers, proven per artifact by the tools named, never assumed from the
+transform class:
+
+- **Checksum-exact.** The Fast and Precise bench checksums are unchanged
+  (`npm run bench`, the stock-catalogue parity tests). The Exact stop's bar;
+  every wave-4/5 exact pass ships here.
+- **Display-exact.** The checksums may differ, but the largest absolute
+  8-bit channel delta over the drift window is 0 in both modes
+  (`qualifyDisplayExact` in `test/perf-harness/benchCore.ts`; `npm run drift`
+  prints the tier). A pass in this tier changes 16.16 or float64 results by
+  ULPs without changing any displayed value in the window, so it can ship
+  without a human visual gate but never at the Exact stop. First pass:
+  #933 integer-pow lowering (`memberPowLowering`, off by default).
+  Named residual: the tier is defined on the linear 8-bit value the emulator
+  quantizes; a value that straddles a quantization edge after the firmware's
+  own gamma and brightness stage is not modeled, and the window is finite.
+- **Lossy.** Anything else; priced by the drift tool and approved by eye
+  (`docs/guides/Optimizing Pixelblaze patterns.md` §5).

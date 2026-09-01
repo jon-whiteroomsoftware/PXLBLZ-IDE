@@ -2,7 +2,7 @@
 // identical code and moves the moment the visual changes. (The timing numbers
 // are inherently machine-dependent, so they're not asserted — only that they're
 // finite and positive.)
-import { benchOne, benchDemo, compareVisualDrift } from './benchCore'
+import { benchOne, benchDemo, compareVisualDrift, qualifyDisplayExact } from './benchCore'
 import { LIBRARIES } from '../../src/pixelblaze/libs'
 
 // A tiny self-contained 2D demo — no library deps, animates over the clock.
@@ -67,5 +67,23 @@ describe('benchCore', () => {
   it('honours an explicit grid override', () => {
     const r = benchOne(SRC, LIBRARIES, 'fast', { frames: 1, warmup: 0, grid: { rows: 8, cols: 8 } })
     expect(r.pixelCount).toBe(64)
+  })
+
+  it('classifies identical code checksum-exact, a ULP-level rewrite display-exact, and a visible change lossy', () => {
+    const same = qualifyDisplayExact(SRC, SRC, LIBRARIES, { frames: 5, warmup: 1 })
+    expect(same.tier).toBe('checksum-exact')
+    expect(same.checksumExact && same.displayExact).toBe(true)
+    // A pow -> multiply rewrite changes the float64 and 16.16 results by ULPs
+    // but not the 8-bit output on this window (the #933 pass's contract).
+    const powSrc = 'export function render2D(index, x, y) { var v = pow(abs(x - 0.5) * 2, 3); rgb(v, v * 0.5, 1 - v) }'
+    const mulSrc = 'export function render2D(index, x, y) { var t = abs(x - 0.5) * 2; var v = t * t * t; rgb(v, v * 0.5, 1 - v) }'
+    const lowered = qualifyDisplayExact(powSrc, mulSrc, {}, { frames: 5, warmup: 1 })
+    expect(lowered.displayExact).toBe(true)
+    expect(lowered.fast.max).toBe(0)
+    expect(lowered.precise.max).toBe(0)
+    expect(['checksum-exact', 'display-exact']).toContain(lowered.tier)
+    const brighter = qualifyDisplayExact(powSrc, powSrc.replace('rgb(v,', 'rgb(v * 1.1,'), {}, { frames: 5, warmup: 1 })
+    expect(brighter.tier).toBe('lossy')
+    expect(brighter.displayExact).toBe(false)
   })
 })

@@ -1,0 +1,66 @@
+{
+  "generatedAt": "2026-09-01T23:48:10.692Z",
+  "controller": {
+    "ip": "192.168.8.224",
+    "name": "Burner bag",
+    "boardType": "pb32",
+    "firmwareVersion": "3.67",
+    "outputProfile": "native-serial (assumed)",
+    "activationTimeoutMs": 20000,
+    "settleMs": 2000,
+    "sampleMs": 6000
+  },
+  "pixelCount": 256,
+  "fixture": {
+    "rewrittenSites": 6,
+    "hoistedTemps": 5,
+    "skipped": []
+  },
+  "rows": [
+    {
+      "variant": "exact",
+      "bytecodeBytes": 444,
+      "fps": {
+        "mean": 47.83458583333336,
+        "median": 47.85643,
+        "min": 47.80877,
+        "max": 47.85643,
+        "samples": 24
+      }
+    },
+    {
+      "variant": "lowered",
+      "bytecodeBytes": 560,
+      "fps": {
+        "mean": 61.92260749999998,
+        "median": 61.93806,
+        "min": 61.87625,
+        "max": 61.93806,
+        "samples": 24
+      }
+    },
+    {
+      "variant": "exact",
+      "bytecodeBytes": 444,
+      "fps": {
+        "mean": 47.832600000000006,
+        "median": 47.8326,
+        "min": 47.80877,
+        "max": 47.85643,
+        "samples": 24
+      }
+    },
+    {
+      "variant": "lowered",
+      "bytecodeBytes": 560,
+      "fps": {
+        "mean": 61.92775833333331,
+        "median": 61.93806,
+        "min": 61.87625,
+        "max": 61.93806,
+        "samples": 24
+      }
+    }
+  ],
+  "partial": false
+}

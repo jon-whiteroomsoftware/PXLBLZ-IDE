@@ -695,6 +695,14 @@ export interface ShowCompileSummary {
       selected: boolean
       reason: 'selected' | 'disabled' | 'artifact-byte-budget'
     }
+    /** #933: display-exact integer-pow lowering across members. */
+    powLowering: {
+      selected: boolean
+      reason: 'selected' | 'disabled'
+      rewrittenSites: number
+      hoistedTemps: number
+      skippedSites: number
+    }
     renderKernels: (ShowRenderKernelSelection & {
       configurationPlanCount: number
       kernelCount: number
@@ -986,6 +994,12 @@ export interface CompiledMember {
     removedHelperCount: number
     addedSourceBytes: number
   }
+  /** #933: integer-exponent pow sites lowered to multiplies in this member. */
+  powLoweringSummary: {
+    rewrittenSites: number
+    hoistedTemps: number
+    skippedSites: number
+  }
   conditionalContentKeyEvaluation: boolean
   coverageDirectedComposition: boolean
   coordinateFieldCapture: boolean
@@ -1218,6 +1232,12 @@ export interface ShowCompileOptions {
   /** Test seam for the #931 byte gate: the artifact byte scale above which
    * the loop form is kept (default: the ledger's activation budget). */
   loopUnrollingBudgetBytes?: number
+  /** #933: lower integer-exponent `pow(base, k)` (2 <= k <= 4) in member
+   * source to a multiply chain. DISPLAY-EXACT, not checksum-exact: the
+   * artifact must be qualified by the drift tool (max 8-bit delta 0 in both
+   * modes) before it stands in for the exact one. Off by default; never on
+   * at the Exact stop. */
+  memberPowLowering?: boolean
 }
 
 /** #532/#556 price of one persistent scalar write on the measured VM. */
@@ -2297,6 +2317,7 @@ export function compileShow(
         inlineCallHoisting: options.inlineCallHoisting ?? true,
         helperCallInlining: options.helperCallInlining ?? true,
         loopUnrolling: options.loopUnrolling ?? true,
+        powLowering: options.memberPowLowering ?? false,
         generatedEffectKernelSharing,
         conditionalContentKeyEvaluation: contentKeyConditionalEvaluation,
         coverageDirectedComposition,
@@ -3486,6 +3507,13 @@ export function compileShow(
       loopRewrites: {
         selected: options.loopUnrolling ?? true,
         reason: (options.loopUnrolling ?? true) ? 'selected' : 'disabled',
+      },
+      powLowering: {
+        selected: options.memberPowLowering ?? false,
+        reason: (options.memberPowLowering ?? false) ? 'selected' : 'disabled',
+        rewrittenSites: members.reduce((sum, member) => sum + member.powLoweringSummary.rewrittenSites, 0),
+        hoistedTemps: members.reduce((sum, member) => sum + member.powLoweringSummary.hoistedTemps, 0),
+        skippedSites: members.reduce((sum, member) => sum + member.powLoweringSummary.skippedSites, 0),
       },
       spatialHold: spatialHoldSummary,
       renderKernels: routedSceneEmission?.renderKernels ?? null,

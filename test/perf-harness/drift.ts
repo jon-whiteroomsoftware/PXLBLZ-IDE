@@ -107,11 +107,22 @@ function main(): void {
   const modes: BenchMode[] = args.mode === 'both' ? ['fast', 'precise'] : [args.mode]
 
   console.log(`\nVisual drift: ${base.label} -> ${candidate.label}`)
+  const drifts: DriftMetrics[] = []
   for (const mode of modes) {
     const drift = compareVisualDrift(base.src, candidate.src, libraries, mode, options)
+    drifts.push(drift)
     const dimLabel = { 1: '1D', 2: '2D', 3: '3D' }[drift.base.dimension]
     console.log(`\n${dimLabel}, ${drift.base.pixelCount} px, ${drift.base.frames} frames, ${drift.channels} RGB channels`)
     console.log(fmtDrift(drift))
+  }
+  // #933 tier verdict: checksum-exact (both checksums unchanged),
+  // display-exact (max 8-bit delta 0 in both modes), else lossy. Needs both
+  // modes; a single-mode run reports only that mode's evidence.
+  if (drifts.length === 2) {
+    const checksumExact = drifts.every((drift) => drift.base.checksum === drift.candidate.checksum)
+    const displayExact = drifts.every((drift) => drift.max === 0)
+    const tier = checksumExact ? 'checksum-exact' : displayExact ? 'display-exact' : 'lossy'
+    console.log(`\ntier: ${tier}${tier === 'display-exact' ? ' (checksums differ; no displayed 8-bit value changed over the window)' : ''}`)
   }
   console.log('')
 }

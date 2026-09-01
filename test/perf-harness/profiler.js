@@ -177,6 +177,17 @@ export function beforeRender(delta) {
   if (f == 58) for (i = 0; i < n; i++) x = frac(x * 1.0001 + 0.123) // fused expression baseline
   if (f == 59) for (i = 0; i < n; i++) { local = x * 1.0001; x = frac(local + 0.123) } // single-use local
   if (f == 60) for (i = 0; i < n8x8; i++) x = frac(x + 0.123) // unrolled-pair baseline: identity loop over n8 * 8 trips
+  // #933 pow-to-multiply pricing: integer-exponent pow against the multiply
+  //   chain the display-exact pass would emit. Odd probes price pow(base, k),
+  //   even probes price the lowered form with the base hoisted to one local
+  //   (the pass hoists any non-identifier base so it is evaluated once).
+  //   Base stays in [0.5, 1.5) so every power fits 16.16.
+  if (f == 61) for (i = 0; i < n; i++) x = frac(pow(x + 0.5, 2)) // pow k=2
+  if (f == 62) for (i = 0; i < n; i++) { local = x + 0.5; x = frac(local * local) } // multiply chain k=2
+  if (f == 63) for (i = 0; i < n; i++) x = frac(pow(x + 0.5, 3)) // pow k=3
+  if (f == 64) for (i = 0; i < n; i++) { local = x + 0.5; x = frac(local * local * local) } // multiply chain k=3
+  if (f == 65) for (i = 0; i < n; i++) x = frac(pow(x + 0.5, 4)) // pow k=4
+  if (f == 66) for (i = 0; i < n; i++) { local = x + 0.5; local = local * local; x = frac(local * local) } // squared-square k=4
 
   acc = frac(x + local * 0.0001) // carry across frames so nothing is dead code
 }

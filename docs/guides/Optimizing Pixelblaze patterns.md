@@ -121,11 +121,16 @@ Headline facts from the hardware microbenchmark (full table in §8):
 
 ## 5. Proving an optimization
 
-Every claim in this guide carries one of three tags, telling you where it can be
+Every claim in this guide carries one of four tags, telling you where it can be
 proven:
 
 - **[bench-verifiable]** — the emulator benchmark can confirm it, because it
   reduces operation or call *count*.
+- **[display-exact]** — the checksum moves by ULPs but no displayed 8-bit value
+  changes over the drift window in either mode (`npm run drift` prints
+  `tier: display-exact`). Integer-exponent `pow(b, 3)` → `b * b * b` is the
+  model case (#933): 7.6 µs → 3.6 µs per site on the pb32, and `pow(b, 2)` is
+  already a firmware fast path, so only rewrite it when `b` is a plain name.
 - **[drift-measured]** — the edit intentionally changes the image; the drift tool
   quantifies how much before hardware time is spent.
 - **[hardware-wisdom]** — only the device can confirm it, because it trades one

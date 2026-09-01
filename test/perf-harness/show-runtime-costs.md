@@ -140,3 +140,38 @@ iteration's compare + branch + increment.
 - A single-use local costs its write, 1.47 us, measured as a substitution
   against the fused expression rather than as an extra write (#532 row);
   forward substitution in generated code pays exactly that per site (#930).
+
+### Round five - 2026-09-01 (#933)
+
+Same method (2,589 iterations, 5 samples, 256 px, native serial assumed),
+targeted via `PROFILE_ONLY=61,62,63,64,65,66` and `PROFILE_OUTPUT`
+(`issue933-probe-rows.md`, raw samples beside it). The odd probes price an
+integer-exponent `pow` on a computed base; the even probes price the
+multiply chain the #933 pass emits, with the base hoisted to one local
+(`local = x + 0.5`), so each pair carries the same base arithmetic.
+
+| operation | group | paired baseline | mean net us | median net | min-max net | vs mul |
+|---|---|---|---:|---:|---:|---:|
+| `mul` | arithmetic | `identity baseline` | 0.792 | 0.803 | 0.736-0.812 | 1.0x |
+| `pow(base, 2), integer exponent` | transcendental | `identity baseline` | 2.282 | 2.286 | 2.222-2.325 | 2.8x |
+| `multiply chain k=2 (hoisted base)` | arithmetic | `identity baseline` | 2.539 | 2.549 | 2.479-2.570 | 3.2x |
+| `pow(base, 3), integer exponent` | transcendental | `identity baseline` | 7.629 | 7.629 | 7.622-7.639 | 9.5x |
+| `multiply chain k=3 (hoisted base)` | arithmetic | `identity baseline` | 3.623 | 3.622 | 3.614-3.631 | 4.5x |
+| `pow(base, 4), integer exponent` | transcendental | `identity baseline` | 7.642 | 7.649 | 7.583-7.675 | 9.5x |
+| `squared-square k=4 (hoisted base)` | arithmetic | `identity baseline` | 5.074 | 5.085 | 5.020-5.090 | 6.3x |
+
+### Round-five findings
+
+- **The firmware fast-paths `pow(b, 2)`** (2.28 us, against 7.63 us for
+  k = 3 and 4): a hoisted `b * b` chain (2.54 us) loses to it, and only a
+  plain-name base (`b * b`, one multiply, 0.79 us) beats it. The #933 pass
+  therefore rewrites k = 2 only when no temp is needed.
+- k = 3 saves 4.0 us per site with a hoisted base (about 6 us on a plain
+  name); k = 4 saves 2.6 us (about 5.2 us on a plain name).
+- Firmware pow facts (bench probe, fw 3.67): a negative base with an integer
+  exponent follows C `powf` (`pow(-2, 3) = -8`, `pow(-2, 2) = 4`), so sign is
+  not a domain difference; `pow` and the multiply chain differ by one 16.16
+  LSB on some inputs (`pow(-0.37, 3)` = -0.050644 vs -0.050659), which is why
+  the rewrite is display-exact rather than checksum-exact; and overflow
+  diverges (`pow(200, 2)` reports 32768 while `200 * 200` wraps to -25536),
+  so the pass needs a provable bound with base^k <= 32767.

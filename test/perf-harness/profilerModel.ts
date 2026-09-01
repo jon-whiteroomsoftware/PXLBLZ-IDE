@@ -68,6 +68,12 @@ export const PROFILE_OPS: ProfileOp[] = [
   { fn: 57, name: 'unrolled x8 body (net = -7/8 iteration machinery)', group: 'loop', baselineFn: 60 },
   { fn: 58, name: 'fused expression baseline', group: 'baseline', baselineFn: 58, baseline: true },
   { fn: 59, name: 'single-use local', group: 'memory', baselineFn: 58 },
+  { fn: 61, name: 'pow(base, 2), integer exponent', group: 'transcendental', baselineFn: 0 },
+  { fn: 62, name: 'multiply chain k=2 (hoisted base)', group: 'arithmetic', baselineFn: 0 },
+  { fn: 63, name: 'pow(base, 3), integer exponent', group: 'transcendental', baselineFn: 0 },
+  { fn: 64, name: 'multiply chain k=3 (hoisted base)', group: 'arithmetic', baselineFn: 0 },
+  { fn: 65, name: 'pow(base, 4), integer exponent', group: 'transcendental', baselineFn: 0 },
+  { fn: 66, name: 'squared-square k=4 (hoisted base)', group: 'arithmetic', baselineFn: 0 },
 ]
 
 export interface ProfileStats {
