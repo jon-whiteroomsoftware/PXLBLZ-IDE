@@ -1187,6 +1187,12 @@ export interface ShowCompileOptions {
   /** Test seam for the #929 byte gate: the compacted artifact scale above
    * which the wrapper form is kept (default MEASURED_DEVICE_BUDGET_BYTES). */
   generatedWrapperInliningBudgetBytes?: number
+  /** Benchmark/vintage counterfactual for the #931 member loop rewrites:
+   * the exact `i = i + 1` -> `i++` update idiom and unrolling of literal or
+   * never-written-constant-bound loops (trip <= 16, growth-gated). `false`
+   * reproduces pre-#931 emission; production always uses the default
+   * `true`. */
+  loopUnrolling?: boolean
 }
 
 /** #532/#556 price of one persistent scalar write on the measured VM. */
@@ -2254,6 +2260,7 @@ export function compileShow(
         frameInvariantHoisting,
         inlineCallHoisting: options.inlineCallHoisting ?? true,
         helperCallInlining: options.helperCallInlining ?? true,
+        loopUnrolling: options.loopUnrolling ?? true,
         generatedEffectKernelSharing,
         conditionalContentKeyEvaluation: contentKeyConditionalEvaluation,
         coverageDirectedComposition,

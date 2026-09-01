@@ -8,6 +8,7 @@ import * as acorn from 'acorn'
 import { bundle } from './bundle'
 import { stripPatternManifest } from './patternManifest'
 import { inlineShowMemberHelpers } from './showHelperInlining'
+import { unrollShowMemberLoops } from './showMemberLoopUnrolling'
 import {
   analyzeShowFrameInvariantCandidates,
   applyShowFrameInvariantHoists,
@@ -94,6 +95,7 @@ interface MemberLoweringOptions {
     frameInvariantHoisting?: boolean
     inlineCallHoisting?: boolean
     helperCallInlining?: boolean
+    loopUnrolling?: boolean
     generatedEffectKernelSharing?: boolean
     conditionalContentKeyEvaluation?: boolean
     coverageDirectedComposition?: boolean
@@ -129,6 +131,7 @@ export function compileMember(
   const generatedEffectKernelSharing = passes.generatedEffectKernelSharing ?? false
   const animatedEffectParameterPaths = analysis.animatedEffectParameterPaths ?? []
   const helperCallInlining = passes.helperCallInlining ?? true
+  const loopUnrolling = passes.loopUnrolling ?? true
   const bundled = bundle(clip.source, libraries)
   const strippedCode = stripPatternManifest(bundled.code)
   // #565: inline tiny pure helper call sites before frame-invariant analysis
@@ -138,7 +141,14 @@ export function compileMember(
   const helperInlining = helperCallInlining
     ? inlineShowMemberHelpers(strippedCode)
     : { source: strippedCode, inlinedCallCount: 0, removedHelperCount: 0, addedSourceBytes: 0 }
-  const memberCode = helperInlining.source
+  // #931: rewrite `i = i + 1` loop updates to `i++` and unroll small
+  // literal/constant-bound render loops before frame-invariant analysis, so
+  // an unrolled `sin(t + 3)` becomes a hoisting candidate in the same compile.
+  // `loopUnrolling: false` reproduces pre-#931 emission exactly (neither the
+  // idiom rewrite nor unrolling), the vintage/benchmark counterfactual.
+  const memberCode = loopUnrolling
+    ? unrollShowMemberLoops(helperInlining.source).source
+    : helperInlining.source
   const prefix = `__pxlblz_show_c${index}`
   const frameCandidates = frameInvariantHoisting
     ? analyzeShowFrameInvariantCandidates(memberCode, { inlineCallSubtrees: inlineCallHoisting })

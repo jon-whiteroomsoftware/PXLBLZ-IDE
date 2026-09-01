@@ -353,6 +353,26 @@ octave sums, kaleidoscope folds). Two flavours:
 > slower even as the *device* gets much faster. Trust the checksum and
 > `devbench`, not the bench stopwatch.
 
+### Loop machinery is not free: prefer `i++`, unroll small fixed loops [hardware-wisdom]
+
+Every `for` iteration pays its compare, branch, and increment before the
+body runs: **3.15 µs with `i++`** and **4.87 µs with `i = i + 1`** on fw
+3.67 (#924, `show-runtime-costs.md` round four). Two consequences:
+
+- Write `i++`, not `i = i + 1`. The idiom costs 1.7 µs more per iteration
+  for the same value; a 20-ring loop pays 34 µs per pixel for it.
+- A small loop with a fixed trip count is cheaper unrolled. Ten trips of
+  loop machinery are 31–49 µs per pixel — on a 256-pixel frame that is
+  8–12 ms a frame, before the body does anything. The Show compiler does
+  this for members automatically (#931): literal or never-reassigned
+  constant bounds, up to 16 trips, no `break`/`continue`/`return`, and a
+  source-growth allowance; the induction variable becomes a literal in each
+  copy, so both checksums hold. Measured on single-member Shows at 256 px:
+  IridescentFibers +6.3%, NeonSquircles +9.7%, PulseLoom +9.6%,
+  ShaderShowcase +4.5%; members whose bounds come from sliders get only the
+  idiom rewrite (Kishimisu +1.4%, ZippyZaps +0.9%). Hand-unrolling a standalone Pattern buys the same;
+  keep the body's `var`s in the first copy and assign in later ones.
+
 ### Price table initialization separately [hardware-wisdom]
 
 Large constant tables have an activation cost as well as a frame cost. The
