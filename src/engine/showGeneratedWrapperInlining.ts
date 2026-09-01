@@ -53,6 +53,11 @@ export interface GeneratedWrapperInliningResult {
 }
 
 const RENDER_EXPORTS = new Set(['render', 'render2D', 'render3D'])
+const PURE_BUILTINS = new Set([
+  'abs', 'acos', 'asin', 'atan', 'atan2', 'ceil', 'clamp', 'cos', 'exp', 'floor',
+  'frac', 'hypot', 'log', 'max', 'min', 'pow', 'round', 'sin', 'sqrt', 'square',
+  'tan', 'triangle', 'wave', 'rgb', 'hsv',
+])
 
 interface TopLevelFunction {
   name: string
@@ -107,7 +112,7 @@ function inlineOnce(
   const inExcluded = (entry: TopLevelFunction) => excluded.some(([start, end]) => entry.statement.start >= start && entry.statement.end <= end)
 
   // Wrapper candidates.
-  interface Wrapper { entry: TopLevelFunction; params: string[]; statements: Node[]; freeNames: Set<string>; assigned: Set<string> }
+  interface Wrapper { entry: TopLevelFunction; params: string[]; statements: Node[]; freeNames: Set<string>; assigned: Set<string>; hazardParams: Set<string> }
   const wrappers = new Map<string, Wrapper>()
   for (const entry of functions) {
     if (entry.exported || inExcluded(entry)) continue
@@ -146,7 +151,19 @@ function inlineOnce(
       }
     }
     if (!trivial) continue
-    wrappers.set(entry.name, { entry, params, statements, freeNames, assigned })
+    // A parameter read AFTER a user call has completed (a call that ends
+    // before the read starts) may observe a global the callee wrote; a
+    // caller-global argument cannot be substituted for such a parameter.
+    // A parameter read as that call's own argument is bound first and is safe.
+    const userCallEnds: number[] = []
+    walk(entry.node.body, (node) => {
+      if (node.type === 'CallExpression' && node.callee.type === 'Identifier' && !PURE_BUILTINS.has(node.callee.name)) userCallEnds.push(node.end)
+    })
+    const hazardParams = new Set<string>()
+    walk(entry.node.body, (node) => {
+      if (node.type === 'Identifier' && params.includes(node.name) && userCallEnds.some((end) => end <= node.start)) hazardParams.add(node.name)
+    })
+    wrappers.set(entry.name, { entry, params, statements, freeNames, assigned, hazardParams })
   }
   if (wrappers.size === 0) return unchanged
 
@@ -179,8 +196,15 @@ function inlineOnce(
       // A parameter is bound at entry; substituting the caller's identifier
       // would re-read it after the body's own writes. Refuse a site whose
       // argument names anything the body assigns.
-      for (const argument of call.arguments) {
-        if (argument.type === 'Identifier' && wrapper.assigned.has(argument.name)) return
+      for (const [position, argument] of call.arguments.entries()) {
+        if (argument.type !== 'Identifier') continue
+        if (wrapper.assigned.has(argument.name)) return
+        // A caller global substituted for a parameter read after a user
+        // call could observe that call's writes; the caller's own locals
+        // cannot (no closures on this VM).
+        if (wrapper.hazardParams.has(wrapper.params[position]) && !locals.has(argument.name)) return
+        // A wrapper passed as an argument would survive in the copy.
+        if (wrappers.has(argument.name)) return
       }
       const substitution = new Map<string, string>()
       wrapper.params.forEach((param, index) => {
@@ -206,8 +230,10 @@ function inlineOnce(
       if (node.type !== 'Identifier' || node.name !== name) return
       if (parent?.type === 'FunctionDeclaration' && parent.id === node) return
       if (node.start >= wrapper.entry.statement.start && node.end <= wrapper.entry.statement.end) return
-      // A call site being inlined no longer references the wrapper.
-      if (edits.some((edit) => node.start >= edit.start && node.end <= edit.end)) return
+      // A call site being inlined no longer references the wrapper through
+      // its callee, but its arguments are copied into the replacement.
+      const site = edits.find((edit) => node.start >= edit.start && node.end <= edit.end)
+      if (site && parent?.type === 'CallExpression' && parent.callee === node) return
       references += 1
     })
     if (references === 0) {

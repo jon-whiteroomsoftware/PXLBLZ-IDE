@@ -136,6 +136,35 @@ export function render2D(index, x2, y) {
     expect(result.removedWrappers).toBe(0)
   })
 
+  it('refuses global arguments past a user call inside the body, and a wrapper passed as its own argument', () => {
+    const source = `var x = 1
+function mutate() { x = 2 }
+function w(a) { mutate(); sink(a) }
+function id(a) { sink(a) }
+export function beforeRender(delta) {}
+export function render2D(index, x2, y) {
+  w(x)
+  w(y)
+  id(id)
+  id(x)
+}
+`
+    const result = inlineGeneratedWrappers(source)
+    // w(x): a user call precedes the use and x is a global -> kept.
+    expect(result.code).toContain('  w(x)\n')
+    // w(y): y is a caller parameter, which no callee can write -> inlined
+    // (and mutate, itself a trivial wrapper, folds in the next round).
+    expect(result.code).toContain('  x = 2\n  sink(y)\n')
+    // id(id): the wrapper is its own argument -> kept, and id survives.
+    expect(result.code).toContain('  id(id)\n')
+    expect(result.code).toContain('function id(a) { sink(a) }')
+    // id(x): the parameter is read as the call's own argument, before any
+    // user call completes -> inlined.
+    expect(result.code).toContain('  sink(x)\n')
+    expect(result.code).toContain('function w(a) { mutate(); sink(a) }')
+    expect(result.removedWrappers).toBe(0)
+  })
+
   it('returns the source unchanged when nothing qualifies', () => {
     const source = 'export function beforeRender(delta) {}\nexport function render(index) { rgb(0, 0, 0) }\n'
     expect(inlineGeneratedWrappers(source).code).toBe(source)
