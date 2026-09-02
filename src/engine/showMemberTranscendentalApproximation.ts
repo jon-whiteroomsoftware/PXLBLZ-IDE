@@ -70,6 +70,8 @@ const PURE_BUILTINS = new Set([
 ])
 /** Upper bound of t in the exp substitute: e^-8 is 3e-4, below one 8-bit step. */
 const EXP_T_MAX = 8
+/** Calls this pass may rewrite; a fact derived through one is not recorded. */
+const REWRITABLE_CALLS = new Set(['exp', 'pow', 'tanh'])
 
 export function approximateShowMemberTranscendentals(
   source: string,
@@ -160,8 +162,11 @@ export function approximateShowMemberTranscendentals(
       const exponent = node.arguments[1]
       const k = exponent.type === 'Literal' && typeof exponent.value === 'number' ? exponent.value : null
       if (k === null) { result.skipped.push({ line, kind: 'pow', reason: 'non-literal-exponent' }); return }
-      // Integer exponents belong to the #933 display-exact lowering.
-      if (Number.isInteger(k) || k <= 0 || k >= 4) { result.skipped.push({ line, kind: 'pow', reason: 'exponent-out-of-range' }); return }
+      // Integer exponents belong to the #933 display-exact lowering. Below
+      // k = 1 the least-squares coefficient exceeds 1 and the quadratic
+      // overshoots [0, 1] (pow(b, 0.1) at b = 0.75 would read 1.145), so the
+      // fit is offered for 1 < k < 4 only.
+      if (Number.isInteger(k) || k <= 1 || k >= 4) { result.skipped.push({ line, kind: 'pow', reason: 'exponent-out-of-range' }); return }
       const base = node.arguments[0]
       if (!isPure(base, shadowed)) { result.skipped.push({ line, kind: 'pow', reason: 'impure-argument' }); return }
       const interval = intervalBound(base, { ...context.bounds, shadowed, site: node.start })
@@ -289,6 +294,7 @@ export function intervalBound(node: Node, scope: IntervalScope, visiting: Set<st
       const init = scope.singleAssignments.get(node.name)
       if (!init || visiting.has(node.name)) return null
       if (scope.site !== undefined && typeof init.end === 'number' && init.end > scope.site) return null
+      if (callsAny(init, REWRITABLE_CALLS)) return null
       visiting.add(node.name)
       const value = isPure(init, scope.shadowed ?? (() => false)) ? bound(init) : null
       visiting.delete(node.name)
@@ -412,7 +418,9 @@ function walkWithContext(ast: Node, coordinatesTransformed: boolean, shadowed: (
       for (const name of allDeclaredNames(node.body)) merged.delete(name)
       for (const param of node.params) if (param.type === 'Identifier') merged.delete(param.name)
       for (const [name, init] of locals) merged.set(name, init)
-      next = { ...context, bounds: { ...context.bounds, coordinateParams: params, singleAssignments: merged }, hoistStatement: null, enclosingBody: node.body }
+      // Straight-line facts belong to the statement sequence they were
+      // computed in; a nested function runs later, after any write.
+      next = { ...context, bounds: { ...context.bounds, coordinateParams: params, singleAssignments: merged, blockIntervals: undefined }, hoistStatement: null, enclosingBody: node.body }
     }
     if (isHoistableStatement(node, parent, shadowed)) {
       next = {
@@ -454,7 +462,10 @@ function blockIntervalsBefore(block: Node, statement: Node, scope: IntervalScope
     // invalidates every name it writes.
     const plain = plainAssignment(previous, shadowed)
     if (plain) {
-      const interval = isPure(plain.init, shadowed)
+      // A right-hand side that this pass may itself rewrite (exp, pow, the
+      // tanh helper) records no fact: the substitute's range is not the
+      // built-in's, and the analysis does not model queued rewrites.
+      const interval = isPure(plain.init, shadowed) && !callsAny(plain.init, REWRITABLE_CALLS)
         ? intervalBound(plain.init, { ...scope, blockIntervals: facts, shadowed, site: plain.init.end })
         : null
       if (interval) facts.set(plain.name, interval)
@@ -588,6 +599,22 @@ function collectPatternNames(target: Node, names: Set<string>): void {
     case 'RestElement': collectPatternNames(target.argument, names); return
     default: return
   }
+}
+
+function callsAny(root: Node, names: ReadonlySet<string>): boolean {
+  let found = false
+  const visit = (node: Node): void => {
+    if (found || !node || typeof node.type !== 'string') return
+    if (node.type === 'CallExpression' && node.callee.type === 'Identifier' && names.has(node.callee.name)) { found = true; return }
+    for (const key of Object.keys(node)) {
+      if (key === 'loc' || key === 'type') continue
+      const value = node[key]
+      if (Array.isArray(value)) value.forEach((child) => visit(child))
+      else if (value && typeof value.type === 'string') visit(value)
+    }
+  }
+  visit(root)
+  return found
 }
 
 function mentionsAny(root: Node, names: ReadonlySet<string>): boolean {

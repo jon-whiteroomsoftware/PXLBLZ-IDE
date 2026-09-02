@@ -126,4 +126,22 @@ describe('approximate transcendentals (#934)', () => {
     expect(reversed.rewritten.pow).toBe(0)
     expect(reversed.skipped).toEqual([{ line: 3, kind: 'pow', reason: 'unproven-domain' }])
   })
+
+  it('keeps straight-line facts out of nested closures and out of chains through rewritable calls', () => {
+    const closure = approximateShowMemberTranscendentals(render('  var a = x\n  var f = () => pow(a, 1.3)\n  a = 2\n  var d = f()\n  rgb(d, 0, 0)'))
+    expect(closure.rewritten.pow).toBe(0)
+    expect(closure.skipped).toEqual([{ line: 3, kind: 'pow', reason: 'unproven-domain' }])
+    const chain = approximateShowMemberTranscendentals(render('  var a = x\n  var d = pow(a, 1.3)\n  var e = pow(d, 1.3)\n  rgb(d, e, 0)'))
+    // d's fact would come through a call this pass rewrites: not recorded.
+    expect(chain.rewritten.pow).toBe(1)
+    expect(chain.skipped).toEqual([{ line: 4, kind: 'pow', reason: 'unproven-domain' }])
+  })
+
+  it('offers the quadratic only for 1 < k < 4, where it stays inside [0, 1]', () => {
+    expect(quadraticFitCoefficient(0.1)).toBeGreaterThan(1)
+    expect(quadraticFitCoefficient(1.3)).toBeLessThan(1)
+    const out = approximateShowMemberTranscendentals(render('  var d = pow(x, 0.1) + pow(x, 0.5) + pow(x, 1.01)\n  rgb(d, 0, 0)'))
+    expect(out.rewritten.pow).toBe(1)
+    expect(out.skipped.map((entry) => entry.reason)).toEqual(['exponent-out-of-range', 'exponent-out-of-range'])
+  })
 })
