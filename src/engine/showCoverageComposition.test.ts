@@ -23,10 +23,13 @@ function layeredRecipe(clips: ShowRecipe['clips'], placements: RoutedPlacements)
   }
 }
 
-function runtime(recipe: ShowRecipe, conditional = true, coverageDirectedComposition = true) {
+function runtime(recipe: ShowRecipe, conditional = true, coverageDirectedComposition = true, wrapperInlining = true) {
   const artifact = compileShow(recipe, {}, {
     contentKeyConditionalEvaluation: conditional,
     coverageDirectedComposition,
+    // Shape assertions on the renderCapture call sites read the wrapper
+    // form; production folds those wrappers into their call sites (#929).
+    generatedWrapperInlining: wrapperInlining,
   })
   let pixel: [number, number, number] = [0, 0, 0]
   const handle = loadPattern(artifact.code, artifact.metadata, {
@@ -254,7 +257,7 @@ describe('multi-layer coverage-directed composition (#534)', () => {
       recipe.routedSceneSequence!.scenes[0].propertyTracks = [opacityTrack('overlay')]
       return recipe
     }
-    const pure = runtime(build('export function render(index) { rgb(0, 0, 1) }'))
+    const pure = runtime(build('export function render(index) { rgb(0, 0, 1) }'), true, true, false)
     const stateful = runtime(build(
       'export var renders = 0; export function render(index) { renders = renders + 1; rgb(0, 0, 1) }',
     ))

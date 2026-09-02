@@ -70,7 +70,10 @@ describe('function-valued direct color sinks (#572, recorded negative)', () => {
   })
 
   it('reproduces the measured rebound build under the counterfactual option', () => {
-    const artifact = compileShow(steadyRecipe(), {}, { functionValuedSinkRebinding: true })
+    // The #572 rebound shape is asserted on the wrapper form: production
+    // folds pass-through wrappers into their call sites (#929), which would
+    // hide the rebinding sequence this recorded negative documents.
+    const artifact = compileShow(steadyRecipe(), {}, { functionValuedSinkRebinding: true, generatedWrapperInlining: false })
     const code = artifact.expandedCode
     expect(code).not.toContain('__pxlblz_show_direct')
     // Capture/direct pairs plus the function-valued binding.

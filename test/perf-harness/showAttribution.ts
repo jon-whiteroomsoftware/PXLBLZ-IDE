@@ -63,8 +63,13 @@ export function buildShowAttributionArtifacts(
   const constantMembers = fromGenerated('constant-members', constantProduction)
   const captureElisionReason = input.captureElision?.reason
     ?? 'Capture elision requires one render-pure member per output pixel and no capture-dependent Effects or composition.'
+  // The capture-elision rung rewrites the members' generated rgb/emit
+  // wrappers, which production emission folds into their call sites since
+  // #929; the rung therefore derives from a constant compile with wrapper
+  // inlining off. It is a diagnostic boundary, not a production artifact,
+  // and its FPS is read against constantMembers as before.
   const captureElided = input.captureElision?.eligible
-    ? buildCaptureElidedArtifact(constantProduction)
+    ? buildCaptureElidedArtifact(compileShow(constantRecipe, input.libraries, { ...input.compileOptions, generatedWrapperInlining: false }))
     : null
 
   return {

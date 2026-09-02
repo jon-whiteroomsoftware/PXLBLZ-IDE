@@ -112,7 +112,7 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
     // activation ceiling here, so the #559 byte-budget fallback keeps the
     // shared chain.
     expect(baseline.summary.artifactBytes).toBe(82_771)
-    expect(selected.summary.artifactBytes).toBe(57_701)
+    expect(selected.summary.artifactBytes).toBe(56_516)
     // #717 interning shrank the fixture enough that the #559 byte-budget
     // fallback no longer binds: the faster per-member HSV chain fits.
     expect(selected.summary.specializations.hsvCaptureChain).toMatchObject({
@@ -122,8 +122,8 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
       auxiliaryCacheWords: 264,
       totalWords: 6_276,
       remainingWords: 3_964,
-      persistentGlobals: 172,
-      remainingGlobals: 84,
+      persistentGlobals: 181,
+      remainingGlobals: 75,
       blockers: [],
     })
   })
@@ -151,8 +151,8 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
     expect(selected.summary.artifactBytes).toBeLessThan(baseline.summary.artifactBytes)
     // Refreshed 2026-07-20 after the wave-2 emission changes (#557-#566);
     // #571's prologue-rebinding removal trimmed both builds again.
-    expect(baseline.summary.artifactBytes).toBe(73_232)
-    expect(selected.summary.artifactBytes).toBe(65_930)
+    expect(baseline.summary.artifactBytes).toBe(73_288)
+    expect(selected.summary.artifactBytes).toBe(66_119)
     expect(selected.summary.resources).toMatchObject({
       auxiliaryCacheWords: 216,
       totalWords: 708,
@@ -161,7 +161,7 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
       remainingGlobals: 5,
       // Was -692 before wave-2: the emission diet brought this fixture back
       // under the activation ceiling; #571 added 240 more bytes of headroom.
-      remainingArtifactBytes: 2454,
+      remainingArtifactBytes: 2_265,
     })
     expect(checksums(selected, installationShow, 'fast')).toEqual(checksums(baseline, installationShow, 'fast'))
     expect(checksums(selected, installationShow, 'fidelity')).toEqual(checksums(baseline, installationShow, 'fidelity'))
