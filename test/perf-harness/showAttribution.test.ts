@@ -111,6 +111,9 @@ describe('Show Controller attribution artifacts (#531)', () => {
     const report = attributeShowFrameTime({
       trivialOutput: { meanFps: 50, medianFps: 50 },
       captureElided: { meanFps: 40, medianFps: 40 },
+      // The elision step reads against the wrapper-form baseline rung, which
+      // here measures the same as the production-shaped constant rung.
+      captureElisionBaseline: { meanFps: 100 / 3, medianFps: 100 / 3 },
       constantMembers: { meanFps: 100 / 3, medianFps: 100 / 3 },
       full: { meanFps: 25, medianFps: 25 },
     })
@@ -125,8 +128,17 @@ describe('Show Controller attribution artifacts (#531)', () => {
     })
     expect(report.pairwiseMedianMs).toEqual([
       { from: 'trivial-output', to: 'capture-elided', deltaMs: 5 },
-      { from: 'capture-elided', to: 'constant-members', deltaMs: 5 },
+      { from: 'capture-elided', to: 'constant-members-wrapped', deltaMs: 5 },
       { from: 'constant-members', to: 'full', deltaMs: 10 },
     ])
+  })
+
+  it('refuses an elision measurement without its wrapper-form baseline', () => {
+    expect(() => attributeShowFrameTime({
+      trivialOutput: { meanFps: 50, medianFps: 50 },
+      captureElided: { meanFps: 40, medianFps: 40 },
+      constantMembers: { meanFps: 100 / 3, medianFps: 100 / 3 },
+      full: { meanFps: 20, medianFps: 20 },
+    })).toThrow(/wrapper-form baseline/)
   })
 })

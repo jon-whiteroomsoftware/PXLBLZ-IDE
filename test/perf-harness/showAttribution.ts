@@ -11,6 +11,7 @@ import { countShowPersistentGlobals } from '../../src/engine/showVmResourceLedge
 export type ShowAttributionArtifactKind =
   | 'trivial-output'
   | 'constant-members'
+  | 'constant-members-wrapped'
   | 'capture-elided'
   | 'full'
 
@@ -40,6 +41,12 @@ export interface BuildShowAttributionArtifactsInput {
 export interface ShowAttributionArtifacts {
   trivialOutput: ShowAttributionArtifact
   constantMembers: ShowAttributionArtifact
+  /** The capture-elision rung's like-for-like baseline: the constant recipe
+   *  compiled in the wrapper form (generated wrapper inlining off), the
+   *  shape the elision rewrite operates on. Present exactly when
+   *  `captureElided` is. The capture-replay step reads elided against THIS
+   *  rung, never against the production-shaped `constantMembers`. */
+  captureElisionBaseline: ShowAttributionArtifact | null
   captureElided: ShowAttributionArtifact | null
   captureElisionReason: string
   full: ShowAttributionArtifact
@@ -65,16 +72,24 @@ export function buildShowAttributionArtifacts(
     ?? 'Capture elision requires one render-pure member per output pixel and no capture-dependent Effects or composition.'
   // The capture-elision rung rewrites the members' generated rgb/emit
   // wrappers, which production emission folds into their call sites since
-  // #929; the rung therefore derives from a constant compile with wrapper
-  // inlining off. It is a diagnostic boundary, not a production artifact,
-  // and its FPS is read against constantMembers as before.
-  const captureElided = input.captureElision?.eligible
-    ? buildCaptureElidedArtifact(compileShow(constantRecipe, input.libraries, { ...input.compileOptions, generatedWrapperInlining: false }))
+  // #929. The rung therefore derives from a constant compile in the wrapper
+  // form, and that compile is itself a rung (`captureElisionBaseline`) so
+  // the capture-replay step compares like with like; `constantMembers` and
+  // `full` keep production emission for the pattern-evaluation step.
+  const captureElisionBaselineProduction = input.captureElision?.eligible
+    ? compileShow(constantRecipe, input.libraries, { ...input.compileOptions, generatedWrapperInlining: false })
+    : null
+  const captureElisionBaseline = captureElisionBaselineProduction
+    ? { ...fromGenerated('constant-members', captureElisionBaselineProduction), kind: 'constant-members-wrapped' as const }
+    : null
+  const captureElided = captureElisionBaselineProduction
+    ? buildCaptureElidedArtifact(captureElisionBaselineProduction)
     : null
 
   return {
     trivialOutput: buildTrivialOutputArtifact(),
     constantMembers,
+    captureElisionBaseline,
     captureElided,
     captureElisionReason,
     full: fromGenerated('full', production),
@@ -177,6 +192,8 @@ export interface ShowAttributionFpsMeasurement {
 export interface ShowAttributionMeasurements {
   trivialOutput: ShowAttributionFpsMeasurement
   constantMembers: ShowAttributionFpsMeasurement
+  /** Wrapper-form constant rung; required with `captureElided`. */
+  captureElisionBaseline?: ShowAttributionFpsMeasurement
   captureElided?: ShowAttributionFpsMeasurement
   full: ShowAttributionFpsMeasurement
 }
@@ -191,22 +208,27 @@ interface ShowFrameAttribution {
 }
 
 export function attributeShowFrameTime(measurements: ShowAttributionMeasurements) {
+  if (measurements.captureElided && !measurements.captureElisionBaseline) {
+    throw new Error('captureElided needs its wrapper-form baseline (captureElisionBaseline); production constantMembers is not like-for-like.')
+  }
   const mean = attributeOne(
     measurements.trivialOutput.meanFps,
     measurements.constantMembers.meanFps,
     measurements.full.meanFps,
     measurements.captureElided?.meanFps,
+    measurements.captureElisionBaseline?.meanFps,
   )
   const median = attributeOne(
     measurements.trivialOutput.medianFps,
     measurements.constantMembers.medianFps,
     measurements.full.medianFps,
     measurements.captureElided?.medianFps,
+    measurements.captureElisionBaseline?.medianFps,
   )
   const order = measurements.captureElided
     ? [
         ['trivial-output', 'capture-elided', median.routingCompositionMs!],
-        ['capture-elided', 'constant-members', median.captureReplayMs!],
+        ['capture-elided', 'constant-members-wrapped', median.captureReplayMs!],
         ['constant-members', 'full', median.patternEvaluationMs],
       ] as const
     : [
@@ -225,6 +247,7 @@ function attributeOne(
   constantFps: number,
   fullFps: number,
   captureElidedFps?: number,
+  captureElisionBaselineFps?: number,
 ): ShowFrameAttribution {
   const outputFloorMs = frameMs(trivialFps)
   const constantMs = frameMs(constantFps)
@@ -241,10 +264,14 @@ function attributeOne(
     }
   }
   const captureElidedMs = frameMs(captureElidedFps)
+  // Both elision rungs carry the wrapper form, so their difference is the
+  // capture replay alone; the production-shaped constant rung is not used
+  // for this step.
+  const baselineMs = frameMs(captureElisionBaselineFps ?? constantFps)
   return {
     outputFloorMs,
     routingCompositionMs: roundMs(captureElidedMs - outputFloorMs),
-    captureReplayMs: roundMs(constantMs - captureElidedMs),
+    captureReplayMs: roundMs(baselineMs - captureElidedMs),
     unresolvedShowOverheadMs: 0,
     patternEvaluationMs,
     fullFrameMs,

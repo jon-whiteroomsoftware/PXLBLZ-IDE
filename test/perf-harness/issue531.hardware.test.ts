@@ -96,6 +96,12 @@ describe('Show frame-time Controller attribution (#531)', () => {
           `${fixture.id}:constant-members`,
           fixture.artifacts.constantMembers,
         ))
+        const captureElisionBaseline = fixture.artifacts.captureElisionBaseline
+          ? await measure(descriptor(
+              `${fixture.id}:constant-members-wrapped`,
+              fixture.artifacts.captureElisionBaseline,
+            ))
+          : null
         const captureElided = fixture.artifacts.captureElided
           ? await measure(descriptor(
               `${fixture.id}:capture-elided`,
@@ -106,8 +112,11 @@ describe('Show frame-time Controller attribution (#531)', () => {
         const attribution = attributeShowFrameTime({
           trivialOutput: { meanFps: trivialOutput.fps.mean, medianFps: trivialOutput.fps.median },
           constantMembers: { meanFps: constantMembers.fps.mean, medianFps: constantMembers.fps.median },
-          ...(captureElided
-            ? { captureElided: { meanFps: captureElided.fps.mean, medianFps: captureElided.fps.median } }
+          ...(captureElided && captureElisionBaseline
+            ? {
+                captureElisionBaseline: { meanFps: captureElisionBaseline.fps.mean, medianFps: captureElisionBaseline.fps.median },
+                captureElided: { meanFps: captureElided.fps.mean, medianFps: captureElided.fps.median },
+              }
             : {}),
           full: { meanFps: full.fps.mean, medianFps: full.fps.median },
         })
@@ -128,7 +137,7 @@ describe('Show frame-time Controller attribution (#531)', () => {
           id: fixture.id,
           pixelCount: fixture.pixelCount,
           captureElisionReason: fixture.artifacts.captureElisionReason,
-          artifacts: { trivialOutput, constantMembers, captureElided, full },
+          artifacts: { trivialOutput, constantMembers, captureElisionBaseline, captureElided, full },
           attribution,
           optimization,
         })
