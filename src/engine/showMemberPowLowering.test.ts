@@ -132,4 +132,16 @@ describe('member integer-pow lowering (#933)', () => {
     expect(coordinate.rewrittenSites).toBe(0)
     expect(coordinate.skipped.map((entry) => entry.reason)).toEqual(['unbounded-base', 'unbounded-base'])
   })
+
+  it('never uses an initializer fact before its declaration has executed, and treats a shadowed built-in call as a write', () => {
+    const early = lowerShowMemberPow(render('  var v = pow(a, 3)\n  var a = wave(x)\n  var w = pow(a, 3)\n  rgb(v, w, 0)'))
+    // Before the declaration a reads as 0 on the device; only the later site qualifies.
+    expect(early.source).toContain('var v = pow(a, 3)')
+    expect(early.source).toContain('var w = (a * a * a)')
+    expect(early.skipped).toEqual([{ line: 2, reason: 'unbounded-base' }])
+    const shadowedCall = lowerShowMemberPow(`var q = 0\nfunction abs(v) { q = q + 1; return v }\n${render('  var v = abs(x) + pow(wave(x), 3)\n  rgb(v, v, v)')}`)
+    // abs() is authored and writes q: the statement is not a hoisting context.
+    expect(shadowedCall.rewrittenSites).toBe(0)
+    expect(shadowedCall.skipped).toEqual([{ line: 4, reason: 'no-statement-context' }])
+  })
 })

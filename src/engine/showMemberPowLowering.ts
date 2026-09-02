@@ -102,7 +102,7 @@ export function lowerShowMemberPow(
   // Temps inserted before a statement, keyed by the statement start.
   const insertions = new Map<number, string[]>()
 
-  walkWithContext(ast, coordinatesTransformed, (node, context) => {
+  walkWithContext(ast, coordinatesTransformed, shadowedBuiltin, (node, context) => {
     if (!isPowCall(node)) return
     const line: number = node.loc?.start.line ?? 0
     if (powShadowed) { result.skipped.push({ line, reason: 'shadowed-builtin' }); return }
@@ -111,7 +111,7 @@ export function lowerShowMemberPow(
     if (exponent < 2 || exponent > maxExponent) { result.skipped.push({ line, reason: 'exponent-out-of-range' }); return }
     const base = node.arguments[0]
     if (!isPure(base, shadowedBuiltin)) { result.skipped.push({ line, reason: 'impure-base' }); return }
-    const bound = magnitudeBound(base, { ...context.bounds, shadowed: shadowedBuiltin })
+    const bound = magnitudeBound(base, { ...context.bounds, shadowed: shadowedBuiltin, site: node.start })
     if (bound === null) { result.skipped.push({ line, reason: 'unbounded-base' }); return }
     if (bound ** exponent > FIXED_POINT_MAX) { result.skipped.push({ line, reason: 'range-overflow' }); return }
     const simple = base.type === 'Identifier' || (base.type === 'Literal' && typeof base.value === 'number')
@@ -198,6 +198,10 @@ export interface BoundScope {
   coordinateParams: ReadonlySet<string>
   /** Names the module declares itself, which are never built-ins. */
   shadowed?: (name: string) => boolean
+  /** Source offset of the site being proven: an initializer fact applies
+   *  only to reads after the declaration has executed (a function-scoped
+   *  `var` read before its declaration is 0 on the device). */
+  site?: number
   /** Names with exactly one `var name = init` and no other write in their
    *  scope (function locals, or module globals that nothing writes and no
    *  export exposes to controls): their bound is the initializer's. */
@@ -215,6 +219,7 @@ export function magnitudeBound(node: Node, scope: BoundScope, visiting: Set<stri
       if (scope.coordinateParams.has(node.name)) return 1
       const init = scope.singleAssignments.get(node.name)
       if (!init || visiting.has(node.name)) return null
+      if (scope.site !== undefined && typeof init.end === 'number' && init.end > scope.site) return null
       visiting.add(node.name)
       const value = isPure(init, scope.shadowed) ? bound(init) : null
       visiting.delete(node.name)
@@ -313,7 +318,7 @@ interface WalkContext {
   statementIndent: string
 }
 
-function walkWithContext(ast: Node, coordinatesTransformed: boolean, visit: (node: Node, context: WalkContext) => void): void {
+function walkWithContext(ast: Node, coordinatesTransformed: boolean, shadowed: (name: string) => boolean, visit: (node: Node, context: WalkContext) => void): void {
   const recurse = (node: Node, parent: Node | null, context: WalkContext): void => {
     if (!node || typeof node.type !== 'string') return
     let next = context
@@ -333,7 +338,7 @@ function walkWithContext(ast: Node, coordinatesTransformed: boolean, visit: (nod
       for (const [name, init] of locals) merged.set(name, init)
       next = { ...context, bounds: { coordinateParams: params, singleAssignments: merged }, hoistStatement: null }
     }
-    if (isHoistableStatement(node, parent)) {
+    if (isHoistableStatement(node, parent, shadowed)) {
       next = { ...next, hoistStatement: node, statementIndent: indentOf(node) }
     } else if (node.type.endsWith('Statement') || node.type === 'VariableDeclaration') {
       // Any other statement shape (loop headers, unbraced conditionals,
@@ -488,28 +493,28 @@ function exportedNames(ast: Node): Set<string> {
   return names
 }
 
-function isHoistableStatement(node: Node, parent: Node | null): boolean {
+function isHoistableStatement(node: Node, parent: Node | null, shadowed: (name: string) => boolean): boolean {
   if (!parent || (parent.type !== 'BlockStatement' && parent.type !== 'Program')) return false
   if (node.type === 'ExpressionStatement') {
     const expression = node.expression
-    return expression.type === 'AssignmentExpression' && !containsWrite(expression.right) && !containsWrite(expression.left)
+    return expression.type === 'AssignmentExpression' && !containsWrite(expression.right, shadowed) && !containsWrite(expression.left, shadowed)
   }
   if (node.type === 'VariableDeclaration') {
-    return node.declarations.length === 1 && node.declarations[0].init != null && !containsWrite(node.declarations[0].init)
+    return node.declarations.length === 1 && node.declarations[0].init != null && !containsWrite(node.declarations[0].init, shadowed)
   }
-  if (node.type === 'ReturnStatement') return node.argument != null && !containsWrite(node.argument)
+  if (node.type === 'ReturnStatement') return node.argument != null && !containsWrite(node.argument, shadowed)
   return false
 }
 
 /** True when the expression itself assigns, updates, or calls user code
  *  (whose writes cannot be seen), so hoisting a subexpression above it
  *  could reorder a write against the base's reads. */
-function containsWrite(node: Node): boolean {
+function containsWrite(node: Node, shadowed: (name: string) => boolean = () => false): boolean {
   let found = false
   const visit = (current: Node): void => {
     if (found || !current || typeof current.type !== 'string') return
     if (current.type === 'AssignmentExpression' || current.type === 'UpdateExpression') { found = true; return }
-    if (current.type === 'CallExpression' && !(current.callee.type === 'Identifier' && PURE_BUILTINS.has(current.callee.name))) { found = true; return }
+    if (current.type === 'CallExpression' && !(current.callee.type === 'Identifier' && PURE_BUILTINS.has(current.callee.name) && !shadowed(current.callee.name))) { found = true; return }
     if (current.type === 'FunctionExpression' || current.type === 'ArrowFunctionExpression') return
     for (const key of Object.keys(current)) {
       if (key === 'loc' || key === 'type') continue
