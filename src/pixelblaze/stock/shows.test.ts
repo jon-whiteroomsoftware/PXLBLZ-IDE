@@ -1972,18 +1972,25 @@ describe('stock Show curriculum (#363)', () => {
     // Both columns belong to one Zone, so a sample from each end of the index
     // space (left column, right column) must carry the same voice.
     const groups = { floor: [300, 400, 480], arch: [520, 620, 730], towers: [50, 150, 800, 950] }
+    // Render every pixel in ascending index order, as the firmware and the
+    // preview do (#560): the compiled dispatcher latches its route decode at
+    // zone boundaries (#936), so sampling pixels out of order is not a
+    // valid consumer. Capture the sampled indices from the full sweep.
+    const sampled = new Set([...groups.floor, ...groups.arch, ...groups.towers])
     const frameAt = (deltaMs: number) => {
       virtualTime += deltaMs
       handle.beforeRender(deltaMs)
-      const render = (index: number) => {
+      const captured = new Map<number, number[]>()
+      for (let index = 0; index < mapPoints.length; index += 1) {
         const [x, y] = mapPoints[index].sample
         handle.render2D(index, x, y)
-        return shim.capturedPixel()
+        if (sampled.has(index)) captured.set(index, shim.capturedPixel())
       }
+      const pick = (index: number) => captured.get(index)!
       return {
-        floor: groups.floor.map(render),
-        arch: groups.arch.map(render),
-        towers: groups.towers.map(render),
+        floor: groups.floor.map(pick),
+        arch: groups.arch.map(pick),
+        towers: groups.towers.map(pick),
       }
     }
 

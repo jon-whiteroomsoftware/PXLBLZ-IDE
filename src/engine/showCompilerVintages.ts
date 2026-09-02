@@ -25,6 +25,7 @@ export const COMPILER_VINTAGES = {
     identityBlendFold: false,
     hsvSharedChainLaneScoping: false,
     generatedFrameConstantHoisting: false,
+    boundaryLatchedDecode: false,
     generatedWrapperInlining: false,
   },
   /** #536 score-representation census (pre-wave-2 emission diet, pre-#907). */
@@ -53,6 +54,7 @@ export const COMPILER_VINTAGES = {
     identityBlendFold: false,
     hsvSharedChainLaneScoping: false,
     generatedFrameConstantHoisting: false,
+    boundaryLatchedDecode: false,
     generatedWrapperInlining: false,
     loopUnrolling: false,
   },
@@ -63,6 +65,7 @@ export const COMPILER_VINTAGES = {
     identityBlendFold: false,
     hsvSharedChainLaneScoping: false,
     generatedFrameConstantHoisting: false,
+    boundaryLatchedDecode: false,
     generatedWrapperInlining: false,
   },
 } satisfies Record<string, ShowCompileOptions>

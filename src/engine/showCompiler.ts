@@ -709,6 +709,12 @@ export interface ShowCompileSummary {
       baselineDispatchBytes: number
       selectedDispatchBytes: number
     }) | null
+    /** #936: whether the shared cut-scene dispatcher latches its decode at
+     * zone boundaries; the reason names the shape that declined. */
+    boundaryLatch: {
+      selected: boolean
+      reason: 'selected' | 'disabled' | 'no-shared-cut-dispatcher' | 'no-literal-ranges' | 'non-interned-plans' | 'render-kernel-specialized' | 'configuration-reads-local'
+    } | null
     motionTransitions: {
       selected: boolean
       representation: 'unrolled' | 'exact-shared-environment' | 'exact-family-kernels'
@@ -1135,6 +1141,13 @@ export interface ShowCompileOptions {
   exactSpecializations?: boolean
   frameInvariantHoisting?: boolean
   renderKernelSpecialization?: boolean
+  /** #936: boundary-latched decode for the shared physical cut-scene
+   * dispatcher of index-routed Shows. The zone chain, local-index base, zone
+   * dimensions, placement lookup, and placement configuration run once per
+   * zone boundary (index 0 or the next boundary) instead of per pixel. Exact
+   * under the firmware's ascending render order (#560) and the preview's;
+   * `false` reproduces the per-pixel decode for vintages. Default `true`. */
+  boundaryLatchedDecode?: boolean
   /** Benchmark-only counterfactual; production always uses the default `true`. */
   renderTargetArenaEmission?: boolean
   /** `none` preserves the unrolled #515 boundary; `exact` forces the #525 exact candidate. */
@@ -2823,6 +2836,7 @@ export function compileShow(
         },
         toggles: {
           renderKernelSpecialization,
+          boundaryLatchedDecode: options?.boundaryLatchedDecode ?? true,
           motionTransitionSharing,
           showScoreSharing,
           directColorSinksEnabled: (options?.directColorSinks ?? true) && !trailsSelected,
@@ -3517,6 +3531,7 @@ export function compileShow(
       },
       spatialHold: spatialHoldSummary,
       renderKernels: routedSceneEmission?.renderKernels ?? null,
+      boundaryLatch: routedSceneEmission?.boundaryLatch ?? null,
       motionTransitions: routedSceneEmission?.motionTransitions ?? null,
       showScore: routedSceneEmission?.showScore ?? null,
       patternSlots: patternSlotRuntimePlan?.summary ?? (patternSlotSharing === 'none'
@@ -4646,6 +4661,7 @@ interface RoutedSceneSequenceEmissionOptions {
   }
   toggles?: {
     renderKernelSpecialization?: boolean
+    boundaryLatchedDecode?: boolean
     motionTransitionSharing?: 'auto' | 'none' | 'structure' | 'exact'
     showScoreSharing?: 'auto' | 'none' | 'force'
     directColorSinksEnabled?: boolean
@@ -4661,6 +4677,7 @@ function emitRoutedSceneSequenceShowCode(
 ): {
   code: string
   renderKernels: ShowCompileSummary['specializations']['renderKernels']
+  boundaryLatch: ShowCompileSummary['specializations']['boundaryLatch']
   motionTransitions: ShowCompileSummary['specializations']['motionTransitions']
   showScore: ShowCompileSummary['specializations']['showScore']
   directColorSinks: NonNullable<ShowCompileSummary['specializations']['directColorSinks']>
@@ -4690,6 +4707,7 @@ function emitRoutedSceneSequenceShowCode(
   const patternSlotRuntimePlan = selections.patternSlotRuntimePlan ?? null
   const toggles = emissionOptions.toggles ?? {}
   const renderKernelSpecialization = toggles.renderKernelSpecialization ?? false
+  const boundaryLatchedDecode = toggles.boundaryLatchedDecode ?? true
   const motionTransitionSharing = toggles.motionTransitionSharing ?? 'auto'
   const showScoreSharing = toggles.showScoreSharing ?? 'auto'
   const directColorSinksEnabled = toggles.directColorSinksEnabled ?? false
@@ -5438,6 +5456,7 @@ ${setupForPlacements(
         renderKernelSpecialization,
         patternOutputReuseGroups,
         coordinateFields,
+        boundaryLatchedDecode,
       )
     : undefined
   // #557 steady-state direct-sink eligibility. Recipe-level consumers of
@@ -6133,6 +6152,7 @@ ${indentBlock(transitionRender, 4)}
   return {
     code,
     renderKernels: sharedPhysicalCut?.renderKernels ?? null,
+    boundaryLatch: sharedPhysicalCut?.boundaryLatch ?? { selected: false, reason: 'no-shared-cut-dispatcher' },
     directColorSinks: {
       enabled: directColorSinksEnabled,
       representation: functionValuedSinkRebinding ? 'function-valued' : 'flag-branch',
@@ -6196,10 +6216,12 @@ function emitSharedPhysicalCutSceneRender(
   renderKernelSpecialization = false,
   patternOutputReuseGroups: SelectedPatternOutputReuseGroup[] = [],
   coordinateFields: SelectedCoordinateField[] = [],
+  boundaryLatchedDecode = true,
 ): {
   prelude: string
   render: string
   renderKernels: ShowCompileSummary['specializations']['renderKernels']
+  boundaryLatch: ShowCompileSummary['specializations']['boundaryLatch']
 } {
   const reuseByConsumerId = new Map(patternOutputReuseGroups.flatMap((group) => (
     group.consumerIds.map((consumerId) => [consumerId, group] as const)
@@ -6383,12 +6405,92 @@ ${indentBlock(kernelDispatch, 2)}
         : baselineDispatchBytes,
     }
     if (renderKernelSpecialization && selection.selected) {
-      return { prelude: candidatePrelude, render: candidateRender, renderKernels }
+      return { prelude: candidatePrelude, render: candidateRender, renderKernels, boundaryLatch: { selected: false, reason: 'render-kernel-specialized' } }
     }
+    // #936: boundary-latched decode. With ascending render order the route,
+    // its local-index base and dimensions, the placement plan, and the
+    // plan's configuration are constant between zone boundaries, so they
+    // are recomputed only when `index` is 0 (frame start; also the first
+    // pixel after a pixel-count or scene change) or reaches the next
+    // boundary. The per-pixel path keeps the local index and coordinate
+    // formulas (the counter form measured slower) and dispatches on the
+    // latched plan. Measured +13.3% median FPS on Redline at 256 and 500 px
+    // (issue936-latch-ladder.json); checksum-exact in both preview modes.
+    const configurationReadsLocal = planCode.some((plan) => /__pxlblz_show_route_local/.test(plan.configuration))
+    if (!boundaryLatchedDecode || !routingSpecialization || configurationReadsLocal) {
+      return {
+        prelude: sharedPrelude,
+        render: baselineRender,
+        renderKernels,
+        boundaryLatch: {
+          selected: false,
+          reason: !boundaryLatchedDecode ? 'disabled' : !routingSpecialization ? 'no-literal-ranges' : 'configuration-reads-local',
+        },
+      }
+    }
+    const latchedRoutingAssignments = routingSpecialization.ranges.map((range, rangeIndex) => {
+      const zone = layout.zones[range.routeIndex]
+      const pixelCount = Math.max(1, controllerZonePixelCount(zone))
+      const width = Math.max(1, Math.ceil(Math.sqrt(pixelCount)))
+      const height = Math.max(1, Math.ceil(pixelCount / width))
+      const last = rangeIndex === routingSpecialization.ranges.length - 1
+      const condition = rangeIndex === 0
+        ? `if (index <= ${range.end})`
+        : last ? 'else' : `else if (index <= ${range.end})`
+      return [
+        `${condition} {`,
+        `  __pxlblz_show_route_id = ${range.routeIndex}`,
+        // local index = localOffset + index - start = index - (start - localOffset)
+        `  __pxlblz_show_latch_base = ${range.start - range.localOffset}`,
+        `  __pxlblz_show_route_pixelCount = ${pixelCount}`,
+        ...(outputDimension === 2
+          ? [`  __pxlblz_show_route_width = ${width}`, `  __pxlblz_show_route_height = ${height}`]
+          : []),
+        ...(last ? [] : [`  __pxlblz_show_latch_next = ${range.end + 1}`]),
+        '}',
+      ]
+    }).flat()
+    const latchedPrelude = [
+      sharedPrelude,
+      'var __pxlblz_show_latch_next = 0',
+      'var __pxlblz_show_latch_base = 0',
+      'var __pxlblz_show_route_id = -1',
+      'var __pxlblz_show_route_pixelCount = 1',
+      ...(outputDimension === 2
+        ? ['var __pxlblz_show_route_width = 1', 'var __pxlblz_show_route_height = 1']
+        : []),
+      'var __pxlblz_show_plan = -1',
+    ].join('\n')
+    const configurationChain = planCode.map((plan, planIndex) => (
+      `${planIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_plan == ${planIndex}) {\n${indentBlock(plan.configuration, 2)}\n}`
+    )).join(' ')
+    const latchedRenderPlan = planCode.map((plan, planIndex) => (
+      `${planIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_plan == ${planIndex}) {\n${indentBlock(plan.render, 2)}\n}`
+    )).join(' ')
+    const latchedRender = `if (index == 0 || index == __pxlblz_show_latch_next) {
+  __pxlblz_show_route_id = -1
+  __pxlblz_show_route_pixelCount = 1
+${outputDimension === 2 ? '  __pxlblz_show_route_width = 1\n  __pxlblz_show_route_height = 1\n' : ''}  __pxlblz_show_latch_next = -1
+${indentBlock(latchedRoutingAssignments.join('\n'), 2)}
+  __pxlblz_show_plan = -1
+  if (__pxlblz_show_route_id >= 0) __pxlblz_show_plan = __pxlblz_show_plans[__pxlblz_show_scene * ${layout.zones.length} + __pxlblz_show_route_id] - 1
+  var __pxlblz_show_plan_config_key = __pxlblz_show_plan * ${layout.zones.length} + __pxlblz_show_route_id
+  if (__pxlblz_show_plan >= 0 && __pxlblz_show_plan_config_key != __pxlblz_show_plan_config) {
+    __pxlblz_show_plan_config = __pxlblz_show_plan_config_key
+${indentBlock(configurationChain, 4)}
+  }
+}
+var __pxlblz_show_route_local_index = index - __pxlblz_show_latch_base
+${outputDimension === 2
+    ? `var __pxlblz_show_route_local_x = __pxlblz_show_route_width == 1 ? 0.5 : (__pxlblz_show_route_local_index % __pxlblz_show_route_width) / (__pxlblz_show_route_width - 1)
+var __pxlblz_show_route_local_y = __pxlblz_show_route_height == 1 ? 0.5 : floor(__pxlblz_show_route_local_index / __pxlblz_show_route_width) / (__pxlblz_show_route_height - 1)
+`
+    : ''}${latchedRenderPlan}`
     return {
-      prelude: sharedPrelude,
-      render: baselineRender,
-      renderKernels,
+      prelude: latchedPrelude,
+      render: latchedRender,
+      renderKernels: { ...renderKernels, selectedDispatchBytes: byteLength(`${latchedPrelude}\n${latchedRender}`) },
+      boundaryLatch: { selected: true, reason: 'selected' },
     }
   }
   const sceneBranches = scenes.map((scene, sceneIndex) => {
@@ -6414,7 +6516,7 @@ ${indentBlock(emitSharedPhysicalSceneZoneStack(
 ${indentBlock(zoneBranches, 2)}
 }`
   }).join(' ')
-  return { prelude: '', render: `${routingSetup}\n${sceneBranches}`, renderKernels: null }
+  return { prelude: '', render: `${routingSetup}\n${sceneBranches}`, renderKernels: null, boundaryLatch: { selected: false, reason: boundaryLatchedDecode ? 'non-interned-plans' : 'disabled' } }
 }
 
 function emitInternedSharedPhysicalSceneZonePlan(
