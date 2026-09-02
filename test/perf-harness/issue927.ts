@@ -22,6 +22,8 @@ export const ISSUE927_FACTORS = [2, 4] as const
 /** The heavy fixture's synthesized zone: 2,000 px -> ceil(sqrt) = 45 wide, 45 high. */
 export const ISSUE927_WIDTH = 45
 export const ISSUE927_HEIGHT = 45
+/** The declared zone: 2,000 pixels, so the last row holds 20 of 45 columns. */
+export const ISSUE927_PIXEL_COUNT = 2_000
 
 const DISPATCHER = /export function render2D\(index, x, y\) \{\n/
 
@@ -86,10 +88,14 @@ export interface BlockHoldOptions {
    *  buffers only when the column crosses an anchor column (or a block-row
    *  begins), instead of six array reads per pixel. Same output. */
   scalarCache?: boolean
+  /** Export a per-frame counter of member evaluations (one global write per
+   *  evaluation). Test-only: the measured candidates never carry it. */
+  countEvaluations?: boolean
 }
 
 export function applyBlockHold(source: string, k: number, width = ISSUE927_WIDTH, height = ISSUE927_HEIGHT, options: BlockHoldOptions = {}): BlockHoldResult {
   const scalarCache = options.scalarCache ?? false
+  const countEvaluations = options.countEvaluations ?? false
   const paintSites = [...source.matchAll(/\brgb\(/g)].length
   if (paintSites === 0) throw new Error('No rgb paint sites found to latch.')
   if (/\bhsv\(/.test(source)) throw new Error('Artifact paints via hsv(); the RGB-only latch would miss it.')
@@ -122,12 +128,10 @@ var __pxlblz_bh_cc2 = 0
 var __pxlblz_bh_cd0 = 0
 var __pxlblz_bh_cd1 = 0
 var __pxlblz_bh_cd2 = 0
-export var __pxlblz_bh_evals = 0
-function __pxlblz_bh_fill(__pxlblz_bh_row) {
+${countEvaluations ? 'export var __pxlblz_bh_evals = 0\n' : ''}function __pxlblz_bh_fill(__pxlblz_bh_row) {
   var __pxlblz_bh_base = __pxlblz_bh_row * ${width}
   for (var __pxlblz_bh_s = 0; __pxlblz_bh_s < ${slots}; __pxlblz_bh_s++) {
-    __pxlblz_bh_evals = __pxlblz_bh_evals + 1
-    __pxlblz_bh_inner(__pxlblz_bh_base + min(__pxlblz_bh_s * ${k}, ${width - 1}), 0, 0)
+${countEvaluations ? '    __pxlblz_bh_evals = __pxlblz_bh_evals + 1\n' : ''}    __pxlblz_bh_inner(min(__pxlblz_bh_base + min(__pxlblz_bh_s * ${k}, ${width - 1}), pixelCount - 1), 0, 0)
     __pxlblz_bh_B[__pxlblz_bh_s * 3] = __pxlblz_bh_r
     __pxlblz_bh_B[__pxlblz_bh_s * 3 + 1] = __pxlblz_bh_g
     __pxlblz_bh_B[__pxlblz_bh_s * 3 + 2] = __pxlblz_bh_b

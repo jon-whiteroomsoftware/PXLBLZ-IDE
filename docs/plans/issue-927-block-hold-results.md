@@ -20,19 +20,22 @@ are ~N/K² per frame, and the Controller compiler accepts K = 2 and 4. The
 spike's buffers are two plain arrays (2 × 3 × 23 words at K = 2); a build
 would declare one arena plane through the lifetime-aware planner (#718).
 
-## Ladder (median FPS, two passes per rung, identical to 0.01 FPS)
+## Ladder (median FPS, two passes per rung, identical to 0.01 FPS; measured candidates carry no instrumentation)
 
 | member | px | exact | 1D lerp ×2 | 1D lerp ×4 | 2D block ×2 (array replay) | 2D block ×2 (scalar-cached replay) | 2D block ×4 (scalar-cached) |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| ZippyZaps | 256 | 7.01 | +78% | +226% | +66% | **+75%** | +212% |
-| ZippyZaps | 500 | 3.59 | +79% | +229% | +78% | **+87%** | +267% |
-| Caustics | 256 | 7.26 | +78% | +225% | +215% | **+247%** | +208% |
-| Caustics | 500 | 3.71 | +78% | +228% | +266% | **+311%** | +260% |
+| ZippyZaps | 256 | 7.00 | +78% | +226% | +67% | **+75%** | +213% |
+| ZippyZaps | 500 | 3.59 | +79% | +229% | +78% | **+88%** | +267% |
+| Caustics | 256 | 7.25 | +78% | +225% | +215% | **+246%** | +208% |
+| Caustics | 500 | 3.72 | +78% | +228% | +267% | **+310%** | +260% |
 
-Evaluations per pixel, measured (fill counter): 2D ×2 0.261 and ×4 0.071
-on the full 45×45 stage; on a 256-px strip the ×2 form evaluates rows 0,
-2, 4 and the lookahead row 6 (92 evaluations, 0.36 per pixel) against the
-1D lerp ×4's 65 (0.25), which is where the strip-sized gain goes.
+Evaluations per pixel, measured on an instrumented twin of the wrapper
+(same output, one counter write per evaluation; the measured candidates
+carry none): 2D ×2 0.265 and ×4 0.072 on the declared 2,000-pixel zone
+(fills clamp to the zone, so the partial last row costs no out-of-zone
+evaluations); on a 256-px strip the ×2 form evaluates rows 0, 2, 4 and
+the lookahead row 6 (92 evaluations, 0.36 per pixel) against the 1D lerp
+×4's 65 (0.25), which is where the strip-sized gain goes.
 
 Two findings that changed the recommendation:
 
@@ -52,20 +55,22 @@ Two findings that changed the recommendation:
 
 ## Drift (emulator, 12 frames, 8-bit channels) and the contact sheets
 
-| member | variant | evaluations | mean | rmse | p95 | changed ≥ 2 |
+| member | variant | evaluations / px | mean | rmse | p95 | changed ≥ 2 |
 |---|---|---:|---:|---:|---:|---:|
-| ZippyZaps | 1D lerp ×4 | 1/4 | 1.81 | 5.88 | 8 | 22.9% |
-| ZippyZaps | 2D block ×2 | 1/4 | 3.77 | 17.48 | 10 | 14.6% |
-| ZippyZaps | 2D block ×4 | 1/16 | 6.57 | 20.77 | 38 | 37.6% |
-| Caustics | 1D lerp ×4 | 1/4 | 12.78 | 26.25 | 60 | 59.3% |
-| Caustics | 2D block ×2 | 1/4 | 7.28 | 17.99 | 37 | 47.9% |
-| Caustics | 2D block ×4 | 1/16 | 19.10 | 34.09 | 78 | 79.4% |
+| ZippyZaps | 2D block ×2 | 0.265 | 0.98 | 3.92 | 4 | 12.1% |
+| ZippyZaps | 1D lerp ×4 | 0.251 | 1.81 | 5.88 | 8 | 22.9% |
+| ZippyZaps | 2D block ×4 | 0.072 | 2.61 | 7.22 | 10 | 34.5% |
+| Caustics | 2D block ×2 | 0.265 | 6.11 | 14.36 | 31 | 46.3% |
+| Caustics | 1D lerp ×4 | 0.251 | 12.78 | 26.25 | 60 | 59.3% |
+| Caustics | 2D block ×4 | 0.072 | 18.04 | 32.22 | 73 | 78.5% |
 
-The numbers split by content and the contact sheets do not: at the same
-evaluation count the 1D lerp streaks structure horizontally (Caustics'
-cells become dashes) while the 2D block keeps shapes and softens them. The
-mean-delta metric under-weights that anisotropy. K = 4 in 2D is mush on
-both members.
+After the last-column fix the 2D block ×2 drifts LESS than the 1D lerp ×4
+on both members at about the same evaluation count (ZippyZaps 0.98 vs
+1.81 mean, Caustics 6.11 vs 12.78), and the contact sheets agree: the 1D
+lerp streaks structure horizontally (Caustics' cells become dashes) while
+the 2D block keeps shapes and softens them. K = 4 in 2D is mush on both
+members. (The first ladder's drift table, taken before the fix, had the
+2D rows worse; those numbers were the out-of-range last column.)
 
 ## Recommendation (Jon's verdict pending)
 
@@ -74,9 +79,10 @@ as the reopen point for the large-installation round.** At 256 px the 2D
 block ×2 evaluates more pixels than the 1D lerp ×4 (the lookahead row is a
 fixed cost on a short stage) and lands between the 1D ×2 and ×4 depending
 on the member; the 1D lerp already covers that FPS range with a
-structurally simpler replay. The 2D form's advantages — cellular content
-keeps its shape (contact sheets), and +311% against +228% on Caustics at
-500 px — grow with stage height, which is the expander round's domain.
+structurally simpler replay. The 2D form's advantages — visibly better
+drift at the same evaluation count (table above, contact sheets), and
++310% against +228% on Caustics at 500 px — grow with stage height, which
+is the expander round's domain.
 
 If Jon's eye rates the 2D ×2 sheets as clearly better than the 1D ×4
 ones, the build is: eligibility as #937 plus a compile-time zone width;

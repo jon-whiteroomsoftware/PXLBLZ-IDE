@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-02T02:26:22.434Z",
+  "generatedAt": "2026-09-02T02:42:40.350Z",
   "options": {
     "frames": 12,
     "warmup": 1,
@@ -14,7 +14,7 @@
       "member": "ZippyZaps",
       "variant": "lerp-1d",
       "k": 2,
-      "evaluationsPerPixel": 0.5007,
+      "evaluationsPerPixel": 0.5005,
       "meanAbs": 0.591,
       "rmse": 3.03,
       "p95": 2,
@@ -25,29 +25,29 @@
       "member": "ZippyZaps",
       "variant": "block-2d",
       "k": 2,
-      "evaluationsPerPixel": 0.2612,
-      "meanAbs": 1.581,
-      "rmse": 7.234,
-      "p95": 5,
+      "evaluationsPerPixel": 0.2645,
+      "meanAbs": 0.976,
+      "rmse": 3.923,
+      "p95": 4,
       "max": 138,
-      "changedPct": 12.57
+      "changedPct": 12.14
     },
     {
       "member": "ZippyZaps",
       "variant": "block-2d-scalar",
       "k": 2,
-      "evaluationsPerPixel": 0.2612,
-      "meanAbs": 1.581,
-      "rmse": 7.234,
-      "p95": 5,
+      "evaluationsPerPixel": 0.2645,
+      "meanAbs": 0.976,
+      "rmse": 3.923,
+      "p95": 4,
       "max": 138,
-      "changedPct": 12.57
+      "changedPct": 12.14
     },
     {
       "member": "ZippyZaps",
       "variant": "lerp-1d",
       "k": 4,
-      "evaluationsPerPixel": 0.2509,
+      "evaluationsPerPixel": 0.2505,
       "meanAbs": 1.808,
       "rmse": 5.879,
       "p95": 8,
@@ -58,29 +58,29 @@
       "member": "ZippyZaps",
       "variant": "block-2d",
       "k": 4,
-      "evaluationsPerPixel": 0.0711,
-      "meanAbs": 4.45,
-      "rmse": 13.498,
-      "p95": 24,
+      "evaluationsPerPixel": 0.072,
+      "meanAbs": 2.613,
+      "rmse": 7.225,
+      "p95": 10,
       "max": 153,
-      "changedPct": 35.92
+      "changedPct": 34.52
     },
     {
       "member": "ZippyZaps",
       "variant": "block-2d-scalar",
       "k": 4,
-      "evaluationsPerPixel": 0.0711,
-      "meanAbs": 4.45,
-      "rmse": 13.498,
-      "p95": 24,
+      "evaluationsPerPixel": 0.072,
+      "meanAbs": 2.613,
+      "rmse": 7.225,
+      "p95": 10,
       "max": 153,
-      "changedPct": 35.92
+      "changedPct": 34.52
     },
     {
       "member": "Caustics",
       "variant": "lerp-1d",
       "k": 2,
-      "evaluationsPerPixel": 0.5007,
+      "evaluationsPerPixel": 0.5005,
       "meanAbs": 4.051,
       "rmse": 12.066,
       "p95": 23,
@@ -91,29 +91,29 @@
       "member": "Caustics",
       "variant": "block-2d",
       "k": 2,
-      "evaluationsPerPixel": 0.2612,
-      "meanAbs": 6.188,
-      "rmse": 14.63,
+      "evaluationsPerPixel": 0.2645,
+      "meanAbs": 6.114,
+      "rmse": 14.36,
       "p95": 31,
       "max": 165,
-      "changedPct": 46.36
+      "changedPct": 46.33
     },
     {
       "member": "Caustics",
       "variant": "block-2d-scalar",
       "k": 2,
-      "evaluationsPerPixel": 0.2612,
-      "meanAbs": 6.188,
-      "rmse": 14.63,
+      "evaluationsPerPixel": 0.2645,
+      "meanAbs": 6.114,
+      "rmse": 14.36,
       "p95": 31,
       "max": 165,
-      "changedPct": 46.36
+      "changedPct": 46.33
     },
     {
       "member": "Caustics",
       "variant": "lerp-1d",
       "k": 4,
-      "evaluationsPerPixel": 0.2509,
+      "evaluationsPerPixel": 0.2505,
       "meanAbs": 12.782,
       "rmse": 26.248,
       "p95": 60,
@@ -124,23 +124,23 @@
       "member": "Caustics",
       "variant": "block-2d",
       "k": 4,
-      "evaluationsPerPixel": 0.0711,
-      "meanAbs": 18.205,
-      "rmse": 32.659,
-      "p95": 74,
-      "max": 216,
-      "changedPct": 78.51
+      "evaluationsPerPixel": 0.072,
+      "meanAbs": 18.036,
+      "rmse": 32.221,
+      "p95": 73,
+      "max": 208,
+      "changedPct": 78.52
     },
     {
       "member": "Caustics",
       "variant": "block-2d-scalar",
       "k": 4,
-      "evaluationsPerPixel": 0.0711,
-      "meanAbs": 18.205,
-      "rmse": 32.659,
-      "p95": 74,
-      "max": 216,
-      "changedPct": 78.51
+      "evaluationsPerPixel": 0.072,
+      "meanAbs": 18.036,
+      "rmse": 32.221,
+      "p95": 73,
+      "max": 208,
+      "changedPct": 78.52
     }
   ]
 }

@@ -8,15 +8,17 @@ import { bundle } from '../../src/engine/bundle'
 import { loadPattern } from '../../src/engine/loadPattern'
 import { createShim } from '../../src/engine/shim'
 import { compareVisualDrift } from './benchCore'
-import { ISSUE927_HEIGHT, ISSUE927_WIDTH, issue927Candidates } from './issue927'
+import { applyBlockHold, buildBaseArtifact, ISSUE927_HEIGHT, ISSUE927_PIXEL_COUNT, ISSUE927_WIDTH, issue927Candidates } from './issue927'
 
 /** Member evaluations per pixel for one full frame, measured by running the
  *  artifact (the 2D wrapper exports its fill counter; the 1D lerp evaluates
  *  one lookahead per anchor plus the bootstrap, i.e. N / K + 1). */
-function measuredEvaluationsPerPixel(code: string, variant: string, k: number): number {
-  const N = ISSUE927_WIDTH * ISSUE927_HEIGHT
+function measuredEvaluationsPerPixel(member: 'ZippyZaps' | 'Caustics', variant: string, k: number): number {
+  const N = ISSUE927_PIXEL_COUNT
   if (variant === 'lerp-1d') return (Math.ceil(N / k) + 1) / N
-  if (variant === 'block-2d-scalar') return measuredEvaluationsPerPixel(code, 'block-2d', k)
+  // The measured candidates carry no counter; an instrumented twin of the
+  // same wrapper (identical output, one global write per evaluation) counts.
+  const code = applyBlockHold(buildBaseArtifact(member).code, k, ISSUE927_WIDTH, ISSUE927_HEIGHT, { countEvaluations: true }).code
   const mapPoints = Array.from({ length: N }, (_, i) => ({ sample: [(i % 50) / 49, Math.floor(i / 50) / 39] as [number, number], pos: [0, 0] as [number, number] }))
   const shim = createShim({ pixelCount: N, dimensions: 2, mapPoints, getVirtualTime: () => 250, randomSeed: 927 })
   const bundled = bundle(code, {})
@@ -39,7 +41,7 @@ describe('2D block hold drift (#927 spike)', () => {
       const drift = compareVisualDrift(base.code, candidate.code, {}, 'fast', OPTIONS)
       rows.push({
         member: candidate.member, variant: candidate.variant, k: candidate.k,
-        evaluationsPerPixel: +measuredEvaluationsPerPixel(candidate.code, candidate.variant, candidate.k).toFixed(4),
+        evaluationsPerPixel: +measuredEvaluationsPerPixel(candidate.member, candidate.variant, candidate.k).toFixed(4),
         meanAbs: +drift.meanAbs.toFixed(3), rmse: +drift.rmse.toFixed(3), p95: drift.p95, max: drift.max, changedPct: +(drift.changedPct * 100).toFixed(2),
       })
       console.log(`${candidate.member} ${candidate.variant} x${candidate.k}: mean ${drift.meanAbs.toFixed(2)} rmse ${drift.rmse.toFixed(2)} p95 ${drift.p95} max ${drift.max} changed ${(drift.changedPct * 100).toFixed(1)}%`)
