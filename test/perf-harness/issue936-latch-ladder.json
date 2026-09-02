@@ -1,0 +1,233 @@
+{
+  "generatedAt": "2026-09-02T00:06:25.601Z",
+  "controller": {
+    "ip": "192.168.8.224",
+    "name": "Burner bag",
+    "boardType": "pb32",
+    "firmwareVersion": "3.67",
+    "originalPixelCount": 256,
+    "originalActiveProgramId": "pxbDrxdoMmDWAhzW6",
+    "outputProfile": "native-serial (assumed)",
+    "activationTimeoutMs": 20000,
+    "settleMs": 2000,
+    "sampleMs": 6000,
+    "passes": 2
+  },
+  "fixture": {
+    "show": "stock-show-showcase-redline-installation",
+    "routing": "index",
+    "arms": 18,
+    "bodyGroups": 2
+  },
+  "rows": [
+    {
+      "pixelCount": 256,
+      "candidate": "exact",
+      "pass": 0,
+      "bytecodeBytes": 10938,
+      "fps": {
+        "mean": 17.35510875,
+        "median": 18.00948,
+        "min": 15.96806,
+        "max": 18.02657,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "latched",
+      "pass": 0,
+      "bytecodeBytes": 10322,
+      "fps": {
+        "mean": 19.78416,
+        "median": 20.40816,
+        "min": 17.85714,
+        "max": 20.42801,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "latched-counters",
+      "pass": 0,
+      "bytecodeBytes": 10370,
+      "fps": {
+        "mean": 19.697586666666655,
+        "median": 20.28986,
+        "min": 16.94915,
+        "max": 20.30948,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "latched-chain",
+      "pass": 0,
+      "bytecodeBytes": 11298,
+      "fps": {
+        "mean": 19.725276666666662,
+        "median": 20.36857,
+        "min": 18.37524,
+        "max": 20.38835,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "exact",
+      "pass": 1,
+      "bytecodeBytes": 10938,
+      "fps": {
+        "mean": 17.511151666666667,
+        "median": 18.013285,
+        "min": 15.18027,
+        "max": 18.02657,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "latched",
+      "pass": 1,
+      "bytecodeBytes": 10322,
+      "fps": {
+        "mean": 19.784156666666664,
+        "median": 20.40816,
+        "min": 17.85714,
+        "max": 20.42801,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "latched-counters",
+      "pass": 1,
+      "bytecodeBytes": 10370,
+      "fps": {
+        "mean": 19.699574166666658,
+        "median": 20.28986,
+        "min": 17.98202,
+        "max": 20.28986,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "latched-chain",
+      "pass": 1,
+      "bytecodeBytes": 11298,
+      "fps": {
+        "mean": 19.750399166666668,
+        "median": 20.38835,
+        "min": 16.58537,
+        "max": 20.38835,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "exact",
+      "pass": 0,
+      "bytecodeBytes": 10938,
+      "fps": {
+        "mean": 8.992911833333336,
+        "median": 9.250694,
+        "min": 7.699711,
+        "max": 9.259259,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "latched",
+      "pass": 0,
+      "bytecodeBytes": 10322,
+      "fps": {
+        "mean": 10.161021166666663,
+        "median": 10.48618,
+        "min": 8.522727,
+        "max": 10.49618,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "latched-counters",
+      "pass": 0,
+      "bytecodeBytes": 10370,
+      "fps": {
+        "mean": 10.085448916666666,
+        "median": 10.41667,
+        "min": 8.893281,
+        "max": 10.43643,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "latched-chain",
+      "pass": 0,
+      "bytecodeBytes": 11298,
+      "fps": {
+        "mean": 10.077577458333332,
+        "median": 10.461245,
+        "min": 9.487666,
+        "max": 10.46622,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "exact",
+      "pass": 1,
+      "bytecodeBytes": 10938,
+      "fps": {
+        "mean": 8.9888835,
+        "median": 9.250694,
+        "min": 8.204193,
+        "max": 9.259259,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "latched",
+      "pass": 1,
+      "bytecodeBytes": 10322,
+      "fps": {
+        "mean": 10.141859499999997,
+        "median": 10.47619,
+        "min": 8.946322,
+        "max": 10.49618,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "latched-counters",
+      "pass": 1,
+      "bytecodeBytes": 10370,
+      "fps": {
+        "mean": 10.022806666666668,
+        "median": 10.41667,
+        "min": 8.490566,
+        "max": 10.43643,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "latched-chain",
+      "pass": 1,
+      "bytecodeBytes": 11298,
+      "fps": {
+        "mean": 10.145220499999995,
+        "median": 10.45627,
+        "min": 9.066183,
+        "max": 10.46622,
+        "samples": 24
+      }
+    }
+  ],
+  "partial": false
+}
