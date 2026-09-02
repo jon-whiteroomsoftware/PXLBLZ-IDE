@@ -1,7 +1,7 @@
 // #933: integer-exponent `pow` lowered to multiplies in member source.
 //
 // Priced on the pb32 (fw 3.67, issue933-probe-rows.md): `pow(base, 3)` and
-// `pow(base, 4)` cost 7.63 us against 3.62 / 5.07 us for the multiply chain
+// `pow(base, 4)` cost 7.63 us against 3.62 / 4.70 us for the multiply chain
 // with the base hoisted to one local, or ~1.6 / 2.4 us when the base is a
 // plain name and needs no hoist. `pow(base, 2)` has a firmware fast path
 // (2.28 us) that beats a hoisted chain (2.54 us) and only loses to `b * b`
@@ -81,11 +81,15 @@ export function lowerShowMemberPow(
   // Lexical bindings win over built-in spellings: a declared `pow` is the
   // author's function, and a declared `abs`/`wave`/... is neither pure nor
   // bounded. Declarations anywhere in the module count (functions, vars,
-  // parameters), conservatively.
-  const declared = allDeclaredNames(ast)
+  // parameters), and so do implicit globals - Pixelblaze lets `pow =
+  // custom` rebind a built-in by plain assignment - conservatively.
+  const declared = new Set([...allDeclaredNames(ast), ...assignedNames(ast)])
   const powShadowed = declared.has('pow')
   const shadowedBuiltin = (name: string): boolean => declared.has(name)
-  const coordinatesTransformed = callsAny(ast, COORDINATE_TRANSFORM_BUILTINS)
+  // Any mention of a transform built-in counts - a call, an alias
+  // (`move = translate`), or a value passed along - so an aliased transform
+  // cannot leave the coordinates marked unit-bounded.
+  const coordinatesTransformed = mentionsAny(ast, COORDINATE_TRANSFORM_BUILTINS)
   let tempCounter = 0
   const nextTemp = (): string => {
     let name: string
@@ -316,7 +320,10 @@ function walkWithContext(ast: Node, coordinatesTransformed: boolean, visit: (nod
     if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') {
       const params = new Set<string>()
       if (node.type === 'FunctionDeclaration' && node.id && RENDER_ENTRY_NAMES.has(node.id.name) && !coordinatesTransformed) {
-        for (const param of node.params.slice(1)) if (param.type === 'Identifier') params.add(param.name)
+        // A coordinate the renderer reassigns (`x = 200`) is no longer the
+        // firmware's [0, 1] value anywhere in the function.
+        const written = assignedNames(node.body)
+        for (const param of node.params.slice(1)) if (param.type === 'Identifier' && !written.has(param.name)) params.add(param.name)
       }
       // Function locals shadow module names; a parameter is a write.
       const locals = singleAssignmentsIn(node.body, new Set(node.params.map((param: Node) => param.name)))
@@ -382,11 +389,30 @@ function singleAssignmentsIn(root: Node, excluded: ReadonlySet<string>): Map<str
   return out
 }
 
-function callsAny(root: Node, names: ReadonlySet<string>): boolean {
+/** Every name the module assigns or updates anywhere (implicit globals
+ *  included), regardless of declaration. */
+function assignedNames(root: Node): Set<string> {
+  const names = new Set<string>()
+  const visit = (node: Node): void => {
+    if (!node || typeof node.type !== 'string') return
+    if (node.type === 'AssignmentExpression' && node.left.type === 'Identifier') names.add(node.left.name)
+    if (node.type === 'UpdateExpression' && node.argument.type === 'Identifier') names.add(node.argument.name)
+    for (const key of Object.keys(node)) {
+      if (key === 'loc' || key === 'type') continue
+      const value = node[key]
+      if (Array.isArray(value)) value.forEach((child) => visit(child))
+      else if (value && typeof value.type === 'string') visit(value)
+    }
+  }
+  visit(root)
+  return names
+}
+
+function mentionsAny(root: Node, names: ReadonlySet<string>): boolean {
   let found = false
   const visit = (node: Node): void => {
     if (found || !node || typeof node.type !== 'string') return
-    if (node.type === 'CallExpression' && node.callee.type === 'Identifier' && names.has(node.callee.name)) { found = true; return }
+    if (node.type === 'Identifier' && names.has(node.name)) { found = true; return }
     for (const key of Object.keys(node)) {
       if (key === 'loc' || key === 'type') continue
       const value = node[key]

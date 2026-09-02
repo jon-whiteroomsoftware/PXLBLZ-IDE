@@ -37,7 +37,7 @@ tier proofs: `issue933.test.ts`.
 |---|---:|---:|---:|---:|
 | k = 2 | 2.28 | 2.54 | 0.79 | -0.26 / 1.5 |
 | k = 3 | 7.63 | 3.62 | ~1.6 | 4.0 / ~6.0 |
-| k = 4 | 7.64 | 5.07 | ~2.4 | 2.6 / ~5.2 |
+| k = 4 | 7.65 | 4.70 | ~2.4 | 3.0 / ~5.2 |
 
 Firmware facts (bench probe): a negative base with an integer exponent
 follows C `powf`; positive-base samples of `pow(b, k)` equalled the chain

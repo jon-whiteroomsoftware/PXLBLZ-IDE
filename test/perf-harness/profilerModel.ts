@@ -73,7 +73,7 @@ export const PROFILE_OPS: ProfileOp[] = [
   { fn: 63, name: 'pow(base, 3), integer exponent', group: 'transcendental', baselineFn: 0 },
   { fn: 64, name: 'multiply chain k=3 (hoisted base)', group: 'arithmetic', baselineFn: 0 },
   { fn: 65, name: 'pow(base, 4), integer exponent', group: 'transcendental', baselineFn: 0 },
-  { fn: 66, name: 'squared-square k=4 (hoisted base)', group: 'arithmetic', baselineFn: 0 },
+  { fn: 66, name: 'multiply chain k=4 (hoisted base)', group: 'arithmetic', baselineFn: 0 },
 ]
 
 export interface ProfileStats {

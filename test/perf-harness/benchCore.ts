@@ -39,6 +39,9 @@ export interface BenchOptions {
   frameDeltaMs?: number
   /** Override the render grid. Defaults pick a sensible size per dimension. */
   grid?: GridSpec
+  /** Seed for the Pattern's `random()`; a fixed default so two renders of
+   *  the same source (and a base/candidate pair) draw the same sequence. */
+  randomSeed?: number
 }
 
 /** A render surface. `rows`/`cols`/`layers` are the integer lattice; only the
@@ -81,6 +84,8 @@ export interface DriftMetrics {
   threshold: number
 }
 
+/** Fixed so identical sources, and base/candidate pairs, draw the same random sequence. */
+const DEFAULT_RANDOM_SEED = 0x5eed
 const DEFAULT_FRAMES = 30
 const DEFAULT_WARMUP = 3
 const DEFAULT_FRAME_DELTA_MS = 1000 / 60
@@ -220,6 +225,7 @@ function renderSample(
     pixelCount,
     dimensions: dimension,
     getVirtualTime: () => clock.getTime(),
+    randomSeed: options.randomSeed ?? DEFAULT_RANDOM_SEED,
   }
   const shim: ShimContext = mode === 'fast' ? createShim(shimConfig) : createFxShim(shimConfig)
   const handle = loadPattern(mode === 'fast' ? code : fxCode, metadata, shim.builtins)

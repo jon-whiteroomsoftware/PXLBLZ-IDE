@@ -187,7 +187,7 @@ export function beforeRender(delta) {
   if (f == 63) for (i = 0; i < n; i++) x = frac(pow(x + 0.5, 3)) // pow k=3
   if (f == 64) for (i = 0; i < n; i++) { local = x + 0.5; x = frac(local * local * local) } // multiply chain k=3
   if (f == 65) for (i = 0; i < n; i++) x = frac(pow(x + 0.5, 4)) // pow k=4
-  if (f == 66) for (i = 0; i < n; i++) { local = x + 0.5; local = local * local; x = frac(local * local) } // squared-square k=4
+  if (f == 66) for (i = 0; i < n; i++) { local = x + 0.5; x = frac(local * local * local * local) } // multiply chain k=4 (the emitted left-associative form)
 
   acc = frac(x + local * 0.0001) // carry across frames so nothing is dead code
 }

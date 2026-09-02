@@ -1,0 +1,58 @@
+{
+  "generatedAt": "2026-09-02T00:28:31.038Z",
+  "device": "Burner bag",
+  "firmwareVersion": "3.67",
+  "pixelCount": 256,
+  "iterations": 2592,
+  "repetitions": 5,
+  "operations": [
+    {
+      "fn": 0,
+      "name": "identity baseline",
+      "baselineFn": 0,
+      "frameMs": [
+        17.60655,
+        17.62334,
+        17.61453,
+        17.60988,
+        17.61855
+      ]
+    },
+    {
+      "fn": 1,
+      "name": "mul",
+      "baselineFn": 0,
+      "frameMs": [
+        19.68875,
+        19.71655,
+        19.68874,
+        19.68117,
+        19.68852
+      ]
+    },
+    {
+      "fn": 65,
+      "name": "pow(base, 4), integer exponent",
+      "baselineFn": 0,
+      "frameMs": [
+        37.43489,
+        37.52328,
+        37.43756,
+        37.43976,
+        37.48007
+      ]
+    },
+    {
+      "fn": 66,
+      "name": "multiply chain k=4 (hoisted base)",
+      "baselineFn": 0,
+      "frameMs": [
+        29.76425,
+        29.79483,
+        29.77528,
+        29.87303,
+        29.76929
+      ]
+    }
+  ]
+}

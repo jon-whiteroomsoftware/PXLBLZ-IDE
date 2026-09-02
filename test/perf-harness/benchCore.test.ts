@@ -86,4 +86,12 @@ describe('benchCore', () => {
     expect(brighter.fastDisplayExact).toBe(false)
     expect(brighter.fast.base.checksum).not.toBe(brighter.fast.candidate.checksum)
   })
+
+  it('qualifies a stochastic Pattern against itself as display-exact (shared random seed)', () => {
+    const noisy = 'export function render2D(index, x, y) { var v = random(1); rgb(v, x, y) }'
+    const verdict = qualifyDisplayExact(noisy, noisy, {}, { frames: 4, warmup: 1 })
+    expect(verdict.displayExact).toBe(true)
+    const other = qualifyDisplayExact(noisy, noisy, {}, { frames: 4, warmup: 1, randomSeed: 7 })
+    expect(other.displayExact).toBe(true)
+  })
 })

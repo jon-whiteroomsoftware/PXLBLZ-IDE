@@ -5,20 +5,16 @@
 **Firmware:** 3.67
 **Output profile:** Controller-native output (topology is not exposed by getConfig)
 **Pixel count:** 256
-**Inner-loop count:** 2,589
+**Inner-loop count:** 2,592
 **Samples per operation:** 5
 
 Each operation is subtracted sample-by-sample from its declared paired baseline. The table reports net time per loop iteration and normalizes median cost to one multiply.
 
 | operation | group | paired baseline | mean net us/iteration | median net | min-max net | relative to mul |
 |---|---|---|---:|---:|---:|---:|
-| `mul` | arithmetic | `identity baseline` | 0.792 | 0.803 | 0.736-0.812 | 1.0× |
-| `pow(base, 2), integer exponent` | transcendental | `identity baseline` | 2.282 | 2.286 | 2.222-2.325 | 2.8× |
-| `multiply chain k=2 (hoisted base)` | arithmetic | `identity baseline` | 2.539 | 2.549 | 2.479-2.570 | 3.2× |
-| `pow(base, 3), integer exponent` | transcendental | `identity baseline` | 7.629 | 7.629 | 7.622-7.639 | 9.5× |
-| `multiply chain k=3 (hoisted base)` | arithmetic | `identity baseline` | 3.623 | 3.622 | 3.614-3.631 | 4.5× |
-| `pow(base, 4), integer exponent` | transcendental | `identity baseline` | 7.642 | 7.649 | 7.583-7.675 | 9.5× |
-| `multiply chain k=4 (hoisted base)` | arithmetic | `identity baseline` | 4.696 | 4.700 | 4.676-4.711 | 5.8× |
+| `mul` | arithmetic | `identity baseline` | 0.802 | 0.800 | 0.799-0.808 | 1.0× |
+| `pow(base, 4), integer exponent` | transcendental | `identity baseline` | 7.658 | 7.650 | 7.648-7.677 | 9.6× |
+| `multiply chain k=4 (hoisted base)` | arithmetic | `identity baseline` | 4.699 | 4.692 | 4.688-4.731 | 5.9× |
 
 ## Method and caveats
 

@@ -108,4 +108,16 @@ describe('member integer-pow lowering (#933)', () => {
     expect(transformed.source).toContain('var __pxlblz_pow_0 = wave(x)')
     expect(transformed.skipped).toEqual([{ line: 3, reason: 'unbounded-base' }])
   })
+
+  it('drops the bound for a reassigned coordinate, an implicitly rebound built-in, and an aliased transform', () => {
+    const reassigned = lowerShowMemberPow(render('  x = x * 300\n  var v = pow(x, 2) + pow(y, 2)\n  rgb(v, v, v)'))
+    expect(reassigned.source).toContain('pow(x, 2) + (y * y)')
+    expect(reassigned.skipped).toEqual([{ line: 3, reason: 'unbounded-base' }])
+    const rebound = lowerShowMemberPow(`function custom(b, k) { return b + k }\nexport function beforeRender(delta) { pow = custom; abs = custom }\n${render('  var v = pow(y, 3) + pow(abs(x), 3)\n  rgb(v, v, v)')}`)
+    expect(rebound.rewrittenSites).toBe(0)
+    expect(rebound.skipped.map((entry) => entry.reason)).toEqual(['shadowed-builtin', 'shadowed-builtin'])
+    const aliased = lowerShowMemberPow(`var move = translate\nexport function beforeRender(delta) { move(200, 0) }\n${render('  var v = pow(x, 2)\n  rgb(v, v, v)')}`)
+    expect(aliased.rewrittenSites).toBe(0)
+    expect(aliased.skipped).toEqual([{ line: 4, reason: 'unbounded-base' }])
+  })
 })
