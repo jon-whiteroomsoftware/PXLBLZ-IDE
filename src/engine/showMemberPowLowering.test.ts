@@ -144,4 +144,10 @@ describe('member integer-pow lowering (#933)', () => {
     expect(shadowedCall.rewrittenSites).toBe(0)
     expect(shadowedCall.skipped).toEqual([{ line: 4, reason: 'no-statement-context' }])
   })
+
+  it('treats a named function expression\'s own name as a declaration', () => {
+    const out = lowerShowMemberPow(`var f = function pow(b, k) { return b + k }\n${render('  var v = pow(x, 3)\n  rgb(v, v, v)')}`)
+    expect(out.rewrittenSites).toBe(0)
+    expect(out.skipped).toEqual([{ line: 3, reason: 'shadowed-builtin' }])
+  })
 })

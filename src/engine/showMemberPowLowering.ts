@@ -463,7 +463,7 @@ function allDeclaredNames(root: Node): Set<string> {
   const visit = (node: Node): void => {
     if (!node || typeof node.type !== 'string') return
     if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier') names.add(node.id.name)
-    if (node.type === 'FunctionDeclaration' && node.id) names.add(node.id.name)
+    if ((node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression') && node.id) names.add(node.id.name)
     if ((node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') && node.params) {
       for (const param of node.params) if (param.type === 'Identifier') names.add(param.name)
     }
