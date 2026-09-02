@@ -713,7 +713,7 @@ export interface ShowCompileSummary {
      * zone boundaries; the reason names the shape that declined. */
     boundaryLatch: {
       selected: boolean
-      reason: 'selected' | 'disabled' | 'no-shared-cut-dispatcher' | 'no-literal-ranges' | 'non-interned-plans' | 'render-kernel-specialized' | 'configuration-reads-local'
+      reason: 'selected' | 'disabled' | 'no-shared-cut-dispatcher' | 'no-literal-ranges' | 'non-interned-plans' | 'render-kernel-specialized' | 'configuration-reads-local' | 'persistent-global-budget'
     } | null
     motionTransitions: {
       selected: boolean
@@ -3683,6 +3683,19 @@ export function compileShow(
       return looped
     }
   }
+  // #936: the latch promotes seven routing locals to persistent globals. A
+  // Show at the 256-global ceiling that compiles without the latch must not
+  // become a blocker under the default: retry once with the per-pixel decode
+  // and keep it when that clears the limit.
+  const latchSelected = summary.specializations.boundaryLatch?.selected === true
+  const overGlobalLimit = resources.blockers.some((blocker) => blocker.kind === 'persistent-global-limit')
+  if ((options.boundaryLatchedDecode ?? true) && latchSelected && overGlobalLimit) {
+    const unlatched = compileShow(recipe, libraries, { ...options, boundaryLatchedDecode: false })
+    if (!unlatched.summary.resources.blockers.some((blocker) => blocker.kind === 'persistent-global-limit')) {
+      unlatched.summary.specializations.boundaryLatch = { selected: false, reason: 'persistent-global-budget' }
+      return unlatched
+    }
+  }
 
   return {
     code,
@@ -6467,10 +6480,14 @@ ${indentBlock(kernelDispatch, 2)}
     const latchedRenderPlan = planCode.map((plan, planIndex) => (
       `${planIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_plan == ${planIndex}) {\n${indentBlock(plan.render, 2)}\n}`
     )).join(' ')
-    const latchedRender = `if (index == 0 || index == __pxlblz_show_latch_next) {
+    // `>=` rather than `==`: the spatial hold (#937) visits the inner
+    // dispatcher at stride-spaced indices, so a boundary can be stepped over;
+    // any monotonically increasing visit order refreshes at or past it. The
+    // sentinel for "no further boundary" is above any index.
+    const latchedRender = `if (index == 0 || index >= __pxlblz_show_latch_next) {
   __pxlblz_show_route_id = -1
   __pxlblz_show_route_pixelCount = 1
-${outputDimension === 2 ? '  __pxlblz_show_route_width = 1\n  __pxlblz_show_route_height = 1\n' : ''}  __pxlblz_show_latch_next = -1
+${outputDimension === 2 ? '  __pxlblz_show_route_width = 1\n  __pxlblz_show_route_height = 1\n' : ''}  __pxlblz_show_latch_next = 32767
 ${indentBlock(latchedRoutingAssignments.join('\n'), 2)}
   __pxlblz_show_plan = -1
   if (__pxlblz_show_route_id >= 0) __pxlblz_show_plan = __pxlblz_show_plans[__pxlblz_show_scene * ${layout.zones.length} + __pxlblz_show_route_id] - 1

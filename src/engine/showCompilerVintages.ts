@@ -14,6 +14,7 @@ import type { ShowCompileOptions } from './showCompiler'
 export const COMPILER_VINTAGES = {
   /** #514 no-emission resource census (pre-#559/#566/#907). */
   'issue-514-resource-census': {
+    boundaryLatchedDecode: false,
     hsvCaptureChainSpecialization: false,
     inlineCallHoisting: false,
     hsvSharedChainLaneScoping: false,
@@ -30,6 +31,7 @@ export const COMPILER_VINTAGES = {
   },
   /** #536 score-representation census (pre-wave-2 emission diet, pre-#907). */
   'issue-536-score-census': {
+    boundaryLatchedDecode: false,
     colorCoefficientHoisting: false,
     capturePrologueSimplification: false,
     pixelCountWriteHoisting: false,
@@ -41,6 +43,7 @@ export const COMPILER_VINTAGES = {
    * inlining and inline call-subtree hoisting both change the candidate
    * set the census pinned). */
   'issue-513-frame-invariant-plan': {
+    boundaryLatchedDecode: false,
     helperCallInlining: false,
     inlineCallHoisting: false,
   },

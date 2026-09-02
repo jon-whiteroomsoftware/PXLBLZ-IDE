@@ -55,7 +55,7 @@ describe('boundary-latched decode (#936)', () => {
       if (summary?.selected) {
         latched.push(item.id)
         // Generated symbols are compacted, so match the latch shape, not the name.
-        expect(on.code, item.id).toMatch(/if \(index == 0 \|\| index == __pxlblz_\w+\) \{/)
+        expect(on.code, item.id).toMatch(/if \(index == 0 \|\| index >= __pxlblz_\w+\) \{/)
         expect(on.code, item.id).not.toBe(off.code)
       } else {
         expect(on.code, item.id).toBe(off.code)
@@ -98,4 +98,23 @@ describe('boundary-latched decode (#936)', () => {
     const on = compileStock(item, true)
     expect(() => compiler(on.code)).not.toThrow()
   })
+
+  it('stays exact under the spatial hold, whose stride-spaced visits step over zone boundaries (301, stride 4)', () => {
+    const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-301-installation-mapping')!
+    const compileHeld = (boundaryLatchedDecode: boolean) => {
+      const compiled = compileShowForArtifact(item.show, [], undefined, LIBRARIES, { stageDimension: 2, boundaryLatchedDecode, spatialHold: { stride: 4, mode: 'lerp' } })
+      if (!compiled.artifact) throw new Error(`${item.id}: ${compiled.error}`)
+      return compiled.artifact
+    }
+    const off = compileHeld(false)
+    const on = compileHeld(true)
+    expect(on.summary.specializations.spatialHold?.selected, 'hold must engage for the case to mean anything').toBe(true)
+    expect(on.summary.specializations.boundaryLatch?.selected).toBe(true)
+    // 1,000 px stage so the zone boundary at 250 sits between stride-4 anchors.
+    const options = { frames: 6, warmup: 1, frameDeltaMs: 4_000, grid: { rows: 25, cols: 40 } }
+    for (const mode of ['fast', 'precise'] as const) {
+      const drift = compareVisualDrift(off.code, on.code, {}, mode, options)
+      expect(drift.max, mode).toBe(0)
+    }
+  }, 300_000)
 })

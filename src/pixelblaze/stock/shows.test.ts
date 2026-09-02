@@ -1461,14 +1461,20 @@ describe('stock Show curriculum (#363)', () => {
       const zoneCount = zoneIndex === 0 ? 800 : 300
       return zoneStart + Math.floor((sampleIndex / 5) * 73) % zoneCount
     })
+    // Full ascending sweep per frame (the firmware's and the preview's order,
+    // which the boundary-latched dispatcher relies on, #936); the sampled
+    // indices are read from the sweep rather than rendered out of order.
+    const sampled = new Set(sampleIndices)
     const frameAt = (deltaMs: number) => {
       virtualTime += deltaMs
       handle.beforeRender(deltaMs)
-      return sampleIndices.map((index) => {
+      const captured = new Map<number, number[]>()
+      for (let index = 0; index < mapPoints.length; index += 1) {
         const [x, y] = mapPoints[index].sample
         handle.render2D(index, x, y)
-        return shim.capturedPixel()
-      })
+        if (sampled.has(index)) captured.set(index, shim.capturedPixel())
+      }
+      return sampleIndices.map((index) => captured.get(index)!)
     }
     const frames = Array.from({ length: 8 }, (_, phraseIndex) => frameAt(phraseIndex === 0 ? 500 : 7_500))
     const signature = (frame: number[][]) => frame

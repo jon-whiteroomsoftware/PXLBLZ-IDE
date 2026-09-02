@@ -45,14 +45,24 @@ export async function runPairedLadder(
   const connection = new PixelblazeConnection({ host: ip, webSocketFactory: nodeWebSocketFactory, requestTimeoutMs: 15_000, pingIntervalMs: 0 })
   connection.on('error', (error) => console.error('controller socket:', error))
   await connection.connect()
-  const original = await connection.getConfig()
-  if (!original.activeProgramId) { connection.close(); throw new Error('Controller did not report an active Pattern; refusing a non-reversible probe.') }
-  const savedPrograms = await connection.listPrograms().catch((error) => { connection.close(); throw error })
-  if (!savedPrograms.some((program) => program.id === original.activeProgramId)) {
+  // Every preflight failure (a timed-out config, a refused inventory read,
+  // an unrestorable state) closes the socket before rejecting; the firmware
+  // holds only a few, and a leaked one keeps the test process alive.
+  let original: Awaited<ReturnType<typeof connection.getConfig>> & { activeProgramId: string; pixelCount: number }
+  let savedPrograms: Awaited<ReturnType<typeof connection.listPrograms>>
+  try {
+    const config = await connection.getConfig()
+    if (!config.activeProgramId) throw new Error('Controller did not report an active Pattern; refusing a non-reversible probe.')
+    if (config.pixelCount == null) throw new Error('Controller did not report a pixel count; refusing a probe whose count cannot be restored.')
+    savedPrograms = await connection.listPrograms()
+    if (!savedPrograms.some((program) => program.id === config.activeProgramId)) {
+      throw new Error(`Active Pattern ${config.activeProgramId} is not in the saved inventory; refusing a non-restorable probe.`)
+    }
+    original = { ...config, activeProgramId: config.activeProgramId, pixelCount: config.pixelCount }
+  } catch (error) {
     connection.close()
-    throw new Error(`Active Pattern ${original.activeProgramId} is not in the saved inventory; refusing a non-restorable probe.`)
+    throw error
   }
-  if (original.pixelCount == null) { connection.close(); throw new Error('Controller did not report a pixel count; refusing a probe whose count cannot be restored.') }
   // Precondition the protocol cannot check: the active Pattern's controls
   // must be saved; activating probes discards live-tuned values.
   const savedIds = new Set(savedPrograms.map((program) => program.id))
