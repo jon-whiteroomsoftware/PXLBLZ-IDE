@@ -33,6 +33,8 @@ export var acc = 0     // cross-frame accumulator / sink (keeps the loop live)
 var probeGlobal = 0.314159
 var probeFlag = 1
 var probeArray = array(16)
+var probeExpTable = array(65)
+for (var probeI = 0; probeI <= 64; probeI++) probeExpTable[probeI] = exp(-probeI * 0.09375) // exp(-t) for t in [0, 6], step 6/64
 var probeR = 0
 var probeG = 0
 var probeB = 0
@@ -90,6 +92,7 @@ export function beforeRender(delta) {
   var n = iters
   var i = 0
   var local = x
+  var local2 = x
   var arrayIndex = 0
   var n8 = floor(n / 8)
   var n8x8 = n8 * 8
@@ -188,6 +191,24 @@ export function beforeRender(delta) {
   if (f == 64) for (i = 0; i < n; i++) { local = x + 0.5; x = frac(local * local * local) } // multiply chain k=3
   if (f == 65) for (i = 0; i < n; i++) x = frac(pow(x + 0.5, 4)) // pow k=4
   if (f == 66) for (i = 0; i < n; i++) { local = x + 0.5; x = frac(local * local * local * local) } // multiply chain k=4 (the emitted left-associative form)
+  // #934 approximate-transcendental pricing. Odd probes price the built-in on
+  //   the shape the catalogue uses; even probes price the candidate substitute
+  //   on the same argument arithmetic. Arguments stay inside 16.16 and the
+  //   substitute's stated domain (x is frac state in [0, 1)).
+  if (f == 67) for (i = 0; i < n; i++) x = frac(exp(-(x * 3 + 0.1)) + 0.123) // exp(-t), t in [0.1, 3.1] (PhantomStar's glow)
+  if (f == 68) for (i = 0; i < n; i++) { local = x * 3 + 0.1; x = frac(1 / (1 + local * (1 + local * (0.5 + local * (0.1667 + local * 0.0417)))) + 0.123) } // reciprocal quartic for exp(-t)
+  if (f == 69) for (i = 0; i < n; i++) x = frac(pow(x + 0.001, 1.3) + 0.123) // pow(b, 1.3), b in (0, 1] (Caustics / PlasmaNebula / NebulaSphere shape)
+  if (f == 70) for (i = 0; i < n; i++) { local = x + 0.001; x = frac(local * (0.7226 + local * (0.3874 - local * 0.1100)) + 0.123) } // cubic fit for pow(b, 1.3) on [0, 1]
+  if (f == 71) for (i = 0; i < n; i++) x = frac(asin(x * 0.98) + 0.123) // asin on [0, 0.98)
+  if (f == 72) for (i = 0; i < n; i++) { local = x * 0.98; x = frac(1.5708 - sqrt(1 - local) * (1.5708 + local * (-0.2146 + local * (0.0742 - local * 0.0187))) + 0.123) } // Abramowitz-Stegun 4.4.45 for asin
+  if (f == 73) for (i = 0; i < n; i++) { local = exp(2 * clamp(x * 6 - 3, -5, 5)); x = frac((local - 1) / (local + 1) + 0.123) } // Shader.tanh (exp + divide)
+  if (f == 74) for (i = 0; i < n; i++) { local = clamp(x * 6 - 3, -3, 3); local2 = local * local; x = frac(local * (27 + local2) / (27 + 9 * local2) + 0.123) } // rational fastTanh (ZippyZaps)
+  if (f == 75) for (i = 0; i < n; i++) x = frac(log(x + 0.5) + 0.123) // log on [0.5, 1.5)
+  if (f == 76) for (i = 0; i < n; i++) x = frac(acos(x * 0.98) + 0.123) // acos on [0, 0.98)
+  if (f == 77) for (i = 0; i < n; i++) x = frac(1 / (x + 0.5) + 0.123) // reciprocal (divide) on [0.5, 1.5)
+  if (f == 78) for (i = 0; i < n; i++) { local = (x * 3 + 0.1) * 10.6667; local2 = floor(local); x = frac(probeExpTable[local2] + (probeExpTable[local2 + 1] - probeExpTable[local2]) * (local - local2) + 0.123) } // 64-entry table + lerp for exp(-t), t in [0.1, 3.1]
+  if (f == 79) for (i = 0; i < n; i++) { local = x * 3 + 0.1; local = 1 + local * 0.0625; local = local * local; local = local * local; local = local * local; local = local * local; x = frac(1 / local + 0.123) } // (1 + t/16)^-16 for exp(-t)
+  if (f == 80) for (i = 0; i < n; i++) { local = x + 0.001; x = frac(local * (0.8226 + local * 0.1774) + 0.123) } // quadratic fit for pow(b, 1.3)
 
   acc = frac(x + local * 0.0001) // carry across frames so nothing is dead code
 }

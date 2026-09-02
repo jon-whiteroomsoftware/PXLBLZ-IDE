@@ -74,6 +74,20 @@ export const PROFILE_OPS: ProfileOp[] = [
   { fn: 64, name: 'multiply chain k=3 (hoisted base)', group: 'arithmetic', baselineFn: 0 },
   { fn: 65, name: 'pow(base, 4), integer exponent', group: 'transcendental', baselineFn: 0 },
   { fn: 66, name: 'multiply chain k=4 (hoisted base)', group: 'arithmetic', baselineFn: 0 },
+  { fn: 67, name: 'exp(-t), t in [0.1, 3.1]', group: 'transcendental', baselineFn: 0 },
+  { fn: 68, name: 'reciprocal quartic for exp(-t)', group: 'arithmetic', baselineFn: 0 },
+  { fn: 69, name: 'pow(b, 1.3), b in (0, 1]', group: 'transcendental', baselineFn: 0 },
+  { fn: 70, name: 'cubic fit for pow(b, 1.3)', group: 'arithmetic', baselineFn: 0 },
+  { fn: 71, name: 'asin on [0, 0.98)', group: 'inverse-trig', baselineFn: 0 },
+  { fn: 72, name: 'Abramowitz-Stegun asin (sqrt + cubic)', group: 'arithmetic', baselineFn: 0 },
+  { fn: 73, name: 'Shader.tanh (exp + divide)', group: 'transcendental', baselineFn: 0 },
+  { fn: 74, name: 'rational fastTanh', group: 'arithmetic', baselineFn: 0 },
+  { fn: 75, name: 'log on [0.5, 1.5)', group: 'transcendental', baselineFn: 0 },
+  { fn: 76, name: 'acos on [0, 0.98)', group: 'inverse-trig', baselineFn: 0 },
+  { fn: 77, name: 'reciprocal (divide)', group: 'arithmetic', baselineFn: 0 },
+  { fn: 78, name: '64-entry table + lerp for exp(-t)', group: 'memory', baselineFn: 0 },
+  { fn: 79, name: '(1 + t/16)^-16 for exp(-t)', group: 'arithmetic', baselineFn: 0 },
+  { fn: 80, name: 'quadratic fit for pow(b, 1.3)', group: 'arithmetic', baselineFn: 0 },
 ]
 
 export interface ProfileStats {

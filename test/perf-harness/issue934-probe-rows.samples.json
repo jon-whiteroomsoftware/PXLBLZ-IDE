@@ -1,0 +1,166 @@
+{
+  "generatedAt": "2026-09-02T01:48:04.822Z",
+  "device": "Burner bag",
+  "firmwareVersion": "3.67",
+  "pixelCount": 256,
+  "iterations": 2588,
+  "repetitions": 5,
+  "operations": [
+    {
+      "fn": 0,
+      "name": "identity baseline",
+      "baselineFn": 0,
+      "frameMs": [
+        17.59592,
+        17.60809,
+        17.60742,
+        17.60568,
+        17.60059
+      ]
+    },
+    {
+      "fn": 1,
+      "name": "mul",
+      "baselineFn": 0,
+      "frameMs": [
+        19.69037,
+        19.79311,
+        19.68875,
+        19.67654,
+        19.6906
+      ]
+    },
+    {
+      "fn": 67,
+      "name": "exp(-t), t in [0.1, 3.1]",
+      "baselineFn": 0,
+      "frameMs": [
+        74.75063,
+        74.85388,
+        74.90685,
+        74.75577,
+        75.157
+      ]
+    },
+    {
+      "fn": 68,
+      "name": "reciprocal quartic for exp(-t)",
+      "baselineFn": 0,
+      "frameMs": [
+        47.70871,
+        47.76083,
+        47.71291,
+        47.81113,
+        47.69955
+      ]
+    },
+    {
+      "fn": 69,
+      "name": "pow(b, 1.3), b in (0, 1]",
+      "baselineFn": 0,
+      "frameMs": [
+        39.47795,
+        39.5159,
+        39.4774,
+        39.59299,
+        39.49036
+      ]
+    },
+    {
+      "fn": 70,
+      "name": "cubic fit for pow(b, 1.3)",
+      "baselineFn": 0,
+      "frameMs": [
+        35.10522,
+        35.1286,
+        35.106,
+        35.30026,
+        35.11737
+      ]
+    },
+    {
+      "fn": 71,
+      "name": "asin on [0, 0.98)",
+      "baselineFn": 0,
+      "frameMs": [
+        29.94972,
+        30.08543,
+        29.94243,
+        29.95338,
+        29.98787
+      ]
+    },
+    {
+      "fn": 72,
+      "name": "Abramowitz-Stegun asin (sqrt + cubic)",
+      "baselineFn": 0,
+      "frameMs": [
+        49.3887,
+        49.47694,
+        49.43159,
+        49.61469,
+        49.44418
+      ]
+    },
+    {
+      "fn": 73,
+      "name": "Shader.tanh (exp + divide)",
+      "baselineFn": 0,
+      "frameMs": [
+        136.8981,
+        136.714,
+        136.922,
+        136.7661,
+        136.8255
+      ]
+    },
+    {
+      "fn": 74,
+      "name": "rational fastTanh",
+      "baselineFn": 0,
+      "frameMs": [
+        48.18787,
+        48.16582,
+        48.24783,
+        48.18564,
+        48.18633
+      ]
+    },
+    {
+      "fn": 75,
+      "name": "log on [0.5, 1.5)",
+      "baselineFn": 0,
+      "frameMs": [
+        21.42953,
+        21.43086,
+        21.50513,
+        21.4249,
+        21.41821
+      ]
+    },
+    {
+      "fn": 76,
+      "name": "acos on [0, 0.98)",
+      "baselineFn": 0,
+      "frameMs": [
+        30.25272,
+        30.18504,
+        30.19223,
+        30.21043,
+        30.17552
+      ]
+    },
+    {
+      "fn": 77,
+      "name": "reciprocal (divide)",
+      "baselineFn": 0,
+      "frameMs": [
+        23.39871,
+        23.31277,
+        23.31108,
+        23.34038,
+        23.31761
+      ]
+    }
+  ]
+}
