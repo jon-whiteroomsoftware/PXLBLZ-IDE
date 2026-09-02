@@ -1,0 +1,279 @@
+{
+  "generatedAt": "2026-09-02T01:54:03.995Z",
+  "controller": {
+    "ip": "192.168.8.224",
+    "name": "Burner bag",
+    "boardType": "pb32",
+    "firmwareVersion": "3.67",
+    "originalPixelCount": 256,
+    "originalActiveProgramId": "pxbDrxdoMmDWAhzW6",
+    "outputProfile": "native-serial (assumed)",
+    "activationTimeoutMs": 20000,
+    "settleMs": 2000,
+    "sampleMs": 6000,
+    "passes": 1
+  },
+  "rows": [
+    {
+      "pixelCount": 256,
+      "candidate": "ZippyZaps:baseline:k1",
+      "pass": 0,
+      "bytecodeBytes": 5614,
+      "fps": {
+        "mean": 7.0043783333333325,
+        "median": 7.005254,
+        "min": 7,
+        "max": 7.005254,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "ZippyZaps:lerp-1d:k2",
+      "pass": 0,
+      "bytecodeBytes": 6026,
+      "fps": {
+        "mean": 12.472023333333327,
+        "median": 12.47601,
+        "min": 12.46405,
+        "max": 12.47601,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "ZippyZaps:block-2d:k2",
+      "pass": 0,
+      "bytecodeBytes": 7058,
+      "fps": {
+        "mean": 22.817459999999997,
+        "median": 22.81746,
+        "min": 22.81746,
+        "max": 22.81746,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "ZippyZaps:lerp-1d:k4",
+      "pass": 0,
+      "bytecodeBytes": 6026,
+      "fps": {
+        "mean": 22.82879,
+        "median": 22.828789999999998,
+        "min": 22.81746,
+        "max": 22.84012,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "ZippyZaps:block-2d:k4",
+      "pass": 0,
+      "bytecodeBytes": 7058,
+      "fps": {
+        "mean": 26.581347499999993,
+        "median": 26.5748,
+        "min": 26.5748,
+        "max": 26.60099,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "Caustics:baseline:k1",
+      "pass": 0,
+      "bytecodeBytes": 6734,
+      "fps": {
+        "mean": 7.2641987499999985,
+        "median": 7.266122,
+        "min": 7.259528,
+        "max": 7.266122,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "Caustics:lerp-1d:k2",
+      "pass": 0,
+      "bytecodeBytes": 7146,
+      "fps": {
+        "mean": 12.894157499999999,
+        "median": 12.89682,
+        "min": 12.88404,
+        "max": 12.89682,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "Caustics:block-2d:k2",
+      "pass": 0,
+      "bytecodeBytes": 8178,
+      "fps": {
+        "mean": 23.15578083333334,
+        "median": 23.16602,
+        "min": 23.14368,
+        "max": 23.16602,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "Caustics:lerp-1d:k4",
+      "pass": 0,
+      "bytecodeBytes": 7146,
+      "fps": {
+        "mean": 23.59882,
+        "median": 23.59882,
+        "min": 23.59882,
+        "max": 23.59882,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "Caustics:block-2d:k4",
+      "pass": 0,
+      "bytecodeBytes": 8178,
+      "fps": {
+        "mean": 26.88351,
+        "median": 26.89243,
+        "min": 26.86567,
+        "max": 26.89243,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "ZippyZaps:baseline:k1",
+      "pass": 0,
+      "bytecodeBytes": 5614,
+      "fps": {
+        "mean": 3.5917393333333334,
+        "median": 3.590664,
+        "min": 3.590664,
+        "max": 3.59389,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "ZippyZaps:lerp-1d:k2",
+      "pass": 0,
+      "bytecodeBytes": 6026,
+      "fps": {
+        "mean": 6.423984,
+        "median": 6.422018,
+        "min": 6.422018,
+        "max": 6.427916,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "ZippyZaps:block-2d:k2",
+      "pass": 0,
+      "bytecodeBytes": 7058,
+      "fps": {
+        "mean": 13.741210000000002,
+        "median": 13.73896,
+        "min": 13.73896,
+        "max": 13.75246,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "ZippyZaps:lerp-1d:k4",
+      "pass": 0,
+      "bytecodeBytes": 6026,
+      "fps": {
+        "mean": 11.818779999999999,
+        "median": 11.82266,
+        "min": 11.81102,
+        "max": 11.82266,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "ZippyZaps:block-2d:k4",
+      "pass": 0,
+      "bytecodeBytes": 7058,
+      "fps": {
+        "mean": 15.061777083333327,
+        "median": 15.06591,
+        "min": 15.05174,
+        "max": 15.06591,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "Caustics:baseline:k1",
+      "pass": 0,
+      "bytecodeBytes": 6734,
+      "fps": {
+        "mean": 3.720787083333334,
+        "median": 3.72093,
+        "min": 3.717472,
+        "max": 3.724395,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "Caustics:lerp-1d:k2",
+      "pass": 0,
+      "bytecodeBytes": 7146,
+      "fps": {
+        "mean": 6.635071,
+        "median": 6.635071,
+        "min": 6.635071,
+        "max": 6.635071,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "Caustics:block-2d:k2",
+      "pass": 0,
+      "bytecodeBytes": 8178,
+      "fps": {
+        "mean": 13.86367833333334,
+        "median": 13.86139,
+        "min": 13.86139,
+        "max": 13.87512,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "Caustics:lerp-1d:k4",
+      "pass": 0,
+      "bytecodeBytes": 7146,
+      "fps": {
+        "mean": 12.189408333333338,
+        "median": 12.18369,
+        "min": 12.18369,
+        "max": 12.20657,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "Caustics:block-2d:k4",
+      "pass": 0,
+      "bytecodeBytes": 8178,
+      "fps": {
+        "mean": 15.159896666666668,
+        "median": 15.16588,
+        "min": 15.15152,
+        "max": 15.16588,
+        "samples": 24
+      }
+    }
+  ],
+  "partial": false
+}

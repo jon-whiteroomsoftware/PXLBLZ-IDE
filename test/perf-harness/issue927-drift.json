@@ -1,0 +1,102 @@
+{
+  "generatedAt": "2026-09-02T01:48:28.489Z",
+  "options": {
+    "frames": 12,
+    "warmup": 1,
+    "frameDeltaMs": 250,
+    "grid": {
+      "rows": 40,
+      "cols": 50
+    }
+  },
+  "rows": [
+    {
+      "member": "ZippyZaps",
+      "variant": "lerp-1d",
+      "k": 2,
+      "evaluationsPerPixel": 0.5,
+      "meanAbs": 0.591,
+      "rmse": 3.03,
+      "p95": 2,
+      "max": 138,
+      "changedPct": 7.1
+    },
+    {
+      "member": "ZippyZaps",
+      "variant": "block-2d",
+      "k": 2,
+      "evaluationsPerPixel": 0.25,
+      "meanAbs": 3.769,
+      "rmse": 17.476,
+      "p95": 10,
+      "max": 250,
+      "changedPct": 14.59
+    },
+    {
+      "member": "ZippyZaps",
+      "variant": "lerp-1d",
+      "k": 4,
+      "evaluationsPerPixel": 0.25,
+      "meanAbs": 1.808,
+      "rmse": 5.879,
+      "p95": 8,
+      "max": 147,
+      "changedPct": 22.93
+    },
+    {
+      "member": "ZippyZaps",
+      "variant": "block-2d",
+      "k": 4,
+      "evaluationsPerPixel": 0.0625,
+      "meanAbs": 6.571,
+      "rmse": 20.769,
+      "p95": 38,
+      "max": 250,
+      "changedPct": 37.63
+    },
+    {
+      "member": "Caustics",
+      "variant": "lerp-1d",
+      "k": 2,
+      "evaluationsPerPixel": 0.5,
+      "meanAbs": 4.051,
+      "rmse": 12.066,
+      "p95": 23,
+      "max": 180,
+      "changedPct": 29.14
+    },
+    {
+      "member": "Caustics",
+      "variant": "block-2d",
+      "k": 2,
+      "evaluationsPerPixel": 0.25,
+      "meanAbs": 7.281,
+      "rmse": 17.986,
+      "p95": 37,
+      "max": 248,
+      "changedPct": 47.91
+    },
+    {
+      "member": "Caustics",
+      "variant": "lerp-1d",
+      "k": 4,
+      "evaluationsPerPixel": 0.25,
+      "meanAbs": 12.782,
+      "rmse": 26.248,
+      "p95": 60,
+      "max": 220,
+      "changedPct": 59.29
+    },
+    {
+      "member": "Caustics",
+      "variant": "block-2d",
+      "k": 4,
+      "evaluationsPerPixel": 0.0625,
+      "meanAbs": 19.103,
+      "rmse": 34.094,
+      "p95": 78,
+      "max": 248,
+      "changedPct": 79.43
+    }
+  ]
+}
