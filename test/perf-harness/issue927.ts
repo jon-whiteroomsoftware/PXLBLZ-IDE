@@ -88,7 +88,8 @@ export interface BlockHoldOptions {
    *  buffers only when the column crosses an anchor column (or a block-row
    *  begins), instead of six array reads per pixel. Same output. */
   scalarCache?: boolean
-  /** Export a per-frame counter of member evaluations (one global write per
+  /** Export a counter of member evaluations, reset at index 0 so it reads
+   *  the current frame's count after a full sweep (one global write per
    *  evaluation). Test-only: the measured candidates never carry it. */
   countEvaluations?: boolean
 }
@@ -145,7 +146,7 @@ export function render2D(index, x, y) {
   var __pxlblz_bh_ar = __pxlblz_bh_row - __pxlblz_bh_row % ${k}
   if (index == 0 || (__pxlblz_bh_col == 0 && __pxlblz_bh_ar == __pxlblz_bh_row)) {
     if (index == 0) {
-      __pxlblz_bh_fill(0)
+${countEvaluations ? '      __pxlblz_bh_evals = 0\n' : ''}      __pxlblz_bh_fill(0)
     }
     __pxlblz_bh_A.mutate((v, i) => __pxlblz_bh_B[i])
     __pxlblz_bh_nr = min(__pxlblz_bh_ar + ${k}, ${height - 1})

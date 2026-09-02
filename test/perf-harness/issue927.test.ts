@@ -69,8 +69,11 @@ describe('2D block hold (#927 spike)', () => {
       const shim = createShim({ pixelCount: N, dimensions: 2, mapPoints, getVirtualTime: () => 250, randomSeed: 927 })
       const bundled = bundle(held.code, {})
       const handle = loadPattern(bundled.code, bundled.metadata, shim.builtins)
-      handle.beforeRender(250)
-      for (let index = 0; index < N; index += 1) handle.render2D(index, 0, 0)
+      // Two frames: the counter resets at index 0, so it reads one frame's count.
+      for (let frame = 0; frame < 2; frame += 1) {
+        handle.beforeRender(250)
+        for (let index = 0; index < N; index += 1) handle.render2D(index, 0, 0)
+      }
       const evaluations = (handle.getExports() as { __pxlblz_bh_evals: number }).__pxlblz_bh_evals
       // Rows 0, K, 2K, ... up to the last anchor row (44 for both K), one
       // fill each: row 0 is the bootstrap fill at index 0, every later

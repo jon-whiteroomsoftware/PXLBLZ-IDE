@@ -20,7 +20,7 @@ are ~N/K² per frame, and the Controller compiler accepts K = 2 and 4. The
 spike's buffers are two plain arrays (2 × 3 × 23 words at K = 2); a build
 would declare one arena plane through the lifetime-aware planner (#718).
 
-## Ladder (median FPS, two passes per rung, identical to 0.01 FPS; measured candidates carry no instrumentation)
+## Ladder (median FPS, mean of two passes per rung, passes within 0.02 FPS of each other; measured candidates carry no instrumentation)
 
 | member | px | exact | 1D lerp ×2 | 1D lerp ×4 | 2D block ×2 (array replay) | 2D block ×2 (scalar-cached replay) | 2D block ×4 (scalar-cached) |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -45,9 +45,11 @@ Two findings that changed the recommendation:
   buys 9–45 points. The first ladder also carried an out-of-range read on
   the last column (review P1), fixed before these numbers.
 - **The gain is member-dependent in a way the evaluation count does not
-  predict.** Caustics at 2D ×2 beats the 1D lerp ×4 (+247 / +311% against
-  +225 / +228%) on the same or fewer evaluations; ZippyZaps at 2D ×2 gains
-  no more than the 1D lerp ×2 (+75 / +87%) despite evaluating fewer pixels.
+  predict.** On these strips the 2D ×2 form evaluates MORE pixels than the
+  1D lerp ×4 (92 against 65 at 256 px, 161 against 126 at 500 px, the
+  lookahead row being a fixed cost); Caustics still beats it (+246 / +310%
+  against +225 / +228%) while ZippyZaps gains no more than the 1D lerp ×2
+  (+75 / +88%).
   The wrapper is identical, so ZippyZaps' per-evaluation cost must rise
   when its anchors are evaluated ahead of order (its render path keeps
   per-pixel accumulators the lookahead visits out of sequence); this was
@@ -65,8 +67,9 @@ Two findings that changed the recommendation:
 | Caustics | 2D block ×4 | 0.072 | 18.04 | 32.22 | 73 | 78.5% |
 
 After the last-column fix the 2D block ×2 drifts LESS than the 1D lerp ×4
-on both members at about the same evaluation count (ZippyZaps 0.98 vs
-1.81 mean, Caustics 6.11 vs 12.78), and the contact sheets agree: the 1D
+on both members at a similar evaluation count on the full stage (0.265
+against 0.251 per pixel; ZippyZaps 0.98 vs 1.81 mean, Caustics 6.11 vs
+12.78), and the contact sheets (regenerated after that fix) agree: the 1D
 lerp streaks structure horizontally (Caustics' cells become dashes) while
 the 2D block keeps shapes and softens them. K = 4 in 2D is mush on both
 members. (The first ladder's drift table, taken before the fix, had the
@@ -79,8 +82,8 @@ as the reopen point for the large-installation round.** At 256 px the 2D
 block ×2 evaluates more pixels than the 1D lerp ×4 (the lookahead row is a
 fixed cost on a short stage) and lands between the 1D ×2 and ×4 depending
 on the member; the 1D lerp already covers that FPS range with a
-structurally simpler replay. The 2D form's advantages — visibly better
-drift at the same evaluation count (table above, contact sheets), and
+structurally simpler replay. The 2D form's advantages — better drift at
+a similar full-stage evaluation count (table above, contact sheets), and
 +310% against +228% on Caustics at 500 px — grow with stage height, which
 is the expander round's domain.
 

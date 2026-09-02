@@ -11,11 +11,14 @@ const measurementOptions = { activationTimeoutMs: 20_000, settleMs: 2_000, sampl
 
 describe('2D block hold on hardware (#927 spike)', () => {
   it.skipIf(!runHardware)('pairs baseline, 1D lerp, and 2D block hold per member and K at 256 and 500 px', async () => {
+    // Validate the declared output profile before the run: an invalid
+    // PIXELBLAZE_OUTPUT_PROFILE must fail here, not after a completed ladder.
+    const outputProfile = declaredOutputProfileStamp(undefined)
     const candidates = issue927Candidates().map((candidate) => ({ id: `${candidate.member}:${candidate.variant}:k${candidate.k}`, code: candidate.code }))
     const result = await runPairedLadder(ip, ISSUE927_PIXEL_COUNTS, candidates, measurementOptions)
     const report = {
       generatedAt: new Date().toISOString(),
-      controller: { ...result.controller, outputProfile: declaredOutputProfileStamp(undefined), ...measurementOptions },
+      controller: { ...result.controller, outputProfile, ...measurementOptions },
       rows: result.rows,
       partial: result.runError != null,
     }
