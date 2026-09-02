@@ -4,8 +4,27 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { bundle } from '../../src/engine/bundle'
+import { loadPattern } from '../../src/engine/loadPattern'
+import { createShim } from '../../src/engine/shim'
 import { compareVisualDrift } from './benchCore'
-import { issue927Candidates } from './issue927'
+import { ISSUE927_HEIGHT, ISSUE927_WIDTH, issue927Candidates } from './issue927'
+
+/** Member evaluations per pixel for one full frame, measured by running the
+ *  artifact (the 2D wrapper exports its fill counter; the 1D lerp evaluates
+ *  one lookahead per anchor plus the bootstrap, i.e. N / K + 1). */
+function measuredEvaluationsPerPixel(code: string, variant: string, k: number): number {
+  const N = ISSUE927_WIDTH * ISSUE927_HEIGHT
+  if (variant === 'lerp-1d') return (Math.ceil(N / k) + 1) / N
+  if (variant === 'block-2d-scalar') return measuredEvaluationsPerPixel(code, 'block-2d', k)
+  const mapPoints = Array.from({ length: N }, (_, i) => ({ sample: [(i % 50) / 49, Math.floor(i / 50) / 39] as [number, number], pos: [0, 0] as [number, number] }))
+  const shim = createShim({ pixelCount: N, dimensions: 2, mapPoints, getVirtualTime: () => 250, randomSeed: 927 })
+  const bundled = bundle(code, {})
+  const handle = loadPattern(bundled.code, bundled.metadata, shim.builtins)
+  handle.beforeRender(250)
+  for (let index = 0; index < N; index += 1) handle.render2D(index, 0, 0)
+  return (handle.getExports() as { __pxlblz_bh_evals: number }).__pxlblz_bh_evals / N
+}
 
 const GRID = { rows: 40, cols: 50 }
 const OPTIONS = { frames: 12, warmup: 1, frameDeltaMs: 250, grid: GRID }
@@ -20,13 +39,13 @@ describe('2D block hold drift (#927 spike)', () => {
       const drift = compareVisualDrift(base.code, candidate.code, {}, 'fast', OPTIONS)
       rows.push({
         member: candidate.member, variant: candidate.variant, k: candidate.k,
-        evaluationsPerPixel: candidate.variant === 'lerp-1d' ? 1 / candidate.k : 1 / (candidate.k * candidate.k),
+        evaluationsPerPixel: +measuredEvaluationsPerPixel(candidate.code, candidate.variant, candidate.k).toFixed(4),
         meanAbs: +drift.meanAbs.toFixed(3), rmse: +drift.rmse.toFixed(3), p95: drift.p95, max: drift.max, changedPct: +(drift.changedPct * 100).toFixed(2),
       })
       console.log(`${candidate.member} ${candidate.variant} x${candidate.k}: mean ${drift.meanAbs.toFixed(2)} rmse ${drift.rmse.toFixed(2)} p95 ${drift.p95} max ${drift.max} changed ${(drift.changedPct * 100).toFixed(1)}%`)
     }
     const outputPath = join(process.cwd(), 'test/perf-harness/issue927-drift.json')
     writeFileSync(outputPath, `${JSON.stringify({ generatedAt: new Date().toISOString(), options: OPTIONS, rows }, null, 2)}\n`)
-    expect(rows.length).toBe(8)
+    expect(rows.length).toBe(12)
   }, 600_000)
 })

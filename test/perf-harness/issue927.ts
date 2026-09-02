@@ -25,6 +25,52 @@ export const ISSUE927_HEIGHT = 45
 
 const DISPATCHER = /export function render2D\(index, x, y\) \{\n/
 
+const ARRAY_TAIL = `  var __pxlblz_bh_i0 = __pxlblz_bh_s0 * 3
+  var __pxlblz_bh_i1 = __pxlblz_bh_s1 * 3
+  var __pxlblz_bh_tr = __pxlblz_bh_A[__pxlblz_bh_i0] + (__pxlblz_bh_A[__pxlblz_bh_i1] - __pxlblz_bh_A[__pxlblz_bh_i0]) * __pxlblz_bh_fx
+  var __pxlblz_bh_tg = __pxlblz_bh_A[__pxlblz_bh_i0 + 1] + (__pxlblz_bh_A[__pxlblz_bh_i1 + 1] - __pxlblz_bh_A[__pxlblz_bh_i0 + 1]) * __pxlblz_bh_fx
+  var __pxlblz_bh_tb = __pxlblz_bh_A[__pxlblz_bh_i0 + 2] + (__pxlblz_bh_A[__pxlblz_bh_i1 + 2] - __pxlblz_bh_A[__pxlblz_bh_i0 + 2]) * __pxlblz_bh_fx
+  var __pxlblz_bh_ur = __pxlblz_bh_B[__pxlblz_bh_i0] + (__pxlblz_bh_B[__pxlblz_bh_i1] - __pxlblz_bh_B[__pxlblz_bh_i0]) * __pxlblz_bh_fx
+  var __pxlblz_bh_ug = __pxlblz_bh_B[__pxlblz_bh_i0 + 1] + (__pxlblz_bh_B[__pxlblz_bh_i1 + 1] - __pxlblz_bh_B[__pxlblz_bh_i0 + 1]) * __pxlblz_bh_fx
+  var __pxlblz_bh_ub = __pxlblz_bh_B[__pxlblz_bh_i0 + 2] + (__pxlblz_bh_B[__pxlblz_bh_i1 + 2] - __pxlblz_bh_B[__pxlblz_bh_i0 + 2]) * __pxlblz_bh_fx
+  rgb(
+    __pxlblz_bh_tr + (__pxlblz_bh_ur - __pxlblz_bh_tr) * __pxlblz_bh_fy,
+    __pxlblz_bh_tg + (__pxlblz_bh_ug - __pxlblz_bh_tg) * __pxlblz_bh_fy,
+    __pxlblz_bh_tb + (__pxlblz_bh_ub - __pxlblz_bh_tb) * __pxlblz_bh_fy
+  )
+}
+`
+
+const SCALAR_TAIL = `  if (__pxlblz_bh_col == __pxlblz_bh_ac) {
+    var __pxlblz_bh_i0 = __pxlblz_bh_s0 * 3
+    var __pxlblz_bh_i1 = __pxlblz_bh_s1 * 3
+    __pxlblz_bh_ca0 = __pxlblz_bh_A[__pxlblz_bh_i0]
+    __pxlblz_bh_ca1 = __pxlblz_bh_A[__pxlblz_bh_i0 + 1]
+    __pxlblz_bh_ca2 = __pxlblz_bh_A[__pxlblz_bh_i0 + 2]
+    __pxlblz_bh_cb0 = __pxlblz_bh_A[__pxlblz_bh_i1] - __pxlblz_bh_ca0
+    __pxlblz_bh_cb1 = __pxlblz_bh_A[__pxlblz_bh_i1 + 1] - __pxlblz_bh_ca1
+    __pxlblz_bh_cb2 = __pxlblz_bh_A[__pxlblz_bh_i1 + 2] - __pxlblz_bh_ca2
+    __pxlblz_bh_cc0 = __pxlblz_bh_B[__pxlblz_bh_i0]
+    __pxlblz_bh_cc1 = __pxlblz_bh_B[__pxlblz_bh_i0 + 1]
+    __pxlblz_bh_cc2 = __pxlblz_bh_B[__pxlblz_bh_i0 + 2]
+    __pxlblz_bh_cd0 = __pxlblz_bh_B[__pxlblz_bh_i1] - __pxlblz_bh_cc0
+    __pxlblz_bh_cd1 = __pxlblz_bh_B[__pxlblz_bh_i1 + 1] - __pxlblz_bh_cc1
+    __pxlblz_bh_cd2 = __pxlblz_bh_B[__pxlblz_bh_i1 + 2] - __pxlblz_bh_cc2
+  }
+  var __pxlblz_bh_tr = __pxlblz_bh_ca0 + __pxlblz_bh_cb0 * __pxlblz_bh_fx
+  var __pxlblz_bh_tg = __pxlblz_bh_ca1 + __pxlblz_bh_cb1 * __pxlblz_bh_fx
+  var __pxlblz_bh_tb = __pxlblz_bh_ca2 + __pxlblz_bh_cb2 * __pxlblz_bh_fx
+  var __pxlblz_bh_ur = __pxlblz_bh_cc0 + __pxlblz_bh_cd0 * __pxlblz_bh_fx
+  var __pxlblz_bh_ug = __pxlblz_bh_cc1 + __pxlblz_bh_cd1 * __pxlblz_bh_fx
+  var __pxlblz_bh_ub = __pxlblz_bh_cc2 + __pxlblz_bh_cd2 * __pxlblz_bh_fx
+  rgb(
+    __pxlblz_bh_tr + (__pxlblz_bh_ur - __pxlblz_bh_tr) * __pxlblz_bh_fy,
+    __pxlblz_bh_tg + (__pxlblz_bh_ug - __pxlblz_bh_tg) * __pxlblz_bh_fy,
+    __pxlblz_bh_tb + (__pxlblz_bh_ub - __pxlblz_bh_tb) * __pxlblz_bh_fy
+  )
+}
+`
+
 export function buildBaseArtifact(member: (typeof ISSUE926_MEMBERS)[number]): GeneratedShowArtifact {
   return compileShow(heavyRecipe(member), LIBRARIES, { directColorSinks: false })
 }
@@ -35,7 +81,15 @@ export interface BlockHoldResult {
   slots: number
 }
 
-export function applyBlockHold(source: string, k: number, width = ISSUE927_WIDTH, height = ISSUE927_HEIGHT): BlockHoldResult {
+export interface BlockHoldOptions {
+  /** Keep the four anchors of the current cell in scalars, reloaded from the
+   *  buffers only when the column crosses an anchor column (or a block-row
+   *  begins), instead of six array reads per pixel. Same output. */
+  scalarCache?: boolean
+}
+
+export function applyBlockHold(source: string, k: number, width = ISSUE927_WIDTH, height = ISSUE927_HEIGHT, options: BlockHoldOptions = {}): BlockHoldResult {
+  const scalarCache = options.scalarCache ?? false
   const paintSites = [...source.matchAll(/\brgb\(/g)].length
   if (paintSites === 0) throw new Error('No rgb paint sites found to latch.')
   if (/\bhsv\(/.test(source)) throw new Error('Artifact paints via hsv(); the RGB-only latch would miss it.')
@@ -56,9 +110,23 @@ function __pxlblz_bh_emit(__pxlblz_bh_er, __pxlblz_bh_eg, __pxlblz_bh_eb) {
 var __pxlblz_bh_A = array(${slots * 3})
 var __pxlblz_bh_B = array(${slots * 3})
 var __pxlblz_bh_nr = -1
+var __pxlblz_bh_ca0 = 0
+var __pxlblz_bh_ca1 = 0
+var __pxlblz_bh_ca2 = 0
+var __pxlblz_bh_cb0 = 0
+var __pxlblz_bh_cb1 = 0
+var __pxlblz_bh_cb2 = 0
+var __pxlblz_bh_cc0 = 0
+var __pxlblz_bh_cc1 = 0
+var __pxlblz_bh_cc2 = 0
+var __pxlblz_bh_cd0 = 0
+var __pxlblz_bh_cd1 = 0
+var __pxlblz_bh_cd2 = 0
+export var __pxlblz_bh_evals = 0
 function __pxlblz_bh_fill(__pxlblz_bh_row) {
   var __pxlblz_bh_base = __pxlblz_bh_row * ${width}
   for (var __pxlblz_bh_s = 0; __pxlblz_bh_s < ${slots}; __pxlblz_bh_s++) {
+    __pxlblz_bh_evals = __pxlblz_bh_evals + 1
     __pxlblz_bh_inner(__pxlblz_bh_base + min(__pxlblz_bh_s * ${k}, ${width - 1}), 0, 0)
     __pxlblz_bh_B[__pxlblz_bh_s * 3] = __pxlblz_bh_r
     __pxlblz_bh_B[__pxlblz_bh_s * 3 + 1] = __pxlblz_bh_g
@@ -77,37 +145,32 @@ export function render2D(index, x, y) {
     }
     __pxlblz_bh_A.mutate((v, i) => __pxlblz_bh_B[i])
     __pxlblz_bh_nr = min(__pxlblz_bh_ar + ${k}, ${height - 1})
-    __pxlblz_bh_fill(__pxlblz_bh_nr)
+    // The last block-row has no row below it: its anchors are the row just
+    // shifted into A, so B copies A instead of re-evaluating the row.
+    if (__pxlblz_bh_nr > __pxlblz_bh_ar) {
+      __pxlblz_bh_fill(__pxlblz_bh_nr)
+    } else {
+      __pxlblz_bh_B.mutate((v, i) => __pxlblz_bh_A[i])
+    }
   }
   var __pxlblz_bh_ac = __pxlblz_bh_col - __pxlblz_bh_col % ${k}
   var __pxlblz_bh_s0 = __pxlblz_bh_ac / ${k}
-  var __pxlblz_bh_s1 = __pxlblz_bh_s0 + 1
+  // The last anchor column has no slot to its right; fx is 0 there, so the
+  // clamped slot only keeps the read inside the buffers.
+  var __pxlblz_bh_s1 = min(__pxlblz_bh_s0 + 1, ${slots - 1})
   var __pxlblz_bh_fx = (__pxlblz_bh_col - __pxlblz_bh_ac) * ${1 / k}
   if (__pxlblz_bh_ac + ${k} > ${width - 1}) {
     __pxlblz_bh_fx = __pxlblz_bh_ac == ${width - 1} ? 0 : (__pxlblz_bh_col - __pxlblz_bh_ac) / (${width - 1} - __pxlblz_bh_ac)
   }
   var __pxlblz_bh_fy = __pxlblz_bh_nr == __pxlblz_bh_ar ? 0 : (__pxlblz_bh_row - __pxlblz_bh_ar) / (__pxlblz_bh_nr - __pxlblz_bh_ar)
-  var __pxlblz_bh_i0 = __pxlblz_bh_s0 * 3
-  var __pxlblz_bh_i1 = __pxlblz_bh_s1 * 3
-  var __pxlblz_bh_tr = __pxlblz_bh_A[__pxlblz_bh_i0] + (__pxlblz_bh_A[__pxlblz_bh_i1] - __pxlblz_bh_A[__pxlblz_bh_i0]) * __pxlblz_bh_fx
-  var __pxlblz_bh_tg = __pxlblz_bh_A[__pxlblz_bh_i0 + 1] + (__pxlblz_bh_A[__pxlblz_bh_i1 + 1] - __pxlblz_bh_A[__pxlblz_bh_i0 + 1]) * __pxlblz_bh_fx
-  var __pxlblz_bh_tb = __pxlblz_bh_A[__pxlblz_bh_i0 + 2] + (__pxlblz_bh_A[__pxlblz_bh_i1 + 2] - __pxlblz_bh_A[__pxlblz_bh_i0 + 2]) * __pxlblz_bh_fx
-  var __pxlblz_bh_ur = __pxlblz_bh_B[__pxlblz_bh_i0] + (__pxlblz_bh_B[__pxlblz_bh_i1] - __pxlblz_bh_B[__pxlblz_bh_i0]) * __pxlblz_bh_fx
-  var __pxlblz_bh_ug = __pxlblz_bh_B[__pxlblz_bh_i0 + 1] + (__pxlblz_bh_B[__pxlblz_bh_i1 + 1] - __pxlblz_bh_B[__pxlblz_bh_i0 + 1]) * __pxlblz_bh_fx
-  var __pxlblz_bh_ub = __pxlblz_bh_B[__pxlblz_bh_i0 + 2] + (__pxlblz_bh_B[__pxlblz_bh_i1 + 2] - __pxlblz_bh_B[__pxlblz_bh_i0 + 2]) * __pxlblz_bh_fx
-  rgb(
-    __pxlblz_bh_tr + (__pxlblz_bh_ur - __pxlblz_bh_tr) * __pxlblz_bh_fy,
-    __pxlblz_bh_tg + (__pxlblz_bh_ug - __pxlblz_bh_tg) * __pxlblz_bh_fy,
-    __pxlblz_bh_tb + (__pxlblz_bh_ub - __pxlblz_bh_tb) * __pxlblz_bh_fy
-  )
-}
 `
-  return { code: `${helper}${inner}${entry}`, paintSites, slots }
+  const tail = scalarCache ? SCALAR_TAIL : ARRAY_TAIL
+  return { code: `${helper}${inner}${entry}${tail}`, paintSites, slots }
 }
 
 export interface Issue927Candidate {
   member: (typeof ISSUE926_MEMBERS)[number]
-  variant: 'baseline' | 'lerp-1d' | 'block-2d'
+  variant: 'baseline' | 'lerp-1d' | 'block-2d' | 'block-2d-scalar'
   k: number
   code: string
 }
@@ -121,6 +184,7 @@ export function issue927Candidates(): Issue927Candidate[] {
     for (const k of ISSUE927_FACTORS) {
       out.push({ member, variant: 'lerp-1d', k, code: applyLerpHold(base, k).code })
       out.push({ member, variant: 'block-2d', k, code: applyBlockHold(base, k).code })
+      out.push({ member, variant: 'block-2d-scalar', k, code: applyBlockHold(base, k, ISSUE927_WIDTH, ISSUE927_HEIGHT, { scalarCache: true }).code })
     }
   }
   return out

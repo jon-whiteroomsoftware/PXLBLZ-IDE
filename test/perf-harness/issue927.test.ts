@@ -57,4 +57,47 @@ describe('2D block hold (#927 spike)', () => {
     const base = buildBaseArtifact('Caustics').code
     for (const k of [2, 4]) expect(() => compiler(applyBlockHold(base, k).code)).not.toThrow()
   })
+
+  it('counts member evaluations per frame exactly: anchor rows x slots, with the last block-row copied rather than re-evaluated', () => {
+    const base = buildBaseArtifact('ZippyZaps').code
+    const N = ISSUE927_WIDTH * ISSUE927_HEIGHT
+    const mapPoints = Array.from({ length: N }, (_, i) => ({ sample: [(i % 50) / 49, Math.floor(i / 50) / 39] as [number, number], pos: [0, 0] as [number, number] }))
+    for (const k of [2, 4] as const) {
+      const held = applyBlockHold(base, k)
+      const shim = createShim({ pixelCount: N, dimensions: 2, mapPoints, getVirtualTime: () => 250, randomSeed: 927 })
+      const bundled = bundle(held.code, {})
+      const handle = loadPattern(bundled.code, bundled.metadata, shim.builtins)
+      handle.beforeRender(250)
+      for (let index = 0; index < N; index += 1) handle.render2D(index, 0, 0)
+      const evaluations = (handle.getExports() as { __pxlblz_bh_evals: number }).__pxlblz_bh_evals
+      // Rows 0, K, 2K, ... up to the last anchor row (44 for both K), one
+      // fill each: row 0 is the bootstrap fill at index 0, every later
+      // anchor row is filled once as "next", and the last block-row copies.
+      const anchorRows = Math.floor((ISSUE927_HEIGHT - 1) / k) + 1
+      expect(evaluations).toBe(anchorRows * held.slots)
+      expect(evaluations / N).toBeCloseTo(k === 2 ? 0.261 : 0.071, 2)
+    }
+  })
+
+  it('the scalar-cached replay paints exactly what the array replay paints', () => {
+    const base = buildBaseArtifact('Caustics').code
+    const N = ISSUE927_WIDTH * ISSUE927_HEIGHT
+    const mapPoints = Array.from({ length: N }, (_, i) => ({ sample: [(i % 50) / 49, Math.floor(i / 50) / 39] as [number, number], pos: [0, 0] as [number, number] }))
+    const render = (code: string) => {
+      const shim = createShim({ pixelCount: N, dimensions: 2, mapPoints, getVirtualTime: () => 500, randomSeed: 927 })
+      const bundled = bundle(code, {})
+      const handle = loadPattern(bundled.code, bundled.metadata, shim.builtins)
+      const out: number[][] = []
+      for (let frame = 0; frame < 2; frame += 1) {
+        handle.beforeRender(250)
+        for (let index = 0; index < N; index += 1) { handle.render2D(index, 0, 0); out.push([...shim.capturedPixel()]) }
+      }
+      return out
+    }
+    for (const k of [2, 4]) {
+      const arrays = render(applyBlockHold(base, k).code)
+      const scalars = render(applyBlockHold(base, k, ISSUE927_WIDTH, ISSUE927_HEIGHT, { scalarCache: true }).code)
+      expect(scalars).toEqual(arrays)
+    }
+  }, 300_000)
 })

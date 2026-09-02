@@ -20,20 +20,35 @@ are ~N/K² per frame, and the Controller compiler accepts K = 2 and 4. The
 spike's buffers are two plain arrays (2 × 3 × 23 words at K = 2); a build
 would declare one arena plane through the lifetime-aware planner (#718).
 
-## Ladder (median FPS, one pass per rung)
+## Ladder (median FPS, two passes per rung, identical to 0.01 FPS)
 
-| member | px | exact | 1D lerp ×2 | 2D block ×2 | 1D lerp ×4 | 2D block ×4 |
-|---|---:|---:|---:|---:|---:|---:|
-| ZippyZaps | 256 | 7.005 | +78% | **+226%** | +226% | +279% |
-| ZippyZaps | 500 | 3.591 | +79% | **+283%** | +229% | +320% |
-| Caustics | 256 | 7.266 | +77% | **+219%** | +225% | +270% |
-| Caustics | 500 | 3.721 | +78% | **+273%** | +227% | +308% |
+| member | px | exact | 1D lerp ×2 | 1D lerp ×4 | 2D block ×2 (array replay) | 2D block ×2 (scalar-cached replay) | 2D block ×4 (scalar-cached) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| ZippyZaps | 256 | 7.01 | +78% | +226% | +66% | **+75%** | +212% |
+| ZippyZaps | 500 | 3.59 | +79% | +229% | +78% | **+87%** | +267% |
+| Caustics | 256 | 7.26 | +78% | +225% | +215% | **+247%** | +208% |
+| Caustics | 500 | 3.71 | +78% | +228% | +266% | **+311%** | +260% |
 
-Evaluations per pixel: 1D lerp ×K = 1/K; 2D block ×K = 1/K². At 256 px the
-2D block at K = 2 lands exactly where the 1D lerp at K = 4 does (both a
-quarter of the evaluations); at 500 px it pulls ahead (+283 vs +229%), and
-K = 4 adds only ~50 points more because the bilinear replay (~6 array
-reads, 9 multiply-adds, one clamped division) is now the floor.
+Evaluations per pixel, measured (fill counter): 2D ×2 0.261 and ×4 0.071
+on the full 45×45 stage; on a 256-px strip the ×2 form evaluates rows 0,
+2, 4 and the lookahead row 6 (92 evaluations, 0.36 per pixel) against the
+1D lerp ×4's 65 (0.25), which is where the strip-sized gain goes.
+
+Two findings that changed the recommendation:
+
+- **The replay, not the evaluations, decided the first ladder.** Six array
+  reads per pixel cost ~100 µs on this VM; caching the cell's four anchors
+  in scalars and reloading them only at anchor columns (`scalarCache`)
+  buys 9–45 points. The first ladder also carried an out-of-range read on
+  the last column (review P1), fixed before these numbers.
+- **The gain is member-dependent in a way the evaluation count does not
+  predict.** Caustics at 2D ×2 beats the 1D lerp ×4 (+247 / +311% against
+  +225 / +228%) on the same or fewer evaluations; ZippyZaps at 2D ×2 gains
+  no more than the 1D lerp ×2 (+75 / +87%) despite evaluating fewer pixels.
+  The wrapper is identical, so ZippyZaps' per-evaluation cost must rise
+  when its anchors are evaluated ahead of order (its render path keeps
+  per-pixel accumulators the lookahead visits out of sequence); this was
+  not isolated and is the open question a build would have to answer.
 
 ## Drift (emulator, 12 frames, 8-bit channels) and the contact sheets
 
@@ -54,19 +69,18 @@ both members.
 
 ## Recommendation (Jon's verdict pending)
 
-Build the 2D block hold at K = 2 as the stop that sits between the 1D lerp
-×2 and ×4: same FPS as the 1D ×4 at 256 px, more at 500 px, and a
-structurally better image on cellular content. Do not offer K = 4 in 2D
-under the ≤500 px scope. Requirements for the build, from the spike:
+**Decline the build under the ≤500 px scope; keep the scalar-cached spike
+as the reopen point for the large-installation round.** At 256 px the 2D
+block ×2 evaluates more pixels than the 1D lerp ×4 (the lookahead row is a
+fixed cost on a short stage) and lands between the 1D ×2 and ×4 depending
+on the member; the 1D lerp already covers that FPS range with a
+structurally simpler replay. The 2D form's advantages — cellular content
+keeps its shape (contact sheets), and +311% against +228% on Caustics at
+500 px — grow with stage height, which is the expander round's domain.
 
-- eligibility exactly where #937's lerp applies (synthesized coordinates,
-  index-routed), plus a zone whose width is known at compile time;
-- one arena plane for the two anchor rows, declared to the planner with a
-  lifetime and a reason when declined (plane owned by a snapshot or
-  Trails window → fall back to the 1D lerp);
-- total-latch coverage as in #937; the frame-start reset at index 0 and
-  the ascending-order contract (#936) already hold.
-
-Costs to be honest about: ~20 µs per held pixel of replay (the 1D lerp
-replays for ~6 µs), so the 2D form only pays for members above roughly
-60 µs per pixel, which is exactly the heavy class this wave targets.
+If Jon's eye rates the 2D ×2 sheets as clearly better than the 1D ×4
+ones, the build is: eligibility as #937 plus a compile-time zone width;
+one arena plane for the two anchor rows, declared to the planner with a
+lifetime and a decline reason; the scalar-cached replay; total-latch
+coverage as in #937; and the ZippyZaps out-of-order cost isolated first.
+No K = 4 in 2D under this scope.

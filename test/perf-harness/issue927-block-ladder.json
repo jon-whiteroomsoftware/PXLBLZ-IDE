@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-02T01:54:03.995Z",
+  "generatedAt": "2026-09-02T02:34:43.882Z",
   "controller": {
     "ip": "192.168.8.224",
     "name": "Burner bag",
@@ -11,7 +11,7 @@
     "activationTimeoutMs": 20000,
     "settleMs": 2000,
     "sampleMs": 6000,
-    "passes": 1
+    "passes": 2
   },
   "rows": [
     {
@@ -20,10 +20,10 @@
       "pass": 0,
       "bytecodeBytes": 5614,
       "fps": {
-        "mean": 7.0043783333333325,
+        "mean": 7.004781833333333,
         "median": 7.005254,
         "min": 7,
-        "max": 7.005254,
+        "max": 7.011394,
         "samples": 24
       }
     },
@@ -33,7 +33,7 @@
       "pass": 0,
       "bytecodeBytes": 6026,
       "fps": {
-        "mean": 12.472023333333327,
+        "mean": 12.47202333333333,
         "median": 12.47601,
         "min": 12.46405,
         "max": 12.47601,
@@ -44,12 +44,25 @@
       "pixelCount": 256,
       "candidate": "ZippyZaps:block-2d:k2",
       "pass": 0,
-      "bytecodeBytes": 7058,
+      "bytecodeBytes": 7320,
       "fps": {
-        "mean": 22.817459999999997,
-        "median": 22.81746,
-        "min": 22.81746,
-        "max": 22.81746,
+        "mean": 11.658508333333332,
+        "median": 11.66181,
+        "min": 11.65049,
+        "max": 11.66181,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "ZippyZaps:block-2d-scalar:k2",
+      "pass": 0,
+      "bytecodeBytes": 7400,
+      "fps": {
+        "mean": 12.234335833333331,
+        "median": 12.22954,
+        "min": 12.22954,
+        "max": 12.24105,
         "samples": 24
       }
     },
@@ -59,8 +72,8 @@
       "pass": 0,
       "bytecodeBytes": 6026,
       "fps": {
-        "mean": 22.82879,
-        "median": 22.828789999999998,
+        "mean": 22.82784583333333,
+        "median": 22.81746,
         "min": 22.81746,
         "max": 22.84012,
         "samples": 24
@@ -70,12 +83,25 @@
       "pixelCount": 256,
       "candidate": "ZippyZaps:block-2d:k4",
       "pass": 0,
-      "bytecodeBytes": 7058,
+      "bytecodeBytes": 7320,
       "fps": {
-        "mean": 26.581347499999993,
-        "median": 26.5748,
-        "min": 26.5748,
-        "max": 26.60099,
+        "mean": 18.914885,
+        "median": 18.914884999999998,
+        "min": 18.90547,
+        "max": 18.9243,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "ZippyZaps:block-2d-scalar:k4",
+      "pass": 0,
+      "bytecodeBytes": 7400,
+      "fps": {
+        "mean": 21.89781666666667,
+        "median": 21.89055,
+        "min": 21.89055,
+        "max": 21.91235,
         "samples": 24
       }
     },
@@ -85,8 +111,8 @@
       "pass": 0,
       "bytecodeBytes": 6734,
       "fps": {
-        "mean": 7.2641987499999985,
-        "median": 7.266122,
+        "mean": 7.261725999999999,
+        "median": 7.259528,
         "min": 7.259528,
         "max": 7.266122,
         "samples": 24
@@ -98,7 +124,7 @@
       "pass": 0,
       "bytecodeBytes": 7146,
       "fps": {
-        "mean": 12.894157499999999,
+        "mean": 12.8909625,
         "median": 12.89682,
         "min": 12.88404,
         "max": 12.89682,
@@ -109,12 +135,25 @@
       "pixelCount": 256,
       "candidate": "Caustics:block-2d:k2",
       "pass": 0,
-      "bytecodeBytes": 8178,
+      "bytecodeBytes": 8440,
       "fps": {
-        "mean": 23.15578083333334,
-        "median": 23.16602,
-        "min": 23.14368,
-        "max": 23.16602,
+        "mean": 22.831622499999998,
+        "median": 22.84012,
+        "min": 22.81746,
+        "max": 22.84012,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "Caustics:block-2d-scalar:k2",
+      "pass": 0,
+      "bytecodeBytes": 8520,
+      "fps": {
+        "mean": 25.15419749999999,
+        "median": 25.14507,
+        "min": 25.14507,
+        "max": 25.16941,
         "samples": 24
       }
     },
@@ -135,12 +174,207 @@
       "pixelCount": 256,
       "candidate": "Caustics:block-2d:k4",
       "pass": 0,
-      "bytecodeBytes": 8178,
+      "bytecodeBytes": 8440,
       "fps": {
-        "mean": 26.88351,
-        "median": 26.89243,
-        "min": 26.86567,
-        "max": 26.89243,
+        "mean": 19.23694,
+        "median": 19.23077,
+        "min": 19.23077,
+        "max": 19.24928,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "Caustics:block-2d-scalar:k4",
+      "pass": 0,
+      "bytecodeBytes": 8520,
+      "fps": {
+        "mean": 22.32739916666667,
+        "median": 22.3301,
+        "min": 22.30844,
+        "max": 22.3518,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "ZippyZaps:baseline:k1",
+      "pass": 1,
+      "bytecodeBytes": 5614,
+      "fps": {
+        "mean": 7.005182749999999,
+        "median": 7.005254,
+        "min": 7,
+        "max": 7.011394,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "ZippyZaps:lerp-1d:k2",
+      "pass": 1,
+      "bytecodeBytes": 6026,
+      "fps": {
+        "mean": 12.470528333333329,
+        "median": 12.47601,
+        "min": 12.46405,
+        "max": 12.47601,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "ZippyZaps:block-2d:k2",
+      "pass": 1,
+      "bytecodeBytes": 7320,
+      "fps": {
+        "mean": 11.661810000000001,
+        "median": 11.66181,
+        "min": 11.66181,
+        "max": 11.66181,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "ZippyZaps:block-2d-scalar:k2",
+      "pass": 1,
+      "bytecodeBytes": 7400,
+      "fps": {
+        "mean": 12.234335833333327,
+        "median": 12.22954,
+        "min": 12.22954,
+        "max": 12.24105,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "ZippyZaps:lerp-1d:k4",
+      "pass": 1,
+      "bytecodeBytes": 6026,
+      "fps": {
+        "mean": 22.831622500000005,
+        "median": 22.84012,
+        "min": 22.81746,
+        "max": 22.84012,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "ZippyZaps:block-2d:k4",
+      "pass": 1,
+      "bytecodeBytes": 7320,
+      "fps": {
+        "mean": 18.918023333333334,
+        "median": 18.9243,
+        "min": 18.90547,
+        "max": 18.9243,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "ZippyZaps:block-2d-scalar:k4",
+      "pass": 1,
+      "bytecodeBytes": 7400,
+      "fps": {
+        "mean": 21.89781666666667,
+        "median": 21.89055,
+        "min": 21.89055,
+        "max": 21.91235,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "Caustics:baseline:k1",
+      "pass": 1,
+      "bytecodeBytes": 6734,
+      "fps": {
+        "mean": 7.2622754999999986,
+        "median": 7.259528,
+        "min": 7.259528,
+        "max": 7.266122,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "Caustics:lerp-1d:k2",
+      "pass": 1,
+      "bytecodeBytes": 7146,
+      "fps": {
+        "mean": 12.893092499999996,
+        "median": 12.89682,
+        "min": 12.88404,
+        "max": 12.89682,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "Caustics:block-2d:k2",
+      "pass": 1,
+      "bytecodeBytes": 8440,
+      "fps": {
+        "mean": 22.835399166666672,
+        "median": 22.84012,
+        "min": 22.81746,
+        "max": 22.84012,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "Caustics:block-2d-scalar:k2",
+      "pass": 1,
+      "bytecodeBytes": 8520,
+      "fps": {
+        "mean": 25.16231083333332,
+        "median": 25.16941,
+        "min": 25.14507,
+        "max": 25.16941,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "Caustics:lerp-1d:k4",
+      "pass": 1,
+      "bytecodeBytes": 7146,
+      "fps": {
+        "mean": 23.594956666666665,
+        "median": 23.59882,
+        "min": 23.57564,
+        "max": 23.59882,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "Caustics:block-2d:k4",
+      "pass": 1,
+      "bytecodeBytes": 8440,
+      "fps": {
+        "mean": 19.23694,
+        "median": 19.23077,
+        "min": 19.23077,
+        "max": 19.24928,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "Caustics:block-2d-scalar:k4",
+      "pass": 1,
+      "bytecodeBytes": 8520,
+      "fps": {
+        "mean": 22.32649000000001,
+        "median": 22.3301,
+        "min": 22.30844,
+        "max": 22.3301,
         "samples": 24
       }
     },
@@ -150,10 +384,10 @@
       "pass": 0,
       "bytecodeBytes": 5614,
       "fps": {
-        "mean": 3.5917393333333334,
-        "median": 3.590664,
-        "min": 3.590664,
-        "max": 3.59389,
+        "mean": 3.5867742083333343,
+        "median": 3.587444,
+        "min": 3.584229,
+        "max": 3.587444,
         "samples": 24
       }
     },
@@ -163,10 +397,10 @@
       "pass": 0,
       "bytecodeBytes": 6026,
       "fps": {
-        "mean": 6.423984,
-        "median": 6.422018,
-        "min": 6.422018,
-        "max": 6.427916,
+        "mean": 6.414907833333335,
+        "median": 6.416132,
+        "min": 6.410256,
+        "max": 6.416132,
         "samples": 24
       }
     },
@@ -174,12 +408,25 @@
       "pixelCount": 500,
       "candidate": "ZippyZaps:block-2d:k2",
       "pass": 0,
-      "bytecodeBytes": 7058,
+      "bytecodeBytes": 7320,
       "fps": {
-        "mean": 13.741210000000002,
-        "median": 13.73896,
-        "min": 13.73896,
-        "max": 13.75246,
+        "mean": 6.388806,
+        "median": 6.386862,
+        "min": 6.386862,
+        "max": 6.392694,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "ZippyZaps:block-2d-scalar:k2",
+      "pass": 0,
+      "bytecodeBytes": 7400,
+      "fps": {
+        "mean": 6.725381666666667,
+        "median": 6.724304,
+        "min": 6.724304,
+        "max": 6.73077,
         "samples": 24
       }
     },
@@ -189,10 +436,10 @@
       "pass": 0,
       "bytecodeBytes": 6026,
       "fps": {
-        "mean": 11.818779999999999,
-        "median": 11.82266,
-        "min": 11.81102,
-        "max": 11.82266,
+        "mean": 11.803279999999996,
+        "median": 11.79941,
+        "min": 11.79941,
+        "max": 11.81102,
         "samples": 24
       }
     },
@@ -200,12 +447,25 @@
       "pixelCount": 500,
       "candidate": "ZippyZaps:block-2d:k4",
       "pass": 0,
-      "bytecodeBytes": 7058,
+      "bytecodeBytes": 7320,
       "fps": {
-        "mean": 15.061777083333327,
-        "median": 15.06591,
-        "min": 15.05174,
-        "max": 15.06591,
+        "mean": 11.119693333333332,
+        "median": 11.12141,
+        "min": 11.11111,
+        "max": 11.12141,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "ZippyZaps:block-2d-scalar:k4",
+      "pass": 0,
+      "bytecodeBytes": 7400,
+      "fps": {
+        "mean": 13.17285333333333,
+        "median": 13.17027,
+        "min": 13.17027,
+        "max": 13.18267,
         "samples": 24
       }
     },
@@ -215,10 +475,10 @@
       "pass": 0,
       "bytecodeBytes": 6734,
       "fps": {
-        "mean": 3.720787083333334,
-        "median": 3.72093,
-        "min": 3.717472,
-        "max": 3.724395,
+        "mean": 3.715458333333334,
+        "median": 3.71402,
+        "min": 3.71402,
+        "max": 3.717472,
         "samples": 24
       }
     },
@@ -228,10 +488,10 @@
       "pass": 0,
       "bytecodeBytes": 7146,
       "fps": {
-        "mean": 6.635071,
-        "median": 6.635071,
-        "min": 6.635071,
-        "max": 6.635071,
+        "mean": 6.625129333333334,
+        "median": 6.622516,
+        "min": 6.622516,
+        "max": 6.628788,
         "samples": 24
       }
     },
@@ -239,12 +499,25 @@
       "pixelCount": 500,
       "candidate": "Caustics:block-2d:k2",
       "pass": 0,
-      "bytecodeBytes": 8178,
+      "bytecodeBytes": 8440,
       "fps": {
-        "mean": 13.86367833333334,
-        "median": 13.86139,
-        "min": 13.86139,
-        "max": 13.87512,
+        "mean": 13.610956666666665,
+        "median": 13.60544,
+        "min": 13.60544,
+        "max": 13.61868,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "Caustics:block-2d-scalar:k2",
+      "pass": 0,
+      "bytecodeBytes": 8520,
+      "fps": {
+        "mean": 15.255046666666663,
+        "median": 15.25262,
+        "min": 15.25262,
+        "max": 15.26718,
         "samples": 24
       }
     },
@@ -254,10 +527,10 @@
       "pass": 0,
       "bytecodeBytes": 7146,
       "fps": {
-        "mean": 12.189408333333338,
-        "median": 12.18369,
-        "min": 12.18369,
-        "max": 12.20657,
+        "mean": 12.174665,
+        "median": 12.17229,
+        "min": 12.17229,
+        "max": 12.18369,
         "samples": 24
       }
     },
@@ -265,12 +538,207 @@
       "pixelCount": 500,
       "candidate": "Caustics:block-2d:k4",
       "pass": 0,
-      "bytecodeBytes": 8178,
+      "bytecodeBytes": 8440,
       "fps": {
-        "mean": 15.159896666666668,
-        "median": 15.16588,
-        "min": 15.15152,
-        "max": 15.16588,
+        "mean": 11.258799999999995,
+        "median": 11.25704,
+        "min": 11.25704,
+        "max": 11.2676,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "Caustics:block-2d-scalar:k4",
+      "pass": 0,
+      "bytecodeBytes": 8520,
+      "fps": {
+        "mean": 13.367818333333332,
+        "median": 13.37154,
+        "min": 13.35878,
+        "max": 13.37154,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "ZippyZaps:baseline:k1",
+      "pass": 1,
+      "bytecodeBytes": 5614,
+      "fps": {
+        "mean": 3.587444000000001,
+        "median": 3.587444,
+        "min": 3.587444,
+        "max": 3.587444,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "ZippyZaps:lerp-1d:k2",
+      "pass": 1,
+      "bytecodeBytes": 6026,
+      "fps": {
+        "mean": 6.415887166666669,
+        "median": 6.416132,
+        "min": 6.410256,
+        "max": 6.416132,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "ZippyZaps:block-2d:k2",
+      "pass": 1,
+      "bytecodeBytes": 7320,
+      "fps": {
+        "mean": 6.388806,
+        "median": 6.386862,
+        "min": 6.386862,
+        "max": 6.392694,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "ZippyZaps:block-2d-scalar:k2",
+      "pass": 1,
+      "bytecodeBytes": 7400,
+      "fps": {
+        "mean": 6.725112250000002,
+        "median": 6.724304,
+        "min": 6.724304,
+        "max": 6.73077,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "ZippyZaps:lerp-1d:k4",
+      "pass": 1,
+      "bytecodeBytes": 6026,
+      "fps": {
+        "mean": 11.802796249999995,
+        "median": 11.79941,
+        "min": 11.79941,
+        "max": 11.81102,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "ZippyZaps:block-2d:k4",
+      "pass": 1,
+      "bytecodeBytes": 7320,
+      "fps": {
+        "mean": 11.12141,
+        "median": 11.12141,
+        "min": 11.12141,
+        "max": 11.12141,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "ZippyZaps:block-2d-scalar:k4",
+      "pass": 1,
+      "bytecodeBytes": 7400,
+      "fps": {
+        "mean": 13.17595333333333,
+        "median": 13.17027,
+        "min": 13.17027,
+        "max": 13.18267,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "Caustics:baseline:k1",
+      "pass": 1,
+      "bytecodeBytes": 6734,
+      "fps": {
+        "mean": 3.715602166666667,
+        "median": 3.71402,
+        "min": 3.71402,
+        "max": 3.717472,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "Caustics:lerp-1d:k2",
+      "pass": 1,
+      "bytecodeBytes": 7146,
+      "fps": {
+        "mean": 6.625652,
+        "median": 6.6256520000000005,
+        "min": 6.622516,
+        "max": 6.628788,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "Caustics:block-2d:k2",
+      "pass": 1,
+      "bytecodeBytes": 8440,
+      "fps": {
+        "mean": 13.612059999999998,
+        "median": 13.61206,
+        "min": 13.60544,
+        "max": 13.61868,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "Caustics:block-2d-scalar:k2",
+      "pass": 1,
+      "bytecodeBytes": 8520,
+      "fps": {
+        "mean": 15.252619999999999,
+        "median": 15.25262,
+        "min": 15.25262,
+        "max": 15.25262,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "Caustics:lerp-1d:k4",
+      "pass": 1,
+      "bytecodeBytes": 7146,
+      "fps": {
+        "mean": 12.176090000000002,
+        "median": 12.17229,
+        "min": 12.17229,
+        "max": 12.18369,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "Caustics:block-2d:k4",
+      "pass": 1,
+      "bytecodeBytes": 8440,
+      "fps": {
+        "mean": 11.259239999999997,
+        "median": 11.25704,
+        "min": 11.25704,
+        "max": 11.2676,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 500,
+      "candidate": "Caustics:block-2d-scalar:k4",
+      "pass": 1,
+      "bytecodeBytes": 8520,
+      "fps": {
+        "mean": 13.369413333333334,
+        "median": 13.37154,
+        "min": 13.35878,
+        "max": 13.37154,
         "samples": 24
       }
     }

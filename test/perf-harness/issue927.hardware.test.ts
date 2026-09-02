@@ -7,7 +7,7 @@ import { ISSUE927_PIXEL_COUNTS, issue927Candidates } from './issue927'
 // ISSUE927_HARDWARE=1 PIXELBLAZE_IP=<ip> npx vitest run test/perf-harness/issue927.hardware.test.ts
 const runHardware = process.env.ISSUE927_HARDWARE === '1'
 const ip = process.env.PIXELBLAZE_IP ?? '192.168.8.224'
-const measurementOptions = { activationTimeoutMs: 20_000, settleMs: 2_000, sampleMs: 6_000, passes: 1 }
+const measurementOptions = { activationTimeoutMs: 20_000, settleMs: 2_000, sampleMs: 6_000, passes: 2 }
 
 describe('2D block hold on hardware (#927 spike)', () => {
   it.skipIf(!runHardware)('pairs baseline, 1D lerp, and 2D block hold per member and K at 256 and 500 px', async () => {
@@ -23,6 +23,6 @@ describe('2D block hold on hardware (#927 spike)', () => {
     writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`)
     console.log(`Wrote ${outputPath}`)
     if (result.runError != null) throw result.runError
-    expect(result.rows.length).toBe(candidates.length * ISSUE927_PIXEL_COUNTS.length)
+    expect(result.rows.length).toBe(candidates.length * ISSUE927_PIXEL_COUNTS.length * measurementOptions.passes)
   }, 1_800_000)
 })
