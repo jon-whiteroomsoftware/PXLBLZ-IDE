@@ -36,7 +36,7 @@ describe('approximate transcendentals (#934)', () => {
     const lib = `function tanh(x) {\n  var e = exp(2 * clamp(x, -5, 5));\n  return (e - 1) / (e + 1);\n}\nfunction other(x) {\n  var e = exp(2 * clamp(x, -5, 5));\n  return (e - 1) / (e + 2);\n}\n`
     const out = approximateShowMemberTranscendentals(`${lib}${render('  var v = tanh(x * 4 - 2) + other(x)\n  rgb(v, v, v)')}`)
     expect(out.rewritten.tanh).toBe(1)
-    expect(out.source).toContain('function tanh(x) {\n  x = clamp(x, -3, 3)\n  var __pxlblz_tx_x2 = x * x\n  return x * (27 + __pxlblz_tx_x2) / (27 + 9 * __pxlblz_tx_x2)\n}')
+    expect(out.source).toContain('function tanh(x) {\n  x = clamp(x, -3, 3)\n  var __pxlblz_tx_0 = x * x\n  return x * (27 + __pxlblz_tx_0) / (27 + 9 * __pxlblz_tx_0)\n}')
     expect(out.source).toContain('return (e - 1) / (e + 2)')
     // The exp inside `other` has an argument in [-10, 10]: unproven sign.
     expect(out.skipped).toEqual([{ line: 6, kind: 'exp', reason: 'unproven-domain' }])
@@ -77,5 +77,36 @@ describe('approximate transcendentals (#934)', () => {
     const broken = approximateShowMemberTranscendentals(`function tweak() { return 1 }\n${render('  var density = clamp(x, 0, 1)\n  tweak()\n  density = pow(density, 1.3)\n  var v = clamp(x, 0, 1)\n  if (x > 0.5) v = 5\n  v = pow(v, 1.3)\n  rgb(density, v, 0)')}`)
     expect(broken.rewritten.pow).toBe(0)
     expect(broken.skipped.map((entry) => entry.reason)).toEqual(['unproven-domain', 'unproven-domain'])
+  })
+
+  it('declines a site nested inside another rewritten site instead of corrupting the source', () => {
+    const out = approximateShowMemberTranscendentals(render('  var d = clamp(x, 0, 1)\n  var a = exp(-pow(d, 1.3))\n  rgb(a, a, a)'))
+    expect(out.rewritten).toEqual({ exp: 1, pow: 0, tanh: 0 })
+    expect(out.skipped).toEqual([{ line: 3, kind: 'pow', reason: 'nested-site' }])
+    // The result must parse.
+    expect(() => acorn.parse(out.source, { ecmaVersion: 2020, sourceType: 'module' })).not.toThrow()
+    expect(out.source).toContain('clamp(-(-pow(d, 1.3)), 0, 8)')
+  })
+
+  it('never uses an initializer fact before its declaration has executed', () => {
+    const out = approximateShowMemberTranscendentals(render('  var a = exp(b + 1)\n  var b = -1\n  var c = exp(b + 1)\n  rgb(a, c, 0)'))
+    // Before the declaration, b reads as 0 on the device: exp(1) is not
+    // provably non-positive. After it, b + 1 == 0 and the site qualifies.
+    expect(out.rewritten.exp).toBe(1)
+    expect(out.skipped).toEqual([{ line: 2, kind: 'exp', reason: 'unproven-domain' }])
+    expect(out.source).toContain('var a = exp(b + 1)')
+  })
+
+  it('treats a shadowed built-in call as user code that invalidates straight-line facts', () => {
+    const out = approximateShowMemberTranscendentals(`var density = 0\nfunction sin() { density = 300 }\n${render('  density = clamp(x, 0, 1)\n  sin()\n  var d = pow(density, 1.3)\n  rgb(d, 0, 0)')}`)
+    expect(out.rewritten.pow).toBe(0)
+    expect(out.skipped).toEqual([{ line: 6, kind: 'pow', reason: 'unproven-domain' }])
+  })
+
+  it('names the tanh temporary clear of the helper parameter', () => {
+    const lib = 'function tanh(__pxlblz_tx_0) {\n  var e = exp(2 * clamp(__pxlblz_tx_0, -5, 5));\n  return (e - 1) / (e + 1);\n}\n'
+    const out = approximateShowMemberTranscendentals(`${lib}${render('  var v = tanh(x)\n  rgb(v, v, v)')}`)
+    expect(out.rewritten.tanh).toBe(1)
+    expect(out.source).toContain('var __pxlblz_tx_1 = __pxlblz_tx_0 * __pxlblz_tx_0')
   })
 })

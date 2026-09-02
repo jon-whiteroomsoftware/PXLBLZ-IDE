@@ -43,6 +43,7 @@ export interface ShowMemberTranscendentalOptions {
 }
 
 export type TranscendentalSkipReason =
+  | 'nested-site'
   | 'shadowed-builtin'
   | 'impure-argument'
   | 'unproven-domain'
@@ -98,18 +99,28 @@ export function approximateShowMemberTranscendentals(
   const edits: Array<{ start: number; end: number; text: string }> = []
   const insertions = new Map<number, string[]>()
   const rewrittenTanhBodies = new Set<Node>()
+  // Replacements are queued against original offsets; a site inside (or
+  // around) an already-queued replacement cannot be spliced independently,
+  // so the outer site wins and the inner one is declined.
+  const replaced: Array<{ start: number; end: number }> = []
+  const overlapsReplacement = (start: number, end: number): boolean => replaced.some((range) => start < range.end && end > range.start)
+  const queueReplacement = (start: number, end: number, text: string): void => {
+    replaced.push({ start, end })
+    edits.push({ start, end, text })
+  }
 
-  walkWithContext(ast, coordinatesTransformed, (node, context) => {
+  walkWithContext(ast, coordinatesTransformed, shadowed, (node, context) => {
     // Library tanh helper: match the body shape, replace the whole body.
     if (wantTanh && (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression') && node.params.length === 1 && node.params[0].type === 'Identifier') {
       const param: string = node.params[0].name
-      if (isLibraryTanhBody(node.body, param) && !shadowed('exp') && !shadowed('clamp')) {
+      if (isLibraryTanhBody(node.body, param) && !shadowed('exp') && !shadowed('clamp') && !overlapsReplacement(node.body.start, node.body.end)) {
         const x = param
-        edits.push({
-          start: node.body.start,
-          end: node.body.end,
-          text: `{\n  ${x} = clamp(${x}, -3, 3)\n  var ${TEMP_PREFIX}x2 = ${x} * ${x}\n  return ${x} * (27 + ${TEMP_PREFIX}x2) / (27 + 9 * ${TEMP_PREFIX}x2)\n}`,
-        })
+        const x2 = nextTemp()
+        queueReplacement(
+          node.body.start,
+          node.body.end,
+          `{\n  ${x} = clamp(${x}, -3, 3)\n  var ${x2} = ${x} * ${x}\n  return ${x} * (27 + ${x2}) / (27 + 9 * ${x2})\n}`,
+        )
         rewrittenTanhBodies.add(node.body)
         result.rewritten.tanh += 1
       }
@@ -119,11 +130,15 @@ export function approximateShowMemberTranscendentals(
     if (context.enclosingBody && rewrittenTanhBodies.has(context.enclosingBody)) return
     const line: number = node.loc?.start.line ?? 0
     const name: string = node.callee.name
+    if ((name === 'exp' || name === 'pow') && overlapsReplacement(node.start, node.end)) {
+      result.skipped.push({ line, kind: name, reason: 'nested-site' })
+      return
+    }
     if (name === 'exp' && wantExp && node.arguments.length === 1) {
       if (shadowed('exp') || shadowed('clamp')) { result.skipped.push({ line, kind: 'exp', reason: 'shadowed-builtin' }); return }
       const argument = node.arguments[0]
       if (!isPure(argument, shadowed)) { result.skipped.push({ line, kind: 'exp', reason: 'impure-argument' }); return }
-      const interval = intervalBound(argument, { ...context.bounds, shadowed })
+      const interval = intervalBound(argument, { ...context.bounds, shadowed, site: node.start })
       if (!interval || interval[1] > 0) { result.skipped.push({ line, kind: 'exp', reason: 'unproven-domain' }); return }
       const statement = context.hoistStatement
       if (!statement) { result.skipped.push({ line, kind: 'exp', reason: 'no-statement-context' }); return }
@@ -132,11 +147,11 @@ export function approximateShowMemberTranscendentals(
       const list = insertions.get(statement.start) ?? []
       list.push(`var ${t} = clamp(-(${argumentText}), 0, ${EXP_T_MAX})\n${context.statementIndent}`)
       insertions.set(statement.start, list)
-      edits.push({
-        start: node.start,
-        end: node.end,
-        text: `(1 / (1 + ${t} * (1 + ${t} * (0.5 + ${t} * (0.16666667 + ${t} * (0.041666667 + ${t} * 0.0083333333))))))`,
-      })
+      queueReplacement(
+        node.start,
+        node.end,
+        `(1 / (1 + ${t} * (1 + ${t} * (0.5 + ${t} * (0.16666667 + ${t} * (0.041666667 + ${t} * 0.0083333333))))))`,
+      )
       result.rewritten.exp += 1
       return
     }
@@ -149,13 +164,13 @@ export function approximateShowMemberTranscendentals(
       if (Number.isInteger(k) || k <= 0 || k >= 4) { result.skipped.push({ line, kind: 'pow', reason: 'exponent-out-of-range' }); return }
       const base = node.arguments[0]
       if (!isPure(base, shadowed)) { result.skipped.push({ line, kind: 'pow', reason: 'impure-argument' }); return }
-      const interval = intervalBound(base, { ...context.bounds, shadowed })
+      const interval = intervalBound(base, { ...context.bounds, shadowed, site: node.start })
       if (!interval || interval[0] < 0 || interval[1] > 1) { result.skipped.push({ line, kind: 'pow', reason: 'unproven-domain' }); return }
       const a = quadraticFitCoefficient(k)
       const simple = base.type === 'Identifier'
       if (simple) {
         const b = source.slice(base.start, base.end)
-        edits.push({ start: node.start, end: node.end, text: `(${b} * (${fixed(a)} + ${fixed(1 - a)} * ${b}))` })
+        queueReplacement(node.start, node.end, `(${b} * (${fixed(a)} + ${fixed(1 - a)} * ${b}))`)
         result.rewritten.pow += 1
         return
       }
@@ -165,7 +180,7 @@ export function approximateShowMemberTranscendentals(
       const list = insertions.get(statement.start) ?? []
       list.push(`var ${t} = ${source.slice(base.start, base.end)}\n${context.statementIndent}`)
       insertions.set(statement.start, list)
-      edits.push({ start: node.start, end: node.end, text: `(${t} * (${fixed(a)} + ${fixed(1 - a)} * ${t}))` })
+      queueReplacement(node.start, node.end, `(${t} * (${fixed(a)} + ${fixed(1 - a)} * ${t}))`)
       result.rewritten.pow += 1
     }
   })
@@ -249,6 +264,11 @@ export interface IntervalScope {
    *  written it (`density = clamp(...)` followed by `density = pow(density, 1.3)`). */
   blockAssignments?: ReadonlyMap<string, Node>
   shadowed?: (name: string) => boolean
+  /** Source offset of the site being proven: an initializer fact applies
+   *  only to reads after the declaration has executed (a function-scoped
+   *  `var` read before its declaration is 0 on the device, not its
+   *  initializer). */
+  site?: number
 }
 
 export type Interval = [number, number]
@@ -264,6 +284,7 @@ export function intervalBound(node: Node, scope: IntervalScope, visiting: Set<st
       if (scope.coordinateParams.has(node.name)) return [0, 1]
       const init = scope.blockAssignments?.get(node.name) ?? scope.singleAssignments.get(node.name)
       if (!init || visiting.has(node.name)) return null
+      if (scope.site !== undefined && typeof init.end === 'number' && init.end > scope.site) return null
       visiting.add(node.name)
       const value = isPure(init, scope.shadowed ?? (() => false)) ? bound(init) : null
       visiting.delete(node.name)
@@ -370,7 +391,7 @@ interface WalkContext {
   enclosingBody: Node | null
 }
 
-function walkWithContext(ast: Node, coordinatesTransformed: boolean, visit: (node: Node, context: WalkContext) => void): void {
+function walkWithContext(ast: Node, coordinatesTransformed: boolean, shadowed: (name: string) => boolean, visit: (node: Node, context: WalkContext) => void): void {
   const recurse = (node: Node, parent: Node | null, context: WalkContext): void => {
     if (!node || typeof node.type !== 'string') return
     let next = context
@@ -387,12 +408,12 @@ function walkWithContext(ast: Node, coordinatesTransformed: boolean, visit: (nod
       for (const [name, init] of locals) merged.set(name, init)
       next = { ...context, bounds: { ...context.bounds, coordinateParams: params, singleAssignments: merged }, hoistStatement: null, enclosingBody: node.body }
     }
-    if (isHoistableStatement(node, parent)) {
+    if (isHoistableStatement(node, parent, shadowed)) {
       next = {
         ...next,
         hoistStatement: node,
         statementIndent: ' '.repeat(node.loc?.start.column ?? 0),
-        bounds: { ...next.bounds, blockAssignments: blockAssignmentsBefore(parent!, node) },
+        bounds: { ...next.bounds, blockAssignments: blockAssignmentsBefore(parent!, node, shadowed) },
       }
     } else if (node.type.endsWith('Statement') || node.type === 'VariableDeclaration') {
       next = { ...next, hoistStatement: null }
@@ -416,41 +437,42 @@ function walkWithContext(ast: Node, coordinatesTransformed: boolean, visit: (nod
  *  statement of `block` before `statement`, provided no later statement in
  *  that stretch writes the name through any other shape (compound
  *  assignment, update, nested loop or branch, call with side effects). */
-function blockAssignmentsBefore(block: Node, statement: Node): Map<string, Node> {
+function blockAssignmentsBefore(block: Node, statement: Node, shadowed: (name: string) => boolean): Map<string, Node> {
   const facts = new Map<string, Node>()
   const statements: Node[] = block.body ?? []
   for (const previous of statements) {
     if (previous === statement) break
     // Anything not a plain assignment/declaration invalidates every name it writes.
-    const plain = plainAssignment(previous)
+    const plain = plainAssignment(previous, shadowed)
     if (plain) {
       facts.set(plain.name, plain.init)
       continue
     }
     for (const name of assignedNames(previous)) facts.delete(name)
-    if (containsUserCall(previous)) facts.clear()
+    if (containsUserCall(previous, shadowed)) facts.clear()
   }
   return facts
 }
 
-function plainAssignment(statement: Node): { name: string; init: Node } | null {
+function plainAssignment(statement: Node, shadowed: (name: string) => boolean): { name: string; init: Node } | null {
   if (statement.type === 'VariableDeclaration' && statement.declarations.length === 1) {
     const declarator = statement.declarations[0]
-    if (declarator.id.type === 'Identifier' && declarator.init && !containsWrite(declarator.init)) return { name: declarator.id.name, init: declarator.init }
+    if (declarator.id.type === 'Identifier' && declarator.init && !containsWrite(declarator.init, shadowed)) return { name: declarator.id.name, init: declarator.init }
     return null
   }
   if (statement.type === 'ExpressionStatement' && statement.expression.type === 'AssignmentExpression') {
     const expression = statement.expression
-    if (expression.operator === '=' && expression.left.type === 'Identifier' && !containsWrite(expression.right)) return { name: expression.left.name, init: expression.right }
+    if (expression.operator === '=' && expression.left.type === 'Identifier' && !containsWrite(expression.right, shadowed)) return { name: expression.left.name, init: expression.right }
   }
   return null
 }
 
-function containsUserCall(node: Node): boolean {
+/** A call is user code unless it names an unshadowed pure built-in. */
+function containsUserCall(node: Node, shadowed: (name: string) => boolean): boolean {
   let found = false
   const visit = (current: Node): void => {
     if (found || !current || typeof current.type !== 'string') return
-    if (current.type === 'CallExpression' && !(current.callee.type === 'Identifier' && PURE_BUILTINS.has(current.callee.name))) { found = true; return }
+    if (current.type === 'CallExpression' && !(current.callee.type === 'Identifier' && PURE_BUILTINS.has(current.callee.name) && !shadowed(current.callee.name))) { found = true; return }
     for (const key of Object.keys(current)) {
       if (key === 'loc' || key === 'type') continue
       const value = current[key]
@@ -462,25 +484,25 @@ function containsUserCall(node: Node): boolean {
   return found
 }
 
-function isHoistableStatement(node: Node, parent: Node | null): boolean {
+function isHoistableStatement(node: Node, parent: Node | null, shadowed: (name: string) => boolean): boolean {
   if (!parent || (parent.type !== 'BlockStatement' && parent.type !== 'Program')) return false
   if (node.type === 'ExpressionStatement') {
     const expression = node.expression
-    return expression.type === 'AssignmentExpression' && !containsWrite(expression.right) && !containsWrite(expression.left)
+    return expression.type === 'AssignmentExpression' && !containsWrite(expression.right, shadowed) && !containsWrite(expression.left, shadowed)
   }
   if (node.type === 'VariableDeclaration') {
-    return node.declarations.length === 1 && node.declarations[0].init != null && !containsWrite(node.declarations[0].init)
+    return node.declarations.length === 1 && node.declarations[0].init != null && !containsWrite(node.declarations[0].init, shadowed)
   }
-  if (node.type === 'ReturnStatement') return node.argument != null && !containsWrite(node.argument)
+  if (node.type === 'ReturnStatement') return node.argument != null && !containsWrite(node.argument, shadowed)
   return false
 }
 
-function containsWrite(node: Node): boolean {
+function containsWrite(node: Node, shadowed: (name: string) => boolean): boolean {
   let found = false
   const visit = (current: Node): void => {
     if (found || !current || typeof current.type !== 'string') return
     if (current.type === 'AssignmentExpression' || current.type === 'UpdateExpression') { found = true; return }
-    if (current.type === 'CallExpression' && !(current.callee.type === 'Identifier' && PURE_BUILTINS.has(current.callee.name))) { found = true; return }
+    if (current.type === 'CallExpression' && !(current.callee.type === 'Identifier' && PURE_BUILTINS.has(current.callee.name) && !shadowed(current.callee.name))) { found = true; return }
     if (current.type === 'FunctionExpression' || current.type === 'ArrowFunctionExpression') return
     for (const key of Object.keys(current)) {
       if (key === 'loc' || key === 'type') continue
