@@ -296,24 +296,32 @@ function quant(v: number): number {
   return Math.round(Math.min(1, Math.max(0, v)) * 255)
 }
 
-/** #933 qualification tiers between checksum-exact and lossy. */
+/** #933 display-exact qualification.
+ *
+ *  The bench checksum hashes the same quantized 8-bit RGB bytes the drift
+ *  metrics compare, so on this oracle "checksums equal in both modes" and
+ *  "max 8-bit channel delta 0 in both modes" are the same fact. The tier a
+ *  transform claims above this - operation-exact, every arithmetic
+ *  operation preserved - is a property of the transform's argument (#931's
+ *  unrolling, #928's hoist), not something this tool can measure: a ULP
+ *  change that never crosses an 8-bit edge in the window is invisible here
+ *  by construction. So the helper reports display-exact or lossy, per mode
+ *  and combined, and names the residual: the window is finite, and the
+ *  firmware's own gamma/brightness stage after the linear 8-bit value is
+ *  not modeled. */
 export interface DisplayExactVerdict {
   fast: DriftMetrics
   precise: DriftMetrics
-  /** Fast and Precise checksums both unchanged: the Exact stop's bar. */
-  checksumExact: boolean
-  /** Largest 8-bit channel delta is 0 in both modes over the window: no
-   *  displayed value changed, although the 16.16 or float64 checksum may
-   *  have. Proven per artifact, never assumed from the transform. */
+  /** No displayed 8-bit value changed in Fast over the window. */
+  fastDisplayExact: boolean
+  /** No displayed 8-bit value changed in Precise over the window. */
+  preciseDisplayExact: boolean
+  /** Both modes display-exact: the candidate may stand in for the base
+   *  wherever the window is representative. */
   displayExact: boolean
-  tier: 'checksum-exact' | 'display-exact' | 'lossy'
+  tier: 'display-exact' | 'lossy'
 }
 
-/** Render both modes and classify the candidate against the base. The
- *  residual this tier cannot see: a value that straddles an 8-bit
- *  quantization edge after the firmware's own gamma/brightness stage, which
- *  the emulator does not model - the definition is on the linear 8-bit value
- *  the emulator quantizes. */
 export function qualifyDisplayExact(
   baseSrc: string,
   candidateSrc: string,
@@ -322,13 +330,8 @@ export function qualifyDisplayExact(
 ): DisplayExactVerdict {
   const fast = compareVisualDrift(baseSrc, candidateSrc, libraries, 'fast', options)
   const precise = compareVisualDrift(baseSrc, candidateSrc, libraries, 'precise', options)
-  const checksumExact = fast.base.checksum === fast.candidate.checksum && precise.base.checksum === precise.candidate.checksum
-  const displayExact = fast.max === 0 && precise.max === 0
-  return {
-    fast,
-    precise,
-    checksumExact,
-    displayExact,
-    tier: checksumExact ? 'checksum-exact' : displayExact ? 'display-exact' : 'lossy',
-  }
+  const fastDisplayExact = fast.max === 0
+  const preciseDisplayExact = precise.max === 0
+  const displayExact = fastDisplayExact && preciseDisplayExact
+  return { fast, precise, fastDisplayExact, preciseDisplayExact, displayExact, tier: displayExact ? 'display-exact' : 'lossy' }
 }

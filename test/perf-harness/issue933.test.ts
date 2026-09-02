@@ -73,21 +73,23 @@ describe('integer-pow lowering census (#933)', () => {
     expect(changed).toEqual([])
   }, 300_000)
 
-  it('lowers six sites of the hardware fixture: checksum-exact in Fast, one 16.16 LSB short of display-exact in Precise', () => {
+  it('lowers six sites of the hardware fixture: display-exact in Fast, one 16.16 LSB short of it in Precise', () => {
     const candidates = issue933Candidates()
     expect(candidates.rewrittenSites).toBe(6)
     expect(candidates.hoistedTemps).toBe(5)
     expect(candidates.skipped).toEqual([])
     const verdict = qualifyDisplayExact(candidates.exact, candidates.lowered, {}, { frames: 12, warmup: 1, grid: { rows: 16, cols: 16 } })
-    // Pinned verdict, not a wish: Fast float64 pow and the chain agree to
-    // the checksum; the Precise emulator's pow differs from the chain by one
-    // 16.16 LSB on the k = 3 / k = 4 sites, which lands on an 8-bit edge in
-    // a handful of channels (max delta 1, changed fraction rounds to 0%).
+    // Pinned verdict, not a wish: Fast float64 pow and the chain agree on
+    // every displayed value; the Precise emulator's pow differs from the
+    // chain by one 16.16 LSB on the k = 3 / k = 4 sites, which lands on an
+    // 8-bit edge in a handful of channels (max delta 1, changed fraction
+    // rounds to 0%).
     // The bench firmware matched the chain on every positive-base sample
     // (show-runtime-costs.md round five), so this is the emulator's Precise
     // pow fidelity bounding the tier, recorded in the results doc.
-    expect(verdict.fast.max).toBe(0)
+    expect(verdict.fastDisplayExact).toBe(true)
     expect(verdict.fast.base.checksum).toBe(verdict.fast.candidate.checksum)
+    expect(verdict.preciseDisplayExact).toBe(false)
     expect(verdict.precise.max).toBe(1)
     expect(verdict.precise.changedPct).toBeLessThan(0.0005)
     expect(verdict.tier).toBe('lossy')

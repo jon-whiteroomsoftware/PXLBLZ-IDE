@@ -39,6 +39,7 @@ export interface ShowMemberPowLoweringResult {
 }
 
 export type PowLoweringSkipReason =
+  | 'shadowed-builtin'
   | 'non-integer-exponent'
   | 'exponent-out-of-range'
   | 'impure-base'
@@ -50,6 +51,12 @@ export type PowLoweringSkipReason =
 const FIXED_POINT_MAX = 32767
 const TEMP_PREFIX = '__pxlblz_pow_'
 const RENDER_ENTRY_NAMES = new Set(['render', 'render2D', 'render3D'])
+/** Authored coordinate transforms run before the renderer sees x/y/z, so a
+ *  member that calls any of them gets no [0, 1] coordinate bound. */
+const COORDINATE_TRANSFORM_BUILTINS = new Set([
+  'translate', 'scale', 'rotate', 'resetTransform', 'translate3D', 'scale3D',
+  'rotateX', 'rotateY', 'rotateZ', 'transform', 'setPerspective',
+])
 
 /** Built-ins whose result depends only on their arguments. */
 const PURE_BUILTINS = new Set([
@@ -71,6 +78,14 @@ export function lowerShowMemberPow(
     return result
   }
   const usedNames = collectIdentifierNames(ast)
+  // Lexical bindings win over built-in spellings: a declared `pow` is the
+  // author's function, and a declared `abs`/`wave`/... is neither pure nor
+  // bounded. Declarations anywhere in the module count (functions, vars,
+  // parameters), conservatively.
+  const declared = allDeclaredNames(ast)
+  const powShadowed = declared.has('pow')
+  const shadowedBuiltin = (name: string): boolean => declared.has(name)
+  const coordinatesTransformed = callsAny(ast, COORDINATE_TRANSFORM_BUILTINS)
   let tempCounter = 0
   const nextTemp = (): string => {
     let name: string
@@ -83,15 +98,16 @@ export function lowerShowMemberPow(
   // Temps inserted before a statement, keyed by the statement start.
   const insertions = new Map<number, string[]>()
 
-  walkWithContext(ast, (node, context) => {
+  walkWithContext(ast, coordinatesTransformed, (node, context) => {
     if (!isPowCall(node)) return
     const line: number = node.loc?.start.line ?? 0
+    if (powShadowed) { result.skipped.push({ line, reason: 'shadowed-builtin' }); return }
     const exponent = integerExponent(node.arguments[1])
     if (exponent === null) { result.skipped.push({ line, reason: 'non-integer-exponent' }); return }
     if (exponent < 2 || exponent > maxExponent) { result.skipped.push({ line, reason: 'exponent-out-of-range' }); return }
     const base = node.arguments[0]
-    if (!isPure(base)) { result.skipped.push({ line, reason: 'impure-base' }); return }
-    const bound = magnitudeBound(base, context.bounds)
+    if (!isPure(base, shadowedBuiltin)) { result.skipped.push({ line, reason: 'impure-base' }); return }
+    const bound = magnitudeBound(base, { ...context.bounds, shadowed: shadowedBuiltin })
     if (bound === null) { result.skipped.push({ line, reason: 'unbounded-base' }); return }
     if (bound ** exponent > FIXED_POINT_MAX) { result.skipped.push({ line, reason: 'range-overflow' }); return }
     const simple = base.type === 'Identifier' || (base.type === 'Literal' && typeof base.value === 'number')
@@ -134,27 +150,29 @@ function integerExponent(node: Node): number | null {
 /** True when evaluating the expression twice or earlier cannot change any
  *  observable state: names, numbers, array reads, arithmetic, and pure
  *  built-in calls only. */
-function isPure(node: Node): boolean {
+function isPure(node: Node, shadowed: (name: string) => boolean = () => false): boolean {
+  const pure = (child: Node): boolean => isPure(child, shadowed)
   switch (node.type) {
     case 'Identifier':
       return true
     case 'Literal':
       return typeof node.value === 'number'
     case 'MemberExpression':
-      return isPure(node.object) && (node.computed ? isPure(node.property) : true)
+      return pure(node.object) && (node.computed ? pure(node.property) : true)
     case 'UnaryExpression':
-      return (node.operator === '-' || node.operator === '+') && isPure(node.argument)
+      return (node.operator === '-' || node.operator === '+') && pure(node.argument)
     case 'BinaryExpression':
       return ['+', '-', '*', '/', '%', '<', '<=', '>', '>=', '==', '!=', '===', '!=='].includes(node.operator)
-        && isPure(node.left) && isPure(node.right)
+        && pure(node.left) && pure(node.right)
     case 'ConditionalExpression':
-      return isPure(node.test) && isPure(node.consequent) && isPure(node.alternate)
+      return pure(node.test) && pure(node.consequent) && pure(node.alternate)
     case 'LogicalExpression':
-      return isPure(node.left) && isPure(node.right)
+      return pure(node.left) && pure(node.right)
     case 'CallExpression':
       return node.callee.type === 'Identifier'
         && PURE_BUILTINS.has(node.callee.name)
-        && node.arguments.every((argument: Node) => isPure(argument))
+        && !shadowed(node.callee.name)
+        && node.arguments.every((argument: Node) => pure(argument))
     default:
       return false
   }
@@ -171,8 +189,11 @@ function literalNumber(node: Node): number | null {
 
 export interface BoundScope {
   /** Coordinate parameters of the enclosing render entry: the firmware and
-   *  the Show dispatcher both feed [0, 1]. */
+   *  the Show dispatcher both feed [0, 1], unless the member applies an
+   *  authored coordinate transform (then this set is empty). */
   coordinateParams: ReadonlySet<string>
+  /** Names the module declares itself, which are never built-ins. */
+  shadowed?: (name: string) => boolean
   /** Names with exactly one `var name = init` and no other write in their
    *  scope (function locals, or module globals that nothing writes and no
    *  export exposes to controls): their bound is the initializer's. */
@@ -191,7 +212,7 @@ export function magnitudeBound(node: Node, scope: BoundScope, visiting: Set<stri
       const init = scope.singleAssignments.get(node.name)
       if (!init || visiting.has(node.name)) return null
       visiting.add(node.name)
-      const value = isPure(init) ? bound(init) : null
+      const value = isPure(init, scope.shadowed) ? bound(init) : null
       visiting.delete(node.name)
       return value
     }
@@ -225,7 +246,7 @@ export function magnitudeBound(node: Node, scope: BoundScope, visiting: Set<stri
       return a === null || b === null ? null : Math.max(a, b)
     }
     case 'CallExpression': {
-      if (node.callee.type !== 'Identifier') return null
+      if (node.callee.type !== 'Identifier' || scope.shadowed?.(node.callee.name)) return null
       const args: Node[] = node.arguments
       const bounds = args.map((argument) => bound(argument))
       switch (node.callee.name) {
@@ -288,13 +309,13 @@ interface WalkContext {
   statementIndent: string
 }
 
-function walkWithContext(ast: Node, visit: (node: Node, context: WalkContext) => void): void {
+function walkWithContext(ast: Node, coordinatesTransformed: boolean, visit: (node: Node, context: WalkContext) => void): void {
   const recurse = (node: Node, parent: Node | null, context: WalkContext): void => {
     if (!node || typeof node.type !== 'string') return
     let next = context
     if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') {
       const params = new Set<string>()
-      if (node.type === 'FunctionDeclaration' && node.id && RENDER_ENTRY_NAMES.has(node.id.name)) {
+      if (node.type === 'FunctionDeclaration' && node.id && RENDER_ENTRY_NAMES.has(node.id.name) && !coordinatesTransformed) {
         for (const param of node.params.slice(1)) if (param.type === 'Identifier') params.add(param.name)
       }
       // Function locals shadow module names; a parameter is a write.
@@ -361,12 +382,33 @@ function singleAssignmentsIn(root: Node, excluded: ReadonlySet<string>): Map<str
   return out
 }
 
+function callsAny(root: Node, names: ReadonlySet<string>): boolean {
+  let found = false
+  const visit = (node: Node): void => {
+    if (found || !node || typeof node.type !== 'string') return
+    if (node.type === 'CallExpression' && node.callee.type === 'Identifier' && names.has(node.callee.name)) { found = true; return }
+    for (const key of Object.keys(node)) {
+      if (key === 'loc' || key === 'type') continue
+      const value = node[key]
+      if (Array.isArray(value)) value.forEach((child) => visit(child))
+      else if (value && typeof value.type === 'string') visit(value)
+    }
+  }
+  visit(root)
+  return found
+}
+
+/** Every name the module binds: `var`/`let`/`const` declarators, function
+ *  declarations, and parameters of every function. */
 function allDeclaredNames(root: Node): Set<string> {
   const names = new Set<string>()
   const visit = (node: Node): void => {
     if (!node || typeof node.type !== 'string') return
     if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier') names.add(node.id.name)
     if (node.type === 'FunctionDeclaration' && node.id) names.add(node.id.name)
+    if ((node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') && node.params) {
+      for (const param of node.params) if (param.type === 'Identifier') names.add(param.name)
+    }
     for (const key of Object.keys(node)) {
       if (key === 'loc' || key === 'type') continue
       const value = node[key]

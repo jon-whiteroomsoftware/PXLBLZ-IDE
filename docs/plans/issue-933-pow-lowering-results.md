@@ -10,19 +10,22 @@ tier proofs: `issue933.test.ts`.
 ## What shipped
 
 - **The tier.** `qualifyDisplayExact` in `test/perf-harness/benchCore.ts`
-  renders both modes and classifies a candidate `checksum-exact`,
-  `display-exact` (max 8-bit channel delta 0 in both modes over the window,
-  checksums free to differ) or `lossy`; `npm run drift` prints the verdict.
-  Definition and residual in `docs/agents/verification.md`; the guide's §5
-  gains the `[display-exact]` tag.
+  renders both modes and classifies a candidate `display-exact` (max 8-bit
+  channel delta 0 in both modes over the window) or `lossy`, per mode and
+  combined; `npm run drift` prints the verdict. Review caught that the
+  bench checksum hashes the same quantized bytes, so "checksum-exact" was
+  not a separately measurable tier: operation-exactness is a property of a
+  transform's argument, recorded as such in `docs/agents/verification.md`
+  with the residual; the guide's §5 gains the `[display-exact]` tag.
 - **The pass.** `src/engine/showMemberPowLowering.ts`, behind
   `memberPowLowering` (off by default, never at the Exact stop): `pow(b, k)`
   for literal integer 2 <= k <= 4 becomes a multiply chain. k = 2 only on a
   plain name or literal (the firmware fast-paths `pow(b, 2)` at 2.28 us and
   a hoisted chain loses at 2.54 us); k = 3 / 4 hoist a computed base into
   one function-local temp when the site sits in a hoistable statement.
-  Eligibility needs a pure base with a provable magnitude bound such that
-  bound^k <= 32767 (firmware overflow diverges: `pow(200, 2)` = 32768,
+  Eligibility needs a pure base (built-ins only when the module does not
+  declare a function or variable of that name; an authored `pow` disables
+  the pass) with a provable magnitude bound such that bound^k <= 32767 (firmware overflow diverges: `pow(200, 2)` = 32768,
   `200 * 200` = -25536); bounds flow from render coordinates ([0, 1]),
   literals, single-assignment locals and never-written module constants,
   and the bounded built-ins (wave, sin, abs, clamp, mod, sqrt, hypot, ...).
@@ -67,11 +70,11 @@ sites' savings summing to ~19 us of a ~130 us pixel.
 
 ## The tier verdict on that fixture, and what it teaches
 
-Fast: checksum-exact. Precise: **max delta 1**, mean 0.002/255, changed
+Fast: display-exact (checksum unchanged). Precise: **max delta 1**, mean 0.002/255, changed
 fraction rounding to 0.000% — one 16.16 LSB from the k = 3 / k = 4 sites
 lands on an 8-bit edge in a handful of channels, so the strict tier
 classifies the fixture `lossy`. Per-site isolation: the plain-name k = 2
-site and the `abs(dx + dy)^4` site are checksum-exact; each wave- or
+site and the `abs(dx + dy)^4` site are display-exact in both modes; each wave- or
 abs-based k = 3 / 4 site alone drifts by one LSB in Precise.
 
 The bench firmware matched the multiply chain on every positive-base

@@ -95,4 +95,17 @@ describe('member integer-pow lowering (#933)', () => {
     expect(broken.source).toBe('export function render2D(index, x, y) { var v = pow(x, 3 ')
     expect(broken.rewrittenSites).toBe(0)
   })
+
+  it('leaves an authored pow alone, treats a shadowed built-in as impure and unbounded, and drops the coordinate bound under authored transforms', () => {
+    const authored = lowerShowMemberPow(`function pow(b, k) { return b + k }\n${render('  var v = pow(x, 3)\n  rgb(v, v, v)')}`)
+    expect(authored.rewrittenSites).toBe(0)
+    expect(authored.skipped).toEqual([{ line: 3, reason: 'shadowed-builtin' }])
+    const shadowedAbs = lowerShowMemberPow(`function abs(v) { return v * 1000 }\n${render('  var v = pow(abs(x), 3) + pow(wave(abs(x)), 3)\n  rgb(v, v, v)')}`)
+    expect(shadowedAbs.rewrittenSites).toBe(0)
+    expect(shadowedAbs.skipped.map((entry) => entry.reason)).toEqual(['impure-base', 'impure-base'])
+    const transformed = lowerShowMemberPow(`export function beforeRender(delta) { translate(200, 0) }\n${render('  var v = pow(x, 2) + pow(wave(x), 3)\n  rgb(v, v, v)')}`)
+    expect(transformed.source).toContain('pow(x, 2)')
+    expect(transformed.source).toContain('var __pxlblz_pow_0 = wave(x)')
+    expect(transformed.skipped).toEqual([{ line: 3, reason: 'unbounded-base' }])
+  })
 })

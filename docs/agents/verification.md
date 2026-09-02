@@ -574,21 +574,27 @@ authority.
 
 ## Qualification tiers for Pattern transformations (#933)
 
-Three tiers, proven per artifact by the tools named, never assumed from the
-transform class:
+Three tiers. The first is a property of the transform's argument; the
+other two are measured per artifact and never assumed from the transform
+class:
 
-- **Checksum-exact.** The Fast and Precise bench checksums are unchanged
-  (`npm run bench`, the stock-catalogue parity tests). The Exact stop's bar;
-  every wave-4/5 exact pass ships here.
-- **Display-exact.** The checksums may differ, but the largest absolute
-  8-bit channel delta over the drift window is 0 in both modes
-  (`qualifyDisplayExact` in `test/perf-harness/benchCore.ts`; `npm run drift`
-  prints the tier). A pass in this tier changes 16.16 or float64 results by
-  ULPs without changing any displayed value in the window, so it can ship
-  without a human visual gate but never at the Exact stop. First pass:
-  #933 integer-pow lowering (`memberPowLowering`, off by default).
-  Named residual: the tier is defined on the linear 8-bit value the emulator
-  quantizes; a value that straddles a quantization edge after the firmware's
-  own gamma and brightness stage is not modeled, and the window is finite.
+- **Operation-exact.** The transform preserves every arithmetic operation
+  and its order (loop unrolling, hoisting a value that is recomputed
+  identically, wrapper inlining), so the result is bit-identical in 16.16
+  and float64 by construction. The Exact stop's bar; proven by the
+  argument in the pass's header plus the catalogue checksum parity tests.
+- **Display-exact.** Measured: the largest absolute 8-bit channel delta
+  over the drift window is 0 in both preview modes (`qualifyDisplayExact`
+  in `test/perf-harness/benchCore.ts`; `npm run drift` prints the verdict
+  per mode). Note the bench checksum hashes the same quantized 8-bit bytes,
+  so on this oracle "checksums equal" and "display-exact" are one fact - a
+  ULP-level change that never crosses an 8-bit edge in the window is
+  invisible to both, which is exactly why the operation-exact tier is an
+  argument rather than a measurement. A display-exact pass (first: #933
+  integer-pow lowering, `memberPowLowering`, off by default) changes
+  results by ULPs and may ship without a human visual gate, never at the
+  Exact stop, and only for artifacts the measurement qualifies.
+  Named residual: the window is finite, and the firmware's own gamma and
+  brightness stage after the linear 8-bit value is not modeled.
 - **Lossy.** Anything else; priced by the drift tool and approved by eye
   (`docs/guides/Optimizing Pixelblaze patterns.md` §5).

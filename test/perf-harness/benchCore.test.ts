@@ -69,21 +69,21 @@ describe('benchCore', () => {
     expect(r.pixelCount).toBe(64)
   })
 
-  it('classifies identical code checksum-exact, a ULP-level rewrite display-exact, and a visible change lossy', () => {
+  it('classifies identical code and a pow -> multiply rewrite display-exact, a visible change lossy, and agrees with the checksum', () => {
     const same = qualifyDisplayExact(SRC, SRC, LIBRARIES, { frames: 5, warmup: 1 })
-    expect(same.tier).toBe('checksum-exact')
-    expect(same.checksumExact && same.displayExact).toBe(true)
-    // A pow -> multiply rewrite changes the float64 and 16.16 results by ULPs
-    // but not the 8-bit output on this window (the #933 pass's contract).
+    expect(same.tier).toBe('display-exact')
+    // pow -> multiply changes float64 and 16.16 results by ULPs; on this
+    // window no 8-bit value moves, and the checksum (a hash of the same
+    // quantized bytes) agrees with the verdict in both modes by construction.
     const powSrc = 'export function render2D(index, x, y) { var v = pow(abs(x - 0.5) * 2, 3); rgb(v, v * 0.5, 1 - v) }'
     const mulSrc = 'export function render2D(index, x, y) { var t = abs(x - 0.5) * 2; var v = t * t * t; rgb(v, v * 0.5, 1 - v) }'
     const lowered = qualifyDisplayExact(powSrc, mulSrc, {}, { frames: 5, warmup: 1 })
     expect(lowered.displayExact).toBe(true)
-    expect(lowered.fast.max).toBe(0)
-    expect(lowered.precise.max).toBe(0)
-    expect(['checksum-exact', 'display-exact']).toContain(lowered.tier)
+    expect(lowered.fast.base.checksum).toBe(lowered.fast.candidate.checksum)
+    expect(lowered.precise.base.checksum).toBe(lowered.precise.candidate.checksum)
     const brighter = qualifyDisplayExact(powSrc, powSrc.replace('rgb(v,', 'rgb(v * 1.1,'), {}, { frames: 5, warmup: 1 })
     expect(brighter.tier).toBe('lossy')
-    expect(brighter.displayExact).toBe(false)
+    expect(brighter.fastDisplayExact).toBe(false)
+    expect(brighter.fast.base.checksum).not.toBe(brighter.fast.candidate.checksum)
   })
 })

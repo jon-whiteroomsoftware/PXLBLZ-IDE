@@ -126,8 +126,8 @@ proven:
 
 - **[bench-verifiable]** — the emulator benchmark can confirm it, because it
   reduces operation or call *count*.
-- **[display-exact]** — the checksum moves by ULPs but no displayed 8-bit value
-  changes over the drift window in either mode (`npm run drift` prints
+- **[display-exact]** — the arithmetic moves by ULPs but no displayed 8-bit
+  value changes over the drift window in either mode (`npm run drift` prints
   `tier: display-exact`). Integer-exponent `pow(b, 3)` → `b * b * b` is the
   model case (#933): 7.6 µs → 3.6 µs per site on the pb32, and `pow(b, 2)` is
   already a firmware fast path, so only rewrite it when `b` is a plain name.

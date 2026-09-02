@@ -115,14 +115,14 @@ function main(): void {
     console.log(`\n${dimLabel}, ${drift.base.pixelCount} px, ${drift.base.frames} frames, ${drift.channels} RGB channels`)
     console.log(fmtDrift(drift))
   }
-  // #933 tier verdict: checksum-exact (both checksums unchanged),
-  // display-exact (max 8-bit delta 0 in both modes), else lossy. Needs both
-  // modes; a single-mode run reports only that mode's evidence.
+  // #933 verdict: display-exact when the largest 8-bit channel delta is 0
+  // in both modes (on this oracle that is the same fact as both checksums
+  // holding - the checksum hashes the quantized bytes), else lossy. Needs
+  // both modes; a single-mode run reports only that mode's evidence.
   if (drifts.length === 2) {
-    const checksumExact = drifts.every((drift) => drift.base.checksum === drift.candidate.checksum)
     const displayExact = drifts.every((drift) => drift.max === 0)
-    const tier = checksumExact ? 'checksum-exact' : displayExact ? 'display-exact' : 'lossy'
-    console.log(`\ntier: ${tier}${tier === 'display-exact' ? ' (checksums differ; no displayed 8-bit value changed over the window)' : ''}`)
+    const perMode = drifts.map((drift) => `${drift.mode}: ${drift.max === 0 ? 'display-exact' : `lossy (max ${drift.max})`}`).join(', ')
+    console.log(`\ntier: ${displayExact ? 'display-exact' : 'lossy'} (${perMode})`)
   }
   console.log('')
 }
