@@ -396,9 +396,9 @@ function assignedNames(root: Node): Set<string> {
   const names = new Set<string>()
   const visit = (node: Node): void => {
     if (!node || typeof node.type !== 'string') return
-    if (node.type === 'AssignmentExpression' && node.left.type === 'Identifier') names.add(node.left.name)
+    if (node.type === 'AssignmentExpression') collectPatternNames(node.left, names)
     if (node.type === 'UpdateExpression' && node.argument.type === 'Identifier') names.add(node.argument.name)
-    if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier') names.add(node.id.name)
+    if (node.type === 'VariableDeclarator') collectPatternNames(node.id, names)
     for (const key of Object.keys(node)) {
       if (key === 'loc' || key === 'type') continue
       const value = node[key]
@@ -408,6 +408,31 @@ function assignedNames(root: Node): Set<string> {
   }
   visit(root)
   return names
+}
+
+/** Names bound by an assignment or declaration target, through array and
+ *  object destructuring patterns, defaults, and rest elements. */
+function collectPatternNames(target: Node, names: Set<string>): void {
+  if (!target || typeof target.type !== 'string') return
+  switch (target.type) {
+    case 'Identifier':
+      names.add(target.name)
+      return
+    case 'ArrayPattern':
+      for (const element of target.elements) if (element) collectPatternNames(element, names)
+      return
+    case 'ObjectPattern':
+      for (const property of target.properties) collectPatternNames(property.type === 'RestElement' ? property.argument : property.value, names)
+      return
+    case 'AssignmentPattern':
+      collectPatternNames(target.left, names)
+      return
+    case 'RestElement':
+      collectPatternNames(target.argument, names)
+      return
+    default:
+      return
+  }
 }
 
 function mentionsAny(root: Node, names: ReadonlySet<string>): boolean {

@@ -123,4 +123,13 @@ describe('member integer-pow lowering (#933)', () => {
     expect(aliased.rewrittenSites).toBe(0)
     expect(aliased.skipped).toEqual([{ line: 4, reason: 'unbounded-base' }])
   })
+
+  it('counts destructuring targets as writes: a rebound pow and a rebound coordinate', () => {
+    const rebound = lowerShowMemberPow(`function custom(b, k) { return b + k }\nexport function beforeRender(delta) { [pow] = [custom] }\n${render('  var v = pow(y, 3)\n  rgb(v, v, v)')}`)
+    expect(rebound.rewrittenSites).toBe(0)
+    expect(rebound.skipped).toEqual([{ line: 4, reason: 'shadowed-builtin' }])
+    const coordinate = lowerShowMemberPow(render('  var [x] = [200]\n  var { y } = { y: 1 }\n  var v = pow(x, 2) + pow(y, 2)\n  rgb(v, v, v)'))
+    expect(coordinate.rewrittenSites).toBe(0)
+    expect(coordinate.skipped.map((entry) => entry.reason)).toEqual(['unbounded-base', 'unbounded-base'])
+  })
 })
