@@ -389,14 +389,16 @@ function singleAssignmentsIn(root: Node, excluded: ReadonlySet<string>): Map<str
   return out
 }
 
-/** Every name the module assigns or updates anywhere (implicit globals
- *  included), regardless of declaration. */
+/** Every name the tree writes anywhere: assignments, updates, and `var`
+ *  declarators (a `var x = 200` inside the renderer rebinds the coordinate
+ *  as surely as `x = 200` does); implicit globals included. */
 function assignedNames(root: Node): Set<string> {
   const names = new Set<string>()
   const visit = (node: Node): void => {
     if (!node || typeof node.type !== 'string') return
     if (node.type === 'AssignmentExpression' && node.left.type === 'Identifier') names.add(node.left.name)
     if (node.type === 'UpdateExpression' && node.argument.type === 'Identifier') names.add(node.argument.name)
+    if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier') names.add(node.id.name)
     for (const key of Object.keys(node)) {
       if (key === 'loc' || key === 'type') continue
       const value = node[key]

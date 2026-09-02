@@ -158,7 +158,8 @@ multiply chain the #933 pass emits, with the base hoisted to one local
 | `pow(base, 3), integer exponent` | transcendental | `identity baseline` | 7.629 | 7.629 | 7.622-7.639 | 9.5x |
 | `multiply chain k=3 (hoisted base)` | arithmetic | `identity baseline` | 3.623 | 3.622 | 3.614-3.631 | 4.5x |
 | `pow(base, 4), integer exponent` | transcendental | `identity baseline` | 7.642 | 7.649 | 7.583-7.675 | 9.5x |
-| `multiply chain k=4 (hoisted base)` | arithmetic | `identity baseline` | 4.696 | 4.700 | 4.676-4.711 | 5.8x |
+| `squared-square k=4 (hoisted base)` (superseded, see below) | arithmetic | `identity baseline` | 5.074 | 5.085 | 5.020-5.090 | 6.3x |
+| `multiply chain k=4 (hoisted base)` (`issue933-probe-rows-k4.md`, 2,592 iterations) | arithmetic | `identity baseline` | 4.696 | 4.700 | 4.676-4.711 | 5.8x |
 
 ### Round-five findings
 
@@ -170,8 +171,11 @@ multiply chain the #933 pass emits, with the base hoisted to one local
   name); k = 4 saves 3.0 us (about 5.2 us on a plain name). The k = 4 row
   was first measured as a squared-square (`t = b * b; t * t`, 5.07 us);
   review noted the pass emits the left-associative chain `b * b * b * b`,
-  which was re-measured at 4.70 us and is the row above (the extra local
-  write costs more than the multiply it saves).
+  which was re-measured at 4.70 us in a second targeted round
+  (`issue933-probe-rows-k4.md` with its own raw samples beside it; 2,592
+  auto-tuned iterations against the first round's 2,589) - the extra local
+  write costs more than the multiply it saves. Both rows stay: the first
+  round's samples JSON records the squared-square form.
 - Firmware pow facts (bench probe, fw 3.67): a negative base with an integer
   exponent follows C `powf` (`pow(-2, 3) = -8`, `pow(-2, 2) = 4`), so sign is
   not a domain difference; `pow` and the multiply chain differ by one 16.16

@@ -18,7 +18,7 @@ Each operation is subtracted sample-by-sample from its declared paired baseline.
 | `pow(base, 3), integer exponent` | transcendental | `identity baseline` | 7.629 | 7.629 | 7.622-7.639 | 9.5× |
 | `multiply chain k=3 (hoisted base)` | arithmetic | `identity baseline` | 3.623 | 3.622 | 3.614-3.631 | 4.5× |
 | `pow(base, 4), integer exponent` | transcendental | `identity baseline` | 7.642 | 7.649 | 7.583-7.675 | 9.5× |
-| `multiply chain k=4 (hoisted base)` | arithmetic | `identity baseline` | 4.696 | 4.700 | 4.676-4.711 | 5.8× |
+| `squared-square k=4 (hoisted base)` | arithmetic | `identity baseline` | 5.074 | 5.085 | 5.020-5.090 | 6.3× |
 
 ## Method and caveats
 
