@@ -109,4 +109,21 @@ describe('approximate transcendentals (#934)', () => {
     expect(out.rewritten.tanh).toBe(1)
     expect(out.source).toContain('var __pxlblz_tx_1 = __pxlblz_tx_0 * __pxlblz_tx_0')
   })
+
+  it('resolves straight-line facts at their statement, so a later write to an input cannot change them', () => {
+    const out = approximateShowMemberTranscendentals(render('  var a = 2\n  var b = a\n  a = 0\n  var d = pow(b, 1.3)\n  rgb(d, 0, 0)'))
+    // b is 2 at runtime; the pass must not read it as 0 through the later a = 0.
+    expect(out.rewritten.pow).toBe(0)
+    expect(out.skipped).toEqual([{ line: 5, kind: 'pow', reason: 'unproven-domain' }])
+  })
+
+  it('treats a named function expression\'s own name as a declaration and reversed clamp bounds as the upper bound', () => {
+    const recursive = approximateShowMemberTranscendentals(`var f = function exp(v) { return v < 0 ? 7 : exp(-abs(v)) }\n${render('  var a = f(x)\n  rgb(a, a, a)')}`)
+    expect(recursive.rewritten.exp).toBe(0)
+    expect(recursive.skipped).toEqual([{ line: 1, kind: 'exp', reason: 'shadowed-builtin' }])
+    const reversed = approximateShowMemberTranscendentals(render('  var b = clamp(x * 9, 1, -1)\n  var d = pow(b, 1.3)\n  rgb(d, 0, 0)'))
+    // clamp(v, 1, -1) is -1 on the device: outside [0, 1].
+    expect(reversed.rewritten.pow).toBe(0)
+    expect(reversed.skipped).toEqual([{ line: 3, kind: 'pow', reason: 'unproven-domain' }])
+  })
 })

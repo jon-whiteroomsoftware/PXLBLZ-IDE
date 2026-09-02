@@ -259,10 +259,12 @@ function isPure(node: Node, shadowed: (name: string) => boolean): boolean {
 export interface IntervalScope {
   coordinateParams: ReadonlySet<string>
   singleAssignments: ReadonlyMap<string, Node>
-  /** Straight-line facts: the expression a name was last assigned by an
-   *  earlier statement of the same block, when nothing between could have
-   *  written it (`density = clamp(...)` followed by `density = pow(density, 1.3)`). */
-  blockAssignments?: ReadonlyMap<string, Node>
+  /** Straight-line facts: the interval a name held after an earlier plain
+   *  assignment of the same block, resolved AT that statement (so a later
+   *  write to one of its inputs cannot change it), when nothing between
+   *  could have written the name (`density = clamp(...)` followed by
+   *  `density = pow(density, 1.3)`). */
+  blockIntervals?: ReadonlyMap<string, Interval>
   shadowed?: (name: string) => boolean
   /** Source offset of the site being proven: an initializer fact applies
    *  only to reads after the declaration has executed (a function-scoped
@@ -282,7 +284,9 @@ export function intervalBound(node: Node, scope: IntervalScope, visiting: Set<st
   switch (node.type) {
     case 'Identifier': {
       if (scope.coordinateParams.has(node.name)) return [0, 1]
-      const init = scope.blockAssignments?.get(node.name) ?? scope.singleAssignments.get(node.name)
+      const fact = scope.blockIntervals?.get(node.name)
+      if (fact) return fact
+      const init = scope.singleAssignments.get(node.name)
       if (!init || visiting.has(node.name)) return null
       if (scope.site !== undefined && typeof init.end === 'number' && init.end > scope.site) return null
       visiting.add(node.name)
@@ -348,6 +352,8 @@ export function intervalBound(node: Node, scope: IntervalScope, visiting: Set<st
           const lo = args[1] ? literal(args[1]) : null
           const hi = args[2] ? literal(args[2]) : null
           if (lo === null || hi === null) return null
+          // min(max(v, lo), hi): with lo > hi the result is always hi.
+          if (lo > hi) return [hi, hi]
           if (!first) return [lo, hi]
           return [Math.min(Math.max(first[0], lo), hi), Math.min(Math.max(first[1], lo), hi)]
         }
@@ -413,7 +419,7 @@ function walkWithContext(ast: Node, coordinatesTransformed: boolean, shadowed: (
         ...next,
         hoistStatement: node,
         statementIndent: ' '.repeat(node.loc?.start.column ?? 0),
-        bounds: { ...next.bounds, blockAssignments: blockAssignmentsBefore(parent!, node, shadowed) },
+        bounds: { ...next.bounds, blockIntervals: blockIntervalsBefore(parent!, node, next.bounds, shadowed) },
       }
     } else if (node.type.endsWith('Statement') || node.type === 'VariableDeclaration') {
       next = { ...next, hoistStatement: null }
@@ -437,15 +443,22 @@ function walkWithContext(ast: Node, coordinatesTransformed: boolean, shadowed: (
  *  statement of `block` before `statement`, provided no later statement in
  *  that stretch writes the name through any other shape (compound
  *  assignment, update, nested loop or branch, call with side effects). */
-function blockAssignmentsBefore(block: Node, statement: Node, shadowed: (name: string) => boolean): Map<string, Node> {
-  const facts = new Map<string, Node>()
+function blockIntervalsBefore(block: Node, statement: Node, scope: IntervalScope, shadowed: (name: string) => boolean): Map<string, Interval> {
+  const facts = new Map<string, Interval>()
   const statements: Node[] = block.body ?? []
   for (const previous of statements) {
     if (previous === statement) break
-    // Anything not a plain assignment/declaration invalidates every name it writes.
+    // A plain assignment records the interval its right-hand side has HERE,
+    // with the facts that hold at this point; the AST is not kept, so a
+    // later write to an input cannot rewrite history. Anything else
+    // invalidates every name it writes.
     const plain = plainAssignment(previous, shadowed)
     if (plain) {
-      facts.set(plain.name, plain.init)
+      const interval = isPure(plain.init, shadowed)
+        ? intervalBound(plain.init, { ...scope, blockIntervals: facts, shadowed, site: plain.init.end })
+        : null
+      if (interval) facts.set(plain.name, interval)
+      else facts.delete(plain.name)
       continue
     }
     for (const name of assignedNames(previous)) facts.delete(name)
@@ -598,7 +611,7 @@ function allDeclaredNames(root: Node): Set<string> {
   const visit = (node: Node): void => {
     if (!node || typeof node.type !== 'string') return
     if (node.type === 'VariableDeclarator') collectPatternNames(node.id, names)
-    if (node.type === 'FunctionDeclaration' && node.id) names.add(node.id.name)
+    if ((node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression') && node.id) names.add(node.id.name)
     if ((node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') && node.params) {
       for (const param of node.params) collectPatternNames(param, names)
     }
