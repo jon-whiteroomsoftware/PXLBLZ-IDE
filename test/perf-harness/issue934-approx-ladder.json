@@ -1,0 +1,121 @@
+{
+  "generatedAt": "2026-09-02T02:03:28.204Z",
+  "controller": {
+    "ip": "192.168.8.224",
+    "outputProfile": "native-serial (assumed)"
+  },
+  "pixelCount": 256,
+  "fixtures": [
+    {
+      "pattern": "PhantomStar",
+      "sampleMs": 90000,
+      "rewritten": {
+        "exp": 1,
+        "pow": 0,
+        "tanh": 0
+      },
+      "skipped": 0
+    },
+    {
+      "pattern": "PlasmaNebula",
+      "sampleMs": 6000,
+      "rewritten": {
+        "exp": 0,
+        "pow": 1,
+        "tanh": 0
+      },
+      "skipped": 0
+    },
+    {
+      "pattern": "Kishimisu",
+      "sampleMs": 6000,
+      "rewritten": {
+        "exp": 1,
+        "pow": 0,
+        "tanh": 0
+      },
+      "skipped": 0
+    }
+  ],
+  "rows": [
+    {
+      "pixelCount": 256,
+      "candidate": "PhantomStar:exact",
+      "pass": 0,
+      "bytecodeBytes": 2832,
+      "fps": {
+        "mean": 0.23659247206703868,
+        "median": 0.236407,
+        "min": 0.233973,
+        "max": 0.23912,
+        "samples": 358
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "PhantomStar:approximated",
+      "pass": 0,
+      "bytecodeBytes": 2944,
+      "fps": {
+        "mean": 0.24161414763231112,
+        "median": 0.241896,
+        "min": 0.239292,
+        "max": 0.242014,
+        "samples": 359
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "PlasmaNebula:exact",
+      "pass": 0,
+      "bytecodeBytes": 1478,
+      "fps": {
+        "mean": 25.10471999999999,
+        "median": 25.14507,
+        "min": 25.02406,
+        "max": 25.16941,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "PlasmaNebula:approximated",
+      "pass": 0,
+      "bytecodeBytes": 1494,
+      "fps": {
+        "mean": 25.30004,
+        "median": 25.29183,
+        "min": 25.29183,
+        "max": 25.31646,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "Kishimisu:exact",
+      "pass": 0,
+      "bytecodeBytes": 2284,
+      "fps": {
+        "mean": 12.623403333333334,
+        "median": 12.62136,
+        "min": 12.62136,
+        "max": 12.63362,
+        "samples": 24
+      }
+    },
+    {
+      "pixelCount": 256,
+      "candidate": "Kishimisu:approximated",
+      "pass": 0,
+      "bytecodeBytes": 2396,
+      "fps": {
+        "mean": 12.617790000000005,
+        "median": 12.62136,
+        "min": 12.60912,
+        "max": 12.62136,
+        "samples": 24
+      }
+    }
+  ],
+  "partial": false
+}

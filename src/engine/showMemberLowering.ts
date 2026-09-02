@@ -10,6 +10,7 @@ import { stripPatternManifest } from './patternManifest'
 import { inlineShowMemberHelpers } from './showHelperInlining'
 import { unrollShowMemberLoops } from './showMemberLoopUnrolling'
 import { lowerShowMemberPow } from './showMemberPowLowering'
+import { approximateShowMemberTranscendentals } from './showMemberTranscendentalApproximation'
 import {
   analyzeShowFrameInvariantCandidates,
   applyShowFrameInvariantHoists,
@@ -99,6 +100,8 @@ interface MemberLoweringOptions {
     loopUnrolling?: boolean
     /** #933: integer-exponent pow -> multiply chain (display-exact tier; off by default). */
     powLowering?: boolean
+    /** #934: exp / non-integer pow / library tanh -> cheap approximations (perceptual stop; off by default). */
+    transcendentalApproximation?: boolean
     generatedEffectKernelSharing?: boolean
     conditionalContentKeyEvaluation?: boolean
     coverageDirectedComposition?: boolean
@@ -160,7 +163,13 @@ export function compileMember(
   const powLowered = powLowering
     ? lowerShowMemberPow(unrolledCode)
     : { source: unrolledCode, rewrittenSites: 0, hoistedTemps: 0, skipped: [] }
-  const memberCode = powLowered.source
+  // #934: lossy transcendental substitutes (perceptual stop) after the exact
+  // and display-exact rewrites, before frame-invariant analysis.
+  const transcendentalApproximation = passes.transcendentalApproximation ?? false
+  const approximated = transcendentalApproximation
+    ? approximateShowMemberTranscendentals(powLowered.source)
+    : { source: powLowered.source, rewritten: { exp: 0, pow: 0, tanh: 0 }, skipped: [] }
+  const memberCode = approximated.source
   const prefix = `__pxlblz_show_c${index}`
   const frameCandidates = frameInvariantHoisting
     ? analyzeShowFrameInvariantCandidates(memberCode, { inlineCallSubtrees: inlineCallHoisting })
@@ -321,6 +330,12 @@ export function compileMember(
       rewrittenSites: powLowered.rewrittenSites,
       hoistedTemps: powLowered.hoistedTemps,
       skippedSites: powLowered.skipped.length,
+    },
+    transcendentalApproximationSummary: {
+      exp: approximated.rewritten.exp,
+      pow: approximated.rewritten.pow,
+      tanh: approximated.rewritten.tanh,
+      skippedSites: approximated.skipped.length,
     },
     conditionalContentKeyEvaluation,
     coverageDirectedComposition,

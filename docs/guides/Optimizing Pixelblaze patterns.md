@@ -622,6 +622,12 @@ A deliberate pass across the checksum line. The loop: make a candidate, price
 it with `npm run drift` against a `HEAD` baseline, `devbench` the visually
 plausible ones, and let a human eye make the final call. The keepers: a local
 rational `fastTanh` in ZippyZaps' hot loop (drift p95 ≤ 1/255, **+22.1%**);
+the pb32 prices behind that trade (#934 rounds): `exp` 22.1 µs, the
+library `tanh` 46.1 µs, `pow(b, 1.3)` 8.5 µs, `asin`/`acos` 4.8 µs, `log`
+1.5 µs, a divide 2.2 µs, a multiply 0.8 µs — so `exp(-t)` as a reciprocal
+quintic (~13 µs), a fractional `pow` on [0, 1] as a fitted quadratic
+(4.9 µs), and the rational `tanh` (11.8 µs) pay, while polynomial `asin`
+(12.3 µs) loses to the built-in;
 4→3 warp octaves in the noise-bound PlasmaNebula and NebulaSphere (**+10–11%**,
 nebula structure preserved); a local polynomial glow curve replacing `pow` in
 Kishimisu and ShaderShowcase (**+3–4%**, kept pattern-local, an artistic

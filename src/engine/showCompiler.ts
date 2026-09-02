@@ -703,6 +703,15 @@ export interface ShowCompileSummary {
       hoistedTemps: number
       skippedSites: number
     }
+    /** #934: lossy transcendental substitutes across members. */
+    transcendentalApproximation: {
+      selected: boolean
+      reason: 'selected' | 'disabled'
+      exp: number
+      pow: number
+      tanh: number
+      skippedSites: number
+    }
     renderKernels: (ShowRenderKernelSelection & {
       configurationPlanCount: number
       kernelCount: number
@@ -1006,6 +1015,13 @@ export interface CompiledMember {
     hoistedTemps: number
     skippedSites: number
   }
+  /** #934: lossy transcendental substitutes applied in this member. */
+  transcendentalApproximationSummary: {
+    exp: number
+    pow: number
+    tanh: number
+    skippedSites: number
+  }
   conditionalContentKeyEvaluation: boolean
   coverageDirectedComposition: boolean
   coordinateFieldCapture: boolean
@@ -1251,6 +1267,12 @@ export interface ShowCompileOptions {
    * modes) before it stands in for the exact one. Off by default; never on
    * at the Exact stop. */
   memberPowLowering?: boolean
+  /** #934: lossy substitutes in member source - exp of a provably
+   * non-positive argument, non-integer pow on a proven [0, 1] base, and the
+   * Shader library's tanh helper - priced by the drift tool and disclosed
+   * as a perceptual stop. Off by default; never at the Exact or
+   * Display-exact stops. */
+  memberTranscendentalApproximation?: boolean
 }
 
 /** #532/#556 price of one persistent scalar write on the measured VM. */
@@ -2331,6 +2353,7 @@ export function compileShow(
         helperCallInlining: options.helperCallInlining ?? true,
         loopUnrolling: options.loopUnrolling ?? true,
         powLowering: options.memberPowLowering ?? false,
+        transcendentalApproximation: options.memberTranscendentalApproximation ?? false,
         generatedEffectKernelSharing,
         conditionalContentKeyEvaluation: contentKeyConditionalEvaluation,
         coverageDirectedComposition,
@@ -3528,6 +3551,14 @@ export function compileShow(
         rewrittenSites: members.reduce((sum, member) => sum + member.powLoweringSummary.rewrittenSites, 0),
         hoistedTemps: members.reduce((sum, member) => sum + member.powLoweringSummary.hoistedTemps, 0),
         skippedSites: members.reduce((sum, member) => sum + member.powLoweringSummary.skippedSites, 0),
+      },
+      transcendentalApproximation: {
+        selected: options.memberTranscendentalApproximation ?? false,
+        reason: (options.memberTranscendentalApproximation ?? false) ? 'selected' : 'disabled',
+        exp: members.reduce((sum, member) => sum + member.transcendentalApproximationSummary.exp, 0),
+        pow: members.reduce((sum, member) => sum + member.transcendentalApproximationSummary.pow, 0),
+        tanh: members.reduce((sum, member) => sum + member.transcendentalApproximationSummary.tanh, 0),
+        skippedSites: members.reduce((sum, member) => sum + member.transcendentalApproximationSummary.skippedSites, 0),
       },
       spatialHold: spatialHoldSummary,
       renderKernels: routedSceneEmission?.renderKernels ?? null,

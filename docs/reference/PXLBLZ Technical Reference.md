@@ -1198,6 +1198,12 @@ member integer-pow lowering (`pow(b, k)` for literal 2 <= k <= 4 to a
 multiply chain with a bounded, pure base; display-exact rather than
 checksum-exact, so it ships behind `memberPowLowering`, off by default and
 never at the Exact stop — `showMemberPowLowering.ts`, #933),
+member approximate transcendentals (`exp` of a provably non-positive
+argument to a reciprocal quintic, non-integer `pow` on a proven [0, 1] base
+to a compile-time least-squares quadratic, the Shader library's `tanh`
+helper to the rational form; lossy, priced by the drift tool, behind
+`memberTranscendentalApproximation`, off by default, never at the Exact or
+Display-exact stops — `showMemberTranscendentalApproximation.ts`, #934),
 boundary-latched decode in the shared physical cut-scene dispatcher of
 index-routed Shows (route, local-index base, zone dimensions, placement plan
 and its configuration recomputed only at index 0 and at zone boundaries;
