@@ -36,9 +36,10 @@ Display-exact stops):
   degree-5 Taylor polynomial of eᵗ; the clamp bounds t⁵/120 inside 16.16
   and e⁻⁸ is below one 8-bit step). The quintic over the quartic costs one
   multiply-add and takes PhantomStar's emulator drift from max 2 to max 1.
-- `pow(B, k)`, k a non-integer literal in (0, 4), B provably in [0, 1] →
+- `pow(B, k)`, k a non-integer literal in (1, 2), B provably in [0, 1] →
   `B (a + (1 − a) B)` with the least-squares `a = 30 (1/(k+2) − 1/(k+3) −
-  1/20)` computed at compile time (exact at 0 and 1).
+  1/20)` computed at compile time (exact at 0 and 1; the coefficient lies in
+  [0, 1] only for 1 ≤ k ≤ 2, which bounds the offered exponents).
 - the Shader library's `tanh` helper body → the rational form ZippyZaps
   hand-won (clamp to ±3).
 

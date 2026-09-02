@@ -13,7 +13,7 @@
 //                                     brings PhantomStar's drift to max 1
 //                                     LSB (emulator, both modes).
 //   pow(B, k), B provably in [0, 1], -> B * (a + (1 - a) * B), a the
-//     k a non-integer literal in (0, 4)   least-squares coefficient fitted at
+//     k a non-integer literal in (1, 2)   least-squares coefficient fitted at
 //                                     compile time (closed form below).
 //                                     4.9 us against 8.5 us.
 //   the library tanh helper body    -> the rational form ZippyZaps hand-won
@@ -162,11 +162,13 @@ export function approximateShowMemberTranscendentals(
       const exponent = node.arguments[1]
       const k = exponent.type === 'Literal' && typeof exponent.value === 'number' ? exponent.value : null
       if (k === null) { result.skipped.push({ line, kind: 'pow', reason: 'non-literal-exponent' }); return }
-      // Integer exponents belong to the #933 display-exact lowering. Below
-      // k = 1 the least-squares coefficient exceeds 1 and the quadratic
-      // overshoots [0, 1] (pow(b, 0.1) at b = 0.75 would read 1.145), so the
-      // fit is offered for 1 < k < 4 only.
-      if (Number.isInteger(k) || k <= 1 || k >= 4) { result.skipped.push({ line, kind: 'pow', reason: 'exponent-out-of-range' }); return }
+      // Integer exponents belong to the #933 display-exact lowering. The
+      // least-squares coefficient a lies in [0, 1] exactly for 1 <= k <= 2
+      // ((k + 2)(k + 3) between 12 and 20): below 1 the quadratic overshoots
+      // [0, 1] (pow(b, 0.1) at b = 0.75 reads 1.145), above 2 it dips
+      // negative near 0 (pow(b, 2.5) at b = 0.1 reads -0.016). So the fit is
+      // offered for 1 < k < 2 only.
+      if (Number.isInteger(k) || k <= 1 || k >= 2) { result.skipped.push({ line, kind: 'pow', reason: 'exponent-out-of-range' }); return }
       const base = node.arguments[0]
       if (!isPure(base, shadowed)) { result.skipped.push({ line, kind: 'pow', reason: 'impure-argument' }); return }
       const interval = intervalBound(base, { ...context.bounds, shadowed, site: node.start })

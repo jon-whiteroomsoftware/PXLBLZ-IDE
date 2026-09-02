@@ -19,7 +19,7 @@ describe('approximate transcendentals (#934)', () => {
   })
 
   it('fits a non-integer pow on a proven [0, 1] base with the closed-form quadratic and leaves integer or unproven ones', () => {
-    const out = approximateShowMemberTranscendentals(render('  var density = clamp((x - 0.2) * 1.7, 0, 1)\n  var d = pow(density, 1.3)\n  var e = pow(wave(x * 3), 2.5) + pow(x - 1, 1.5) + pow(x, 2) + pow(x, y)\n  rgb(d, e, 0)'))
+    const out = approximateShowMemberTranscendentals(render('  var density = clamp((x - 0.2) * 1.7, 0, 1)\n  var d = pow(density, 1.3)\n  var e = pow(wave(x * 3), 1.5) + pow(x - 1, 1.5) + pow(x, 2) + pow(x, y)\n  rgb(d, e, 0)'))
     const a = quadraticFitCoefficient(1.3)
     expect(a).toBeCloseTo(0.614, 2)
     expect(out.source).toContain(`var d = (density * (${Number(a.toFixed(6))} + ${Number((1 - a).toFixed(6))} * density))`)
@@ -137,11 +137,13 @@ describe('approximate transcendentals (#934)', () => {
     expect(chain.skipped).toEqual([{ line: 4, kind: 'pow', reason: 'unproven-domain' }])
   })
 
-  it('offers the quadratic only for 1 < k < 4, where it stays inside [0, 1]', () => {
+  it('offers the quadratic only for 1 < k < 2, where its coefficient stays inside [0, 1]', () => {
     expect(quadraticFitCoefficient(0.1)).toBeGreaterThan(1)
     expect(quadraticFitCoefficient(1.3)).toBeLessThan(1)
-    const out = approximateShowMemberTranscendentals(render('  var d = pow(x, 0.1) + pow(x, 0.5) + pow(x, 1.01)\n  rgb(d, 0, 0)'))
-    expect(out.rewritten.pow).toBe(1)
-    expect(out.skipped.map((entry) => entry.reason)).toEqual(['exponent-out-of-range', 'exponent-out-of-range'])
+    expect(quadraticFitCoefficient(1.3)).toBeGreaterThan(0)
+    expect(quadraticFitCoefficient(2.5)).toBeLessThan(0)
+    const out = approximateShowMemberTranscendentals(render('  var d = pow(x, 0.1) + pow(x, 0.5) + pow(x, 1.01) + pow(x, 2.5) + pow(x, 1.99)\n  rgb(d, 0, 0)'))
+    expect(out.rewritten.pow).toBe(2)
+    expect(out.skipped.map((entry) => entry.reason)).toEqual(['exponent-out-of-range', 'exponent-out-of-range', 'exponent-out-of-range'])
   })
 })
