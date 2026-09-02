@@ -101,6 +101,7 @@ describe('Show Controller attribution artifacts (#531)', () => {
       outputFloorMs: 20,
       routingCompositionMs: null,
       captureReplayMs: null,
+      wrapperInliningMs: null,
       unresolvedShowOverheadMs: 10,
       patternEvaluationMs: 10,
       fullFrameMs: 40,
@@ -111,10 +112,11 @@ describe('Show Controller attribution artifacts (#531)', () => {
     const report = attributeShowFrameTime({
       trivialOutput: { meanFps: 50, medianFps: 50 },
       captureElided: { meanFps: 40, medianFps: 40 },
-      // The elision step reads against the wrapper-form baseline rung, which
-      // here measures the same as the production-shaped constant rung.
+      // The elision step reads against the wrapper-form baseline rung (30 ms);
+      // the production-shaped constant rung is 2 ms faster (inlining), and
+      // that bridge is reported so the components sum to the full frame.
       captureElisionBaseline: { meanFps: 100 / 3, medianFps: 100 / 3 },
-      constantMembers: { meanFps: 100 / 3, medianFps: 100 / 3 },
+      constantMembers: { meanFps: 1000 / 28, medianFps: 1000 / 28 },
       full: { meanFps: 25, medianFps: 25 },
     })
 
@@ -122,15 +124,19 @@ describe('Show Controller attribution artifacts (#531)', () => {
       outputFloorMs: 20,
       routingCompositionMs: 5,
       captureReplayMs: 5,
+      wrapperInliningMs: -2,
       unresolvedShowOverheadMs: 0,
-      patternEvaluationMs: 10,
+      patternEvaluationMs: 12,
       fullFrameMs: 40,
     })
+    // The components sum to the full frame: 20 + 5 + 5 - 2 + 12 = 40.
     expect(report.pairwiseMedianMs).toEqual([
       { from: 'trivial-output', to: 'capture-elided', deltaMs: 5 },
       { from: 'capture-elided', to: 'constant-members-wrapped', deltaMs: 5 },
-      { from: 'constant-members', to: 'full', deltaMs: 10 },
+      { from: 'constant-members-wrapped', to: 'constant-members', deltaMs: -2 },
+      { from: 'constant-members', to: 'full', deltaMs: 12 },
     ])
+    expect(report.pairwiseMedianMs.reduce((sum, step) => sum + step.deltaMs, report.median.outputFloorMs)).toBe(report.median.fullFrameMs)
   })
 
   it('refuses an elision measurement without its wrapper-form baseline', () => {

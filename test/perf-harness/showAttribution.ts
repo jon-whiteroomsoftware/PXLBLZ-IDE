@@ -202,6 +202,11 @@ interface ShowFrameAttribution {
   outputFloorMs: number
   routingCompositionMs: number | null
   captureReplayMs: number | null
+  /** Production constant rung minus the wrapper-form constant rung: the
+   *  #929 inlining delta that bridges the wrapper-form elision pair to the
+   *  production-shaped pattern-evaluation step, so the components still sum
+   *  to the full frame. Null without the elision rungs. */
+  wrapperInliningMs: number | null
   unresolvedShowOverheadMs: number
   patternEvaluationMs: number
   fullFrameMs: number
@@ -229,6 +234,7 @@ export function attributeShowFrameTime(measurements: ShowAttributionMeasurements
     ? [
         ['trivial-output', 'capture-elided', median.routingCompositionMs!],
         ['capture-elided', 'constant-members-wrapped', median.captureReplayMs!],
+        ['constant-members-wrapped', 'constant-members', median.wrapperInliningMs!],
         ['constant-members', 'full', median.patternEvaluationMs],
       ] as const
     : [
@@ -258,6 +264,7 @@ function attributeOne(
       outputFloorMs,
       routingCompositionMs: null,
       captureReplayMs: null,
+      wrapperInliningMs: null,
       unresolvedShowOverheadMs: roundMs(constantMs - outputFloorMs),
       patternEvaluationMs,
       fullFrameMs,
@@ -272,6 +279,10 @@ function attributeOne(
     outputFloorMs,
     routingCompositionMs: roundMs(captureElidedMs - outputFloorMs),
     captureReplayMs: roundMs(baselineMs - captureElidedMs),
+    // Negative when inlining made the constant rung faster than its
+    // wrapper-form twin (the expected sign); the ladder reads it as the
+    // bridge, not as Show overhead.
+    wrapperInliningMs: roundMs(constantMs - baselineMs),
     unresolvedShowOverheadMs: 0,
     patternEvaluationMs,
     fullFrameMs,
