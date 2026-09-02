@@ -1198,6 +1198,12 @@ member integer-pow lowering (`pow(b, k)` for literal 2 <= k <= 4 to a
 multiply chain with a bounded, pure base; display-exact rather than
 checksum-exact, so it ships behind `memberPowLowering`, off by default and
 never at the Exact stop — `showMemberPowLowering.ts`, #933),
+boundary-latched decode in the shared physical cut-scene dispatcher of
+index-routed Shows (route, local-index base, zone dimensions, placement plan
+and its configuration recomputed only at index 0 and at zone boundaries;
+exact under the firmware's ascending render order, #560, which this pass
+makes load-bearing — a consumer that renders pixels out of order sees
+stale routes; `boundaryLatchedDecode: false` for vintages, #936),
 `showGeneratedWrapperInlining.ts`, #929), the authored spatial hold-and-lerp
 (`spatialHold: { stride, mode: 'lerp' }`, off by default, compile-option
 only; the final dispatcher renders one stride ahead at every anchor and
