@@ -101,10 +101,13 @@ pixel. `hold` replays the latch for `index % K != 0`; `parity` gates on
 `lerp` demotes the dispatcher to an inner function, evaluates it at
 `min(index + K, pixelCount − 1)` on every anchor (plus once at index 0 for
 the first anchor), keeps the previous lookahead as the current anchor
-sample, and paints `cur + (next − cur) * (index % K) / K`. The ladder was
-measured before the clamp, when the final anchor read a virtual pixel at
-`index == pixelCount`; one lookahead per frame is cost-neutral, so the FPS
-rows stand. Anchors are bit-identical to the
+sample, and paints `cur + (next − cur) * (index % K) / K`. The ladder rows
+above were measured on the pre-clamp wrapper, whose final anchor read a
+virtual pixel at `index == pixelCount`; they are evidence for that
+artifact, not the corrected one. The shipped pass (#937) clamps and carries
+its own ladder (`issue937-lerp-ladder.json`), which is the authority for
+the build; this spike's rows stand only as the variant comparison that
+picked lerp. Anchors are bit-identical to the
 baseline for hold and parity and equal the baseline sample for lerp
 (`issue926.test.ts`); every candidate compiles on the cached Controller
 compiler.
