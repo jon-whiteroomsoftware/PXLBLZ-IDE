@@ -38,6 +38,15 @@ function routedRecipe(zones: ShowRecipe['zones']): ShowRecipe {
   }
 }
 
+/** The inlined form of the per-pixel clear (#929): the member's channel
+ * globals reset in place, immediately before the member render call. */
+const INLINED_CLEAR_BEFORE_MEMBER_RENDER = [
+  '__pxlblz_show_c0_r = 0',
+  '__pxlblz_show_c0_g = 0',
+  '__pxlblz_show_c0_b = 0',
+  '__pxlblz_show_c0_render(index)',
+].join('\n  ')
+
 describe('Show exact routing and capture specialization (#512)', () => {
   it('short-circuits a complete disjoint physical range plan and reports the comparison reduction', () => {
     const artifact = compileShow(routedRecipe([
@@ -120,7 +129,11 @@ describe('Show exact routing and capture specialization (#512)', () => {
     expect(artifact.expandedCode).not.toContain('var mappedIndex = index')
     expect(artifact.expandedCode).not.toContain('__pxlblz_show_c0_adapt_mirror >= 0.5')
     expect(artifact.expandedCode).not.toContain('__pxlblz_show_c0_r = __pxlblz_show_c0_r * __pxlblz_show_c0_adapt_brightness')
-    expect(artifact.expandedCode).not.toContain('__pxlblz_show_c0_clear()\n  __pxlblz_show_c0_render(index)')
+    // #938: with the clear omitted, the exported render enters the member
+    // render directly; nothing resets the channels first. The uncalled
+    // wrapper declaration may still be emitted; the render body is the oracle.
+    expect(artifact.expandedCode).not.toContain(INLINED_CLEAR_BEFORE_MEMBER_RENDER)
+    expect(artifact.expandedCode).toContain('export function render(index) {\n  __pxlblz_show_c0_render(index)\n')
     expect(artifact.summary.specializations.capture).toEqual([{
       clipId: 'identity',
       samplePath: 'identity',
@@ -145,7 +158,11 @@ describe('Show exact routing and capture specialization (#512)', () => {
       }],
     }, {})
 
-    expect(conditional.expandedCode).toContain('__pxlblz_show_c0_clear()')
+    // #929 inlines the trivial clear wrapper at its only call site, so the
+    // retained clear is the three channel resets immediately before the
+    // member render call rather than a `_clear()` call (#938).
+    expect(conditional.summary.specializations.wrapperInlining.selected).toBe(true)
+    expect(conditional.expandedCode).toContain(INLINED_CLEAR_BEFORE_MEMBER_RENDER)
     expect(conditional.summary.specializations.capture[0].clearPolicy).toBe('retained')
     // #562 replaced the per-pixel mirror branch with the branch-free
     // per-frame coefficient form; the authored mirror still applies.
