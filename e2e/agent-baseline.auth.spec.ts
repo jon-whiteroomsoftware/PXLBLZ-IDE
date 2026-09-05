@@ -65,6 +65,7 @@ interface ShowWrite {
   at: number
   status: number | null
   updatedAt: number | null
+  firstMainStartMs: number | null
   firstMain: { durationMs: number | null; brightness: number | null } | null
   compositionDurationMs: number | null
   markers: number | null
@@ -151,7 +152,7 @@ function watchShowWrites(page: Page): ShowWrite[] {
   const pending = new Map<Request, ShowWrite>()
   page.on('request', (request) => {
     if (!request.url().includes('/api/shows') || request.method() === 'GET') return
-    let body: PersistedShow | null = null
+    let body: PersistedShow | null
     try {
       body = JSON.parse(request.postData() ?? 'null') as PersistedShow | null
     } catch {
@@ -164,6 +165,7 @@ function watchShowWrites(page: Page): ShowWrite[] {
       at: Date.now(),
       status: null,
       updatedAt: body?.updatedAt ?? null,
+      firstMainStartMs: firstMain?.startMs ?? null,
       firstMain: firstMain
         ? { durationMs: firstMain.durationMs ?? null, brightness: firstMain.view?.brightness ?? null }
         : null,
@@ -315,6 +317,53 @@ async function visibleClipFacts(page: Page, patternName: string): Promise<{ dura
   return { durationSeconds, brightnessPercent }
 }
 
+async function visibleClipStart(page: Page, patternName: string): Promise<string> {
+  await page.getByRole('button', { name: `Select ${patternName}`, exact: true }).first().click()
+  const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+  await expect(panel).toBeVisible()
+  const startSeconds = await panel.getByRole('textbox', { name: 'Start seconds exact time' }).inputValue()
+  await page.keyboard.press('Escape')
+  await expect(panel).toHaveCount(0)
+  return startSeconds
+}
+
+/** Drag one visible Clip body to a new start on its current timeline Layer. */
+async function dragClipToStart(page: Page, patternName: string, durationMs: number, targetStartMs: number): Promise<string> {
+  const clip = page.getByRole('button', { name: `Select ${patternName}`, exact: true }).first()
+  const layer = page.locator('[data-show-layer-kind="main"]').filter({ has: clip }).first()
+  const [clipBounds, layerBounds] = await Promise.all([clip.boundingBox(), layer.boundingBox()])
+  expect(clipBounds).not.toBeNull()
+  expect(layerBounds).not.toBeNull()
+
+  const source = {
+    x: clipBounds!.x + clipBounds!.width / 2,
+    y: clipBounds!.y + clipBounds!.height / 2,
+  }
+  const pixelsPerMs = clipBounds!.width / durationMs
+  const target = {
+    x: layerBounds!.x + targetStartMs * pixelsPerMs + clipBounds!.width / 2,
+    y: layerBounds!.y + layerBounds!.height / 2,
+  }
+
+  const preview = page.getByTestId('show-clip-move-preview')
+  let previewTime: string | null
+  await page.keyboard.down('Shift')
+  try {
+    await page.mouse.move(source.x, source.y)
+    await page.mouse.down()
+    await page.mouse.move(source.x + 6, source.y, { steps: 2 })
+    await page.mouse.move(target.x, target.y, { steps: 8 })
+    await expect(preview).toBeVisible()
+    await expect(preview).toHaveAttribute('data-drag-mode', 'move')
+    previewTime = await page.getByTestId('show-clip-move-preview-time').textContent() ?? ''
+  } finally {
+    await page.mouse.up()
+    await page.keyboard.up('Shift')
+  }
+  await expect(preview).toHaveCount(0)
+  return previewTime ?? ''
+}
+
 async function setClipBrightness(page: Page, patternName: string, percent: string, options: { expectValue?: boolean } = {}): Promise<void> {
   await page.getByRole('button', { name: `Select ${patternName}`, exact: true }).first().click()
   const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
@@ -435,7 +484,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     })
   })
 
-  test('B: a delayed reply resurrects the target Clip deleted during inference and reverts a neighbour move', async ({ page }) => {
+  test('B: a delayed reply resurrects a deleted target, then reverts a real target-Clip drag', async ({ page }) => {
     test.setTimeout(90_000)
     const writes = watchShowWrites(page)
     const showId = await createPersonalShow(page)
@@ -456,40 +505,64 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     expect(afterDelete.durationSeconds).toBe('12')
     await waitForDurable(page, showId, (show) => firstMain(show)?.durationMs === 12_000 && mainPlacements(show).length === 2)
 
-    // Move the neighbour while a second reply is pending: the whole-record
-    // replacement reverts that unrelated move too.
+    // Move the same target Clip by dragging its visible timeline body while a
+    // second reply is pending. The first reply shortened it to 12 s, leaving
+    // enough space to place it wholly inside the vacancy before CometLoom.
     const moveId = await submitUtterance(page, MARKER_UTTERANCE)
     await waitForAccepted(page, moveId)
-    await page.getByRole('button', { name: 'Select CometLoom', exact: true }).first().click()
-    const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
-    const start = panel.getByRole('textbox', { name: 'Start seconds exact time' })
-    const startBefore = await start.inputValue()
-    await start.fill('35')
-    await start.press('Enter')
-    const movedVisible = await start.inputValue()
-    await page.keyboard.press('Escape')
-    await expect(panel).toHaveCount(0)
+    expect(await visibleClipStart(page, 'TestPattern1D')).toBe('0')
+    const manualMoveAt = Date.now()
+    const previewTime = await dragClipToStart(page, 'TestPattern1D', 12_000, 15_000)
+    expect(previewTime).toBe('15s')
+    await waitForDurable(page, showId, (show) => firstMain(show)?.startMs === 15_000)
+    const movedVisible = await visibleClipStart(page, 'TestPattern1D')
+    expect(movedVisible).toBe('15')
+    const durableAfterMove = await durableShow(page, showId)
+    expect(firstMain(durableAfterMove)?.startMs).toBe(15_000)
+    await page.screenshot({ path: join(REPORT_DIR, 'B-target-moved-before-reply.png'), fullPage: true })
+
     const moveRequest = await waitForDone(page, moveId)
-    await page.getByRole('button', { name: 'Select CometLoom', exact: true }).first().click()
-    const startAfterReply = await panel.getByRole('textbox', { name: 'Start seconds exact time' }).inputValue()
-    await page.keyboard.press('Escape')
-    const durable = await durableShow(page, showId)
+    expect(moveRequest.applied).toBe(true)
+    const startAfterReply = await visibleClipStart(page, 'TestPattern1D')
+    expect(startAfterReply).toBe('0')
+    await waitForDurable(page, showId, (show) => (
+      firstMain(show)?.startMs === 0
+      && show.composition?.markers?.some((marker) => marker.name === 'Drop' && marker.timeMs === 10_000) === true
+    ))
+    const durableAfterReply = await durableShow(page, showId)
+    expect(firstMain(durableAfterReply)?.startMs).toBe(0)
+    await page.screenshot({ path: join(REPORT_DIR, 'B-target-move-overwritten.png'), fullPage: true })
+
+    // The stale agent replacement is one history entry above the accepted
+    // manual drag. One undo restores the moved Clip and removes the marker.
+    await page.getByRole('button', { name: 'Undo Show edit' }).click()
+    expect(await visibleClipStart(page, 'TestPattern1D')).toBe('15')
+    await waitForDurable(page, showId, (show) => (
+      firstMain(show)?.startMs === 15_000
+      && !(show.composition?.markers ?? []).some((marker) => marker.name === 'Drop')
+    ))
+    const durableAfterUndo = await durableShow(page, showId)
+    expect(writes.filter((write) => write.method === 'PATCH' && write.at >= manualMoveAt).map((write) => ({
+      startMs: write.firstMainStartMs,
+      markers: write.markers,
+    }))).toEqual([
+      { startMs: 15_000, markers: null },
+      { startMs: 0, markers: 1 },
+      { startMs: 15_000, markers: null },
+    ])
 
     const observations = await readObservations(page)
-    await page.screenshot({ path: join(REPORT_DIR, 'B-target-delete-move.png'), fullPage: true })
+    await page.screenshot({ path: join(REPORT_DIR, 'B-target-move-after-undo.png'), fullPage: true })
     saveRecord('B-target-delete-move', {
-      showId, deleteRequest, moveRequest, writes, observations,
-      visible: { afterDelete, neighbourStart: { before: startBefore, moved: movedVisible, afterReply: startAfterReply } },
-      durableMain: mainPlacements(durable),
+      showId, deleteRequest, moveRequest, manualMoveAt, writes, observations,
+      visible: { afterDelete, targetStart: { preview: previewTime, moved: movedVisible, afterReply: startAfterReply, afterUndo: '15' } },
+      durable: {
+        afterMove: firstMain(durableAfterMove),
+        afterReply: firstMain(durableAfterReply),
+        afterUndo: firstMain(durableAfterUndo),
+      },
       timelines: [phaseTimeline(deleteRequest, observations, writes), phaseTimeline(moveRequest, observations, writes)],
     })
-    // Reproduction: the move the author made during inference did not survive
-    // when the manual move was accepted; when the editor refused the move the
-    // record documents that instead of asserting it.
-    if (movedVisible !== startBefore) {
-      expect(moveRequest.applied).toBe(true)
-      expect(startAfterReply).toBe(startBefore)
-    }
   })
 
   test('C: time inserted before the target during inference is undone by the reply', async ({ page }) => {

@@ -52,7 +52,7 @@ then.
 | Seq | Sequence | Observed on the live editor |
 | --- | --- | --- |
 | A | Delayed reply, manual brightness edit B during inference | Visible after reply: Clip 12 s, brightness 100 %. B is gone. The candidate's PATCH carries the captured `updatedAt`, older than B's PATCH; storage holds the candidate. One undo restores B (30 s, 75 %). |
-| B | Target Clip deleted during inference | The reply resurrects TestPattern1D at 12 s; storage holds two Clips again. The neighbour-move half did not execute: committing `35` in CometLoom's Start field left it at 32 and produced no save, so a manual move during inference is not reproduced by this suite (residual gap; a drag-based move is untested). |
+| B | Target Clip deleted during inference; then the restored target is dragged from 0 s to 15 s during a second delayed request | The first reply resurrects TestPattern1D at 12 s. The real timeline drag shows a 15 s move preview, saves the target at 15 s, and remains visibly at 15 s before the reply. The delayed marker reply replaces it back at 0 s while adding `Drop`; storage matches that stale replacement. One undo restores the dragged 15 s state and removes the marker. |
 | C | 5 s inserted at 0 during inference | The insert saved (first Clip at 5000 ms, loop 67 000 ms). The reply put the Clip back at 0 ms and the loop back to its previous length. |
 | D | Navigate to another Show and back during inference | The reply arrived after the return, `applyShow` accepted it on the re-installed editor, the Clip shows 12 s, storage holds 12 000 ms. |
 | E | A after which a later manual save fails | The failure notice appears; the editor shows B (30 s, 75 %); storage holds the candidate (12 000 ms, brightness 1); reload shows 12 s, 100 %. The restored baseline did not match storage. |
@@ -86,20 +86,20 @@ timing, the observation log, every non-GET `/api/shows` request with status,
 `updatedAt`, and first-Clip facts, the visible and durable facts, and a
 derived `timeline`.
 
-Observed scripted timing across the eight sequences of run
-`2026-09-05T13-32-16-328Z` (milliseconds; scripted delay 2500):
+Observed scripted timing across the nine requests in the eight sequences of run
+`2026-09-05T15-20-32-601Z` (milliseconds; scripted delay 2500):
 
 | Phase | Observed |
 | --- | --- |
-| submit to bridge accepted | 1–2 |
-| accepted to agent start (the delay) | 2502–2578 |
-| agent (fake) | 1–12 |
-| final validation | 0–4 |
-| export to overlay `done` | 1–3 |
+| submit to bridge accepted | 1–3 |
+| accepted to agent start (the delay) | 2503–2670 |
+| agent (fake) | 1–7 |
+| final validation | 0–3 |
+| export to overlay `done` | 0–1 |
 | `done` to `applyShow` adopted | 0–1 |
-| adopted to save settled (PATCH 200) | 65–120 personal; 46 stock draft (no request) |
-| adopted to preview published | 49–88 (none for H) |
-| submit to `applyShow` resolved | 2558–2682 |
+| adopted to save settled (PATCH 200) | 42–167 personal; 27 stock draft (no request) |
+| adopted to preview published | 28–68 (none for H) |
+| submit to `applyShow` resolved | 2535–2765 |
 
 These are wall-clock figures from one machine with a fake agent and say
 nothing about model latency. They locate where the non-model time goes on the
@@ -107,8 +107,7 @@ current code; distributions and thresholds wait for the live run.
 
 ## Known gaps in this slice
 
-- The in-app browser could not be driven from this session (no Node REPL or
-  browser tool was callable); the captures are Playwright screenshots.
-- Manual move of the target during inference is not reproduced (sequence B).
+- The captures are Playwright Chromium screenshots from the isolated test
+  harness; no in-app-browser proof is claimed.
 - The stage preview ignores personal Libraries (sequence H); recorded, not fixed.
 - No held-out set, no paid corpus run, no thresholds: still open in #945.

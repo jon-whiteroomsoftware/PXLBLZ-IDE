@@ -44,7 +44,8 @@ Show revision. A returned full record can therefore overwrite edits made during
 inference even when the Show id still matches. Reproduced on the live editor
 by the #945 browser baseline (sequence A: a brightness edit saved during
 inference is gone after the reply; sequence B: a Clip deleted during
-inference comes back; sequence C: time inserted before the target is undone).
+inference comes back, and a later visible drag of that target from 0 s to 15 s
+is replaced back to 0 s; sequence C: time inserted before the target is undone).
 
 Composition edits also retain the captured `updatedAt`; application does not
 restamp it. After an intervening manual save, this older timestamp can prevent
