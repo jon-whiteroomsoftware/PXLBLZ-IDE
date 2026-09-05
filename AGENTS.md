@@ -120,7 +120,9 @@ Preserve these invariants:
   corrective as a new small candidate cut from the landed main. Do not grow an
   unlanded chain through repeated corrective rounds - every time main moves,
   the whole chain rebases and re-reviews, and fresh full-range reviews can
-  reopen closed findings. Hold a candidate unlanded only for P0/P1 findings.
+  reopen closed findings. Hold a candidate unlanded only for P0/P1 findings,
+  and keep repairing it while it converges: a repairable finding blocks
+  landing, not authorized correction.
   The clean-receipt tail the push gate requires belongs to publication;
   satisfy it with a short corrective candidate on main, not a long chain.
 - Pushing `main` is a separate publication step, and it is a production
@@ -211,23 +213,46 @@ Pre-commit runs lint, conditional full-project typecheck, focused tests, and
 mapped invariants. Candidate review enforces the UI proof gate for the range,
 then records clean approval for an exact-range
 pass. P2/P3-only findings preserve non-terminal advisory coverage and require
-only an exact corrective review; P0/P1 findings require a new full-range
-review. Pre-push requires a contiguous chain ending in clean approval instead
+only an exact corrective review. Since WRSP 0.5.1 (#960) the command names
+three distinct non-approval outcomes, and the agent classifies the actual
+result rather than the word BLOCKED or a nonzero exit:
+
+- `CANDIDATE REPAIR REQUIRED`: P0/P1 findings. Coverage is voided and the
+  candidate cannot land, but authorized repair continues: fix, verify, commit a
+  new tip, and review the replacement full range while the candidate converges.
+- `CANDIDATE REVIEW PAUSED`: three consecutive P0/P1 outcomes on one candidate
+  lineage. The gate refuses a fourth reviewer launch. Discuss the invariant,
+  the approach, or the enforcement layer with Jon before passing
+  `--acknowledge-non-convergence`, which admits exactly one further attempt.
+- `CANDIDATE REVIEW ERROR`: a provider, prerequisite, validation, or
+  contradictory-output failure. No receipt exists and no finding was judged;
+  a real permission or security denial, unusable verification, or an
+  unrecoverable failure stops that action - report the exact reason, never
+  bypass. Independent work continues unless it shares the blocker.
+
+Pre-push requires a contiguous chain ending in clean approval instead
 of repeating review, then runs the artifact oracle gate, full Vitest, and
 Playwright once. See
 `docs/agents/verification.md` for the mechanism and privacy boundary; its
-"WRSP 0.5.0 consumer guards" section holds the adoption ledger and the
-evidence boundary of each guard.
+"WRSP 0.5.1 review policy" section holds the current adoption ledger and the
+repair-loop semantics, and its "WRSP 0.5.0 consumer guards" section holds
+the evidence boundary of each guard.
 
 End every agent-authored commit message with an `X-Authored-Model:` trailer
 naming the exact model id (for example `X-Authored-Model: claude-fable-5-1` or
 `X-Authored-Model: gpt-5.6-sol`), after any other trailers. Candidate review
 routes to the opposite model family based on this trailer (#637): commits
 without it are unsignalled, receive the default reviewer order, and can never
-claim cross-family coverage on their receipts. Since WRSP 0.5.0 the Anthropic
-reviewer is Fable 5.1 High and the OpenAI reviewer GPT-5.6 Sol High; receipts
-written under the earlier policy remain on disk as history but do not count
-toward current coverage. When the counterpart family's
+claim cross-family coverage on their receipts. Since WRSP 0.5.1 (#960) the
+OpenAI reviewer is Astra Medium (`gpt-6-astra`, medium reasoning effort) and
+reviews Anthropic-authored candidates; the Anthropic reviewer is Fable 5.1
+High and reviews GPT-authored candidates. Astra is a reviewer only: never
+launch it as an implementation or execution worker. Ordinary execution
+workers remain GPT-5.6 Sol High, and the generic Fable subagent restriction is
+unchanged. Receipts written under earlier policies (Opus 5 High before 0.5.0,
+GPT-5.6 Sol High under 0.5.0) remain on disk as history under their recorded
+names, do not count toward current coverage, and are never Astra evidence.
+When the counterpart family's
 reviewer is unavailable, the gate falls back to a same-family review and
 records the downgrade on the receipt; it never blocks on the missing
 counterpart and never records the downgrade silently.

@@ -14,9 +14,11 @@ and e2e meta-check paths in `wrsp.config.mjs`, and its UI proof policy in the
 pure-data `wrsp-ui-proof.json`. The reviewer prompt's project-specific advisory
 paragraph is `review.projectPolicy` there and participates in the policy
 fingerprint, so editing it invalidates receipts exactly like a prompt change.
-Since #940 the installed release is 0.5.0; see
+Since #960 the installed release is 0.5.1; see
+[WRSP 0.5.1 review policy](#wrsp-051-review-policy-960) for the current
+reviewer route, the review-outcome classes, and the adoption ledger, and
 [WRSP 0.5.0 consumer guards](#wrsp-050-consumer-guards-940) for the guards
-that release added and the adoption ledger.
+the previous release added and its historical ledger.
 
 ## Gate ownership
 
@@ -56,9 +58,13 @@ The primary reviewer is routed against range authorship (#637): commits
 signal their authoring model with an `X-Authored-Model:` trailer (legacy
 Claude `Co-Authored-By:` trailers also classify), and a range authored
 entirely by one model family routes to the opposite family first --
-Anthropic-authored to GPT-5.6 Sol High, OpenAI-authored to Fable 5.1 High
-(Opus 5 High before WRSP 0.5.0). Mixed or unsignalled ranges use the default
-order (Fable 5.1 High first). If the primary
+Anthropic-authored to Astra Medium (`gpt-6-astra`,
+`model_reasoning_effort="medium"`, since WRSP 0.5.1), OpenAI-authored to
+Fable 5.1 High (`claude-fable-5-1`, `--effort high`). Under WRSP 0.5.0 the
+OpenAI reviewer was GPT-5.6 Sol High, and before 0.5.0 the Anthropic reviewer
+was Opus 5 High; receipts from those policies keep their recorded names. Mixed
+or unsignalled ranges use the default order (Fable 5.1 High first, Astra Medium
+as fallback). If the primary
 reviewer cannot return a valid structured decision because of quota, timeout,
 process, or malformed output, the other reviewer receives the same immutable
 input; a fallback that lands same-family is recorded on the receipt as
@@ -66,6 +72,12 @@ input; a fallback that lands same-family is recorded on the receipt as
 record the signalled `authoredModels`; receipts predating these fields are
 unverified on the cross-family axis, and `review:status` displays each
 receipt as `cross-family`, `SAME-FAMILY`, or `family-unverified`.
+
+Astra is a reviewer here, not a worker: the route may launch it automatically
+for an authorized review, but nothing in this repository launches
+`gpt-6-astra` for implementation or execution, ordinary execution workers
+remain GPT-5.6 Sol High, and the generic restriction on Fable as a subagent
+model is unchanged (global instructions, 2026-09-05).
 
 The Anthropic reviewer streams progress while it works (#637): one line per
 tool call, a heartbeat once a minute, a 5-minute no-event stall timer as the
@@ -81,6 +93,26 @@ range. The advisory receipt can be an intermediate edge in a
 contiguous chain, but it can never authorize publication as the final receipt.
 A clean pass remains valid only with zero findings; contradictory structured
 output is malformed and remains fail-closed.
+
+#### Review outcomes and the repair loop (WRSP 0.5.1)
+
+Every non-approval exits nonzero and writes no receipt, but since 0.5.1 the
+command's last stderr line names which of three things happened. Classify the
+actual result; neither the word BLOCKED nor exit status 1 is a verdict:
+
+| Outcome | Meaning | What continues |
+| --- | --- | --- |
+| `CANDIDATE REPAIR REQUIRED` | The review completed and found P0/P1 defects. Coverage for the range is void. | Authorized repair: fix, verify, commit a new tip, and review the replacement full range while the candidate converges. Landing is blocked; correction is not. |
+| `CANDIDATE REVIEW PAUSED` | Three consecutive P0/P1 (terminal) outcomes on one candidate lineage. The breaker refused the fourth reviewer launch before it started. | Discuss the invariant, the approach, or the enforcement layer with Jon. `--acknowledge-non-convergence` admits exactly one further attempt and prints a warning naming the streak it overrode. A clean or advisory outcome ends the streak. |
+| `CANDIDATE REVIEW ERROR` | Provider, prerequisite, validation, lock, freshness, or contradictory-structured-output failure. No finding was judged. | A transient error is retried after its cause is fixed. A real permission or security denial, unusable verification, or unrecoverable failure stops that action: report the exact reason and never bypass the gate. |
+
+Independent work continues through any of these unless it shares the blocker.
+The breaker's outcome records in `.git/wrsp/review-outcomes/v1/` and the round
+log in `.git/wrsp/review-rounds.jsonl` are keyed by lineage, not by policy
+fingerprint, so a package upgrade does not reset an in-progress streak: the
+#945 corrective lineage on base `b1fbc1e5` carried two terminal outcomes
+(tips `a4e11cc0` and `54f47d5b`) into the 0.5.1 adoption and still does. A
+P2/P3-only failure is not terminal and takes the ordinary advisory path above.
 
 A clean pass or P2/P3-only review writes a receipt below the repository's
 common Git directory:
@@ -225,9 +257,10 @@ stable fault locations, gate canary, and #757 mutation qualification are
 documented in [`layout-verification.md`](layout-verification.md).
 
 Candidate review transmits the exact private diff and supplied engineering
-context to Anthropic under the developer's authenticated Claude session. A
-fallback transmits the same material to OpenAI under the authenticated Codex
-session. The user has explicitly approved both behaviors for this repository.
+context to whichever family the route selects first -- Anthropic under the
+developer's authenticated Claude session, or OpenAI under the authenticated
+Codex session -- and a fallback transmits the same material to the other. The
+user has explicitly approved both behaviors for this repository.
 
 ## Authenticated browser suites
 
@@ -494,23 +527,23 @@ the #940 adoption run over 7 days checked 28 issues and flagged 26, almost
 all closed before the `Proof:` convention existed. Attach proof to issues
 you close from now on; do not mass-edit history to make the sweep green.
 
-### Adoption ledger
+### Adoption ledger (0.5.0, historical)
 
 | Field | Value |
 | --- | --- |
 | Release | `@whiteroom/software-process` 0.5.0, tag `v0.5.0` |
 | Source commit | `96a9df8ab59b1e01c023c41ed2d59f69310386ea` |
-| Tarball | `vendor/whiteroom-software-process-0.5.0.tgz`, 82883 bytes |
+| Tarball | `vendor/whiteroom-software-process-0.5.0.tgz`, 82883 bytes (removed by #960, replaced by 0.5.1) |
 | Tarball sha256 | `e5ac84eebf0019b3802dc92fe0e2a9bb3c84aed7c6773cdbba790128729e979e`, verified against the downloaded release asset before install |
 | Installed bins | 12 (`wrsp-check-artifact-oracle`, `-check-e2e-coverage`, `-check-e2e-locators`, `-check-issue-proof`, `-check-layout-gate`, `-check-node`, `-check-ui-proof`, `-preflight`, `-review-candidate`, `-review-push`, `-review-status`, `-test-staged`) |
 | Adopted | 2026-09-04, #940, replacing 0.4.1 (`d16fe10dc071da5592e23c440c246723e68af3c27f3596007af6f7dd2436667f`) |
-| Review policy | `REVIEW_APPROVAL_POLICY_VERSION` 2 to 3; Anthropic reviewer `Fable 5.1 High` (was `Opus 5 High`) |
+| Review policy | `REVIEW_APPROVAL_POLICY_VERSION` 2 to 3; Anthropic reviewer `Fable 5.1 High` (was `Opus 5 High`); OpenAI reviewer `GPT-5.6 High` (`gpt-5.6-sol`, high) |
 
 Behaviour-identical after the bump: staged-test selection, the layout gate
 (canary still reports the 64px control), and the e2e meta-checks; the 0.4.1
 to 0.5.0 diff touches none of their sources.
 
-### Receipts across the bump
+### Receipts across the bump (0.4.1 to 0.5.0, historical)
 
 Installing 0.5.0 changes the review policy fingerprint. Receipts written
 under 0.4.1 stay on disk unchanged as historical provenance, and
@@ -522,6 +555,67 @@ why #944 published the old-policy range before this adoption landed. The
 installed evaluator is per checkout: a worktree on 0.5.0 does not change
 what the shared checkout on 0.4.1 evaluates until main itself carries the
 bump.
+
+## WRSP 0.5.1 review policy (#960)
+
+The 0.5.1 release is a review-policy migration, not a new guard. Its source
+change is
+[whiteroom-software-process#19](https://github.com/jon-whiteroomsoftware/whiteroom-software-process/issues/19),
+authorized by Jon on 2026-09-05 as a core-package-first migration consumed
+here by #960. The 0.5.0 to 0.5.1 diff touches `push-review`,
+`review-routing`, `review-carry`, `review-candidate`, and the README; the
+consumer guards, staged-test selection, layout gate, and e2e meta-checks are
+byte-identical, and `scripts/wrsp-guard-fixture.ts` continues to drive the
+same executables.
+
+What changed for this repository:
+
+- The OpenAI reviewer is `gpt-6-astra` at `model_reasoning_effort="medium"`,
+  recorded on receipts and outcomes as `Astra Medium` with effort `medium`.
+  Anthropic-authored ranges route there first. The Anthropic reviewer remains
+  `claude-fable-5-1` at high effort, recorded as `Fable 5.1 High`, and reviews
+  OpenAI-authored ranges first.
+- Receipt effort is now taken from the reviewer that actually ran instead of
+  being fixed at `high`; a carried receipt keeps its original reviewer and
+  effort, and carry only projects historical `GPT-5.6 High` onto the OpenAI
+  family when recomputing cross-family facts. Nothing relabels a stored name.
+- The three review-outcome classes described in
+  [Review outcomes and the repair loop](#review-outcomes-and-the-repair-loop-wrsp-051)
+  replaced the single `CANDIDATE REVIEW BLOCKED` line. Breaker threshold,
+  outcome records, receipts, and publication coverage rules are unchanged.
+
+### Adoption ledger (0.5.1)
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 0.5.1, tag `v0.5.1` |
+| Source commit | `97f078ae2cbe50902222c868b9f69c1c396ee6fe` (WRSP #19, `Use Astra Medium for OpenAI review`) |
+| Tarball | `vendor/whiteroom-software-process-0.5.1.tgz`, 83316 bytes |
+| Tarball sha256 | `b1d230be92309def841482161075370791f9cb6a64700cc62d9d50d6c13092c5`, verified against the published artifact before install; the lock's sha512 integrity was recomputed from the same bytes |
+| Installed bins | 12, unchanged from 0.5.0 |
+| Adopted | 2026-09-05, #960, replacing 0.5.0 (`e5ac84eebf0019b3802dc92fe0e2a9bb3c84aed7c6773cdbba790128729e979e`) |
+| Review policy | `REVIEW_APPROVAL_POLICY_VERSION` stays 3; the fingerprint changes because reviewer models and efforts are part of it. OpenAI reviewer `Astra Medium` (`gpt-6-astra`, medium; was `GPT-5.6 High`, `gpt-5.6-sol`, high). Anthropic reviewer `Fable 5.1 High`, unchanged |
+
+### Receipts across the bump (0.5.0 to 0.5.1)
+
+Installing 0.5.1 changes the review policy fingerprint again. Every receipt
+written under 0.5.0 stays on disk unchanged, keeps its recorded `GPT-5.6
+High` and `high` provenance, and is listed by `review:status`, but it cannot
+cover a range under the installed evaluator and is never evidence that Astra
+reviewed anything: on the day of adoption `npm run review:status -- 00c97810
+b1fbc1e5` reported `Status: stale` with 2 stale-policy receipts for the range
+#940 had published under 0.5.0. The #945 corrective lineage's two Sol reviews
+were terminal, so they exist only as outcome records, not receipts; they stay
+as written. Current-policy coverage over every outgoing commit has to be
+re-established under 0.5.1 before the next publication, by reviewing the
+outgoing range (or a contiguous chain over it) with the installed package.
+
+At the adoption commit no Astra Medium receipt existed in this repository:
+the route was proven by the package's own tests and by the installed
+constants, not by a live review. The first live Astra Medium receipt at
+medium effort is the proof #960 owes, and it can only come from reviewing an
+Anthropic-authored candidate under 0.5.1; until that receipt is on disk, do
+not describe the Astra route as exercised here.
 
 ### Goal-based manual campaigns
 
