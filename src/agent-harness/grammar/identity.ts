@@ -19,18 +19,24 @@
 // reference (a WeakMap). Obligations then follow the object:
 //   - a tagged object's `id` is never written or removed, wherever it sits;
 //   - a write over a tagged object keeps it under its own id and the fresh
-//     value inherits the tag; an ancestor write may drop tagged objects
-//     (tombstoned) or keep them under their own ids, never rename one, and
-//     never introduces an element;
+//     value inherits the tag; an ancestor write keeps every tagged object the
+//     written value holds an object for at its place - under its own id, a
+//     missing id being a rewrite - and drops (tombstones) those it holds
+//     nothing for; it never renames one and never introduces an element;
 //   - removal tombstones every tagged object in the removed subtree in the
 //     domain its tag records - for a parked element, the collection it came
 //     from - and a tombstone survives the whole patch;
 //   - copy of anything tagged is refused: the generics cannot mint ids;
-//   - a move transports the same object references, tags intact: elements
-//     entering a collection are re-domained from the destination and checked
-//     against tombstones and duplicates like any insertion, elements parked
-//     at a key stay in transit with their tags, and a move onto an existing
-//     key drops what was there;
+//   - a move transports the same object references, tags intact. The root of
+//     the moved subtree enters the destination collection when placed at an
+//     array position (re-domained and checked against tombstones and
+//     duplicates like an insertion; an undeclared collection fails closed)
+//     and is parked, tag unchanged, when placed at a key. Nested elements stay
+//     in their own collections, which move with them: they keep their domain
+//     while the destination shape declares none (parked under a wrapper) and
+//     are re-derived and checked like an entry where it declares one (an
+//     Effect stack moved between placements). A move onto an existing key
+//     drops what was there;
 //   - an inserted fresh value has every array-member object with an id
 //     tagged after the insertion checks, so inserted elements acquire the
 //     same obligations; an object with an id at a key site that was never a
@@ -234,9 +240,18 @@ export function createIdentityTracker(root: unknown): IdentityTracker {
     site: Site,
     targetArray: unknown[] | null,
     path: string,
+    transported = false,
   ): { ok: true; entering: Candidate[] } | { ok: false; issue: GrammarIssue } {
+    const members: Candidate[] = []
     const entering: Candidate[] = []
-    tagMembers(value, site, (candidate) => entering.push(candidate))
+    tagMembers(value, site, (candidate) => {
+      members.push(candidate)
+      // A tagged element nested in a transported subtree is still in its own
+      // collection; where the destination declares no domain it is in transit
+      // and keeps the one it has.
+      if (transported && candidate.pointer !== '' && tags.has(candidate.node) && identityDomain(candidate.collection) === UNDECLARED_DOMAIN) return
+      entering.push(candidate)
+    })
     for (const candidate of entering) {
       if (isTombstoned(identityDomain(candidate.collection), candidate.id)) {
         return {
@@ -255,7 +270,7 @@ export function createIdentityTracker(root: unknown): IdentityTracker {
         issue: identityIssue(`${path}: element identity "${own}" would appear twice; ids are unique within their collection.`, path),
       }
     }
-    const duplicated = duplicateWithin(entering, path)
+    const duplicated = duplicateWithin(members, path)
     if (duplicated) return { ok: false, issue: duplicated }
     return { ok: true, entering }
   }
@@ -357,8 +372,18 @@ export function createIdentityTracker(root: unknown): IdentityTracker {
       const kept = new Map<string, { node: Record<string, unknown>; tag: Tag }>()
       let issue: GrammarIssue | null = null
       forEachObject(nextValue, site, (found) => {
-        if (issue || found.id === undefined) return
+        if (issue) return
         const entry = entries.get(found.pointer)
+        if (found.id === undefined) {
+          // An object at a tagged element's place is that element, kept; without its id it is a rewrite.
+          if (entry) {
+            issue = identityIssue(
+              `${path}${found.pointer}: element identity "${entry.id}" would become missing; ids are minted by the operations and never rewritten.`,
+              path,
+            )
+          }
+          return
+        }
         if (found.collection) {
           members.push({ node: found.node, id: found.id, pointer: found.pointer, collection: found.collection })
           if (!entry) {
@@ -402,7 +427,7 @@ export function createIdentityTracker(root: unknown): IdentityTracker {
     },
 
     placeIssue(value, oldValue, site, targetArray, path) {
-      const checked = enteringIssue(value, site, targetArray, path)
+      const checked = enteringIssue(value, site, targetArray, path, true)
       if (!checked.ok) return checked.issue
       if (oldValue !== undefined) removed(oldValue)
       for (const candidate of checked.entering) tags.set(candidate.node, { id: candidate.id, domain: identityDomain(candidate.collection) })

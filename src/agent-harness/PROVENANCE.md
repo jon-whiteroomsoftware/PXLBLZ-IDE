@@ -283,6 +283,18 @@ V2-authored suite that failed against `9cfa99e5` first.
 
 V2-authored suite: `test/genericIdentityProvenance.test.ts`.
 
+### Repair of the redesign review (94985154)
+
+The first review of the redesign found two holes in the provenance model as written, repaired in
+the same module with a suite that failed against `94985154` first.
+
+| # | Finding | Files | Before (94985154) | After |
+| --- | --- | --- | --- | --- |
+| 1 | An ancestor write could strip a parked element's id (P1) | `grammar/identity.ts` | The write walked only the objects of the written value that carried an id, so a replacement holding an id-less object at a parked element's place read as a drop: the element was tombstoned, the replacement object was untagged, an `add` gave it a new id, and the move back inserted it under that id. `add /scratch {}`, `move /outputEffects/0 -> /scratch/inner`, `replace /scratch {inner: {kind, retention}}`, `add /scratch/inner/id`, move back, `remove /scratch` renamed the output Effect. | An ancestor write keeps every element the written value holds an object for at its place, and a kept element keeps its exact id: an object there without it is refused as "would become missing", the same refusal a direct overwrite gives. A place the written value holds nothing for (absent, or a scalar) is still a drop, tombstoned. |
+| 2 | A move re-domained nested elements from an undeclared destination (P2) | `grammar/identity.ts` | Every array-member object with an id in the moved subtree was treated as entering a collection at the destination shape, so parking a placement under `/scratch` stamped its Effects with the fail-closed `*` domain (and checked them against every tombstone); dropping the parked placement then tombstoned the Effect ids in every domain and refused an independent marker of that string. | Only the transported root enters the destination collection. Nested elements stay in their own collections, which move with them: they keep their domain while the destination shape declares none and are re-derived and checked like an entry where it declares one (an Effect stack moved between placements). The root entering an undeclared collection still fails closed. |
+
+V2-authored suite: `test/genericIdentityTransit.test.ts`.
+
 ## Dependencies declared for this closure
 
 | Package | V3 range | Declared here | Installed |

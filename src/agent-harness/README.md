@@ -244,7 +244,10 @@ standing; and a Zone miss ranks its nearest candidates by distance from the quer
 third review found the identity classification itself unsound (a move that parked an element
 under a temporary key made its id writable), so element identity is now provenance carried by
 the working copy's objects (`grammar/identity.ts`): every generic identity rule follows the
-object wherever the patch moves it, and `generic.ts` keeps only the patch mechanics.
+object wherever the patch moves it, and `generic.ts` keeps only the patch mechanics. The review
+of that redesign found two holes in it, repaired in the same module: an ancestor write keeps a
+parked element under its exact id (an id-less object at its place is a rewrite, not a drop),
+and a moved subtree's nested elements keep their domain until the destination declares one.
 
 ## What this slice does not include
 
