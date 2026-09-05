@@ -4,7 +4,18 @@
 // with the tool list taken from the live MCP server. The API key comes from
 // OPENAI_API_KEY in the environment and is never stored; construction
 // refuses without it. Model and reasoning effort are configuration.
+//
+// #945 budget guard: every dispatch attempt, retries included, passes
+// through `dispatch` below, the adapter's only call into the SDK. It
+// reserves the attempt's worst case with the guard before the call and
+// settles or abandons it after; a refusal throws PaidCallRefusedError
+// before anything reaches the network. The SDK's own retries are disabled
+// so no attempt can bypass that reservation, and max_output_tokens is
+// pinned to the bound. `transport` is a test seam: a fetch that stands in
+// for the network and a sleep that stands in for the backoff timer.
 import OpenAI from 'openai'
+import { PaidCallRefusedError, type BoundedResponsesRequest } from './paidCallBudget.js'
+import type { PaidCallGuard } from './paidCallGuard.js'
 import type { DictationAgent } from './runner.js'
 import type { ModelCallTiming, RateLimitInfo } from './timing.js'
 import { runToolRound, type RequestedCall } from './turn.js'
@@ -14,10 +25,17 @@ export interface OpenAiAgentOptions {
   /** Reasoning effort for reasoning-capable models (for example low|medium|high). */
   reasoningEffort?: string
   maxTurns?: number
+  /** The paid-call guard (#945); required, there is no unguarded live path. */
+  budget: PaidCallGuard
   /** Timing/backoff telemetry, for the bridge's latency logging. */
   onEvent?: (event:
     | ({ kind: 'model-call' } & ModelCallTiming)
     | { kind: 'rate-limit-wait'; ms: number }) => void
+  /** Test seam only: replaces the network and the backoff timer. */
+  transport?: {
+    fetch?: typeof fetch
+    sleep?: (ms: number) => Promise<void>
+  }
 }
 
 export function createOpenAiAgent(options: OpenAiAgentOptions): DictationAgent {
@@ -28,12 +46,18 @@ export function createOpenAiAgent(options: OpenAiAgentOptions): DictationAgent {
       'replay mode without it.',
     )
   }
-  const openai = new OpenAI({ apiKey })
+  if (!options.budget) throw new Error('the live agent needs the paid-call guard (#945); there is no unguarded path')
+  const budget = options.budget
+  // maxRetries 0: the SDK would otherwise re-send on 429/5xx inside one
+  // create() call, outside the guard's per-attempt reservation.
+  const openai = new OpenAI({ apiKey, maxRetries: 0, ...(options.transport?.fetch ? { fetch: options.transport.fetch } : {}) })
+  const sleep = options.transport?.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
+  const maxOutputTokens = budget.status().bounds.maxOutputTokensPerCall
 
   return {
     name: options.reasoningEffort ? `${options.model} (${options.reasoningEffort})` : options.model,
     run: async (context) => {
-      const tools: OpenAI.Responses.Tool[] = context.tools
+      const tools: BoundedResponsesRequest['tools'] = context.tools
         .filter((tool) => tool.name !== 'open_show' && tool.name !== 'close_session')
         .map((tool) => ({
           type: 'function',
@@ -66,16 +90,13 @@ export function createOpenAiAgent(options: OpenAiAgentOptions): DictationAgent {
         `Editor context: ${contextLines.join(' ')}\n` +
         `Current Show (describe_show projection): ${JSON.stringify(context.description)}\n` +
         `The user says: "${context.utterance}"`
-      const input: OpenAI.Responses.ResponseInput = [
+      const input: BoundedResponsesRequest['input'] = [
         { role: 'developer', content: system },
         // The conversation so far, so follow-ups like "yes" or "ten
         // seconds" resolve against the agent's own previous question. The
         // Show state below is current truth; earlier turns' state is not
         // replayed.
-        ...(context.history ?? []).map((entry) => ({
-          role: entry.role,
-          content: entry.text,
-        } as OpenAI.Responses.ResponseInputItem)),
+        ...(context.history ?? []).map((entry) => ({ role: entry.role, content: entry.text })),
         { role: 'user', content: userMessage },
       ]
 
@@ -84,33 +105,66 @@ export function createOpenAiAgent(options: OpenAiAgentOptions): DictationAgent {
       const calls: ModelCallTiming[] = []
       let rateLimitWaitMs = 0
       let rateLimit: RateLimitInfo | undefined
+      // Output tokens the provider reported for this turn's earlier calls
+      // (the bound for a call that reported none): echoed reasoning is
+      // re-read server side and billed as input on the next call.
+      let priorOutputTokens = 0
+
+      // The single dispatch point (#945): reserve, send, settle or abandon.
+      const dispatch = async (): Promise<OpenAI.Responses.Response> => {
+        const request: BoundedResponsesRequest = {
+          model: options.model,
+          input,
+          tools,
+          max_output_tokens: maxOutputTokens,
+          ...(options.reasoningEffort ? { reasoning: { effort: options.reasoningEffort } } : {}),
+        }
+        const reservation = budget.reserve(request, priorOutputTokens)
+        if (!reservation.ok) throw new PaidCallRefusedError(reservation)
+        let data: OpenAI.Responses.Response
+        let response: Response
+        try {
+          ;({ data, response } = await openai.responses
+            .create(request as unknown as OpenAI.Responses.ResponseCreateParamsNonStreaming)
+            .withResponse())
+        } catch (error) {
+          const status = (error as { status?: number }).status
+          budget.abandon(reservation.id, `dispatch failed${status !== undefined ? ` with status ${status}` : ''}: ${error instanceof Error ? error.message.slice(0, 200) : String(error)}`)
+          throw error
+        }
+        const usage = data.usage
+        budget.settle(
+          reservation.id,
+          usage
+            ? {
+                inputTokens: usage.input_tokens,
+                cachedInputTokens: usage.input_tokens_details?.cached_tokens ?? 0,
+                outputTokens: usage.output_tokens,
+              }
+            : undefined,
+        )
+        priorOutputTokens += usage ? usage.output_tokens : maxOutputTokens
+        if (!rateLimit) {
+          const header = (name: string) => {
+            const value = response.headers.get(name)
+            return value === null || value === '' || Number.isNaN(Number(value)) ? undefined : Number(value)
+          }
+          const requestsPerMinute = header('x-ratelimit-limit-requests')
+          const tokensPerMinute = header('x-ratelimit-limit-tokens')
+          rateLimit = {
+            ...(requestsPerMinute !== undefined ? { requestsPerMinute } : {}),
+            ...(tokensPerMinute !== undefined ? { tokensPerMinute } : {}),
+          }
+        }
+        return data
+      }
 
       // Low-tier orgs rate-limit hard; back off and retry on 429 rather
-      // than failing the case.
+      // than failing the case. Every attempt is its own guarded dispatch.
       const createWithRetry = async (): Promise<OpenAI.Responses.Response> => {
         for (let attempt = 0; ; attempt += 1) {
           try {
-            const { data, response } = await openai.responses.create({
-              model: options.model,
-              ...(options.reasoningEffort
-                ? { reasoning: { effort: options.reasoningEffort as 'low' | 'medium' | 'high' } }
-                : {}),
-              tools,
-              input,
-            }).withResponse()
-            if (!rateLimit) {
-              const header = (name: string) => {
-                const value = response.headers.get(name)
-                return value === null || value === '' || Number.isNaN(Number(value)) ? undefined : Number(value)
-              }
-              const requestsPerMinute = header('x-ratelimit-limit-requests')
-              const tokensPerMinute = header('x-ratelimit-limit-tokens')
-              rateLimit = {
-                ...(requestsPerMinute !== undefined ? { requestsPerMinute } : {}),
-                ...(tokensPerMinute !== undefined ? { tokensPerMinute } : {}),
-              }
-            }
-            return data
+            return await dispatch()
           } catch (error) {
             const status = (error as { status?: number }).status
             if (status !== 429 || attempt >= 8) throw error
@@ -119,7 +173,7 @@ export function createOpenAiAgent(options: OpenAiAgentOptions): DictationAgent {
             const waitMs = suggested ? Number(suggested[1]) * 1_000 + 1_000 : 25_000
             rateLimitWaitMs += waitMs
             options.onEvent?.({ kind: 'rate-limit-wait', ms: waitMs })
-            await new Promise((resolve) => setTimeout(resolve, waitMs))
+            await sleep(waitMs)
           }
         }
       }
@@ -154,7 +208,7 @@ export function createOpenAiAgent(options: OpenAiAgentOptions): DictationAgent {
           return finish(response.output_text ?? '')
         }
         // Feed the full output (including reasoning items) back for the next turn.
-        input.push(...(response.output as OpenAI.Responses.ResponseInputItem[]))
+        input.push(...(response.output as unknown as BoundedResponsesRequest['input']))
         // The shared round (#38): operations first, then any finish - by
         // finish_turn_reply on an operation or a finish_turn call.
         const parsedCalls: RequestedCall[] = requested.map((call) => {

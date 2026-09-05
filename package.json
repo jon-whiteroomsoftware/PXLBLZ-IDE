@@ -132,6 +132,7 @@
     "agent:corpus": "npm run check:node && tsx src/agent-harness/run.ts src/agent-harness/experiment/cli.ts",
     "agent:smoke": "npm run check:node && tsx src/agent-harness/run.ts src/agent-harness/bridge/smoke.ts",
     "agent:bridge": "npm run check:node && tsx src/agent-harness/run.ts src/agent-harness/bridge/server.ts",
+    "agent:budget": "npm run check:node && tsx src/agent-harness/experiment/budgetCli.ts",
     "agent:coverage": "npm run check:node && tsx src/agent-harness/run.ts src/agent-harness/grammar/coverageCli.ts",
     "agent:diagnostics": "npm run check:node && vitest run --config vitest.agent-diagnostics.config.ts"
   },

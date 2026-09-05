@@ -111,9 +111,29 @@ Adaptations beyond the mechanical, each annotated in its file:
   by `AGENT_HARNESS_ENV_FILE` instead of a repository `.env` (V2 does not ignore `.env`).
 - `grammar/coverageCli.ts`: output paths follow the moved report and snapshot.
 
+Paid-call budget slice (#945, V2-authored, after the transfer):
+
+- `experiment/openaiAgent.ts`: the SDK call moved into a single `dispatch` that reserves with
+  the required `budget` guard before the request and settles or abandons after it; the SDK
+  client is constructed with `maxRetries: 0`; `max_output_tokens` is pinned to the bound; the
+  request is typed as the guard's closed shape; a `transport` option (fetch, sleep) is a test
+  seam. The loop, prompt and tool-round logic are unchanged.
+- `experiment/cli.ts`: the run loop extracted as `runCorpus` (one accounting unit per case,
+  stop at the first refusal, `budget.json`); `--live` opens the ledger before the credential and
+  releases it in `finally`.
+- `experiment/pricing.ts`: `ModelPrice` is now the guard's `PaidCallPrice`; every entry carries
+  `readOn: '2026-09-01'` and no `acceptedForPaidRuns`, so the transferred figures are refused
+  for paid runs until verified.
+- `bridge/service.ts`: optional `guard` in `BridgeOptions`; one accounting unit begun per
+  `/utterance` turn. `bridge/server.ts`: opens the ledger before the credential, passes the
+  guard to the agent and the bridge, releases the lock on SIGINT/SIGTERM.
+
 New files (V2-authored, #945): `run.ts` (Vite module runner entry: the V2 stock catalogue uses
 `import.meta.glob`/`?raw`, so this closure cannot execute under plain `tsx`), `bridge/smoke.ts`,
-`test/bridgeSmoke.test.ts`, `test/critiqueShow.drift.diagnostic.ts`, this file, `README.md`.
+`test/bridgeSmoke.test.ts`, `test/critiqueShow.drift.diagnostic.ts`, this file, `README.md`;
+budget slice: `experiment/paidCallBudget.ts` (pure rules), `experiment/paidCallGuard.ts`
+(ledger file, lock), `experiment/budgetCli.ts`, `test/paidCallBudget.test.ts`,
+`test/paidCallGuard.test.ts`, `test/paidCallDispatch.test.ts`.
 
 ## Deliberately not transferred
 

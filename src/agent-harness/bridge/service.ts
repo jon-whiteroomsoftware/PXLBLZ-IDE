@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { ScriptStep } from '../experiment/corpus.js'
+import type { PaidCallGuard } from '../experiment/paidCallGuard.js'
 import { createFakeAgent, type DictationAgent } from '../experiment/runner.js'
 import { dictationTools, projectionForAgent, runDictationTurn } from '../experiment/turn.js'
 import { DICTATION_RULES, type EditorContext } from '../grammar/read.js'
@@ -181,6 +182,13 @@ export interface BridgeOptions {
    */
   scripted?: boolean
   /**
+   * The paid-call guard (#945) the live agent dispatches through. The
+   * server begins one accounting unit per /utterance turn, so the per-unit
+   * call ceiling is per bridge turn, repair turn included. Absent for the
+   * scripted agent, which never dispatches.
+   */
+  guard?: PaidCallGuard
+  /**
    * The current request's progress sink, for an agent whose model-call
    * events are wired at construction time (the OpenAI adapter's onEvent).
    * The server sets it while a turn runs and clears it afterwards.
@@ -200,6 +208,7 @@ export function createBridgeServer(options: BridgeOptions): Server {
   // One utterance at a time: the editor applies each result before the next
   // turn, and interleaved edits of the same record would race.
   let busy = false
+  let turns = 0
 
   return createServer((request, response) => {
     if (request.method === 'OPTIONS') {
@@ -249,7 +258,9 @@ export function createBridgeServer(options: BridgeOptions): Server {
               return
             }
             const turnStart = Date.now()
+            turns += 1
             log(`turn: "${body.utterance.slice(0, 80)}"`)
+            options.guard?.beginUnit(`bridge-turn-${turns}`)
             progress.current = (event) => emit(event)
             const delayMs = options.scripted && typeof body.delayMs === 'number' && body.delayMs > 0 ? body.delayMs : 0
             const turnAgent = delayMs > 0 ? withDelay(agent, delayMs) : agent
