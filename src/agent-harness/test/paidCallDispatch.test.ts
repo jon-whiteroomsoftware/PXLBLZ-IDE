@@ -4,11 +4,12 @@
 // SDK's network replaced by a fetch spy that answers in the Responses API
 // shape. Oracles: the number of HTTP requests the spy saw (a refusal means
 // zero further requests, SDK retries included), the request bodies it saw
-// (the pinned output cap, function tools only, the reserved model), the
-// ledger file reopened through the parser (every reservation is the accepted
-// provider ceiling, never the request's size), and the refusal as each
-// public path surfaces it. No credential is read: OPENAI_API_KEY is a stub
-// the spy never records.
+// (the pinned output cap, service_tier=default, truncation=disabled,
+// function tools only, the reserved model), the ledger file reopened through
+// the parser (every reservation is the accepted provider ceiling at the worst
+// applicable documented rates, never the request's size; every settlement
+// names its basis), and the refusal as each public path surfaces it. No
+// credential is read: OPENAI_API_KEY is a stub the spy never records.
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -34,7 +35,15 @@ const NOW = new Date('2026-09-04T12:00:00.000Z')
 const MODEL = 'test-model'
 /** $1 per million on every rate: a token is a micro-dollar. */
 const PRICES: Record<string, PaidCallPrice> = {
-  [MODEL]: { input: 1, cachedInput: 1, output: 1, source: 'test', readOn: '2026-09-01', acceptedForPaidRuns: { by: 'test', on: '2026-09-03' } },
+  [MODEL]: {
+    input: 1,
+    cachedInput: 1,
+    output: 1,
+    terms: { longContext: 'none', cacheWriteMultiplier: 1 },
+    source: 'test',
+    readOn: '2026-09-01',
+    acceptedForPaidRuns: { by: 'test', on: '2026-09-03' },
+  },
 }
 /** A 200,000-token accepted ceiling: every call reserves $0.204 at the unit price. The real first request is about 97 KB, and the four-call case feeds tool output back, so a smaller ceiling would trip the size refusal instead. */
 const LIMITS: Record<string, ProviderInputLimit> = {
@@ -48,13 +57,20 @@ const LIMITS: Record<string, ProviderInputLimit> = {
   },
 }
 const RESERVATION_USD = 0.204
-const USAGE = { input_tokens: 3000, input_tokens_details: { cached_tokens: 1000 }, output_tokens: 200, output_tokens_details: { reasoning_tokens: 100 }, total_tokens: 3200 }
+/** The installed SDK's usage shape (openai 7.10.0): input_tokens_details carries cached_tokens and cache_write_tokens. */
+const USAGE = {
+  input_tokens: 3000,
+  input_tokens_details: { cached_tokens: 1000, cache_write_tokens: 500 },
+  output_tokens: 200,
+  output_tokens_details: { reasoning_tokens: 100 },
+  total_tokens: 3200,
+}
 /** $0.0032 at the unit price. */
 const USAGE_USD = 0.0032
 
 type Reply =
-  | { text: string; usage?: typeof USAGE }
-  | { call: string; args: Record<string, unknown>; usage?: typeof USAGE }
+  | { text: string; usage?: Record<string, unknown>; serviceTier?: string }
+  | { call: string; args: Record<string, unknown>; usage?: Record<string, unknown>; serviceTier?: string }
   | { status: 429 }
 
 interface Spy {
@@ -81,7 +97,16 @@ function responsesSpy(script: Reply[]): Spy {
       'text' in reply
         ? [{ type: 'message', id: `msg_${index}`, role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: reply.text, annotations: [] }] }]
         : [{ type: 'function_call', id: `fc_${index}`, call_id: `call_${index}`, name: reply.call, arguments: JSON.stringify(reply.args), status: 'completed' }]
-    const body = { id: `resp_${index}`, object: 'response', created_at: 0, model: MODEL, status: 'completed', output, usage: reply.usage ?? USAGE }
+    const body = {
+      id: `resp_${index}`,
+      object: 'response',
+      created_at: 0,
+      model: MODEL,
+      status: 'completed',
+      output,
+      usage: reply.usage ?? USAGE,
+      service_tier: reply.serviceTier ?? 'default',
+    }
     return new Response(JSON.stringify(body), {
       status: 200,
       headers: { 'content-type': 'application/json', 'x-ratelimit-limit-requests': '500', 'x-ratelimit-limit-tokens': '30000' },
@@ -153,7 +178,9 @@ afterEach(() => {
 describe('corpus path (runCorpus, the CLI loop)', () => {
   it('refuses before any request when the model price is not accepted for paid runs', async () => {
     const spy = responsesSpy([{ text: 'done' }])
-    const guard = guardWith({ prices: MODEL_PRICES })
+    // The shipped Luna entry with its acceptance removed.
+    const unaccepted = { ...MODEL_PRICES, 'gpt-5.6-luna': { ...MODEL_PRICES['gpt-5.6-luna'], acceptedForPaidRuns: undefined } }
+    const guard = guardWith({ prices: unaccepted, limits: MODEL_INPUT_LIMITS })
     const result = await runCorpus({ cases: DICTATION_CASES.slice(0, 2), agent: liveAgent(guard, spy, 'gpt-5.6-luna'), outDir, guard, log: () => {} })
 
     expect(spy.requests).toHaveLength(0)
@@ -167,7 +194,7 @@ describe('corpus path (runCorpus, the CLI loop)', () => {
 
   it('refuses before any request when no provider ceiling is accepted, price accepted or not', async () => {
     const spy = responsesSpy([{ text: 'done' }])
-    // The shipped table: no ceiling for any model.
+    // The shipped table carries no ceiling for the test model.
     const shipped = guardWith({ limits: MODEL_INPUT_LIMITS })
     const none = await runCorpus({ cases: ONE_CASE, agent: liveAgent(shipped, spy), outDir, guard: shipped, log: () => {} })
     expect(spy.requests).toHaveLength(0)
@@ -192,6 +219,8 @@ describe('corpus path (runCorpus, the CLI loop)', () => {
     const body = spy.requests[0]
     expect(body.model).toBe(MODEL)
     expect(body.max_output_tokens).toBe(4000)
+    expect(body.service_tier).toBe('default')
+    expect(body.truncation).toBe('disabled')
     expect(body.reasoning).toEqual({ effort: 'high' })
     expect(body).not.toHaveProperty('previous_response_id')
     expect((body.tools as Array<{ type: string }>).every((tool) => tool.type === 'function')).toBe(true)
@@ -207,8 +236,10 @@ describe('corpus path (runCorpus, the CLI loop)', () => {
       reservedUsd: RESERVATION_USD,
       reservedInputTokens: 200_000,
       settledUsd: USAGE_USD,
-      usage: { inputTokens: 3000, cachedInputTokens: 1000, outputTokens: 200 },
+      settledBasis: 'reported-categories',
+      usage: { inputTokens: 3000, cachedInputTokens: 1000, cacheWriteTokens: 500, outputTokens: 200 },
     })
+    expect(entries[0].settledNote).toBeUndefined()
     // The real first request (tool schemas, projection, prompt) is tens of
     // kilobytes; its estimate is recorded but the ceiling is what was reserved.
     expect(entries[0].estimatedInputTokens).toBeGreaterThan(50_000)
@@ -217,6 +248,60 @@ describe('corpus path (runCorpus, the CLI loop)', () => {
     expect(result.report.totals.cases).toBe(1)
     expect(result.budget?.aggregate.consumedUsd).toBe(USAGE_USD)
     expect(result.report.cases[0].timing?.modelCalls).toBe(1)
+  })
+
+  it('settles a response whose usage omits the cache-write category as an upper estimate', async () => {
+    const partial = { input_tokens: 3000, input_tokens_details: { cached_tokens: 1000 }, output_tokens: 200, output_tokens_details: { reasoning_tokens: 100 }, total_tokens: 3200 }
+    const spy = responsesSpy([{ text: 'done', usage: partial }])
+    const guard = guardWith()
+    await runCorpus({ cases: ONE_CASE, agent: liveAgent(guard, spy), outDir, guard, log: () => {} })
+    expect(ledgerEntries()[0]).toMatchObject({
+      state: 'settled',
+      settledUsd: USAGE_USD,
+      settledBasis: 'upper-estimate',
+      settledNote: expect.stringMatching(/not reported/),
+      usage: { inputTokens: 3000, cachedInputTokens: 1000, outputTokens: 200 },
+    })
+    expect(ledgerEntries()[0].usage).not.toHaveProperty('cacheWriteTokens')
+  })
+
+  it('keeps a response served under another service tier at its reservation and halts the ledger', async () => {
+    const spy = responsesSpy([{ text: 'done', serviceTier: 'priority' }, { text: 'again' }])
+    const guard = guardWith()
+    const result = await runCorpus({ cases: DICTATION_CASES.slice(0, 2), agent: liveAgent(guard, spy), outDir, guard, log: () => {} })
+    expect(spy.requests).toHaveLength(1)
+    const ledger = ledgerOnDisk()
+    expect(ledger.entries).toEqual([expect.objectContaining({ state: 'ambiguous', reservedUsd: RESERVATION_USD, note: expect.stringMatching(/service_tier "priority"/) })])
+    expect(ledger.halt).toMatchObject({ entryId: 'run-under-test-1', reason: expect.stringMatching(/service_tier "priority"/) })
+    // The reply had already arrived, so the first case is measured; the halt stops everything after it.
+    expect(result.report.totals.cases).toBe(1)
+    expect(result.unmeasured).toEqual([{ caseId: DICTATION_CASES[1].id, reason: expect.stringMatching(/ledger-halted.*service_tier "priority"/) }])
+    expect(result.budget).toMatchObject({ halted: expect.stringMatching(/service_tier "priority"/), ledgerHalt: expect.objectContaining({ entryId: 'run-under-test-1' }) })
+    guard.close()
+    guards.splice(0)
+    expect(() => guardWith({ runId: 'run-2' })).toThrow(/ledger-halted.*service_tier "priority"/)
+    expect(spy.requests).toHaveLength(1)
+  })
+
+  it('dispatches gpt-5.6-luna from the shipped tables at a $0.5322 reservation with the pinned tier', async () => {
+    const spy = responsesSpy([{ text: 'Nothing to do.' }])
+    const guard = openPaidCallGuard({
+      ledgerPath,
+      bounds: PAID_CALL_BOUNDS,
+      prices: MODEL_PRICES,
+      limits: MODEL_INPUT_LIMITS,
+      now: () => new Date('2026-09-05T12:00:00.000Z'),
+      runId: 'luna',
+    })
+    guards.push(guard)
+    const result = await runCorpus({ cases: ONE_CASE, agent: liveAgent(guard, spy, 'gpt-5.6-luna'), outDir, guard, log: () => {} })
+    expect(spy.requests).toHaveLength(1)
+    expect(spy.requests[0]).toMatchObject({ model: 'gpt-5.6-luna', service_tier: 'default', truncation: 'disabled', max_output_tokens: 4000 })
+    expect(ledgerEntries()[0]).toMatchObject({ model: 'gpt-5.6-luna', state: 'settled', reservedUsd: 0.5322, reservedInputTokens: 1_050_000, settledBasis: 'reported-categories' })
+    // 1,500 plain at $0.20, 500 cache writes at $0.25, 1,000 cached at $0.02, 200 output at $1.20.
+    expect(ledgerEntries()[0].settledUsd).toBe(Math.round(((1500 * 0.2 + 500 * 0.25 + 1000 * 0.02 + 200 * 1.2) / 1e6) * 1e6) / 1e6)
+    expect(result.unmeasured).toEqual([])
+    expect(result.budget?.remainingRunUsd).toBe(Math.round((2 - ledgerEntries()[0].settledUsd!) * 1e6) / 1e6)
   })
 
   it('stops a case at four model calls, each reserved at the same full ceiling', async () => {

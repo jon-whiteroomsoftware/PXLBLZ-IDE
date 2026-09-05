@@ -15,8 +15,10 @@
 // rewritten. A second opener while the lock is held is refused; a lock left
 // by a crashed run is reported with its holder and removed by hand. A ledger
 // carrying a halt record (a settlement exceeded the provider ceiling its
-// reservation assumed) is refused at open, before any credential is read,
-// until a human reconciles the charge and removes the record by hand.
+// reservation assumed, or a response was served under a service tier the
+// accepted standard rates do not cover) is refused at open, before any
+// credential is read, until a human reconciles the charge and removes the
+// record by hand.
 import { closeSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync, writeSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -83,6 +85,12 @@ export interface PaidCallStatus {
   unitCalls: number
 }
 
+/** What the response said about itself, beyond usage, that the settlement must check. */
+export interface SettlementContext {
+  /** The response's echoed service_tier; null or absent when it did not echo one. */
+  serviceTier?: string | null
+}
+
 export interface PaidCallGuard {
   readonly ledgerPath: string
   readonly runId: string
@@ -90,8 +98,13 @@ export interface PaidCallGuard {
   beginUnit: (label: string) => void
   /** Reserve the full accepted ceiling for one dispatch attempt, durably, before the call. */
   reserve: (request: BoundedResponsesRequest) => PaidCallReservation | PaidCallRefusal
-  /** Settle a reservation at reported usage; an invalid usage block keeps it ambiguous. */
-  settle: (id: string, usage: unknown) => void
+  /**
+   * Settle a reservation at reported usage; an invalid usage block keeps it
+   * ambiguous. A response served under a service tier other than the pinned
+   * "default" is kept at its reservation and halts the ledger: the accepted
+   * rates do not price it.
+   */
+  settle: (id: string, usage: unknown, context?: SettlementContext) => void
   /** Keep a reservation as ambiguous spend (error, timeout, missing usage). */
   abandon: (id: string, note: string) => void
   status: () => PaidCallStatus
@@ -275,8 +288,17 @@ export function openPaidCallGuard(options: OpenGuardOptions = {}): PaidCallGuard
         estimatedInputTokens: decided.entry.estimatedInputTokens,
       }
     },
-    settle: (id, usage) => {
+    settle: (id, usage, context) => {
       const entry = reservedEntry(id)
+      const tier = context?.serviceTier
+      if (tier !== undefined && tier !== null && tier !== 'default') {
+        // The request pinned "default"; the provider answered under another tier
+        // whose rates were never accepted. Keep the worst case and stop everything.
+        const reason = `entry ${entry.id}: the response reports service_tier "${tier}" although the request pinned "default"; the accepted standard rates do not cover it, so the entry stays at its reservation`
+        persist(haltLedger(withEntry(abandonEntry(entry, reason)), { at: now().toISOString(), runId, entryId: entry.id, reason }))
+        halted = reason
+        return
+      }
       if (!validUsage(usage)) {
         replaceEntry(abandonEntry(entry, 'the response carried no valid usage block; kept at the reservation'))
         return

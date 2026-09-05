@@ -1451,13 +1451,21 @@ are owned by its paid-call guard (`src/agent-harness/experiment/paidCallGuard.ts
 rules in `paidCallBudget.ts`): every dispatch attempt, retries included,
 first reserves its worst case in a durable ledger outside the worktree,
 priced from an explicitly accepted provider-enforced input-token ceiling
-(`providerLimits.ts`) and an accepted price (`pricing.ts`), under the #945
-ceilings of $20 aggregate, $2 per run, four calls per case or turn and 4000
-output tokens per call. A model without both acceptances is refused before
-any network call; usage above the ceiling halts the ledger persistently
-until a human reconciles it. `npm run agent:budget [-- init]` inspects or
-creates the ledger. Details and the pre-run checklist are in the harness
-`README.md`.
+(`providerLimits.ts`) and an accepted price with explicit long-context and
+cache-write terms (`pricing.ts`) at the worst multipliers that can apply at
+the ceiling, under the #945 ceilings of $20 aggregate, $2 per run, four
+calls per case or turn and 4000 output tokens per call. Every request pins
+`service_tier: 'default'` and `truncation: 'disabled'`; any other shape is
+refused. A model without both acceptances is refused before any network
+call. Settlements price the usage categories the installed SDK documents and
+record their basis on the entry (`reported-categories`, or `upper-estimate`
+when the cache-write category was missing and the upper rate was charged);
+neither is an invoice figure. Usage above the ceiling, or a response served
+under another service tier, halts the ledger persistently until a human
+reconciles it. Only `gpt-5.6-luna` is accepted (provider pages read
+2026-09-05; $0.5322 reserved per call). `npm run agent:budget [-- init]`
+inspects or creates the ledger. Details and the pre-run checklist are in the
+harness `README.md`.
 
 ## 28. Known limits and accepted divergences
 

@@ -33,7 +33,15 @@ const BOUNDS: PaidCallBounds = {
   acceptanceMaxAgeDays: 30,
 }
 const PRICES: Record<string, PaidCallPrice> = {
-  'test-model': { input: 1, cachedInput: 1, output: 1, source: 'test', readOn: '2026-09-01', acceptedForPaidRuns: { by: 'test', on: '2026-09-03' } },
+  'test-model': {
+    input: 1,
+    cachedInput: 1,
+    output: 1,
+    terms: { longContext: 'none', cacheWriteMultiplier: 1 },
+    source: 'test',
+    readOn: '2026-09-01',
+    acceptedForPaidRuns: { by: 'test', on: '2026-09-03' },
+  },
 }
 /** 100,000-token ceiling at the unit price: every call reserves $0.104. */
 const LIMITS: Record<string, ProviderInputLimit> = {
@@ -52,6 +60,8 @@ const REQUEST: BoundedResponsesRequest = {
   input: [{ role: 'user', content: 'hello' }],
   tools: [],
   max_output_tokens: 4000,
+  service_tier: 'default',
+  truncation: 'disabled',
 }
 
 let directory: string
@@ -108,8 +118,8 @@ describe('ledger creation and reopening', () => {
       expect.objectContaining({ id: 'run-1-1', runId: 'run-1', unit: 'case-a', state: 'reserved', reservedUsd: RESERVATION_USD, reservedInputTokens: 100_000 }),
     ])
 
-    first.settle(reservation.id, { inputTokens: 100, cachedInputTokens: 0, outputTokens: 50 })
-    expect(ledgerOnDisk().entries[0]).toMatchObject({ state: 'settled', settledUsd: 0.00015 })
+    first.settle(reservation.id, { inputTokens: 100, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 50 })
+    expect(ledgerOnDisk().entries[0]).toMatchObject({ state: 'settled', settledUsd: 0.00015, settledBasis: 'reported-categories' })
     first.close()
     expect(existsSync(`${ledgerPath}.lock`)).toBe(false)
 
@@ -215,8 +225,17 @@ describe('refusals leave the file alone', () => {
     expect(unknown.ok === false && unknown.code).toBe('pricing-unknown')
     const unsupported = guard.reserve({ ...REQUEST, input: [{ type: 'web_search_call' } as never] })
     expect(unsupported.ok === false && unsupported.code).toBe('shape-unsupported')
+    const autoTier = guard.reserve({ ...REQUEST, service_tier: 'auto' as never })
+    expect(autoTier.ok === false && autoTier.code).toBe('shape-unsupported')
     expect(readFileSync(ledgerPath, 'utf8')).toBe(before)
     expect(guard.status().unitCalls).toBe(0)
+    guard.close()
+    guards.splice(0)
+    const flatPrice = open({ runId: 'flat', prices: { 'test-model': { ...PRICES['test-model'], terms: undefined } } })
+    flatPrice.beginUnit('case-a')
+    const noTerms = flatPrice.reserve(REQUEST)
+    expect(noTerms.ok === false && noTerms.code).toBe('pricing-invalid')
+    expect(readFileSync(ledgerPath, 'utf8')).toBe(before)
   })
 
   it('refuses a model with an accepted price but no accepted provider ceiling', () => {
@@ -297,6 +316,54 @@ describe('run-time ceilings through the guard', () => {
     if (!reservation.ok) throw new Error(reservation.reason)
     guard.settle(reservation.id, { inputTokens: 10.5, cachedInputTokens: 0, outputTokens: 1 })
     expect(ledgerOnDisk().entries[0]).toMatchObject({ state: 'ambiguous', note: expect.stringMatching(/no valid usage block/) })
+    expect(ledgerOnDisk().halt).toBeUndefined()
+  })
+
+  it('settles a usage block without the cache-write category as an upper estimate, never as actual billing', () => {
+    initLedger(ledgerPath, 't', NOW)
+    const guard = open({ runId: 'r' })
+    guard.beginUnit('case-a')
+    const reservation = guard.reserve(REQUEST)
+    if (!reservation.ok) throw new Error(reservation.reason)
+    guard.settle(reservation.id, { inputTokens: 100, cachedInputTokens: 20, outputTokens: 10 })
+    expect(ledgerOnDisk().entries[0]).toMatchObject({
+      state: 'settled',
+      settledUsd: 0.00011,
+      settledBasis: 'upper-estimate',
+      settledNote: expect.stringMatching(/cache.write.*not reported/i),
+      usage: { inputTokens: 100, cachedInputTokens: 20, outputTokens: 10 },
+    })
+    expect(ledgerOnDisk().halt).toBeUndefined()
+  })
+
+  it('keeps the reservation and halts the ledger when the response reports a service tier other than the pinned default', () => {
+    initLedger(ledgerPath, 't', NOW)
+    const guard = open({ runId: 'r' })
+    guard.beginUnit('case-a')
+    const reservation = guard.reserve(REQUEST)
+    if (!reservation.ok) throw new Error(reservation.reason)
+    guard.settle(reservation.id, { inputTokens: 100, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 10 }, { serviceTier: 'priority' })
+    const ledger = ledgerOnDisk()
+    expect(ledger.entries[0]).toMatchObject({ state: 'ambiguous', reservedUsd: RESERVATION_USD, note: expect.stringMatching(/service_tier "priority".*pinned "default"/) })
+    expect(ledger.entries[0].settledUsd).toBeUndefined()
+    expect(ledger.halt).toMatchObject({ runId: 'r', entryId: 'r-1', reason: expect.stringMatching(/service_tier "priority"/) })
+    const refused = guard.reserve(REQUEST)
+    expect(refused.ok === false && refused.code).toBe('ledger-halted')
+    guard.close()
+    guards.splice(0)
+    expect(() => open({ runId: 'later' })).toThrow(/ledger-halted.*service_tier/)
+  })
+
+  it('settles normally when the response echoes the default tier or omits the echo', () => {
+    initLedger(ledgerPath, 't', NOW)
+    const guard = open({ runId: 'r' })
+    guard.beginUnit('case-a')
+    const first = guard.reserve(REQUEST)
+    const second = guard.reserve(REQUEST)
+    if (!first.ok || !second.ok) throw new Error('expected two reservations')
+    guard.settle(first.id, { inputTokens: 1, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 1 }, { serviceTier: 'default' })
+    guard.settle(second.id, { inputTokens: 1, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 1 }, { serviceTier: null })
+    expect(ledgerOnDisk().entries.map((entry) => entry.state)).toEqual(['settled', 'settled'])
     expect(ledgerOnDisk().halt).toBeUndefined()
   })
 

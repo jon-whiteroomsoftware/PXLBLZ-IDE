@@ -134,6 +134,16 @@ Paid-call budget slice (#945, V2-authored, after the transfer):
   output cap; the byte count remains on each entry as a diagnostic and a size refusal only. A
   settlement above the ceiling writes a persistent `halt` into the ledger that every later
   opener refuses until cleared by hand.
+- Pricing terms and settlement basis (third budget commit): `PaidCallPrice` gained required
+  `terms` (documented long-context threshold and multipliers or `'none'`, and the cache-write
+  multiplier); a price without explicit, consistent terms is refused. The reservation applies
+  every multiplier that can apply at the ceiling. Settlements price the installed SDK's
+  documented usage categories (including `cache_write_tokens`) and record `settledBasis`
+  (`reported-categories` or `upper-estimate`) and a `settledNote` on the entry. The request
+  shape pins `service_tier: 'default'` and `truncation: 'disabled'`; a response echoing another
+  tier keeps its reservation and halts the ledger. `pricing.ts` and `providerLimits.ts` carry
+  the `gpt-5.6-luna` figures read from the provider's official pages on 2026-09-05 with their
+  acceptance; the transferred terra and sol prices remain without terms or acceptance.
 
 New files (V2-authored, #945): `run.ts` (Vite module runner entry: the V2 stock catalogue uses
 `import.meta.glob`/`?raw`, so this closure cannot execute under plain `tsx`), `bridge/smoke.ts`,

@@ -11,9 +11,12 @@
 // accepted provider ceiling for the model, not the request's size) and
 // settles or abandons it after; a refusal throws PaidCallRefusedError
 // before anything reaches the network. The SDK's own retries are disabled
-// so no attempt can bypass that reservation, and max_output_tokens is
-// pinned to the bound. `transport` is a test seam: a fetch that stands in
-// for the network and a sleep that stands in for the backoff timer.
+// so no attempt can bypass that reservation, max_output_tokens is pinned to
+// the bound, service_tier is pinned to "default" (standard pricing, never
+// the project's configured tier) and truncation to "disabled" (oversized
+// input fails with HTTP 400 instead of being trimmed and billed).
+// `transport` is a test seam: a fetch that stands in for the network and a
+// sleep that stands in for the backoff timer.
 import OpenAI from 'openai'
 import { PaidCallRefusedError, type BoundedResponsesRequest } from './paidCallBudget.js'
 import type { PaidCallGuard } from './paidCallGuard.js'
@@ -114,6 +117,8 @@ export function createOpenAiAgent(options: OpenAiAgentOptions): DictationAgent {
           input,
           tools,
           max_output_tokens: maxOutputTokens,
+          service_tier: 'default',
+          truncation: 'disabled',
           ...(options.reasoningEffort ? { reasoning: { effort: options.reasoningEffort } } : {}),
         }
         const reservation = budget.reserve(request)
@@ -130,6 +135,11 @@ export function createOpenAiAgent(options: OpenAiAgentOptions): DictationAgent {
           throw error
         }
         const usage = data.usage
+        // The documented categories of the installed SDK (openai 7.10.0):
+        // input_tokens, input_tokens_details.cached_tokens and
+        // .cache_write_tokens, output_tokens. A missing cache-write category
+        // is passed through as absent; the guard then charges the upper rate.
+        const cacheWriteTokens = usage?.input_tokens_details?.cache_write_tokens
         budget.settle(
           reservation.id,
           usage
@@ -137,8 +147,10 @@ export function createOpenAiAgent(options: OpenAiAgentOptions): DictationAgent {
                 inputTokens: usage.input_tokens,
                 cachedInputTokens: usage.input_tokens_details?.cached_tokens ?? 0,
                 outputTokens: usage.output_tokens,
+                ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {}),
               }
             : undefined,
+          { serviceTier: data.service_tier ?? null },
         )
         if (!rateLimit) {
           const header = (name: string) => {

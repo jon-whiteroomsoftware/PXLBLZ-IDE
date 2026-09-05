@@ -24,15 +24,31 @@
 // Reservation basis. The worst case of one call is the provider-enforced
 // maximum input tokens for the selected model and the supported request
 // shape (`ProviderInputLimit`, recorded with its source, date, evidence and
-// a separate acceptance in `providerLimits.ts`) priced uncached, plus the
-// output cap priced in full. The request's own size is not the basis: a
-// byte-derived estimate is recorded on the entry as a diagnostic and can
-// refuse a request that is already larger than the ceiling, but it never
-// lowers a reservation. A model without an accepted ceiling is refused
-// before dispatch. If a provider ever reports usage above the ceiling the
-// reservation assumed, the settlement records the actual cost, flags the
-// entry, and writes a persistent halt into the ledger: every later run
-// refuses until a human reconciles the charged usage and clears it.
+// a separate acceptance in `providerLimits.ts`) priced at the worst
+// applicable documented rates, plus the output cap priced in full. A price
+// is more than three flat figures: its `terms` state the documented
+// long-context surcharge (above a threshold of input tokens the whole
+// request is billed at higher multipliers) and the cache-write multiplier
+// over the uncached input rate, and a price without explicit, consistent
+// terms is refused rather than reserved at flat rates. The reservation
+// applies every multiplier that can apply at the ceiling, so it is an
+// inference from documented factors, not a measured bill. The request's own
+// size is not the basis: a byte-derived estimate is recorded on the entry as
+// a diagnostic and can refuse a request that is already larger than the
+// ceiling, but it never lowers a reservation. A model without an accepted
+// ceiling is refused before dispatch. If a provider ever reports usage above
+// the ceiling the reservation assumed, the settlement records the actual
+// cost, flags the entry, and writes a persistent halt into the ledger: every
+// later run refuses until a human reconciles the charged usage and clears it.
+//
+// Settlement basis. A settlement prices the usage categories the installed
+// SDK documents (input tokens, cached input tokens, cache-write tokens,
+// output tokens) at the documented rates, applying the long-context
+// multipliers when the request's input tokens exceed the threshold. When
+// the response omits the cache-write category, every uncached input token is
+// charged at the cache-write rate and the entry is labelled an upper
+// estimate. Either way the figure is the guard's accounting from documented
+// rates, never a claim about the provider's invoice.
 
 export interface PaidCallBounds {
   /** Ceiling on everything the ledger has ever consumed, all runs, all states. */
@@ -65,13 +81,38 @@ export interface PaidRunAcceptance {
   note?: string
 }
 
+/** Documented long-context surcharge: strictly above the threshold, the whole request is billed at these multipliers. */
+export interface LongContextTerms {
+  /** Input tokens in one request; a positive integer. Above it (strictly) the multipliers apply. */
+  aboveInputTokens: number
+  /** Multiplier on every input-side rate (uncached, cached, cache write); at least 1. */
+  inputMultiplier: number
+  /** Multiplier on the output rate; at least 1. */
+  outputMultiplier: number
+}
+
+/**
+ * The parts of a price schedule beyond the three flat rates. Every accepted
+ * price states them explicitly; `'none'` records that the source documents
+ * no long-context surcharge, and a cache-write multiplier of 1 that the
+ * source documents no cache-write premium. Absent terms are refused: flat
+ * rates alone are not a schedule the guard can reserve from.
+ */
+export interface PaidCallPriceTerms {
+  longContext: LongContextTerms | 'none'
+  /** Multiple of the uncached input rate charged for tokens written to the prompt cache; at least 1. */
+  cacheWriteMultiplier: number
+}
+
 export interface PaidCallPrice {
-  /** USD per million uncached input tokens. */
+  /** USD per million uncached input tokens (standard service tier). */
   input: number
   /** USD per million cached input tokens. */
   cachedInput: number
   /** USD per million output tokens (reasoning included). */
   output: number
+  /** Long-context and cache-write terms; required for acceptance, see PaidCallPriceTerms. */
+  terms?: PaidCallPriceTerms
   /** Where the price was read. */
   source: string
   /** ISO date the price was read. */
@@ -83,8 +124,14 @@ export interface PaidCallPrice {
   acceptedForPaidRuns?: PaidRunAcceptance
 }
 
-/** The one request partition the harness sends and a limit can be accepted for. */
-export const SUPPORTED_REQUEST_SHAPE = 'responses-text-function-tools'
+/**
+ * The one request partition the harness sends and a limit can be accepted
+ * for: the Responses API, text-only input, function tools only,
+ * service_tier pinned to "default" (standard pricing, never the project's
+ * configured tier) and truncation pinned to "disabled" (input past the
+ * context window is rejected with HTTP 400, never silently dropped).
+ */
+export const SUPPORTED_REQUEST_SHAPE = 'responses-text-function-tools-default-tier-truncation-disabled'
 
 /**
  * A provider-enforced ceiling on input tokens per request, for one model and
@@ -226,13 +273,18 @@ export interface BoundedFunctionTool {
 }
 
 /** Exactly what the adapter is allowed to dispatch. Anything outside this
- * shape (hosted tools, previous_response_id, image or file inputs) is not
- * representable and therefore never reaches the provider. */
+ * shape (hosted tools, previous_response_id, image or file inputs, another
+ * service tier, truncation) is not representable and therefore never
+ * reaches the provider. */
 export interface BoundedResponsesRequest {
   model: string
   input: BoundedInputItem[]
   tools: BoundedFunctionTool[]
   max_output_tokens: number
+  /** Standard pricing, explicitly; "auto" would inherit the project's configured tier. */
+  service_tier: 'default'
+  /** Oversized input fails with HTTP 400 instead of dropping items and billing the rest. */
+  truncation: 'disabled'
   reasoning?: { effort: string }
 }
 
@@ -303,12 +355,24 @@ export function checkRequest(
       return refuse('shape-unsupported', `tools[${index}] is not a function tool; hosted tools are outside the supported request shape`)
     }
   }
-  const known = new Set(['model', 'input', 'tools', 'max_output_tokens', 'reasoning'])
+  const known = new Set(['model', 'input', 'tools', 'max_output_tokens', 'service_tier', 'truncation', 'reasoning'])
   for (const key of Object.keys(request)) {
     if (!known.has(key)) return refuse('shape-unsupported', `request field "${key}" is outside the supported request shape`)
   }
   if (request.max_output_tokens !== bounds.maxOutputTokensPerCall) {
     return refuse('shape-unsupported', `max_output_tokens must be ${bounds.maxOutputTokensPerCall}, got ${String(request.max_output_tokens)}`)
+  }
+  if (request.service_tier !== 'default') {
+    return refuse(
+      'shape-unsupported',
+      `service_tier must be pinned to "default" (standard pricing), got ${JSON.stringify(request.service_tier)}; "auto" or an absent tier would inherit the project's configured tier`,
+    )
+  }
+  if (request.truncation !== 'disabled') {
+    return refuse(
+      'shape-unsupported',
+      `truncation must be pinned to "disabled" so oversized input fails with HTTP 400, got ${JSON.stringify(request.truncation)}`,
+    )
   }
   const bytes = Buffer.byteLength(JSON.stringify(request), 'utf8')
   const estimatedInputTokens = bytes
@@ -352,7 +416,7 @@ function checkAcceptance(
   return null
 }
 
-/** The price a paid run may use: present, well formed, accepted, and accepted recently. */
+/** The price a paid run may use: present, well formed, with explicit terms, accepted, and accepted recently. */
 export function acceptedPrice(
   model: string,
   prices: Record<string, PaidCallPrice>,
@@ -367,6 +431,8 @@ export function acceptedPrice(
   if (!isIsoDate(price.readOn)) {
     return refuse('pricing-invalid', `the price entry for "${model}" has no readable readOn date`)
   }
+  const terms = validatePriceTerms(price)
+  if (terms) return refuse('pricing-invalid', `the price entry for "${model}" ${terms}; the guard does not reserve from flat rates alone`)
   const acceptance = checkAcceptance('pricing', `the price for "${model}" (read ${price.readOn})`, price.acceptedForPaidRuns, bounds, now)
   return acceptance ?? { ok: true, price }
 }
@@ -412,8 +478,30 @@ export function acceptedLimit(
 
 export interface ReportedUsage {
   inputTokens: number
+  /** Input tokens served from the prompt cache (input_tokens_details.cached_tokens). */
   cachedInputTokens: number
   outputTokens: number
+  /**
+   * Input tokens written to the prompt cache (input_tokens_details.cache_write_tokens
+   * in the installed SDK). Absent when the response did not report the
+   * category; the settlement then charges every uncached token at the
+   * cache-write rate and labels itself an upper estimate.
+   */
+  cacheWriteTokens?: number
+}
+
+/** How a settled figure was reached; neither is the provider's invoice. */
+export type SettlementBasis =
+  /** Every documented usage category was reported and priced at its documented rate. */
+  | 'reported-categories'
+  /** A category was missing and charged at the highest rate that could apply. */
+  | 'upper-estimate'
+
+export interface CostBreakdown {
+  usd: number
+  basis: SettlementBasis
+  /** What was assumed, when anything was. */
+  note?: string
 }
 
 /** Round to micro-dollars; a non-finite figure is an error, never a number. */
@@ -431,24 +519,90 @@ function tokensUsd(tokens: number, ratePerMillion: number): number {
   return usd
 }
 
-/** Worst case for one call: the full ceiling uncached, every output token used. */
+/** The price's terms, or an error: callers reach here only through acceptedPrice. */
+function priceTerms(price: PaidCallPrice): PaidCallPriceTerms {
+  const problem = validatePriceTerms(price)
+  if (problem) throw new Error(`the price ${problem}; it has no terms the guard can reserve from`)
+  return price.terms!
+}
+
+/** The multipliers that apply to a request of this many input tokens. */
+function multipliersFor(terms: PaidCallPriceTerms, inputTokens: number): { input: number; output: number; longContext: boolean } {
+  const longContext = terms.longContext
+  if (longContext !== 'none' && inputTokens > longContext.aboveInputTokens) {
+    return { input: longContext.inputMultiplier, output: longContext.outputMultiplier, longContext: true }
+  }
+  return { input: 1, output: 1, longContext: false }
+}
+
+/**
+ * Worst case for one call: the full ceiling as uncached cache-written input
+ * at the long-context multipliers when the ceiling exceeds the threshold,
+ * every output token used at its multiplier. Every factor that can apply at
+ * the ceiling is applied together; this is a bound, not a bill.
+ */
 export function reservationUsd(price: PaidCallPrice, check: RequestCheck): number {
-  return roundUsd(tokensUsd(check.reservedInputTokens, price.input) + tokensUsd(check.maxOutputTokens, price.output))
+  const terms = priceTerms(price)
+  const factor = multipliersFor(terms, check.reservedInputTokens)
+  return roundUsd(
+    tokensUsd(check.reservedInputTokens, price.input * factor.input * terms.cacheWriteMultiplier) +
+      tokensUsd(check.maxOutputTokens, price.output * factor.output),
+  )
+}
+
+/**
+ * Price a reported usage block at the documented rates. Cached tokens are
+ * the cached rate; reported cache writes are the cache-write rate and are
+ * charged in full even when they exceed the uncached count; the uncached
+ * remainder is the input rate. Without the cache-write category, every
+ * uncached token is a cache write (upper estimate). Above the long-context
+ * threshold, every input-side rate (cached included) and the output rate
+ * take their multipliers; the cached side is a conservative reading of "the
+ * whole request".
+ */
+export function usageCost(price: PaidCallPrice, usage: ReportedUsage): CostBreakdown {
+  const terms = priceTerms(price)
+  const factor = multipliersFor(terms, usage.inputTokens)
+  const cached = Math.min(usage.cachedInputTokens, usage.inputTokens)
+  const uncached = usage.inputTokens - cached
+  const notes: string[] = []
+  let writes: number
+  let plain: number
+  let basis: SettlementBasis
+  if (usage.cacheWriteTokens === undefined) {
+    writes = uncached
+    plain = 0
+    basis = 'upper-estimate'
+    notes.push(`cache-write tokens were not reported; all ${uncached} uncached input tokens charged at the cache-write rate (${terms.cacheWriteMultiplier}x uncached input)`)
+  } else {
+    writes = usage.cacheWriteTokens
+    plain = Math.max(0, uncached - writes)
+    basis = 'reported-categories'
+  }
+  if (factor.longContext) {
+    notes.push(`long-context multipliers applied (${usage.inputTokens} input tokens above ${(terms.longContext as LongContextTerms).aboveInputTokens}: ${factor.input}x input, ${factor.output}x output)`)
+  }
+  const usd = roundUsd(
+    tokensUsd(plain, price.input * factor.input) +
+      tokensUsd(writes, price.input * terms.cacheWriteMultiplier * factor.input) +
+      tokensUsd(cached, price.cachedInput * factor.input) +
+      tokensUsd(usage.outputTokens, price.output * factor.output),
+  )
+  return notes.length > 0 ? { usd, basis, note: notes.join('; ') } : { usd, basis }
 }
 
 export function usageUsd(price: PaidCallPrice, usage: ReportedUsage): number {
-  const cached = Math.min(usage.cachedInputTokens, usage.inputTokens)
-  const uncached = usage.inputTokens - cached
-  return roundUsd(tokensUsd(uncached, price.input) + tokensUsd(cached, price.cachedInput) + tokensUsd(usage.outputTokens, price.output))
+  return usageCost(price, usage).usd
 }
 
-/** A usage block the settlement can trust: three non-negative safe integers. */
+/** A usage block the settlement can trust: three non-negative safe integers, and a fourth when the cache-write category is present. */
 export function validUsage(usage: unknown): usage is ReportedUsage {
   return (
     isPlainObject(usage) &&
     isNonNegativeInteger(usage.inputTokens) &&
     isNonNegativeInteger(usage.cachedInputTokens) &&
-    isNonNegativeInteger(usage.outputTokens)
+    isNonNegativeInteger(usage.outputTokens) &&
+    (usage.cacheWriteTokens === undefined || isNonNegativeInteger(usage.cacheWriteTokens))
   )
 }
 
@@ -470,9 +624,13 @@ export interface LedgerEntry {
   /** Diagnostic: the request's byte-derived estimate at reservation time. */
   estimatedInputTokens: number
   maxOutputTokens: number
-  /** Present once settled: the actual cost from reported usage. */
+  /** Present once settled: the guard's accounting of the reported usage at documented rates. */
   settledUsd?: number
   settledAt?: string
+  /** Present once settled: whether every category was reported or a missing one was charged at its upper rate. */
+  settledBasis?: SettlementBasis
+  /** What the settlement assumed (missing category, long-context multipliers). */
+  settledNote?: string
   usage?: ReportedUsage
   /** Reported usage exceeded the reservation's assumptions; the ledger halted after it. */
   exceededReservation?: boolean
@@ -521,6 +679,9 @@ function validEntry(value: unknown, index: number): string | null {
   if (value.state === 'settled') {
     if (!isFiniteNonNegative(value.settledUsd)) return `entries[${index}] is settled without a finite settledUsd`
     if (!validUsage(value.usage)) return `entries[${index}] is settled without a valid usage block`
+    if (value.settledBasis !== 'reported-categories' && value.settledBasis !== 'upper-estimate') {
+      return `entries[${index}] is settled without a settlement basis`
+    }
   } else if (value.settledUsd !== undefined) {
     return `entries[${index}] is ${String(value.state)} but carries settledUsd`
   }
@@ -635,6 +796,8 @@ export function decideReservation(input: ReservationInput): { ok: true; entry: L
   if (input.unitCalls >= bounds.maxCallsPerUnit) {
     return refuse('unit-calls', `unit "${input.unit}" already made ${input.unitCalls} of ${bounds.maxCallsPerUnit} model calls`)
   }
+  const terms = validatePriceTerms(input.price)
+  if (terms) return refuse('pricing-invalid', `the price for "${input.model}" ${terms}; nothing is reserved from flat rates alone`)
   let reserved: number
   let aggregate: number
   let run: number
@@ -688,7 +851,8 @@ export interface Settlement {
 /** Settle a reserved entry at its reported usage; pure, returns a new entry. Throws on non-finite cost. */
 export function settleEntry(entry: LedgerEntry, usage: ReportedUsage, price: PaidCallPrice, now: Date): Settlement {
   if (entry.state !== 'reserved') throw new Error(`entry ${entry.id} is ${entry.state}, not reserved`)
-  const settledUsd = usageUsd(price, usage)
+  const cost = usageCost(price, usage)
+  const settledUsd = cost.usd
   const problems: string[] = []
   if (usage.inputTokens > entry.reservedInputTokens) {
     problems.push(`${usage.inputTokens} input tokens reported against the ${entry.reservedInputTokens}-token provider ceiling the reservation assumed`)
@@ -697,7 +861,7 @@ export function settleEntry(entry: LedgerEntry, usage: ReportedUsage, price: Pai
     problems.push(`${usage.outputTokens} output tokens reported against max_output_tokens ${entry.maxOutputTokens}`)
   }
   if (settledUsd > entry.reservedUsd) {
-    problems.push(`$${settledUsd.toFixed(6)} settled against a $${entry.reservedUsd.toFixed(6)} reservation`)
+    problems.push(`$${settledUsd.toFixed(6)} settled (${cost.basis}) against a $${entry.reservedUsd.toFixed(6)} reservation`)
   }
   const overrun = problems.length > 0 ? `entry ${entry.id}: ${problems.join('; ')}` : null
   return {
@@ -706,7 +870,14 @@ export function settleEntry(entry: LedgerEntry, usage: ReportedUsage, price: Pai
       state: 'settled',
       settledUsd,
       settledAt: now.toISOString(),
-      usage: { inputTokens: usage.inputTokens, cachedInputTokens: usage.cachedInputTokens, outputTokens: usage.outputTokens },
+      settledBasis: cost.basis,
+      ...(cost.note ? { settledNote: cost.note } : {}),
+      usage: {
+        inputTokens: usage.inputTokens,
+        cachedInputTokens: usage.cachedInputTokens,
+        outputTokens: usage.outputTokens,
+        ...(usage.cacheWriteTokens !== undefined ? { cacheWriteTokens: usage.cacheWriteTokens } : {}),
+      },
       ...(overrun ? { exceededReservation: true } : {}),
     },
     settledUsd,
@@ -718,4 +889,28 @@ export function settleEntry(entry: LedgerEntry, usage: ReportedUsage, price: Pai
 export function abandonEntry(entry: LedgerEntry, note: string): LedgerEntry {
   if (entry.state !== 'reserved') throw new Error(`entry ${entry.id} is ${entry.state}, not reserved`)
   return { ...entry, state: 'ambiguous', note }
+}
+
+/** Why a price's terms cannot be reserved from, or null when they are explicit and consistent. */
+export function validatePriceTerms(price: PaidCallPrice): string | null {
+  const terms = price.terms
+  if (!isPlainObject(terms)) return 'has no terms: the long-context surcharge (or "none") and the cache-write multiplier must be stated explicitly'
+  if (!(typeof terms.cacheWriteMultiplier === 'number' && Number.isFinite(terms.cacheWriteMultiplier) && terms.cacheWriteMultiplier >= 1)) {
+    return `has a cache-write multiplier that is not a finite number of at least 1 (${String(terms.cacheWriteMultiplier)})`
+  }
+  const longContext = terms.longContext
+  if (longContext !== 'none') {
+    if (!isPlainObject(longContext)) return `has a long-context term that is neither "none" nor an object (${String(longContext)})`
+    if (!isPositiveInteger(longContext.aboveInputTokens)) {
+      return `has a long-context threshold that is not a positive integer (${String(longContext.aboveInputTokens)})`
+    }
+    for (const key of ['inputMultiplier', 'outputMultiplier'] as const) {
+      const value = longContext[key]
+      if (!(typeof value === 'number' && Number.isFinite(value) && value >= 1)) {
+        return `has a long-context ${key} that is not a finite number of at least 1 (${String(value)})`
+      }
+    }
+  }
+  if (price.cachedInput > price.input) return `prices cached input ($${price.cachedInput}/M) above uncached input ($${price.input}/M)`
+  return null
 }
