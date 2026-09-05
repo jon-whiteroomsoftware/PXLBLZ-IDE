@@ -58,6 +58,11 @@ Before changing the agent bridge or `__pxlblzEditor` candidate application, read
   user-scoped Pages Functions, D1 persistence, and schema history.
 - `src/docs/catalog.ts`: repository Markdown exposed by the in-app docs route.
   Diagram SVGs in `docs/images/` follow `docs/agents/diagram-style.md`.
+- `src/agent-harness/`: diagnostic agent-editing harness transferred from V3 for
+  #945 (bridge, grammar, MCP server, corpus, evaluation). Not product code and
+  never bundled; provenance in its `PROVENANCE.md`, commands in its `README.md`.
+  `npm run agent:smoke` and `agent:corpus -- --fake` are no-paid-call checks;
+  read `docs/reference/contracts/agent-candidate-application.md` before touching it.
 
 Preserve these invariants:
 
@@ -197,6 +202,9 @@ npm run check:playwright
 npx vitest run path/to/test.ts
 npm run db:migrate:local
 npm run db:migrate:remote
+npm run agent:smoke              # scripted bridge turn judged at reopened .pxlshow/.epe (no paid call)
+npm run agent:corpus -- --fake   # 43-case dictation corpus through the fake agent
+npm run agent:diagnostics        # known V3-vs-V2 oracle drift, expected red, never CI
 ```
 
 Pre-commit runs lint, conditional full-project typecheck, focused tests, and
