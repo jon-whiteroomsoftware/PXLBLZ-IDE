@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "945",
+  "route": "/PXLBLZ-IDE/studio/shows/<personal Show created in the run>",
+  "operation": "Sequence A of npm run test:e2e:agent-baseline: create an Installation Show, load the scripted bridge's chat overlay, submit 'make the first Clip twelve seconds', set TestPattern1D brightness to 75 while the reply is pending, then let the reply apply. The capture shows the timeline after the stale whole-record reply replaced the manual edit (TestPattern1D at 12 s, brightness back to 100) with the overlay's reply line. Captured by repo Playwright Chromium (chromium-1223) through scripts/run-authenticated-playwright.ts as the synthetic playwright-worker-00 session at commit 9ee26cf5cd69af53e77bbc5e61ef235eb4bc8654; the in-app browser was not callable from this session. The file carries PNG bytes.",
+  "captures": [".wrsp/ui-proof/945-agent-baseline-stale-overwrite.png"],
+  "capturedAtCommit": "9ee26cf5cd69af53e77bbc5e61ef235eb4bc8654"
+}
