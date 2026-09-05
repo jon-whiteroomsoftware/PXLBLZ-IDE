@@ -318,6 +318,7 @@ import {
   type ShowLayoutInterval,
 } from '@/engine/showLayoutIntervals'
 import { SaveFailureNotice } from '@/components/SaveFailureNotice'
+import { recordAgentObservation, showRecordDigest } from '@/dev/agentObservation'
 
 const field =
   'h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
@@ -1093,13 +1094,47 @@ export function ShowEditor({
           ? useShowTransportStore.getState().positionMs
           : 0,
       }),
-      applyShow: async (record: ShowRecord): Promise<boolean> => {
+      applyShow: async (record: ShowRecord, options?: { requestId?: string }): Promise<boolean> => {
         // A retained bridge object dies with its install: after a Show
         // switch or unmount this instance is no longer the window value,
         // and a stale apply must not persist an inactive Show.
-        if (w.__pxlblzEditor !== api) return false
-        if (!record || record.id !== showId) return false
-        await useShowStore.getState().updateShow(showId, structuredClone(record))
+        const requestId = options?.requestId
+        const observe = (
+          phase: 'admitted' | 'adopted' | 'settled' | 'rejected' | 'failed',
+        ) => {
+          // Read-only baseline instrumentation (#945): phases of one
+          // application, correlated by the caller's request id. No record
+          // content is kept, only a digest of what the editor now shows.
+          const current = useShowStore.getState().resolveEditableShow(showId)
+          recordAgentObservation({
+            kind: 'agent-apply',
+            phase,
+            showId,
+            ...(requestId ? { requestId } : {}),
+            at: Date.now(),
+            ...(current ? { digest: showRecordDigest(current), updatedAt: current.updatedAt } : {}),
+            historyDepth: useShowStore.getState().showHistories[showId]?.past.length ?? 0,
+          })
+        }
+        observe('admitted')
+        if (w.__pxlblzEditor !== api) {
+          observe('rejected')
+          return false
+        }
+        if (!record || record.id !== showId) {
+          observe('rejected')
+          return false
+        }
+        const update = useShowStore.getState().updateShow(showId, structuredClone(record))
+        // updateShow adopts the record synchronously before awaiting its save.
+        observe('adopted')
+        try {
+          await update
+        } catch (error) {
+          observe('failed')
+          throw error
+        }
+        observe('settled')
         return true
       },
     }

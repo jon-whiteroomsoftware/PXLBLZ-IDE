@@ -24,6 +24,8 @@ the roadmap this serves.
 | `npm run agent:budget [-- init]` | The paid-call ledger: `status` (default) prints the path, bounds, accepted prices with their terms, accepted ceilings, the per-call reservation, totals, remaining allowance, halt, lock and last entries with their settlement basis (exit 1 while halted); `init` creates an empty ledger at the path and refuses if one exists. | none |
 | `npm run agent:coverage` | Regenerates `reference/show-grammar-coverage.md` and the generic-only snapshot from V2's live schema and the grammar registry. | none |
 | `npm run agent:diagnostics` | Known-drift oracles kept verbatim (`test/*.diagnostic.ts`); expected to fail and never part of CI. | none |
+| `npm run test:e2e:agent-baseline` | Eight known-outcome reproductions on the live Show editor route in Chromium through the real overlay and a spawned scripted bridge (#945 browser baseline). Writes `reports/agent-harness/baseline/browser/<run>/`. Explicit diagnostic; not a push gate. | none |
+| `npm run agent:baseline:fixtures` | Every baseline fixture (`baseline/fixtures.ts`) exported as `.pxlshow` and `.epe`, one scripted bridge turn, exported again; hashes compared against the committed `baseline/evidence/fixtures.json` (exit 1 on drift; `-- --write` re-records). | none |
 
 The ordinary suites under `test/*.test.ts` run in the Vitest `node` project with `npm test`.
 
@@ -177,17 +179,26 @@ scoring of this exact seal.
 
 ## Bridge protocol
 
-`POST /utterance` with `{ show, utterance, history?, context?, script?, delayMs? }` returns
-NDJSON: `{kind:'tool',name}` and `{kind:'thinking'}` progress lines, then one
-`{kind:'done', reply, changed, summaries, show?}`. `script` and `delayMs` are honoured only in
-scripted mode. `GET /health` reports the agent and mode; `GET /chat.js` serves the overlay that
-the editor tab injects to call `window.__pxlblzEditor.applyShow`. One utterance runs at a time;
-a busy bridge answers 429.
+`POST /utterance` with `{ requestId?, show, utterance, history?, context?, script?, delayMs? }`
+returns NDJSON: `{kind:'accepted', requestId, at}` first, then `{kind:'tool',name,at}`,
+`{kind:'thinking'}` and `{kind:'validation', at, ms, ok}` progress lines, then one
+`{kind:'done', requestId, reply, changed, summaries, show?, timing}`. Every line carries the
+request id the caller sent, or one the bridge minted (`bridge-…`); log lines are prefixed with
+it. `timing` is the bridge phase clock: `acceptedAt`, `delayMs`, `agentStartedAt`,
+`agentEndedAt`, `exportedAt`, `toolCalls[{name, at, ms, isError?, issue?}]`, and `validation`.
+`script` and `delayMs` are honoured only in scripted mode; a scripted request without a script
+resolves its utterance through `baseline/scripts.ts` and then the corpus, and answers with a
+no-change reply when neither knows it. `BRIDGE_DELAY_MS` sets the scripted default delay.
+`GET /health` reports the agent, mode and default delay; `GET /chat.js` serves the overlay
+that the editor tab injects to call `window.__pxlblzEditor.applyShow(record, { requestId })`.
+The overlay keeps a per-request phase record under `window.__pxlblzChat.requests` (ids and
+timestamps only). One utterance runs at a time; a busy bridge answers 429.
 
 ## What this slice does not include
 
-Request-id instrumentation across submission, model, validation, application, save and
-preview, browser failure reproductions, and the acceptance fixture set remain separate #945
-slices. The budget guard and sealed held-out corpus are present; ledger creation and the
-bounded paid baseline remain coordinator steps. The held-out set is not executed or scored
-until #958.
+Ledger creation, the bounded paid corpus run, and the
+proposed thresholds remain later #945 work. The paid-call guard is included above;
+its review follow-ups must land before a paid run. The browser reproductions,
+request-id instrumentation, fixture set and fixture evidence are in
+`docs/reference/agent-editing-baseline.md`.
+The sealed held-out set is present and is not executed or scored until #958.

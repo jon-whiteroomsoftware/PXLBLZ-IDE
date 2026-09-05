@@ -62,7 +62,11 @@ Before changing the agent bridge or `__pxlblzEditor` candidate application, read
   #945 (bridge, grammar, MCP server, corpus, evaluation). Not product code and
   never bundled; provenance in its `PROVENANCE.md`, commands in its `README.md`.
   `npm run agent:smoke` and `agent:corpus -- --fake` are no-paid-call checks;
-  read `docs/reference/contracts/agent-candidate-application.md` before touching it.
+  `npm run test:e2e:agent-baseline` reproduces the known editor-route failures
+  on the live editor (explicit diagnostic, not a push gate; report in
+  `docs/reference/agent-editing-baseline.md`);
+  `npm run agent:baseline:fixtures` compares the baseline fixtures' exports
+  before and after one scripted turn against committed hashes.
 
 Preserve these invariants:
 
@@ -207,6 +211,8 @@ npm run db:migrate:remote
 npm run agent:smoke              # scripted bridge turn judged at reopened .pxlshow/.epe (no paid call)
 npm run agent:corpus -- --fake   # 43-case dictation corpus through the fake agent
 npm run agent:diagnostics        # known V3-vs-V2 oracle drift, expected red, never CI
+npm run test:e2e:agent-baseline  # live-editor reproductions through the real scripted bridge (no paid call, not a push gate)
+npm run agent:baseline:fixtures  # baseline fixture exports before/after one scripted turn, compared against committed hashes
 ```
 
 Pre-commit runs lint, conditional full-project typecheck, focused tests, and

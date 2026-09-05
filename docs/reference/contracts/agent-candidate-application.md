@@ -41,14 +41,19 @@ the V3 grammar is a separate adapter and is not yet equivalent to that registry.
 The browser's busy flag serializes its own submissions while manual editing
 continues. Neither the request nor editor application carries an expected
 Show revision. A returned full record can therefore overwrite edits made during
-inference even when the Show id still matches.
+inference even when the Show id still matches. Reproduced on the live editor
+by the #945 browser baseline (sequence A: a brightness edit saved during
+inference is gone after the reply; sequence B: a Clip deleted during
+inference comes back; sequence C: time inserted before the target is undone).
 
 Composition edits also retain the captured `updatedAt`; application does not
 restamp it. After an intervening manual save, this older timestamp can prevent
 the durable baseline from advancing even if the candidate saves successfully.
 A later failure can then restore a baseline that no longer matches storage.
-This is an unfixed violation of the store's timestamp-ordering assumption,
-identified by source inspection without an overlapping-save regression test.
+This violation of the store's timestamp-ordering assumption is reproduced by
+baseline sequence E: the candidate's PATCH carried the older stamp, a later
+failed save restored the manual record, and storage still held the candidate
+until reload. It remains unfixed.
 
 The service separately permits one request at a time across clients. A busy
 service returns HTTP 429 as JSON, while the overlay expects a streamed terminal
@@ -57,9 +62,11 @@ not provide a coherent cross-tab waiting or retry protocol.
 
 The browser looks up the current window bridge when applying the response.
 Consequently, the obsolete-object check does not bind the request to its
-originating editor installation: navigating away and back to the same Show can
-leave an old response eligible for application. There is no request cancellation
-or operation-id deduplication contract at this boundary.
+originating editor installation: navigating away and back to the same Show
+leaves an old response eligible for application, reproduced by baseline
+sequence D. There is no request cancellation or operation-id deduplication
+contract at this boundary; the request id the overlay now sends is a
+diagnostic correlation key, not an admission token.
 
 Conversation history records the reply before editor application succeeds.
 A model reply or private commit is therefore not evidence that the edit landed.
@@ -102,11 +109,33 @@ diagnostic until #946, #947 and #959 decide what becomes engine code (#949).
   `.pxlshow` and `.epe` export and reopen through the V2 importers. It drives
   the bridge, not the editor route: it establishes nothing about `applyShow`,
   the store, or the concurrency gaps above.
+- The browser baseline (`e2e/agent-baseline.auth.spec.ts`,
+  `npm run test:e2e:agent-baseline`, report in
+  [`agent-editing-baseline.md`](../agent-editing-baseline.md)) drives the
+  actual editor route in Chromium through the real overlay and a real scripted
+  bridge process, and asserts the observed bad outcomes as reproductions:
+  stale whole-record replacement (A, B, C), application after navigation
+  away and back (D), the baseline mismatch after a later failed save (E),
+  one history entry and one save for a multi-operation reply (F), an
+  in-memory stock draft with no personal write (G), and a personal Pattern
+  on a personal Library (H). It is an explicit diagnostic command, never a
+  push gate.
+- Request ids and phase timing: the overlay mints a request id per
+  submission; the service echoes it on every event and log line and reports
+  the bridge phase clock on `done`
+  ([`test/bridgeRequestIds.test.ts`](../../../src/agent-harness/test/bridgeRequestIds.test.ts)).
+  The editor's `applyShow` accepts an optional request id and records
+  admission, adoption, settlement, rejection, and failure through the
+  dev-only, read-only observation seam in
+  [`src/dev/agentObservation.ts`](../../../src/dev/agentObservation.ts); the
+  stage preview records publication of a rebuilt runtime's first frame with
+  the digest of the record it compiled from. Production builds and read-only
+  editors record nothing.
 - The editor interface is [ShowEditor](../../../src/components/ShowEditor.tsx)
-  and the [Show store](../../../src/store/showStore.ts) in this repository,
-  last inspected at `ad8ad651`. No V2 bridge-to-editor test exists yet;
-  these application claims remain source-inspected, not live interaction
-  proof. Recheck this boundary when changing the editor integration.
+  and the [Show store](../../../src/store/showStore.ts) in this repository.
+  The application claims above are now live-interaction evidence at the
+  baseline's pinned commit; recheck this boundary when changing the editor
+  integration.
 
 Revision admission, request retirement, and explicit applied/durable outcomes
 remain roadmap work. This baseline does not claim those guarantees or select a

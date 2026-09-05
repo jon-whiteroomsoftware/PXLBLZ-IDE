@@ -48,6 +48,7 @@ import {
   type ShowStagePerformanceProbe,
 } from '@/dev/showStagePerformance'
 import { captureEnabled, createPreviewCapture } from '@/dev/previewCapture'
+import { recordAgentObservation, showRecordDigest } from '@/dev/agentObservation'
 import { runShowStageCaptureSequence } from '@/dev/showStageCapture'
 import { beginCaptureOrbit } from '@/dev/captureOrbit'
 import type { CaptureSequenceOptions, CaptureSequenceResult } from '@/dev/captureSequence'
@@ -202,6 +203,14 @@ export function ShowStagePreview({
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const [badgedSeekRequestId, setBadgedSeekRequestId] = useState<number | null>(null)
   const [runtimeRevision, setRuntimeRevision] = useState(0)
+  // The record the current artifact compiled from, for the dev-only
+  // publication observation (#945). Kept in a ref so the runtime effect can
+  // name it without re-running when only the stamp or name changes.
+  const compiledShowRef = useRef<ShowRecord | undefined>(undefined)
+
+  useEffect(() => {
+    compiledShowRef.current = show
+  }, [show])
 
   useEffect(() => {
     viewportWidthRef.current = viewportWidth
@@ -627,6 +636,18 @@ export function ShowStagePreview({
       performanceProbeRef.current?.recordRuntimeInitialization()
       liveSimulatedFramesRef.current = result.simulatedFrames
       paintFastFrame(result)
+      // Baseline instrumentation (#945): the first frame of a rebuilt
+      // runtime is the moment a record's compiled artifact becomes visible.
+      const source = compiledShowRef.current
+      if (import.meta.env.DEV && source) {
+        recordAgentObservation({
+          kind: 'preview-published',
+          showId,
+          at: Date.now(),
+          digest: showRecordDigest(source),
+          updatedAt: source.updatedAt,
+        })
+      }
     }
 
     try {

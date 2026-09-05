@@ -4,6 +4,12 @@
 // /chat.js. Reads the Show and editor focus through the editor's dev-only
 // window.__pxlblzEditor hook, sends one utterance at a time to the bridge,
 // and applies a changed record back as one undo step.
+//
+// #945 browser baseline: each submission mints a request id, sends it with
+// the body, and keeps a client-side phase record (submission, first event,
+// done, application start and end) under window.__pxlblzChat.requests. The
+// record holds no utterance text or Show content, only the id, the phases,
+// and the bridge's event kinds.
 /* global window, document, fetch, TextDecoder */
 ;(() => {
   'use strict'
@@ -11,6 +17,7 @@
   const BRIDGE = (document.currentScript && document.currentScript.src.replace(/\/chat\.js.*$/, '')) || 'http://127.0.0.1:8791'
 
   const panel = document.createElement('div')
+  panel.dataset.testid = 'agent-chat-panel'
   panel.style.cssText = [
     'position:fixed', 'right:16px', 'bottom:16px', 'z-index:100000', 'width:340px',
     'background:#0a0a0dee', 'border:1px solid #3f3f46', 'border-radius:8px',
@@ -28,16 +35,19 @@
   header.appendChild(close)
 
   const log = document.createElement('div')
+  log.dataset.testid = 'agent-chat-log'
   log.style.cssText = 'max-height:260px;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:8px'
 
   const form = document.createElement('form')
   form.style.cssText = 'display:flex;gap:6px;padding:10px 12px;border-top:1px solid #27272a'
   const input = document.createElement('input')
   input.type = 'text'
+  input.dataset.testid = 'agent-chat-input'
   input.placeholder = 'Tell Luna what to change…'
   input.style.cssText = 'flex:1;background:#18181b;border:1px solid #3f3f46;border-radius:6px;color:#e4e4e7;padding:6px 8px;font:inherit;outline:none'
   const send = document.createElement('button')
   send.type = 'submit'
+  send.dataset.testid = 'agent-chat-send'
   send.textContent = 'Send'
   send.style.cssText = 'background:#164e63;border:1px solid #155e75;border-radius:6px;color:#a5f3fc;padding:6px 10px;font:inherit;cursor:pointer'
   form.append(input, send)
@@ -47,6 +57,7 @@
 
   const line = (text, color) => {
     const item = document.createElement('div')
+    item.dataset.testid = 'agent-chat-line'
     item.textContent = text
     item.style.cssText = `white-space:pre-wrap;color:${color}`
     log.appendChild(item)
@@ -87,6 +98,11 @@
   // like "yes" resolve against Luna's own previous question.
   const history = []
 
+  // Client-side phase records, one per submission (#945). Read-only for
+  // callers: window.__pxlblzChat.requests returns copies.
+  const requests = []
+  const mintRequestId = () => `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+
   let busy = false
   form.onsubmit = async (event) => {
     event.preventDefault()
@@ -104,14 +120,33 @@
     }
     busy = true
     input.value = ''
+    const requestId = mintRequestId()
+    const record = {
+      requestId,
+      showId: show.id,
+      capturedUpdatedAt: show.updatedAt,
+      submittedAt: Date.now(),
+      responseAt: null,
+      firstEventAt: null,
+      doneAt: null,
+      applyStartedAt: null,
+      applyEndedAt: null,
+      changed: null,
+      applied: null,
+      error: null,
+      events: [],
+    }
+    requests.push(record)
     line(`You: ${utterance}`, '#a1a1aa')
     const pending = line('…', '#67e8f9')
+    pending.dataset.requestId = requestId
     try {
       const response = await fetch(`${BRIDGE}/utterance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ show, utterance, history: history.slice(-12), context: editorFocusContext() }),
+        body: JSON.stringify({ requestId, show, utterance, history: history.slice(-12), context: editorFocusContext() }),
       })
+      record.responseAt = Date.now()
       // NDJSON stream: progress lines narrate the turn, the last line is the
       // result. The pending line becomes a live activity trail.
       let result = null
@@ -134,6 +169,8 @@
           buffered = buffered.slice(newline + 1)
           if (!lineText.trim()) continue
           const event = JSON.parse(lineText)
+          if (record.firstEventAt === null) record.firstEventAt = Date.now()
+          record.events.push({ kind: event.kind, name: event.name || null, at: Date.now() })
           if (event.kind === 'tool') {
             trail.push(toolLabel(event.name))
             showTrail('…')
@@ -145,26 +182,45 @@
         }
       }
       if (!result) throw new Error('the bridge stream ended without a result')
+      record.doneAt = Date.now()
+      record.changed = result.changed === true
+      record.bridgeTiming = result.timing || null
       history.push({ role: 'user', text: utterance })
       if (typeof result.reply === 'string') history.push({ role: 'assistant', text: result.reply })
       if (result.changed && result.show) {
-        const applied = await window.__pxlblzEditor.applyShow(result.show)
+        record.applyStartedAt = Date.now()
+        const applied = await window.__pxlblzEditor.applyShow(result.show, { requestId })
+        record.applyEndedAt = Date.now()
+        record.applied = applied
         pending.textContent = `Luna: ${result.reply}${applied ? '' : ' (but the editor refused the update)'}`
         pending.style.color = applied ? '#86efac' : '#fca5a5'
+        pending.dataset.applied = applied ? 'true' : 'false'
       } else {
         pending.textContent = `Luna: ${result.reply}`
         pending.style.color = '#e4e4e7'
+        pending.dataset.applied = 'none'
       }
     } catch (error) {
+      record.error = error && error.message ? error.message : String(error)
+      if (record.applyStartedAt !== null && record.applyEndedAt === null) {
+        record.applyEndedAt = Date.now()
+        record.applied = false
+      }
       pending.textContent = `Bridge error: ${error && error.message ? error.message : error}`
       pending.style.color = '#fca5a5'
+      pending.dataset.applied = 'error'
     } finally {
       busy = false
       input.focus()
     }
   }
 
-  window.__pxlblzChat = { panel }
+  window.__pxlblzChat = {
+    panel,
+    get requests() {
+      return requests.map((record) => JSON.parse(JSON.stringify(record)))
+    },
+  }
   input.focus()
   line('Connected. Edits land as single undo steps; Cmd+Z reverts a whole request.', '#71717a')
 })()

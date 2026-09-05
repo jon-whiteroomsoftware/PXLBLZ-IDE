@@ -13,6 +13,12 @@
 // scripted mode routes the corpus's fake agent through this same path with a
 // per-request script and an optional completion delay, so the bridge can be
 // exercised end to end without a paid model call.
+//
+// Browser-baseline additions (#945): every NDJSON line and log line names
+// the request it belongs to (the overlay's id, or one minted here), the done
+// event carries the bridge-side phase clock, and in scripted mode an
+// utterance the overlay sends without a script resolves through the
+// baseline catalogue and the dictation corpus.
 import { readFileSync } from 'node:fs'
 import { createServer, type Server, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
@@ -20,12 +26,13 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { scriptForUtterance } from '../baseline/scripts.js'
 import type { ScriptStep } from '../experiment/corpus.js'
 import type { PaidCallGuard } from '../experiment/paidCallGuard.js'
 import { createFakeAgent, type DictationAgent } from '../experiment/runner.js'
 import { dictationTools, projectionForAgent, runDictationTurn } from '../experiment/turn.js'
 import { DICTATION_RULES, type EditorContext } from '../grammar/read.js'
-import { createSessionStore } from '../grammar/session.js'
+import { createSessionStore, type GrammarSessionStore } from '../grammar/session.js'
 import { createShowsServer } from '../mcp/showsServer.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -33,6 +40,11 @@ const here = dirname(fileURLToPath(import.meta.url))
 export interface UtteranceRequest {
   show: Record<string, unknown>
   utterance: string
+  /**
+   * Correlation id minted by the caller at submission (#945). Echoed on
+   * every event and log line; the bridge mints one when absent.
+   */
+  requestId?: string
   /** Prior exchanges of this conversation, oldest first. */
   history?: Array<{ role: 'user' | 'assistant'; text: string }>
   context?: {
@@ -61,26 +73,94 @@ export interface UtteranceResponse {
   show?: unknown
 }
 
+/** The bridge-side phase clock of one turn, in `Date.now()` milliseconds. */
+export interface BridgeTurnTiming {
+  /** The request body was parsed and the turn admitted. */
+  acceptedAt: number
+  /** Scripted completion delay applied before the agent ran. */
+  delayMs: number
+  /** The agent's `run` began (after any scripted delay). */
+  agentStartedAt: number
+  /** The agent's `run` returned. */
+  agentEndedAt: number
+  /** The candidate was exported from the private session. */
+  exportedAt: number
+  toolCalls: Array<{ name: string; at: number; ms: number; isError?: boolean; issue?: string }>
+  /** Final validation inside the session commit, when the turn reached it. */
+  validation?: { at: number; ms: number; ok: boolean }
+}
+
 export type ProgressEvent =
-  | { kind: 'tool'; name: string }
-  | { kind: 'thinking' }
+  | { kind: 'tool'; name: string; requestId?: string; at?: number }
+  | { kind: 'thinking'; requestId?: string; at?: number }
+  | { kind: 'validation'; requestId?: string; at: number; ms: number; ok: boolean }
 
 /** One NDJSON line of an /utterance response. */
-export type BridgeEvent = ProgressEvent | ({ kind: 'done' } & UtteranceResponse)
+export type BridgeEvent =
+  | { kind: 'accepted'; requestId: string; at: number }
+  | ProgressEvent
+  | ({ kind: 'done'; requestId?: string; timing: BridgeTurnTiming } & UtteranceResponse)
 
 /** The corpus's scripted fake agent as a bridge agent: no model, no credential. */
 export function createScriptedAgent(): DictationAgent {
   return createFakeAgent()
 }
 
-function withDelay(agent: DictationAgent, delayMs: number): DictationAgent {
+function timedAgent(
+  agent: DictationAgent,
+  delayMs: number,
+  onStart: () => void,
+  onEnd: () => void,
+): DictationAgent {
   return {
     name: agent.name,
     run: async (context) => {
-      await new Promise((resolve) => setTimeout(resolve, delayMs))
-      return agent.run(context)
+      // The scripted completion delay holds the turn open before the agent
+      // runs, so the agent clock starts after it.
+      if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs))
+      onStart()
+      try {
+        return await agent.run(context)
+      } finally {
+        onEnd()
+      }
     },
   }
+}
+
+/**
+ * The session store with its commit timed: final validation runs inside
+ * `commit`, so wrapping that one method observes validation without touching
+ * the grammar session itself.
+ */
+function observedSessionStore(
+  store: GrammarSessionStore,
+  onValidation: (event: { at: number; ms: number; ok: boolean }) => void,
+): GrammarSessionStore {
+  return {
+    ...store,
+    commit: (sessionId) => {
+      const at = Date.now()
+      const result = store.commit(sessionId)
+      onValidation({ at, ms: Date.now() - at, ok: result.ok })
+      return result
+    },
+  }
+}
+
+function mintRequestId(): string {
+  return `bridge-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+/** The first human-readable message of a refused tool call's payload, if any. */
+function firstIssueMessage(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== 'object') return undefined
+  const record = payload as { issues?: Array<{ message?: string }>; message?: string; error?: string }
+  return record.issues?.[0]?.message ?? record.message ?? record.error
+}
+
+export interface UtteranceRun extends UtteranceResponse {
+  timing: BridgeTurnTiming
 }
 
 export async function runUtterance(
@@ -88,8 +168,23 @@ export async function runUtterance(
   request: UtteranceRequest,
   onProgress: (event: ProgressEvent) => void = () => {},
   scripted = false,
-): Promise<UtteranceResponse> {
-  const store = createSessionStore()
+  clock: { acceptedAt?: number; delayMs?: number } = {},
+): Promise<UtteranceRun> {
+  const requestId = request.requestId
+  const acceptedAt = clock.acceptedAt ?? Date.now()
+  const timing: BridgeTurnTiming = {
+    acceptedAt,
+    delayMs: clock.delayMs ?? 0,
+    agentStartedAt: acceptedAt,
+    agentEndedAt: acceptedAt,
+    exportedAt: acceptedAt,
+    toolCalls: [],
+  }
+  const rawStore = createSessionStore()
+  const store = observedSessionStore(rawStore, (validation) => {
+    timing.validation = validation
+    onProgress({ kind: 'validation', ...(requestId ? { requestId } : {}), ...validation })
+  })
   const server = createShowsServer({ sessions: store })
   const client = new Client({ name: 'dictation-bridge', version: '0.0.0' })
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
@@ -104,9 +199,23 @@ export async function runUtterance(
         reply: `The Show did not open for editing: ${opened.issues[0]?.message ?? 'unknown issue'}`,
         changed: false,
         summaries: [],
+        timing,
       }
     }
     const sessionId = opened.sessionId
+
+    // Scripted mode runs the request's script, else the script the baseline
+    // catalogue or the corpus records for this exact utterance. A live model
+    // never sees any of this.
+    const script = scripted ? (request.script ?? scriptForUtterance(request.utterance) ?? null) : null
+    if (scripted && !script) {
+      return {
+        reply: 'This scripted bridge has no script for that utterance; use a baseline or corpus utterance, or send a script.',
+        changed: false,
+        summaries: [],
+        timing,
+      }
+    }
 
     const editorContext: EditorContext = {}
     const context = request.context ?? {}
@@ -127,7 +236,12 @@ export async function runUtterance(
     const { finalText } = await runDictationTurn({
       store,
       sessionId,
-      agent,
+      agent: timedAgent(
+        agent,
+        timing.delayMs,
+        () => { timing.agentStartedAt = Date.now() },
+        () => { timing.agentEndedAt = Date.now() },
+      ),
       utterance: request.utterance,
       history: dialogue,
       listing: opened.listing,
@@ -140,24 +254,30 @@ export async function runUtterance(
         inputSchema: tool.inputSchema,
       })),
       callTool: async (name, args) => {
-        onProgress({ kind: 'tool', name })
+        const at = Date.now()
+        onProgress({ kind: 'tool', name, ...(requestId ? { requestId } : {}), at })
         const result = await client.callTool({ name, arguments: args })
         const content = result.content as Array<{ type: string; text: string }>
         const payload = content?.[0]?.type === 'text' ? JSON.parse(content[0].text) : null
-        return { payload, isError: result.isError === true }
+        const isError = result.isError === true
+        const issue = isError ? firstIssueMessage(payload) : undefined
+        timing.toolCalls.push({ name, at, ms: Date.now() - at, ...(isError ? { isError, ...(issue ? { issue } : {}) } : {}) })
+        return { payload, isError }
       },
-      ...(scripted && request.script ? { script: request.script } : {}),
+      ...(script ? { script } : {}),
     })
 
     const history = store.describeChanges(sessionId)
     const summaries = history.ok ? history.entries.map((entry) => entry.summary) : []
     const changed = summaries.length > 0
     const exported = store.export(sessionId)
+    timing.exportedAt = Date.now()
     return {
       reply: finalText || '(no reply)',
       changed,
       summaries,
       ...(changed && exported.ok ? { show: exported.show } : {}),
+      timing,
     }
   } finally {
     await client.close().catch(() => {})
@@ -189,6 +309,11 @@ export interface BridgeOptions {
    */
   guard?: PaidCallGuard
   /**
+   * Scripted mode: the completion delay applied when a request names none
+   * (#945 browser sequences). Defaults to `BRIDGE_DELAY_MS`, else 0.
+   */
+  defaultDelayMs?: number
+  /**
    * The current request's progress sink, for an agent whose model-call
    * events are wired at construction time (the OpenAI adapter's onEvent).
    * The server sets it while a turn runs and clears it afterwards.
@@ -204,6 +329,8 @@ export function createBridgeServer(options: BridgeOptions): Server {
   const log = options.log ?? ((line: string) => console.log(line))
   const progress = options.progress ?? { current: null }
   const chatScript = readFileSync(join(here, 'chat.js'), 'utf8')
+  const envDelay = Number(process.env.BRIDGE_DELAY_MS ?? 0)
+  const defaultDelayMs = options.defaultDelayMs ?? (Number.isFinite(envDelay) && envDelay > 0 ? envDelay : 0)
 
   // One utterance at a time: the editor applies each result before the next
   // turn, and interleaved edits of the same record would race.
@@ -221,7 +348,7 @@ export function createBridgeServer(options: BridgeOptions): Server {
       return
     }
     if (request.method === 'GET' && request.url === '/health') {
-      sendJson(response, 200, { ok: true, model: agent.name, scripted: options.scripted === true })
+      sendJson(response, 200, { ok: true, model: agent.name, scripted: options.scripted === true, defaultDelayMs })
       return
     }
     if (request.method === 'GET' && request.url === '/chat.js') {
@@ -251,29 +378,44 @@ export function createBridgeServer(options: BridgeOptions): Server {
             'Cache-Control': 'no-cache',
           })
           const emit = (payload: BridgeEvent) => response.write(`${JSON.stringify(payload)}\n`)
+          let requestId = mintRequestId()
           try {
             const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as UtteranceRequest
+            if (typeof body?.requestId === 'string' && body.requestId.trim()) requestId = body.requestId.trim()
+            body.requestId = requestId
+            const acceptedAt = Date.now()
             if (!body?.show || typeof body.utterance !== 'string' || body.utterance.trim().length === 0) {
-              emit({ kind: 'done', reply: 'The request needs a show and an utterance.', changed: false, summaries: [] })
+              emit({
+                kind: 'done',
+                requestId,
+                reply: 'The request needs a show and an utterance.',
+                changed: false,
+                summaries: [],
+                timing: { acceptedAt, delayMs: 0, agentStartedAt: acceptedAt, agentEndedAt: acceptedAt, exportedAt: acceptedAt, toolCalls: [] },
+              })
               return
             }
-            const turnStart = Date.now()
+            emit({ kind: 'accepted', requestId, at: acceptedAt })
+            log(`[${requestId}] turn: "${body.utterance.slice(0, 80)}"`)
             turns += 1
-            log(`turn: "${body.utterance.slice(0, 80)}"`)
             options.guard?.beginUnit(`bridge-turn-${turns}`)
-            progress.current = (event) => emit(event)
-            const delayMs = options.scripted && typeof body.delayMs === 'number' && body.delayMs > 0 ? body.delayMs : 0
-            const turnAgent = delayMs > 0 ? withDelay(agent, delayMs) : agent
-            const result = await runUtterance(turnAgent, body, (event) => emit(event), options.scripted === true)
-            log(`turn done in ${((Date.now() - turnStart) / 1000).toFixed(1)}s (changed: ${result.changed})`)
-            log(`  reply: ${result.reply.slice(0, 400)}`)
-            emit({ kind: 'done', ...result })
+            progress.current = (event) => emit({ ...event, requestId })
+            const delayMs = options.scripted
+              ? (typeof body.delayMs === 'number' && body.delayMs >= 0 ? body.delayMs : defaultDelayMs)
+              : 0
+            const result = await runUtterance(agent, body, (event) => emit(event), options.scripted === true, { acceptedAt, delayMs })
+            log(`[${requestId}] turn done in ${((Date.now() - acceptedAt) / 1000).toFixed(1)}s (changed: ${result.changed})`)
+            log(`[${requestId}]   reply: ${result.reply.slice(0, 400)}`)
+            emit({ kind: 'done', requestId, ...result })
           } catch (error) {
+            const at = Date.now()
             emit({
               kind: 'done',
+              requestId,
               reply: `The bridge hit an error: ${error instanceof Error ? error.message : String(error)}`,
               changed: false,
               summaries: [],
+              timing: { acceptedAt: at, delayMs: 0, agentStartedAt: at, agentEndedAt: at, exportedAt: at, toolCalls: [] },
             })
           } finally {
             progress.current = null

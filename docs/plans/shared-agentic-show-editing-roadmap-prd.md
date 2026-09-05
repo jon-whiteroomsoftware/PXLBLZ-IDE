@@ -254,7 +254,7 @@ tool execution, validation, waiting for a gesture to finish, persistence, compil
 preview publication should be distinguishable so a faster provider is not credited for an
 unrelated UI change.
 
-The first diagnostic slice (commit `3feb9710`, pending review and landing) delivered the source
+The first diagnostic slice (commit `3feb9710`, landed) delivered the source
 integration this measurement needs. The V3 bridge, Show grammar, MCP server, dictation corpus,
 scripted fake agent and evaluation tooling now execute against the live V2 engine from
 `src/agent-harness/`, with per-file provenance in
@@ -266,12 +266,23 @@ candidate after `.pxlshow` and `.epe` export and reopen through the V2 importers
 oracles are recorded as diagnostics rather than repaired. The Technical Reference (section 27)
 describes the area's place in the codebase.
 
-That slice is not the live baseline. It drives the bridge, not the editor route, and establishes
-nothing about editor application, the store, or the concurrency gaps. Still open in #945: the
-real-browser reproductions on the actual editor route, the small and complex fixture set,
-correlated timing instrumentation across the boundaries named above, the raw and pinned baseline
-report, proposed median, tail and responsiveness thresholds for Jon to accept in #946, and any
-bounded paid corpus run. No paid model call has been made.
+The browser-baseline slice added the real-editor half without a paid call:
+`npm run test:e2e:agent-baseline` drives the actual Show editor route in Chromium through the
+bridge's own chat overlay and a real scripted bridge process, and reproduces the stale
+whole-record overwrite (a manual edit, a Clip delete, and inserted time during inference are
+all undone by the reply), application after navigating away and back, and the durable-baseline
+mismatch after a later failed save; it also covers a multi-operation reply, a built-in draft
+with no personal write, and a personal Pattern on a personal Library. Request ids correlate the
+overlay, the bridge phase clock, a dev-only read-only editor/preview observation seam, and the
+network writes. A finite fixture set with committed record and artifact hashes
+(`npm run agent:baseline:fixtures`) preserves before/after exports for later compiler
+comparisons and records three grammar refusals verbatim. The report is
+[`docs/reference/agent-editing-baseline.md`](../reference/agent-editing-baseline.md); its
+timing table is scripted-bridge timing, not a model measurement.
+
+Still open in #945: the sealed held-out utterances, the bounded paid corpus run with its
+distributions and cache conditions, and the proposed median, tail and responsiveness thresholds
+for Jon to accept in #946. No paid model call has been made.
 
 Use a real-browser harness against the editor route and bridge, with the scripted agent response
 source delayed deterministically. Reproduce the overwrite before fixing it and retain that case

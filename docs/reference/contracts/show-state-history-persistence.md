@@ -57,10 +57,15 @@ failures also resolve, and stock edits have no personal save.
 - Durable-baseline ordering uses client-stamped `updatedAt`, relying on
   monotonic timestamps within a client. It is not a server revision or a
   cross-client conflict protocol; clock skew can misorder records. Callers
-  supplying replacements must preserve timestamp ordering.
+  supplying replacements must preserve timestamp ordering. The agent bridge
+  does not: the #945 browser baseline (sequence E in
+  [`agent-editing-baseline.md`](../agent-editing-baseline.md)) applied a
+  candidate stamped older than an intervening manual save, then a later
+  failed save restored that manual record while storage held the candidate.
 - The store accepts complete records without comparing an expected base
   revision. Save serialization alone does not prevent a stale replacement
-  from overwriting a newer edit.
+  from overwriting a newer edit; baseline sequences A, B, and C reproduce
+  that overwrite on the live editor.
 
 These limits describe present behavior. They do not authorize weakening the
 ordinary-update recovery guarantee or claim that shared editing is safe.

@@ -145,9 +145,26 @@ Paid-call budget slice (#945, V2-authored, after the transfer):
   the `gpt-5.6-luna` figures read from the provider's official pages on 2026-09-05 with their
   acceptance; the transferred terra and sol prices remain without terms or acceptance.
 
+Browser-baseline additions (#945, second slice), each annotated in its file and not V3
+behaviour:
+
+- `bridge/service.ts`: every NDJSON line and log line carries the request id the caller sent
+  (or a minted `bridge-…` id); a leading `accepted` event; tool events carry `at`; final
+  validation inside the session `commit` is timed through a wrapper around the store object
+  (the grammar session itself is untouched); `done` carries the bridge phase clock (`timing`)
+  including per-tool durations and refusal messages; in scripted mode a request without a script
+  resolves its utterance through `baseline/scripts.ts` and then the corpus; `defaultDelayMs` /
+  `BRIDGE_DELAY_MS` sets the scripted default delay; the delay now runs inside the timed agent
+  wrapper so the agent clock starts after it.
+- `bridge/chat.js`: mints a request id per submission and sends it in the body; keeps a
+  per-request phase record (ids and timestamps only) under `window.__pxlblzChat.requests`;
+  `data-testid` attributes on the panel, log, lines, input and send button; passes
+  `{ requestId }` to `applyShow`.
+
 New files (V2-authored, #945): `run.ts` (Vite module runner entry: the V2 stock catalogue uses
 `import.meta.glob`/`?raw`, so this closure cannot execute under plain `tsx`), `bridge/smoke.ts`,
 `test/bridgeSmoke.test.ts`, `test/critiqueShow.drift.diagnostic.ts`, this file, `README.md`;
+
 budget slice: `experiment/paidCallBudget.ts` (pure rules), `experiment/paidCallGuard.ts`
 (ledger file, lock, halt), `experiment/providerLimits.ts` (provider ceilings with evidence and
 acceptance; empty), `experiment/budgetCli.ts`, `test/paidCallBudget.test.ts`,
@@ -155,6 +172,11 @@ acceptance; empty), `experiment/budgetCli.ts`, `test/paidCallBudget.test.ts`,
 held-out slice: `held-out/verify.ts`,
 `held-out/v1/inputs.sealed.json`, `held-out/v1/expected-outcomes.sealed.json`,
 `held-out/v1/manifest.json`, `held-out/v1/manifest.sha256`, `test/heldOutCorpus.test.ts`.
+
+second slice: `baseline/scripts.ts`, `baseline/fixtures.ts`, `baseline/evidence.ts`,
+`baseline/fixturesCli.ts`, `baseline/evidence/fixtures.json`, `test/bridgeRequestIds.test.ts`,
+`test/baselineFixtures.test.ts`, and outside this area `src/dev/agentObservation.ts` and
+`e2e/agent-baseline.auth.spec.ts`.
 
 ## Deliberately not transferred
 

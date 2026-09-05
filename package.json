@@ -41,6 +41,7 @@
     "test:e2e": "npm run check:node && tsx scripts/with-suite-lock.ts test:e2e -- tsx scripts/run-public-playwright.ts",
     "test:e2e:auth-smoke": "npm run check:node && tsx scripts/with-suite-lock.ts test:e2e:auth-smoke -- tsx scripts/run-authenticated-playwright.ts e2e/authenticated-smoke.auth.spec.ts e2e/artifact-import.auth.spec.ts",
     "test:e2e:shows": "npm run check:node && tsx scripts/with-suite-lock.ts test:e2e:shows -- tsx scripts/run-authenticated-playwright.ts e2e/shows.auth.spec.ts",
+    "test:e2e:agent-baseline": "npm run check:node && tsx scripts/with-suite-lock.ts test:e2e:agent-baseline -- tsx scripts/run-authenticated-playwright.ts e2e/agent-baseline.auth.spec.ts",
     "test:e2e:auth-full": "npm run check:node && tsx scripts/with-suite-lock.ts test:e2e:auth-full -- tsx scripts/run-authenticated-playwright.ts e2e/authenticated-smoke.auth.spec.ts e2e/artifact-import.auth.spec.ts e2e/entity-title-rename.auth.spec.ts e2e/shows.auth.spec.ts e2e/workspace-recovery.auth.spec.ts",
     "docs:screenshots:visual-effects": "npm run check:node && UPDATE_DOC_SCREENSHOTS=1 tsx scripts/with-suite-lock.ts docs:screenshots:visual-effects -- tsx scripts/run-authenticated-playwright.ts e2e/show-visual-toolkit-docs.auth.spec.ts",
     "review:candidate": "npm run check:node && wrsp-review-candidate",
@@ -135,7 +136,8 @@
     "agent:bridge": "npm run check:node && tsx src/agent-harness/run.ts src/agent-harness/bridge/server.ts",
     "agent:budget": "npm run check:node && tsx src/agent-harness/experiment/budgetCli.ts",
     "agent:coverage": "npm run check:node && tsx src/agent-harness/run.ts src/agent-harness/grammar/coverageCli.ts",
-    "agent:diagnostics": "npm run check:node && vitest run --config vitest.agent-diagnostics.config.ts"
+    "agent:diagnostics": "npm run check:node && vitest run --config vitest.agent-diagnostics.config.ts",
+    "agent:baseline:fixtures": "npm run check:node && tsx src/agent-harness/run.ts src/agent-harness/baseline/fixturesCli.ts"
   },
   "engines": {
     "node": "^22.13.0 || >=24"

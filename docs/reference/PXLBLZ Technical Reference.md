@@ -1444,7 +1444,13 @@ catalogue's `import.meta.glob` sources have no plain-Node form; its suites run
 in the ordinary Vitest `node` project, and known V3-versus-V2 oracle drift is
 isolated in `*.diagnostic.ts` files under `npm run agent:diagnostics`. The
 [agent candidate application contract](contracts/agent-candidate-application.md)
-owns the editor boundary it targets.
+owns the editor boundary it targets. The browser baseline
+(`npm run test:e2e:agent-baseline`, report in
+[`agent-editing-baseline.md`](agent-editing-baseline.md)) drives that boundary
+on the live editor route through the real overlay and a scripted bridge, with
+request ids correlated across the overlay, the bridge phase clock, the
+dev-only read-only observation seam in `src/dev/agentObservation.ts`, and
+the personal-content writes; it is an explicit diagnostic, not a push gate.
 
 The harness's paid model calls (`agent:corpus --live`, live `agent:bridge`)
 are owned by its paid-call guard (`src/agent-harness/experiment/paidCallGuard.ts`,
