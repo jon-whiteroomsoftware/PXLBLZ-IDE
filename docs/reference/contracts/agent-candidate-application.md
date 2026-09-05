@@ -9,6 +9,11 @@ V3 platform remains separate.
 
 ## Ownership and acceptance
 
+The current `__pxlblzEditor` bridge is installed only in development builds
+and editable Show editors. Production builds and read-only editors do not
+expose this application path; shipping agent editing requires an explicit
+production integration.
+
 The browser bridge captures a Show through the editor's cloning `getShow`
 interface. The service opens a separate grammar session for the request.
 Operations inside a transaction update private working state; commit validates
