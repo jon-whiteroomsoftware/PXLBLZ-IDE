@@ -123,8 +123,10 @@ diagnostic until #946, #947 and #959 decide what becomes engine code (#949).
   push gate.
 - Request ids and phase timing: the overlay mints a request id per
   submission; the service echoes it on every event and log line and reports
-  the bridge phase clock on `done`
-  ([`test/bridgeRequestIds.test.ts`](../../../src/agent-harness/test/bridgeRequestIds.test.ts)).
+  the bridge phase clock on `done`. Its agent phase starts with the first
+  inference after the one scripted delay and ends with the final inference,
+  including a validation-repair pass, as covered by
+  [`test/bridgeRequestIds.test.ts`](../../../src/agent-harness/test/bridgeRequestIds.test.ts).
   The editor's `applyShow` accepts an optional request id and records
   admission, adoption, settlement, rejection, and failure through the
   dev-only, read-only observation seam in

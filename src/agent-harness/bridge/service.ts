@@ -79,9 +79,9 @@ export interface BridgeTurnTiming {
   acceptedAt: number
   /** Scripted completion delay applied before the agent ran. */
   delayMs: number
-  /** The agent's `run` began (after any scripted delay). */
+  /** The first agent `run` began (after the one scripted delay). */
   agentStartedAt: number
-  /** The agent's `run` returned. */
+  /** The final agent `run` returned, including a validation-repair pass. */
   agentEndedAt: number
   /** The candidate was exported from the private session. */
   exportedAt: number
@@ -112,13 +112,17 @@ function timedAgent(
   onStart: () => void,
   onEnd: () => void,
 ): DictationAgent {
+  let started = false
   return {
     name: agent.name,
     run: async (context) => {
-      // The scripted completion delay holds the turn open before the agent
-      // runs, so the agent clock starts after it.
-      if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs))
-      onStart()
+      // The scripted completion delay holds the turn open before the first
+      // agent pass. A validation repair remains part of the same agent phase.
+      if (!started) {
+        if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs))
+        started = true
+        onStart()
+      }
       try {
         return await agent.run(context)
       } finally {

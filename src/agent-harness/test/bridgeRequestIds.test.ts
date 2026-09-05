@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { showFacts, SMOKE_UTTERANCE } from '../bridge/smoke.js'
 import { parseBridgeEvents, createScriptedAgent, startBridge, type BridgeEvent } from '../bridge/service.js'
 import { dictationFixture } from '../experiment/fixtures.js'
+import type { AgentTurnContext, DictationAgent } from '../experiment/runner.js'
 import type { ShowRecord } from '@/engine/personalContentRecords'
 
 async function post(url: string, body: Record<string, unknown>): Promise<BridgeEvent[]> {
@@ -15,6 +16,45 @@ async function post(url: string, body: Record<string, unknown>): Promise<BridgeE
     body: JSON.stringify(body),
   })
   return parseBridgeEvents(await response.text())
+}
+
+function repairingAgent(): DictationAgent & { passes: Array<{ startedAt: number; endedAt: number }> } {
+  const passes: Array<{ startedAt: number; endedAt: number }> = []
+  let invalidClipId = ''
+  return {
+    name: 'repairing-agent',
+    passes,
+    run: async (context: AgentTurnContext) => {
+      const pass = { startedAt: Date.now(), endedAt: 0 }
+      passes.push(pass)
+      await new Promise((resolve) => setTimeout(resolve, passes.length === 1 ? 40 : 60))
+      if (passes.length === 1) {
+        const result = await context.callTool('add_clip', {
+          session_id: context.sessionId,
+          zone_id: 'z1',
+          start_ms: 35_000,
+          duration_ms: 10_000,
+          pattern_kind: 'stock',
+          pattern_id: 'missing-stock-pattern',
+        })
+        const changes = (result.payload as { changes?: Array<{ targetId?: string }> }).changes
+        invalidClipId = changes?.[0]?.targetId ?? ''
+        pass.endedAt = Date.now()
+        return { finalText: 'Added the stock Pattern.' }
+      }
+      await context.callTool('remove_clip', { session_id: context.sessionId, clip_id: invalidClipId })
+      await context.callTool('add_clip', {
+        session_id: context.sessionId,
+        zone_id: 'z1',
+        start_ms: 35_000,
+        duration_ms: 10_000,
+        pattern_kind: 'stock',
+        pattern_id: 'CometLoom',
+      })
+      pass.endedAt = Date.now()
+      return { finalText: 'Added a CometLoom clip instead.' }
+    },
+  }
 }
 
 describe('bridge request ids and timing', () => {
@@ -49,6 +89,39 @@ describe('bridge request ids and timing', () => {
       expect(timing.toolCalls.map((call) => call.name)).toEqual(['describe_show', 'resize_clip'])
       expect(timing.validation).toMatchObject({ ok: true })
       expect(lines.some((line) => line.includes('req-test-1'))).toBe(true)
+    } finally {
+      await bridge.close()
+    }
+  })
+
+  it('times a refused candidate and its repair as one agent phase', async () => {
+    const agent = repairingAgent()
+    const bridge = await startBridge({ agent, scripted: true, port: 0, log: () => {} })
+    try {
+      const events = await post(bridge.url, {
+        requestId: 'req-repair-timing',
+        show: dictationFixture('empty-second-scene'),
+        utterance: 'Add that stock Pattern at 35 seconds.',
+        script: [],
+        delayMs: 30,
+        context: {},
+      })
+      const done = events[events.length - 1]
+      if (!done || done.kind !== 'done') throw new Error('no done event')
+      expect(done.changed).toBe(true)
+      expect(agent.passes).toHaveLength(2)
+      expect(events.filter((event) => event.kind === 'validation').map((event) => event.ok)).toEqual([false, false, true])
+
+      const [first, repaired] = agent.passes
+      expect(done.timing.delayMs).toBe(30)
+      expect(done.timing.agentStartedAt - done.timing.acceptedAt).toBeGreaterThanOrEqual(30)
+      expect(done.timing.agentStartedAt).toBeLessThanOrEqual(first.startedAt)
+      expect(done.timing.agentStartedAt).toBeLessThan(first.endedAt)
+      expect(done.timing.agentStartedAt).toBeLessThan(repaired.startedAt)
+      expect(done.timing.agentEndedAt).toBeGreaterThanOrEqual(repaired.endedAt)
+      expect(done.timing.agentEndedAt - done.timing.agentStartedAt).toBeGreaterThanOrEqual(100)
+      expect(done.timing.exportedAt).toBeGreaterThanOrEqual(done.timing.agentEndedAt)
+      expect(done.timing.toolCalls.map((call) => call.name)).toEqual(['add_clip', 'remove_clip', 'add_clip'])
     } finally {
       await bridge.close()
     }
