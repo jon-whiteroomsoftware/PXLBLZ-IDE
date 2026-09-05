@@ -217,16 +217,18 @@ only an exact corrective review. Since WRSP 0.5.1 (#960) the command names
 three distinct non-approval outcomes, and the agent classifies the actual
 result rather than the word BLOCKED or a nonzero exit:
 
-- `CANDIDATE REPAIR REQUIRED`: P0/P1 findings. Coverage is voided and the
-  candidate cannot land, but authorized repair continues: fix, verify, commit a
-  new tip, and review the replacement full range while the candidate converges.
+- `CANDIDATE REPAIR REQUIRED`: P0/P1 findings. No approval is created for
+  that candidate and it cannot land, but authorized repair continues: fix,
+  verify, commit a new tip, and review the replacement full range while the
+  candidate converges.
 - `CANDIDATE REVIEW PAUSED`: three consecutive P0/P1 outcomes on one candidate
   lineage. The gate refuses a fourth reviewer launch. Discuss the invariant,
   the approach, or the enforcement layer with Jon before passing
   `--acknowledge-non-convergence`, which admits exactly one further attempt.
 - `CANDIDATE REVIEW ERROR`: a provider, prerequisite, validation, or
-  contradictory-output failure. No receipt exists and no finding was judged;
-  a real permission or security denial, unusable verification, or an
+  contradictory-output failure. No receipt exists and no valid review
+  approval is available; a real permission or security denial, unusable
+  verification, or an
   unrecoverable failure stops that action - report the exact reason, never
   bypass. Independent work continues unless it shares the blocker.
 
@@ -246,16 +248,16 @@ without it are unsignalled, receive the default reviewer order, and can never
 claim cross-family coverage on their receipts. Since WRSP 0.5.1 (#960) the
 OpenAI reviewer is Astra Medium (`gpt-6-astra`, medium reasoning effort) and
 reviews Anthropic-authored candidates; the Anthropic reviewer is Fable 5.1
-High and reviews GPT-authored candidates. Astra is a reviewer only: never
-launch it as an implementation or execution worker. Ordinary execution
-workers remain GPT-5.6 Sol High, and the generic Fable subagent restriction is
-unchanged. Receipts written under earlier policies (Opus 5 High before 0.5.0,
-GPT-5.6 Sol High under 0.5.0) remain on disk as history under their recorded
-names, do not count toward current coverage, and are never Astra evidence.
-When the counterpart family's
-reviewer is unavailable, the gate falls back to a same-family review and
-records the downgrade on the receipt; it never blocks on the missing
-counterpart and never records the downgrade silently.
+High and reviews GPT-authored candidates. Astra is reserved for planning and
+review; never launch it as an implementation or execution worker. Ordinary
+execution workers remain GPT-5.6 Sol High, and the generic Fable subagent
+restriction is unchanged. Receipts written under earlier policies (Opus 5
+High before 0.5.0, GPT-5.6 Sol High under 0.5.0) remain on disk as history
+under their recorded names, do not count toward current coverage, and are
+never Astra evidence. When the counterpart family's reviewer is unavailable,
+the gate falls back to a same-family review and records the downgrade on the
+receipt; it never blocks on the missing counterpart and never records the
+downgrade silently.
 
 Haiku is retired. Never launch it for implementation, review, classification,
 or fallback work (Jon, 2026-09-04).

@@ -73,11 +73,11 @@ record the signalled `authoredModels`; receipts predating these fields are
 unverified on the cross-family axis, and `review:status` displays each
 receipt as `cross-family`, `SAME-FAMILY`, or `family-unverified`.
 
-Astra is a reviewer here, not a worker: the route may launch it automatically
-for an authorized review, but nothing in this repository launches
-`gpt-6-astra` for implementation or execution, ordinary execution workers
-remain GPT-5.6 Sol High, and the generic restriction on Fable as a subagent
-model is unchanged (global instructions, 2026-09-05).
+Astra is reserved for planning and review, never for execution: the route may
+launch it automatically for an authorized review, but nothing in this
+repository launches `gpt-6-astra` for implementation or execution, ordinary
+execution workers remain GPT-5.6 Sol High, and the generic restriction on
+Fable as a subagent model is unchanged (global instructions, 2026-09-05).
 
 The Anthropic reviewer streams progress while it works (#637): one line per
 tool call, a heartbeat once a minute, a 5-minute no-event stall timer as the
@@ -102,9 +102,9 @@ actual result; neither the word BLOCKED nor exit status 1 is a verdict:
 
 | Outcome | Meaning | What continues |
 | --- | --- | --- |
-| `CANDIDATE REPAIR REQUIRED` | The review completed and found P0/P1 defects. Coverage for the range is void. | Authorized repair: fix, verify, commit a new tip, and review the replacement full range while the candidate converges. Landing is blocked; correction is not. |
+| `CANDIDATE REPAIR REQUIRED` | The review completed and found P0/P1 defects. No approval is created for that candidate. | Authorized repair: fix, verify, commit a new tip, and review the replacement full range while the candidate converges. Landing is blocked; correction is not. |
 | `CANDIDATE REVIEW PAUSED` | Three consecutive P0/P1 (terminal) outcomes on one candidate lineage. The breaker refused the fourth reviewer launch before it started. | Discuss the invariant, the approach, or the enforcement layer with Jon. `--acknowledge-non-convergence` admits exactly one further attempt and prints a warning naming the streak it overrode. A clean or advisory outcome ends the streak. |
-| `CANDIDATE REVIEW ERROR` | Provider, prerequisite, validation, lock, freshness, or contradictory-structured-output failure. No finding was judged. | A transient error is retried after its cause is fixed. A real permission or security denial, unusable verification, or unrecoverable failure stops that action: report the exact reason and never bypass the gate. |
+| `CANDIDATE REVIEW ERROR` | Provider, prerequisite, validation, lock, freshness, or contradictory-structured-output failure. No valid review approval is available. | A transient error is retried after its cause is fixed. A real permission or security denial, unusable verification, or unrecoverable failure stops that action: report the exact reason and never bypass the gate. |
 
 Independent work continues through any of these unless it shares the blocker.
 The breaker's outcome records in `.git/wrsp/review-outcomes/v1/` and the round
