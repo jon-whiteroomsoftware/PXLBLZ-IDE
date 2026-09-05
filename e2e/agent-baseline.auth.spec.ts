@@ -406,6 +406,8 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     await waitForDurable(page, showId, (show) => firstMain(show)?.durationMs === 12_000)
     const durable = await durableShow(page, showId)
     expect(firstMain(durable)?.brightness).toBe(1)
+    // The route as the author sees it once the reply has replaced the manual edit.
+    await page.screenshot({ path: join(REPORT_DIR, 'A-stale-overwrite.png'), fullPage: true })
     const patches = writes.filter((write) => write.method === 'PATCH')
     expect(patches.map((write) => write.firstMain)).toEqual([
       { durationMs: 30_000, brightness: 0.75 },
@@ -425,7 +427,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     const adopted = observations.find((entry) => entry.kind === 'agent-apply' && entry.requestId === requestId && entry.phase === 'adopted')
     expect(observations.some((entry) => entry.kind === 'preview-published' && entry.digest === adopted?.digest && entry.at >= adopted.at)).toBe(true)
 
-    await page.screenshot({ path: join(REPORT_DIR, 'A-stale-overwrite.png'), fullPage: true })
+    await page.screenshot({ path: join(REPORT_DIR, 'A-after-undo.png'), fullPage: true })
     saveRecord('A-stale-overwrite', {
       showId, manualEditAt: manualAt, request, writes, observations, visible: { before, after },
       durable: { updatedAt: durable?.updatedAt, firstMain: firstMain(durable) },
