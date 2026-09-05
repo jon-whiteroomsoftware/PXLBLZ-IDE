@@ -65,6 +65,14 @@ discoverable without interrupting the agent.
 
 ### Worktree prerequisites
 
+Run `npm run preflight -- worktree` before the first edit in a new worktree.
+It exits 1 in the shared checkout (git dir equals the common dir) and 0 in a
+linked worktree; substantive work never starts in the shared checkout. Before
+starting any server outside the registry, `npm run preflight -- port <n>`
+names the process already listening on that port and exits 1, so the second
+server never wedges the first. Never kill the listener it names; allocate
+another port.
+
 Run `dev:issue` **from inside the worktree** it is meant to serve. The command
 roots Vite at `process.cwd()`, so running it from the shared checkout silently
 serves main's code while appearing to serve the branch under test.
@@ -190,3 +198,8 @@ rather than keep waiting, and run these commands unsandboxed: the sandbox cannot
 reach host localhost, so a sandboxed failure proves nothing about service health.
 Never pipe a possibly-hanging command through `tail`, which hides all output
 until the command finishes.
+
+Before reporting GitHub authentication or the network as a blocker, run
+`npm run preflight -- blocker gh-auth --host` (or `blocker network --host`)
+from an elevated, unsandboxed shell. `SANDBOX-LOCAL` and `INDETERMINATE`
+(exit 3) are never host verdicts; only `HOST OK` and `HOST FAILURE` are.

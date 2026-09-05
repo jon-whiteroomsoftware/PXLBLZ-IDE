@@ -70,6 +70,47 @@ JSON; mirror `defaultControllerProfile`.
 Audit overflow by walking `scrollWidth > clientWidth` under the relevant
 `data-testid` rather than eyeballing screenshots.
 
+## Recording UI proof for the review gate
+
+Since #940 a candidate that changes a path named in `wrsp-ui-proof.json`
+(component TSX, `src/App.tsx`, stylesheets) cannot reach `review:candidate`
+without a fresh proof record. The record is the route actually driven, not a
+green suite. Recipe:
+
+1. Build the UI commit first. Note its full commit id: `git rev-parse HEAD`.
+2. Drive the route in a real browser at that commit: the Codex in-app browser
+   first, against a managed runtime serving this worktree, as the task's
+   synthetic user. Perform the spec's stated operation, then take the
+   screenshot. Playwright is the fallback and needs the same honest
+   provenance.
+3. Save the image under `.wrsp/ui-proof/<issue>-<slug>.<ext>` with the
+   extension matching its bytes. Check: `file <path>` must report PNG or
+   JPEG (WebM and MP4 also qualify for recordings); a browser that hands
+   back JPEG bytes under a `.png` name gets renamed, not trusted.
+4. Write `.wrsp/ui-proof/<issue>-<slug>.json`:
+
+   ```json
+   {
+     "version": 1,
+     "issue": "<issue>",
+     "route": "/PXLBLZ-IDE/studio/shows/<id>",
+     "operation": "What was done on the route, in one or two sentences",
+     "captures": [".wrsp/ui-proof/<issue>-<slug>.png"],
+     "capturedAtCommit": "<full 40-hex commit id from step 1>"
+   }
+   ```
+
+   Only these keys are allowed; `capturedAtCommit` must be the full id, never
+   `HEAD` or a short id.
+5. Commit the record and capture as the candidate tip, then run
+   `npm run check:ui-proof -- <base> <tip>`. It prints one `✓` line per
+   accepted record or `UI PROOF BLOCKED` with the rejection reason.
+
+Any further change to a UI path after the capture marks the record `stale`;
+re-drive the route on the new build and re-capture. Committing the record and
+its captures never triggers or invalidates the gate. Remember the hover-tip
+caveat above: give a control keyboard focus if the proof must show a tip.
+
 ## Chrome cannot reach the LAN device on macOS
 
 If Chrome alone cannot reach the controller with `ERR_ADDRESS_UNREACHABLE` while

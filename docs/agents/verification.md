@@ -9,19 +9,25 @@ evidence instead of reviewing an expanding stack again.
 Since #724 the gate implementation lives in the shared
 `@whiteroom/software-process` package (vendored as a release tarball under `vendor/`, a `file:` devDependency in
 `package.json`); the npm script names are unchanged. This repository supplies
-its project policy, staged-test selection boundaries, and e2e meta-check
-paths in `wrsp.config.mjs`. The reviewer prompt's project-specific advisory
+its project policy, staged-test selection boundaries, artifact deliverables,
+and e2e meta-check paths in `wrsp.config.mjs`, and its UI proof policy in the
+pure-data `wrsp-ui-proof.json`. The reviewer prompt's project-specific advisory
 paragraph is `review.projectPolicy` there and participates in the policy
 fingerprint, so editing it invalidates receipts exactly like a prompt change.
+Since #940 the installed release is 0.5.0; see
+[WRSP 0.5.0 consumer guards](#wrsp-050-consumer-guards-940) for the guards
+that release added and the adoption ledger.
 
 ## Gate ownership
 
 | Moment | Gate | Purpose |
 | --- | --- | --- |
 | During development | `npx vitest run path/to/test.ts` | Keep the red-green-refactor loop focused. |
+| Before starting in a worktree | `npm run preflight -- worktree` and `npm run preflight -- port <n>` | Refuse substantive work in the shared checkout; report a port's owner before a dev server claims it. |
 | Before each commit | `npm run lint` and `npm run test:staged` | Run colocated tests for staged code plus explicitly mapped high-risk invariants. |
-| Before landing | `npm run review:candidate -- <base> <tip> [--test-design <json>]` | Review one explicit candidate range and record an immutable approval for a valid pass. |
-| Before each push | `npm run review:push`, `npm run test:full`, `npm run test:e2e`, `npm run test:e2e:auth-smoke`, and `npm run test:e2e:shows` | Require exact approval coverage for every outgoing ref, run every Vitest file once, then exercise the unauthenticated smoke flow and the authenticated suites. |
+| Before landing | `npm run review:candidate -- <base> <tip> [--test-design <json>]` | Enforce the UI proof gate for the range, then review one explicit candidate range and record an immutable approval for a valid pass. `npm run check:ui-proof -- <base> <tip>` runs the proof gate alone. |
+| Before each push | `npm run review:push`, `npm run check:artifact-oracle`, `npm run test:full`, `npm run test:e2e`, `npm run test:e2e:auth-smoke`, and `npm run test:e2e:shows` | Require exact approval coverage for every outgoing ref, prove both exported Show deliverables reopen through their importers, run every Vitest file once, then exercise the unauthenticated smoke flow and the authenticated suites. |
+| Periodic sweep | `npm run check:issue-proof -- --since-days <n>` | Audit recently closed issues for a named and attached proof. A report, not a hook. |
 
 ### Candidate review and landing
 
@@ -50,8 +56,9 @@ The primary reviewer is routed against range authorship (#637): commits
 signal their authoring model with an `X-Authored-Model:` trailer (legacy
 Claude `Co-Authored-By:` trailers also classify), and a range authored
 entirely by one model family routes to the opposite family first --
-Anthropic-authored to GPT-5.6 High, OpenAI-authored to Opus 5 High. Mixed or
-unsignalled ranges use the default order (Opus 5 High first). If the primary
+Anthropic-authored to GPT-5.6 High, OpenAI-authored to Fable 5.1 High
+(Opus 5 High before WRSP 0.5.0). Mixed or unsignalled ranges use the default
+order (Fable 5.1 High first). If the primary
 reviewer cannot return a valid structured decision because of quota, timeout,
 process, or malformed output, the other reviewer receives the same immutable
 input; a fallback that lands same-family is recorded on the receipt as
@@ -189,7 +196,8 @@ remote main line; if that baseline does not exist, the gate blocks instead of
 self-basing the range at the pushed tip. Missing or stale coverage blocks with an explicit
 `review:candidate` command; pre-push does not repeat substantive review.
 
-After every outgoing ref has exact coverage, the hook runs the full Vitest suite,
+After every outgoing ref has exact coverage, the hook runs the artifact
+oracle gate, the full Vitest suite,
 the Playwright smoke suite, and the authenticated smoke and Show suites once. Because this is a Git hook rather than a Claude
 or Codex lifecycle hook, it applies equally to agent and terminal pushes.
 
@@ -377,6 +385,127 @@ e2e validation *before* landing, not the pushing agent:
   coverage, and the exact corrective commit is the one carrying the
   `X-E2E:` trailer once the suite has run. The advisory is a prompt to run
   the suite, not a substitute for it.
+
+## WRSP 0.5.0 consumer guards (#940)
+
+The 0.5.0 release added four consumer guards on top of the review, selection,
+layout, and e2e meta-check gates this repository already ran. Each is wired to
+the installed package's own executable; nothing below is a local
+reimplementation. `scripts/wrsp-guard-fixture.ts` drives those executables in
+disposable Git repositories under the OS temp directory, so the rejection
+partitions are asserted by the ordinary Vitest suite instead of by live
+candidate or push denials.
+
+### UI proof gate
+
+`wrsp-ui-proof.json` at the repository root declares which paths are UI:
+component TSX under `src/components/` excluding colocated `*.test.tsx`,
+`src/App.tsx`, and every stylesheet under `src/`. A candidate whose diff
+touches one of them cannot reach review without a valid, fresh proof record
+in `.wrsp/ui-proof/`: a JSON file naming the route driven in a real browser,
+the operation performed, one or more committed captures carrying PNG, JPEG,
+WebM, or MP4 bytes, and the full commit id the capture was taken from. That
+commit must be an ancestor of the tip with no UI path changed since. The
+policy is a data file rather than a `wrsp.config.mjs` section because the gate
+reads it as a blob from both ends of the range and gates under the union;
+executable configuration cannot be evaluated trustworthily at a historical
+revision. `review:candidate` enforces the gate before taking the review lock;
+`npm run check:ui-proof -- <base> <tip>` is the standalone form. It applies
+from the adoption commit onward: on a range where neither end carries the
+policy file it fails closed rather than reporting "not required".
+
+The capture recipe is in
+[`browser-verification.md`](browser-verification.md#recording-ui-proof-for-the-review-gate).
+The first record, `.wrsp/ui-proof/940-redline-zone-properties.json`, is the
+coordinator's Codex in-app-browser capture of the Redline Installation Zone
+properties dialog on reviewed main; the adoption candidate itself touched no
+UI path, so the gate reported "not required" on that range while the
+missing, fake, malformed, valid, stale, and no-policy partitions are asserted
+in `scripts/wrsp-ui-proof-gate.test.ts` against the same policy and the same
+capture bytes.
+
+### Exported-artifact oracles
+
+Two deliverables are configured under `artifacts.deliverables` in
+`wrsp.config.mjs`, both run through the named `artifact-oracle` runner
+(`npx vitest run --project node --reporter default <test>`; Vitest 4 has no
+`basic` reporter, so the package default runner fails at startup here):
+
+| Deliverable | Test | Exporter | Importer |
+| --- | --- | --- | --- |
+| `show-pxlshow` | `src/engine/showFileBundle.oracle.test.ts` | `buildShowFileBundle` then `serializeShowFileBundle`, the Show editor's "Export Show file" pair | `parseShowFileBundle`, `planShowImport`, `applyShowImportPlan`, the Pattern list's `.pxlshow` file input |
+| `show-epe` | `src/engine/showEpeExport.oracle.test.ts` | `compileShowForArtifact` then `buildShowEpeExport`, the Show editor's `.epe` download | `parseEpe`, then `extractPatternAuthors` and `resolveArtifactPreferredMap`, the Pattern list's `.epe` file input |
+
+Every assertion runs against the file reopened from disk: gzip magic and
+byte-for-byte preservation of the embedded user Pattern and custom Map in the
+`.pxlshow`; banner metadata, the checksum over the reopened body, the Show
+name, both Pattern references with their credits, the authored colour
+literal, and preferred-map resolution for the `.epe`. `npm run
+check:artifact-oracle` runs both and requires exactly one
+`WRSP-ARTIFACT-ORACLE` report per deliverable with a matching name and a
+positive byte count.
+
+Evidence boundary: the checker validates a structured report emitted by
+trusted, reviewed test code that it ran itself. An absent or empty export,
+a test that never reports, a bare marker, and a mismatched name all fail
+(`scripts/wrsp-artifact-oracle-gate.test.ts`). The parser does not
+authenticate a well-formed report forged by untrusted code; that is what
+candidate review of the oracle tests is for.
+
+### Environment preflight
+
+`npm run preflight -- worktree` exits 1 in the shared checkout and 0 in a
+linked worktree, by comparing the git dir with the common dir. `npm run
+preflight -- port <n>` names the owning pid of an occupied port and exits 1;
+an uninspectable port is treated as occupied. `npm run preflight -- blocker
+<gh-auth|network> [--host]` runs a sandbox write canary first: a denied
+canary is `SANDBOX-LOCAL` (exit 3) regardless of the probe, a passing probe
+is `HOST OK`, and a failing probe is `HOST FAILURE` (exit 1) only under an
+explicit `--host` attestation from an unsandboxed shell, otherwise
+`INDETERMINATE` (exit 3). Only `HOST OK` and `HOST FAILURE` are host verdicts.
+The worktree and port partitions are asserted in
+`scripts/wrsp-preflight-gate.test.ts` against a disposable repository and an
+ephemeral listener the test owns; the blocker probes depend on host
+credentials and are run by hand.
+
+### Closed-issue proof audit
+
+`npm run check:issue-proof -- --since-days <n>` lists every issue closed as
+completed in the window whose body lacks a non-empty `## Required proof`
+section or which has no `Proof:` line with content in the body or a comment.
+It is an audit report over an eventually consistent tracker, not a hook:
+the #940 adoption run over 7 days checked 28 issues and flagged 26, almost
+all closed before the `Proof:` convention existed. Attach proof to issues
+you close from now on; do not mass-edit history to make the sweep green.
+
+### Adoption ledger
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 0.5.0, tag `v0.5.0` |
+| Source commit | `96a9df8ab59b1e01c023c41ed2d59f69310386ea` |
+| Tarball | `vendor/whiteroom-software-process-0.5.0.tgz`, 82883 bytes |
+| Tarball sha256 | `e5ac84eebf0019b3802dc92fe0e2a9bb3c84aed7c6773cdbba790128729e979e`, verified against the downloaded release asset before install |
+| Installed bins | 12 (`wrsp-check-artifact-oracle`, `-check-e2e-coverage`, `-check-e2e-locators`, `-check-issue-proof`, `-check-layout-gate`, `-check-node`, `-check-ui-proof`, `-preflight`, `-review-candidate`, `-review-push`, `-review-status`, `-test-staged`) |
+| Adopted | 2026-09-04, #940, replacing 0.4.1 (`d16fe10dc071da5592e23c440c246723e68af3c27f3596007af6f7dd2436667f`) |
+| Review policy | `REVIEW_APPROVAL_POLICY_VERSION` 2 to 3; Anthropic reviewer `Fable 5.1 High` (was `Opus 5 High`) |
+
+Behaviour-identical after the bump: staged-test selection, the layout gate
+(canary still reports the 64px control), and the e2e meta-checks; the 0.4.1
+to 0.5.0 diff touches none of their sources.
+
+### Receipts across the bump
+
+Installing 0.5.0 changes the review policy fingerprint. Receipts written
+under 0.4.1 stay on disk unchanged as historical provenance, and
+`review:status` still lists them, but the new evaluator cannot count them
+toward current coverage: on the day of adoption
+`npm run review:status -- b0e7415f 00c97810` reported `Status: stale` with
+31 stale-policy receipts for the range #944 had already published. That is
+why #944 published the old-policy range before this adoption landed. The
+installed evaluator is per checkout: a worktree on 0.5.0 does not change
+what the shared checkout on 0.4.1 evaluates until main itself carries the
+bump.
 
 ### Goal-based manual campaigns
 

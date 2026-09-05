@@ -17,6 +17,29 @@ Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all op
 
 Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
 
+## Implemented label and proof lines (#940)
+
+`📦 implemented` means identified commits claim to satisfy the issue's whole
+implementation scope. It is applied by the landing coordinator under the
+`issue-workflow` skill once the issue body names those commits; it does not
+mean reviewed, landed, released, or accepted, and it grants no closure
+authority. Remove it on closure or when further implementation is required,
+and restore it after replacement commits. It replaces `ready-for-review`.
+
+The post-commit updater (`.husky/scripts/update-issues.sh`) is comment-only.
+When a model judges that a commit "closes" an issue, the hook posts a comment
+stating that the commit claims implementation of the issue's scope and that
+the coordinator applies `📦 implemented` after inspecting the named commits.
+One commit cannot infer completion of a whole issue, so the hook never
+applies the label and never closes.
+
+`npm run check:issue-proof -- --since-days <n>` audits recently closed issues
+for a non-empty `## Required proof` section and an attached proof. Attach
+proof as a line beginning `Proof:` followed by the evidence (a link, a
+command transcript reference, or a concrete result) in the body or a comment
+before closing. The checker verifies presence, not sufficiency; it is a
+report, not a gate, and history is not mass-edited to satisfy it.
+
 ## When a skill says "publish to the issue tracker"
 
 Create a GitHub issue.

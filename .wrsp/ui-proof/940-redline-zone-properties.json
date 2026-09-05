@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "940",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-showcase-redline-installation",
+  "operation": "Open the built-in Redline Installation Show, click Open Zones, then open the Hero panel Zone properties; the dialog shows Hero panel at 800 nominal pixels with physical coverage while the stage and Show timeline stay visible. Captured by the coordinator with the Codex in-app browser at 1280x720 as the synthetic local-agent-01 session on reviewed main; the file carries JPEG bytes.",
+  "captures": [".wrsp/ui-proof/940-redline-zone-properties.jpg"],
+  "capturedAtCommit": "00c97810289ddd78664b90e7f573224920299418"
+}

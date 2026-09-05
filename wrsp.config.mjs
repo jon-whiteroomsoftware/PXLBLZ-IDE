@@ -1,9 +1,13 @@
-// PXLBLZ-IDE configuration for @whiteroom/software-process (#724).
+// PXLBLZ-IDE configuration for @whiteroom/software-process (#724, #940).
 //
 // review.projectPolicy participates in the review policy fingerprint:
 // editing it invalidates existing receipts, exactly like changing the
 // reviewer prompt. The selection boundaries reproduce the invariant map
 // that previously lived in scripts/test-selection.mjs.
+//
+// The UI proof policy is deliberately NOT here: wrsp-ui-proof.json is a
+// pure-data file the gate reads as a blob from both ends of a candidate
+// range, so executable configuration can never substitute its own patterns.
 export default {
   review: {
     projectPolicy: `The Playwright suites run only at push time, so pre-landing e2e validation is the implementing agent's responsibility (docs/agents/verification.md, #673). When the diff plainly changes a flow those suites cover — Show editor or timeline interaction, Zone or Show persistence, authentication or personal-content plumbing, app-shell navigation, or Pattern Studio surfaces — and no commit in the range carries either a corresponding e2e spec change or an X-E2E: trailer naming the affected suite, add one P3 advisory finding naming the suite to run (test:e2e:shows, test:e2e:auth-smoke, or test:e2e). This advisory follows the ordinary P3 flow — the decision is "fail", the range records non-terminal advisory coverage, and the exact corrective commit is one that carries the X-E2E: trailer after the suite has run (or that fixes what the suite caught). An X-E2E: trailer or e2e spec change already in the range means the evidence exists: do not emit the advisory.`,
@@ -119,6 +123,7 @@ export default {
           'package.json',
           'package-lock.json',
           'wrsp.config.mjs',
+          'wrsp-ui-proof.json',
           'e2e/auth.global-setup.ts',
           'e2e/public.global-setup.ts',
           'e2e/fixtures/authenticated.ts',
@@ -132,10 +137,12 @@ export default {
           'scripts/run-public-playwright.ts',
           'scripts/with-suite-lock.ts',
           'scripts/vitest-project-identity.ts',
+          'scripts/wrsp-guard-fixture.ts',
           'scripts/qualify-layout-757.mjs',
           'src/test/setup.ts',
           'src/test/layout.setup.ts',
         ],
+        prefixes: ['vendor/'],
         tests: [
           'scripts/dev-runtime-auth.test.ts',
           'scripts/dev-runtime-core.test.ts',
@@ -147,6 +154,11 @@ export default {
           'scripts/vitest-discovery.test.ts',
           'scripts/update-issues.test.ts',
           'scripts/show-authoring-mutation.test.ts',
+          'scripts/wrsp-ui-proof-gate.test.ts',
+          'scripts/wrsp-artifact-oracle-gate.test.ts',
+          'scripts/wrsp-preflight-gate.test.ts',
+          'src/engine/showFileBundle.oracle.test.ts',
+          'src/engine/showEpeExport.oracle.test.ts',
           'src/engine/showEasing.test.ts',
           'src/components/HelpHint.test.tsx',
         ],
@@ -196,6 +208,10 @@ export default {
     ],
     runners: {
       'chromium-layout': ['npm', 'run', 'test:layout', '--', '--reporter=verbose'],
+      // Vitest 4 has no `basic` reporter, so the package's default
+      // `npx vitest run --reporter basic <test>` fails at startup here; the
+      // artifact oracle deliverables name this runner instead (#940).
+      'artifact-oracle': ['npx', 'vitest', 'run', '--project', 'node', '--reporter', 'default'],
     },
     advisories: [
       {
@@ -213,5 +229,23 @@ export default {
   layout: {
     runner: 'chromium-layout',
     canaryTest: 'src/test/layoutCanary.layout.test.ts',
+  },
+  // Exported-artifact oracles (#940): each test exports the real Show
+  // deliverable through the same entrypoints the editor uses, reopens the
+  // written file through its ordinary importer, and emits one
+  // WRSP-ARTIFACT-ORACLE report that `npm run check:artifact-oracle` validates.
+  artifacts: {
+    deliverables: [
+      {
+        name: 'show-pxlshow',
+        test: 'src/engine/showFileBundle.oracle.test.ts',
+        runner: 'artifact-oracle',
+      },
+      {
+        name: 'show-epe',
+        test: 'src/engine/showEpeExport.oracle.test.ts',
+        runner: 'artifact-oracle',
+      },
+    ],
   },
 }

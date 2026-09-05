@@ -1,0 +1,8 @@
+{
+  "pathPatterns": [
+    "^src/components/(?!.*\\.test\\.tsx?$).*\\.tsx$",
+    "^src/App\\.tsx$",
+    "^src/.*\\.css$"
+  ],
+  "proofDirectory": ".wrsp/ui-proof"
+}
