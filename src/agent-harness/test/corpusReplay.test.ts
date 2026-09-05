@@ -4,10 +4,12 @@
 // to them; replay scores only what the latest run's manifest names, reports
 // every other transcript in the directory as stale, and never deletes a file;
 // a directory without a manifest (a legacy corpus) still replays, labelled as
-// such; a manifest that names a missing transcript is an error, not a partial
-// report. Oracle: the report.json and replay.json a reader opens, plus the
-// directory listing after replay.
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+// such; malformed, contradictory or duplicate manifest membership is refused;
+// a manifest that names a missing transcript is an error, not a partial report;
+// source/output identity follows filesystem symlinks. Oracle: the report.json
+// and replay.json a reader opens, plus source bytes after replay.
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -25,6 +27,7 @@ let replayOut: string
 
 const reportOnDisk = (dir: string) => JSON.parse(readFileSync(join(dir, 'report.json'), 'utf8')) as DictationReport
 const transcriptsIn = (dir: string) => readdirSync(dir).filter((file) => file.endsWith('.transcript.json')).sort()
+const fileHash = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex')
 
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'pxlblz-corpus-replay-'))
@@ -54,18 +57,128 @@ describe('run manifest', () => {
     })
     expect(transcriptsIn(outDir)).toEqual(manifest!.transcripts.map((entry) => entry.file).sort())
   })
+
+  it('refuses duplicate transcript membership before scoring or writing a replay report', { timeout: 60_000 }, async () => {
+    await runCorpus({ cases: [CASE_A], agent: createFakeAgent(), outDir, log: quiet })
+    const manifestPath = join(outDir, RUN_MANIFEST_FILE)
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    manifest.transcripts.push(manifest.transcripts[0])
+    writeFileSync(manifestPath, JSON.stringify(manifest))
+    const sourceReportHash = fileHash(join(outDir, 'report.json'))
+
+    await expect(replayCorpus({ replayDir: outDir, outDir: replayOut, cases: DICTATION_CASES, log: quiet })).rejects.toThrow(
+      /duplicate transcript file/,
+    )
+    expect(fileHash(join(outDir, 'report.json'))).toBe(sourceReportHash)
+    expect(existsSync(join(replayOut, 'report.json'))).toBe(false)
+  })
+
+  it('distinguishes a required finishedAt field from an explicitly unfinished run', { timeout: 60_000 }, async () => {
+    await runCorpus({ cases: [CASE_A], agent: createFakeAgent(), outDir, log: quiet })
+    const manifestPath = join(outDir, RUN_MANIFEST_FILE)
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    delete manifest.finishedAt
+    writeFileSync(manifestPath, JSON.stringify(manifest))
+
+    await expect(replayCorpus({ replayDir: outDir, outDir: replayOut, cases: DICTATION_CASES, log: quiet })).rejects.toThrow(
+      /finishedAt/,
+    )
+    expect(existsSync(join(replayOut, 'report.json'))).toBe(false)
+
+    manifest.finishedAt = null
+    writeFileSync(manifestPath, JSON.stringify(manifest))
+    const warnings: string[] = []
+    const replay = await replayCorpus({ replayDir: outDir, outDir: replayOut, cases: DICTATION_CASES, log: (line) => warnings.push(line) })
+    expect(replay.report.agent).toBe('scripted-fake (replay of an unfinished run)')
+    expect(warnings.join('\n')).toMatch(/run did not finish/)
+    expect(JSON.parse(readFileSync(join(replayOut, 'replay.json'), 'utf8')).manifestFinishedAt).toBeNull()
+  })
+
+  it.each<[string, Record<string, unknown>, RegExp]>([
+    ['agent', { agent: '' }, /agent/],
+    ['runId', { runId: 42 }, /runId/],
+    ['startedAt', { startedAt: 'yesterday' }, /startedAt/],
+    ['finishedAt', { finishedAt: 'later' }, /finishedAt/],
+    ['transcripts', { transcripts: undefined }, /transcripts/],
+    ['transcript caseId', { transcripts: [{ caseId: '', file: `${CASE_A.id}.transcript.json` }] }, /transcripts\[0\]\.caseId/],
+    ['transcript file', { transcripts: [{ caseId: CASE_A.id, file: '' }] }, /transcripts\[0\]\.file/],
+    ['unmeasured', { unmeasured: undefined }, /unmeasured/],
+    ['unmeasured caseId', { unmeasured: [{ caseId: '', reason: 'budget refused' }] }, /unmeasured\[0\]\.caseId/],
+    ['unmeasured reason', { unmeasured: [{ caseId: 'later-case', reason: '' }] }, /unmeasured\[0\]\.reason/],
+  ])('refuses an invalid required %s field before changing source or destination reports', { timeout: 60_000 }, async (_field, patch, error) => {
+    await runCorpus({ cases: [CASE_A], agent: createFakeAgent(), outDir, log: quiet })
+    const manifestPath = join(outDir, RUN_MANIFEST_FILE)
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    Object.assign(manifest, patch)
+    writeFileSync(manifestPath, JSON.stringify(manifest))
+    const sourceReportHash = fileHash(join(outDir, 'report.json'))
+
+    await expect(replayCorpus({ replayDir: outDir, outDir: replayOut, cases: DICTATION_CASES, log: quiet })).rejects.toThrow(error)
+    expect(fileHash(join(outDir, 'report.json'))).toBe(sourceReportHash)
+    expect(existsSync(join(replayOut, 'report.json'))).toBe(false)
+  })
+
+  it.each<[string, Record<string, unknown>, RegExp]>([
+    [
+      'duplicate transcript case',
+      { transcripts: [
+        { caseId: CASE_A.id, file: `${CASE_A.id}.transcript.json` },
+        { caseId: CASE_A.id, file: `${CASE_B.id}.transcript.json` },
+      ] },
+      /duplicate transcript case/,
+    ],
+    [
+      'duplicate unmeasured case',
+      { unmeasured: [
+        { caseId: CASE_B.id, reason: 'budget refused' },
+        { caseId: CASE_B.id, reason: 'not attempted' },
+      ] },
+      /duplicate unmeasured case/,
+    ],
+    [
+      'case recorded as measured and unmeasured',
+      { unmeasured: [{ caseId: CASE_A.id, reason: 'budget refused' }] },
+      /both measured and unmeasured/,
+    ],
+  ])('refuses %s membership before scoring', { timeout: 60_000 }, async (_membership, patch, error) => {
+    await runCorpus({ cases: [CASE_A], agent: createFakeAgent(), outDir, log: quiet })
+    const manifestPath = join(outDir, RUN_MANIFEST_FILE)
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    Object.assign(manifest, patch)
+    writeFileSync(manifestPath, JSON.stringify(manifest))
+
+    await expect(replayCorpus({ replayDir: outDir, outDir: replayOut, cases: DICTATION_CASES, log: quiet })).rejects.toThrow(error)
+    expect(existsSync(join(replayOut, 'report.json'))).toBe(false)
+  })
 })
 
 describe('replay of the latest run', () => {
   it('refuses to write replay output over the recorded run directory and preserves its report', { timeout: 60_000 }, async () => {
     await runCorpus({ cases: [CASE_A], agent: createFakeAgent(), outDir, log: quiet })
-    const reportBefore = readFileSync(join(outDir, 'report.json'), 'utf8')
+    const reportHashBefore = fileHash(join(outDir, 'report.json'))
 
     await expect(replayCorpus({ replayDir: outDir, outDir, cases: DICTATION_CASES, log: quiet })).rejects.toThrow(
       /replay output directory must differ from the recorded run directory/,
     )
-    expect(readFileSync(join(outDir, 'report.json'), 'utf8')).toBe(reportBefore)
+    expect(fileHash(join(outDir, 'report.json'))).toBe(reportHashBefore)
     expect(existsSync(join(outDir, 'replay.json'))).toBe(false)
+  })
+
+  it('refuses an output path whose symlinked ancestor resolves to the recorded run directory', { timeout: 60_000 }, async () => {
+    const realRoot = join(directory, 'real')
+    const aliasRoot = join(directory, 'alias')
+    const recordedRun = join(realRoot, 'corpus')
+    mkdirSync(realRoot)
+    await runCorpus({ cases: [CASE_A], agent: createFakeAgent(), outDir: recordedRun, log: quiet })
+    symlinkSync(realRoot, aliasRoot, 'dir')
+    const aliasedOutput = join(aliasRoot, 'corpus')
+    const reportHashBefore = fileHash(join(recordedRun, 'report.json'))
+
+    await expect(replayCorpus({ replayDir: recordedRun, outDir: aliasedOutput, cases: DICTATION_CASES, log: quiet })).rejects.toThrow(
+      /replay output directory must differ from the recorded run directory/,
+    )
+    expect(fileHash(join(recordedRun, 'report.json'))).toBe(reportHashBefore)
+    expect(existsSync(join(recordedRun, 'replay.json'))).toBe(false)
   })
 
   it('re-scores a manifested run to the same case scores and labels the report as a replay', { timeout: 60_000 }, async () => {

@@ -37,12 +37,15 @@ run therefore writes `run-manifest.json` next to its transcripts: the agent, the
 (null for the fake agent), start and finish times, the transcript files this run wrote in corpus
 order, and the cases it did not measure with their refusal. The manifest is written when the run
 starts and rewritten after every transcript. Replay surfaces an unfinished manifest and refuses a
-malformed one rather than treating either as permission to score leftover transcripts.
+malformed one rather than treating either as permission to score leftover transcripts. The reader
+validates every declared field, refuses duplicate transcript files or case membership, and keeps
+`finishedAt: null` as the explicit unfinished-run state.
 
 `--replay <dir>` scores only the transcripts the manifest names. Any other `*.transcript.json`
 in the directory is reported as stale on stderr, listed in `replay.json` next to the replayed
 report, and left in place. Replay does not change the recorded run's reports or transcripts:
-its output directory must differ from the recorded run directory.
+its output directory must differ from the recorded run directory after existing symlinks and
+symlinked ancestors are resolved.
 A manifest that names a missing file is an error and no report is written. A directory without a
 manifest (a corpus recorded before the manifest existed) still replays every transcript it
 holds, and the report's agent label says `(replay, no run manifest: every transcript in the

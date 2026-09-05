@@ -14,8 +14,8 @@
 //     the report says so.
 //   --case <id>   limit to one case      --out <dir>   where transcripts and the report land
 //     run default: reports/agent-harness/corpus (gitignored); replay default: <replay-dir>-replay
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join, resolve } from 'node:path'
 import { DICTATION_CASES } from './cases.js'
 import { validateCorpus, type DictationCase } from './corpus.js'
 import { dictationFixture } from './fixtures.js'
@@ -72,19 +72,85 @@ export interface CorpusRunManifest {
   unmeasured: Array<{ caseId: string; reason: string }>
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+function isIsoTimestamp(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  const millis = Date.parse(value)
+  return Number.isFinite(millis) && new Date(millis).toISOString() === value
+}
+
+function firstDuplicate(values: string[]): string | null {
+  const seen = new Set<string>()
+  for (const value of values) {
+    if (seen.has(value)) return value
+    seen.add(value)
+  }
+  return null
+}
+
+/** Resolve symlinks in the existing part of a path without creating its missing tail. */
+function filesystemPath(path: string): string {
+  let existing = resolve(path)
+  const missing: string[] = []
+  while (!existsSync(existing)) {
+    const parent = dirname(existing)
+    if (parent === existing) return resolve(existing, ...missing)
+    missing.unshift(basename(existing))
+    existing = parent
+  }
+  return resolve(realpathSync(existing), ...missing)
+}
+
 /** The manifest in a run directory, or null when the directory has none. */
 export function readRunManifest(dir: string): CorpusRunManifest | null {
   const path = join(dir, RUN_MANIFEST_FILE)
   if (!existsSync(path)) return null
   const parsed = JSON.parse(readFileSync(path, 'utf8')) as unknown
-  if (
-    typeof parsed !== 'object' || parsed === null ||
-    (parsed as { version?: unknown }).version !== 1 ||
-    !Array.isArray((parsed as { transcripts?: unknown }).transcripts)
-  ) {
-    throw new Error(`${path} is not a run manifest this replay understands`)
+  if (!isRecord(parsed) || parsed.version !== 1) throw new Error(`${path} has an unsupported or missing version`)
+  if (!isNonEmptyString(parsed.agent)) throw new Error(`${path} has a missing or invalid agent field`)
+  if (!(parsed.runId === null || isNonEmptyString(parsed.runId))) throw new Error(`${path} has a missing or invalid runId field`)
+  if (!isIsoTimestamp(parsed.startedAt)) throw new Error(`${path} has a missing or invalid startedAt field`)
+  if (!(parsed.finishedAt === null || isIsoTimestamp(parsed.finishedAt))) throw new Error(`${path} has a missing or invalid finishedAt field`)
+  if (!Array.isArray(parsed.transcripts)) throw new Error(`${path} has a missing or invalid transcripts field`)
+
+  const transcripts: CorpusRunManifest['transcripts'] = parsed.transcripts.map((entry, index) => {
+    if (!isRecord(entry) || !isNonEmptyString(entry.caseId)) throw new Error(`${path} has an invalid transcripts[${index}].caseId`)
+    if (!isNonEmptyString(entry.file)) throw new Error(`${path} has an invalid transcripts[${index}].file`)
+    return { caseId: entry.caseId, file: entry.file }
+  })
+  const duplicateFile = firstDuplicate(transcripts.map((entry) => entry.file))
+  if (duplicateFile !== null) throw new Error(`${path} has duplicate transcript file "${duplicateFile}"; nothing was scored`)
+  const duplicateTranscriptCase = firstDuplicate(transcripts.map((entry) => entry.caseId))
+  if (duplicateTranscriptCase !== null) throw new Error(`${path} has duplicate transcript case "${duplicateTranscriptCase}"; nothing was scored`)
+
+  if (!Array.isArray(parsed.unmeasured)) throw new Error(`${path} has a missing or invalid unmeasured field`)
+  const unmeasured: CorpusRunManifest['unmeasured'] = parsed.unmeasured.map((entry, index) => {
+    if (!isRecord(entry) || !isNonEmptyString(entry.caseId)) throw new Error(`${path} has an invalid unmeasured[${index}].caseId`)
+    if (!isNonEmptyString(entry.reason)) throw new Error(`${path} has an invalid unmeasured[${index}].reason`)
+    return { caseId: entry.caseId, reason: entry.reason }
+  })
+  const duplicateUnmeasuredCase = firstDuplicate(unmeasured.map((entry) => entry.caseId))
+  if (duplicateUnmeasuredCase !== null) throw new Error(`${path} has duplicate unmeasured case "${duplicateUnmeasuredCase}"; nothing was scored`)
+  const measuredCases = new Set(transcripts.map((entry) => entry.caseId))
+  const conflictingCase = unmeasured.find((entry) => measuredCases.has(entry.caseId))?.caseId
+  if (conflictingCase !== undefined) throw new Error(`${path} records case "${conflictingCase}" as both measured and unmeasured; nothing was scored`)
+
+  return {
+    version: 1,
+    agent: parsed.agent,
+    runId: parsed.runId,
+    startedAt: parsed.startedAt,
+    finishedAt: parsed.finishedAt,
+    transcripts,
+    unmeasured,
   }
-  return parsed as CorpusRunManifest
 }
 
 /**
@@ -183,7 +249,7 @@ export interface CorpusReplayResult {
  */
 export async function replayCorpus(options: CorpusReplayOptions): Promise<CorpusReplayResult> {
   const { replayDir, outDir } = options
-  if (resolve(replayDir) === resolve(outDir)) {
+  if (filesystemPath(replayDir) === filesystemPath(outDir)) {
     throw new Error('replay output directory must differ from the recorded run directory; choose --out or use the CLI default sibling directory')
   }
   const log = options.log ?? ((line: string) => process.stderr.write(`${line}\n`))
