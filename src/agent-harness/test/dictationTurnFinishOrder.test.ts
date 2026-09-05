@@ -23,12 +23,7 @@ import { FINISH_ARGUMENT, dictationTools, runDictationTurn, runToolRound } from 
 import { DICTATION_RULES } from '../grammar/read.js'
 import { createSessionStore, type GrammarSessionStore } from '../grammar/session.js'
 import { createShowsServer } from '../mcp/showsServer.js'
-import { functionCall, transport } from './support/mockOpenAiTransport.js'
-
-// The shared mocked transport (support/mockOpenAiTransport.ts): the node
-// project does not isolate files, so every suite mocking `openai` feeds the
-// same queue.
-vi.mock('openai', async () => (await import('./support/mockOpenAiTransport.js')).mockedOpenAiModule())
+import { createGuardedOpenAiTestFixture, functionCall, MOCKED_MODEL } from './support/guardedOpenAiTestFixture.js'
 
 const ASK = 'Did you mean the first clip?'
 const STATEMENT = 'The first clip is now twelve seconds.'
@@ -199,9 +194,15 @@ async function harness() {
   const finish = (id: string, reply: string) => functionCall(id, 'finish_turn', { reply })
   const runResponse = async (output: unknown[]) => {
     vi.stubEnv('OPENAI_API_KEY', 'test-key-not-a-credential')
+    const openai = createGuardedOpenAiTestFixture('finish order')
     try {
-      const agent = createOpenAiAgent({ model: 'mocked-model', maxTurns: 3 })
-      transport.queue.push(() => ({ output }))
+      const agent = createOpenAiAgent({
+        model: MOCKED_MODEL,
+        maxTurns: 3,
+        budget: openai.budget,
+        transport: openai.transport,
+      })
+      openai.queue.push(() => ({ output }))
       const result = await runDictationTurn({
         store,
         sessionId,
@@ -215,11 +216,13 @@ async function harness() {
         tools,
         callTool,
       })
-      expect(transport.queue).toHaveLength(0)
+      expect(openai.queue).toHaveLength(0)
+      expect(openai.requests).toHaveLength(1)
+      expect(openai.budget.status().run).toMatchObject({ entries: 1, settled: 1, reserved: 0, ambiguous: 0 })
       return result
     } finally {
+      openai.close()
       vi.unstubAllEnvs()
-      transport.queue.length = 0
     }
   }
   return { store, sessionId, resize, marker, finish, runResponse, toolLog }

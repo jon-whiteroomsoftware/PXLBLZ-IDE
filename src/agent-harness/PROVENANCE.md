@@ -265,9 +265,10 @@ was repaired on 2026-09-05 with a V2-authored suite that failed against `54f47d5
 
 V2-authored suites for these repairs: `test/genericIdentityLedger.test.ts`,
 `test/dictationTurnFinishOrder.test.ts`, `test/referenceNearestRanking.test.ts`. The two
-adapter-level suites share `test/support/mockOpenAiTransport.ts`, because the node Vitest
-project does not isolate files and two hoisted `openai` mocks in one worker would feed a queue
-nobody consumes.
+adapter-level correction suites use `test/support/guardedOpenAiTestFixture.ts`: each drives the
+installed SDK through its injected fetch/sleep transport while a real guard owns an isolated
+temporary ledger. They install no module-global SDK mock, because the node Vitest project runs
+with `isolate: false` and shares the SDK module instance with the budget-dispatch suite.
 
 ### Redesign after the third candidate review (9cfa99e5)
 

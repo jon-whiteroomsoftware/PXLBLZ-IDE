@@ -112,13 +112,14 @@ diagnostic until #946, #947 and #959 decide what becomes engine code (#949).
   turn tests ([`test/dictationTurn.test.ts`](../../../src/agent-harness/test/dictationTurn.test.ts)) exercise session and
   completion behavior. They do not prove live mouse/agent concurrency.
   Abnormal completion (round-limit exhaustion through the OpenAI adapter over
-  a mocked transport, exhaustion during the repair turn, an agent exception)
+  its injected fetch transport and a temporary paid-call guard, exhaustion
+  during the repair turn, an agent exception)
   is proved by [`test/dictationTurnAbnormal.test.ts`](../../../src/agent-harness/test/dictationTurnAbnormal.test.ts);
   the staged `finish_turn` (nothing committed until a normal return, a
   duplicate finish refused) by
   [`test/dictationTurnStagedFinish.test.ts`](../../../src/agent-harness/test/dictationTurnStagedFinish.test.ts);
-  the order of a round's finishes, through the adapter over a mocked
-  transport, by
+  the order of a round's finishes, through the adapter over that guarded
+  injected transport, by
   [`test/dictationTurnFinishOrder.test.ts`](../../../src/agent-harness/test/dictationTurnFinishOrder.test.ts).
 - The generic operations ([`grammar/operations/generic.ts`](../../../src/agent-harness/grammar/operations/generic.ts))
   preserve every element identity of the record - the ids that editor focus

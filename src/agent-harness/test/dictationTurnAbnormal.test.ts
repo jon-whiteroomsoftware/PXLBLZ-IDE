@@ -17,13 +17,7 @@ import { dictationTools, runDictationTurn } from '../experiment/turn.js'
 import { DICTATION_RULES } from '../grammar/read.js'
 import { createSessionStore, type GrammarSessionStore } from '../grammar/session.js'
 import { createShowsServer } from '../mcp/showsServer.js'
-import { functionCall, transport } from './support/mockOpenAiTransport.js'
-
-// The provider transport, replaced wholesale: no network, no credential. Each
-// queued entry is one model response; the adapter's own loop, tool-round and
-// finish handling run unchanged over it. The queue is the shared one in
-// support/mockOpenAiTransport.ts (the node project does not isolate files).
-vi.mock('openai', async () => (await import('./support/mockOpenAiTransport.js')).mockedOpenAiModule())
+import { createGuardedOpenAiTestFixture, functionCall, MOCKED_MODEL } from './support/guardedOpenAiTestFixture.js'
 
 async function harness() {
   const store = createSessionStore()
@@ -81,20 +75,23 @@ function exported(store: GrammarSessionStore, sessionId: string): string {
 describe('turn-limit exhaustion through the OpenAI adapter (#945)', () => {
   it('rolls back the mutated transaction instead of committing a partial candidate', async () => {
     vi.stubEnv('OPENAI_API_KEY', 'test-key-not-a-credential')
+    const openai = createGuardedOpenAiTestFixture('turn-limit exhaustion')
     try {
       const { store, sessionId, clipId, run, toolLog } = await harness()
       const before = exported(store, sessionId)
       const modelCalls: number[] = []
       const agent = createOpenAiAgent({
-        model: 'mocked-model',
+        model: MOCKED_MODEL,
         maxTurns: 3,
+        budget: openai.budget,
+        transport: openai.transport,
         onEvent: (event) => {
           if (event.kind === 'model-call') modelCalls.push(event.toolCalls)
         },
       })
       // Three rounds, each requesting work and none finishing: a mutation,
       // a read, another mutation. The adapter's round limit then trips.
-      transport.queue.push(
+      openai.queue.push(
         () => ({ output: [functionCall('r1', 'resize_clip', { session_id: sessionId, clip_id: clipId, duration_ms: 12_000 })] }),
         () => ({ output: [functionCall('r2', 'describe_show', { session_id: sessionId })] }),
         () => ({ output: [functionCall('r3', 'add_marker', { session_id: sessionId, at_ms: 5_000, name: 'Drop' })] }),
@@ -109,7 +106,9 @@ describe('turn-limit exhaustion through the OpenAI adapter (#945)', () => {
         { name: 'add_marker', ok: true },
       ])
       expect(modelCalls).toHaveLength(3)
-      expect(transport.queue).toHaveLength(0)
+      expect(openai.queue).toHaveLength(0)
+      expect(openai.requests).toHaveLength(3)
+      expect(openai.budget.status().run).toMatchObject({ entries: 3, settled: 3, reserved: 0, ambiguous: 0 })
 
       // Abnormal completion: typed, rolled back, reported.
       expect(result.disposition).toEqual({ kind: 'incomplete', reason: 'turn-limit', discardedChanges: 2 })
@@ -122,9 +121,8 @@ describe('turn-limit exhaustion through the OpenAI adapter (#945)', () => {
       expect(result.timings).toHaveLength(1)
       expect(result.timings[0].calls).toHaveLength(3)
     } finally {
+      openai.close()
       vi.unstubAllEnvs()
-      transport.queue.length = 0
-      transport.requests.length = 0
     }
   })
 })
