@@ -12,6 +12,11 @@
 // measured; and every window and frame rate is bounded before execution -
 // an explicit window used to have only a lower bound, so a large request
 // could run the synchronous frame loop without end.
+//
+// #945 repair (candidate review of a4e11cc0): the envelope is
+// resolveTelemetryBounds in harness.ts, shared with the raw entry, so the
+// direct API cannot bypass it. A non-positive explicit window is refused
+// (it used to clamp up to 1 s); finite positive windows still clamp.
 import type { ShowRecord } from '@/engine/personalContentRecords'
 import { showLoopDurationMs } from '@/engine/showModel'
 import {
@@ -21,16 +26,22 @@ import {
   type ShowEvaluationOptions,
   type ShowIssue,
 } from '../shows/evaluate.js'
-import { runTelemetry, type TelemetryReport } from './harness.js'
+import {
+  resolveTelemetryBounds,
+  runTelemetry,
+  TELEMETRY_FPS,
+  TELEMETRY_WINDOW_SECONDS,
+  type TelemetryReport,
+} from './harness.js'
 
 /** The advertised measurement envelope: every entry clamps into it or refuses. */
-export const MEASURE_WINDOW_SECONDS = { min: 1, max: 600 } as const
-export const MEASURE_FPS = { min: 1, max: 240 } as const
+export const MEASURE_WINDOW_SECONDS = TELEMETRY_WINDOW_SECONDS
+export const MEASURE_FPS = TELEMETRY_FPS
 
 export interface MeasureShowOptions extends ShowEvaluationOptions {
   /** Measurement window in seconds; defaults to the Show's canonical loop
-   * duration (showLoopDurationMs). Finite values clamp to [1s, 600s];
-   * non-finite values are refused. */
+   * duration (showLoopDurationMs). Finite positive values clamp to
+   * [1s, 600s]; non-finite or non-positive values are refused. */
   durationSeconds?: number
   /** Modeled pixel count (default 64). */
   pixelCount?: number
@@ -60,20 +71,19 @@ export function showTimelineDurationMs(show: Pick<ShowRecord, 'scenes' | 'transi
   return showLoopDurationMs(show)
 }
 
-const clampWindowMs = (seconds: number) =>
-  Math.min(MEASURE_WINDOW_SECONDS.max, Math.max(MEASURE_WINDOW_SECONDS.min, seconds)) * 1000
-
 /** Bound the requested frame rate and (explicit) window before anything runs. */
 function resolveOptions(options: MeasureShowOptions): { ok: true; fps: number; durationMs?: number } | { ok: false; error: string } {
   const fps = options.fps ?? 60
-  if (!Number.isInteger(fps) || fps < MEASURE_FPS.min || fps > MEASURE_FPS.max) {
-    return { ok: false, error: `fps must be an integer from ${MEASURE_FPS.min} to ${MEASURE_FPS.max}, got ${fps}.` }
+  if (options.durationSeconds === undefined) {
+    // Bound the fps alone; the window is the Show's own once it has compiled.
+    const bounds = resolveTelemetryBounds(1000, fps)
+    return bounds.ok ? { ok: true, fps: bounds.fps } : bounds
   }
-  if (options.durationSeconds === undefined) return { ok: true, fps }
-  if (typeof options.durationSeconds !== 'number' || !Number.isFinite(options.durationSeconds)) {
-    return { ok: false, error: `durationSeconds must be a finite number of seconds, got ${String(options.durationSeconds)}.` }
+  if (typeof options.durationSeconds !== 'number' || !Number.isFinite(options.durationSeconds) || options.durationSeconds <= 0) {
+    return { ok: false, error: `durationSeconds must be a finite positive number of seconds, got ${String(options.durationSeconds)}.` }
   }
-  return { ok: true, fps, durationMs: clampWindowMs(options.durationSeconds) }
+  const bounds = resolveTelemetryBounds(options.durationSeconds * 1000, fps)
+  return bounds.ok ? { ok: true, fps: bounds.fps, durationMs: bounds.durationMs } : bounds
 }
 
 export function measureShowDocument(
@@ -98,7 +108,10 @@ export function measureShowDocument(
     // this re-parse cannot fail; it only recovers the typed record.
     const prepared = prepareShowDocument(input, inlinePatterns)
     const timelineMs = 'prepared' in prepared ? showTimelineDurationMs(prepared.prepared.show) : 0
-    durationMs = clampWindowMs(timelineMs / 1000)
+    // A Show with no timeline still measures its first second.
+    const bounds = resolveTelemetryBounds(Math.max(1, timelineMs), resolved.fps)
+    if (!bounds.ok) return { ok: false, reason: 'invalid-options', error: bounds.error }
+    durationMs = bounds.durationMs
   }
 
   try {

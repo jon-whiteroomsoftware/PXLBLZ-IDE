@@ -26,120 +26,183 @@ function isProtected(pointer: string): boolean {
   return PROTECTED_POINTER_PATTERNS.includes(pointer)
 }
 
-// Element identity preservation (#945 correction). The coverage allowlist
-// excludes every nested `*/id` as engine-minted identity, but the generics
-// only refused the root pointers, so set_field or apply_patch could rename a
-// placement, instance, track, keyframe, Effect or marker - directly, or by
-// replacing a parent subtree - and still validate. The domain is the `id` of
-// every array-member object in the record (Scenes, Zones, Layouts,
-// Transitions, instances, placements, layers, Effects, tracks, keyframes,
-// markers, output Effects). A Pattern reference's `pattern.id` names a
-// catalogue entry, not an element, and stays editable. The rule is judged on
-// the complete before and after records, not on the pointer string:
-//   - an element that stays in its collection keeps its id (a slot whose id
-//     changes to one that did not exist, while the old id vanishes, is a
-//     rename; reordering, insertion and removal are not);
-//   - no identity appears twice in one collection (a copy needs an id the
-//     generics cannot mint; the specific duplicate_* operations do that).
-// Collections are keyed by their owners' identities, so a removal earlier in
-// a sibling array does not shift the comparison, and retention is judged
-// within the collection (a legacy cell and its composition instance may
-// share an id). Residual: an id swap between two elements of one collection
-// is indistinguishable from a reorder here.
+// Element identity preservation (#945 correction, re-done after the candidate
+// review of a4e11cc0). The coverage allowlist excludes every nested `*/id`
+// as engine-minted identity, but the generics only refused the root
+// pointers. The first correction judged the complete before/after records by
+// array slot, which was unsound: removing marker A and then renaming the
+// surviving B to A left slot 0 holding "A" and passed. The rule is now
+// enforced at each mutation, against the working record as it stands when
+// the operation runs, with a per-patch ledger:
+//   - the `id` of an array-member object (a Scene, Zone, Layout, Transition,
+//     instance, placement, layer, Effect, track, keyframe, marker, output
+//     Effect) is never the target of add, replace, remove, move or copy;
+//   - a write over an existing subtree (replace, or add/set_field on an
+//     existing key) keeps a replaced element under its own id, and every
+//     nested element it carries must already exist in the subtree being
+//     replaced, in the same collection - a write can edit, reorder and drop
+//     elements, never introduce one;
+//   - an insertion (add at an array position, or a key that did not exist)
+//     may carry ids, none of which may already be in the target collection or
+//     have been removed earlier in the same patch (an id is never recycled
+//     within one operation);
+//   - move carries its subtree's identities with it; copy of anything
+//     carrying an identity is refused - the generics cannot mint ids, the
+//     duplicate_* operations do.
+// A Pattern reference's `pattern.id` names a catalogue entry, not an element,
+// and stays editable. Collections are keyed by their owners' identities so a
+// reorder above them does not shift the comparison. Every refusal leaves the
+// record untouched: the patch applies to a clone and is dropped whole.
 
-interface ElementSlot {
-  id: string | undefined
+interface IdentityLedger {
+  /** Ids removed by earlier operations of this patch; never reintroduced. */
+  removed: Set<string>
 }
 
-/** Array pointer (owner-identity keyed) → one slot per array item, in order. */
-type IdentityLedger = Map<string, ElementSlot[]>
+interface SubtreeIdentities {
+  /** The value's own id when it is an object carrying one. */
+  own: string | undefined
+  /** Collection (relative, owner-keyed pointer) → element ids in order. */
+  collections: Map<string, string[]>
+  /** Every element id in the subtree, excluding `own`. */
+  all: string[]
+}
 
 const isRecordObject = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value)
 
 const escapeSegment = (segment: string) => segment.replace(/~/g, '~0').replace(/\//g, '~1')
 
-function ledgerOf(root: unknown): IdentityLedger {
-  const collections: IdentityLedger = new Map()
-  const walk = (value: unknown, pointer: string): void => {
-    if (Array.isArray(value)) {
-      const slots: ElementSlot[] = []
-      value.forEach((item, index) => {
-        const element = isRecordObject(item) ? item : null
-        const id = element && typeof element.id === 'string' ? element.id : undefined
-        slots.push({ id })
+const idOf = (value: unknown): string | undefined =>
+  isRecordObject(value) && typeof value.id === 'string' ? value.id : undefined
+
+/** Element identities inside a value, keyed by the collection they sit in. */
+function identitiesOf(value: unknown): SubtreeIdentities {
+  const collections = new Map<string, string[]>()
+  const all: string[] = []
+  const walk = (node: unknown, pointer: string): void => {
+    if (Array.isArray(node)) {
+      const ids: string[] = []
+      node.forEach((item, index) => {
+        const id = idOf(item)
+        if (id !== undefined) {
+          ids.push(id)
+          all.push(id)
+        }
         const ownerKey =
           id ??
-          (element && typeof element.sceneId === 'string' ? element.sceneId : undefined) ??
-          (element && typeof element.zoneId === 'string' ? element.zoneId : undefined) ??
+          (isRecordObject(item) && typeof item.sceneId === 'string' ? item.sceneId : undefined) ??
+          (isRecordObject(item) && typeof item.zoneId === 'string' ? item.zoneId : undefined) ??
           String(index)
         walk(item, `${pointer}/${escapeSegment(ownerKey)}`)
       })
-      if (slots.some((slot) => slot.id !== undefined)) collections.set(pointer, slots)
+      if (ids.length > 0) collections.set(pointer, ids)
       return
     }
-    if (isRecordObject(value)) {
-      for (const [key, child] of Object.entries(value)) walk(child, `${pointer}/${escapeSegment(key)}`)
+    if (isRecordObject(node)) {
+      for (const [key, child] of Object.entries(node)) walk(child, `${pointer}/${escapeSegment(key)}`)
     }
   }
-  walk(root, '')
-  return collections
+  walk(value, '')
+  return { own: idOf(value), collections, all }
 }
 
 const IDENTITY_REMEDY =
-  'Edit the element under its existing id, or remove it and add a new element in separate operations; ' +
+  'Edit the element under its existing id; insert a new element with an add at an array position ' +
+  '(…/-) carrying a fresh id; remove and add in separate operations rather than reusing an id; ' +
   'prefer the specific operation for the element where one exists.'
 
-const hasId = (slots: ElementSlot[], id: string) => slots.some((slot) => slot.id === id)
+const identityIssue = (message: string, path: string): GrammarIssue => ({
+  code: 'invalid-argument',
+  message,
+  remedy: IDENTITY_REMEDY,
+  path,
+})
 
-/** The typed refusal when `after` does not preserve every element identity of `before`, else null. */
-export function identityPreservationIssue(before: ShowRecord, after: ShowRecord): GrammarIssue | null {
-  const was = ledgerOf(before)
-  const now = ledgerOf(after)
-  for (const [collection, beforeSlots] of was) {
-    const afterSlots = now.get(collection)
-    if (!afterSlots) continue
-    const shared = Math.min(beforeSlots.length, afterSlots.length)
-    for (let index = 0; index < shared; index += 1) {
-      const previous = beforeSlots[index].id
-      const current = afterSlots[index].id
-      if (previous === undefined || previous === current) continue
-      // A reorder, insertion or removal keeps every id in the collection;
-      // a rename loses one and gains one that was not there.
-      if (hasId(afterSlots, previous) || (current !== undefined && hasId(beforeSlots, current))) continue
-      return {
-        code: 'invalid-argument',
-        message:
-          `${collection}/${index}: element identity "${previous}" would become ` +
-          `${current === undefined ? 'missing' : `"${current}"`}; ids are minted by the operations and never rewritten.`,
-        remedy: IDENTITY_REMEDY,
-        path: collection,
-      }
-    }
-  }
-  for (const [collection, afterSlots] of now) {
-    const duplicatedBefore = new Set<string>()
-    const seenBefore = new Set<string>()
-    for (const slot of was.get(collection) ?? []) {
-      if (slot.id === undefined) continue
-      if (seenBefore.has(slot.id)) duplicatedBefore.add(slot.id)
-      seenBefore.add(slot.id)
-    }
+/** Duplicate ids inside one collection of a written value, if any. */
+function duplicateWithin(identities: SubtreeIdentities, path: string): GrammarIssue | null {
+  for (const [collection, ids] of identities.collections) {
     const seen = new Set<string>()
-    for (const slot of afterSlots) {
-      if (slot.id === undefined) continue
-      if (seen.has(slot.id) && !duplicatedBefore.has(slot.id)) {
-        return {
-          code: 'invalid-argument',
-          message: `${collection}: element identity "${slot.id}" would appear twice; ids are unique within their collection.`,
-          remedy: IDENTITY_REMEDY,
-          path: collection,
-        }
+    for (const id of ids) {
+      if (seen.has(id)) {
+        return identityIssue(
+          `${path}${collection}: element identity "${id}" would appear twice; ids are unique within their collection.`,
+          path,
+        )
       }
-      seen.add(slot.id)
+      seen.add(id)
     }
   }
   return null
+}
+
+/** A replace (or overwrite) of `oldValue` by `nextValue` at `path`. */
+function subtreeWriteIssue(
+  oldValue: unknown,
+  nextValue: unknown,
+  targetIsElement: boolean,
+  path: string,
+  ledger: IdentityLedger,
+): GrammarIssue | null {
+  const before = identitiesOf(oldValue)
+  const after = identitiesOf(nextValue)
+  if (targetIsElement && before.own !== after.own) {
+    return identityIssue(
+      before.own === undefined
+        ? `${path}: "${after.own}" would introduce an element identity where the element had none; ids are minted by the operations and never rewritten.`
+        : `${path}: element identity "${before.own}" would become ` +
+          `${after.own === undefined ? 'missing' : `"${after.own}"`}; ids are minted by the operations and never rewritten.`,
+      path,
+    )
+  }
+  const duplicated = duplicateWithin(after, path)
+  if (duplicated) return duplicated
+  for (const [collection, ids] of after.collections) {
+    const existing = before.collections.get(collection) ?? []
+    const existingSet = new Set(existing)
+    for (const id of ids) {
+      if (!existingSet.has(id)) {
+        const written = new Set(ids)
+        const dropped = existing.filter((known) => !written.has(known))
+        return identityIssue(
+          `${path}${collection}: element identity "${id}" is not in the subtree being replaced` +
+            `${dropped.length > 0 ? ` (which would lose ${dropped.map((known) => `"${known}"`).join(', ')})` : ''}; ` +
+            'a write over existing elements keeps each under its own id and introduces none.',
+          path,
+        )
+      }
+    }
+  }
+  const kept = new Set(after.all)
+  for (const id of before.all) if (!kept.has(id)) ledger.removed.add(id)
+  return null
+}
+
+/** An insertion of `value` into `targetArray` (or under a key that did not exist). */
+function insertionIssue(
+  value: unknown,
+  targetArray: unknown[] | null,
+  path: string,
+  ledger: IdentityLedger,
+  allowance: ReadonlySet<string>,
+): GrammarIssue | null {
+  const inserted = identitiesOf(value)
+  const own = targetArray ? inserted.own : undefined
+  for (const id of own === undefined ? inserted.all : [own, ...inserted.all]) {
+    if (ledger.removed.has(id) && !allowance.has(id)) {
+      return identityIssue(
+        `${path}: element identity "${id}" was removed earlier in this patch and cannot be reintroduced; ids are never recycled.`,
+        path,
+      )
+    }
+  }
+  if (own !== undefined && targetArray!.some((item) => idOf(item) === own)) {
+    return identityIssue(
+      `${path}: element identity "${own}" would appear twice; ids are unique within their collection.`,
+      path,
+    )
+  }
+  return duplicateWithin(inserted, path)
 }
 
 function parsePointer(pointer: string): { ok: true; segments: string[] } | { ok: false; issue: GrammarIssue } {
@@ -160,6 +223,37 @@ function parsePointer(pointer: string): { ok: true; segments: string[] } | { ok:
 }
 
 type Json = Record<string, unknown> | unknown[]
+
+/** The node a segment path reaches, if every step exists. */
+function nodeAt(root: unknown, segments: string[]): { found: true; value: unknown } | { found: false } {
+  let node: unknown = root
+  for (const segment of segments) {
+    if (Array.isArray(node)) {
+      const index = Number(segment)
+      if (!Number.isInteger(index) || index < 0 || index >= node.length) return { found: false }
+      node = node[index]
+    } else if (isRecordObject(node)) {
+      if (!Object.prototype.hasOwnProperty.call(node, segment)) return { found: false }
+      node = node[segment]
+    } else {
+      return { found: false }
+    }
+  }
+  return { found: true, value: node }
+}
+
+/** True when the pointer names the `id` of an array-member object. */
+function identityPointerIssue(root: unknown, segments: string[], path: string, verb: string): GrammarIssue | null {
+  if (segments.length < 2 || segments[segments.length - 1] !== 'id') return null
+  const owner = nodeAt(root, segments.slice(0, -1))
+  const collection = nodeAt(root, segments.slice(0, -2))
+  if (!owner.found || !collection.found || !Array.isArray(collection.value) || !isRecordObject(owner.value)) return null
+  const current = idOf(owner.value)
+  return identityIssue(
+    `${path}: element identity ${current === undefined ? '' : `"${current}" `}would be ${verb}; ids are minted by the operations and never rewritten.`,
+    path,
+  )
+}
 
 function resolveParent(
   root: Json,
@@ -243,7 +337,14 @@ function getAt(root: Json, pointer: string): { ok: true; value: unknown } | { ok
   return { ok: true, value: (parent as Record<string, unknown>)[key] }
 }
 
-function applyOne(root: Json, operation: PatchOperation): { ok: true } | { ok: false; issue: GrammarIssue } {
+const NO_ALLOWANCE: ReadonlySet<string> = new Set()
+
+function applyOne(
+  root: Json,
+  operation: PatchOperation,
+  ledger: IdentityLedger,
+  allowance: ReadonlySet<string> = NO_ALLOWANCE,
+): { ok: true } | { ok: false; issue: GrammarIssue } {
   if (isProtected(operation.path)) {
     return {
       ok: false,
@@ -255,16 +356,47 @@ function applyOne(root: Json, operation: PatchOperation): { ok: true } | { ok: f
   }
   const parsed = parsePointer(operation.path)
   if (!parsed.ok) return parsed
+  if (operation.op !== 'test') {
+    const identity = identityPointerIssue(
+      root,
+      parsed.segments,
+      operation.path,
+      operation.op === 'remove' ? 'removed' : 'rewritten',
+    )
+    if (identity) return { ok: false, issue: identity }
+  }
 
   if (operation.op === 'move' || operation.op === 'copy') {
+    const fromParsed = parsePointer(operation.from)
+    if (!fromParsed.ok) return fromParsed
+    const fromIdentity = identityPointerIssue(root, fromParsed.segments, operation.from, 'moved')
+    if (fromIdentity) return { ok: false, issue: fromIdentity }
     const source = getAt(root, operation.from)
     if (!source.ok) return source
     const value = structuredClone(source.value)
-    if (operation.op === 'move') {
-      const removed = applyOne(root, { op: 'remove', path: operation.from })
-      if (!removed.ok) return removed
+    const carried = identitiesOf(value)
+    const fromParent = nodeAt(root, fromParsed.segments.slice(0, -1))
+    const sourceIsElement = fromParent.found && Array.isArray(fromParent.value)
+    const carriedIds = [...(sourceIsElement && carried.own !== undefined ? [carried.own] : []), ...carried.all]
+    if (operation.op === 'copy') {
+      if (carriedIds.length > 0) {
+        return {
+          ok: false,
+          issue: identityIssue(
+            `Copy of ${operation.from} would duplicate element identity "${carriedIds[0]}"; the generic operations cannot mint ids.`,
+            operation.path,
+          ),
+        }
+      }
+      return applyOne(root, { op: 'add', path: operation.path, value }, ledger)
     }
-    return applyOne(root, { op: 'add', path: operation.path, value })
+    const inFlight = new Set(carriedIds)
+    const removed = applyOne(root, { op: 'remove', path: operation.from }, ledger)
+    if (!removed.ok) return removed
+    const added = applyOne(root, { op: 'add', path: operation.path, value }, ledger, inFlight)
+    if (!added.ok) return added
+    for (const id of inFlight) ledger.removed.delete(id)
+    return { ok: true }
   }
 
   const resolved = resolveParent(root, parsed.segments, operation.path)
@@ -288,6 +420,12 @@ function applyOne(root: Json, operation: PatchOperation): { ok: true } | { ok: f
     return { ok: true }
   }
 
+  const recordRemoved = (value: unknown, wasElement: boolean) => {
+    const gone = identitiesOf(value)
+    if (wasElement && gone.own !== undefined) ledger.removed.add(gone.own)
+    for (const id of gone.all) ledger.removed.add(id)
+  }
+
   if (Array.isArray(parent)) {
     const index = key === '-' ? parent.length : Number(key)
     if (!Number.isInteger(index) || index < 0 || index > parent.length) {
@@ -297,6 +435,8 @@ function applyOne(root: Json, operation: PatchOperation): { ok: true } | { ok: f
       }
     }
     if (operation.op === 'add') {
+      const issue = insertionIssue(writeValue, parent, operation.path, ledger, allowance)
+      if (issue) return { ok: false, issue }
       parent.splice(index, 0, structuredClone(writeValue))
       return { ok: true }
     }
@@ -306,24 +446,41 @@ function applyOne(root: Json, operation: PatchOperation): { ok: true } | { ok: f
         issue: { code: 'invalid-argument', message: `${operation.path}: index ${index} does not exist.` },
       }
     }
-    if (operation.op === 'remove') parent.splice(index, 1)
-    else parent[index] = structuredClone(writeValue)
+    if (operation.op === 'remove') {
+      recordRemoved(parent[index], true)
+      parent.splice(index, 1)
+      return { ok: true }
+    }
+    const issue = subtreeWriteIssue(parent[index], writeValue, true, operation.path, ledger)
+    if (issue) return { ok: false, issue }
+    parent[index] = structuredClone(writeValue)
     return { ok: true }
   }
 
   const record = parent as Record<string, unknown>
+  const exists = Object.prototype.hasOwnProperty.call(record, key)
   if (operation.op === 'add') {
+    const issue = exists
+      ? subtreeWriteIssue(record[key], writeValue, false, operation.path, ledger)
+      : insertionIssue(writeValue, null, operation.path, ledger, allowance)
+    if (issue) return { ok: false, issue }
     record[key] = structuredClone(writeValue)
     return { ok: true }
   }
-  if (!(key in record)) {
+  if (!exists) {
     return {
       ok: false,
       issue: { code: 'invalid-argument', message: `${operation.path}: "${key}" does not exist.` },
     }
   }
-  if (operation.op === 'remove') delete record[key]
-  else record[key] = structuredClone(writeValue)
+  if (operation.op === 'remove') {
+    recordRemoved(record[key], false)
+    delete record[key]
+    return { ok: true }
+  }
+  const issue = subtreeWriteIssue(record[key], writeValue, false, operation.path, ledger)
+  if (issue) return { ok: false, issue }
+  record[key] = structuredClone(writeValue)
   return { ok: true }
 }
 
@@ -335,8 +492,6 @@ function concludeGeneric(
   pointers: string[],
   description: string,
 ): GrammarOperationResult {
-  const identity = identityPreservationIssue(document.show, next)
-  if (identity) return refuse(identity)
   const validation = validateShowDocument(next, document.inlinePatterns, document.options)
   if (!validation.valid) {
     return refuse(...validation.errors.map((issue) => ({
@@ -380,9 +535,10 @@ const setField: ShowGrammarOperation = {
       })
     }
     const next = structuredClone(document.show) as unknown as Json
+    const ledger: IdentityLedger = { removed: new Set() }
     const outcome = args.delete
-      ? applyOne(next, { op: 'remove', path: pointer })
-      : applyOne(next, { op: 'add', path: pointer, value: args.value })
+      ? applyOne(next, { op: 'remove', path: pointer }, ledger)
+      : applyOne(next, { op: 'add', path: pointer, value: args.value }, ledger)
     if (!outcome.ok) return refuse(outcome.issue)
     return concludeGeneric(
       'set_field',
@@ -417,6 +573,7 @@ const applyPatch: ShowGrammarOperation = {
   apply(document, args) {
     const patch = args.patch as PatchOperation[]
     const next = structuredClone(document.show) as unknown as Json
+    const ledger: IdentityLedger = { removed: new Set() }
     for (const [index, operation] of patch.entries()) {
       if ((operation.op === 'move' || operation.op === 'copy') && !('from' in operation && operation.from)) {
         return refuse({
@@ -424,7 +581,7 @@ const applyPatch: ShowGrammarOperation = {
           message: `Patch operation ${index} (${operation.op}) needs a "from" pointer.`,
         })
       }
-      const outcome = applyOne(next, operation)
+      const outcome = applyOne(next, operation, ledger)
       if (!outcome.ok) {
         return refuse({
           ...outcome.issue,

@@ -3,9 +3,15 @@
 // of the evaluation cascade. Every finding is a suggestion; the tool never
 // blocks. Legality is validate_show's job, measurement is telemetry's.
 // Pure logic — no MCP imports.
+//
+// #945 repair (candidate review of a4e11cc0): source comparisons (adjacent
+// repetition, dimensional-fit de-duplication, the distinct-source count) key
+// on the canonical stock id, so a Show naming the retired DoomFire beside
+// DoomFireV20_2D critiques exactly as one naming the successor twice.
 import type { PatternRecord, ShowRecord } from '@/engine/personalContentRecords'
 import { inspectPatternMetadata } from '@/engine/bundle'
 import { nativeDimension } from '@/engine/loadPattern'
+import { resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { stockPatternSource } from './stockCatalogue.js'
 
 export type CritiqueRule =
@@ -39,6 +45,11 @@ const suggestion = (rule: CritiqueRule, where: string, message: string): Critiqu
 })
 
 const seconds = (ms: number) => `${Math.round(ms / 100) / 10}s`
+
+/** One key per Pattern source: stock ids through V2's retired-id table. */
+function sourceKey(pattern: ShowRecord['cells'][number]['pattern']): string {
+  return `${pattern.kind}:${pattern.kind === 'stock' ? resolveStockPatternId(pattern.id) : pattern.id}`
+}
 
 function pacingMonotony(show: ShowRecord): CritiqueFinding[] {
   if (show.scenes.length < 3) return []
@@ -74,7 +85,7 @@ function adjacentPatternRepetition(show: ShowRecord): CritiqueFinding[] {
     const entry: Placement = {
       start,
       end: start + Math.max(1, cell.sceneSpan) - 1,
-      patternKey: `${cell.pattern.kind}:${cell.pattern.id}`,
+      patternKey: sourceKey(cell.pattern),
       patternName: cell.patternName,
       // Same pattern with different dressing (Effects, transform, viewport,
       // adaptations, …) is deliberate variation — an effect showcase, not a
@@ -151,7 +162,7 @@ function dimensionalFit(show: ShowRecord, userPatterns: PatternRecord[]): Critiq
         ? stockPatternSource(cell.pattern.id)
         : userPatterns.find((pattern) => pattern.id === cell.pattern.id)?.src
     if (!source) continue // Unresolvable references are validate_show's concern.
-    const key = `${cell.pattern.kind}:${cell.pattern.id}`
+    const key = sourceKey(cell.pattern)
     if (flagged.has(key)) continue
     let dimensions: 1 | 2 | 3
     try {
@@ -178,7 +189,7 @@ function dimensionalFit(show: ShowRecord, userPatterns: PatternRecord[]): Critiq
 
 function budgetHeadroom(show: ShowRecord, budgetRatio: number | undefined): CritiqueFinding[] {
   if (budgetRatio === undefined || budgetRatio >= 0.3) return []
-  const distinctSources = new Set(show.cells.map((cell) => `${cell.pattern.kind}:${cell.pattern.id}`)).size
+  const distinctSources = new Set(show.cells.map((cell) => sourceKey(cell.pattern))).size
   if (distinctSources >= 4) return []
   return [
     suggestion(

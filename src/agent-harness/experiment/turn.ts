@@ -16,6 +16,13 @@
 // is discarded, never committed. Before this, exhaustion returned ordinary
 // text that the close path read as a statement and committed the pending
 // operations as a partial candidate.
+//
+// #945 repair (candidate review of a4e11cc0): finish_turn no longer commits
+// inside agent.run. It validates the working copy exactly as a commit would
+// (so a refusal still reaches the model for repair) and stages the outcome;
+// the runner commits or rolls back only once the agent has returned
+// normally. An incompletion or exception after finish_turn therefore
+// discards the turn, and a second finish_turn in the same run is refused.
 import type { GrammarIssue } from '../grammar/types.js'
 import type { EditorContext } from '../grammar/read.js'
 import { SHOW_GRAMMAR_OPERATIONS } from '../grammar/registry.js'
@@ -221,30 +228,38 @@ export async function runDictationTurn(input: DictationTurnInput): Promise<Dicta
     throw new Error(`could not open the turn's transaction: ${issueText(begun.issues)}`)
   }
   const timings: TurnTiming[] = []
-  // Set when the model ended the turn itself through finish_turn (#38).
-  let finished: DictationTurnResult | null = null
+  /** The outcome finish_turn staged during the current model run (#38, #945 repair). */
+  let staged: { kind: 'asked' | 'nothing-applied' | 'committed'; text: string } | null = null
   const finishTurn: NonNullable<AgentTurnContext['finishTurn']> = (reply) => {
+    if (staged) {
+      return {
+        ok: false,
+        issues: [{
+          code: 'invalid-argument',
+          message: 'finish_turn was already called this turn; the turn ends when you return, with the first finish.',
+        }],
+      }
+    }
     const text = reply?.trim() || ''
     const pending = store.pending(sessionId)
     const applied = pending.ok && pending.open ? pending.open.changes : 0
     if (text && isAsking(text)) {
-      store.rollback(sessionId)
-      finished = { finalText: text, disposition: { kind: 'asked' }, timings }
+      staged = { kind: 'asked', text }
       return { ok: true, finalText: text }
     }
     if (applied === 0) {
-      store.rollback(sessionId)
       const finalText = text || 'Nothing was changed.'
-      finished = { finalText, disposition: { kind: 'nothing-applied' }, timings }
+      staged = { kind: 'nothing-applied', text: finalText }
       return { ok: true, finalText }
     }
-    const committed = store.commit(sessionId)
-    if (!committed.ok) return { ok: false, issues: committed.issues }
-    const finalText = text || committed.summary
-    finished = { finalText, disposition: { kind: 'committed', summary: committed.summary }, timings }
+    const checked = store.validatePending(sessionId)
+    if (!checked.ok) return { ok: false, issues: checked.issues }
+    const finalText = text || checked.summary
+    staged = { kind: 'committed', text: finalText }
     return { ok: true, finalText }
   }
   const runModel = async (utterance: string, history: DialogueEntry[], script?: AgentTurnContext['script']) => {
+    staged = null
     let result: Awaited<ReturnType<DictationAgent['run']>>
     try {
       result = await agent.run({
@@ -279,6 +294,7 @@ export async function runDictationTurn(input: DictationTurnInput): Promise<Dicta
   }
 
   const discardIncomplete = (finalText: string, reason: TurnIncompletion['reason']): DictationTurnResult => {
+    staged = null
     const discardedChanges = abandon()
     const text = discardedChanges > 0
       ? `${finalText} The ${discardedChanges === 1 ? 'pending change was' : `${discardedChanges} pending changes were`} discarded.`
@@ -304,9 +320,36 @@ export async function runDictationTurn(input: DictationTurnInput): Promise<Dicta
     return null
   }
 
+  /** Act on the outcome finish_turn staged, now that the agent returned normally. */
+  const settle = (): DictationTurnResult | null => {
+    if (!staged) return null
+    const outcome = staged
+    staged = null
+    if (outcome.kind === 'asked') {
+      abandon()
+      return { finalText: outcome.text, disposition: { kind: 'asked' }, timings }
+    }
+    if (outcome.kind === 'nothing-applied') {
+      abandon()
+      return { finalText: outcome.text, disposition: { kind: 'nothing-applied' }, timings }
+    }
+    const committed = store.commit(sessionId)
+    if (!committed.ok) {
+      // The working copy stopped validating after finish_turn: nothing lands.
+      abandon()
+      return {
+        finalText: `${outcome.text} The edit was discarded: ${committed.issues[0]?.message ?? 'the document did not validate'}`,
+        disposition: { kind: 'commit-refused', issues: committed.issues },
+        timings,
+      }
+    }
+    return { finalText: outcome.text, disposition: { kind: 'committed', summary: committed.summary }, timings }
+  }
+
   const firstResult = await runModel(input.utterance, input.history, input.script)
-  if (finished) return finished
   if (firstResult.incomplete) return discardIncomplete(firstResult.finalText, firstResult.incomplete.reason)
+  const settledFirst = settle()
+  if (settledFirst) return settledFirst
   const firstText = firstResult.finalText
   const first = close(firstText)
   if (first) return first
@@ -323,13 +366,16 @@ export async function runDictationTurn(input: DictationTurnInput): Promise<Dicta
     { role: 'user', text: input.utterance },
     { role: 'assistant', text: firstText },
   ])
-  if (finished) {
-    const done = finished as DictationTurnResult
-    return done.disposition.kind === 'committed'
-      ? done
-      : { ...done, finalText: `${done.finalText} The edit was discarded: ${issues[0]?.message ?? 'the document did not validate'}`, disposition: { kind: 'commit-refused', issues } }
-  }
   if (repairResult.incomplete) return discardIncomplete(repairResult.finalText, repairResult.incomplete.reason)
+  const settledRepair = settle()
+  if (settledRepair) {
+    if (settledRepair.disposition.kind === 'committed' || settledRepair.disposition.kind === 'commit-refused') return settledRepair
+    return {
+      ...settledRepair,
+      finalText: `${settledRepair.finalText} The edit was discarded: ${issues[0]?.message ?? 'the document did not validate'}`,
+      disposition: { kind: 'commit-refused', issues },
+    }
+  }
   const repairText = repairResult.finalText
   const second = close(repairText)
   if (second && second.disposition.kind === 'committed') return second

@@ -80,6 +80,9 @@ export interface GrammarSessionStore {
   commit: (
     sessionId: string,
   ) => { ok: true; label: string; summary: string; changes: GrammarChange[]; listing: ShowClipListing } | Refusal
+  /** Validate the open transaction's working copy exactly as commit would,
+   * without committing (#945 repair: a staged finish_turn checks here). */
+  validatePending: (sessionId: string) => { ok: true; changes: number; summary: string } | Refusal
   rollback: (sessionId: string) => { ok: true; label: string; discardedChanges: number } | Refusal
   /** The open transaction, if any: its label and how many changes it holds. */
   pending: (sessionId: string) => { ok: true; open: { label: string; changes: number } | null } | Refusal
@@ -154,6 +157,31 @@ export function createSessionStore(): GrammarSessionStore {
     session.past.push(entry)
     session.future = []
     session.document = entry.after
+  }
+
+  const NO_TRANSACTION: Refusal = {
+    ok: false,
+    issues: [{
+      code: 'no-transaction',
+      message: 'No transaction is open; begin one with begin_edit.',
+    }],
+  }
+
+  /** The refusal a commit of this working copy would produce, or null. */
+  function pendingValidationIssues(working: ShowGrammarDocument): Refusal | null {
+    const validation = validateShowDocument(working.show, working.inlinePatterns, working.options)
+    if (validation.valid) return null
+    return {
+      ok: false,
+      issues: validation.errors.map((issue) => ({
+        code: 'result-invalid' as const,
+        message: `[${issue.code}] ${issue.message}`,
+        ...(issue.path ? { path: issue.path } : {}),
+        remedy:
+          'The transaction stays open: fix the document with further operations and commit again, ' +
+          'or discard it with rollback_edit.',
+      })),
+    }
   }
 
   return {
@@ -231,34 +259,29 @@ export function createSessionStore(): GrammarSessionStore {
       const found = requireSession(sessionId)
       if (!found.ok) return found
       const { session } = found
-      if (!session.open) {
-        return {
-          ok: false,
-          issues: [{
-            code: 'no-transaction',
-            message: 'No transaction is open; begin one with begin_edit.',
-          }],
-        }
-      }
+      if (!session.open) return NO_TRANSACTION
       const { label, working, changes } = session.open
-      const validation = validateShowDocument(working.show, working.inlinePatterns, working.options)
-      if (!validation.valid) {
-        return {
-          ok: false,
-          issues: validation.errors.map((issue) => ({
-            code: 'result-invalid' as const,
-            message: `[${issue.code}] ${issue.message}`,
-            ...(issue.path ? { path: issue.path } : {}),
-            remedy:
-              'The transaction stays open: fix the document with further operations and commit again, ' +
-              'or discard it with rollback_edit.',
-          })),
-        }
-      }
+      const refused = pendingValidationIssues(working)
+      if (refused) return refused
       const summary = changes.length > 0 ? summarize(changes) : 'No operations were applied.'
       commitEntry(session, { label, summary, changes, before: session.document, after: working })
       session.open = null
       return { ok: true, label, summary, changes, listing: projectClipListing(session.document) }
+    },
+
+    validatePending(sessionId) {
+      const found = requireSession(sessionId)
+      if (!found.ok) return found
+      const { session } = found
+      if (!session.open) return NO_TRANSACTION
+      const refused = pendingValidationIssues(session.open.working)
+      if (refused) return refused
+      const { changes } = session.open
+      return {
+        ok: true,
+        changes: changes.length,
+        summary: changes.length > 0 ? summarize(changes) : 'No operations were applied.',
+      }
     },
 
     rollback(sessionId) {

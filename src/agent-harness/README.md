@@ -231,7 +231,13 @@ committed; retired stock ids (`DoomFire`) resolve as V2 resolves them; a junctio
 its Zone; `set_field`/`apply_patch` cannot rename, drop or duplicate an element id; `measure_show`
 defaults to V2's loop duration (transitions included), clamps explicit windows to 1–600 s and
 refuses non-finite input before executing; and a partial final telemetry bucket counts for the
-time it covers.
+time it covers. The candidate review of those corrections found six defects in them, repaired
+in the same place: element identity is enforced per patch operation with a ledger of removed
+ids (no final-record slot heuristic); the raw `runTelemetry` entry shares the 1–600 s / 1–240 fps
+envelope and refuses non-positive windows; `finish_turn` stages its outcome and the runner
+commits only after the agent returns normally; the critique keys sources on the canonical
+stock id; `resolve_reference` validates its time and context pointers before the Zone filter;
+and a dark stretch's `darkFraction` is frame-weighted.
 
 ## What this slice does not include
 

@@ -167,6 +167,19 @@ export function resolveReference(
     // narrows clips; before, every Zone's junctions were searched, so a
     // request for one Zone could resolve another Zone's junction or read as
     // ambiguous when the requested Zone held exactly one.
+    // #945 repair: the time is validated before the Zone filter, so a Zone
+    // without junctions cannot turn a missing at_ms into a clean "none".
+    const atMs = query.at_playhead ? context.playheadMs : query.at_ms
+    if (atMs === undefined) {
+      return {
+        issue: {
+          code: 'invalid-argument',
+          message: query.at_playhead
+            ? 'The editor context has no playhead position; set one with set_editor_context or give at_ms.'
+            : 'Junction references need at_ms or at_playhead.',
+        },
+      }
+    }
     let sites = junctionSites(document)
     if (zoneFilter) {
       const zoneMatched = sites.filter((site) => inZone(site, zoneFilter))
@@ -179,19 +192,38 @@ export function resolveReference(
       [...sites]
         .sort((a, b) => Math.abs(a.junction.startMs - atMs) - Math.abs(b.junction.startMs - atMs))
         .slice(0, 5).map(junctionCandidate)
-    const atMs = query.at_playhead ? context.playheadMs : query.at_ms
-    if (atMs === undefined) {
-      return {
-        issue: {
-          code: 'invalid-argument',
-          message: query.at_playhead
-            ? 'The editor context has no playhead position; set one with set_editor_context or give at_ms.'
-            : 'Junction references need at_ms or at_playhead.',
-        },
-      }
-    }
     const matches = sites.filter(({ junction }) => atMs >= junction.startMs && atMs <= junction.endMs)
     return conclude(matches.map(junctionCandidate), nearestBy(atMs))
+  }
+
+  // #945 repair: the context pointers a query relies on are validated
+  // before the Zone filter, for the same reason as the junction time.
+  const hovered = query.hovered ? context.hoveredClipId : undefined
+  if (query.hovered && !hovered) {
+    return {
+      issue: {
+        code: 'invalid-argument',
+        message: 'Nothing is hovered; the editor context has no hoveredClipId. Ask the user to point, or address the clip another way.',
+      },
+    }
+  }
+  const selected = new Set(query.selected ? context.selectedClipIds ?? [] : [])
+  if (query.selected && selected.size === 0) {
+    return {
+      issue: {
+        code: 'invalid-argument',
+        message: 'Nothing is selected; the editor context has no selectedClipIds. Ask the user to select, or address the clip another way.',
+      },
+    }
+  }
+  const atMs = query.at_playhead ? context.playheadMs : query.at_ms
+  if (query.at_playhead && atMs === undefined) {
+    return {
+      issue: {
+        code: 'invalid-argument',
+        message: 'The editor context has no playhead position; set one with set_editor_context or give at_ms.',
+      },
+    }
   }
 
   let sites = clipSites(document)
@@ -204,42 +236,11 @@ export function resolveReference(
   }
   const all = sites
 
-  if (query.hovered) {
-    const hovered = context.hoveredClipId
-    if (!hovered) {
-      return {
-        issue: {
-          code: 'invalid-argument',
-          message: 'Nothing is hovered; the editor context has no hoveredClipId. Ask the user to point, or address the clip another way.',
-        },
-      }
-    }
-    sites = sites.filter((site) => site.clip.id === hovered)
-  }
-  if (query.selected) {
-    const selected = new Set(context.selectedClipIds ?? [])
-    if (selected.size === 0) {
-      return {
-        issue: {
-          code: 'invalid-argument',
-          message: 'Nothing is selected; the editor context has no selectedClipIds. Ask the user to select, or address the clip another way.',
-        },
-      }
-    }
-    sites = sites.filter((site) => selected.has(site.clip.id))
-  }
+  if (hovered) sites = sites.filter((site) => site.clip.id === hovered)
+  if (query.selected) sites = sites.filter((site) => selected.has(site.clip.id))
   if (query.pattern_name !== undefined) {
     const needle = normalizeName(query.pattern_name)
     sites = sites.filter((site) => normalizeName(site.clip.patternName).includes(needle))
-  }
-  const atMs = query.at_playhead ? context.playheadMs : query.at_ms
-  if (query.at_playhead && atMs === undefined) {
-    return {
-      issue: {
-        code: 'invalid-argument',
-        message: 'The editor context has no playhead position; set one with set_editor_context or give at_ms.',
-      },
-    }
   }
   if (atMs !== undefined) {
     sites = sites.filter((site) => atMs >= site.clip.startMs && atMs < site.clip.endMs)

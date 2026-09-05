@@ -9,11 +9,46 @@
 // thresholds and reported durations (a 4.1 s dark run was reported as a
 // 5 s event). The flicker gate's per-window rate already normalizes by the
 // covered time; its verdict and reporting are unchanged.
+//
+// #945 repair (candidate review of a4e11cc0): the raw entry used to accept
+// any finite positive window, so a direct caller with durationMs 1e12 at
+// 240 fps ran 240 billion frames. resolveTelemetryBounds is now the single
+// envelope every entry applies before loading a Pattern: a finite positive
+// window clamps into [1 s, 600 s], a non-finite or non-positive window and
+// an fps outside the integers 1–240 are refused. A dark-stretch's
+// darkFraction is the fraction of dark samples over the stretch, weighted by
+// each bucket's frames, not the equal-weight mean of the bucket fractions.
 import { createShim } from '@/engine/shim'
 import { loadPattern } from '@/engine/loadPattern'
 import { SOURCE_STOCK_MAPS } from '@/pixelblaze/stock/maps/stockCatalogue'
 
 type PatternMetadata = Parameters<typeof loadPattern>[1]
+
+/** The advertised measurement envelope: every entry clamps into it or refuses. */
+export const TELEMETRY_WINDOW_SECONDS = { min: 1, max: 600 } as const
+export const TELEMETRY_FPS = { min: 1, max: 240 } as const
+
+export type TelemetryBounds =
+  | { ok: true; durationMs: number; fps: number }
+  | { ok: false; error: string }
+
+/**
+ * Resolve the effective window and frame rate before anything runs. Finite
+ * positive windows clamp into [1 s, 600 s] (the report states the effective
+ * window); non-finite or non-positive windows and any fps that is not an
+ * integer in [1, 240] are refused. Shared by runTelemetry and the Show entry
+ * so the direct API cannot bypass the envelope.
+ */
+export function resolveTelemetryBounds(durationMs: number, fps: number = 30): TelemetryBounds {
+  if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs <= 0) {
+    return { ok: false, error: `durationMs must be a finite positive number of milliseconds, got ${String(durationMs)}.` }
+  }
+  if (typeof fps !== 'number' || !Number.isInteger(fps) || fps < TELEMETRY_FPS.min || fps > TELEMETRY_FPS.max) {
+    return { ok: false, error: `fps must be an integer from ${TELEMETRY_FPS.min} to ${TELEMETRY_FPS.max}, got ${String(fps)}.` }
+  }
+  const clampedMs = Math.min(TELEMETRY_WINDOW_SECONDS.max * 1000, Math.max(TELEMETRY_WINDOW_SECONDS.min * 1000, durationMs))
+  return { ok: true, durationMs: clampedMs, fps }
+}
 
 export interface TelemetryThresholds {
   /** A pixel at or above this luminance counts as active/lit. */
@@ -176,15 +211,13 @@ export function runTelemetry(
   metadata: PatternMetadata,
   options: TelemetryOptions,
 ): TelemetryReport {
+  const bounds = resolveTelemetryBounds(options.durationMs, options.fps)
+  if (!bounds.ok) throw new Error(bounds.error)
+  const { durationMs, fps } = bounds
   const pixelCount = options.pixelCount ?? 64
-  const fps = options.fps ?? 30
-  if (!Number.isFinite(options.durationMs)) throw new Error(`durationMs must be finite, got ${options.durationMs}`)
-  if (options.durationMs <= 0) throw new Error(`durationMs must be positive, got ${options.durationMs}`)
-  if (!Number.isInteger(fps) || fps <= 0) throw new Error(`fps must be a positive integer, got ${fps}`)
   const randomSeed = options.randomSeed ?? 207
   const thresholds: TelemetryThresholds = { ...DEFAULT_THRESHOLDS, ...options.thresholds }
-  const frameCount = Math.max(1, Math.round((options.durationMs / 1000) * fps))
-  if (!Number.isFinite(frameCount)) throw new Error(`frame count must be finite, got ${frameCount}`)
+  const frameCount = Math.max(1, Math.round((durationMs / 1000) * fps))
   const deltaMs = 1000 / fps
 
   const planeMap = SOURCE_STOCK_MAPS.find((map) => map.id === 'plane')
@@ -229,6 +262,9 @@ export function runTelemetry(
   const perSecondMean: number[] = []
   const perSecondDelta: number[] = []
   const perSecondDarkFraction: number[] = []
+  /** Raw dark pixel samples and frames per bucket, for frame-weighted aggregates. */
+  const perSecondDarkSamples: number[] = []
+  const perSecondFrames: number[] = []
   /** Seconds each bucket covers: 1 for whole buckets, less for a final partial one. */
   const perSecondCovered: number[] = []
   let secondLumSum = 0
@@ -318,6 +354,8 @@ export function runTelemetry(
       perSecondMean.push(round6(secondLumSum / secondFrames))
       perSecondDelta.push(round6(secondDeltaFrames > 0 ? secondDeltaSum / secondDeltaFrames : 0))
       perSecondDarkFraction.push(round6(secondDarkSamples / (secondFrames * pixelCount)))
+      perSecondDarkSamples.push(secondDarkSamples)
+      perSecondFrames.push(secondFrames)
       perSecondCovered.push(secondFrames / fps)
 
       // Close the flicker window: a pixel violates when its flash rate is
@@ -347,7 +385,13 @@ export function runTelemetry(
     }
   }
 
-  const events = detectEvents(perSecondDarkFraction, perSecondDelta, perSecondCovered, thresholds)
+  const events = detectEvents(
+    perSecondDarkFraction,
+    perSecondDelta,
+    perSecondCovered,
+    { darkSamples: perSecondDarkSamples, frames: perSecondFrames, pixelCount },
+    thresholds,
+  )
   const flicker = buildFlickerGate(
     perSecondFlashViolatingFraction,
     perSecondFlashMeanHz,
@@ -362,7 +406,7 @@ export function runTelemetry(
     input: {
       pixelCount,
       fps,
-      durationMs: options.durationMs,
+      durationMs,
       frameCount,
       randomSeed,
       map: 'plane',
@@ -442,6 +486,7 @@ function detectEvents(
   perSecondDarkFraction: number[],
   perSecondDelta: number[],
   perSecondCovered: number[],
+  samples: { darkSamples: number[]; frames: number[]; pixelCount: number },
   thresholds: TelemetryThresholds,
 ): TelemetryEvent[] {
   const events: TelemetryEvent[] = []
@@ -471,12 +516,15 @@ function detectEvents(
   collectRuns(
     perSecondDarkFraction.map((fraction) => fraction >= thresholds.darkPixelFraction),
     (startSecond, length, coveredMs) => {
-      const slice = perSecondDarkFraction.slice(startSecond, startSecond + length)
+      // Frame-weighted: dark samples over all samples in the stretch, so a
+      // partial final bucket counts for the frames it holds.
+      const darkSamples = samples.darkSamples.slice(startSecond, startSecond + length).reduce((sum, value) => sum + value, 0)
+      const frames = samples.frames.slice(startSecond, startSecond + length).reduce((sum, value) => sum + value, 0)
       return {
         kind: 'dark-stretch',
         startMs: startSecond * 1000,
         durationMs: coveredMs,
-        darkFraction: round6(slice.reduce((sum, value) => sum + value, 0) / length),
+        darkFraction: round6(darkSamples / (frames * samples.pixelCount)),
       }
     },
   )
