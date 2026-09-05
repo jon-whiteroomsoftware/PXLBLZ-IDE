@@ -222,6 +222,17 @@ that the editor tab injects to call `window.__pxlblzEditor.applyShow(record, { r
 The overlay keeps a per-request phase record under `window.__pxlblzChat.requests` (ids and
 timestamps only). One utterance runs at a time; a busy bridge answers 429.
 
+## Behaviour corrected after the transfer
+
+The integration review of the transfer found seven defects in the harness's own intended
+semantics and measurement; they are fixed here, not in V3, and `PROVENANCE.md` records each
+before/after. In short: a turn whose agent exhausts its round limit or throws is discarded, never
+committed; retired stock ids (`DoomFire`) resolve as V2 resolves them; a junction referent honours
+its Zone; `set_field`/`apply_patch` cannot rename, drop or duplicate an element id; `measure_show`
+defaults to V2's loop duration (transitions included), clamps explicit windows to 1–600 s and
+refuses non-finite input before executing; and a partial final telemetry bucket counts for the
+time it covers.
+
 ## What this slice does not include
 
 Ledger creation, the bounded paid corpus run, and the

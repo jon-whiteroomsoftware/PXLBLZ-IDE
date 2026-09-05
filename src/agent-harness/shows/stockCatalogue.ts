@@ -5,7 +5,7 @@
 // invented here.
 import { inspectPatternMetadata } from '@/engine/bundle'
 import { nativeDimension } from '@/engine/loadPattern'
-import { DEMO_AUTHORS, DEMOS } from '@/pixelblaze/stock/patterns'
+import { DEMO_AUTHORS, DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 
 export interface StockPatternSummary {
   id: string
@@ -104,8 +104,20 @@ export function listStockPatterns(): StockPatternSummary[] {
   return catalogue().map(({ id, dimensions, authors, description }) => ({ id, dimensions, authors, description }))
 }
 
+/**
+ * The stock source a reference resolves to, through V2's retired-id table
+ * (#945 correction: the harness used to look the raw id up, refusing durable
+ * Shows that V2 itself still resolves and compiles). Own-property lookup so
+ * prototype names ("constructor") never read as catalogue entries.
+ */
+export function stockPatternSource(id: string): string | undefined {
+  const resolved = resolveStockPatternId(id)
+  return Object.prototype.hasOwnProperty.call(DEMOS, resolved) ? DEMOS[resolved] : undefined
+}
+
 export function getStockPattern(id: string): StockPatternDetail {
-  const entry = catalogue().find((pattern) => pattern.id === id)
+  const resolved = resolveStockPatternId(id)
+  const entry = catalogue().find((pattern) => pattern.id === resolved)
   if (!entry) {
     const lowered = id.toLowerCase()
     const near = catalogue()

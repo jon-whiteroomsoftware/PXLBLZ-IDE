@@ -128,15 +128,15 @@ export function createShowsServer(options: ShowsServerOptions = {}): McpServer {
         'virtual time, returning the structured telemetry report (luminance, temporal energy, coverage, ' +
         'palette, dark/static events), the language summary, and the photosensitive flicker-gate verdict. ' +
         'A failing gate is terminal — the Show must not run on hardware until fixed. Local-only: this tool ' +
-        'executes generated Pattern code. Defaults: the Show’s own timeline length, 64 pixels, 60 fps ' +
-        '(full 3–30 Hz flicker band).',
+        'executes generated Pattern code. Defaults: the Show’s canonical loop duration (Scene holds plus ' +
+        'visual transitions, or a longer explicit end), 64 pixels, 60 fps (full 3–30 Hz flicker band).',
       inputSchema: {
         show: showArgument,
         inline_patterns: inlinePatternsArgument,
         stage_dimension: stageDimensionArgument,
         target_pixel_count: targetPixelCountArgument,
-        duration_seconds: z.number().positive().optional()
-          .describe('Measurement window; defaults to the Show’s timeline length (clamped 1–600 s)'),
+        duration_seconds: z.number().finite().positive().optional()
+          .describe('Measurement window; defaults to the Show’s loop duration. Explicit values clamp to 1–600 s'),
         pixel_count: z.number().int().min(4).max(4096).optional().describe('Modeled pixel count (default 64)'),
         fps: z.number().int().min(1).max(240).optional()
           .describe('Virtual frames/second (default 60; below 60 narrows the analyzed flicker band)'),

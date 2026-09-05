@@ -73,7 +73,12 @@ Conversation history records the reply before editor application succeeds.
 A model reply or private commit is therefore not evidence that the edit landed.
 The turn runner also uses question-mark detection in both explicit-finish and
 text-close paths to choose between asking and committing; conversational wording is not a typed
-live-application result.
+live-application result. A turn that ends abnormally is the exception: an
+agent that exhausts its round limit reports a typed incompletion, and an
+agent that throws propagates its error; in both cases the runner rolls the
+turn's transaction back before returning, so a partial candidate is never
+committed or offered to the editor (#945 correction; the transferred code
+committed it).
 
 Session validation and editor admission are different checks. The service opens
 with unresolved personal Patterns allowed, while other document validation
@@ -98,6 +103,14 @@ diagnostic until #946, #947 and #959 decide what becomes engine code (#949).
 - Session tests ([`test/grammarSession.test.ts`](../../../src/agent-harness/test/grammarSession.test.ts)) and
   turn tests ([`test/dictationTurn.test.ts`](../../../src/agent-harness/test/dictationTurn.test.ts)) exercise session and
   completion behavior. They do not prove live mouse/agent concurrency.
+  Abnormal completion (round-limit exhaustion through the OpenAI adapter over
+  a mocked transport, exhaustion during the repair turn, an agent exception)
+  is proved by [`test/dictationTurnAbnormal.test.ts`](../../../src/agent-harness/test/dictationTurnAbnormal.test.ts).
+- The generic operations ([`grammar/operations/generic.ts`](../../../src/agent-harness/grammar/operations/generic.ts))
+  preserve every element identity of the record - the ids that editor focus
+  and agent references point at - across `set_field` and `apply_patch`,
+  judged on the complete before and after records
+  ([`test/genericIdentity.test.ts`](../../../src/agent-harness/test/genericIdentity.test.ts)).
 - Composition replacement ([`grammar/support.ts`](../../../src/agent-harness/grammar/support.ts)) preserves the captured
   timestamp; this is source evidence for the ordering gap above.
 - Service ([`bridge/service.ts`](../../../src/agent-harness/bridge/service.ts), the request path

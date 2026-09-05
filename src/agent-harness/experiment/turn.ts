@@ -10,13 +10,19 @@
 // comes back to the model once as a repair turn carrying the typed issues;
 // a second refusal discards the edit and reports it. The corpus runner and
 // the bridge both run turns through here so the two surfaces cannot drift.
+//
+// #945 correction (integration review): a turn that ends abnormally - the
+// agent reports a typed incompletion (its round limit tripped) or throws -
+// is discarded, never committed. Before this, exhaustion returned ordinary
+// text that the close path read as a statement and committed the pending
+// operations as a partial candidate.
 import type { GrammarIssue } from '../grammar/types.js'
 import type { EditorContext } from '../grammar/read.js'
 import { SHOW_GRAMMAR_OPERATIONS } from '../grammar/registry.js'
 import type { GrammarSessionStore } from '../grammar/session.js'
 import type { ShowClipListing } from '../grammar/types.js'
 import { listStockPatterns } from '../shows/stockCatalogue.js'
-import type { AgentTurnContext, DictationAgent } from './runner.js'
+import type { AgentTurnContext, DictationAgent, TurnIncompletion } from './runner.js'
 import type { TurnTiming } from './timing.js'
 
 /** Front-loaded once (#40): the stock catalogue's ids and dimensions, so an
@@ -188,6 +194,8 @@ export type TurnDisposition =
   | { kind: 'asked' }
   | { kind: 'nothing-applied' }
   | { kind: 'commit-refused'; issues: GrammarIssue[] }
+  /** The agent ended abnormally; the pending operations were discarded (#945). */
+  | { kind: 'incomplete'; reason: TurnIncompletion['reason']; discardedChanges: number }
 
 export interface DictationTurnResult {
   finalText: string
@@ -237,21 +245,45 @@ export async function runDictationTurn(input: DictationTurnInput): Promise<Dicta
     return { ok: true, finalText }
   }
   const runModel = async (utterance: string, history: DialogueEntry[], script?: AgentTurnContext['script']) => {
-    const result = await agent.run({
-      utterance,
-      history,
-      sessionId,
-      listing: input.listing,
-      description: input.description,
-      instructions: input.instructions,
-      editorContext: input.editorContext,
-      tools: input.tools,
-      callTool: input.callTool,
-      finishTurn,
-      ...(script ? { script } : {}),
-    })
+    let result: Awaited<ReturnType<DictationAgent['run']>>
+    try {
+      result = await agent.run({
+        utterance,
+        history,
+        sessionId,
+        listing: input.listing,
+        description: input.description,
+        instructions: input.instructions,
+        editorContext: input.editorContext,
+        tools: input.tools,
+        callTool: input.callTool,
+        finishTurn,
+        ...(script ? { script } : {}),
+      })
+    } catch (error) {
+      // The agent failed mid-turn (transport, provider, or a harness bug):
+      // the turn's transaction must not outlive it.
+      abandon()
+      throw error
+    }
     if (result.timing) timings.push(result.timing)
-    return result.finalText
+    return result
+  }
+
+  /** Discard whatever the turn applied and close its transaction. */
+  const abandon = (): number => {
+    const pending = store.pending(sessionId)
+    const applied = pending.ok && pending.open ? pending.open.changes : 0
+    if (pending.ok && pending.open) store.rollback(sessionId)
+    return applied
+  }
+
+  const discardIncomplete = (finalText: string, reason: TurnIncompletion['reason']): DictationTurnResult => {
+    const discardedChanges = abandon()
+    const text = discardedChanges > 0
+      ? `${finalText} The ${discardedChanges === 1 ? 'pending change was' : `${discardedChanges} pending changes were`} discarded.`
+      : finalText
+    return { finalText: text, disposition: { kind: 'incomplete', reason, discardedChanges }, timings }
   }
 
   const close = (finalText: string): DictationTurnResult | null => {
@@ -272,8 +304,10 @@ export async function runDictationTurn(input: DictationTurnInput): Promise<Dicta
     return null
   }
 
-  const firstText = await runModel(input.utterance, input.history, input.script)
+  const firstResult = await runModel(input.utterance, input.history, input.script)
   if (finished) return finished
+  if (firstResult.incomplete) return discardIncomplete(firstResult.finalText, firstResult.incomplete.reason)
+  const firstText = firstResult.finalText
   const first = close(firstText)
   if (first) return first
 
@@ -284,7 +318,7 @@ export async function runDictationTurn(input: DictationTurnInput): Promise<Dicta
   const repairPrompt =
     `[editor] The edit could not be applied: ${issueText(issues)} ` +
     'Fix it with further operations and reply with one line, or explain in one line why it cannot be done.'
-  const repairText = await runModel(repairPrompt, [
+  const repairResult = await runModel(repairPrompt, [
     ...input.history,
     { role: 'user', text: input.utterance },
     { role: 'assistant', text: firstText },
@@ -295,6 +329,8 @@ export async function runDictationTurn(input: DictationTurnInput): Promise<Dicta
       ? done
       : { ...done, finalText: `${done.finalText} The edit was discarded: ${issues[0]?.message ?? 'the document did not validate'}`, disposition: { kind: 'commit-refused', issues } }
   }
+  if (repairResult.incomplete) return discardIncomplete(repairResult.finalText, repairResult.incomplete.reason)
+  const repairText = repairResult.finalText
   const second = close(repairText)
   if (second && second.disposition.kind === 'committed') return second
   if (second) {

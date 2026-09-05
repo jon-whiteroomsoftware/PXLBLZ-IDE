@@ -19,7 +19,7 @@ import {
   validateInstallationCoverage,
 } from '@/engine/showInstallationCoverage'
 import { validatePortableShowCompatibility } from '@/engine/showPortableCompatibility'
-import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { stockPatternSource } from './stockCatalogue.js'
 
 export interface ShowIssue {
   /** Machine-checkable issue family. */
@@ -130,7 +130,9 @@ function collectPatternRefSites(show: ShowRecord): PatternRefSite[] {
 
 /** Resolve every pattern reference up front. The v2 engine quietly substitutes
  * a test pattern for anything it cannot resolve; an agent-facing tool must
- * turn that silence into typed errors instead. */
+ * turn that silence into typed errors instead. Stock ids go through V2's
+ * retired-id table first (#945 correction), so a durable Show carrying a
+ * superseded id is accepted exactly as V2 accepts it. */
 export function resolveShowPatterns(
   show: ShowRecord,
   inlinePatterns: InlinePattern[] = [],
@@ -145,7 +147,7 @@ export function resolveShowPatterns(
   for (const site of collectPatternRefSites(show)) {
     const key = `${site.ref.kind}:${site.ref.id}`
     if (site.ref.kind === 'stock') {
-      if (!(site.ref.id in DEMOS) && !reported.has(key)) {
+      if (stockPatternSource(site.ref.id) === undefined && !reported.has(key)) {
         reported.add(key)
         errors.push({
           code: 'unknown-stock-pattern',

@@ -6,7 +6,7 @@
 import type { PatternRecord, ShowRecord } from '@/engine/personalContentRecords'
 import { inspectPatternMetadata } from '@/engine/bundle'
 import { nativeDimension } from '@/engine/loadPattern'
-import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { stockPatternSource } from './stockCatalogue.js'
 
 export type CritiqueRule =
   | 'pacing-monotony'
@@ -148,7 +148,7 @@ function dimensionalFit(show: ShowRecord, userPatterns: PatternRecord[]): Critiq
   for (const cell of show.cells) {
     const source =
       cell.pattern.kind === 'stock'
-        ? DEMOS[cell.pattern.id]
+        ? stockPatternSource(cell.pattern.id)
         : userPatterns.find((pattern) => pattern.id === cell.pattern.id)?.src
     if (!source) continue // Unresolvable references are validate_show's concern.
     const key = `${cell.pattern.kind}:${cell.pattern.id}`

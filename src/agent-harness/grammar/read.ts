@@ -76,7 +76,14 @@ function normalizeName(value: string): string {
 
 interface JunctionSite {
   junction: ShowUnifiedTimelineJunctionProjection
+  zoneId: string
   zoneName: string
+}
+
+/** A Zone constraint matches the Zone's id or name, alphanumerics only. */
+function inZone(site: { zoneId: string; zoneName: string }, zoneFilter: string): boolean {
+  return normalizeName(site.zoneId) === normalizeName(zoneFilter) ||
+    normalizeName(site.zoneName) === normalizeName(zoneFilter)
 }
 
 function clipSites(document: ShowGrammarDocument): ClipSite[] {
@@ -95,7 +102,7 @@ function junctionSites(document: ShowGrammarDocument): JunctionSite[] {
   const sites: JunctionSite[] = []
   for (const zone of timeline.zones) {
     for (const layer of zone.layers) {
-      for (const junction of layer.junctions) sites.push({ junction, zoneName: zone.name })
+      for (const junction of layer.junctions) sites.push({ junction, zoneId: zone.id, zoneName: zone.name })
     }
   }
   return sites.sort((left, right) => left.junction.startMs - right.junction.startMs)
@@ -156,7 +163,18 @@ export function resolveReference(
   const zoneFilter = query.zone?.toLowerCase()
 
   if (kind === 'junction') {
-    const sites = junctionSites(document)
+    // #945 correction: the Zone constraint narrows junctions exactly as it
+    // narrows clips; before, every Zone's junctions were searched, so a
+    // request for one Zone could resolve another Zone's junction or read as
+    // ambiguous when the requested Zone held exactly one.
+    let sites = junctionSites(document)
+    if (zoneFilter) {
+      const zoneMatched = sites.filter((site) => inZone(site, zoneFilter))
+      if (zoneMatched.length === 0 && sites.length > 0) {
+        return conclude([], sites.slice(0, 5).map(junctionCandidate))
+      }
+      sites = zoneMatched
+    }
     const nearestBy = (atMs: number) =>
       [...sites]
         .sort((a, b) => Math.abs(a.junction.startMs - atMs) - Math.abs(b.junction.startMs - atMs))
@@ -178,9 +196,7 @@ export function resolveReference(
 
   let sites = clipSites(document)
   if (zoneFilter) {
-    const zoneMatched = sites.filter((site) =>
-      normalizeName(site.zoneId) === normalizeName(zoneFilter) ||
-      normalizeName(site.zoneName) === normalizeName(zoneFilter))
+    const zoneMatched = sites.filter((site) => inZone(site, zoneFilter))
     if (zoneMatched.length === 0 && sites.length > 0) {
       return conclude([], sites.slice(0, 5).map(clipCandidate))
     }

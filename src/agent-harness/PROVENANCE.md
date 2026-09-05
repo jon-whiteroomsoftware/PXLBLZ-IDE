@@ -207,6 +207,30 @@ second slice: `baseline/scripts.ts`, `baseline/fixtures.ts`, `baseline/evidence.
 Everything else in the 20 transferred suites (266 cases) passed unchanged against the live V2
 engine at `ad8ad651`.
 
+## Corrections after the transfer (#945 integration review)
+
+The exact-range review of the transfer (`ad8ad651..b1fbc1e5`) recorded seven advisory findings
+against the harness's own intended semantics and measurement accuracy. They were corrected in
+V2 on 2026-09-05; the hashes above remain those of the original V3 bytes, so these files now
+differ from their V3 originals by the changes below **and these behaviours must not be read as
+unchanged V3 semantics**. Each correction carries a `#945 correction` comment at the site, and
+a V2-authored suite that failed against the transferred code before the fix.
+
+| Finding | Files | Before | After |
+| --- | --- | --- | --- |
+| Turn-limit exhaustion committed a partial candidate | `experiment/openaiAgent.ts`, `experiment/turn.ts`, `experiment/runner.ts` | After the round limit the adapter returned ordinary text; the runner's text-close path read it as a statement and committed the pending operations. An agent exception left the transaction open. | The adapter returns a typed `incomplete: { reason: 'turn-limit' }`; the runner rolls back, reports disposition `incomplete` with the discarded count, and appends "The N pending changes were discarded." An agent exception is rolled back before it propagates. |
+| Retired stock ids refused | `shows/evaluate.ts`, `shows/stockCatalogue.ts`, `shows/critique.ts` | The validator checked the raw id with `in DEMOS`: `DoomFire` (which V2 resolves to `DoomFireV20_2D`) was refused as `unknown-stock-pattern`, and prototype names such as `constructor` passed. | Every stock lookup goes through `stockPatternSource`, which applies V2's `resolveStockPatternId` and an own-property check; `get_stock_pattern`, the control-export check and the critique follow the same route. |
+| Junction resolution ignored the Zone | `grammar/read.ts` | The junction branch searched every Zone; a Zone-constrained request could resolve another Zone's junction or read as ambiguous. | The Zone constraint narrows junction sites first, with the same id/name match and the same "none with nearest" outcome the clip path uses. |
+| Generic operations could rewrite nested ids | `grammar/operations/generic.ts` | Only the root `/id` and `/updatedAt` pointers were protected; `set_field`/`apply_patch` could rename any nested element id directly or through a parent replacement. | `identityPreservationIssue` compares the complete before and after records: the `id` of every array-member object (the coverage allowlist's `*/id`) may not be renamed in place, dropped, or duplicated within its collection; reorder, insertion, removal and Pattern-reference `pattern.id` edits remain accepted. |
+| Default window omitted transition time | `telemetry/measure.ts`, `mcp/showsServer.ts` | `showTimelineDurationMs` summed Scene holds only, so a Show compiled as a 61 s loop was measured for 60 s. | It delegates to V2's `showLoopDurationMs` (Scene holds plus visual transitions, or a longer explicit end); the tool description says so. |
+| Explicit window unbounded | `telemetry/measure.ts`, `telemetry/harness.ts`, `mcp/showsServer.ts` | The explicit window had only a lower bound and the MCP schema accepted any positive number; a large request ran the synchronous frame loop until the worker died. | Explicit windows clamp to the advertised 1–600 s at every entry (the report's `input.durationMs` states the effective window); fps must be an integer in 1–240; non-finite values return `reason: 'invalid-options'` before any Pattern code runs, and `runTelemetry` throws on a non-finite or non-positive window. |
+| Partial final bucket counted as a full second | `telemetry/harness.ts` | Every bucket counted as one second, so 4.1 s of darkness reported a 5 s dark/static event. | Dark/static runs use the seconds their buckets actually cover, frame-quantized (`frames / fps`): 4.1 s is no event, 5 s is, 5.5 s reports 5500 ms and the summary says "5.5 seconds". The flicker gate is unchanged. |
+
+V2-authored suites for these corrections: `test/dictationTurnAbnormal.test.ts`,
+`test/stockAliasResolution.test.ts`, `test/junctionZoneReference.test.ts`,
+`test/genericIdentity.test.ts`, `test/measureDurationBounds.test.ts`,
+`test/telemetryPartialBucket.test.ts`.
+
 ## Dependencies declared for this closure
 
 | Package | V3 range | Declared here | Installed |

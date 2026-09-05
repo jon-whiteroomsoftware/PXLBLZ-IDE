@@ -1442,7 +1442,12 @@ build carries the provider or MCP SDKs. Its `npm run agent:*` commands run
 through a Vite module runner (`src/agent-harness/run.ts`) because the stock
 catalogue's `import.meta.glob` sources have no plain-Node form; its suites run
 in the ordinary Vitest `node` project, and known V3-versus-V2 oracle drift is
-isolated in `*.diagnostic.ts` files under `npm run agent:diagnostics`. The
+isolated in `*.diagnostic.ts` files under `npm run agent:diagnostics`. Seven
+harness defects found by the transfer's review (partial commit on turn-limit
+exhaustion, retired stock ids, junction Zone scope, nested-id rewrites, and
+three telemetry window/bucket errors) were corrected in V2 afterwards;
+`PROVENANCE.md` records each before/after so they are never read as V3
+semantics. The
 [agent candidate application contract](contracts/agent-candidate-application.md)
 owns the editor boundary it targets. The browser baseline
 (`npm run test:e2e:agent-baseline`, report in

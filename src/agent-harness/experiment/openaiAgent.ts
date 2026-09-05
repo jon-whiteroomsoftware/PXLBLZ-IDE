@@ -232,7 +232,10 @@ export function createOpenAiAgent(options: OpenAiAgentOptions): DictationAgent {
           input.push({ type: 'function_call_output', call_id: output.id, output: JSON.stringify(output.payload) })
         }
       }
-      return finish('The turn limit was reached before the edit completed.')
+      // #945 correction: exhaustion is an abnormal completion, typed so the
+      // turn runner discards the pending operations instead of reading this
+      // statement as success and committing a partial candidate.
+      return { ...finish('The turn limit was reached before the edit completed.'), incomplete: { reason: 'turn-limit' } }
     },
   }
 }

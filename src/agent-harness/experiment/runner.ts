@@ -84,7 +84,17 @@ export interface AgentTurnContext {
 
 export type DictationAgent = {
   name: string
-  run: (context: AgentTurnContext) => Promise<{ finalText: string; timing?: TurnTiming }>
+  run: (context: AgentTurnContext) => Promise<{ finalText: string; timing?: TurnTiming; incomplete?: TurnIncompletion }>
+}
+
+/**
+ * Why an agent turn ended without completing (#945 correction): the agent
+ * loop exhausted its round limit while the turn was still open. The turn
+ * runner treats this as an abnormal completion and discards the turn's
+ * pending operations; it never commits them, whatever the reply text says.
+ */
+export interface TurnIncompletion {
+  reason: 'turn-limit'
 }
 
 interface Harness {

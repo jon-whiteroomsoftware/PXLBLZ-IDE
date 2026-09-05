@@ -2,6 +2,13 @@
 // Tier-1 telemetry: deterministic low-N headless render of a compiled Show
 // (or bare Pattern) with metrics computed inside the render loop — no frames
 // are stored. Pure logic: no CLI, MCP, or filesystem imports.
+//
+// #945 corrections (integration review): the window and frame count are
+// checked finite and positive before any Pattern code runs; and the final
+// sub-second bucket counts for the time it covers in dark/static event
+// thresholds and reported durations (a 4.1 s dark run was reported as a
+// 5 s event). The flicker gate's per-window rate already normalizes by the
+// covered time; its verdict and reporting are unchanged.
 import { createShim } from '@/engine/shim'
 import { loadPattern } from '@/engine/loadPattern'
 import { SOURCE_STOCK_MAPS } from '@/pixelblaze/stock/maps/stockCatalogue'
@@ -161,6 +168,9 @@ function formatTimestamp(ms: number): string {
 
 const percent = (value: number, digits = 0) => `${(value * 100).toFixed(digits)}%`
 
+/** Seconds for prose: whole seconds plain, otherwise one decimal. */
+const formatSeconds = (ms: number) => String(Math.round(ms / 100) / 10)
+
 export function runTelemetry(
   code: string,
   metadata: PatternMetadata,
@@ -168,10 +178,13 @@ export function runTelemetry(
 ): TelemetryReport {
   const pixelCount = options.pixelCount ?? 64
   const fps = options.fps ?? 30
+  if (!Number.isFinite(options.durationMs)) throw new Error(`durationMs must be finite, got ${options.durationMs}`)
+  if (options.durationMs <= 0) throw new Error(`durationMs must be positive, got ${options.durationMs}`)
   if (!Number.isInteger(fps) || fps <= 0) throw new Error(`fps must be a positive integer, got ${fps}`)
   const randomSeed = options.randomSeed ?? 207
   const thresholds: TelemetryThresholds = { ...DEFAULT_THRESHOLDS, ...options.thresholds }
   const frameCount = Math.max(1, Math.round((options.durationMs / 1000) * fps))
+  if (!Number.isFinite(frameCount)) throw new Error(`frame count must be finite, got ${frameCount}`)
   const deltaMs = 1000 / fps
 
   const planeMap = SOURCE_STOCK_MAPS.find((map) => map.id === 'plane')
@@ -216,6 +229,8 @@ export function runTelemetry(
   const perSecondMean: number[] = []
   const perSecondDelta: number[] = []
   const perSecondDarkFraction: number[] = []
+  /** Seconds each bucket covers: 1 for whole buckets, less for a final partial one. */
+  const perSecondCovered: number[] = []
   let secondLumSum = 0
   let secondDeltaSum = 0
   let secondDeltaFrames = 0
@@ -303,6 +318,7 @@ export function runTelemetry(
       perSecondMean.push(round6(secondLumSum / secondFrames))
       perSecondDelta.push(round6(secondDeltaFrames > 0 ? secondDeltaSum / secondDeltaFrames : 0))
       perSecondDarkFraction.push(round6(secondDarkSamples / (secondFrames * pixelCount)))
+      perSecondCovered.push(secondFrames / fps)
 
       // Close the flicker window: a pixel violates when its flash rate is
       // past the allowed count but within the analyzed band.
@@ -331,7 +347,7 @@ export function runTelemetry(
     }
   }
 
-  const events = detectEvents(perSecondDarkFraction, perSecondDelta, thresholds)
+  const events = detectEvents(perSecondDarkFraction, perSecondDelta, perSecondCovered, thresholds)
   const flicker = buildFlickerGate(
     perSecondFlashViolatingFraction,
     perSecondFlashMeanHz,
@@ -425,12 +441,13 @@ function buildFlickerGate(
 function detectEvents(
   perSecondDarkFraction: number[],
   perSecondDelta: number[],
+  perSecondCovered: number[],
   thresholds: TelemetryThresholds,
 ): TelemetryEvent[] {
   const events: TelemetryEvent[] = []
   const collectRuns = (
     flags: boolean[],
-    build: (startSecond: number, length: number) => TelemetryEvent,
+    build: (startSecond: number, length: number, coveredMs: number) => TelemetryEvent,
   ) => {
     let runStart = -1
     for (let second = 0; second <= flags.length; second += 1) {
@@ -440,7 +457,12 @@ function detectEvents(
       }
       if (runStart >= 0) {
         const length = second - runStart
-        if (length >= thresholds.minEventSeconds) events.push(build(runStart, length))
+        // Only the final bucket can be partial, so a run starts on a whole
+        // second and covers the sum of its buckets' actual time.
+        const coveredSeconds = perSecondCovered.slice(runStart, second).reduce((sum, value) => sum + value, 0)
+        if (coveredSeconds >= thresholds.minEventSeconds) {
+          events.push(build(runStart, length, Math.round(coveredSeconds * 1000)))
+        }
         runStart = -1
       }
     }
@@ -448,22 +470,22 @@ function detectEvents(
 
   collectRuns(
     perSecondDarkFraction.map((fraction) => fraction >= thresholds.darkPixelFraction),
-    (startSecond, length) => {
+    (startSecond, length, coveredMs) => {
       const slice = perSecondDarkFraction.slice(startSecond, startSecond + length)
       return {
         kind: 'dark-stretch',
         startMs: startSecond * 1000,
-        durationMs: length * 1000,
+        durationMs: coveredMs,
         darkFraction: round6(slice.reduce((sum, value) => sum + value, 0) / length),
       }
     },
   )
   collectRuns(
     perSecondDelta.map((delta) => delta <= thresholds.staticDeltaEnergy),
-    (startSecond, length) => ({
+    (startSecond, _length, coveredMs) => ({
       kind: 'static-stretch',
       startMs: startSecond * 1000,
-      durationMs: length * 1000,
+      durationMs: coveredMs,
     }),
   )
   return events.sort((a, b) => a.startMs - b.startMs || (a.kind < b.kind ? -1 : 1))
@@ -519,13 +541,13 @@ export function describeTelemetry(report: TelemetryReport): string {
       lines.push(
         `${percent(event.darkFraction ?? 0)} of pixels sat below ` +
           `${percent(input.thresholds.darkLuminance)} luminance for ` +
-          `${Math.round(event.durationMs / 1000)} seconds starting at ${formatTimestamp(event.startMs)}.`,
+          `${formatSeconds(event.durationMs)} seconds starting at ${formatTimestamp(event.startMs)}.`,
       )
     } else {
       lines.push(
         `Output was near-static (per-pixel change at or below ` +
           `${percent(input.thresholds.staticDeltaEnergy, 1)}) for ` +
-          `${Math.round(event.durationMs / 1000)} seconds starting at ${formatTimestamp(event.startMs)}.`,
+          `${formatSeconds(event.durationMs)} seconds starting at ${formatTimestamp(event.startMs)}.`,
       )
     }
   }
