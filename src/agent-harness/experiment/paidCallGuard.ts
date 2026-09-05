@@ -18,7 +18,11 @@
 // reservation assumed, or a response was served under a service tier the
 // accepted standard rates do not cover) is refused at open, before any
 // credential is read, until a human reconciles the charge and removes the
-// record by hand.
+// record by hand. A run id is used once: entry ids are `<runId>-<n>` from a
+// per-run sequence, so opening under a run id the ledger already carries is
+// refused (run-id-reused) rather than letting a twin id shadow or settle an
+// earlier run's entry. The default run id combines a timestamp and pid; the
+// same refusal remains authoritative if either a generated or explicit id repeats.
 import { closeSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync, writeSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -221,6 +225,16 @@ export function openPaidCallGuard(options: OpenGuardOptions = {}): PaidCallGuard
   if (!reread.ok || reread.ledger.halt) {
     unlinkSync(lockPath(ledgerPath))
     throw new PaidCallRefusedError(reread.ok ? refuse('ledger-halted', `${ledgerPath}: ${describeHalt(reread.ledger.halt!)}`) : reread)
+  }
+  const reused = reread.ledger.entries.find((entry) => entry.runId === runId)
+  if (reused) {
+    unlinkSync(lockPath(ledgerPath))
+    throw new PaidCallRefusedError(
+      refuse(
+        'run-id-reused',
+        `${ledgerPath} already carries entries for run id "${runId}" (first ${reused.id}, ${reused.state}); a run id is used once, so open under a fresh one. The recorded entries stay as they are`,
+      ),
+    )
   }
 
   let ledger = reread.ledger

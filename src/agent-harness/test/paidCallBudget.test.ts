@@ -361,6 +361,19 @@ describe('reservation decisions', () => {
     expect(refused.ok === false && refused.code).toBe('ledger-halted')
   })
 
+  it.each<['reserved' | 'settled' | 'ambiguous', Partial<LedgerEntry>]>([
+    ['reserved', {}],
+    ['settled', { settledUsd: 0.001, settledBasis: 'reported-categories', usage: { inputTokens: 1, cachedInputTokens: 0, outputTokens: 0 } }],
+    ['ambiguous', { note: 'timeout' }],
+  ])('refuses an entry id already on the ledger (%s) instead of appending a twin', (state, extra) => {
+    const twin = entry({ id: 'run-b-1', runId: 'run-b', state, reservedUsd: 0.01, ...extra })
+    const refused = decide(ledgerWith([twin]))
+    expect(refused.ok === false && refused.code).toBe('run-id-reused')
+    expect(refused.ok === false && refused.reason).toMatch(/run-b-1/)
+    // Another identity under the same run is a different question and is decided on cost alone.
+    expect(decide(ledgerWith([twin]), { entryId: 'run-b-2' }).ok).toBe(true)
+  })
+
   it('refuses when the cost arithmetic is not finite instead of reserving a nonsense figure', () => {
     const refused = decide(ledgerWith([]), { price: { ...UNIT_PRICE, input: Number.MAX_VALUE } })
     expect(refused.ok === false && refused.code).toBe('arithmetic-overflow')

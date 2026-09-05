@@ -255,6 +255,75 @@ describe('refusals leave the file alone', () => {
   })
 })
 
+describe('run identity', () => {
+  /** Leave one entry under run "r" in the given state, as a crash, a completed run or a failed call would. */
+  function leaveEntry(state: 'reserved' | 'settled' | 'ambiguous'): void {
+    initLedger(ledgerPath, 't', NOW)
+    const run = open({ runId: 'r' })
+    run.beginUnit('case-a')
+    const reservation = run.reserve(REQUEST)
+    if (!reservation.ok) throw new Error(reservation.reason)
+    if (state === 'settled') run.settle(reservation.id, { inputTokens: 10, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 10 })
+    if (state === 'ambiguous') run.abandon(reservation.id, 'timeout')
+    if (state === 'reserved') {
+      // A crash: no settle, no close; the stale lock is cleared by hand.
+      rmSync(`${ledgerPath}.lock`)
+      guards.splice(0)
+      return
+    }
+    run.close()
+    guards.splice(0)
+  }
+
+  it.each<['reserved' | 'settled' | 'ambiguous']>([['reserved'], ['settled'], ['ambiguous']])(
+    'refuses to reopen a run id that already has a %s entry, leaving the file and the lock alone',
+    (state) => {
+      leaveEntry(state)
+      const before = readFileSync(ledgerPath, 'utf8')
+      expect(() => open({ runId: 'r' })).toThrow(/run-id-reused.*"r".*r-1/)
+      expect(readFileSync(ledgerPath, 'utf8')).toBe(before)
+      expect(existsSync(`${ledgerPath}.lock`)).toBe(false)
+      // The recorded entry is exactly as it was: never removed, never reduced.
+      expect(ledgerOnDisk().entries).toEqual([expect.objectContaining({ id: 'r-1', runId: 'r', state })])
+    },
+  )
+
+  it('never lets a reused run id settle or shadow the reservation a crashed run left', () => {
+    leaveEntry('reserved')
+    expect(() => open({ runId: 'r' })).toThrow(/run-id-reused/)
+    const entries = ledgerOnDisk().entries
+    expect(entries).toEqual([expect.objectContaining({ id: 'r-1', state: 'reserved', reservedUsd: RESERVATION_USD })])
+    // The ledger still parses: one identity, one entry.
+    expect(readLedger(ledgerPath).ok).toBe(true)
+  })
+
+  it('admits a fresh run id after the refusal and keeps every earlier entry at its recorded amount', () => {
+    leaveEntry('reserved')
+    expect(() => open({ runId: 'r' })).toThrow(/run-id-reused/)
+    const next = open({ runId: 'r2' })
+    next.beginUnit('case-b')
+    const own = next.reserve(REQUEST)
+    if (!own.ok) throw new Error(own.reason)
+    expect(own.id).toBe('r2-1')
+    next.settle(own.id, { inputTokens: 10, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 10 })
+    next.close()
+    guards.splice(0)
+    const ledger = ledgerOnDisk()
+    expect(ledger.entries.map((entry) => [entry.id, entry.state])).toEqual([
+      ['r-1', 'reserved'],
+      ['r2-1', 'settled'],
+    ])
+    expect(ledger.halt).toBeUndefined()
+    // A later run sees the crashed reservation plus the settled call, nothing reduced.
+    const later = open({ runId: 'r3' })
+    expect(later.status().aggregate).toMatchObject({ entries: 2, reserved: 1, settled: 1, consumedUsd: Math.round((RESERVATION_USD + 0.00002) * 1e6) / 1e6 })
+    // And "r2" is now spent as an identity too.
+    later.close()
+    guards.splice(0)
+    expect(() => open({ runId: 'r2' })).toThrow(/run-id-reused/)
+  })
+})
+
 describe('run-time ceilings through the guard', () => {
   it('refuses the fifth call of a unit and starts a fresh count for the next unit', () => {
     initLedger(ledgerPath, 't', NOW)

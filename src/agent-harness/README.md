@@ -16,7 +16,7 @@ the roadmap this serves.
 | Command | What it does | Paid calls |
 | --- | --- | --- |
 | `npm run agent:smoke` | One scripted turn through the real bridge (HTTP, NDJSON, MCP, session, turn runner); the candidate is exported as `.pxlshow` and `.epe` and judged after reopening through the V2 importers. Writes `reports/agent-harness/smoke/`. `-- --delay-ms <n>` holds the turn. | none |
-| `npm run agent:corpus -- --fake` | The 43-case dictation corpus through the fake agent; transcripts and report under `reports/agent-harness/corpus/`. `--replay <dir>` re-scores transcripts. | none |
+| `npm run agent:corpus -- --fake` | The 43-case dictation corpus through the fake agent; transcripts, `run-manifest.json` and report under `reports/agent-harness/corpus/`. `--replay <dir>` re-scores the transcripts that directory's manifest names (see "Run directory and replay"). | none |
 | `npm run agent:corpus -- --live --model <id> --effort <e>` | The corpus through the OpenAI Responses API under the paid-call guard below: one accounting unit per case, stops at the first refusal, lists unmeasured cases in `budget.json`. **Refuses before dispatch until a price with explicit terms (`experiment/pricing.ts`) and a provider input ceiling (`experiment/providerLimits.ts`) are accepted for the model and the ledger exists; only `gpt-5.6-luna` is accepted.** | yes, bounded |
 | `npm run agent:held-out:verify` | Verify the sealed v1 held-out manifest, artifact hashes, finite case count and #958 release gate. Prints metadata only; it cannot execute or score a case. | none |
 | `BRIDGE_AGENT=scripted npm run agent:bridge` | The bridge on an ephemeral loopback port with the fake agent; each `/utterance` body carries its `script` and optional `delayMs`. Prints the port and the overlay snippet. | none |
@@ -28,6 +28,27 @@ the roadmap this serves.
 | `npm run agent:baseline:fixtures` | Every baseline fixture (`baseline/fixtures.ts`) exported as `.pxlshow` and `.epe`, one scripted bridge turn, exported again; hashes compared against the committed `baseline/evidence/fixtures.json` (exit 1 on drift; `-- --write` re-records). | none |
 
 The ordinary suites under `test/*.test.ts` run in the Vitest `node` project with `npm test`.
+
+### Run directory and replay
+
+The corpus output directory (`--out`, default `reports/agent-harness/corpus`) is reused from run
+to run, and a run that refuses or skips a case leaves that case's older transcript behind. Every
+run therefore writes `run-manifest.json` next to its transcripts: the agent, the paid-call run id
+(null for the fake agent), start and finish times, the transcript files this run wrote in corpus
+order, and the cases it did not measure with their refusal. The manifest is written when the run
+starts and rewritten after every transcript. Replay surfaces an unfinished manifest and refuses a
+malformed one rather than treating either as permission to score leftover transcripts.
+
+`--replay <dir>` scores only the transcripts the manifest names. Any other `*.transcript.json`
+in the directory is reported as stale on stderr, listed in `replay.json` next to the replayed
+report, and left in place. Replay does not change the recorded run's reports or transcripts:
+its output directory must differ from the recorded run directory.
+A manifest that names a missing file is an error and no report is written. A directory without a
+manifest (a corpus recorded before the manifest existed) still replays every transcript it
+holds, and the report's agent label says `(replay, no run manifest: every transcript in the
+directory)`; `replay.json` records `source: 'directory'`. Replay's own report goes to `--out`,
+which defaults to a sibling named `<replay-dir>-replay`; explicitly choosing the recorded run
+directory as `--out` is refused before any report is written.
 
 ## How the commands run
 
@@ -137,7 +158,11 @@ The ledger lives outside every worktree: `AGENT_HARNESS_LEDGER`, else
 `~/.local/state`. A missing ledger is a refusal, never an implicit fresh start; a malformed
 ledger (including a malformed halt record or a settled entry without a basis) is a refusal and
 is never rewritten; a second run while the lock file exists is refused, naming the holder, and
-a lock left by a crashed run is removed by hand after confirming that process is gone. Every
+a lock left by a crashed run is removed by hand after confirming that process is gone. A run id
+is used once: entry ids are the run id plus a per-run sequence, so a run opened under a run id
+the ledger already carries is refused (`run-id-reused`) before it can append a twin of an
+earlier entry; the generated default combines a timestamp and pid, and the same refusal applies
+if a generated or explicit id repeats. The recorded entries stay as they are. Every
 path prints the ledger location and its totals so an override is visible in the run's output.
 
 **What is accepted.** One model, `gpt-5.6-luna`, from the provider's official model page and

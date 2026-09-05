@@ -16,7 +16,7 @@ import { join } from 'node:path'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { parseBridgeEvents, startBridge } from '../bridge/service.js'
 import { DICTATION_CASES } from '../experiment/cases.js'
-import { runCorpus } from '../experiment/cli.js'
+import { readRunManifest, replayCorpus, runCorpus } from '../experiment/cli.js'
 import { dictationFixture } from '../experiment/fixtures.js'
 import { createOpenAiAgent } from '../experiment/openaiAgent.js'
 import {
@@ -369,6 +369,43 @@ describe('corpus path (runCorpus, the CLI loop)', () => {
     expect(() => guardWith({ runId: 'run-2', bounds: { aggregateUsd: 1000, perRunUsd: 1000 } })).toThrow(/ledger-halted.*removes the "halt" field/)
     expect(spy.requests).toHaveLength(1)
     expect(ledgerOnDisk()).toEqual(ledger)
+  })
+
+  it('leaves a refused run\'s older transcripts in place but out of its manifest, so replay scores only what it measured', async () => {
+    const [caseA, caseB] = DICTATION_CASES
+    // Run 1 measures both cases into the default-style shared directory.
+    const first = guardWith({ runId: 'run-1' })
+    const spy = responsesSpy([{ text: 'Nothing to do.' }])
+    await runCorpus({ cases: [caseA, caseB], agent: liveAgent(first, spy), outDir, guard: first, log: () => {} })
+    expect(spy.requests).toHaveLength(2)
+    first.close()
+    guards.splice(0)
+    const staleB = readFileSync(join(outDir, `${caseB.id}.transcript.json`), 'utf8')
+
+    // Run 2 into the same directory: one settled call fits, the next reservation does not.
+    const second = guardWith({ runId: 'run-2', bounds: { perRunUsd: RESERVATION_USD } })
+    const result = await runCorpus({ cases: [caseA, caseB], agent: liveAgent(second, spy), outDir, guard: second, log: () => {} })
+    expect(spy.requests).toHaveLength(3)
+    expect(result.report.totals.cases).toBe(1)
+    expect(result.unmeasured).toEqual([{ caseId: caseB.id, reason: expect.stringMatching(/run-exhausted/) }])
+    const manifest = readRunManifest(outDir)
+    expect(manifest).toMatchObject({
+      runId: 'run-2',
+      transcripts: [{ caseId: caseA.id, file: `${caseA.id}.transcript.json` }],
+      unmeasured: result.unmeasured,
+    })
+    // budget.json and the manifest agree on what was not measured; the old transcript is untouched.
+    expect(JSON.parse(readFileSync(join(outDir, 'budget.json'), 'utf8')).unmeasured).toEqual(result.unmeasured)
+    expect(readFileSync(join(outDir, `${caseB.id}.transcript.json`), 'utf8')).toBe(staleB)
+
+    const replay = await replayCorpus({ replayDir: outDir, outDir: join(directory, 'replayed'), cases: DICTATION_CASES, log: () => {} })
+    expect(replay.source).toBe('manifest')
+    expect(replay.scored).toEqual([`${caseA.id}.transcript.json`])
+    expect(replay.stale).toEqual([`${caseB.id}.transcript.json`])
+    expect(replay.report.totals.cases).toBe(1)
+    expect(replay.report.cases.map((score) => score.caseId)).toEqual([caseA.id])
+    expect(spy.requests).toHaveLength(3)
+    expect(readFileSync(join(outDir, `${caseB.id}.transcript.json`), 'utf8')).toBe(staleB)
   })
 })
 

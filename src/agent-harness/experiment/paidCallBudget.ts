@@ -162,6 +162,7 @@ export type PaidCallRefusalCode =
   | 'run-exhausted'
   | 'aggregate-exhausted'
   | 'halted'
+  | 'run-id-reused'
   | 'shape-unsupported'
   | 'input-too-large'
   | 'arithmetic-overflow'
@@ -790,6 +791,12 @@ export function decideReservation(input: ReservationInput): { ok: true; entry: L
   const { bounds } = input
   if (input.ledger.halt) return refuse('ledger-halted', describeHalt(input.ledger.halt))
   if (input.halted) return refuse('halted', input.halted)
+  if (input.ledger.entries.some((entry) => entry.id === input.entryId)) {
+    // Identities are never reused: a twin would let one settlement replace two
+    // entries, or leave a file the parser refuses. The guard refuses a reused
+    // run id at open; this is the same rule at the pure boundary.
+    return refuse('run-id-reused', `entry id "${input.entryId}" is already on the ledger; nothing is appended under an existing identity and the recorded entry stays as it is`)
+  }
   if (input.unit === null) {
     return refuse('no-unit', 'no accounting unit is open; begin one per corpus case or bridge turn before dispatching')
   }
