@@ -128,7 +128,12 @@
     "prototype:scene-composition": "tsx scripts/prototypes/show-scene-composition.ts",
     "prepare": "husky",
     "schema:show-record": "node scripts/show-record-schema.mjs",
-    "coverage:show-commands": "npm run check:node && tsx scripts/show-command-coverage.ts"
+    "coverage:show-commands": "npm run check:node && tsx scripts/show-command-coverage.ts",
+    "agent:corpus": "npm run check:node && tsx src/agent-harness/run.ts src/agent-harness/experiment/cli.ts",
+    "agent:smoke": "npm run check:node && tsx src/agent-harness/run.ts src/agent-harness/bridge/smoke.ts",
+    "agent:bridge": "npm run check:node && tsx src/agent-harness/run.ts src/agent-harness/bridge/server.ts",
+    "agent:coverage": "npm run check:node && tsx src/agent-harness/run.ts src/agent-harness/grammar/coverageCli.ts",
+    "agent:diagnostics": "npm run check:node && vitest run --config vitest.agent-diagnostics.config.ts"
   },
   "engines": {
     "node": "^22.13.0 || >=24"
@@ -148,6 +153,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.54.2",
     "@eslint/js": "^10.0.1",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@playwright/test": "^1.60.0",
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
@@ -163,10 +169,12 @@
     "@vitest/browser-playwright": "^4.1.7",
     "@vitest/coverage-v8": "^4.1.7",
     "@whiteroom/software-process": "file:vendor/whiteroom-software-process-0.5.0.tgz",
+    "ajv": "^8.20.0",
     "eslint": "^10.4.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "husky": "^9.1.7",
     "jsdom": "^29.1.1",
+    "openai": "^7.10.0",
     "tailwindcss": "^4.3.0",
     "ts-json-schema-generator": "^2.4.0",
     "tsx": "^4.22.3",
@@ -175,7 +183,8 @@
     "vite": "^8.0.14",
     "vitest": "^4.1.7",
     "wrangler": "^4.127.1",
-    "ws": "^8.21.0"
+    "ws": "^8.21.0",
+    "zod": "^3.25.76"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.9",

@@ -1433,6 +1433,19 @@ runs lint and full Vitest; e2e, performance, and hardware tiers stay explicit
 because their reliability and environments differ. Development builds expose
 a hidden Show Stage telemetry probe; production builds omit it.
 
+`src/agent-harness/` is a diagnostic area, not product code: the local agent
+dictation bridge, Show grammar and MCP server, dictation corpus with its
+scripted fake agent, and evaluation tools transferred from the private V3
+repository for the #945 baseline (provenance in its `PROVENANCE.md`). It
+imports the live engine but nothing imports it from `src/main.tsx`, so no
+build carries the provider or MCP SDKs. Its `npm run agent:*` commands run
+through a Vite module runner (`src/agent-harness/run.ts`) because the stock
+catalogue's `import.meta.glob` sources have no plain-Node form; its suites run
+in the ordinary Vitest `node` project, and known V3-versus-V2 oracle drift is
+isolated in `*.diagnostic.ts` files under `npm run agent:diagnostics`. The
+[agent candidate application contract](contracts/agent-candidate-application.md)
+owns the editor boundary it targets.
+
 ## 28. Known limits and accepted divergences
 
 - Pattern execution runs on the main thread; a valid infinite loop can freeze

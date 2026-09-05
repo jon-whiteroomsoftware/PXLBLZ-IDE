@@ -76,33 +76,41 @@ validity.
 
 ## Ownership and evidence
 
-The agent sources and tests currently live in the V3 repository; paths below
-are relative to that repository at local commit
-`9ecd481fd6facc0f7c68c1f99cd6c0d6c1405654`. That commit is not yet published,
-so these are source locators rather than GitHub links. Move them with the
-integration rather than maintaining a second contract.
+The agent sources and tests moved from the V3 repository into this one in the
+first #945 slice, under [`src/agent-harness/`](../../../src/agent-harness/README.md)
+as a diagnostic area whose provenance (V3 commit
+`9ecd481fd6facc0f7c68c1f99cd6c0d6c1405654`, original paths, hashes, and the
+mechanical adaptations) is recorded in
+[`PROVENANCE.md`](../../../src/agent-harness/PROVENANCE.md). Ownership stays
+diagnostic until #946, #947 and #959 decide what becomes engine code (#949).
 
-- Grammar sessions (`src/grammar/session.ts`) and
-  transaction tests (`test/grammarTransactions.test.ts`) own private
+- Grammar sessions ([`grammar/session.ts`](../../../src/agent-harness/grammar/session.ts)) and
+  transaction tests ([`test/grammarTransactions.test.ts`](../../../src/agent-harness/test/grammarTransactions.test.ts)) own private
   working state, final validation, rollback, and private history.
-- Session tests (`test/grammarSession.test.ts`) and
-  turn tests (`test/dictationTurn.test.ts`) exercise session and
+- Session tests ([`test/grammarSession.test.ts`](../../../src/agent-harness/test/grammarSession.test.ts)) and
+  turn tests ([`test/dictationTurn.test.ts`](../../../src/agent-harness/test/dictationTurn.test.ts)) exercise session and
   completion behavior. They do not prove live mouse/agent concurrency.
-- Composition replacement (`src/grammar/support.ts`) preserves the captured
+- Composition replacement ([`grammar/support.ts`](../../../src/agent-harness/grammar/support.ts)) preserves the captured
   timestamp; this is source evidence for the ordering gap above.
-- Service (`src/bridge/server.ts`),
-  browser bridge (`src/bridge/chat.js`), and
-  turn runner (`src/experiment/turn.ts`) own the request path.
-- The external editor interface was inspected in PXLBLZ-IDE at
-  `d934270cf0a06294b2ab66e49eb6172e9ed8b1bd`, in
-  [ShowEditor](../../../src/components/ShowEditor.tsx) and
-  [Show store](../../../src/store/showStore.ts). No V2 bridge test was found;
-  these application claims are source-inspected, not live interaction proof.
-  V3's vendored compiler source is a separate dependency and does not identify the live
-  editor revision. Recheck this boundary when changing the editor integration.
+- Service ([`bridge/service.ts`](../../../src/agent-harness/bridge/service.ts), the request path
+  extracted from V3's `server.ts`; [`bridge/server.ts`](../../../src/agent-harness/bridge/server.ts) is the process entry),
+  browser bridge ([`bridge/chat.js`](../../../src/agent-harness/bridge/chat.js)), and
+  turn runner ([`experiment/turn.ts`](../../../src/agent-harness/experiment/turn.ts)) own the request path.
+- The bridge smoke ([`test/bridgeSmoke.test.ts`](../../../src/agent-harness/test/bridgeSmoke.test.ts),
+  `npm run agent:smoke`) proves one scripted turn through the real service,
+  MCP, session and turn path, with the returned candidate judged after
+  `.pxlshow` and `.epe` export and reopen through the V2 importers. It drives
+  the bridge, not the editor route: it establishes nothing about `applyShow`,
+  the store, or the concurrency gaps above.
+- The editor interface is [ShowEditor](../../../src/components/ShowEditor.tsx)
+  and the [Show store](../../../src/store/showStore.ts) in this repository,
+  last inspected at `ad8ad651`. No V2 bridge-to-editor test exists yet;
+  these application claims remain source-inspected, not live interaction
+  proof. Recheck this boundary when changing the editor integration.
 
 Revision admission, request retirement, and explicit applied/durable outcomes
 remain roadmap work. This baseline does not claim those guarantees or select a
-merge policy. The shared-agentic Show editing roadmap currently lives at
-`docs/plans/shared-agentic-show-editing-roadmap-prd.md` in the V3 checkout.
-Migration into V2 does not itself implement the proposed guarantees.
+merge policy. The shared-agentic Show editing roadmap now lives at
+[`docs/plans/shared-agentic-show-editing-roadmap-prd.md`](../../plans/shared-agentic-show-editing-roadmap-prd.md)
+with its V3 provenance. Migration into V2 does not itself implement the
+proposed guarantees.
