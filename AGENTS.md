@@ -242,9 +242,11 @@ Pre-push requires a contiguous chain ending in clean approval instead
 of repeating review, then runs the artifact oracle gate, full Vitest, and
 Playwright once. See
 `docs/agents/verification.md` for the mechanism and privacy boundary; its
-"WRSP 0.5.1 review policy" section holds the current adoption ledger and the
-repair-loop semantics, and its "WRSP 0.5.0 consumer guards" section holds
-the evidence boundary of each guard.
+"WRSP 0.5.2 review packet adoption" section holds the current adoption ledger
+and packet completeness contract, its "WRSP 0.5.1 review policy" section holds
+the reviewer route and repair-loop semantics plus that release's historical
+ledger, and its "WRSP 0.5.0 consumer guards" section holds the evidence boundary
+of each guard.
 
 End every agent-authored commit message with an `X-Authored-Model:` trailer
 naming the exact model id (for example `X-Authored-Model: claude-fable-5-1` or

@@ -14,9 +14,11 @@ and e2e meta-check paths in `wrsp.config.mjs`, and its UI proof policy in the
 pure-data `wrsp-ui-proof.json`. The reviewer prompt's project-specific advisory
 paragraph is `review.projectPolicy` there and participates in the policy
 fingerprint, so editing it invalidates receipts exactly like a prompt change.
-Since #960 the installed release is 0.5.1; see
-[WRSP 0.5.1 review policy](#wrsp-051-review-policy-960) for the current
-reviewer route, the review-outcome classes, and the adoption ledger, and
+Since #961 the installed release is 0.5.2; see
+[WRSP 0.5.2 review packet adoption](#wrsp-052-review-packet-adoption-961) for
+the current packet representation and adoption ledger,
+[WRSP 0.5.1 review policy](#wrsp-051-review-policy-960) for the reviewer route,
+review-outcome classes, and that release's historical ledger, and
 [WRSP 0.5.0 consumer guards](#wrsp-050-consumer-guards-940) for the guards
 the previous release added and its historical ledger.
 
@@ -49,10 +51,14 @@ stacked until their reviewed base lands.
 
 `review:candidate` resolves the supplied base and tip to exact Git objects,
 requires their commit ancestry to be linear, and rejects merge commits. The
-review packet sends the exact commit list and per-commit patch series to the
-primary reviewer. It also requests first-parent merge
+review packet sends the exact commit list and every per-commit changed line to
+the primary reviewer, with unchanged endpoint context represented once. The
+per-commit series uses zero-context patches and requests first-parent merge
 diffs defensively, preserving empty commits, conflict-resolution changes, and
-add-then-revert histories that an endpoint-tree diff would hide.
+add-then-revert histories that an endpoint-tree diff would hide. Packet
+construction finishes a size and completeness preflight before launching a
+reviewer. Missing, incomplete, or oversized input remains a non-approval; the
+packet is never truncated to fit the transport.
 
 The primary reviewer is routed against range authorship (#637): commits
 signal their authoring model with an `X-Authored-Model:` trailer (legacy
@@ -616,6 +622,54 @@ constants, not by a live review. The first live Astra Medium receipt at
 medium effort is the proof #960 owes, and it can only come from reviewing an
 Anthropic-authored candidate under 0.5.1; until that receipt is on disk, do
 not describe the Astra route as exercised here.
+
+## WRSP 0.5.2 review packet adoption (#961)
+
+The 0.5.2 release changes the packet representation so repeated context cannot
+crowd complete commit history out of the reviewer transport. One shared source
+section carries unchanged endpoint context with immutable revision, blob, path,
+and line references. The following per-commit section retains the complete
+sequence as zero-context patches. The gate measures the whole request before a
+provider starts and refuses an input above 1,048,576 characters without
+truncating it.
+
+This representation change leaves reviewer routing, severity handling, the
+three review outcomes, breaker lineage, receipt carry, publication coverage,
+and `REVIEW_APPROVAL_POLICY_VERSION` unchanged. `REVIEW_PROMPT_VERSION` moves
+from 7 to 8, so the changed prompt and packet fingerprint require fresh review
+for new outgoing ranges. Existing receipts and outcomes remain on disk with
+their recorded policy and provenance; they gain no retroactive coverage.
+
+### Adoption ledger (0.5.2)
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 0.5.2, local lightweight tag `v0.5.2` |
+| Source | [whiteroom-software-process#22](https://github.com/jon-whiteroomsoftware/whiteroom-software-process/issues/22), commit `52c1a50db7b390914f02943a30fb22549be791de` (`Preserve raw review packet evidence`) |
+| Source review | Fable 5.1 High clean corrective receipt for `93becb47b905afda7cc447a4ccfaec04cb2feaa5..52c1a50db7b390914f02943a30fb22549be791de`, following advisory coverage of the preceding range; source full suite 286/286 and focused packet suite 36/36 |
+| Tarball | `vendor/whiteroom-software-process-0.5.2.tgz`, 85839 bytes |
+| Tarball sha256 | `6bcf735ec5f0426de2a9d1561f8eaf0848fd1d1da9c49bf7f7a9d98df3480bae`, verified against the reviewed local artifact before install; the lock's sha512 integrity was recomputed from the same bytes |
+| Installed bins | 12, unchanged from 0.5.1 |
+| Review policy | `REVIEW_APPROVAL_POLICY_VERSION` stays 3; `REVIEW_PROMPT_VERSION` moves from 7 to 8 because the packet instructions changed; reviewer models and efforts are unchanged |
+
+The real #945 candidate range
+`6cd09151a7f602c898d8406a5b1bfd1be21165bf..60f93563b54afd42118b6fb1b5ab89e209c5709e`
+proves the consumer boundary. With the same project policy and systematic
+test-design context, 0.5.1 built a 1,063,694-character request, above the
+1,048,576-character ceiling. Version 0.5.2 builds a 522,631-character request.
+All 8 commits appear in order, and its 352 zero-context hunks match 352 hunks
+counted independently across per-commit `git show` output. The installed size
+preflight accepts the complete packet without launching a reviewer.
+
+### Receipts across the bump (0.5.1 to 0.5.2)
+
+The prompt-version change produces a new review policy fingerprint. Receipts
+written under 0.5.1 remain immutable historical provenance and still appear in
+`review:status`, but they cannot cover a new outgoing range evaluated under
+0.5.2. Outcome records remain keyed by lineage rather than policy fingerprint,
+so the package upgrade does not reset a terminal streak. After #961 lands, the
+#945 candidate must rebase and receive fresh review under the installed 0.5.2
+fingerprint.
 
 ### Goal-based manual campaigns
 
