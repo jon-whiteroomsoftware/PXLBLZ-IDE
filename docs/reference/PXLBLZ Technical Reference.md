@@ -849,27 +849,20 @@ spatial authoring as pure index-set operations), and `ShowZoneSpatialSelector`
 (screen-space zone editing over the resolved output map, exact-count 2D
 only).
 
-**Show command registry.** `src/engine/showCommands/` holds one typed data
-table over the pure Show mutations: each `ShowCommandDescriptor` carries a
-stable snake_case name, a one-paragraph description, a dependency-free input
-schema (`fields`), the ShowRecord JSON-pointer patterns it may write
-(`touches`, `'*'` matching one segment), and an `apply` that calls the
-existing engine function at the global-time layer. `applyShowCommand`
-validates input against the schema and dispatches;
-`runShowCommandTransaction` folds a command list over the Show
-all-or-nothing, so a composed edit persists once and stays one undo step.
-Refusals are typed (`code`, `message`, optional `remedy` and `candidates`)
-and never silent: plan-backed commands surface the refusing plan's reason,
-and an engine identity return becomes an explicit refusal. Adding a command
-is one descriptor in the right family module plus a golden accepted case
-and refusal partition in the command tests - the faithfulness sweep fails
-any entry whose goldens write outside its declared `touches` or leave a
-declared pattern unexercised. The registry covers the clip, timeline,
-junction (boundary transition), layer-transition, effect,
-property-animation, and structure (output contract, Trails, Zone Layout
-occurrence) families over the existing engine functions; commands speak
-global milliseconds, converting to Scene-local storage where the record
-requires it.
+**Show command registry.** `src/engine/showCommands/` exposes pure Show edits
+through a typed registry for structured callers. Commands use global
+milliseconds and convert to Scene-local storage where required. The
+[Show command semantics contract](contracts/show-command-semantics.md) owns
+invocation, refusal, identity, and batch obligations. The
+[Show state, history, and persistence contract](contracts/show-state-history-persistence.md)
+owns adoption and recovery; the
+[agent candidate application contract](contracts/agent-candidate-application.md)
+records the experimental external-editor boundary and its present limits.
+
+Adding a command requires a descriptor in its family module plus a golden
+accepted case and refusal partition. The faithfulness sweep fails entries
+whose goldens write outside declared `touches` or leave a declared pattern
+unexercised.
 
 **Coverage gate.** `schemas/show-record.schema.json` is generated from the
 ShowRecord type (`npm run schema:show-record`; a drift test keeps it exact),

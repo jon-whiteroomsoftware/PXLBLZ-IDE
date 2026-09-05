@@ -23,6 +23,14 @@ and reference docs for current product and architecture detail.
 - Ask before editing `README.md`; it is the public entry point for the published
   v1 release and intentionally changes on a different cadence.
 
+Before changing Show command evaluation, read
+`docs/reference/contracts/show-command-semantics.md`. Before changing Show
+adoption, history, hydration, or save recovery, read
+`docs/reference/contracts/show-state-history-persistence.md`.
+
+Before changing the agent bridge or `__pxlblzEditor` candidate application, read
+`docs/reference/contracts/agent-candidate-application.md`.
+
 ## Architecture map
 
 - `src/engine/`: pure TypeScript for parsers, transforms, compilers, models,
