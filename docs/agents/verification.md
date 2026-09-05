@@ -56,7 +56,7 @@ The primary reviewer is routed against range authorship (#637): commits
 signal their authoring model with an `X-Authored-Model:` trailer (legacy
 Claude `Co-Authored-By:` trailers also classify), and a range authored
 entirely by one model family routes to the opposite family first --
-Anthropic-authored to GPT-5.6 High, OpenAI-authored to Fable 5.1 High
+Anthropic-authored to GPT-5.6 Sol High, OpenAI-authored to Fable 5.1 High
 (Opus 5 High before WRSP 0.5.0). Mixed or unsignalled ranges use the default
 order (Fable 5.1 High first). If the primary
 reviewer cannot return a valid structured decision because of quota, timeout,

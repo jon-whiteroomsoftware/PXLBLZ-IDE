@@ -100,6 +100,14 @@ Preserve these invariants:
   P3 advisory when a gate-covered surface changes without one.
 - Keep dependent work stacked until its reviewed base lands. The coordinating
   agent owns approval, landing, issue updates, and worktree cleanup.
+- A candidate that changes a UI path named in `wrsp-ui-proof.json` (component
+  TSX, `src/App.tsx`, stylesheets) cannot reach review without a fresh proof
+  record in `.wrsp/ui-proof/`: the real route driven in a real browser at the
+  implementation commit, with committed screenshot bytes and the full commit
+  id. Follow "Recording UI proof for the review gate" in
+  `docs/agents/browser-verification.md`; `npm run check:ui-proof -- <base>
+  <tip>` runs the same gate standalone. A green component suite never
+  satisfies it.
 - Land early, land often. P2/P3-only review findings are advisory, non-terminal
   coverage: land the reviewed tip on that receipt immediately and carry each
   corrective as a new small candidate cut from the landed main. Do not grow an
@@ -125,9 +133,17 @@ serving UI, `/api`, and the shared local D1 (#900). Run `npm run dev:main` to
 migrate, provision, and recover it; never stop it during ordinary task
 cleanup.
 
+Run `npm run preflight -- worktree` before the first edit in a new worktree
+and `npm run preflight -- port <n>` before starting any server outside the
+registry. Before claiming GitHub authentication or the network as a blocker,
+run `npm run preflight -- blocker gh-auth --host` (or `blocker network
+--host`) from an elevated, unsandboxed shell; `SANDBOX-LOCAL` and
+`INDETERMINATE` are never host verdicts.
+
 Every issue runtime must declare its isolation boundary:
 
 ```bash
+npm run dev:main            # migrate/provision/recover persistent main
 npm run dev:issue -- --issue <number> --description "<short description>" --profile shared
 npm run dev:issue -- --issue <number> --description "<short description>" --profile isolated
 ```
@@ -158,11 +174,18 @@ npm run dev:main            # migrate/provision/recover persistent main
 npm run dev:issue -- --issue <number> --description "<description>" --profile <shared|isolated>
 npm run dev:status
 npm run dev:release -- --issue <number>
+npm run preflight -- worktree            # refuse the shared checkout
+npm run preflight -- port <port>         # name the owner of an occupied port
+npm run preflight -- blocker gh-auth --host   # host verdict only from an unsandboxed shell
 npm run lint
 npx tsc -b --pretty false   # TypeScript project check
 npm run test:staged         # staged/colocated tests plus high-risk invariants
 npm test                    # full Vitest suite
 npm run test:mutation:show-authoring # targeted Show authoring fault-sensitivity check
+npm run check:ui-proof -- <base> <tip>   # UI proof gate for a range (also enforced by review:candidate)
+npm run check:artifact-oracle            # exported .pxlshow and .epe reopened through their importers
+npm run check:layout-gate                # layout canary through the configured browser runner
+npm run check:issue-proof -- --since-days <n>   # audit closed issues for named, attached proof (report only)
 npm run review:candidate -- <base> <tip> [--test-design <json>]
 npm run review:status -- [<base> <tip>]
 npm run review:push         # verify exact approvals for outgoing refs
@@ -175,22 +198,32 @@ npm run db:migrate:remote
 ```
 
 Pre-commit runs lint, conditional full-project typecheck, focused tests, and
-mapped invariants. Candidate review records clean approval for an exact-range
+mapped invariants. Candidate review enforces the UI proof gate for the range,
+then records clean approval for an exact-range
 pass. P2/P3-only findings preserve non-terminal advisory coverage and require
 only an exact corrective review; P0/P1 findings require a new full-range
 review. Pre-push requires a contiguous chain ending in clean approval instead
-of repeating review, then runs full Vitest and Playwright once. See
-`docs/agents/verification.md` for the mechanism and privacy boundary.
+of repeating review, then runs the artifact oracle gate, full Vitest, and
+Playwright once. See
+`docs/agents/verification.md` for the mechanism and privacy boundary; its
+"WRSP 0.5.0 consumer guards" section holds the adoption ledger and the
+evidence boundary of each guard.
 
 End every agent-authored commit message with an `X-Authored-Model:` trailer
-naming the exact model id (for example `X-Authored-Model: claude-fable-5` or
+naming the exact model id (for example `X-Authored-Model: claude-fable-5-1` or
 `X-Authored-Model: gpt-5.6-sol`), after any other trailers. Candidate review
 routes to the opposite model family based on this trailer (#637): commits
 without it are unsignalled, receive the default reviewer order, and can never
-claim cross-family coverage on their receipts. When the counterpart family's
+claim cross-family coverage on their receipts. Since WRSP 0.5.0 the Anthropic
+reviewer is Fable 5.1 High and the OpenAI reviewer GPT-5.6 Sol High; receipts
+written under the earlier policy remain on disk as history but do not count
+toward current coverage. When the counterpart family's
 reviewer is unavailable, the gate falls back to a same-family review and
 records the downgrade on the receipt; it never blocks on the missing
 counterpart and never records the downgrade silently.
+
+Haiku is retired. Never launch it for implementation, review, classification,
+or fallback work (Jon, 2026-09-04).
 
 Concentrate coverage on pure engine logic; keep component tests light and add
 Playwright coverage for cross-layer flows.
@@ -251,6 +284,10 @@ check the local D1 schema first.
 - Use GitHub Issues as implementation state. Follow
   `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`, and the
   `issue-workflow` skill for claiming, progress, review state, and commits.
+  `📦 implemented` means identified commits claim the issue's full scope; the
+  coordinator applies and removes it, the post-commit hook only comments, and
+  it never implies review, landing, release, or closure. Attach a `Proof:`
+  line before closing an issue; `npm run check:issue-proof` audits for it.
 - Use `docs/agents/domain.md` when preparing issues, plans, or architectural
   work. Name concepts exactly as `CONTEXT.md` defines them.
 - Use `doc-sweep` after feature or issue completion.

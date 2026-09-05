@@ -33,6 +33,15 @@ the coordinator applies `📦 implemented` after inspecting the named commits.
 One commit cannot infer completion of a whole issue, so the hook never
 applies the label and never closes.
 
+The classifier behind that judgement is an ordinary automated launch: `codex
+exec` naming `gpt-5.6-sol` at `high` reasoning effort explicitly, with the
+prompt on stdin and the decision returned through a structured output file
+constrained to `close`, `comment`, or `nothing`. It never inherits a session's
+interactive model. When `codex` is missing or returns no decision, the hook
+skips that issue and the commit still succeeds. `scripts/update-issues.test.ts`
+stubs the CLI and asserts the launch pair, the stdout boundary, and the
+resulting `gh` calls.
+
 `npm run check:issue-proof -- --since-days <n>` audits recently closed issues
 for a non-empty `## Required proof` section and an attached proof. Attach
 proof as a line beginning `Proof:` followed by the evidence (a link, a

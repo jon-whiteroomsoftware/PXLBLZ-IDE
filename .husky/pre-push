@@ -1,10 +1,17 @@
 #!/bin/sh
-# Reuse exact candidate approvals, then run full Vitest and E2E once before push.
+# Reuse exact candidate approvals, prove the exported Show deliverables reopen,
+# then run full Vitest and E2E once before push.
 #
 # Why pre-push (not pre-commit): these are the comprehensive publication gates. The
 # pre-commit hook already runs focused tests and high-risk invariants, so paying
 # for every Vitest file again on each local commit only duplicates work.
+#
+# check:artifact-oracle (#940) runs the configured exported-artifact oracle
+# tests through the installed wrsp-check-artifact-oracle: each deliverable's
+# real exporter writes a file, its ordinary importer reopens it, and exactly
+# one WRSP-ARTIFACT-ORACLE report per deliverable must validate.
 echo "▶ Checking exact candidate-review approvals before publication…"
-npm run review:push -- "$1" "$2" && npm run test:full && npm run test:e2e \
+npm run review:push -- "$1" "$2" && npm run check:artifact-oracle \
+  && npm run test:full && npm run test:e2e \
   && npm run test:e2e:auth-smoke \
   && npm run test:e2e:shows

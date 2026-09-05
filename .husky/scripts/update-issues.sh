@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Classifier launch (#940): every delegated CLI launch names an approved model
+# and effort explicitly. This hook is ordinary automation, so it uses the
+# standing Codex worker pair; it never inherits a session's interactive model.
+CLASSIFIER_MODEL="gpt-5.6-sol"
+CLASSIFIER_EFFORT="high"
+
 COMMIT_MSG=$(git log -1 --pretty=%B)
 COMMIT_SHA=$(git log -1 --pretty=%H | cut -c1-8)
 COMMIT_DIFF=$(git show HEAD --stat | tail -n +2 | head -30)
@@ -12,6 +18,23 @@ ISSUE_NUMS=$(echo "$COMMIT_MSG" | grep -oE '#[0-9]+' | tr -d '#' | sort -un || t
 if [ -z "$ISSUE_NUMS" ]; then
   exit 0
 fi
+
+# The structured final output: Codex is asked for exactly this shape, and the
+# decision is written to a file rather than parsed from the transcript.
+CLASSIFIER_DIR=$(mktemp -d "${TMPDIR:-/tmp}/pxlblz-issue-classifier.XXXXXX")
+trap 'rm -rf "$CLASSIFIER_DIR"' EXIT
+CLASSIFIER_SCHEMA="$CLASSIFIER_DIR/schema.json"
+cat > "$CLASSIFIER_SCHEMA" <<'EOF'
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "action": { "type": "string", "enum": ["close", "comment", "nothing"] },
+    "message": { "type": "string" }
+  },
+  "required": ["action", "message"]
+}
+EOF
 
 for ISSUE_NUM in $ISSUE_NUMS; do
   echo "🔍 Checking issue #$ISSUE_NUM..."
@@ -31,7 +54,7 @@ for ISSUE_NUM in $ISSUE_NUMS; do
   ISSUE_TITLE=$(echo "$ISSUE_JSON" | jq -r '.title')
   ISSUE_BODY=$(echo "$ISSUE_JSON" | jq -r '.body // ""' | head -30)
 
-  PROMPT="You manage GitHub issues for a software project. Decide what action to take on an issue given the commit below.
+  PROMPT="You manage GitHub issues for a software project. Decide what action to take on an issue given the commit below. Decide from this text alone; do not run commands or read files.
 
 COMMIT MESSAGE:
 $COMMIT_MSG
@@ -45,18 +68,38 @@ $ISSUE_BODY
 Respond with JSON only (no markdown fences):
 - {\"action\":\"close\",\"message\":\"<closing comment>\"} if the commit fully resolves this issue
 - {\"action\":\"comment\",\"message\":\"<progress comment>\"} if the commit partially addresses it
-- {\"action\":\"nothing\"} if the commit only references the issue for context or is unrelated"
+- {\"action\":\"nothing\",\"message\":\"\"} if the commit only references the issue for context or is unrelated"
 
-  TEXT=$(claude -p "$PROMPT" --model claude-haiku-4-5-20251001 2>/dev/null || true)
-
-  if [ -z "$TEXT" ]; then
-    echo "   ⚠️  Claude call failed — skipping issue #$ISSUE_NUM"
+  if ! command -v codex >/dev/null 2>&1; then
+    echo "   ⚠️  Classifier unavailable (codex not on PATH) — skipping issue #$ISSUE_NUM"
     continue
   fi
 
+  # The prompt travels over stdin (never argv) and the transcript is discarded,
+  # so neither the issue excerpt nor the reply reaches stdout or the process
+  # list. A failed or missing classifier leaves no decision file, and the hook
+  # skips the issue instead of failing the commit.
+  DECISION="$CLASSIFIER_DIR/decision-$ISSUE_NUM.json"
+  rm -f "$DECISION"
+  printf '%s' "$PROMPT" | codex exec \
+    --model "$CLASSIFIER_MODEL" \
+    --config "model_reasoning_effort=\"$CLASSIFIER_EFFORT\"" \
+    --sandbox read-only \
+    --ephemeral \
+    --color never \
+    --output-schema "$CLASSIFIER_SCHEMA" \
+    --output-last-message "$DECISION" \
+    - >/dev/null 2>&1 || true
+
+  if [ ! -s "$DECISION" ]; then
+    echo "   ⚠️  Classifier call failed — skipping issue #$ISSUE_NUM"
+    continue
+  fi
+  TEXT=$(cat "$DECISION")
+
   # Strip any markdown fences and trim surrounding whitespace. Avoid `xargs`:
   # it parses shell-style quoting and chokes ("unterminated quote") on any
-  # apostrophe in Claude's text (e.g. "Pixelblaze's"). jq tolerates leftover
+  # apostrophe in the model's text (e.g. "Pixelblaze's"). jq tolerates leftover
   # whitespace, so a plain sed trim is enough.
   TEXT=$(printf '%s' "$TEXT" \
     | sed -e 's/^```json//' -e 's/^```//' -e 's/```$//' \
@@ -71,9 +114,13 @@ Respond with JSON only (no markdown fences):
 
   case "$ACTION" in
     close)
-      echo "   💬 Commit recorded; issue #$ISSUE_NUM remains open awaiting review and landing"
+      # Comment-only (#940): one commit cannot infer completion of a whole
+      # issue, so the hook never applies the 📦 implemented label and never
+      # closes. The coordinator applies the label after inspecting the
+      # commits the issue body names as its full implementation scope.
+      echo "   💬 Commit recorded; issue #$ISSUE_NUM stays open — it claims implementation scope, not review, landing, or release"
       gh issue comment "$ISSUE_NUM" --body \
-        "Commit $COMMIT_SHA on \`$CURRENT_BRANCH\` is awaiting review and landing verification. The issue remains open until the reviewed commit reaches main and a coordinator closes it."
+        "Commit $COMMIT_SHA on \`$CURRENT_BRANCH\` claims implementation of this issue's scope. The coordinator applies \`📦 implemented\` after inspecting the identified full-scope commits; this comment is not closure, review, landing, or release."
       ;;
     comment)
       echo "   💬 Adding comment to issue #$ISSUE_NUM"
