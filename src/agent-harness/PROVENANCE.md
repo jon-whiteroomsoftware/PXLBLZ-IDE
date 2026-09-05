@@ -307,6 +307,26 @@ module with a public registry/session suite that failed against `3ed94be8` first
 
 V2-authored suite: `test/genericIdentityPlacementOrder.test.ts`.
 
+### Narrow completion after the third blocking redesign review (ae89d369)
+
+The next review found another P1 in the general-purpose scratch-transit model. After source
+detachment shifted an array, `move` wrote through a destination pointer whose identity target
+differed from the one checked before detachment. Jon explicitly authorized a narrower diagnostic
+patch contract on 2026-09-05 rather than another expansion of general-purpose patch behavior.
+The ordinary 43-case corpus and scripted browser baseline were inspected first: neither contains
+a scratch/transit dependency or a scripted `set_field`/`apply_patch` call.
+
+| # | Finding | Files | Before (ae89d369) | After |
+| --- | --- | --- | --- | --- |
+| 1 | A move's source detach could shift its destination after the identity precheck (P1), and arbitrary temporary fields let an invalid intermediate shape disappear before final validation | `grammar/operations/generic.ts`, `shows/evaluate.ts` | `add /scratch ["renamed", {}]`; move `/outputEffects/0` to `/scratch/1/inner`; move `/scratch/0` to `/scratch/0/inner/id`; move the renamed inner object back; remove `/scratch` was accepted. Detaching array index 0 shifted the wrapper under the already-prechecked destination, so the scalar was written into the output Effect id; removing scratch hid every intermediate schema violation from final validation. | Every patch member must preserve the existing Show-record structural schema. Arbitrary scratch fields, temporary containers, and final-only-valid remove/restore sequences are refused while the complete patch remains atomic. A move resolves and checks the actual destination after source detachment, immediately before `place` writes it. Direct moves between declared owners, ordinary multi-field patches, free-form maps that the schema explicitly types, identity-domain rules, and Pattern-reference edits remain supported. |
+
+V2-authored suite: `test/genericDeclaredStructure.test.ts`. The earlier
+`test/genericIdentityProvenance.test.ts` exhaustively exercised behavior under unsupported scratch
+containers and was removed. `test/genericIdentityTransit.test.ts` now retains only direct moves
+between declared placement owners. The earlier sections remain as the exact history of why the
+provenance model was introduced and repaired; they do not claim scratch transit is a current
+supported surface.
+
 ## Dependencies declared for this closure
 
 | Package | V3 range | Declared here | Installed |

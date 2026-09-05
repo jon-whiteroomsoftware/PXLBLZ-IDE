@@ -3,13 +3,11 @@
 // provenance carried by the objects of one private working copy rather than
 // re-inferred from the path an object currently sits at.
 //
-// Why: three repairs in a row enforced "an element is an array-member object
-// with a string id" against the working record as it stood when each patch
-// operation ran. A move that parks an element under a temporary key (a
-// wrapper the agent builds, or /scratch at the root) makes the same object
-// stop being an array member, so its id became writable and moving it back
-// reinserted it as a fresh element. The reviewer's exploit was
-// move /outputEffects/0 -> /scratch, replace /scratch/id, move back.
+// Why: path-only checks lost an element's identity as a move changed its
+// location. The tracker instead tags every element in the private working
+// copy. Jon's later narrowed completion contract requires every patch member
+// to remain declared Show structure, so arbitrary parking wrappers are now
+// rejected before a later member can use them.
 //
 // The model. When a generic operation clones the record into its private
 // working copy it creates one IdentityTracker over that clone, which tags
@@ -24,18 +22,15 @@
 //     missing id being a rewrite - and drops (tombstones) those it holds
 //     nothing for; it never renames one and never introduces an element;
 //   - removal tombstones every tagged object in the removed subtree in the
-//     domain its tag records - for a parked element, the collection it came
-//     from - and a tombstone survives the whole patch;
+//     domain its tag records, and a tombstone survives the whole patch;
 //   - copy of anything tagged is refused: the generics cannot mint ids;
 //   - a move transports the same object references, tags intact. The root of
 //     the moved subtree enters the destination collection when placed at an
 //     array position (re-domained and checked against tombstones and
-//     duplicates like an insertion; an undeclared collection fails closed)
-//     and is parked, tag unchanged, when placed at a key. Nested elements stay
-//     in their own collections, which move with them: they keep their domain
-//     while the destination shape declares none (parked under a wrapper) and
-//     are re-derived and checked like an entry where it declares one (an
-//     Effect stack moved between placements). A move onto an existing key
+//     duplicates like an insertion; an undeclared collection fails closed).
+//     Nested elements stay in their own collections, which move with them,
+//     and are re-derived where a declared destination changes their domain
+//     (an Effect stack moved between placements). A move onto an existing key
 //     drops what was there before checking the incoming identities, so the
 //     admission is equivalent to an explicit remove-destination then move;
 //   - an inserted fresh value has every array-member object with an id

@@ -1457,7 +1457,13 @@ nearest candidates on a Zone miss), and the third review to one redesign
 `grammar/identity.ts`, so a move that parks an element under a temporary key
 never makes its id writable). Subsequent reviews repaired ancestor-write and
 nested-transit holes, then made a move that overwrites a collection key
-tombstone the old subtree before admitting the transported identities;
+tombstone the old subtree before admitting the transported identities. A
+third blocking review of that redesign exposed a destination-array shift
+between a move's identity precheck and write. Jon approved a narrower final
+diagnostic contract: every `apply_patch` member must preserve declared Show
+structure, arbitrary scratch/parking containers and final-only-valid sequences
+are refused, and a move resolves and checks its actual destination after source
+detachment immediately before writing;
 `PROVENANCE.md` records each
 before/after so none is read as V3 semantics. The
 [agent candidate application contract](contracts/agent-candidate-application.md)

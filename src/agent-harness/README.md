@@ -250,7 +250,16 @@ parked element under its exact id (an id-less object at its place is a rewrite, 
 and a moved subtree's nested elements keep their domain until the destination declares one. The
 next review found an ordering hole when a move overwrote an existing collection key: the tracker
 now tombstones the overwritten subtree before admitting the transported identities, making that
-identity check equivalent to an explicit remove-destination then move.
+identity check equivalent to an explicit remove-destination then move. A third blocking review
+of the redesign found a move-destination array shift that changed the actual identity target
+after the precheck. Jon then approved a narrower completion contract: `apply_patch` is for
+ordinary edits to declared Show structure, every member must preserve structural validity, and
+arbitrary scratch fields, temporary containers, and final-only-valid sequences are refused. A
+move resolves and checks its actual destination after detaching the source, immediately before
+the write. The ordinary 43-case corpus and scripted browser baseline contain no scratch transit
+or generic-operation scripts. The superseded scratch-provenance suite was removed; direct moves
+between declared owners retain their identity coverage in the smaller transit suite, and
+`genericDeclaredStructure.test.ts` owns the supported/rejected boundary and atomicity proof.
 
 ## What this slice does not include
 

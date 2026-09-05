@@ -37,9 +37,10 @@ Unreachable paths: none.
 
 ## Generic-only paths (the gap list)
 
-Reachable through `set_field` / `apply_patch` only. Generic-operation use is
-logged per session; frequent use of a path here is the signal to add a
-specific operation for it.
+Reachable through `set_field` / `apply_patch` only. Each patch member must
+preserve declared Show structure; arbitrary scratch paths and final-only-valid
+sequences are outside the generic contract. Generic-operation use is logged per
+session; frequent use of a path here is the signal to add a specific operation.
 
 - `/cells/*/adaptations/brightness`
 - `/cells/*/adaptations/lightShutter/clockBehavior`

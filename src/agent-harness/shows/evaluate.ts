@@ -86,6 +86,17 @@ function structuralValidator(): ValidateFunction {
   return cachedValidator
 }
 
+/** Structural Show-record issues only, without pattern resolution or semantic evaluation. */
+export function validateShowStructure(input: unknown): ShowIssue[] {
+  const validate = structuralValidator()
+  if (validate(input)) return []
+  return (validate.errors ?? []).map((error) => ({
+    code: 'schema' as const,
+    path: error.instancePath || '/',
+    message: `${error.instancePath || 'document'} ${error.message ?? 'is invalid'}`.trim(),
+  }))
+}
+
 /** Accepts the document as a parsed object or a JSON string. */
 export function parseShowDocument(input: unknown): { document: unknown } | { error: ShowIssue } {
   if (typeof input !== 'string') return { document: input }
@@ -203,16 +214,8 @@ export function prepareShowDocument(
   const parsed = parseShowDocument(input)
   if ('error' in parsed) return { errors: [parsed.error] }
 
-  const validate = structuralValidator()
-  if (!validate(parsed.document)) {
-    return {
-      errors: (validate.errors ?? []).map((error) => ({
-        code: 'schema' as const,
-        path: error.instancePath || '/',
-        message: `${error.instancePath || 'document'} ${error.message ?? 'is invalid'}`.trim(),
-      })),
-    }
-  }
+  const structuralIssues = validateShowStructure(parsed.document)
+  if (structuralIssues.length > 0) return { errors: structuralIssues }
 
   const show = parsed.document as ShowRecord
   const { userPatterns, errors, unresolved } = resolveShowPatterns(show, inlinePatterns, options)

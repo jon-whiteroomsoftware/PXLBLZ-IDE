@@ -5,9 +5,11 @@
 // (array wildcards as '*'), excludes identity and derived fields through the
 // documented allowlist below, and classifies each path against the
 // registry's declared touch paths. The generic operations (set_field /
-// apply_patch) cover everything else by construction; a path is unreachable
-// only if the generics are barred from it too, and the coverage test asserts
-// there are none.
+// apply_patch) cover the remaining declared schema paths, but apply_patch
+// requires each member — not only its final result — to preserve structural
+// validity. Arbitrary scratch paths are outside this report. A schema path is
+// unreachable only if the generics are barred from it too, and the coverage
+// test asserts there are none.
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { SHOW_GRAMMAR_OPERATIONS } from './registry.js'
@@ -260,9 +262,10 @@ export function renderCoverageReport(report: CoverageReport): string {
   lines.push('')
   lines.push('## Generic-only paths (the gap list)')
   lines.push('')
-  lines.push('Reachable through `set_field` / `apply_patch` only. Generic-operation use is')
-  lines.push('logged per session; frequent use of a path here is the signal to add a')
-  lines.push('specific operation for it.')
+  lines.push('Reachable through `set_field` / `apply_patch` only. Each patch member must')
+  lines.push('preserve declared Show structure; arbitrary scratch paths and final-only-valid')
+  lines.push('sequences are outside the generic contract. Generic-operation use is logged per')
+  lines.push('session; frequent use of a path here is the signal to add a specific operation.')
   lines.push('')
   for (const path of report.genericOnly) {
     lines.push(`- \`${path}\``)

@@ -1,11 +1,11 @@
 // Provenance: pxlblz-v3 src/grammar/operations/generic.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
-// Generic operation family (#22): the completeness backstop. set_field and
-// apply_patch reach any editable path of the ShowRecord the specific
-// operations miss (the Trails output Effect is the first known such path).
-// Both validate their result through tier-0 immediately — even inside a
-// transaction — and refuse invalid results with the typed issues. Their use
-// is a diagnostic: the session logs it, and the dictation runner reports how
-// often an agent had to fall back here; that log is the gap list for
+// Generic operation family (#22): the bounded backstop. set_field and
+// apply_patch reach declared editable paths of the ShowRecord that specific
+// operations miss (the Trails output Effect was the first known such path).
+// Each apply_patch member must leave a structurally valid Show, and the final
+// result passes tier 0 even inside a transaction. Arbitrary scratch fields,
+// temporary containers, and final-only-valid sequences are outside this
+// diagnostic contract. Generic use remains logged as the gap list for
 // specific operations still worth adding.
 //
 // Element identity preservation (#945 correction, re-done after each of the
@@ -21,7 +21,7 @@
 // dropped whole with its tracker.
 import { z } from 'zod'
 import type { ShowRecord } from '@/engine/personalContentRecords'
-import { validateShowDocument } from '../../shows/evaluate.js'
+import { validateShowDocument, validateShowStructure } from '../../shows/evaluate.js'
 import { createIdentityTracker, type IdentityTracker } from '../identity.js'
 import type { GrammarOperationResult, ShowGrammarOperation } from '../registry.js'
 import type { GrammarIssue, ShowGrammarDocument } from '../types.js'
@@ -31,8 +31,8 @@ export const GENERIC_OPERATION_NAMES = ['set_field', 'apply_patch']
 
 /**
  * Root pointers the generic operations refuse to touch: the record's own
- * identity and engine bookkeeping. Element identity inside the record is the
- * tracker's concern. Everything else in the record is reachable.
+ * identity and engine bookkeeping. Element identity inside the declared Show
+ * structure is the tracker's concern.
  */
 export const PROTECTED_POINTER_PATTERNS: string[] = ['/id', '/updatedAt']
 
@@ -182,6 +182,11 @@ function place(
   const resolved = resolveParent(root, segments, path)
   if (!resolved.ok) return resolved
   const { parent, key } = resolved
+  // A move source can be before its destination in the same array. Resolve
+  // and check the destination only now, after detach has shifted that array,
+  // so the checked node is exactly the one the following write will touch.
+  const destinationIdentity = tracker.pointerIssue(segments, path, 'rewritten')
+  if (destinationIdentity) return { ok: false, issue: destinationIdentity }
   const site = tracker.childSite(tracker.siteOf(segments.slice(0, -1)), parent, key, value)
   if (Array.isArray(parent)) {
     const index = key === '-' ? parent.length : Number(key)
@@ -220,7 +225,9 @@ function applyOne(
   }
   const parsed = parsePointer(operation.path)
   if (!parsed.ok) return parsed
-  if (operation.op !== 'test') {
+  // A move destination is checked by place() after source detachment, against
+  // the actual resolved write target. Every other target is stable here.
+  if (operation.op !== 'test' && operation.op !== 'move') {
     const identity = tracker.pointerIssue(parsed.segments, operation.path, operation.op === 'remove' ? 'removed' : 'rewritten')
     if (identity) return { ok: false, issue: identity }
   }
@@ -360,14 +367,14 @@ function workingCopy(document: ShowGrammarDocument): { next: Json; tracker: Iden
 const setField: ShowGrammarOperation = {
   name: 'set_field',
   description:
-    'Completeness backstop: set one field of the ShowRecord by JSON pointer, for the rare paths no ' +
+    'Bounded backstop: set one declared field of the ShowRecord by JSON pointer, for the rare paths no ' +
     'specific operation covers (the Trails output Effect, say). The result is schema- and tier-0- ' +
     'validated immediately, even inside a transaction, and refused if invalid. Prefer the specific ' +
     'operations — they carry the engine’s own planning and refusal reasons; every set_field use is ' +
     'logged as a gap signal.',
   mutates: ['/*'],
   inputShape: {
-    pointer: z.string().describe('JSON pointer into the ShowRecord (for example /outputEffects/0/retention)'),
+    pointer: z.string().describe('JSON pointer into declared ShowRecord structure (for example /outputEffects/0/retention)'),
     value: z.unknown().describe('The new value; omit to delete the field').optional(),
     delete: z.boolean().optional().describe('Remove the field instead of setting it'),
   },
@@ -406,10 +413,11 @@ const patchOperationArgument = z.object({
 const applyPatch: ShowGrammarOperation = {
   name: 'apply_patch',
   description:
-    'Completeness backstop: apply a JSON Patch (RFC 6902: add, remove, replace, move, copy, test) to the ' +
-    'ShowRecord for multi-field edits no specific operation covers. All operations apply atomically; the ' +
-    'result is schema- and tier-0-validated immediately, even inside a transaction, and refused if ' +
-    'invalid. Prefer the specific operations; every apply_patch use is logged as a gap signal.',
+    'Bounded backstop: apply a JSON Patch (RFC 6902: add, remove, replace, move, copy, test) to declared ' +
+    'ShowRecord structure for multi-field edits no specific operation covers. Every patch member must ' +
+    'leave a structurally valid Show; arbitrary scratch fields, temporary containers, and final-only-valid ' +
+    'sequences are refused. The complete patch remains atomic and its final result is tier-0 validated, ' +
+    'even inside a transaction. Prefer specific operations; every apply_patch use is logged as a gap signal.',
   mutates: ['/*'],
   inputShape: {
     patch: z.array(patchOperationArgument).min(1).describe('RFC 6902 patch operations, applied in order'),
@@ -429,6 +437,20 @@ const applyPatch: ShowGrammarOperation = {
         return refuse({
           ...outcome.issue,
           message: `Patch operation ${index} (${operation.op} ${operation.path}): ${outcome.issue.message}`,
+        })
+      }
+      // This diagnostic patch surface supports operations over declared Show
+      // structure only. Validate every member rather than only the final
+      // result, so temporary scratch fields and parking containers cannot
+      // disappear before validation while still influencing later writes.
+      const structuralIssues = validateShowStructure(next)
+      if (structuralIssues.length > 0) {
+        return refuse({
+          code: 'invalid-argument',
+          path: operation.path,
+          message:
+            `Patch operation ${index} (${operation.op} ${operation.path}) does not preserve declared Show structure: ` +
+            structuralIssues.map((issue) => `[${issue.code}] ${issue.message}`).join('; '),
         })
       }
     }

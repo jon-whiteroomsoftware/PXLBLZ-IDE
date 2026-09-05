@@ -14,11 +14,11 @@ import { applyRefused, fixture } from './support/grammarHarness.js'
 import genericOnlySnapshot from './fixtures/grammar-generic-only.json'
 
 // Test model (issue #22). Boundaries: the schema walker on hand-written
-// schemas; the coverage report over the real schema and registry (no
-// unreachable path; the generic-only list is a reviewed snapshot); the
-// generic operations' validation and refusal behavior; and the session's
-// generic-use log. The committed report artifact must reproduce exactly from
-// the schema and registry.
+// schemas; the coverage report over the real declared schema and registry (no
+// unreachable declared path; the generic-only list is a reviewed snapshot);
+// the generic operations' validation and refusal behavior; and the session's
+// generic-use log. Arbitrary paths are outside this report. The committed
+// report artifact must reproduce exactly from the schema and registry.
 
 describe('schema walker (#22)', () => {
   const document = { definitions: {} as Record<string, Record<string, unknown>> }

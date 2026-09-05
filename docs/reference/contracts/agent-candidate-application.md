@@ -122,43 +122,38 @@ diagnostic until #946, #947 and #959 decide what becomes engine code (#949).
   injected transport, by
   [`test/dictationTurnFinishOrder.test.ts`](../../../src/agent-harness/test/dictationTurnFinishOrder.test.ts).
 - The generic operations ([`grammar/operations/generic.ts`](../../../src/agent-harness/grammar/operations/generic.ts))
-  preserve every element identity of the record - the ids that editor focus
-  and agent references point at - across `set_field` and `apply_patch`.
-  Identity is provenance carried by the objects of the operation's private
-  working copy ([`grammar/identity.ts`](../../../src/agent-harness/grammar/identity.ts)),
-  not a property of the path an object currently sits at: when the copy is
-  created, every array-member object with an `id` (a Scene, Zone, Layout,
-  Transition, instance, placement, layer, Effect, track, keyframe, marker or
-  output Effect) is tagged with its id and identity domain, and the
-  obligations follow the object through the whole patch. An element's `id`
-  is never written, removed, moved or copied, wherever the element sits,
-  including under a temporary key or wrapper a move parked it at; a write
-  over an existing subtree keeps each element the written value holds an
-  object for at its place, under its own id (an object there without that
-  id is a rewrite, refused), drops the elements it holds nothing for
-  (tombstoned) and introduces none; an id removed earlier in the
-  same patch is never reintroduced into the identity domain it was removed
-  from (placements across main and overlay layers, and each record-wide
-  collection, are one domain; an Effect's domain is its placement; a parked
-  element's domain is the collection it came from; an undeclared collection
-  fails closed); an insertion carries fresh ids under those checks and its
-  elements acquire the same obligations; a move transports the same objects
-  with their tags - the transported root enters the destination collection
-  when placed at an array position and is checked like an insertion, nested
-  elements stay in their own collections and keep their domain until the
-  destination shape declares one, where they are re-derived and checked the
-  same way, and a move onto an existing key tombstones what was there before
-  admitting the incoming identities (the same identity result as an explicit
-  remove-destination then move); copy of anything tagged is refused. An object
-  with an id that was never a
-  collection member (a Pattern reference's `pattern.id`, a wrapper an agent
-  builds under a key) is not an element until it enters a collection
+  are a bounded fallback over declared `ShowRecord` structure. `set_field`
+  validates its complete result. `apply_patch` requires every member, not only
+  the final result, to leave a structurally valid Show. Arbitrary scratch
+  fields, temporary wrapper/container parking, and remove-then-restore
+  sequences whose intermediate state is structurally invalid are refused.
+  The whole operation still applies to one private clone and remains atomic.
+  The ordinary 43-case corpus and scripted browser baseline use no scratch
+  transit and no generic-operation script, so this restriction removes no
+  corpus dependency.
+
+  Within that supported domain, the generics preserve every element identity
+  that editor focus and agent references point at. Identity is provenance
+  carried by objects in the private working copy
+  ([`grammar/identity.ts`](../../../src/agent-harness/grammar/identity.ts)):
+  every array-member object with an `id` is tagged with its id and identity
+  domain; a write cannot rename it or introduce an element through an ancestor
+  replacement; removals tombstone ids per domain for the whole patch;
+  insertions admit and tag fresh ids; direct moves transport the same tagged
+  objects; and copies of tagged objects are refused. A move resolves and checks
+  its destination after source detachment, immediately before the write, so an
+  earlier source index cannot shift an unchecked identity field under the
+  destination pointer. A move onto an existing key tombstones the replaced
+  subtree before incoming admission. Nested elements are re-derived when a
+  declared destination changes their domain, such as an Effect stack moving
+  between placements. Pattern-reference `pattern.id` remains an editable
+  reference rather than an element identity
   ([`test/genericIdentity.test.ts`](../../../src/agent-harness/test/genericIdentity.test.ts),
   [`test/genericIdentityBoundary.test.ts`](../../../src/agent-harness/test/genericIdentityBoundary.test.ts),
   [`test/genericIdentityLedger.test.ts`](../../../src/agent-harness/test/genericIdentityLedger.test.ts),
-  [`test/genericIdentityProvenance.test.ts`](../../../src/agent-harness/test/genericIdentityProvenance.test.ts),
   [`test/genericIdentityTransit.test.ts`](../../../src/agent-harness/test/genericIdentityTransit.test.ts),
-  [`test/genericIdentityPlacementOrder.test.ts`](../../../src/agent-harness/test/genericIdentityPlacementOrder.test.ts)).
+  [`test/genericIdentityPlacementOrder.test.ts`](../../../src/agent-harness/test/genericIdentityPlacementOrder.test.ts),
+  [`test/genericDeclaredStructure.test.ts`](../../../src/agent-harness/test/genericDeclaredStructure.test.ts)).
   Provenance lives for one operation's working copy, as the ledger does;
   across separate operations of a transaction the contract accepts remove
   followed by add.
@@ -166,7 +161,9 @@ diagnostic until #946, #947 and #959 decide what becomes engine code (#949).
   dropping B is accepted: that record is reachable by editing A and removing
   B, and no operation names an id. The generic conclude path and the session
   commit validate through the tier-0 document validator only; the engine's
-  composition duplicate checks are not part of that path.
+  composition duplicate checks are not part of that path. Each patch member
+  passes the structural schema; the conclude path and session commit then pass
+  the complete result through tier 0.
 - Composition replacement ([`grammar/support.ts`](../../../src/agent-harness/grammar/support.ts)) preserves the captured
   timestamp; this is source evidence for the ordering gap above.
 - Service ([`bridge/service.ts`](../../../src/agent-harness/bridge/service.ts), the request path
