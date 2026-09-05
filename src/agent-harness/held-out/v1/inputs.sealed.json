@@ -1,0 +1,157 @@
+{
+  "schemaVersion": "pxlblz-held-out-inputs-v1",
+  "cases": [
+    {
+      "id": "heldout-v1-clips-resize-opening",
+      "category": "clips",
+      "referent": "ordinal",
+      "fixture": "base",
+      "utterance": "Let the opening clip run for fourteen seconds."
+    },
+    {
+      "id": "heldout-v1-clips-move-selected",
+      "category": "clips",
+      "referent": "selection",
+      "fixture": "empty-second-scene",
+      "context": { "selected_clip_at_ms": [0] },
+      "utterance": "Shift the selected clip so it begins at twenty seconds."
+    },
+    {
+      "id": "heldout-v1-clips-stock-control",
+      "category": "clips",
+      "referent": "pattern-name",
+      "fixture": "base",
+      "utterance": "Bring the comet's speed down to 0.42."
+    },
+    {
+      "id": "heldout-v1-timeline-batch",
+      "category": "timeline",
+      "referent": "time",
+      "fixture": "base",
+      "utterance": "Call 25 seconds Bridge, then set Show End to 75 seconds."
+    },
+    {
+      "id": "heldout-v1-timeline-insert-space",
+      "category": "timeline",
+      "referent": "time",
+      "fixture": "empty-second-scene",
+      "utterance": "Give me three seconds of space starting at twenty seconds."
+    },
+    {
+      "id": "heldout-v1-animation-brightness",
+      "category": "animation",
+      "referent": "ordinal",
+      "fixture": "base",
+      "utterance": "Over the opening eight seconds, fade the first clip from full brightness to thirty percent."
+    },
+    {
+      "id": "heldout-v1-animation-keyframe",
+      "category": "animation",
+      "referent": "direct",
+      "fixture": "overlay",
+      "setup": [
+        {
+          "operation": "add_property_track",
+          "args": {
+            "clip_id": "$overlayClip",
+            "target": "opacity",
+            "keyframes": [
+              { "time_ms": 2000, "value": 0.9 },
+              { "time_ms": 9000, "value": 0.2 }
+            ]
+          }
+        }
+      ],
+      "utterance": "On the overlay opacity track, add a 55 percent keyframe at six seconds."
+    },
+    {
+      "id": "heldout-v1-junctions-wipe",
+      "category": "junctions",
+      "referent": "time",
+      "fixture": "boundary-crossfade",
+      "utterance": "At the thirty-second scene boundary, use a 1.5-second wipe."
+    },
+    {
+      "id": "heldout-v1-layer-transitions-insert",
+      "category": "layer-transitions",
+      "referent": "ordinal",
+      "fixture": "empty-second-scene",
+      "setup": [
+        {
+          "operation": "resize_clip",
+          "args": { "clip_id": "$clipAt:0", "duration_ms": 10000 }
+        },
+        {
+          "operation": "add_clip",
+          "args": {
+            "zone_id": "z1",
+            "start_ms": 10000,
+            "duration_ms": 10000,
+            "pattern_kind": "stock",
+            "pattern_id": "CometLoom"
+          }
+        }
+      ],
+      "utterance": "Blend the first clip into the second over 1.25 seconds."
+    },
+    {
+      "id": "heldout-v1-effects-add",
+      "category": "effects",
+      "referent": "ordinal",
+      "fixture": "base",
+      "utterance": "Give the opening clip a vignette amount of 0.35."
+    },
+    {
+      "id": "heldout-v1-effects-update",
+      "category": "effects",
+      "referent": "direct",
+      "fixture": "base",
+      "setup": [
+        {
+          "operation": "add_clip_effect",
+          "args": {
+            "clip_id": "$clipAt:0",
+            "kind": "brightness",
+            "parameters": { "brightness": 0.2 }
+          }
+        }
+      ],
+      "utterance": "Raise that brightness effect to 0.75."
+    },
+    {
+      "id": "heldout-v1-structure-output-contract",
+      "category": "structure",
+      "referent": "none",
+      "fixture": "base",
+      "utterance": "Use 256 as the reference pixel count."
+    },
+    {
+      "id": "heldout-v1-clarification-pattern",
+      "category": "clarification",
+      "referent": "pattern-name",
+      "fixture": "four-clips",
+      "utterance": "Extend one of the comet clips."
+    },
+    {
+      "id": "heldout-v1-clarification-context",
+      "category": "clarification",
+      "referent": "hover",
+      "fixture": "base",
+      "utterance": "Move this clip five seconds later."
+    },
+    {
+      "id": "heldout-v1-refusal-split-outside",
+      "category": "refusal",
+      "referent": "ordinal",
+      "fixture": "base",
+      "utterance": "Cut the first clip at forty-eight seconds."
+    },
+    {
+      "id": "heldout-v1-refusal-last-clip",
+      "category": "refusal",
+      "referent": "ordinal",
+      "fixture": "empty-second-scene",
+      "utterance": "Remove the only clip and leave the Show empty."
+    }
+  ]
+}

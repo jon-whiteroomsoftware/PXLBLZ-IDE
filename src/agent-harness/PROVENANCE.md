@@ -152,6 +152,9 @@ budget slice: `experiment/paidCallBudget.ts` (pure rules), `experiment/paidCallG
 (ledger file, lock, halt), `experiment/providerLimits.ts` (provider ceilings with evidence and
 acceptance; empty), `experiment/budgetCli.ts`, `test/paidCallBudget.test.ts`,
 `test/paidCallGuard.test.ts`, `test/paidCallDispatch.test.ts`.
+held-out slice: `held-out/verify.ts`,
+`held-out/v1/inputs.sealed.json`, `held-out/v1/expected-outcomes.sealed.json`,
+`held-out/v1/manifest.json`, `held-out/v1/manifest.sha256`, `test/heldOutCorpus.test.ts`.
 
 ## Deliberately not transferred
 

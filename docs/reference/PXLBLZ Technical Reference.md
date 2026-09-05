@@ -1467,6 +1467,12 @@ reconciles it. Only `gpt-5.6-luna` is accepted (provider pages read
 inspects or creates the ledger. Details and the pre-run checklist are in the
 harness `README.md`.
 
+The #945 held-out release corpus is a separate, finite v1 seal under
+`src/agent-harness/held-out/v1/`. Its input and expected-outcome artifacts have manifest-recorded
+SHA-256 hashes, and the manifest has its own sha256sum-compatible seal. The verifier reports only
+version, count, category totals, release gate and manifest hash. No ordinary corpus command loads
+the held-out directory; issue #958 owns its first execution and scoring.
+
 ## 28. Known limits and accepted divergences
 
 - Pattern execution runs on the main thread; a valid infinite loop can freeze

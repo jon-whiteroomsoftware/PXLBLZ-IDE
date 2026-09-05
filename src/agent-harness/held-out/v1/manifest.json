@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "pxlblz-held-out-manifest-v1",
+  "version": "v1",
+  "sealedOn": "2026-09-05",
+  "sealedFromBase": "df4b1dc985f127b410ebe6225e444145e7442c27",
+  "caseCount": 16,
+  "categoryCounts": {
+    "animation": 2,
+    "clarification": 2,
+    "clips": 3,
+    "effects": 2,
+    "junctions": 1,
+    "layer-transitions": 1,
+    "refusal": 2,
+    "structure": 1,
+    "timeline": 2
+  },
+  "releaseGate": "#958",
+  "usageBoundary": {
+    "allowedBeforeReleaseGate": ["integrity-verification"],
+    "forbiddenBeforeReleaseGate": [
+      "execution",
+      "scoring",
+      "baseline",
+      "tuning",
+      "prompt-construction",
+      "case-selection",
+      "content-reporting"
+    ],
+    "firstScoringAuthority": "Issue #958 release qualification"
+  },
+  "artifacts": [
+    {
+      "path": "inputs.sealed.json",
+      "sha256": "5229b36b1c73f985626c2352b9850f09c5280562bed3777b0497d8129a5cc4b8"
+    },
+    {
+      "path": "expected-outcomes.sealed.json",
+      "sha256": "ec43275832c0c66f841105e156e530aa903612f44ad2deb7df30b0b4febe2715"
+    }
+  ]
+}

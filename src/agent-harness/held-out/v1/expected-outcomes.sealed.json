@@ -1,0 +1,141 @@
+{
+  "schemaVersion": "pxlblz-held-out-outcomes-v1",
+  "outcomes": [
+    {
+      "id": "heldout-v1-clips-resize-opening",
+      "outcome": "edit",
+      "assertions": [
+        { "kind": "clip-duration", "clip": { "start_ms": 0 }, "duration_ms": 14000 }
+      ]
+    },
+    {
+      "id": "heldout-v1-clips-move-selected",
+      "outcome": "edit",
+      "assertions": [
+        { "kind": "clip-start", "clip": { "pattern_name": "test" }, "start_ms": 20000 }
+      ]
+    },
+    {
+      "id": "heldout-v1-clips-stock-control",
+      "outcome": "edit",
+      "assertions": [
+        {
+          "kind": "instance-control",
+          "clip": { "pattern_name": "comet" },
+          "export_name": "sliderSpeed",
+          "value": 0.42
+        }
+      ]
+    },
+    {
+      "id": "heldout-v1-timeline-batch",
+      "outcome": "edit",
+      "maxTransactions": 1,
+      "assertions": [
+        { "kind": "marker", "time_ms": 25000, "name": "Bridge" },
+        { "kind": "show-end", "duration_ms": 75000 }
+      ]
+    },
+    {
+      "id": "heldout-v1-timeline-insert-space",
+      "outcome": "edit",
+      "assertions": [
+        { "kind": "show-end", "duration_ms": 63000 },
+        { "kind": "clip-duration", "clip": { "start_ms": 0 }, "duration_ms": 20000 }
+      ]
+    },
+    {
+      "id": "heldout-v1-animation-brightness",
+      "outcome": "edit",
+      "assertions": [
+        {
+          "kind": "track-value-at",
+          "clip": { "start_ms": 0 },
+          "target_contains": "brightness",
+          "at_local_ms": 4000,
+          "value": 0.65
+        }
+      ]
+    },
+    {
+      "id": "heldout-v1-animation-keyframe",
+      "outcome": "edit",
+      "assertions": [
+        {
+          "kind": "track-keyframes",
+          "clip": { "layer_kind": "overlay" },
+          "target_contains": "opacity",
+          "times_ms": [2000, 6000, 9000]
+        }
+      ]
+    },
+    {
+      "id": "heldout-v1-junctions-wipe",
+      "outcome": "edit",
+      "assertions": [
+        { "kind": "junction-kind", "after_scene_id": "s1", "junction_kind": "wipe" },
+        { "kind": "pointer-equals", "pointer": "/transitions/0/durationMs", "value": 1500 }
+      ]
+    },
+    {
+      "id": "heldout-v1-layer-transitions-insert",
+      "outcome": "edit",
+      "assertions": [
+        { "kind": "layer-transition", "count": 1, "duration_ms": 1250 }
+      ]
+    },
+    {
+      "id": "heldout-v1-effects-add",
+      "outcome": "edit",
+      "assertions": [
+        {
+          "kind": "effect",
+          "clip": { "start_ms": 0 },
+          "effect_kind": "vignette",
+          "parameter": "amount",
+          "value": 0.35
+        }
+      ]
+    },
+    {
+      "id": "heldout-v1-effects-update",
+      "outcome": "edit",
+      "assertions": [
+        {
+          "kind": "effect",
+          "clip": { "start_ms": 0 },
+          "effect_kind": "brightness",
+          "parameter": "brightness",
+          "value": 0.75
+        }
+      ]
+    },
+    {
+      "id": "heldout-v1-structure-output-contract",
+      "outcome": "edit",
+      "assertions": [
+        { "kind": "pointer-equals", "pointer": "/outputContract/referencePixelCount", "value": 256 }
+      ]
+    },
+    {
+      "id": "heldout-v1-clarification-pattern",
+      "outcome": "ask",
+      "assertions": []
+    },
+    {
+      "id": "heldout-v1-clarification-context",
+      "outcome": "ask",
+      "assertions": []
+    },
+    {
+      "id": "heldout-v1-refusal-split-outside",
+      "outcome": "no-edit",
+      "assertions": []
+    },
+    {
+      "id": "heldout-v1-refusal-last-clip",
+      "outcome": "no-edit",
+      "assertions": []
+    }
+  ]
+}

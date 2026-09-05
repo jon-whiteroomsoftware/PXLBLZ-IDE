@@ -18,6 +18,7 @@ the roadmap this serves.
 | `npm run agent:smoke` | One scripted turn through the real bridge (HTTP, NDJSON, MCP, session, turn runner); the candidate is exported as `.pxlshow` and `.epe` and judged after reopening through the V2 importers. Writes `reports/agent-harness/smoke/`. `-- --delay-ms <n>` holds the turn. | none |
 | `npm run agent:corpus -- --fake` | The 43-case dictation corpus through the fake agent; transcripts and report under `reports/agent-harness/corpus/`. `--replay <dir>` re-scores transcripts. | none |
 | `npm run agent:corpus -- --live --model <id> --effort <e>` | The corpus through the OpenAI Responses API under the paid-call guard below: one accounting unit per case, stops at the first refusal, lists unmeasured cases in `budget.json`. **Refuses before dispatch until a price with explicit terms (`experiment/pricing.ts`) and a provider input ceiling (`experiment/providerLimits.ts`) are accepted for the model and the ledger exists; only `gpt-5.6-luna` is accepted.** | yes, bounded |
+| `npm run agent:held-out:verify` | Verify the sealed v1 held-out manifest, artifact hashes, finite case count and #958 release gate. Prints metadata only; it cannot execute or score a case. | none |
 | `BRIDGE_AGENT=scripted npm run agent:bridge` | The bridge on an ephemeral loopback port with the fake agent; each `/utterance` body carries its `script` and optional `delayMs`. Prints the port and the overlay snippet. | none |
 | `npm run agent:bridge` | The bridge with the live agent (`BRIDGE_MODEL`, `BRIDGE_EFFORT`, `BRIDGE_PORT`) under the same guard: one accounting unit per `/utterance` turn; the ledger is locked for the process and released on SIGINT/SIGTERM. Same refusal until a price and a ceiling are accepted. | yes, bounded |
 | `npm run agent:budget [-- init]` | The paid-call ledger: `status` (default) prints the path, bounds, accepted prices with their terms, accepted ceilings, the per-call reservation, totals, remaining allowance, halt, lock and last entries with their settlement basis (exit 1 while halted); `init` creates an empty ledger at the path and refuses if one exists. | none |
@@ -163,6 +164,17 @@ settlements and any halt against the provider's usage page is a human step. The 
 report's own cost line (`estimateCostUsd`, transferred from V3) is a flat-rate diagnostic and
 not the ledger.
 
+## Sealed held-out corpus
+
+The finite v1 release set is sealed under `held-out/v1/`. Inputs and expected outcomes are
+separate JSON artifacts, authenticated by `manifest.json` and its independent
+`manifest.sha256`. The manifest records the case count, category distribution, source base and
+usage boundary. Before #958, only `npm run agent:held-out:verify` may read the set, solely to
+check integrity. The ordinary fake, live, replay and tuning paths continue to import only
+`experiment/cases.ts`; they do not load this directory. Do not include held-out contents in
+prompts, baseline reports, tuning decisions or handoffs. #958 owns the first execution and
+scoring of this exact seal.
+
 ## Bridge protocol
 
 `POST /utterance` with `{ show, utterance, history?, context?, script?, delayMs? }` returns
@@ -175,7 +187,7 @@ a busy bridge answers 429.
 ## What this slice does not include
 
 Request-id instrumentation across submission, model, validation, application, save and
-preview, the browser sequences that reproduce stale replacement and save-order failures on
-the live editor, the acceptance fixture set, the sealed held-out utterances, and the price
-verification and ledger creation that precede any paid run are later #945 slices or
-coordinator steps.
+preview, browser failure reproductions, and the acceptance fixture set remain separate #945
+slices. The budget guard and sealed held-out corpus are present; ledger creation and the
+bounded paid baseline remain coordinator steps. The held-out set is not executed or scored
+until #958.
