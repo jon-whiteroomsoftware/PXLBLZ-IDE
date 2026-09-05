@@ -122,19 +122,36 @@ diagnostic until #946, #947 and #959 decide what becomes engine code (#949).
   [`test/dictationTurnFinishOrder.test.ts`](../../../src/agent-harness/test/dictationTurnFinishOrder.test.ts).
 - The generic operations ([`grammar/operations/generic.ts`](../../../src/agent-harness/grammar/operations/generic.ts))
   preserve every element identity of the record - the ids that editor focus
-  and agent references point at - across `set_field` and `apply_patch`,
-  enforced at each patch operation against the working record: an element's
-  `id` is never written, removed, moved or copied; a write over an existing
-  subtree keeps each element under its own id and introduces none; an id
-  removed earlier in the same patch is never reintroduced into the identity
-  domain it was removed from (placements across main and overlay layers, and
-  each record-wide collection, are one domain; an Effect's domain is its
-  placement; an undeclared collection fails closed); insertion carries
-  identity under those checks; a move detaches and reinserts the same element
-  without touching the ledger; copy of an element is refused
+  and agent references point at - across `set_field` and `apply_patch`.
+  Identity is provenance carried by the objects of the operation's private
+  working copy ([`grammar/identity.ts`](../../../src/agent-harness/grammar/identity.ts)),
+  not a property of the path an object currently sits at: when the copy is
+  created, every array-member object with an `id` (a Scene, Zone, Layout,
+  Transition, instance, placement, layer, Effect, track, keyframe, marker or
+  output Effect) is tagged with its id and identity domain, and the
+  obligations follow the object through the whole patch. An element's `id`
+  is never written, removed, moved or copied, wherever the element sits,
+  including under a temporary key or wrapper a move parked it at; a write
+  over an existing subtree keeps each element under its own id, may drop
+  elements (tombstoned) and introduces none; an id removed earlier in the
+  same patch is never reintroduced into the identity domain it was removed
+  from (placements across main and overlay layers, and each record-wide
+  collection, are one domain; an Effect's domain is its placement; a parked
+  element's domain is the collection it came from; an undeclared collection
+  fails closed); an insertion carries fresh ids under those checks and its
+  elements acquire the same obligations; a move transports the same objects
+  with their tags - elements entering a collection are checked like an
+  insertion, and a move onto an existing key drops what was there; copy of
+  anything tagged is refused. An object with an id that was never a
+  collection member (a Pattern reference's `pattern.id`, a wrapper an agent
+  builds under a key) is not an element until it enters a collection
   ([`test/genericIdentity.test.ts`](../../../src/agent-harness/test/genericIdentity.test.ts),
   [`test/genericIdentityBoundary.test.ts`](../../../src/agent-harness/test/genericIdentityBoundary.test.ts),
-  [`test/genericIdentityLedger.test.ts`](../../../src/agent-harness/test/genericIdentityLedger.test.ts)).
+  [`test/genericIdentityLedger.test.ts`](../../../src/agent-harness/test/genericIdentityLedger.test.ts),
+  [`test/genericIdentityProvenance.test.ts`](../../../src/agent-harness/test/genericIdentityProvenance.test.ts)).
+  Provenance lives for one operation's working copy, as the ledger does;
+  across separate operations of a transaction the contract accepts remove
+  followed by add.
   A whole-collection write that keeps id A with B's former content while
   dropping B is accepted: that record is reachable by editing A and removing
   B, and no operation names an id. The generic conclude path and the session

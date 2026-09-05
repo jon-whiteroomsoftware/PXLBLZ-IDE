@@ -240,7 +240,11 @@ stock id; `resolve_reference` validates its time and context pointers before the
 and a dark stretch's `darkFraction` is frame-weighted. The review of those repairs found three
 more, repaired the same way: the removed-id ledger is owned per identity domain and a move
 retains identity without touching it; a tool round's finishes take effect in order, the first
-standing; and a Zone miss ranks its nearest candidates by distance from the queried time.
+standing; and a Zone miss ranks its nearest candidates by distance from the queried time. The
+third review found the identity classification itself unsound (a move that parked an element
+under a temporary key made its id writable), so element identity is now provenance carried by
+the working copy's objects (`grammar/identity.ts`): every generic identity rule follows the
+object wherever the patch moves it, and `generic.ts` keeps only the patch mechanics.
 
 ## What this slice does not include
 

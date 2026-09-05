@@ -1452,7 +1452,10 @@ stock ids in the critique, argument validation before the Zone filter, and a
 frame-weighted dark fraction), and the review of those repairs to three more
 (a removed-id ledger owned per identity domain with identity-retaining moves,
 finishes taking effect in order within a tool round, and distance-ranked
-nearest candidates on a Zone miss); `PROVENANCE.md` records each
+nearest candidates on a Zone miss), and the third review to one redesign
+(element identity as provenance carried by the working copy's objects in
+`grammar/identity.ts`, so a move that parks an element under a temporary key
+never makes its id writable); `PROVENANCE.md` records each
 before/after so none is read as V3 semantics. The
 [agent candidate application contract](contracts/agent-candidate-application.md)
 owns the editor boundary it targets. The browser baseline

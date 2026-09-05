@@ -163,8 +163,8 @@ behaviour:
 
 New files (V2-authored, #945): `run.ts` (Vite module runner entry: the V2 stock catalogue uses
 `import.meta.glob`/`?raw`, so this closure cannot execute under plain `tsx`), `bridge/smoke.ts`,
-`test/bridgeSmoke.test.ts`, `test/critiqueShow.drift.diagnostic.ts`, this file, `README.md`;
-
+`test/bridgeSmoke.test.ts`, `test/critiqueShow.drift.diagnostic.ts`, `grammar/identity.ts` (the
+element identity model adopted after the third candidate review, below), this file, `README.md`;
 budget slice: `experiment/paidCallBudget.ts` (pure rules), `experiment/paidCallGuard.ts`
 (ledger file, lock, halt), `experiment/providerLimits.ts` (provider ceilings with evidence and
 acceptance; empty), `experiment/budgetCli.ts`, `test/paidCallBudget.test.ts`,
@@ -268,6 +268,20 @@ V2-authored suites for these repairs: `test/genericIdentityLedger.test.ts`,
 adapter-level suites share `test/support/mockOpenAiTransport.ts`, because the node Vitest
 project does not isolate files and two hoisted `openai` mocks in one worker would feed a queue
 nobody consumes.
+
+### Redesign after the third candidate review (9cfa99e5)
+
+The third review found the identity guard's classification itself unsound, not one more rule:
+every check asked "is this an array-member object with an id?" of the working record as it
+stood, so a move that parked an element under a temporary key made its id writable. After three
+consecutive blocking reviews Jon authorized a change of model on 2026-09-05; it was built with a
+V2-authored suite that failed against `9cfa99e5` first.
+
+| # | Finding | Files | Before (9cfa99e5) | After |
+| --- | --- | --- | --- | --- |
+| 1 | Element identity re-inferred from the current path | `grammar/identity.ts` (new), `grammar/operations/generic.ts` | `move /outputEffects/0 -> /scratch`, `replace /scratch/id`, `move /scratch -> /outputEffects/0` renamed the output Effect: detached, the object was no longer an array member, so the id write passed, and the move back was an insertion carrying a fresh id. The same held for any wrapper key, for a parked parent's nested elements, for a replace of the parked object, and a copy of a parked element was not refused. | Identity is provenance carried by the objects of the operation's private working copy: `createIdentityTracker` tags every array-member object with an id when the clone is made (id and identity domain, keyed by object reference), a move transports the same objects with their tags, an insertion tags its elements after the checks, an overwrite passes tags to the kept fresh values, and removal tombstones tagged objects in their tag's domain wherever they sit. `generic.ts` keeps only the JSON Patch mechanics and the protected root pointers; the path-based `identityPointerIssue`, `identitiesOf`/`domainsOf`, `Attachment` and owner-keyed `siteOf` are gone. The declared domains, the per-domain ledger, every prior refusal and acceptance are unchanged. One corner widened: a move onto an existing key now drops the old value and places the moved subtree (it was refused as an introduction when the subtree carried nested elements). |
+
+V2-authored suite: `test/genericIdentityProvenance.test.ts`.
 
 ## Dependencies declared for this closure
 
