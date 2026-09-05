@@ -296,6 +296,17 @@ the same module with a suite that failed against `94985154` first.
 
 V2-authored suite: `test/genericIdentityTransit.test.ts`.
 
+### Repair after the second review of the redesign (3ed94be8)
+
+The next review found one ordering hole in the provenance model. It was repaired in the same
+module with a public registry/session suite that failed against `3ed94be8` first.
+
+| # | Finding | Files | Before (3ed94be8) | After |
+| --- | --- | --- | --- | --- |
+| 1 | A move admitted identities before tombstoning the overwritten subtree (P1) | `grammar/identity.ts` | Two placements may each own a distinct Effect named `fx`. Moving the overlay placement's complete `effects` array onto the main placement's existing `effects` key checked the incoming `fx` while no main-domain tombstone existed, then tombstoned the old main `fx` and assigned the incoming object to that domain. `(main placement, fx)` silently referred to a different Effect, although the equivalent explicit remove-destination then move was refused. | A key-placement move accounts for the overwritten subtree first, then applies the ordinary transported-entry check. The incoming `fx` sees the destination-domain tombstone and is refused; a fresh incoming id is accepted; the same string in an independent marker domain remains legal. Refusal remains atomic because the tracker and complete working copy are private to the operation and discarded together. |
+
+V2-authored suite: `test/genericIdentityPlacementOrder.test.ts`.
+
 ## Dependencies declared for this closure
 
 | Package | V3 range | Declared here | Installed |

@@ -247,7 +247,10 @@ the working copy's objects (`grammar/identity.ts`): every generic identity rule 
 object wherever the patch moves it, and `generic.ts` keeps only the patch mechanics. The review
 of that redesign found two holes in it, repaired in the same module: an ancestor write keeps a
 parked element under its exact id (an id-less object at its place is a rewrite, not a drop),
-and a moved subtree's nested elements keep their domain until the destination declares one.
+and a moved subtree's nested elements keep their domain until the destination declares one. The
+next review found an ordering hole when a move overwrote an existing collection key: the tracker
+now tombstones the overwritten subtree before admitting the transported identities, making that
+identity check equivalent to an explicit remove-destination then move.
 
 ## What this slice does not include
 

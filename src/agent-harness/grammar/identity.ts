@@ -36,7 +36,8 @@
 //     while the destination shape declares none (parked under a wrapper) and
 //     are re-derived and checked like an entry where it declares one (an
 //     Effect stack moved between placements). A move onto an existing key
-//     drops what was there;
+//     drops what was there before checking the incoming identities, so the
+//     admission is equivalent to an explicit remove-destination then move;
 //   - an inserted fresh value has every array-member object with an id
 //     tagged after the insertion checks, so inserted elements acquire the
 //     same obligations; an object with an id at a key site that was never a
@@ -191,7 +192,7 @@ export interface IdentityTracker {
   insertIssue(value: unknown, site: Site, targetArray: unknown[] | null, path: string): GrammarIssue | null
   /** A fresh value written over `oldValue` at its site; tags kept elements and tombstones dropped ones on success. */
   overwriteIssue(oldValue: unknown, nextValue: unknown, site: Site, path: string): GrammarIssue | null
-  /** A transported subtree placed at a site, dropping `oldValue` if the site held one; re-domains entering elements on success. */
+  /** A transported subtree placed at a site, first dropping `oldValue` if the site held one; re-domains entering elements on success. */
   placeIssue(value: unknown, oldValue: unknown, site: Site, targetArray: unknown[] | null, path: string): GrammarIssue | null
   /** A value leaving the record: every tagged object in it is tombstoned in its domain. */
   removed(value: unknown): void
@@ -427,9 +428,15 @@ export function createIdentityTracker(root: unknown): IdentityTracker {
     },
 
     placeIssue(value, oldValue, site, targetArray, path) {
+      // A key placement replaces its old subtree. Account for that removal
+      // before admission, exactly as an explicit remove followed by move:
+      // otherwise two distinct Effects with the same id in independent source
+      // placements can redirect the destination placement's identity.
+      // On refusal the generic operation discards this tracker and its private
+      // working copy, so these provisional tombstones cannot escape.
+      if (oldValue !== undefined) removed(oldValue)
       const checked = enteringIssue(value, site, targetArray, path, true)
       if (!checked.ok) return checked.issue
-      if (oldValue !== undefined) removed(oldValue)
       for (const candidate of checked.entering) tags.set(candidate.node, { id: candidate.id, domain: identityDomain(candidate.collection) })
       return null
     },

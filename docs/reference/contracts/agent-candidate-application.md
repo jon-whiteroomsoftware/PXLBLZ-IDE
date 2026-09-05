@@ -147,15 +147,18 @@ diagnostic until #946, #947 and #959 decide what becomes engine code (#949).
   when placed at an array position and is checked like an insertion, nested
   elements stay in their own collections and keep their domain until the
   destination shape declares one, where they are re-derived and checked the
-  same way, and a move onto an existing key drops what was there; copy of
-  anything tagged is refused. An object with an id that was never a
+  same way, and a move onto an existing key tombstones what was there before
+  admitting the incoming identities (the same identity result as an explicit
+  remove-destination then move); copy of anything tagged is refused. An object
+  with an id that was never a
   collection member (a Pattern reference's `pattern.id`, a wrapper an agent
   builds under a key) is not an element until it enters a collection
   ([`test/genericIdentity.test.ts`](../../../src/agent-harness/test/genericIdentity.test.ts),
   [`test/genericIdentityBoundary.test.ts`](../../../src/agent-harness/test/genericIdentityBoundary.test.ts),
   [`test/genericIdentityLedger.test.ts`](../../../src/agent-harness/test/genericIdentityLedger.test.ts),
   [`test/genericIdentityProvenance.test.ts`](../../../src/agent-harness/test/genericIdentityProvenance.test.ts),
-  [`test/genericIdentityTransit.test.ts`](../../../src/agent-harness/test/genericIdentityTransit.test.ts)).
+  [`test/genericIdentityTransit.test.ts`](../../../src/agent-harness/test/genericIdentityTransit.test.ts),
+  [`test/genericIdentityPlacementOrder.test.ts`](../../../src/agent-harness/test/genericIdentityPlacementOrder.test.ts)).
   Provenance lives for one operation's working copy, as the ledger does;
   across separate operations of a transaction the contract accepts remove
   followed by add.
