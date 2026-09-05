@@ -127,12 +127,20 @@ Paid-call budget slice (#945, V2-authored, after the transfer):
 - `bridge/service.ts`: optional `guard` in `BridgeOptions`; one accounting unit begun per
   `/utterance` turn. `bridge/server.ts`: opens the ledger before the credential, passes the
   guard to the agent and the bridge, releases the lock on SIGINT/SIGTERM.
+- Reservation basis (second budget commit): the byte-derived input bound of the first budget
+  commit was withdrawn because it could not establish a hard ceiling. The reservation is now the
+  provider-enforced input-token ceiling for the model and the supported request shape
+  (`experiment/providerLimits.ts`, shipped empty, accepted separately from the price) plus the
+  output cap; the byte count remains on each entry as a diagnostic and a size refusal only. A
+  settlement above the ceiling writes a persistent `halt` into the ledger that every later
+  opener refuses until cleared by hand.
 
 New files (V2-authored, #945): `run.ts` (Vite module runner entry: the V2 stock catalogue uses
 `import.meta.glob`/`?raw`, so this closure cannot execute under plain `tsx`), `bridge/smoke.ts`,
 `test/bridgeSmoke.test.ts`, `test/critiqueShow.drift.diagnostic.ts`, this file, `README.md`;
 budget slice: `experiment/paidCallBudget.ts` (pure rules), `experiment/paidCallGuard.ts`
-(ledger file, lock), `experiment/budgetCli.ts`, `test/paidCallBudget.test.ts`,
+(ledger file, lock, halt), `experiment/providerLimits.ts` (provider ceilings with evidence and
+acceptance; empty), `experiment/budgetCli.ts`, `test/paidCallBudget.test.ts`,
 `test/paidCallGuard.test.ts`, `test/paidCallDispatch.test.ts`.
 
 ## Deliberately not transferred

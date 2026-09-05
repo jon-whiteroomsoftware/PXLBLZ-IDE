@@ -7,7 +7,8 @@
 //
 // #945 budget guard: every dispatch attempt, retries included, passes
 // through `dispatch` below, the adapter's only call into the SDK. It
-// reserves the attempt's worst case with the guard before the call and
+// reserves the attempt's worst case with the guard before the call (the
+// accepted provider ceiling for the model, not the request's size) and
 // settles or abandons it after; a refusal throws PaidCallRefusedError
 // before anything reaches the network. The SDK's own retries are disabled
 // so no attempt can bypass that reservation, and max_output_tokens is
@@ -105,10 +106,6 @@ export function createOpenAiAgent(options: OpenAiAgentOptions): DictationAgent {
       const calls: ModelCallTiming[] = []
       let rateLimitWaitMs = 0
       let rateLimit: RateLimitInfo | undefined
-      // Output tokens the provider reported for this turn's earlier calls
-      // (the bound for a call that reported none): echoed reasoning is
-      // re-read server side and billed as input on the next call.
-      let priorOutputTokens = 0
 
       // The single dispatch point (#945): reserve, send, settle or abandon.
       const dispatch = async (): Promise<OpenAI.Responses.Response> => {
@@ -119,7 +116,7 @@ export function createOpenAiAgent(options: OpenAiAgentOptions): DictationAgent {
           max_output_tokens: maxOutputTokens,
           ...(options.reasoningEffort ? { reasoning: { effort: options.reasoningEffort } } : {}),
         }
-        const reservation = budget.reserve(request, priorOutputTokens)
+        const reservation = budget.reserve(request)
         if (!reservation.ok) throw new PaidCallRefusedError(reservation)
         let data: OpenAI.Responses.Response
         let response: Response
@@ -143,7 +140,6 @@ export function createOpenAiAgent(options: OpenAiAgentOptions): DictationAgent {
               }
             : undefined,
         )
-        priorOutputTokens += usage ? usage.output_tokens : maxOutputTokens
         if (!rateLimit) {
           const header = (name: string) => {
             const value = response.headers.get(name)

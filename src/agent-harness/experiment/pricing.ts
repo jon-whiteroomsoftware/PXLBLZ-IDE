@@ -11,7 +11,9 @@
 // accepted here. Before the first paid run the coordinator verifies each
 // rate against the provider and records the acceptance (name, ISO date,
 // note) on the entry; the guard also refuses an acceptance older than
-// PAID_CALL_BOUNDS.pricingAcceptanceMaxAgeDays.
+// PAID_CALL_BOUNDS.acceptanceMaxAgeDays. The price is one of two accepted
+// inputs to a reservation; the other, the provider-enforced input-token
+// ceiling, lives in providerLimits.ts with its own evidence and acceptance.
 import type { PaidCallPrice } from './paidCallBudget.js'
 
 export type ModelPrice = PaidCallPrice

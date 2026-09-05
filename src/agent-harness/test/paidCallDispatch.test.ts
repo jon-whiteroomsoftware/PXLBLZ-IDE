@@ -5,9 +5,10 @@
 // shape. Oracles: the number of HTTP requests the spy saw (a refusal means
 // zero further requests, SDK retries included), the request bodies it saw
 // (the pinned output cap, function tools only, the reserved model), the
-// ledger file reopened through the parser, and the refusal as each public
-// path surfaces it. No credential is read: OPENAI_API_KEY is a stub the spy
-// never records.
+// ledger file reopened through the parser (every reservation is the accepted
+// provider ceiling, never the request's size), and the refusal as each
+// public path surfaces it. No credential is read: OPENAI_API_KEY is a stub
+// the spy never records.
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -17,9 +18,17 @@ import { DICTATION_CASES } from '../experiment/cases.js'
 import { runCorpus } from '../experiment/cli.js'
 import { dictationFixture } from '../experiment/fixtures.js'
 import { createOpenAiAgent } from '../experiment/openaiAgent.js'
-import { parseLedger, PAID_CALL_BOUNDS, type PaidCallBounds, type PaidCallPrice } from '../experiment/paidCallBudget.js'
+import {
+  parseLedger,
+  PAID_CALL_BOUNDS,
+  SUPPORTED_REQUEST_SHAPE,
+  type PaidCallBounds,
+  type PaidCallPrice,
+  type ProviderInputLimit,
+} from '../experiment/paidCallBudget.js'
 import { initLedger, openPaidCallGuard, type PaidCallGuard } from '../experiment/paidCallGuard.js'
 import { MODEL_PRICES } from '../experiment/pricing.js'
+import { MODEL_INPUT_LIMITS } from '../experiment/providerLimits.js'
 
 const NOW = new Date('2026-09-04T12:00:00.000Z')
 const MODEL = 'test-model'
@@ -27,6 +36,18 @@ const MODEL = 'test-model'
 const PRICES: Record<string, PaidCallPrice> = {
   [MODEL]: { input: 1, cachedInput: 1, output: 1, source: 'test', readOn: '2026-09-01', acceptedForPaidRuns: { by: 'test', on: '2026-09-03' } },
 }
+/** A 200,000-token accepted ceiling: every call reserves $0.204 at the unit price. The real first request is about 97 KB, and the four-call case feeds tool output back, so a smaller ceiling would trip the size refusal instead. */
+const LIMITS: Record<string, ProviderInputLimit> = {
+  [MODEL]: {
+    maxInputTokens: 200_000,
+    requestShape: SUPPORTED_REQUEST_SHAPE,
+    source: 'test',
+    readOn: '2026-09-01',
+    evidence: 'test',
+    acceptedForPaidRuns: { by: 'test', on: '2026-09-03' },
+  },
+}
+const RESERVATION_USD = 0.204
 const USAGE = { input_tokens: 3000, input_tokens_details: { cached_tokens: 1000 }, output_tokens: 200, output_tokens_details: { reasoning_tokens: 100 }, total_tokens: 3200 }
 /** $0.0032 at the unit price. */
 const USAGE_USD = 0.0032
@@ -74,21 +95,24 @@ let ledgerPath: string
 let outDir: string
 const guards: PaidCallGuard[] = []
 
-function guardWith(overrides: { bounds?: Partial<PaidCallBounds>; prices?: Record<string, PaidCallPrice> } = {}): PaidCallGuard {
+function guardWith(
+  overrides: { bounds?: Partial<PaidCallBounds>; prices?: Record<string, PaidCallPrice>; limits?: Record<string, ProviderInputLimit>; runId?: string } = {},
+): PaidCallGuard {
   const guard = openPaidCallGuard({
     ledgerPath,
     bounds: { ...PAID_CALL_BOUNDS, ...overrides.bounds },
     prices: overrides.prices ?? PRICES,
+    limits: overrides.limits ?? LIMITS,
     now: () => NOW,
-    runId: 'run-under-test',
+    runId: overrides.runId ?? 'run-under-test',
   })
   guards.push(guard)
   return guard
 }
 
-function liveAgent(guard: PaidCallGuard, spy: Spy) {
+function liveAgent(guard: PaidCallGuard, spy: Spy, model = MODEL) {
   return createOpenAiAgent({
-    model: MODEL,
+    model,
     reasoningEffort: 'high',
     budget: guard,
     transport: {
@@ -100,11 +124,12 @@ function liveAgent(guard: PaidCallGuard, spy: Spy) {
   })
 }
 
-function ledgerEntries() {
+function ledgerOnDisk() {
   const parsed = parseLedger(readFileSync(ledgerPath, 'utf8'))
   if (!parsed.ok) throw new Error(parsed.reason)
-  return parsed.ledger.entries
+  return parsed.ledger
 }
+const ledgerEntries = () => ledgerOnDisk().entries
 
 const ONE_CASE = [DICTATION_CASES[0]]
 
@@ -129,8 +154,7 @@ describe('corpus path (runCorpus, the CLI loop)', () => {
   it('refuses before any request when the model price is not accepted for paid runs', async () => {
     const spy = responsesSpy([{ text: 'done' }])
     const guard = guardWith({ prices: MODEL_PRICES })
-    const agent = createOpenAiAgent({ model: 'gpt-5.6-luna', reasoningEffort: 'high', budget: guard, transport: { fetch: spy.fetch } })
-    const result = await runCorpus({ cases: DICTATION_CASES.slice(0, 2), agent, outDir, guard, log: () => {} })
+    const result = await runCorpus({ cases: DICTATION_CASES.slice(0, 2), agent: liveAgent(guard, spy, 'gpt-5.6-luna'), outDir, guard, log: () => {} })
 
     expect(spy.requests).toHaveLength(0)
     expect(ledgerEntries()).toHaveLength(0)
@@ -141,7 +165,25 @@ describe('corpus path (runCorpus, the CLI loop)', () => {
     expect(JSON.parse(readFileSync(join(outDir, 'budget.json'), 'utf8'))).toMatchObject({ ledgerPath, unmeasured: result.unmeasured })
   })
 
-  it('reserves before the request, pins the request shape, and settles at reported usage', async () => {
+  it('refuses before any request when no provider ceiling is accepted, price accepted or not', async () => {
+    const spy = responsesSpy([{ text: 'done' }])
+    // The shipped table: no ceiling for any model.
+    const shipped = guardWith({ limits: MODEL_INPUT_LIMITS })
+    const none = await runCorpus({ cases: ONE_CASE, agent: liveAgent(shipped, spy), outDir, guard: shipped, log: () => {} })
+    expect(spy.requests).toHaveLength(0)
+    expect(none.unmeasured[0].reason).toMatch(/limit-unknown.*no provider input-token ceiling is recorded for model "test-model"/)
+    shipped.close()
+    guards.splice(0)
+
+    // A recorded but unaccepted ceiling is no better.
+    const unaccepted = guardWith({ limits: { [MODEL]: { ...LIMITS[MODEL], acceptedForPaidRuns: undefined } }, runId: 'run-2' })
+    const refused = await runCorpus({ cases: ONE_CASE, agent: liveAgent(unaccepted, spy), outDir, guard: unaccepted, log: () => {} })
+    expect(spy.requests).toHaveLength(0)
+    expect(refused.unmeasured[0].reason).toMatch(/limit-unaccepted/)
+    expect(ledgerEntries()).toHaveLength(0)
+  })
+
+  it('reserves the full ceiling before the request, pins the request shape, and settles at reported usage', async () => {
     const spy = responsesSpy([{ text: 'I cannot do that.' }])
     const guard = guardWith()
     const result = await runCorpus({ cases: ONE_CASE, agent: liveAgent(guard, spy), outDir, guard, log: () => {} })
@@ -162,34 +204,39 @@ describe('corpus path (runCorpus, the CLI loop)', () => {
       unit: ONE_CASE[0].id,
       model: MODEL,
       state: 'settled',
+      reservedUsd: RESERVATION_USD,
+      reservedInputTokens: 200_000,
       settledUsd: USAGE_USD,
       usage: { inputTokens: 3000, cachedInputTokens: 1000, outputTokens: 200 },
     })
-    expect(entries[0].reservedUsd).toBeGreaterThan(USAGE_USD)
-    expect(entries[0].boundedInputTokens).toBeGreaterThanOrEqual(Buffer.byteLength(JSON.stringify(body)))
+    // The real first request (tool schemas, projection, prompt) is tens of
+    // kilobytes; its estimate is recorded but the ceiling is what was reserved.
+    expect(entries[0].estimatedInputTokens).toBeGreaterThan(50_000)
+    expect(entries[0].estimatedInputTokens).toBeLessThan(entries[0].reservedInputTokens)
     expect(result.unmeasured).toEqual([])
     expect(result.report.totals.cases).toBe(1)
     expect(result.budget?.aggregate.consumedUsd).toBe(USAGE_USD)
     expect(result.report.cases[0].timing?.modelCalls).toBe(1)
   })
 
-  it('stops a case at four model calls and records it as unmeasured', async () => {
+  it('stops a case at four model calls, each reserved at the same full ceiling', async () => {
     const spy = responsesSpy([{ call: 'describe_show', args: { session_id: 'show-1' } }])
     const guard = guardWith()
     const result = await runCorpus({ cases: ONE_CASE, agent: liveAgent(guard, spy), outDir, guard, log: () => {} })
 
     expect(spy.requests).toHaveLength(4)
-    expect(ledgerEntries().map((entry) => entry.state)).toEqual(['settled', 'settled', 'settled', 'settled'])
+    const entries = ledgerEntries()
+    expect(entries.map((entry) => entry.state)).toEqual(['settled', 'settled', 'settled', 'settled'])
     expect(result.unmeasured).toEqual([{ caseId: ONE_CASE[0].id, reason: expect.stringMatching(/unit-calls.*4 of 4/) }])
     expect(result.budget?.aggregate.consumedUsd).toBe(4 * USAGE_USD)
-    // The fed-back items grew the bound each call, and each call's prior
-    // output was carried in.
-    const bounds = ledgerEntries().map((entry) => entry.boundedInputTokens)
-    expect(bounds[1]).toBeGreaterThan(bounds[0])
-    expect(bounds[3]).toBeGreaterThan(bounds[2])
+    // The fed-back items grew the request each call; the reservation did not move.
+    const estimates = entries.map((entry) => entry.estimatedInputTokens)
+    expect(estimates[1]).toBeGreaterThan(estimates[0])
+    expect(estimates[3]).toBeGreaterThan(estimates[2])
+    expect(entries.map((entry) => entry.reservedUsd)).toEqual([RESERVATION_USD, RESERVATION_USD, RESERVATION_USD, RESERVATION_USD])
   })
 
-  it('reserves a 429 retry separately and keeps the failed attempt as ambiguous spend', async () => {
+  it('reserves a 429 retry separately at the full ceiling and keeps the failed attempt as ambiguous spend', async () => {
     const spy = responsesSpy([{ status: 429 }, { text: 'done' }])
     const guard = guardWith()
     await runCorpus({ cases: ONE_CASE, agent: liveAgent(guard, spy), outDir, guard, log: () => {} })
@@ -197,22 +244,18 @@ describe('corpus path (runCorpus, the CLI loop)', () => {
     expect(spy.requests).toHaveLength(2)
     expect(spy.sleeps).toEqual([2000])
     const entries = ledgerEntries()
-    expect(entries.map((entry) => entry.state)).toEqual(['ambiguous', 'settled'])
+    expect(entries.map((entry) => [entry.state, entry.reservedUsd])).toEqual([
+      ['ambiguous', RESERVATION_USD],
+      ['settled', RESERVATION_USD],
+    ])
     expect(entries[0].note).toMatch(/status 429/)
-    expect(guard.status().aggregate.consumedUsd).toBe(Math.round((entries[0].reservedUsd + USAGE_USD) * 1e6) / 1e6)
+    expect(guard.status().aggregate.consumedUsd).toBe(Math.round((RESERVATION_USD + USAGE_USD) * 1e6) / 1e6)
   })
 
-  it('refuses the retry itself when the run cannot absorb another reservation', async () => {
+  it('refuses the retry itself when the run cannot absorb another full reservation', async () => {
     const spy = responsesSpy([{ status: 429 }, { text: 'done' }])
     // Room for exactly one worst case: the first attempt fits, its retry does not.
-    const probe = guardWith()
-    probe.beginUnit('probe')
-    const oneCall = probe.reserve({ model: MODEL, input: [{ role: 'user', content: 'x'.repeat(120_000) }], tools: [], max_output_tokens: 4000 }, 0)
-    if (!oneCall.ok) throw new Error(oneCall.reason)
-    probe.close()
-    rmSync(ledgerPath)
-    initLedger(ledgerPath, 'test', NOW)
-    const guard = guardWith({ bounds: { perRunUsd: oneCall.reservedUsd } })
+    const guard = guardWith({ bounds: { perRunUsd: RESERVATION_USD } })
     const result = await runCorpus({ cases: ONE_CASE, agent: liveAgent(guard, spy), outDir, guard, log: () => {} })
 
     expect(spy.requests).toHaveLength(1)
@@ -220,18 +263,27 @@ describe('corpus path (runCorpus, the CLI loop)', () => {
     expect(result.unmeasured[0].reason).toMatch(/run-exhausted/)
   })
 
-  it('halts after usage beyond the reservation and keeps the actual cost', async () => {
+  it('halts the ledger after usage beyond the ceiling, keeps the actual cost, and refuses the next run at open', async () => {
     const overrun = { ...USAGE, input_tokens: 5_000_000, input_tokens_details: { cached_tokens: 0 }, total_tokens: 5_000_200 }
     const spy = responsesSpy([{ call: 'describe_show', args: { session_id: 'show-1' }, usage: overrun }, { text: 'done' }])
     const guard = guardWith({ bounds: { perRunUsd: 20 } })
     const result = await runCorpus({ cases: ONE_CASE, agent: liveAgent(guard, spy), outDir, guard, log: () => {} })
 
     expect(spy.requests).toHaveLength(1)
-    const entries = ledgerEntries()
-    expect(entries).toHaveLength(1)
-    expect(entries[0]).toMatchObject({ state: 'settled', settledUsd: 5.0002, exceededReservation: true })
-    expect(result.unmeasured[0].reason).toMatch(/halted.*input tokens reported against a bound/)
+    const ledger = ledgerOnDisk()
+    expect(ledger.entries).toHaveLength(1)
+    expect(ledger.entries[0]).toMatchObject({ state: 'settled', settledUsd: 5.0002, exceededReservation: true })
+    expect(ledger.halt).toMatchObject({ runId: 'run-under-test', entryId: 'run-under-test-1', reason: expect.stringMatching(/5000000 input tokens reported against the 200000-token provider ceiling/) })
+    expect(result.unmeasured[0].reason).toMatch(/ledger-halted.*input tokens reported against/)
     expect(result.budget).toMatchObject({ halted: expect.stringMatching(/input tokens/), aggregate: { overruns: 1, consumedUsd: 5.0002 } })
+    expect(JSON.parse(readFileSync(join(outDir, 'budget.json'), 'utf8')).ledgerHalt).toMatchObject({ entryId: 'run-under-test-1' })
+    guard.close()
+    guards.splice(0)
+
+    // The next run, however configured, is refused before a credential or a request.
+    expect(() => guardWith({ runId: 'run-2', bounds: { aggregateUsd: 1000, perRunUsd: 1000 } })).toThrow(/ledger-halted.*removes the "halt" field/)
+    expect(spy.requests).toHaveLength(1)
+    expect(ledgerOnDisk()).toEqual(ledger)
   })
 })
 
@@ -249,8 +301,8 @@ describe('bridge path (startBridge + POST /utterance)', () => {
 
   it('accounts each utterance as its own unit and refuses the turn that no longer fits', async () => {
     const spy = responsesSpy([{ text: 'Nothing to do.' }])
-    // Two turns fit; the third does not.
-    const guard = guardWith({ bounds: { aggregateUsd: 20, perRunUsd: 0.2 } })
+    // Two full reservations fit in $0.45; a third would not.
+    const guard = guardWith({ bounds: { aggregateUsd: 20, perRunUsd: 0.45 } })
     const bridge = await startBridge({ agent: liveAgent(guard, spy), guard, port: 0, log: () => {} })
     try {
       const first = await utter(bridge.url, 'first')
@@ -258,11 +310,10 @@ describe('bridge path (startBridge + POST /utterance)', () => {
       expect(first.reply).toBe('Nothing to do.')
       expect(second.changed).toBe(false)
       expect(spy.requests).toHaveLength(2)
-      expect(ledgerEntries().map((entry) => [entry.unit, entry.state])).toEqual([
-        ['bridge-turn-1', 'settled'],
-        ['bridge-turn-2', 'settled'],
+      expect(ledgerEntries().map((entry) => [entry.unit, entry.state, entry.reservedUsd])).toEqual([
+        ['bridge-turn-1', 'settled', RESERVATION_USD],
+        ['bridge-turn-2', 'settled', RESERVATION_USD],
       ])
-
       expect(guard.status().run.consumedUsd).toBe(2 * USAGE_USD)
     } finally {
       await bridge.close()
@@ -270,8 +321,7 @@ describe('bridge path (startBridge + POST /utterance)', () => {
 
     guard.close()
     guards.splice(0)
-    const exhausted = openPaidCallGuard({ ledgerPath, bounds: { ...PAID_CALL_BOUNDS, aggregateUsd: 2 * USAGE_USD }, prices: PRICES, now: () => NOW, runId: 'run-2' })
-    guards.push(exhausted)
+    const exhausted = guardWith({ bounds: { aggregateUsd: 2 * USAGE_USD }, runId: 'run-2' })
     const again = await startBridge({ agent: liveAgent(exhausted, spy), guard: exhausted, port: 0, log: () => {} })
     try {
       const third = await utter(again.url, 'third')

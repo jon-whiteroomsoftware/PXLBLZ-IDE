@@ -1,12 +1,13 @@
 // Paid-call ledger CLI (#945). Plain tsx: nothing here needs the Vite runner.
-//   npm run agent:budget                 status: path, bounds, totals, remaining, lock, last entries
+//   npm run agent:budget                 status: path, bounds, acceptances, totals, remaining, halt, lock, last entries
 //   npm run agent:budget -- init         create an empty ledger at the path; refuses if one exists
 // The path is AGENT_HARNESS_LEDGER or the state-directory default printed by
 // status. Neither command touches a credential or the network.
 import { existsSync, readFileSync } from 'node:fs'
-import { ledgerTotals, PAID_CALL_BOUNDS } from './paidCallBudget.js'
+import { describeHalt, ledgerTotals, PAID_CALL_BOUNDS } from './paidCallBudget.js'
 import { defaultLedgerPath, initLedger, readLedger } from './paidCallGuard.js'
 import { MODEL_PRICES } from './pricing.js'
+import { MODEL_INPUT_LIMITS } from './providerLimits.js'
 
 const AUTHORISATION = '#945 live baseline: Jon authorised the existing OpenAI credential with a $20 aggregate maximum on 2026-09-04'
 
@@ -27,12 +28,23 @@ export function main(argv: string[] = process.argv.slice(2)): number {
     return 2
   }
   console.log(`ledger: ${ledgerPath}`)
-  console.log(`bounds: $${PAID_CALL_BOUNDS.aggregateUsd} aggregate, $${PAID_CALL_BOUNDS.perRunUsd} per run, ${PAID_CALL_BOUNDS.maxCallsPerUnit} calls per case or turn, ${PAID_CALL_BOUNDS.maxOutputTokensPerCall} output tokens per call, ${PAID_CALL_BOUNDS.maxInputTokensPerCall} bounded input tokens per call`)
-  const accepted = Object.entries(MODEL_PRICES).filter(([, price]) => price.acceptedForPaidRuns)
   console.log(
-    accepted.length === 0
+    `bounds: $${PAID_CALL_BOUNDS.aggregateUsd} aggregate, $${PAID_CALL_BOUNDS.perRunUsd} per run, ${PAID_CALL_BOUNDS.maxCallsPerUnit} calls per case or turn, ` +
+      `${PAID_CALL_BOUNDS.maxOutputTokensPerCall} output tokens per call, acceptances at most ${PAID_CALL_BOUNDS.acceptanceMaxAgeDays} days old`,
+  )
+  const acceptedPrices = Object.entries(MODEL_PRICES).filter(([, price]) => price.acceptedForPaidRuns)
+  console.log(
+    acceptedPrices.length === 0
       ? 'prices accepted for paid runs: none (every live run refuses before dispatch)'
-      : `prices accepted for paid runs: ${accepted.map(([model, price]) => `${model} (${price.acceptedForPaidRuns!.by}, ${price.acceptedForPaidRuns!.on})`).join(', ')}`,
+      : `prices accepted for paid runs: ${acceptedPrices.map(([model, price]) => `${model} (${price.acceptedForPaidRuns!.by}, ${price.acceptedForPaidRuns!.on})`).join(', ')}`,
+  )
+  const acceptedLimits = Object.entries(MODEL_INPUT_LIMITS).filter(([, limit]) => limit.acceptedForPaidRuns)
+  console.log(
+    acceptedLimits.length === 0
+      ? 'provider input ceilings accepted for paid runs: none (every live run refuses before dispatch; the reservation has no basis)'
+      : `provider input ceilings accepted for paid runs: ${acceptedLimits
+          .map(([model, limit]) => `${model} ${limit.maxInputTokens} tokens (${limit.acceptedForPaidRuns!.by}, ${limit.acceptedForPaidRuns!.on}; ${limit.source})`)
+          .join(', ')}`,
   )
   const lock = `${ledgerPath}.lock`
   if (existsSync(lock)) console.log(`lock: held (${readFileSync(lock, 'utf8').trim()})`)
@@ -43,6 +55,7 @@ export function main(argv: string[] = process.argv.slice(2)): number {
   }
   const totals = ledgerTotals(read.ledger)
   console.log(`created ${read.ledger.createdAt}: ${read.ledger.authorisation}`)
+  if (read.ledger.halt) console.log(`LEDGER HALTED: ${describeHalt(read.ledger.halt)}`)
   console.log(
     `consumed $${totals.consumedUsd.toFixed(6)} over ${totals.entries} entries ` +
       `(${totals.settled} settled, ${totals.ambiguous} ambiguous, ${totals.reserved} unsettled, ${totals.overruns} overruns); ` +
@@ -50,9 +63,12 @@ export function main(argv: string[] = process.argv.slice(2)): number {
   )
   for (const entry of read.ledger.entries.slice(-10)) {
     const amount = entry.state === 'settled' ? `$${(entry.settledUsd ?? 0).toFixed(6)} actual` : `$${entry.reservedUsd.toFixed(6)} reserved`
-    console.log(`  ${entry.reservedAt} ${entry.id} ${entry.unit} ${entry.model} ${entry.state} ${amount}${entry.exceededReservation ? ' OVERRUN' : ''}${entry.note ? ` (${entry.note})` : ''}`)
+    console.log(
+      `  ${entry.reservedAt} ${entry.id} ${entry.unit} ${entry.model} ${entry.state} ${amount} (ceiling ${entry.reservedInputTokens}, estimate ${entry.estimatedInputTokens})` +
+        `${entry.exceededReservation ? ' OVERRUN' : ''}${entry.note ? ` (${entry.note})` : ''}`,
+    )
   }
-  return 0
+  return read.ledger.halt ? 1 : 0
 }
 
 process.exitCode = main()

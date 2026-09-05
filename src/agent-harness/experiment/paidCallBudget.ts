@@ -19,54 +19,50 @@
 // the reservation in place as `ambiguous`, and ambiguous or still-reserved
 // entries count at their reserved amount forever: the ledger never shrinks
 // except by a settlement of the same entry, and a settlement never touches
-// another entry. Actual usage above the reservation is recorded at its
-// actual cost, flagged, and halts further dispatch in that run.
+// another entry.
 //
-// Input-token bound. The reservation's input side is derived from the UTF-8
-// byte length of the request JSON. Under a byte-level BPE tokenizer no
-// token spans less than one byte of the text it encodes, so tokens never
-// exceed bytes of the *tokenized* text; the provider's framing and its own
-// rendering of the tool schemas are not that text, and the margin factor and
-// the per-item allowance stand in for them. That makes the figure a bound
-// under stated assumptions, not a guarantee, which is why every settlement
-// compares the reported usage against it and an excess halts the run. A
-// request that carries anything whose token cost is not a function of its
-// bytes (images, files, hosted tools, server-side previous responses) is
-// refused rather than estimated.
+// Reservation basis. The worst case of one call is the provider-enforced
+// maximum input tokens for the selected model and the supported request
+// shape (`ProviderInputLimit`, recorded with its source, date, evidence and
+// a separate acceptance in `providerLimits.ts`) priced uncached, plus the
+// output cap priced in full. The request's own size is not the basis: a
+// byte-derived estimate is recorded on the entry as a diagnostic and can
+// refuse a request that is already larger than the ceiling, but it never
+// lowers a reservation. A model without an accepted ceiling is refused
+// before dispatch. If a provider ever reports usage above the ceiling the
+// reservation assumed, the settlement records the actual cost, flags the
+// entry, and writes a persistent halt into the ledger: every later run
+// refuses until a human reconciles the charged usage and clears it.
 
 export interface PaidCallBounds {
   /** Ceiling on everything the ledger has ever consumed, all runs, all states. */
   aggregateUsd: number
   /** Ceiling on what one run (one CLI invocation or bridge process) may consume. */
   perRunUsd: number
-  /** Model calls (dispatch attempts, retries included) per accounting unit. */
+  /** Model calls (dispatch attempts, retries included) per accounting unit; a positive integer. */
   maxCallsPerUnit: number
-  /** Sent as max_output_tokens on every request and reserved in full. */
+  /** Sent as max_output_tokens on every request and reserved in full; a positive integer. */
   maxOutputTokensPerCall: number
-  /** A request whose bounded input exceeds this is refused before dispatch. */
-  maxInputTokensPerCall: number
-  /** Margin over the byte count for provider framing and schema rendering. */
-  inputTokensPerByte: number
-  /** Fixed allowance per input item and per tool for message and tool framing. */
-  framingTokensPerItem: number
-  /** A price acceptance older than this (days) is refused. */
-  pricingAcceptanceMaxAgeDays: number
+  /** A price or limit acceptance older than this (days) is refused. */
+  acceptanceMaxAgeDays: number
 }
 
 /** Provenance: issue #945 "Live baseline authorization" (Jon, 2026-09-04) and
- * the coordinator's implementation choices of the same day; the input cap and
- * the two framing allowances are this slice's choices, sized from the measured
- * first-call request (about 97 KB: 88 KB of tool schemas, 5 KB of Show
- * projection, 4 KB of rules and prompt) with room for four rounds of feedback. */
+ * the coordinator's implementation choices of the same day. */
 export const PAID_CALL_BOUNDS: PaidCallBounds = {
   aggregateUsd: 20,
   perRunUsd: 2,
   maxCallsPerUnit: 4,
   maxOutputTokensPerCall: 4000,
-  maxInputTokensPerCall: 200_000,
-  inputTokensPerByte: 1.25,
-  framingTokensPerItem: 64,
-  pricingAcceptanceMaxAgeDays: 30,
+  acceptanceMaxAgeDays: 30,
+}
+
+/** Recorded only after someone verified the figure against the provider for a paid run. */
+export interface PaidRunAcceptance {
+  by: string
+  /** ISO date of the verification. */
+  on: string
+  note?: string
 }
 
 export interface PaidCallPrice {
@@ -81,28 +77,60 @@ export interface PaidCallPrice {
   /** ISO date the price was read. */
   readOn: string
   /**
-   * Set only after someone verified the price against the provider for a paid
-   * run. Absent means the guard refuses the model: a transferred or edited
-   * price is never treated as freshly verified.
+   * Absent means the guard refuses the model: a transferred or edited price
+   * is never treated as freshly verified.
    */
-  acceptedForPaidRuns?: { by: string; on: string; note?: string }
+  acceptedForPaidRuns?: PaidRunAcceptance
+}
+
+/** The one request partition the harness sends and a limit can be accepted for. */
+export const SUPPORTED_REQUEST_SHAPE = 'responses-text-function-tools'
+
+/**
+ * A provider-enforced ceiling on input tokens per request, for one model and
+ * the supported request shape. This is the reservation basis: it must come
+ * from the provider's primary documentation and be observed as enforced (a
+ * request above it is rejected, not billed), and it is accepted separately
+ * from the price because it answers a different question.
+ */
+export interface ProviderInputLimit {
+  /** Maximum input tokens the provider accepts in one request; a positive integer. */
+  maxInputTokens: number
+  /** The request partition the limit was verified for. */
+  requestShape: typeof SUPPORTED_REQUEST_SHAPE
+  /** Exact primary source: URL or document title and section. */
+  source: string
+  /** ISO date the source was read. */
+  readOn: string
+  /** What the source states and how enforcement was confirmed. */
+  evidence: string
+  /** Absent means the guard refuses the model for paid runs. */
+  acceptedForPaidRuns?: PaidRunAcceptance
 }
 
 export type PaidCallRefusalCode =
+  | 'bounds-invalid'
   | 'no-unit'
   | 'unit-calls'
   | 'run-exhausted'
   | 'aggregate-exhausted'
   | 'halted'
-  | 'input-unbounded'
+  | 'shape-unsupported'
   | 'input-too-large'
+  | 'arithmetic-overflow'
   | 'pricing-unknown'
   | 'pricing-unaccepted'
   | 'pricing-stale'
   | 'pricing-invalid'
+  | 'limit-unknown'
+  | 'limit-unaccepted'
+  | 'limit-stale'
+  | 'limit-invalid'
+  | 'limit-shape'
   | 'ledger-missing'
   | 'ledger-malformed'
   | 'ledger-locked'
+  | 'ledger-halted'
   | 'ledger-exists'
 
 export interface PaidCallRefusal {
@@ -122,6 +150,52 @@ export class PaidCallRefusedError extends Error {
 
 export function refuse(code: PaidCallRefusalCode, reason: string): PaidCallRefusal {
   return { ok: false, code, reason }
+}
+
+// ---------------------------------------------------------------------------
+// Validation helpers.
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isFiniteNonNegative(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
+function isFinitePositive(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim() !== ''
+}
+
+function isIsoDate(value: unknown): value is string {
+  return typeof value === 'string' && !Number.isNaN(Date.parse(value))
+}
+
+/** Bounds must be finite where money is concerned and integers where tokens or calls are counted. */
+export function validateBounds(bounds: PaidCallBounds): PaidCallRefusal | null {
+  if (!isPlainObject(bounds)) return refuse('bounds-invalid', 'bounds must be an object')
+  if (!isFinitePositive(bounds.aggregateUsd)) return refuse('bounds-invalid', `aggregateUsd must be a finite positive number, got ${String(bounds.aggregateUsd)}`)
+  if (!isFinitePositive(bounds.perRunUsd)) return refuse('bounds-invalid', `perRunUsd must be a finite positive number, got ${String(bounds.perRunUsd)}`)
+  if (!isPositiveInteger(bounds.maxCallsPerUnit)) return refuse('bounds-invalid', `maxCallsPerUnit must be a positive integer, got ${String(bounds.maxCallsPerUnit)}`)
+  if (!isPositiveInteger(bounds.maxOutputTokensPerCall)) {
+    return refuse('bounds-invalid', `maxOutputTokensPerCall must be a positive integer, got ${String(bounds.maxOutputTokensPerCall)}`)
+  }
+  if (!isFinitePositive(bounds.acceptanceMaxAgeDays)) {
+    return refuse('bounds-invalid', `acceptanceMaxAgeDays must be a finite positive number, got ${String(bounds.acceptanceMaxAgeDays)}`)
+  }
+  return null
 }
 
 // ---------------------------------------------------------------------------
@@ -165,12 +239,8 @@ export interface BoundedResponsesRequest {
 const ECHOED_TYPES = new Set(['message', 'function_call', 'reasoning'])
 const MESSAGE_PART_TYPES = new Set(['output_text', 'input_text', 'refusal'])
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-/** Refuse any input item whose token cost is not a function of its bytes. */
-export function unboundableItem(item: unknown, index: number): string | null {
+/** Refuse any input item outside the text-only partition the limit is accepted for. */
+export function unsupportedItem(item: unknown, index: number): string | null {
   if (!isPlainObject(item)) return `input[${index}] is not an object`
   if ('type' in item && item.type !== undefined) {
     const type = item.type
@@ -179,7 +249,7 @@ export function unboundableItem(item: unknown, index: number): string | null {
         ? null
         : `input[${index}] function_call_output must carry a string output and call_id`
     }
-    if (typeof type !== 'string' || !ECHOED_TYPES.has(type)) return `input[${index}] has type "${String(type)}", which cannot be bounded`
+    if (typeof type !== 'string' || !ECHOED_TYPES.has(type)) return `input[${index}] has type "${String(type)}", outside the supported request shape`
     if (type === 'message') {
       const content = item.content
       if (typeof content === 'string') return null
@@ -198,69 +268,89 @@ export function unboundableItem(item: unknown, index: number): string | null {
   return `input[${index}] is neither a role message nor an echoed output item`
 }
 
-export interface RequestBound {
+export interface RequestCheck {
   ok: true
   /** UTF-8 bytes of the request JSON. */
   bytes: number
-  /** The input-token figure the reservation is priced at. */
-  boundedInputTokens: number
+  /** Diagnostic only: the byte count as a rough token figure. Never prices anything. */
+  estimatedInputTokens: number
+  /** The accepted provider ceiling: what the reservation is priced at. */
+  reservedInputTokens: number
   maxOutputTokens: number
 }
 
 /**
- * Bound one request. `priorOutputTokens` is the sum of output tokens (reasoning
- * included) the provider reported for this unit's earlier calls; reasoning
- * items echoed back by id are re-read server side and billed as input, so the
- * bytes of the echoed item do not cover them.
+ * Check one request against the supported shape and the accepted ceiling.
+ * The reservation figure is the ceiling itself; the estimate is recorded for
+ * diagnosis and refuses only a request that is already larger than the
+ * ceiling, which the provider would reject and the ledger would still have
+ * to hold at the full reservation.
  */
-export function boundRequest(
+export function checkRequest(
   request: BoundedResponsesRequest,
   bounds: PaidCallBounds,
-  priorOutputTokens: number,
-): RequestBound | PaidCallRefusal {
-  if (!Number.isFinite(priorOutputTokens) || priorOutputTokens < 0) {
-    return refuse('input-unbounded', `prior output tokens must be a finite non-negative number, got ${String(priorOutputTokens)}`)
-  }
+  limit: ProviderInputLimit,
+): RequestCheck | PaidCallRefusal {
   if (!Array.isArray(request.input) || !Array.isArray(request.tools)) {
-    return refuse('input-unbounded', 'the request must carry input and tools arrays')
+    return refuse('shape-unsupported', 'the request must carry input and tools arrays')
   }
   for (const [index, item] of request.input.entries()) {
-    const problem = unboundableItem(item, index)
-    if (problem) return refuse('input-unbounded', problem)
+    const problem = unsupportedItem(item, index)
+    if (problem) return refuse('shape-unsupported', problem)
   }
   for (const [index, tool] of request.tools.entries()) {
     if (!isPlainObject(tool) || tool.type !== 'function' || typeof tool.name !== 'string') {
-      return refuse('input-unbounded', `tools[${index}] is not a function tool; hosted tools cannot be bounded`)
+      return refuse('shape-unsupported', `tools[${index}] is not a function tool; hosted tools are outside the supported request shape`)
     }
   }
   const known = new Set(['model', 'input', 'tools', 'max_output_tokens', 'reasoning'])
   for (const key of Object.keys(request)) {
-    if (!known.has(key)) return refuse('input-unbounded', `request field "${key}" is outside the bounded shape`)
+    if (!known.has(key)) return refuse('shape-unsupported', `request field "${key}" is outside the supported request shape`)
   }
   if (request.max_output_tokens !== bounds.maxOutputTokensPerCall) {
-    return refuse('input-unbounded', `max_output_tokens must be ${bounds.maxOutputTokensPerCall}, got ${String(request.max_output_tokens)}`)
+    return refuse('shape-unsupported', `max_output_tokens must be ${bounds.maxOutputTokensPerCall}, got ${String(request.max_output_tokens)}`)
   }
   const bytes = Buffer.byteLength(JSON.stringify(request), 'utf8')
-  const items = request.input.length + request.tools.length
-  const boundedInputTokens =
-    Math.ceil(bytes * bounds.inputTokensPerByte) + items * bounds.framingTokensPerItem + Math.ceil(priorOutputTokens)
-  if (boundedInputTokens > bounds.maxInputTokensPerCall) {
+  const estimatedInputTokens = bytes
+  if (estimatedInputTokens > limit.maxInputTokens) {
     return refuse(
       'input-too-large',
-      `the bounded input of ${boundedInputTokens} tokens (${bytes} bytes) exceeds the ${bounds.maxInputTokensPerCall}-token ceiling`,
+      `the request is ${bytes} bytes, already past the ${limit.maxInputTokens}-token provider ceiling the reservation would assume`,
     )
   }
-  return { ok: true, bytes, boundedInputTokens, maxOutputTokens: bounds.maxOutputTokensPerCall }
+  return { ok: true, bytes, estimatedInputTokens, reservedInputTokens: limit.maxInputTokens, maxOutputTokens: bounds.maxOutputTokensPerCall }
 }
 
 // ---------------------------------------------------------------------------
-// Prices and costs.
-
-function isFiniteNonNegative(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
-}
+// Acceptances: prices and provider limits.
 
 const DAY_MS = 24 * 60 * 60 * 1000
+
+type AcceptanceKind = 'pricing' | 'limit'
+
+/** An acceptance is a name, an ISO date, and a date inside the window ending now. */
+function checkAcceptance(
+  kind: AcceptanceKind,
+  label: string,
+  acceptance: PaidRunAcceptance | undefined,
+  bounds: PaidCallBounds,
+  now: Date,
+): PaidCallRefusal | null {
+  if (!acceptance) {
+    return refuse(
+      `${kind}-unaccepted`,
+      `${label} has not been accepted for paid runs; verify it against the provider's primary documentation and record acceptedForPaidRuns (by, on, note)`,
+    )
+  }
+  if (!isPlainObject(acceptance) || !isNonEmptyString(acceptance.by) || !isIsoDate(acceptance.on)) {
+    return refuse(`${kind}-invalid`, `the acceptance for ${label} needs a name and an ISO date`)
+  }
+  const ageDays = (now.getTime() - Date.parse(acceptance.on)) / DAY_MS
+  if (ageDays < 0 || ageDays > bounds.acceptanceMaxAgeDays) {
+    return refuse(`${kind}-stale`, `the acceptance for ${label} is dated ${acceptance.on}, outside the ${bounds.acceptanceMaxAgeDays}-day window`)
+  }
+  return null
+}
 
 /** The price a paid run may use: present, well formed, accepted, and accepted recently. */
 export function acceptedPrice(
@@ -274,29 +364,51 @@ export function acceptedPrice(
   if (!isFiniteNonNegative(price.input) || !isFiniteNonNegative(price.cachedInput) || !isFiniteNonNegative(price.output)) {
     return refuse('pricing-invalid', `the price entry for "${model}" has a non-finite or negative rate`)
   }
-  if (typeof price.readOn !== 'string' || Number.isNaN(Date.parse(price.readOn))) {
+  if (!isIsoDate(price.readOn)) {
     return refuse('pricing-invalid', `the price entry for "${model}" has no readable readOn date`)
   }
-  const acceptance = price.acceptedForPaidRuns
-  if (!acceptance) {
-    return refuse(
-      'pricing-unaccepted',
-      `the price for "${model}" (read ${price.readOn}) has not been accepted for paid runs; verify it against the provider and record acceptedForPaidRuns in pricing.ts`,
-    )
-  }
-  const acceptedOn = Date.parse(acceptance.on)
-  if (typeof acceptance.by !== 'string' || acceptance.by.trim() === '' || Number.isNaN(acceptedOn)) {
-    return refuse('pricing-invalid', `the acceptance for "${model}" needs a name and an ISO date`)
-  }
-  const ageDays = (now.getTime() - acceptedOn) / DAY_MS
-  if (ageDays < 0 || ageDays > bounds.pricingAcceptanceMaxAgeDays) {
-    return refuse(
-      'pricing-stale',
-      `the price acceptance for "${model}" is dated ${acceptance.on}, outside the ${bounds.pricingAcceptanceMaxAgeDays}-day window`,
-    )
-  }
-  return { ok: true, price }
+  const acceptance = checkAcceptance('pricing', `the price for "${model}" (read ${price.readOn})`, price.acceptedForPaidRuns, bounds, now)
+  return acceptance ?? { ok: true, price }
 }
+
+/** The provider ceiling a paid run may reserve from: present, an integer, for the supported shape, accepted recently. */
+export function acceptedLimit(
+  model: string,
+  limits: Record<string, ProviderInputLimit>,
+  bounds: PaidCallBounds,
+  now: Date,
+): { ok: true; limit: ProviderInputLimit } | PaidCallRefusal {
+  const limit = Object.prototype.hasOwnProperty.call(limits, model) ? limits[model] : undefined
+  if (!limit) {
+    return refuse(
+      'limit-unknown',
+      `no provider input-token ceiling is recorded for model "${model}"; the reservation has no basis. Record it in providerLimits.ts from the provider's primary documentation, with source, date, evidence and acceptance`,
+    )
+  }
+  if (!isPositiveInteger(limit.maxInputTokens)) {
+    return refuse('limit-invalid', `the input-token ceiling for "${model}" must be a positive integer, got ${String(limit.maxInputTokens)}`)
+  }
+  if (!isNonEmptyString(limit.source) || !isNonEmptyString(limit.evidence) || !isIsoDate(limit.readOn)) {
+    return refuse('limit-invalid', `the input-token ceiling for "${model}" needs a source, an evidence line and a readable readOn date`)
+  }
+  if (limit.requestShape !== SUPPORTED_REQUEST_SHAPE) {
+    return refuse(
+      'limit-shape',
+      `the input-token ceiling for "${model}" was verified for "${String(limit.requestShape)}", not the supported shape "${SUPPORTED_REQUEST_SHAPE}"`,
+    )
+  }
+  const acceptance = checkAcceptance(
+    'limit',
+    `the ${limit.maxInputTokens}-token provider ceiling for "${model}" (read ${limit.readOn})`,
+    limit.acceptedForPaidRuns,
+    bounds,
+    now,
+  )
+  return acceptance ?? { ok: true, limit }
+}
+
+// ---------------------------------------------------------------------------
+// Costs.
 
 export interface ReportedUsage {
   inputTokens: number
@@ -304,32 +416,39 @@ export interface ReportedUsage {
   outputTokens: number
 }
 
-/** Round to micro-dollars; never NaN. */
+/** Round to micro-dollars; a non-finite figure is an error, never a number. */
 export function roundUsd(value: number): number {
-  if (!Number.isFinite(value)) throw new Error(`cost arithmetic produced ${String(value)}`)
-  return Math.round(value * 1_000_000) / 1_000_000
+  const rounded = Math.round(value * 1_000_000) / 1_000_000
+  if (!Number.isFinite(value) || !Number.isFinite(rounded)) throw new Error(`cost arithmetic is not finite (${String(value)})`)
+  return rounded
 }
 
-/** Worst case for one call: every bounded input token uncached, every output token used. */
-export function reservationUsd(price: PaidCallPrice, bound: RequestBound): number {
-  return roundUsd((bound.boundedInputTokens * price.input + bound.maxOutputTokens * price.output) / 1_000_000)
+/** Tokens times a per-million rate, refusing any figure that leaves the finite range. */
+function tokensUsd(tokens: number, ratePerMillion: number): number {
+  if (!isNonNegativeInteger(tokens)) throw new Error(`token count is not a non-negative safe integer (${String(tokens)})`)
+  const usd = (tokens / 1_000_000) * ratePerMillion
+  if (!Number.isFinite(usd)) throw new Error(`cost arithmetic is not finite (${tokens} tokens at ${String(ratePerMillion)} per million)`)
+  return usd
+}
+
+/** Worst case for one call: the full ceiling uncached, every output token used. */
+export function reservationUsd(price: PaidCallPrice, check: RequestCheck): number {
+  return roundUsd(tokensUsd(check.reservedInputTokens, price.input) + tokensUsd(check.maxOutputTokens, price.output))
 }
 
 export function usageUsd(price: PaidCallPrice, usage: ReportedUsage): number {
-  const uncached = Math.max(0, usage.inputTokens - usage.cachedInputTokens)
-  return roundUsd(
-    (uncached * price.input + Math.min(usage.cachedInputTokens, usage.inputTokens) * price.cachedInput + usage.outputTokens * price.output) /
-      1_000_000,
-  )
+  const cached = Math.min(usage.cachedInputTokens, usage.inputTokens)
+  const uncached = usage.inputTokens - cached
+  return roundUsd(tokensUsd(uncached, price.input) + tokensUsd(cached, price.cachedInput) + tokensUsd(usage.outputTokens, price.output))
 }
 
-/** A usage block the settlement can trust: three finite non-negative integers. */
+/** A usage block the settlement can trust: three non-negative safe integers. */
 export function validUsage(usage: unknown): usage is ReportedUsage {
   return (
     isPlainObject(usage) &&
-    isFiniteNonNegative(usage.inputTokens) &&
-    isFiniteNonNegative(usage.cachedInputTokens) &&
-    isFiniteNonNegative(usage.outputTokens)
+    isNonNegativeInteger(usage.inputTokens) &&
+    isNonNegativeInteger(usage.cachedInputTokens) &&
+    isNonNegativeInteger(usage.outputTokens)
   )
 }
 
@@ -346,16 +465,27 @@ export interface LedgerEntry {
   reservedAt: string
   state: LedgerEntryState
   reservedUsd: number
-  boundedInputTokens: number
+  /** The accepted provider ceiling the reservation assumed. */
+  reservedInputTokens: number
+  /** Diagnostic: the request's byte-derived estimate at reservation time. */
+  estimatedInputTokens: number
   maxOutputTokens: number
   /** Present once settled: the actual cost from reported usage. */
   settledUsd?: number
   settledAt?: string
   usage?: ReportedUsage
-  /** Reported usage exceeded the reservation's bound; the run halted after it. */
+  /** Reported usage exceeded the reservation's assumptions; the ledger halted after it. */
   exceededReservation?: boolean
   /** Why an entry stayed ambiguous. */
   note?: string
+}
+
+/** A persistent stop: written when a settlement exceeded its reservation, cleared only by hand. */
+export interface LedgerHalt {
+  at: string
+  runId: string
+  entryId: string
+  reason: string
 }
 
 export interface LedgerDocument {
@@ -364,6 +494,7 @@ export interface LedgerDocument {
   /** Free text recorded at creation: who authorised the spend and where. */
   authorisation: string
   entries: LedgerEntry[]
+  halt?: LedgerHalt
 }
 
 export function emptyLedger(createdAt: Date, authorisation: string): LedgerDocument {
@@ -373,15 +504,16 @@ export function emptyLedger(createdAt: Date, authorisation: string): LedgerDocum
 function validEntry(value: unknown, index: number): string | null {
   if (!isPlainObject(value)) return `entries[${index}] is not an object`
   const required: Array<[string, (candidate: unknown) => boolean]> = [
-    ['id', (candidate) => typeof candidate === 'string' && candidate !== ''],
-    ['runId', (candidate) => typeof candidate === 'string' && candidate !== ''],
+    ['id', isNonEmptyString],
+    ['runId', isNonEmptyString],
     ['unit', (candidate) => typeof candidate === 'string'],
-    ['model', (candidate) => typeof candidate === 'string' && candidate !== ''],
-    ['reservedAt', (candidate) => typeof candidate === 'string' && !Number.isNaN(Date.parse(candidate))],
+    ['model', isNonEmptyString],
+    ['reservedAt', isIsoDate],
     ['state', (candidate) => candidate === 'reserved' || candidate === 'settled' || candidate === 'ambiguous'],
     ['reservedUsd', isFiniteNonNegative],
-    ['boundedInputTokens', isFiniteNonNegative],
-    ['maxOutputTokens', isFiniteNonNegative],
+    ['reservedInputTokens', isNonNegativeInteger],
+    ['estimatedInputTokens', isNonNegativeInteger],
+    ['maxOutputTokens', isNonNegativeInteger],
   ]
   for (const [key, check] of required) {
     if (!check(value[key])) return `entries[${index}].${key} is missing or malformed`
@@ -392,6 +524,15 @@ function validEntry(value: unknown, index: number): string | null {
   } else if (value.settledUsd !== undefined) {
     return `entries[${index}] is ${String(value.state)} but carries settledUsd`
   }
+  return null
+}
+
+function validHalt(value: unknown): string | null {
+  if (value === undefined) return null
+  if (!isPlainObject(value)) return 'halt is not an object'
+  if (!isIsoDate(value.at)) return 'halt.at is not an ISO date'
+  if (!isNonEmptyString(value.runId) || !isNonEmptyString(value.entryId)) return 'halt needs a runId and an entryId'
+  if (!isNonEmptyString(value.reason)) return 'halt needs a reason'
   return null
 }
 
@@ -416,7 +557,23 @@ export function parseLedger(text: string): { ok: true; ledger: LedgerDocument } 
     if (ids.has(id)) return refuse('ledger-malformed', `entries[${index}] repeats id "${id}"`)
     ids.add(id)
   }
+  const halt = validHalt(parsed.halt)
+  if (halt) return refuse('ledger-malformed', halt)
   return { ok: true, ledger: parsed as unknown as LedgerDocument }
+}
+
+/** Why a halted ledger refuses, and what a human must do; the same text on every path. */
+export function describeHalt(halt: LedgerHalt): string {
+  return (
+    `the ledger was halted at ${halt.at} by run ${halt.runId} after entry ${halt.entryId}: ${halt.reason}. ` +
+    'Every paid run refuses until a human reconciles the charged usage against the provider, records the outcome, ' +
+    'and removes the "halt" field from the ledger file by hand; the entries stay as recorded'
+  )
+}
+
+/** Write a persistent halt; pure, returns a new document. An existing halt is kept. */
+export function haltLedger(ledger: LedgerDocument, halt: LedgerHalt): LedgerDocument {
+  return ledger.halt ? ledger : { ...ledger, halt }
 }
 
 /** What one entry costs the budget: actual when settled, reserved otherwise. */
@@ -461,7 +618,7 @@ export interface ReservationInput {
   unitCalls: number
   /** Set once the run halted; carried as the refusal reason. */
   halted: string | null
-  bound: RequestBound
+  request: RequestCheck
   model: string
   entryId: string
   now: Date
@@ -470,6 +627,7 @@ export interface ReservationInput {
 /** Decide one reservation and produce the entry to append; pure. */
 export function decideReservation(input: ReservationInput): { ok: true; entry: LedgerEntry } | PaidCallRefusal {
   const { bounds } = input
+  if (input.ledger.halt) return refuse('ledger-halted', describeHalt(input.ledger.halt))
   if (input.halted) return refuse('halted', input.halted)
   if (input.unit === null) {
     return refuse('no-unit', 'no accounting unit is open; begin one per corpus case or bridge turn before dispatching')
@@ -477,16 +635,27 @@ export function decideReservation(input: ReservationInput): { ok: true; entry: L
   if (input.unitCalls >= bounds.maxCallsPerUnit) {
     return refuse('unit-calls', `unit "${input.unit}" already made ${input.unitCalls} of ${bounds.maxCallsPerUnit} model calls`)
   }
-  const reserved = reservationUsd(input.price, input.bound)
-  const aggregate = ledgerTotals(input.ledger).consumedUsd
-  if (roundUsd(aggregate + reserved) > bounds.aggregateUsd) {
+  let reserved: number
+  let aggregate: number
+  let run: number
+  let aggregateAfter: number
+  let runAfter: number
+  try {
+    reserved = reservationUsd(input.price, input.request)
+    aggregate = ledgerTotals(input.ledger).consumedUsd
+    run = ledgerTotals(input.ledger, input.runId).consumedUsd
+    aggregateAfter = roundUsd(aggregate + reserved)
+    runAfter = roundUsd(run + reserved)
+  } catch (error) {
+    return refuse('arithmetic-overflow', error instanceof Error ? error.message : String(error))
+  }
+  if (aggregateAfter > bounds.aggregateUsd) {
     return refuse(
       'aggregate-exhausted',
       `the aggregate ledger has consumed $${aggregate.toFixed(6)} and the next call reserves $${reserved.toFixed(6)}, over the $${bounds.aggregateUsd} ceiling`,
     )
   }
-  const run = ledgerTotals(input.ledger, input.runId).consumedUsd
-  if (roundUsd(run + reserved) > bounds.perRunUsd) {
+  if (runAfter > bounds.perRunUsd) {
     return refuse(
       'run-exhausted',
       `this run has consumed $${run.toFixed(6)} and the next call reserves $${reserved.toFixed(6)}, over the $${bounds.perRunUsd} per-run ceiling`,
@@ -502,8 +671,9 @@ export function decideReservation(input: ReservationInput): { ok: true; entry: L
       reservedAt: input.now.toISOString(),
       state: 'reserved',
       reservedUsd: reserved,
-      boundedInputTokens: input.bound.boundedInputTokens,
-      maxOutputTokens: input.bound.maxOutputTokens,
+      reservedInputTokens: input.request.reservedInputTokens,
+      estimatedInputTokens: input.request.estimatedInputTokens,
+      maxOutputTokens: input.request.maxOutputTokens,
     },
   }
 }
@@ -511,17 +681,17 @@ export function decideReservation(input: ReservationInput): { ok: true; entry: L
 export interface Settlement {
   entry: LedgerEntry
   settledUsd: number
-  /** Non-null when the reported usage exceeded the reservation; the run must halt. */
+  /** Non-null when the reported usage exceeded the reservation; the ledger must halt. */
   overrun: string | null
 }
 
-/** Settle a reserved entry at its reported usage; pure, returns a new entry. */
+/** Settle a reserved entry at its reported usage; pure, returns a new entry. Throws on non-finite cost. */
 export function settleEntry(entry: LedgerEntry, usage: ReportedUsage, price: PaidCallPrice, now: Date): Settlement {
   if (entry.state !== 'reserved') throw new Error(`entry ${entry.id} is ${entry.state}, not reserved`)
   const settledUsd = usageUsd(price, usage)
   const problems: string[] = []
-  if (usage.inputTokens > entry.boundedInputTokens) {
-    problems.push(`${usage.inputTokens} input tokens reported against a bound of ${entry.boundedInputTokens}`)
+  if (usage.inputTokens > entry.reservedInputTokens) {
+    problems.push(`${usage.inputTokens} input tokens reported against the ${entry.reservedInputTokens}-token provider ceiling the reservation assumed`)
   }
   if (usage.outputTokens > entry.maxOutputTokens) {
     problems.push(`${usage.outputTokens} output tokens reported against max_output_tokens ${entry.maxOutputTokens}`)

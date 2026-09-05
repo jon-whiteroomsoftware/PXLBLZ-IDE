@@ -13,33 +13,43 @@
 // a refusal, never an implicit fresh start: `npm run agent:budget -- init`
 // creates it explicitly. A malformed file is a refusal and is never
 // rewritten. A second opener while the lock is held is refused; a lock left
-// by a crashed run is reported with its holder and removed by hand.
+// by a crashed run is reported with its holder and removed by hand. A ledger
+// carrying a halt record (a settlement exceeded the provider ceiling its
+// reservation assumed) is refused at open, before any credential is read,
+// until a human reconciles the charge and removes the record by hand.
 import { closeSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync, writeSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
   abandonEntry,
+  acceptedLimit,
   acceptedPrice,
-  boundRequest,
+  checkRequest,
   decideReservation,
+  describeHalt,
   emptyLedger,
+  haltLedger,
   ledgerTotals,
   PAID_CALL_BOUNDS,
   PaidCallRefusedError,
   parseLedger,
   refuse,
   settleEntry,
+  validateBounds,
   validUsage,
   type BoundedResponsesRequest,
   type LedgerDocument,
   type LedgerEntry,
+  type LedgerHalt,
   type LedgerTotals,
   type PaidCallBounds,
   type PaidCallPrice,
   type PaidCallRefusal,
+  type ProviderInputLimit,
   type ReportedUsage,
 } from './paidCallBudget.js'
 import { MODEL_PRICES } from './pricing.js'
+import { MODEL_INPUT_LIMITS } from './providerLimits.js'
 
 export function defaultLedgerPath(env: NodeJS.ProcessEnv = process.env): string {
   if (env.AGENT_HARNESS_LEDGER) return env.AGENT_HARNESS_LEDGER
@@ -51,7 +61,10 @@ export interface PaidCallReservation {
   ok: true
   id: string
   reservedUsd: number
-  boundedInputTokens: number
+  /** The accepted provider ceiling the reservation is priced at. */
+  reservedInputTokens: number
+  /** Diagnostic only: the request's byte-derived estimate. */
+  estimatedInputTokens: number
 }
 
 export interface PaidCallStatus {
@@ -62,7 +75,10 @@ export interface PaidCallStatus {
   run: LedgerTotals
   remainingAggregateUsd: number
   remainingRunUsd: number
+  /** This run's stop reason, if any. */
   halted: string | null
+  /** The persistent halt on the ledger file, if any. */
+  ledgerHalt: LedgerHalt | null
   unit: string | null
   unitCalls: number
 }
@@ -72,8 +88,8 @@ export interface PaidCallGuard {
   readonly runId: string
   /** Start a new accounting unit (one corpus case, one bridge turn); resets its call count. */
   beginUnit: (label: string) => void
-  /** Reserve the worst case for one dispatch attempt, durably, before the call. */
-  reserve: (request: BoundedResponsesRequest, priorOutputTokens: number) => PaidCallReservation | PaidCallRefusal
+  /** Reserve the full accepted ceiling for one dispatch attempt, durably, before the call. */
+  reserve: (request: BoundedResponsesRequest) => PaidCallReservation | PaidCallRefusal
   /** Settle a reservation at reported usage; an invalid usage block keeps it ambiguous. */
   settle: (id: string, usage: unknown) => void
   /** Keep a reservation as ambiguous spend (error, timeout, missing usage). */
@@ -87,6 +103,7 @@ export interface OpenGuardOptions {
   ledgerPath?: string
   bounds?: PaidCallBounds
   prices?: Record<string, PaidCallPrice>
+  limits?: Record<string, ProviderInputLimit>
   now?: () => Date
   runId?: string
   /** For the lock file; defaults to this process. */
@@ -166,27 +183,31 @@ function remaining(ceiling: number, consumed: number): number {
 }
 
 /**
- * Open the guard for one run: validate the ledger, take the lock. Throws
- * PaidCallRefusedError so a caller cannot proceed past a refusal by
- * accident.
+ * Open the guard for one run: validate the bounds and the ledger, refuse a
+ * halted ledger, take the lock. Throws PaidCallRefusedError so a caller
+ * cannot proceed past a refusal by accident.
  */
 export function openPaidCallGuard(options: OpenGuardOptions = {}): PaidCallGuard {
   const ledgerPath = options.ledgerPath ?? defaultLedgerPath()
   const bounds = options.bounds ?? PAID_CALL_BOUNDS
   const prices = options.prices ?? MODEL_PRICES
+  const limits = options.limits ?? MODEL_INPUT_LIMITS
   const now = options.now ?? (() => new Date())
   const pid = options.pid ?? process.pid
   const runId = options.runId ?? `${now().toISOString().replace(/[:.]/g, '-')}-${pid}`
 
+  const invalidBounds = validateBounds(bounds)
+  if (invalidBounds) throw new PaidCallRefusedError(invalidBounds)
   const initial = readLedger(ledgerPath)
   if (!initial.ok) throw new PaidCallRefusedError(initial)
+  if (initial.ledger.halt) throw new PaidCallRefusedError(refuse('ledger-halted', `${ledgerPath}: ${describeHalt(initial.ledger.halt)}`))
   const locked = acquireLock(ledgerPath, pid, now())
   if (locked) throw new PaidCallRefusedError(locked)
   // Re-read under the lock: the pre-lock read only decided whether to lock.
   const reread = readLedger(ledgerPath)
-  if (!reread.ok) {
+  if (!reread.ok || reread.ledger.halt) {
     unlinkSync(lockPath(ledgerPath))
-    throw new PaidCallRefusedError(reread)
+    throw new PaidCallRefusedError(reread.ok ? refuse('ledger-halted', `${ledgerPath}: ${describeHalt(reread.ledger.halt!)}`) : reread)
   }
 
   let ledger = reread.ledger
@@ -200,9 +221,11 @@ export function openPaidCallGuard(options: OpenGuardOptions = {}): PaidCallGuard
     writeAtomically(ledgerPath, serialize(next))
     ledger = next
   }
-  const replaceEntry = (next: LedgerEntry) => {
-    persist({ ...ledger, entries: ledger.entries.map((entry) => (entry.id === next.id ? next : entry)) })
-  }
+  const withEntry = (next: LedgerEntry): LedgerDocument => ({
+    ...ledger,
+    entries: ledger.entries.map((entry) => (entry.id === next.id ? next : entry)),
+  })
+  const replaceEntry = (next: LedgerEntry) => persist(withEntry(next))
   const reservedEntry = (id: string): LedgerEntry => {
     if (!open) throw new Error('the paid-call guard is closed')
     const entry = ledger.entries.find((candidate) => candidate.id === id)
@@ -219,12 +242,14 @@ export function openPaidCallGuard(options: OpenGuardOptions = {}): PaidCallGuard
       unit = label
       unitCalls = 0
     },
-    reserve: (request, priorOutputTokens) => {
+    reserve: (request) => {
       if (!open) return refuse('halted', 'the paid-call guard is closed')
       const price = acceptedPrice(request.model, prices, bounds, now())
       if (!price.ok) return price
-      const bound = boundRequest(request, bounds, priorOutputTokens)
-      if (!bound.ok) return bound
+      const limit = acceptedLimit(request.model, limits, bounds, now())
+      if (!limit.ok) return limit
+      const checked = checkRequest(request, bounds, limit.limit)
+      if (!checked.ok) return checked
       sequence += 1
       const decided = decideReservation({
         ledger,
@@ -234,7 +259,7 @@ export function openPaidCallGuard(options: OpenGuardOptions = {}): PaidCallGuard
         unit,
         unitCalls,
         halted,
-        bound,
+        request: checked,
         model: request.model,
         entryId: `${runId}-${sequence}`,
         now: now(),
@@ -246,7 +271,8 @@ export function openPaidCallGuard(options: OpenGuardOptions = {}): PaidCallGuard
         ok: true,
         id: decided.entry.id,
         reservedUsd: decided.entry.reservedUsd,
-        boundedInputTokens: decided.entry.boundedInputTokens,
+        reservedInputTokens: decided.entry.reservedInputTokens,
+        estimatedInputTokens: decided.entry.estimatedInputTokens,
       }
     },
     settle: (id, usage) => {
@@ -261,9 +287,23 @@ export function openPaidCallGuard(options: OpenGuardOptions = {}): PaidCallGuard
         halted = price.reason
         return
       }
-      const settled = settleEntry(entry, usage as ReportedUsage, price.price, now())
+      let settled
+      try {
+        settled = settleEntry(entry, usage as ReportedUsage, price.price, now())
+      } catch (error) {
+        const reason = `settlement arithmetic failed: ${error instanceof Error ? error.message : String(error)}`
+        replaceEntry(abandonEntry(entry, reason))
+        halted = reason
+        return
+      }
+      if (settled.overrun) {
+        // One write: the settled entry at its actual cost and the persistent halt.
+        const at = now().toISOString()
+        persist(haltLedger(withEntry(settled.entry), { at, runId, entryId: entry.id, reason: settled.overrun }))
+        halted = settled.overrun
+        return
+      }
       replaceEntry(settled.entry)
-      if (settled.overrun) halted = settled.overrun
     },
     abandon: (id, note) => {
       replaceEntry(abandonEntry(reservedEntry(id), note))
@@ -280,6 +320,7 @@ export function openPaidCallGuard(options: OpenGuardOptions = {}): PaidCallGuard
         remainingAggregateUsd: remaining(bounds.aggregateUsd, aggregate.consumedUsd),
         remainingRunUsd: remaining(bounds.perRunUsd, run.consumedUsd),
         halted,
+        ledgerHalt: ledger.halt ?? null,
         unit,
         unitCalls,
       }
@@ -303,6 +344,6 @@ export function describeStatus(status: PaidCallStatus): string {
     `ledger ${status.ledgerPath}: aggregate $${aggregate.consumedUsd.toFixed(4)} of $${bounds.aggregateUsd} ` +
     `(${aggregate.settled} settled, ${aggregate.ambiguous} ambiguous, ${aggregate.reserved} unsettled, ${aggregate.overruns} overruns); ` +
     `this run $${run.consumedUsd.toFixed(4)} of $${bounds.perRunUsd} over ${run.entries} call${run.entries === 1 ? '' : 's'}` +
-    (status.halted ? `; HALTED: ${status.halted}` : '')
+    (status.ledgerHalt ? `; LEDGER HALTED: ${describeHalt(status.ledgerHalt)}` : status.halted ? `; HALTED: ${status.halted}` : '')
   )
 }

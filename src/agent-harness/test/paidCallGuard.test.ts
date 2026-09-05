@@ -1,17 +1,27 @@
 // The durable guard (#945). Boundary: openPaidCallGuard/initLedger/readLedger
 // over a real ledger file in a temp directory. Invariants: nothing is
 // dispatched or recorded past a refusal; a reservation is on disk before
-// reserve returns; a reopened guard (a rerun, another worktree) sees every
-// earlier entry, including reservations left by a crash, at their reserved
-// amount; a settlement changes its own entry only; a malformed or missing
-// file is refused and left byte-identical; a second opener is refused while
-// the lock is held. Oracle: the ledger file's bytes reopened through the
-// parser, not the guard's in-memory view.
+// reserve returns and is the accepted provider ceiling, whatever the request
+// size; a reopened guard (a rerun, another worktree) sees every earlier
+// entry, including reservations left by a crash, at their reserved amount;
+// a settlement changes its own entry only; an overrun halts the ledger on
+// disk and every later opener refuses until a human clears it; a malformed
+// or missing file is refused and left byte-identical; a second opener is
+// refused while the lock is held; bounds that are not finite integers where
+// integers are required refuse at open. Oracle: the ledger file's bytes
+// reopened through the parser, not the guard's in-memory view.
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { parseLedger, type BoundedResponsesRequest, type PaidCallBounds, type PaidCallPrice } from '../experiment/paidCallBudget.js'
+import {
+  parseLedger,
+  SUPPORTED_REQUEST_SHAPE,
+  type BoundedResponsesRequest,
+  type PaidCallBounds,
+  type PaidCallPrice,
+  type ProviderInputLimit,
+} from '../experiment/paidCallBudget.js'
 import { defaultLedgerPath, initLedger, openPaidCallGuard, readLedger, type PaidCallGuard } from '../experiment/paidCallGuard.js'
 
 const NOW = new Date('2026-09-04T12:00:00.000Z')
@@ -20,14 +30,23 @@ const BOUNDS: PaidCallBounds = {
   perRunUsd: 2,
   maxCallsPerUnit: 4,
   maxOutputTokensPerCall: 4000,
-  maxInputTokensPerCall: 200_000,
-  inputTokensPerByte: 1.25,
-  framingTokensPerItem: 64,
-  pricingAcceptanceMaxAgeDays: 30,
+  acceptanceMaxAgeDays: 30,
 }
 const PRICES: Record<string, PaidCallPrice> = {
   'test-model': { input: 1, cachedInput: 1, output: 1, source: 'test', readOn: '2026-09-01', acceptedForPaidRuns: { by: 'test', on: '2026-09-03' } },
 }
+/** 100,000-token ceiling at the unit price: every call reserves $0.104. */
+const LIMITS: Record<string, ProviderInputLimit> = {
+  'test-model': {
+    maxInputTokens: 100_000,
+    requestShape: SUPPORTED_REQUEST_SHAPE,
+    source: 'test',
+    readOn: '2026-09-01',
+    evidence: 'test',
+    acceptedForPaidRuns: { by: 'test', on: '2026-09-03' },
+  },
+}
+const RESERVATION_USD = 0.104
 const REQUEST: BoundedResponsesRequest = {
   model: 'test-model',
   input: [{ role: 'user', content: 'hello' }],
@@ -40,7 +59,7 @@ let ledgerPath: string
 const guards: PaidCallGuard[] = []
 
 function open(overrides: Parameters<typeof openPaidCallGuard>[0] = {}): PaidCallGuard {
-  const guard = openPaidCallGuard({ ledgerPath, bounds: BOUNDS, prices: PRICES, now: () => NOW, ...overrides })
+  const guard = openPaidCallGuard({ ledgerPath, bounds: BOUNDS, prices: PRICES, limits: LIMITS, now: () => NOW, ...overrides })
   guards.push(guard)
   return guard
 }
@@ -81,11 +100,12 @@ describe('ledger creation and reopening', () => {
     initLedger(ledgerPath, 't', NOW)
     const first = open({ runId: 'run-1' })
     first.beginUnit('case-a')
-    const reservation = first.reserve(REQUEST, 0)
+    const reservation = first.reserve(REQUEST)
     expect(reservation.ok).toBe(true)
     if (!reservation.ok) return
+    expect(reservation).toEqual({ ok: true, id: 'run-1-1', reservedUsd: RESERVATION_USD, reservedInputTokens: 100_000, estimatedInputTokens: expect.any(Number) })
     expect(ledgerOnDisk().entries).toEqual([
-      expect.objectContaining({ id: 'run-1-1', runId: 'run-1', unit: 'case-a', state: 'reserved', reservedUsd: reservation.reservedUsd }),
+      expect.objectContaining({ id: 'run-1-1', runId: 'run-1', unit: 'case-a', state: 'reserved', reservedUsd: RESERVATION_USD, reservedInputTokens: 100_000 }),
     ])
 
     first.settle(reservation.id, { inputTokens: 100, cachedInputTokens: 0, outputTokens: 50 })
@@ -99,13 +119,28 @@ describe('ledger creation and reopening', () => {
     expect(status.run.entries).toBe(0)
     expect(status.remainingAggregateUsd).toBe(19.99985)
     expect(status.remainingRunUsd).toBe(2)
+    expect(status.ledgerHalt).toBeNull()
+  })
+
+  it('reserves the full accepted ceiling for a one-word request and a large one alike', () => {
+    initLedger(ledgerPath, 't', NOW)
+    const guard = open({ runId: 'r' })
+    guard.beginUnit('case-a')
+    const small = guard.reserve(REQUEST)
+    const large = guard.reserve({ ...REQUEST, input: [{ role: 'user', content: 'x'.repeat(50_000) }] })
+    if (!small.ok || !large.ok) throw new Error('expected both reservations')
+    expect(small.estimatedInputTokens).toBeLessThan(large.estimatedInputTokens)
+    expect(ledgerOnDisk().entries.map((entry) => [entry.reservedUsd, entry.reservedInputTokens])).toEqual([
+      [RESERVATION_USD, 100_000],
+      [RESERVATION_USD, 100_000],
+    ])
   })
 
   it('keeps a reservation left by a crashed run and a settlement elsewhere cannot erase it', () => {
     initLedger(ledgerPath, 't', NOW)
     const crashed = open({ runId: 'crashed' })
     crashed.beginUnit('case-a')
-    const left = crashed.reserve(REQUEST, 0)
+    const left = crashed.reserve(REQUEST)
     expect(left.ok).toBe(true)
     // Simulate the crash: no settle, no close; only the stale lock is cleared by hand.
     rmSync(`${ledgerPath}.lock`)
@@ -113,7 +148,7 @@ describe('ledger creation and reopening', () => {
 
     const next = open({ runId: 'next' })
     next.beginUnit('case-b')
-    const own = next.reserve(REQUEST, 0)
+    const own = next.reserve(REQUEST)
     expect(own.ok).toBe(true)
     if (!own.ok || !left.ok) return
     next.settle(own.id, { inputTokens: 10, cachedInputTokens: 0, outputTokens: 10 })
@@ -142,6 +177,24 @@ describe('refusals leave the file alone', () => {
     expect(read.ok === false && read.code).toBe('ledger-malformed')
   })
 
+  it('refuses a malformed halt record as malformed, never as a fresh start', () => {
+    initLedger(ledgerPath, 't', NOW)
+    const text = JSON.stringify({ ...ledgerOnDisk(), halt: { at: NOW.toISOString() } })
+    writeFileSync(ledgerPath, text)
+    expect(() => open()).toThrow(/ledger-malformed.*halt/)
+    expect(readFileSync(ledgerPath, 'utf8')).toBe(text)
+    expect(existsSync(`${ledgerPath}.lock`)).toBe(false)
+  })
+
+  it('refuses invalid bounds before touching the ledger', () => {
+    initLedger(ledgerPath, 't', NOW)
+    const before = readFileSync(ledgerPath, 'utf8')
+    expect(() => open({ bounds: { ...BOUNDS, maxOutputTokensPerCall: 4000.5 } })).toThrow(/bounds-invalid.*maxOutputTokensPerCall/)
+    expect(() => open({ bounds: { ...BOUNDS, aggregateUsd: Number.POSITIVE_INFINITY } })).toThrow(/bounds-invalid.*aggregateUsd/)
+    expect(readFileSync(ledgerPath, 'utf8')).toBe(before)
+    expect(existsSync(`${ledgerPath}.lock`)).toBe(false)
+  })
+
   it('refuses a second opener while the lock is held and admits it after close', () => {
     initLedger(ledgerPath, 't', NOW)
     const holder = open({ runId: 'holder', pid: 4242 })
@@ -155,15 +208,31 @@ describe('refusals leave the file alone', () => {
     initLedger(ledgerPath, 't', NOW)
     const guard = open({ runId: 'r' })
     const before = readFileSync(ledgerPath, 'utf8')
-    const noUnit = guard.reserve(REQUEST, 0)
+    const noUnit = guard.reserve(REQUEST)
     expect(noUnit.ok === false && noUnit.code).toBe('no-unit')
     guard.beginUnit('case-a')
-    const unknown = guard.reserve({ ...REQUEST, model: 'other-model' }, 0)
+    const unknown = guard.reserve({ ...REQUEST, model: 'other-model' })
     expect(unknown.ok === false && unknown.code).toBe('pricing-unknown')
-    const unbounded = guard.reserve({ ...REQUEST, input: [{ type: 'web_search_call' } as never] }, 0)
-    expect(unbounded.ok === false && unbounded.code).toBe('input-unbounded')
+    const unsupported = guard.reserve({ ...REQUEST, input: [{ type: 'web_search_call' } as never] })
+    expect(unsupported.ok === false && unsupported.code).toBe('shape-unsupported')
     expect(readFileSync(ledgerPath, 'utf8')).toBe(before)
     expect(guard.status().unitCalls).toBe(0)
+  })
+
+  it('refuses a model with an accepted price but no accepted provider ceiling', () => {
+    initLedger(ledgerPath, 't', NOW)
+    const before = readFileSync(ledgerPath, 'utf8')
+    const none = open({ runId: 'none', limits: {} })
+    none.beginUnit('case-a')
+    const unknown = none.reserve(REQUEST)
+    expect(unknown.ok === false && unknown.code).toBe('limit-unknown')
+    none.close()
+    guards.splice(0)
+    const unaccepted = open({ runId: 'unaccepted', limits: { 'test-model': { ...LIMITS['test-model'], acceptedForPaidRuns: undefined } } })
+    unaccepted.beginUnit('case-a')
+    const refused = unaccepted.reserve(REQUEST)
+    expect(refused.ok === false && refused.code).toBe('limit-unaccepted')
+    expect(readFileSync(ledgerPath, 'utf8')).toBe(before)
   })
 })
 
@@ -173,60 +242,82 @@ describe('run-time ceilings through the guard', () => {
     const guard = open({ runId: 'r' })
     guard.beginUnit('case-a')
     for (let call = 0; call < 4; call += 1) {
-      const reservation = guard.reserve(REQUEST, 0)
+      const reservation = guard.reserve(REQUEST)
       expect(reservation.ok).toBe(true)
       if (reservation.ok) guard.settle(reservation.id, { inputTokens: 1, cachedInputTokens: 0, outputTokens: 1 })
     }
-    const fifth = guard.reserve(REQUEST, 0)
+    const fifth = guard.reserve(REQUEST)
     expect(fifth.ok === false && fifth.code).toBe('unit-calls')
     guard.beginUnit('case-b')
-    expect(guard.reserve(REQUEST, 0).ok).toBe(true)
+    expect(guard.reserve(REQUEST).ok).toBe(true)
     expect(ledgerOnDisk().entries).toHaveLength(5)
   })
 
-  it('halts the run after usage beyond the reservation and keeps the actual cost', () => {
+  it('halts the ledger on disk after usage beyond the ceiling and refuses every later opener', () => {
     initLedger(ledgerPath, 't', NOW)
     const guard = open({ runId: 'r' })
     guard.beginUnit('case-a')
-    const reservation = guard.reserve(REQUEST, 0)
+    const reservation = guard.reserve(REQUEST)
     expect(reservation.ok).toBe(true)
     if (!reservation.ok) return
-    guard.settle(reservation.id, { inputTokens: reservation.boundedInputTokens + 1, cachedInputTokens: 0, outputTokens: 4000 })
-    const entry = ledgerOnDisk().entries[0]
-    expect(entry.exceededReservation).toBe(true)
-    expect(entry.settledUsd).toBe(Math.round((reservation.boundedInputTokens + 1 + 4000) * 1) / 1e6)
-    const halted = guard.reserve(REQUEST, 0)
-    expect(halted.ok === false && halted.code).toBe('halted')
-    expect(guard.status().halted).toMatch(/input tokens reported against a bound/)
-    expect(guard.status().aggregate.overruns).toBe(1)
+    guard.settle(reservation.id, { inputTokens: 100_001, cachedInputTokens: 0, outputTokens: 4000 })
+    const ledger = ledgerOnDisk()
+    expect(ledger.entries[0]).toMatchObject({ state: 'settled', settledUsd: 0.104001, exceededReservation: true })
+    expect(ledger.halt).toEqual({ at: NOW.toISOString(), runId: 'r', entryId: 'r-1', reason: expect.stringMatching(/100001 input tokens reported against the 100000-token provider ceiling/) })
+    const halted = guard.reserve(REQUEST)
+    expect(halted.ok === false && halted.code).toBe('ledger-halted')
+    expect(guard.status()).toMatchObject({ halted: expect.stringMatching(/input tokens/), ledgerHalt: ledger.halt, aggregate: { overruns: 1, consumedUsd: 0.104001 } })
+    guard.close()
+    guards.splice(0)
+
+    const text = readFileSync(ledgerPath, 'utf8')
+    expect(() => open({ runId: 'later' })).toThrow(/ledger-halted.*run r after entry r-1.*removes the "halt" field/)
+    expect(readFileSync(ledgerPath, 'utf8')).toBe(text)
+    expect(existsSync(`${ledgerPath}.lock`)).toBe(false)
+    const read = readLedger(ledgerPath)
+    expect(read.ok && read.ledger.halt?.entryId).toBe('r-1')
   })
 
   it('keeps a reservation whose response had no usage block as ambiguous', () => {
     initLedger(ledgerPath, 't', NOW)
     const guard = open({ runId: 'r' })
     guard.beginUnit('case-a')
-    const reservation = guard.reserve(REQUEST, 0)
+    const reservation = guard.reserve(REQUEST)
     if (!reservation.ok) throw new Error(reservation.reason)
     guard.settle(reservation.id, undefined)
     expect(ledgerOnDisk().entries[0]).toMatchObject({ state: 'ambiguous', reservedUsd: reservation.reservedUsd })
     expect(guard.status().aggregate.consumedUsd).toBe(reservation.reservedUsd)
   })
 
+  it('keeps a reservation whose usage block is not integers as ambiguous', () => {
+    initLedger(ledgerPath, 't', NOW)
+    const guard = open({ runId: 'r' })
+    guard.beginUnit('case-a')
+    const reservation = guard.reserve(REQUEST)
+    if (!reservation.ok) throw new Error(reservation.reason)
+    guard.settle(reservation.id, { inputTokens: 10.5, cachedInputTokens: 0, outputTokens: 1 })
+    expect(ledgerOnDisk().entries[0]).toMatchObject({ state: 'ambiguous', note: expect.stringMatching(/no valid usage block/) })
+    expect(ledgerOnDisk().halt).toBeUndefined()
+  })
+
   it('refuses past the aggregate ceiling using every earlier run', () => {
     initLedger(ledgerPath, 't', NOW)
-    const spent = open({ runId: 'spent', bounds: { ...BOUNDS, perRunUsd: 20 } })
+    const wide = { 'test-model': { ...LIMITS['test-model'], maxInputTokens: 19_990_000 } }
+    const spent = open({ runId: 'spent', bounds: { ...BOUNDS, perRunUsd: 20 }, limits: wide })
     spent.beginUnit('u')
-    const big = spent.reserve(REQUEST, 0)
+    const big = spent.reserve(REQUEST)
     if (!big.ok) throw new Error(big.reason)
-    spent.settle(big.id, { inputTokens: 19_999_000, cachedInputTokens: 0, outputTokens: 0 })
+    expect(big.reservedUsd).toBe(19.994)
+    spent.settle(big.id, { inputTokens: 19_990_000, cachedInputTokens: 0, outputTokens: 0 })
     spent.close()
 
     const next = open({ runId: 'next' })
     next.beginUnit('u')
-    const refused = next.reserve(REQUEST, 0)
+    const refused = next.reserve(REQUEST)
     expect(refused.ok === false && refused.code).toBe('aggregate-exhausted')
-    expect(next.status().remainingAggregateUsd).toBe(0.001)
+    expect(next.status().remainingAggregateUsd).toBe(0.01)
     expect(ledgerOnDisk().entries).toHaveLength(1)
+    expect(ledgerOnDisk().halt).toBeUndefined()
   })
 })
 

@@ -1446,6 +1446,19 @@ isolated in `*.diagnostic.ts` files under `npm run agent:diagnostics`. The
 [agent candidate application contract](contracts/agent-candidate-application.md)
 owns the editor boundary it targets.
 
+The harness's paid model calls (`agent:corpus --live`, live `agent:bridge`)
+are owned by its paid-call guard (`src/agent-harness/experiment/paidCallGuard.ts`,
+rules in `paidCallBudget.ts`): every dispatch attempt, retries included,
+first reserves its worst case in a durable ledger outside the worktree,
+priced from an explicitly accepted provider-enforced input-token ceiling
+(`providerLimits.ts`) and an accepted price (`pricing.ts`), under the #945
+ceilings of $20 aggregate, $2 per run, four calls per case or turn and 4000
+output tokens per call. A model without both acceptances is refused before
+any network call; usage above the ceiling halts the ledger persistently
+until a human reconciles it. `npm run agent:budget [-- init]` inspects or
+creates the ledger. Details and the pre-run checklist are in the harness
+`README.md`.
+
 ## 28. Known limits and accepted divergences
 
 - Pattern execution runs on the main thread; a valid infinite loop can freeze
