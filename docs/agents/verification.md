@@ -420,9 +420,25 @@ The first record, `.wrsp/ui-proof/940-redline-zone-properties.json`, is the
 coordinator's Codex in-app-browser capture of the Redline Installation Zone
 properties dialog on reviewed main; the adoption candidate itself touched no
 UI path, so the gate reported "not required" on that range while the
-missing, fake, malformed, valid, stale, and no-policy partitions are asserted
-in `scripts/wrsp-ui-proof-gate.test.ts` against the same policy and the same
+missing-record, text stand-in, missing-file, empty-file, malformed, valid,
+stale, and no-policy partitions are asserted in
+`scripts/wrsp-ui-proof-gate.test.ts` against the same policy and the same
 capture bytes.
+
+Evidence boundary: the gate is workflow hygiene for trusted contributors, not
+an authenticity check. It verifies the record's schema, that each named
+capture exists in the tip as a non-empty regular file whose leading bytes
+carry a PNG, JPEG, WebM, or MP4 signature, that `capturedAtCommit` is an
+ancestor of the tip, and that no UI path changed after it. It does not decode
+the media, prove the bytes came from a browser, or detect a crafted
+signature-only file, a fabricated image, or a dishonest commit id; active
+spoofing is outside its threat model (Jon, 2026-09-04). A `✓` therefore means
+the record is complete and fresh, not that anyone has looked at the image.
+The reviewer opens the submitted capture and inspects it against the route
+and operation the record names; a capture that fails to open, or shows the
+wrong state, is not proof even though the gate accepted it. The first record
+was inspected that way by the coordinator: a 1280x720 JPEG of the Zone
+properties dialog.
 
 ### Exported-artifact oracles
 

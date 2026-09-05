@@ -7,8 +7,16 @@ import { createGitFixture, runInstalledGuard, type GitFixture } from './wrsp-gua
  * The installed `wrsp-check-ui-proof` gate against this repository's real
  * `wrsp-ui-proof.json` policy and the committed Redline Installation Zone
  * properties capture, exercised in disposable Git fixtures (#940).
- * Partitions: missing, fake, malformed, valid, stale, a non-UI range, and a
- * range with no policy at either end.
+ * Partitions: missing record, text stand-in, missing file, empty file,
+ * malformed, valid, stale, a non-UI range, and a range with no policy at
+ * either end.
+ *
+ * Evidence boundary (Jon, 2026-09-04): the gate is workflow hygiene for
+ * trusted contributors. It checks record schema, file presence, non-empty
+ * bytes, a recognised media signature, ancestry, and freshness. It does not
+ * decode media or prove browser origin, so nothing here asserts that a
+ * crafted signature-only file is rejected or accepted; the reviewer opens
+ * the committed capture and inspects it.
  */
 const policy = readFileSync('wrsp-ui-proof.json', 'utf8')
 const realCapture = readFileSync('.wrsp/ui-proof/940-redline-zone-properties.jpg')
@@ -51,7 +59,7 @@ function check(fixture: GitFixture, base: string, tip: string) {
 }
 
 describe('installed wrsp-check-ui-proof under the repository policy (#940)', () => {
-  it('walks missing, fake, malformed, valid, then stale proof for one UI change', () => {
+  it('walks missing, stand-in, missing-file, empty, malformed, valid, then stale proof for one UI change', () => {
     const fixture = seededFixture()
     writeFileSync(join(fixture.directory, 'src/components/ShowEditor.tsx'), 'export const ShowEditor = 2\n')
     const uiSha = fixture.commitAll('touch ShowEditor')
@@ -63,7 +71,8 @@ describe('installed wrsp-check-ui-proof under the repository policy (#940)', () 
     expect(missing.output).toContain('UI PROOF BLOCKED: This candidate touches UI paths (src/components/ShowEditor.tsx)')
     expect(missing.output).toContain('requires real-surface proof')
 
-    // Fake: a record whose capture is not screenshot or recording bytes.
+    // Text stand-in: a record whose capture carries no media signature at all
+    // (a suite transcript instead of screenshot or recording bytes).
     mkdirSync(join(fixture.directory, '.wrsp/ui-proof'), { recursive: true })
     writeFileSync(join(fixture.directory, '.wrsp/ui-proof/fake.txt'), 'component suite passed\n')
     writeRecord(fixture, 'fake', {
@@ -80,8 +89,47 @@ describe('installed wrsp-check-ui-proof under the repository policy (#940)', () 
     expect(fake.output).toContain('✗ .wrsp/ui-proof/fake.json: unrecognized-capture')
     expect(fake.output).toContain('UI PROOF BLOCKED')
 
-    // Malformed: a mutable ref instead of a full commit id.
+    // Missing file: the record names a capture that is not in the tip.
     fixture.git('rm', '-q', '.wrsp/ui-proof/fake.json', '.wrsp/ui-proof/fake.txt')
+    mkdirSync(join(fixture.directory, '.wrsp/ui-proof'), { recursive: true })
+    writeRecord(fixture, 'absent', {
+      version: 1,
+      issue: '940',
+      route: realRecord.route,
+      operation: realRecord.operation,
+      captures: ['.wrsp/ui-proof/absent.jpg'],
+      capturedAtCommit: uiSha,
+    })
+    const absentSha = fixture.commitAll('record without its capture')
+    const absent = check(fixture, fixture.baseSha, absentSha)
+    expect(absent.status).toBe(1)
+    expect(absent.output).toContain(
+      '✗ .wrsp/ui-proof/absent.json: missing-capture (capture .wrsp/ui-proof/absent.jpg does not exist',
+    )
+    expect(absent.output).toContain('UI PROOF BLOCKED')
+
+    // Empty file: the capture is committed but holds zero bytes.
+    fixture.git('rm', '-q', '.wrsp/ui-proof/absent.json')
+    mkdirSync(join(fixture.directory, '.wrsp/ui-proof'), { recursive: true })
+    writeFileSync(join(fixture.directory, '.wrsp/ui-proof/empty.jpg'), Buffer.alloc(0))
+    writeRecord(fixture, 'empty', {
+      version: 1,
+      issue: '940',
+      route: realRecord.route,
+      operation: realRecord.operation,
+      captures: ['.wrsp/ui-proof/empty.jpg'],
+      capturedAtCommit: uiSha,
+    })
+    const emptySha = fixture.commitAll('empty capture')
+    const empty = check(fixture, fixture.baseSha, emptySha)
+    expect(empty.status).toBe(1)
+    expect(empty.output).toContain(
+      '✗ .wrsp/ui-proof/empty.json: empty-capture (capture .wrsp/ui-proof/empty.jpg is empty)',
+    )
+    expect(empty.output).toContain('UI PROOF BLOCKED')
+
+    // Malformed: a mutable ref instead of a full commit id.
+    fixture.git('rm', '-q', '.wrsp/ui-proof/empty.json', '.wrsp/ui-proof/empty.jpg')
     // git rm prunes the now-empty proof directory; recreate it.
     mkdirSync(join(fixture.directory, '.wrsp/ui-proof'), { recursive: true })
     writeFileSync(join(fixture.directory, '.wrsp/ui-proof/redline.jpg'), realCapture)
@@ -161,6 +209,8 @@ describe('installed wrsp-check-ui-proof under the repository policy (#940)', () 
     expect(realRecord.issue).toBe('940')
     expect(realRecord.captures).toEqual(['.wrsp/ui-proof/940-redline-zone-properties.jpg'])
     expect(realRecord.capturedAtCommit).toMatch(/^[0-9a-f]{40}$/)
+    // The leading bytes are what the gate recognises as JPEG; the image
+    // itself was opened and inspected by the coordinator, not by this test.
     expect([...realCapture.subarray(0, 3)]).toEqual([0xff, 0xd8, 0xff])
   })
 

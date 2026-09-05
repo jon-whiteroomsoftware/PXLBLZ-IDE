@@ -86,7 +86,9 @@ green suite. Recipe:
 3. Save the image under `.wrsp/ui-proof/<issue>-<slug>.<ext>` with the
    extension matching its bytes. Check: `file <path>` must report PNG or
    JPEG (WebM and MP4 also qualify for recordings); a browser that hands
-   back JPEG bytes under a `.png` name gets renamed, not trusted.
+   back JPEG bytes under a `.png` name gets renamed, not trusted. Then open
+   the file and look at it. The gate only sniffs the leading bytes; an image
+   that does not open, or shows the wrong state, is not proof.
 4. Write `.wrsp/ui-proof/<issue>-<slug>.json`:
 
    ```json
@@ -104,7 +106,12 @@ green suite. Recipe:
    `HEAD` or a short id.
 5. Commit the record and capture as the candidate tip, then run
    `npm run check:ui-proof -- <base> <tip>`. It prints one `✓` line per
-   accepted record or `UI PROOF BLOCKED` with the rejection reason.
+   accepted record or `UI PROOF BLOCKED` with the rejection reason. A `✓`
+   means the record is well-formed, every capture is present, non-empty,
+   carries a recognised media signature, and is fresh for the range. It does
+   not mean the gate decoded the image or established where it came from;
+   the reviewer opens the capture and checks it against the named route and
+   operation.
 
 Any further change to a UI path after the capture marks the record `stale`;
 re-drive the route on the new build and re-capture. Committing the record and

@@ -77,11 +77,13 @@ Respond with JSON only (no markdown fences):
 
   # The prompt travels over stdin (never argv) and the transcript is discarded,
   # so neither the issue excerpt nor the reply reaches stdout or the process
-  # list. A failed or missing classifier leaves no decision file, and the hook
-  # skips the issue instead of failing the commit.
+  # list. The exit status decides first: a classifier that exits nonzero is a
+  # failed call even when it already wrote a valid-looking decision file, and
+  # the hook skips the issue without touching it and without failing the
+  # commit. A successful call that leaves no decision is skipped the same way.
   DECISION="$CLASSIFIER_DIR/decision-$ISSUE_NUM.json"
   rm -f "$DECISION"
-  printf '%s' "$PROMPT" | codex exec \
+  if ! printf '%s' "$PROMPT" | codex exec \
     --model "$CLASSIFIER_MODEL" \
     --config "model_reasoning_effort=\"$CLASSIFIER_EFFORT\"" \
     --sandbox read-only \
@@ -89,10 +91,13 @@ Respond with JSON only (no markdown fences):
     --color never \
     --output-schema "$CLASSIFIER_SCHEMA" \
     --output-last-message "$DECISION" \
-    - >/dev/null 2>&1 || true
+    - >/dev/null 2>&1; then
+    echo "   ⚠️  Classifier call failed — skipping issue #$ISSUE_NUM"
+    continue
+  fi
 
   if [ ! -s "$DECISION" ]; then
-    echo "   ⚠️  Classifier call failed — skipping issue #$ISSUE_NUM"
+    echo "   ⚠️  Classifier returned no decision — skipping issue #$ISSUE_NUM"
     continue
   fi
   TEXT=$(cat "$DECISION")

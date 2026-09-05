@@ -37,10 +37,12 @@ The classifier behind that judgement is an ordinary automated launch: `codex
 exec` naming `gpt-5.6-sol` at `high` reasoning effort explicitly, with the
 prompt on stdin and the decision returned through a structured output file
 constrained to `close`, `comment`, or `nothing`. It never inherits a session's
-interactive model. When `codex` is missing or returns no decision, the hook
-skips that issue and the commit still succeeds. `scripts/update-issues.test.ts`
-stubs the CLI and asserts the launch pair, the stdout boundary, and the
-resulting `gh` calls.
+interactive model. The exit status decides first: when `codex` is missing,
+exits nonzero, or exits successfully without a decision, the hook skips that
+issue and the commit still succeeds. A decision file written before a nonzero
+exit is discarded, so a failed call never comments. `scripts/update-issues.test.ts`
+stubs the CLI and asserts the launch pair, the stdout boundary, the resulting
+`gh` calls, and that a failure after a written decision mutates nothing.
 
 `npm run check:issue-proof -- --since-days <n>` audits recently closed issues
 for a non-empty `## Required proof` section and an attached proof. Attach

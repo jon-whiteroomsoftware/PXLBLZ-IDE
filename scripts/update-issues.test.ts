@@ -37,6 +37,11 @@ interface HookRunOptions {
   decision?: string
   /** Stub exits with this code before writing any decision (CLI failure). */
   failWith?: number
+  /**
+   * Stub writes `decision` to the output file and THEN exits with this code:
+   * the CLI failed after a valid-looking result was already on disk.
+   */
+  failAfterWrite?: number
   /** Drop the stub entirely so `codex` is not on PATH. */
   withoutCodex?: boolean
 }
@@ -132,6 +137,38 @@ describe('post-commit classifier launch (#940)', () => {
     expect(run.ghCalls).not.toContain('issue close')
   })
 
+  it.each([
+    '{"action":"comment","message":"Progress note."}',
+    '{"action":"close","message":"Candidate appears complete."}',
+  ])(
+    'discards the decision %s when the classifier exits nonzero after writing it',
+    (decision) => {
+      // A nonzero exit is a failed classification even when a valid-looking
+      // decision file was written first (#940 review P2): the exit status
+      // decides, and a failed call must mutate nothing on the issue.
+      const run = runHook({ decision, failAfterWrite: 1 })
+
+      expect(run.status).toBe(0)
+      expect(run.stdout).toMatch(/Classifier call failed — skipping issue #598/)
+      expect(run.ghCalls).toContain('issue view 598')
+      expect(run.ghCalls).not.toContain('issue comment')
+      expect(run.ghCalls).not.toContain('issue close')
+      expect(run.ghCalls).not.toContain('issue edit')
+      expect(run.stdout).not.toMatch(/Adding comment|Commit recorded/)
+    },
+  )
+
+  it('skips the issue when the classifier exits successfully with an empty decision', () => {
+    const run = runHook({ decision: '' })
+
+    expect(run.status).toBe(0)
+    expect(run.stdout).toMatch(/skipping issue #598/)
+    expect(run.ghCalls).toContain('issue view 598')
+    expect(run.ghCalls).not.toContain('issue comment')
+    expect(run.ghCalls).not.toContain('issue close')
+    expect(run.ghCalls).not.toContain('issue edit')
+  })
+
   it('skips the issue without failing the commit when codex is not on PATH', () => {
     const run = runHook({ withoutCodex: true })
 
@@ -172,7 +209,8 @@ fi
     if (!options.withoutCodex) {
       // Records argv and stdin, copies the schema it was handed, prints
       // transcript noise the hook must discard, then writes the decision to
-      // the --output-last-message file exactly as `codex exec` would.
+      // the --output-last-message file exactly as `codex exec` would. With
+      // failAfterWrite it exits nonzero only after that write.
       writeExecutable(join(fakeBin, 'codex'), `#!/bin/sh
 printf '%s\\n' "$*" >> "$PXLBLZ_TEST_CODEX_ARGS"
 cat > "$PXLBLZ_TEST_CODEX_STDIN"
@@ -188,7 +226,8 @@ while [ $# -gt 0 ]; do
 done
 cp "$schema" "$PXLBLZ_TEST_CODEX_SCHEMA"
 echo "classifier transcript chatter"
-printf '%s\\n' '${options.decision ?? ''}' > "$output"
+printf '%s' '${options.decision ?? ''}' > "$output"
+${options.failAfterWrite !== undefined ? `exit ${options.failAfterWrite}` : ''}
 `)
     }
 

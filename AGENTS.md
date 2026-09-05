@@ -107,7 +107,9 @@ Preserve these invariants:
   id. Follow "Recording UI proof for the review gate" in
   `docs/agents/browser-verification.md`; `npm run check:ui-proof -- <base>
   <tip>` runs the same gate standalone. A green component suite never
-  satisfies it.
+  satisfies it. The gate checks record shape, file presence, non-empty bytes,
+  a recognised media signature, ancestry, and freshness; it does not decode
+  the image or prove where it came from, so the reviewer opens the capture.
 - Land early, land often. P2/P3-only review findings are advisory, non-terminal
   coverage: land the reviewed tip on that receipt immediately and carry each
   corrective as a new small candidate cut from the landed main. Do not grow an
