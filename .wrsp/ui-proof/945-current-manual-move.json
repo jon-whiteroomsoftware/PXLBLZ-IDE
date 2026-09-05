@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "945",
+  "route": "/PXLBLZ-IDE/studio/shows/<personal Show created by isolated Playwright run>",
+  "operation": "Real Playwright Chromium route at current commit: delayed marker reply; Shift-assisted visible Clip drag previews and saves target at 15 seconds; reply replaces it at zero; one Undo restores 15 seconds and removes marker. Actual PATCH order 15000/0/15000. Focused B passed on current tip; full combined baseline8/8 and Shows67/67 passed before documentation-only rebase, tested UI code verified unchanged. No in-app-browser capture claim.",
+  "captures": [
+    ".wrsp/ui-proof/945-current-B-target-moved-before-reply.png",
+    ".wrsp/ui-proof/945-current-B-target-move-overwritten.png",
+    ".wrsp/ui-proof/945-current-B-target-move-after-undo.png"
+  ],
+  "capturedAtCommit": "4e02adcf09b46f9b76cd6289347c107b658219af"
+}
