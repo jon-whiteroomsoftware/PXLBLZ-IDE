@@ -12,7 +12,7 @@
       "id": "heldout-v1-clips-move-selected",
       "outcome": "edit",
       "assertions": [
-        { "kind": "clip-start", "clip": { "pattern_name": "test" }, "start_ms": 20000 }
+        { "kind": "clip-start", "clip": { "pattern_name": "comet" }, "start_ms": 20000 }
       ]
     },
     {
@@ -114,7 +114,7 @@
       "id": "heldout-v1-structure-output-contract",
       "outcome": "edit",
       "assertions": [
-        { "kind": "pointer-equals", "pointer": "/outputContract/referencePixelCount", "value": 256 }
+        { "kind": "pointer-equals", "pointer": "/outputContract/referencePixelCount", "value": 384 }
       ]
     },
     {

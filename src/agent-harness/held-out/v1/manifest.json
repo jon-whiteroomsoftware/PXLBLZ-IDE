@@ -32,11 +32,11 @@
   "artifacts": [
     {
       "path": "inputs.sealed.json",
-      "sha256": "5229b36b1c73f985626c2352b9850f09c5280562bed3777b0497d8129a5cc4b8"
+      "sha256": "85801602d4b0ff4c6a7438ef5458f3a878569998277fed6e11e1fa4940608798"
     },
     {
       "path": "expected-outcomes.sealed.json",
-      "sha256": "ec43275832c0c66f841105e156e530aa903612f44ad2deb7df30b0b4febe2715"
+      "sha256": "76e7c87d31b69a8517d774bb55ffcbdb0ad8c67801a6cc666bb97cd8d6b83b3b"
     }
   ]
 }

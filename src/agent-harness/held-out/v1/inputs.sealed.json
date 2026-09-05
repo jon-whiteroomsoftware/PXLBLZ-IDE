@@ -123,7 +123,7 @@
       "category": "structure",
       "referent": "none",
       "fixture": "base",
-      "utterance": "Use 256 as the reference pixel count."
+      "utterance": "Use 384 as the reference pixel count."
     },
     {
       "id": "heldout-v1-clarification-pattern",
