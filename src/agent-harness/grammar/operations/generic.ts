@@ -27,13 +27,14 @@ function isProtected(pointer: string): boolean {
 }
 
 // Element identity preservation (#945 correction, re-done after the candidate
-// review of a4e11cc0). The coverage allowlist excludes every nested `*/id`
-// as engine-minted identity, but the generics only refused the root
-// pointers. The first correction judged the complete before/after records by
-// array slot, which was unsound: removing marker A and then renaming the
-// surviving B to A left slot 0 holding "A" and passed. The rule is now
-// enforced at each mutation, against the working record as it stands when
-// the operation runs, with a per-patch ledger:
+// review of a4e11cc0, and again after the review of 54f47d5b). The coverage
+// allowlist excludes every nested `*/id` as engine-minted identity, but the
+// generics only refused the root pointers. The first correction judged the
+// complete before/after records by array slot, which was unsound: removing
+// marker A and then renaming the surviving B to A left slot 0 holding "A" and
+// passed. The rule is enforced at each mutation, against the working record
+// as it stands when the operation runs, with a per-patch ledger of removed
+// identities:
 //   - the `id` of an array-member object (a Scene, Zone, Layout, Transition,
 //     instance, placement, layer, Effect, track, keyframe, marker, output
 //     Effect) is never the target of add, replace, remove, move or copy;
@@ -44,19 +45,95 @@ function isProtected(pointer: string): boolean {
 //     elements, never introduce one;
 //   - an insertion (add at an array position, or a key that did not exist)
 //     may carry ids, none of which may already be in the target collection or
-//     have been removed earlier in the same patch (an id is never recycled
-//     within one operation);
-//   - move carries its subtree's identities with it; copy of anything
-//     carrying an identity is refused - the generics cannot mint ids, the
-//     duplicate_* operations do.
+//     have been removed earlier in the same patch from the identity domain the
+//     insertion lands in (an id is never recycled within one operation);
+//   - move carries its subtree's identities with it: the element is detached
+//     and inserted as the same element, so nothing is tombstoned and nothing
+//     is cleared - a tombstone survives every later operation of the patch,
+//     and a move into a domain holding a tombstone of one of its ids is refused
+//     like any insertion (the second review found a move implemented as
+//     remove + add that deleted every carried id from the ledger, erasing an
+//     unrelated element's removal that shared the id string);
+//   - copy of anything carrying an identity is refused - the generics cannot
+//     mint ids, the duplicate_* operations do.
 // A Pattern reference's `pattern.id` names a catalogue entry, not an element,
 // and stays editable. Collections are keyed by their owners' identities so a
 // reorder above them does not shift the comparison. Every refusal leaves the
 // record untouched: the patch applies to a clone and is dropped whole.
 
+/**
+ * Identity domains of the ShowRecord: within a domain an id names one element
+ * and the engine refuses duplicates; across domains the same string may name
+ * different elements (a marker and an Effect, say, or the Effects of two
+ * placements). Keyed by collection shape (array owners as `*`). Sources:
+ * validateShowComposition and validateShowPropertyTracks, whose duplicate-id
+ * checks span main and overlay placements together, overlay layers, instances,
+ * markers, layer transitions, tracks and keyframes across every Scene and
+ * track; and findEffect, which looks an Effect up within its placement's
+ * stack. A collection shape not declared here is fail-closed: a removal from
+ * it tombstones the id in every domain, and an insertion into it is refused
+ * by a tombstone in any domain.
+ */
+const PLACEMENT_SHAPES = ['/composition/scenes/*/zones/*/main', '/composition/scenes/*/zones/*/overlays/*/placements']
+const EFFECT_SHAPES = PLACEMENT_SHAPES.map((shape) => `${shape}/*/effects`)
+const RECORD_WIDE_SHAPES = [
+  '/scenes',
+  '/zones',
+  '/cells',
+  '/routingLayouts',
+  '/transitions',
+  '/outputEffects',
+  '/composition/patternInstances',
+  '/composition/markers',
+  '/composition/transitions',
+  '/composition/scenes/*/zones/*/overlays',
+  '/composition/scenes/*/propertyTracks',
+  '/composition/scenes/*/propertyTracks/*/keyframes',
+]
+const UNDECLARED_DOMAIN = '*'
+
+const isRecordObject = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+
+const escapeSegment = (segment: string) => segment.replace(/~/g, '~0').replace(/\//g, '~1')
+const unescapeSegment = (segment: string) => segment.replace(/~1/g, '/').replace(/~0/g, '~')
+
+const idOf = (value: unknown): string | undefined =>
+  isRecordObject(value) && typeof value.id === 'string' ? value.id : undefined
+
+/** The key an array member is known by: its id, else its composition owner, else its index. */
+const ownerKeyOf = (item: unknown, index: number): string =>
+  idOf(item) ??
+  (isRecordObject(item) && typeof item.sceneId === 'string' ? item.sceneId : undefined) ??
+  (isRecordObject(item) && typeof item.zoneId === 'string' ? item.zoneId : undefined) ??
+  String(index)
+
+/** The domain an element of the collection at (`shape`, `ownerPointer`) belongs to. */
+function identityDomain(shape: string, ownerPointer: string): string {
+  if (PLACEMENT_SHAPES.includes(shape)) return 'placement'
+  if (EFFECT_SHAPES.includes(shape)) {
+    const owners = ownerPointer.split('/')
+    return `effect@${unescapeSegment(owners[owners.length - 2] ?? '')}`
+  }
+  if (RECORD_WIDE_SHAPES.includes(shape)) return shape
+  return UNDECLARED_DOMAIN
+}
+
 interface IdentityLedger {
-  /** Ids removed by earlier operations of this patch; never reintroduced. */
-  removed: Set<string>
+  /** Removed id → the domains earlier operations of this patch removed it from. */
+  removed: Map<string, Set<string>>
+}
+
+function tombstone(ledger: IdentityLedger, domain: string, id: string): void {
+  const domains = ledger.removed.get(id) ?? new Set<string>()
+  domains.add(domain)
+  ledger.removed.set(id, domains)
+}
+
+function isTombstoned(ledger: IdentityLedger, domain: string, id: string): boolean {
+  const domains = ledger.removed.get(id)
+  if (!domains) return false
+  return domain === UNDECLARED_DOMAIN || domains.has(UNDECLARED_DOMAIN) || domains.has(domain)
 }
 
 interface SubtreeIdentities {
@@ -64,47 +141,101 @@ interface SubtreeIdentities {
   own: string | undefined
   /** Collection (relative, owner-keyed pointer) → element ids in order. */
   collections: Map<string, string[]>
-  /** Every element id in the subtree, excluding `own`. */
-  all: string[]
+  /** Every element in the subtree, excluding `own`, with its collection's relative owner-keyed pointer and shape. */
+  elements: Array<{ id: string; collection: string; shape: string }>
 }
-
-const isRecordObject = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object' && !Array.isArray(value)
-
-const escapeSegment = (segment: string) => segment.replace(/~/g, '~0').replace(/\//g, '~1')
-
-const idOf = (value: unknown): string | undefined =>
-  isRecordObject(value) && typeof value.id === 'string' ? value.id : undefined
 
 /** Element identities inside a value, keyed by the collection they sit in. */
 function identitiesOf(value: unknown): SubtreeIdentities {
   const collections = new Map<string, string[]>()
-  const all: string[] = []
-  const walk = (node: unknown, pointer: string): void => {
+  const elements: SubtreeIdentities['elements'] = []
+  const walk = (node: unknown, pointer: string, shape: string): void => {
     if (Array.isArray(node)) {
       const ids: string[] = []
       node.forEach((item, index) => {
         const id = idOf(item)
         if (id !== undefined) {
           ids.push(id)
-          all.push(id)
+          elements.push({ id, collection: pointer, shape })
         }
-        const ownerKey =
-          id ??
-          (isRecordObject(item) && typeof item.sceneId === 'string' ? item.sceneId : undefined) ??
-          (isRecordObject(item) && typeof item.zoneId === 'string' ? item.zoneId : undefined) ??
-          String(index)
-        walk(item, `${pointer}/${escapeSegment(ownerKey)}`)
+        walk(item, `${pointer}/${escapeSegment(ownerKeyOf(item, index))}`, `${shape}/*`)
       })
       if (ids.length > 0) collections.set(pointer, ids)
       return
     }
     if (isRecordObject(node)) {
-      for (const [key, child] of Object.entries(node)) walk(child, `${pointer}/${escapeSegment(key)}`)
+      for (const [key, child] of Object.entries(node)) {
+        walk(child, `${pointer}/${escapeSegment(key)}`, `${shape}/${escapeSegment(key)}`)
+      }
     }
   }
-  walk(value, '')
-  return { own: idOf(value), collections, all }
+  walk(value, '', '')
+  return { own: idOf(value), collections, elements }
+}
+
+/** Where a node sits in the record: its owner-keyed pointer and its shape. */
+interface Site {
+  ownerPointer: string
+  shape: string
+}
+
+/** The site of the node at `segments`; every step must exist (resolveParent has checked). */
+function siteOf(root: unknown, segments: string[]): Site {
+  let node: unknown = root
+  let ownerPointer = ''
+  let shape = ''
+  for (const segment of segments) {
+    if (Array.isArray(node)) {
+      const index = Number(segment)
+      const item = node[index]
+      ownerPointer += `/${escapeSegment(ownerKeyOf(item, index))}`
+      shape += '/*'
+      node = item
+    } else if (isRecordObject(node)) {
+      ownerPointer += `/${escapeSegment(segment)}`
+      shape += `/${escapeSegment(segment)}`
+      node = node[segment]
+    } else {
+      break
+    }
+  }
+  return { ownerPointer, shape }
+}
+
+/** How a written or removed value attaches to the record. */
+type Attachment =
+  | { kind: 'element'; collection: Site; ownerKey: string }
+  | { kind: 'key'; parent: Site; key: string }
+
+/** Every identity a value carries at its attachment, each with its domain. */
+function domainsOf(identities: SubtreeIdentities, attachment: Attachment): Array<{ id: string; domain: string }> {
+  const prefix: Site = attachment.kind === 'element'
+    ? {
+        ownerPointer: `${attachment.collection.ownerPointer}/${escapeSegment(attachment.ownerKey)}`,
+        shape: `${attachment.collection.shape}/*`,
+      }
+    : {
+        ownerPointer: `${attachment.parent.ownerPointer}/${escapeSegment(attachment.key)}`,
+        shape: `${attachment.parent.shape}/${escapeSegment(attachment.key)}`,
+      }
+  const out: Array<{ id: string; domain: string }> = []
+  if (attachment.kind === 'element' && identities.own !== undefined) {
+    out.push({
+      id: identities.own,
+      domain: identityDomain(attachment.collection.shape, attachment.collection.ownerPointer),
+    })
+  }
+  for (const element of identities.elements) {
+    out.push({
+      id: element.id,
+      domain: identityDomain(`${prefix.shape}${element.shape}`, `${prefix.ownerPointer}${element.collection}`),
+    })
+  }
+  return out
+}
+
+function tombstoneAll(ledger: IdentityLedger, value: unknown, attachment: Attachment): void {
+  for (const { id, domain } of domainsOf(identitiesOf(value), attachment)) tombstone(ledger, domain, id)
 }
 
 const IDENTITY_REMEDY =
@@ -140,13 +271,13 @@ function duplicateWithin(identities: SubtreeIdentities, path: string): GrammarIs
 function subtreeWriteIssue(
   oldValue: unknown,
   nextValue: unknown,
-  targetIsElement: boolean,
+  attachment: Attachment,
   path: string,
   ledger: IdentityLedger,
 ): GrammarIssue | null {
   const before = identitiesOf(oldValue)
   const after = identitiesOf(nextValue)
-  if (targetIsElement && before.own !== after.own) {
+  if (attachment.kind === 'element' && before.own !== after.own) {
     return identityIssue(
       before.own === undefined
         ? `${path}: "${after.own}" would introduce an element identity where the element had none; ids are minted by the operations and never rewritten.`
@@ -173,8 +304,15 @@ function subtreeWriteIssue(
       }
     }
   }
-  const kept = new Set(after.all)
-  for (const id of before.all) if (!kept.has(id)) ledger.removed.add(id)
+  // Elements the write drops are removed: tombstone them in their domains.
+  const keyOf = (element: { collection: string; id: string }) => `${element.collection} ${element.id}`
+  const kept = new Set(after.elements.map(keyOf))
+  const dropped: SubtreeIdentities = {
+    own: undefined,
+    collections: new Map(),
+    elements: before.elements.filter((element) => !kept.has(keyOf(element))),
+  }
+  for (const { id, domain } of domainsOf(dropped, attachment)) tombstone(ledger, domain, id)
   return null
 }
 
@@ -182,20 +320,20 @@ function subtreeWriteIssue(
 function insertionIssue(
   value: unknown,
   targetArray: unknown[] | null,
+  attachment: Attachment,
   path: string,
   ledger: IdentityLedger,
-  allowance: ReadonlySet<string>,
 ): GrammarIssue | null {
   const inserted = identitiesOf(value)
-  const own = targetArray ? inserted.own : undefined
-  for (const id of own === undefined ? inserted.all : [own, ...inserted.all]) {
-    if (ledger.removed.has(id) && !allowance.has(id)) {
+  for (const { id, domain } of domainsOf(inserted, attachment)) {
+    if (isTombstoned(ledger, domain, id)) {
       return identityIssue(
-        `${path}: element identity "${id}" was removed earlier in this patch and cannot be reintroduced; ids are never recycled.`,
+        `${path}: element identity "${id}" was removed earlier in this patch and cannot be reintroduced here; ids are never recycled.`,
         path,
       )
     }
   }
+  const own = targetArray ? inserted.own : undefined
   if (own !== undefined && targetArray!.some((item) => idOf(item) === own)) {
     return identityIssue(
       `${path}: element identity "${own}" would appear twice; ids are unique within their collection.`,
@@ -337,13 +475,40 @@ function getAt(root: Json, pointer: string): { ok: true; value: unknown } | { ok
   return { ok: true, value: (parent as Record<string, unknown>)[key] }
 }
 
-const NO_ALLOWANCE: ReadonlySet<string> = new Set()
+/** Take the node at `segments` out of the record and return it; the ledger is untouched. */
+function detach(
+  root: Json,
+  segments: string[],
+  pointer: string,
+): { ok: true; value: unknown } | { ok: false; issue: GrammarIssue } {
+  const resolved = resolveParent(root, segments, pointer)
+  if (!resolved.ok) return resolved
+  const { parent, key } = resolved
+  if (Array.isArray(parent)) {
+    const index = Number(key)
+    if (!Number.isInteger(index) || index < 0 || index >= parent.length) {
+      return {
+        ok: false,
+        issue: { code: 'invalid-argument', message: `${pointer}: index ${key} does not exist.` },
+      }
+    }
+    return { ok: true, value: parent.splice(index, 1)[0] }
+  }
+  if (!Object.prototype.hasOwnProperty.call(parent, key)) {
+    return {
+      ok: false,
+      issue: { code: 'invalid-argument', message: `${pointer}: "${key}" does not exist.` },
+    }
+  }
+  const value = (parent as Record<string, unknown>)[key]
+  delete (parent as Record<string, unknown>)[key]
+  return { ok: true, value }
+}
 
 function applyOne(
   root: Json,
   operation: PatchOperation,
   ledger: IdentityLedger,
-  allowance: ReadonlySet<string> = NO_ALLOWANCE,
 ): { ok: true } | { ok: false; issue: GrammarIssue } {
   if (isProtected(operation.path)) {
     return {
@@ -369,16 +534,16 @@ function applyOne(
   if (operation.op === 'move' || operation.op === 'copy') {
     const fromParsed = parsePointer(operation.from)
     if (!fromParsed.ok) return fromParsed
-    const fromIdentity = identityPointerIssue(root, fromParsed.segments, operation.from, 'moved')
+    const fromIdentity = identityPointerIssue(root, fromParsed.segments, operation.from, operation.op === 'move' ? 'moved' : 'copied')
     if (fromIdentity) return { ok: false, issue: fromIdentity }
     const source = getAt(root, operation.from)
     if (!source.ok) return source
     const value = structuredClone(source.value)
-    const carried = identitiesOf(value)
-    const fromParent = nodeAt(root, fromParsed.segments.slice(0, -1))
-    const sourceIsElement = fromParent.found && Array.isArray(fromParent.value)
-    const carriedIds = [...(sourceIsElement && carried.own !== undefined ? [carried.own] : []), ...carried.all]
     if (operation.op === 'copy') {
+      const carried = identitiesOf(value)
+      const fromParent = nodeAt(root, fromParsed.segments.slice(0, -1))
+      const sourceIsElement = fromParent.found && Array.isArray(fromParent.value)
+      const carriedIds = [...(sourceIsElement && carried.own !== undefined ? [carried.own] : []), ...carried.elements.map((element) => element.id)]
       if (carriedIds.length > 0) {
         return {
           ok: false,
@@ -390,13 +555,11 @@ function applyOne(
       }
       return applyOne(root, { op: 'add', path: operation.path, value }, ledger)
     }
-    const inFlight = new Set(carriedIds)
-    const removed = applyOne(root, { op: 'remove', path: operation.from }, ledger)
-    if (!removed.ok) return removed
-    const added = applyOne(root, { op: 'add', path: operation.path, value }, ledger, inFlight)
-    if (!added.ok) return added
-    for (const id of inFlight) ledger.removed.delete(id)
-    return { ok: true }
+    // A move keeps the subtree's identities: detach it (no tombstone) and
+    // insert it as the same element, under the ordinary insertion checks.
+    const detached = detach(root, fromParsed.segments, operation.from)
+    if (!detached.ok) return detached
+    return applyOne(root, { op: 'add', path: operation.path, value }, ledger)
   }
 
   const resolved = resolveParent(root, parsed.segments, operation.path)
@@ -420,11 +583,7 @@ function applyOne(
     return { ok: true }
   }
 
-  const recordRemoved = (value: unknown, wasElement: boolean) => {
-    const gone = identitiesOf(value)
-    if (wasElement && gone.own !== undefined) ledger.removed.add(gone.own)
-    for (const id of gone.all) ledger.removed.add(id)
-  }
+  const parentSite = siteOf(root, parsed.segments.slice(0, -1))
 
   if (Array.isArray(parent)) {
     const index = key === '-' ? parent.length : Number(key)
@@ -434,8 +593,9 @@ function applyOne(
         issue: { code: 'invalid-argument', message: `${operation.path}: "${key}" is not a valid array position.` },
       }
     }
+    const attachment = (value: unknown): Attachment => ({ kind: 'element', collection: parentSite, ownerKey: ownerKeyOf(value, index) })
     if (operation.op === 'add') {
-      const issue = insertionIssue(writeValue, parent, operation.path, ledger, allowance)
+      const issue = insertionIssue(writeValue, parent, attachment(writeValue), operation.path, ledger)
       if (issue) return { ok: false, issue }
       parent.splice(index, 0, structuredClone(writeValue))
       return { ok: true }
@@ -447,11 +607,11 @@ function applyOne(
       }
     }
     if (operation.op === 'remove') {
-      recordRemoved(parent[index], true)
+      tombstoneAll(ledger, parent[index], attachment(parent[index]))
       parent.splice(index, 1)
       return { ok: true }
     }
-    const issue = subtreeWriteIssue(parent[index], writeValue, true, operation.path, ledger)
+    const issue = subtreeWriteIssue(parent[index], writeValue, attachment(parent[index]), operation.path, ledger)
     if (issue) return { ok: false, issue }
     parent[index] = structuredClone(writeValue)
     return { ok: true }
@@ -459,10 +619,11 @@ function applyOne(
 
   const record = parent as Record<string, unknown>
   const exists = Object.prototype.hasOwnProperty.call(record, key)
+  const attachment: Attachment = { kind: 'key', parent: parentSite, key }
   if (operation.op === 'add') {
     const issue = exists
-      ? subtreeWriteIssue(record[key], writeValue, false, operation.path, ledger)
-      : insertionIssue(writeValue, null, operation.path, ledger, allowance)
+      ? subtreeWriteIssue(record[key], writeValue, attachment, operation.path, ledger)
+      : insertionIssue(writeValue, null, attachment, operation.path, ledger)
     if (issue) return { ok: false, issue }
     record[key] = structuredClone(writeValue)
     return { ok: true }
@@ -474,11 +635,11 @@ function applyOne(
     }
   }
   if (operation.op === 'remove') {
-    recordRemoved(record[key], false)
+    tombstoneAll(ledger, record[key], attachment)
     delete record[key]
     return { ok: true }
   }
-  const issue = subtreeWriteIssue(record[key], writeValue, false, operation.path, ledger)
+  const issue = subtreeWriteIssue(record[key], writeValue, attachment, operation.path, ledger)
   if (issue) return { ok: false, issue }
   record[key] = structuredClone(writeValue)
   return { ok: true }
@@ -535,7 +696,7 @@ const setField: ShowGrammarOperation = {
       })
     }
     const next = structuredClone(document.show) as unknown as Json
-    const ledger: IdentityLedger = { removed: new Set() }
+    const ledger: IdentityLedger = { removed: new Map() }
     const outcome = args.delete
       ? applyOne(next, { op: 'remove', path: pointer }, ledger)
       : applyOne(next, { op: 'add', path: pointer, value: args.value }, ledger)
@@ -573,7 +734,7 @@ const applyPatch: ShowGrammarOperation = {
   apply(document, args) {
     const patch = args.patch as PatchOperation[]
     const next = structuredClone(document.show) as unknown as Json
-    const ledger: IdentityLedger = { removed: new Set() }
+    const ledger: IdentityLedger = { removed: new Map() }
     for (const [index, operation] of patch.entries()) {
       if ((operation.op === 'move' || operation.op === 'copy') && !('from' in operation && operation.from)) {
         return refuse({

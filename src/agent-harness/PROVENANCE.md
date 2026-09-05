@@ -252,6 +252,23 @@ V2-authored suites for these repairs: `test/genericIdentityBoundary.test.ts`,
 `test/critiqueAlias.test.ts`, `test/referenceArgumentOrder.test.ts`,
 `test/telemetryDarkFraction.test.ts`.
 
+### Repairs after the second candidate review (54f47d5b)
+
+The review of the repairs above found three remaining defects (one P1, one P2, one P3). Each
+was repaired on 2026-09-05 with a V2-authored suite that failed against `54f47d5b` first.
+
+| # | Finding | Files | Before (54f47d5b) | After |
+| --- | --- | --- | --- | --- |
+| 1 | A move cleared the removed-id ledger | `grammar/operations/generic.ts` | The ledger was one set of id strings and a move ran as remove + add, deleting every carried id from the ledger afterwards. A valid Show may carry one id string in independent identity domains (a marker and an Effect, the Effects of two placements), so "remove the marker, move the Effect of that id between placements, add the marker back" was accepted, and a move into a placement whose Effect of that id had just been removed redirected the reference. | The ledger is owned per identity domain, declared from the engine's duplicate checks and the grammar's lookups: placements across main and overlay layers, overlay layers, instances, markers, layer transitions, tracks, keyframes and each root collection are record-wide domains; an Effect's domain is its placement, keyed by the placement id; a collection shape not declared fails closed (its ids match every domain). A move detaches the subtree and reinserts the same element under the ordinary insertion checks, never touching the ledger, so a tombstone survives the whole patch and a move into a domain holding one of its ids is refused. Consequences: a removed marker no longer blocks an Effect of the same id, and an Effect removed from one clip is a fresh id on another. |
+| 2 | An explicit finish ran before the inline finish | `experiment/turn.ts` | `runToolRound` collected the first inline `finish_turn_reply` but attempted every explicit `finish_turn` call first, so `resize_clip(finish_turn_reply: "Did you mean the first clip?")` followed by `finish_turn("Done.")` committed the edit the model had put in doubt. | The round's finishes are attempted in the order they take effect: inline ones as their operations complete, explicit ones after every operation in listed order. The first success ends the turn; every later one is still attempted and its refusal (the turn module's "already called") is recorded on its call. |
+| 3 | A Zone miss ranked "nearest" by start | `grammar/read.ts` | When the Zone filter matched nothing, both branches returned the first five elements in start order, so a query at 99 s against a Show with more than five earlier elements never mentioned the junction or clip at 99 s. | The miss pool (the Zone's elements when it has any, else every Zone's) is ranked by distance from the queried time before truncation, ties in start order; without a time it is the first five by start. Argument validation still precedes the filter. |
+
+V2-authored suites for these repairs: `test/genericIdentityLedger.test.ts`,
+`test/dictationTurnFinishOrder.test.ts`, `test/referenceNearestRanking.test.ts`. The two
+adapter-level suites share `test/support/mockOpenAiTransport.ts`, because the node Vitest
+project does not isolate files and two hoisted `openai` mocks in one worker would feed a queue
+nobody consumes.
+
 ## Dependencies declared for this closure
 
 | Package | V3 range | Declared here | Installed |

@@ -23,6 +23,11 @@
 // the runner commits or rolls back only once the agent has returned
 // normally. An incompletion or exception after finish_turn therefore
 // discards the turn, and a second finish_turn in the same run is refused.
+//
+// #945 repair (candidate review of 54f47d5b): a tool round's finishes take
+// effect in the order they occur. Before, the round ran every explicit
+// finish_turn call before the inline finish_turn_reply it had collected, so
+// an operation that asked, followed by finish_turn("Done."), committed.
 import type { GrammarIssue } from '../grammar/types.js'
 import type { EditorContext } from '../grammar/read.js'
 import { SHOW_GRAMMAR_OPERATIONS } from '../grammar/registry.js'
@@ -134,10 +139,13 @@ const FINISH_UNAVAILABLE: { ok: false; issues: GrammarIssue[] } = {
 /**
  * Run one round of tool calls the way both agent loops must (#38):
  * operations first in the order given, with finish_turn_reply stripped
- * before the call; then the turn ends if any operation carried
- * finish_turn_reply or a finish_turn call was present - only when no call
- * in the round was refused, otherwise finish is answered with the issues
- * and the loop continues. Provider formatting stays in the loops.
+ * before the call. The round's finishes are then attempted in the order they
+ * take effect - an inline finish_turn_reply when its operation completes, an
+ * explicit finish_turn after every operation, in the order listed - and the
+ * first that succeeds ends the turn; every later one is still attempted so
+ * the turn module's duplicate refusal is recorded on its call. No finish
+ * succeeds in a round in which any call was refused: each is answered with
+ * the issues and the loop continues. Provider formatting stays in the loops.
  */
 export async function runToolRound(
   context: Pick<AgentTurnContext, 'callTool' | 'finishTurn'>,
@@ -145,9 +153,10 @@ export async function runToolRound(
 ): Promise<RoundOutcome> {
   const outputs: RoundOutcome['outputs'] = []
   const operations = calls.filter((call) => call.name !== 'finish_turn')
-  const finishes = calls.filter((call) => call.name === 'finish_turn')
+  const explicitFinishes = calls.filter((call) => call.name === 'finish_turn')
   let roundHadError = false
-  let inlineFinish: { id: string; reply: string | undefined } | null = null
+  /** Finish requests in the order they take effect. */
+  const requests: Array<{ id: string; reply: string | undefined; inline: boolean }> = []
   for (const call of operations) {
     const { [FINISH_ARGUMENT]: finishReply, ...args } = call.args
     const result = call.parseError
@@ -155,27 +164,30 @@ export async function runToolRound(
       : await context.callTool(call.name, args)
     if (result.isError) roundHadError = true
     outputs.push({ id: call.id, payload: result.payload, isError: result.isError })
-    if (typeof finishReply === 'string' && !result.isError && !inlineFinish) {
-      inlineFinish = { id: call.id, reply: finishReply.trim() || undefined }
+    if (typeof finishReply === 'string' && !result.isError) {
+      requests.push({ id: call.id, reply: finishReply.trim() || undefined, inline: true })
     }
   }
-  const attempt = (reply: string | undefined) =>
-    roundHadError ? FINISH_BLOCKED : context.finishTurn ? context.finishTurn(reply) : FINISH_UNAVAILABLE
-  for (const call of finishes) {
-    const reply = typeof call.args.reply === 'string' ? call.args.reply : undefined
-    const ended = attempt(reply)
-    if (ended.ok) return { outputs, ended: { finalText: ended.finalText } }
-    outputs.push({ id: call.id, payload: ended, isError: true })
+  for (const call of explicitFinishes) {
+    requests.push({ id: call.id, reply: typeof call.args.reply === 'string' ? call.args.reply : undefined, inline: false })
   }
-  if (inlineFinish && finishes.length === 0) {
-    const ended = attempt(inlineFinish.reply)
-    if (ended.ok) return { outputs, ended: { finalText: ended.finalText } }
-    // The operation itself succeeded; the refused finish rides on its output
-    // so the model sees why the turn is still open.
-    const own = outputs.find((output) => output.id === inlineFinish!.id)
-    if (own) own.payload = { ...(own.payload as Record<string, unknown>), finish_turn: ended }
+  let ended: RoundOutcome['ended'] = null
+  for (const request of requests) {
+    const outcome = roundHadError ? FINISH_BLOCKED : context.finishTurn ? context.finishTurn(request.reply) : FINISH_UNAVAILABLE
+    if (outcome.ok) {
+      if (!ended) ended = { finalText: outcome.finalText }
+      continue
+    }
+    if (request.inline) {
+      // The operation itself succeeded; the refused finish rides on its output
+      // so the model sees why the turn is still open (or that it already ended).
+      const own = outputs.find((output) => output.id === request.id)
+      if (own) own.payload = { ...(own.payload as Record<string, unknown>), finish_turn: outcome }
+    } else {
+      outputs.push({ id: request.id, payload: outcome, isError: true })
+    }
   }
-  return { outputs, ended: null }
+  return { outputs, ended }
 }
 
 export type DialogueEntry = { role: 'user' | 'assistant'; text: string }

@@ -237,7 +237,10 @@ ids (no final-record slot heuristic); the raw `runTelemetry` entry shares the 1â
 envelope and refuses non-positive windows; `finish_turn` stages its outcome and the runner
 commits only after the agent returns normally; the critique keys sources on the canonical
 stock id; `resolve_reference` validates its time and context pointers before the Zone filter;
-and a dark stretch's `darkFraction` is frame-weighted.
+and a dark stretch's `darkFraction` is frame-weighted. The review of those repairs found three
+more, repaired the same way: the removed-id ledger is owned per identity domain and a move
+retains identity without touching it; a tool round's finishes take effect in order, the first
+standing; and a Zone miss ranks its nearest candidates by distance from the queried time.
 
 ## What this slice does not include
 

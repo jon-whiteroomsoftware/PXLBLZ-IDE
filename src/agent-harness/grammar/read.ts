@@ -153,6 +153,20 @@ function conclude(candidates: ReferenceCandidate[], nearest: ReferenceCandidate[
   }
 }
 
+/**
+ * The five candidates to offer on a miss (#945 second repair): the pool is the
+ * requested Zone's elements when it has any, else every Zone's; with a time
+ * they are ranked by distance from it (ties in start order, the sort being
+ * stable) before truncation, so a late query names the late element; without
+ * a time they are the first five by start.
+ */
+function nearestFive<T>(pool: T[], startOf: (site: T) => number, atMs: number | undefined): T[] {
+  const ranked = atMs === undefined
+    ? pool
+    : [...pool].sort((a, b) => Math.abs(startOf(a) - atMs) - Math.abs(startOf(b) - atMs))
+  return ranked.slice(0, 5)
+}
+
 /** Resolve a described element to ids with human descriptions. */
 export function resolveReference(
   document: ShowGrammarDocument,
@@ -180,20 +194,11 @@ export function resolveReference(
         },
       }
     }
-    let sites = junctionSites(document)
-    if (zoneFilter) {
-      const zoneMatched = sites.filter((site) => inZone(site, zoneFilter))
-      if (zoneMatched.length === 0 && sites.length > 0) {
-        return conclude([], sites.slice(0, 5).map(junctionCandidate))
-      }
-      sites = zoneMatched
-    }
-    const nearestBy = (atMs: number) =>
-      [...sites]
-        .sort((a, b) => Math.abs(a.junction.startMs - atMs) - Math.abs(b.junction.startMs - atMs))
-        .slice(0, 5).map(junctionCandidate)
+    const all = junctionSites(document)
+    const sites = zoneFilter ? all.filter((site) => inZone(site, zoneFilter)) : all
+    const nearest = nearestFive(sites.length > 0 ? sites : all, (site) => site.junction.startMs, atMs).map(junctionCandidate)
     const matches = sites.filter(({ junction }) => atMs >= junction.startMs && atMs <= junction.endMs)
-    return conclude(matches.map(junctionCandidate), nearestBy(atMs))
+    return conclude(matches.map(junctionCandidate), nearest)
   }
 
   // #945 repair: the context pointers a query relies on are validated
@@ -226,15 +231,9 @@ export function resolveReference(
     }
   }
 
-  let sites = clipSites(document)
-  if (zoneFilter) {
-    const zoneMatched = sites.filter((site) => inZone(site, zoneFilter))
-    if (zoneMatched.length === 0 && sites.length > 0) {
-      return conclude([], sites.slice(0, 5).map(clipCandidate))
-    }
-    sites = zoneMatched
-  }
-  const all = sites
+  const all = clipSites(document)
+  let sites = zoneFilter ? all.filter((site) => inZone(site, zoneFilter)) : all
+  const pool = sites.length > 0 ? sites : all
 
   if (hovered) sites = sites.filter((site) => site.clip.id === hovered)
   if (query.selected) sites = sites.filter((site) => selected.has(site.clip.id))
@@ -249,10 +248,7 @@ export function resolveReference(
     sites = query.ordinal >= 1 ? sites.slice(query.ordinal - 1, query.ordinal) : []
   }
 
-  const nearest = (atMs !== undefined
-    ? [...all].sort((a, b) => Math.abs(a.clip.startMs - atMs) - Math.abs(b.clip.startMs - atMs))
-    : all
-  ).slice(0, 5).map(clipCandidate)
+  const nearest = nearestFive(pool, (site) => site.clip.startMs, atMs).map(clipCandidate)
   return conclude(sites.map(clipCandidate), nearest)
 }
 

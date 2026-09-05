@@ -17,45 +17,13 @@ import { dictationTools, runDictationTurn } from '../experiment/turn.js'
 import { DICTATION_RULES } from '../grammar/read.js'
 import { createSessionStore, type GrammarSessionStore } from '../grammar/session.js'
 import { createShowsServer } from '../mcp/showsServer.js'
+import { functionCall, transport } from './support/mockOpenAiTransport.js'
 
 // The provider transport, replaced wholesale: no network, no credential. Each
 // queued entry is one model response; the adapter's own loop, tool-round and
-// finish handling run unchanged over it.
-const transport = vi.hoisted(() => ({
-  queue: [] as Array<(input: unknown[]) => { output: unknown[]; output_text?: string }>,
-  requests: [] as unknown[][],
-}))
-
-vi.mock('openai', () => ({
-  default: class FakeOpenAI {
-    responses = {
-      create: (params: { input: unknown[] }) => ({
-        withResponse: async () => {
-          const next = transport.queue.shift()
-          if (!next) throw new Error('the mocked transport has no response left')
-          transport.requests.push([...params.input])
-          const data = {
-            ...next(params.input),
-            usage: {
-              input_tokens: 10,
-              output_tokens: 5,
-              input_tokens_details: { cached_tokens: 0 },
-              output_tokens_details: { reasoning_tokens: 0 },
-            },
-          }
-          return { data, response: { headers: { get: () => null } } }
-        },
-      }),
-    }
-  },
-}))
-
-const functionCall = (id: string, name: string, args: Record<string, unknown>) => ({
-  type: 'function_call',
-  call_id: id,
-  name,
-  arguments: JSON.stringify(args),
-})
+// finish handling run unchanged over it. The queue is the shared one in
+// support/mockOpenAiTransport.ts (the node project does not isolate files).
+vi.mock('openai', async () => (await import('./support/mockOpenAiTransport.js')).mockedOpenAiModule())
 
 async function harness() {
   const store = createSessionStore()

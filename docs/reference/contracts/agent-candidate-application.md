@@ -82,7 +82,11 @@ committed it). `finish_turn` itself commits nothing: it validates the
 working copy as a commit would and stages the outcome, which the runner
 commits or discards only once the agent has returned normally, so an
 incompletion or exception after `finish_turn` still discards the turn and a
-second `finish_turn` in the same run is refused (#945 repair).
+second `finish_turn` in the same run is refused (#945 repair). Within one
+tool round the finishes take effect in the order they occur: an inline
+`finish_turn_reply` as its operation completes, an explicit `finish_turn`
+after every operation, in listed order; the first successful finish stands
+and every later one is refused as a duplicate (#945 second repair).
 
 Session validation and editor admission are different checks. The service opens
 with unresolved personal Patterns allowed, while other document validation
@@ -112,20 +116,30 @@ diagnostic until #946, #947 and #959 decide what becomes engine code (#949).
   is proved by [`test/dictationTurnAbnormal.test.ts`](../../../src/agent-harness/test/dictationTurnAbnormal.test.ts);
   the staged `finish_turn` (nothing committed until a normal return, a
   duplicate finish refused) by
-  [`test/dictationTurnStagedFinish.test.ts`](../../../src/agent-harness/test/dictationTurnStagedFinish.test.ts).
+  [`test/dictationTurnStagedFinish.test.ts`](../../../src/agent-harness/test/dictationTurnStagedFinish.test.ts);
+  the order of a round's finishes, through the adapter over a mocked
+  transport, by
+  [`test/dictationTurnFinishOrder.test.ts`](../../../src/agent-harness/test/dictationTurnFinishOrder.test.ts).
 - The generic operations ([`grammar/operations/generic.ts`](../../../src/agent-harness/grammar/operations/generic.ts))
   preserve every element identity of the record - the ids that editor focus
   and agent references point at - across `set_field` and `apply_patch`,
   enforced at each patch operation against the working record: an element's
   `id` is never written, removed, moved or copied; a write over an existing
   subtree keeps each element under its own id and introduces none; an id
-  removed earlier in the same patch is never reintroduced; insertion and move
-  carry identity, copy of an element is refused
+  removed earlier in the same patch is never reintroduced into the identity
+  domain it was removed from (placements across main and overlay layers, and
+  each record-wide collection, are one domain; an Effect's domain is its
+  placement; an undeclared collection fails closed); insertion carries
+  identity under those checks; a move detaches and reinserts the same element
+  without touching the ledger; copy of an element is refused
   ([`test/genericIdentity.test.ts`](../../../src/agent-harness/test/genericIdentity.test.ts),
-  [`test/genericIdentityBoundary.test.ts`](../../../src/agent-harness/test/genericIdentityBoundary.test.ts)).
+  [`test/genericIdentityBoundary.test.ts`](../../../src/agent-harness/test/genericIdentityBoundary.test.ts),
+  [`test/genericIdentityLedger.test.ts`](../../../src/agent-harness/test/genericIdentityLedger.test.ts)).
   A whole-collection write that keeps id A with B's former content while
   dropping B is accepted: that record is reachable by editing A and removing
-  B, and no operation names an id.
+  B, and no operation names an id. The generic conclude path and the session
+  commit validate through the tier-0 document validator only; the engine's
+  composition duplicate checks are not part of that path.
 - Composition replacement ([`grammar/support.ts`](../../../src/agent-harness/grammar/support.ts)) preserves the captured
   timestamp; this is source evidence for the ordering gap above.
 - Service ([`bridge/service.ts`](../../../src/agent-harness/bridge/service.ts), the request path

@@ -1449,8 +1449,11 @@ three telemetry window/bucket errors) were corrected in V2 afterwards, and
 the review of those corrections led to six repairs (per-operation identity
 enforcement, a shared telemetry envelope, a staged `finish_turn`, canonical
 stock ids in the critique, argument validation before the Zone filter, and a
-frame-weighted dark fraction); `PROVENANCE.md` records each before/after so
-none is read as V3 semantics. The
+frame-weighted dark fraction), and the review of those repairs to three more
+(a removed-id ledger owned per identity domain with identity-retaining moves,
+finishes taking effect in order within a tool round, and distance-ranked
+nearest candidates on a Zone miss); `PROVENANCE.md` records each
+before/after so none is read as V3 semantics. The
 [agent candidate application contract](contracts/agent-candidate-application.md)
 owns the editor boundary it targets. The browser baseline
 (`npm run test:e2e:agent-baseline`, report in
