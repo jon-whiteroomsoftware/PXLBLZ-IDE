@@ -67,11 +67,10 @@ same record. Sequences A-D and F-H retain their original diagnostic oracles.
 | H | Personal Pattern calling a personal Library | The reply applied and saved (12 000 ms). The stage preview shows `Unknown library namespace "Blz"`: the preview compile passes no personal Libraries, so no preview publication matched the candidate. `.epe` export in the harness fails the same way (fixture evidence). |
 
 The #948 store regressions and shared authoring contract establish sequence
-E's single-client recovery policy. Its new browser assertions and reopen check
-are committed in `e2e/agent-baseline.auth.spec.ts`. No replacement browser
-capture is claimed here yet: the #948 worker's local Chromium launch was denied
-by the macOS sandbox before the test ran, so the original #945 E record remains
-the latest executed browser observation.
+E's single-client recovery policy. An unsandboxed host run at `68a9aa48` passed
+the new browser assertions and reopen check in 9.9 seconds. Its record and
+capture are under
+`reports/agent-harness/baseline/browser/2026-09-06T03-24-40-328Z/`.
 
 The fixture command records three refusals verbatim: on the stock lesson 101,
 the property-animation reference, and the changing-layouts lesson, resizing

@@ -107,9 +107,7 @@ owns the storage seam.
 stable composition ids through undo/redo, queued writes, superseded ordinary,
 undo, and redo failures, stale candidate stamps, consecutive failures,
 hydration races, retry supersession, in-flight deletion, and complete in-memory
-stock history/reset behavior. The browser baseline's green sequence E encodes
-the delayed agent-save failure and reopen oracle; its replacement capture is
-still required because the #948 worker's local Chromium process was blocked by
-the macOS sandbox before that test ran. The passing store and shared-contract
-cases establish bounded single-client recovery; they do not prove general
-collaborative editing or clock-skew safety.
+stock history/reset behavior. The browser baseline's green sequence E proves
+the delayed agent-save failure and reopen surface from an unsandboxed host run.
+Together those cases establish bounded single-client recovery; they do not
+prove general collaborative editing or clock-skew safety.

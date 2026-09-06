@@ -5,6 +5,7 @@ Date: 2026-09-05 America/Los_Angeles (2026-09-06 UTC)
 Base: f61264f1844bc2af1cfbfe93e16ecb53646c2301
 Red-test commit: bd4cb8780e059f96c6de93e146888741188ddde5
 Tested implementation commit: 4e2d3709c6933b3822fc1e20d06352ad009c0f55
+Browser-tested tip: 68a9aa481f65e7f2892d9b50e67b8d8f816abb6a
 
 Regression matrix
 -----------------
@@ -51,26 +52,28 @@ full-vitest       2c24158e-bf3e-40c2-ba65-cb3e2757968c  6969 passed, 61 skipped
 Browser sequence E
 ------------------
 
-The green regression is committed in `e2e/agent-baseline.auth.spec.ts`. It
-requires the saved agent candidate to remain visible after a later failed save,
-remain the provider's durable record, and reopen as that same record. Its
-intended artifacts are:
+The coordinator ran the green regression from an unsandboxed host shell at
+68a9aa481f65e7f2892d9b50e67b8d8f816abb6a:
 
-  reports/agent-harness/baseline/browser/<run>/E-failed-save-recovery.json
-  reports/agent-harness/baseline/browser/<run>/E-failed-save-recovery.png
+  npm run test:e2e:agent-baseline -- -g "E:"
+  1 passed (9.9s)
 
-The #948 worker attempted:
+Artifacts:
 
-  npm run test:e2e:agent-baseline -- --grep "E: a later failed save"
+  reports/agent-harness/baseline/browser/2026-09-06T03-24-40-328Z/E-failed-save-recovery.json
+  reports/agent-harness/baseline/browser/2026-09-06T03-24-40-328Z/E-failed-save-recovery.png
+  reports/agent-harness/baseline/browser/2026-09-06T03-24-40-328Z/bridge.log
 
-`npm run check:playwright` first proved the repository Chromium 1223 install.
-The test process then failed before executing the test because macOS denied
-Chromium's `MachPortRendezvousServer` operation (`Permission denied (1100)`).
-The run directory
-`reports/agent-harness/baseline/browser/2026-09-06T03-06-27-287Z/` contains
-only `bridge.log`; no replacement record or capture was generated. The
-original #945 red E capture must not be presented as #948 proof. A host-capable
-run of the explicit browser suite remains required.
+The JSON record identifies the saved candidate PATCH with status 200,
+`updatedAt` 1788665086101, duration 12000 ms, and brightness 1. The induced
+later PATCH has status -1 and attempted brightness 0.6; this is the request
+whose expected Vite-side `Failed to fetch` rejection exercises recovery. The
+passing browser assertion and PNG show the failure notice, "Couldn't save this
+Show. The last edit was reverted." After that failure, both
+`durable.afterFailure` and `durable.afterReopen` retain duration 12000 ms and
+brightness 1. The visible fields likewise read 12 seconds and 100% after the
+failure and after reopen. The host run therefore proves that the accepted
+candidate, failure notice, durable provider record, and reopened editor agree.
 
 Boundary and inventory
 ----------------------
