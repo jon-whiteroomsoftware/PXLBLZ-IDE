@@ -103,6 +103,22 @@ fi
 assert_contains "$CALL_LOG" "review-input $DELETION_UPDATE"
 assert_call_count "evidence " 0
 
+NOTES_ONLY_UPDATE="refs/heads/notes-source $OTHER_SHA refs/notes/wrsp-usage $REMOTE_SHA"
+if ! run_hook "$NOTES_ONLY_UPDATE"; then
+  fail "notes-only update should be skipped"
+fi
+assert_contains "$CALL_LOG" "review-input $NOTES_ONLY_UPDATE"
+assert_call_count "evidence " 0
+
+NOTES_WITH_BRANCH_UPDATE="refs/notes/wrsp-usage $OTHER_SHA refs/heads/notes-mirror $REMOTE_SHA
+$MATCHING_UPDATE"
+if ! run_hook "$NOTES_WITH_BRANCH_UPDATE"; then
+  fail "notes update alongside branch tip equal to HEAD should pass"
+fi
+assert_contains "$CALL_LOG" "review-input refs/notes/wrsp-usage $OTHER_SHA refs/heads/notes-mirror $REMOTE_SHA"
+assert_contains "$CALL_LOG" "review-input $MATCHING_UPDATE"
+assert_call_count "evidence $HEAD_SHA" 1
+
 TWO_UPDATES="$MATCHING_UPDATE
 $MISMATCHING_UPDATE"
 if run_hook "$TWO_UPDATES"; then
