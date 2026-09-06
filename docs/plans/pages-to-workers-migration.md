@@ -1,5 +1,12 @@
 # Pages to Workers migration
 
+> **Status: complete (2026-08-31).** The custom domain now serves
+> `pxlblz-ide-worker`; Workers Builds deployed version
+> `50451011-aeee-4c4a-8c7e-b6580f27aa1a` at 100%. The domain first moved to
+> the Worker on 2026-08-29; the 2026-08-31 deployment completed the default
+> config and continuous-deployment cutover. The design and slice history below
+> are retained as the migration record.
+
 PXLBLZ-IDE moves from Cloudflare Pages to a Cloudflare Worker with static
 assets, and local development moves from the two-process Vite + `wrangler
 pages dev` pair to the Cloudflare Vite plugin running workerd inside Vite.

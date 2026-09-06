@@ -1,6 +1,6 @@
 # PXLBLZ Privacy
 
-Last updated: July 19, 2026
+Last updated: September 5, 2026
 
 White Room Software operates the PXLBLZ web application. This policy explains
 what the web app stores, why it stores it, and how to request a copy or deletion
@@ -51,7 +51,7 @@ Analytics. Google's handling of analytics data is described in
 
 PXLBLZ uses:
 
-- Cloudflare Pages, Pages Functions, and D1 to serve the app and store account
+- Cloudflare Workers and D1 to serve the app and store account
   and workspace data;
 - GitHub or Google for the login provider you select; and
 - Google Analytics for the coarse product analytics described above.

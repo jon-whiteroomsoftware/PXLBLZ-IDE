@@ -704,8 +704,8 @@ the persistent shared development identity.
 
 ### Flake probing and host load
 
-The authenticated suites funnel all four workers through a single
-`wrangler pages dev` process, which makes results sensitive to host load. An open
+The authenticated suites funnel all four workers through one candidate-owned
+worker-dev Vite process, which makes results sensitive to host load. An open
 browser pane running the app's WebGL preview measurably raises the flake rate.
 Idle or close app tabs before a full-suite run, and read a single-spec failure
 carrying a "Checking Studio access" snapshot as load rather than a product

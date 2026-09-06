@@ -8,7 +8,7 @@
  * apart (ritardando), hold two beats, fade to black.
  *
  *   npx tsx scripts/promo/cme-teaser.ts --dry   # build + validate + compile only
- *   npx tsx scripts/promo/cme-teaser.ts         # also save via http://localhost:8788
+ *   npx tsx scripts/promo/cme-teaser.ts         # also save via http://localhost:5174
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -46,7 +46,7 @@ const SHOW_ID = 'teaser-cme-01'
 const SHOW_NAME = 'Teaser 01: Coronal Mass Ejection'
 const CME_PATTERN_ID = '5ae230d0-c9e8-442d-8904-e2be1d3c5a56'
 const USER_ID = 'github:59668898'
-const API_BASE = 'http://localhost:8788'
+const API_BASE = 'http://localhost:5174'
 /** 36s gesture plus two bars of black before the loop restarts. */
 const DURATION_MS = 40_000
 /**

@@ -11,7 +11,7 @@ and the code disagree, the code wins.
 PXLBLZ has two product surfaces over one browser engine: a public Gallery and
 an authenticated Studio. Pattern editing, transpilation, execution, preview,
 and hardware artifact generation happen in the page. Durable personal content
-lives in Cloudflare D1 behind Pages Functions. Live Controllers sit behind an
+lives in Cloudflare D1 behind the Worker API. Live Controllers sit behind an
 optional Chrome-extension relay because an HTTPS page cannot open their LAN
 WebSockets directly.
 
@@ -23,12 +23,12 @@ WebSockets directly.
 
 | Concern | Implementation |
 |---|---|
-| Build and local development | Vite, with API proxying to local Wrangler |
+| Build and local development | Vite with the Cloudflare Worker plugin |
 | UI | React + TypeScript + Tailwind CSS + selected shadcn/ui primitives |
 | State | Zustand stores, readable outside React |
 | Editor | Monaco with a Pixelblaze language mode |
 | Parsing and rewriting | Acorn |
-| Personal persistence | Cloudflare Pages Functions + D1 |
+| Personal persistence | Cloudflare Worker + D1 |
 | Preview drawing | WebGL point renderer |
 | Tests | Vitest/jsdom plus Playwright suites and hardware harnesses |
 | Commit gate | Husky: lint and full Vitest suite |
@@ -156,7 +156,7 @@ outcome, and coarse failure code, never account or profile data.
 ## 3. Personal content and persistence
 
 `personalContentProvider.ts` is the browser-side storage interface. The
-authenticated implementation calls Pages Functions backed by D1; demo mode
+authenticated implementation calls Worker routes backed by D1; demo mode
 returns empty collections and rejects durable mutations while leaving stock
 content and live hardware usable.
 

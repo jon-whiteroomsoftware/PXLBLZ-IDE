@@ -12,9 +12,7 @@ its `.wrangler/state`. Since #900 the main runtime is one worker-dev process:
 the Cloudflare Vite plugin serves the Worker (from `wrangler.jsonc`)
 and local D1 inside the Vite process, so UI and `/api` share the single port.
 `npm run dev:main` applies pending migrations, provisions local synthetic
-identities, and starts that process when it is absent. On sight of the legacy
-two-process pair it retires the `wrangler pages dev` on `8788` (after proving
-ownership) and restarts main as the single process.
+identities, and starts that process when it is absent.
 
 A bare `npm run dev` is the same single-process shape for ad-hoc use, reading
 `.dev.vars` and persisting to the checkout's `.wrangler/state` — the same

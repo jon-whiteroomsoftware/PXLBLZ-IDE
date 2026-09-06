@@ -15,7 +15,7 @@ and the retired ADR-0015 (`git show 106ec4c^:docs/adr/0015-extension-host-permis
 
 > https://pxlblz-ide.whiteroomsoftware.com/privacy
 
-Source: `public/privacy.html` (deployed to Cloudflare Pages with the app; the
+Source: `public/privacy.html` (deployed by the Cloudflare Worker with the app; the
 retired GitHub Pages URL now returns 404). States the
 extension collects/transmits no user data; controller traffic is relayed locally and
 never sent anywhere; the one off-LAN request is the user-triggered cloud discovery

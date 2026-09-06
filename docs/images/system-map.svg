@@ -43,7 +43,7 @@
   <line x1="450" y1="148" x2="450" y2="190" stroke="#5c92c7" stroke-width="1.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
 
   <rect x="626" y="76" width="222" height="72" rx="6" fill="#232a33" stroke="#dde3ea"/>
-  <text x="642" y="101" font-size="12" font-weight="bold" fill="#dde3ea">Pages Functions</text>
+  <text x="642" y="101" font-size="12" font-weight="bold" fill="#dde3ea">Worker API</text>
   <text x="642" y="121" font-size="10.5" fill="#97a1ac">auth · user-scoped API</text>
   <text x="642" y="137" font-size="10.5" fill="#97a1ac">personal-content provider</text>
 

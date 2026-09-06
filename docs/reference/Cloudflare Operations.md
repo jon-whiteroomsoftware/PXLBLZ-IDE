@@ -125,16 +125,17 @@ cp .dev.vars.example .dev.vars
 npm run dev:main
 ```
 
-This keeps Vite on `5174`, Wrangler on `8788`, and the shared local D1 in the
+This keeps one worker-dev Vite process on `5174` and the shared local D1 in the
 main checkout's `.wrangler/state`. The command applies pending migrations,
-provisions synthetic local identities, and starts missing services without
-replacing healthy listeners. Fill the main checkout's `.dev.vars` with
+provisions synthetic local identities, and starts the process when absent
+without replacing a healthy listener. Fill the main checkout's `.dev.vars` with
 localhost GitHub and/or Google OAuth apps to test the browser sign-in loop.
 
 Issue work reserves a discoverable runtime with `npm run dev:issue`; most UI
-work uses `--profile shared` and proxies to main's Wrangler and D1. Functions,
-migrations, authentication, and changed API contracts use
-`--profile isolated`, which receives a migrated issue-specific D1 and Wrangler.
+work uses `--profile shared` and proxies to main's Worker origin and D1. Worker
+routes, migrations, authentication, and changed API contracts use
+`--profile isolated`, which receives a migrated issue-specific D1 and runs the
+Worker inside its Vite process.
 See `docs/agents/dev-runtime.md` for commands, port ranges, identity isolation,
 and cleanup. Run `npm run dev:main` after landing or pulling a migration. If the
 shared store is behind the code, authenticated Studio screens can report
@@ -150,17 +151,17 @@ npm run test:e2e:auth-smoke  # fast create/edit/reload persistence path
 npm run test:e2e:shows       # deeper clip, transition, automation, and routing flows
 ```
 
-Both commands reserve an isolated Vite/Wrangler pair from the managed runtime
-registry, create an explicit temporary D1 store, apply migrations and seed the
-synthetic users before server startup, then release the reservation and store.
-Parallel runs cannot collide with the persistent 5174/8788 pair or active issue
-runtimes. The commands require `SESSION_SECRET` in the main checkout's
-`.dev.vars`; OAuth client credentials are not required.
+Both commands reserve an isolated worker-dev Vite process from the managed
+runtime registry, create an explicit temporary D1 store, apply migrations and
+seed the synthetic users before server startup, then release the reservation
+and store. Parallel runs cannot collide with the persistent `5174` process or
+active issue runtimes. The commands require `SESSION_SECRET` in the main
+checkout's `.dev.vars`; OAuth client credentials are not required.
 
 After deploy, open the production URL
 (`https://pxlblz-ide.whiteroomsoftware.com`) and smoke-test:
 
-1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"25"}` for the
+1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"27"}` for the
    current migration set. This is the latest value written to `schema_meta`, not
    a count of migration files.
 2. Visit `/api/me`; signed out should report `{ "authenticated": false }`.

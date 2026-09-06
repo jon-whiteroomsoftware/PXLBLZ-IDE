@@ -54,8 +54,8 @@ Before changing the agent bridge or `__pxlblzEditor` candidate application, read
   representation and decode emission; `showMemberLowering.ts` owns
   Pattern-member lowering; `showMemberBindingPolicy.ts` owns the per-member
   placement binding policy.
-- `src/cloudflare/`, `functions/api/`, and `migrations/`: authentication,
-  user-scoped Pages Functions, D1 persistence, and schema history.
+- `src/cloudflare/`, `src/worker/routes/`, and `migrations/`: authentication,
+  user-scoped Worker handlers, D1 persistence, and schema history.
 - `src/docs/catalog.ts`: repository Markdown exposed by the in-app docs route.
   Diagram SVGs in `docs/images/` follow `docs/agents/diagram-style.md`.
 - `src/agent-harness/`: diagnostic agent-editing harness transferred from V3 for

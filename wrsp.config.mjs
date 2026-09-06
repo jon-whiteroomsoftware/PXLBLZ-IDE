@@ -96,7 +96,7 @@ export default {
         prefixes: [
           'src/engine/personalContent',
           'src/cloudflare/',
-          'functions/api/',
+          'src/worker/routes/',
           'migrations/',
         ],
         tests: [
@@ -105,7 +105,7 @@ export default {
           'src/cloudflare/d1.test.ts',
           'src/cloudflare/schema.test.ts',
           'src/cloudflare/shows.test.ts',
-          'functions/api/resourceProtection.test.ts',
+          'src/worker/index.test.ts',
         ],
       },
       {

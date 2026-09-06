@@ -4,9 +4,8 @@
 // fallback, `wrangler dev` through the Cloudflare Vite plugin, and the
 // `wrangler d1` scripts.
 //
-// The two assets settings replicate what the Pages platform provided
-// implicitly: the SPA fallback that deep links depend on, and worker-first
-// routing so /api/* can never be answered by asset matching.
+// The assets settings preserve SPA fallback for deep links and route /api/*
+// worker-first so API requests can never be answered by asset matching.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "pxlblz-ide-worker",

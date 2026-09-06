@@ -1,9 +1,8 @@
 // Headless smoke for the Workers-migration config (#898): builds the app at
 // the production base path, serves it with `wrangler dev`
-// on the default wrangler.jsonc (#922) against a throwaway local D1, and verifies the
-// behaviors the Pages platform provided implicitly — SPA fallback for deep
-// links and unknown paths, real asset serving, worker-first /api routing —
-// plus the API's signed-out semantics through the served Worker.
+// on the default wrangler.jsonc (#922) against a throwaway local D1, and
+// verifies SPA fallback for deep links and unknown paths, real asset serving,
+// worker-first /api routing, and the API's signed-out semantics.
 //
 //   npm run smoke:worker              # build, serve, check
 //   npm run smoke:worker -- --skip-build   # reuse the existing dist/
