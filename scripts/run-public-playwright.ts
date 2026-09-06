@@ -14,7 +14,7 @@ import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { RuntimeAssignment } from './dev-runtime-core'
 import {
-  loadManifest,
+  loadPlaywrightManifest,
   portIsAvailable,
   repositoryContext,
 } from './dev-runtime'
@@ -87,7 +87,7 @@ async function main(): Promise<void> {
     return
   }
 
-  const manifest = loadManifest(context.worktree)
+  const manifest = loadPlaywrightManifest(context.worktree, 'shared')
   const runId = `playwright-public-${process.pid}-${Date.now()}`
   const persistStateDirectory = join(context.runtimeDirectory, 'playwright', runId)
   const assignment = await reserveRuntimeAssignment({

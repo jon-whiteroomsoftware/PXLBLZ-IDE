@@ -12,6 +12,37 @@ export default {
   review: {
     projectPolicy: `The Playwright suites run only at push time, so pre-landing e2e validation is the implementing agent's responsibility (docs/agents/verification.md, #673). When the diff plainly changes a flow those suites cover — Show editor or timeline interaction, Zone or Show persistence, authentication or personal-content plumbing, app-shell navigation, or Pattern Studio surfaces — and no commit in the range carries either a corresponding e2e spec change or an X-E2E: trailer naming the affected suite, add one P3 advisory finding naming the suite to run (test:e2e:shows, test:e2e:auth-smoke, or test:e2e). This advisory follows the ordinary P3 flow — the decision is "fail", the range records non-terminal advisory coverage, and the exact corrective commit is one that carries the X-E2E: trailer after the suite has run (or that fixes what the suite caught). An X-E2E: trailer or e2e spec change already in the range means the evidence exists: do not emit the advisory.`,
   },
+  runner: {
+    suites: {
+      'full-vitest': {
+        command: ['npm', 'run', 'test:full'],
+        required: true,
+        timeoutMinutes: 10,
+        resourceClass: 'default',
+      },
+      'e2e-public': {
+        command: ['npm', 'run', 'test:e2e'],
+        required: true,
+        timeoutMinutes: 15,
+        artifacts: ['playwright-report/**', 'test-results/**/trace.zip'],
+        resourceClass: 'exclusive',
+      },
+      'e2e-auth-smoke': {
+        command: ['npm', 'run', 'test:e2e:auth-smoke'],
+        required: true,
+        timeoutMinutes: 15,
+        artifacts: ['playwright-report/**', 'test-results/**/trace.zip'],
+        resourceClass: 'exclusive',
+      },
+      'e2e-shows': {
+        command: ['npm', 'run', 'test:e2e:shows'],
+        required: true,
+        timeoutMinutes: 20,
+        artifacts: ['playwright-report/**', 'test-results/**/trace.zip'],
+        resourceClass: 'exclusive',
+      },
+    },
+  },
   selection: {
     typecheckExact: [
       'vite.config.ts',
@@ -118,6 +149,7 @@ export default {
           'dev-runtime.json',
           'playwright.config.ts',
           'playwright.auth.config.ts',
+          'runner/dev.vars.runner',
           'vite.config.ts',
           'vitest.mutation.config.ts',
           'package.json',

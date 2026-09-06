@@ -1,0 +1,7 @@
+# SESSION_SECRET signs cookies only for the synthetic Playwright identities
+# github:playwright-worker-00 through github:playwright-worker-03. The runner
+# seeds those users into its job-private D1 database before each suite.
+SESSION_SECRET=wrsp-runner-synthetic-session-secret-not-for-production
+
+# OAuth credentials are intentionally absent. Runner suites authenticate with
+# locally signed cookies and must never contact a production identity provider.

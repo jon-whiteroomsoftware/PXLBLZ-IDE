@@ -27,6 +27,7 @@ import {
   unownedGroupMembers,
   type MainApiListener,
   type ProbeOutcome,
+  type PortRange,
   type RuntimeAssignment,
   type RuntimeManifest,
   type RuntimeProfile,
@@ -56,6 +57,17 @@ export interface RepositoryContext {
   mainWorktree: string
   gitCommonDirectory: string
   runtimeDirectory: string
+}
+
+export interface RunnerExecutionEnvironment {
+  outputDirectory: string
+  temporaryDirectory: string
+  ports: PortRange
+}
+
+export interface DevVarsLease {
+  file: string
+  release(): void
 }
 
 export function parseDevRuntimeArgs(args: readonly string[]): DevRuntimeArgs {
@@ -960,7 +972,35 @@ function keepMainWranglerTmpFresh(context: RepositoryContext): void {
   touchWranglerTmpEntries(join(context.mainWorktree, '.wrangler', 'tmp'))
 }
 
-export function repositoryContext(cwd: string): RepositoryContext {
+export function runnerExecutionEnvironment(
+  environment: NodeJS.ProcessEnv = process.env,
+): RunnerExecutionEnvironment | null {
+  const outputDirectory = environment.WRSP_RUNNER_OUTPUT_DIR?.trim()
+  if (!outputDirectory) return null
+  const temporaryDirectory = environment.TMPDIR?.trim()
+  if (!temporaryDirectory) {
+    throw new Error('TMPDIR is required when WRSP_RUNNER_OUTPUT_DIR is set.')
+  }
+  const start = runnerPort(environment.WRSP_RUNNER_PORT_START, 'WRSP_RUNNER_PORT_START')
+  const end = runnerPort(environment.WRSP_RUNNER_PORT_END, 'WRSP_RUNNER_PORT_END')
+  if (start > end) {
+    throw new Error('WRSP_RUNNER_PORT_START must not exceed WRSP_RUNNER_PORT_END.')
+  }
+  return { outputDirectory, temporaryDirectory, ports: { start, end } }
+}
+
+function runnerPort(value: string | undefined, name: string): number {
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65_535) {
+    throw new Error(`${name} must be an integer from 1 through 65535 in a runner job.`)
+  }
+  return parsed
+}
+
+export function repositoryContext(
+  cwd: string,
+  environment: NodeJS.ProcessEnv = process.env,
+): RepositoryContext {
   const worktree = git(cwd, ['rev-parse', '--show-toplevel'])
   const branch = runtimeBranchLabel(
     git(cwd, ['branch', '--show-current']),
@@ -971,13 +1011,18 @@ export function repositoryContext(cwd: string): RepositoryContext {
     '--path-format=absolute',
     '--git-common-dir',
   ])
-  const mainWorktree = parseMainWorktree(git(cwd, ['worktree', 'list', '--porcelain']))
+  const runner = runnerExecutionEnvironment(environment)
+  const mainWorktree = runner
+    ? worktree
+    : parseMainWorktree(git(cwd, ['worktree', 'list', '--porcelain']))
   return {
     worktree,
     branch,
     mainWorktree,
     gitCommonDirectory,
-    runtimeDirectory: join(gitCommonDirectory, 'pxlblz', 'dev-runtime', 'v1'),
+    runtimeDirectory: runner
+      ? join(runner.temporaryDirectory, 'pxlblz-dev-runtime')
+      : join(gitCommonDirectory, 'pxlblz', 'dev-runtime', 'v1'),
   }
 }
 
@@ -1001,6 +1046,55 @@ function parseMainWorktree(output: string): string {
 
 export function loadManifest(worktree: string): RuntimeManifest {
   return parseRuntimeManifest(JSON.parse(readFileSync(join(worktree, 'dev-runtime.json'), 'utf8')))
+}
+
+export function loadPlaywrightManifest(
+  worktree: string,
+  profile: RuntimeProfile,
+  environment: NodeJS.ProcessEnv = process.env,
+): RuntimeManifest {
+  const manifest = loadManifest(worktree)
+  const runner = runnerExecutionEnvironment(environment)
+  if (!runner) return manifest
+  return profile === 'shared'
+    ? {
+        ...manifest,
+        shared: { ...manifest.shared, issueVitePorts: runner.ports },
+      }
+    : {
+        ...manifest,
+        isolated: { ...manifest.isolated, vitePorts: runner.ports },
+      }
+}
+
+export function acquirePlaywrightDevVars(
+  context: RepositoryContext,
+  environment: NodeJS.ProcessEnv = process.env,
+): DevVarsLease {
+  if (!runnerExecutionEnvironment(environment)) {
+    ensureSharedDevVarsLink(context)
+    return { file: join(context.mainWorktree, '.dev.vars'), release() {} }
+  }
+
+  const profile = join(context.worktree, 'runner', 'dev.vars.runner')
+  if (!existsSync(profile)) throw new Error(`Runner dev vars profile is required: ${profile}`)
+  const link = join(context.worktree, '.dev.vars')
+  if (existsSync(link)) {
+    throw new Error(`${link} already exists; refusing to replace it in a runner checkout.`)
+  }
+  symlinkSync(profile, link)
+  return {
+    file: profile,
+    release() {
+      try {
+        if (lstatSync(link).isSymbolicLink() && realpathSync(link) === realpathSync(profile)) {
+          unlinkSync(link)
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      }
+    },
+  }
 }
 
 export function ensureSharedDevVarsLink(context: RepositoryContext): void {

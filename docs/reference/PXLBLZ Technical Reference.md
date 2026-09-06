@@ -1429,9 +1429,13 @@ compiler and generated-artifact execution tests, Show equivalence tests,
 performance harnesses, Playwright public-route and authenticated D1-backed
 suites, and explicit live-hardware probes with archived result reports
 (`npm run issue<NNN>` / `issue<NNN>:hardware` scripts). The pre-commit gate
-runs lint and full Vitest; e2e, performance, and hardware tiers stay explicit
-because their reliability and environments differ. Development builds expose
-a hidden Show Stage telemetry probe; production builds omit it.
+runs lint, test meta-checks, and staged-path-selected tests. Required full
+Vitest and Playwright suites run at a committed tip on the private WRSP mini;
+pre-push consumes matching exact-tip evidence after review approval and the
+exported-artifact oracle instead of rerunning those suites on the laptop.
+Performance and hardware tiers stay explicit because their reliability and
+environments differ. Development builds expose a hidden Show Stage telemetry
+probe; production builds omit it.
 
 `src/agent-harness/` is a diagnostic area, not product code: the local agent
 dictation bridge, Show grammar and MCP server, dictation corpus with its

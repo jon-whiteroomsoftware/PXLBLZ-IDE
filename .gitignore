@@ -6,6 +6,7 @@ reports/
 *.tsbuildinfo
 .wrangler/
 .dev.vars
+.wrsp/
 
 # Playwright
 test-results/

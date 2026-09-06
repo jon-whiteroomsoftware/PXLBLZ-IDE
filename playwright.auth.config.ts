@@ -14,7 +14,9 @@ export default defineConfig({
   testMatch: '**/*.auth.spec.ts',
   fullyParallel: true,
   workers: authenticatedPlaywrightWorkerCount,
-  reporter: 'list',
+  reporter: process.env.WRSP_RUNNER_OUTPUT_DIR
+    ? [['list'], ['json', { outputFile: 'playwright-report/results.json' }]]
+    : 'list',
   globalSetup: './e2e/auth.global-setup.ts',
   // All workers share one in-process Worker, so /api/me and personal content
   // loads can push a Studio route's first paint past Playwright's 5s default

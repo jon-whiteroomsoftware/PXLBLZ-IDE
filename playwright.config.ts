@@ -29,7 +29,9 @@ export default defineConfig({
   testDir: './e2e',
   testIgnore: '**/*.auth.spec.ts',
   fullyParallel: true,
-  reporter: 'list',
+  reporter: process.env.WRSP_RUNNER_OUTPUT_DIR
+    ? [['list'], ['json', { outputFile: 'playwright-report/results.json' }]]
+    : 'list',
   globalSetup: './e2e/public.global-setup.ts',
   use: {
     baseURL: studioUrl,

@@ -215,6 +215,15 @@ npm run test:e2e:agent-baseline  # live-editor reproductions through the real sc
 npm run agent:baseline:fixtures  # baseline fixture exports before/after one scripted turn, compared against committed hashes
 ```
 
+Run required committed-tip suites with `npx wrsp-runner test <tip>` before
+landing. Inspect the printed local failure paths, fix, commit, and re-test.
+Exit 1 is a product failure, 2 infrastructure, 3 cancelled or unknown, and 4
+runner unavailable. Only transport failure returns 4; daemon status errors
+return 2 verbatim. Never infer fallback from 4. Use `--backend local` only with
+operator permission and committed `runner.allowLocalBackend: true`. Runner
+diagnostics live under ignored `.wrsp/`; custom `--into` directories must also
+be ignored.
+
 Pre-commit runs lint, conditional full-project typecheck, focused tests, and
 mapped invariants. Candidate review enforces the UI proof gate for the range,
 then records clean approval for an exact-range

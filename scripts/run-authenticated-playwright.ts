@@ -1,12 +1,12 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, rmSync } from 'node:fs'
+import { mkdirSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { RuntimeAssignment } from './dev-runtime-core'
 import { authenticatedPlaywrightSeedSql } from './authenticated-playwright-user'
 import {
-  ensureSharedDevVarsLink,
-  loadManifest,
+  acquirePlaywrightDevVars,
+  loadPlaywrightManifest,
   portIsAvailable,
   repositoryContext,
 } from './dev-runtime'
@@ -39,40 +39,35 @@ async function main(): Promise<void> {
     return
   }
   const context = repositoryContext(process.cwd())
-  const manifest = loadManifest(context.worktree)
-  ensureSharedDevVarsLink(context)
+  const manifest = loadPlaywrightManifest(context.worktree, 'isolated')
+  const devVars = acquirePlaywrightDevVars(context)
   const runId = `playwright-${process.pid}-${Date.now()}`
   const persistenceDirectory = join(context.runtimeDirectory, 'playwright', runId)
-  const devVarsFile = join(context.mainWorktree, '.dev.vars')
-  if (!existsSync(devVarsFile)) {
-    console.error(`Shared main .dev.vars is required: ${devVarsFile}`)
-    process.exitCode = 1
-    return
-  }
-  const assignment = await reserveRuntimeAssignment({
-    directory: context.runtimeDirectory,
-    request: {
-      issue: runId,
-      description: 'authenticated Playwright',
-      worktree: context.worktree,
-      branch: context.branch,
-      profile: 'isolated',
-    },
-    manifest,
-    now: () => new Date().toISOString(),
-    portIsAvailable,
-  })
-  mkdirSync(persistenceDirectory, { recursive: true })
-  const env = {
-    ...process.env,
-    ...authenticatedPlaywrightEnvironment(
-      assignment,
-      persistenceDirectory,
-      devVarsFile,
-      manifest.basePath,
-    ),
-  }
+  let assignment: RuntimeAssignment | null = null
   try {
+    assignment = await reserveRuntimeAssignment({
+      directory: context.runtimeDirectory,
+      request: {
+        issue: runId,
+        description: 'authenticated Playwright',
+        worktree: context.worktree,
+        branch: context.branch,
+        profile: 'isolated',
+      },
+      manifest,
+      now: () => new Date().toISOString(),
+      portIsAvailable,
+    })
+    mkdirSync(persistenceDirectory, { recursive: true })
+    const env = {
+      ...process.env,
+      ...authenticatedPlaywrightEnvironment(
+        assignment,
+        persistenceDirectory,
+        devVars.file,
+        manifest.basePath,
+      ),
+    }
     run(process.execPath, [
       resolve(context.worktree, 'node_modules/wrangler/bin/wrangler.js'),
       'd1',
@@ -101,8 +96,9 @@ async function main(): Promise<void> {
       '--config=playwright.auth.config.ts',
     ], context.worktree, env)
   } finally {
-    await releaseRuntimeAssignment(context.runtimeDirectory, runId)
+    if (assignment) await releaseRuntimeAssignment(context.runtimeDirectory, runId)
     rmSync(persistenceDirectory, { recursive: true, force: true })
+    devVars.release()
   }
 }
 
