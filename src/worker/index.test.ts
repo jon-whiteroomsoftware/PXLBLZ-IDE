@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { createSessionToken, sessionCookieName } from '../cloudflare/auth'
 import { PersonalStorageGuardError } from '../cloudflare/resourceProtection'
+import {
+  MAX_PERSONAL_ENTITY_ROWS,
+  MAX_WRITE_REQUEST_BYTES,
+} from '../cloudflare/resourceProtection'
 import { apiRoutes } from './apiRoutes'
 import worker, { handleApiRequest, type WorkerEnv } from './index'
 import type { WorkerRoute } from './router'
@@ -10,6 +15,38 @@ function envWithAssets(assets?: (request: Request) => Response): WorkerEnv {
       fetch: async (request: Request) => (assets ? assets(request) : new Response('asset')),
     },
   } as WorkerEnv
+}
+
+function envWithDatabase(database: unknown): WorkerEnv {
+  return {
+    SESSION_SECRET: 'secret',
+    PXLBLZ_DB: database,
+    ASSETS: { fetch: async () => new Response('asset') },
+  } as WorkerEnv
+}
+
+async function authenticatedRequest(
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<Request> {
+  const token = await createSessionToken({
+    userId: 'github:123',
+    primaryProvider: 'github',
+    primaryHandle: 'octocat',
+    githubUserId: '123',
+    githubLogin: 'octocat',
+    displayName: 'The Octocat',
+    avatarUrl: null,
+  }, 'secret')
+  return new Request(`https://pxlblz.example${path}`, {
+    method,
+    headers: {
+      'content-type': 'application/json',
+      cookie: `${sessionCookieName}=${encodeURIComponent(token)}`,
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
 }
 
 describe('worker fetch handler', () => {
@@ -51,7 +88,7 @@ describe('worker fetch handler', () => {
     expect(seen).toEqual(['/p/oasis'])
   })
 
-  it('maps personal-storage guard errors like the Pages middleware and rethrows the rest', async () => {
+  it('maps personal-storage guard errors and rethrows the rest', async () => {
     const table: WorkerRoute<WorkerEnv>[] = [
       {
         path: '/api/guarded',
@@ -78,10 +115,28 @@ describe('worker fetch handler', () => {
       handleApiRequest(table, new Request('https://app.test/api/broken'), envWithAssets()),
     ).rejects.toThrow('unrelated failure')
   })
+
+  it('dispatches authenticated requests without pre-checking retired beta access state', async () => {
+    const request = await authenticatedRequest('GET', '/api/me')
+    const database = {
+      prepare(): never {
+        throw new Error('Worker guard queried retired beta access state')
+      },
+    }
+    const table: WorkerRoute<WorkerEnv>[] = [{
+      path: '/api/me',
+      methods: { GET: () => Response.json({ authenticated: true }) },
+    }]
+
+    const response = await handleApiRequest(table, request, envWithDatabase(database))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ authenticated: true })
+  })
 })
 
 describe('api route table', () => {
-  it('registers exactly the routes the Pages functions directory serves today', () => {
+  it('registers the complete Worker API surface', () => {
     const registered = apiRoutes
       .flatMap((route) => Object.keys(route.methods).map((method) => `${method} ${route.path}`))
       .sort()
@@ -123,5 +178,103 @@ describe('api route table', () => {
       'PUT /api/controller-metadata/[key]',
       'PUT /api/settings/[key]',
     ])
+  })
+})
+
+describe('personal-storage API protection (#407)', () => {
+  it('blocks Pattern creation at the million-row tripwire before inserting', async () => {
+    let inserted = false
+    const database = {
+      prepare(sql: string) {
+        return {
+          bind() {
+            return this
+          },
+          async first<T>() {
+            expect(sql).toContain('personal_patterns')
+            return { entity_count: MAX_PERSONAL_ENTITY_ROWS, content_bytes: 0 } as T
+          },
+          async all<T>() {
+            return { results: [] as T[] }
+          },
+          async run() {
+            inserted = true
+            return { success: true }
+          },
+        }
+      },
+    }
+    const request = await authenticatedRequest('POST', '/api/patterns', {
+      id: 'pattern-1',
+      name: 'Pattern 1',
+      src: 'export function render() {}',
+      controls: [],
+    })
+
+    const response = await worker.fetch(request, envWithDatabase(database))
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({ code: 'entity_limit_reached' })
+    expect(inserted).toBe(false)
+  })
+
+  it('rejects arbitrary settings keys before querying D1', async () => {
+    const request = await authenticatedRequest('GET', '/api/settings/attacker-row')
+    const database = {
+      prepare(): never {
+        throw new Error('D1 should not be queried for an unknown key')
+      },
+    }
+
+    const response = await worker.fetch(request, envWithDatabase(database))
+
+    expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toMatchObject({ code: 'unknown_storage_key' })
+  })
+
+  it('applies the write-body guard to every durable mutation route', async () => {
+    const routes = [
+      ['POST', '/api/patterns'],
+      ['PATCH', '/api/patterns/p1'],
+      ['POST', '/api/maps'],
+      ['PATCH', '/api/maps/m1'],
+      ['POST', '/api/mixins'],
+      ['PATCH', '/api/mixins/x1'],
+      ['POST', '/api/libraries'],
+      ['PATCH', '/api/libraries/l1'],
+      ['POST', '/api/shows'],
+      ['PATCH', '/api/shows/s1'],
+      ['POST', '/api/controllers'],
+      ['PATCH', '/api/controllers/c1'],
+      ['PUT', '/api/settings/lastActive'],
+      ['PUT', '/api/controller-metadata/controller-bindings'],
+    ] as const
+    const database = {
+      prepare(sql: string) {
+        if (sql.includes('app_metadata')) {
+          return {
+            bind() { return this },
+            async first<T>() { return { value: 'legacy' } as T },
+            async all<T>() { return { results: [] as T[] } },
+            async run() { return { success: true } },
+          }
+        }
+        throw new Error('Oversized writes must be rejected before querying D1')
+      },
+    }
+
+    for (const [method, path] of routes) {
+      const original = await authenticatedRequest(method, path, {})
+      const request = new Request(original, {
+        headers: {
+          ...Object.fromEntries(original.headers),
+          'content-length': String(MAX_WRITE_REQUEST_BYTES + 1),
+        },
+      })
+      const response = await worker.fetch(request, envWithDatabase(database))
+
+      expect(response.status, `${method} ${path}`).toBe(413)
+      await expect(response.json()).resolves.toMatchObject({ code: 'payload_too_large' })
+    }
   })
 })

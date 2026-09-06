@@ -1,8 +1,6 @@
-// Worker entry replacing the Pages project (#897): `/api/*` dispatches
-// through the explicit route table, everything else falls through to the
-// static-assets binding (which supplies the SPA fallback). Unknown API paths
-// answer worker-first with JSON — under Pages they fell through to the SPA
-// shell, which no client relied on.
+// Worker entry (#897): `/api/*` dispatches through the explicit route table,
+// everything else falls through to the static-assets binding (which supplies
+// the SPA fallback). Unknown API paths answer worker-first with JSON.
 
 import { personalStorageGuardResponse } from '../cloudflare/resourceProtection'
 import { apiRoutes, type WorkerEnv } from './apiRoutes'
@@ -28,7 +26,6 @@ export async function handleApiRequest(
   try {
     return await resolution.handler({ request, env, params: resolution.params })
   } catch (error) {
-    // The same mapping the Pages _middleware applies today.
     const guarded = personalStorageGuardResponse(error)
     if (guarded) return guarded
     throw error

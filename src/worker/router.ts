@@ -1,7 +1,6 @@
-// Explicit routing for the Worker that replaces Pages' file-convention
-// dispatch (#897). Pure module: no framework imports, no I/O. Paths use the
-// same `[param]` segment syntax as the Pages functions directory so the route
-// table reads like the directory listing it replaces.
+// Explicit Worker routing (#897). Pure module: no framework imports, no I/O.
+// Paths use `[param]` segments so the route table keeps dynamic parameters
+// readable and typeable.
 
 export interface WorkerRouteContext<Env = unknown> {
   request: Request
@@ -78,8 +77,8 @@ function matchSegments(
   return params
 }
 
-// Pages decodes params before handing them to a function; a malformed
-// percent sequence stays verbatim rather than failing the whole request.
+// A malformed percent sequence stays verbatim rather than failing the whole
+// request.
 function decodeSegment(segment: string): string {
   try {
     return decodeURIComponent(segment)

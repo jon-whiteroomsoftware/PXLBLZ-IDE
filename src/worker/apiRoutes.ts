@@ -1,8 +1,4 @@
-// The Worker's API surface: every route the Pages functions directory serves
-// today, registered explicitly (#897). The handler modules stay under
-// functions/api/ until the Pages project retires — the deployed Pages site
-// compiles that directory on every push to main, so moving the files before
-// cutover would remove the production API.
+// The Worker's complete API surface, registered explicitly (#897, #902).
 
 import type { D1DatabaseControllerMetadataLike } from '../cloudflare/controllerMetadata'
 import type { D1DatabaseControllerProfilesLike } from '../cloudflare/controllerProfiles'
@@ -15,26 +11,26 @@ import type { D1ResourceProtectionDatabaseLike } from '../cloudflare/resourcePro
 import type { D1DatabaseSettingsLike } from '../cloudflare/settings'
 import type { D1DatabaseShowsLike } from '../cloudflare/shows'
 import type { D1DatabaseWritableLike } from '../cloudflare/users'
-import * as authCallback from '../../functions/api/auth/callback'
-import * as authDisconnect from '../../functions/api/auth/disconnect'
-import * as authLogin from '../../functions/api/auth/login'
-import * as authLogout from '../../functions/api/auth/logout'
-import * as controllerMetadataItem from '../../functions/api/controller-metadata/[key]'
-import * as controllersIndex from '../../functions/api/controllers/index'
-import * as controllersItem from '../../functions/api/controllers/[id]'
-import * as d1Health from '../../functions/api/d1/health'
-import * as librariesIndex from '../../functions/api/libraries/index'
-import * as librariesItem from '../../functions/api/libraries/[id]'
-import * as mapsIndex from '../../functions/api/maps/index'
-import * as mapsItem from '../../functions/api/maps/[id]'
-import * as me from '../../functions/api/me'
-import * as mixinsIndex from '../../functions/api/mixins/index'
-import * as mixinsItem from '../../functions/api/mixins/[id]'
-import * as patternsIndex from '../../functions/api/patterns/index'
-import * as patternsItem from '../../functions/api/patterns/[id]'
-import * as settingsItem from '../../functions/api/settings/[key]'
-import * as showsIndex from '../../functions/api/shows/index'
-import * as showsItem from '../../functions/api/shows/[id]'
+import * as authCallback from './routes/auth/callback'
+import * as authDisconnect from './routes/auth/disconnect'
+import * as authLogin from './routes/auth/login'
+import * as authLogout from './routes/auth/logout'
+import * as controllerMetadataItem from './routes/controller-metadata/[key]'
+import * as controllersIndex from './routes/controllers/index'
+import * as controllersItem from './routes/controllers/[id]'
+import * as d1Health from './routes/d1/health'
+import * as librariesIndex from './routes/libraries/index'
+import * as librariesItem from './routes/libraries/[id]'
+import * as mapsIndex from './routes/maps/index'
+import * as mapsItem from './routes/maps/[id]'
+import * as me from './routes/me'
+import * as mixinsIndex from './routes/mixins/index'
+import * as mixinsItem from './routes/mixins/[id]'
+import * as patternsIndex from './routes/patterns/index'
+import * as patternsItem from './routes/patterns/[id]'
+import * as settingsItem from './routes/settings/[key]'
+import * as showsIndex from './routes/shows/index'
+import * as showsItem from './routes/shows/[id]'
 import type { HttpMethod, PathParams, WorkerRoute, WorkerRouteHandler } from './router'
 
 // A real D1Database satisfies every handler's narrower requirement, so the
