@@ -4,11 +4,11 @@
 // real scripted bridge process (HTTP, NDJSON, MCP, grammar session, turn
 // runner; no paid model call), submits through the overlay's own input, and
 // judges what the author sees, what the store persists, and what the
-// network carried. The assertions encode the outcomes observed on the
-// current code, including the stale whole-record overwrite and the
-// durable-baseline mismatch the contracts describe as unfixed. When a later
-// slice fixes one of them this suite goes red on purpose: invert that case
-// into a regression test rather than deleting it.
+// network carried. Most assertions encode the bad outcomes observed on the
+// current code so their owning roadmap slices can invert them in place.
+// Sequence E is the first green regression: an accepted agent replacement is
+// restamped at editor adoption, so a later failed save recovers the same
+// record that storage and a reopened editor expose (#948).
 //
 //   npm run test:e2e:agent-baseline
 //
@@ -658,7 +658,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
   test.describe('E: failed save after the reply', () => {
     test.use({ allowedBrowserErrors: [/net::ERR_FAILED|Failed to fetch/] })
 
-    test('E: a later failed save restores a durable baseline that no longer matches storage', async ({ page }) => {
+    test('E: a later failed save restores the saved candidate and reopening keeps it', async ({ page }) => {
       test.setTimeout(90_000)
       const writes = watchShowWrites(page)
       const showId = await createPersonalShow(page)
@@ -687,23 +687,26 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       blockWrites = false
       const durableAfterFailure = await durableShow(page, showId)
       const observations = await readObservations(page)
-      await page.screenshot({ path: join(REPORT_DIR, 'E-failed-save-baseline.png'), fullPage: true })
+      await page.screenshot({ path: join(REPORT_DIR, 'E-failed-save-recovery.png'), fullPage: true })
 
       await page.reload()
       await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
-      const visibleAfterReload = await visibleClipFacts(page, 'TestPattern1D')
-      saveRecord('E-failed-save-baseline', {
+      const visibleAfterReopen = await visibleClipFacts(page, 'TestPattern1D')
+      const durableAfterReopen = await durableShow(page, showId)
+      saveRecord('E-failed-save-recovery', {
         showId, request, writes, observations,
-        durable: { afterCandidate: firstMain(durableAfterCandidate), afterFailure: firstMain(durableAfterFailure) },
-        visible: { afterFailure: visibleAfterFailure, afterReload: visibleAfterReload },
+        durable: {
+          afterCandidate: firstMain(durableAfterCandidate),
+          afterFailure: firstMain(durableAfterFailure),
+          afterReopen: firstMain(durableAfterReopen),
+        },
+        visible: { afterFailure: visibleAfterFailure, afterReopen: visibleAfterReopen },
         timeline: phaseTimeline(request, observations, writes),
       })
-      // Reproduction: the rollback restored the manual save B (the stale
-      // durable baseline) while storage still holds the candidate.
-      expect(visibleAfterFailure).toEqual({ durationSeconds: '30', brightnessPercent: '75' })
+      expect(visibleAfterFailure).toEqual({ durationSeconds: '12', brightnessPercent: '100' })
       expect(firstMain(durableAfterFailure)).toMatchObject({ durationMs: 12_000, brightness: 1 })
-      expect(firstMain(durableAfterFailure)?.brightness ?? 1).toBe(1)
-      expect(visibleAfterReload).toEqual({ durationSeconds: '12', brightnessPercent: '100' })
+      expect(visibleAfterReopen).toEqual({ durationSeconds: '12', brightnessPercent: '100' })
+      expect(firstMain(durableAfterReopen)).toEqual(firstMain(durableAfterFailure))
     })
   })
 

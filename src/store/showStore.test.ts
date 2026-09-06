@@ -101,6 +101,34 @@ function memoryProvider(seedShows: ShowRecord[] = []): PersonalContentProvider {
   }
 }
 
+function deferred(): {
+  promise: Promise<void>
+  resolve: () => void
+  reject: (cause?: unknown) => void
+} {
+  let resolve!: () => void
+  let reject!: (cause?: unknown) => void
+  const promise = new Promise<void>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
+function personalShow(showId: string): ShowRecord {
+  return useShowStore.getState().shows.find((show) => show.id === showId)!
+}
+
+function persistedShow(record: ShowRecord): Record<string, unknown> {
+  return {
+    ...record,
+    composition: record.composition ?? null,
+    outputEffects: record.outputEffects,
+    targetControllerProfileId: record.targetControllerProfileId,
+    importMetadata: record.importMetadata,
+  }
+}
+
 beforeEach(() => {
   resetPersonalContentProvider()
   useShowStore.setState(showInitialState)
@@ -315,6 +343,266 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().showSaveFailure).toBeNull()
     const persisted = (await provider.listShows()).find((candidate) => candidate.id === show.id)
     expect(persisted?.name).toBe('Second')
+  })
+
+  it('keeps a later edit and its complete history when a superseded undo save fails (#948)', async () => {
+    const show = createDefaultShow('show-undo-overlap', 'Undo overlap', 1)
+    const provider = memoryProvider([show])
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    await useShowStore.getState().loadShows()
+    await useShowStore.getState().updateShow(show.id, { ...show, name: 'Saved edit', updatedAt: 2 })
+
+    const realUpdate = provider.updateShow
+    const undoStarted = deferred()
+    const undoWrite = deferred()
+    let writes = 0
+    provider.updateShow = async (id, changes) => {
+      writes += 1
+      if (writes === 1) {
+        undoStarted.resolve()
+        await undoWrite.promise
+      }
+      await realUpdate(id, changes)
+    }
+
+    const undo = useShowStore.getState().undoShow(show.id)
+    await undoStarted.promise
+    const undone = personalShow(show.id)
+    const later = useShowStore.getState().updateShow(show.id, {
+      ...undone,
+      name: 'Later accepted edit',
+      updatedAt: 0,
+    })
+    const acceptedRecord = structuredClone(personalShow(show.id))
+    const acceptedHistory = structuredClone(useShowStore.getState().showHistories[show.id])
+
+    undoWrite.reject(new Error('undo offline'))
+
+    await expect(undo).resolves.toBe(true)
+    await expect(later).resolves.toBeUndefined()
+    expect(personalShow(show.id)).toEqual(acceptedRecord)
+    expect(useShowStore.getState().showHistories[show.id]).toEqual(acceptedHistory)
+    expect(useShowStore.getState().showSaveFailure).toBeNull()
+    await expect(provider.listShows()).resolves.toContainEqual(persistedShow(acceptedRecord))
+  })
+
+  it('keeps a later edit and its complete history when a superseded redo save fails (#948)', async () => {
+    const show = createDefaultShow('show-redo-overlap', 'Redo overlap', 1)
+    const provider = memoryProvider([show])
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    await useShowStore.getState().loadShows()
+    await useShowStore.getState().updateShow(show.id, { ...show, name: 'Saved edit', updatedAt: 2 })
+    await expect(useShowStore.getState().undoShow(show.id)).resolves.toBe(true)
+
+    const realUpdate = provider.updateShow
+    const redoStarted = deferred()
+    const redoWrite = deferred()
+    let writes = 0
+    provider.updateShow = async (id, changes) => {
+      writes += 1
+      if (writes === 1) {
+        redoStarted.resolve()
+        await redoWrite.promise
+      }
+      await realUpdate(id, changes)
+    }
+
+    const redo = useShowStore.getState().redoShow(show.id)
+    await redoStarted.promise
+    const redone = personalShow(show.id)
+    const later = useShowStore.getState().updateShow(show.id, {
+      ...redone,
+      name: 'Later accepted edit',
+      updatedAt: 0,
+    })
+    const acceptedRecord = structuredClone(personalShow(show.id))
+    const acceptedHistory = structuredClone(useShowStore.getState().showHistories[show.id])
+
+    redoWrite.reject(new Error('redo offline'))
+
+    await expect(redo).resolves.toBe(true)
+    await expect(later).resolves.toBeUndefined()
+    expect(personalShow(show.id)).toEqual(acceptedRecord)
+    expect(useShowStore.getState().showHistories[show.id]).toEqual(acceptedHistory)
+    expect(useShowStore.getState().showSaveFailure).toBeNull()
+    await expect(provider.listShows()).resolves.toContainEqual(persistedShow(acceptedRecord))
+  })
+
+  it('restamps a stale candidate so a later failure restores the saved candidate and matching history (#948)', async () => {
+    const show = createDefaultShow('show-stale-candidate', 'Captured base', 10)
+    const provider = memoryProvider([show])
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    await useShowStore.getState().loadShows()
+
+    await useShowStore.getState().updateShow(show.id, { ...show, name: 'Manual save', updatedAt: 100 })
+    await useShowStore.getState().updateShow(show.id, { ...show, name: 'Agent candidate', updatedAt: 1 })
+    const savedCandidate = structuredClone(personalShow(show.id))
+    const savedHistory = structuredClone(useShowStore.getState().showHistories[show.id])
+    expect(savedCandidate.updatedAt).toBeGreaterThan(100)
+
+    provider.updateShow = async () => { throw new Error('later offline') }
+    const failed = useShowStore.getState().updateShow(show.id, {
+      ...savedCandidate,
+      name: 'Later failed edit',
+      updatedAt: 101,
+    })
+    const failedCandidate = structuredClone(personalShow(show.id))
+
+    await expect(failed).rejects.toThrow('later offline')
+    expect(personalShow(show.id)).toEqual(savedCandidate)
+    expect(useShowStore.getState().showHistories[show.id]).toEqual(savedHistory)
+    expect(useShowStore.getState().showSaveFailure).toEqual({ showId: show.id, record: failedCandidate })
+    await expect(provider.listShows()).resolves.toContainEqual(persistedShow(savedCandidate))
+  })
+
+  it('preserves the durable pair and latest failure across consecutive failed retries (#948)', async () => {
+    const show = createDefaultShow('show-consecutive-failures-948', 'Durable base', 1)
+    const provider = memoryProvider([show])
+    const realUpdate = provider.updateShow
+    let offline = true
+    provider.updateShow = async (id, changes) => {
+      if (offline) throw new Error('offline')
+      await realUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    await useShowStore.getState().loadShows()
+
+    const first = useShowStore.getState().updateShow(show.id, { ...show, name: 'Retry me', updatedAt: 2 })
+    const firstCandidate = structuredClone(personalShow(show.id))
+    await expect(first).rejects.toThrow('offline')
+    expect(personalShow(show.id)).toEqual(show)
+    expect(useShowStore.getState().showHistories[show.id] ?? { past: [], future: [] })
+      .toEqual({ past: [], future: [] })
+    expect(useShowStore.getState().showSaveFailure).toEqual({ showId: show.id, record: firstCandidate })
+
+    const second = useShowStore.getState().retryShowSaveFailure()
+    const secondCandidate = structuredClone(personalShow(show.id))
+    await second
+    expect(personalShow(show.id)).toEqual(show)
+    expect(useShowStore.getState().showHistories[show.id] ?? { past: [], future: [] })
+      .toEqual({ past: [], future: [] })
+    expect(useShowStore.getState().showSaveFailure).toEqual({ showId: show.id, record: secondCandidate })
+
+    offline = false
+    const recovery = useShowStore.getState().retryShowSaveFailure()
+    const recoveredRecord = structuredClone(personalShow(show.id))
+    const recoveredHistory = structuredClone(useShowStore.getState().showHistories[show.id])
+    await recovery
+    expect(personalShow(show.id)).toEqual(recoveredRecord)
+    expect(useShowStore.getState().showHistories[show.id]).toEqual(recoveredHistory)
+    expect(useShowStore.getState().showSaveFailure).toBeNull()
+    await expect(provider.listShows()).resolves.toContainEqual(persistedShow(recoveredRecord))
+  })
+
+  it('does not let hydration replace an accepted edit while its save is in flight (#948)', async () => {
+    const show = createDefaultShow('show-hydration-during-save-948', 'Hydration base', 1)
+    const provider = memoryProvider([show])
+    const realUpdate = provider.updateShow
+    const writeStarted = deferred()
+    const releaseWrite = deferred()
+    provider.updateShow = async (id, changes) => {
+      writeStarted.resolve()
+      await releaseWrite.promise
+      await realUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    await useShowStore.getState().loadShows()
+
+    const edit = useShowStore.getState().updateShow(show.id, { ...show, name: 'Accepted edit', updatedAt: 2 })
+    const acceptedRecord = structuredClone(personalShow(show.id))
+    const acceptedHistory = structuredClone(useShowStore.getState().showHistories[show.id])
+    await writeStarted.promise
+    const hydration = useShowStore.getState().loadShows()
+    await Promise.resolve()
+    await Promise.resolve()
+    releaseWrite.resolve()
+
+    await expect(edit).resolves.toBeUndefined()
+    await expect(hydration).resolves.toBeUndefined()
+    expect(personalShow(show.id)).toEqual(acceptedRecord)
+    expect(useShowStore.getState().showHistories[show.id]).toEqual(acceptedHistory)
+    expect(useShowStore.getState().showSaveFailure).toBeNull()
+    await expect(provider.listShows()).resolves.toContainEqual(persistedShow(acceptedRecord))
+  })
+
+  it('retires a failed retry when a later edit is accepted before its save settles (#948)', async () => {
+    const show = createDefaultShow('show-retry-after-edit-948', 'Retry base', 1)
+    const provider = memoryProvider([show])
+    const realUpdate = provider.updateShow
+    let offline = true
+    provider.updateShow = async (id, changes) => {
+      if (offline) throw new Error('offline')
+      await realUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    await useShowStore.getState().loadShows()
+    await expect(useShowStore.getState().updateShow(show.id, {
+      ...show,
+      name: 'Failed candidate',
+      updatedAt: 2,
+    })).rejects.toThrow('offline')
+    expect(useShowStore.getState().showSaveFailure?.record.name).toBe('Failed candidate')
+
+    offline = false
+    const laterStarted = deferred()
+    const releaseLater = deferred()
+    provider.updateShow = async (id, changes) => {
+      laterStarted.resolve()
+      await releaseLater.promise
+      await realUpdate(id, changes)
+    }
+    const later = useShowStore.getState().updateShow(show.id, {
+      ...show,
+      name: 'Later accepted edit',
+      updatedAt: 3,
+    })
+    const laterRecord = structuredClone(personalShow(show.id))
+    const laterHistory = structuredClone(useShowStore.getState().showHistories[show.id])
+    await laterStarted.promise
+
+    expect(useShowStore.getState().showSaveFailure).toBeNull()
+    await useShowStore.getState().retryShowSaveFailure()
+    releaseLater.resolve()
+    await expect(later).resolves.toBeUndefined()
+
+    expect(personalShow(show.id)).toEqual(laterRecord)
+    expect(useShowStore.getState().showHistories[show.id]).toEqual(laterHistory)
+    expect(useShowStore.getState().showSaveFailure).toBeNull()
+    await expect(provider.listShows()).resolves.toContainEqual(persistedShow(laterRecord))
+  })
+
+  it('orders deletion after an in-flight save and clears all session recovery state (#948)', async () => {
+    const show = createDefaultShow('show-delete-in-flight-948', 'Delete base', 1)
+    const provider = memoryProvider([show])
+    const realUpdate = provider.updateShow
+    const writeStarted = deferred()
+    const releaseWrite = deferred()
+    provider.updateShow = async (id, changes) => {
+      writeStarted.resolve()
+      await releaseWrite.promise
+      await realUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    await useShowStore.getState().loadShows()
+
+    const edit = useShowStore.getState().updateShow(show.id, { ...show, name: 'In flight', updatedAt: 2 })
+    await writeStarted.promise
+    const removal = useShowStore.getState().removeShow(show.id)
+    releaseWrite.resolve()
+
+    await expect(edit).resolves.toBeUndefined()
+    await expect(removal).resolves.toBeUndefined()
+    expect(useShowStore.getState().shows).toEqual([])
+    expect(useShowStore.getState().showHistories[show.id]).toBeUndefined()
+    expect(useShowStore.getState().showSaveFailure).toBeNull()
+    await expect(provider.listShows()).resolves.toEqual([])
   })
 
   it('rolls consecutive failed writes back to the last persisted record (#792)', async () => {
@@ -1326,6 +1614,40 @@ describe('built-in Show session drafts (#363)', () => {
     expect(useShowStore.getState().stockShowDrafts[STOCK_ID].scenes).toHaveLength(edited.scenes.length)
   })
 
+  it('keeps complete stock draft records and history paired across stale-stamped edits (#948)', async () => {
+    setPersonalContentProvider(memoryProvider())
+    const now = vi.spyOn(Date, 'now')
+    const base = useShowStore.getState().resolveEditableShow(STOCK_ID)!
+
+    try {
+      now.mockReturnValue(100)
+      await useShowStore.getState().updateShow(STOCK_ID, { ...base, name: 'Draft A', updatedAt: 0 })
+      const draftA = { ...base, name: 'Draft A', updatedAt: base.updatedAt + 1 }
+      expect(useShowStore.getState().stockShowDrafts[STOCK_ID]).toEqual(draftA)
+      expect(useShowStore.getState().showHistories[STOCK_ID]).toEqual({ past: [base], future: [] })
+
+      now.mockReturnValue(101)
+      await useShowStore.getState().updateShow(STOCK_ID, { ...draftA, name: 'Draft B', updatedAt: 0 })
+      const draftB = { ...draftA, name: 'Draft B', updatedAt: draftA.updatedAt + 1 }
+      expect(useShowStore.getState().stockShowDrafts[STOCK_ID]).toEqual(draftB)
+      expect(useShowStore.getState().showHistories[STOCK_ID]).toEqual({ past: [base, draftA], future: [] })
+
+      now.mockReturnValue(102)
+      await expect(useShowStore.getState().undoShow(STOCK_ID)).resolves.toBe(true)
+      const undoneA = { ...draftA, updatedAt: draftB.updatedAt + 1 }
+      expect(useShowStore.getState().stockShowDrafts[STOCK_ID]).toEqual(undoneA)
+      expect(useShowStore.getState().showHistories[STOCK_ID]).toEqual({ past: [base], future: [draftB] })
+
+      now.mockReturnValue(103)
+      await expect(useShowStore.getState().redoShow(STOCK_ID)).resolves.toBe(true)
+      const redoneB = { ...draftB, updatedAt: undoneA.updatedAt + 1 }
+      expect(useShowStore.getState().stockShowDrafts[STOCK_ID]).toEqual(redoneB)
+      expect(useShowStore.getState().showHistories[STOCK_ID]).toEqual({ past: [base, undoneA], future: [] })
+    } finally {
+      now.mockRestore()
+    }
+  })
+
   it('resetStockShowDraft discards the draft and its history', async () => {
     setPersonalContentProvider(memoryProvider())
 
@@ -1336,5 +1658,25 @@ describe('built-in Show session drafts (#363)', () => {
     expect(useShowStore.getState().stockShowDrafts[STOCK_ID]).toBeUndefined()
     expect(useShowStore.getState().showHistories[STOCK_ID]).toBeUndefined()
     expect(await useShowStore.getState().undoShow(STOCK_ID)).toBe(false)
+  })
+
+  it('keeps a reset stock draft discarded when its accepted update promise settles (#948)', async () => {
+    const provider = memoryProvider()
+    const updateSpy = vi.spyOn(provider, 'updateShow')
+    setPersonalContentProvider(provider)
+    const base = useShowStore.getState().resolveEditableShow(STOCK_ID)!
+
+    const edit = useShowStore.getState().updateShow(STOCK_ID, {
+      ...base,
+      name: 'Discarded draft',
+      updatedAt: 0,
+    })
+    useShowStore.getState().resetStockShowDraft(STOCK_ID)
+    await edit
+
+    expect(useShowStore.getState().stockShowDrafts[STOCK_ID]).toBeUndefined()
+    expect(useShowStore.getState().showHistories[STOCK_ID]).toBeUndefined()
+    expect(useShowStore.getState().resolveEditableShow(STOCK_ID)).toEqual(base)
+    expect(updateSpy).not.toHaveBeenCalled()
   })
 })
