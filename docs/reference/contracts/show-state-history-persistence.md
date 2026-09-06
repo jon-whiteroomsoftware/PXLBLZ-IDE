@@ -7,14 +7,19 @@ states, and callers must handle that distinction when reporting success.
 
 ## Adoption and history
 
-`updateShow(id, next)` adopts a normalized replacement and records the preceding
-Show in history before awaiting personal persistence. A new edit clears redo.
-An absent target or the identical record object is a no-op. Callers must supply
-an unaliased replacement for the intended Show and preserve its id; this
+`updateShow(id, next)` adopts a normalized replacement, assigns it the next
+single-client `updatedAt` ordering stamp, and records the preceding Show in
+history before awaiting personal persistence. The store assigns that stamp as
+`max(Date.now(), current.updatedAt + 1)`; a captured manual or agent timestamp
+never controls adoption order. The stamp is not a document revision. A new edit
+clears redo and retires an older failure notice for that Show. An absent target,
+an identical record object, or a Show being deleted is a no-op. Callers must
+supply an unaliased replacement for the intended Show and preserve its id; this
 primitive is not a general validation or identity-admission boundary.
 
 One adopted replacement produces one history entry, regardless of how many
-private operations produced it. Undo and redo restore normalized snapshots
+private operations produced it. Update, undo, and redo use the same personal
+replacement settlement policy. Undo and redo restore normalized snapshots
 while moving through the same store history. History is session state, not a
 second durable workspace. Hydration reconciles it with the loaded record;
 callers cannot assume history survives a reload or an externally changed Show.
@@ -29,39 +34,61 @@ Full-record saves are queued per Show within this client. A later save starts
 after the preceding save settles, including failure. This preserves submission
 order at the provider boundary without blocking optimistic editing.
 
-For ordinary `updateShow` failures, the current optimistic record determines
-recovery. If a newer record superseded the failed write, the failed call
-resolves without restoring its predecessor or publishing a failure notice. If
-the failed record is still current, the store restores the last known durable
-record together with its matching history, records the failed candidate for
-recovery, and rejects the call. With no durable baseline it restores the
-preceding record and history. Convenience mutation actions may consume that
-rejection; the store's failure state remains the UI's recovery surface. Undo
-and redo return `false` on save failure, also used for exhausted history, rather
-than rejecting. Callers need the failure state to distinguish those outcomes.
+For every personal replacement, the current optimistic ordering stamp
+determines recovery. If a newer accepted record superseded the failed write,
+the failed call resolves without restoring its predecessor or publishing a
+failure notice. If the failed record is still current, the store restores the
+last known durable record together with its matching history, records the
+failed candidate for recovery, and rejects the replacement settlement. With no
+durable baseline it restores the preceding record and history. Convenience
+mutation actions may consume that rejection; the store's failure state remains
+the UI's recovery surface. Undo and redo return `false` only when their current
+replacement rolls back, also used for exhausted history. A superseded undo or
+redo failure returns `true` because the later accepted edit owns the visible and
+durable outcome.
 
 A retry resubmits the captured failed candidate as another update; dismissing
-removes the failure notice. Retry is not a merge or an operation-id-based
+removes the failure notice. Accepting a later edit retires the older retry before
+that edit's save settles. Retry is not a merge or an operation-id-based
 exactly-once protocol. Callers must not interpret a resolved update promise as
 proof that that specific candidate is the current durable record: superseded
 failures also resolve, and stock edits have no personal save.
 
+Hydration preserves a queued local replacement when its ordering stamp is at
+least the provider snapshot's stamp. A provider record with a newer stamp wins
+and clears incompatible session history. When hydration observes the exact
+record being saved, the store retains that record's matching history. Personal
+deletion is queued behind prior writes for the same Show, then removes the
+record, history, durable baseline, active selection, and failure notice; a late
+write cannot recreate the deleted provider record.
+
+## Write, reload, and reset inventory
+
+This is the complete V2 ownership inventory for the document-revision work in
+#946. None of these paths currently carries an expected document revision.
+
+- Personal creation: `createNewShow`, `createShowFromController`,
+  `addImportedShow`, and `duplicateShow` converge on `addShow` and provider
+  `createShow`. Creation waits for an in-flight hydration before writing.
+- Personal replacement: `updateShow` and every convenience editor action,
+  `undoShow`, `redoShow`, and `retryShowSaveFailure` converge on the store's one
+  adoption/settlement policy and the per-Show provider `updateShow` queue.
+- Personal deletion: `removeShow` adds provider `deleteShow` to that same
+  per-Show queue before clearing all local state for the identity.
+- Reload: `loadShows` obtains provider `listShows`, normalizes each record,
+  reconciles queued local replacements by ordering stamp, resets incompatible
+  histories, and replaces the durable-baseline inventory.
+- Stock draft write/reset: `updateShow`, `undoShow`, and `redoShow` change only
+  the in-memory draft/history pair; `resetStockShowDraft` removes both and
+  exposes the pristine stock fixture again. Provider methods are never called.
+- Notice reset: `dismissShowSaveFailure` removes only the recovery notice. It
+  changes no record, history, queued operation, or durable baseline.
+
 ## Known limits and discrepancies
 
-- **Undo/redo failure ordering differs from ordinary updates.** Their failure
-  handlers restore a durable record/history pair without checking whether a
-  newer optimistic record superseded them. The intended protection against
-  older failures overwriting newer edits is therefore not established across
-  all write paths. Source inspection identifies this gap; the existing tests
-  below do not reproduce the overlapping undo/redo failure sequence.
-- Durable-baseline ordering uses client-stamped `updatedAt`, relying on
-  monotonic timestamps within a client. It is not a server revision or a
-  cross-client conflict protocol; clock skew can misorder records. Callers
-  supplying replacements must preserve timestamp ordering. The agent bridge
-  does not: the #945 browser baseline (sequence E in
-  [`agent-editing-baseline.md`](../agent-editing-baseline.md)) applied a
-  candidate stamped older than an intervening manual save, then a later
-  failed save restored that manual record while storage held the candidate.
+- Durable-baseline ordering uses store-assigned `updatedAt` ordering stamps.
+  They are not server revisions or a cross-client conflict protocol; clock skew
+  can still misorder records from different clients. #802 owns that boundary.
 - The store accepts complete records without comparing an expected base
   revision. Save serialization alone does not prevent a stale replacement
   from overwriting a newer edit; baseline sequences A, B, and C reproduce
@@ -77,7 +104,10 @@ write ordering, failure notices, and retry.
 [Personal-content provider](../../../src/engine/personalContentProvider.ts)
 owns the storage seam.
 [Store tests](../../../src/store/showStore.test.ts) cover grouped history,
-stable composition ids through undo/redo, queued writes, superseded ordinary
-failures, consecutive failures, hydration races, retry, and in-memory stock
-history. Those cases establish bounded single-client recovery; they do not
-prove general collaborative editing or the undo/redo overlap gap above.
+stable composition ids through undo/redo, queued writes, superseded ordinary,
+undo, and redo failures, stale candidate stamps, consecutive failures,
+hydration races, retry supersession, in-flight deletion, and complete in-memory
+stock history/reset behavior. The browser baseline's green sequence E proves
+the delayed agent-save failure and reopen surface. Those cases establish
+bounded single-client recovery; they do not prove general collaborative
+editing or clock-skew safety.

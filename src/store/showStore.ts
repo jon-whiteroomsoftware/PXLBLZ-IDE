@@ -59,6 +59,7 @@ import { normalizeShowComposition } from '@/engine/showCompositionModel'
 import { stockShowById } from '@/pixelblaze/stock/shows'
 
 const showPersistenceQueues = new Map<string, Promise<void>>()
+const showsPendingDeletion = new Set<string>()
 // The in-flight loadShows, so record creation can wait for hydration to
 // apply instead of racing a stale list snapshot (#794).
 let showsHydration: Promise<void> | null = null
@@ -68,19 +69,24 @@ let showsHydration: Promise<void> | null = null
 // could replay one.
 const lastPersistedShowRecords = new Map<string, { record: ShowRecord; history: ShowHistory }>()
 
-// Advance the durable baseline for a completed write, but never past a newer
-// record another client persisted while this response was in flight (#792).
-// An equal timestamp means loadShows observed this same write and reset its
-// history; the just-persisted record with its richer history wins.
+// Advance the durable baseline for a completed write, but never behind the
+// latest ordering stamp observed by this client. An equal stamp means
+// loadShows observed this same write and reset its history; the just-persisted
+// record with its richer history wins.
 //
-// Ordering rests on client-stamped updatedAt because the API has no
-// server-side revision (#802): within one client timestamps are monotonic and
-// this is exact; across clients with skewed clocks a completed write can be
-// mis-ordered. Single-client offline recovery - the #792 scope - is unaffected.
+// updatedAt is only a single-client ordering stamp, not a document revision.
+// Cross-client revisions and clock-skew-safe ordering remain #802.
 function advanceDurableBaseline(id: string, record: ShowRecord, history: ShowHistory): void {
   const baseline = lastPersistedShowRecords.get(id)
   if (!baseline || baseline.record.updatedAt <= record.updatedAt) {
     lastPersistedShowRecords.set(id, { record, history })
+  }
+}
+
+function replacementWithNextOrderingStamp(previous: ShowRecord, replacement: ShowRecord): ShowRecord {
+  return {
+    ...normalizeShowRecord(replacement),
+    updatedAt: Math.max(Date.now(), previous.updatedAt + 1),
   }
 }
 
@@ -213,33 +219,64 @@ async function updateShowQuietly(
   }
 }
 
-export const useShowStore = create<ShowState>()((set, get) => ({
+export const useShowStore = create<ShowState>()((set, get) => {
+  // All personal replacement paths use this one adoption and recovery policy.
+  // The ordering stamp is assigned here, where V2 accepts the replacement;
+  // manual and agent callers cannot accidentally retain a captured stamp.
+  const adoptPersonalShowReplacement = async (
+    id: string,
+    replacement: ShowRecord,
+    history: ShowHistory,
+    fallback: { record: ShowRecord; history: ShowHistory },
+  ): Promise<void> => {
+    const adopted = replacementWithNextOrderingStamp(fallback.record, replacement)
+    set((state) => ({
+      shows: replaceShowRecord(state.shows, adopted),
+      showHistories: { ...state.showHistories, [id]: history },
+      ...(state.showSaveFailure?.showId === id ? { showSaveFailure: null } : {}),
+    }))
+    try {
+      await persistShowRecord(adopted)
+      advanceDurableBaseline(id, adopted, history)
+      set((state) => ({
+        // A hydration that observed this exact ordering stamp may have reset
+        // its session history. Restore the matching pair only while no later
+        // accepted replacement has superseded it.
+        ...(state.showHistories[id] === undefined
+          && state.shows.find((show) => show.id === id)?.updatedAt === adopted.updatedAt
+          ? { showHistories: { ...state.showHistories, [id]: history } }
+          : {}),
+      }))
+    } catch (cause) {
+      let rolledBack = false
+      set((state) => {
+        const current = state.shows.find((show) => show.id === id)
+        // Within this client every accepted replacement receives a strictly
+        // increasing stamp. Equality identifies the failed adoption without
+        // treating the timestamp as a cross-client document revision (#802).
+        if (current?.updatedAt !== adopted.updatedAt) return state
+        rolledBack = true
+        const durable = lastPersistedShowRecords.get(id)
+        return {
+          shows: replaceShowRecord(state.shows, durable?.record ?? fallback.record),
+          showHistories: { ...state.showHistories, [id]: durable?.history ?? fallback.history },
+          showSaveFailure: { showId: id, record: adopted },
+        }
+      })
+      if (rolledBack) throw cause
+    }
+  }
+
+  return {
   ...showInitialState,
 
   loadShows: async () => {
     const hydration = (async () => {
     const shows = (await getPersonalContentProvider().listShows())
       .map(normalizeShowRecord)
-    // Mid-session re-hydration (Gallery -> Studio remount) must not discard
-    // history that still matches the durable record; only records the server
-    // reports as changed reset their histories (#792).
-    const staleHistoryIds = new Set<string>()
-    const nextBaselines: Array<[string, { record: ShowRecord; history: ShowHistory }]> = shows.map((show) => {
-      const existing = lastPersistedShowRecords.get(show.id)
-      if (existing && existing.record.updatedAt === show.updatedAt) {
-        return [show.id, { record: show, history: existing.history }]
-      }
-      staleHistoryIds.add(show.id)
-      return [show.id, { record: show, history: { past: [], future: [] } }]
-    })
-    lastPersistedShowRecords.clear()
-    for (const [id, baseline] of nextBaselines) lastPersistedShowRecords.set(id, baseline)
     set((state) => ({
-      shows: shows.sort((a, b) => b.updatedAt - a.updatedAt),
+      ...reconcileHydratedShows(state, shows),
       showsLoaded: true,
-      showHistories: Object.fromEntries(
-        Object.entries(state.showHistories).filter(([id]) => !staleHistoryIds.has(id)),
-      ),
     }))
     })()
     showsHydration = hydration
@@ -323,14 +360,24 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   },
 
   removeShow: async (id) => {
-    await getPersonalContentProvider().deleteShow(id)
-    lastPersistedShowRecords.delete(id)
-    const { activeShowId, shows } = get()
-    const remaining = shows.filter((show) => show.id !== id)
-    set({
-      shows: remaining,
-      activeShowId: activeShowId === id ? null : activeShowId,
-    })
+    if (showsPendingDeletion.has(id)) return
+    showsPendingDeletion.add(id)
+    try {
+      await deletePersistedShow(id)
+      lastPersistedShowRecords.delete(id)
+      set((state) => {
+        const showHistories = { ...state.showHistories }
+        delete showHistories[id]
+        return {
+          shows: state.shows.filter((show) => show.id !== id),
+          activeShowId: state.activeShowId === id ? null : state.activeShowId,
+          showHistories,
+          ...(state.showSaveFailure?.showId === id ? { showSaveFailure: null } : {}),
+        }
+      })
+    } finally {
+      showsPendingDeletion.delete(id)
+    }
   },
 
   duplicateShow: async (sourceId, sourceRecord) => {
@@ -373,9 +420,10 @@ export const useShowStore = create<ShowState>()((set, get) => ({
       if (!previousRecord || next === previousRecord) return
       next = reconcileShowExecutionModelOnCastReturn(previousRecord, forfeitShowExecutionModelOnCastChange(previousRecord, next))
       const previous = normalizeShowRecord(previousRecord)
+      const adopted = replacementWithNextOrderingStamp(previous, next)
       const previousHistory = get().showHistories[id] ?? { past: [], future: [] }
       set((state) => ({
-        stockShowDrafts: { ...state.stockShowDrafts, [id]: normalizeShowRecord(next) },
+        stockShowDrafts: { ...state.stockShowDrafts, [id]: adopted },
         showHistories: {
           ...state.showHistories,
           [id]: { past: [...previousHistory.past, previous], future: [] },
@@ -383,53 +431,17 @@ export const useShowStore = create<ShowState>()((set, get) => ({
       }))
       return
     }
+    if (showsPendingDeletion.has(id)) return
     const previousRecord = get().shows.find((show) => show.id === id)
     if (!previousRecord || next === previousRecord) return
     next = reconcileShowExecutionModelOnCastReturn(previousRecord, forfeitShowExecutionModelOnCastChange(previousRecord, next))
     const previous = normalizeShowRecord(previousRecord)
-    const normalizedNext = normalizeShowRecord(next)
     const previousHistory = get().showHistories[id] ?? { past: [], future: [] }
     const optimisticHistory = { past: [...previousHistory.past, previous], future: [] }
-    set((state) => ({
-      shows: state.shows
-        .map((show) => show.id === id ? normalizedNext : show)
-        .sort((a, b) => b.updatedAt - a.updatedAt),
-      showHistories: {
-        ...state.showHistories,
-        [id]: optimisticHistory,
-      },
-    }))
-    try {
-      await persistShowRecord(normalizedNext)
-      advanceDurableBaseline(id, normalizedNext, optimisticHistory)
-      set((state) => ({
-        ...(state.showSaveFailure?.showId === id ? { showSaveFailure: null } : {}),
-        // A loadShows that raced this write saw the durable record before the
-        // promise resolved and cleared its history as stale; restore the pair,
-        // but only while this write's record is still the one loaded.
-        ...(state.showHistories[id] === undefined
-          && state.shows.find((show) => show.id === id)?.updatedAt === normalizedNext.updatedAt
-          ? { showHistories: { ...state.showHistories, [id]: optimisticHistory } }
-          : {}),
-      }))
-    } catch (cause) {
-      // A newer optimistic record already superseded this write; its own
-      // persistence outcome is authoritative, so nothing rolls back and the
-      // caller's edit still reads as applied (#792).
-      let rolledBack = false
-      set((state) => {
-        const current = state.shows.find((show) => show.id === id)
-        if (current !== normalizedNext) return state
-        rolledBack = true
-        const durable = lastPersistedShowRecords.get(id)
-        return {
-          shows: replaceShowRecord(state.shows, durable?.record ?? previous),
-          showHistories: { ...state.showHistories, [id]: durable?.history ?? previousHistory },
-          showSaveFailure: { showId: id, record: normalizedNext },
-        }
-      })
-      if (rolledBack) throw cause
-    }
+    await adoptPersonalShowReplacement(id, next, optimisticHistory, {
+      record: previous,
+      history: previousHistory,
+    })
   },
 
   dismissShowSaveFailure: () => set({ showSaveFailure: null }),
@@ -622,100 +634,117 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   },
 
   undoShow: async (showId) => {
+    if (showsPendingDeletion.has(showId)) return false
     const show = get().resolveEditableShow(showId)
     const history = get().showHistories[showId]
     const snapshot = history?.past[history.past.length - 1]
     if (!show || !history || !snapshot) return false
-    const next = { ...normalizeShowRecord(snapshot), updatedAt: Math.max(Date.now(), show.updatedAt + 1) }
+    const replacement = normalizeShowRecord(snapshot)
     const nextHistory = {
       past: history.past.slice(0, -1),
       future: [normalizeShowRecord(show), ...history.future],
     }
     if (stockShowById(showId)) {
+      const next = replacementWithNextOrderingStamp(show, replacement)
       set((state) => ({
         stockShowDrafts: { ...state.stockShowDrafts, [showId]: next },
         showHistories: { ...state.showHistories, [showId]: nextHistory },
       }))
       return true
     }
-    set((state) => ({
-      shows: replaceShowRecord(state.shows, next),
-      showHistories: { ...state.showHistories, [showId]: nextHistory },
-    }))
     try {
-      await persistShowRecord(next)
-      advanceDurableBaseline(showId, next, nextHistory)
-      set((state) => ({
-        ...(state.showSaveFailure?.showId === showId ? { showSaveFailure: null } : {}),
-        ...(state.showHistories[showId] === undefined
-          && state.shows.find((show) => show.id === showId)?.updatedAt === next.updatedAt
-          ? { showHistories: { ...state.showHistories, [showId]: nextHistory } }
-          : {}),
-      }))
+      await adoptPersonalShowReplacement(showId, replacement, nextHistory, { record: show, history })
       return true
     } catch {
-      set((state) => {
-        const durable = lastPersistedShowRecords.get(showId)
-        return {
-          shows: replaceShowRecord(state.shows, durable?.record ?? show),
-          showHistories: { ...state.showHistories, [showId]: durable?.history ?? history },
-          showSaveFailure: { showId, record: next },
-        }
-      })
       return false
     }
   },
 
   redoShow: async (showId) => {
+    if (showsPendingDeletion.has(showId)) return false
     const show = get().resolveEditableShow(showId)
     const history = get().showHistories[showId]
     const snapshot = history?.future[0]
     if (!show || !history || !snapshot) return false
-    const next = { ...normalizeShowRecord(snapshot), updatedAt: Math.max(Date.now(), show.updatedAt + 1) }
+    const replacement = normalizeShowRecord(snapshot)
     const nextHistory = {
       past: [...history.past, normalizeShowRecord(show)],
       future: history.future.slice(1),
     }
     if (stockShowById(showId)) {
+      const next = replacementWithNextOrderingStamp(show, replacement)
       set((state) => ({
         stockShowDrafts: { ...state.stockShowDrafts, [showId]: next },
         showHistories: { ...state.showHistories, [showId]: nextHistory },
       }))
       return true
     }
-    set((state) => ({
-      shows: replaceShowRecord(state.shows, next),
-      showHistories: { ...state.showHistories, [showId]: nextHistory },
-    }))
     try {
-      await persistShowRecord(next)
-      advanceDurableBaseline(showId, next, nextHistory)
-      set((state) => ({
-        ...(state.showSaveFailure?.showId === showId ? { showSaveFailure: null } : {}),
-        ...(state.showHistories[showId] === undefined
-          && state.shows.find((show) => show.id === showId)?.updatedAt === next.updatedAt
-          ? { showHistories: { ...state.showHistories, [showId]: nextHistory } }
-          : {}),
-      }))
+      await adoptPersonalShowReplacement(showId, replacement, nextHistory, { record: show, history })
       return true
     } catch {
-      set((state) => {
-        const durable = lastPersistedShowRecords.get(showId)
-        return {
-          shows: replaceShowRecord(state.shows, durable?.record ?? show),
-          showHistories: { ...state.showHistories, [showId]: durable?.history ?? history },
-          showSaveFailure: { showId, record: next },
-        }
-      })
       return false
     }
   },
-}))
+  }
+})
 
 function replaceShowRecord(shows: ShowRecord[], next: ShowRecord): ShowRecord[] {
   return shows
     .map((show) => show.id === next.id ? next : show)
     .sort((a, b) => b.updatedAt - a.updatedAt)
+}
+
+function reconcileHydratedShows(
+  state: Pick<ShowState, 'shows' | 'showHistories'>,
+  hydrated: ShowRecord[],
+): Pick<ShowState, 'shows' | 'showHistories'> {
+  const staleHistoryIds = new Set<string>()
+  const hydratedIds = new Set(hydrated.map((show) => show.id))
+  const nextBaselines = new Map<string, { record: ShowRecord; history: ShowHistory }>()
+
+  const shows = hydrated.map((show) => {
+    const existing = lastPersistedShowRecords.get(show.id)
+    const current = state.shows.find((candidate) => candidate.id === show.id)
+    const currentHistory = state.showHistories[show.id] ?? { past: [], future: [] }
+    const keepPending = showPersistenceQueues.has(show.id)
+      && current !== undefined
+      && current.updatedAt >= show.updatedAt
+    const baselineHistory = keepPending && current?.updatedAt === show.updatedAt
+      ? currentHistory
+      : existing?.record.updatedAt === show.updatedAt
+        ? existing.history
+        : { past: [], future: [] }
+    nextBaselines.set(show.id, { record: show, history: baselineHistory })
+
+    if (keepPending) return current!
+    if (!existing || existing.record.updatedAt !== show.updatedAt) staleHistoryIds.add(show.id)
+    return show
+  })
+
+  // A list snapshot may omit a record whose local write has not reached the
+  // provider yet. Keep that accepted replacement until its queued outcome is
+  // known. Non-pending personal records omitted by hydration lose stale
+  // history; stock draft histories are not members of state.shows and remain.
+  for (const current of state.shows) {
+    if (hydratedIds.has(current.id)) continue
+    if (showPersistenceQueues.has(current.id)) {
+      shows.push(current)
+      const existing = lastPersistedShowRecords.get(current.id)
+      if (existing) nextBaselines.set(current.id, existing)
+    } else {
+      staleHistoryIds.add(current.id)
+    }
+  }
+
+  lastPersistedShowRecords.clear()
+  for (const [id, baseline] of nextBaselines) lastPersistedShowRecords.set(id, baseline)
+  return {
+    shows: shows.sort((a, b) => b.updatedAt - a.updatedAt),
+    showHistories: Object.fromEntries(
+      Object.entries(state.showHistories).filter(([id]) => !staleHistoryIds.has(id)),
+    ),
+  }
 }
 
 function normalizeShowRecord(show: ShowRecord): ShowRecord {
@@ -749,14 +778,24 @@ function withoutComposition(show: ShowRecord): ShowRecord {
 }
 
 async function persistShowRecord(next: ShowRecord): Promise<void> {
-  const previous = showPersistenceQueues.get(next.id) ?? Promise.resolve()
+  await queueShowPersistence(next.id, () => (
+    getPersonalContentProvider().updateShow(next.id, showPersistenceChanges(next))
+  ))
+}
+
+async function deletePersistedShow(id: string): Promise<void> {
+  await queueShowPersistence(id, () => getPersonalContentProvider().deleteShow(id))
+}
+
+async function queueShowPersistence(id: string, operation: () => Promise<void>): Promise<void> {
+  const previous = showPersistenceQueues.get(id) ?? Promise.resolve()
   const persistence = previous
     .catch(() => undefined)
-    .then(() => getPersonalContentProvider().updateShow(next.id, showPersistenceChanges(next)))
-  showPersistenceQueues.set(next.id, persistence)
+    .then(operation)
+  showPersistenceQueues.set(id, persistence)
   try {
     await persistence
   } finally {
-    if (showPersistenceQueues.get(next.id) === persistence) showPersistenceQueues.delete(next.id)
+    if (showPersistenceQueues.get(id) === persistence) showPersistenceQueues.delete(id)
   }
 }

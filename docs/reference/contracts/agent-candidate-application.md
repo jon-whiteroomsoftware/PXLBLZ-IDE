@@ -47,14 +47,14 @@ inference is gone after the reply; sequence B: a Clip deleted during
 inference comes back, and a later visible drag of that target from 0 s to 15 s
 is replaced back to 0 s; sequence C: time inserted before the target is undone).
 
-Composition edits also retain the captured `updatedAt`; application does not
-restamp it. After an intervening manual save, this older timestamp can prevent
-the durable baseline from advancing even if the candidate saves successfully.
-A later failure can then restore a baseline that no longer matches storage.
-This violation of the store's timestamp-ordering assumption is reproduced by
-baseline sequence E: the candidate's PATCH carried the older stamp, a later
-failed save restored the manual record, and storage still held the candidate
-until reload. It remains unfixed.
+Composition edits still retain the captured `updatedAt`, but the live V2 store
+now assigns every accepted replacement a new single-client ordering stamp at
+adoption. The candidate's captured timestamp therefore cannot leave the
+durable baseline behind a successful save. Baseline sequence E is the browser
+regression: after an intervening manual save and an accepted agent replacement,
+a later failed save restores that saved replacement and reopening shows the
+same record. The stamp is not a document revision and does not repair the stale
+whole-record overwrite described above.
 
 The service separately permits one request at a time across clients. A busy
 service returns HTTP 429 as JSON, while the overlay expects a streamed terminal
@@ -165,7 +165,8 @@ diagnostic until #946, #947 and #959 decide what becomes engine code (#949).
   passes the structural schema; the conclude path and session commit then pass
   the complete result through tier 0.
 - Composition replacement ([`grammar/support.ts`](../../../src/agent-harness/grammar/support.ts)) preserves the captured
-  timestamp; this is source evidence for the ordering gap above.
+  timestamp. The live V2 store, rather than this diagnostic caller, owns the
+  replacement's accepted ordering stamp.
 - Service ([`bridge/service.ts`](../../../src/agent-harness/bridge/service.ts), the request path
   extracted from V3's `server.ts`; [`bridge/server.ts`](../../../src/agent-harness/bridge/server.ts) is the process entry),
   browser bridge ([`bridge/chat.js`](../../../src/agent-harness/bridge/chat.js)), and
@@ -182,8 +183,8 @@ diagnostic until #946, #947 and #959 decide what becomes engine code (#949).
   actual editor route in Chromium through the real overlay and a real scripted
   bridge process, and asserts the observed bad outcomes as reproductions:
   stale whole-record replacement (A, B, C), application after navigation
-  away and back (D), the baseline mismatch after a later failed save (E),
-  one history entry and one save for a multi-operation reply (F), an
+  away and back (D), recovery to the durable candidate after a later failed
+  save and reopen (green regression E), one history entry and one save for a multi-operation reply (F), an
   in-memory stock draft with no personal write (G), and a personal Pattern
   on a personal Library (H). It is an explicit diagnostic command, never a
   push gate.

@@ -781,7 +781,12 @@ record's Scenes, Zones, boundary Transitions, and routing layouts remain the
 compiler substrate. `showModel.ts` owns creation, normalization, projection,
 split, and mutation; `showStore` persists through `/api/shows` with per-Show
 write queues, optimistic updates, and in-memory undo/redo snapshot stacks.
-Shows therefore do not use the Pattern source-departure rule: they persist
+The store assigns every accepted replacement a monotonic single-client
+`updatedAt` ordering stamp and applies one supersession-aware recovery policy
+to ordinary edits, undo, and redo. Hydration preserves newer queued local
+replacements, and deletion follows prior writes in the same queue. These stamps
+order one client's recovery; they are not document revisions or a cross-client
+conflict protocol. Shows therefore do not use the Pattern source-departure rule: they persist
 structured choreography and derive their generated Pattern artifact at compile
 and delivery boundaries.
 
