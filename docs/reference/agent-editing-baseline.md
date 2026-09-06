@@ -8,6 +8,12 @@ completion delay, so nothing here is a model-latency measurement or a target.
 The live corpus run, the sealed held-out set, and the proposed thresholds are
 still open in #945.
 
+The unpaid live-run preflight is pinned in
+[`evidence/issue-945-live-baseline/unpaid-preflight.md`](evidence/issue-945-live-baseline/unpaid-preflight.md).
+It records the empty $20 ledger, the 43/43 fake-corpus control, and held-out
+metadata verification. The paid run remains waiting for the externally supplied
+credential; no live case has been measured and no threshold is proposed yet.
+
 Contracts this evidence serves:
 [agent candidate application](contracts/agent-candidate-application.md),
 [Show state, history, and persistence](contracts/show-state-history-persistence.md),
