@@ -115,8 +115,51 @@ deleted after the proof; the adoption branch returned to 9b78b88.
 Residual follow-up
 ------------------
 
-The coordinator must repeat `npx wrsp-runner test HEAD` after the 0.6.1 daemon
-package is installed and capture unsandboxed laptop `ps` samples during that
-run. The committed evidence document necessarily follows the exact tested
-implementation commit, so that repeat also supplies exact-tip evidence for the
-final documentation tip after it is reviewed and rebased for landing.
+The repeat below completes the post-0.6.1 runner and uptime evidence. The
+coordinator must replace its laptop-process placeholder with the unsandboxed
+samples captured during the run. The evidence records bind the tested
+implementation commit; the documentation commit necessarily follows it.
+
+Repeat against daemon 0.6.1
+---------------------------
+
+The corrective pre-push implementation was committed as
+`6c4594339b8eafe5746048de429951277cb0c0de` (tree
+`70df10c17ab45918394dd7c59104dcf171c2f77e`). Direct package queries over the
+configured `wrsp-mini` SSH alias reported `0.6.1` for both the daemon and
+dashboard services. The consumer remained on its vendored 0.6.0 client and
+protocol 2.
+
+`npx wrsp-runner test HEAD` submitted all four required suites at that exact
+commit. The invocation stayed attached through collection and exited 0 without
+a resume or local-backend fallback.
+
+Suite             Job id                                Execution   Total from request   Configured timeout
+e2e-auth-smoke    280dd25e-234f-4b1c-a0e7-345f85fcff33  39.286 s    49.860 s             15 min
+e2e-public        fdc4293a-d56e-415c-83fc-74a676f4c52f  24.952 s    78.995 s             15 min
+e2e-shows         aa5b30b2-a6f1-4d9b-b1f7-a873a31fa28e  50.074 s   133.533 s             20 min
+full-vitest       93741fc2-7bb8-47ef-a7b1-c20ae219cfdd 115.245 s   254.137 s             10 min
+
+All four outcomes were `passed` with exit code 0. The execution durations are
+`executionStartedAt` to `executionFinishedAt`; totals are `requestedAt` to
+`finishedAt` from the immutable exact-tip evidence records.
+
+Sample                 UTC                       uptime/load averages
+before submission      2026-09-06T02:12:31Z      19:12, 4.28 7.20 6.77
+during first job       2026-09-06T02:13:14Z      19:13, 4.07 6.78 6.64
+after completion       2026-09-06T02:17:02Z      19:17, 2.35 4.46 5.66
+
+`npm run dev:status` reported the persistent main runtime at
+http://localhost:5174/PXLBLZ-IDE/ as `listening, API listening` before, during,
+and after the repeat.
+
+Laptop process samples: supplied by the coordinator
+
+At the tested corrective implementation commit:
+
+  npx wrsp-check-test-evidence HEAD
+  TEST EVIDENCE GATE: PASS
+
+The gate named one matching record for each of `e2e-auth-smoke`, `e2e-public`,
+`e2e-shows`, and `full-vitest`, all under the repository Git common directory's
+`wrsp/test-evidence/v1` store.
