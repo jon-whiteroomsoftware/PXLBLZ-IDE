@@ -1,0 +1,27 @@
+Command: npm run agent:budget
+Exit: 0
+
+> pxlblz-ide@1.0.0 agent:budget
+> npm run check:node && tsx src/agent-harness/experiment/budgetCli.ts
+
+
+> pxlblz-ide@1.0.0 check:node
+> wrsp-check-node && node scripts/check-node-floor.mjs
+
+ledger: /Users/voidstar/.local/state/pxlblz-ide/agent-harness-paid-calls.json
+bounds: $20 aggregate, $2 per run, 4 calls per case or turn, 4000 output tokens per call, acceptances at most 30 days old
+prices accepted for paid runs: gpt-5.6-luna $0.2/$0.02/$1.2 per M input/cached/output, above 272000 input tokens 2x input 1.5x output, cache writes 1.25x (#945 root coordinator (gpt-6-astra), 2026-09-05; https://developers.openai.com/api/docs/models/gpt-5.6-luna (standard tier text prices, long-context and cache-write terms))
+provider input ceilings accepted for paid runs: gpt-5.6-luna 1050000 tokens (#945 root coordinator (gpt-6-astra), 2026-09-05; https://developers.openai.com/api/docs/models/gpt-5.6-luna (context window, maximum output); https://developers.openai.com/api/reference/cli/resources/responses/methods/create (truncation))
+reservation per call for gpt-5.6-luna: $0.532200 (1050000 input tokens and 4000 output tokens at the worst applicable documented rates; at most 3 unsettled or ambiguous calls fit one $2 run)
+created 2026-09-06T02:46:54.736Z: #945 live baseline: Jon authorised the existing OpenAI credential with a $20 aggregate maximum on 2026-09-04
+consumed $0.049526 over 58 entries (58 settled, 0 ambiguous, 0 unsettled, 0 overruns); remaining $19.950474
+  2026-09-06T03:01:06.096Z 2026-09-06T02-58-07-759Z-53104-49 ambiguous-pattern-name gpt-5.6-luna settled $0.000483 settled (reported-categories) (ceiling 1050000, estimate 101826)
+  2026-09-06T03:01:08.454Z 2026-09-06T02-58-07-759Z-53104-50 ambiguous-no-hover gpt-5.6-luna settled $0.000824 settled (reported-categories) (ceiling 1050000, estimate 97835)
+  2026-09-06T03:01:12.426Z 2026-09-06T02-58-07-759Z-53104-51 ambiguous-two-markers gpt-5.6-luna settled $0.000770 settled (reported-categories) (ceiling 1050000, estimate 97977)
+  2026-09-06T03:01:16.551Z 2026-09-06T02-58-07-759Z-53104-52 refuse-overlap gpt-5.6-luna settled $0.001043 settled (reported-categories) (ceiling 1050000, estimate 97895)
+  2026-09-06T03:01:23.662Z 2026-09-06T02-58-07-759Z-53104-53 refuse-split-outside gpt-5.6-luna settled $0.000906 settled (reported-categories) (ceiling 1050000, estimate 97853)
+  2026-09-06T03:01:27.622Z 2026-09-06T02-58-07-759Z-53104-54 refuse-last-clip gpt-5.6-luna settled $0.000736 settled (reported-categories) (ceiling 1050000, estimate 97436)
+  2026-09-06T03:01:30.787Z 2026-09-06T02-58-07-759Z-53104-55 refuse-last-clip gpt-5.6-luna settled $0.000501 settled (reported-categories) (ceiling 1050000, estimate 99485)
+  2026-09-06T03:01:34.113Z 2026-09-06T02-58-07-759Z-53104-56 refuse-opacity-main gpt-5.6-luna settled $0.000840 settled (reported-categories) (ceiling 1050000, estimate 97864)
+  2026-09-06T03:01:37.843Z 2026-09-06T02-58-07-759Z-53104-57 ask-unknown-control gpt-5.6-luna settled $0.000739 settled (reported-categories) (ceiling 1050000, estimate 97862)
+  2026-09-06T03:01:40.486Z 2026-09-06T02-58-07-759Z-53104-58 ask-unknown-control gpt-5.6-luna settled $0.000743 settled (reported-categories) (ceiling 1050000, estimate 102335)

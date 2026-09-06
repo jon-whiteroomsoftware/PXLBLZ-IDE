@@ -1497,8 +1497,11 @@ neither is an invoice figure. Usage above the ceiling, or a response served
 under another service tier, halts the ledger persistently until a human
 reconciles it. Only `gpt-5.6-luna` is accepted (provider pages read
 2026-09-05; $0.5322 reserved per call). `npm run agent:budget [-- init]`
-inspects or creates the ledger. Details and the pre-run checklist are in the
-harness `README.md`.
+inspects or creates the ledger. Both live entry points use the same protected-file
+credential loader only after the ledger opens; it reads `OPENAI_API_KEY` only
+from the file explicitly named by `AGENT_HARNESS_ENV_FILE` and never replaces a
+process-supplied key. Details and the pre-run checklist are in the harness
+`README.md`.
 
 The #945 held-out release corpus is a separate, finite v1 seal under
 `src/agent-harness/held-out/v1/`. Its input and expected-outcome artifacts have manifest-recorded

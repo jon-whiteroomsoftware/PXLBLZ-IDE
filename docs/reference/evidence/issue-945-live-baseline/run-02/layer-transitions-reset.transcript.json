@@ -1,0 +1,251 @@
+{
+  "caseId": "layer-transitions-reset",
+  "agent": "gpt-5.6-luna (high)",
+  "events": [
+    {
+      "type": "tool",
+      "tool": "reset_layer_transition_to_cut",
+      "args": {
+        "session_id": "show-1",
+        "transition_id": "transition-1"
+      },
+      "result": {
+        "ok": true,
+        "changes": [
+          {
+            "op": "reset_layer_transition_to_cut",
+            "targetId": "transition-1",
+            "description": "Transition transition-1 removed; the junction is a cut again and later clips moved 2000 ms earlier."
+          }
+        ],
+        "listing": {
+          "durationMs": 60000,
+          "scenes": [
+            {
+              "sceneId": "s1",
+              "name": "Opening",
+              "startMs": 0,
+              "endMs": 30000
+            },
+            {
+              "sceneId": "s2",
+              "name": "Closing",
+              "startMs": 30000,
+              "endMs": 60000
+            }
+          ],
+          "clips": [
+            {
+              "clipId": "placement-c1-s1",
+              "startPlacementId": "placement-c1-s1",
+              "instanceId": "c1",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 0,
+              "endMs": 10000,
+              "durationMs": 10000
+            },
+            {
+              "clipId": "clip-1",
+              "startPlacementId": "clip-1",
+              "instanceId": "instance-1",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 10000,
+              "endMs": 20000,
+              "durationMs": 10000
+            }
+          ]
+        },
+        "transaction": "Remove the crossfade between the first two clips — make it a hard cut."
+      },
+      "isError": false
+    },
+    {
+      "type": "text",
+      "text": "Removed the crossfade between the first two CometLoom clips and made it a hard cut."
+    }
+  ],
+  "finalText": "Removed the crossfade between the first two CometLoom clips and made it a hard cut.",
+  "transactions": 1,
+  "turnTransactions": [
+    1
+  ],
+  "genericUses": [],
+  "finalShow": {
+    "id": "dictation-fixture",
+    "name": "Dictation fixture",
+    "updatedAt": 0,
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 30000
+      },
+      {
+        "id": "s2",
+        "name": "Closing",
+        "durationMs": 30000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 64
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        }
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Full Stage",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "z1"
+          ]
+        }
+      }
+    ],
+    "transitions": [],
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 1,
+      "executionModel": "deterministic-loop",
+      "patternInstances": [
+        {
+          "id": "c1",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "instance-1",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "transitions": [],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "id": "placement-c1-s1",
+                  "instanceId": "c1",
+                  "startMs": 0,
+                  "durationMs": 10000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                },
+                {
+                  "id": "clip-1",
+                  "instanceId": "instance-1",
+                  "startMs": 10000,
+                  "durationMs": 10000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        },
+        {
+          "sceneId": "s2",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [],
+              "overlays": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "timing": {
+    "totalMs": 2889,
+    "calls": [
+      {
+        "ms": 2887,
+        "toolCalls": 1,
+        "inputTokens": 16592,
+        "cachedInputTokens": 15086,
+        "outputTokens": 85,
+        "reasoningTokens": 27
+      }
+    ],
+    "rateLimitWaitMs": 0,
+    "rateLimit": {
+      "requestsPerMinute": 500,
+      "tokensPerMinute": 500000
+    }
+  }
+}

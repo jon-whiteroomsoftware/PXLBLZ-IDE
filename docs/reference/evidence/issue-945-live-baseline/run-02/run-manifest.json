@@ -1,0 +1,182 @@
+{
+  "version": 1,
+  "agent": "gpt-5.6-luna (high)",
+  "runId": "2026-09-06T02-58-07-759Z-53104",
+  "startedAt": "2026-09-06T02:58:07.837Z",
+  "finishedAt": "2026-09-06T03:01:44.402Z",
+  "transcripts": [
+    {
+      "caseId": "clips-resize-ordinal",
+      "file": "clips-resize-ordinal.transcript.json"
+    },
+    {
+      "caseId": "clips-add-at-time",
+      "file": "clips-add-at-time.transcript.json"
+    },
+    {
+      "caseId": "clips-move-hover",
+      "file": "clips-move-hover.transcript.json"
+    },
+    {
+      "caseId": "clips-split-playhead",
+      "file": "clips-split-playhead.transcript.json"
+    },
+    {
+      "caseId": "clips-duplicate-linked",
+      "file": "clips-duplicate-linked.transcript.json"
+    },
+    {
+      "caseId": "clips-remove-pattern-name",
+      "file": "clips-remove-pattern-name.transcript.json"
+    },
+    {
+      "caseId": "clips-view-brightness-selection",
+      "file": "clips-view-brightness-selection.transcript.json"
+    },
+    {
+      "caseId": "clips-time-scale",
+      "file": "clips-time-scale.transcript.json"
+    },
+    {
+      "caseId": "clips-control-target",
+      "file": "clips-control-target.transcript.json"
+    },
+    {
+      "caseId": "clips-evaluation-policy",
+      "file": "clips-evaluation-policy.transcript.json"
+    },
+    {
+      "caseId": "clips-batch-resize",
+      "file": "clips-batch-resize.transcript.json"
+    },
+    {
+      "caseId": "timeline-insert-time",
+      "file": "timeline-insert-time.transcript.json"
+    },
+    {
+      "caseId": "timeline-show-end",
+      "file": "timeline-show-end.transcript.json"
+    },
+    {
+      "caseId": "timeline-add-marker",
+      "file": "timeline-add-marker.transcript.json"
+    },
+    {
+      "caseId": "timeline-move-marker",
+      "file": "timeline-move-marker.transcript.json"
+    },
+    {
+      "caseId": "animation-owner-example",
+      "file": "animation-owner-example.transcript.json"
+    },
+    {
+      "caseId": "animation-brightness-fade",
+      "file": "animation-brightness-fade.transcript.json"
+    },
+    {
+      "caseId": "animation-add-keyframe",
+      "file": "animation-add-keyframe.transcript.json"
+    },
+    {
+      "caseId": "animation-move-keyframe",
+      "file": "animation-move-keyframe.transcript.json"
+    },
+    {
+      "caseId": "animation-delete-track",
+      "file": "animation-delete-track.transcript.json"
+    },
+    {
+      "caseId": "junctions-set-kind",
+      "file": "junctions-set-kind.transcript.json"
+    },
+    {
+      "caseId": "junctions-timing",
+      "file": "junctions-timing.transcript.json"
+    },
+    {
+      "caseId": "junctions-parameter",
+      "file": "junctions-parameter.transcript.json"
+    },
+    {
+      "caseId": "layer-transitions-insert",
+      "file": "layer-transitions-insert.transcript.json"
+    },
+    {
+      "caseId": "layer-transitions-resize",
+      "file": "layer-transitions-resize.transcript.json"
+    },
+    {
+      "caseId": "layer-transitions-reset",
+      "file": "layer-transitions-reset.transcript.json"
+    },
+    {
+      "caseId": "effects-add-vignette",
+      "file": "effects-add-vignette.transcript.json"
+    },
+    {
+      "caseId": "effects-update-parameter",
+      "file": "effects-update-parameter.transcript.json"
+    },
+    {
+      "caseId": "effects-remove",
+      "file": "effects-remove.transcript.json"
+    },
+    {
+      "caseId": "structure-output-contract",
+      "file": "structure-output-contract.transcript.json"
+    },
+    {
+      "caseId": "structure-layout-interval",
+      "file": "structure-layout-interval.transcript.json"
+    },
+    {
+      "caseId": "structure-trails",
+      "file": "structure-trails.transcript.json"
+    },
+    {
+      "caseId": "multi-answer-completion",
+      "file": "multi-answer-completion.transcript.json"
+    },
+    {
+      "caseId": "multi-confirm-referent",
+      "file": "multi-confirm-referent.transcript.json"
+    },
+    {
+      "caseId": "multi-override-brightness",
+      "file": "multi-override-brightness.transcript.json"
+    },
+    {
+      "caseId": "ambiguous-pattern-name",
+      "file": "ambiguous-pattern-name.transcript.json"
+    },
+    {
+      "caseId": "ambiguous-no-hover",
+      "file": "ambiguous-no-hover.transcript.json"
+    },
+    {
+      "caseId": "ambiguous-two-markers",
+      "file": "ambiguous-two-markers.transcript.json"
+    },
+    {
+      "caseId": "refuse-overlap",
+      "file": "refuse-overlap.transcript.json"
+    },
+    {
+      "caseId": "refuse-split-outside",
+      "file": "refuse-split-outside.transcript.json"
+    },
+    {
+      "caseId": "refuse-last-clip",
+      "file": "refuse-last-clip.transcript.json"
+    },
+    {
+      "caseId": "refuse-opacity-main",
+      "file": "refuse-opacity-main.transcript.json"
+    },
+    {
+      "caseId": "ask-unknown-control",
+      "file": "ask-unknown-control.transcript.json"
+    }
+  ],
+  "unmeasured": []
+}

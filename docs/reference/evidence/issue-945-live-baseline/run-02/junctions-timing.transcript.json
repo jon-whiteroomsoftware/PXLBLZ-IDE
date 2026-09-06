@@ -1,0 +1,282 @@
+{
+  "caseId": "junctions-timing",
+  "agent": "gpt-5.6-luna (high)",
+  "events": [
+    {
+      "type": "tool",
+      "tool": "set_junction_timing",
+      "args": {
+        "session_id": "show-1",
+        "after_clip_id": "placement-c1-s1",
+        "duration_ms": 3000,
+        "easing": "ease-in-out"
+      },
+      "result": {
+        "ok": true,
+        "changes": [
+          {
+            "op": "set_junction_timing",
+            "targetId": "transition-s1",
+            "description": "Transition at junction transition-s1 retimed: durationMs 3000, easing {\"curve\":\"quadratic\",\"direction\":\"in-out\"}."
+          }
+        ],
+        "listing": {
+          "durationMs": 63000,
+          "scenes": [
+            {
+              "sceneId": "s1",
+              "name": "Opening",
+              "startMs": 0,
+              "endMs": 30000
+            },
+            {
+              "sceneId": "s2",
+              "name": "Closing",
+              "startMs": 33000,
+              "endMs": 63000
+            }
+          ],
+          "clips": [
+            {
+              "clipId": "placement-c1-s1",
+              "startPlacementId": "placement-c1-s1",
+              "instanceId": "c1",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 0,
+              "endMs": 30000,
+              "durationMs": 30000
+            },
+            {
+              "clipId": "placement-c2-s2",
+              "startPlacementId": "placement-c2-s2",
+              "instanceId": "c2",
+              "patternName": "TestPattern1D",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s2",
+              "startMs": 33000,
+              "endMs": 63000,
+              "durationMs": 30000
+            }
+          ]
+        },
+        "transaction": "Ease the scene transition in and out, three seconds long."
+      },
+      "isError": false
+    },
+    {
+      "type": "text",
+      "text": "Set the Opening-to-Closing scene transition to 3 seconds with ease-in-out timing."
+    }
+  ],
+  "finalText": "Set the Opening-to-Closing scene transition to 3 seconds with ease-in-out timing.",
+  "transactions": 1,
+  "turnTransactions": [
+    1
+  ],
+  "genericUses": [],
+  "finalShow": {
+    "id": "dictation-fixture",
+    "name": "Dictation fixture",
+    "updatedAt": 1788663585172,
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 30000
+      },
+      {
+        "id": "s2",
+        "name": "Closing",
+        "durationMs": 30000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 64
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        }
+      },
+      {
+        "id": "c2",
+        "zoneId": "z1",
+        "sceneId": "s2",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "TestPattern1D"
+        },
+        "patternName": "TestPattern1D",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        }
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Full Stage",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "z1"
+          ]
+        }
+      }
+    ],
+    "transitions": [
+      {
+        "id": "transition-s1",
+        "afterSceneId": "s1",
+        "kind": "crossfade",
+        "durationMs": 3000,
+        "easing": {
+          "curve": "quadratic",
+          "direction": "in-out"
+        },
+        "crossfadePolicy": "snapshot-live"
+      }
+    ],
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 1,
+      "patternInstances": [
+        {
+          "id": "c1",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "c2",
+          "pattern": {
+            "kind": "stock",
+            "id": "TestPattern1D"
+          },
+          "patternName": "TestPattern1D",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "id": "placement-c1-s1",
+                  "instanceId": "c1",
+                  "startMs": 0,
+                  "durationMs": 30000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        },
+        {
+          "sceneId": "s2",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "id": "placement-c2-s2",
+                  "instanceId": "c2",
+                  "startMs": 0,
+                  "durationMs": 30000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        }
+      ],
+      "executionModel": "deterministic-loop"
+    }
+  },
+  "timing": {
+    "totalMs": 3118,
+    "calls": [
+      {
+        "ms": 3115,
+        "toolCalls": 1,
+        "inputTokens": 16589,
+        "cachedInputTokens": 15086,
+        "outputTokens": 134,
+        "reasoningTokens": 62
+      }
+    ],
+    "rateLimitWaitMs": 0,
+    "rateLimit": {
+      "requestsPerMinute": 500,
+      "tokensPerMinute": 500000
+    }
+  }
+}

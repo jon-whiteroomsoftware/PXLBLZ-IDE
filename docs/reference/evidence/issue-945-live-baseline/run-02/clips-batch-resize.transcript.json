@@ -1,0 +1,698 @@
+{
+  "caseId": "clips-batch-resize",
+  "agent": "gpt-5.6-luna (high)",
+  "events": [
+    {
+      "type": "tool",
+      "tool": "resize_clip",
+      "args": {
+        "session_id": "show-1",
+        "clip_id": "placement-c1-s1",
+        "duration_ms": 8000
+      },
+      "result": {
+        "ok": true,
+        "changes": [
+          {
+            "op": "resize_clip",
+            "targetId": "placement-c1-s1",
+            "description": "Clip placement-c1-s1 (CometLoom on Main) now runs 0–8000 ms (8000 ms).",
+            "before": {
+              "startMs": 0,
+              "durationMs": 10000
+            },
+            "after": {
+              "startMs": 0,
+              "durationMs": 8000
+            }
+          }
+        ],
+        "listing": {
+          "durationMs": 60000,
+          "scenes": [
+            {
+              "sceneId": "s1",
+              "name": "Opening",
+              "startMs": 0,
+              "endMs": 30000
+            },
+            {
+              "sceneId": "s2",
+              "name": "Closing",
+              "startMs": 30000,
+              "endMs": 60000
+            }
+          ],
+          "clips": [
+            {
+              "clipId": "placement-c1-s1",
+              "startPlacementId": "placement-c1-s1",
+              "instanceId": "c1",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 0,
+              "endMs": 8000,
+              "durationMs": 8000
+            },
+            {
+              "clipId": "clip-1",
+              "startPlacementId": "clip-1",
+              "instanceId": "instance-1",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 10000,
+              "endMs": 20000,
+              "durationMs": 10000
+            },
+            {
+              "clipId": "clip-2",
+              "startPlacementId": "clip-2",
+              "instanceId": "instance-2",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 20000,
+              "endMs": 30000,
+              "durationMs": 10000
+            },
+            {
+              "clipId": "clip-3",
+              "startPlacementId": "clip-3",
+              "instanceId": "instance-3",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s2",
+              "startMs": 30000,
+              "endMs": 40000,
+              "durationMs": 10000
+            }
+          ]
+        },
+        "transaction": "Make the next four clips each eight seconds."
+      },
+      "isError": false
+    },
+    {
+      "type": "tool",
+      "tool": "resize_clip",
+      "args": {
+        "session_id": "show-1",
+        "clip_id": "clip-1",
+        "duration_ms": 8000
+      },
+      "result": {
+        "ok": true,
+        "changes": [
+          {
+            "op": "resize_clip",
+            "targetId": "clip-1",
+            "description": "Clip clip-1 (CometLoom on Main) now runs 10000–18000 ms (8000 ms).",
+            "before": {
+              "startMs": 10000,
+              "durationMs": 10000
+            },
+            "after": {
+              "startMs": 10000,
+              "durationMs": 8000
+            }
+          }
+        ],
+        "listing": {
+          "durationMs": 60000,
+          "scenes": [
+            {
+              "sceneId": "s1",
+              "name": "Opening",
+              "startMs": 0,
+              "endMs": 30000
+            },
+            {
+              "sceneId": "s2",
+              "name": "Closing",
+              "startMs": 30000,
+              "endMs": 60000
+            }
+          ],
+          "clips": [
+            {
+              "clipId": "placement-c1-s1",
+              "startPlacementId": "placement-c1-s1",
+              "instanceId": "c1",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 0,
+              "endMs": 8000,
+              "durationMs": 8000
+            },
+            {
+              "clipId": "clip-1",
+              "startPlacementId": "clip-1",
+              "instanceId": "instance-1",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 10000,
+              "endMs": 18000,
+              "durationMs": 8000
+            },
+            {
+              "clipId": "clip-2",
+              "startPlacementId": "clip-2",
+              "instanceId": "instance-2",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 20000,
+              "endMs": 30000,
+              "durationMs": 10000
+            },
+            {
+              "clipId": "clip-3",
+              "startPlacementId": "clip-3",
+              "instanceId": "instance-3",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s2",
+              "startMs": 30000,
+              "endMs": 40000,
+              "durationMs": 10000
+            }
+          ]
+        },
+        "transaction": "Make the next four clips each eight seconds."
+      },
+      "isError": false
+    },
+    {
+      "type": "tool",
+      "tool": "resize_clip",
+      "args": {
+        "session_id": "show-1",
+        "clip_id": "clip-2",
+        "duration_ms": 8000
+      },
+      "result": {
+        "ok": true,
+        "changes": [
+          {
+            "op": "resize_clip",
+            "targetId": "clip-2",
+            "description": "Clip clip-2 (CometLoom on Main) now runs 20000–28000 ms (8000 ms).",
+            "before": {
+              "startMs": 20000,
+              "durationMs": 10000
+            },
+            "after": {
+              "startMs": 20000,
+              "durationMs": 8000
+            }
+          }
+        ],
+        "listing": {
+          "durationMs": 60000,
+          "scenes": [
+            {
+              "sceneId": "s1",
+              "name": "Opening",
+              "startMs": 0,
+              "endMs": 30000
+            },
+            {
+              "sceneId": "s2",
+              "name": "Closing",
+              "startMs": 30000,
+              "endMs": 60000
+            }
+          ],
+          "clips": [
+            {
+              "clipId": "placement-c1-s1",
+              "startPlacementId": "placement-c1-s1",
+              "instanceId": "c1",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 0,
+              "endMs": 8000,
+              "durationMs": 8000
+            },
+            {
+              "clipId": "clip-1",
+              "startPlacementId": "clip-1",
+              "instanceId": "instance-1",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 10000,
+              "endMs": 18000,
+              "durationMs": 8000
+            },
+            {
+              "clipId": "clip-2",
+              "startPlacementId": "clip-2",
+              "instanceId": "instance-2",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 20000,
+              "endMs": 28000,
+              "durationMs": 8000
+            },
+            {
+              "clipId": "clip-3",
+              "startPlacementId": "clip-3",
+              "instanceId": "instance-3",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s2",
+              "startMs": 30000,
+              "endMs": 40000,
+              "durationMs": 10000
+            }
+          ]
+        },
+        "transaction": "Make the next four clips each eight seconds."
+      },
+      "isError": false
+    },
+    {
+      "type": "tool",
+      "tool": "resize_clip",
+      "args": {
+        "session_id": "show-1",
+        "clip_id": "clip-3",
+        "duration_ms": 8000
+      },
+      "result": {
+        "ok": true,
+        "changes": [
+          {
+            "op": "resize_clip",
+            "targetId": "clip-3",
+            "description": "Clip clip-3 (CometLoom on Main) now runs 30000–38000 ms (8000 ms).",
+            "before": {
+              "startMs": 30000,
+              "durationMs": 10000
+            },
+            "after": {
+              "startMs": 30000,
+              "durationMs": 8000
+            }
+          }
+        ],
+        "listing": {
+          "durationMs": 60000,
+          "scenes": [
+            {
+              "sceneId": "s1",
+              "name": "Opening",
+              "startMs": 0,
+              "endMs": 30000
+            },
+            {
+              "sceneId": "s2",
+              "name": "Closing",
+              "startMs": 30000,
+              "endMs": 60000
+            }
+          ],
+          "clips": [
+            {
+              "clipId": "placement-c1-s1",
+              "startPlacementId": "placement-c1-s1",
+              "instanceId": "c1",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 0,
+              "endMs": 8000,
+              "durationMs": 8000
+            },
+            {
+              "clipId": "clip-1",
+              "startPlacementId": "clip-1",
+              "instanceId": "instance-1",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 10000,
+              "endMs": 18000,
+              "durationMs": 8000
+            },
+            {
+              "clipId": "clip-2",
+              "startPlacementId": "clip-2",
+              "instanceId": "instance-2",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 20000,
+              "endMs": 28000,
+              "durationMs": 8000
+            },
+            {
+              "clipId": "clip-3",
+              "startPlacementId": "clip-3",
+              "instanceId": "instance-3",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s2",
+              "startMs": 30000,
+              "endMs": 38000,
+              "durationMs": 8000
+            }
+          ]
+        },
+        "transaction": "Make the next four clips each eight seconds."
+      },
+      "isError": false
+    },
+    {
+      "type": "text",
+      "text": "Resized the next four clips to 8 seconds each."
+    }
+  ],
+  "finalText": "Resized the next four clips to 8 seconds each.",
+  "transactions": 1,
+  "turnTransactions": [
+    1
+  ],
+  "genericUses": [],
+  "finalShow": {
+    "id": "dictation-fixture",
+    "name": "Dictation fixture",
+    "updatedAt": 0,
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 30000
+      },
+      {
+        "id": "s2",
+        "name": "Closing",
+        "durationMs": 30000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 64
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        }
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Full Stage",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "z1"
+          ]
+        }
+      }
+    ],
+    "transitions": [],
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 1,
+      "executionModel": "deterministic-loop",
+      "patternInstances": [
+        {
+          "id": "c1",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "instance-1",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "instance-2",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "instance-3",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "id": "placement-c1-s1",
+                  "instanceId": "c1",
+                  "startMs": 0,
+                  "durationMs": 8000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                },
+                {
+                  "id": "clip-1",
+                  "instanceId": "instance-1",
+                  "startMs": 10000,
+                  "durationMs": 8000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                },
+                {
+                  "id": "clip-2",
+                  "instanceId": "instance-2",
+                  "startMs": 20000,
+                  "durationMs": 8000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        },
+        {
+          "sceneId": "s2",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "id": "clip-3",
+                  "instanceId": "instance-3",
+                  "startMs": 0,
+                  "durationMs": 8000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "timing": {
+    "totalMs": 11402,
+    "calls": [
+      {
+        "ms": 4223,
+        "toolCalls": 1,
+        "inputTokens": 16833,
+        "cachedInputTokens": 15086,
+        "outputTokens": 219,
+        "reasoningTokens": 181
+      },
+      {
+        "ms": 2357,
+        "toolCalls": 1,
+        "inputTokens": 17517,
+        "cachedInputTokens": 16830,
+        "outputTokens": 34,
+        "reasoningTokens": 0
+      },
+      {
+        "ms": 2023,
+        "toolCalls": 1,
+        "inputTokens": 18015,
+        "cachedInputTokens": 17514,
+        "outputTokens": 34,
+        "reasoningTokens": 0
+      },
+      {
+        "ms": 2792,
+        "toolCalls": 1,
+        "inputTokens": 18513,
+        "cachedInputTokens": 18012,
+        "outputTokens": 51,
+        "reasoningTokens": 0
+      }
+    ],
+    "rateLimitWaitMs": 0,
+    "rateLimit": {
+      "requestsPerMinute": 500,
+      "tokensPerMinute": 500000
+    }
+  }
+}

@@ -1,0 +1,320 @@
+{
+  "caseId": "clips-control-target",
+  "agent": "gpt-5.6-luna (high)",
+  "events": [
+    {
+      "type": "tool",
+      "tool": "get_stock_pattern",
+      "args": {
+        "id": "CometLoom"
+      },
+      "result": {
+        "id": "CometLoom",
+        "dimensions": 1,
+        "authors": [],
+        "description": "Long-tailed comets weave through a strip over a slow underlying rhythm.",
+        "source": "// Pattern: Comet Loom\n// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/\n//\n// Long-tailed comets weave through a strip over a slow underlying rhythm.\n// Runs on: 1D strips and rings.\n// Controls: Speed — How fast comet heads move around the strip;\n//           Comets — Number of active comet trails;\n//           Tail — Length of each comet tail;\n//           Palette — Base colour of the comet palette.\n//\n// Notes:\n// The comet heads are precomputed once per frame; each LED only compares a small\n// fixed set of distances, keeping the strip version controller-friendly.\n\nexport var speed = 0.42       // comet speed\nexport var comets = 0.55      // active comet count\nexport var tail = 0.68        // tail length\nexport var palette = 0.70     // base hue\n\nexport function sliderSpeed(v) { speed = v }\nexport function sliderComets(v) { comets = v }\nexport function sliderTail(v) { tail = v }\nexport function sliderPalette(v) { palette = v }\n\nexport var t = 0\nvar active, falloff, invPixels\nvar p0, p1, p2, p3, p4\n\nexport function beforeRender(delta) {\n  t = t + delta * 0.001 * (0.12 + speed * 1.45)\n  active = 3 + floor(comets * 3)\n  falloff = 7 + (1 - tail) * 32\n  invPixels = 1 / (pixelCount - 1)\n  p0 = frac(t * 0.070)\n  p1 = frac(t * -0.091 + 0.21)\n  p2 = frac(t * 0.112 + 0.43)\n  p3 = frac(t * -0.133 + 0.64)\n  p4 = frac(t * 0.154 + 0.82)\n}\n\nfunction comet(pos, p) {\n  var d = abs(pos - p)\n  d = min(d, 1 - d)\n  var v = clamp(1 - d * falloff, 0, 1)\n  return v * v\n}\n\nexport function render(index) {\n  var pos = index * invPixels\n  var val = comet(pos, p0)\n  var hue = palette\n  var v = comet(pos, p1)\n  if (v > val) { val = v; hue = palette + 0.13 }\n  v = comet(pos, p2)\n  if (v > val) { val = v; hue = palette + 0.26 }\n  if (active > 3) {\n    v = comet(pos, p3)\n    if (v > val) { val = v; hue = palette + 0.39 }\n  }\n  if (active > 4) {\n    v = comet(pos, p4)\n    if (v > val) { val = v; hue = palette + 0.52 }\n  }\n  var base = triangle(pos * 3 - t * 0.035) * 0.10\n  hsv(frac(hue + val * 0.06), 0.86, clamp(val + base, 0, 1))\n}\n",
+        "sourceBytes": 2056,
+        "controls": [
+          {
+            "exportName": "sliderSpeed",
+            "kind": "slider"
+          },
+          {
+            "exportName": "sliderComets",
+            "kind": "slider"
+          },
+          {
+            "exportName": "sliderTail",
+            "kind": "slider"
+          },
+          {
+            "exportName": "sliderPalette",
+            "kind": "slider"
+          }
+        ],
+        "renderFns": {
+          "hasRender": true,
+          "hasRender2D": false,
+          "hasRender3D": false
+        }
+      },
+      "isError": false
+    },
+    {
+      "type": "tool",
+      "tool": "set_clip_control_target",
+      "args": {
+        "session_id": "show-1",
+        "clip_id": "placement-c1-s1",
+        "export_name": "sliderSpeed",
+        "value": 0.3
+      },
+      "result": {
+        "ok": true,
+        "changes": [
+          {
+            "op": "set_clip_control_target",
+            "targetId": "placement-c1-s1",
+            "description": "Control target \"sliderSpeed\" set to 0.3 on clip placement-c1-s1's instance."
+          }
+        ],
+        "listing": {
+          "durationMs": 60000,
+          "scenes": [
+            {
+              "sceneId": "s1",
+              "name": "Opening",
+              "startMs": 0,
+              "endMs": 30000
+            },
+            {
+              "sceneId": "s2",
+              "name": "Closing",
+              "startMs": 30000,
+              "endMs": 60000
+            }
+          ],
+          "clips": [
+            {
+              "clipId": "placement-c1-s1",
+              "startPlacementId": "placement-c1-s1",
+              "instanceId": "c1",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 0,
+              "endMs": 30000,
+              "durationMs": 30000
+            },
+            {
+              "clipId": "placement-c2-s2",
+              "startPlacementId": "placement-c2-s2",
+              "instanceId": "c2",
+              "patternName": "TestPattern1D",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s2",
+              "startMs": 30000,
+              "endMs": 60000,
+              "durationMs": 30000
+            }
+          ]
+        },
+        "transaction": "Set the comet clip's speed control to 0.3."
+      },
+      "isError": false
+    },
+    {
+      "type": "text",
+      "text": "Set CometLoom’s speed control to 0.3."
+    }
+  ],
+  "finalText": "Set CometLoom’s speed control to 0.3.",
+  "transactions": 1,
+  "turnTransactions": [
+    1
+  ],
+  "genericUses": [],
+  "finalShow": {
+    "id": "dictation-fixture",
+    "name": "Dictation fixture",
+    "updatedAt": 1788663527367,
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 30000
+      },
+      {
+        "id": "s2",
+        "name": "Closing",
+        "durationMs": 30000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 64
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        }
+      },
+      {
+        "id": "c2",
+        "zoneId": "z1",
+        "sceneId": "s2",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "TestPattern1D"
+        },
+        "patternName": "TestPattern1D",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        }
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Full Stage",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "z1"
+          ]
+        }
+      }
+    ],
+    "transitions": [],
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 1,
+      "patternInstances": [
+        {
+          "id": "c1",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          },
+          "controlTargets": {
+            "sliderSpeed": 0.3
+          }
+        },
+        {
+          "id": "c2",
+          "pattern": {
+            "kind": "stock",
+            "id": "TestPattern1D"
+          },
+          "patternName": "TestPattern1D",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "id": "placement-c1-s1",
+                  "instanceId": "c1",
+                  "startMs": 0,
+                  "durationMs": 30000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        },
+        {
+          "sceneId": "s2",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "id": "placement-c2-s2",
+                  "instanceId": "c2",
+                  "startMs": 0,
+                  "durationMs": 30000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        }
+      ],
+      "executionModel": "deterministic-loop"
+    }
+  },
+  "timing": {
+    "totalMs": 7673,
+    "calls": [
+      {
+        "ms": 4456,
+        "toolCalls": 1,
+        "inputTokens": 16588,
+        "cachedInputTokens": 15086,
+        "outputTokens": 54,
+        "reasoningTokens": 30
+      },
+      {
+        "ms": 3213,
+        "toolCalls": 1,
+        "inputTokens": 17523,
+        "cachedInputTokens": 16585,
+        "outputTokens": 96,
+        "reasoningTokens": 31
+      }
+    ],
+    "rateLimitWaitMs": 0,
+    "rateLimit": {
+      "requestsPerMinute": 500,
+      "tokensPerMinute": 500000
+    }
+  }
+}

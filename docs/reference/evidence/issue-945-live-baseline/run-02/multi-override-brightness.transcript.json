@@ -1,0 +1,356 @@
+{
+  "caseId": "multi-override-brightness",
+  "agent": "gpt-5.6-luna (high)",
+  "events": [
+    {
+      "type": "text",
+      "text": "The first clip is on the main layer, where opacity animation isn’t supported; would you like me to fade its brightness to zero over the last two seconds instead?"
+    },
+    {
+      "type": "tool",
+      "tool": "add_property_track",
+      "args": {
+        "session_id": "show-1",
+        "clip_id": "placement-c1-s1",
+        "target": "view-brightness",
+        "keyframes": [
+          {
+            "time_ms": 28000,
+            "value": 1
+          },
+          {
+            "time_ms": 30000,
+            "value": 0,
+            "easing": "linear"
+          }
+        ]
+      },
+      "result": {
+        "ok": true,
+        "changes": [
+          {
+            "op": "add_property_track",
+            "targetId": "track-1",
+            "description": "Added track track-1 animating the brightness of clip placement-c1-s1 with keyframes at 28000, 30000 ms (Scene-local).",
+            "details": {
+              "sceneId": "s1",
+              "keyframeIds": [
+                "kf-1",
+                "kf-2"
+              ],
+              "keyframes": [
+                {
+                  "keyframeId": "kf-1",
+                  "timeMs": 28000,
+                  "value": 1,
+                  "easing": "linear"
+                },
+                {
+                  "keyframeId": "kf-2",
+                  "timeMs": 30000,
+                  "value": 0,
+                  "easing": "linear"
+                }
+              ],
+              "evaluated": [
+                {
+                  "atMs": 28000,
+                  "value": 1
+                },
+                {
+                  "atMs": 29000,
+                  "value": 0.5
+                },
+                {
+                  "atMs": 30000,
+                  "value": 0
+                }
+              ]
+            }
+          }
+        ],
+        "listing": {
+          "durationMs": 60000,
+          "scenes": [
+            {
+              "sceneId": "s1",
+              "name": "Opening",
+              "startMs": 0,
+              "endMs": 30000
+            },
+            {
+              "sceneId": "s2",
+              "name": "Closing",
+              "startMs": 30000,
+              "endMs": 60000
+            }
+          ],
+          "clips": [
+            {
+              "clipId": "placement-c1-s1",
+              "startPlacementId": "placement-c1-s1",
+              "instanceId": "c1",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 0,
+              "endMs": 30000,
+              "durationMs": 30000
+            },
+            {
+              "clipId": "placement-c2-s2",
+              "startPlacementId": "placement-c2-s2",
+              "instanceId": "c2",
+              "patternName": "TestPattern1D",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s2",
+              "startMs": 30000,
+              "endMs": 60000,
+              "durationMs": 30000
+            }
+          ]
+        },
+        "transaction": "Yes, use brightness."
+      },
+      "isError": false
+    },
+    {
+      "type": "text",
+      "text": "Faded the first clip’s brightness from full to zero over its last two seconds."
+    }
+  ],
+  "finalText": "Faded the first clip’s brightness from full to zero over its last two seconds.",
+  "transactions": 1,
+  "turnTransactions": [
+    0,
+    1
+  ],
+  "genericUses": [],
+  "finalShow": {
+    "id": "dictation-fixture",
+    "name": "Dictation fixture",
+    "updatedAt": 0,
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 30000
+      },
+      {
+        "id": "s2",
+        "name": "Closing",
+        "durationMs": 30000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 64
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        }
+      },
+      {
+        "id": "c2",
+        "zoneId": "z1",
+        "sceneId": "s2",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "TestPattern1D"
+        },
+        "patternName": "TestPattern1D",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        }
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Full Stage",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "z1"
+          ]
+        }
+      }
+    ],
+    "transitions": [],
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 1,
+      "patternInstances": [
+        {
+          "id": "c1",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "c2",
+          "pattern": {
+            "kind": "stock",
+            "id": "TestPattern1D"
+          },
+          "patternName": "TestPattern1D",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "id": "placement-c1-s1",
+                  "instanceId": "c1",
+                  "startMs": 0,
+                  "durationMs": 30000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": []
+            }
+          ],
+          "propertyTracks": [
+            {
+              "id": "track-1",
+              "target": {
+                "kind": "placement-view",
+                "placementId": "placement-c1-s1",
+                "property": "brightness"
+              },
+              "keyframes": [
+                {
+                  "id": "kf-1",
+                  "timeMs": 28000,
+                  "value": 1,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                },
+                {
+                  "id": "kf-2",
+                  "timeMs": 30000,
+                  "value": 0,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sceneId": "s2",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "id": "placement-c2-s2",
+                  "instanceId": "c2",
+                  "startMs": 0,
+                  "durationMs": 30000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        }
+      ],
+      "executionModel": "deterministic-loop"
+    }
+  },
+  "timing": {
+    "totalMs": 7888,
+    "calls": [
+      {
+        "ms": 3931,
+        "toolCalls": 0,
+        "inputTokens": 16589,
+        "cachedInputTokens": 15086,
+        "outputTokens": 161,
+        "reasoningTokens": 122
+      },
+      {
+        "ms": 3954,
+        "toolCalls": 1,
+        "inputTokens": 16637,
+        "cachedInputTokens": 15086,
+        "outputTokens": 176,
+        "reasoningTokens": 84
+      }
+    ],
+    "rateLimitWaitMs": 0,
+    "rateLimit": {
+      "requestsPerMinute": 500,
+      "tokensPerMinute": 500000
+    }
+  }
+}

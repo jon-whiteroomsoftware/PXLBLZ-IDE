@@ -1,0 +1,403 @@
+{
+  "caseId": "animation-add-keyframe",
+  "agent": "gpt-5.6-luna (high)",
+  "events": [
+    {
+      "type": "tool",
+      "tool": "add_keyframe",
+      "args": {
+        "session_id": "show-1",
+        "track_id": "track-1",
+        "time_ms": 5000,
+        "value": 0.6
+      },
+      "result": {
+        "ok": true,
+        "changes": [
+          {
+            "op": "add_keyframe",
+            "targetId": "kf-3",
+            "description": "Keyframe kf-3 added to track track-1: value 0.6 at 5000 ms (Scene-local).",
+            "details": {
+              "trackId": "track-1",
+              "keyframes": [
+                {
+                  "keyframeId": "kf-1",
+                  "timeMs": 3000,
+                  "value": 0.8,
+                  "easing": "linear"
+                },
+                {
+                  "keyframeId": "kf-3",
+                  "timeMs": 5000,
+                  "value": 0.6,
+                  "easing": "linear"
+                },
+                {
+                  "keyframeId": "kf-2",
+                  "timeMs": 8000,
+                  "value": 0.4,
+                  "easing": "linear"
+                }
+              ],
+              "evaluated": [
+                {
+                  "atMs": 3000,
+                  "value": 0.8
+                },
+                {
+                  "atMs": 4000,
+                  "value": 0.7
+                },
+                {
+                  "atMs": 5000,
+                  "value": 0.6
+                },
+                {
+                  "atMs": 6500,
+                  "value": 0.5
+                },
+                {
+                  "atMs": 8000,
+                  "value": 0.4
+                }
+              ]
+            }
+          }
+        ],
+        "listing": {
+          "durationMs": 60000,
+          "scenes": [
+            {
+              "sceneId": "s1",
+              "name": "Opening",
+              "startMs": 0,
+              "endMs": 30000
+            },
+            {
+              "sceneId": "s2",
+              "name": "Closing",
+              "startMs": 30000,
+              "endMs": 60000
+            }
+          ],
+          "clips": [
+            {
+              "clipId": "clip-1",
+              "startPlacementId": "clip-1",
+              "instanceId": "instance-1",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "overlay",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 0,
+              "endMs": 30000,
+              "durationMs": 30000
+            },
+            {
+              "clipId": "placement-c1-s1",
+              "startPlacementId": "placement-c1-s1",
+              "instanceId": "c1",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 1
+              },
+              "sceneId": "s1",
+              "startMs": 0,
+              "endMs": 30000,
+              "durationMs": 30000
+            },
+            {
+              "clipId": "placement-c2-s2",
+              "startPlacementId": "placement-c2-s2",
+              "instanceId": "c2",
+              "patternName": "TestPattern1D",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 1
+              },
+              "sceneId": "s2",
+              "startMs": 30000,
+              "endMs": 60000,
+              "durationMs": 30000
+            }
+          ]
+        },
+        "transaction": "Add an opacity keyframe at 5 seconds at 60 percent."
+      },
+      "isError": false
+    },
+    {
+      "type": "text",
+      "text": "Added the opacity keyframe at 5 seconds with value 60%."
+    }
+  ],
+  "finalText": "Added the opacity keyframe at 5 seconds with value 60%.",
+  "transactions": 1,
+  "turnTransactions": [
+    1
+  ],
+  "genericUses": [],
+  "finalShow": {
+    "id": "dictation-fixture",
+    "name": "Dictation fixture",
+    "updatedAt": 0,
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 30000
+      },
+      {
+        "id": "s2",
+        "name": "Closing",
+        "durationMs": 30000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 64
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        }
+      },
+      {
+        "id": "c2",
+        "zoneId": "z1",
+        "sceneId": "s2",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "TestPattern1D"
+        },
+        "patternName": "TestPattern1D",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        }
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Full Stage",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "z1"
+          ]
+        }
+      }
+    ],
+    "transitions": [],
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 1,
+      "executionModel": "deterministic-loop",
+      "patternInstances": [
+        {
+          "id": "c1",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "c2",
+          "pattern": {
+            "kind": "stock",
+            "id": "TestPattern1D"
+          },
+          "patternName": "TestPattern1D",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "instance-1",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "id": "placement-c1-s1",
+                  "instanceId": "c1",
+                  "startMs": 0,
+                  "durationMs": 30000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": [
+                {
+                  "id": "layer-1",
+                  "name": "Layer 1",
+                  "placements": [
+                    {
+                      "id": "clip-1",
+                      "instanceId": "instance-1",
+                      "startMs": 0,
+                      "durationMs": 30000,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "opacity": 1
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "propertyTracks": [
+            {
+              "id": "track-1",
+              "target": {
+                "kind": "placement-opacity",
+                "placementId": "clip-1"
+              },
+              "keyframes": [
+                {
+                  "id": "kf-1",
+                  "timeMs": 3000,
+                  "value": 0.8,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                },
+                {
+                  "id": "kf-3",
+                  "timeMs": 5000,
+                  "value": 0.6,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                },
+                {
+                  "id": "kf-2",
+                  "timeMs": 8000,
+                  "value": 0.4,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sceneId": "s2",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "id": "placement-c2-s2",
+                  "instanceId": "c2",
+                  "startMs": 0,
+                  "durationMs": 30000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": [
+                {
+                  "id": "layer-2",
+                  "name": "Layer 1",
+                  "placements": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "timing": {
+    "totalMs": 2897,
+    "calls": [
+      {
+        "ms": 2894,
+        "toolCalls": 1,
+        "inputTokens": 16755,
+        "cachedInputTokens": 15086,
+        "outputTokens": 107,
+        "reasoningTokens": 44
+      }
+    ],
+    "rateLimitWaitMs": 0,
+    "rateLimit": {
+      "requestsPerMinute": 500,
+      "tokensPerMinute": 500000
+    }
+  }
+}

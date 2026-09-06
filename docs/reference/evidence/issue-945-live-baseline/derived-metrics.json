@@ -1,0 +1,56 @@
+{
+  "method": {
+    "median": "middle value; arithmetic mean of the two middle values for an even count",
+    "p90": "nearest rank: sorted[ceil(0.90 * n) - 1]",
+    "outlier": "strictly greater than the p90"
+  },
+  "perCallModelLatencyMs": {
+    "count": 58,
+    "median": 3321.5,
+    "p90": 5824,
+    "max": 7153,
+    "outliers": [
+      { "caseId": "animation-owner-example", "call": 2, "ms": 7153 },
+      { "caseId": "refuse-overlap", "call": 1, "ms": 7109 },
+      { "caseId": "effects-update-parameter", "call": 1, "ms": 6626 },
+      { "caseId": "effects-add-vignette", "call": 1, "ms": 6200 },
+      { "caseId": "clips-time-scale", "call": 1, "ms": 6072 }
+    ]
+  },
+  "perCaseTotalModelLatencyMs": {
+    "count": 43,
+    "median": 3958,
+    "p90": 7885,
+    "max": 12977,
+    "outliers": [
+      { "caseId": "animation-owner-example", "calls": 2, "ms": 12977 },
+      { "caseId": "effects-add-vignette", "calls": 3, "ms": 12273 },
+      { "caseId": "clips-batch-resize", "calls": 4, "ms": 11395 },
+      { "caseId": "effects-update-parameter", "calls": 2, "ms": 9835 }
+    ]
+  },
+  "perCaseHarnessOverheadBeyondModelCallsMs": {
+    "median": 3,
+    "p90": 6,
+    "max": 10
+  },
+  "callsPerCase": {
+    "one": 31,
+    "two": 10,
+    "three": 1,
+    "four": 1
+  },
+  "totals": {
+    "modelCallMs": 216150,
+    "caseTurnMs": 216288,
+    "manifestWallMs": 216565,
+    "modelCalls": 58,
+    "inputTokens": 973014,
+    "cachedInputTokens": 883075,
+    "outputTokens": 7822,
+    "reasoningTokens": 4728,
+    "rateLimitWaitMs": 0,
+    "settledUsd": 0.049526,
+    "remainingAggregateUsd": 19.950474
+  }
+}

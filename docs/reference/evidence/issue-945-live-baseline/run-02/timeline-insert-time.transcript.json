@@ -1,0 +1,245 @@
+{
+  "caseId": "timeline-insert-time",
+  "agent": "gpt-5.6-luna (high)",
+  "events": [
+    {
+      "type": "tool",
+      "tool": "insert_time",
+      "args": {
+        "session_id": "show-1",
+        "at_ms": 15000,
+        "duration_ms": 5000
+      },
+      "result": {
+        "ok": true,
+        "changes": [
+          {
+            "op": "insert_time",
+            "targetId": "at-15000",
+            "description": "Inserted 5000 ms at 15000 ms; the Show is now 65000 ms long, splitting 1 crossing clip(s).",
+            "details": {
+              "splitClipIdsBySourceId": {
+                "placement-c1-s1": "clip-1"
+              }
+            }
+          }
+        ],
+        "listing": {
+          "durationMs": 65000,
+          "scenes": [
+            {
+              "sceneId": "s1",
+              "name": "Opening",
+              "startMs": 0,
+              "endMs": 35000
+            },
+            {
+              "sceneId": "s2",
+              "name": "Closing",
+              "startMs": 35000,
+              "endMs": 65000
+            }
+          ],
+          "clips": [
+            {
+              "clipId": "placement-c1-s1",
+              "startPlacementId": "placement-c1-s1",
+              "instanceId": "c1",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 0,
+              "endMs": 15000,
+              "durationMs": 15000
+            },
+            {
+              "clipId": "clip-1",
+              "startPlacementId": "clip-1",
+              "instanceId": "c1",
+              "patternName": "CometLoom",
+              "zoneId": "z1",
+              "zoneName": "Main",
+              "layer": {
+                "kind": "main",
+                "index": 0
+              },
+              "sceneId": "s1",
+              "startMs": 20000,
+              "endMs": 35000,
+              "durationMs": 15000
+            }
+          ]
+        },
+        "transaction": "Insert five seconds at 15 seconds."
+      },
+      "isError": false
+    },
+    {
+      "type": "text",
+      "text": "Inserted 5 seconds at 15 seconds; the timeline now ends at 65 seconds."
+    }
+  ],
+  "finalText": "Inserted 5 seconds at 15 seconds; the timeline now ends at 65 seconds.",
+  "transactions": 1,
+  "turnTransactions": [
+    1
+  ],
+  "genericUses": [],
+  "finalShow": {
+    "id": "dictation-fixture",
+    "name": "Dictation fixture",
+    "updatedAt": 1788663544849,
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 35000
+      },
+      {
+        "id": "s2",
+        "name": "Closing",
+        "durationMs": 30000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 64
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        }
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Full Stage",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "z1"
+          ]
+        }
+      }
+    ],
+    "transitions": [],
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 1,
+      "executionModel": "deterministic-loop",
+      "durationMs": 65000,
+      "patternInstances": [
+        {
+          "id": "c1",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "id": "placement-c1-s1",
+                  "instanceId": "c1",
+                  "startMs": 0,
+                  "durationMs": 15000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                },
+                {
+                  "id": "clip-1",
+                  "instanceId": "c1",
+                  "startMs": 20000,
+                  "durationMs": 15000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        },
+        {
+          "sceneId": "s2",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [],
+              "overlays": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "timing": {
+    "totalMs": 3098,
+    "calls": [
+      {
+        "ms": 3094,
+        "toolCalls": 1,
+        "inputTokens": 16476,
+        "cachedInputTokens": 15086,
+        "outputTokens": 101,
+        "reasoningTokens": 43
+      }
+    ],
+    "rateLimitWaitMs": 0,
+    "rateLimit": {
+      "requestsPerMinute": 500,
+      "tokensPerMinute": 500000
+    }
+  }
+}

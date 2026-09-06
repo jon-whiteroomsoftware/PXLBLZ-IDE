@@ -1,0 +1,34 @@
+{
+  "ledgerPath": "/Users/voidstar/.local/state/pxlblz-ide/agent-harness-paid-calls.json",
+  "runId": "2026-09-06T02-58-07-759Z-53104",
+  "bounds": {
+    "aggregateUsd": 20,
+    "perRunUsd": 2,
+    "maxCallsPerUnit": 4,
+    "maxOutputTokensPerCall": 4000,
+    "acceptanceMaxAgeDays": 30
+  },
+  "aggregate": {
+    "entries": 58,
+    "settled": 58,
+    "reserved": 0,
+    "ambiguous": 0,
+    "consumedUsd": 0.049526,
+    "overruns": 0
+  },
+  "run": {
+    "entries": 58,
+    "settled": 58,
+    "reserved": 0,
+    "ambiguous": 0,
+    "consumedUsd": 0.049526,
+    "overruns": 0
+  },
+  "remainingAggregateUsd": 19.950474,
+  "remainingRunUsd": 1.950474,
+  "halted": null,
+  "ledgerHalt": null,
+  "unit": "ask-unknown-control",
+  "unitCalls": 2,
+  "unmeasured": []
+}

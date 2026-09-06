@@ -1,0 +1,19 @@
+Command:
+npm run agent:corpus -- --live --model gpt-5.6-luna --effort high --out reports/agent-harness/corpus/issue-945-live-run-01
+
+Exit: 1
+
+The guard opened an empty, valid ledger, then the corpus CLI failed before
+`runCorpus` and before any provider dispatch because it did not load the file
+named by `AGENT_HARNESS_ENV_FILE`:
+
+```text
+ledger /Users/voidstar/.local/state/pxlblz-ide/agent-harness-paid-calls.json: aggregate $0.0000 of $20 (0 settled, 0 ambiguous, 0 unsettled, 0 overruns); this run $0.0000 of $2 over 0 calls
+ledger /Users/voidstar/.local/state/pxlblz-ide/agent-harness-paid-calls.json: aggregate $0.0000 of $20 (0 settled, 0 ambiguous, 0 unsettled, 0 overruns); this run $0.0000 of $2 over 0 calls
+Error: OPENAI_API_KEY is not set. Live GPT runs need it in the environment; use the fake agent or replay mode without it.
+```
+
+Commit `079e7b68` extracts the bridge's protected-file loader and uses it from
+both live entry points after the ledger opens. The regression test first failed
+because no shared loader existed. The replacement live run settled all 58 calls;
+this attempt created no ledger entry and measured no case.

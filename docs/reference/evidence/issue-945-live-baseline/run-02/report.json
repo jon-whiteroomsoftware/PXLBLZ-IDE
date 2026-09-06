@@ -1,0 +1,1665 @@
+{
+  "agent": "gpt-5.6-luna (high)",
+  "cases": [
+    {
+      "caseId": "ambiguous-no-hover",
+      "family": "clips",
+      "referent": "hover",
+      "expectedOutcome": "ask",
+      "outcome": "ask",
+      "firstTrySuccess": true,
+      "toolCalls": 0,
+      "transactions": 0,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [],
+      "failures": [],
+      "timing": {
+        "totalMs": 3966,
+        "modelCalls": 1,
+        "inputTokens": 16579,
+        "cachedInputTokens": 15086,
+        "outputTokens": 124,
+        "reasoningTokens": 88,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "ambiguous-pattern-name",
+      "family": "clips",
+      "referent": "pattern-name",
+      "expectedOutcome": "ask",
+      "outcome": "ask",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 0,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [],
+      "failures": [],
+      "timing": {
+        "totalMs": 5772,
+        "modelCalls": 2,
+        "inputTokens": 33984,
+        "cachedInputTokens": 33582,
+        "outputTokens": 183,
+        "reasoningTokens": 108,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "ambiguous-two-markers",
+      "family": "timeline",
+      "referent": "direct",
+      "expectedOutcome": "ask",
+      "outcome": "ask",
+      "firstTrySuccess": true,
+      "toolCalls": 0,
+      "transactions": 0,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [],
+      "failures": [],
+      "timing": {
+        "totalMs": 4119,
+        "modelCalls": 1,
+        "inputTokens": 16618,
+        "cachedInputTokens": 15086,
+        "outputTokens": 71,
+        "reasoningTokens": 42,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "animation-add-keyframe",
+      "family": "animation",
+      "referent": "hover",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "track-keyframes",
+            "clip": {
+              "layer_kind": "overlay"
+            },
+            "target_contains": "opacity",
+            "times_ms": [
+              3000,
+              5000,
+              8000
+            ]
+          },
+          "passed": true,
+          "detail": "track track-1: times 3000,5000,8000"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 2897,
+        "modelCalls": 1,
+        "inputTokens": 16755,
+        "cachedInputTokens": 15086,
+        "outputTokens": 107,
+        "reasoningTokens": 44,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "animation-brightness-fade",
+      "family": "animation",
+      "referent": "ordinal",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "track-value-at",
+            "clip": {
+              "start_ms": 0
+            },
+            "target_contains": "brightness",
+            "at_local_ms": 5000,
+            "value": 0.6
+          },
+          "passed": true,
+          "detail": "value 0.6 at 5000 ms"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 4427,
+        "modelCalls": 1,
+        "inputTokens": 16593,
+        "cachedInputTokens": 15086,
+        "outputTokens": 242,
+        "reasoningTokens": 137,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "animation-delete-track",
+      "family": "animation",
+      "referent": "hover",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "no-track",
+            "clip": {
+              "layer_kind": "overlay"
+            },
+            "target_contains": "opacity"
+          },
+          "passed": true,
+          "detail": "clip clip-1 has no \"opacity\" track"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 2658,
+        "modelCalls": 1,
+        "inputTokens": 16749,
+        "cachedInputTokens": 15086,
+        "outputTokens": 77,
+        "reasoningTokens": 28,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "animation-move-keyframe",
+      "family": "animation",
+      "referent": "direct",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "track-keyframes",
+            "clip": {
+              "layer_kind": "overlay"
+            },
+            "target_contains": "opacity",
+            "times_ms": [
+              2000,
+              8000
+            ]
+          },
+          "passed": true,
+          "detail": "track track-1: times 2000,8000"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 2987,
+        "modelCalls": 1,
+        "inputTokens": 16719,
+        "cachedInputTokens": 15086,
+        "outputTokens": 106,
+        "reasoningTokens": 36,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "animation-owner-example",
+      "family": "animation",
+      "referent": "hover",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 2,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "clip-duration",
+            "clip": {
+              "layer_kind": "overlay"
+            },
+            "duration_ms": 12000
+          },
+          "passed": true,
+          "detail": "clip clip-1 is 12000 ms"
+        },
+        {
+          "assertion": {
+            "kind": "track-keyframes",
+            "clip": {
+              "layer_kind": "overlay"
+            },
+            "target_contains": "opacity",
+            "times_ms": [
+              3000,
+              5000,
+              8000
+            ],
+            "values": [
+              0.8,
+              0.6,
+              0.4
+            ]
+          },
+          "passed": true,
+          "detail": "track track-1: times 3000,5000,8000"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 12984,
+        "modelCalls": 2,
+        "inputTokens": 34167,
+        "cachedInputTokens": 31786,
+        "outputTokens": 743,
+        "reasoningTokens": 567,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "ask-unknown-control",
+      "family": "clips",
+      "referent": "pattern-name",
+      "expectedOutcome": "ask",
+      "outcome": "ask",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 0,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [],
+      "failures": [],
+      "timing": {
+        "totalMs": 6560,
+        "modelCalls": 2,
+        "inputTokens": 34109,
+        "cachedInputTokens": 31671,
+        "outputTokens": 200,
+        "reasoningTokens": 135,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "clips-add-at-time",
+      "family": "clips",
+      "referent": "none",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "clip-count",
+            "count": 2
+          },
+          "passed": true,
+          "detail": "2 clips"
+        },
+        {
+          "assertion": {
+            "kind": "clip-duration",
+            "clip": {
+              "start_ms": 35000
+            },
+            "duration_ms": 10000
+          },
+          "passed": true,
+          "detail": "clip clip-1 is 10000 ms"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 3893,
+        "modelCalls": 1,
+        "inputTokens": 16484,
+        "cachedInputTokens": 15086,
+        "outputTokens": 144,
+        "reasoningTokens": 60,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "clips-batch-resize",
+      "family": "clips",
+      "referent": "none",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 4,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "clip-duration",
+            "clip": {
+              "start_ms": 0
+            },
+            "duration_ms": 8000
+          },
+          "passed": true,
+          "detail": "clip placement-c1-s1 is 8000 ms"
+        },
+        {
+          "assertion": {
+            "kind": "clip-duration",
+            "clip": {
+              "start_ms": 10000
+            },
+            "duration_ms": 8000
+          },
+          "passed": true,
+          "detail": "clip clip-1 is 8000 ms"
+        },
+        {
+          "assertion": {
+            "kind": "clip-duration",
+            "clip": {
+              "start_ms": 20000
+            },
+            "duration_ms": 8000
+          },
+          "passed": true,
+          "detail": "clip clip-2 is 8000 ms"
+        },
+        {
+          "assertion": {
+            "kind": "clip-duration",
+            "clip": {
+              "start_ms": 30000
+            },
+            "duration_ms": 8000
+          },
+          "passed": true,
+          "detail": "clip clip-3 is 8000 ms"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 11402,
+        "modelCalls": 4,
+        "inputTokens": 70878,
+        "cachedInputTokens": 67442,
+        "outputTokens": 338,
+        "reasoningTokens": 181,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "clips-control-target",
+      "family": "clips",
+      "referent": "pattern-name",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 2,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "instance-control",
+            "clip": {
+              "pattern_name": "comet"
+            },
+            "export_name": "sliderSpeed",
+            "value": 0.3
+          },
+          "passed": true,
+          "detail": "control sliderSpeed = 0.3"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 7673,
+        "modelCalls": 2,
+        "inputTokens": 34111,
+        "cachedInputTokens": 31671,
+        "outputTokens": 150,
+        "reasoningTokens": 61,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "clips-duplicate-linked",
+      "family": "clips",
+      "referent": "pattern-name",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "clip-count",
+            "count": 2
+          },
+          "passed": true,
+          "detail": "2 clips"
+        },
+        {
+          "assertion": {
+            "kind": "clip-start",
+            "clip": {
+              "start_ms": 30000
+            },
+            "start_ms": 30000
+          },
+          "passed": true,
+          "detail": "clip clip-1 starts at 30000 ms"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 4259,
+        "modelCalls": 1,
+        "inputTokens": 16480,
+        "cachedInputTokens": 15086,
+        "outputTokens": 110,
+        "reasoningTokens": 51,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "clips-evaluation-policy",
+      "family": "clips",
+      "referent": "ordinal",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [],
+      "failures": [],
+      "timing": {
+        "totalMs": 2960,
+        "modelCalls": 1,
+        "inputTokens": 16584,
+        "cachedInputTokens": 15086,
+        "outputTokens": 112,
+        "reasoningTokens": 50,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "clips-move-hover",
+      "family": "clips",
+      "referent": "hover",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "clip-start",
+            "clip": {
+              "pattern_name": "CometLoom"
+            },
+            "start_ms": 20000
+          },
+          "passed": true,
+          "detail": "clip placement-c1-s1 starts at 20000 ms"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 3135,
+        "modelCalls": 1,
+        "inputTokens": 16513,
+        "cachedInputTokens": 15086,
+        "outputTokens": 98,
+        "reasoningTokens": 43,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "clips-remove-pattern-name",
+      "family": "clips",
+      "referent": "pattern-name",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "clip-count",
+            "count": 1
+          },
+          "passed": true,
+          "detail": "1 clips"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 3325,
+        "modelCalls": 1,
+        "inputTokens": 16581,
+        "cachedInputTokens": 15086,
+        "outputTokens": 71,
+        "reasoningTokens": 26,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "clips-resize-ordinal",
+      "family": "clips",
+      "referent": "ordinal",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "clip-duration",
+            "clip": {
+              "start_ms": 0
+            },
+            "duration_ms": 12000
+          },
+          "passed": true,
+          "detail": "clip placement-c1-s1 is 12000 ms"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 4999,
+        "modelCalls": 1,
+        "inputTokens": 16583,
+        "cachedInputTokens": 0,
+        "outputTokens": 102,
+        "reasoningTokens": 47,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "clips-split-playhead",
+      "family": "clips",
+      "referent": "time",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "clip-count",
+            "count": 3
+          },
+          "passed": true,
+          "detail": "3 clips"
+        },
+        {
+          "assertion": {
+            "kind": "clip-duration",
+            "clip": {
+              "start_ms": 0
+            },
+            "duration_ms": 12000
+          },
+          "passed": true,
+          "detail": "clip placement-c1-s1 is 12000 ms"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 3154,
+        "modelCalls": 1,
+        "inputTokens": 16621,
+        "cachedInputTokens": 15086,
+        "outputTokens": 106,
+        "reasoningTokens": 46,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "clips-time-scale",
+      "family": "clips",
+      "referent": "pattern-name",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "instance-time-scale",
+            "clip": {
+              "pattern_name": "comet"
+            },
+            "value": 0.25
+          },
+          "passed": true,
+          "detail": "time scale 0.25"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 6078,
+        "modelCalls": 1,
+        "inputTokens": 16585,
+        "cachedInputTokens": 15086,
+        "outputTokens": 104,
+        "reasoningTokens": 43,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "clips-view-brightness-selection",
+      "family": "clips",
+      "referent": "selection",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "pointer-equals",
+            "pointer": "/composition/scenes/0/zones/0/main/0/view/brightness",
+            "value": 0.5
+          },
+          "passed": true,
+          "detail": "/composition/scenes/0/zones/0/main/0/view/brightness equals the expected value"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 2956,
+        "modelCalls": 1,
+        "inputTokens": 16613,
+        "cachedInputTokens": 15086,
+        "outputTokens": 81,
+        "reasoningTokens": 25,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "effects-add-vignette",
+      "family": "effects",
+      "referent": "ordinal",
+      "expectedOutcome": "edit",
+      "outcome": "ask",
+      "firstTrySuccess": false,
+      "toolCalls": 2,
+      "transactions": 0,
+      "askedCorrectly": false,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "effect",
+            "clip": {
+              "start_ms": 0
+            },
+            "effect_kind": "vignette",
+            "parameter": "amount",
+            "value": 0.5
+          },
+          "passed": false,
+          "detail": "clip placement-c1-s1 has no vignette Effect"
+        }
+      ],
+      "failures": [
+        "outcome ask, expected edit",
+        "clip placement-c1-s1 has no vignette Effect"
+      ],
+      "timing": {
+        "totalMs": 12277,
+        "modelCalls": 3,
+        "inputTokens": 51262,
+        "cachedInputTokens": 48925,
+        "outputTokens": 581,
+        "reasoningTokens": 441,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "effects-remove",
+      "family": "effects",
+      "referent": "direct",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "no-effect",
+            "clip": {
+              "start_ms": 0
+            },
+            "effect_kind": "brightness"
+          },
+          "passed": true,
+          "detail": "clip placement-c1-s1 has no brightness Effect"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 3256,
+        "modelCalls": 1,
+        "inputTokens": 16595,
+        "cachedInputTokens": 15086,
+        "outputTokens": 92,
+        "reasoningTokens": 35,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "effects-update-parameter",
+      "family": "effects",
+      "referent": "direct",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 2,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "effect",
+            "clip": {
+              "start_ms": 0
+            },
+            "effect_kind": "brightness",
+            "parameter": "brightness",
+            "value": 0.8
+          },
+          "passed": true,
+          "detail": "clip placement-c1-s1 carries brightness"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 9837,
+        "modelCalls": 2,
+        "inputTokens": 33609,
+        "cachedInputTokens": 31680,
+        "outputTokens": 465,
+        "reasoningTokens": 327,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "junctions-parameter",
+      "family": "junctions",
+      "referent": "time",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "pointer-equals",
+            "pointer": "/transitions/0/feather",
+            "value": 0.4
+          },
+          "passed": true,
+          "detail": "/transitions/0/feather equals the expected value"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 3819,
+        "modelCalls": 1,
+        "inputTokens": 16589,
+        "cachedInputTokens": 15086,
+        "outputTokens": 212,
+        "reasoningTokens": 153,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "junctions-set-kind",
+      "family": "junctions",
+      "referent": "time",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "junction-kind",
+            "after_scene_id": "s1",
+            "junction_kind": "wipe"
+          },
+          "passed": true,
+          "detail": "junction after s1 is wipe"
+        },
+        {
+          "assertion": {
+            "kind": "pointer-equals",
+            "pointer": "/transitions/0/durationMs",
+            "value": 2000
+          },
+          "passed": true,
+          "detail": "/transitions/0/durationMs equals the expected value"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 2883,
+        "modelCalls": 1,
+        "inputTokens": 16589,
+        "cachedInputTokens": 15086,
+        "outputTokens": 94,
+        "reasoningTokens": 34,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "junctions-timing",
+      "family": "junctions",
+      "referent": "time",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "pointer-equals",
+            "pointer": "/transitions/0/durationMs",
+            "value": 3000
+          },
+          "passed": true,
+          "detail": "/transitions/0/durationMs equals the expected value"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 3118,
+        "modelCalls": 1,
+        "inputTokens": 16589,
+        "cachedInputTokens": 15086,
+        "outputTokens": 134,
+        "reasoningTokens": 62,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "layer-transitions-insert",
+      "family": "layer-transitions",
+      "referent": "ordinal",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "layer-transition",
+            "count": 1,
+            "duration_ms": 2000
+          },
+          "passed": true,
+          "detail": "1 layer transitions"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 2696,
+        "modelCalls": 1,
+        "inputTokens": 16590,
+        "cachedInputTokens": 15086,
+        "outputTokens": 110,
+        "reasoningTokens": 35,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "layer-transitions-reset",
+      "family": "layer-transitions",
+      "referent": "direct",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "layer-transition",
+            "count": 0
+          },
+          "passed": true,
+          "detail": "0 layer transitions"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 2889,
+        "modelCalls": 1,
+        "inputTokens": 16592,
+        "cachedInputTokens": 15086,
+        "outputTokens": 85,
+        "reasoningTokens": 27,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "layer-transitions-resize",
+      "family": "layer-transitions",
+      "referent": "direct",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 2,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "layer-transition",
+            "count": 1,
+            "duration_ms": 3000
+          },
+          "passed": true,
+          "detail": "1 layer transitions"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 6278,
+        "modelCalls": 2,
+        "inputTokens": 33376,
+        "cachedInputTokens": 31666,
+        "outputTokens": 242,
+        "reasoningTokens": 121,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "multi-answer-completion",
+      "family": "clips",
+      "referent": "direct",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "clip-duration",
+            "clip": {
+              "start_ms": 0
+            },
+            "duration_ms": 10000
+          },
+          "passed": true,
+          "detail": "clip placement-c1-s1 is 10000 ms"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 7756,
+        "modelCalls": 2,
+        "inputTokens": 33195,
+        "cachedInputTokens": 30172,
+        "outputTokens": 329,
+        "reasoningTokens": 245,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "multi-confirm-referent",
+      "family": "clips",
+      "referent": "pattern-name",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "clip-duration",
+            "clip": {
+              "start_ms": 30000
+            },
+            "duration_ms": 15000
+          },
+          "passed": true,
+          "detail": "clip clip-3 is 15000 ms"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 6900,
+        "modelCalls": 2,
+        "inputTokens": 33646,
+        "cachedInputTokens": 30172,
+        "outputTokens": 248,
+        "reasoningTokens": 141,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "multi-override-brightness",
+      "family": "animation",
+      "referent": "ordinal",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "track-value-at",
+            "clip": {
+              "start_ms": 0
+            },
+            "target_contains": "brightness",
+            "at_local_ms": 28000,
+            "value": 1
+          },
+          "passed": true,
+          "detail": "value 1 at 28000 ms"
+        },
+        {
+          "assertion": {
+            "kind": "track-value-at",
+            "clip": {
+              "start_ms": 0
+            },
+            "target_contains": "brightness",
+            "at_local_ms": 30000,
+            "value": 0
+          },
+          "passed": true,
+          "detail": "value 0 at 30000 ms"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 7888,
+        "modelCalls": 2,
+        "inputTokens": 33226,
+        "cachedInputTokens": 30172,
+        "outputTokens": 337,
+        "reasoningTokens": 206,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "refuse-last-clip",
+      "family": "clips",
+      "referent": "ordinal",
+      "expectedOutcome": "no-edit",
+      "outcome": "ask",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 0,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [],
+      "failures": [],
+      "timing": {
+        "totalMs": 6488,
+        "modelCalls": 2,
+        "inputTokens": 33083,
+        "cachedInputTokens": 31556,
+        "outputTokens": 187,
+        "reasoningTokens": 107,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "refuse-opacity-main",
+      "family": "animation",
+      "referent": "ordinal",
+      "expectedOutcome": "ask",
+      "outcome": "ask",
+      "firstTrySuccess": true,
+      "toolCalls": 0,
+      "transactions": 0,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [],
+      "failures": [],
+      "timing": {
+        "totalMs": 3727,
+        "modelCalls": 1,
+        "inputTokens": 16585,
+        "cachedInputTokens": 15086,
+        "outputTokens": 136,
+        "reasoningTokens": 101,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "refuse-overlap",
+      "family": "clips",
+      "referent": "ordinal",
+      "expectedOutcome": "no-edit",
+      "outcome": "ask",
+      "firstTrySuccess": true,
+      "toolCalls": 0,
+      "transactions": 0,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [],
+      "failures": [],
+      "timing": {
+        "totalMs": 7109,
+        "modelCalls": 1,
+        "inputTokens": 16591,
+        "cachedInputTokens": 15086,
+        "outputTokens": 304,
+        "reasoningTokens": 267,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "refuse-split-outside",
+      "family": "clips",
+      "referent": "ordinal",
+      "expectedOutcome": "no-edit",
+      "outcome": "refuse",
+      "firstTrySuccess": true,
+      "toolCalls": 0,
+      "transactions": 0,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [],
+      "failures": [],
+      "timing": {
+        "totalMs": 3958,
+        "modelCalls": 1,
+        "inputTokens": 16584,
+        "cachedInputTokens": 15086,
+        "outputTokens": 192,
+        "reasoningTokens": 169,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "structure-layout-interval",
+      "family": "structure",
+      "referent": "none",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "show-end",
+            "duration_ms": 70000
+          },
+          "passed": true,
+          "detail": "Show End at 70000 ms"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 3285,
+        "modelCalls": 1,
+        "inputTokens": 16590,
+        "cachedInputTokens": 15086,
+        "outputTokens": 136,
+        "reasoningTokens": 79,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "structure-output-contract",
+      "family": "structure",
+      "referent": "none",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "pointer-equals",
+            "pointer": "/outputContract/referencePixelCount",
+            "value": 512
+          },
+          "passed": true,
+          "detail": "/outputContract/referencePixelCount equals the expected value"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 5640,
+        "modelCalls": 1,
+        "inputTokens": 16584,
+        "cachedInputTokens": 15086,
+        "outputTokens": 292,
+        "reasoningTokens": 238,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "structure-trails",
+      "family": "structure",
+      "referent": "none",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "pointer-equals",
+            "pointer": "/outputEffects/0/retention",
+            "value": 0.6
+          },
+          "passed": true,
+          "detail": "/outputEffects/0/retention equals the expected value"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 4892,
+        "modelCalls": 1,
+        "inputTokens": 16588,
+        "cachedInputTokens": 15086,
+        "outputTokens": 72,
+        "reasoningTokens": 20,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "timeline-add-marker",
+      "family": "timeline",
+      "referent": "time",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "marker",
+            "time_ms": 42000,
+            "name": "Chorus"
+          },
+          "passed": true,
+          "detail": "marker at 42000 ms"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 2457,
+        "modelCalls": 1,
+        "inputTokens": 16585,
+        "cachedInputTokens": 15086,
+        "outputTokens": 66,
+        "reasoningTokens": 16,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "timeline-insert-time",
+      "family": "timeline",
+      "referent": "time",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "show-end",
+            "duration_ms": 65000
+          },
+          "passed": true,
+          "detail": "Show End at 65000 ms"
+        },
+        {
+          "assertion": {
+            "kind": "clip-duration",
+            "clip": {
+              "start_ms": 0
+            },
+            "duration_ms": 15000
+          },
+          "passed": true,
+          "detail": "clip placement-c1-s1 is 15000 ms"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 3098,
+        "modelCalls": 1,
+        "inputTokens": 16476,
+        "cachedInputTokens": 15086,
+        "outputTokens": 101,
+        "reasoningTokens": 43,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "timeline-move-marker",
+      "family": "timeline",
+      "referent": "direct",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "marker",
+            "time_ms": 15000,
+            "name": "Verse"
+          },
+          "passed": true,
+          "detail": "marker at 15000 ms"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 3132,
+        "modelCalls": 1,
+        "inputTokens": 16602,
+        "cachedInputTokens": 15086,
+        "outputTokens": 75,
+        "reasoningTokens": 23,
+        "rateLimitWaitMs": 0
+      }
+    },
+    {
+      "caseId": "timeline-show-end",
+      "family": "timeline",
+      "referent": "none",
+      "expectedOutcome": "edit",
+      "outcome": "edit",
+      "firstTrySuccess": true,
+      "toolCalls": 1,
+      "transactions": 1,
+      "askedCorrectly": true,
+      "refusedCorrectly": true,
+      "genericUses": [],
+      "assertionResults": [
+        {
+          "assertion": {
+            "kind": "show-end",
+            "duration_ms": 70000
+          },
+          "passed": true,
+          "detail": "Show End at 70000 ms"
+        }
+      ],
+      "failures": [],
+      "timing": {
+        "totalMs": 2701,
+        "modelCalls": 1,
+        "inputTokens": 16582,
+        "cachedInputTokens": 15086,
+        "outputTokens": 63,
+        "reasoningTokens": 20,
+        "rateLimitWaitMs": 0
+      }
+    }
+  ],
+  "byFamily": [
+    {
+      "group": "animation",
+      "cases": 7,
+      "firstTry": 7,
+      "percent": 100
+    },
+    {
+      "group": "clips",
+      "cases": 19,
+      "firstTry": 19,
+      "percent": 100
+    },
+    {
+      "group": "effects",
+      "cases": 3,
+      "firstTry": 2,
+      "percent": 66.7
+    },
+    {
+      "group": "junctions",
+      "cases": 3,
+      "firstTry": 3,
+      "percent": 100
+    },
+    {
+      "group": "layer-transitions",
+      "cases": 3,
+      "firstTry": 3,
+      "percent": 100
+    },
+    {
+      "group": "structure",
+      "cases": 3,
+      "firstTry": 3,
+      "percent": 100
+    },
+    {
+      "group": "timeline",
+      "cases": 5,
+      "firstTry": 5,
+      "percent": 100
+    }
+  ],
+  "byReferent": [
+    {
+      "group": "direct",
+      "cases": 8,
+      "firstTry": 8,
+      "percent": 100
+    },
+    {
+      "group": "hover",
+      "cases": 5,
+      "firstTry": 5,
+      "percent": 100
+    },
+    {
+      "group": "none",
+      "cases": 6,
+      "firstTry": 6,
+      "percent": 100
+    },
+    {
+      "group": "ordinal",
+      "cases": 10,
+      "firstTry": 9,
+      "percent": 90
+    },
+    {
+      "group": "pattern-name",
+      "cases": 7,
+      "firstTry": 7,
+      "percent": 100
+    },
+    {
+      "group": "selection",
+      "cases": 1,
+      "firstTry": 1,
+      "percent": 100
+    },
+    {
+      "group": "time",
+      "cases": 6,
+      "firstTry": 6,
+      "percent": 100
+    }
+  ],
+  "totals": {
+    "cases": 43,
+    "firstTry": 42,
+    "percent": 97.7,
+    "toolCalls": 46,
+    "transactions": 34,
+    "asksExpected": 5,
+    "asksCorrect": 5,
+    "refusalsExpected": 3,
+    "refusalsCorrect": 3
+  },
+  "genericUse": [],
+  "latency": {
+    "timedCases": 43,
+    "meanModelCallsPerCase": 1.35,
+    "maxModelCallsPerCase": 4,
+    "meanSecondsPerCase": 5,
+    "maxSecondsPerCase": 13,
+    "meanSecondsPerModelCall": 3.7,
+    "meanInputTokensPerCall": 16776,
+    "cacheRatio": 0.908,
+    "totals": {
+      "modelCalls": 58,
+      "inputTokens": 973014,
+      "cachedInputTokens": 883075,
+      "outputTokens": 7822,
+      "reasoningTokens": 4728,
+      "rateLimitWaitMs": 0
+    },
+    "costUsd": 0.045,
+    "rateLimit": {
+      "requestsPerMinute": 500,
+      "tokensPerMinute": 500000
+    }
+  }
+}
