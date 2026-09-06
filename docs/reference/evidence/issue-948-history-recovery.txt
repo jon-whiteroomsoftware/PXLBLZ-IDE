@@ -1,0 +1,83 @@
+Issue #948 Show history and durable recovery evidence
+=====================================================
+
+Date: 2026-09-05 America/Los_Angeles (2026-09-06 UTC)
+Base: f61264f1844bc2af1cfbfe93e16ecb53646c2301
+Red-test commit: bd4cb8780e059f96c6de93e146888741188ddde5
+Tested implementation commit: 4e2d3709c6933b3822fc1e20d06352ad009c0f55
+
+Regression matrix
+-----------------
+
+The red commit added oracles for the full Show record, complete past/future
+history stacks, failure notice, and provider's eventual saved record. Against
+the pre-fix store, the focused run reported 7 failed and 52 passed. The seven
+failures were:
+
+- superseded undo save failure after a later edit;
+- superseded redo save failure after a later edit;
+- stale agent candidate timestamp followed by a successful save and later
+  failure;
+- hydration racing an accepted in-flight save;
+- failed retry superseded by a later accepted edit;
+- deletion ordered against an in-flight write;
+- complete stock-draft record/history ordering stamps.
+
+The same red slice also added passing guards for consecutive failures and stock
+reset during settlement; those cases prevented the implementation from fixing
+the seven failures by weakening existing recovery/reset behavior.
+
+Pass-after evidence
+-------------------
+
+At 4e2d3709c6933b3822fc1e20d06352ad009c0f55:
+
+- `npx vitest run src/store/showStore.test.ts`: 59/59 passed.
+- Focused Show authoring/persistence contract run: 237/237 passed across seven
+  files.
+- `npm run test:mutation:show-authoring`: 57/57 mutants killed; zero survived,
+  timed out, or errored.
+- `npx wrsp-runner test HEAD`: all four declared suites passed.
+- `npx wrsp-check-test-evidence HEAD`: `TEST EVIDENCE GATE: PASS`.
+
+Mini exact-tip jobs for the tested implementation commit:
+
+Suite             Job id                                Result
+e2e-auth-smoke    8ecfd8fb-e312-4172-b960-944053bf9bbb  23/23 passed
+e2e-public        2afbe351-18aa-4965-a5c4-f317c0305b0c  25/25 passed
+e2e-shows         462e9d74-149b-4630-8f0e-06c9e99adaf2  67/67 passed
+full-vitest       2c24158e-bf3e-40c2-ba65-cb3e2757968c  6969 passed, 61 skipped
+
+Browser sequence E
+------------------
+
+The green regression is committed in `e2e/agent-baseline.auth.spec.ts`. It
+requires the saved agent candidate to remain visible after a later failed save,
+remain the provider's durable record, and reopen as that same record. Its
+intended artifacts are:
+
+  reports/agent-harness/baseline/browser/<run>/E-failed-save-recovery.json
+  reports/agent-harness/baseline/browser/<run>/E-failed-save-recovery.png
+
+The #948 worker attempted:
+
+  npm run test:e2e:agent-baseline -- --grep "E: a later failed save"
+
+`npm run check:playwright` first proved the repository Chromium 1223 install.
+The test process then failed before executing the test because macOS denied
+Chromium's `MachPortRendezvousServer` operation (`Permission denied (1100)`).
+The run directory
+`reports/agent-harness/baseline/browser/2026-09-06T03-06-27-287Z/` contains
+only `bridge.log`; no replacement record or capture was generated. The
+original #945 red E capture must not be presented as #948 proof. A host-capable
+run of the explicit browser suite remains required.
+
+Boundary and inventory
+----------------------
+
+The implementation covers the issue's bounded single-client recovery cases.
+`updatedAt` is a store-assigned ordering stamp, never a document revision.
+Cross-client clock skew and revision conflicts remain #802. The complete V2
+write, reload, deletion, retry, notice-reset, and stock-draft reset inventory
+for #946 is recorded in
+`docs/reference/contracts/show-state-history-persistence.md`.

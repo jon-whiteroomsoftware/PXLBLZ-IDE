@@ -22,7 +22,7 @@ Contracts this evidence serves:
 
 | Command | What it proves | CI |
 | --- | --- | --- |
-| `npm run test:e2e:agent-baseline` | Eight sequences on the live editor route in Chromium against a real scripted bridge process: the reproductions below. Writes `reports/agent-harness/baseline/browser/<run>/` (one JSON record and one screenshot per sequence, plus the bridge log). | explicit only; not a push gate |
+| `npm run test:e2e:agent-baseline` | Eight sequences on the live editor route in Chromium against a real scripted bridge process: seven reproductions plus the green sequence E recovery regression. Writes `reports/agent-harness/baseline/browser/<run>/` (one JSON record and one screenshot per sequence, plus the bridge log). | explicit only; not a push gate |
 | `npm run agent:baseline:fixtures` | Every baseline fixture exported as `.pxlshow` and `.epe` at a fixed stamp, one scripted bridge turn, export again; compares hashes against `src/agent-harness/baseline/evidence/fixtures.json` and exits 1 on drift. `-- --write` re-records after a human has read the diff. | explicit only |
 | `npm run agent:smoke`, `npm run agent:corpus -- --fake` | Unchanged from the first slice: bridge path and corpus without an editor. | manual |
 | `npx vitest run src/agent-harness src/dev` | Bridge request-id and phase-clock tests, fixture-set coverage and record-hash pins, the observation log. | `npm test` |
@@ -39,7 +39,7 @@ the personal-content PATCH, and the stage preview compile all run for real.
 
 | Item | Value |
 | --- | --- |
-| Code | this commit (see `git log -1 -- docs/reference/agent-editing-baseline.md`), base `b1fbc1e5` |
+| Code | historical #945 observations through `4e02adcf`, base `b1fbc1e5`; sequence E green oracle introduced by #948 at `bd4cb878` |
 | Browser | Playwright Chromium `chromium-1223` / `chromium_headless_shell-1223` (`npm run check:playwright`) |
 | Runtime | `scripts/run-authenticated-playwright.ts`: one worker-dev Vite process, isolated migrated D1, synthetic worker identity |
 | Agent | `scripted-fake` (corpus fake agent) through `src/agent-harness/bridge/service.ts`; completion delay 2500 ms; no credential read |
@@ -48,11 +48,12 @@ the personal-content PATCH, and the stage preview compile all run for real.
 | Editor Show | Installation Show created through the UI: TestPattern1D 0–30 s, CometLoom 30–60 s, a 2 s crossfade |
 | Model/effort | none (no paid call in this slice) |
 
-## Observed outcomes
+## Historical observed outcomes
 
-All eight sequences pass as reproductions: the assertions encode the bad
-outcome. A later fix turns the case red; invert it into a regression test
-then.
+The #945 run below established all eight bad outcomes as reproductions. #948
+inverted sequence E in place: its current oracle requires the saved candidate
+to remain visible after a later failed save, remain durable, and reopen as the
+same record. Sequences A-D and F-H retain their original diagnostic oracles.
 
 | Seq | Sequence | Observed on the live editor |
 | --- | --- | --- |
@@ -64,6 +65,13 @@ then.
 | F | Two operations in one reply | 12 s at 50 % visible and durable; exactly one candidate PATCH; one undo restores 30 s/100 %, redo re-applies. |
 | G | Built-in Show draft | Marker `Drop` at 10 000 ms visible in the record; zero personal-content writes; Reset and Undo enabled. |
 | H | Personal Pattern calling a personal Library | The reply applied and saved (12 000 ms). The stage preview shows `Unknown library namespace "Blz"`: the preview compile passes no personal Libraries, so no preview publication matched the candidate. `.epe` export in the harness fails the same way (fixture evidence). |
+
+The #948 store regressions and shared authoring contract establish sequence
+E's single-client recovery policy. Its new browser assertions and reopen check
+are committed in `e2e/agent-baseline.auth.spec.ts`. No replacement browser
+capture is claimed here yet: the #948 worker's local Chromium launch was denied
+by the macOS sandbox before the test ran, so the original #945 E record remains
+the latest executed browser observation.
 
 The fixture command records three refusals verbatim: on the stock lesson 101,
 the property-animation reference, and the changing-layouts lesson, resizing
