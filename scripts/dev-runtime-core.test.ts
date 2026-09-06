@@ -20,12 +20,10 @@ const manifest: RuntimeManifest = {
   basePath: '/PXLBLZ-IDE/',
   shared: {
     vitePort: 5174,
-    wranglerPort: 8788,
     issueVitePorts: { start: 5175, end: 5199 },
   },
   isolated: {
     vitePorts: { start: 5200, end: 5299 },
-    wranglerPorts: { start: 8789, end: 8888 },
   },
   localIdentities: {
     developerUserId: 'github:local-dev',
@@ -133,21 +131,16 @@ describe('main API health classification', () => {
   })
 })
 
-describe('repository wrangler ownership', () => {
+describe('repository runtime ownership', () => {
   const mainWorktree = '/Users/dev/src/pixelblaze-v2'
 
-  it('recognizes the repository wrangler CLI and its workerd child', () => {
+  it('recognizes the Worker runtime children', () => {
     expect(isRepositoryRuntimeCommand(
       `${mainWorktree}/node_modules/@cloudflare/workerd-darwin-arm64/bin/workerd serve --binary`,
       mainWorktree,
     )).toBe(true)
     expect(isRepositoryRuntimeCommand(
-      `node ${mainWorktree}/node_modules/wrangler/bin/wrangler.js pages dev dist --port 8788`,
-      mainWorktree,
-    )).toBe(true)
-    // The pages child interposes node flags before its script path.
-    expect(isRepositoryRuntimeCommand(
-      `/opt/fnm/node-versions/v24/bin/node --no-warnings --experimental-vm-modules ${mainWorktree}/node_modules/wrangler/wrangler-dist/cli.js pages dev dist`,
+      `${mainWorktree}/node_modules/@esbuild/darwin-arm64/bin/esbuild --service=0.28.1 --ping`,
       mainWorktree,
     )).toBe(true)
   })
@@ -174,17 +167,13 @@ describe('repository wrangler ownership', () => {
     )).toBe(false)
   })
 
-  it('recognizes every member of a live wrangler pages dev process group', () => {
-    // Observed verbatim (paths relocated) from wrangler 4.106.0 serving 8788.
-    const liveGroup = [
+  it('rejects the retired wrangler pages dev process group', () => {
+    const retiredGroup = [
       `/opt/fnm/node-versions/v24.14.0/installation/bin/node ${mainWorktree}/node_modules/wrangler/bin/wrangler.js pages dev dist --port 8788`,
       `/opt/fnm/node-versions/v24.14.0/installation/bin/node --no-warnings --experimental-vm-modules ${mainWorktree}/node_modules/wrangler/wrangler-dist/cli.js pages dev dist`,
-      `${mainWorktree}/node_modules/@esbuild/darwin-arm64/bin/esbuild --service=0.28.1 --ping`,
-      `${mainWorktree}/node_modules/@cloudflare/workerd-darwin-arm64/bin/workerd serve --binary --experimental --socket-addr=entry=localhost:8788`,
-      `${mainWorktree}/node_modules/@cloudflare/workerd-darwin-arm64/bin/workerd serve --binary --experimental --socket-addr=entry=127.0.0.1:65235`,
     ]
-    for (const command of liveGroup) {
-      expect(isRepositoryRuntimeCommand(command, mainWorktree)).toBe(true)
+    for (const command of retiredGroup) {
+      expect(isRepositoryRuntimeCommand(command, mainWorktree)).toBe(false)
     }
   })
 
@@ -205,8 +194,7 @@ describe('repository wrangler ownership', () => {
     )).toBe(false)
   })
 
-  it('ignores wrangler paths in non-executable argv positions and lookalike packages', () => {
-    // A process merely reading a file under the wrangler package is not ours.
+  it('ignores runtime paths in non-executable argv positions and lookalike packages', () => {
     expect(isRepositoryRuntimeCommand(
       `tail -f ${mainWorktree}/node_modules/wrangler/dev.log`,
       mainWorktree,
@@ -221,7 +209,7 @@ describe('repository wrangler ownership', () => {
     )).toBe(false)
   })
 
-  it('rejects wrangler from another worktree, unrelated commands, and unknown commands', () => {
+  it('rejects runtime commands from another worktree, unrelated commands, and unknown commands', () => {
     expect(isRepositoryRuntimeCommand(
       'node /Users/dev/src/worktrees/pixelblaze-v2-issue-1/node_modules/wrangler/bin/wrangler.js pages dev dist',
       mainWorktree,
@@ -269,11 +257,11 @@ describe('main API recovery decision', () => {
     expect(decideMainApiAction([foreign], 'error', mainWorktree)).toBe('unhealthy')
   })
 
-  it('recovers a wedged listener only when every listener is the repository wrangler', () => {
+  it('recovers a wedged listener only when every listener belongs to the repository runtime', () => {
     expect(decideMainApiAction([owned], 'unresponsive', mainWorktree)).toBe('recover')
   })
 
-  it('refuses when any wedged listener is not the repository wrangler', () => {
+  it('refuses when any wedged listener is not the repository runtime', () => {
     expect(decideMainApiAction([foreign], 'unresponsive', mainWorktree)).toBe('refuse')
     expect(decideMainApiAction([owned, foreign], 'unresponsive', mainWorktree)).toBe('refuse')
     expect(decideMainApiAction([{ pid: 7780, command: '' }], 'unresponsive', mainWorktree)).toBe('refuse')
@@ -288,8 +276,8 @@ describe('main API recovery decision', () => {
       `node ${mainWorktree}/node_modules/vite/bin/vite.js`,
       mainWorktree,
     )).toBe(true)
-    // Owned wrangler/workerd are legitimate signal targets but never adoptable
-    // as the single-process runtime.
+    // Worker children are legitimate signal targets but never adoptable as
+    // the single-process runtime.
     expect(isRepositoryViteCommand(
       `node ${mainWorktree}/node_modules/wrangler/bin/wrangler.js pages dev dist --port 5174`,
       mainWorktree,
@@ -313,12 +301,12 @@ describe('main API recovery decision', () => {
 
   it('flags process-group members that are not provably ours so no signal reaches a bystander', () => {
     const shell = { pid: 500, command: '/bin/zsh' }
-    const wranglerCli = {
+    const vite = {
       pid: 7771,
-      command: `node ${mainWorktree}/node_modules/wrangler/bin/wrangler.js pages dev dist`,
+      command: `node ${mainWorktree}/node_modules/.bin/vite`,
     }
-    expect(unownedGroupMembers([wranglerCli, owned], mainWorktree)).toEqual([])
-    expect(unownedGroupMembers([wranglerCli, shell, owned], mainWorktree)).toEqual([shell])
+    expect(unownedGroupMembers([vite, owned], mainWorktree)).toEqual([])
+    expect(unownedGroupMembers([vite, shell, owned], mainWorktree)).toEqual([shell])
   })
 })
 

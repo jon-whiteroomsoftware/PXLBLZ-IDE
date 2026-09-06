@@ -11,12 +11,10 @@ export interface RuntimeManifest {
   basePath: string
   shared: {
     vitePort: number
-    wranglerPort: number
     issueVitePorts: PortRange
   }
   isolated: {
     vitePorts: PortRange
-    wranglerPorts: PortRange
   }
   localIdentities: {
     developerUserId: string
@@ -83,11 +81,9 @@ export function parseRuntimeManifest(value: unknown): RuntimeManifest {
     || !nonEmptyString(manifest.basePath)
     || !manifest.shared
     || !validPort(manifest.shared.vitePort)
-    || !validPort(manifest.shared.wranglerPort)
     || !validPortRange(manifest.shared.issueVitePorts)
     || !manifest.isolated
     || !validPortRange(manifest.isolated.vitePorts)
-    || !validPortRange(manifest.isolated.wranglerPorts)
     || !manifest.localIdentities
     || !nonEmptyString(manifest.localIdentities.developerUserId)
     || !nonEmptyString(manifest.localIdentities.agentUserIdPrefix)
@@ -107,11 +103,6 @@ export function parseRuntimeManifest(value: unknown): RuntimeManifest {
   }
   if (rangesOverlap(manifest.shared.issueVitePorts, manifest.isolated.vitePorts)) {
     throw new Error('Runtime manifest shared and isolated Vite port ranges overlap.')
-  }
-  if (portInRange(manifest.shared.wranglerPort, manifest.isolated.wranglerPorts)) {
-    throw new Error(
-      `Runtime manifest isolated Wrangler port range overlaps shared Wrangler port ${manifest.shared.wranglerPort}.`,
-    )
   }
   return manifest as RuntimeManifest
 }
@@ -156,46 +147,42 @@ export interface MainApiListener {
 
 export type MainApiAction = 'none' | 'start' | 'recover' | 'refuse' | 'unhealthy'
 
-// Recovery may only terminate processes provably ours: the repository's own
-// wrangler CLI or its workerd child, resolved under the main worktree's
+// Recovery may only terminate processes provably ours: the repository's Vite
+// entry or its workerd/esbuild children, resolved under the main worktree's
 // node_modules. Only the executable and node-script argv positions count — a
-// process merely mentioning a wrangler path in a later argument is not ours.
+// process merely mentioning a runtime path in a later argument is not ours.
 // Tokens are path-normalized so `..` segments cannot smuggle a foreign script
-// past a prefix check, package prefixes are exact (`wrangler/`,
-// `@cloudflare/workerd[-platform]/`) so lookalike packages fail, and an
+// past a prefix check, package prefixes are exact
+// (`@cloudflare/workerd[-platform]/`) so lookalike packages fail, and an
 // unreadable command (ps failed, process gone) is not proof of ownership.
 export function isRepositoryRuntimeCommand(command: string, mainWorktree: string): boolean {
   const tokens = command.split(/\s+/).filter(Boolean)
   if (tokens.length === 0) return false
-  if (matchesRepositoryWranglerPath(tokens[0], mainWorktree)) return true
+  if (matchesRepositoryRuntimePath(tokens[0], mainWorktree)) return true
   const executable = tokens[0].split('/').pop()
   if (executable !== 'node') return false
   // Node options can consume a following operand (--require, --loader, ...),
   // so a generic skip-the-dashes scan can mistake an operand for the script.
-  // Only the exact no-operand flags wrangler's own child uses are allowed;
+  // Only exact no-operand flags observed in runtime children are allowed;
   // any other flag refuses conservatively.
   let index = 1
   while (index < tokens.length && tokens[index].startsWith('-')) {
-    if (!wranglerChildNodeFlags.has(tokens[index])) return false
+    if (!runtimeChildNodeFlags.has(tokens[index])) return false
     index += 1
   }
-  return index < tokens.length && matchesRepositoryWranglerPath(tokens[index], mainWorktree)
+  return index < tokens.length && matchesRepositoryRuntimePath(tokens[index], mainWorktree)
 }
 
-const wranglerChildNodeFlags = new Set(['--no-warnings', '--experimental-vm-modules'])
+const runtimeChildNodeFlags = new Set(['--no-warnings', '--experimental-vm-modules'])
 
-// The allowlist is grounded in observed process groups: a live
-// `wrangler pages dev` (wrangler CLI script, its pages child, two workerd
-// processes, one esbuild service binary) and the single-process Vite runtime
-// (#900: the vite binary, whose plugin spawns the same workerd/esbuild
-// children into its group).
-function matchesRepositoryWranglerPath(token: string, mainWorktree: string): boolean {
+// The allowlist is grounded in the single-process Vite runtime: the Vite
+// entry, plus workerd and esbuild children spawned by the Cloudflare plugin.
+function matchesRepositoryRuntimePath(token: string, mainWorktree: string): boolean {
   const moduleRoot = `${mainWorktree}/node_modules/`
   const normalized = normalizePathish(token)
   if (!normalized.startsWith(moduleRoot)) return false
   const relative = normalized.slice(moduleRoot.length)
-  return relative.startsWith('wrangler/')
-    || relative === '.bin/vite'
+  return relative === '.bin/vite'
     || relative === 'vite/bin/vite.js'
     || /^@cloudflare\/workerd(?:-[a-z0-9-]+)?\//.test(relative)
     || /^@esbuild\/[a-z0-9_-]+\/bin\/esbuild$/.test(relative)
@@ -234,11 +221,9 @@ function normalizePathish(token: string): string {
   return segments.join('/')
 }
 
-// Adoption identity is stricter than signal authorization: only the vite
-// entry points may be adopted as the single-process runtime, while wrangler,
-// workerd, and esbuild remain acceptable group members to signal. A
-// repository-owned `wrangler pages dev` on the main port is refused, never
-// reported as the reviewed-main worker-dev runtime.
+// Adoption identity is stricter than signal authorization: only the Vite
+// entry points may be adopted as the single-process runtime, while workerd
+// and esbuild remain acceptable group members to signal.
 export function isRepositoryViteCommand(command: string, mainWorktree: string): boolean {
   const tokens = command.split(/\s+/).filter(Boolean)
   if (tokens.length === 0) return false
@@ -254,7 +239,7 @@ export function isRepositoryViteCommand(command: string, mainWorktree: string): 
   if (executable !== 'node') return false
   let index = 1
   while (index < tokens.length && tokens[index].startsWith('-')) {
-    if (!wranglerChildNodeFlags.has(tokens[index])) return false
+    if (!runtimeChildNodeFlags.has(tokens[index])) return false
     index += 1
   }
   return index < tokens.length && viteEntry(tokens[index])

@@ -11,12 +11,10 @@ const manifest: RuntimeManifest = {
   basePath: '/PXLBLZ-IDE/',
   shared: {
     vitePort: 5174,
-    wranglerPort: 8788,
     issueVitePorts: { start: 5175, end: 5199 },
   },
   isolated: {
     vitePorts: { start: 5200, end: 5299 },
-    wranglerPorts: { start: 8789, end: 8888 },
   },
   localIdentities: {
     developerUserId: 'github:local-dev',

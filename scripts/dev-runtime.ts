@@ -383,9 +383,8 @@ async function printStatus(
 }
 
 // The stable main runtime is one worker-dev Vite process (#900): the
-// Cloudflare plugin serves the Worker and local D1 from the Vite port, and
-// the legacy `wrangler pages dev` on the manifest's wranglerPort is retired
-// on sight. Recovery still refuses any process that is not provably ours.
+// Cloudflare plugin serves the Worker and local D1 from the Vite port.
+// Recovery refuses any process that is not provably ours.
 async function ensureMainRuntime(
   context: RepositoryContext,
   manifest: RuntimeManifest,
@@ -404,37 +403,16 @@ async function ensureMainRuntime(
     ? await probeService(apiUrl, serviceProbeTimeoutMs)
     : 'unresponsive'
   const uiListeners: MainApiListener[] = uiPids.map((pid) => ({ pid, command: processCommand(pid) }))
-  let runtimeAction = decideMainApiAction(uiListeners, apiProbe, context.mainWorktree)
+  const runtimeAction = decideMainApiAction(uiListeners, apiProbe, context.mainWorktree)
   const uiGroupMembers = uiPids
     .map(processGroupId)
     .filter(Number.isInteger)
     .flatMap((group) => processGroupMembers(group))
-  const legacyPids = listenerPids(manifest.shared.wranglerPort)
-  // Tracks whether a recover decision determined the 5174 group to be a
-  // plain proxy Vite; the no-workerd guard at the signal boundary is keyed on
-  // this decision, not on a probe value that can change before the signal.
-  let expectProxyGroup = false
   if (runtimeAction === 'unhealthy') {
-    // A worker-dev runtime carries workerd in its process group; a legacy
-    // proxy-mode Vite does not. An owned, workerd-less group answering 5xx is
-    // the beheaded proxy whose standalone API target retired — restart it as
-    // the single process. A group with workerd is a live application erroring
-    // and is never terminated.
-    const beheadedProxy = uiGroupMembers.length > 0
-      && unownedGroupMembers(uiGroupMembers, context.mainWorktree).length === 0
-      && !groupIndicatesWorkerRuntime(uiGroupMembers)
-    if (!beheadedProxy) {
-      throw new Error(
-        `Port ${manifest.shared.vitePort} answers ${apiUrl} with server errors; the process is alive, so`
-        + ' recovery will not terminate it. Inspect the main runtime log and stop it manually if a restart is needed.',
-      )
-    }
-    console.log(
-      `Port ${manifest.shared.vitePort} is a legacy proxy-mode Vite without its API target (#900); `
-      + 'restarting it as the single-process runtime.',
+    throw new Error(
+      `Port ${manifest.shared.vitePort} answers ${apiUrl} with server errors; the process is alive, so`
+      + ' recovery will not terminate it. Inspect the main runtime log and stop it manually if a restart is needed.',
     )
-    runtimeAction = 'recover'
-    expectProxyGroup = true
   }
   if (runtimeAction === 'refuse') {
     throw new Error(
@@ -444,9 +422,7 @@ async function ensureMainRuntime(
   }
   if (uiPids.length > 0) {
     // A healthy probe does not prove identity: another worktree's healthy
-    // worker-dev on this port must never be reported as reviewed main. And
-    // the full 5174 group must be provably ours before the legacy 8788 is
-    // touched, so a later group refusal cannot leave the topology beheaded.
+    // worker-dev on this port must never be reported as reviewed main.
     const unownedListeners = uiListeners.filter(
       (listener) => !isRepositoryRuntimeCommand(listener.command, context.mainWorktree),
     )
@@ -457,9 +433,8 @@ async function ensureMainRuntime(
       )
     }
     if (runtimeAction === 'none') {
-      // Adoption is stricter than signal authorization: only the vite entry
-      // point may be reported as the single-process runtime. A repository
-      // wrangler answering healthily here is refused, not adopted.
+      // Adoption is stricter than signal authorization: only the Vite entry
+      // point may be reported as the single-process runtime.
       const nonVite = uiListeners.filter(
         (listener) => !isRepositoryViteCommand(listener.command, context.mainWorktree),
       )
@@ -477,12 +452,11 @@ async function ensureMainRuntime(
           `Port ${manifest.shared.vitePort} is served by more than one process group; refusing to adopt it as reviewed main.`,
         )
       }
-      if (!groupIndicatesWorkerRuntime(uiGroupMembers) && legacyPids.length === 0) {
-        // A healthy Vite with no workerd in its group is proxying /api
-        // somewhere, and with no legacy 8788 to explain it, that somewhere is
-        // not a backend this coordinator knows: refuse rather than adopt.
+      if (!groupIndicatesWorkerRuntime(uiGroupMembers)) {
+        // A healthy Vite with no workerd in its group is not the Worker runtime
+        // this coordinator owns: refuse rather than adopt.
         throw new Error(
-          `Port ${manifest.shared.vitePort} answers healthily but is a proxy-mode Vite with no known API target; refusing to adopt it as reviewed main.`,
+          `Port ${manifest.shared.vitePort} answers healthily but its process group has no Worker runtime; refusing to adopt it as reviewed main.`,
         )
       }
     }
@@ -500,69 +474,17 @@ async function ensureMainRuntime(
     }
   }
 
-  if (legacyPids.length > 0) {
-    const legacyListeners: MainApiListener[] = legacyPids.map((pid) => ({ pid, command: processCommand(pid) }))
-    const unowned = legacyListeners.filter((listener) => !isRepositoryRuntimeCommand(listener.command, context.mainWorktree))
-    if (unowned.length > 0) {
+  if (runtimeAction === 'recover') {
+    // A wedged worker runtime may have recovered to answering (even with
+    // errors) since the first probe; an answering group is never terminated,
+    // so recheck at the last async boundary before the signal.
+    const recheck = await probeService(apiUrl, serviceProbeTimeoutMs)
+    if (recheck !== 'unresponsive') {
       throw new Error(
-        `Port ${manifest.shared.wranglerPort} is occupied by processes that are not this repository's legacy Wrangler; refusing to retire them:\n`
-        + unowned.map((listener) => `  ${listener.pid} ${listener.command || '(unreadable command)'}`).join('\n'),
+        `Port ${manifest.shared.vitePort} began answering ${apiUrl} again (${recheck}); refusing to terminate a live worker runtime. Re-run dev:main to re-evaluate.`,
       )
     }
-  }
-  if (runtimeAction === 'none' && legacyPids.length > 0 && !groupIndicatesWorkerRuntime(uiGroupMembers)) {
-    // A healthy 5174 answering only through a live legacy 8788 is the old
-    // proxy topology; both halves restart as the single process.
-    console.log(
-      `Port ${manifest.shared.vitePort} is a legacy proxy-mode Vite answering through ${manifest.shared.wranglerPort} (#900); `
-      + 'restarting it as the single-process runtime.',
-    )
-    runtimeAction = 'recover'
-    expectProxyGroup = true
-  }
-
-  // All refusals are behind us: retire the legacy standalone Wrangler, then
-  // any Vite this run replaces.
-  if (legacyPids.length > 0) {
-    console.log(
-      `Retiring the legacy two-process pair (#900): stopping wrangler pages dev on ${manifest.shared.wranglerPort}`
-      + ` (PIDs ${legacyPids.join(', ')}).`,
-    )
-    await stopWedgedListeners(legacyPids, manifest.shared.wranglerPort, context.mainWorktree)
-  }
-  if (runtimeAction === 'recover' && !expectProxyGroup && !groupIndicatesWorkerRuntime(uiGroupMembers)) {
-    // A wedged group without workerd is proxy-shaped even though the probe
-    // said unresponsive rather than error: after the legacy Wrangler above
-    // retires, such a proxy may wake into 5xx, and recovery must still
-    // converge in one pass. Treat it as the proxy determination it is.
-    expectProxyGroup = true
-  }
-  if (runtimeAction === 'recover') {
-    if (!expectProxyGroup) {
-      // A wedged worker runtime may have recovered to answering (even with
-      // errors) since the first probe; an answering worker-dev group is
-      // never terminated, so recheck at the last async boundary before the
-      // signal.
-      const recheck = await probeService(apiUrl, serviceProbeTimeoutMs)
-      if (recheck !== 'unresponsive') {
-        throw new Error(
-          `Port ${manifest.shared.vitePort} began answering ${apiUrl} again (${recheck}); refusing to terminate a live worker runtime. Re-run dev:main to re-evaluate.`,
-        )
-      }
-    }
-    // The no-workerd constraint travels into the stop: if workerd appears in
-    // the group between the decision above and the signal, the guard refuses
-    // rather than killing what has become a live worker runtime.
-    const requireProxyGroup = expectProxyGroup
-      ? (members: readonly MainApiListener[]) => {
-          if (groupIndicatesWorkerRuntime(members)) {
-            throw new Error(
-              'Refusing to terminate: the group now contains workerd, so it is a live worker runtime, not a beheaded proxy.',
-            )
-          }
-        }
-      : undefined
-    await stopWedgedListeners(uiPids, manifest.shared.vitePort, context.mainWorktree, requireProxyGroup)
+    await stopWedgedListeners(uiPids, manifest.shared.vitePort, context.mainWorktree)
   }
   if (runtimeAction === 'none') {
     // A healthy /api does not prove the UI: probe the base path too, and
@@ -943,11 +865,10 @@ async function waitForAllGroupsGone(groups: readonly number[], timeoutMs: number
   return groups.every(groupGone)
 }
 
-// Every wrangler invocation deletes .wrangler/tmp entries whose mtime is older
-// than 24h (workers-sdk#13930), including a live pages dev server's bundle dir
-// once it goes a day without a rebuild — the #895 wedge. Coordinator commands
-// run far more often than daily, so refreshing the mtimes here keeps the main
-// server's entries permanently outside the sweep window.
+// Wrangler machinery deletes .wrangler/tmp entries whose mtime is older than
+// 24h (workers-sdk#13930). Coordinator commands run far more often than daily,
+// so refreshing the mtimes here keeps the live Worker's entries outside the
+// sweep window.
 export function touchWranglerTmpEntries(tmpRoot: string, now = new Date()): number {
   let entries
   try {
