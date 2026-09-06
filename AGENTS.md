@@ -248,8 +248,8 @@ result rather than the word BLOCKED or a nonzero exit:
   bypass. Independent work continues unless it shares the blocker.
 
 Pre-push requires a contiguous chain ending in clean approval instead
-of repeating review, then runs the artifact oracle gate, full Vitest, and
-Playwright once. See
+of repeating review, then runs the artifact oracle and consumes exact-tip
+runner evidence for the required suites. See
 `docs/agents/verification.md` for the mechanism and privacy boundary; its
 "WRSP 0.5.2 review packet adoption" section holds the current adoption ledger
 and packet completeness contract, its "WRSP 0.5.1 review policy" section holds

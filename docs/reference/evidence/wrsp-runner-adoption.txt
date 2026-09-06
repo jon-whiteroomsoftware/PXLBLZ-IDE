@@ -1,0 +1,122 @@
+WRSP runner adoption evidence
+=============================
+
+Consumer: jon-whiteroomsoftware/PXLBLZ-IDE#962
+Parent: jon-whiteroomsoftware/whiteroom-software-process#20, slice 3
+Date: 2026-09-05 America/Los_Angeles (2026-09-06 UTC)
+Base: 39e35997d26feef6782969fe3ab52857f5a6403a
+Tested implementation commit: 9b78b88ba828b73848431010009fc40bc424ad7f
+Tested tree: f65a6444ab28fb6e120bfb845d71ef1d9ef92c1c
+Client package: @whiteroom/software-process 0.6.0, vendored release tarball
+
+Runner host
+-----------
+
+The package query requested by the coordinator reported:
+
+  ssh wrsp-mini 'grep "\"version\"" /Users/wrsp/wrsp-runner/daemon/node_modules/@whiteroom/software-process/package.json'
+    "version": "0.5.2",
+
+The coordinator identified this interim daemon package as the protocol-2 build
+from process commit b2c950d. The dashboard remained at 0.6.0. This combination
+served the submit, status, wait/resume, collect, test, evidence, and warm-cache
+operations below after the 0.6.0 daemon was rolled back for its startup defect.
+Repeat `npx wrsp-runner test HEAD` after the 0.6.1 daemon hotfix is installed;
+that repeat is the coordinator's follow-up.
+
+Cache warm result:
+
+  npx wrsp-runner warm-cache HEAD
+  Warmed npm cache for 9b78b88ba828b73848431010009fc40bc424ad7f
+  Lockfile SHA-256: d7e6c08d843c040b50896ee96dcde35bd36dd465698193826ee6f5b9b8f985aa
+  Packages: 841
+  Bytes: 769282048
+  Warmed at: 2026-09-06T01:50:00.955Z
+  Bundle: already present
+
+Four-suite run
+--------------
+
+`npx wrsp-runner test HEAD` submitted all four suites for exact commit
+9b78b88ba828b73848431010009fc40bc424ad7f. The client connection was
+interrupted after submission; `test --resume` collected the same job ids, and
+a final exact `npx wrsp-runner test HEAD` reused all four passing records and
+exited 0.
+
+Suite             Job id                                Execution   Total from request   Configured timeout
+e2e-auth-smoke    3ba341c6-393c-4678-b09b-aceab195ebff  39.552 s    47.539 s             15 min
+e2e-public        9a2fb039-e443-42a6-89d8-daaebc9f7252  24.510 s    75.320 s             15 min
+e2e-shows         ac786be2-ebc6-4d50-b196-fefa985ce77e  49.787 s   128.178 s             20 min
+full-vitest       7f546406-aa14-46fa-a208-1a0b50e1c440 106.921 s   239.857 s             10 min
+
+All four outcomes were `passed` with exit code 0. Each Playwright suite
+collected `playwright-report/results.json`; full-vitest declares no artifacts.
+The configured timeouts include setup, queue, and contention margin above the
+measured execution and request-to-finish durations.
+
+Laptop observations
+-------------------
+
+Sample                 UTC                       uptime/load averages
+before submission      2026-09-06T01:45:15Z      18:45, 4.06 5.25 5.74
+during first job       2026-09-06T01:45:36Z      18:45, 4.30 5.21 5.72
+during final job       2026-09-06T01:49:30Z      18:49, 5.69 5.34 5.61
+after completion       2026-09-06T01:49:48Z      18:49, 10.05 6.36 5.97
+
+`npm run dev:status` reported the persistent main runtime at
+http://localhost:5174/PXLBLZ-IDE/ as `listening, API listening` before, during,
+and after the mini run.
+
+The execution sandbox denied the requested laptop process-table proof. The
+before and after `ps -axo pid,command | rg '(vitest|playwright)'` probes each
+returned `zsh: operation not permitted: ps`; the during-run `pgrep` probe
+returned `Cannot get process list`. A supplemental `lsof` sample showed only
+the already registered development listeners, but it cannot prove the absence
+of non-listening test processes. Therefore this run does not claim the `ps`
+acceptance item. An unsandboxed before/during/after `ps` sample remains required
+during the coordinator's post-0.6.1 repeat.
+
+Evidence acceptance
+-------------------
+
+At the tested implementation commit:
+
+  npx wrsp-check-test-evidence HEAD
+  TEST EVIDENCE GATE: PASS
+
+The gate listed one exact-tip record for each required suite under the Git
+common directory's `wrsp/test-evidence/v1` directory.
+
+Stale-evidence refusal
+----------------------
+
+A throwaway commit changed `wrsp.config.mjs` from the tested implementation
+commit:
+
+  38a624eede63e83fecb9b137690f7e77a3b49a65
+
+`npx wrsp-check-test-evidence HEAD` exited 1. It reported the expected commit,
+tree, and configuration digest for 38a624e and the differing values in the four
+records for 9b78b88, then printed a fresh submission command per suite.
+
+The hook boundary was exercised with `git push --dry-run` to the disposable
+local bare repository `/private/tmp/pxlblz-wrsp-refusal-20260905.git`. A
+disposable clone pinned its local `origin/main` to the throwaway tip so the
+unchanged review gate correctly observed no outgoing range without creating or
+bypassing a review receipt. The hook then passed both artifact oracles, refused
+the absent exact-tip runner evidence, printed:
+
+  Required runner evidence is missing or stale.
+  Run: npx wrsp-runner test 38a624eede63e83fecb9b137690f7e77a3b49a65
+
+and exited 1. No local heavy-suite fallback started. The throwaway branch was
+deleted after the proof; the adoption branch returned to 9b78b88.
+
+Residual follow-up
+------------------
+
+The coordinator must repeat `npx wrsp-runner test HEAD` after the 0.6.1 daemon
+package is installed and capture unsandboxed laptop `ps` samples during that
+run. The committed evidence document necessarily follows the exact tested
+implementation commit, so that repeat also supplies exact-tip evidence for the
+final documentation tip after it is reviewed and rebased for landing.

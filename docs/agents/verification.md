@@ -174,9 +174,9 @@ calls into while touching only other files. Re-review closes that window at
 the cost of re-reviewing every rebased stack; the recorded decision is that
 a byte-identical stack over disjoint files carries, and semantically
 entangled landings are expected to overlap in files often enough for the
-guards to catch them. The full Vitest and Playwright pre-push runs still
-execute against the final rebased history regardless of how approval was
-obtained.
+guards to catch them. Exact-tip WRSP evidence for the required full Vitest and
+Playwright suites still covers the final rebased history regardless of how
+approval was obtained.
 
 Annotated tags retain their tag-object SHA as the exact receipt identity rather
 than being reduced to the target commit. Candidate validation peels the tip
@@ -234,14 +234,16 @@ remote main line; if that baseline does not exist, the gate blocks instead of
 self-basing the range at the pushed tip. Missing or stale coverage blocks with an explicit
 `review:candidate` command; pre-push does not repeat substantive review.
 
-After every outgoing ref has exact coverage, the hook runs the artifact
-oracle gate, the full Vitest suite,
-the Playwright smoke suite, and the authenticated smoke and Show suites once. Because this is a Git hook rather than a Claude
-or Codex lifecycle hook, it applies equally to agent and terminal pushes.
+After every outgoing ref has exact coverage, the hook runs the artifact oracle
+gate and then requires passing WRSP evidence for the exact local tip. The four
+required suites are `test:full`, the public Playwright smoke suite, and the
+authenticated smoke and Show suites. Agents create that evidence before
+landing with `npx wrsp-runner test <tip>`; the hook never starts a local heavy
+suite or falls back to one. Because this is a Git hook rather than a Claude or
+Codex lifecycle hook, it applies equally to agent and terminal pushes.
 
-`npm test` remains the explicit full-suite command. The pre-push hook invokes the
-same full suite, so a separate full run immediately before pushing normally adds
-delay without adding coverage.
+`npm test` remains the explicit local full-suite command. Publication normally
+uses the remote runner evidence instead.
 
 Vitest reports the DOM component suite as `|jsdom|`: it provides DOM APIs but
 does not compute layout or run browser rendering. A project name containing
@@ -255,12 +257,13 @@ Files named `*.layout.test.ts` or `*.layout.test.tsx` run only in the
 Playwright provider and headless Chromium; it imports the production
 `src/index.css` entrypoint and waits for `document.fonts.ready` before tests
 measure anything. Run it directly with `npm run test:layout`. The unfiltered
-`npm test` command also discovers this project, so the pre-push full suite
-includes real-browser layout coverage while ordinary component tests stay in
-the faster `jsdom` project. Run `npm run check:playwright` before diagnosing a
-browser-startup failure. The product surface manifest, policy annotations,
-stable fault locations, gate canary, and #757 mutation qualification are
-documented in [`layout-verification.md`](layout-verification.md).
+`npm test` command also discovers this project, so the required `full-vitest`
+runner suite includes real-browser layout coverage while ordinary component
+tests stay in the faster `jsdom` project. Run `npm run check:playwright` before
+diagnosing a browser-startup failure. The product surface manifest, policy
+annotations, stable fault locations, gate canary, and #757 mutation
+qualification are documented in
+[`layout-verification.md`](layout-verification.md).
 
 Candidate review transmits the exact private diff and supplied engineering
 context to whichever family the route selects first -- Anthropic under the
@@ -346,14 +349,15 @@ the persistent development identity, which the suites never read or mutate.
 ### What the gates actually cover
 
 `playwright.config.ts` sets `testIgnore: '**/*.auth.spec.ts'`, so
-`npm run test:e2e` covers **no** authenticated spec on its own. Pre-push
-therefore runs the authenticated suites explicitly alongside it.
+`npm run test:e2e` covers **no** authenticated spec on its own. The required
+runner evidence therefore names the authenticated suites explicitly alongside
+it.
 
 | Suite | Gate |
 | --- | --- |
-| `npm run test:e2e` (unauthenticated) | pre-push |
-| `npm run test:e2e:auth-smoke` | pre-push |
-| `npm run test:e2e:shows` | pre-push |
+| `npm run test:e2e` (unauthenticated) | required runner evidence at pre-push |
+| `npm run test:e2e:auth-smoke` | required runner evidence at pre-push |
+| `npm run test:e2e:shows` | required runner evidence at pre-push |
 | `npm run test:e2e:auth-full` (every auth spec) | manual |
 
 Treating "manual" as covered is how #638 happened: three feature-retirement
@@ -861,9 +865,9 @@ colocated test is not a sufficient safety net:
 - Vitest configuration and staged-test infrastructure
 - shared Show authoring edit contracts
 
-Documentation-only commits skip Vitest at pre-commit. The full review-and-test
-pre-push gate is unchanged by the selection result and remains the final
-authority.
+Documentation-only commits skip Vitest at pre-commit. The review, artifact,
+and exact-tip evidence gates at pre-push are unchanged by the selection result
+and remain the final publication authority.
 
 ## Qualification tiers for Pattern transformations (#933)
 
