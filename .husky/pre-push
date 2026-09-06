@@ -11,10 +11,30 @@
 # real exporter writes a file, its ordinary importer reopens it, and exactly
 # one WRSP-ARTIFACT-ORACLE report per deliverable must validate.
 echo "▶ Checking exact candidate-review approvals before publication…"
-npm run review:push -- "$1" "$2" && npm run check:artifact-oracle || exit $?
+REF_UPDATES=$(mktemp "${TMPDIR:-/tmp}/pxlblz-pre-push.XXXXXX") || exit $?
+trap 'rm -f "$REF_UPDATES"' EXIT
+cat > "$REF_UPDATES" || exit $?
+
+npm run review:push -- "$1" "$2" < "$REF_UPDATES" && npm run check:artifact-oracle || exit $?
 
 LOCAL_TIP=$(git rev-parse HEAD) || exit $?
-if ! npx wrsp-check-test-evidence "$LOCAL_TIP"; then
+CHECK_EVIDENCE=0
+while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
+  [ -n "$local_ref" ] || continue
+
+  case "$local_sha" in
+    *[!0]*) ;;
+    *) continue ;;
+  esac
+
+  if [ "$local_sha" != "$LOCAL_TIP" ]; then
+    echo "Refusing runner evidence for $local_ref at $local_sha: check out $local_ref and push from it, or run npx wrsp-runner test $local_sha there."
+    exit 1
+  fi
+  CHECK_EVIDENCE=1
+done < "$REF_UPDATES"
+
+if [ "$CHECK_EVIDENCE" -eq 1 ] && ! wrsp-check-test-evidence "$LOCAL_TIP"; then
   echo "Required runner evidence is missing or stale."
   echo "Run: npx wrsp-runner test $LOCAL_TIP"
   exit 1
