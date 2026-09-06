@@ -153,7 +153,14 @@ after completion       2026-09-06T02:17:02Z      19:17, 2.35 4.46 5.66
 http://localhost:5174/PXLBLZ-IDE/ as `listening, API listening` before, during,
 and after the repeat.
 
-Laptop process samples: supplied by the coordinator
+Laptop process samples (coordinator, unsandboxed host shell), pgrep over
+'vitest|playwright|chrome-headless-shell|wrangler pages' excluding the Codex worker itself:
+  BEFORE 2026-09-06T02:12:47Z  load 4.06 7.01 6.71  matching processes: 0
+  DURING 2026-09-06T02:14:02Z  load 3.50 6.22 6.44  matching processes: 0
+         mini load 6.38 3.19 3.04, active jobs 2
+  AFTER  2026-09-06T02:16:55Z  load 2.30 4.49 5.67  matching processes: 0, mini active jobs 0
+No local vitest, Playwright, headless Chromium, or wrangler process ran on the laptop during the
+remote run; the laptop load fell while the mini executed the four suites.
 
 At the tested corrective implementation commit:
 
