@@ -13,7 +13,7 @@
 // guard: the ledger is opened (and locked for this process) before the
 // credential is read, each /utterance turn is one accounting unit, and the
 // lock is released on SIGINT/SIGTERM. Never deployed.
-import { readFileSync } from 'node:fs'
+import { loadHarnessCredentialFile } from '../experiment/credential.js'
 import { createOpenAiAgent } from '../experiment/openaiAgent.js'
 import { PaidCallRefusedError } from '../experiment/paidCallBudget.js'
 import { describeStatus, openPaidCallGuard, type PaidCallGuard } from '../experiment/paidCallGuard.js'
@@ -23,28 +23,6 @@ import { createScriptedAgent, startBridge, type ProgressEvent } from './service.
 const MODEL = process.env.BRIDGE_MODEL ?? 'gpt-5.6-luna'
 const EFFORT = process.env.BRIDGE_EFFORT ?? 'high'
 const AGENT_MODE = process.env.BRIDGE_AGENT ?? 'openai'
-
-// The credential stays in its existing protected location (#945): the
-// process reads OPENAI_API_KEY from the environment or from the file named
-// by AGENT_HARNESS_ENV_FILE, and never prints it. Nothing under this
-// repository is read for it: `.env` is not ignored here and `.dev.vars`
-// belongs to the Worker.
-function loadCredentialFile(): void {
-  const path = process.env.AGENT_HARNESS_ENV_FILE
-  if (!path) return
-  let raw: string
-  try {
-    raw = readFileSync(path, 'utf8')
-  } catch {
-    return
-  }
-  for (const line of raw.split('\n')) {
-    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/.exec(line)
-    if (match && process.env[match[1]] === undefined) {
-      process.env[match[1]] = match[2].replace(/^"|"$/g, '')
-    }
-  }
-}
 
 export async function main(): Promise<void> {
   // One utterance runs at a time, so a single mutable ref can route the
@@ -64,7 +42,7 @@ export async function main(): Promise<void> {
       return
     }
     console.log(describeStatus(guard.status()))
-    loadCredentialFile()
+    loadHarnessCredentialFile()
     if (!process.env.OPENAI_API_KEY) {
       guard.close()
       console.error('OPENAI_API_KEY is not set (checked the environment and AGENT_HARNESS_ENV_FILE). The live bridge needs it; BRIDGE_AGENT=scripted runs without one.')

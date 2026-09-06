@@ -67,8 +67,10 @@ alias for editing and typechecking; execution needs Vite semantics.
 The live paths read `OPENAI_API_KEY` from the environment, or from the file named by
 `AGENT_HARNESS_ENV_FILE` (the existing protected location outside this repository). Nothing
 under this repository is read for it: `.env` is not ignored here and `.dev.vars` belongs to
-the Worker. The key is never logged or written to reports. The ledger is opened, validated and
-locked before the credential is read, so a budget refusal never touches the key.
+the Worker. The shared loader reads only `OPENAI_API_KEY`, never replaces a key already supplied
+by the process, and is used by both the corpus CLI and bridge. The key is never logged or written
+to reports. The ledger is opened, validated and locked before the credential is read, so a
+budget refusal never touches the key.
 
 ## Paid-call budget (#945)
 

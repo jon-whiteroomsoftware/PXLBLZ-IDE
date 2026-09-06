@@ -113,6 +113,11 @@ Adaptations beyond the mechanical, each annotated in its file:
 
 Paid-call budget slice (#945, V2-authored, after the transfer):
 
+- `experiment/credential.ts` and `test/credentialFile.test.ts`: the bridge's protected-file
+  credential loader became a shared V2-authored boundary after the first corpus live-run attempt
+  proved the CLI did not implement the documented `AGENT_HARNESS_ENV_FILE` path. It reads only
+  `OPENAI_API_KEY`, preserves a process-supplied key, and both live entry points call it only after
+  the ledger opens successfully. The zero-call failed attempt left the ledger empty.
 - `experiment/openaiAgent.ts`: the SDK call moved into a single `dispatch` that reserves with
   the required `budget` guard before the request and settles or abandons after it; the SDK
   client is constructed with `maxRetries: 0`; `max_output_tokens` is pinned to the bound; the

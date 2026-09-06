@@ -18,6 +18,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFi
 import { basename, dirname, join, resolve } from 'node:path'
 import { DICTATION_CASES } from './cases.js'
 import { validateCorpus, type DictationCase } from './corpus.js'
+import { loadHarnessCredentialFile } from './credential.js'
 import { dictationFixture } from './fixtures.js'
 import { PaidCallRefusedError } from './paidCallBudget.js'
 import { describeStatus, openPaidCallGuard, type PaidCallGuard, type PaidCallStatus } from './paidCallGuard.js'
@@ -353,6 +354,7 @@ export async function main(): Promise<void> {
     console.error(describeStatus(guard.status()))
   }
   try {
+    if (guard) loadHarnessCredentialFile()
     const agent: DictationAgent = guard
       ? (await import('./openaiAgent.js')).createOpenAiAgent({
           model: model!,
