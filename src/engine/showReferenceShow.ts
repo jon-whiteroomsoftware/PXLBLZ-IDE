@@ -297,6 +297,20 @@ export function restoreShowReferencePatternSlots(
   }
 }
 
+/** Names the Scene at loop time, retaining it through its outgoing boundary. */
+export function currentShowScene(show: ShowRecord, positionMs: number) {
+  const timeline = projectShowTimeline(show)
+  if (timeline.scenes.length === 0) return null
+  const position = timeline.durationMs > 0
+    ? ((positionMs % timeline.durationMs) + timeline.durationMs) % timeline.durationMs
+    : 0
+  let index = 0
+  for (let candidate = 1; candidate < timeline.scenes.length; candidate++) {
+    if (timeline.scenes[candidate].startMs <= position) index = candidate
+  }
+  return { scene: timeline.scenes[index].scene, index }
+}
+
 export function currentShowReferenceExample(
   show: ShowRecord,
   guide: ShowReferenceGuide,
