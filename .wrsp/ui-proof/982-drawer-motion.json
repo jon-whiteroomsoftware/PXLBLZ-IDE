@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "982",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-100-getting-around",
+  "operation": "Isolated authenticated repository Playwright on the real Show route records hover opening, pointer return cancelling close, full slide closing, and reduced-motion opening/closing. Browser rAF positions in .wrsp/motion-proof/982-positions.json show eight intermediate positions each direction, matching 150ms ease-in-out CSS, visible intermediate closing frames, and no reduced-motion intermediates; recorded frames were decoded and visually inspected. Authorized Playwright fallback after unavailable child IAB discovery and unsupported synthetic cookie injection; no user cookies.",
+  "captures": [
+    ".wrsp/ui-proof/982-drawer-motion.webm"
+  ],
+  "capturedAtCommit": "c7f4f86028b2af1a975f409957c0a47a7f7b0380"
+}
