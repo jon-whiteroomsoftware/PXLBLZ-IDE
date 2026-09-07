@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "#969",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-301-installation-mapping",
+  "operation": "Inspect Shows with 3 distinct Controllers at 1180px",
+  "captures": [
+    ".wrsp/ui-proof/shows-1180-3-controllers.png"
+  ],
+  "capturedAtCommit": "f2f63401b6b4d764b22a6e100321472ba62b843c"
+}
