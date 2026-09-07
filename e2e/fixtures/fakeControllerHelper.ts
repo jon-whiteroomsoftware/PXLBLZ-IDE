@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 
 export interface FakeControllerHelperOptions {
+  address?: string
   programs: Array<{ id: string; name: string }>
   activeProgramId: string
   deviceName: string
@@ -21,6 +22,7 @@ export async function installFakeControllerHelper(
   options: FakeControllerHelperOptions,
 ): Promise<void> {
   await page.addInitScript((fixture) => {
+    const connections = new Set<string>()
     const RELAY_SOURCE = 'pblz-relay'
     let activeProgramId = fixture.activeProgramId
     let pendingProgramId: string | null = null
@@ -89,10 +91,13 @@ export async function installFakeControllerHelper(
         return
       }
       if (message.type === 'connect') {
+        if (fixture.address && new URL(String(message.url)).hostname !== fixture.address) return
+        connections.add(String(message.connId))
         emit({ type: 'open', connId: message.connId })
         return
       }
       if (message.type === 'get-wifi-status') {
+        if (fixture.address && message.address !== fixture.address) return
         emit({
           type: 'wifi-status',
           reqId: message.reqId,
@@ -101,6 +106,7 @@ export async function installFakeControllerHelper(
         })
         return
       }
+      if (fixture.address && message.type !== 'send') return
       if (message.type === 'get-map') {
         emit({ type: 'map-data', reqId: message.reqId, ok: true })
         return
@@ -117,6 +123,7 @@ export async function installFakeControllerHelper(
       if (message.type !== 'send') return
       const payload = message.payload as { text?: string; binary?: string } | undefined
       if (!payload?.text || typeof message.connId !== 'string') return
+      if (fixture.address && !connections.has(message.connId)) return
       const command = JSON.parse(payload.text) as Record<string, unknown>
       writes.push(command)
       if (command.getVars) reply(message.connId, { vars: fixture.vars ?? {} })
@@ -167,4 +174,18 @@ export async function installFakeControllerHelper(
       if ('pause' in command && !('setCode' in command)) reply(message.connId, { ack: 1 })
     })
   }, options)
+}
+
+/** Distinct synthetic devices keyed by their real transport address and firmware MAC. */
+export async function installFakeControllers(
+  page: Page,
+  fixtures: Array<FakeControllerHelperOptions & { address: string }>,
+): Promise<void> {
+  for (const field of ['address', 'mac'] as const) {
+    const values = fixtures.map((fixture) => fixture[field].toLowerCase())
+    if (values.some((value) => !value) || new Set(values).size !== values.length) {
+      throw new Error(`Synthetic Controllers require distinct ${field} values`)
+    }
+  }
+  for (const fixture of fixtures) await installFakeControllerHelper(page, fixture)
 }

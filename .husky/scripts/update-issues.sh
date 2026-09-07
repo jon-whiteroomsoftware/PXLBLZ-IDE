@@ -1,11 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Classifier launch (#940): every delegated CLI launch names an approved model
-# and effort explicitly. This hook is ordinary automation, so it uses the
-# standing Codex worker pair; it never inherits a session's interactive model.
+# Default automation remains Sol High. An explicit paired override requires
+# Jon's authorization; it never inherits the interactive session's model.
 CLASSIFIER_MODEL="gpt-5.6-sol"
 CLASSIFIER_EFFORT="high"
+if [ "${WRSP_ISSUE_CLASSIFIER_MODEL+x}" = x ] || [ "${WRSP_ISSUE_CLASSIFIER_EFFORT+x}" = x ]; then
+  case "${WRSP_ISSUE_CLASSIFIER_MODEL-}:${WRSP_ISSUE_CLASSIFIER_EFFORT-}" in
+    gpt-5.6-sol:high|gpt-6-astra:low)
+      CLASSIFIER_MODEL="$WRSP_ISSUE_CLASSIFIER_MODEL"
+      CLASSIFIER_EFFORT="$WRSP_ISSUE_CLASSIFIER_EFFORT"
+      ;;
+    *)
+      echo "Invalid classifier override: set both WRSP_ISSUE_CLASSIFIER_MODEL and WRSP_ISSUE_CLASSIFIER_EFFORT to an authorized supported pair (gpt-5.6-sol/high or gpt-6-astra/low)." >&2
+      exit 2
+      ;;
+  esac
+fi
 
 COMMIT_MSG=$(git log -1 --pretty=%B)
 COMMIT_SHA=$(git log -1 --pretty=%H | cut -c1-8)

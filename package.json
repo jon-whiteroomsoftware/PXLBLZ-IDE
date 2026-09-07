@@ -137,7 +137,8 @@
     "agent:budget": "npm run check:node && tsx src/agent-harness/experiment/budgetCli.ts",
     "agent:coverage": "npm run check:node && tsx src/agent-harness/run.ts src/agent-harness/grammar/coverageCli.ts",
     "agent:diagnostics": "npm run check:node && vitest run --config vitest.agent-diagnostics.config.ts",
-    "agent:baseline:fixtures": "npm run check:node && tsx src/agent-harness/run.ts src/agent-harness/baseline/fixturesCli.ts"
+    "agent:baseline:fixtures": "npm run check:node && tsx src/agent-harness/run.ts src/agent-harness/baseline/fixturesCli.ts",
+    "capture:shows": "npm run check:node && tsx scripts/with-suite-lock.ts capture:shows -- tsx scripts/run-authenticated-playwright.ts e2e/capture-shows.auth.spec.ts --workers=1"
   },
   "engines": {
     "node": "^22.13.0 || >=24"
@@ -172,7 +173,7 @@
     "@vitejs/plugin-react": "^6.0.2",
     "@vitest/browser-playwright": "^4.1.7",
     "@vitest/coverage-v8": "^4.1.7",
-    "@whiteroom/software-process": "file:vendor/whiteroom-software-process-0.6.0.tgz",
+    "@whiteroom/software-process": "file:vendor/whiteroom-software-process-0.8.0.tgz",
     "ajv": "^8.20.0",
     "eslint": "^10.4.0",
     "eslint-plugin-react-hooks": "^7.1.1",

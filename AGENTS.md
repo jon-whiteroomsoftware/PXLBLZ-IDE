@@ -93,20 +93,11 @@ Preserve these invariants:
 - Implementation is concurrent, but review and landing are serialized. Rebase
   before review, then land the exact approved tip immediately with
   `git merge --ff-only`; never rewrite or cherry-pick approved commits.
-- The Playwright suites run automatically only at push time (#638), and pushes
-  batch several agents' landings — a push-time e2e failure taxes whichever
-  agent happens to push, not the agent who broke it. Before requesting review
-  for a slice that touches a gate-covered surface, run the affected suite in
-  full from the worktree and record which suites ran in the issue's Tests
-  section: Show editor, timeline, Zones, or Show persistence →
-  `npm run test:e2e:shows`; authentication, sessions, or personal content →
-  `npm run test:e2e:auth-smoke`; app shell or Pattern Studio surfaces →
-  `npm run test:e2e`. Run the whole affected suite, not one test — several
-  known failures only reproduce under full-suite timing (#672). State the
-  result as an `X-E2E:` trailer on the slice's final commit (for example
-  `X-E2E: test:e2e:shows 52/52`), placed before `X-Authored-Model:`; the
-  candidate reviewer reads trailers in the range, not the issue, and emits a
-  P3 advisory when a gate-covered surface changes without one.
+- For a slice that touches a gate-covered flow, run focused behavioral checks
+  during implementation and record the cases and results in the issue. The
+  final-suite coordinator runs all required committed-tip suites before landing;
+  use `docs/agents/verification.md` for suite ownership and evidence requirements.
+  An `X-E2E:` trailer or changed spec describes work; neither proves a suite ran.
 - Keep dependent work stacked until its reviewed base lands. The coordinating
   agent owns approval, landing, issue updates, and worktree cleanup.
 - A candidate that changes a UI path named in `wrsp-ui-proof.json` (component
@@ -216,9 +207,12 @@ npm run agent:baseline:fixtures  # baseline fixture exports before/after one scr
 ```
 
 Run required committed-tip suites with `npx wrsp-runner test <tip>` before
-landing. Inspect the printed local failure paths, fix, commit, and re-test.
-Exit 1 is a product failure, 2 infrastructure, 3 cancelled or unknown, and 4
-runner unavailable. Only transport failure returns 4; daemon status errors
+landing. One coordinator owns that submission after the final rebase and
+corrections; other agents report focused results and outstanding checks.
+Inspect failures, fix, commit, and re-test the new tip. Matching completed
+records are reused; resume known jobs after collection failure before submitting
+again. Exit 1 is a product failure, 2 infrastructure, 3 cancelled or unknown,
+and 4 runner unavailable. Only transport failure returns 4; daemon status errors
 return 2 verbatim. Never infer fallback from 4. Use `--backend local` only with
 operator permission and committed `runner.allowLocalBackend: true`. Runner
 diagnostics live under ignored `.wrsp/`; custom `--into` directories must also
@@ -250,31 +244,28 @@ result rather than the word BLOCKED or a nonzero exit:
 Pre-push requires a contiguous chain ending in clean approval instead
 of repeating review, then runs the artifact oracle and consumes exact-tip
 runner evidence for the required suites. See
-`docs/agents/verification.md` for the mechanism and privacy boundary; its
-"WRSP 0.5.2 review packet adoption" section holds the current adoption ledger
-and packet completeness contract, its "WRSP 0.5.1 review policy" section holds
-the reviewer route and repair-loop semantics plus that release's historical
-ledger, and its "WRSP 0.5.0 consumer guards" section holds the evidence boundary
-of each guard.
+`docs/agents/verification.md` for the current verification plan and privacy
+boundary. Its release-specific adoption sections retain historical packet,
+reviewer, and guard migration evidence; the installed version is pinned in
+`package.json` and the lockfile.
 
 End every agent-authored commit message with an `X-Authored-Model:` trailer
 naming the exact model id (for example `X-Authored-Model: claude-fable-5-1` or
 `X-Authored-Model: gpt-5.6-sol`), after any other trailers. Candidate review
 routes to the opposite model family based on this trailer (#637): commits
-without it are unsignalled, receive the default reviewer order, and can never
-claim cross-family coverage on their receipts. Since WRSP 0.5.1 (#960) the
-OpenAI reviewer is Astra Medium (`gpt-6-astra`, medium reasoning effort) and
-reviews Anthropic-authored candidates; the Anthropic reviewer is Fable 5.1
-High and reviews GPT-authored candidates. Astra is reserved for planning and
-review; never launch it as an implementation or execution worker. Ordinary
-execution workers remain GPT-5.6 Sol High, and the generic Fable subagent
-restriction is unchanged. Receipts written under earlier policies (Opus 5
-High before 0.5.0, GPT-5.6 Sol High under 0.5.0) remain on disk as history
-under their recorded names, do not count toward current coverage, and are
-never Astra evidence. When the counterpart family's reviewer is unavailable,
-the gate falls back to a same-family review and records the downgrade on the
-receipt; it never blocks on the missing counterpart and never records the
-downgrade silently.
+without it are unsignalled and cannot claim verified cross-family coverage.
+WRSP 0.8.0 orders reviewers Fable High, Astra Medium, Sol 5.6 High, then Opus 5
+Extra High, selecting only the opposite family for single-family authored work.
+GPT-authored ranges try Fable then Opus; Claude-authored ranges try Astra then
+Sol. A valid review with findings stops for repair; exhausting eligible models
+fails. Mixed-family candidates need splitting.
+Native approvals retain their actual reviewer, effort and policy provenance;
+later model/policy changes do not revoke exact approved ranges. Status and push
+still require contiguous coverage ending in a clean approval. Explicit native
+reviewer selection and historical migration details live in
+`docs/agents/verification.md`. Runtime permission to use a provider is separate.
+Standing execution defaults remain governed by global instructions; a specific
+session override does not install a permanent model default.
 
 Haiku is retired. Never launch it for implementation, review, classification,
 or fallback work (Jon, 2026-09-04).

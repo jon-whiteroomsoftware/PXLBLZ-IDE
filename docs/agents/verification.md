@@ -1,10 +1,9 @@
 # Verification gates
 
-Local verification has three moments: commits get a fast conservative signal,
-landing candidates receive substantive correctness review, and pushes prove
-that exact approved history before running the comprehensive automated suite.
-Review happens once, before landing on local `main`; publication reuses that
-evidence instead of reviewing an expanding stack again.
+Commits get a focused conservative signal. Final candidates receive the required
+full-suite evidence and substantive exact-range review before landing.
+Publication consumes those records and runs its separate artifact oracle;
+it does not execute the four heavy suites again.
 
 Since #724 the gate implementation lives in the shared
 `@whiteroom/software-process` package (vendored as a release tarball under `vendor/`, a `file:` devDependency in
@@ -12,15 +11,55 @@ Since #724 the gate implementation lives in the shared
 its project policy, staged-test selection boundaries, artifact deliverables,
 and e2e meta-check paths in `wrsp.config.mjs`, and its UI proof policy in the
 pure-data `wrsp-ui-proof.json`. The reviewer prompt's project-specific advisory
-paragraph is `review.projectPolicy` there and participates in the policy
-fingerprint, so editing it invalidates receipts exactly like a prompt change.
-Since #961 the installed release is 0.5.2; see
+paragraph is `review.projectPolicy` there and participates in new candidate
+review context. Under WRSP 0.8.0, native approvals retain the policy and reviewer
+facts that authorized their exact ranges; later policy changes do not revoke
+those approvals. Rewrites still require new coverage or supported carry.
+
+The installed release is pinned in `package.json` and `package-lock.json`;
+runner adoption was delivered in #962. The release-specific sections below
+retain historical adoption evidence. See
 [WRSP 0.5.2 review packet adoption](#wrsp-052-review-packet-adoption-961) for
-the current packet representation and adoption ledger,
-[WRSP 0.5.1 review policy](#wrsp-051-review-policy-960) for the reviewer route,
-review-outcome classes, and that release's historical ledger, and
-[WRSP 0.5.0 consumer guards](#wrsp-050-consumer-guards-940) for the guards
-the previous release added and its historical ledger.
+the packet representation introduced there,
+[WRSP 0.5.1 review policy](#wrsp-051-review-policy-960) for reviewer routing,
+and [WRSP 0.5.0 consumer guards](#wrsp-050-consumer-guards-940) for guard history.
+
+## WRSP 0.8.0 adoption (#969)
+
+This migration installs the first-tranche verification and capture changes plus
+native ranked reviewer selection and persistent approvals. It replaces the
+tracked 0.6.0 tarball from #962. The capture adapter imports the package's public
+`capture-scenario` export; a fresh install provides that implementation without
+staging development code in `node_modules`.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 0.8.0, tag `v0.8.0` |
+| Source | `b426a382675836eda6f336ba531d63db263281cc` |
+| Tarball | `vendor/whiteroom-software-process-0.8.0.tgz` |
+| SHA256 | `1ee188a10dac9f8aecb09f102c44b11aa4479733637e2f1b1a5709a3ba8c248f` |
+
+The tarball hash was checked before installation and `npm ci --offline`
+completed from the tracked lockfile. Consumer source, capture proof, final
+runner evidence and exact review coverage are distinct steps; their immutable
+commits and final results are recorded in #969.
+
+The project-policy update removes trailer/spec-change-as-execution claims.
+Under the installed native approval contract, historical exact-range approvals
+retain their original model, effort and policy facts. No old receipt is relabeled,
+and this migration does not require reviewing the previously pushed stack again.
+New or rewritten commit identities still need matching coverage. Test evidence
+binds the current package/configuration/tip and requires fresh final-suite results.
+
+### Authorized classifier override
+
+The post-commit issue classifier remains comment-only and defaults to Sol High.
+An explicit paired `WRSP_ISSUE_CLASSIFIER_MODEL` and
+`WRSP_ISSUE_CLASSIFIER_EFFORT` override supports `gpt-5.6-sol` / `high` or
+`gpt-6-astra` / `low`. Both values are required; partial, empty or unsupported
+pairs are rejected before any paid launch. Selecting the Astra pair requires
+Jon's explicit authorization for that execution. The variables apply to the
+invocation and do not change standing defaults or candidate reviewer routing.
 
 ## Gate ownership
 
@@ -30,7 +69,8 @@ the previous release added and its historical ledger.
 | Before starting in a worktree | `npm run preflight -- worktree` and `npm run preflight -- port <n>` | Refuse substantive work in the shared checkout; report a port's owner before a dev server claims it. |
 | Before each commit | `npm run lint` and `npm run test:staged` | Run colocated tests for staged code plus explicitly mapped high-risk invariants. |
 | Before landing | `npm run review:candidate -- <base> <tip> [--test-design <json>]` | Enforce the UI proof gate for the range, then review one explicit candidate range and record an immutable approval for a valid pass. `npm run check:ui-proof -- <base> <tip>` runs the proof gate alone. |
-| Before each push | `npm run review:push`, `npm run check:artifact-oracle`, `npm run test:full`, `npm run test:e2e`, `npm run test:e2e:auth-smoke`, and `npm run test:e2e:shows` | Require exact approval coverage for every outgoing ref, prove both exported Show deliverables reopen through their importers, run every Vitest file once, then exercise the unauthenticated smoke flow and the authenticated suites. |
+| Final committed tip, before landing | `npx wrsp-runner test <tip>` | One coordinator executes the required full Vitest and three browser suites declared in `wrsp.config.mjs`; matching completed records are reused. |
+| Before each push | `npm run review:push`, `npm run check:artifact-oracle`, and `wrsp-check-test-evidence <tip>` through `.husky/pre-push` | Require exact approval coverage, prove exported Show deliverables reopen, and consume matching evidence for all required runner suites. |
 | Periodic sweep | `npm run check:issue-proof -- --since-days <n>` | Audit recently closed issues for a named and attached proof. A report, not a hook. |
 
 ### Candidate review and landing
@@ -41,13 +81,25 @@ concurrently, but final review and landing form a serialized admission queue:
 
 1. Rebase the next independent candidate onto the latest reviewed local `main`.
 2. Run its focused verification and commit the final candidate tip.
-3. Run `npm run review:candidate -- <main-sha> <candidate-tip>`.
-4. If the candidate passes, land it immediately with `git merge --ff-only`.
-5. Remove the landed worktree and branch.
+3. Have one coordinator run `npx wrsp-runner test <candidate-tip>` for the required
+   full suites, preserving job ids and results. Other agents do not submit the
+   same candidate concurrently; the runner queues jobs but does not merge them.
+4. Run `npm run review:candidate -- <main-sha> <candidate-tip>` with required proof.
+5. If the candidate passes, land it immediately with `git merge --ff-only`.
+6. Remove the landed worktree and branch.
 
-Do not review several sibling candidates from the same base. After one lands,
-the others must rebase before review. Dependent candidates remain deliberately
-stacked until their reviewed base lands.
+A repair or rebase changes the exact tip and requires fresh full evidence.
+Runtime, configuration, command, and package changes can also invalidate records.
+During repairs, use focused tests to settle the changed behavior and keep the
+full required suites outstanding. A focused pass, an e2e spec change, or an
+`X-E2E:` trailer does not constitute full-suite evidence. Resume already known
+jobs after a collection failure rather than resubmitting them.
+
+Before repeating a failed prerequisite, capture attempt, or advisory repair,
+name what changed, what remains unproved, and why another attempt should help.
+If progress stalls, preserve evidence and discuss changing approach, narrowing
+scope, or deferral with Jon. The three-P0/P1 stop still applies; existing gates
+remain mandatory and advisory landing semantics do not guarantee convergence.
 
 `review:candidate` resolves the supplied base and tip to exact Git objects,
 requires their commit ancestry to be linear, and rejects merge commits. The
@@ -60,37 +112,37 @@ construction finishes a size and completeness preflight before launching a
 reviewer. Missing, incomplete, or oversized input remains a non-approval; the
 packet is never truncated to fit the transport.
 
-The primary reviewer is routed against range authorship (#637): commits
-signal their authoring model with an `X-Authored-Model:` trailer (legacy
-Claude `Co-Authored-By:` trailers also classify), and a range authored
-entirely by one model family routes to the opposite family first --
-Anthropic-authored to Astra Medium (`gpt-6-astra`,
-`model_reasoning_effort="medium"`, since WRSP 0.5.1), OpenAI-authored to
-Fable 5.1 High (`claude-fable-5-1`, `--effort high`). Under WRSP 0.5.0 the
-OpenAI reviewer was GPT-5.6 Sol High, and before 0.5.0 the Anthropic reviewer
-was Opus 5 High; receipts from those policies keep their recorded names. Mixed
-or unsignalled ranges use the default order (Fable 5.1 High first, Astra Medium
-as fallback). If the primary
-reviewer cannot return a valid structured decision because of quota, timeout,
-process, or malformed output, the other reviewer receives the same immutable
-input; a fallback that lands same-family is recorded on the receipt as
-`crossFamily: false` and warned about loudly, never silently. Receipts also
-record the signalled `authoredModels`; receipts predating these fields are
-unverified on the cross-family axis, and `review:status` displays each
-receipt as `cross-family`, `SAME-FAMILY`, or `family-unverified`.
+The reviewer tier is Fable High, Astra Medium, Sol 5.6 High, then Opus 5 Extra
+High. A single-family candidate tries only the opposite family's reviewers in
+that order: GPT authorship tries Fable then Opus; Claude authorship tries Astra
+then Sol. A valid review with findings stops the route for repair. Unavailable
+or unusable reviewers advance to the next eligible model; exhaustion fails.
+Mixed-family ranges need splitting, and unsignalled authorship stays unverified.
 
-Astra is reserved for planning and review, never for execution: the route may
-launch it automatically for an authorized review, but nothing in this
-repository launches `gpt-6-astra` for implementation or execution, ordinary
-execution workers remain GPT-5.6 Sol High, and the generic restriction on
-Fable as a subagent model is unchanged (global instructions, 2026-09-05).
+An explicit choice applies to one invocation:
+
+```bash
+npm run review:candidate -- <base> <tip> \
+  --reviewer-model claude-opus-5 --reviewer-effort xhigh
+```
+
+An explicit choice has no fallback unless both fallback model and effort flags
+are supplied. The next ordinary invocation returns to the ranked tier. Native
+receipts preserve actual reviewer, effort, and authorization facts; the later
+status and push gates consume exact contiguous coverage ending in clean
+approval without repeating the review. Historical ledgers below describe what
+the older evaluator did at those migrations, not current revocation behavior.
+
+Provider runtime permission and execution-agent selection are separate from
+review routing. A one-session execution model override does not change standing
+defaults or relabel old receipts.
 
 The Anthropic reviewer streams progress while it works (#637): one line per
 tool call, a heartbeat once a minute, a 5-minute no-event stall timer as the
 primary failure condition, and a 30-minute backstop. On stall or timeout,
 partially emitted structured output is surfaced as diagnostics -- clearly
 marked as not an approval -- instead of being discarded. Approval always
-requires the complete validated result envelope. The Codex fallback is not
+requires the complete validated result envelope. The Codex reviewer is not
 streamed and keeps its 15-minute hard cap. P0/P1 findings are blocking and create no coverage; after correction,
 the complete candidate range must be reviewed again. A failure containing only
 P2/P3 findings records non-terminal advisory coverage for the reviewed range.
@@ -133,12 +185,11 @@ prompt and output-schema versions, review-policy fingerprint, optional
 test-design-context digest, decision, timestamp, and any non-blocking advisory
 findings. Receipt files are created
 without overwrite permission. Amend, rebase, squash, cherry-pick, changed tip,
-changed policy, malformed receipt, missing receipt, or a gap between receipts
-invalidates reuse.
-
-The severity contract is part of the reviewer prompt and policy fingerprint.
-Changing that contract invalidates older receipts even when their clean result
-would otherwise be stronger evidence.
+malformed receipt, missing receipt, or a gap between receipts invalidates direct
+reuse. Supported content-identical carry can establish new exact identities.
+Native approvals retain the policy, severity contract, model and effort facts
+under which they were accepted; changing those facts for later reviews does not
+revoke historical exact-range coverage.
 
 One exception re-keys receipts instead of discarding them: content-id
 carry-forward (#637). Receipts record an ordered per-commit content id -- a
@@ -397,37 +448,26 @@ selector in one call site but not eight, the pan slider but not the zoom slider
 on the adjacent line. Each would have failed this check in the commit that made
 it.
 
-### Pre-landing e2e responsibility (#673)
+### Pre-landing e2e responsibility (#673, #969)
 
-Static checks catch dead locators, not broken behavior. Because the Playwright
-suites run automatically only at push time, and pushes batch several agents'
-landings, a behavioral e2e failure surfaces on whichever agent happens to push
-— hours after the commit that caused it, on top of unrelated work (#667's push
-absorbed exactly this). The implementing agent is therefore responsible for
-e2e validation *before* landing, not the pushing agent:
+Static locator checks do not prove working behavior. The implementing agent
+owns focused behavioral checks and required browser proof for changed flows;
+the final-suite coordinator owns the complete required runner suites under the
+[verification plan](#candidate-review-and-landing). This preserves the original
+#673 goal of finding behavioral defects before landing without repeating a full
+local suite before its authoritative run.
 
-- Before requesting review for a slice that touches a gate-covered surface,
-  run the affected suite in full from the worktree: Show editor, timeline,
-  Zones, or Show persistence → `npm run test:e2e:shows`; authentication,
-  sessions, or personal content → `npm run test:e2e:auth-smoke`; app shell or
-  Pattern Studio surfaces → `npm run test:e2e`.
-- Record which suites ran (and their counts) in the issue's Tests section for
-  the landing coordinator, and as an `X-E2E:` trailer on the slice's final
-  commit (for example `X-E2E: test:e2e:shows 52/52`, before the
-  `X-Authored-Model:` trailer) — the candidate reviewer sees only the commit
-  range, so the trailer is what clears its advisory. For `test:e2e`, the
-  wrapper's `Public e2e verified target:` line names the URL and worktree the
-  suite actually exercised; copy it into the Tests section alongside the
-  counts.
-- Run the whole affected suite, not a filtered test: several failures only
-  reproduce under full-suite timing (#672 reproduced 2/2 in suite order and
-  0/2 in isolation).
-- The candidate reviewer emits a P3 advisory when a diff plainly touches one
-  of these flows and the range carries no corresponding e2e evidence. It
-  rides the ordinary P2/P3 flow: the range keeps non-terminal advisory
-  coverage, and the exact corrective commit is the one carrying the
-  `X-E2E:` trailer once the suite has run. The advisory is a prompt to run
-  the suite, not a substitute for it.
+Record cases, failures, job ids, and results in the issue's Tests section. For
+public e2e, retain the wrapper's `Public e2e verified target:` line so the URL
+and worktree actually exercised remain visible. Whole-suite ordering still
+matters (#672), which is why a focused pass leaves the full suite outstanding.
+
+`review.projectPolicy` asks the reviewer to assess behavioral coverage and
+required proof. A spec change or `X-E2E:` trailer is not execution evidence and
+no longer creates an automatic trailer-only corrective round. Actual missing
+behavioral coverage or browser/artifact proof remains a finding under the
+normal severity contract. The publication hook independently validates all
+required exact-tip suite records.
 
 ## WRSP 0.5.0 consumer guards (#940)
 
@@ -707,9 +747,9 @@ the persistent shared development identity.
 The authenticated suites funnel all four workers through one candidate-owned
 worker-dev Vite process, which makes results sensitive to host load. An open
 browser pane running the app's WebGL preview measurably raises the flake rate.
-Idle or close app tabs before a full-suite run, and read a single-spec failure
-carrying a "Checking Studio access" snapshot as load rather than a product
-defect.
+Idle or close app tabs before a full-suite run. A single-spec failure carrying a
+"Checking Studio access" snapshot is a clue to investigate session readiness
+and host load; the snapshot alone does not establish the cause.
 
 The suite wrappers pass extra flags through to Playwright, so repeat probes are
 cheap:
@@ -721,9 +761,9 @@ npm run test:e2e:shows -- -g "<pattern>" --repeat-each 6 --workers 4
 Do not edit a spec while the wrapper's build phase is running. Workers may load
 either version, and `error-context.md` renders the *current* file against the
 executed run's positions — add a unique marker line before trusting which version
-failed. Run whole suites rather than filtered tests when validating a
-gate-covered surface, and never run two authenticated suites concurrently: they
-collide on ports and shared D1.
+failed. Use filtered tests during diagnosis; the authoritative runner still
+executes the whole configured suite for final evidence. Never run two
+authenticated suites concurrently: they collide on ports and shared D1.
 
 ### React act() warnings hide behind the console intercept (#917)
 

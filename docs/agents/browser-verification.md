@@ -237,3 +237,34 @@ column, which is what matters for image legibility), write it to an untracked
 file at the repo root, and serve the repo root over a plain local HTTP server so
 relative `docs/screenshots/...` paths resolve. The agent browser pane only
 attaches to origins it started itself, so hand over the URL rather than retrying.
+
+## Reusable authenticated Shows captures
+
+`e2e/capture-shows.auth.spec.ts` drives the real Shows route with isolated
+Playwright synthetic sessions and address/MAC-specific Controllers. It declares
+1440px with one Controller and 1180px/390px with three. The maintained adapter
+checks the visible authenticated account, actual route, Show controls, live pills
+and durable distinct device identities before packaging images through WRSP.
+The capture definition and source must already be committed and clean:
+
+```bash
+mkdir -p /tmp/pxlblz-shows-proof
+PXLBLZ_CAPTURE_OUTPUT=/tmp/pxlblz-shows-proof npm run capture:shows
+```
+
+The wrapper allocates an isolated runtime and synthetic D1, then releases them.
+Each successful attempt prints `CAPTURE_PACKAGE` with an external directory.
+Open each PNG. Copy that package's `.wrsp/ui-proof/` files into the checkout and
+commit them before submitting the final clean tip to the runner. Preserve its
+external `capture-manifest.json` with issue evidence: it records scenario,
+observations, captured commit, byte count and digest. It is supplementary
+metadata; existing version 1 proof and review semantics remain authoritative.
+Capture output never requires a temporary untracked spec in the source tree.
+
+Full navigation/reload reconnects only the product's remembered Controller.
+The adapter explicitly reconnects missing fixture devices after navigation;
+three live connections are not a raw-reload persistence guarantee. The regression
+also verifies that SPA navigation preserves the three distinct connections.
+Authentication, route, count, identity or readiness mismatch refuses proof.
+Bounded readiness waits cover normal startup; after roughly three failed probes
+on one obstacle, retain observed state and surface the next decision.

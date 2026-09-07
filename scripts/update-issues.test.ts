@@ -33,6 +33,8 @@ interface HookRun {
 
 interface HookRunOptions {
   branch?: string
+  classifierModel?: string
+  classifierEffort?: string
   /** JSON the stubbed classifier writes to its --output-last-message file. */
   decision?: string
   /** Stub exits with this code before writing any decision (CLI failure). */
@@ -112,6 +114,26 @@ describe('post-commit classifier launch (#940)', () => {
     })
     // The decision came from the file the stub wrote, and it acted on the issue.
     expect(run.ghCalls).toContain('issue comment 598 --body Progress note.')
+  })
+
+  it('uses an explicitly authorized Astra Low pair without changing the default (#969)', () => {
+    const run = runHook({ classifierModel: 'gpt-6-astra', classifierEffort: 'low', decision: '{"action":"nothing","message":""}' })
+    expect(run.status).toBe(0)
+    expect(run.codexArgs).toMatch(/^exec --model gpt-6-astra --config model_reasoning_effort="low" /)
+    expect(runHook({ decision: '{"action":"nothing","message":""}' }).codexArgs).toMatch(APPROVED_LAUNCH)
+  })
+
+  it.each([
+    { classifierModel: 'gpt-6-astra' },
+    { classifierEffort: 'low' },
+    { classifierModel: 'gpt-6-astra', classifierEffort: 'high' },
+    { classifierModel: 'arbitrary', classifierEffort: 'low' },
+    { classifierModel: '', classifierEffort: '' },
+  ])('rejects incomplete or unsupported override %j before paid work (#969)', (selection) => {
+    const run = runHook(selection)
+    expect(run.status).toBe(2)
+    expect(run.codexArgs).toBe('')
+    expect(run.ghCalls).toBe('')
   })
 
   it('sends the prompt over stdin and keeps it and the transcript off stdout', () => {
@@ -238,6 +260,8 @@ ${options.failAfterWrite !== undefined ? `exit ${options.failAfterWrite}` : ''}
       encoding: 'utf8',
       env: {
         ...gitEnv,
+        WRSP_ISSUE_CLASSIFIER_MODEL: options.classifierModel,
+        WRSP_ISSUE_CLASSIFIER_EFFORT: options.classifierEffort,
         PATH: `${fakeBin}:/usr/bin:/bin`,
         PXLBLZ_TEST_GH_CALLS: ghCallsPath,
         PXLBLZ_TEST_CODEX_ARGS: codexArgsPath,

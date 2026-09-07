@@ -1,8 +1,8 @@
 // PXLBLZ-IDE configuration for @whiteroom/software-process (#724, #940).
 //
 // review.projectPolicy participates in the review policy fingerprint:
-// editing it invalidates existing receipts, exactly like changing the
-// reviewer prompt. The selection boundaries reproduce the invariant map
+// editing it changes new candidate review context. WRSP 0.8.0 retains
+// historical native approvals under their recorded policy. The selection boundaries reproduce the invariant map
 // that previously lived in scripts/test-selection.mjs.
 //
 // The UI proof policy is deliberately NOT here: wrsp-ui-proof.json is a
@@ -10,7 +10,7 @@
 // range, so executable configuration can never substitute its own patterns.
 export default {
   review: {
-    projectPolicy: `The Playwright suites run only at push time, so pre-landing e2e validation is the implementing agent's responsibility (docs/agents/verification.md, #673). When the diff plainly changes a flow those suites cover — Show editor or timeline interaction, Zone or Show persistence, authentication or personal-content plumbing, app-shell navigation, or Pattern Studio surfaces — and no commit in the range carries either a corresponding e2e spec change or an X-E2E: trailer naming the affected suite, add one P3 advisory finding naming the suite to run (test:e2e:shows, test:e2e:auth-smoke, or test:e2e). This advisory follows the ordinary P3 flow — the decision is "fail", the range records non-terminal advisory coverage, and the exact corrective commit is one that carries the X-E2E: trailer after the suite has run (or that fixes what the suite caught). An X-E2E: trailer or e2e spec change already in the range means the evidence exists: do not emit the advisory.`,
+    projectPolicy: `For changed user flows, assess whether the candidate's tests and required proof demonstrate the affected behavior. Focused checks support implementation and repairs; the required full suites in runner.suites produce exact-tip evidence before landing and the publication hook consumes it. An X-E2E trailer or an e2e spec change is not execution evidence. Do not demand an additional equivalent full local suite merely because runner evidence is produced separately. Missing behavioral coverage or required browser/artifact proof remains a review finding under the normal severity contract.`,
   },
   runner: {
     suites: {
