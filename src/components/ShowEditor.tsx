@@ -823,7 +823,7 @@ function ShowLiveStrip({
           {chooserOpen && <ShowTimelineToolbarPopover anchor={chipAnchor} escapeLayerRank={SHOW_ESCAPE_LAYER_RANK.headerPopover} widthPx={320} ariaLabel="Try with Pattern"
             className="w-80 max-w-[calc(100vw-40px)] rounded border border-zinc-700 bg-[#10191e] p-3 font-mono text-[10px] shadow-xl"
             onDismiss={() => setChooserOpen(false)}>
-            <div className="mb-3 flex items-center gap-2 border-b border-zinc-800 pb-2"><Layers3 size={12} aria-hidden /><strong className="font-medium">Try with Pattern</strong></div>
+            <div className="mb-3 flex items-center gap-2 border-b border-zinc-800 pb-2"><Layers3 size={12} aria-hidden /><strong className="font-medium text-zinc-200">Try with Pattern</strong></div>
             <ShowPatternSlotPicker show={show} slotGroups={groups} patternOptions={patternOptions} selections={selections}
               onSelectPattern={(index, pattern) => { onSelectPattern(index, pattern); setChooserOpen(false) }} />
             <div className="mt-3 flex justify-end border-t border-zinc-800 pt-2">

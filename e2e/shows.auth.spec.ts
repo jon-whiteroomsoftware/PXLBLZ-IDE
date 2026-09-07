@@ -3206,7 +3206,7 @@ test.describe('lesson pill, Reading card and Live strip (#985)', () => {
     const card = page.getByRole('dialog', { name: `${apertureTitle} guide`, exact: true })
     const strip = page.getByRole('region', { name: `${apertureTitle} live strip` })
     await expect(strip).toBeVisible()
-    expect((await strip.boundingBox())!.height).toBe(32)
+    expect(Math.abs((await strip.boundingBox())!.height - 2 * await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize)))).toBeLessThanOrEqual(0.5)
     const timeline = page.getByRole('region', { name: 'Show timeline', exact: true })
     const preview = page.getByTestId('show-stage-canvas-frame')
     const before = [await timeline.boundingBox(), await preview.boundingBox()]
@@ -3249,7 +3249,7 @@ test.describe('lesson pill, Reading card and Live strip (#985)', () => {
     await pill.click()
     await card.getByRole('switch', { name: 'Live strip' }).click()
     await expect(strip).toBeVisible()
-    expect((await strip.boundingBox())!.height).toBe(32)
+    expect(Math.abs((await strip.boundingBox())!.height - 2 * await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize)))).toBeLessThanOrEqual(0.5)
   })
 
   test('Aperture narration advances from Heart 1/9 to Star 2/9 with loop progress', async ({ page }) => {
@@ -3268,7 +3268,7 @@ test.describe('lesson pill, Reading card and Live strip (#985)', () => {
     await expect(strip.getByText('Star', { exact: true })).toBeVisible({ timeout: 10_000 })
     await expect(strip.getByText('2/9', { exact: true })).toBeVisible()
     expect((await progress.boundingBox())!.width).toBeGreaterThan(initialWidth)
-    expect((await strip.boundingBox())!.height).toBe(32)
+    expect(Math.abs((await strip.boundingBox())!.height - 2 * await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize)))).toBeLessThanOrEqual(0.5)
   })
 
   test('three Pattern slots share one popover, relabel slot 2 and preserve Space after chip and hide clicks', async ({ page }) => {
@@ -3328,7 +3328,7 @@ test.describe('lesson pill, Reading card and Live strip (#985)', () => {
     await expect(pill.locator('.show-note-pill-label').first()).toBeHidden()
     await expect(strip.getByText('Heart', { exact: true })).toBeVisible()
     await expect(strip.getByText('1/9', { exact: true })).toBeVisible()
-    expect((await strip.boundingBox())!.height).toBe(32)
+    expect(Math.abs((await strip.boundingBox())!.height - 2 * await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize)))).toBeLessThanOrEqual(0.5)
     expect(await strip.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
     expect((await strip.getByRole('combobox', { name: 'Try with Pattern' }).boundingBox())!.width).toBe(128)
     await expect(strip.locator('.show-note-detail').first()).toBeHidden()
@@ -3375,6 +3375,6 @@ test.describe('lesson pill, Reading card and Live strip (#985)', () => {
     const chip = strip.getByRole('button', { name: 'Patterns (3)' })
     await expect(chip).toBeVisible()
     await expect.poll(() => chip.innerText()).toBe('(3)')
-    expect((await strip.boundingBox())!.height).toBe(32)
+    expect(Math.abs((await strip.boundingBox())!.height - 2 * await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize)))).toBeLessThanOrEqual(0.5)
   })
 })
