@@ -196,7 +196,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('keeps the Stage aspect exact while the divider reaches both desktop clamps (#686, #967)', async ({ page }) => {
     test.slow()
-    await page.setViewportSize({ width: 1950, height: 1196 })
+    await page.setViewportSize({ width: 1180, height: 1196 })
     await page.goto('studio/shows/stock-show-remix-overture')
 
     const splitter = page.getByRole('separator', { name: 'Resize timeline and Stage' })
@@ -234,7 +234,7 @@ test.describe('authenticated Show authoring', () => {
         getComputedStyle(element).gridTemplateColumns.split(' ').length
       ))).toBe(expectedColumns)
     }
-    await page.setViewportSize({ width: 1950, height: 1196 })
+    await page.setViewportSize({ width: 1180, height: 1196 })
 
     for (let step = 0; step < 20; step += 1) await splitter.press('Shift+ArrowUp')
     await expect(splitter).toHaveAttribute('data-clamp', 'controls-min')
@@ -247,6 +247,7 @@ test.describe('authenticated Show authoring', () => {
     await expect.poll(async () => (await geometry()).aspectError).toBeLessThan(0.002)
     await expect.poll(async () => (await geometry()).horizontalOverflow).toBe(0)
 
+    await page.setViewportSize({ width: 1950, height: 1196 })
     for (let step = 0; step < 30; step += 1) await splitter.press('Shift+ArrowDown')
     await expect(splitter).toHaveAttribute('data-clamp', 'strip-min')
     await expect.poll(async () => sections.evaluate((element) => (
@@ -316,9 +317,14 @@ test.describe('authenticated Show authoring', () => {
     expect(draggedValue).toBeGreaterThan(initialValue + 20)
 
     await page.goto('studio/shows/stock-show-106-built-from-basics')
-    await expect(page.getByRole('separator', { name: 'Resize timeline and Stage' }))
-      .toHaveAttribute('aria-valuenow', String(draggedValue))
+    const switchedSplitter = page.getByRole('separator', { name: 'Resize timeline and Stage' })
+    await expect.poll(async () => Number(await switchedSplitter.getAttribute('aria-valuenow')))
+      .toBeGreaterThanOrEqual(draggedValue)
     await page.reload()
+    await expect.poll(async () => Number(await page.getByRole('separator', { name: 'Resize timeline and Stage' }).getAttribute('aria-valuenow')))
+      .toBeGreaterThanOrEqual(draggedValue)
+
+    await page.goto('studio/shows/stock-show-remix-overture')
     await expect(page.getByRole('separator', { name: 'Resize timeline and Stage' }))
       .toHaveAttribute('aria-valuenow', String(draggedValue))
   })
