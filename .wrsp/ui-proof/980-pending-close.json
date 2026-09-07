@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "980",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
+  "operation": "Unpinned Shows drawer 300 ms into its pending mouse-out close interval: no countdown indicator or replacement. Real managed product at port 5178, isolated repo Playwright context with synthetic local-agent-09 session; Playwright clock controls elapsed time. Pointer return kept drawer open beyond expiry; next leave stayed open through 599 ms and tucked at 600 ms. Pinned list remained pinned after mouse-out. No console or page errors.",
+  "captures": [
+    ".wrsp/ui-proof/980-pending-close.png"
+  ],
+  "capturedAtCommit": "72f996e699952010d1f568e1a79df4b699869b03"
+}
