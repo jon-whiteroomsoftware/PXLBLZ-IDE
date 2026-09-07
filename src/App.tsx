@@ -1013,7 +1013,7 @@ function StudioApp() {
           workspace branch. */}
       <NavigationSaveFailureNotice />
       <NavigationPreflightDialog />
-      <header data-testid="top-bar" className="flex h-10 min-h-10 shrink-0 flex-nowrap items-center border-b border-seam bg-panel px-2 min-[430px]:px-3 sm:px-4">
+      <header data-testid="top-bar" className="flex h-[40px] min-h-[40px] shrink-0 flex-nowrap items-center border-b border-seam bg-panel px-2 min-[430px]:px-3 sm:px-4">
         <a
           href={import.meta.env.BASE_URL}
           aria-label="PXLBLZ home"

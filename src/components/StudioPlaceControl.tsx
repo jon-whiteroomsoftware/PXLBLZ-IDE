@@ -148,7 +148,7 @@ export function StudioPlaceControl({
             openList(event.key === 'ArrowDown' ? 0 : STUDIO_PLACES.length - 1)
           }
         }}
-        className="inline-flex h-8 shrink-0 items-center gap-2 rounded-[7px] border border-amber-400/35 bg-amber-400/[0.08] px-2 font-mono text-[13px] font-semibold tracking-[0.01em] text-zinc-100 transition-colors hover:border-amber-400/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 max-[430px]:gap-1 max-[430px]:px-1"
+        className="inline-flex h-[32px] shrink-0 items-center gap-2 rounded-[7px] border border-amber-400/35 bg-amber-400/[0.08] px-2 font-mono text-[13px] font-semibold tracking-[0.01em] text-zinc-100 transition-colors hover:border-amber-400/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 max-[430px]:gap-1 max-[430px]:px-1"
       >
         <CurrentIcon size={18} aria-hidden className="shrink-0 text-live" />
         <span>{definition.label}</span>
@@ -161,7 +161,7 @@ export function StudioPlaceControl({
           role="listbox"
           aria-label="Places"
           aria-activedescendant={`${listboxId}-${STUDIO_PLACES[activeIndex].id}`}
-          className="absolute left-0 top-9 z-[70] w-[300px] rounded-lg border border-zinc-700 bg-zinc-900 p-1.5 font-mono text-[11px] text-zinc-300 shadow-2xl shadow-black/60"
+          className="absolute left-0 top-[36px] z-[70] w-[300px] rounded-lg border border-zinc-700 bg-zinc-900 p-1.5 font-mono text-[11px] text-zinc-300 shadow-2xl shadow-black/60"
         >
           {STUDIO_PLACES.map((place, index) => {
             const Icon = ICONS[place.id]
