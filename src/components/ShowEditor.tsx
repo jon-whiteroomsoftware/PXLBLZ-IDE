@@ -12,6 +12,7 @@ import { PercentageField as UiPercentageField, type PercentageFieldProps as UiPe
 import { DomainNumberField as UiDomainNumberField, type DomainNumberFieldProps as UiDomainNumberFieldProps } from '@/components/ui/domain-number-field'
 import { BoundedNumberField } from '@/components/ui/bounded-number-field'
 import { formatDomainNumber } from '@/engine/domainNumberPresentation'
+import { measureShowTimelineMinimumHeight } from '@/engine/showWorkspaceLayout'
 import { resolveLinearNumberPresentation } from '@/engine/linearNumberPresentation'
 import { formatPercentageValue } from '@/engine/percentageValue'
 import { formatShowTime, showBoundaryClipIdentity } from '@/engine/showClipIdentity'
@@ -944,6 +945,7 @@ export function ShowEditor({
   headerActionsTarget = null,
   transportClockActive = false,
   protectDetailPanelTransport = false,
+  onTimelineMinimumHeightChange,
   onOpenStagePreview,
 }: {
   showId: string
@@ -961,6 +963,7 @@ export function ShowEditor({
   headerActionsTarget?: HTMLElement | null
   transportClockActive?: boolean
   protectDetailPanelTransport?: boolean
+  onTimelineMinimumHeightChange?: (height: number) => void
   onOpenStagePreview?: (anchor: HTMLElement) => void
 }) {
   useLayoutEffect(() => {
@@ -1146,6 +1149,7 @@ export function ShowEditor({
     }
   }, [readOnly, showId])
   const timelineWorkspaceRef = useRef<HTMLElement>(null)
+  const showEditorPaneRef = useRef<HTMLDivElement>(null)
   const lastTimelineFocusRef = useRef<HTMLElement | null>(null)
   const closeDetailPanel = useCallback((restoreFocus = false) => {
     const previousAnchor = detailAnchor
@@ -1610,6 +1614,54 @@ export function ShowEditor({
     }
   }, [activeShow, stageDimension, userPatterns])
   const timelineComposition = timelineProjection?.composition ?? null
+  useLayoutEffect(() => {
+    if (!onTimelineMinimumHeightChange) return
+
+    const measure = () => {
+      const root = showEditorPaneRef.current
+      const toolbar = root?.querySelector<HTMLElement>('[data-testid="show-timeline-toolbar"]')
+      const timelineGrid = root?.querySelector<HTMLElement>('[data-testid="show-timeline-grid"]')
+      const footer = root?.querySelector<HTMLElement>('[data-testid="show-compile-bar"]')
+      if (!root || !toolbar || !timelineGrid || !footer) return
+
+      const laneRects = Array.from(root.querySelectorAll<HTMLElement>('[data-show-zone-id]'))
+        .map((element) => element.getBoundingClientRect())
+        .filter((rect) => rect.height > 0)
+        .sort((left, right) => left.top - right.top)
+        .filter((rect, index, rects) => index === 0 || Math.abs(rect.top - rects[index - 1].top) > 1)
+      const firstLane = laneRects[0]
+      if (!firstLane) return
+
+      const rowGap = Number.parseFloat(window.getComputedStyle(timelineGrid).rowGap) || 0
+      const secondLaneBottom = laneRects[1]?.bottom ?? firstLane.bottom + rowGap + firstLane.height
+      onTimelineMinimumHeightChange(measureShowTimelineMinimumHeight({
+        transportTop: toolbar.getBoundingClientRect().top,
+        secondLaneBottom,
+        fixedFooterHeight: footer.getBoundingClientRect().height,
+      }))
+    }
+
+    measure()
+    const frame = window.requestAnimationFrame(measure)
+    const observer = new ResizeObserver(measure)
+    const root = showEditorPaneRef.current
+    if (root) {
+      observer.observe(root)
+      const measuredChildren = [
+        root.querySelector<HTMLElement>('[data-testid="show-timeline-toolbar"]'),
+        root.querySelector<HTMLElement>('[data-testid="show-timeline-grid"]'),
+        root.querySelector<HTMLElement>('[data-testid="show-compile-bar"]'),
+        ...root.querySelectorAll<HTMLElement>('[data-show-zone-id]'),
+      ]
+      for (const child of measuredChildren) {
+        if (child) observer.observe(child)
+      }
+    }
+    return () => {
+      window.cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
+  }, [onTimelineMinimumHeightChange, showId, timelineComposition])
   useEffect(() => {
     if (!activeShow) {
       setDiagnosticFocus(null)
@@ -2405,7 +2457,7 @@ export function ShowEditor({
     ?.querySelector<HTMLElement>('[data-testid="show-timeline-toolbar"]')
 
   return (
-    <div className="show-editor-pane flex h-full min-h-0 flex-col bg-zinc-950/75 font-mono text-xs text-zinc-400">
+    <div ref={showEditorPaneRef} className="show-editor-pane flex h-full min-h-0 flex-col bg-zinc-950/75 font-mono text-xs text-zinc-400">
       {headerGuideTarget && showNoteTrigger
         ? createPortal(showNoteTrigger, headerGuideTarget)
         : null}

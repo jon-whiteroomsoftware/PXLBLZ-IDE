@@ -57,4 +57,23 @@ describe('ShowWorkspace (#967)', () => {
     expect(screen.getByTestId('show-stage-strip')).toHaveStyle({ height: '393px' })
     expect(window.localStorage.getItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY)).toBe('301')
   })
+
+  it('uses the timeline chrome measurement as the keyboard clamp', () => {
+    render(
+      <ShowWorkspace
+        previewAspect={1}
+        timelineMinimumHeight={247}
+        timeline={<div>timeline</div>}
+        stage={<div>stage</div>}
+      />,
+    )
+    resizeWorkspace(900, 700)
+
+    const divider = screen.getByRole('separator', { name: 'Resize timeline and Stage' })
+    for (let step = 0; step < 10; step += 1) {
+      fireEvent.keyDown(divider, { key: 'ArrowUp', shiftKey: true })
+    }
+    expect(divider).toHaveAttribute('aria-valuenow', '247')
+    expect(divider).toHaveAttribute('data-clamp', 'timeline-min')
+  })
 })

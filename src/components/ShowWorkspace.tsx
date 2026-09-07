@@ -11,10 +11,12 @@ import {
 
 export function ShowWorkspace({
   previewAspect,
+  timelineMinimumHeight = SHOW_TIMELINE_MIN_HEIGHT,
   timeline,
   stage,
 }: {
   previewAspect: number
+  timelineMinimumHeight?: number
   timeline: ReactNode
   stage: ReactNode | null
 }) {
@@ -43,7 +45,8 @@ export function ShowWorkspace({
     ...size,
     desiredTimelineHeight,
     previewAspect,
-  }), [desiredTimelineHeight, previewAspect, size])
+    timelineMinimumHeight,
+  }), [desiredTimelineHeight, previewAspect, size, timelineMinimumHeight])
 
   const rememberTimelineHeight = useCallback((height: number) => {
     const rounded = Math.round(height)
@@ -60,9 +63,10 @@ export function ShowWorkspace({
       ...size,
       desiredTimelineHeight: layout.timelineHeight + deltaY,
       previewAspect,
+      timelineMinimumHeight,
     })
     rememberTimelineHeight(next.timelineHeight)
-  }, [layout.timelineHeight, previewAspect, rememberTimelineHeight, size])
+  }, [layout.timelineHeight, previewAspect, rememberTimelineHeight, size, timelineMinimumHeight])
 
   const beginDragging = (event: React.PointerEvent<HTMLDivElement>) => {
     dragRef.current = { pointerId: event.pointerId, y: event.clientY }
@@ -86,7 +90,7 @@ export function ShowWorkspace({
         tabIndex={0}
         aria-label="Resize timeline and Stage"
         aria-orientation="horizontal"
-        aria-valuemin={Math.min(SHOW_TIMELINE_MIN_HEIGHT, Math.max(1, size.height - SHOW_WORKSPACE_DIVIDER_HEIGHT))}
+        aria-valuemin={Math.min(timelineMinimumHeight, Math.max(1, size.height - SHOW_WORKSPACE_DIVIDER_HEIGHT))}
         aria-valuemax={Math.max(1, size.height - SHOW_WORKSPACE_DIVIDER_HEIGHT - SHOW_STRIP_MIN_HEIGHT)}
         aria-valuenow={layout.timelineHeight}
         data-clamp={layout.clamp ?? 'none'}

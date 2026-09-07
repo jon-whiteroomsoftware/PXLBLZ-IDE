@@ -4,6 +4,7 @@ import {
   SHOW_STRIP_MIN_HEIGHT,
   SHOW_TIMELINE_MIN_HEIGHT,
   parseShowTimelineHeight,
+  measureShowTimelineMinimumHeight,
   resolveShowWorkspaceLayout,
   serializeShowTimelineHeight,
   showControlsLayoutMode,
@@ -67,6 +68,22 @@ describe('Show workspace over/under layout (#967)', () => {
       stripHeight: SHOW_STRIP_MIN_HEIGHT,
       clamp: 'strip-min',
     })
+  })
+
+  it('derives the product timeline minimum from its rendered chrome and two lanes', () => {
+    const timelineMinimumHeight = measureShowTimelineMinimumHeight({
+      transportTop: 96,
+      secondLaneBottom: 306,
+      fixedFooterHeight: 36.2,
+    })
+    expect(timelineMinimumHeight).toBe(247)
+    expect(resolveShowWorkspaceLayout({
+      width: 1200,
+      height: 900,
+      desiredTimelineHeight: 40,
+      previewAspect: 1,
+      timelineMinimumHeight,
+    })).toMatchObject({ timelineHeight: 247, clamp: 'timeline-min' })
   })
 
   it('round-trips a finite remembered Show-mode split and rejects corrupt storage', () => {

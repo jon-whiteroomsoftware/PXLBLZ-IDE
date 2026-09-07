@@ -20,11 +20,13 @@ export function resolveShowWorkspaceLayout({
   height,
   desiredTimelineHeight,
   previewAspect,
+  timelineMinimumHeight = SHOW_TIMELINE_MIN_HEIGHT,
 }: {
   width: number
   height: number
   desiredTimelineHeight: number | null
   previewAspect: number
+  timelineMinimumHeight?: number
 }): ShowWorkspaceLayout {
   const workspaceWidth = Math.max(1, Math.floor(width))
   const availableHeight = Math.max(1, Math.floor(height) - SHOW_WORKSPACE_DIVIDER_HEIGHT)
@@ -33,7 +35,8 @@ export function resolveShowWorkspaceLayout({
     ? Math.round(availableHeight * SHOW_TIMELINE_DEFAULT_FRACTION)
     : Math.round(desiredTimelineHeight)
   const desiredStrip = availableHeight - desiredTimeline
-  const timelineBound = Math.max(1, availableHeight - SHOW_TIMELINE_MIN_HEIGHT)
+  const minimumTimeline = Math.max(1, Math.ceil(timelineMinimumHeight))
+  const timelineBound = Math.max(1, availableHeight - minimumTimeline)
   const controlsBound = Math.max(1, Math.floor((workspaceWidth - SHOW_CONTROLS_MIN_WIDTH) / aspect))
   const upperStrip = Math.max(1, Math.min(timelineBound, controlsBound))
   const lowerStrip = Math.min(SHOW_STRIP_MIN_HEIGHT, upperStrip)
@@ -60,6 +63,18 @@ export function resolveShowWorkspaceLayout({
     controlsWidth: Math.max(0, workspaceWidth - previewWidth),
     clamp,
   }
+}
+
+export function measureShowTimelineMinimumHeight({
+  transportTop,
+  secondLaneBottom,
+  fixedFooterHeight,
+}: {
+  transportTop: number
+  secondLaneBottom: number
+  fixedFooterHeight: number
+}): number {
+  return Math.max(1, Math.ceil(secondLaneBottom - transportTop + fixedFooterHeight))
 }
 
 export function showControlsLayoutMode(width: number): 'compact' | 'one-column' | 'two-column' | 'three-column' {

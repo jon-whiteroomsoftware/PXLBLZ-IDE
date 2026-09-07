@@ -38,6 +38,7 @@ import { ShowEditor } from '@/components/ShowEditor'
 import { ShowEditorOverhaulPrototype } from '@/components/ShowEditorOverhaulPrototype'
 import { ShowStagePreview } from '@/components/ShowStagePreview'
 import { ShowWorkspace } from '@/components/ShowWorkspace'
+import { SHOW_TIMELINE_MIN_HEIGHT } from '@/engine/showWorkspaceLayout'
 import { ShowCreationFlow, type ShowCreationMapOption } from '@/components/ShowCreationFlow'
 import { useControllerStore } from '@/store/controllerStore'
 import { MapModeHeader } from '@/components/MapModeHeader'
@@ -430,6 +431,7 @@ function StudioApp() {
   const [showHeaderGuideTarget, setShowHeaderGuideTarget] = useState<HTMLSpanElement | null>(null)
   const [showStageOverlayShowId, setShowStageOverlayShowId] = useState<string | null>(null)
   const [showStagePreviewAspect, setShowStagePreviewAspect] = useState(1)
+  const [showTimelineMinimumHeight, setShowTimelineMinimumHeight] = useState(SHOW_TIMELINE_MIN_HEIGHT)
   const [studioViewportWidth, setStudioViewportWidth] = useState(() => window.innerWidth)
   const narrowShowWorkspace = studioViewportWidth <= 980
   const showStageReturnFocusRef = useRef<HTMLElement | null>(null)
@@ -822,6 +824,7 @@ function StudioApp() {
       headerActionsTarget={showHeaderActionsTarget}
       transportClockActive={narrowShowWorkspace && showStageOverlayShowId !== activeShow.id}
       protectDetailPanelTransport={!narrowShowWorkspace}
+      onTimelineMinimumHeightChange={setShowTimelineMinimumHeight}
       onOpenStagePreview={(anchor) => {
         showStageReturnFocusRef.current = anchor
         setShowStageOverlayShowId(activeShow.id)
@@ -1436,6 +1439,7 @@ function StudioApp() {
               ) : activeShow ? (
                 <ShowWorkspace
                   previewAspect={showStagePreviewAspect}
+                  timelineMinimumHeight={showTimelineMinimumHeight}
                   timeline={activeShowEditor}
                   stage={narrowShowWorkspace ? null : (
                       <ShowStagePreview
