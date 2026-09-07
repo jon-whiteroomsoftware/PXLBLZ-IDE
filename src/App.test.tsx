@@ -35,6 +35,7 @@ import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { openDemoPattern } from '@/store/openPattern'
 import { studioOperationInitialState, useStudioOperationStore } from '@/store/studioOperationStore'
 import { EMPTY_REMEMBERED_STUDIO_PLACES, useStudioPlaceStore } from '@/store/studioPlaceStore'
+import { useStudioEntityDrawerStore } from '@/store/studioEntityDrawerStore'
 
 const authSessionMock = vi.hoisted(() => ({
   getAuthSession: vi.fn(),
@@ -80,6 +81,7 @@ beforeEach(() => {
   useEntityOrganizationStore.setState(entityOrganizationInitialState)
   useStudioOperationStore.setState(studioOperationInitialState)
   useStudioPlaceStore.setState({ remembered: EMPTY_REMEMBERED_STUDIO_PLACES })
+  useStudioEntityDrawerStore.setState({ pinPreferences: {} })
 })
 
 afterEach(() => {
@@ -354,23 +356,26 @@ describe('App smoke test', () => {
     expect(screen.getByTestId('left-pane')).toBeInTheDocument()
   })
 
-  it('collapses the shared library to its compact header affordance without restoring the activity strip (#466, #965)', async () => {
+  it('tucks the entity list behind its place edge tab and reopens it as an overlay (#466, #965, #966)', async () => {
     setStudioLocation()
     seedSignedInWorkspace()
     render(<App />)
 
-    const pane = screen.getByTestId('left-pane')
-    expect(pane).toHaveStyle({ width: '288px', maxWidth: '34vw' })
+    const layout = screen.getByTestId('studio-drawer-layout')
+    expect(layout).toHaveAttribute('data-drawer-mode', 'pinned')
     expect(screen.queryByRole('button', { name: 'Catalog' })).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Collapse rail' }))
-    expect(pane).toHaveStyle({ width: '32px' })
+    await userEvent.click(screen.getByRole('button', { name: 'Unpin Patterns list' }))
+    expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
     expect(screen.queryByRole('radiogroup', { name: 'Studio activity' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Expand library' })).toHaveClass('size-7')
+    const edgeTab = screen.getByRole('button', { name: 'Open the Patterns list' })
+    expect(edgeTab).toHaveClass('w-[22px]')
 
-    await userEvent.click(screen.getByRole('button', { name: 'Expand library' }))
-    expect(pane).toHaveStyle({ width: '288px', maxWidth: '34vw' })
-    expect(screen.getByRole('button', { name: 'Collapse rail' })).toBeInTheDocument()
+    await userEvent.click(edgeTab)
+    expect(layout).toHaveAttribute('data-drawer-mode', 'open')
+    expect(screen.getByRole('button', { name: 'Pin Patterns list' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Close Patterns list' }))
+    expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
   })
 
   it('has an editor pane', () => {

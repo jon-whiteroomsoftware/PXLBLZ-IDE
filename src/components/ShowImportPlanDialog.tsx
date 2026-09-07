@@ -10,6 +10,7 @@ import {
   AlertDialogRoot,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { studioEntityDrawerBusySurfaceProps } from '@/components/studioEntityDrawerContext'
 
 export type ShowImportDialogState =
   | { kind: 'plan'; plan: ShowImportPlan }
@@ -38,7 +39,7 @@ export function ShowImportPlanDialog({
   if (state.kind === 'error') {
     return (
       <AlertDialogRoot open onOpenChange={handleOpenChange}>
-        <AlertDialogContent className="max-w-[31.5rem]">
+        <AlertDialogContent className="max-w-[31.5rem]" {...studioEntityDrawerBusySurfaceProps('dialog')}>
           <AlertDialogTitle>Can’t import this file</AlertDialogTitle>
           <AlertDialogDescription className="flex items-start gap-2 leading-relaxed text-zinc-300">
             <CircleX size={16} className="mt-0.5 shrink-0 text-red-400" aria-hidden />
@@ -56,7 +57,7 @@ export function ShowImportPlanDialog({
   const mapCount = plan.maps.reused.length + plan.maps.added.length + plan.maps.copied.length
   return (
     <AlertDialogRoot open onOpenChange={handleOpenChange}>
-      <AlertDialogContent className="max-w-[31.5rem]">
+      <AlertDialogContent className="max-w-[31.5rem]" {...studioEntityDrawerBusySurfaceProps('dialog')}>
         <AlertDialogTitle>{`Import “${plan.bundle.show.name}”`}</AlertDialogTitle>
         <AlertDialogDescription className="sr-only">
           Review the Show, Pattern, and Map changes before importing this file.

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { PanelLeftOpen } from 'lucide-react'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { uniquePatternName } from '@/engine/patternName'
@@ -81,11 +80,9 @@ import { applyShowImportPlan, planShowImport, ShowImportPlanError } from '@/engi
 const DEFAULT_DEMO_NAME = 'IridescentFibers'
 
 export function PatternList({
-  collapsed = false,
-  onCollapsedChange,
+  onEntityChosen,
 }: {
-  collapsed?: boolean
-  onCollapsedChange?: (collapsed: boolean) => void
+  onEntityChosen?: () => void
 }) {
   const closeDocs = useDocsStore((s) => s.closeDocs)
   const activePatternId = usePatternStore((s) => s.activePatternId)
@@ -1012,22 +1009,6 @@ export function PatternList({
     : null
   const libraryNames = Object.keys(LIBRARIES).sort()
 
-  if (collapsed) {
-    return (
-      <div data-testid="studio-rail" className="flex h-full w-8 justify-center border-r border-seam bg-zinc-950/35 pt-1.5">
-        <button
-          type="button"
-          aria-label="Expand library"
-          title="Expand library"
-          onClick={() => onCollapsedChange?.(false)}
-          className="grid size-7 place-items-center rounded text-zinc-400 transition-colors hover:bg-zinc-900 hover:text-live focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live/60"
-        >
-          <PanelLeftOpen size={15} aria-hidden />
-        </button>
-      </div>
-    )
-  }
-
   return (
     <div data-testid="studio-rail" className="flex h-full text-xs font-mono">
       <input
@@ -1048,7 +1029,6 @@ export function PatternList({
       <div className="flex min-w-0 flex-1 flex-col">
         {railMode === 'patterns' && (
           <PatternsRailSection
-            onCollapse={onCollapsedChange ? () => onCollapsedChange(true) : undefined}
             fileInputRef={fileInputRef}
             importError={importError}
             importNotice={importNotice}
@@ -1067,8 +1047,8 @@ export function PatternList({
             onQueryChange={setQuery}
             onCreatePattern={handleCreatePattern}
             onToggleStockPatterns={() => setShowStockPatterns((visible) => !visible)}
-            onOpenUserPattern={openUserPattern}
-            onOpenStockPattern={openStockPatternRoute}
+            onOpenUserPattern={(pattern) => { openUserPattern(pattern); onEntityChosen?.() }}
+            onOpenStockPattern={(name) => { openStockPatternRoute(name); onEntityChosen?.() }}
             onRenamePattern={handleRenamePattern}
             onEmptyTrash={handleRemovePatterns}
             personalOrganization={patternOrganization}
@@ -1081,7 +1061,6 @@ export function PatternList({
         )}
         {railMode === 'maps' && (
           <MapsRailSection
-            onCollapse={onCollapsedChange ? () => onCollapsedChange(true) : undefined}
             personalWorkspaceAuthenticated={personalWorkspaceAuthenticated}
             dimLens={dimLens}
             query={query}
@@ -1096,8 +1075,8 @@ export function PatternList({
             onQueryChange={setQuery}
             onCreateMap={() => void handleCreateMap()}
             onToggleStockMaps={() => setShowStockMaps((visible) => !visible)}
-            onOpenUserMap={openUserMap}
-            onOpenStockMap={openStockMapRoute}
+            onOpenUserMap={(map) => { openUserMap(map); onEntityChosen?.() }}
+            onOpenStockMap={(id) => { openStockMapRoute(id); onEntityChosen?.() }}
             onRenameMap={handleRenameMap}
             personalOrganization={mapOrganization}
             onPersonalOrganizationChange={(organization) => void mutateOrganization(
@@ -1110,7 +1089,6 @@ export function PatternList({
         )}
         {railMode === 'libraries' && (
           <LibrariesRailSection
-            onCollapse={onCollapsedChange ? () => onCollapsedChange(true) : undefined}
             personalWorkspaceAuthenticated={personalWorkspaceAuthenticated}
             userLibraries={userLibraries}
             editingLibrary={editingLibrary}
@@ -1122,8 +1100,8 @@ export function PatternList({
             onScroll={updateScrollMetrics}
             onCreateLibrary={() => void handleCreateLibrary()}
             onToggleStockLibraries={() => setShowStockLibraries((visible) => !visible)}
-            onOpenUserLibrary={openUserLibrary}
-            onOpenStockLibrary={openStockLibraryRoute}
+            onOpenUserLibrary={(library) => { openUserLibrary(library); onEntityChosen?.() }}
+            onOpenStockLibrary={(name) => { openStockLibraryRoute(name); onEntityChosen?.() }}
             onRenameLibrary={handleRenameLibrary}
             personalOrganization={libraryOrganization}
             onPersonalOrganizationChange={(organization) => void mutateOrganization(
@@ -1137,7 +1115,6 @@ export function PatternList({
         )}
         {railMode === 'controllers' && (
           <ControllersRailSection
-            onCollapse={onCollapsedChange ? () => onCollapsedChange(true) : undefined}
             personalWorkspaceAuthenticated={personalWorkspaceAuthenticated}
             controllerProfiles={controllerProfiles}
             activeControllerProfileId={activeControllerProfileId}
@@ -1145,7 +1122,7 @@ export function PatternList({
             scrollMetrics={scrollMetrics}
             onScroll={updateScrollMetrics}
             profileIsLive={(profile) => profileMatchesLive(profile, liveControllers)}
-            onOpenControllerProfile={openControllerProfile}
+            onOpenControllerProfile={(id) => { openControllerProfile(id); onEntityChosen?.() }}
             onRenameControllerProfile={handleRenameControllerProfile}
             personalOrganization={controllerOrganization}
             onPersonalOrganizationChange={(organization) => void mutateOrganization(
@@ -1158,7 +1135,6 @@ export function PatternList({
         )}
         {railMode === 'mixins' && (
           <MixinsRailSection
-            onCollapse={onCollapsedChange ? () => onCollapsedChange(true) : undefined}
             personalWorkspaceAuthenticated={personalWorkspaceAuthenticated}
             userMixins={userMixins}
             editingMixin={editingMixin}
@@ -1168,8 +1144,8 @@ export function PatternList({
             onScroll={updateScrollMetrics}
             onCreateMixin={() => void handleCreateMixin()}
             onToggleStockMixins={() => setShowStockMixins((visible) => !visible)}
-            onOpenUserMixin={openUserMixin}
-            onOpenStockMixin={openStockMixinRoute}
+            onOpenUserMixin={(mixin) => { openUserMixin(mixin); onEntityChosen?.() }}
+            onOpenStockMixin={(id) => { openStockMixinRoute(id); onEntityChosen?.() }}
             onRenameMixin={handleRenameMixin}
             personalOrganization={mixinOrganization}
             onPersonalOrganizationChange={(organization) => void mutateOrganization(
@@ -1182,7 +1158,6 @@ export function PatternList({
         )}
         {railMode === 'shows' && (
           <ShowsRailSection
-            onCollapse={onCollapsedChange ? () => onCollapsedChange(true) : undefined}
             personalWorkspaceAuthenticated={personalWorkspaceAuthenticated}
             userShows={userShows}
             activeShowId={activeShowId}
@@ -1197,8 +1172,8 @@ export function PatternList({
             onCreateShow={handleCreateShow}
             onImportShow={() => showFileInputRef.current?.click()}
             onCreateShowFromController={() => void handleCreateShowFromController()}
-            onOpenShow={openUserShow}
-            onOpenStockShow={openStockShowRoute}
+            onOpenShow={(show) => { openUserShow(show); onEntityChosen?.() }}
+            onOpenStockShow={(show) => { openStockShowRoute(show); onEntityChosen?.() }}
             onToggleStockShows={() => setShowStockShows((visible) => !visible)}
             onRenameShow={renameShow}
             onDuplicateShow={(id) => void handleDuplicateShow(id)}

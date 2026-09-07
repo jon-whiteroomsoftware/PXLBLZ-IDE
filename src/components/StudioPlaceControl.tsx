@@ -32,6 +32,11 @@ const ICONS: Record<StudioPlaceId, LucideIcon> = {
   'api-reference': Braces,
 }
 
+export function StudioPlaceIcon({ place, size = 18 }: { place: StudioPlaceId; size?: number }) {
+  const Icon = ICONS[place]
+  return <Icon size={size} aria-hidden className="shrink-0 text-current" />
+}
+
 export function StudioPlaceControl({
   current,
   details,

@@ -20,6 +20,8 @@ import { PaneHeader } from '@/components/PaneHeader'
 import { ControllerBar } from '@/components/ControllerBar'
 import { AuthStatus } from '@/components/AuthStatus'
 import { StudioPlaceControl, type StudioPlaceDetails } from '@/components/StudioPlaceControl'
+import { StudioEntityDrawer, type StudioEntityDrawerHandle } from '@/components/StudioEntityDrawer'
+import { studioEntityDrawerBusySurfaceProps } from '@/components/studioEntityDrawerContext'
 import { DocsWorkspace } from '@/components/DocsWorkspace'
 import { ApiReferenceWorkspace } from '@/components/ApiReferenceWorkspace'
 import { SendToController } from '@/components/SendToController'
@@ -104,7 +106,6 @@ import { bytesToBase64 } from '@/engine/RelayWebSocket'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import {
   STUDIO_LIBRARY_DEFAULT_WIDTH,
-  STUDIO_LIBRARY_MAX_VIEWPORT_WIDTH,
   STUDIO_LIBRARY_MIN_WIDTH,
   STUDIO_PREVIEW_MIN_WIDTH,
   defaultStudioPreviewWidth,
@@ -122,6 +123,7 @@ import {
   useStudioOperationStore,
 } from '@/store/studioOperationStore'
 import { useStudioPlaceStore } from '@/store/studioPlaceStore'
+import { useStudioEntityDrawerStore } from '@/store/studioEntityDrawerStore'
 import { requestBufferReplacement } from '@/store/navigationPreflightStore'
 
 function Splitter({
@@ -744,7 +746,8 @@ function StudioApp() {
   }, [activePatternId, source, userPatterns, compileLibrarySet])
 
   const [leftWidth, setLeftWidth] = useState(STUDIO_LIBRARY_DEFAULT_WIDTH)
-  const [libraryCollapsed, setLibraryCollapsed] = useState(false)
+  const studioDrawerRef = useRef<StudioEntityDrawerHandle>(null)
+  const drawerPinPreferences = useStudioEntityDrawerStore((state) => state.pinPreferences)
   // Right-pane width is remembered per Studio mode: a Stage widened to watch a
   // Show should not carry that width into the Patterns preview or back.
   const [rightWidths, setRightWidths] = useState<Partial<Record<string, number>>>({})
@@ -761,12 +764,14 @@ function StudioApp() {
     (activeDemoName !== null && personalWorkspaceAuthenticated)
   const studioEntityKind = route.kind === 'studio' ? (route.entity?.kind ?? null) : null
   const rightPaneKind = studioEntityKind ?? 'patterns'
-  const visibleLibraryWidth = libraryCollapsed
-    ? 32
-    : Math.min(leftWidth, studioViewportWidth * 0.34)
+  const studioDrawerPlace = studioEntityKind ?? 'patterns'
+  const studioDrawerPinned = !narrowShowWorkspace && drawerPinPreferences[studioDrawerPlace] !== false
+  const visibleLibraryWidth = studioDrawerPinned
+    ? Math.min(leftWidth, studioViewportWidth * 0.34)
+    : 22
   const studioWorkspaceWidth = Math.max(
     0,
-    studioViewportWidth - visibleLibraryWidth - (libraryCollapsed ? 0 : 4),
+    studioViewportWidth - visibleLibraryWidth - (studioDrawerPinned ? 4 : 0),
   )
   const rightWidth = rightWidths[rightPaneKind] ?? defaultStudioPreviewWidth(studioWorkspaceWidth)
   const activeControllerProfileId =
@@ -897,7 +902,7 @@ function StudioApp() {
     navigate({ kind: 'studio', entity: null })
   }
 
-  const selectStudioPlace = useCallback((place: StudioPlaceId) => {
+  const selectStudioPlace = useCallback((place: StudioPlaceId, openEntityList = false) => {
     if (place === 'docs') {
       if (route.kind !== 'docs') toggleDocs()
       return
@@ -934,6 +939,7 @@ function StudioApp() {
       if (place !== 'maps') closeMapEditor()
       if (place !== 'mixins') closeMixinEditor()
       if (place !== 'libraries') closeLibraryEditor()
+      if (openEntityList) studioDrawerRef.current?.openAfterPlaceSelection(place)
       navigate({ kind: 'studio', entity: { kind: place, id } })
     })
   }, [
@@ -1039,7 +1045,7 @@ function StudioApp() {
           <StudioPlaceControl
             current={studioPlaceForRoute(route)}
             details={placeDetails}
-            onSelect={selectStudioPlace}
+            onSelect={(place) => selectStudioPlace(place, true)}
             onPreviewSpace={() => {
               if (route.kind === 'studio') usePreviewStore.getState().toggle()
             }}
@@ -1190,22 +1196,21 @@ function StudioApp() {
           onAction={() => navigate({ kind: 'studio', entity: null }, { replace: true })}
         />
       ) : (
-      <div className="flex flex-1 min-h-0">
-        <aside
-          data-testid="left-pane"
-          className="shrink-0 flex flex-col"
-          style={{
-            width: libraryCollapsed ? 32 : leftWidth,
-            maxWidth: libraryCollapsed ? undefined : STUDIO_LIBRARY_MAX_VIEWPORT_WIDTH,
-          }}
-        >
-          <div className="flex-1 min-h-0 overflow-hidden">
-            <PatternList collapsed={libraryCollapsed} onCollapsedChange={setLibraryCollapsed} />
+      <StudioEntityDrawer
+        ref={studioDrawerRef}
+        place={studioDrawerPlace}
+        narrow={narrowShowWorkspace}
+        width={leftWidth}
+        onPreviewSpace={() => usePreviewStore.getState().toggle()}
+        dismissOwnedBusy={showCreation ? () => { cancelShowCreation(); return true } : undefined}
+        drawer={(
+          <div data-testid="left-pane" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <PatternList onEntityChosen={() => studioDrawerRef.current?.closeAfterEntitySelection()} />
+            {/* The live Controller dashboard moved out of this slot (#211): it now
+                opens as a pinned popover anchored under its pill in the header. */}
           </div>
-          {/* The live Controller dashboard moved out of this slot (#211): it now
-              opens as a pinned popover anchored under its pill in the header. */}
-        </aside>
-        {!libraryCollapsed && (
+        )}
+        divider={(
           <Splitter
             label="Resize library pane"
             valueNow={leftWidth}
@@ -1213,6 +1218,7 @@ function StudioApp() {
             onDrag={handleLeftDrag}
           />
         )}
+      >
         <div
           data-testid={studioEntityKind === 'shows' ? 'show-workspace' : undefined}
           className="contents"
@@ -1390,15 +1396,17 @@ function StudioApp() {
               />
             ) : studioEntityKind === 'shows' ? (
               showCreation ? (
-                <ShowCreationFlow
-                  maps={showCreationMaps}
-                  onCancel={cancelShowCreation}
-                  onCreate={async (input) => {
-                    const created = await createNewShow(input)
-                    void openShow(created.id)
-                    navigate({ kind: 'studio', entity: { kind: 'shows', id: created.id } })
-                  }}
-                />
+                <div className="h-full" {...studioEntityDrawerBusySurfaceProps('dialog')}>
+                  <ShowCreationFlow
+                    maps={showCreationMaps}
+                    onCancel={cancelShowCreation}
+                    onCreate={async (input) => {
+                      const created = await createNewShow(input)
+                      void openShow(created.id)
+                      navigate({ kind: 'studio', entity: { kind: 'shows', id: created.id } })
+                    }}
+                  />
+                </div>
               ) : activeShow ? (
                 <ShowEditor
                   showId={activeShow.id}
@@ -1499,7 +1507,7 @@ function StudioApp() {
           </>
         )}
         </div>
-      </div>
+      </StudioEntityDrawer>
       )}
       {narrowShowWorkspace && showStageOverlayShowId === activeShow?.id && activeShow && (
         <div

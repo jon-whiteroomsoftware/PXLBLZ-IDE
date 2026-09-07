@@ -1065,9 +1065,16 @@ SVG diagnostics that never mutate compiled pixels.
 
 **Layout.** The top-bar place control owns the six Studio areas plus Docs and
 API Reference, and remembers the last open entity in each Studio area. The
-entity rail begins at the workspace edge and collapses to a 32 px expand
-affordance; panes have explicit minimums and remembered per-entity divider
-widths. At 390 px the wordmark becomes its mark, Controller pills and secondary
+entity list is housed by `StudioEntityDrawer`: pinned it participates in the
+three-pane flex layout; unpinned it reserves one 22 px edge tab and opens as an
+absolutely positioned overlay, so open and close cannot alter workspace width
+or scroll. `studioEntityDrawer.ts` owns the pure transition rules and
+`studioEntityDrawerStore.ts` persists pin preference per Studio place. Narrow
+viewports force the effective state unpinned without changing those stored
+preferences. Owned surfaces carry one explicit drawer-owner identity across
+portals; focused fields, menus, dialogs, and tree drags suppress outside and
+mouse-out close. Panes retain explicit minimums and remembered per-entity
+divider widths. At 390 px the wordmark becomes its mark, Controller pills and secondary
 controls become icon-only, and the bar remains one row. At 980 px and below the
 Stage yields to a Preview overlay without creating a second runtime. Rail
 typography follows `ui/ideMicrotype.ts`. The authenticated responsive and

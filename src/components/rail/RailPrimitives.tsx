@@ -8,7 +8,7 @@ import {
   FileCode2,
   Film,
   Map as MapIcon,
-  PanelLeftClose,
+  Pin,
   Pencil,
   Plus,
   Search,
@@ -32,6 +32,11 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from '@/components/ui/alert-dialog'
+import {
+  studioEntityDrawerBusySurfaceProps,
+  studioEntityDrawerOwnedSurfaceProps,
+  useStudioEntityDrawerControls,
+} from '@/components/studioEntityDrawerContext'
 
 export type ScrollMetrics = {
   top: number
@@ -94,6 +99,8 @@ export function HeaderMenu({ title, items }: { title: string; items: readonly He
     <div
       ref={menuRef}
       className="relative shrink-0"
+      {...studioEntityDrawerOwnedSurfaceProps}
+      {...(open ? studioEntityDrawerBusySurfaceProps('menu') : {})}
       onKeyDown={(event) => {
         if (event.key === 'Escape') setOpen(false)
       }}
@@ -146,18 +153,31 @@ export function RailEntityHeader({
   children?: React.ReactNode
 }) {
   const compact = children === undefined || children === null
+  const drawer = useStudioEntityDrawerControls()
   return (
     <div className={compact
-      ? 'flex h-[calc(1.75rem+1px)] shrink-0 items-center border-b border-seam px-[6px]'
-      : 'border-b border-seam px-[6px] py-2'}
+      ? 'relative flex h-[calc(1.75rem+1px)] shrink-0 items-center border-b border-seam px-[6px]'
+      : 'relative border-b border-seam px-[6px] py-2'}
     >
       <div className="rail-entity-row relative flex min-h-5 w-full items-center gap-1">
-        {onCollapse && (
+        {drawer ? (
           <HeaderAction
-            icon={<PanelLeftClose size={14} />}
+            icon={<Pin size={14} fill={drawer.pinned ? 'currentColor' : 'none'} />}
+            title={drawer.pinDisabled
+              ? 'Lists stay unpinned below 980 px'
+              : `${drawer.pinned ? 'Unpin' : 'Pin'} ${title} list`}
+            onClick={drawer.pinDisabled ? undefined : () => drawer.setPinned(!drawer.pinned)}
+            disabled={drawer.pinDisabled}
+          />
+        ) : onCollapse ? (
+          <HeaderAction
+            icon={<Pin size={14} />}
             title="Collapse rail"
             onClick={onCollapse}
           />
+        ) : null}
+        {drawer && !drawer.pinned && (
+          <HeaderAction icon={<X size={14} />} title={`Close ${title} list`} onClick={drawer.close} />
         )}
         <h2 className={`flex-1 truncate font-normal ${IDE_MICROTYPE.header.className}`}>{title}</h2>
         {action && (
@@ -167,6 +187,13 @@ export function RailEntityHeader({
         )}
       </div>
       {children}
+      {drawer?.timerArmed && (
+        <span
+          aria-hidden
+          data-testid="studio-drawer-close-progress"
+          className="absolute bottom-0 left-0 z-50 h-0.5 bg-live [animation:studio-drawer-close-progress_600ms_linear_forwards]"
+        />
+      )}
     </div>
   )
 }
@@ -259,6 +286,8 @@ export function RailFilterBar({
     <div
       className="rail-filter-bar flex min-w-0 items-center gap-1"
       data-search-committed-open={committedOpen}
+      {...studioEntityDrawerOwnedSurfaceProps}
+      {...(focused ? studioEntityDrawerBusySurfaceProps('field') : {})}
     >
       <div
         className={[
@@ -428,6 +457,7 @@ export function EditableListItem({
         {editing ? (
           <span
             className="flex min-w-0 flex-1 items-stretch"
+            {...studioEntityDrawerBusySurfaceProps('field')}
             onClick={(event) => event.stopPropagation()}
             onBlur={(event) => {
               if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
@@ -496,7 +526,7 @@ export function EditableListItem({
           </>
         )}
       </li>
-      <AlertDialogContent>
+      <AlertDialogContent {...studioEntityDrawerBusySurfaceProps('dialog')}>
         <AlertDialogTitle>{deleteTitle ?? `Delete ${noun}?`}</AlertDialogTitle>
         <AlertDialogDescription>
           {deleteDescription ?? `"${name}" will be permanently deleted and cannot be recovered.`}

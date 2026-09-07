@@ -105,6 +105,10 @@ test('shared Studio chrome remains legible, dense, and reachable across routes (
       await placeTrigger(page).focus()
       await expect(placeTrigger(page)).toBeFocused()
 
+      if (viewport.width <= 980) {
+        await page.getByRole('button', { name: `Open the ${route.heading} list` }).click()
+      }
+
       const heading = page.getByRole('heading', { name: route.heading, exact: true }).first()
       await expect(heading).toHaveClass(/text-\[13px\]/)
       await expect(heading).toHaveClass(/text-zinc-200/)
@@ -116,9 +120,10 @@ test('shared Studio chrome remains legible, dense, and reachable across routes (
   }
 
   await page.goto('studio/patterns/IridescentFibers')
-  await page.getByRole('button', { name: 'Collapse rail' }).click()
-  await expect(page.getByRole('button', { name: 'Expand library' })).toBeVisible()
-  expect(await page.getByTestId('left-pane').evaluate((element) => element.getBoundingClientRect().width)).toBe(32)
+  await page.getByRole('button', { name: 'Unpin Patterns list' }).click()
+  await expect(page.getByTestId('studio-drawer-layout')).toHaveAttribute('data-drawer-mode', 'tucked')
+  await expect(page.getByRole('button', { name: 'Open the Patterns list' })).toBeVisible()
+  expect(await page.getByRole('button', { name: 'Open the Patterns list' }).evaluate((element) => element.getBoundingClientRect().width)).toBe(22)
 })
 
 test('the place control reaches every Studio and reference workspace (#965)', async ({ page }) => {
@@ -138,6 +143,74 @@ test('the place control reaches every Studio and reference workspace (#965)', as
     await expect(page).toHaveURL(destination.path)
     await expect(placeTrigger(page)).toHaveAccessibleName(destination.name)
   }
+})
+
+test('the Studio entity drawer overlays without reflow and preserves Preview Space (#966)', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
+
+  const layout = page.getByTestId('studio-drawer-layout')
+  await page.getByRole('button', { name: 'Unpin Shows list' }).click()
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
+  const edgeTab = page.getByRole('button', { name: 'Open the Shows list' })
+  await expect(edgeTab).toHaveAccessibleName('Open the Shows list')
+
+  const timelineToolbar = page.getByTestId('show-timeline-toolbar')
+  const play = timelineToolbar.getByRole('button', { name: 'Play Show preview' })
+  await expect(play).toBeVisible()
+  await edgeTab.focus()
+  await edgeTab.press('Space')
+  await expect(timelineToolbar.getByRole('button', { name: 'Pause Show preview' })).toBeVisible()
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
+
+  const geometry = async () => page.evaluate(() => {
+    const rect = (selector: string) => {
+      const bounds = document.querySelector<HTMLElement>(selector)?.getBoundingClientRect()
+      return bounds && { x: bounds.x, width: bounds.width }
+    }
+    const timeline = document.querySelector<HTMLElement>('[data-testid="show-timeline-scroll-region"]')
+    return {
+      editor: rect('[data-testid="editor-pane"]'),
+      timeline: timeline && { ...rect('[data-testid="show-timeline-scroll-region"]'), scrollLeft: timeline.scrollLeft },
+    }
+  })
+  const tucked = await geometry()
+
+  await edgeTab.press('Enter')
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
+  await expect(page.getByRole('textbox', { name: 'Search by name' })).toBeFocused()
+  expect(await geometry()).toEqual(tucked)
+
+  await page.getByRole('textbox', { name: 'Search by name' }).press('Escape')
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
+  await page.keyboard.press('Escape')
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
+
+  await choosePlace(page, 'Maps')
+  await page.getByRole('button', { name: 'Unpin Maps list' }).click()
+  await choosePlace(page, 'Shows')
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
+  await choosePlace(page, 'Maps')
+  await expect(page).toHaveURL(/\/studio\/maps(?:\/[^/]+)?$/)
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
+})
+
+test('the entity list stays unpinned below 980px and retains workspace geometry while open (#966)', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
+
+  const layout = page.getByTestId('studio-drawer-layout')
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
+  await expect(page.getByRole('button', { name: 'Open the Shows list' })).toBeInViewport()
+  const editorBefore = await page.getByTestId('editor-pane').boundingBox()
+
+  await page.getByRole('button', { name: 'Open the Shows list' }).click()
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
+  await expect(page.getByRole('button', { name: 'Lists stay unpinned below 980 px' })).toBeDisabled()
+  expect(await page.getByTestId('editor-pane').boundingBox()).toEqual(editorBefore)
+  await expect.poll(
+    () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+  ).toBeLessThanOrEqual(1)
 })
 
 test('the top bar keeps its row with three Controllers at 1180px and compacts at 390px (#965)', async ({ page }) => {
@@ -638,8 +711,8 @@ test('Studio authoring keeps the rail and editor reachable at 390px (#622)', asy
   await page.setViewportSize({ width: 390, height: 844 })
 
   for (const route of [
-    { path: 'studio/patterns/IridescentFibers', action: 'Collapse rail' },
-    { path: 'studio/maps/plane', action: 'Collapse rail' },
+    { path: 'studio/patterns/IridescentFibers', list: 'Patterns' },
+    { path: 'studio/maps/plane', list: 'Maps' },
   ]) {
     await page.goto(route.path)
 
@@ -648,7 +721,7 @@ test('Studio authoring keeps the rail and editor reachable at 390px (#622)', asy
       `${route.path} should not create document-level horizontal overflow at 390px`,
     ).toBeLessThanOrEqual(1)
 
-    await expect(page.getByRole('button', { name: route.action })).toBeInViewport()
+    await expect(page.getByRole('button', { name: `Open the ${route.list} list` })).toBeInViewport()
   }
 
   await page.goto('studio/patterns/IridescentFibers')
@@ -656,6 +729,7 @@ test('Studio authoring keeps the rail and editor reachable at 390px (#622)', asy
   await expect(page.getByTestId('editor-pane')).toBeInViewport()
 
   await page.goto('studio/shows')
+  await page.getByRole('button', { name: 'Open the Shows list' }).click()
   await page.getByRole('treeitem', { name: 'Untitled Show' }).click()
   await expect.poll(
     () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
@@ -671,13 +745,13 @@ test('Studio authoring keeps the rail and editor reachable at 390px (#622)', asy
     'A built-in Show with the full guide and deployment header should stay contained at 390px',
   ).toBeLessThanOrEqual(1)
 
-  await page.getByRole('button', { name: 'Collapse rail' }).click()
-  await expect(page.getByRole('button', { name: 'Expand library' })).toBeInViewport()
+  await expect(page.getByRole('button', { name: 'Open the Shows list' })).toBeInViewport()
 })
 
 test('rail search stays inside the list pane at narrow widths', async ({ page }) => {
   await page.setViewportSize({ width: 507, height: 520 })
   await page.goto('studio/patterns/IridescentFibers')
+  await page.getByRole('button', { name: 'Open the Patterns list' }).click()
   const search = page.getByRole('button', { name: 'Search by name', exact: true })
   const searchInput = page.getByRole('textbox', { name: 'Search by name', exact: true })
   await search.hover()

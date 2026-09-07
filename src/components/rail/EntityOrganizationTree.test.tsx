@@ -597,6 +597,10 @@ describe('EntityOrganizationTree', () => {
 
     fireEvent.dragLeave(screen.getByRole('tree', { name: 'Patterns' }), { relatedTarget: document.body })
     expect(container.querySelector('[data-drop-cue]')).toBeNull()
+    expect(screen.getByRole('treeitem', { name: /A/ })).toHaveAttribute('data-drag-origin', 'true')
+
+    fireEvent.dragEnd(screen.getByRole('treeitem', { name: /A/ }))
+    expect(screen.getByRole('treeitem', { name: /A/ })).not.toHaveAttribute('data-drag-origin')
   })
 
   it('ignores a Show timeline Clip drag instead of presenting organization drop cues', () => {

@@ -63,10 +63,19 @@ chooses among six Studio areas, each with stable routes:
 
 The place menu remembers the entity open in each Studio area and shows its
 name below that area. It also groups the public **Docs** and **API** workspaces
-under Reference. The layout is three panes: the rail opens and creates within
-the selected place, the center edits, and
+under Reference. The layout is three panes: the entity list opens and creates
+within the selected place, the center edits, and
 the right pane shows context: a Pattern's preview, a map's wiring check, a
 library's API reference, or a Show's Stage.
+
+The entity list starts pinned beside the workspace. Its pin remembers a
+separate choice for Patterns, Shows, Maps, Controllers, Mixins, and Libraries.
+Unpin it to leave a narrow place tab at the workspace edge; opening that tab
+slides the list over the workspace without moving or resizing what is under it.
+Choosing an entity, pressing Escape, clicking outside, or leaving the list for
+a moment closes the overlay. A rename, search, menu, dialog, or in-list drag
+holds it open until that work finishes. At 980 px and below the list always uses
+the edge tab and overlay so the editor keeps the available width.
 
 Personal content lives in folders with drag reordering and search that sees
 into collapsed branches. The only permanent deletion in the rail is emptying
@@ -76,8 +85,8 @@ workspace starts with an editable **Start Here** example of each kind.
 
 Two habits worth learning on day one: the center-pane title is the rename
 control, and **Space** toggles preview playback anywhere outside a text field,
-including while the place control has focus. Press **Enter** to open that
-control.
+including while the place control or entity-list tab has focus. Press **Enter**
+to open either control.
 Controller names are the deliberate exception: Rename appears only while that
 profile's physical Controller is live, because the device—not the profile—is
 the source of truth.

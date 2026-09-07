@@ -41,6 +41,10 @@ import {
 } from '@/components/ui/alert-dialog'
 import { DraftTextField } from '@/components/ui/draft-text-field'
 import { EntityIcon, RailEmptyRow, type EntityNoun } from '@/components/rail/RailPrimitives'
+import {
+  studioEntityDrawerBusySurfaceProps,
+  studioEntityDrawerOwnedSurfaceProps,
+} from '@/components/studioEntityDrawerContext'
 
 // Shallow VS Code-style step (#787): chevrons and entity icons already carry
 // the hierarchy signal, so deep rows keep their width for names.
@@ -134,6 +138,10 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
     setDropTarget(null)
   }
 
+  function clearDropCue() {
+    setDropTarget(null)
+  }
+
   function createFolder() {
     const id = newPersonalContentId()
     change(createEntityOrganizationFolder(organization, { id, name: 'New Folder', index: 0 }))
@@ -186,7 +194,7 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
   const trashCount = organization.trash.length
   const emptyTrashConfirmDialog = (
     <AlertDialogRoot open={confirmEmptyTrashOpen} onOpenChange={setConfirmEmptyTrashOpen}>
-      <AlertDialogContent>
+      <AlertDialogContent {...studioEntityDrawerBusySurfaceProps('dialog')}>
         <AlertDialogTitle>Empty Trash?</AlertDialogTitle>
         <AlertDialogDescription>
           {trashCount === 1
@@ -279,9 +287,11 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
         role="tree"
         aria-label={treeLabel}
         className={`py-1 ${overflowWidthClass}`}
+        {...studioEntityDrawerOwnedSurfaceProps}
+        {...(draggedKey ? studioEntityDrawerBusySurfaceProps('drag') : {})}
         onDragLeave={(event) => {
           const related = event.relatedTarget
-          if (!(related instanceof Node) || !event.currentTarget.contains(related)) clearDrag()
+          if (!(related instanceof Node) || !event.currentTarget.contains(related)) clearDropCue()
         }}
       >
         {organization.nodes.map((node) => (
@@ -505,6 +515,7 @@ function OrganizationTreeNode(props: {
         )}
         {props.menuKey === key && (
           <RowActionMenu
+            onClose={() => props.onMenu(null)}
             onRename={folder || (props.canRenameEntity && item?.canRename !== false) ? () => {
               props.onMenu(null)
               props.onEdit(key)
@@ -566,7 +577,10 @@ function InlineName({ name, sanitizeAsIdentifier, onCommit, onCancel }: { name: 
       formatApplied={(_, draft) => draft.trim() || name}
       onApply={(draft) => onCommit(draft.trim() || name)}
       onCancel={onCancel}
-      rootProps={{ onClick: (event) => event.stopPropagation() }}
+      rootProps={{
+        ...studioEntityDrawerBusySurfaceProps('field'),
+        onClick: (event) => event.stopPropagation(),
+      }}
       inputProps={{
         autoFocus: true,
         onKeyDown: (event) => event.stopPropagation(),
@@ -577,7 +591,7 @@ function InlineName({ name, sanitizeAsIdentifier, onCommit, onCancel }: { name: 
   )
 }
 
-function RowActionMenu(props: { onRename?: () => void; onDuplicate?: () => void; onMoveUp: () => void; onMoveDown: () => void; onMoveTo: () => void; onTrash: () => void }) {
+function RowActionMenu(props: { onClose: () => void; onRename?: () => void; onDuplicate?: () => void; onMoveUp: () => void; onMoveDown: () => void; onMoveTo: () => void; onTrash: () => void }) {
   const actions = [
     ...(props.onRename ? [['Rename', props.onRename] as const] : []),
     ...(props.onDuplicate ? [['Duplicate', props.onDuplicate] as const] : []),
@@ -589,8 +603,12 @@ function RowActionMenu(props: { onRename?: () => void; onDuplicate?: () => void;
   return (
     <div
       className="absolute right-1 top-full z-30 min-w-28 border border-zinc-700 bg-zinc-950 py-1 shadow-xl shadow-black/70"
+      {...studioEntityDrawerBusySurfaceProps('menu')}
       onClick={(event) => event.stopPropagation()}
-      onKeyDown={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        event.stopPropagation()
+        if (event.key === 'Escape') props.onClose()
+      }}
     >
       {actions.map(([label, action]) => (
         <button key={label} type="button" onClick={action} className="block h-6 w-full px-2 text-left text-[10px] text-zinc-300 hover:bg-zinc-800">
@@ -605,7 +623,13 @@ function MoveDialog({ organization, nodeKey, nodeName: name, rootLabel, onClose,
   const folders = collectFolderOptions(organization.nodes, nodeKey)
   const [folderId, setFolderId] = useState<string | null>(null)
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
+      role="presentation"
+      {...studioEntityDrawerBusySurfaceProps('dialog')}
+      onKeyDown={(event) => { if (event.key === 'Escape') onClose() }}
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}
+    >
       <section role="dialog" aria-modal="true" aria-label={`Move ${name}`} className="w-full max-w-sm border border-zinc-700 bg-[#101115] shadow-2xl shadow-black/70">
         <header className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2">
           <Folder {...inlineIcon} className="text-live" />
