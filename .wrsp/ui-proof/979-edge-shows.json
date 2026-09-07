@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "979",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-100-getting-around",
+  "operation": "Isolated authenticated repository Playwright on the real route: pointer-open the list edge, move away until it tucks, then hold Space. Capture shows playback running, list tucked, and no incidental full-height focus ring. Regression also verifies a second press pauses, deliberate Tab focus and Enter open, held Space with keyboard focus, native search spaces, and Escape clear/blur/close restoration. Parent-coordinated Playwright fallback after unavailable child IAB discovery and unsupported synthetic cookie injection.",
+  "captures": [
+    ".wrsp/ui-proof/979-edge-shows.png"
+  ],
+  "capturedAtCommit": "21455fe69846e8aad3d3385eaf490645382af665"
+}
