@@ -1859,6 +1859,11 @@ test('hover opens the tucked Show list without focus or layout movement and igno
   await edge.hover()
   await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
   await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
+  // Keep the pointer stationary through the slide and beyond the 600ms close
+  // delay: the panel moving under it must retain pointer ownership.
+  await expect.poll(async () => (await drawer.boundingBox())?.x).toBe(0)
+  await page.waitForTimeout(800)
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
   await expect(transport).toBeFocused()
   expect(await timeline.boundingBox()).toEqual(geometry)
   if (process.env.PXLBLZ_HOVER_CAPTURE) {
