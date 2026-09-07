@@ -9,6 +9,15 @@ import { studioOperationRetryLabelFor } from '../src/store/studioOperationStore'
 /** Monaco names its own input textarea; this label is not produced by live source. */
 const MONACO_TEXTBOX_NAME = 'Editor content'
 
+function placeTrigger(page: Page): Locator {
+  return page.getByTestId('top-bar').locator('[aria-haspopup="listbox"]')
+}
+
+async function choosePlace(page: Page, name: string): Promise<void> {
+  await placeTrigger(page).click()
+  await page.getByRole('listbox', { name: 'Places' }).getByRole('option', { name: new RegExp(`^${name}`) }).click()
+}
+
 /** Replace the complete Monaco model through its public keyboard surface. */
 async function replaceEditorSource(page: Page, editor: Locator, source: string): Promise<void> {
   const input = editor.getByRole('textbox', { name: MONACO_TEXTBOX_NAME })
@@ -38,12 +47,12 @@ async function replaceEditorSource(page: Page, editor: Locator, source: string):
 test('exposes functional Show access without a query parameter', async ({ page }) => {
   await page.goto('studio')
 
-  await expect(page.getByRole('radio', { name: 'Shows' })).toBeVisible()
+  await expect(placeTrigger(page)).toHaveAccessibleName('Patterns')
 
   await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
 
   await expect(page).toHaveURL(/\/studio\/shows\/stock-show-101-clips-cuts-blank-time$/)
-  await expect(page.getByRole('radio', { name: 'Shows' })).toBeVisible()
+  await expect(placeTrigger(page)).toHaveAccessibleName('Shows')
   await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
 })
 
@@ -80,11 +89,11 @@ test('shared Studio chrome remains legible, dense, and reachable across routes (
   // while allowing its cumulative work to finish under full-suite contention.
   test.setTimeout(60_000)
   const routes = [
-    { path: 'studio/patterns/IridescentFibers', activity: 'Patterns', heading: 'Patterns' },
-    { path: 'studio/maps/plane', activity: 'Maps', heading: 'Maps' },
-    { path: 'studio/libraries/Shader', activity: 'Libraries', heading: 'Libraries' },
-    { path: 'studio/controllers', activity: 'Controllers', heading: 'Controllers' },
-    { path: 'studio/shows/stock-show-101-clips-cuts-blank-time', activity: 'Shows', heading: 'Shows' },
+    { path: 'studio/patterns/IridescentFibers', place: 'Patterns', heading: 'Patterns' },
+    { path: 'studio/maps/plane', place: 'Maps', heading: 'Maps' },
+    { path: 'studio/libraries/Shader', place: 'Libraries', heading: 'Libraries' },
+    { path: 'studio/controllers', place: 'Controllers', heading: 'Controllers' },
+    { path: 'studio/shows/stock-show-101-clips-cuts-blank-time', place: 'Shows', heading: 'Shows' },
   ] as const
 
   for (const viewport of [{ width: 1440, height: 900 }, { width: 720, height: 720 }]) {
@@ -92,10 +101,9 @@ test('shared Studio chrome remains legible, dense, and reachable across routes (
     for (const route of routes) {
       await page.goto(route.path)
 
-      const activity = page.getByRole('radio', { name: route.activity })
-      await expect(activity).toHaveAttribute('aria-checked', 'true')
-      await activity.focus()
-      await expect(activity).toBeFocused()
+      await expect(placeTrigger(page)).toHaveAccessibleName(route.place)
+      await placeTrigger(page).focus()
+      await expect(placeTrigger(page)).toBeFocused()
 
       const heading = page.getByRole('heading', { name: route.heading, exact: true }).first()
       await expect(heading).toHaveClass(/text-\[13px\]/)
@@ -110,8 +118,73 @@ test('shared Studio chrome remains legible, dense, and reachable across routes (
   await page.goto('studio/patterns/IridescentFibers')
   await page.getByRole('button', { name: 'Collapse rail' }).click()
   await expect(page.getByRole('button', { name: 'Expand library' })).toBeVisible()
-  expect(await page.locator('[aria-label="Studio activity"]').evaluate((element) => element.getBoundingClientRect().width))
-    .toBe(46)
+  expect(await page.getByTestId('left-pane').evaluate((element) => element.getBoundingClientRect().width)).toBe(32)
+})
+
+test('the place control reaches every Studio and reference workspace (#965)', async ({ page }) => {
+  await page.goto('studio/patterns/IridescentFibers')
+
+  for (const destination of [
+    { name: 'Shows', path: /\/studio\/shows(?:\/[^/]+)?$/ },
+    { name: 'Maps', path: /\/studio\/maps$/ },
+    { name: 'Controllers', path: /\/studio\/controllers$/ },
+    { name: 'Mixins', path: /\/studio\/mixins$/ },
+    { name: 'Libraries', path: /\/studio\/libraries$/ },
+    { name: 'Docs', path: /\/docs$/ },
+    { name: 'API', path: /\/reference$/ },
+    { name: 'Patterns', path: /\/studio\/patterns\/IridescentFibers$/ },
+  ]) {
+    await choosePlace(page, destination.name)
+    await expect(page).toHaveURL(destination.path)
+    await expect(placeTrigger(page)).toHaveAccessibleName(destination.name)
+  }
+})
+
+test('the top bar keeps its row with three Controllers at 1180px and compacts at 390px (#965)', async ({ page }) => {
+  await installFakeControllerHelper(page, {
+    programs: [],
+    activeProgramId: 'none',
+    deviceName: 'Bench',
+    boardType: 'standard',
+    mac: 'AA:BB:CC:DD:EE:11',
+    pixelCount: 64,
+  })
+  await page.goto('studio/controllers')
+
+  for (const [index, ip] of ['192.168.8.221', '192.168.8.222', '192.168.8.223'].entries()) {
+    await page.getByTestId('controller-entry-button').click()
+    await page.getByRole('textbox', { name: 'Controller IP address' }).fill(ip)
+    await page.getByTestId('controller-go').click()
+    await expect(page.getByTestId('controller-pill')).toHaveCount(index + 1)
+  }
+
+  for (const viewport of [{ width: 1180, height: 800 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport)
+    const geometry = await page.getByTestId('top-bar').evaluate((header) => {
+      const place = header.querySelector<HTMLElement>('[aria-haspopup="listbox"]')
+      const bounds = header.getBoundingClientRect()
+      const interactive = Array.from(header.querySelectorAll<HTMLElement>('a, button'))
+      return {
+        headerTop: Math.round(bounds.top),
+        headerBottom: Math.round(bounds.bottom),
+        scrollWidth: header.scrollWidth,
+        clientWidth: header.clientWidth,
+        placeWidth: place?.getBoundingClientRect().width ?? 0,
+        interactiveTops: interactive.map((element) => Math.round(element.getBoundingClientRect().top)),
+        interactiveBottoms: interactive.map((element) => Math.round(element.getBoundingClientRect().bottom)),
+      }
+    })
+    expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth)
+    expect(geometry.placeWidth).toBeGreaterThan(120)
+    expect(Math.min(...geometry.interactiveTops)).toBeGreaterThanOrEqual(geometry.headerTop)
+    expect(Math.max(...geometry.interactiveBottoms)).toBeLessThanOrEqual(geometry.headerBottom)
+  }
+
+  await expect(page.locator('[aria-label="PXLBLZ"]')).toBeHidden()
+  const labels = page.getByTestId('controller-pill').locator('[data-controller-pill-label]')
+  await expect(labels).toHaveCount(3)
+  expect(await labels.evaluateAll((elements) => elements.every((element) => getComputedStyle(element).display === 'none')))
+    .toBe(true)
 })
 
 test('empty Controllers workspace leads through extension setup and Connect (#811)', async ({ page }) => {
@@ -611,10 +684,10 @@ test('rail search stays inside the list pane at narrow widths', async ({ page })
 
   const hoverBounds = await searchInput.evaluate((input) => {
     const inputBounds = input.getBoundingClientRect()
-    const activityBounds = document.querySelector('[aria-label="Studio activity"]')?.getBoundingClientRect()
-    return { inputLeft: inputBounds.left, activityRight: activityBounds?.right }
+    const railBounds = input.closest('[data-testid="studio-rail"]')?.getBoundingClientRect()
+    return { inputLeft: inputBounds.left, railLeft: railBounds?.left }
   })
-  expect(hoverBounds.inputLeft).toBeGreaterThanOrEqual(hoverBounds.activityRight ?? Number.POSITIVE_INFINITY)
+  expect(hoverBounds.inputLeft).toBeGreaterThanOrEqual(hoverBounds.railLeft ?? Number.POSITIVE_INFINITY)
 
   const dimensionFilter = page.getByRole('button', { name: 'Dimension filter', exact: true })
   await dimensionFilter.click()
@@ -626,17 +699,16 @@ test('rail search stays inside the list pane at narrow widths', async ({ page })
   const bounds = await searchInput.evaluate((input) => {
     const inputBounds = input.getBoundingClientRect()
     const railBounds = input.closest('[data-testid="studio-rail"]')?.getBoundingClientRect()
-    const activityBounds = document.querySelector('[aria-label="Studio activity"]')?.getBoundingClientRect()
     return {
       inputLeft: inputBounds.left,
       inputRight: inputBounds.right,
       inputWidth: inputBounds.width,
+      railLeft: railBounds?.left,
       railRight: railBounds?.right,
-      activityRight: activityBounds?.right,
     }
   })
 
-  expect(bounds.inputLeft).toBeGreaterThanOrEqual(bounds.activityRight ?? Number.POSITIVE_INFINITY)
+  expect(bounds.inputLeft).toBeGreaterThanOrEqual(bounds.railLeft ?? Number.POSITIVE_INFINITY)
   expect(bounds.inputRight).toBeLessThanOrEqual(bounds.railRight ?? Number.NEGATIVE_INFINITY)
   expect(bounds.inputWidth).toBeGreaterThanOrEqual(80)
 
@@ -649,11 +721,11 @@ test('rail search stays inside the list pane at narrow widths', async ({ page })
 
   const minimumRailHoverBounds = await searchInput.evaluate((input) => {
     const inputBounds = input.getBoundingClientRect()
-    const activityBounds = document.querySelector('[aria-label="Studio activity"]')?.getBoundingClientRect()
-    return { inputLeft: inputBounds.left, activityRight: activityBounds?.right }
+    const railBounds = input.closest('[data-testid="studio-rail"]')?.getBoundingClientRect()
+    return { inputLeft: inputBounds.left, railLeft: railBounds?.left }
   })
   expect(minimumRailHoverBounds.inputLeft).toBeGreaterThanOrEqual(
-    minimumRailHoverBounds.activityRight ?? Number.POSITIVE_INFINITY,
+    minimumRailHoverBounds.railLeft ?? Number.POSITIVE_INFINITY,
   )
 })
 

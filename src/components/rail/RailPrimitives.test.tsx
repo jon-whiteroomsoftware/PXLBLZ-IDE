@@ -235,7 +235,7 @@ describe('EditableListItem', () => {
 
   it.each([
     ['pattern', 'lucide-file-code-corner'],
-    ['show', 'lucide-panels-top-left'],
+    ['show', 'lucide-film'],
     ['map', 'lucide-map'],
     ['controller', 'lucide-cpu'],
     ['mixin', 'lucide-braces'],

@@ -6,9 +6,9 @@ import {
   ChevronDown,
   Cpu,
   FileCode2,
+  Film,
   Map as MapIcon,
   PanelLeftClose,
-  PanelsTopLeft,
   Pencil,
   Plus,
   Search,
@@ -180,7 +180,7 @@ export function EntityIcon({ noun, ghost = false }: { noun: EntityNoun; ghost?: 
   const props = { size: 12, 'aria-hidden': true as const, className, ...(ghost ? { strokeDasharray: '2 2' } : {}) }
   switch (noun) {
     case 'pattern': return <FileCode2 {...props} />
-    case 'show': return <PanelsTopLeft {...props} />
+    case 'show': return <Film {...props} />
     case 'map': return <MapIcon {...props} />
     case 'controller': return <Cpu {...props} />
     case 'mixin': return <Braces {...props} />

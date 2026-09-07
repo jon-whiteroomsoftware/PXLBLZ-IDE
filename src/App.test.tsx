@@ -34,6 +34,7 @@ import { entityOrganizationInitialState, useEntityOrganizationStore } from '@/st
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { openDemoPattern } from '@/store/openPattern'
 import { studioOperationInitialState, useStudioOperationStore } from '@/store/studioOperationStore'
+import { EMPTY_REMEMBERED_STUDIO_PLACES, useStudioPlaceStore } from '@/store/studioPlaceStore'
 
 const authSessionMock = vi.hoisted(() => ({
   getAuthSession: vi.fn(),
@@ -78,6 +79,7 @@ beforeEach(() => {
   useShowEditorSessionStore.setState(showEditorSessionInitialState)
   useEntityOrganizationStore.setState(entityOrganizationInitialState)
   useStudioOperationStore.setState(studioOperationInitialState)
+  useStudioPlaceStore.setState({ remembered: EMPTY_REMEMBERED_STUDIO_PLACES })
 })
 
 afterEach(() => {
@@ -146,6 +148,15 @@ function setStudioLocation(path = '/studio') {
   window.history.replaceState(null, '', path)
 }
 
+async function choosePlace(name: 'Patterns' | 'Shows' | 'Maps' | 'Controllers' | 'Mixins' | 'Libraries' | 'Docs' | 'API') {
+  const trigger = screen.getByTestId('top-bar').querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')
+  if (!trigger) throw new Error('Place control trigger not found')
+  await userEvent.click(trigger)
+  await userEvent.click(within(screen.getByRole('listbox', { name: 'Places' })).getByRole('option', {
+    name: new RegExp(`^${name}`),
+  }))
+}
+
 describe('App smoke test', () => {
   it('renders without crashing', () => {
     render(<App />)
@@ -154,6 +165,88 @@ describe('App smoke test', () => {
   it('has a top bar', () => {
     render(<App />)
     expect(screen.getByTestId('top-bar')).toBeInTheDocument()
+  })
+
+  it.each([
+    ['/studio/patterns', 'Patterns'],
+    ['/studio/shows', 'Shows'],
+    ['/studio/maps', 'Maps'],
+    ['/studio/controllers', 'Controllers'],
+    ['/studio/mixins', 'Mixins'],
+    ['/studio/libraries', 'Libraries'],
+    ['/docs', 'Docs'],
+    ['/reference', 'API'],
+  ] as const)('labels the top-bar place control from %s (#965)', (path, label) => {
+    setStudioLocation(path)
+    seedSignedInWorkspace()
+    render(<App />)
+    expect(within(screen.getByTestId('top-bar')).getByRole('button', { name: label })).toHaveAttribute(
+      'aria-haspopup',
+      'listbox',
+    )
+  })
+
+  it('navigates all places with documented mnemonic shortcuts without claiming local controls (#965)', () => {
+    setStudioLocation('/studio/patterns')
+    seedSignedInWorkspace()
+    render(<App />)
+
+    for (const [key, path] of [
+      ['s', '/studio/shows'],
+      ['m', '/studio/maps'],
+      ['c', '/studio/controllers'],
+      ['x', '/studio/mixins'],
+      ['l', '/studio/libraries'],
+      ['d', '/docs'],
+      ['r', '/reference'],
+      ['p', '/studio/patterns'],
+    ] as const) {
+      fireEvent.keyDown(document.body, { key })
+      expect(window.location.pathname).toBe(path)
+    }
+
+    const input = document.createElement('input')
+    document.body.append(input)
+    fireEvent.keyDown(input, { key: 's' })
+    expect(window.location.pathname).toBe('/studio/patterns')
+    input.focus()
+    fireEvent.keyDown(document.body, { key: 'x' })
+    expect(window.location.pathname).toBe('/studio/patterns')
+    input.remove()
+  })
+
+  it('shows and restores the active Pattern and Show remembered across reference routes (#965)', async () => {
+    const pattern: PatternRecord = {
+      id: 'remembered-pattern',
+      name: 'Evening Pattern',
+      src: 'export function render(index) {}',
+      controls: {},
+      updatedAt: 1,
+    }
+    const show = createDefaultShow('remembered-show', 'Evening Show', 1)
+    setStudioLocation(`/studio/patterns/${pattern.id}`)
+    seedSignedInWorkspace()
+    usePatternStore.setState({ userPatterns: [pattern], patternsLoaded: true, activePatternId: pattern.id })
+    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
+    render(<App />)
+
+    await waitFor(() => expect(useStudioPlaceStore.getState().remembered).toMatchObject({
+      patterns: pattern.id,
+      shows: show.id,
+    }))
+
+    await choosePlace('Docs')
+    const trigger = within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Docs' })
+    await userEvent.click(trigger)
+    const places = screen.getByRole('listbox', { name: 'Places' })
+    expect(within(places).getByRole('option', { name: /^Patterns/ })).toHaveTextContent(pattern.name)
+    expect(within(places).getByRole('option', { name: /^Shows/ })).toHaveTextContent(show.name)
+
+    await userEvent.click(within(places).getByRole('option', { name: /^Shows/ }))
+    expect(window.location.pathname).toBe(`/studio/shows/${show.id}`)
+    await choosePlace('Docs')
+    await choosePlace('Patterns')
+    expect(window.location.pathname).toBe(`/studio/patterns/${pattern.id}`)
   })
 
   it('links the PXLBLZ wordmark to the app root', () => {
@@ -168,7 +261,7 @@ describe('App smoke test', () => {
     expect(screen.getByTestId('left-pane')).toBeInTheDocument()
   })
 
-  it('collapses the shared library to its activity strip without changing entity mode automatically (#466)', async () => {
+  it('collapses the shared library to its compact header affordance without restoring the activity strip (#466, #965)', async () => {
     setStudioLocation()
     seedSignedInWorkspace()
     render(<App />)
@@ -178,26 +271,9 @@ describe('App smoke test', () => {
     expect(screen.queryByRole('button', { name: 'Catalog' })).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Collapse rail' }))
-    expect(pane).toHaveStyle({ width: '46px' })
-    expect(screen.getByRole('radiogroup', { name: 'Studio activity' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Patterns' })).toHaveClass('text-[10px]')
-    expect(screen.getByRole('radio', { name: 'Maps' })).toHaveClass('text-zinc-400')
-    expect(screen.getByRole('button', { name: 'Expand library' })).toHaveClass(
-      'absolute',
-      'left-1/2',
-      'top-1',
-      'size-7',
-      '-translate-x-1/2',
-    )
-    expect(screen.getByRole('button', { name: 'Expand library' })).not.toHaveTextContent('OPEN')
-
-    await userEvent.click(screen.getByRole('radio', { name: 'Shows' }))
-    expect(screen.getByRole('button', { name: 'Expand library' })).toBeInTheDocument()
-    expect(pane).toHaveStyle({ width: '46px' })
-
-    await userEvent.click(screen.getByRole('radio', { name: 'Patterns' }))
-    expect(screen.getByRole('radio', { name: 'Patterns' })).toHaveAttribute('aria-checked', 'true')
-    expect(pane).toHaveStyle({ width: '46px' })
+    expect(pane).toHaveStyle({ width: '32px' })
+    expect(screen.queryByRole('radiogroup', { name: 'Studio activity' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Expand library' })).toHaveClass('size-7')
 
     await userEvent.click(screen.getByRole('button', { name: 'Expand library' }))
     expect(pane).toHaveStyle({ width: '288px', maxWidth: '34vw' })
@@ -252,11 +328,11 @@ describe('App smoke test', () => {
     fireEvent(window, new MouseEvent('mouseup'))
     expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '660px' })
 
-    await userEvent.click(screen.getByRole('radio', { name: 'Shows' }))
+    await choosePlace('Shows')
     expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '460px', minWidth: '300px' })
     expect(within(screen.getByTestId('show-workspace')).getByRole('separator', { name: 'Resize preview pane' })).toBeVisible()
 
-    await userEvent.click(screen.getByRole('radio', { name: 'Patterns' }))
+    await choosePlace('Patterns')
     expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '660px' })
   })
 })
@@ -529,7 +605,6 @@ describe('routing (#308)', () => {
     ['narrow', 900, false],
     ['wide', 1200, true],
   ])('pauses inherited Pattern playback when navigating to a %s Show (#593)', async (_label, width, hasStage) => {
-    const user = userEvent.setup()
     vi.stubGlobal('innerWidth', width)
     const show = createDefaultShow('show-narrow-inherited-playback', 'Inherited playback', 1000)
     setStudioLocation()
@@ -538,7 +613,7 @@ describe('routing (#308)', () => {
 
     render(<App />)
     act(() => usePreviewStore.setState({ isRunning: true }))
-    await user.click(screen.getByRole('radio', { name: 'Shows' }))
+    await choosePlace('Shows')
     await waitFor(() => expect(screen.getByRole('region', { name: 'Show timeline' })).toBeInTheDocument())
 
     expect(Boolean(within(screen.getByTestId('preview-pane')).queryByLabelText('Show stage'))).toBe(hasStage)
@@ -662,9 +737,12 @@ describe('routing (#308)', () => {
 
     render(<App />)
 
-    fireEvent.keyDown(document.body, { code: 'Space', key: ' ' })
+    const placeTrigger = within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Patterns' })
+    placeTrigger.focus()
+    fireEvent.keyDown(placeTrigger, { code: 'Space', key: ' ' })
     expect(usePreviewStore.getState().isRunning).toBe(true)
-    fireEvent.keyDown(document.body, { code: 'Space', key: ' ' })
+    expect(screen.queryByRole('listbox', { name: 'Places' })).not.toBeInTheDocument()
+    fireEvent.keyDown(placeTrigger, { code: 'Space', key: ' ' })
     expect(usePreviewStore.getState().isRunning).toBe(false)
 
     const input = document.createElement('input')
@@ -1264,24 +1342,20 @@ describe('routing (#308)', () => {
     )
   })
 
-  it('uses Docs and API as direct reference workspaces with an explicit return', async () => {
-    const user = userEvent.setup()
+  it('uses Docs and API as direct reference places in the top-bar control (#965)', async () => {
     window.history.replaceState(null, '', '/gallery')
     render(<App />)
 
-    const topBar = screen.getByTestId('top-bar')
-    await user.click(within(topBar).getByRole('button', { name: 'Docs' }))
+    await choosePlace('Docs')
     expect(window.location.pathname).toBe('/docs')
     expect(screen.getByTestId('docs-workspace')).toBeInTheDocument()
     expect(screen.queryByTestId('docs-menu-dropdown')).not.toBeInTheDocument()
+    expect(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Docs' })).toHaveAttribute('aria-haspopup', 'listbox')
 
-    await user.click(within(topBar).getByRole('button', { name: 'API' }))
+    await choosePlace('API')
     expect(window.location.pathname).toBe('/reference')
     expect(screen.getByTestId('api-reference-workspace')).toBeInTheDocument()
-
-    await user.click(within(topBar).getByRole('button', { name: 'Back to Gallery' }))
-    expect(window.location.pathname).toBe('/gallery')
-    expect(screen.getByTestId('gallery-page')).toBeInTheDocument()
+    expect(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'API' })).toHaveAttribute('aria-haspopup', 'listbox')
   })
 
   it('renders the public API reference without mounting Studio panes', () => {

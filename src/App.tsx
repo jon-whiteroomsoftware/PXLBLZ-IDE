@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from 'react'
-import { Braces, Code2, Cpu, Images, Lock, LogIn, Map as MapIcon, PanelsTopLeft, X } from 'lucide-react'
+import { Braces, Code2, Cpu, Film, Images, Lock, LogIn, Map as MapIcon, X } from 'lucide-react'
 import { controlIcon } from '@/components/iconScale'
 import { Button } from '@/components/ui/button'
 import {
@@ -19,7 +19,7 @@ import { Preview } from '@/components/Preview'
 import { PaneHeader } from '@/components/PaneHeader'
 import { ControllerBar } from '@/components/ControllerBar'
 import { AuthStatus } from '@/components/AuthStatus'
-import { ReferenceButtons } from '@/components/ReferenceButtons'
+import { StudioPlaceControl, type StudioPlaceDetails } from '@/components/StudioPlaceControl'
 import { DocsWorkspace } from '@/components/DocsWorkspace'
 import { ApiReferenceWorkspace } from '@/components/ApiReferenceWorkspace'
 import { SendToController } from '@/components/SendToController'
@@ -55,6 +55,12 @@ import { useRouterStore } from '@/store/routerStore'
 import { openDemoPattern, openPatternRecord } from '@/store/openPattern'
 import { openStockLibrary } from '@/store/openLibrary'
 import { routePath, routesEqual, type Route } from '@/engine/routes'
+import {
+  studioPlaceForRoute,
+  studioPlaceForShortcut,
+  studioPlaceShortcutOwnsEvent,
+  type StudioPlaceId,
+} from '@/engine/studioPlaces'
 import { trackEvent, trackPageView } from '@/analytics'
 import { controllerProfileDisplayName } from '@/engine/controllerProfile'
 import { decideStudioAccess, studioWelcomeAcknowledgedKey } from '@/engine/studioAccess'
@@ -115,6 +121,8 @@ import {
   studioOperationRetryLabel,
   useStudioOperationStore,
 } from '@/store/studioOperationStore'
+import { useStudioPlaceStore } from '@/store/studioPlaceStore'
+import { requestBufferReplacement } from '@/store/navigationPreflightStore'
 
 function Splitter({
   onDrag,
@@ -244,7 +252,7 @@ function StudioPaneMessage({
 function EmptyContextPane({ label }: { label: string }) {
   return (
     <StudioPaneMessage
-      icon={<PanelsTopLeft size={18} aria-hidden />}
+      icon={<Film size={18} aria-hidden />}
       title={`${label} context`}
       detail="No right-side context pane is available for this view yet."
     />
@@ -349,14 +357,23 @@ function StudioApp() {
   const bufferEdited = useEditorStore((s) => s.bufferEdited)
   const activeDocId = useDocsStore((s) => s.activeDocId)
   const syncDocsFromRoute = useDocsStore((s) => s.syncFromRoute)
+  const closeDocs = useDocsStore((s) => s.closeDocs)
   const activeDoc = getUserDoc(activeDocId)
   const referenceStudioContext = useReferenceNavigationStore((s) => s.studioContext)
+  const toggleDocs = useReferenceNavigationStore((s) => s.toggleDocs)
+  const toggleApi = useReferenceNavigationStore((s) => s.toggleApi)
   const route = useRouterStore((s) => s.route)
   const navigate = useRouterStore((s) => s.navigate)
+  const rememberedPlaces = useStudioPlaceStore((s) => s.remembered)
+  const rememberPlace = useStudioPlaceStore((s) => s.remember)
   const patternsLoaded = usePatternStore((s) => s.patternsLoaded)
   const userMaps = useMapStore((s) => s.userMaps)
+  const editingMap = useMapStore((s) => s.editingMap)
+  const closeMapEditor = useMapStore((s) => s.closeMapEditor)
   const mapsLoaded = useMapStore((s) => s.mapsLoaded)
   const userMixins = useMixinStore((s) => s.userMixins)
+  const editingMixin = useMixinStore((s) => s.editingMixin)
+  const closeMixinEditor = useMixinStore((s) => s.closeMixinEditor)
   const mixinsLoaded = useMixinStore((s) => s.mixinsLoaded)
   const userLibraries = useLibraryStore((s) => s.userLibraries)
   const apiReferenceDocuments = useMemo(
@@ -366,6 +383,7 @@ function StudioApp() {
   const compileLibrarySet = useMemo(() => compileLibraries(LIBRARIES, userLibraries), [userLibraries])
   const librariesLoaded = useLibraryStore((s) => s.librariesLoaded)
   const editingLibrary = useLibraryStore((s) => s.editingLibrary)
+  const closeLibraryEditor = useLibraryStore((s) => s.closeLibraryEditor)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const controllerProfilesLoaded = useControllerProfileStore((s) => s.profilesLoaded)
   const liveControllers = useControllerStore((s) => s.controllers)
@@ -429,6 +447,65 @@ function StudioApp() {
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+  useEffect(() => {
+    if (route.kind === 'studio' && route.entity?.id) rememberPlace(route.entity.kind, route.entity.id)
+  }, [rememberPlace, route])
+  useEffect(() => {
+    const id = activePatternId ?? activeDemoName
+    if (id) rememberPlace('patterns', id)
+  }, [activeDemoName, activePatternId, rememberPlace])
+  useEffect(() => {
+    if (activeShowId) rememberPlace('shows', activeShowId)
+  }, [activeShowId, rememberPlace])
+  useEffect(() => {
+    if (editingMap) rememberPlace('maps', editingMap.id)
+  }, [editingMap, rememberPlace])
+  useEffect(() => {
+    if (editingMixin) rememberPlace('mixins', editingMixin.id)
+  }, [editingMixin, rememberPlace])
+  useEffect(() => {
+    if (editingLibrary) rememberPlace('libraries', editingLibrary.id)
+    else if (activeLibraryName) rememberPlace('libraries', activeLibraryName)
+  }, [activeLibraryName, editingLibrary, rememberPlace])
+
+  const placeDetails = useMemo((): StudioPlaceDetails => {
+    const details: StudioPlaceDetails = {}
+    const patternId = rememberedPlaces.patterns
+    if (patternId) {
+      const pattern = userPatterns.find((candidate) => candidate.id === patternId)
+      if (pattern) details.patterns = pattern.name
+      else if (DEMOS[patternId]) details.patterns = patternId
+    }
+    const showId = rememberedPlaces.shows
+    if (showId) {
+      const show = shows.find((candidate) => candidate.id === showId) ?? stockShowById(showId)
+      if (show) details.shows = show.name
+    }
+    const mapId = rememberedPlaces.maps
+    if (mapId) {
+      const map = userMaps.find((candidate) => candidate.id === mapId)
+        ?? STOCK_MAP_ITEMS.find((candidate) => candidate.id === mapId)
+      if (map) details.maps = map.name
+    }
+    const controllerId = rememberedPlaces.controllers
+    if (controllerId) {
+      const profile = controllerProfiles.find((candidate) => candidate.id === controllerId)
+      if (profile) details.controllers = controllerProfileDisplayName(profile)
+    }
+    const mixinId = rememberedPlaces.mixins
+    if (mixinId) {
+      const mixin = userMixins.find((candidate) => candidate.id === mixinId)
+        ?? STOCK_MIXIN_ITEMS.find((candidate) => candidate.id === mixinId)
+      if (mixin) details.mixins = mixin.name
+    }
+    const libraryId = rememberedPlaces.libraries
+    if (libraryId) {
+      const library = userLibraries.find((candidate) => candidate.id === libraryId)
+      if (library) details.libraries = library.name
+      else if (LIBRARIES[libraryId]) details.libraries = libraryId
+    }
+    return details
+  }, [controllerProfiles, rememberedPlaces, shows, userLibraries, userMaps, userMixins, userPatterns])
   useEffect(() => {
     // Not in the Gallery grid, where no single preview has focus.
     if (route.kind !== 'studio' && route.kind !== 'pattern-detail') return
@@ -693,7 +770,7 @@ function StudioApp() {
   const studioEntityKind = route.kind === 'studio' ? (route.entity?.kind ?? null) : null
   const rightPaneKind = studioEntityKind ?? 'patterns'
   const visibleLibraryWidth = libraryCollapsed
-    ? 46
+    ? 32
     : Math.min(leftWidth, studioViewportWidth * 0.34)
   const studioWorkspaceWidth = Math.max(
     0,
@@ -828,6 +905,83 @@ function StudioApp() {
     navigate({ kind: 'studio', entity: null })
   }
 
+  const selectStudioPlace = useCallback((place: StudioPlaceId) => {
+    if (place === 'docs') {
+      if (route.kind !== 'docs') toggleDocs()
+      return
+    }
+    if (place === 'api-reference') {
+      if (route.kind !== 'api-reference') toggleApi()
+      return
+    }
+    if (personalWorkspaceResolved && !personalWorkspaceAuthenticated) {
+      if (studioWelcomeAcknowledged) {
+        trackEvent('sign_in', { surface: 'open_studio', provider: 'default' })
+        window.location.assign('/api/auth/login')
+      } else {
+        navigate({ kind: 'studio-welcome' })
+      }
+      return
+    }
+    const remembered = rememberedPlaces[place]
+    const id = place === 'patterns'
+      ? (userPatterns.some((pattern) => pattern.id === remembered) || (remembered ? Boolean(DEMOS[remembered]) : false) ? remembered : null)
+      : place === 'shows'
+        ? (shows.some((show) => show.id === remembered) || (remembered ? Boolean(stockShowById(remembered)) : false)
+            ? remembered
+            : (shows[0]?.id ?? null))
+        : place === 'maps'
+          ? (userMaps.some((map) => map.id === remembered) || STOCK_MAP_ITEMS.some((map) => map.id === remembered) ? remembered : null)
+          : place === 'controllers'
+            ? (controllerProfiles.some((profile) => profile.id === remembered) ? remembered : (controllerProfiles[0]?.id ?? null))
+            : place === 'mixins'
+              ? (userMixins.some((mixin) => mixin.id === remembered) || STOCK_MIXIN_ITEMS.some((mixin) => mixin.id === remembered) ? remembered : null)
+              : (userLibraries.some((library) => library.id === remembered) || (remembered ? Boolean(LIBRARIES[remembered]) : false) ? remembered : null)
+    requestBufferReplacement(() => {
+      closeDocs()
+      if (place !== 'maps') closeMapEditor()
+      if (place !== 'mixins') closeMixinEditor()
+      if (place !== 'libraries') closeLibraryEditor()
+      navigate({ kind: 'studio', entity: { kind: place, id } })
+    })
+  }, [
+    closeDocs,
+    closeLibraryEditor,
+    closeMapEditor,
+    closeMixinEditor,
+    controllerProfiles,
+    navigate,
+    personalWorkspaceAuthenticated,
+    personalWorkspaceResolved,
+    rememberedPlaces,
+    route.kind,
+    shows,
+    studioWelcomeAcknowledged,
+    toggleApi,
+    toggleDocs,
+    userLibraries,
+    userMaps,
+    userMixins,
+    userPatterns,
+  ])
+
+  useEffect(() => {
+    const handlePlaceShortcut = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented
+        || studioPlaceShortcutOwnsEvent(event.target)
+        || studioPlaceShortcutOwnsEvent(document.activeElement)
+      ) return
+      const place = studioPlaceForShortcut(event)
+      if (!place) return
+      event.preventDefault()
+      event.stopPropagation()
+      selectStudioPlace(place)
+    }
+    document.addEventListener('keydown', handlePlaceShortcut)
+    return () => document.removeEventListener('keydown', handlePlaceShortcut)
+  }, [selectStudioPlace])
+
   const continueFromStudioWelcome = useCallback((provider: AuthProvider) => {
     try {
       window.localStorage.setItem(studioWelcomeAcknowledgedKey, '1')
@@ -859,24 +1013,24 @@ function StudioApp() {
           workspace branch. */}
       <NavigationSaveFailureNotice />
       <NavigationPreflightDialog />
-      <header data-testid="top-bar" className="flex min-h-10 shrink-0 flex-wrap items-center gap-y-1 border-b border-seam bg-panel px-3 py-1 sm:h-10 sm:flex-nowrap sm:px-4 sm:py-0">
+      <header data-testid="top-bar" className="flex h-10 min-h-10 shrink-0 flex-nowrap items-center border-b border-seam bg-panel px-2 min-[430px]:px-3 sm:px-4">
         <a
           href={import.meta.env.BASE_URL}
           aria-label="PXLBLZ home"
           title="Go to home"
-          className="flex items-center gap-2 rounded-sm select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live/70"
+          className="flex shrink-0 items-center gap-1.5 rounded-sm select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live/70"
         >
           {/* viewBox pads past the ink: the left round cap reaches x=-0.2 and
               the end dot (cx 25 + r 2.6) reaches x=27.6, which a 0..26 box
               visibly clips when the logo is scaled up. */}
-          <svg width="30" height="20" viewBox="-1 0 30 20" aria-hidden className="shrink-0 text-live">
+          <svg width="24" height="16" viewBox="-1 0 30 20" aria-hidden className="shrink-0 text-live">
             <path d="M1 10 Q5 1 9 10 T17 10 T25 10" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
             <circle cx="25" cy="10" r="2.6" fill="currentColor" />
           </svg>
           <span
             aria-label="PXLBLZ"
-            className="font-mono font-semibold text-zinc-100"
-            style={{ fontSize: '17px', letterSpacing: '0.22em', textShadow: '0 0 14px rgba(245,158,11,.45)' }}
+            className="hidden font-mono font-semibold text-zinc-100 min-[431px]:inline"
+            style={{ fontSize: '13px', letterSpacing: '0.16em', textShadow: '0 0 10px rgba(245,158,11,.35)' }}
           >
             {'PXLBLZ'.split('').map((ch, i) => (
               // Each letter's keyframe (assigned by nth-child in index.css) places
@@ -887,11 +1041,14 @@ function StudioApp() {
             ))}
           </span>
         </a>
-        {/* Left zone = identity + authoring reference (#254, #296). */}
-        <span className="ml-2 flex items-center sm:ml-5">
-          <ReferenceButtons />
+        <span className="ml-2 flex min-w-0 shrink-0 items-center min-[760px]:ml-3.5">
+          <StudioPlaceControl
+            current={studioPlaceForRoute(route)}
+            details={placeDetails}
+            onSelect={selectStudioPlace}
+          />
         </span>
-        <span className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
+        <span className="ml-auto flex min-w-0 items-center gap-1 min-[430px]:gap-1.5 sm:gap-2.5">
           <ControllerBar />
           {browseRoute && (
             <Button
@@ -913,7 +1070,7 @@ function StudioApp() {
               title="Open Gallery"
             >
               <Images data-icon="inline-start" />
-              <span className="hidden min-[430px]:inline">Gallery</span>
+              <span className="hidden min-[1560px]:inline">Gallery</span>
             </Button>
           )}
           <AuthStatus />
@@ -1041,7 +1198,7 @@ function StudioApp() {
           data-testid="left-pane"
           className="shrink-0 flex flex-col"
           style={{
-            width: libraryCollapsed ? 46 : leftWidth,
+            width: libraryCollapsed ? 32 : leftWidth,
             maxWidth: libraryCollapsed ? undefined : STUDIO_LIBRARY_MAX_VIEWPORT_WIDTH,
           }}
         >
@@ -1103,7 +1260,7 @@ function StudioApp() {
               <>
                 <span className="show-header-identity flex min-w-0 flex-1 items-center gap-1.5">
                   <span className="show-header-title flex min-w-0 items-center gap-1.5">
-                    <PanelsTopLeft size={14} aria-hidden className="shrink-0 text-zinc-500" />
+                    <Film size={14} aria-hidden className="shrink-0 text-zinc-500" />
                     <InlineEntityTitle
                       name={activeShow?.name ?? 'Shows'}
                       noun="show"
@@ -1267,7 +1424,7 @@ function StudioApp() {
                 />
               ) : (
                 <StudioPaneMessage
-                  icon={<PanelsTopLeft size={18} aria-hidden />}
+                  icon={<Film size={18} aria-hidden />}
                   title="No show selected"
                   detail="Select a show from the rail."
                 />

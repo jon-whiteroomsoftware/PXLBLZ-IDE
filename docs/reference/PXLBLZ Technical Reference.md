@@ -1063,8 +1063,12 @@ contract's saved count and ranges; Portable preview uses the saved reference,
 never a connected Controller. Zone outlines and timing guides are session-only
 SVG diagnostics that never mutate compiled pixels.
 
-**Layout.** The rail collapses to a 46 px Activity strip; panes have explicit
-minimums and remembered per-entity divider widths; at 980 px and below the
+**Layout.** The top-bar place control owns the six Studio areas plus Docs and
+API Reference, and remembers the last open entity in each Studio area. The
+entity rail begins at the workspace edge and collapses to a 32 px expand
+affordance; panes have explicit minimums and remembered per-entity divider
+widths. At 390 px the wordmark becomes its mark, Controller pills and secondary
+controls become icon-only, and the bar remains one row. At 980 px and below the
 Stage yields to a Preview overlay without creating a second runtime. Rail
 typography follows `ui/ideMicrotype.ts`. The authenticated responsive and
 persistence smokes cover these surfaces; deep Show editing lives in the

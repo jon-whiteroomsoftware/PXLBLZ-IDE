@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { PanelLeftOpen } from 'lucide-react'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { uniquePatternName } from '@/engine/patternName'
@@ -36,7 +37,6 @@ import { usePatternStore, type PatternRecord } from '@/store/patternStore'
 import { useMapStore, STOCK_MAP_ITEMS, type MapRecord } from '@/store/mapStore'
 import {
   useMixinStore,
-  STOCK_MIXIN_ITEMS,
   type MixinRecord,
 } from '@/store/mixinStore'
 import { useControllerStore } from '@/store/controllerStore'
@@ -49,6 +49,7 @@ import { useShowStore, type ShowRecord } from '@/store/showStore'
 import { useEntityOrganizationStore } from '@/store/entityOrganizationStore'
 import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
+import type { StudioEntityKind } from '@/engine/routes'
 import { requestBufferReplacement } from '@/store/navigationPreflightStore'
 import { openDemoPattern, openPatternRecord } from '@/store/openPattern'
 import { useWorkspaceStore } from '@/store/workspaceStore'
@@ -61,7 +62,6 @@ import {
   type StudioOperationEntityKind,
 } from '@/store/studioOperationStore'
 import { SaveFailureNotice } from '@/components/SaveFailureNotice'
-import { ActivityStrip, type RailMode } from '@/components/rail/ActivityStrip'
 import {
   railScrollMetrics,
   railScrollResizeTargets,
@@ -330,7 +330,7 @@ export function PatternList({
     }
   }
 
-  const railMode: RailMode =
+  const railMode: StudioEntityKind =
     route.kind === 'studio' && route.entity !== null
       ? route.entity.kind
       : 'patterns'
@@ -338,7 +338,7 @@ export function PatternList({
   const [dimLens, setDimLens] = useState<DimLens>('all')
   // The type-down name search (#252). Ephemeral too: resets to '' on reload, and
   // separate per rail mode so a map search doesn't leak into pattern browsing.
-  const [queries, setQueries] = useState<Record<RailMode, string>>({
+  const [queries, setQueries] = useState<Record<StudioEntityKind, string>>({
     patterns: '',
     maps: '',
     mixins: '',
@@ -376,14 +376,6 @@ export function PatternList({
     }
   })
   const scrollRef = useRef<HTMLDivElement>(null)
-  const lastEntityByModeRef = useRef<Record<RailMode, string | null>>({
-    patterns: null,
-    maps: null,
-    mixins: null,
-    libraries: null,
-    controllers: null,
-    shows: null,
-  })
   const [scrollMetrics, setScrollMetrics] = useState<ScrollMetrics>({
     top: 0,
     height: 0,
@@ -396,46 +388,6 @@ export function PatternList({
   const setGlobalWorkspaceAuthenticated = useWorkspaceStore((s) => s.setPersonalWorkspaceAuthenticated)
   const query = queries[railMode]
   const setQuery = (next: string) => setQueries((q) => ({ ...q, [railMode]: next }))
-
-  function handleRailModeChange(next: RailMode) {
-    requestBufferReplacement(() => {
-      closeDocs()
-      if (next !== 'maps') closeMapEditor()
-      if (next !== 'mixins') closeMixinEditor()
-      if (next !== 'libraries') closeLibraryEditor()
-      if (next === 'libraries') {
-        const last = lastEntityByModeRef.current.libraries
-        const id = last && (LIBRARIES[last] || userLibraries.some((library) => library.id === last)) ? last : null
-        navigate({ kind: 'studio', entity: { kind: next, id } })
-        return
-      }
-      if (next === 'shows') {
-        const last = lastEntityByModeRef.current.shows
-        const id = userShows.some((show) => show.id === last) || STOCK_SHOWS.some((show) => show.id === last)
-          ? last
-          : (userShows[0]?.id ?? null)
-        navigate({ kind: 'studio', entity: { kind: next, id } })
-        return
-      }
-      if (next === 'controllers') {
-        const last = lastEntityByModeRef.current.controllers
-        const id = controllerProfiles.some((profile) => profile.id === last)
-          ? last
-          : (controllerProfiles[0]?.id ?? null)
-        navigate({ kind: 'studio', entity: { kind: next, id } })
-        return
-      }
-      const last = lastEntityByModeRef.current[next]
-      const id = next === 'patterns'
-        ? (userPatterns.some((p) => p.id === last) || STOCK_PATTERNS.some((p) => p.name === last) ? last : null)
-        : next === 'maps'
-          ? (userMaps.some((m) => m.id === last) || STOCK_MAP_ITEMS.some((m) => m.id === last) ? last : null)
-        : next === 'mixins'
-          ? (userMixins.some((m) => m.id === last) || STOCK_MIXIN_ITEMS.some((m) => m.id === last) ? last : null)
-        : null
-      navigate({ kind: 'studio', entity: { kind: next, id } })
-    })
-  }
 
   function updateScrollMetrics() {
     const el = scrollRef.current
@@ -499,16 +451,8 @@ export function PatternList({
   }, [showStockLibraries])
 
   useEffect(() => {
-    if (route.kind !== 'studio' || route.entity === null || route.entity.id === null) return
-    lastEntityByModeRef.current[route.entity.kind] = route.entity.id
-  }, [route])
-
-  useEffect(() => {
     if (route.kind !== 'studio' || route.entity?.kind !== 'controllers' || route.entity.id !== null) return
-    const last = lastEntityByModeRef.current.controllers
-    const id = controllerProfiles.some((profile) => profile.id === last)
-      ? last
-      : (controllerProfiles[0]?.id ?? null)
+    const id = controllerProfiles[0]?.id ?? null
     if (id) navigate({ kind: 'studio', entity: { kind: 'controllers', id } }, { replace: true })
   }, [controllerProfiles, navigate, route])
 
@@ -1068,6 +1012,22 @@ export function PatternList({
     : null
   const libraryNames = Object.keys(LIBRARIES).sort()
 
+  if (collapsed) {
+    return (
+      <div data-testid="studio-rail" className="flex h-full w-8 justify-center border-r border-seam bg-zinc-950/35 pt-1.5">
+        <button
+          type="button"
+          aria-label="Expand library"
+          title="Expand library"
+          onClick={() => onCollapsedChange?.(false)}
+          className="grid size-7 place-items-center rounded text-zinc-400 transition-colors hover:bg-zinc-900 hover:text-live focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live/60"
+        >
+          <PanelLeftOpen size={15} aria-hidden />
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div data-testid="studio-rail" className="flex h-full text-xs font-mono">
       <input
@@ -1085,13 +1045,7 @@ export function PatternList({
         data-testid="show-file-input"
         onChange={handleShowFileChange}
       />
-      <ActivityStrip
-        mode={railMode}
-        onModeChange={handleRailModeChange}
-        collapsed={collapsed}
-        onToggleCollapsed={onCollapsedChange ? () => onCollapsedChange(!collapsed) : undefined}
-      />
-      <div className={collapsed ? 'hidden' : 'flex min-w-0 flex-1 flex-col'}>
+      <div className="flex min-w-0 flex-1 flex-col">
         {railMode === 'patterns' && (
           <PatternsRailSection
             onCollapse={onCollapsedChange ? () => onCollapsedChange(true) : undefined}

@@ -27,6 +27,28 @@ keys take priority over the surrounding Studio or Show shortcuts. On narrow
 screens, Show dialogs keep `Tab` and `Shift+Tab` inside the dialog until you
 close it.
 
+## Places
+
+The place control beside the wordmark moves between Studio areas and the two
+public reference workspaces. Press `Enter` on the control to open its list;
+use `Up`, `Down`, `Home`, `End`, or typeahead to move; press `Enter` to choose;
+and press `Escape` to close it and return focus to the control.
+
+| Shortcut | Place |
+|---|---|
+| `P` | Patterns |
+| `S` | Shows |
+| `M` | Maps |
+| `C` | Controllers |
+| `X` | Mixins |
+| `L` | Libraries |
+| `D` | Docs |
+| `R` | API Reference |
+
+These unmodified one-key shortcuts work outside editable fields and focused
+local controls. They do not claim letters while you type in Monaco, rename an
+entity, adjust a slider, or use a menu, dialog, link, button, or tree row.
+
 ## Preview
 
 ### Playback
@@ -39,7 +61,9 @@ close it.
 throughout Studio and on Pattern detail pages, even when something else has
 keyboard focus: outside the Show timeline, buttons, links, selectors, sliders,
 menus, and tree rows all hand `Space` to Preview playback instead of treating
-it as a click. Inside the Show editor, the timeline toolbar, Zone rail,
+it as a click. The focused place trigger follows this rule: `Enter` opens its
+list, while `Space` still controls Preview playback. Inside the Show editor,
+the timeline toolbar, Zone rail,
 timeline entities, Navigator, and playhead pass `Space` through the same way.
 
 The exceptions are places where `Space` means something else: text fields and

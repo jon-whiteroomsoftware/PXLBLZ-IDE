@@ -49,10 +49,10 @@ Studio but stay out of the public Gallery.
 
 ## 2. Studio
 
-`/studio` is your working environment. The left rail organizes six kinds of
-things, each with stable routes:
+`/studio` is your working environment. The place control beside the wordmark
+chooses among six Studio areas, each with stable routes:
 
-| Rail mode | What opens |
+| Place | What opens |
 |---|---|
 | Patterns | Editable personal Patterns and read-only built-ins |
 | Shows | Timeline-based multi-Pattern choreography |
@@ -61,7 +61,10 @@ things, each with stable routes:
 | Mixins | Reusable pass-engine transformation source |
 | Libraries | Reusable Pattern functions and shared state |
 
-The layout is three panes: the rail opens and creates, the center edits, and
+The place menu remembers the entity open in each Studio area and shows its
+name below that area. It also groups the public **Docs** and **API** workspaces
+under Reference. The layout is three panes: the rail opens and creates within
+the selected place, the center edits, and
 the right pane shows context: a Pattern's preview, a map's wiring check, a
 library's API reference, or a Show's Stage.
 
@@ -72,7 +75,9 @@ including a folder of ZRanger1's published community Patterns, and every new
 workspace starts with an editable **Start Here** example of each kind.
 
 Two habits worth learning on day one: the center-pane title is the rename
-control, and **Space** toggles preview playback anywhere outside a text field.
+control, and **Space** toggles preview playback anywhere outside a text field,
+including while the place control has focus. Press **Enter** to open that
+control.
 Controller names are the deliberate exception: Rename appears only while that
 profile's physical Controller is live, because the device—not the profile—is
 the source of truth.
@@ -88,8 +93,9 @@ of failing silently.
 
 ## 3. Docs and API reference
 
-**Docs** and **API** in the header open public reference workspaces without
-entering Studio, and both deep-link (`/docs/<id>`, `/reference/<library>`).
+**Docs** and **API** under Reference in the place menu open public reference
+workspaces without entering Studio, and both deep-link (`/docs/<id>`,
+`/reference/<library>`).
 From Studio, the API Reference adds **My libraries**, generated from the `//`
 doc comments in your own code.
 

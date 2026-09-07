@@ -182,13 +182,14 @@ const CONTROLLER_PROFILE: ControllerProfile = {
   updatedAt: 1000,
 }
 
-async function switchToMaps(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('radio', { name: 'Maps' }))
+async function switchRailMode(mode: 'Patterns' | 'Shows' | 'Maps' | 'Controllers' | 'Mixins' | 'Libraries') {
+  const kind = mode.toLocaleLowerCase() as 'patterns' | 'shows' | 'maps' | 'controllers' | 'mixins' | 'libraries'
+  act(() => useRouterStore.getState().navigate({ kind: 'studio', entity: { kind, id: null } }))
+  await screen.findByRole('heading', { name: mode })
 }
 
-async function switchToMixins(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('radio', { name: 'Mixins' }))
-}
+async function switchToMaps(_user: ReturnType<typeof userEvent.setup>) { await switchRailMode('Maps') }
+async function switchToMixins(_user: ReturnType<typeof userEvent.setup>) { await switchRailMode('Mixins') }
 
 function setStudioLocation(path = '/studio') {
   window.history.replaceState(null, '', path)
@@ -459,7 +460,7 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
     await screen.findByText('Seed Pattern')
-    if (mode !== 'Patterns') await user.click(screen.getByRole('radio', { name: mode }))
+    if (mode !== 'Patterns') await switchRailMode(mode)
     const beforePath = window.location.pathname
     const beforeCount = records().length
     blockedWrite = { path, method: 'POST' }
@@ -554,7 +555,7 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
     await screen.findByText('Seed Pattern')
-    if (mode !== 'Patterns') await user.click(screen.getByRole('radio', { name: mode }))
+    if (mode !== 'Patterns') await switchRailMode(mode)
     await screen.findByText(oldName)
     blockedWrite = { path, method: 'PATCH' }
 
@@ -690,13 +691,10 @@ describe('PatternList', () => {
     expect(screen.queryByText('AuroraSphere')).not.toBeInTheDocument()
   })
 
-  it('renders all six entity modes in the activity strip', async () => {
+  it('starts the entity list at the rail edge without an activity strip (#965)', async () => {
     render(<PatternList />)
-
-    expect(await screen.findByRole('radio', { name: 'Patterns' })).toHaveAttribute('aria-checked', 'true')
-    for (const name of ['Shows', 'Maps', 'Mixins', 'Libraries', 'Controllers']) {
-      expect(screen.getByRole('radio', { name })).toBeInTheDocument()
-    }
+    expect(await screen.findByRole('heading', { name: 'Patterns' })).toBeInTheDocument()
+    expect(screen.queryByRole('radiogroup', { name: 'Studio activity' })).not.toBeInTheDocument()
   })
 
   it('opens a stock library read-only from the Libraries rail without changing preview source', async () => {
@@ -705,7 +703,7 @@ describe('PatternList', () => {
     await screen.findByText('Seed Pattern')
     const previewSourceBefore = useEditorStore.getState().previewSource
 
-    await user.click(screen.getByRole('radio', { name: 'Libraries' }))
+    await switchRailMode('Libraries')
 
     expect(await screen.findByRole('button', { name: 'Built-in Libraries' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('StartHere')).toBeInTheDocument()
@@ -718,10 +716,6 @@ describe('PatternList', () => {
     expect(useEditorStore.getState().isReadOnly).toBe(true)
     expect(useEditorStore.getState().previewSource).toBe(previewSourceBefore)
 
-    await user.click(screen.getByRole('radio', { name: 'Maps' }))
-    expect(window.location.pathname).toBe('/studio/maps')
-    await user.click(screen.getByRole('radio', { name: 'Libraries' }))
-    expect(window.location.pathname).toBe('/studio/libraries/Shader')
   })
 
   it('creates a cloud library from the Libraries title row and opens it editable', async () => {
@@ -734,7 +728,7 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
 
-    await user.click(await screen.findByRole('radio', { name: 'Libraries' }))
+    await switchRailMode('Libraries')
     await user.click(await screen.findByRole('button', { name: 'Add library' }))
     await user.click(await screen.findByRole('button', { name: 'New library' }))
 
@@ -751,10 +745,9 @@ describe('PatternList', () => {
   })
 
   it('selects entity kinds through /studio/<kind> routes', async () => {
-    const user = userEvent.setup()
     render(<PatternList />)
 
-    await user.click(screen.getByRole('radio', { name: 'Mixins' }))
+    await switchRailMode('Mixins')
 
     expect(window.location.pathname).toBe('/studio/mixins')
     expect(screen.getAllByText('Mixins')).toHaveLength(1)
@@ -765,7 +758,7 @@ describe('PatternList', () => {
     setStudioLocation()
     render(<PatternList />)
 
-    await user.click(screen.getByRole('radio', { name: 'Shows' }))
+    await switchRailMode('Shows')
     await user.click(await screen.findByRole('button', { name: 'Add show' }))
     await user.click(await screen.findByRole('button', { name: 'New show' }))
 
@@ -775,24 +768,12 @@ describe('PatternList', () => {
     expect(window.location.pathname).toBe('/studio/shows')
   })
 
-  it('returns to an open built-in Show when flicking rail modes away and back (#63)', async () => {
-    const user = userEvent.setup()
-    setStudioLocation('/studio/shows/stock-show-showcase-redline-installation')
-    render(<PatternList />)
-
-    await user.click(screen.getByRole('radio', { name: 'Patterns' }))
-    expect(window.location.pathname).toBe('/studio/patterns')
-    await user.click(screen.getByRole('radio', { name: 'Shows' }))
-
-    expect(window.location.pathname).toBe('/studio/shows/stock-show-showcase-redline-installation')
-  })
-
   it('opens the paired built-in Show curriculum without creating personal records (#363)', async () => {
     const user = userEvent.setup()
     setStudioLocation()
     render(<PatternList />)
 
-    await user.click(screen.getByRole('radio', { name: 'Shows' }))
+    await switchRailMode('Shows')
     expect(await screen.findByRole('button', { name: 'Built-in Shows' })).toHaveAttribute('aria-expanded', 'true')
     const builtInTree = screen.getByRole('tree', { name: 'Built-in Shows' })
     expect(within(builtInTree).getByRole('treeitem', { name: /^Learn/ })).toHaveAttribute('aria-expanded', 'true')
@@ -851,7 +832,7 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
 
-    await user.click(screen.getByRole('radio', { name: 'Controllers' }))
+    await switchRailMode('Controllers')
 
     expect(await screen.findByText('Old alias')).toBeInTheDocument()
     expect(screen.queryByText('Burner bag')).not.toBeInTheDocument()
@@ -883,7 +864,7 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
 
-    await user.click(screen.getByRole('radio', { name: 'Controllers' }))
+    await switchRailMode('Controllers')
     await user.click(await screen.findByRole('button', { name: 'More actions for Old alias' }))
     await user.click(screen.getByRole('button', { name: 'Rename' }))
     await user.clear(screen.getByRole('textbox', { name: 'Rename item' }))
@@ -1035,7 +1016,7 @@ describe('PatternList', () => {
 
     await selectDimension(user, '1D')
     await switchToMaps(user)
-    await user.click(screen.getByRole('radio', { name: 'Patterns' }))
+    await switchRailMode('Patterns')
     expect(screen.queryByText('AuroraSphere')).not.toBeInTheDocument()
 
     await selectDimension(user, 'All')
@@ -1199,18 +1180,16 @@ describe('PatternList', () => {
   })
 
   it('does not duplicate the top-bar Gallery destination in another entity mode', async () => {
-    const user = userEvent.setup()
     setStudioLocation()
     render(<PatternList />)
-    await user.click(screen.getByRole('radio', { name: 'Shows' }))
+    await switchRailMode('Shows')
     expect(screen.queryByRole('button', { name: 'Catalog' })).not.toBeInTheDocument()
   })
 
   it('uses the shared legible hierarchy for Show organization and empty-state labels (#426, #479)', async () => {
-    const user = userEvent.setup()
     setStudioLocation()
     render(<PatternList />)
-    await user.click(screen.getByRole('radio', { name: 'Shows' }))
+    await switchRailMode('Shows')
 
     expect(await screen.findByLabelText('No shows yet')).toHaveTextContent('—')
     expect(screen.getByRole('treeitem', { name: /Learn/ })).toHaveClass('text-[12px]')

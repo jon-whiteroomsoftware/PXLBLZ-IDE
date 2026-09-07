@@ -1,4 +1,11 @@
 import { test, expect } from '@playwright/test'
+import type { Page } from '@playwright/test'
+
+async function choosePlace(page: Page, name: string): Promise<void> {
+  const topBar = page.getByTestId('top-bar')
+  await topBar.locator('[aria-haspopup="listbox"]').click()
+  await page.getByRole('listbox', { name: 'Places' }).getByRole('option', { name: new RegExp(`^${name}`) }).click()
+}
 
 /**
  * Pre-push smoke test — NOT exhaustive.
@@ -243,32 +250,24 @@ test('API entries use two columns when the reference reader has room', async ({ 
   expect(second!.x).toBeGreaterThan(first!.x + first!.width)
 })
 
-test('Docs and API header buttons preserve one public return origin', async ({ page }) => {
+test('Docs and API places keep public navigation reachable', async ({ page }) => {
   await page.goto('gallery')
-  await page.getByRole('button', { name: 'Docs' }).click()
+  await choosePlace(page, 'Docs')
   await expect(page).toHaveURL(/\/docs$/)
 
-  const docsButton = page.getByRole('button', { name: 'Docs' })
-  await expect(docsButton).toHaveAttribute('aria-pressed', 'true')
-  await expect.poll(async () => {
-    const [docsColor, docsIconColor] = await Promise.all([
-      docsButton.evaluate((element) => getComputedStyle(element).color),
-      docsButton.locator('svg').evaluate((element) => getComputedStyle(element).color),
-    ])
-    return docsIconColor === docsColor
-  }).toBe(true)
+  const docsTrigger = page.getByTestId('top-bar').getByRole('button', { name: 'Docs' })
+  await expect(docsTrigger).toHaveAttribute('aria-haspopup', 'listbox')
 
-  await page.getByRole('button', { name: 'API' }).click()
+  await choosePlace(page, 'API')
   await expect(page).toHaveURL(/\/reference$/)
-  await page.getByRole('button', { name: 'Back to Gallery' }).click()
-  await expect(page).toHaveURL(/\/gallery$/)
+  await page.getByRole('link', { name: 'PXLBLZ home' }).click()
+  await expect(page).toHaveURL(/\/PXLBLZ-IDE\/$/)
 })
 
 test('reference workspaces keep navigation and long content reachable on a phone', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 568 })
   await page.goto('docs/feature-guide')
-  await expect(page.getByRole('button', { name: 'Docs' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'API' })).toBeVisible()
+  await expect(page.getByTestId('top-bar').getByRole('button', { name: 'Docs' })).toHaveAttribute('aria-haspopup', 'listbox')
   await expect(page.getByTestId('top-bar')).toBeInViewport()
   await expect(page.getByTestId('docs-catalog')).toBeVisible()
   await expect(page.getByTestId('docs-catalog').getByRole('link', { name: /Feature Guide/ })).toBeInViewport()

@@ -60,14 +60,14 @@ export function AuthStatus() {
     const label = accountLabel(session)
 
     return (
-      <div ref={accountRef} className="relative flex min-w-0 max-w-52 items-center max-[980px]:max-w-36 max-[760px]:max-w-28">
+      <div ref={accountRef} className="relative flex min-w-0 max-w-52 items-center max-[980px]:max-w-36 max-[760px]:max-w-28 max-[430px]:w-7">
         <button
           type="button"
           aria-label={`Account menu for ${label}`}
           aria-haspopup="menu"
           aria-expanded={accountOpen}
           onClick={() => setAccountOpen((open) => !open)}
-          className={`flex h-7 min-w-0 w-full cursor-pointer items-center gap-1.5 rounded-[min(var(--radius-md),12px)] border pl-1.5 pr-1.5 font-mono text-[11px] transition-colors select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/40 ${
+          className={`flex h-7 min-w-0 w-full cursor-pointer items-center justify-center gap-1.5 rounded-[min(var(--radius-md),12px)] border pl-1.5 pr-1.5 font-mono text-[11px] transition-colors select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/40 ${
             accountOpen
               ? 'border-zinc-500 bg-zinc-800 text-zinc-100'
               : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
@@ -83,11 +83,11 @@ export function AuthStatus() {
           ) : (
             <CircleUser size={16} className="shrink-0 text-zinc-500" aria-hidden />
           )}
-          <span className="min-w-0 max-w-32 truncate">{label}</span>
+          <span className="min-w-0 max-w-32 truncate max-[430px]:hidden">{label}</span>
           <ChevronDown
             size={13}
             aria-hidden
-            className={`shrink-0 text-zinc-500 transition-transform ${accountOpen ? 'rotate-180' : ''}`}
+            className={`shrink-0 text-zinc-500 transition-transform max-[430px]:hidden ${accountOpen ? 'rotate-180' : ''}`}
           />
         </button>
 
@@ -143,11 +143,12 @@ export function AuthStatus() {
     <Button
       variant="outline"
       size="sm"
-      className="border-zinc-700 bg-zinc-900 font-mono text-[11px] text-zinc-300 hover:border-zinc-500 hover:bg-zinc-900 hover:text-zinc-100 focus-visible:border-zinc-500 focus-visible:ring-zinc-500/35"
+      className="border-zinc-700 bg-zinc-900 font-mono text-[11px] text-zinc-300 hover:border-zinc-500 hover:bg-zinc-900 hover:text-zinc-100 focus-visible:border-zinc-500 focus-visible:ring-zinc-500/35 max-[350px]:w-7 max-[350px]:px-0"
       onClick={handleSignIn}
+      aria-label="Sign in"
     >
       <LogIn data-icon="inline-start" />
-      Sign in
+      <span className="max-[350px]:hidden">Sign in</span>
     </Button>
   )
 }

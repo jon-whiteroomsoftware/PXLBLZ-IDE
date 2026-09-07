@@ -193,7 +193,7 @@ function ControllerPillButton({
         data-testid="controller-pill"
         data-active={active}
         data-phase={phase}
-        className={`group inline-flex items-center gap-1.5 h-6 rounded border px-2 font-mono text-[11px] transition-colors select-none focus:outline-none ${
+        className={`group inline-flex items-center gap-1.5 h-6 rounded border px-2 font-mono text-[11px] transition-colors select-none focus:outline-none max-[430px]:gap-0.5 max-[430px]:px-0.5 ${
           active
             ? 'border-zinc-400 bg-zinc-800 text-zinc-100'
             : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
@@ -202,7 +202,7 @@ function ControllerPillButton({
         <span className="text-zinc-400 group-hover:text-zinc-300">
           <ChipGlyph />
         </span>
-        <span className="max-w-[10rem] truncate">{label}</span>
+        <span data-controller-pill-label className="max-w-[10rem] truncate max-[430px]:hidden">{label}</span>
         {firmwareUpdateAvailable && (
           <span
             role="img"
@@ -557,7 +557,7 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
   }
 
   return (
-    <div ref={rootRef} className="relative flex items-center gap-2" data-testid="controller-bar">
+    <div ref={rootRef} className="relative flex items-center gap-2 max-[430px]:gap-1" data-testid="controller-bar">
       {ips.map((ip) => {
         const controllerProfile = findControllerProfileForDevice(
           controllerProfiles,
@@ -601,7 +601,7 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
         aria-expanded={open}
         onClick={() => (open ? setOpen(false) : openDropdown())}
         className={`inline-flex h-7 items-center justify-center rounded-[min(var(--radius-md),12px)] border border-zinc-700 bg-zinc-900 font-mono text-[11px] text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-100 focus:outline-none ${
-          hasPills ? 'w-7 text-base leading-none' : 'gap-1.5 px-2.5'
+          hasPills ? 'w-7 text-base leading-none' : 'gap-1.5 px-2.5 max-[350px]:w-7 max-[350px]:gap-0 max-[350px]:px-0'
         }`}
       >
         {/* Plug glyph + "Connect" until a Controller is live, when it collapses
@@ -614,7 +614,7 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
         ) : (
           <>
             <ConnectGlyph />
-            Connect
+            <span className="max-[350px]:hidden">Connect</span>
           </>
         )}
       </button>

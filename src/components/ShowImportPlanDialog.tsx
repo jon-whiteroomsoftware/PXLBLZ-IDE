@@ -1,5 +1,5 @@
 import { useRef, type ReactNode } from 'react'
-import { Check, CircleX, Copy, FileCode2, Map, PanelsTopLeft, Plus, type LucideIcon } from 'lucide-react'
+import { Check, CircleX, Copy, FileCode2, Film, Map, Plus, type LucideIcon } from 'lucide-react'
 import type { ShowImportCopyPlanItem, ShowImportPlan, ShowImportPlanItem } from '@/engine/showImportPlan'
 import {
   AlertDialogAction,
@@ -62,7 +62,7 @@ export function ShowImportPlanDialog({
           Review the Show, Pattern, and Map changes before importing this file.
         </AlertDialogDescription>
         <div className="grid gap-3.5 pt-4">
-          <PlanSection icon={PanelsTopLeft} label="Shows">
+          <PlanSection icon={Film} label="Shows">
             <PlanRow state="add" label="Will be added">
               {plan.show.name}
             </PlanRow>
