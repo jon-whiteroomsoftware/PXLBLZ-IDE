@@ -235,18 +235,63 @@ test('the Studio entity drawer overlays without reflow and preserves Preview Spa
   // The tucked state precedes the drawer's completed exit transition.
   await expect(drawer).toBeHidden()
 
-  const clip = page.locator('[data-show-composition-clip="true"]').first()
-  const clipBounds = await clip.boundingBox()
-  expect(clipBounds).not.toBeNull()
-  await page.keyboard.down('Shift')
-  await page.mouse.move(clipBounds!.x + clipBounds!.width / 2, clipBounds!.y + clipBounds!.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(clipBounds!.x + clipBounds!.width / 2 + 12, clipBounds!.y + clipBounds!.height / 2, { steps: 2 })
-  await expect(page.getByTestId('show-clip-move-preview')).toBeVisible()
-  await page.mouse.move(5, clipBounds!.y + clipBounds!.height / 2, { steps: 6 })
-  await page.mouse.up()
-  await page.keyboard.up('Shift')
-  await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
+  // Buffer at the browser boundary so a runner-only missed drag reports the
+  // actual target and event order without adding awaits inside the gesture.
+  await page.evaluate(() => {
+    const trace: unknown[] = []
+    const describe = (element: Element | null) => {
+      if (!element) return null
+      const bounds = element.getBoundingClientRect()
+      return {
+        tag: element.tagName,
+        role: element.getAttribute('role'),
+        label: element.getAttribute('aria-label'),
+        selection: element.closest('[data-show-selection-key]')?.getAttribute('data-show-selection-key'),
+        layer: element.closest('[data-show-layer-id]')?.getAttribute('data-show-layer-id'),
+        bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
+      }
+    }
+    for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'dragstart', 'dragend']) {
+      document.addEventListener(type, (rawEvent) => {
+        const event = rawEvent as PointerEvent | DragEvent
+        trace.push({
+          type,
+          time: performance.now(),
+          x: event.clientX,
+          y: event.clientY,
+          shift: event.shiftKey,
+          buttons: event.buttons,
+          target: describe(event.target instanceof Element ? event.target : null),
+          hit: describe(document.elementFromPoint(event.clientX, event.clientY)),
+          clip: describe(document.querySelector('[data-show-composition-clip="true"]')),
+        })
+        if (trace.length > 200) trace.shift()
+      }, true)
+    }
+    ;(window as unknown as { drawerDragTrace: unknown[] }).drawerDragTrace = trace
+  })
+  try {
+    const clip = page.locator('[data-show-composition-clip="true"]').first()
+    const clipBounds = await clip.boundingBox()
+    expect(clipBounds).not.toBeNull()
+    await page.keyboard.down('Shift')
+    await page.mouse.move(clipBounds!.x + clipBounds!.width / 2, clipBounds!.y + clipBounds!.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(clipBounds!.x + clipBounds!.width / 2 + 12, clipBounds!.y + clipBounds!.height / 2, { steps: 2 })
+    await expect(page.getByTestId('show-clip-move-preview')).toBeVisible()
+    await page.mouse.move(5, clipBounds!.y + clipBounds!.height / 2, { steps: 6 })
+    await page.mouse.up()
+    await page.keyboard.up('Shift')
+    await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
+  } catch (error) {
+    const trace = await page.evaluate(() => (
+      (window as unknown as { drawerDragTrace: unknown[] }).drawerDragTrace
+    ))
+    const body = JSON.stringify(trace, null, 2)
+    await test.info().attach('drawer-drag-events', { body, contentType: 'application/json' })
+    console.error(`Drawer drag event trace: ${JSON.stringify(trace)}`)
+    throw error
+  }
 
   await choosePlace(page, 'Maps')
   await page.getByRole('button', { name: 'Unpin Maps list' }).click()
