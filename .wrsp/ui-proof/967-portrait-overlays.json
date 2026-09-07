@@ -2,7 +2,7 @@
   "version": 1,
   "issue": "967",
   "route": "/PXLBLZ-IDE/studio/shows/proof-967-portrait",
-  "operation": "Open the locally seeded portrait-map Show at 1440x900 with the divider high, select TestPattern1D, enable Zone outlines and Selected Clip outline, then close the detail panel. The capture proves the exact 1:4 portrait Stage and both 24 px amber pressed overlay toggles with both overlays rendered. Driven and captured in the Codex in-app browser as synthetic local-agent-08; the file carries JPEG bytes.",
+  "operation": "Open the locally seeded portrait-map Show at 1440x900 with the divider at its measured timeline minimum, select TestPattern1D, and enable Zone outlines and Selected Clip outline. The capture proves the exact 1:4 portrait Stage, visible transport and ruler, and both 24 px amber pressed overlay toggles with both overlays rendered. Driven and captured in the Codex in-app browser as synthetic local-agent-08; the file carries JPEG bytes.",
   "captures": [".wrsp/ui-proof/967-portrait-overlays.jpg"],
-  "capturedAtCommit": "a573cd14db5fc4b242299291aad140b2f3eb899c"
+  "capturedAtCommit": "022f14a663f867ceb58d5bf687c197d68aed5e1d"
 }

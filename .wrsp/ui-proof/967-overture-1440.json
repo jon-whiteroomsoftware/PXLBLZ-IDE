@@ -2,7 +2,7 @@
   "version": 1,
   "issue": "967",
   "route": "/PXLBLZ-IDE/studio/shows/stock-show-remix-overture",
-  "operation": "Open Overture Installation at 1440x900 with the default 60/40 Show split. The capture proves the full-width timeline above the horizontal divider and the aspect-true 16:9 Stage beside its compact controls. Driven and captured in the Codex in-app browser as synthetic local-agent-08; the file carries JPEG bytes.",
+  "operation": "Open Overture Installation at 1440x900 with the default 60/40 Show split. The capture proves the full-width timeline above the horizontal divider and the Stage at the Proscenium map's true approximately 1.734:1 aspect beside its compact controls. Driven and captured in the Codex in-app browser as synthetic local-agent-08; the file carries JPEG bytes.",
   "captures": [".wrsp/ui-proof/967-overture-1440.jpg"],
-  "capturedAtCommit": "a573cd14db5fc4b242299291aad140b2f3eb899c"
+  "capturedAtCommit": "022f14a663f867ceb58d5bf687c197d68aed5e1d"
 }

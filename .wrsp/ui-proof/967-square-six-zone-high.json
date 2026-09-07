@@ -2,7 +2,7 @@
   "version": 1,
   "issue": "967",
   "route": "/PXLBLZ-IDE/studio/shows/proof-967-square-six-zone",
-  "operation": "Open the locally seeded six-Zone square-map Show at 1440x900 and move the divider to the timeline minimum. The capture proves a 658x658 Stage, the red high-clamp handle, and folded Zones coverage of 60/60 assigned. Driven and captured in the Codex in-app browser as synthetic local-agent-08; the file carries JPEG bytes.",
+  "operation": "Open the locally seeded six-Zone square-map Show at 1440x900 and move the divider to its measured timeline minimum. The capture proves the square Stage, red high-clamp handle, folded Zones coverage of 60/60 assigned, and the complete transport, ruler, and first two Zone lanes above the divider. Driven and captured in the Codex in-app browser as synthetic local-agent-08; the file carries JPEG bytes.",
   "captures": [".wrsp/ui-proof/967-square-six-zone-high.jpg"],
-  "capturedAtCommit": "a573cd14db5fc4b242299291aad140b2f3eb899c"
+  "capturedAtCommit": "022f14a663f867ceb58d5bf687c197d68aed5e1d"
 }
