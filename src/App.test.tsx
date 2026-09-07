@@ -246,19 +246,30 @@ describe('App smoke test', () => {
       controls: {},
       updatedAt: 1,
     }
+    const starter: PatternRecord = {
+      ...pattern,
+      id: 'pxlblz-starter-pattern-v1',
+      name: 'Starter Pattern',
+    }
     const show = createDefaultShow('remembered-show', 'Evening Show', 1)
+    const hydratedShow = createDefaultShow('hydrated-show', 'Hydrated Show', 2)
     setStudioLocation(`/studio/patterns/${pattern.id}`)
     seedSignedInWorkspace()
-    usePatternStore.setState({ userPatterns: [pattern], patternsLoaded: true, activePatternId: pattern.id })
-    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
+    usePatternStore.setState({ userPatterns: [pattern, starter], patternsLoaded: true, activePatternId: pattern.id })
+    useShowStore.setState({ shows: [show, hydratedShow], showsLoaded: true, activeShowId: show.id })
     render(<App />)
 
-    await waitFor(() => expect(useStudioPlaceStore.getState().remembered).toMatchObject({
-      patterns: pattern.id,
-      shows: show.id,
-    }))
+    await waitFor(() => expect(useStudioPlaceStore.getState().remembered.patterns).toBe(pattern.id))
+    expect(useStudioPlaceStore.getState().remembered.shows).toBeNull()
 
+    await choosePlace('Shows')
+    await waitFor(() => expect(window.location.pathname).toBe(`/studio/shows/${show.id}`))
+    await waitFor(() => expect(useStudioPlaceStore.getState().remembered.shows).toBe(show.id))
     await choosePlace('Docs')
+    act(() => usePatternStore.setState({ activeDemoName: null, activePatternId: starter.id }))
+    act(() => useShowStore.setState({ activeShowId: hydratedShow.id }))
+    expect(useStudioPlaceStore.getState().remembered.patterns).toBe(pattern.id)
+    expect(useStudioPlaceStore.getState().remembered.shows).toBe(show.id)
     const trigger = within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Docs' })
     await userEvent.click(trigger)
     const places = screen.getByRole('listbox', { name: 'Places' })

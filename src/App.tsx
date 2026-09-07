@@ -450,23 +450,6 @@ function StudioApp() {
   useEffect(() => {
     if (route.kind === 'studio' && route.entity?.id) rememberPlace(route.entity.kind, route.entity.id)
   }, [rememberPlace, route])
-  useEffect(() => {
-    const id = activeDemoName ?? activePatternId
-    if (id) rememberPlace('patterns', id)
-  }, [activeDemoName, activePatternId, rememberPlace])
-  useEffect(() => {
-    if (activeShowId) rememberPlace('shows', activeShowId)
-  }, [activeShowId, rememberPlace])
-  useEffect(() => {
-    if (editingMap) rememberPlace('maps', editingMap.id)
-  }, [editingMap, rememberPlace])
-  useEffect(() => {
-    if (editingMixin) rememberPlace('mixins', editingMixin.id)
-  }, [editingMixin, rememberPlace])
-  useEffect(() => {
-    if (editingLibrary) rememberPlace('libraries', editingLibrary.id)
-    else if (activeLibraryName) rememberPlace('libraries', activeLibraryName)
-  }, [activeLibraryName, editingLibrary, rememberPlace])
 
   const placeDetails = useMemo((): StudioPlaceDetails => {
     const details: StudioPlaceDetails = {}
