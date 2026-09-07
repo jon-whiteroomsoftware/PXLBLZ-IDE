@@ -293,36 +293,20 @@ describe('StockListItem', () => {
 })
 
 describe('rail header alignment', () => {
-  it('keeps Collapse leading and the action menu trailing', () => {
-    render(
-      <RailEntityHeader
-        title="Shows"
-        onCollapse={vi.fn()}
-        action={<button type="button">Actions</button>}
-      />,
-    )
-
-    const collapse = screen.getByRole('button', { name: 'Collapse rail' })
-    const heading = screen.getByRole('heading', { name: 'Shows' })
+  it('keeps search leading and the housing control trailing', () => {
+    render(<RailEntityHeader title="Shows" onQueryChange={vi.fn()} onCollapse={vi.fn()} action={<button type="button">Actions</button>} />)
+    const search = screen.getByRole('textbox', { name: 'Search shows' })
     const actions = screen.getByRole('button', { name: 'Actions' })
-    expect(collapse.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
-    expect(heading.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    const collapse = screen.getByRole('button', { name: 'Collapse rail' })
+    expect(search.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    expect(actions.compareDocumentPosition(collapse) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
   })
 
-  it('keeps Collapse rail above an open shared search overlay (#621)', async () => {
+  it('keeps the housing action keyboard accessible while searching (#621)', async () => {
     const user = userEvent.setup()
     const onCollapse = vi.fn()
-    render(
-      <RailEntityHeader
-        title="Patterns"
-        onCollapse={onCollapse}
-        action={<RailFilterBar query="signal" onQueryChange={vi.fn()} />}
-      />,
-    )
-
-    const collapse = screen.getByRole('button', { name: 'Collapse rail' })
-    expect(collapse).toHaveClass('relative', 'z-50')
-    collapse.focus()
+    render(<RailEntityHeader title="Patterns" onCollapse={onCollapse} query="signal" onQueryChange={vi.fn()} />)
+    screen.getByRole('button', { name: 'Collapse rail' }).focus()
     await user.keyboard('{Enter}')
     expect(onCollapse).toHaveBeenCalledOnce()
   })
@@ -330,6 +314,19 @@ describe('rail header alignment', () => {
   it('aligns built-in disclosure labels with entity-tree rows', () => {
     render(<StockSectionHeader label="Built-in Shows" open onToggle={vi.fn()} />)
     expect(screen.getByRole('button', { name: 'Built-in Shows' })).toHaveClass('px-[6px]', 'text-[12px]')
+  })
+
+  it('keeps a permanent named search field and clears it on Escape (#976)', async () => {
+    const user = userEvent.setup()
+    const onQueryChange = vi.fn()
+    render(<RailEntityHeader title="Shows" query="over" onQueryChange={onQueryChange} />)
+    expect(screen.queryByRole('heading', { name: 'Shows' })).not.toBeInTheDocument()
+    const search = screen.getByRole('textbox', { name: 'Search shows' })
+    expect(search).toHaveValue('over')
+    await user.click(search)
+    await user.keyboard('{Escape}')
+    expect(onQueryChange).toHaveBeenCalledWith('')
+    expect(search).toHaveFocus()
   })
 })
 
@@ -344,59 +341,27 @@ describe('RailEmptyRow', () => {
 })
 
 describe('RailFilterBar', () => {
-  it('uses a compact dimension selector and gives open Search a usable width', async () => {
-    const user = userEvent.setup()
-    render(
-      <RailFilterBar
-        lens="all"
-        onLensChange={vi.fn()}
-        query=""
-        onQueryChange={vi.fn()}
-      />,
-    )
-
-    const search = screen.getByRole('button', { name: 'Search by name' })
-    const selector = screen.getByRole('button', { name: 'Dimension filter' })
-    expect(selector).toHaveTextContent('All')
-    expect(search.compareDocumentPosition(selector) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
-    const searchInput = screen.getByRole('textbox', { name: 'Search by name' })
-    const filter = searchInput.closest('.rail-filter-bar')
-    expect(filter).toHaveAttribute('data-search-committed-open', 'false')
-    expect(searchInput.parentElement).toHaveClass('absolute', 'right-0', 'rail-search-preview')
-    expect(searchInput.parentElement?.parentElement).toHaveClass('min-w-0', 'w-[13px]', 'shrink-0')
-    expect(searchInput).toHaveClass('bg-zinc-900', 'border-zinc-700', 'pr-5')
-    expect(search).toHaveClass('absolute', 'right-0', 'z-40')
-
-    await user.hover(search)
-    expect(filter).toHaveAttribute('data-search-committed-open', 'false')
-    expect(selector).toBeVisible()
-    expect(searchInput.parentElement?.parentElement).toHaveClass('w-[13px]', 'shrink-0')
-
-    await user.click(search)
-    expect(filter).toHaveAttribute('data-search-committed-open', 'true')
-    expect(searchInput.parentElement).toHaveClass('inset-x-0', 'w-full')
-    expect(searchInput.parentElement?.parentElement).toHaveClass('w-full', 'max-w-28')
-  })
-
-  it('opens a dark listbox and changes the active dimension', async () => {
+  it('offers dimension pills with an idle count and a filtered count (#976)', async () => {
     const user = userEvent.setup()
     const onLensChange = vi.fn()
-    render(
-      <RailFilterBar
-        lens="all"
-        onLensChange={onLensChange}
-        query=""
-        onQueryChange={vi.fn()}
-      />,
-    )
-
-    await user.click(screen.getByRole('button', { name: 'Dimension filter' }))
-    const listbox = screen.getByRole('listbox', { name: 'Dimension filter' })
-    expect(listbox).toHaveClass('bg-zinc-900', 'border-zinc-800')
-    expect(within(listbox).getAllByRole('option').map((option) => option.textContent)).toEqual(['All', '1D', '2D', '3D'])
-    await user.click(within(listbox).getByRole('option', { name: '2D' }))
-
+    const view = render(<RailFilterBar lens="all" onLensChange={onLensChange} query="" count={12} total={12} noun="patterns" />)
+    expect(screen.getByText('12 patterns')).toBeVisible()
+    const group = screen.getByRole('group', { name: 'Dimension filter' })
+    expect(within(group).getAllByRole('button').map((button) => button.textContent)).toEqual(['All', '1D', '2D', '3D'])
+    await user.click(within(group).getByRole('button', { name: '2D' }))
     expect(onLensChange).toHaveBeenCalledWith(2)
+    view.rerender(<RailFilterBar lens={2} onLensChange={onLensChange} query="" count={4} total={12} noun="patterns" />)
+    expect(screen.getByRole('button', { name: '2D' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('4 of 12')).toBeVisible()
+  })
+
+  it('only shows a count row for unfiltered types while searching (#976)', () => {
+    const view = render(<RailFilterBar query="" count={12} total={12} noun="shows" />)
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    view.rerender(<RailFilterBar query="over" count={1} total={12} noun="shows" />)
+    expect(screen.getByRole('status')).toHaveTextContent('1 of 12')
+    view.rerender(<RailFilterBar query="" count={12} total={12} noun="shows" />)
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 })
 

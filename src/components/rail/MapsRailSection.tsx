@@ -2,7 +2,7 @@ import { Map as MapIcon } from 'lucide-react'
 import { inlineIcon } from '@/components/iconScale'
 import { useRef, type RefObject } from 'react'
 import type { DimLens } from '@/engine/dimLens'
-import type { EntityOrganizationV1 } from '@/engine/entityOrganization'
+import { searchEntityOrganization, type EntityOrganizationV1 } from '@/engine/entityOrganization'
 import { STOCK_MAP_ITEMS, type EditingMap, type MapRecord } from '@/store/mapStore'
 import { groupMapCatalogue } from '@/engine/mapCatalogue'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
@@ -23,6 +23,7 @@ export function MapsRailSection({
   personalWorkspaceAuthenticated,
   dimLens,
   query,
+  totalCount,
   visibleMaps,
   visibleStockMaps,
   editingMap,
@@ -45,6 +46,7 @@ export function MapsRailSection({
   personalWorkspaceAuthenticated: boolean
   dimLens: DimLens
   query: string
+  totalCount: number
   visibleMaps: MapRecord[]
   visibleStockMaps: typeof STOCK_MAP_ITEMS
   editingMap: EditingMap
@@ -65,6 +67,7 @@ export function MapsRailSection({
   onCollapse?: () => void
 }) {
   const personalTreeRef = useRef<EntityOrganizationTreeHandle>(null)
+  const count = (personalWorkspaceAuthenticated ? searchEntityOrganization(personalOrganization, Object.fromEntries(visibleMaps.map((map) => [map.id, map.name])), '').length : 0) + visibleStockMaps.length
   const stockGroups = groupMapCatalogue(visibleStockMaps.map((map) => ({
     ...map,
     provenance: 'stock' as const,
@@ -77,15 +80,11 @@ export function MapsRailSection({
     <>
       <RailEntityHeader
         title="Maps"
+        query={query}
+        onQueryChange={onQueryChange}
         onCollapse={onCollapse}
         action={(
           <>
-            <RailFilterBar
-              lens={dimLens}
-              onLensChange={onLensChange}
-              query={query}
-              onQueryChange={onQueryChange}
-            />
             {personalWorkspaceAuthenticated && (
               <HeaderMenu
                 title="Add map"
@@ -97,7 +96,9 @@ export function MapsRailSection({
             )}
           </>
         )}
-      />
+      >
+        <RailFilterBar lens={dimLens} onLensChange={onLensChange} query={query} count={count} total={totalCount} noun="maps" />
+      </RailEntityHeader>
       <RailSectionScroller
         testId="pattern-list-scroll"
         scrollRef={scrollRef}

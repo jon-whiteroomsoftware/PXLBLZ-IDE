@@ -109,9 +109,9 @@ test('shared Studio chrome remains legible, dense, and reachable across routes (
         await page.getByRole('button', { name: `Open the ${route.heading} list` }).click()
       }
 
-      const heading = page.getByRole('heading', { name: route.heading, exact: true }).first()
-      await expect(heading).toHaveClass(/text-\[13px\]/)
-      await expect(heading).toHaveClass(/text-zinc-200/)
+      const list = page.getByRole('region', { name: route.place, exact: true })
+      await expect(list).toBeVisible()
+      await expect(list.getByRole('heading', { name: route.place, exact: true })).toHaveCount(0)
       await expect.poll(
         () => page.evaluate(() => document.documentElement.scrollWidth),
         `${route.path} at ${viewport.width}px should not create document-level horizontal overflow`,
@@ -180,10 +180,30 @@ test('the Studio entity drawer overlays without reflow and preserves Preview Spa
 
   await edgeTab.press('Enter')
   await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
-  await expect(page.getByRole('textbox', { name: 'Search by name' })).toBeFocused()
+  await expect(page.getByRole('textbox', { name: 'Search shows' })).toBeFocused()
   expect(await geometry()).toEqual(tucked)
+  const searchField = page.getByRole('textbox', { name: 'Search shows' })
+  await searchField.fill('clips cuts')
+  await searchField.press('Space')
+  await expect(searchField).toHaveValue('clips cuts ')
+  await expect(timelineToolbar.getByRole('button', { name: 'Pause Show preview' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Shows', exact: true }).getByRole('status')).toHaveText(/\d+ of \d+/)
+  await searchField.press('Escape')
+  await expect(searchField).toHaveValue('')
+  await expect(searchField).toBeFocused()
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
+  const pin = page.getByRole('button', { name: 'Pin Shows list', exact: true })
+  await pin.focus()
+  await pin.press('Space')
+  await expect(timelineToolbar.getByRole('button', { name: 'Play Show preview' })).toBeVisible()
+  await expect(pin).toHaveAttribute('aria-pressed', 'false')
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
+  await pin.press('Space')
+  await expect(timelineToolbar.getByRole('button', { name: 'Pause Show preview' })).toBeVisible()
+  await searchField.focus()
 
-  await page.getByRole('textbox', { name: 'Search by name' }).press('Escape')
+
+  await page.getByRole('textbox', { name: 'Search shows' }).press('Escape')
   await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
   await page.keyboard.press('Escape')
   await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
@@ -194,7 +214,7 @@ test('the Studio entity drawer overlays without reflow and preserves Preview Spa
   await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
 
   await edgeTab.click()
-  await page.getByRole('button', { name: 'Close Shows list' }).click()
+  await page.keyboard.press('Escape')
   await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
 
   await edgeTab.click()
@@ -789,27 +809,44 @@ test('Studio authoring keeps the rail and editor reachable at 390px (#622)', asy
   await expect(page.getByRole('button', { name: 'Open the Shows list' })).toBeInViewport()
 })
 
+test('Pattern header controls preserve Space playback and Enter actions (#976)', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('studio/patterns/IridescentFibers')
+  const preview = page.getByTestId('preview-pane')
+  await expect(preview.getByRole('button', { name: 'Pause', exact: true })).toBeVisible()
+  const pin = page.getByRole('button', { name: 'Unpin Patterns list', exact: true })
+  await pin.press('Space')
+  await expect(preview.getByRole('button', { name: 'Run', exact: true })).toBeVisible()
+  await expect(pin).toHaveAttribute('aria-pressed', 'true')
+  const add = page.getByRole('button', { name: 'Add pattern', exact: true })
+  await add.press('Space')
+  await expect(preview.getByRole('button', { name: 'Pause', exact: true })).toBeVisible()
+  await expect(add).toHaveAttribute('aria-expanded', 'false')
+  await add.press('Enter')
+  await expect(page.getByRole('button', { name: 'New pattern', exact: true })).toBeVisible()
+  await add.press('Escape')
+  const dimension = page.getByRole('group', { name: 'Dimension filter', exact: true }).getByRole('button', { name: '2D', exact: true })
+  await dimension.press('Space')
+  await expect(preview.getByRole('button', { name: 'Run', exact: true })).toBeVisible()
+  await expect(dimension).toHaveAttribute('aria-pressed', 'false')
+  await dimension.press('Enter')
+  await expect(dimension).toHaveAttribute('aria-pressed', 'true')
+})
+
 test('rail search stays inside the list pane at narrow widths', async ({ page }) => {
   await page.setViewportSize({ width: 507, height: 520 })
   await page.goto('studio/patterns/IridescentFibers')
   await page.getByRole('button', { name: 'Open the Patterns list' }).click()
-  const search = page.getByRole('button', { name: 'Search by name', exact: true })
-  const searchInput = page.getByRole('textbox', { name: 'Search by name', exact: true })
-  await search.hover()
-
-  const hoverBounds = await searchInput.evaluate((input) => {
-    const inputBounds = input.getBoundingClientRect()
-    const railBounds = input.closest('[data-testid="studio-rail"]')?.getBoundingClientRect()
-    return { inputLeft: inputBounds.left, railLeft: railBounds?.left }
-  })
-  expect(hoverBounds.inputLeft).toBeGreaterThanOrEqual(hoverBounds.railLeft ?? Number.POSITIVE_INFINITY)
-
-  const dimensionFilter = page.getByRole('button', { name: 'Dimension filter', exact: true })
-  await dimensionFilter.click()
-  await expect(page.getByRole('listbox', { name: 'Dimension filter', exact: true })).toBeVisible()
-  await page.getByRole('option', { name: '2D', exact: true }).click()
-  await expect(dimensionFilter).toContainText('2D')
-  await search.click()
+  const searchInput = page.getByRole('textbox', { name: 'Search patterns', exact: true })
+  await expect(searchInput).toBeVisible()
+  const dimensionFilter = page.getByRole('group', { name: 'Dimension filter', exact: true })
+  await dimensionFilter.getByRole('button', { name: '2D', exact: true }).click()
+  await expect(dimensionFilter.getByRole('button', { name: '2D', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await searchInput.fill('no-such-pattern-976')
+  await expect(page.getByRole('region', { name: 'Patterns', exact: true }).getByRole('status')).toHaveText(/0 of \d+/)
+  await searchInput.press('Escape')
+  await expect(searchInput).toHaveValue('')
+  await expect(searchInput).toBeFocused()
 
   const bounds = await searchInput.evaluate((input) => {
     const inputBounds = input.getBoundingClientRect()
@@ -825,23 +862,25 @@ test('rail search stays inside the list pane at narrow widths', async ({ page })
 
   expect(bounds.inputLeft).toBeGreaterThanOrEqual(bounds.railLeft ?? Number.POSITIVE_INFINITY)
   expect(bounds.inputRight).toBeLessThanOrEqual(bounds.railRight ?? Number.NEGATIVE_INFINITY)
-  expect(bounds.inputWidth).toBeGreaterThanOrEqual(80)
+  expect(bounds.inputWidth).toBeGreaterThanOrEqual(120)
 
-  await page.getByRole('button', { name: 'Close search', exact: true }).click()
+  await searchInput.press('Escape')
   await page.setViewportSize({ width: 1440, height: 720 })
   const librarySplitter = page.getByRole('separator', { name: 'Resize library pane', exact: true })
   for (let step = 0; step < 4; step += 1) await librarySplitter.press('Shift+ArrowLeft')
-  await expect(librarySplitter).toHaveAttribute('aria-valuenow', '184')
-  await search.hover()
+  await expect(librarySplitter).toHaveAttribute('aria-valuenow', '240')
+  await searchInput.hover()
 
   const minimumRailHoverBounds = await searchInput.evaluate((input) => {
     const inputBounds = input.getBoundingClientRect()
     const railBounds = input.closest('[data-testid="studio-rail"]')?.getBoundingClientRect()
-    return { inputLeft: inputBounds.left, railLeft: railBounds?.left }
+    return { inputLeft: inputBounds.left, inputWidth: inputBounds.width, inputRight: inputBounds.right, railLeft: railBounds?.left, railRight: railBounds?.right }
   })
   expect(minimumRailHoverBounds.inputLeft).toBeGreaterThanOrEqual(
     minimumRailHoverBounds.railLeft ?? Number.POSITIVE_INFINITY,
   )
+  expect(minimumRailHoverBounds.inputWidth).toBeGreaterThanOrEqual(120)
+  expect(minimumRailHoverBounds.inputRight).toBeLessThanOrEqual(minimumRailHoverBounds.railRight ?? Number.NEGATIVE_INFINITY)
 })
 
 test('resized Pattern and Show previews keep their controls reachable', async ({ page }) => {

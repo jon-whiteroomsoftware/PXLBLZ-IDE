@@ -13,7 +13,6 @@ import {
   Plus,
   Search,
   Trash2,
-  X,
 } from 'lucide-react'
 import { denseIcon } from '@/components/iconScale'
 import { nameConflicts } from '@/engine/patternName'
@@ -21,7 +20,6 @@ import { sanitizeLibraryNameInput } from '@/engine/libraries'
 import type { DimLens } from '@/engine/dimLens'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import { DraftFieldActions } from '@/components/ui/draft-field-actions'
-import { DeckSelect } from '@/components/DeckSelect'
 import {
   AlertDialogRoot,
   AlertDialogTrigger,
@@ -47,7 +45,7 @@ export type ScrollMetrics = {
   horizontalVisible: boolean
 }
 
-// An icon action button for a rail title row (e.g. "+" new, or open-from-disk).
+// An icon action button for the list header (e.g. pin or open-from-disk).
 // `title` doubles as the hover tooltip and the accessible label.
 export function HeaderAction({
   icon,
@@ -64,6 +62,7 @@ export function HeaderAction({
 }) {
   return (
     <button
+      data-studio-space-preview="true"
       onClick={(e) => {
         e.stopPropagation()
         onClick?.()
@@ -72,7 +71,7 @@ export function HeaderAction({
       aria-pressed={pressed}
       title={title}
       aria-label={title}
-      className="relative z-50 shrink-0 text-zinc-400 hover:text-live disabled:opacity-30 disabled:hover:text-zinc-400"
+      className="relative z-50 grid size-[26px] shrink-0 place-items-center rounded border border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-live focus-visible:outline focus-visible:outline-live disabled:opacity-30 disabled:hover:text-zinc-400 aria-pressed:border-live/50 aria-pressed:bg-live/10 aria-pressed:text-live"
     >
       {icon}
     </button>
@@ -111,13 +110,14 @@ export function HeaderMenu({ title, items }: { title: string; items: readonly He
       <button
         type="button"
         aria-label={title}
+        data-studio-space-preview="true"
         title={title}
         aria-expanded={open}
         onClick={(event) => {
           event.stopPropagation()
           setOpen((value) => !value)
         }}
-        className={`grid size-5 place-items-center transition-colors ${open ? 'text-live' : 'text-zinc-400 hover:text-live'}`}
+        className={`grid size-[26px] place-items-center rounded border border-zinc-700 bg-zinc-900 transition-colors focus-visible:outline focus-visible:outline-live ${open ? 'text-live' : 'text-zinc-400 hover:text-live'}`}
       >
         <Plus size={14} aria-hidden />
       </button>
@@ -149,55 +149,68 @@ export function RailEntityHeader({
   action,
   onCollapse,
   children,
+  query = '',
+  onQueryChange,
 }: {
   title: string
   action?: React.ReactNode
   onCollapse?: () => void
   children?: React.ReactNode
+  query?: string
+  onQueryChange?: (query: string) => void
 }) {
-  const compact = children === undefined || children === null
   const drawer = useStudioEntityDrawerControls()
   return (
-    <div className={compact
-      ? 'relative flex h-[calc(1.75rem+1px)] shrink-0 items-center border-b border-seam px-[6px]'
-      : 'relative border-b border-seam px-[6px] py-2'}
-    >
-      <div className="rail-entity-row relative flex min-h-5 w-full items-center gap-1">
+    <div className="relative shrink-0 border-b border-seam">
+      <div className="rail-entity-row relative flex h-10 w-full items-center gap-2 px-2">
+        {onQueryChange ? <RailSearchField label={`Search ${title.toLocaleLowerCase()}`} query={query} onQueryChange={onQueryChange} /> : <span className="flex-1" />}
+        {action && <div className="rail-entity-actions flex shrink-0 items-center gap-2">{action}</div>}
         {drawer ? (
           <HeaderAction
             icon={<Pin size={14} fill={drawer.pinned ? 'currentColor' : 'none'} />}
-            title={drawer.pinDisabled
-              ? 'Lists stay unpinned below 980 px'
-              : `${drawer.pinned ? 'Unpin' : 'Pin'} ${title} list`}
+            title={drawer.pinDisabled ? 'Lists stay unpinned below 980 px' : `${drawer.pinned ? 'Unpin' : 'Pin'} ${title} list`}
             onClick={drawer.pinDisabled ? undefined : () => drawer.setPinned(!drawer.pinned)}
             disabled={drawer.pinDisabled}
             pressed={drawer.pinned}
           />
         ) : onCollapse ? (
-          <HeaderAction
-            icon={<Pin size={14} />}
-            title="Collapse rail"
-            onClick={onCollapse}
-          />
+          <HeaderAction icon={<Pin size={14} />} title="Collapse rail" onClick={onCollapse} />
         ) : null}
-        {drawer && !drawer.pinned && (
-          <HeaderAction icon={<X size={14} />} title={`Close ${title} list`} onClick={drawer.close} />
-        )}
-        <h2 className={`flex-1 truncate font-normal ${IDE_MICROTYPE.header.className}`}>{title}</h2>
-        {action && (
-          <div className="rail-entity-actions flex min-w-0 items-center gap-1.5">
-            {action}
-          </div>
-        )}
       </div>
       {children}
       {drawer?.timerArmed && (
-        <span
-          aria-hidden
-          data-testid="studio-drawer-close-progress"
-          className="absolute bottom-0 left-0 z-50 h-0.5 bg-live [animation:studio-drawer-close-progress_600ms_linear_forwards]"
-        />
+        <span aria-hidden data-testid="studio-drawer-close-progress" className="absolute bottom-0 left-0 z-50 h-0.5 bg-live [animation:studio-drawer-close-progress_600ms_linear_forwards]" />
       )}
+    </div>
+  )
+}
+
+export function RailSearchField({ label, query, onQueryChange }: {
+  label: string
+  query: string
+  onQueryChange: (query: string) => void
+}) {
+  const [focused, setFocused] = useState(false)
+  return (
+    <div className="relative min-w-[120px] flex-1" {...studioEntityDrawerOwnedSurfaceProps} {...(focused ? studioEntityDrawerBusySurfaceProps('field') : {})}>
+      <Search size={13} aria-hidden className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-zinc-500" />
+      <input
+        type="text"
+        data-rail-search
+        aria-label={label}
+        placeholder={label}
+        value={query}
+        onChange={(event) => onQueryChange(event.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => { setFocused(false); onQueryChange('') }}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape' || !query) return
+          event.preventDefault()
+          event.stopPropagation()
+          onQueryChange('')
+        }}
+        className="h-[26px] w-full rounded border border-zinc-700 bg-zinc-900 pl-6 pr-2 text-[11px] text-zinc-200 outline-none placeholder:text-zinc-500 focus:border-live/60"
+      />
     </div>
   )
 }
@@ -251,104 +264,33 @@ export function RailFilterBar({
   lens,
   onLensChange,
   query,
-  onQueryChange,
-  hideOneDimensional,
+  count,
+  total,
+  noun,
 }: {
   lens?: DimLens
   onLensChange?: (lens: DimLens) => void
   query: string
-  onQueryChange: (query: string) => void
-  hideOneDimensional?: boolean
+  count: number
+  total: number
+  noun: string
 }) {
-  const [pinned, setPinned] = useState(false)
-  const [hovered, setHovered] = useState(false)
-  const [focused, setFocused] = useState(false)
-  const [hoverSuppressed, setHoverSuppressed] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const committedOpen = pinned || focused
-  const expanded = committedOpen || (hovered && !hoverSuppressed)
-
-  function handleBlur() {
-    setFocused(false)
-    setPinned(false)
-    onQueryChange('')
-  }
-
-  function toggle() {
-    if (committedOpen) {
-      setPinned(false)
-      onQueryChange('')
-      inputRef.current?.blur()
-      setHoverSuppressed(true)
-    } else {
-      setPinned(true)
-      setTimeout(() => inputRef.current?.focus(), 0)
-    }
-  }
-
+  const hasFilter = lens !== undefined && onLensChange !== undefined
+  if (!hasFilter && !query) return null
   return (
-    <div
-      className="rail-filter-bar flex min-w-0 items-center gap-1"
-      data-search-committed-open={committedOpen}
-      {...studioEntityDrawerOwnedSurfaceProps}
-      {...(focused ? studioEntityDrawerBusySurfaceProps('field') : {})}
-    >
-      <div
-        className={[
-          'rail-search-field relative flex min-w-0 items-center justify-end',
-          committedOpen ? 'w-full max-w-28' : 'w-[13px] shrink-0',
-        ].join(' ')}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => { setHovered(false); setHoverSuppressed(false) }}
-      >
-        <div
-          className={[
-            'absolute z-30 transition-opacity duration-150',
-            committedOpen ? 'inset-x-0 w-full' : 'rail-search-preview right-0',
-            expanded ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',
-          ].join(' ')}
-        >
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => onQueryChange(e.target.value)}
-            onFocus={() => setFocused(true)}
-            onBlur={handleBlur}
-            placeholder="Search by name"
-            aria-label="Search by name"
-            tabIndex={expanded ? 0 : -1}
-            className="w-full rounded border border-zinc-700 bg-zinc-900 py-0.5 pl-2 pr-5 text-[11px] text-zinc-200 shadow-md shadow-black/50 outline-none placeholder:text-zinc-500 focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600"
-          />
+    <div className="flex h-[30px] items-center justify-between gap-2 border-t border-seam px-2">
+      {hasFilter && (
+        <div role="group" aria-label="Dimension filter" className="flex shrink-0 overflow-hidden rounded border border-zinc-700">
+          {DIM_LENS_OPTIONS.map((option) => (
+            <button key={option.value} type="button" data-studio-space-preview="true" aria-pressed={lens === option.value} onClick={() => onLensChange(option.value)} className="h-5 min-w-7 border-r border-zinc-700 px-1.5 text-[10px] text-zinc-400 last:border-r-0 hover:text-zinc-200 focus-visible:outline focus-visible:outline-live aria-pressed:bg-live/10 aria-pressed:text-live">
+              {option.label}
+            </button>
+          ))}
         </div>
-        <button
-          onClick={toggle}
-          onMouseDown={(e) => e.preventDefault()}
-          title={committedOpen ? 'Close search' : 'Search by name'}
-          aria-label={committedOpen ? 'Close search' : 'Search by name'}
-          className={[
-            'absolute right-0 z-40 shrink-0 transition-colors',
-            expanded ? 'text-zinc-300 hover:text-live' : 'text-zinc-500 hover:text-zinc-300',
-          ].join(' ')}
-        >
-          {committedOpen ? <X {...denseIcon} /> : <Search {...denseIcon} />}
-        </button>
-      </div>
-
-      {lens !== undefined && onLensChange && (
-        <DeckSelect
-          ariaLabel="Dimension filter"
-          value={lens}
-          options={DIM_LENS_OPTIONS.filter((option) => !(hideOneDimensional && option.value === 1))}
-          onChange={onLensChange}
-          menuWidthClass="w-16"
-          menuAlign="right"
-          menuProps={{
-            ...studioEntityDrawerOwnedSurfaceProps,
-            ...studioEntityDrawerBusySurfaceProps('menu'),
-          }}
-        />
       )}
+      <span role="status" className="ml-auto whitespace-nowrap text-[10px] text-zinc-500">
+        {query || (lens !== undefined && lens !== 'all') ? `${count} of ${total}` : `${total} ${noun}`}
+      </span>
     </div>
   )
 }

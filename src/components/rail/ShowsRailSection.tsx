@@ -1,7 +1,7 @@
 import { useRef, useState, type RefObject } from 'react'
 import type { ShowRecord } from '@/store/showStore'
 import type { StockShow } from '@/pixelblaze/stock/shows'
-import type { EntityOrganizationV1 } from '@/engine/entityOrganization'
+import { searchEntityOrganization, type EntityOrganizationV1 } from '@/engine/entityOrganization'
 import { stockShowOrganization } from '@/engine/stockEntityOrganization'
 import {
   HeaderMenu,
@@ -67,30 +67,30 @@ export function ShowsRailSection({
 }) {
   const [builtInOrganization, setBuiltInOrganization] = useState(() => stockShowOrganization(stockShows))
   const personalTreeRef = useRef<EntityOrganizationTreeHandle>(null)
+  const personalNames = Object.fromEntries(userShows.map((show) => [show.id, show.name]))
+  const stockNames = Object.fromEntries(stockShows.map((show) => [show.id, show.name]))
+  const total = (personalWorkspaceAuthenticated ? searchEntityOrganization(personalOrganization, personalNames, '').length : 0)
+    + searchEntityOrganization(builtInOrganization, stockNames, '').length
+  const count = (personalWorkspaceAuthenticated ? searchEntityOrganization(personalOrganization, personalNames, query).length : 0)
+    + searchEntityOrganization(builtInOrganization, stockNames, query).length
   return (
     <>
       <RailEntityHeader
         title="Shows"
+        query={query}
+        onQueryChange={onQueryChange}
         onCollapse={onCollapse}
-        action={(
-          <>
-            <RailFilterBar query={query} onQueryChange={onQueryChange} />
-            {personalWorkspaceAuthenticated && (
-              <HeaderMenu
-                title="Add show"
-                items={[
-                  { label: 'New show', onSelect: onCreateShow },
-                  { label: 'Import Show file…', onSelect: onImportShow },
-                  { label: 'New folder', onSelect: () => personalTreeRef.current?.createFolder() },
-                  ...(showSeedProfileName
-                    ? [{ label: `New show from ${showSeedProfileName}`, onSelect: onCreateShowFromController }]
-                    : []),
-                ]}
-              />
-            )}
-          </>
-        )}
-      />
+        action={personalWorkspaceAuthenticated ? (
+          <HeaderMenu title="Add show" items={[
+            { label: 'New show', onSelect: onCreateShow },
+            { label: 'Import Show file…', onSelect: onImportShow },
+            { label: 'New folder', onSelect: () => personalTreeRef.current?.createFolder() },
+            ...(showSeedProfileName ? [{ label: `New show from ${showSeedProfileName}`, onSelect: onCreateShowFromController }] : []),
+          ]} />
+        ) : null}
+      >
+        <RailFilterBar query={query} count={count} total={total} noun="shows" />
+      </RailEntityHeader>
       <RailSectionScroller
         testId="show-list-scroll"
         scrollRef={scrollRef}

@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type RefObject } from 'react'
 import type { DimLens } from '@/engine/dimLens'
 import { STOCK_PATTERNS, type GalleryPattern } from '@/engine/galleryCatalog'
 import { stockPatternOrganization } from '@/engine/stockEntityOrganization'
-import type { EntityOrganizationV1 } from '@/engine/entityOrganization'
+import { searchEntityOrganization, type EntityOrganizationV1 } from '@/engine/entityOrganization'
 import type { PatternRecord } from '@/store/patternStore'
 import { FolderOpen } from 'lucide-react'
 import {
@@ -24,6 +24,7 @@ export function PatternsRailSection({
   personalWorkspaceAuthenticated,
   dimLens,
   query,
+  totalCount,
   activePatternId,
   activeDemoName,
   visibleUserPatterns,
@@ -50,6 +51,7 @@ export function PatternsRailSection({
   personalWorkspaceAuthenticated: boolean
   dimLens: DimLens
   query: string
+  totalCount: number
   activePatternId: string | null
   activeDemoName: string | null
   visibleUserPatterns: PatternRecord[]
@@ -78,38 +80,27 @@ export function PatternsRailSection({
     collapsedFolderIds: collapsedBuiltInFolderIds,
   }), [collapsedBuiltInFolderIds, visibleStockPatterns])
   const personalTreeRef = useRef<EntityOrganizationTreeHandle>(null)
+  const count = (personalWorkspaceAuthenticated ? searchEntityOrganization(personalOrganization, Object.fromEntries(visibleUserPatterns.map((pattern) => [pattern.id, pattern.name])), query).length : 0)
+    + searchEntityOrganization(builtInOrganization, Object.fromEntries(visibleStockPatterns.map((pattern) => [pattern.name, pattern.name])), query).length
   return (
     <>
       <RailEntityHeader
         title="Patterns"
+        query={query}
+        onQueryChange={onQueryChange}
         onCollapse={onCollapse}
-        action={(
+        action={personalWorkspaceAuthenticated ? (
           <>
-            <RailFilterBar
-              lens={dimLens}
-              onLensChange={onLensChange}
-              query={query}
-              onQueryChange={onQueryChange}
-            />
-            {personalWorkspaceAuthenticated && (
-              <>
-                <HeaderAction
-                  icon={<FolderOpen size={14} aria-hidden />}
-                  title="Open pattern from .epe file"
-                  onClick={() => fileInputRef.current?.click()}
-                />
-                <HeaderMenu
-                  title="Add pattern"
-                  items={[
-                    { label: 'New pattern', onSelect: onCreatePattern },
-                    { label: 'New folder', onSelect: () => personalTreeRef.current?.createFolder() },
-                  ]}
-                />
-              </>
-            )}
+            <HeaderAction icon={<FolderOpen size={14} aria-hidden />} title="Open pattern from .epe file" onClick={() => fileInputRef.current?.click()} />
+            <HeaderMenu title="Add pattern" items={[
+              { label: 'New pattern', onSelect: onCreatePattern },
+              { label: 'New folder', onSelect: () => personalTreeRef.current?.createFolder() },
+            ]} />
           </>
-        )}
-      />
+        ) : null}
+      >
+        <RailFilterBar lens={dimLens} onLensChange={onLensChange} query={query} count={count} total={totalCount} noun="patterns" />
+      </RailEntityHeader>
       <RailSectionScroller
         testId="pattern-list-scroll"
         scrollRef={scrollRef}

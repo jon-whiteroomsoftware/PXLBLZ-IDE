@@ -76,6 +76,7 @@ import { ShowImportPlanDialog, type ShowImportDialogState } from '@/components/S
 import { STOCK_SHOWS, type StockShow } from '@/pixelblaze/stock/shows'
 import { parseShowFileBundle } from '@/engine/showFileBundle'
 import { applyShowImportPlan, planShowImport, ShowImportPlanError } from '@/engine/showImportPlan'
+import { searchEntityOrganization } from '@/engine/entityOrganization'
 
 const DEFAULT_DEMO_NAME = 'IridescentFibers'
 
@@ -1010,7 +1011,7 @@ export function PatternList({
   const libraryNames = Object.keys(LIBRARIES).sort()
 
   return (
-    <div data-testid="studio-rail" className="flex h-full text-xs font-mono">
+    <div role="region" aria-label={railMode[0].toUpperCase() + railMode.slice(1)} data-testid="studio-rail" className="flex h-full text-xs font-mono">
       <input
         ref={fileInputRef}
         type="file"
@@ -1029,6 +1030,7 @@ export function PatternList({
       <div className="flex min-w-0 flex-1 flex-col">
         {railMode === 'patterns' && (
           <PatternsRailSection
+            totalCount={(personalWorkspaceAuthenticated ? searchEntityOrganization(patternOrganization, Object.fromEntries(userPatterns.map((pattern) => [pattern.id, pattern.name])), '').length : 0) + STOCK_PATTERNS.length}
             fileInputRef={fileInputRef}
             importError={importError}
             importNotice={importNotice}
@@ -1061,6 +1063,7 @@ export function PatternList({
         )}
         {railMode === 'maps' && (
           <MapsRailSection
+            totalCount={(personalWorkspaceAuthenticated ? searchEntityOrganization(mapOrganization, Object.fromEntries(userMaps.map((map) => [map.id, map.name])), '').length : 0) + STOCK_MAP_ITEMS.length}
             personalWorkspaceAuthenticated={personalWorkspaceAuthenticated}
             dimLens={dimLens}
             query={query}

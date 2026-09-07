@@ -69,6 +69,14 @@ such as a Pattern preview, map wiring check, or library API reference. Shows
 use the center workspace differently on desktop: the full-width timeline sits
 above an aspect-correct Stage preview and its controls.
 
+The list header gives its width to controls, with the pin at the right.
+Patterns, Shows, and Maps have a permanent search field; Escape clears its
+query, and leaving the field clears it as well. Patterns and Maps put the
+All / 1D / 2D / 3D dimension pills and catalogue count on a second row. While
+searching or filtering, the count shows matches out of the full catalogue;
+Shows displays that row only while searching. Creation and import actions
+remain in each list's existing buttons and Add menu.
+
 The entity list starts pinned beside the workspace. Its pin remembers a
 separate choice for Patterns, Shows, Maps, Controllers, Mixins, and Libraries.
 Unpin it to leave a narrow place tab at the workspace edge; opening that tab

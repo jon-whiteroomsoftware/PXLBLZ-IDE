@@ -1,8 +1,8 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { StudioEntityDrawer, type StudioEntityDrawerHandle } from './StudioEntityDrawer'
-import { RailEntityHeader, RailFilterBar } from './rail/RailPrimitives'
+import { RailEntityHeader } from './rail/RailPrimitives'
 import { EntityOrganizationTree } from './rail/EntityOrganizationTree'
 import { useStudioEntityDrawerStore } from '@/store/studioEntityDrawerStore'
 
@@ -16,6 +16,7 @@ function MountProbe({ mounted, unmounted }: { mounted: () => void; unmounted: ()
 
 function Harness({ onPreviewSpace = vi.fn() }: { onPreviewSpace?: () => void }) {
   const ref = useRef<StudioEntityDrawerHandle>(null)
+  const [query, setQuery] = useState('')
   return (
     <StudioEntityDrawer
       ref={ref}
@@ -25,8 +26,7 @@ function Harness({ onPreviewSpace = vi.fn() }: { onPreviewSpace?: () => void }) 
       divider={<div data-testid="divider" />}
       drawer={(
         <div>
-          <RailEntityHeader title="Shows" />
-          <RailFilterBar query="" onQueryChange={vi.fn()} />
+          <RailEntityHeader title="Shows" query={query} onQueryChange={setQuery} />
           <button type="button" role="treeitem" aria-selected="true" onClick={() => ref.current?.closeAfterEntitySelection()}>
             Current show
           </button>
@@ -59,7 +59,7 @@ describe('StudioEntityDrawer (#966)', () => {
     expect(tab).toHaveAttribute('aria-expanded', 'true')
     expect(tab).not.toHaveAttribute('aria-hidden')
     expect(tab).toHaveAttribute('tabindex', '-1')
-    expect(screen.getByRole('textbox', { name: 'Search by name' })).toHaveFocus()
+    expect(screen.getByRole('textbox', { name: 'Search shows' })).toHaveFocus()
     expect(screen.getByText('Shows list open')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('treeitem', { name: 'Current show' }))
@@ -77,7 +77,7 @@ describe('StudioEntityDrawer (#966)', () => {
     fireEvent.keyDown(workspaceAction, { key: 'l', metaKey: true, shiftKey: true })
     expect(layout).toHaveAttribute('data-drawer-mode', 'open')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close Shows list' }))
+    fireEvent.pointerDown(screen.getByTestId('workspace'))
     const field = screen.getByRole('textbox', { name: 'Workspace field' })
     field.focus()
     fireEvent.keyDown(field, { key: 'l', ctrlKey: true, shiftKey: true })
@@ -176,12 +176,26 @@ describe('StudioEntityDrawer (#966)', () => {
     expect(tab).toHaveAttribute('aria-expanded', 'false')
   })
 
+  it('clears active search before releasing focus or closing the drawer (#976)', async () => {
+    render(<Harness />)
+    const tab = screen.getByRole('button', { name: 'Open the Shows list' })
+    fireEvent.keyDown(tab, { key: 'Enter' })
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+    const search = screen.getByRole('textbox', { name: 'Search shows' })
+    fireEvent.change(search, { target: { value: 'over' } })
+    fireEvent.keyDown(search, { key: 'Escape' })
+    expect(search).toHaveValue('')
+    expect(search).toHaveFocus()
+    expect(tab).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.queryByRole('button', { name: 'Close Shows list' })).not.toBeInTheDocument()
+  })
+
   it('releases focused search on the first Escape and closes on the second', async () => {
     render(<Harness />)
     const tab = screen.getByRole('button', { name: 'Open the Shows list' })
     fireEvent.keyDown(tab, { key: 'Enter' })
     await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
-    const search = screen.getByRole('textbox', { name: 'Search by name' })
+    const search = screen.getByRole('textbox', { name: 'Search shows' })
     expect(search).toHaveFocus()
 
     fireEvent.keyDown(search, { key: 'Escape' })
@@ -199,7 +213,7 @@ describe('StudioEntityDrawer (#966)', () => {
     fireEvent.keyDown(tab, { key: 'Enter' })
     await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
 
-    const originalSearch = screen.getByRole('textbox', { name: 'Search by name' })
+    const originalSearch = screen.getByRole('textbox', { name: 'Search shows' })
     const replacement = originalSearch.cloneNode(true) as HTMLInputElement
     originalSearch.replaceWith(replacement)
     await act(() => new Promise((resolve) => setTimeout(resolve, 0)))

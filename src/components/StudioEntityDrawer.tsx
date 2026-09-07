@@ -93,7 +93,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
     const focusList = () => {
       const rail = drawerRef.current
       if (!keyboardRefocusAllowedRef.current || !rail || rail.contains(document.activeElement)) return
-      const search = rail.querySelector<HTMLInputElement>('input[aria-label="Search by name"]')
+      const search = rail.querySelector<HTMLInputElement>('input[data-rail-search]')
       const selected = rail.querySelector<HTMLElement>('[role="treeitem"][aria-selected="true"]')
       const first = rail.querySelector<HTMLElement>('[role="treeitem"]')
       ;(search ?? selected ?? first)?.focus()
@@ -196,7 +196,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
       const busy = syncBusy()
       if (busy.size > 0) {
         const active = document.activeElement
-        if (active instanceof HTMLInputElement && active.getAttribute('aria-label') === 'Search by name') {
+        if (active instanceof HTMLInputElement && active.hasAttribute('data-rail-search')) {
           keyboardRefocusAllowedRef.current = false
           active.blur()
         }

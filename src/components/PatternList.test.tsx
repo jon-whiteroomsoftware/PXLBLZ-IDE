@@ -185,7 +185,7 @@ const CONTROLLER_PROFILE: ControllerProfile = {
 async function switchRailMode(mode: 'Patterns' | 'Shows' | 'Maps' | 'Controllers' | 'Mixins' | 'Libraries') {
   const kind = mode.toLocaleLowerCase() as 'patterns' | 'shows' | 'maps' | 'controllers' | 'mixins' | 'libraries'
   act(() => useRouterStore.getState().navigate({ kind: 'studio', entity: { kind, id: null } }))
-  await screen.findByRole('heading', { name: mode })
+  await screen.findByRole('region', { name: mode })
 }
 
 async function switchToMaps(_user: ReturnType<typeof userEvent.setup>) { await switchRailMode('Maps') }
@@ -200,8 +200,7 @@ async function selectDimension(
   user: ReturnType<typeof userEvent.setup>,
   dimension: 'All' | '1D' | '2D' | '3D',
 ) {
-  await user.click(screen.getByRole('button', { name: 'Dimension filter' }))
-  await user.click(screen.getByRole('option', { name: dimension }))
+  await user.click(within(screen.getByRole('group', { name: 'Dimension filter' })).getByRole('button', { name: dimension }))
 }
 
 describe('PatternList', () => {
@@ -401,12 +400,35 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
 
-    expect(await screen.findAllByText('Patterns')).toHaveLength(1)
+    expect(await screen.findByRole('region', { name: 'Patterns' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Patterns' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open pattern from .epe file' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Add pattern' }))
     expect(screen.getByRole('button', { name: 'New pattern' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'New folder' })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Open pattern from .epe file' })).toHaveLength(1)
+  })
+
+  it.each([
+    ['Patterns', 'Add pattern', ['New pattern', 'New folder'], true],
+    ['Shows', 'Add show', ['New show', 'Import Show file…', 'New folder'], true],
+    ['Maps', 'Add map', ['New map', 'New folder'], true],
+    ['Controllers', 'Add folder', ['New folder'], false],
+    ['Mixins', 'Add mixin', ['New mixin', 'New folder'], false],
+    ['Libraries', 'Add library', ['New library', 'New folder'], false],
+  ] as const)('preserves %s header tools and search availability (#976)', async (mode, action, items, searchable) => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+    await switchRailMode(mode)
+    const region = screen.getByRole('region', { name: mode })
+    expect(within(region).queryByRole('heading', { name: mode })).not.toBeInTheDocument()
+    const search = within(region).queryByRole('textbox', { name: `Search ${mode.toLowerCase()}` })
+    if (searchable) expect(search).toBeVisible()
+    else expect(search).not.toBeInTheDocument()
+    await user.click(within(region).getByRole('button', { name: action }))
+    for (const item of items) expect(within(region).getByRole('button', { name: item })).toBeVisible()
+    expect(within(region).queryByRole('button', { name: 'New profile' })).not.toBeInTheDocument()
+    if (mode === 'Patterns') expect(within(region).getByRole('button', { name: 'Open pattern from .epe file' })).toBeVisible()
   })
 
   it('lets long Pattern tree names establish horizontal overflow (#662)', async () => {
@@ -693,7 +715,7 @@ describe('PatternList', () => {
 
   it('starts the entity list at the rail edge without an activity strip (#965)', async () => {
     render(<PatternList />)
-    expect(await screen.findByRole('heading', { name: 'Patterns' })).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: 'Patterns' })).toBeInTheDocument()
     expect(screen.queryByRole('radiogroup', { name: 'Studio activity' })).not.toBeInTheDocument()
   })
 
@@ -750,7 +772,7 @@ describe('PatternList', () => {
     await switchRailMode('Mixins')
 
     expect(window.location.pathname).toBe('/studio/mixins')
-    expect(screen.getAllByText('Mixins')).toHaveLength(1)
+    expect(screen.getByRole('region', { name: 'Mixins' })).toBeInTheDocument()
   })
 
   it('opens provisional Show creation without creating a record', async () => {
@@ -810,7 +832,7 @@ describe('PatternList', () => {
     render(<PatternList />)
     await switchToMaps(user)
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
-    expect(screen.getAllByText('Maps')).toHaveLength(1)
+    expect(screen.getByRole('region', { name: 'Maps' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Add map' }))
     expect(screen.getByRole('button', { name: 'New map' })).toBeInTheDocument()
   })
@@ -841,7 +863,7 @@ describe('PatternList', () => {
     expect(screen.queryByRole('button', { name: 'Rename' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Move to Trash' })).toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: 'Rename item' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('textbox', { name: /search by name/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Search patterns' })).not.toBeInTheDocument()
   })
 
   it('renames a matching live Controller from the Controllers rail', async () => {
@@ -991,10 +1013,9 @@ describe('PatternList', () => {
     await switchToMaps(user)
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Dimension filter' }))
-    expect(screen.getByRole('option', { name: '1D' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: '2D' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: '3D' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '1D' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '2D' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '3D' })).toBeInTheDocument()
   })
 
   it('preserves the 1D dimension lens when entering Maps mode', async () => {
@@ -1003,11 +1024,11 @@ describe('PatternList', () => {
     render(<PatternList />)
 
     await selectDimension(user, '1D')
-    expect(screen.getByRole('button', { name: 'Dimension filter' })).toHaveTextContent('1D')
+    expect(within(screen.getByRole('group', { name: 'Dimension filter' })).getByRole('button', { name: '1D' })).toHaveAttribute('aria-pressed', 'true')
 
     await switchToMaps(user)
 
-    expect(screen.getByRole('button', { name: 'Dimension filter' })).toHaveTextContent('1D')
+    expect(within(screen.getByRole('group', { name: 'Dimension filter' })).getByRole('button', { name: '1D' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('rebuilds the built-in Pattern tree with new categories collapsed after a rail-mode round trip (#809, #829)', async () => {
@@ -1059,7 +1080,7 @@ describe('PatternList', () => {
     await switchToMaps(user)
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
 
-    const search = screen.getByRole('textbox', { name: /search by name/i })
+    const search = screen.getByRole('textbox', { name: 'Search maps' })
     await user.type(search, 'tree')
     expect(screen.getByText('My Tree')).toBeInTheDocument()
 
@@ -1075,10 +1096,10 @@ describe('PatternList', () => {
     await switchToMaps(user)
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
 
-    await user.type(screen.getByRole('textbox', { name: /search by name/i }), 'nope')
+    await user.type(screen.getByRole('textbox', { name: 'Search maps' }), 'nope')
     expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
     // Header stays, but the genuine-empty message must not appear.
-    expect(screen.getAllByText('Maps')).toHaveLength(1)
+    expect(screen.getByRole('region', { name: 'Maps' })).toBeInTheDocument()
     expect(screen.queryByLabelText('No custom maps yet')).not.toBeInTheDocument()
   })
 
@@ -1090,7 +1111,7 @@ describe('PatternList', () => {
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
 
     // Query matches but lens (2D) does not -> hidden.
-    await user.type(screen.getByRole('textbox', { name: /search by name/i }), 'tree')
+    await user.type(screen.getByRole('textbox', { name: 'Search maps' }), 'tree')
     await selectDimension(user, '2D')
     expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
 
@@ -1105,7 +1126,7 @@ describe('PatternList', () => {
 
     expect(await screen.findByText('Seed Pattern')).toBeInTheDocument()
 
-    const search = screen.getByRole('textbox', { name: /search by name/i })
+    const search = screen.getByRole('textbox', { name: 'Search patterns' })
     await user.type(search, 'nope')
     expect(screen.queryByText('Seed Pattern')).not.toBeInTheDocument()
 
@@ -1117,52 +1138,27 @@ describe('PatternList', () => {
     expect(screen.getByText('Seed Pattern')).toBeInTheDocument()
   })
 
-  it('clicking the search icon focuses the input', async () => {
+  it('clears permanent search on Escape and preserves ordinary space typing', async () => {
     const user = userEvent.setup()
     render(<PatternList />)
-
-    const search = screen.getByRole('textbox', { name: /search by name/i })
-    expect(search).not.toHaveFocus()
-
-    await user.click(screen.getByRole('button', { name: /search by name/i }))
+    const search = screen.getByRole('textbox', { name: 'Search patterns' })
+    await user.type(search, 'seed pattern')
+    expect(search).toHaveValue('seed pattern')
+    await user.keyboard('{Escape}')
+    expect(search).toHaveValue('')
     expect(search).toHaveFocus()
+    expect(search).toBeVisible()
   })
 
-  it('clicking the icon while open closes and unfocuses the search input', async () => {
+  it('preserves query clearing on blur with the field still visible', async () => {
     const user = userEvent.setup()
     render(<PatternList />)
-
-    const search = screen.getByRole('textbox', { name: /search by name/i })
-
-    // Open + focus it; the icon now offers Close.
-    await user.click(screen.getByRole('button', { name: /search by name/i }))
-    expect(search).toHaveFocus()
-    const closeBtn = screen.getByRole('button', { name: /close search/i })
-
-    // Clicking Close drops focus and clears any query.
+    const search = screen.getByRole('textbox', { name: 'Search patterns' })
     await user.type(search, 'abc')
-    await user.click(closeBtn)
+    await user.click(screen.getByRole('button', { name: 'Add pattern' }))
     expect(search).not.toHaveFocus()
     expect(search).toHaveValue('')
-    // And the affordance reverts to "Search by name".
-    expect(screen.getByRole('button', { name: /search by name/i })).toBeInTheDocument()
-  })
-
-  it('clicking elsewhere in the IDE closes the search box and clears its query', async () => {
-    const user = userEvent.setup()
-    render(<PatternList />)
-
-    const search = screen.getByRole('textbox', { name: /search by name/i })
-    await user.click(screen.getByRole('button', { name: /search by name/i }))
-    await user.type(search, 'abc')
-    expect(search).toHaveFocus()
-
-    // A click on an unrelated part of the rail blurs the input.
-    await user.click(screen.getByText('Patterns'))
-
-    expect(search).not.toHaveFocus()
-    expect(search).toHaveValue('')
-    expect(screen.getByRole('button', { name: /search by name/i })).toBeInTheDocument()
+    expect(search).toBeVisible()
   })
 
   it('shows a 3D custom map under the 3D lens but not the 2D lens', async () => {
