@@ -260,9 +260,12 @@ live and volatile; a pixel count change is a deliberate saved write.
 flash.
 
 The panel keeps high-value state visible without making every reading compete
-for height. **Pixelblaze**, **Pattern controls**, **Power**, and **Variables**
-fold independently and remember their state while you work. Power starts
-folded with its limiter, recent duty, and estimated draw in the header; expand
+for height. Brightness sits beside the running Pattern name. **Pixelblaze**,
+**Controls**, **Power**, and **Variables** fold independently and remember their
+state per Studio mode across reloads. Controls starts open; the other sections
+start folded with one-line readouts. The 400 px popover aligns labels and
+controls in two fields per row, switching to one below 360 px. Power keeps
+its limiter, recent duty, and estimated draw in the header; expand
 it for the complete telemetry and estimation assumptions. A grey **limiting**
 label means idle and amber means the cap is intervening. The label follows a
 three-poll majority so a single noisy report does not flash the state. When the

@@ -541,13 +541,24 @@ test('Controller surfaces keep live state and switch saved Patterns in place (#8
 
   const panel = page.getByTestId('controller-panel')
   const pixelblaze = panel.getByRole('button', { name: 'Pixelblaze', exact: true })
-  const controls = panel.getByRole('button', { name: 'pattern controls', exact: true })
-  const power = panel.getByRole('button', { name: 'power', exact: true })
-  const variables = panel.getByRole('button', { name: 'variables', exact: true })
-  await expect(pixelblaze).toHaveAttribute('aria-expanded', 'true')
+  const controls = panel.getByRole('button', { name: 'Controls', exact: true })
+  const power = panel.getByRole('button', { name: 'Power', exact: true })
+  const variables = panel.getByRole('button', { name: 'Variables', exact: true })
+  await expect(pixelblaze).toHaveAttribute('aria-expanded', 'false')
   await expect(controls).toHaveAttribute('aria-expanded', 'true')
   await expect(power).toHaveAttribute('aria-expanded', 'false')
-  await expect(variables).toHaveAttribute('aria-expanded', 'true')
+  await expect(variables).toHaveAttribute('aria-expanded', 'false')
+  await expect(popover).toHaveCSS('width', '400px')
+  const titleBrightness = popover.getByRole('slider', { name: 'Controller brightness' })
+  await expect(titleBrightness).toHaveAttribute('aria-valuetext', '50%')
+  await expect(panel.getByRole('slider', { name: 'Controller brightness' })).toHaveCount(0)
+  const previewPane = page.getByTestId('preview-pane')
+  const previewWasRunning = await previewPane.getByRole('button', { name: 'Pause', exact: true }).count() > 0
+  await pixelblaze.focus()
+  await page.keyboard.press('Space')
+  await expect(pixelblaze).toHaveAttribute('aria-expanded', 'false')
+  await expect(previewPane.getByRole('button', { name: previewWasRunning ? 'Run' : 'Pause', exact: true })).toBeVisible()
+  await page.keyboard.press('Space')
 
   const summary = page.getByTestId('controller-power-summary')
   await expect(summary).toHaveText(/limiting · duty 78% · 5\.0 A · 60\.4 W/)
@@ -576,17 +587,21 @@ test('Controller surfaces keep live state and switch saved Patterns in place (#8
   await page.keyboard.press('Escape')
   await expect(page.getByRole('button', { name: 'Switch running Pattern' })).toBeFocused()
   const summaryBounds = await summary.evaluate((element) => {
-    const summaryRect = element.getBoundingClientRect()
-    const buttonRect = element.closest('button')!.getBoundingClientRect()
+    const summaryRect = element.closest('.panel-section-summary')!.getBoundingClientRect()
+    const headerRect = element.closest('.panel-section-header')!.getBoundingClientRect()
     return {
       summaryLeft: summaryRect.left,
       summaryRight: summaryRect.right,
-      buttonLeft: buttonRect.left,
-      buttonRight: buttonRect.right,
+      headerLeft: headerRect.left,
+      headerRight: headerRect.right,
+      height: headerRect.height,
+      nestedInButton: element.closest('button') !== null,
     }
   })
-  expect(summaryBounds.summaryLeft).toBeGreaterThanOrEqual(summaryBounds.buttonLeft)
-  expect(summaryBounds.summaryRight).toBeLessThanOrEqual(summaryBounds.buttonRight)
+  expect(summaryBounds.summaryLeft).toBeGreaterThanOrEqual(summaryBounds.headerLeft)
+  expect(summaryBounds.summaryRight).toBeLessThanOrEqual(summaryBounds.headerRight)
+  expect(summaryBounds.height).toBe(28)
+  expect(summaryBounds.nestedInButton).toBe(false)
   const foldedHeight = await popover.evaluate((element) => element.getBoundingClientRect().height)
 
   await page.setViewportSize({ width: 1440, height: 900 })

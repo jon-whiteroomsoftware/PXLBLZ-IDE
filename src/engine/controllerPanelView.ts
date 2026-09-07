@@ -19,6 +19,9 @@ import {
   type ControllerElectricalProfile,
   type ResolvedControllerElectricalProfile,
 } from './controllerElectricalProfile'
+import type { PanelReadout } from './previewPanel'
+import type { Route } from './routes'
+import { formatPercentageValue } from './percentageValue'
 
 export interface ControllerPanelTelemetry {
   /** Id of the program the Controller is currently running, if any. */
@@ -427,4 +430,22 @@ export function describeControllerPowerTelemetry(
       estimatedDrawAssumptions: `${formatVarValue(milliampsPerPixel)} mA/px · ${context.pixelCount} px · ${formatPercent(context.brightness)}`,
     } : {}),
   }
+}
+
+export function controllerPanelMode(route: Route): string {
+  return `controller:${route.kind === 'studio' ? route.entity?.kind ?? 'patterns' : route.kind}`
+}
+/** The Controller popover uses a narrower breakpoint than the Pattern column. */
+export function controllerPanelFieldColumns(width: number): 1 | 2 { return width < 360 ? 1 : 2 }
+export function describeControllerPixelblazeReadout(s: { fpsLabel: string; address: string; pixelsLabel: string }): PanelReadout[] {
+  return [{ glyph: 'fps', value: s.fpsLabel, live: true }, { label: 'IP', value: s.address }, { glyph: 'pixels', value: `${s.pixelsLabel} px`, live: true }]
+}
+export function describeControllerControlsReadout(controls: ControllerControl[]): PanelReadout[] {
+  return controls.map(c => {
+    const value = controllerSliderValue(c.value)
+    return { label: c.label.toLowerCase(), value: c.kind === 'toggle' ? (c.value === 1 ? 'on' : 'off') : value === null ? '—' : formatPercentageValue(value, 0.01), live: true }
+  })
+}
+export function describeControllerVariablesReadout(vars: { name: string; value: string }[]): PanelReadout[] {
+  return [{ value: String(vars.length) }, ...vars.map(v => ({ label: v.name, value: v.value, live: true }))]
 }

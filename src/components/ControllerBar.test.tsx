@@ -1,3 +1,4 @@
+import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
 import { render, screen, fireEvent, waitFor, act, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -56,6 +57,7 @@ class ConnectedProvider extends NullControllerProvider {
 }
 
 beforeEach(() => {
+  usePanelPreferencesStore.setState({ expanded: {} })
   __resetControllerProviders()
   resetPersonalContentProvider()
   __resetControllerProfileAutoCreateGuards()
@@ -392,7 +394,7 @@ describe('ControllerBar', () => {
     expect(popover).not.toHaveTextContent('Desk')
     expect(popover).not.toHaveTextContent('10.0.0.5')
     expect(screen.getByTestId('controller-pill-remove')).toHaveAccessibleName('Disconnect Desk')
-    expect(screen.getByTestId('controller-panel-wrap')).toHaveClass('pt-0.5', 'pb-2', 'pr-3')
+    expect(screen.getByTestId('controller-panel-wrap')).toHaveClass('pt-0.5', 'pb-2', 'px-3')
   })
 
   it('puts a read-only sequencer indicator first in the header controls only while sequencing', () => {
@@ -508,6 +510,7 @@ describe('ControllerBar', () => {
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
 
+    fireEvent.click(screen.getByRole('button', { name: 'Pixelblaze' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Edit controller pixel count' }))
     const input = await screen.findByRole('textbox', { name: 'Controller pixel count' })
     fireEvent.mouseDown(input)

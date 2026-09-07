@@ -536,11 +536,13 @@ Controller cannot inherit another's mode.
 The open Controller popover presents an amber shuffle or playlist indicator
 only when firmware reports mode 1 or 2 together with a running sequencer. The
 indicator is observational; sequencer control remains in the Pixelblaze UI.
-All four live-panel decks use the shared disclosure primitive. Pixelblaze,
-Pattern controls, and Variables start expanded; Power starts folded with a
-single-line summary of limiter state, recent duty, and estimated draw. Module
-session state preserves each disclosure across popover unmount/reopen without
-turning UI state into durable Controller data. Per-Controller panel snapshots
+All four live-panel decks use the shared summary-row disclosure primitive.
+Controls starts expanded; Pixelblaze, Power, and Variables start folded. The
+`controllerPanelView` readouts use the same values and unset-control semantics
+as the expanded fields. The title brightness slider retains its live volatile
+setter and curve. `panelPreferencesStore` persists disclosure state under
+Controller-specific Studio-mode keys across reloads, without turning UI state
+into durable Controller data. Folding a section leaves Controller polling active. Per-Controller panel snapshots
 also retain limiter history. Only a successful device vars poll contributes a
 sample; an optimistic live-cap edit does not. Folded and expanded presentation
 use the same strict majority of the latest three samples, with a tie retaining

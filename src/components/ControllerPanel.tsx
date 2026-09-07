@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore, type ReactNode } from 'react'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Sun, Map as MapIcon } from 'lucide-react'
 import { inlineIcon } from '@/components/iconScale'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { useControllerStore } from '@/store/controllerStore'
@@ -13,13 +13,16 @@ import {
   describeControllerPowerTelemetry,
   describeControllerPowerSummary,
   formatDutyCapPercent,
+  controllerPanelMode,
+  describeControllerPixelblazeReadout,
+  describeControllerControlsReadout,
+  describeControllerVariablesReadout,
 } from '@/engine/controllerPanelView'
 import {
   DeckSection,
   DeckSectionHint,
   DeckGrid,
   DeckCell,
-  DeckField,
   DeckTelemetry,
 } from '@/components/Deck'
 import { DeckSlider } from '@/components/DeckSlider'
@@ -32,6 +35,12 @@ import {
   InstalledMapPresentation,
   useInstalledMapCandidates,
 } from '@/components/InstalledMapPresentation'
+import { usePanelSection } from '@/store/panelPreferencesStore'
+import { useRouterStore } from '@/store/routerStore'
+import { formatPercentageValue } from '@/engine/percentageValue'
+import { PanelReadout } from '@/components/PanelReadout'
+import './PatternPanel.css'
+import './ControllerPanel.css'
 function LimitingWord({ active, testId }: { active: boolean; testId: string }) {
   return (
     <span
@@ -129,17 +138,24 @@ function ControllerPixelCountInput() {
   )
 }
 
-// Map, FPS, and IP are the panel's compact identity/telemetry facts. A shared
-// label track keeps their values on one left-aligned axis; unlike DeckCell's
-// general-purpose right alignment, this lets the full-width map value spend the
-// rest of its row while preserving the two-column fact band below.
-function ControllerFactRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="grid min-w-0 grid-cols-[2.75rem_minmax(0,1fr)] items-center">
-      <span className="text-zinc-400">{label}</span>
-      <div className="min-w-0">{children}</div>
-    </div>
-  )
+function ControllerSection({ label, hint, summary, children }: { label: string; hint?: ReactNode; summary?: ReactNode; children: ReactNode }) {
+  const mode = useRouterStore(s => controllerPanelMode(s.route))
+  const [expanded, setExpanded] = usePanelSection(mode, label)
+  return <div className={`controller-section-${label.toLowerCase()}`}><DeckSection label={label} hint={hint} summary={summary} collapsible summaryRow expanded={expanded} onExpandedChange={setExpanded}>{children}</DeckSection></div>
+}
+
+export function ControllerPanelBrightness() {
+  // Rebind when the active device changes, matching the panel's availability.
+  useControllerStore(s => s.activeIp)
+  const provider = getControllerProvider()
+  const status = useSyncExternalStore(onChange => provider.subscribe(onChange), () => provider.getStatus())
+  const brightness = useControllerPanelStore(s => s.brightness)
+  const setBrightness = useControllerPanelStore(s => s.setBrightness)
+  if (status.kind !== 'connected') return null
+  return <div className="panel-brightness" data-testid="controller-title-brightness" title={brightness === null ? "Brightness not set — drag to set a value." : `Brightness ${formatPercentageValue(brightness, 0.01)}`}>
+    <Sun size={12} aria-hidden className="text-zinc-400" />
+    <DeckSlider label="brightness" ariaLabel="Controller brightness" value={brightness} min={0} max={1} step={0.01} presentation="percentage" curve={2} onChange={setBrightness} />
+  </div>
 }
 
 export function ControllerPanel() {
@@ -178,7 +194,6 @@ export function ControllerPanel() {
   const activeControls = useControllerPanelStore((s) => s.activeControls)
   const vars = useControllerPanelStore((s) => s.vars)
   const limitingSmoothing = useControllerPanelStore((s) => s.limitingSmoothing)
-  const setBrightness = useControllerPanelStore((s) => s.setBrightness)
   const setControl = useControllerPanelStore((s) => s.setControl)
   const setPowerLimit = useControllerPanelStore((s) => s.setPowerLimit)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
@@ -247,7 +262,7 @@ export function ControllerPanel() {
     : null
 
   return (
-    <div className="font-mono pl-3 text-xs" data-testid="controller-panel">
+    <div className="controller-panel font-mono text-xs" data-testid="controller-panel">
       {controllerEntry?.firmwareUpdateState === 'available' && (
         <div
           role="status"
@@ -273,94 +288,34 @@ export function ControllerPanel() {
           </a>
         </div>
       )}
-      <DeckSection
+      <ControllerSection
         label="Pixelblaze"
         hint={PANEL_HINT}
-        collapsible
-        persistKey="controller-panel:pixelblaze"
-        flushTop
+        summary={<>
+          <span className="controller-map-summary"><MapIcon size={10} aria-hidden /><InstalledMapPresentation presentation={installedMapPresentation} count={{ mode: 'mismatch', pixelCount }} /></span>
+          <span className="panel-readout-dot" aria-hidden>·</span>
+          <PanelReadout items={describeControllerPixelblazeReadout({ fpsLabel, address: status.controller.address, pixelsLabel })} />
+        </>}
       >
-        {/* Three bands, each given the width its content actually needs (#757). The
-            section holds three different kinds of thing, and the old single 2-column
-            grid treated them all as short label/value one-liners:
-
-              1. the section's primary *control* — brightness. Full width takes its travel
-                 from ~90px to ~250px, which is the granularity the shared DeckSlider was
-                 introduced to give every slider.
-              2. an *identity* — the installed map's name, a free-form user string of
-                 unbounded length. In a ~147px half-column its unshrinkable siblings (the
-                 dimension pill, the spelled-out point count) left the name 0px at every
-                 name length, so the name never rendered — the whole point of showing an
-                 installed map. Its full-width row shares a fixed label track with the
-                 short facts below and gives every remaining pixel to the value, while
-                 the point count shows only when it disagrees with the pixel count below.
-              3. short read-only *scalars* — fps, IP, pixel count. A half-column always
-                 fit these, and they keep it.
-
-            Band 3's two columns are each genuinely two lines tall, so they bottom-align
-            on their own — retiring the hand-tuned `h-10` stretch the old layout needed to
-            fake it. */}
-        <div className="flex flex-col gap-y-1.5">
-          <DeckSlider
-            label="brightness"
-            ariaLabel="Controller brightness"
-            value={brightness}
-            min={0}
-            max={1}
-            step={0.01}
-            presentation="percentage"
-            curve={2}
-            onChange={setBrightness}
-          />
-
-          <ControllerFactRow label="map">
-            <span
-              className="min-w-0 text-live"
-              title={
-                mapCountMismatch
-                  ? `Map has ${mapPointsLabel} points but the Controller has ${pixelsLabel} pixels — the firmware silently drops a mismatched map (#204).`
-                  : undefined
-              }
-              data-testid="controller-installed-map"
-            >
-              <InstalledMapPresentation
-                presentation={installedMapPresentation}
-                count={{ mode: 'mismatch', pixelCount }}
-              />
-            </span>
-          </ControllerFactRow>
-
-          <div className="grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-x-4 items-start">
-            <div className="min-w-0 flex flex-col gap-y-1.5">
-              <ControllerFactRow label="fps">
-                <span className="block truncate text-live tabular-nums">{fpsLabel}</span>
-              </ControllerFactRow>
-              <ControllerFactRow label="IP">
-                <span className="block truncate text-live tabular-nums">
-                  {status.controller.address}
-                </span>
-              </ControllerFactRow>
-            </div>
-            <div className="min-w-0">
-              <DeckField label="pixel count">
-                <ControllerPixelCountInput />
-              </DeckField>
-            </div>
+        <DeckGrid>
+          <div className="controller-field-wide">
+            <DeckCell label="map">
+              <span className="min-w-0 text-live" title={mapCountMismatch ? `Map has ${mapPointsLabel} points but the Controller has ${pixelsLabel} pixels — the firmware silently drops a mismatched map (#204).` : undefined} data-testid="controller-installed-map">
+                <InstalledMapPresentation presentation={installedMapPresentation} count={{ mode: 'mismatch', pixelCount }} />
+              </span>
+            </DeckCell>
           </div>
-        </div>
-      </DeckSection>
+          <DeckTelemetry label="fps" value={fpsLabel} />
+          <DeckCell label="pixels"><ControllerPixelCountInput /></DeckCell>
+          <div className="controller-field-wide"><DeckTelemetry label="IP" value={status.controller.address} /></div>
+        </DeckGrid>
+      </ControllerSection>
 
       {controls.length > 0 && (
-        <DeckSection
-          label="pattern controls"
+        <ControllerSection
+          label="Controls"
           hint={controlsHint ?? undefined}
-          collapsible
-          persistKey="controller-panel:controls"
-          summary={(
-            <span className="text-zinc-500">
-              {controls.length} control{controls.length === 1 ? '' : 's'}
-            </span>
-          )}
+          summary={<PanelReadout items={describeControllerControlsReadout(controls)} />}
         >
           <DeckGrid>
             {controls.map((c) =>
@@ -392,16 +347,13 @@ export function ControllerPanel() {
               ),
             )}
           </DeckGrid>
-        </DeckSection>
+        </ControllerSection>
       )}
 
       {powerTelemetry && (
-        <DeckSection
-          label="power"
+        <ControllerSection
+          label="Power"
           hint={POWER_HINT}
-          collapsible
-          persistKey="controller-panel:power"
-          defaultExpanded={false}
           summary={powerSummary && (
             <span
               className="whitespace-nowrap tabular-nums"
@@ -425,11 +377,11 @@ export function ControllerPanel() {
           )}
         >
           <DeckGrid gapY="gap-y-[3px]">
-            <div className="col-span-2">
+            <div className="controller-field-wide">
               <DeckTelemetry label="duty recent / start" value={powerTelemetry.dutyLabel} />
             </div>
             {powerCapSettings && powerTelemetry.limitValue != null ? (
-              <div className="col-span-2">
+              <div className="controller-field-wide">
                 <DeckSlider
                   label="duty cap"
                   ariaLabel="Live duty cap"
@@ -445,7 +397,7 @@ export function ControllerPanel() {
             ) : (
               <DeckTelemetry label="duty cap" value={powerTelemetry.limitLabel} />
             )}
-            <div className="col-span-2">
+            <div className="controller-field-wide">
               <DeckCell label="limiting">
                 <span className="truncate tabular-nums">
                   <span
@@ -459,7 +411,7 @@ export function ControllerPanel() {
                 </span>
               </DeckCell>
             </div>
-            <div className="col-span-2">
+            <div className="controller-field-wide">
               <DeckTelemetry label="est. draw" value={powerTelemetry.estimatedDrawLabel} />
               {powerTelemetry.estimatedDrawAssumptions && (
                 <div
@@ -471,23 +423,21 @@ export function ControllerPanel() {
               )}
             </div>
           </DeckGrid>
-        </DeckSection>
+        </ControllerSection>
       )}
 
       {watchedVars.length > 0 && (
-        <DeckSection
-          label="variables"
+        <ControllerSection
+          label="Variables"
           hint={VARS_HINT}
-          collapsible
-          persistKey="controller-panel:variables"
-          summary={<span className="text-zinc-500">{watchedVars.length}</span>}
+          summary={<PanelReadout items={describeControllerVariablesReadout(watchedVars)} />}
         >
           <DeckGrid gapY="gap-y-[3px]">
             {watchedVars.map((v) => (
               <DeckTelemetry key={v.name} label={v.name} value={v.value} />
             ))}
           </DeckGrid>
-        </DeckSection>
+        </ControllerSection>
       )}
     </div>
   )

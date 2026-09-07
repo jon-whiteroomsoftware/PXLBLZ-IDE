@@ -1,0 +1,20 @@
+.controller-panel-popover { container: controller-panel / inline-size; max-width: min(400px, calc(100vw - 16px)); max-height: calc(100dvh - 80px); overflow-y: auto; }
+.controller-panel { min-width: 0; font-size: 10.5px; }
+.controller-panel .panel-section-header, .controller-panel .panel-section-toggle { height: 28px; }
+.controller-panel .panel-section-body [data-deck="grid"] { display: grid; grid-template-columns: minmax(0, 60px) minmax(0, 1fr) minmax(0, 60px) minmax(0, 1fr); gap: 8px 8px; align-items: center; }
+.controller-panel .panel-section-body [data-deck="cell"], .controller-panel .panel-section-body [data-deck="slider"] { display: grid; grid-template-columns: subgrid; grid-column: span 2; gap: inherit; min-width: 0; align-items: center; white-space: nowrap; }
+.controller-panel .panel-section-body [data-deck="cell"] > :last-child { min-width: 0; max-width: 100%; justify-self: start; }
+.controller-panel .panel-section-body [data-deck="cell"] > span:first-child, .controller-panel .panel-section-body [data-deck="slider"] > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.controller-panel .panel-section-body [data-deck="slider"] > div { display: flex; min-width: 0; gap: 5px; }
+.controller-panel .panel-section-body [data-deck="slider"] input { width: 100%; min-width: 24px; }
+.controller-panel .panel-section-body [data-deck="slider"] > div > span { width: 34px; }
+.controller-field-wide { grid-column: 1 / -1; display: grid; grid-template-columns: 60px minmax(0, 1fr); gap: inherit; min-width: 0; }
+.controller-field-wide > div:not([data-deck]), .controller-field-wide > [data-deck] { grid-column: 1 / -1; }
+.controller-panel .controller-section-power [data-deck="grid"], .controller-panel .controller-section-power .controller-field-wide { grid-template-columns: 126px minmax(0, 1fr); }
+.controller-map-summary { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 150px; }
+.controller-map-summary > svg { flex-shrink: 0; color: var(--color-zinc-500); }
+@container controller-panel (max-width: 359px) {
+  .controller-panel .panel-section-body [data-deck="grid"] { grid-template-columns: minmax(0, 72px) minmax(0, 1fr); }
+  .controller-field-wide { grid-template-columns: 72px minmax(0, 1fr); }
+  .controller-panel-popover > div:first-child { gap: 6px; }
+}

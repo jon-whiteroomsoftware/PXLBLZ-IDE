@@ -31,7 +31,7 @@ export function ControllerPanelTitle() {
 
   return (
     <span className="flex min-w-0 items-center gap-1.5">
-      <span className="truncate text-zinc-200" title={patternName}>
+      <span className="truncate text-zinc-200" title={patternName} data-layout-allow="overflow-x">
         {patternName}
         {patternUnsaved && (
           <span

@@ -165,7 +165,7 @@ function controllerPanelSurface(installedMap: 'present' | 'absent' = 'present'):
   seedInstalledMapProfile()
   seedLiveController()
   setControllerProvider(new LayoutControllerProvider(installedMap))
-  return <ControllerPanel />
+  return <div className="controller-panel-popover"><ControllerPanel /></div>
 }
 
 function controllerProfileSurface(options?: Parameters<typeof seedInstalledMapProfile>[0]): ReactNode {
@@ -216,9 +216,9 @@ export const LAYOUT_SURFACE_MANIFEST: readonly LayoutSurfaceContract[] = [
     ready: (root) => (
       root.querySelector('[data-testid="installed-map-name"]')?.textContent === MAP_NAME
       && root.querySelector('[data-testid="installed-map-count-mismatch"]') !== null
-      && root.textContent?.includes('pattern controls') === true
-      && root.textContent?.includes('power') === true
-      && root.textContent?.includes('variables') === true
+      && root.textContent?.includes('Controls') === true
+      && root.textContent?.includes('Power') === true
+      && root.textContent?.includes('Variables') === true
     ),
     annotate: (root) => {
       root.querySelector('[data-testid="installed-map-name"]')?.setAttribute('data-layout-must-fit', '')

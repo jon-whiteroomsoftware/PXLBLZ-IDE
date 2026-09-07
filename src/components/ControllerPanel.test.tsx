@@ -1,6 +1,8 @@
 import { act, cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { ControllerPanel } from './ControllerPanel'
+import { ControllerPanel, ControllerPanelBrightness } from './ControllerPanel'
+import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
+import { useRouterStore, routerInitialState } from '@/store/routerStore'
 import {
   useControllerPanelStore,
   controllerPanelInitialState,
@@ -83,6 +85,9 @@ beforeEach(() => {
   useControllerPanelStore.setState(controllerPanelInitialState)
   useEditorStore.setState(editorInitialState)
   useControllerProfileStore.setState(controllerProfileInitialState)
+  localStorage.clear()
+  usePanelPreferencesStore.setState({ expanded: {} })
+  useRouterStore.setState(routerInitialState)
 })
 
 afterEach(() => {
@@ -120,23 +125,35 @@ describe('ControllerPanel', () => {
     expect(screen.getByText('Pixelblaze')).toBeInTheDocument()
     expect(screen.getByText('10.0.0.9')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText('30.0')).toBeInTheDocument())
-    expect(screen.getByLabelText('Controller brightness')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Controller brightness')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Live duty cap')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Pixelblaze' }).closest('[data-deck="section"]'))
-      .toHaveClass('mt-0', 'pt-0.5')
+      .toHaveClass('panel-section')
   })
 
-  it('orders the compact Pixelblaze controls as brightness, map, then fps', async () => {
+  it('keeps promoted brightness outside Pixelblaze and map before fps when expanded', async () => {
     setControllerProvider(new ConnectedProvider())
-    render(<ControllerPanel />)
-
+    render(<><ControllerPanelBrightness /><ControllerPanel /></>)
+    fireEvent.click(screen.getByRole('button', { name: 'Pixelblaze' }))
     const brightness = screen.getByLabelText('Controller brightness')
     const map = screen.getByTestId('controller-installed-map')
     const fps = await screen.findByText('fps')
-
+    expect(brightness.closest('[data-deck="section"]')).toBeNull()
     expect(brightness.compareDocumentPosition(map) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(map.compareDocumentPosition(fps) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
+
+  it('keeps map, fps, and IP in shared label/value cells', async () => {
+    setControllerProvider(new ConnectedProvider())
+    render(<ControllerPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Pixelblaze' }))
+    for (const label of ['map', 'fps', 'IP']) {
+      const row = (await screen.findByText(label)).parentElement
+      expect(row).toHaveAttribute('data-deck', 'cell')
+      expect(row?.children).toHaveLength(2)
+    }
+  })
+
 
   it('shows where to install available firmware in the Controller web UI', async () => {
     setControllerProvider(new ConnectedProvider())
@@ -259,16 +276,6 @@ describe('ControllerPanel', () => {
   // The mechanism behind #757: the value collapsed to zero and the overflow then ate the
   // label, rendering the row as "m..". The compact facts now share one fixed label track,
   // so their values stay left-aligned without putting the map back in a half-width cell.
-  it('aligns map, fps, and IP on the same fixed label track', async () => {
-    setControllerProvider(new ConnectedProvider())
-    render(<ControllerPanel />)
-
-    for (const label of ['map', 'fps', 'IP']) {
-      const row = (await screen.findByText(label)).parentElement
-      expect(row).toHaveClass('grid-cols-[2.75rem_minmax(0,1fr)]')
-      expect(row?.children).toHaveLength(2)
-    }
-  })
 
   it('renders reading, unknown, absent, and unavailable from the shared live state', async () => {
     const provider = new ConnectedProvider()
@@ -356,17 +363,17 @@ describe('ControllerPanel', () => {
     render(<ControllerPanel />)
 
     const pixelblaze = await screen.findByRole('button', { name: 'Pixelblaze' })
-    const controls = screen.getByRole('button', { name: /^pattern controls$/i })
+    const controls = screen.getByRole('button', { name: /^Controls$/i })
     const power = screen.getByRole('button', { name: /^power$/i })
     const variables = screen.getByRole('button', { name: /^variables$/i })
-    expect(pixelblaze).toHaveAttribute('aria-expanded', 'true')
+    expect(pixelblaze).toHaveAttribute('aria-expanded', 'false')
     expect(controls).toHaveAttribute('aria-expanded', 'true')
     expect(power).toHaveAttribute('aria-expanded', 'false')
-    expect(variables).toHaveAttribute('aria-expanded', 'true')
+    expect(variables).toHaveAttribute('aria-expanded', 'false')
 
     fireEvent.click(controls)
-    expect(screen.getByText('2 controls')).toBeInTheDocument()
-    fireEvent.click(variables)
+    expect(screen.getByText('30%')).toBeInTheDocument()
+    expect(screen.getByText('on')).toBeInTheDocument()
     expect(screen.getByText('1')).toBeInTheDocument()
   })
 
@@ -438,7 +445,7 @@ describe('ControllerPanel', () => {
     expect(screen.getByText('phase')).toBeInTheDocument()
     expect(screen.queryByText('__px_powerDutyRecent')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByLabelText('About the power section'))
+    fireEvent.click(screen.getByLabelText('About the Power section'))
     expect(screen.getByText(/roughly two-second block/)).toBeInTheDocument()
     expect(screen.getByText(/cap responds from a faster internal signal/)).toBeInTheDocument()
     expect(screen.getByText(/re-push/i)).toBeInTheDocument()
@@ -511,7 +518,7 @@ describe('ControllerPanel', () => {
     const { rerender } = render(<ControllerPanel />)
     await waitFor(() => expect(screen.getByLabelText('sliderSpeed')).toBeInTheDocument())
     expect(
-      screen.queryByLabelText('About the pattern controls section'),
+      screen.queryByLabelText('About the Controls section'),
     ).not.toBeInTheDocument()
 
     // Load the matching pattern metadata with a description → the "?" appears, and
@@ -520,7 +527,7 @@ describe('ControllerPanel', () => {
       { exportName: 'sliderSpeed', kind: 'slider', label: 'Speed', description: 'How fast it goes.' },
     ]))
     rerender(<ControllerPanel />)
-    const help = await screen.findByLabelText('About the pattern controls section')
+    const help = await screen.findByLabelText('About the Controls section')
     fireEvent.click(help)
     expect(screen.getByText(/How fast it goes\./)).toBeInTheDocument()
     await settlePanelAsync()
@@ -572,7 +579,7 @@ describe('ControllerPanel', () => {
     provider.config = { ...provider.config, activeControls: undefined }
     setControllerProvider(provider)
     render(<ControllerPanel />)
-    await screen.findByLabelText('Controller brightness')
+    await screen.findByText('30.0')
     expect(screen.queryByRole('slider', { name: /^slider/ })).not.toBeInTheDocument()
   })
 
@@ -594,7 +601,7 @@ describe('ControllerPanel', () => {
     const provider = new ConnectedProvider()
     setControllerProvider(provider)
     render(<ControllerPanel />)
-
+    fireEvent.click(screen.getByRole('button', { name: 'Pixelblaze' }))
     const trigger = await screen.findByRole('button', { name: 'Edit controller pixel count' })
     await waitFor(() => expect(trigger).toHaveTextContent('256'))
     fireEvent.click(trigger)
@@ -616,7 +623,7 @@ describe('ControllerPanel', () => {
   it('writes brightness through the provider when the slider moves', async () => {
     const provider = new ConnectedProvider()
     setControllerProvider(provider)
-    render(<ControllerPanel />)
+    render(<><ControllerPanelBrightness /><ControllerPanel /></>)
     const slider = screen.getByLabelText('Controller brightness')
     // The brightness slider runs on a gamma curve (curve={2}), so the range input's
     // position is in [0,1] and maps non-linearly to the value: 0.7^2 = 0.49. This
@@ -629,4 +636,46 @@ describe('ControllerPanel', () => {
       }),
     )
   })
+  it('persists independent mode sections without stopping polling or remounting sibling controls', async () => {
+    const provider = new ConnectedProvider()
+    setControllerProvider(provider)
+    const first = render(<ControllerPanel />)
+    const speed = await screen.findByLabelText('sliderSpeed')
+    fireEvent.click(screen.getByRole('button', { name: 'Pixelblaze' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Variables' }))
+    expect(screen.getByLabelText('sliderSpeed')).toBe(speed)
+    provider.vars = { phase: 0.75 }
+    await act(async () => useControllerPanelStore.getState().poll())
+    expect(screen.getByText('0.75')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Variables' }))
+    expect(screen.getByText('0.75')).toBeInTheDocument()
+    expect(screen.getByLabelText('sliderSpeed')).toBe(speed)
+    first.unmount()
+    const saved = localStorage.getItem('pxlblz-panel-preferences')!
+    usePanelPreferencesStore.setState({ expanded: {} })
+    localStorage.setItem('pxlblz-panel-preferences', saved)
+    await act(() => usePanelPreferencesStore.persist.rehydrate())
+    render(<ControllerPanel />)
+    expect(screen.getByRole('button', { name: 'Pixelblaze' })).toHaveAttribute('aria-expanded', 'true')
+    act(() => useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'shows', id: 'a' } } }))
+    expect(screen.getByRole('button', { name: 'Pixelblaze' })).toHaveAttribute('aria-expanded', 'false')
+    act(() => useRouterStore.setState(routerInitialState))
+    expect(screen.getByRole('button', { name: 'Pixelblaze' })).toHaveAttribute('aria-expanded', 'true')
+    await settlePanelAsync()
+  })
+
+  it('does not expose the promoted device control without a connected Controller', () => {
+    render(<ControllerPanelBrightness />)
+    expect(screen.queryByLabelText('Controller brightness')).not.toBeInTheDocument()
+  })
+
+  it('keeps unset title brightness operable and exposes the reported percentage in its tooltip', () => {
+    setControllerProvider(new ConnectedProvider())
+    render(<ControllerPanelBrightness />)
+    expect(screen.getByLabelText('Controller brightness')).toHaveAttribute('aria-valuetext', 'not set')
+    expect(screen.getByTestId('controller-title-brightness')).toHaveAttribute('title', 'Brightness not set — drag to set a value.')
+    act(() => useControllerPanelStore.setState({ brightness: 0.125 }))
+    expect(screen.getByTestId('controller-title-brightness')).toHaveAttribute('title', 'Brightness 12.5%')
+  })
+
 })
