@@ -7,7 +7,7 @@ export function claimStudioPreviewSpace(event: KeyboardEvent): boolean {
   if (event.defaultPrevented || event.code !== 'Space' || claimedPreviewSpaceEvents.has(event)) return false
   claimedPreviewSpaceEvents.add(event)
   event.preventDefault()
-  return true
+  return !event.repeat
 }
 
 export function studioControlOwnsKeyboardEvent(target: EventTarget | null): boolean {

@@ -153,6 +153,7 @@ describe('StudioEntityDrawer (#966)', () => {
     render(<Harness onPreviewSpace={onPreviewSpace} />)
     const tab = screen.getByRole('button', { name: 'Open the Shows list' })
     fireEvent.keyDown(tab, { key: ' ', code: 'Space' })
+    fireEvent.keyDown(tab, { key: ' ', code: 'Space', repeat: true })
     expect(onPreviewSpace).toHaveBeenCalledOnce()
     expect(tab).toHaveAttribute('aria-expanded', 'false')
   })

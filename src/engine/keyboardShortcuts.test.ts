@@ -11,6 +11,15 @@ describe('studioControlOwnsKeyboardEvent', () => {
     expect(claimStudioPreviewSpace(new KeyboardEvent('keydown', { code: 'KeyA' }))).toBe(false)
   })
 
+  it('consumes held Space repeats without granting another playback toggle', () => {
+    const initial = new KeyboardEvent('keydown', { code: 'Space', cancelable: true })
+    const repeat = new KeyboardEvent('keydown', { code: 'Space', repeat: true, cancelable: true })
+    expect(claimStudioPreviewSpace(initial)).toBe(true)
+    expect(claimStudioPreviewSpace(repeat)).toBe(false)
+    expect(repeat.defaultPrevented).toBe(true)
+    expect(claimStudioPreviewSpace(new KeyboardEvent('keydown', { code: 'Space', cancelable: true }))).toBe(true)
+  })
+
   it.each(['input', 'textarea', '[role="textbox"]'])(
     'keeps Space with %s text-entry controls',
     (selector) => {

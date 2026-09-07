@@ -18,7 +18,7 @@ import {
 } from '@/engine/studioEntityDrawer'
 import type { StudioEntityKind } from '@/engine/routes'
 import { studioPlaceDefinition } from '@/engine/studioPlaces'
-import { studioControlOwnsKeyboardEvent } from '@/engine/keyboardShortcuts'
+import { claimStudioPreviewSpace, studioControlOwnsKeyboardEvent } from '@/engine/keyboardShortcuts'
 import { useStudioEntityDrawerStore } from '@/store/studioEntityDrawerStore'
 import { StudioPlaceIcon } from '@/components/StudioPlaceControl'
 import {
@@ -281,6 +281,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
               tabIndex={mode === 'open' ? -1 : 0}
               data-studio-space-preview="true"
               {...studioEntityDrawerOwnedSurfaceProps}
+              onPointerUp={(event) => event.currentTarget.blur()}
               onClick={() => apply({ type: 'open', source: 'pointer' })}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
@@ -288,9 +289,8 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
                   event.stopPropagation()
                   apply({ type: 'open', source: 'keyboard' })
                 } else if (event.code === 'Space') {
-                  event.preventDefault()
                   event.stopPropagation()
-                  onPreviewSpace()
+                  if (claimStudioPreviewSpace(event.nativeEvent)) onPreviewSpace()
                 }
               }}
               className={`flex h-full w-[22px] flex-col items-center gap-2 pt-2 text-zinc-500 transition-colors hover:bg-white/[0.03] hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-live/70 ${mode === 'open' ? 'pointer-events-none opacity-0' : ''}`}

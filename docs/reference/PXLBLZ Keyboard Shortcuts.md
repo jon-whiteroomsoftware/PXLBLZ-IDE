@@ -64,6 +64,8 @@ playback.
 |---|---|
 | `Space` | Play or pause the active Preview. |
 
+`Space` toggles once per press; holding it does not repeatedly toggle playback.
+
 `Space` is the app's most global shortcut. It plays or pauses the Preview
 throughout Studio and on Pattern detail pages, even when something else has
 keyboard focus: outside the Show timeline, buttons, links, selectors, sliders,
