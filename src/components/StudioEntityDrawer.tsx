@@ -72,15 +72,6 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
     stateRef.current = result.state
     setState(result.state)
     if (result.announce) setAnnouncement(result.announce)
-    if (result.focus === 'list') {
-      window.setTimeout(() => {
-        const rail = drawerRef.current
-        const search = rail?.querySelector<HTMLInputElement>('input[aria-label="Search by name"]')
-        const selected = rail?.querySelector<HTMLElement>('[role="treeitem"][aria-selected="true"]')
-        const first = rail?.querySelector<HTMLElement>('[role="treeitem"]')
-        ;(search ?? selected ?? first)?.focus()
-      }, 0)
-    }
     if (result.focus === 'restore') {
       const target = focusReturnRef.current
       focusReturnRef.current = null
@@ -92,6 +83,28 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
   useEffect(() => { apply({ type: 'set-place', place }) }, [apply, place])
   useEffect(() => { apply({ type: 'set-pin-preferences', pinPreferences }) }, [apply, pinPreferences])
   useEffect(() => { apply({ type: 'set-narrow', narrow }) }, [apply, narrow])
+
+  useEffect(() => {
+    if (mode !== 'open' || state.openSource !== 'keyboard') return
+    const focusList = () => {
+      const rail = drawerRef.current
+      if (!rail || rail.contains(document.activeElement)) return
+      const search = rail.querySelector<HTMLInputElement>('input[aria-label="Search by name"]')
+      const selected = rail.querySelector<HTMLElement>('[role="treeitem"][aria-selected="true"]')
+      const first = rail.querySelector<HTMLElement>('[role="treeitem"]')
+      ;(search ?? selected ?? first)?.focus()
+    }
+    const rail = drawerRef.current
+    const observer = new MutationObserver(focusList)
+    if (rail) observer.observe(rail, { childList: true, subtree: true })
+    const initial = window.setTimeout(focusList, 0)
+    const stop = window.setTimeout(() => observer.disconnect(), 1_000)
+    return () => {
+      window.clearTimeout(initial)
+      window.clearTimeout(stop)
+      observer.disconnect()
+    }
+  }, [mode, state.openSource])
 
   useEffect(() => {
     if (!state.timerArmed) return

@@ -119,6 +119,7 @@ test('shared Studio chrome remains legible, dense, and reachable across routes (
     }
   }
 
+  await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('studio/patterns/IridescentFibers')
   await page.getByRole('button', { name: 'Unpin Patterns list' }).click()
   await expect(page.getByTestId('studio-drawer-layout')).toHaveAttribute('data-drawer-mode', 'tucked')
@@ -738,6 +739,7 @@ test('Studio authoring keeps the rail and editor reachable at 390px (#622)', asy
   await expect(page.getByRole('button', { name: 'Show properties' })).toBeInViewport()
 
   // The Learn number is composed from catalogue level and order at runtime.
+  await page.getByRole('button', { name: 'Open the Shows list' }).click()
   await page.getByRole('treeitem', { name: /^100/ }).click()
   await page.getByRole('treeitem', { name: /Clips, Cuts, and Blank Time$/ }).click()
   await expect.poll(
