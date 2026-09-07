@@ -1079,9 +1079,17 @@ horizontal divider moves by 10 px, or 50 px with Shift, and persists one Show
 timeline height only after explicit pointer or keyboard movement. Without a
 remembered height, the timeline fits its measured content plus 12 px slack and
 the strip fills the remainder, recomputed on content and viewport changes.
-`ShowEditor` measures content independently of scroll position; visible lesson
-notes retain space in both automatic fitting and the two-lane minimum. Remembered
+`ShowEditor` measures content independently of scroll position; a visible Live
+strip reserves 32 px in automatic fitting and the two-lane minimum. Remembered
 height takes precedence over content and survives temporary viewport clamps.
+The Lesson pill opens a portaled Reading card; its hover/pinned state is local
+to the current Show. The card's switch and the Live strip's hide button share
+the existing per-Show session visibility. The strip renders reference narration
+or the Scene at loop time, plus the existing Pattern slot selectors inline or
+in the shared toolbar popover. Floating surfaces use the Show Escape registry
+and contribute no layout height; slot projection and swap confirmation retain
+their existing ownership.
+
 `ShowStagePreview` reports aspect changes and retains its canvas while the
 strip sections expand independently. Controls use one column capped at 480 px,
 with slider tracks capped at 200 px and the existing rail scrolling treatment.

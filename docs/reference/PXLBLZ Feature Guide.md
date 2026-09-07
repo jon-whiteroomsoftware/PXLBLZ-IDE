@@ -506,8 +506,21 @@ Mass Ejection remix, Quadrille), and map-specific **Installations** (the
 2,000-pixel Redline, and Overture, a 128 BPM opening night for the
 Proscenium arch stage). Edit them freely: changes live in a session draft,
 **Reset** or reload restores the shipped version, and **Clone** keeps your
-variant. Showcases also offer **Try with Pattern**, which runs your own
-Pattern through the same choreography.
+variant.
+
+The **Lesson pill** beside the title opens a **Reading card**: hover to read,
+click to pin, or use Enter or Space while the pill has keyboard focus. Escape
+closes the card and returns focus to the pill. The card explains what the Show
+demonstrates, what to look for, and two things to try, with a link to its guide.
+It floats above the timeline without shrinking the Stage preview.
+
+The card's **Live strip** switch shows or hides one 32 px row above the
+timeline, remembered per Show. The strip follows the current reference example
+or Scene as the Show plays. **Try with Pattern** runs another Pattern through
+the same choreography: one slot has an inline chooser; several slots share a
+**Patterns** chip that opens their choosers and Reset. The strip's × hides it.
+At narrow widths, the pill becomes an icon and the strip keeps the narration
+name, counter, and compact chooser on one row.
 
 ---
 

@@ -1,6 +1,6 @@
 import { Fragment, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
-import { Activity, BookOpen, ChevronDown, ChevronRight, Clock3, Code2, Copy, CopyPlus, Download, Eye, Flag, FlipHorizontal2, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scaling, Scissors, Settings2, SkipBack, SlidersHorizontal, Square, SquareDashed, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
+import { Activity, BookOpen, ChevronDown, ChevronRight, Clock3, Code2, Copy, CopyPlus, Download, Eye, Flag, FlipHorizontal2, Grid2X2, Layers3, Lightbulb, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scaling, Scissors, Settings2, SkipBack, SlidersHorizontal, Square, SquareDashed, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ActionsMenu, type ActionsMenuItem } from '@/components/ActionsMenu'
 import { controlIcon } from '@/components/iconScale'
@@ -242,6 +242,7 @@ import { SHOW_EASING_OPTIONS, showEasingFromOptionId, showEasingOptionId } from 
 import {
   applyShowPatternSlotSelections,
   currentShowReferenceExample,
+  currentShowScene,
   restoreShowReferencePatternSlots,
   showPatternSlotRemovedControlNames,
   type ShowPatternSlotGroup,
@@ -322,6 +323,7 @@ import { SaveFailureNotice } from '@/components/SaveFailureNotice'
 import { recordAgentObservation, showRecordDigest } from '@/dev/agentObservation'
 import ShowSourceOutletContext from '@/components/ShowSourceOutlet'
 import { ShowStripSection } from '@/components/ShowStripSection'
+import { useAnchoredOverlayPosition } from '@/components/useAnchoredOverlayPosition'
 
 const field =
   'h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
@@ -571,9 +573,7 @@ type ShowClipResizePlan = {
   owner: ShowTimelineClipOwner
 }
 
-// Width at or below which the lesson note folds its two columns behind the
-// Details disclosure. The note is the teaching surface, so it keeps its full
-// layout well past the point the timeline itself starts to crowd (#363).
+// At this section width the pill and live strip retain only their compact copy.
 export const SHOW_NOTE_COMPACT_WIDTH_PX = 560
 
 function ShowNoteTrigger({ note, open, onToggle }: {
@@ -581,22 +581,122 @@ function ShowNoteTrigger({ note, open, onToggle }: {
   open: boolean
   onToggle: () => void
 }) {
-  const numberLabel = note.number ? `${note.number} ` : ''
-  const actionLabel = open ? 'Collapse' : 'Open'
+  const [cardOpen, setCardOpen] = useState(false)
+  const [pinned, setPinned] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const position = useAnchoredOverlayPosition(triggerRef, cardRef, cardOpen, {
+    align: 'left', preferredSide: 'bottom', margin: 20,
+  })
+  const close = useCallback(() => {
+    clearTimeout(hoverTimer.current)
+    clearTimeout(leaveTimer.current)
+    setCardOpen(false)
+    setPinned(false)
+  }, [])
+  useEffect(() => () => {
+    clearTimeout(hoverTimer.current)
+    clearTimeout(leaveTimer.current)
+  }, [])
+  useEffect(() => {
+    if (!cardOpen) return
+    const dismissOutside = (event: PointerEvent) => {
+      if (!(event.target instanceof Node)) return
+      if (triggerRef.current?.contains(event.target) || cardRef.current?.contains(event.target)) return
+      close()
+    }
+    document.addEventListener('pointerdown', dismissOutside)
+    const unregister = registerShowEscapeLayer({
+      rank: SHOW_ESCAPE_LAYER_RANK.headerPopover,
+      onEscape: () => {
+        close()
+        triggerRef.current?.focus()
+        return true
+      },
+    })
+    return () => {
+      document.removeEventListener('pointerdown', dismissOutside)
+      unregister()
+    }
+  }, [cardOpen, close])
+  const enter = () => {
+    clearTimeout(leaveTimer.current)
+    clearTimeout(hoverTimer.current)
+    hoverTimer.current = setTimeout(() => setCardOpen(true), 200)
+  }
+  const leave = () => {
+    clearTimeout(hoverTimer.current)
+    if (!pinned) leaveTimer.current = setTimeout(close, 200)
+  }
+  const pin = () => {
+    clearTimeout(hoverTimer.current)
+    clearTimeout(leaveTimer.current)
+    if (pinned) close()
+    else { setCardOpen(true); setPinned(true) }
+  }
+  const [lead, ...bullets] = note.purpose.split('\n').filter((line) => line.trim() !== '')
+  const rowLabel = 'text-[9px] font-semibold uppercase tracking-[0.09em] text-zinc-500'
   return (
-    <button
-      type="button"
-      aria-label={`${actionLabel} ${numberLabel}${note.title} guide`}
-      aria-expanded={open}
-      title={`${actionLabel} ${numberLabel}${note.title} guide`}
-      className={`show-note-trigger inline-flex h-5 w-6 shrink-0 items-center justify-center rounded border p-0 text-[10px] uppercase tracking-wide focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-cyan-200 ${open
-        ? 'border-cyan-200/50 bg-cyan-400/15 text-cyan-100 hover:bg-cyan-400/25'
-        : 'border-cyan-200/30 bg-cyan-400/[0.07] text-cyan-100/80 hover:border-cyan-200/50 hover:bg-cyan-400/15 hover:text-cyan-100'}`}
-      onPointerUp={(event) => event.currentTarget.blur()}
-      onClick={onToggle}
-    >
-      <BookOpen size={11} aria-hidden />
-    </button>
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={`${note.number ? `${note.number} ` : ''}${note.title} guide`}
+        aria-haspopup="dialog"
+        aria-expanded={cardOpen}
+        className="show-note-trigger inline-flex h-[22px] shrink-0 items-center gap-1.5 rounded-[3px] border border-cyan-200/35 bg-cyan-200/[0.08] px-1.5 text-[10px] text-cyan-200 hover:border-cyan-200/55 hover:bg-cyan-200/[0.16] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-cyan-200"
+        onPointerEnter={enter}
+        onPointerLeave={leave}
+        onPointerUp={(event) => event.currentTarget.blur()}
+        onKeyDown={(event) => {
+          if (event.key !== ' ' && event.key !== 'Enter') return
+          event.preventDefault()
+          event.stopPropagation()
+          if (!event.repeat) { setCardOpen(true); setPinned(true) }
+        }}
+        onClick={pin}
+      >
+        <BookOpen size={11} aria-hidden />
+        <span className="show-note-pill-label whitespace-nowrap font-semibold uppercase tracking-[0.06em]">{note.number ? `Lesson ${note.number}` : note.label}</span>
+        <ChevronDown size={10} aria-hidden className="show-note-pill-label" />
+      </button>
+      {cardOpen && createPortal(
+        <div
+          ref={cardRef}
+          role="dialog"
+          aria-label={`${note.title} guide`}
+          data-pinned={pinned}
+          style={position}
+          className="w-[min(64ch,calc(100vw-40px))] overflow-y-auto rounded border border-cyan-200/30 bg-[#10191e] font-mono text-[10px] leading-[1.5] text-zinc-300 shadow-[0_14px_48px_#000a]"
+          onPointerEnter={() => clearTimeout(leaveTimer.current)}
+          onPointerLeave={leave}
+        >
+          <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2">
+            <BookOpen size={12} aria-hidden className="shrink-0 text-cyan-200" />
+            <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-cyan-200">{note.label}{note.number ? ` ${note.number}` : ''}</span>
+            <strong className="min-w-0 font-medium text-zinc-100">{note.title}</strong>
+            <span className="ml-auto text-right text-[8px] leading-3 text-zinc-500">{pinned ? 'PINNED · ESC CLOSES' : 'CLICK PILL TO PIN'}</span>
+          </div>
+          <div className="grid grid-cols-[76px_minmax(0,1fr)] gap-x-3 gap-y-3 px-3 py-3">
+            <span className={rowLabel}>What this shows</span>
+            <div><p>{lead}</p>{bullets.length > 0 && <ul className="mt-1 list-disc space-y-1 pl-3">{bullets.map((line) => <li key={line}>{line}</li>)}</ul>}</div>
+            <span className={rowLabel}>Look for</span><p className="text-zinc-400">{note.notice}</p>
+            <span className={rowLabel}>Try this</span><ul className="list-disc space-y-1 pl-3 text-zinc-400">{note.prompts.map((prompt) => <li key={prompt}>{prompt}</li>)}</ul>
+          </div>
+          <div className="flex items-center justify-between gap-3 border-t border-zinc-800 px-3 py-2">
+            <a href={`${docExternalHref(note.guide.documentId)}#${note.guide.heading}`} className="inline-flex min-w-0 items-center gap-1 text-cyan-200/80 hover:text-cyan-100">
+              <BookOpen size={10} aria-hidden className="shrink-0" />{note.guide.label}<ChevronRight size={10} aria-hidden className="shrink-0" />
+            </a>
+            <button type="button" role="switch" aria-label="Live strip" aria-checked={open} onClick={onToggle} className="inline-flex shrink-0 items-center gap-2 text-[9px] uppercase tracking-wide text-zinc-400">
+              Live strip
+              <span aria-hidden className={`flex h-3 w-6 items-center rounded-full px-0.5 ${open ? 'justify-end bg-cyan-200/40' : 'justify-start bg-zinc-700'}`}><i className="size-2 rounded-full bg-zinc-100" /></span>
+            </button>
+          </div>
+        </div>, document.body,
+      )}
+    </>
   )
 }
 
@@ -610,42 +710,37 @@ function ShowPatternSlotPicker({
   patternOptions,
   selections,
   onSelectPattern,
+  inline = false,
 }: {
   show: ShowRecord
   slotGroups: readonly ShowPatternSlotGroup[]
   patternOptions: ShowPatternOption[]
   selections?: Readonly<Record<number, ShowCell['pattern']>>
   onSelectPattern: (slotIndex: number, pattern: ShowCell['pattern']) => void
+  inline?: boolean
 }) {
   return (
-    <div className="flex flex-wrap items-end gap-2">
+    <div className={inline ? 'flex items-center gap-2' : 'flex flex-col gap-3'}>
       {slotGroups.map((group, index) => {
         const authoredPattern = show.cells.find((cell) => group.cellIds.includes(cell.id))?.pattern
           ?? show.composition?.patternInstances.find((instance) => group.instanceIds.includes(instance.id))?.pattern
         const activePattern = selections?.[index] ?? authoredPattern
-        const activeValue = activePattern ? `${activePattern.kind}:${activePattern.id}` : null
-        const label = slotGroups.length === 1 ? 'Try with Pattern' : `Pattern ${index + 1}`
+        const label = `Pattern ${index + 1}`
+        const pickerLabel = slotGroups.length === 1 ? 'Try with Pattern' : label
         return (
-          <label
-            key={group.instanceIds.join(':') || index}
-            className="w-44 min-w-0 font-semibold uppercase tracking-[0.09em] text-zinc-500"
-          >
-            {label}
-            <PatternCombobox
-              ariaLabel={label}
-              value={activeValue}
-              options={patternOptions.map((option) => ({
-                value: `${option.ref.kind}:${option.ref.id}`,
-                label: option.label,
-                group: option.group,
-              }))}
-              compact
-              className="mt-1"
-              onChange={(value) => {
-                const option = patternOptions.find((candidate) => `${candidate.ref.kind}:${candidate.ref.id}` === value)
-                if (option) onSelectPattern(index, option.ref)
-              }}
-            />
+          <label key={group.instanceIds.join(':') || index} className={inline ? 'flex items-center gap-2' : 'grid grid-cols-[76px_minmax(0,1fr)] items-center gap-3'}>
+            <span className={`${inline ? 'show-note-chooser-label ' : ''}whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.09em] text-zinc-500`}>{pickerLabel}</span>
+            <div className={inline ? 'show-note-inline-picker w-44' : 'min-w-0'}>
+              <PatternCombobox ariaLabel={pickerLabel}
+                value={activePattern ? `${activePattern.kind}:${activePattern.id}` : null}
+                options={patternOptions.map((option) => ({ value: `${option.ref.kind}:${option.ref.id}`, label: option.label, group: option.group }))}
+                compact
+                onChange={(value) => {
+                  const option = patternOptions.find((candidate) => `${candidate.ref.kind}:${candidate.ref.id}` === value)
+                  if (option) onSelectPattern(index, option.ref)
+                }}
+              />
+            </div>
           </label>
         )
       })}
@@ -675,7 +770,7 @@ interface PendingPatternSlotSelection {
   removedControlNames: string[]
 }
 
-function ShowNoteDisclosure({
+function ShowLiveStrip({
   note,
   show,
   reference,
@@ -684,6 +779,8 @@ function ShowNoteDisclosure({
   selections,
   onSelectPattern,
   onCollapse,
+  onReset,
+  canReset,
 }: {
   note: StockShowNote
   show: ShowRecord
@@ -693,196 +790,72 @@ function ShowNoteDisclosure({
   selections?: Readonly<Record<number, ShowCell['pattern']>>
   onSelectPattern: (slotIndex: number, pattern: ShowCell['pattern']) => void
   onCollapse: () => void
+  onReset: () => void
+  canReset: boolean
 }) {
+  const [chooserOpen, setChooserOpen] = useState(false)
   const title = note.number ? `${note.number} ${note.title}` : note.title
-  const sectionRef = useRef<HTMLElement>(null)
-  const [compactMode, setCompactMode] = useState(false)
-  const [compactExpanded, setCompactExpanded] = useState(false)
-  useEffect(() => {
-    const section = sectionRef.current
-    if (!section) return
-    const update = () => {
-      const width = section.getBoundingClientRect().width
-      setCompactMode(width > 0 && width <= SHOW_NOTE_COMPACT_WIDTH_PX)
-    }
-    update()
-    if (typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(update)
-    observer.observe(section)
-    return () => observer.disconnect()
-  }, [])
-  const compactContentHidden = compactMode && !compactExpanded
+  const groups = patternSlots ?? []
+  const names = groups.slice(0, 2).map((group, index) => {
+    const pattern = selections?.[index]
+      ?? show.cells.find((cell) => group.cellIds.includes(cell.id))?.pattern
+      ?? show.composition?.patternInstances.find((instance) => group.instanceIds.includes(instance.id))?.pattern
+    return patternOptions.find((option) => option.ref.kind === pattern?.kind && option.ref.id === pattern?.id)?.label ?? pattern?.id ?? ''
+  })
+  const [chipAnchor, setChipAnchor] = useState<HTMLButtonElement | null>(null)
   return (
-    <section
-      ref={sectionRef}
-      role="region"
-      aria-label={`${title} guide`}
-      data-compact-expanded={compactExpanded}
-      className="shrink-0 select-none border-b border-cyan-200/20 bg-[#0d171b] text-[10px]"
-    >
-      <div className="flex h-8 items-center">
-        <button
-          type="button"
-          aria-label={`Collapse ${note.number ? `${note.number} ` : ''}guide`}
-          className="flex h-8 min-w-0 flex-1 items-center gap-2 px-3 text-left hover:bg-white/[0.025] focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-cyan-200"
-          onClick={onCollapse}
-        >
-          <Info size={12} aria-hidden className="shrink-0 text-cyan-200/80" />
-          <span className="shrink-0 font-semibold uppercase tracking-[0.1em] text-cyan-200/85">{note.label}</span>
-          <strong className="truncate font-medium text-zinc-200">{note.number ? `${note.number} · ` : ''}{note.title}</strong>
-          <ChevronDown size={12} aria-hidden className="ml-auto shrink-0 rotate-180 text-zinc-500" />
-        </button>
-        <button
-          type="button"
-          aria-label="Show guide details"
-          aria-expanded={compactExpanded}
-          className="show-note-compact-toggle h-6 shrink-0 items-center gap-1 border-l border-zinc-800 px-2 text-[10px] text-cyan-100/70 hover:bg-white/[0.035] hover:text-cyan-100"
-          onClick={() => setCompactExpanded((expanded) => !expanded)}
-        >
-          Details
-          <ChevronDown size={10} aria-hidden className={compactExpanded ? 'rotate-180' : ''} />
-        </button>
-      </div>
-      {patternSlots && (
-        <div
-          role="group"
-          aria-label={`${title} Pattern slots`}
-          className="show-note-expanded-content border-t border-cyan-200/15 bg-cyan-200/[0.025] px-3 py-2"
-          aria-hidden={compactContentHidden || undefined}
-          inert={compactContentHidden || undefined}
-        >
-          <ShowPatternSlotPicker
-            show={show}
-            slotGroups={patternSlots}
-            patternOptions={patternOptions}
-            selections={selections}
-            onSelectPattern={onSelectPattern}
-          />
-        </div>
+    <section role="region" aria-label={`${title} live strip`} className="show-live-strip flex h-8 shrink-0 select-none items-center gap-3 border-b border-cyan-200/20 bg-[#0d171b] px-3 text-[10px]">
+      <ShowLiveNarration show={show} reference={reference} />
+      {groups.length === 1 && <div className="shrink-0"><ShowPatternSlotPicker show={show} slotGroups={groups} patternOptions={patternOptions} selections={selections} onSelectPattern={onSelectPattern} inline /></div>}
+      {groups.length > 1 && (
+        <>
+          <button ref={setChipAnchor} type="button" aria-label={`Patterns (${groups.length})`} aria-haspopup="dialog" aria-expanded={chooserOpen}
+            onPointerUp={(event) => event.currentTarget.blur()}
+            onClick={() => setChooserOpen((value) => !value)}
+            className="show-note-pattern-chip inline-flex h-[22px] w-72 shrink-0 items-center gap-1 rounded border border-zinc-700 bg-zinc-900/65 px-1.5 text-zinc-300 hover:border-zinc-500 focus-visible:outline-2 focus-visible:outline-cyan-200">
+            <Layers3 size={10} aria-hidden className="shrink-0" />
+            <span className="show-note-chip-label shrink-0">Patterns</span>
+            <span className="shrink-0">({groups.length})</span>
+            <span className="show-note-chip-label min-w-0 truncate">· {names.join(', ')}{groups.length > 2 ? ` +${groups.length - 2}` : ''}</span>
+            <ChevronDown size={10} aria-hidden className="show-note-chip-label ml-auto shrink-0" />
+          </button>
+          {chooserOpen && <ShowTimelineToolbarPopover anchor={chipAnchor} escapeLayerRank={SHOW_ESCAPE_LAYER_RANK.headerPopover} widthPx={320} ariaLabel="Try with Pattern"
+            className="w-80 max-w-[calc(100vw-40px)] rounded border border-zinc-700 bg-[#10191e] p-3 font-mono text-[10px] shadow-xl"
+            onDismiss={() => setChooserOpen(false)}>
+            <div className="mb-3 flex items-center gap-2 border-b border-zinc-800 pb-2"><Layers3 size={12} aria-hidden /><strong className="font-medium">Try with Pattern</strong></div>
+            <ShowPatternSlotPicker show={show} slotGroups={groups} patternOptions={patternOptions} selections={selections}
+              onSelectPattern={(index, pattern) => { onSelectPattern(index, pattern); setChooserOpen(false) }} />
+            <div className="mt-3 flex justify-end border-t border-zinc-800 pt-2">
+              <button type="button" disabled={!canReset} onClick={() => { onReset(); setChooserOpen(false) }} className="rounded border border-zinc-700 px-2 py-1 text-zinc-300 disabled:opacity-40">Reset</button>
+            </div>
+          </ShowTimelineToolbarPopover>}
+        </>
       )}
-      {reference && (
-        <div
-          className="show-note-expanded-content"
-          aria-hidden={compactContentHidden || undefined}
-          inert={compactContentHidden || undefined}
-        >
-          <ShowReferenceInstrument
-            show={show}
-            reference={reference}
-          />
-        </div>
-      )}
-      <div
-        className="show-note-expanded-content grid grid-cols-[minmax(0,1.45fr)_minmax(220px,1fr)] gap-4 border-t border-zinc-800/80 px-3 py-2.5 max-[720px]:grid-cols-1 max-[720px]:gap-2"
-        aria-hidden={compactContentHidden || undefined}
-        inert={compactContentHidden || undefined}
-      >
-        <div>
-          {(() => {
-            // A purpose with newlines renders as a lead sentence plus terse
-            // bullets (#63); single-paragraph purposes render as before.
-            const [lead, ...items] = note.purpose.split('\n').filter((line) => line.trim() !== '')
-            return (
-              <>
-                <p className="max-w-[72ch] leading-4 text-zinc-300">{lead}</p>
-                {items.length > 0 && (
-                  <ul className="mt-1 max-w-[72ch] space-y-0.5 text-zinc-300">
-                    {items.map((line) => (
-                      <li key={line} className="flex gap-1.5">
-                        <i aria-hidden className="mt-[5px] size-1 shrink-0 rounded-full bg-zinc-500" />
-                        <span className="leading-4">{line}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            )
-          })()}
-          <p className="mt-1.5 flex items-start gap-1.5 leading-4 text-zinc-500">
-            <Lightbulb size={11} aria-hidden className="mt-0.5 shrink-0 text-zinc-500" />
-            <span><b className="font-medium text-zinc-400">Notice:</b> {note.notice}</span>
-          </p>
-        </div>
-        <div className="border-l border-zinc-800 pl-3 max-[720px]:border-l-0 max-[720px]:border-t max-[720px]:pl-0 max-[720px]:pt-2">
-          <span className="flex items-center gap-1 font-semibold uppercase tracking-[0.09em] text-zinc-400">
-            <ListChecks size={10} aria-hidden className="text-zinc-500" /> Try this
-          </span>
-          <ul className="mt-1.5 space-y-1 text-zinc-400">
-            {note.prompts.map((prompt) => (
-              <li key={prompt} className="flex gap-1.5">
-                <i aria-hidden className="mt-[5px] size-1 shrink-0 rounded-full bg-zinc-600" />
-                <span>{prompt}</span>
-              </li>
-            ))}
-          </ul>
-          <a
-            href={`${docExternalHref(note.guide.documentId)}#${note.guide.heading}`}
-            className="mt-2 inline-flex h-7 items-center gap-1.5 border border-zinc-700 bg-zinc-900/65 px-2 text-zinc-300 hover:border-zinc-500 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-cyan-200"
-          >
-            <BookOpen size={10} aria-hidden />
-            {note.guide.label}
-            <ChevronRight size={10} aria-hidden />
-          </a>
-        </div>
-      </div>
+      <button type="button" aria-label="Hide live strip" title="Hide live strip" className="inline-flex size-5 shrink-0 items-center justify-center text-zinc-500 hover:text-zinc-200 focus-visible:outline-2 focus-visible:outline-cyan-200"
+        onPointerUp={(event) => event.currentTarget.blur()} onClick={onCollapse}><X size={12} aria-hidden /></button>
     </section>
   )
 }
 
-function ShowReferenceInstrument({
-  show,
-  reference,
-}: {
-  show: ShowRecord
-  reference: ShowReferenceGuide
-}) {
+function ShowLiveNarration({ show, reference }: { show: ShowRecord; reference?: ShowReferenceGuide }) {
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
-  const current = currentShowReferenceExample(show, reference, positionMs)
-  const currentIndex = current ? reference.examples.findIndex((example) => example.id === current.id) : -1
+  const current = reference ? currentShowReferenceExample(show, reference, positionMs) : null
+  const scene = reference ? null : currentShowScene(show, positionMs)
+  const index = reference ? (current ? reference.examples.findIndex((example) => example.id === current.id) : -1) : scene?.index ?? -1
+  const count = reference ? reference.examples.length : show.scenes.length
   const durationMs = showLoopDurationMs(show)
   const progress = durationMs > 0 ? Math.max(0, Math.min(1, positionMs / durationMs)) : 0
-  const easingOption = current?.easing
-    ? SHOW_EASING_OPTIONS.find((option) => option.id === showEasingOptionId(current.easing!))
-    : undefined
-
+  const easingOption = current?.easing ? SHOW_EASING_OPTIONS.find((option) => option.id === showEasingOptionId(current.easing!)) : undefined
   return (
-    <div
-      role="group"
-      aria-label={`${show.name} reference controls`}
-      className="border-t border-cyan-200/15 bg-cyan-200/[0.025] px-3 py-2"
-    >
-      <div className="min-w-0">
-        <span className="font-semibold uppercase tracking-[0.11em] text-cyan-200/70">Reference mode</span>
-        <p className="mt-0.5 max-w-[80ch] leading-4 text-zinc-400">{reference.summary}</p>
-      </div>
-      <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 border-l-2 border-cyan-200/45 bg-zinc-950/45 px-2 py-1.5">
-        <span className="font-semibold uppercase tracking-[0.1em] text-cyan-200/65">Live example</span>
-        <span className="min-w-0 truncate">
-          <strong className="font-medium text-zinc-100">{current?.label ?? 'Reference frame'}</strong>
-          <span className="ml-2 text-zinc-500">{current?.detail ?? 'The fixed comparison source before the first example.'}</span>
-        </span>
-        <span className="tabular-nums text-zinc-600">
-          {currentIndex >= 0 ? `${currentIndex + 1}/${reference.examples.length}` : `0/${reference.examples.length}`}
-        </span>
-        <span aria-hidden className="col-span-2 col-start-1 h-px overflow-hidden bg-zinc-800">
-          <i className="block h-full bg-cyan-200/70" style={{ width: `${progress * 100}%` }} />
-        </span>
-        {easingOption && (
-          <svg
-            role="img"
-            aria-label={`${easingOption.label} easing curve`}
-            viewBox="0 0 48 20"
-            className="row-span-2 h-5 w-12 text-cyan-200/80"
-          >
-            <polyline
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              points={easingOption.samples.map((sample) => `${sample.progress * 48},${18 - sample.value * 16}`).join(' ')}
-            />
-          </svg>
-        )}
-      </div>
+    <div role="group" aria-label="Live narration" className="relative flex h-6 min-w-0 flex-1 items-center gap-2 whitespace-nowrap">
+      <span className="shrink-0 text-[9px] font-semibold uppercase tracking-[0.1em] text-cyan-200/75">{reference ? 'LIVE' : 'CLIP'}</span>
+      <strong className="min-w-0 truncate font-medium text-zinc-100">{reference ? current?.label ?? 'Reference frame' : scene?.scene.name ?? 'No Scene'}</strong>
+      {reference && <span className="show-note-detail min-w-0 flex-1 truncate text-zinc-500">{current?.detail ?? 'The fixed comparison source before the first example.'}</span>}
+      <span className="shrink-0 tabular-nums text-zinc-500">{index + 1}/{count}</span>
+      {easingOption && <svg role="img" aria-label={`${easingOption.label} easing curve`} viewBox="0 0 48 20" className="show-note-detail h-4 w-9 shrink-0 text-cyan-200/80">
+        <polyline fill="none" stroke="currentColor" strokeWidth="1.5" points={easingOption.samples.map((sample) => `${sample.progress * 48},${18 - sample.value * 16}`).join(' ')} />
+      </svg>}
+      {reference && <span aria-hidden className="absolute inset-x-0 bottom-0 h-px bg-white/[0.08]"><i data-testid="show-live-progress" className="block h-full bg-cyan-200/70" style={{ width: `${progress * 100}%` }} /></span>}
     </div>
   )
 }
@@ -1644,14 +1617,14 @@ export function ShowEditor({
       const footerHeight = footer?.getBoundingClientRect().height ?? 0
       const rowGap = Number.parseFloat(window.getComputedStyle(timelineGrid).rowGap) || 0
       const secondLaneBottom = laneRects[1]?.bottom ?? (firstLane ? firstLane.bottom + rowGap + firstLane.height : null)
-      // Preserve the visible chrome (including an open lesson note) and two
-      // complete lanes without letting scrolling change the minimum.
+      // The Live strip contributes a constant 32 px when open; floating
+      // reading and chooser cards contribute no height. Preserve two full lanes.
       onTimelineMinimumHeightChange?.(secondLaneBottom === null ? SHOW_TIMELINE_MIN_HEIGHT : measureShowTimelineMinimumHeight({
         editorTop: rootTop,
         secondLaneBottom: secondLaneBottom + scroll.scrollTop,
         fixedFooterHeight: footerHeight,
       }))
-      // Automatic fitting includes visible notes and all lanes. Undo scroll
+      // Automatic fitting includes the visible Live strip and all lanes. Undo scroll
       // translation rather than measuring the scroll viewport's assigned size.
       onTimelineContentHeightChange?.(Math.ceil(
         sectionRect.bottom - rootTop + scroll.scrollTop
@@ -2350,6 +2323,7 @@ export function ShowEditor({
 
   const showNoteTrigger = builtInContext?.note ? (
     <ShowNoteTrigger
+      key={showId}
       note={builtInContext.note}
       open={showNoteOpen}
       onToggle={() => setShowNoteOpen(showId, !showNoteOpen)}
@@ -2555,7 +2529,8 @@ export function ShowEditor({
       )}
       <div data-testid="show-editor-scroll" className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-auto">
         {builtInContext?.note && showNoteOpen && (
-          <ShowNoteDisclosure
+          <ShowLiveStrip
+            key={showId}
             note={builtInContext.note}
             show={activeShow}
             reference={builtInContext.reference}
@@ -2564,6 +2539,8 @@ export function ShowEditor({
             selections={selectedReferencePatterns}
             onSelectPattern={requestPatternSlotSelection}
             onCollapse={() => setShowNoteOpen(showId, false)}
+            canReset={Boolean(hasStockDraft || selectedReferencePatterns)}
+            onReset={() => { resetStockShowDraft(showId); clearReferencePatterns(showId) }}
           />
         )}
         <div className="min-w-0 p-3">
@@ -7244,6 +7221,7 @@ function ShowTimelineToolbarPopover({
   widthPx,
   align = 'end',
   role = 'dialog',
+  escapeLayerRank = SHOW_ESCAPE_LAYER_RANK.toolbarPopover,
   ariaLabel,
   className,
   children,
@@ -7256,6 +7234,7 @@ function ShowTimelineToolbarPopover({
   /** Toolbar popovers hang from their anchor's right edge; rail popovers from its left. */
   align?: 'start' | 'end'
   role?: 'dialog' | 'menu'
+  escapeLayerRank?: number
   ariaLabel: string
   className: string
   children: ReactNode
@@ -7322,7 +7301,7 @@ function ShowTimelineToolbarPopover({
   useEffect(() => {
     if (!dismissible) return
     return registerShowEscapeLayer({
-      rank: SHOW_ESCAPE_LAYER_RANK.toolbarPopover,
+      rank: escapeLayerRank,
       onEscape: () => {
         const { anchor: currentAnchor, onDismiss: currentOnDismiss } = dismissRef.current
         if (!currentOnDismiss) return false
@@ -7331,7 +7310,7 @@ function ShowTimelineToolbarPopover({
         return true
       },
     })
-  }, [dismissible])
+  }, [dismissible, escapeLayerRank])
 
   if (!anchor || typeof document === 'undefined') return null
   return createPortal(

@@ -269,6 +269,15 @@ _Avoid_: Pattern-instance reuse; caching a rendered frame; assuming smaller sour
 A session-editable Show example that ships with the IDE and opens through the same timeline, Stage, compiler, cost disclosure, generated-code view, EPE export, and Controller-send paths as a personal Show. The pristine choreography remains an ordinary `ShowRecord` fixture. The first edit creates an in-memory working copy with normal Undo/Redo; **Reset** or a page reload restores the fixture, and no edit seeds D1 or creates an undeletable personal record. Built-in Shows are organized as numbered **Learn** lessons, topical **Showcases**, finished **Portable Shows** for standard square maps, and map-specific **Installations**; catalogue-only metadata supplies their order, lesson copy, guide notes, and optional reference controls.
 _Avoid_: stock Show in user-facing copy; describing a Built-in Show as read-only; implying its session draft is a personal template record, durable content, or a separate preview implementation.
 
+**Lesson pill**, **Reading card**, **Live strip** (Built-in Show learning surfaces):
+The Lesson pill beside the Show title opens the floating Reading card with the
+Show's purpose, things to notice and try, and guide link. Hover opens it briefly;
+click pins it. The Live strip is a separate, optional 32 px row above the timeline
+that follows the current reference example or Scene and hosts Try with Pattern.
+Its visibility is remembered per Show; the card never consumes layout height.
+_Avoid_: treating the card's open state as the strip's visibility; calling these
+surfaces authored Show content or adding their state to a Show record.
+
 **Property animation** (in a Show):
 A saved change in one numeric Clip, Effect, Pattern-instance, routing, or
 Show-wide property. The destination entity owns the target value while an

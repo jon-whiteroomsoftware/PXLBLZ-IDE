@@ -5084,42 +5084,28 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
     render(<ShowEditor showId={stock.id} showOverride={stock.show} readOnly builtInContext={builtInContext} />)
 
-    const guide = screen.getByRole('region', { name: '101 Clips and Crossfade guide' })
-    expect(guide).toHaveClass('select-none')
-    expect(guide.closest('.show-editor-pane')).toBeInTheDocument()
-    expect(guide.querySelector('.show-note-expanded-content')).toBeInTheDocument()
+    const strip = screen.getByRole('region', { name: '101 Clips and Crossfade live strip' })
+    expect(strip).toHaveClass('h-8', 'shrink-0')
+    expect(within(strip).queryByRole('combobox')).not.toBeInTheDocument()
+    expect(within(strip).queryByText(builtInContext.note.purpose)).not.toBeInTheDocument()
+    const trigger = screen.getByRole('button', { name: '101 Clips and Crossfade guide' })
+    expect(trigger).toHaveAttribute('aria-haspopup', 'dialog')
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    await user.click(trigger)
+    const guide = screen.getByRole('dialog', { name: 'Clips and Crossfade guide' })
     expect(within(guide).getByText(builtInContext.note.purpose)).toBeInTheDocument()
     expect(within(guide).getByText(builtInContext.note.notice)).toBeInTheDocument()
-    const notice = within(guide).getByText('Notice:')
-    const tryThis = within(guide).getByText('Try this')
-    expect(notice).toHaveClass('text-zinc-400')
-    expect(notice).not.toHaveClass('text-violet-200/75')
-    expect(tryThis.querySelector('svg')).toHaveClass('text-zinc-500')
-    expect(tryThis.querySelector('svg')).not.toHaveClass('text-cyan-200/75')
     expect(within(guide).getByRole('link', { name: builtInContext.note.guide.label })).toHaveAttribute(
-      'href',
-      expect.stringContaining('/docs/show-visual-toolkit#clips-scenes-and-boundaries'),
+      'href', expect.stringContaining('/docs/show-visual-toolkit#clips-scenes-and-boundaries'),
     )
-    const compactDetails = within(guide).getByRole('button', { name: 'Show guide details' })
-    expect(compactDetails).toHaveAttribute('aria-expanded', 'false')
-    await user.click(compactDetails)
-    expect(compactDetails).toHaveAttribute('aria-expanded', 'true')
-    expect(guide).toHaveAttribute('data-compact-expanded', 'true')
-
-    await user.click(within(guide).getByRole('button', { name: 'Collapse 101 guide' }))
-    expect(screen.queryByRole('region', { name: '101 Clips and Crossfade guide' })).not.toBeInTheDocument()
+    await user.click(within(guide).getByRole('switch', { name: 'Live strip' }))
+    expect(screen.queryByRole('region', { name: '101 Clips and Crossfade live strip' })).not.toBeInTheDocument()
     expect(useShowEditorSessionStore.getState().showNoteOpenById[stock.id]).toBe(false)
-
-    // The teal treatment carries the guide identity without spending permanent
-    // header width on copy; its full accessible name remains specific.
-    const trigger = screen.getByRole('button', { name: 'Open 101 Clips and Crossfade guide' })
-    expect(trigger.querySelector('svg')).toBeInTheDocument()
-    expect(trigger.textContent).toBe('')
-    await user.click(trigger)
-    expect(screen.getByRole('region', { name: '101 Clips and Crossfade guide' })).toBeInTheDocument()
+    await user.click(within(guide).getByRole('switch', { name: 'Live strip' }))
+    expect(screen.getByRole('region', { name: '101 Clips and Crossfade live strip' })).toBeInTheDocument()
   })
 
-  it('removes compacted guide actions from keyboard access until Details opens', async () => {
+  it('opens the compact reading card with newline purpose bullets', async () => {
     const user = userEvent.setup()
     const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       x: 0, y: 0, left: 0, top: 0, right: 367, bottom: 300, width: 367, height: 300,
@@ -5130,7 +5116,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       label: 'Learn 100',
       number: '101',
       title: 'Clips and Crossfade',
-      purpose: 'Compose two Patterns.',
+      purpose: 'Compose two Patterns.\nKeep the first picture.\nCompare the second picture.',
       notice: 'The Transition is its own entity.',
       prompts: ['Inspect the Clips.', 'Inspect the Transition.'] as [string, string],
       guide: {
@@ -5155,10 +5141,13 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       />
     </div>)
 
-    const guide = screen.getByRole('region', { name: '101 Clips and Crossfade guide' })
-    await waitFor(() => expect(within(guide).queryByRole('link', { name: 'Read the guide' })).not.toBeInTheDocument())
-    await user.click(within(guide).getByRole('button', { name: 'Show guide details' }))
+    expect(screen.queryByRole('dialog', { name: 'Clips and Crossfade guide' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '101 Clips and Crossfade guide' }))
+    const guide = screen.getByRole('dialog', { name: 'Clips and Crossfade guide' })
     expect(within(guide).getByRole('link', { name: 'Read the guide' })).toBeVisible()
+    expect(within(guide).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'Keep the first picture.', 'Compare the second picture.', 'Inspect the Clips.', 'Inspect the Transition.',
+    ])
     rect.mockRestore()
   })
 
@@ -5178,7 +5167,11 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       }}
     />)
 
-    const guide = screen.getByRole('region', { name: '201 Layers and Property Animation guide' })
+    const strip = screen.getByRole('region', { name: '201 Layers and Property Animation live strip' })
+    expect(within(strip).queryByRole('combobox')).not.toBeInTheDocument()
+    const chip = within(strip).getByRole('button', { name: 'Patterns (2)' })
+    await user.click(chip)
+    let guide = screen.getByRole('dialog', { name: 'Try with Pattern' })
     // A lesson gets one picker per slot group in timeline order, without
     // Reference mode: 201 slots the water bed and then the firefly overlay
     // (TimeFlies2D since the #727 ZRanger recast).
@@ -5191,6 +5184,9 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toEqual({
       1: { kind: 'stock', id: 'Murmuration' },
     })
+    expect(screen.queryByRole('dialog', { name: 'Try with Pattern' })).not.toBeInTheDocument()
+    await user.click(chip)
+    guide = screen.getByRole('dialog', { name: 'Try with Pattern' })
     // Picking releases keyboard focus so transport shortcuts work right away,
     // and the field returns to its read-only selected state.
     expect(within(guide).getByRole('combobox', { name: 'Pattern 2' })).not.toHaveFocus()
@@ -5204,6 +5200,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     // A deliberate Source-pattern edit in Clip Detail supersedes the picker:
     // that slot's transient selection clears and the dialog choice persists
     // into the draft as authored (#63).
+    await user.click(chip)
+    guide = screen.getByRole('dialog', { name: 'Try with Pattern' })
     await user.click(within(guide).getByRole('combobox', { name: 'Pattern 2' }))
     await user.click(screen.getByRole('option', { name: 'Murmuration' }))
     await user.click(screen.getAllByRole('button', { name: 'Select Murmuration' })[0])
@@ -5235,7 +5233,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       }}
     />)
 
-    const guide = screen.getByRole('region', { name: 'Property Animation guide' })
+    const guide = screen.getByRole('region', { name: 'Property Animation live strip' })
     const picker = within(guide).getByRole('combobox', { name: 'Try with Pattern' })
     const choose = async (patternName: string) => {
       await user.click(picker)
@@ -5291,7 +5289,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     // Slot 1 casts both loom instances at once. Reassigning one of them in
     // Clip Detail supersedes the slot, but the untouched sibling must strip
     // back to the authored Pattern instead of persisting the transient cast.
-    const guide = screen.getByRole('region', { name: '303 Compile, Simplify, and Deliver guide' })
+    await user.click(screen.getByRole('button', { name: `Patterns (${stock.patternSlots!.length})` }))
+    const guide = screen.getByRole('dialog', { name: 'Try with Pattern' })
     await user.click(within(guide).getByRole('combobox', { name: 'Pattern 1' }))
     await user.click(screen.getByRole('option', { name: 'Murmuration' }))
 
@@ -5312,7 +5311,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toBeUndefined()
   })
 
-  it('reserves the first Showcase guide row for every Pattern slot (#714)', async () => {
+  it('puts multi-slot Showcase pickers in one chip beside narration (#714, #985)', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-aperture-shapes')!
 
@@ -5329,10 +5328,11 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       }}
     />)
 
-    const guide = screen.getByRole('region', { name: 'Aperture Shapes: Geometric guide' })
-    const slotRow = within(guide).getByRole('group', { name: 'Aperture Shapes: Geometric Pattern slots' })
-    const referenceControls = within(guide).getByRole('group', { name: `${stock.show.name} reference controls` })
-    expect(slotRow.compareDocumentPosition(referenceControls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const guide = screen.getByRole('region', { name: 'Aperture Shapes: Geometric live strip' })
+    expect(within(guide).getByRole('group', { name: 'Live narration' })).toBeInTheDocument()
+    expect(within(guide).queryByRole('combobox')).not.toBeInTheDocument()
+    await user.click(within(guide).getByRole('button', { name: 'Patterns (2)' }))
+    const slotRow = screen.getByRole('dialog', { name: 'Try with Pattern' })
     expect(within(slotRow).getByRole('combobox', { name: 'Pattern 1' })).toHaveValue('MetaballGarden')
     expect(within(slotRow).getByRole('combobox', { name: 'Pattern 2' })).toHaveValue('CompassRose')
 
@@ -5359,8 +5359,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       }}
     />)
 
-    const guide = screen.getByRole('region', { name: 'Blend and Fade Transitions guide' })
-    expect(within(guide).getByText(stock.reference!.summary)).toBeInTheDocument()
+    const guide = screen.getByRole('region', { name: 'Blend and Fade Transitions live strip' })
+    expect(within(guide).queryByText(stock.reference!.summary)).not.toBeInTheDocument()
     expect(within(guide).getByText('Reference frame')).toBeInTheDocument()
     expect(within(guide).getByRole('combobox', { name: 'Try with Pattern' })).toHaveValue('MetaballGarden')
 

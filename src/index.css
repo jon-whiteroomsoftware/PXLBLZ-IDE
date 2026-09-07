@@ -481,57 +481,26 @@
   }
 }
 
-/* Expanded learning material must not displace the authoring canvas when the
-   center pane is squeezed by the library and Stage. Keep its one-line identity
-   and disclosure control available while containing the explanatory body.
-
-   The note is the teaching surface, so it holds its full layout well past the
-   point the timeline starts to crowd (#363). This threshold must stay equal to
-   SHOW_NOTE_COMPACT_WIDTH_PX in ShowEditor.tsx: this rule owns visibility and
-   the TypeScript constant owns the matching aria-hidden/inert state, so a split
-   between them leaves the body readable but inert. */
+/* Variant A keeps one 32 px Live strip at every width. The Reading card is
+   portaled, so it never participates in the editor's height measurements.
+   Keep this threshold aligned with SHOW_NOTE_COMPACT_WIDTH_PX. */
 @container (max-width: 560px) {
-  .show-editor-pane .show-note-expanded-content {
-    visibility: hidden;
-    max-height: 0;
-    overflow: hidden;
-    opacity: 0;
-    pointer-events: none;
+  .show-note-pill-label,
+  .show-note-chooser-label,
+  .show-note-chip-label,
+  .show-note-detail {
+    display: none;
   }
-
-  .show-editor-pane .show-note-expanded-content.grid {
-    border-top-width: 0;
-    padding-block: 0;
+  .show-note-inline-picker {
+    width: 8rem;
   }
-
-  .show-editor-pane .show-note-compact-toggle {
-    display: inline-flex;
+  .show-note-pattern-chip {
+    width: auto;
   }
-
-  .show-editor-pane [data-compact-expanded='true'] .show-note-expanded-content {
-    visibility: visible;
-    max-height: min(45vh, 360px);
-    overflow: auto;
-    opacity: 1;
-    pointer-events: auto;
+  .show-live-strip {
+    gap: 0.5rem;
+    padding-inline: 0.5rem;
   }
-
-  .show-editor-pane [data-compact-expanded='true'] .show-note-expanded-content.grid {
-    grid-template-columns: minmax(0, 1fr);
-    border-top-width: 1px;
-    padding-block: 0.625rem;
-  }
-
-  .show-editor-pane [data-compact-expanded='true'] .show-note-expanded-content.grid > :last-child {
-    border-top-width: 1px;
-    border-left-width: 0;
-    padding-top: 0.5rem;
-    padding-left: 0;
-  }
-}
-
-.show-note-compact-toggle {
-  display: none;
 }
 
 /* Clips progressively shed copy before they shed meaning. At narrow scene
@@ -766,4 +735,3 @@
 [data-testid="gallery-grid"][data-spotlight] > *:not([data-spotlit]) {
   opacity: 0.4;
 }
-

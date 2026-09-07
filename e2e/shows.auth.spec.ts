@@ -10,7 +10,7 @@ test.describe('authenticated Show authoring', () => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows/stock-show-reference-property-animation')
 
-    const guide = page.getByRole('region', { name: 'Property Animation guide' })
+    const guide = page.getByRole('region', { name: 'Property Animation live strip' })
     const picker = guide.getByRole('combobox', { name: 'Try with Pattern' })
     const swapPattern = 'TestPattern2D'
     const chooseTestPattern = async () => {
@@ -53,7 +53,7 @@ test.describe('authenticated Show authoring', () => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
 
-    await expect(page.getByRole('region', { name: '101 Clips, Cuts, and Blank Time guide' })).toBeVisible()
+    await expect(page.getByRole('region', { name: '101 Clips, Cuts, and Blank Time live strip' })).toBeVisible()
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
 
     // Editable: a real Clip edit creates only a session draft.
@@ -624,7 +624,7 @@ test.describe('authenticated Show authoring', () => {
 
     const header = page.locator('.show-pane-header')
     const outputSummary = page.getByTitle('Show output summary')
-    const guide = page.getByRole('button', { name: 'Collapse 301 Installation Mapping guide' })
+    const guide = page.getByRole('button', { name: '301 Installation Mapping guide' })
     const commonActions = [
       page.getByRole('button', { name: 'Reset built-in Show' }),
       page.getByRole('button', { name: 'Show properties' }),
@@ -635,7 +635,7 @@ test.describe('authenticated Show authoring', () => {
 
     await expect(outputSummary).toBeVisible()
     await expect(guide).toBeVisible()
-    await expect.poll(async () => (await guide.innerText()).trim()).toBe('')
+    await expect(guide).toContainText('Lesson 301')
     await expect(showActions).toBeVisible()
     await expect.poll(async () => (await showActions.innerText()).trim()).toBe('')
     for (const action of commonActions) {
@@ -3065,8 +3065,8 @@ function legacyShowFixture(id: string, name: string, ranges: Array<{ start: numb
 test('lesson pointer toggles release focus for Space playback and preserve keyboard Enter (#978)', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('studio/shows/stock-show-100-getting-around')
-  const toggle = page.getByRole('button', { name: /(?:Open|Collapse) 100 Getting Around guide/ })
-  const guide = page.getByRole('region', { name: 'Getting Around guide' })
+  const toggle = page.getByRole('button', { name: '100 Getting Around guide' })
+  const guide = page.getByRole('dialog', { name: 'Getting Around guide' })
   const toolbar = page.getByTestId('show-timeline-toolbar')
   const play = toolbar.getByRole('button', { name: 'Play Show preview' })
   const pause = toolbar.getByRole('button', { name: 'Pause Show preview' })
@@ -3093,7 +3093,7 @@ test('lesson pointer toggles release focus for Space playback and preserve keybo
   await page.keyboard.press('Enter')
   await expect(guide).toBeVisible()
   await expect(toggle).toBeFocused()
-  await page.keyboard.press('Enter')
+  await page.keyboard.press('Escape')
   await expect(guide).toBeHidden()
   await expect(toggle).toBeFocused()
   await expect(play).toBeVisible()
@@ -3181,4 +3181,178 @@ test('Show strip summaries retain controls, keyboard ownership and canvas at the
       expect(box!.width).toBeLessThanOrEqual(200)
     }
   }
+})
+
+test.describe('lesson pill, Reading card and Live strip (#985)', () => {
+  const apertureId = 'stock-show-reference-aperture-icons'
+  const apertureTitle = 'Aperture Icons & Signature'
+
+  async function pauseAtStart(page: Page) {
+    const toolbar = page.getByTestId('show-timeline-toolbar')
+    const pause = toolbar.getByRole('button', { name: 'Pause Show preview' })
+    if (await pause.isVisible()) await pause.click()
+    const timeline = page.getByRole('region', { name: 'Show timeline', exact: true })
+    await timeline.focus()
+    await page.keyboard.press('a')
+    await expect(page.getByRole('slider', { name: 'Show playhead' })).toHaveValue('0')
+    return toolbar
+  }
+
+  test('hover reads, click pins, Escape peels only the card, and strip visibility survives Show navigation', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`studio/shows/${apertureId}`)
+    await pauseAtStart(page)
+    const pill = page.getByRole('button', { name: `${apertureTitle} guide`, exact: true })
+    const card = page.getByRole('dialog', { name: `${apertureTitle} guide`, exact: true })
+    const strip = page.getByRole('region', { name: `${apertureTitle} live strip` })
+    await expect(strip).toBeVisible()
+    expect((await strip.boundingBox())!.height).toBe(32)
+    const timeline = page.getByRole('region', { name: 'Show timeline', exact: true })
+    const preview = page.getByTestId('show-stage-canvas-frame')
+    const before = [await timeline.boundingBox(), await preview.boundingBox()]
+
+    await pill.focus()
+    await expect(card).toBeHidden()
+    await pill.hover()
+    await expect(card).toBeVisible()
+    await expect(card.getByText('What this shows', { exact: true })).toBeVisible()
+    await expect(card.getByText('Look for', { exact: true })).toBeVisible()
+    await expect(card.getByText('Try this', { exact: true })).toBeVisible()
+    await expect(card.getByRole('link')).toHaveAttribute('href', /show-visual-toolkit#aperture-icons-and-signature-reference$/)
+    await card.hover()
+    await expect(card).toBeVisible()
+    await page.mouse.move(0, 899)
+    await expect(card).toBeHidden()
+
+    await pill.click()
+    await expect(card).toHaveAttribute('data-pinned', 'true')
+    await page.mouse.move(0, 899)
+    await expect(card).toBeVisible()
+    expect([await timeline.boundingBox(), await preview.boundingBox()]).toEqual(before)
+    await page.keyboard.press('Escape')
+    await expect(card).toBeHidden()
+    await expect(pill).toBeFocused()
+    await pill.press('Space')
+    await expect(card).toHaveAttribute('data-pinned', 'true')
+    await expect(page.getByTestId('show-timeline-toolbar').getByRole('button', { name: 'Play Show preview' })).toBeVisible()
+    await pill.click()
+    await expect(card).toBeHidden()
+
+    await pill.click()
+    await card.getByRole('switch', { name: 'Live strip' }).click()
+    await expect(strip).toBeHidden()
+    await timeline.click({ position: { x: 5, y: 5 } })
+    await expect(card).toBeHidden()
+    await page.goto('studio/shows/stock-show-102-transitions-values')
+    await page.goto(`studio/shows/${apertureId}`)
+    await expect(strip).toBeHidden()
+    await pill.click()
+    await card.getByRole('switch', { name: 'Live strip' }).click()
+    await expect(strip).toBeVisible()
+    expect((await strip.boundingBox())!.height).toBe(32)
+  })
+
+  test('Aperture narration advances from Heart 1/9 to Star 2/9 with loop progress', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`studio/shows/${apertureId}`)
+    const toolbar = await pauseAtStart(page)
+    const strip = page.getByRole('region', { name: `${apertureTitle} live strip` })
+    await expect(strip.getByText('LIVE', { exact: true })).toBeVisible()
+    await expect(strip.getByText('Heart', { exact: true })).toBeVisible()
+    await expect(strip.getByText('1/9', { exact: true })).toBeVisible()
+    await expect(strip.getByText('The inscribed heart', { exact: false })).toBeVisible()
+    await expect(strip.getByRole('combobox', { name: 'Try with Pattern' })).toHaveValue('CompassRose')
+    const progress = strip.getByTestId('show-live-progress')
+    const initialWidth = (await progress.boundingBox())!.width
+    await toolbar.getByRole('button', { name: 'Play Show preview' }).click()
+    await expect(strip.getByText('Star', { exact: true })).toBeVisible({ timeout: 10_000 })
+    await expect(strip.getByText('2/9', { exact: true })).toBeVisible()
+    expect((await progress.boundingBox())!.width).toBeGreaterThan(initialWidth)
+    expect((await strip.boundingBox())!.height).toBe(32)
+  })
+
+  test('three Pattern slots share one popover, relabel slot 2 and preserve Space after chip and hide clicks', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows/stock-show-102-transitions-values')
+    const toolbar = await pauseAtStart(page)
+    const strip = page.getByRole('region', { name: '102 Transitions and Values live strip' })
+    const chip = strip.getByRole('button', { name: 'Patterns (3)' })
+    const popover = page.getByRole('dialog', { name: 'Try with Pattern', exact: true })
+    await expect(strip.getByRole('combobox')).toHaveCount(0)
+    const timeline = page.getByRole('region', { name: 'Show timeline', exact: true })
+    const before = await timeline.boundingBox()
+    await chip.click()
+    await expect(chip).not.toBeFocused()
+    await expect(popover.getByRole('combobox')).toHaveCount(3)
+    expect(await timeline.boundingBox()).toEqual(before)
+    await page.keyboard.press('Space')
+    await expect(toolbar.getByRole('button', { name: 'Pause Show preview' })).toBeVisible()
+    await page.keyboard.press('Space')
+    await expect(toolbar.getByRole('button', { name: 'Play Show preview' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(popover).toBeHidden()
+    await expect(chip).toBeFocused()
+    await chip.click()
+    const picker = popover.getByRole('combobox', { name: 'Pattern 2' })
+    await expect(picker).toHaveValue('EventHorizon')
+    await picker.click()
+    await picker.fill('Caustics')
+    await page.getByRole('option', { name: 'Caustics', exact: true }).click()
+    await expect(popover).toBeHidden()
+    await expect(timeline.getByRole('button', { name: 'Select Caustics', exact: true })).toBeVisible()
+    await expect(timeline.getByRole('button', { name: 'Select EventHorizon', exact: true })).toHaveCount(0)
+    await chip.click()
+    await expect(popover.getByRole('combobox', { name: 'Pattern 1' })).toHaveValue('ClockworkIris')
+    await expect(popover.getByRole('combobox', { name: 'Pattern 3' })).toHaveValue('SignalMandala')
+    await popover.getByRole('button', { name: 'Reset', exact: true }).click()
+    await expect(popover).toBeHidden()
+    await expect(timeline.getByRole('button', { name: 'Select EventHorizon', exact: true })).toBeVisible()
+    await chip.click()
+    await timeline.click({ position: { x: 5, y: 5 } })
+    await expect(popover).toBeHidden()
+    await strip.getByRole('button', { name: 'Hide live strip' }).click()
+    await expect(strip).toBeHidden()
+    await page.keyboard.press('Space')
+    await expect(toolbar.getByRole('button', { name: 'Pause Show preview' })).toBeVisible()
+    await page.keyboard.press('Space')
+    await expect(toolbar.getByRole('button', { name: 'Play Show preview' })).toBeVisible()
+  })
+
+  test('560-wide editor keeps one strip row and an icon-only pill with a reachable card', async ({ page }) => {
+    await page.setViewportSize({ width: 560, height: 900 })
+    await page.goto(`studio/shows/${apertureId}`)
+    await pauseAtStart(page)
+    const pill = page.getByRole('button', { name: `${apertureTitle} guide`, exact: true })
+    const strip = page.getByRole('region', { name: `${apertureTitle} live strip` })
+    await expect(pill).toBeVisible()
+    await expect(pill.locator('.show-note-pill-label').first()).toBeHidden()
+    await expect(strip.getByText('Heart', { exact: true })).toBeVisible()
+    await expect(strip.getByText('1/9', { exact: true })).toBeVisible()
+    expect((await strip.boundingBox())!.height).toBe(32)
+    expect(await strip.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+    expect((await strip.getByRole('combobox', { name: 'Try with Pattern' }).boundingBox())!.width).toBe(128)
+    await expect(strip.locator('.show-note-detail').first()).toBeHidden()
+    await pill.click()
+    const card = page.getByRole('dialog', { name: `${apertureTitle} guide`, exact: true })
+    await expect(card).toBeVisible()
+    const box = (await card.boundingBox())!
+    expect(box.x).toBeGreaterThanOrEqual(20)
+    expect(box.x + box.width).toBeLessThanOrEqual(540)
+    await expect(card.getByRole('switch', { name: 'Live strip' })).toBeVisible()
+  })
+
+  test('103 follows the Scene under the playhead through its five teaching Scenes', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows/stock-show-103-clip-transform')
+    const toolbar = await pauseAtStart(page)
+    const strip = page.getByRole('region', { name: '103 Clip Transform live strip' })
+    await expect(strip.getByText('CLIP', { exact: true })).toBeVisible()
+    // #985 requires five Scenes. The current fixture has one Scene (Poses)
+    // with five Clips; keep this acceptance oracle explicit until resolved.
+    await expect(strip.getByText('Reference', { exact: true })).toBeVisible()
+    await expect(strip.getByText('1/5', { exact: true })).toBeVisible()
+    await toolbar.getByRole('button', { name: 'Play Show preview' }).click()
+    await expect(strip.getByText('Position', { exact: true })).toBeVisible({ timeout: 10_000 })
+    await expect(strip.getByText('2/5', { exact: true })).toBeVisible()
+  })
 })
