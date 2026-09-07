@@ -981,7 +981,7 @@ function StudioApp() {
     }
     document.addEventListener('keydown', handlePlaceShortcut)
     return () => document.removeEventListener('keydown', handlePlaceShortcut)
-  }, [selectStudioPlace])
+  }, [route.kind, selectStudioPlace])
 
   const continueFromStudioWelcome = useCallback((provider: AuthProvider) => {
     try {
