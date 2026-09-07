@@ -273,6 +273,9 @@ describe('stock Show curriculum (#363)', () => {
       expect(item.note.purpose, item.name).not.toBe('')
       expect(item.note.notice, item.name).not.toBe('')
       expect(item.note.prompts, item.name).toHaveLength(2)
+      expect.soft(item.note.purpose.length, `${item.name}: purpose`).toBeLessThanOrEqual(800)
+      expect.soft(item.note.notice.length, `${item.name}: notice`).toBeLessThanOrEqual(400)
+      for (const prompt of item.note.prompts) expect.soft(prompt.length, `${item.name}: ${prompt}`).toBeLessThanOrEqual(220)
       // 100 Getting Around hands off to the Keyboard Shortcuts reference;
       // every concept lesson hands off to the visual toolkit guide.
       expect(
