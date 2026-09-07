@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "976",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
+  "operation": "Shows pinned at the 240px list minimum in a 1440x900 viewport; its titleless header preserves existing action access. Captured with repo Playwright in an isolated context using the managed synthetic local-agent-09 session. Header {\"width\":240,\"height\":44,\"overflow\":false}.",
+  "captures": [
+    ".wrsp/ui-proof/976-shows-pinned-minimum.png"
+  ],
+  "capturedAtCommit": "5ce1a0bfbadb5916d7662b7dfaada353e822d224"
+}

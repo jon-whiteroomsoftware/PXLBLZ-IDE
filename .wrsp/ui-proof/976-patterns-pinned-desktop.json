@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "976",
+  "route": "/PXLBLZ-IDE/studio/patterns/IridescentFibers",
+  "operation": "Patterns pinned at 1440x900 with permanent search, existing import and Add actions, trailing pin, dimension pills and idle count. Captured with repo Playwright in an isolated context using the managed synthetic local-agent-09 session. Header {\"width\":288,\"height\":44,\"overflow\":false}.",
+  "captures": [
+    ".wrsp/ui-proof/976-patterns-pinned-desktop.png"
+  ],
+  "capturedAtCommit": "5ce1a0bfbadb5916d7662b7dfaada353e822d224"
+}

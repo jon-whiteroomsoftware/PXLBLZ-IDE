@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "976",
+  "route": "/PXLBLZ-IDE/studio/patterns/IridescentFibers",
+  "operation": "Patterns pinned at the approved 240px list minimum in a 1440x900 viewport. Captured with repo Playwright in an isolated context using the managed synthetic local-agent-09 session. Header {\"width\":240,\"height\":44,\"overflow\":false}.",
+  "captures": [
+    ".wrsp/ui-proof/976-patterns-pinned-minimum.png"
+  ],
+  "capturedAtCommit": "5ce1a0bfbadb5916d7662b7dfaada353e822d224"
+}
