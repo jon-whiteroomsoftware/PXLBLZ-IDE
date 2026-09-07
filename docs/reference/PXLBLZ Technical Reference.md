@@ -404,11 +404,11 @@ developer default. Personal overrides live on `PatternRecord.settings`;
 built-in overrides in `demoOverrides`. Fast/Precise is a separate global
 setting.
 
-Panel disclosure and Variables-overlay preferences live separately from Pattern
+Panel disclosure preferences live separately from Pattern
 settings, keyed by Studio mode. The shared Deck primitive opts into summary
-headers for Pattern panels. Preview viewport changes refit the existing renderer
+headers for Studio Pattern panels; Gallery details retain the legacy deck. Preview viewport changes refit the existing renderer
 and loop; source, map, and fidelity changes still rebuild execution. Variable
-sampling remains active while the Pattern deck is mounted so folded and canvas
+sampling remains active while the Studio Pattern deck is mounted so folded and expanded
 readouts share the same snapshots.
 
 ---

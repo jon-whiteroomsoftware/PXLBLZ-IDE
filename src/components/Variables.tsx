@@ -2,8 +2,7 @@ import { usePreviewStore } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
 import { formatWatchValue, isWatchArrayValue } from '@/engine/watchValue'
 import { useEffect } from 'react'
-import { PictureInPicture2 } from 'lucide-react'
-import { usePanelPreferencesStore, usePanelSection } from '@/store/panelPreferencesStore'
+import { usePanelSection } from '@/store/panelPreferencesStore'
 import { describeVariablesReadout } from '@/engine/previewPanel'
 import { PanelReadout } from '@/components/PanelReadout'
 import { DeckDisclosureHeader, DeckSection } from '@/components/Deck'
@@ -14,8 +13,6 @@ import { DeckDisclosureHeader, DeckSection } from '@/components/Deck'
 // Readout so it sits below the author's pattern controls.
 export function Variables({ mode }: { mode?: string } = {}) {
   const [expanded, setExpanded] = usePanelSection(mode ?? 'pattern', 'Variables')
-  const overlay = usePanelPreferencesStore(s => s.overlays[mode ?? 'pattern'] ?? false)
-  const setOverlay = usePanelPreferencesStore(s => s.setOverlay)
   const watchPatternVars = usePreviewStore((s) => s.watchPatternVars)
   const setWatchPatternVars = usePreviewStore((s) => s.setWatchPatternVars)
   const watchValues = usePreviewStore((s) => s.watchValues)
@@ -31,7 +28,6 @@ export function Variables({ mode }: { mode?: string } = {}) {
   if (mode) return (
     <DeckSection label="Variables" collapsible summaryRow expanded={expanded} onExpandedChange={setExpanded}
       summary={<PanelReadout items={describeVariablesReadout(patternVars, watchValues)} />}
-      actions={<button type="button" aria-label="Variables on canvas" title="Variables on canvas" aria-pressed={overlay} className={`panel-overlay-toggle ${overlay ? 'text-live' : 'text-zinc-500'}`} onClick={() => setOverlay(mode, !overlay)}><PictureInPicture2 size={12} aria-hidden /></button>}
     >
       <VariableValues />
     </DeckSection>
@@ -69,16 +65,8 @@ export function Variables({ mode }: { mode?: string } = {}) {
   )
 }
 
-function VariableValues({ overlay = false }: { overlay?: boolean }) {
+function VariableValues() {
   const names = useEditorStore(s => s.patternVars)
   const values = usePreviewStore(s => s.watchValues)
-  return <div className={overlay ? 'panel-canvas-values' : 'panel-variable-values'}>{names.map(name => <div key={name} className={isWatchArrayValue(values[name]) ? 'panel-array-value' : ''}><span className="text-zinc-400 truncate" title={name}>{name}</span><span className="text-live tabular-nums" title={formatWatchValue(values[name])}>{formatWatchValue(values[name])}</span></div>)}</div>
-}
-
-export function VariablesCanvasReadout({ mode }: { mode: string }) {
-  const [expanded] = usePanelSection(mode, 'Variables')
-  const enabled = usePanelPreferencesStore(s => s.overlays[mode] ?? false)
-  const names = useEditorStore(s => s.patternVars)
-  if (!enabled || expanded || names.length === 0) return null
-  return <div className="panel-canvas-readout" data-testid="variables-canvas-readout"><VariableValues overlay /></div>
+  return <div className="panel-variable-values">{names.map(name => <div key={name} className={isWatchArrayValue(values[name]) ? 'panel-array-value' : ''}><span className="text-zinc-400 truncate" title={name}>{name}</span><span className="text-live tabular-nums" title={formatWatchValue(values[name])}>{formatWatchValue(values[name])}</span></div>)}</div>
 }

@@ -10,7 +10,7 @@ import { INDEX_MAP_ID } from '@/engine/layout'
 import { AUTO_MAP_ID } from '@/engine/settings'
 
 beforeEach(() => {
-  usePanelPreferencesStore.setState({ expanded: { 'pattern:pixelblaze': true, 'pattern:preview': true }, overlays: {} })
+  usePanelPreferencesStore.setState({ expanded: { 'pattern:pixelblaze': true, 'pattern:preview': true } })
   usePreviewStore.setState(previewInitialState)
   useMapStore.setState(mapInitialState)
   useEditorStore.setState(editorInitialState)
@@ -18,6 +18,21 @@ beforeEach(() => {
 })
 
 describe('PreviewDeck (smoke)', () => {
+  it('keeps Gallery controls and brightness available without a primary band', () => {
+    usePanelPreferencesStore.setState({ expanded: {} })
+    useEditorStore.setState({ patternVars: ['phase'], layoutLabel: '12×12×12' })
+    render(<PreviewDeck showPrimaryBand={false} />)
+    expect(screen.queryByTestId('pattern-preview-title')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pixelblaze' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Preview' })).toHaveAttribute('aria-expanded', 'true')
+    const brightness = screen.getByRole('slider', { name: 'Brightness' })
+    fireEvent.change(brightness, { target: { value: '0.7' } })
+    expect(usePreviewStore.getState().brightness).toBe(0.49)
+    expect(screen.getByRole('button', { name: 'Edit pixel count' })).toBeInTheDocument()
+    expect(screen.getByText('12×12×12')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Watch variables' })).toHaveAttribute('aria-expanded', 'false')
+  })
+
   it('shows a disabled Play action when no Pattern is loaded', () => {
     usePreviewStore.setState({ ...previewInitialState, isRunning: true })
 

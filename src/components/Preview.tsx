@@ -34,7 +34,6 @@ import { snapshotWatchValue } from '@/engine/watchValue'
 import { captureEnabled, createPreviewCapture } from '@/dev/previewCapture'
 import { runCaptureSequence, type CaptureSequenceOptions } from '@/dev/captureSequence'
 import { beginCaptureOrbit } from '@/dev/captureOrbit'
-import { VariablesCanvasReadout } from '@/components/Variables'
 
 // Square 3D viewport size (CSS px): fill the available pane edge-to-edge (the
 // smaller of its two sides), so the 3D canvas is exactly as tall as a square 2D
@@ -658,7 +657,6 @@ export function Preview({
             </div>
           )}
         </div>
-        {showDeck && <VariablesCanvasReadout mode={editorFlavor} />}
       </div>
       {showDeck && (
         <div data-testid="preview-controls-region" className={constrainCanvasHeight ? 'pattern-panel-container shrink-0 max-h-[calc(100%-100px)] overflow-y-auto rail-list-scroll' : 'pattern-panel-container shrink-0 overflow-y-auto rail-list-scroll'}>

@@ -32,6 +32,7 @@ import {
   DeckSectionHint,
   DeckGrid,
   DeckCell,
+  DeckField,
   DeckTelemetry,
 } from '@/components/Deck'
 import { usePanelSection } from '@/store/panelPreferencesStore'
@@ -89,22 +90,23 @@ const SHOW_PREVIEW_HINT = (
 // then the author's pattern controls; then the Variables turn-down.
 export function PreviewDeck({ showPrimaryBand = true }: { showPrimaryBand?: boolean }) {
   const mode = useEditorStore(s => s.editorFlavor)
+  const summaryMode = showPrimaryBand ? mode : undefined
   return (
-    <div className="pattern-panel-container" data-testid="preview-deck">
-      <div className="font-mono pattern-panel">
+    <div className={showPrimaryBand ? 'pattern-panel-container' : 'font-mono pl-3'} data-testid="preview-deck">
+      <div className={showPrimaryBand ? 'font-mono pattern-panel' : undefined}>
       {showPrimaryBand && <PrimaryBand />}
       {!showPrimaryBand && <ActiveMapBakeStatus standalone />}
-      <SecondaryBand mode={mode} />
-      <ControlsPanel mode={mode} />
-      <Variables mode={mode} />
+      <SecondaryBand mode={summaryMode} />
+      <ControlsPanel mode={summaryMode} />
+      <Variables mode={summaryMode} />
       </div>
     </div>
   )
 }
 
-function PatternSection({ label, mode, ...props }: Omit<Parameters<typeof DeckSection>[0], 'collapsible' | 'summaryRow'> & { mode: string }) {
-  const [expanded, setExpanded] = usePanelSection(mode, label)
-  return <DeckSection {...props} label={label} collapsible summaryRow expanded={expanded} onExpandedChange={setExpanded} />
+function PatternSection({ label, mode, ...props }: Omit<Parameters<typeof DeckSection>[0], 'collapsible' | 'summaryRow'> & { mode?: string }) {
+  const [expanded, setExpanded] = usePanelSection(mode ?? 'pattern', label)
+  return <DeckSection {...props} label={label} collapsible summaryRow={Boolean(mode)} expanded={mode ? expanded : undefined} onExpandedChange={mode ? setExpanded : undefined} summary={mode ? props.summary : undefined} />
 }
 
 function ActiveMapBakeStatus({ standalone = false }: { standalone?: boolean }) {
@@ -273,7 +275,9 @@ function PixelCountInput() {
 // renderer, speed — "never serialize toward a controller") which also
 // absorbs the read-only telemetry (fps/elapsed/layout). All sliders use the one shared
 // long DeckSlider style; non-slider rows stay on the deck's 2-col label/value grid.
-function SecondaryBand({ mode }: { mode: string }) {
+function SecondaryBand({ mode }: { mode?: string }) {
+  const brightness = usePreviewStore(s => s.brightness)
+  const setBrightness = usePreviewStore(s => s.setBrightness)
   const activePixelCount = useMapStore(s => s.activePixelCount)
   const activeMapId = useMapStore(s => s.activeMapId)
   const userMaps = useMapStore(s => s.userMaps)
@@ -296,14 +300,15 @@ function SecondaryBand({ mode }: { mode: string }) {
   const { hasMapChoice, hasMappedCoordinates, hasCoordinateViewChoice, coordinateViewLabel, mapLabel } = useMapSelectMeta()
 
   return (
-    <div className="text-xs">
+    <div className={mode ? 'text-xs' : 'text-xs pr-3'}>
       <PatternSection label="Pixelblaze" mode={mode} hint={PIXELBLAZE_HINT} summary={<>
         {hasMapChoice ? <span className="panel-map-chip"><MapSelect portaled /></span> : <span>{mapLabel}</span>}
         <PanelReadout items={describePixelblazeReadout({ coordinateView: coordinateViewLabel, mapped: hasMappedCoordinates, normalize: normalizeMode, pixelCount: count })} />
       </>}>
         <DeckGrid>
-          {hasMapChoice && <DeckCell label="map"><MapSelect portaled /></DeckCell>}
-          {hasCoordinateViewChoice && <DeckCell label="view"><CoordinateViewSelect portaled bare /></DeckCell>}
+          {hasMapChoice && (mode ? <DeckCell label="map"><MapSelect portaled /></DeckCell> : <DeckField label="map"><div className="flex flex-col items-end"><MapSelect portaled /><CoordinateViewSelect portaled /></div></DeckField>)}
+          {mode && hasCoordinateViewChoice && <DeckCell label="view"><CoordinateViewSelect portaled bare /></DeckCell>}
+          {!mode && <DeckSlider label="brightness" ariaLabel="Brightness" value={brightness} min={0} max={1} step={0.01} presentation="percentage" curve={2} onChange={value => { setBrightness(value); writeCascadedOverride('brightness', value) }} />}
           {hasMappedCoordinates && (
             <DeckCell label="fit">
               <DeckSelect
@@ -343,7 +348,7 @@ function SecondaryBand({ mode }: { mode: string }) {
 export function PreviewViewportSection({
   profile,
   headerActions,
-  mode = 'pattern',
+  mode,
 }: {
   profile: 'pattern' | 'show'
   headerActions?: ReactNode
@@ -365,7 +370,8 @@ export function PreviewViewportSection({
   const setSolidity = useMapStore((s) => s.setActiveSolidity)
   const pattern = profile === 'pattern'
   const speed = usePreviewStore(s => s.speed)
-  const [expanded, setExpanded] = usePanelSection(mode, 'Preview')
+  const [expanded, setExpanded] = usePanelSection(mode ?? 'pattern', 'Preview')
+  const summaryMode = pattern && Boolean(mode)
 
   const updateLightSize = (value: number) => {
     setLightSize(value)
@@ -383,10 +389,10 @@ export function PreviewViewportSection({
       label="Preview"
       hint={pattern ? PREVIEW_HINT : SHOW_PREVIEW_HINT}
       collapsible={pattern}
-      summaryRow={pattern}
-      expanded={pattern ? expanded : undefined}
-      onExpandedChange={pattern ? setExpanded : undefined}
-      summary={pattern ? <PanelReadout items={describePreviewReadout({ lightSize, diffusion, fidelity, speed, fps, elapsed, layout: layoutLabel })} /> : undefined}
+      summaryRow={summaryMode}
+      expanded={summaryMode ? expanded : undefined}
+      onExpandedChange={summaryMode ? setExpanded : undefined}
+      summary={summaryMode ? <PanelReadout items={describePreviewReadout({ lightSize, diffusion, fidelity, speed, fps, elapsed, layout: layoutLabel })} /> : undefined}
       actions={headerActions}
     >
       <DeckGrid className="mb-[5px]">

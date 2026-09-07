@@ -10,14 +10,14 @@ import { useControlStore } from '@/store/controlStore'
 
 beforeEach(() => {
   localStorage.clear()
-  usePanelPreferencesStore.setState({ expanded: {}, overlays: {} })
+  usePanelPreferencesStore.setState({ expanded: {} })
   useEditorStore.setState({ ...editorInitialState, patternVars: ['speed'], controls: [{ kind: 'slider', exportName: 'sliderSpeed', label: 'Speed' }] })
   usePreviewStore.setState({ ...previewInitialState, watchValues: { speed: 0.2 } })
   useMapStore.setState(mapInitialState)
   useControlStore.setState({ controlValues: { sliderSpeed: 0.2 } })
 })
 
-it('uses tier defaults, sibling map/overlay actions and a stable preview canvas across folds', () => {
+it('uses tier defaults, sibling map actions and a stable preview canvas across folds', () => {
   const { container } = render(<Preview />)
   const canvas = container.querySelector('canvas')
   for (const name of ['Pixelblaze', 'Preview', 'Variables']) expect(screen.getByRole('button', { name })).toHaveAttribute('aria-expanded', 'false')
@@ -25,11 +25,7 @@ it('uses tier defaults, sibling map/overlay actions and a stable preview canvas 
   const title = screen.getByTestId('pattern-preview-title')
   expect(within(title).getByRole('slider', { name: 'Brightness' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Map' }).closest('button')?.parentElement?.closest('button')).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: 'Variables on canvas' }))
-  expect(screen.getByRole('button', { name: 'Variables' })).toHaveAttribute('aria-expanded', 'false')
-  expect(screen.getByTestId('variables-canvas-readout')).toHaveTextContent('speed0.20')
   fireEvent.click(screen.getByRole('button', { name: 'Variables' }))
-  expect(screen.queryByTestId('variables-canvas-readout')).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
   expect(container.querySelector('canvas')).toBe(canvas)
 })
@@ -40,7 +36,7 @@ it('restores section preferences after store hydration and isolates Studio modes
   first.unmount()
   // Simulate a fresh store instance reading the saved preference payload.
   const saved = localStorage.getItem('pxlblz-panel-preferences')!
-  usePanelPreferencesStore.setState({ expanded: {}, overlays: {} })
+  usePanelPreferencesStore.setState({ expanded: {} })
   localStorage.setItem('pxlblz-panel-preferences', saved)
   await act(() => usePanelPreferencesStore.persist.rehydrate())
   render(<PreviewDeck />)

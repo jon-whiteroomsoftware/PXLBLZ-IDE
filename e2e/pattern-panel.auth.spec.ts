@@ -73,12 +73,9 @@ test('Pattern panel preserves controls, Space ownership, canvas execution and re
     }
   }
   await section('Variables').click()
-  await pane.getByRole('button', { name: 'Variables on canvas' }).click()
-  await expect(pane.getByTestId('variables-canvas-readout')).toContainText('speed')
-  await section('Variables').click()
-  await expect(pane.getByTestId('variables-canvas-readout')).toHaveCount(0)
   await page.reload()
-  for (const name of ['Pixelblaze', 'Preview', 'Variables']) await expect(section(name)).toHaveAttribute('aria-expanded', 'true')
+  for (const name of ['Pixelblaze', 'Preview']) await expect(section(name)).toHaveAttribute('aria-expanded', 'true')
+  await expect(section('Variables')).toHaveAttribute('aria-expanded', 'false')
   // Source switches still rebuild the executing Pattern, despite resize preserving it.
   await page.goto('studio/patterns/TestPattern3D')
   await expect(pane.getByTestId('pattern-preview-title')).toContainText('TestPattern3D')

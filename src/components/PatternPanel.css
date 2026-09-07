@@ -23,13 +23,10 @@
 .panel-brightness [data-deck="slider"] { width: 72px; }
 .panel-brightness [data-deck="slider"] > span, .panel-brightness [data-deck="slider"] > div > span { display: none; }
 .panel-brightness input { width: 72px; }
-.panel-overlay-toggle { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 3px; }
-.panel-overlay-toggle[aria-pressed="true"] { background: rgb(251 191 36 / .12); }
 .panel-variable-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 16px; }
-.panel-variable-values > div, .panel-canvas-values > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; min-width: 0; }
+.panel-variable-values > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; min-width: 0; }
 .panel-variable-values > div > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .panel-array-value { grid-column: 1 / -1; }
-.panel-canvas-readout { position: absolute; right: 8px; bottom: 8px; max-width: calc(100% - 16px); max-height: calc(100% - 16px); overflow: hidden; pointer-events: none; padding: 6px 8px; border-radius: 3px; background: rgb(0 0 0 / .75); font: 10px / 1.5 monospace; }
 @container pattern-panel (max-width: 379px) {
   .pattern-panel .panel-section-body [data-deck="grid"], .pattern-panel .panel-fields { grid-template-columns: minmax(72px, max-content) minmax(0, 1fr); }
   .panel-primary { gap: 6px; }
