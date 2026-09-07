@@ -1854,7 +1854,7 @@ test('hover opens the tucked Show list without focus or layout movement and igno
   await page.mouse.move(10, 100)
   await page.mouse.move(1000, 500)
   // The quick crossing has left; observe beyond the dwell before re-entering.
-  await page.waitForTimeout(200)
+  await page.waitForTimeout(350)
   await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
   await edge.hover()
   await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
@@ -1889,7 +1889,7 @@ test('hover opens the tucked Show list without focus or layout movement and igno
   await expect(divider).not.toHaveAttribute('aria-valuenow', heightBeforeDrag!)
   await page.mouse.move(10, y - 20, { steps: 4 })
   // Observe beyond the specified dwell while dragging; this is the timer oracle.
-  await page.waitForTimeout(200)
+  await page.waitForTimeout(350)
   await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
   await page.mouse.up()
   await page.mouse.move(1000, 500)
@@ -1995,6 +1995,7 @@ test.describe('entity drawer motion (#982)', () => {
     expect.soft(intermediate(closing).length).toBeGreaterThan(0)
     expect.soft(intermediate(closing).every(({ visibility }) => visibility === 'visible')).toBe(true)
     expect.soft(opening.at(-1)!.property).toContain('translate')
+    expect.soft(opening.at(-1)!.duration).toBe('0.225s, 0s')
     expect.soft(opening.at(-1)!.duration).toBe(closing.at(-1)!.duration)
     expect.soft(opening.at(-1)!.easing).toBe(closing.at(-1)!.easing)
     expect.soft(opening.at(-1)!.easing).toContain('ease-in-out')

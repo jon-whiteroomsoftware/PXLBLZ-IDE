@@ -27,7 +27,7 @@ import {
   studioEntityDrawerOwnedSurfaceProps,
 } from '@/components/studioEntityDrawerContext'
 
-const HOVER_OPEN_DELAY_MS = 150
+const HOVER_OPEN_DELAY_MS = 300
 const CLOSE_DELAY_MS = 600
 const BUSY_KINDS: StudioEntityDrawerBusyKind[] = ['drag', 'field', 'menu', 'dialog']
 
@@ -295,7 +295,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
         onPointerLeave={() => apply({ type: 'pointer', inside: false })}
         className={mode === 'pinned'
           ? 'relative flex h-full shrink-0 flex-col'
-          : `absolute inset-y-0 left-0 z-[55] flex flex-col border-r bg-zinc-950 shadow-2xl motion-reduce:transition-none ${mode === 'open' ? 'visible translate-x-0 border-zinc-700 shadow-black/60 [transition:translate_150ms_ease-in-out,visibility_0s_linear_0s]' : 'invisible -translate-x-full border-seam shadow-transparent [transition:translate_150ms_ease-in-out,visibility_0s_linear_150ms]'}`}
+          : `absolute inset-y-0 left-0 z-[55] flex flex-col border-r bg-zinc-950 shadow-2xl motion-reduce:transition-none ${mode === 'open' ? 'visible translate-x-0 border-zinc-700 shadow-black/60 [transition:translate_225ms_ease-in-out,visibility_0s_linear_0s]' : 'invisible -translate-x-full border-seam shadow-transparent [transition:translate_225ms_ease-in-out,visibility_0s_linear_225ms]'}`}
         style={{ width, maxWidth: mode === 'pinned' ? '34vw' : 'calc(100vw - 22px)' }}
       >
         {drawer}
