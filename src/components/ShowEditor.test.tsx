@@ -6908,10 +6908,21 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    render(<ShowEditor showId={show.id} />)
+    const narrow = render(<ShowEditor showId={show.id} />)
 
     expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(/Controller transforms \+[\d.]+ KB/)
     expect(screen.getByLabelText(/^Controller source .* advisory\.$/i)).toBeInTheDocument()
+    const measuredLabel = screen.getByLabelText(/^Controller source .* advisory\.$/i).getAttribute('aria-label')
+    narrow.unmount()
+    usePanelPreferencesStore.setState({ expanded: {} })
+    const outlet = document.createElement('div')
+    document.body.append(outlet)
+    const desktop = render(<ShowSourceOutletContext.Provider value={{ enabled: true, target: outlet, setTarget: () => {} }}><ShowEditor showId={show.id} /></ShowSourceOutletContext.Provider>)
+    expect(screen.getByLabelText(/^Controller source .* advisory\.$/i)).toHaveAttribute('aria-label', measuredLabel)
+    expect(screen.queryByLabelText(/^Show source .* advisory\.$/i)).not.toBeInTheDocument()
+    desktop.unmount()
+    outlet.remove()
+
   })
 
   it('keeps active Controller transforms in the source advisory when renderer pressure blocks delivery (#849)', () => {

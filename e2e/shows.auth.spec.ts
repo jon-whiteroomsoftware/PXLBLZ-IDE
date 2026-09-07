@@ -1800,7 +1800,9 @@ test.describe('authenticated Show authoring', () => {
 
     const runningFrame = await showStageCanvasStats(page)
     await toolbar.getByRole('button', { name: 'Pause Show preview' }).click()
-    await expect(page.getByText(/show paused ·/i)).toBeVisible()
+    const pausedPreview = page.getByTestId('show-stage-strip').getByRole('button', { name: 'Play Show preview', exact: true })
+    await expect(pausedPreview).toBeVisible()
+    await expect(pausedPreview).toHaveAttribute('aria-pressed', 'false')
     expect((await showStageCanvasStats(page)).maxChannel).toBeGreaterThan(200)
 
     const playhead = page.getByRole('slider', { name: 'Show playhead' })

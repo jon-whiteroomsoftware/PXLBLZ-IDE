@@ -10587,7 +10587,7 @@ function CompileBar({
   if (outlet.enabled) return outlet.target && createPortal(
     <>
     <ShowStripSection label="Source" summary={summary && <>
-      <span className="show-source-thermometer" aria-label={`Show source ${formatBytes(deliveredBytes)} / ${formatBytes(summary.measuredDeviceBudgetBytes)} advisory.`}>
+      <span className="show-source-thermometer" aria-label={`${controllerDelivery ? 'Controller' : 'Show'} source ${formatBytes(deliveredBytes)} / ${formatBytes(summary.measuredDeviceBudgetBytes)} advisory.`}>
         <span className={sourcePressure?.sourceStatus === 'over' ? 'bg-red-500' : sourcePressure?.sourceStatus === 'warning' ? 'bg-amber-400' : 'bg-live'} style={{ width: `${Math.min(100, deliveredRatio * 100)}%` }} />
       </span>
       <span>{formatBytes(deliveredBytes)} / {formatBytes(summary.measuredDeviceBudgetBytes)}</span>
