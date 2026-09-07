@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "968",
+  "route": "/PXLBLZ-IDE/p/lattice-warp3-d",
+  "operation": "Repository Playwright Chromium on the real anonymous Gallery Pattern detail route. Verified the legacy expanded Pixelblaze and Preview controls, changed reachable brightness by its existing ArrowLeft behavior, and captured the public page with pixel count available. Inspected the capture.",
+  "captures": [
+    ".wrsp/ui-proof/968-gallery-brightness.png"
+  ],
+  "capturedAtCommit": "51fd33b544c4f0723df9026993d3383aac532080"
+}
