@@ -1861,7 +1861,10 @@ test('hover opens the tucked Show list without focus or layout movement and igno
   await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
   await expect(transport).toBeFocused()
   expect(await timeline.boundingBox()).toEqual(geometry)
-  if (process.env.PXLBLZ_HOVER_CAPTURE) await page.screenshot({ path: process.env.PXLBLZ_HOVER_CAPTURE })
+  if (process.env.PXLBLZ_HOVER_CAPTURE) {
+    await expect.poll(async () => (await drawer.boundingBox())?.x).toBe(0)
+    await page.screenshot({ path: process.env.PXLBLZ_HOVER_CAPTURE })
+  }
 
   await drawer.hover()
   await timeline.hover()
