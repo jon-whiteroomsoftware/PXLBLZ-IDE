@@ -1225,7 +1225,7 @@ function StudioApp() {
         >
         <main
           data-testid="editor-pane"
-          className="flex-1 min-w-0 flex flex-col overflow-hidden"
+          className={`flex-1 min-w-0 flex flex-col overflow-hidden ${showCreation ? 'relative z-[60]' : ''}`}
         >
           <div className={studioEntityKind === 'shows'
             ? 'show-pane-header-container min-w-0 shrink-0'
@@ -1404,6 +1404,7 @@ function StudioApp() {
                       const created = await createNewShow(input)
                       void openShow(created.id)
                       navigate({ kind: 'studio', entity: { kind: 'shows', id: created.id } })
+                      studioDrawerRef.current?.closeAfterEntitySelection()
                     }}
                   />
                 </div>

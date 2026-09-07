@@ -436,7 +436,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('toolbar command labels disclose as width allows', async ({ page }) => {
-    await page.setViewportSize({ width: 900, height: 900 })
+    await page.setViewportSize({ width: 740, height: 900 })
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
@@ -2703,7 +2703,11 @@ async function getShowAction(
 }
 
 async function createInstallationShow(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Add show' }).click()
+  const addShow = page.getByRole('button', { name: 'Add show' })
+  if (!await addShow.isVisible()) {
+    await page.getByRole('button', { name: 'Open the Shows list' }).click()
+  }
+  await addShow.click()
   await page.getByRole('button', { name: 'New show' }).click()
   await page.getByRole('button', { name: 'Create Installation Show' }).click()
   await page.getByRole('button', { name: 'Create Show' }).click()
