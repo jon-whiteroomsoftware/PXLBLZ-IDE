@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "977",
+  "route": "/PXLBLZ-IDE/studio/shows/workspace-square-3?capture",
+  "operation": "Fresh synthetic square-map Show with three lanes at 1440 x 900, no remembered divider. Product Play/Pause paints the Stage before capture; automatic timeline content fit leaves 12 px slack and a 422 px square preview.",
+  "captures": [
+    ".wrsp/ui-proof/977-square-3-default.png"
+  ],
+  "capturedAtCommit": "cdb3f39d8aa79972e7f50ccb38e7b2be2ea147d8"
+}

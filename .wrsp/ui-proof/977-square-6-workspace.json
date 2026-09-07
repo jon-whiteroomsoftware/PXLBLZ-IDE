@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "977",
+  "route": "/PXLBLZ-IDE/studio/shows/workspace-square-6?capture",
+  "operation": "Isolated synthetic Playwright session: six-lane first-open at 1440 x 900, unremembered resize to 1440 x 1000, and an 80 px upward divider drag followed by reload at 1440 x 900. Product Play/Pause verifies visible Stage pixels before each desktop capture; narrow 900 x 800 follows seventh-Zone addition and keyed resizing (the unassigned Zone produces the expected coverage warning).",
+  "captures": [
+    ".wrsp/ui-proof/977-square-6-default.png",
+    ".wrsp/ui-proof/977-square-6-resized.png",
+    ".wrsp/ui-proof/977-square-6-drag-reload.png",
+    ".wrsp/ui-proof/977-narrow.png"
+  ],
+  "capturedAtCommit": "cdb3f39d8aa79972e7f50ccb38e7b2be2ea147d8"
+}
