@@ -2026,6 +2026,8 @@ test.describe('entity drawer motion (#982)', () => {
 })
 
 test('Controller menus escape the panel and narrow Power telemetry aligns (#968)', async ({ page }) => {
+  const programs = Array.from({ length: 12 }, (_, i) => ({ id: `MENU${i}`, name: `Pattern ${String(i).padStart(2, '0')}` }))
+  const lastPatternName = programs[programs.length - 1].name
   const created = await page.context().request.post('/api/controllers', { data: {
     id: 'e2e-968-no-power-profile', name: 'Menu bench', deviceId: 'pixelblaze_pb32_99d4ee549434', lastSeenIp: '192.168.8.224',
     board: { kind: 'pixelblaze-v3-standard' },
@@ -2033,7 +2035,7 @@ test('Controller menus escape the panel and narrow Power telemetry aligns (#968)
   } })
   expect(created.ok(), await created.text()).toBe(true)
   await installFakeControllerHelper(page, {
-    programs: Array.from({ length: 12 }, (_, i) => ({ id: `MENU${i}`, name: `Pattern ${String(i).padStart(2, '0')}` })),
+    programs,
     activeProgramId: 'MENU0', deviceName: 'Menu bench', boardType: 'pb32', mac: '34:94:54:ee:d4:99', pixelCount: 256,
     vars: { __px_powerDutyRecent: 0.4, __px_powerDutySinceStart: 0.3, __px_powerLimit: 0.65, __px_powerScale: 1 },
   })
@@ -2046,7 +2048,7 @@ test('Controller menus escape the panel and narrow Power telemetry aligns (#968)
   await page.getByTestId('controller-pill').click()
   const panel = page.getByTestId('controller-panel-popover')
   await panel.getByRole('button', { name: 'Switch running Pattern' }).click()
-  const last = page.getByRole('option', { name: 'Pattern 11', exact: true })
+  const last = page.getByRole('option', { name: lastPatternName, exact: true })
   await last.scrollIntoViewIfNeeded()
   await expect(last).toBeInViewport()
   expect(await panel.evaluate(element => element.scrollTop)).toBe(0)
@@ -2058,7 +2060,7 @@ test('Controller menus escape the panel and narrow Power telemetry aligns (#968)
   })).toBe(true)
   if (process.env.CONTROLLER_PROOF_DIR) await page.screenshot({ path: `${process.env.CONTROLLER_PROOF_DIR}/controller-long-menu.png` })
   await last.click()
-  await expect(panel).toContainText('Pattern 11')
+  await expect(panel).toContainText(lastPatternName)
   await panel.getByRole('button', { name: 'Pixelblaze', exact: true }).click()
   await panel.getByRole('button', { name: 'Edit controller pixel count' }).click()
   const editor = page.getByRole('dialog', { name: 'Controller pixel count editor' })
