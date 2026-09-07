@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "968",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-remix-overture",
+  "operation": "At 1440x900 in an isolated repository Playwright authenticated context, connect one synthetic Controller relay through the real product Connect flow, scroll the folded desktop Source summary into view, and assert its accessible gauge label is Controller source 64.0 KB / 66.8 KB advisory. Capture the measured numerator and live synthetic Controller pill. This is browser transport-fixture proof, not physical hardware evidence. Focused regression also compares the desktop complete label/numerator to the existing narrow Controller gauge; paused canvas brightness checks remain unchanged and pass.",
+  "captures": [
+    ".wrsp/ui-proof/968-controller-source.png"
+  ],
+  "capturedAtCommit": "f806ce6941e40998ff0f79c5d281bb0deac2ba68"
+}
