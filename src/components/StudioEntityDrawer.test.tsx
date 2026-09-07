@@ -363,4 +363,31 @@ describe('Studio entity drawer hover (#981)', () => {
     expect(edge).toHaveAttribute('aria-expanded', 'false')
   })
 
+
+  it.each(['click', 'hover'] as const)('closes after leaving the edge during a %s opening slide (#982)', (source) => {
+    render(<Harness />)
+    const edge = screen.getByRole('button', { name: 'Open the Shows list' })
+    fireEvent.pointerEnter(edge)
+    if (source === 'click') fireEvent.click(edge)
+    else act(() => { vi.advanceTimersByTime(150) })
+    expect(edge).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.pointerLeave(edge)
+    act(() => { vi.advanceTimersByTime(599) })
+    expect(edge).toHaveAttribute('aria-expanded', 'true')
+    act(() => { vi.advanceTimersByTime(1) })
+    expect(edge).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('hands pointer ownership from the edge to the sliding panel without closing (#982)', () => {
+    render(<Harness />)
+    const edge = screen.getByRole('button', { name: 'Open the Shows list' })
+    fireEvent.pointerEnter(edge)
+    act(() => { vi.advanceTimersByTime(150) })
+    fireEvent.pointerLeave(edge)
+    act(() => { vi.advanceTimersByTime(75) })
+    fireEvent.pointerEnter(screen.getByTestId('studio-entity-drawer'))
+    act(() => { vi.advanceTimersByTime(600) })
+    expect(edge).toHaveAttribute('aria-expanded', 'true')
+  })
+
 })

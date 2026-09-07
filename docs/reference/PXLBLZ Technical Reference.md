@@ -1092,7 +1092,11 @@ or scroll. `studioEntityDrawer.ts` owns the pure transition rules and
 viewports force the effective state unpinned without changing those stored
 preferences. Owned surfaces carry one explicit drawer-owner identity across
 portals; focused fields, menus, dialogs, and tree drags suppress outside and
-mouse-out close. Panes retain explicit minimums and remembered per-entity
+mouse-out close. The edge and panel share pointer ownership, so leaving during
+the opening slide starts the same 600 ms close delay and entering the panel
+cancels it. The overlay transitions CSS `translate` for 150 ms with matching
+ease-in-out curves in both directions; reduced motion removes the transition.
+Panes retain explicit minimums and remembered per-entity
 divider widths. Shows replace the desktop center/right split with the
 timeline-over-Stage workspace; Pattern and other Studio layouts retain their
 existing right panes. At 390 px the wordmark becomes its mark, Controller pills

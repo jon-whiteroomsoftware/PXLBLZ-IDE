@@ -1,10 +1,13 @@
 import { expect, test } from './fixtures/authenticated'
+import { writeFile } from 'node:fs/promises'
 import type { Locator, Page } from '@playwright/test'
 import { installFakeControllerHelper } from './fixtures/fakeControllerHelper'
 import { controllerProfileArtifactSignature } from '../src/engine/controllerProfilePassRecipe'
 import { artifactHash } from '../src/engine/artifactStamp'
 import type { ControllerProfile } from '../src/engine/controllerProfile'
 import { studioOperationRetryLabelFor } from '../src/store/studioOperationStore'
+
+if (process.env.PXLBLZ_DRAWER_MOTION_VIDEO) test.use({ video: 'on' })
 
 /** Monaco names its own input textarea; this label is not produced by live source. */
 const MONACO_TEXTBOX_NAME = 'Editor content'
@@ -1884,4 +1887,116 @@ test('hover opens the tucked Show list without focus or layout movement and igno
   await page.mouse.move(1000, 500)
   await edge.hover()
   await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
+})
+
+
+type DrawerMotionSample = {
+  time: number
+  x: number
+  width: number
+  mode: string | null
+  visibility: string
+  translate: string
+  transform: string
+  property: string
+  duration: string
+  easing: string
+}
+
+test.describe('entity drawer motion (#982)', () => {
+
+  test('slides in both directions with symmetric timing and respects reduced motion', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows/stock-show-100-getting-around')
+    await page.getByRole('button', { name: 'Unpin Shows list' }).click()
+    const edge = page.getByTestId('studio-drawer-edge-tab')
+    const drawer = page.getByTestId('studio-entity-drawer')
+    const layout = page.getByTestId('studio-drawer-layout')
+    const startSampling = async () => page.evaluate(() => {
+      const element = document.querySelector<HTMLElement>('[data-testid="studio-entity-drawer"]')!
+      const samples: DrawerMotionSample[] = []
+      let active = true
+      const sample = () => {
+        const bounds = element.getBoundingClientRect()
+        const style = getComputedStyle(element)
+        samples.push({ time: performance.now(), x: bounds.x, width: bounds.width,
+          mode: element.getAttribute('data-drawer-mode'), visibility: style.visibility,
+          translate: style.translate, transform: style.transform, property: style.transitionProperty,
+          duration: style.transitionDuration, easing: style.transitionTimingFunction })
+      }
+      const frame = () => {
+        if (!active) return
+        sample()
+        requestAnimationFrame(frame)
+      }
+      sample()
+      requestAnimationFrame(frame)
+      ;(window as unknown as { stopDrawerMotion: () => DrawerMotionSample[] }).stopDrawerMotion = () => {
+        active = false
+        sample()
+        return samples
+      }
+    })
+    const stopSampling = async () => page.evaluate(() => (
+      (window as unknown as { stopDrawerMotion: () => DrawerMotionSample[] }).stopDrawerMotion()
+    ))
+    const intermediate = (samples: DrawerMotionSample[]) => samples.filter(({ x, width }) => x < -1 && x > -width + 1)
+
+    await expect(drawer).toBeHidden()
+    await startSampling()
+    await edge.hover()
+    await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
+    await expect.poll(async () => Math.abs((await drawer.boundingBox())!.x)).toBeLessThan(1)
+    const opening = await stopSampling()
+
+    await drawer.hover()
+    await page.mouse.move(1000, 500)
+    // Return midway through the specified 600 ms close delay, then pass its old deadline.
+    await page.waitForTimeout(300)
+    await drawer.hover()
+    await page.waitForTimeout(400)
+    await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
+    await startSampling()
+    await page.mouse.move(1000, 500)
+    await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
+    await expect(drawer).toBeHidden()
+    const closing = await stopSampling()
+
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await startSampling()
+    await edge.hover()
+    await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
+    await expect.poll(async () => Math.abs((await drawer.boundingBox())!.x)).toBeLessThan(1)
+    const reducedOpening = await stopSampling()
+    await drawer.hover()
+    await startSampling()
+    await page.mouse.move(1000, 500)
+    await expect(drawer).toBeHidden()
+    const reducedClosing = await stopSampling()
+
+    const evidence = { route: page.url(), opening, closing, reducedOpening, reducedClosing }
+    const body = JSON.stringify(evidence, null, 2)
+    await test.info().attach('drawer-motion-positions', { body, contentType: 'application/json' })
+    if (process.env.PXLBLZ_DRAWER_MOTION_EVIDENCE) await writeFile(process.env.PXLBLZ_DRAWER_MOTION_EVIDENCE, body)
+    console.log('Drawer motion summary:', JSON.stringify({
+      openingIntermediateX: intermediate(opening).map(({ x }) => x),
+      closingIntermediateX: intermediate(closing).map(({ x }) => x),
+      openingStyle: opening.at(-1), closingStyle: closing.at(-1), reducedStyle: reducedClosing.at(-1),
+    }))
+    expect.soft(intermediate(opening).length).toBeGreaterThan(0)
+    expect.soft(intermediate(closing).length).toBeGreaterThan(0)
+    expect.soft(intermediate(closing).every(({ visibility }) => visibility === 'visible')).toBe(true)
+    expect.soft(opening.at(-1)!.property).toContain('translate')
+    expect.soft(opening.at(-1)!.duration).toBe(closing.at(-1)!.duration)
+    expect.soft(opening.at(-1)!.easing).toBe(closing.at(-1)!.easing)
+    expect.soft(opening.at(-1)!.easing).toContain('ease-in-out')
+    expect.soft(closing.find(({ mode }) => mode === 'tucked')!.time - closing[0].time).toBeGreaterThanOrEqual(600)
+    expect.soft(reducedOpening.at(-1)!.property).toBe('none')
+    expect.soft(intermediate(reducedOpening)).toEqual([])
+    expect.soft(intermediate(reducedClosing)).toEqual([])
+    if (process.env.PXLBLZ_DRAWER_MOTION_VIDEO) {
+      await page.close()
+      await page.video()!.saveAs(process.env.PXLBLZ_DRAWER_MOTION_VIDEO)
+    }
+  })
 })
