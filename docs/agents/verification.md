@@ -12,7 +12,7 @@ its project policy, staged-test selection boundaries, artifact deliverables,
 and e2e meta-check paths in `wrsp.config.mjs`, and its UI proof policy in the
 pure-data `wrsp-ui-proof.json`. The reviewer prompt's project-specific advisory
 paragraph is `review.projectPolicy` there and participates in new candidate
-review context. Under WRSP 0.8.0, native approvals retain the policy and reviewer
+review context. Native approvals retain the policy and reviewer
 facts that authorized their exact ranges; later policy changes do not revoke
 those approvals. Rewrites still require new coverage or supported carry.
 
@@ -24,10 +24,47 @@ the packet representation introduced there,
 [WRSP 0.5.1 review policy](#wrsp-051-review-policy-960) for reviewer routing,
 and [WRSP 0.5.0 consumer guards](#wrsp-050-consumer-guards-940) for guard history.
 
+## WRSP 0.9.0 adoption (#975)
+
+This release adds deferred code review with inspected visual proof and bounded
+contract-feasibility discussion. It preserves native historical approvals and
+requires final-tip test evidence under the installed package and configuration.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 0.9.0, tag `v0.9.0` |
+| Source | `20238cb743be4cce6af0e79ed0dbf66688ab03aa` |
+| Tarball | `vendor/whiteroom-software-process-0.9.0.tgz` |
+| SHA256 | `368d298b225d81a39a3200e85cc60a13e9cdfc4f46deebfe6b794f75341cf48c` |
+
+The source release passed 686 tests and its exact-range Fable High review,
+including native two-stage browser/image acceptance and packed-bin startup
+checks. Consumer final-suite, approval, and publication records belong to #975.
+Canonical execution and review-workflow guidance was deployed from the reviewed
+source artifacts; the installed native worker hook passed 14 interface cases.
+These host changes are distributed separately from the executable tarball.
+
+## Execution workers and issue classifier
+
+Execution workers follow `~/.agents/execution-policy.md`: Astra Low, then Sol
+High, then Fable High when unavailable. Opus is excluded from implementation.
+Each launch names its exact model and effort. Availability fallback records its
+reason; a worker that does not converge requires diagnosis and a changed
+approach, with deliberate Astra Medium escalation where justified. Model or
+context changes preserve the candidate lineage and review breaker. Permission
+refusals stop the affected action.
+
+The optional post-commit issue classifier remains comment-only and defaults to
+`gpt-6-astra` / `low`. Paired `WRSP_ISSUE_CLASSIFIER_MODEL` and
+`WRSP_ISSUE_CLASSIFIER_EFFORT` overrides also support `gpt-5.6-sol` / `high`.
+Partial, empty, or unsupported pairs are rejected before paid launch. Failure
+skips the optional comment; this hook adds no automatic Fable CLI fallback.
+Its invocation settings do not alter candidate reviewer routing.
+
 ## WRSP 0.8.0 adoption (#969)
 
-This migration installs the first-tranche verification and capture changes plus
-native ranked reviewer selection and persistent approvals. It replaces the
+This historical migration installed the first-tranche verification and capture changes plus
+native ranked reviewer selection and persistent approvals. It replaced the
 tracked 0.6.0 tarball from #962. The capture adapter imports the package's public
 `capture-scenario` export; a fresh install provides that implementation without
 staging development code in `node_modules`.
@@ -51,15 +88,11 @@ and this migration does not require reviewing the previously pushed stack again.
 New or rewritten commit identities still need matching coverage. Test evidence
 binds the current package/configuration/tip and requires fresh final-suite results.
 
-### Authorized classifier override
+### Classifier override at adoption
 
-The post-commit issue classifier remains comment-only and defaults to Sol High.
-An explicit paired `WRSP_ISSUE_CLASSIFIER_MODEL` and
-`WRSP_ISSUE_CLASSIFIER_EFFORT` override supports `gpt-5.6-sol` / `high` or
-`gpt-6-astra` / `low`. Both values are required; partial, empty or unsupported
-pairs are rejected before any paid launch. Selecting the Astra pair requires
-Jon's explicit authorization for that execution. The variables apply to the
-invocation and do not change standing defaults or candidate reviewer routing.
+At #969 the classifier defaulted to Sol High, with an explicitly authorized
+Astra Low override. Current selection is described in
+[Execution workers and issue classifier](#execution-workers-and-issue-classifier).
 
 ## Gate ownership
 
@@ -68,7 +101,7 @@ invocation and do not change standing defaults or candidate reviewer routing.
 | During development | `npx vitest run path/to/test.ts` | Keep the red-green-refactor loop focused. |
 | Before starting in a worktree | `npm run preflight -- worktree` and `npm run preflight -- port <n>` | Refuse substantive work in the shared checkout; report a port's owner before a dev server claims it. |
 | Before each commit | `npm run lint` and `npm run test:staged` | Run colocated tests for staged code plus explicitly mapped high-risk invariants. |
-| Before landing | `npm run review:candidate -- <base> <tip> [--test-design <json>]` | Enforce the UI proof gate for the range, then review one explicit candidate range and record an immutable approval for a valid pass. `npm run check:ui-proof -- <base> <tip>` runs the proof gate alone. |
+| Before landing (ordinary review) | `npm run review:candidate -- <base> <tip> [--test-design <json>]` | Enforce the UI proof gate for the range, then review one explicit candidate range and record an immutable approval for a valid pass. `npm run check:ui-proof -- <base> <tip>` runs the proof gate alone. |
 | Final committed tip, before landing | `npx wrsp-runner test <tip>` | One coordinator executes the required full Vitest and three browser suites declared in `wrsp.config.mjs`; matching completed records are reused. |
 | Before each push | `npm run review:push`, `npm run check:artifact-oracle`, and `wrsp-check-test-evidence <tip>` through `.husky/pre-push` | Require exact approval coverage, prove exported Show deliverables reopen, and consume matching evidence for all required runner suites. |
 | Periodic sweep | `npm run check:issue-proof -- --since-days <n>` | Audit recently closed issues for a named and attached proof. A report, not a hook. |
@@ -134,8 +167,8 @@ approval without repeating the review. Historical ledgers below describe what
 the older evaluator did at those migrations, not current revocation behavior.
 
 Provider runtime permission and execution-agent selection are separate from
-review routing. A one-session execution model override does not change standing
-defaults or relabel old receipts.
+review routing. The execution policy above governs workers; receipt provenance
+continues to record the actual reviewers and efforts.
 
 The Anthropic reviewer streams progress while it works (#637): one line per
 tool call, a heartbeat once a minute, a 5-minute no-event stall timer as the
@@ -152,14 +185,38 @@ contiguous chain, but it can never authorize publication as the final receipt.
 A clean pass remains valid only with zero findings; contradictory structured
 output is malformed and remains fail-closed.
 
+#### Deferred UI proof
+
+`npm run review:candidate -- <base> <code-tip> --defer-ui-proof` allows code
+review to overlap browser capture. Clean or advisory code review creates an
+immutable awaiting-proof record, exits nonzero, and grants no landing or push
+coverage. Missing deferred UI evidence is not itself a code-stage finding.
+Actual defects and other required evidence remain subject to normal review.
+
+Follow the [browser proof recipe](browser-verification.md#deferred-proof-completion)
+to append complete proof packages and run
+`npm run review:candidate -- <base> <final-tip> --complete-ui-proof <pending-id>`.
+Completion pins the original base, code tip, policy and test-design context;
+its reviewer receives actual capture bytes and the proof history, without
+repeating the unchanged code review. An evidence-only `proof-incomplete` result
+preserves pending state and changes no breaker fact. Product defects retain
+normal severity. Successful composition records both review scopes in a native
+version-2 receipt; advisories from either stage remain advisory.
+
+The final four runner suites still bind the final committed tip before landing;
+publication consumes their evidence without rerunning them. A composed receipt
+does not qualify for generic content-identical rebase carry. Ordinary review
+retains its proof prerequisite and version-1 receipt path.
+
 #### Review outcomes and the repair loop (WRSP 0.5.1)
 
-Every non-approval exits nonzero and writes no receipt, but since 0.5.1 the
-command's last stderr line names which of three things happened. Classify the
-actual result; neither the word BLOCKED nor exit status 1 is a verdict:
+Every non-approval exits nonzero and writes no approval receipt. Classify the
+actual result; neither the word BLOCKED nor exit status 1 is a verdict.
+The heading retains its historical anchor; the outcomes below are current:
 
 | Outcome | Meaning | What continues |
 | --- | --- | --- |
+| `CANDIDATE CONTRACT DISCUSSION REQUIRED` | A valid `contract-infeasible` result identifies a requirement beyond the supported domain and proposes bounded rescope. No approval or pending code attestation is created. | Discuss immediately with Jon before further affected implementation or review. No fallback, added P0/P1 evidence, or breaker reset. Missing proof or ordinary achievable defects do not qualify. |
 | `CANDIDATE REPAIR REQUIRED` | The review completed and found P0/P1 defects. No approval is created for that candidate. | Authorized repair: fix, verify, commit a new tip, and review the replacement full range while the candidate converges. Landing is blocked; correction is not. |
 | `CANDIDATE REVIEW PAUSED` | Three consecutive P0/P1 (terminal) outcomes on one candidate lineage. The breaker refused the fourth reviewer launch before it started. | Discuss the invariant, the approach, or the enforcement layer with Jon. `--acknowledge-non-convergence` admits exactly one further attempt and prints a warning naming the streak it overrode. A clean or advisory outcome ends the streak. |
 | `CANDIDATE REVIEW ERROR` | Provider, prerequisite, validation, lock, freshness, or contradictory-structured-output failure. No valid review approval is available. | A transient error is retried after its cause is fixed. A real permission or security denial, unusable verification, or unrecoverable failure stops that action: report the exact reason and never bypass the gate. |
@@ -470,6 +527,10 @@ normal severity contract. The publication hook independently validates all
 required exact-tip suite records.
 
 ## WRSP 0.5.0 consumer guards (#940)
+
+This section preserves the original guard adoption and qualification evidence.
+For the optional deferred review path added later, use
+[Deferred UI proof](#deferred-ui-proof); ordinary guard behavior remains below.
 
 The 0.5.0 release added four consumer guards on top of the review, selection,
 layout, and e2e meta-check gates this repository already ran. Each is wired to

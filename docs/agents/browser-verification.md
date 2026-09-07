@@ -72,10 +72,11 @@ Audit overflow by walking `scrollWidth > clientWidth` under the relevant
 
 ## Recording UI proof for the review gate
 
-Since #940 a candidate that changes a path named in `wrsp-ui-proof.json`
-(component TSX, `src/App.tsx`, stylesheets) cannot reach `review:candidate`
-without a fresh proof record. The record is the route actually driven, not a
-green suite. Recipe:
+Ordinary review of a candidate that changes a path named in
+`wrsp-ui-proof.json` (component TSX, `src/App.tsx`, stylesheets) requires a fresh
+proof record before `review:candidate` launches a reviewer. Explicit deferred
+review can overlap code review and capture using the completion workflow below.
+The record is the route actually driven, not a green suite. Recipe:
 
 1. Build the UI commit first. Note its full commit id: `git rev-parse HEAD`.
 2. Drive the route in a real browser at that commit: the Codex in-app browser
@@ -117,6 +118,41 @@ Any further change to a UI path after the capture marks the record `stale`;
 re-drive the route on the new build and re-capture. Committing the record and
 its captures never triggers or invalidates the gate. Remember the hover-tip
 caveat above: give a control keyboard focus if the proof must show a tip.
+
+## Deferred proof completion
+
+To overlap code review with browser capture, commit the complete code first and
+run `npm run review:candidate -- <base> <code-tip> --defer-ui-proof`. Preserve the
+returned pending id. Clean or advisory code review records `Awaiting UI proof`
+and exits nonzero; it grants no approval. Capture against that exact `code-tip`
+using the recipe above, including the task's real route and required operation.
+
+Append proof-only commits. Every appended commit must add a complete package of
+regular, non-executable JSON records and their referenced PNG/JPEG captures
+under the pinned proof directory. Set every `capturedAtCommit` to the original
+full `code-tip`. Each capture must be added in the same commit as its referencing
+record. Updates, deletes, renames, mode changes, empty commits, orphan captures,
+arbitrary JSON, and source changes are outside this composition path. Every
+commit is checked, so adding source and later reverting it is also refused.
+WebM and MP4 remain ordinary-proof formats; deferred completion supports images.
+
+Run `npm run review:candidate -- <base> <final-tip> --complete-ui-proof <pending-id>`
+with the original base and code tip preserved in ancestry. Policy, prompt/schema,
+and test-design context must still match the pending record. The evidence
+reviewer receives actual committed image bytes and the proof history, plus the
+code-stage result; it does not repeat the unchanged source review. Input allows
+at most 20 images and 16 MiB of original image bytes. Open every image before
+submission and verify the stated operation is visible.
+
+Missing or invalid packages refuse completion before paid review. An evidence
+`proof-incomplete` result preserves the pending code review without approval or
+breaker changes; add fresh complete package paths or rebuild the attachment
+history from the unchanged code tip before retrying. Actual product defects
+retain normal severity and require replacement-code review. Contract infeasibility
+requires immediate discussion with Jon. Successful completion produces exact
+coverage with both reviewer scopes; advisories in either stage remain advisory.
+Run the four required suites on the final committed tip before landing, as
+specified in [Verification gates](verification.md).
 
 ## Chrome cannot reach the LAN device on macOS
 

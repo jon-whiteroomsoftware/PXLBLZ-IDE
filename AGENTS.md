@@ -101,15 +101,13 @@ Preserve these invariants:
 - Keep dependent work stacked until its reviewed base lands. The coordinating
   agent owns approval, landing, issue updates, and worktree cleanup.
 - A candidate that changes a UI path named in `wrsp-ui-proof.json` (component
-  TSX, `src/App.tsx`, stylesheets) cannot reach review without a fresh proof
-  record in `.wrsp/ui-proof/`: the real route driven in a real browser at the
-  implementation commit, with committed screenshot bytes and the full commit
-  id. Follow "Recording UI proof for the review gate" in
-  `docs/agents/browser-verification.md`; `npm run check:ui-proof -- <base>
-  <tip>` runs the same gate standalone. A green component suite never
-  satisfies it. The gate checks record shape, file presence, non-empty bytes,
-  a recognised media signature, ancestry, and freshness; it does not decode
-  the image or prove where it came from, so the reviewer opens the capture.
+  TSX, `src/App.tsx`, stylesheets) requires fresh committed browser proof before
+  approval. Ordinary review requires it before reviewer launch. Explicit
+  `--defer-ui-proof` lets code review overlap capture; its pending record is
+  not approval. Use `--complete-ui-proof <pending-id>` only for supported
+  proof-only additions on the reviewed code tip. Follow "Recording UI proof
+  for the review gate" in `docs/agents/browser-verification.md` for both paths.
+  A green component suite never satisfies browser proof.
 - Land early, land often. P2/P3-only review findings are advisory, non-terminal
   coverage: land the reviewed tip on that receipt immediately and carry each
   corrective as a new small candidate cut from the landed main. Do not grow an
@@ -219,13 +217,15 @@ diagnostics live under ignored `.wrsp/`; custom `--into` directories must also
 be ignored.
 
 Pre-commit runs lint, conditional full-project typecheck, focused tests, and
-mapped invariants. Candidate review enforces the UI proof gate for the range,
-then records clean approval for an exact-range
-pass. P2/P3-only findings preserve non-terminal advisory coverage and require
-only an exact corrective review. Since WRSP 0.5.1 (#960) the command names
-three distinct non-approval outcomes, and the agent classifies the actual
-result rather than the word BLOCKED or a nonzero exit:
+mapped invariants. Ordinary candidate review enforces the UI proof gate for the
+range, then records exact-range approval. Deferred review requires successful
+proof completion before approval. P2/P3-only findings preserve non-terminal
+advisory coverage and require only an exact corrective review. Classify the
+actual result rather than the word BLOCKED or a nonzero exit:
 
+- `CANDIDATE CONTRACT DISCUSSION REQUIRED`: the requested guarantee exceeds
+  the supported domain. Stop affected implementation and review for immediate
+  discussion with Jon; no approval, fallback, or breaker reset is granted.
 - `CANDIDATE REPAIR REQUIRED`: P0/P1 findings. No approval is created for
   that candidate and it cannot land, but authorized repair continues: fix,
   verify, commit a new tip, and review the replacement full range while the
@@ -254,7 +254,7 @@ naming the exact model id (for example `X-Authored-Model: claude-fable-5-1` or
 `X-Authored-Model: gpt-5.6-sol`), after any other trailers. Candidate review
 routes to the opposite model family based on this trailer (#637): commits
 without it are unsignalled and cannot claim verified cross-family coverage.
-WRSP 0.8.0 orders reviewers Fable High, Astra Medium, Sol 5.6 High, then Opus 5
+WRSP ranks reviewers Fable High, Astra Medium, Sol 5.6 High, then Opus 5
 Extra High, selecting only the opposite family for single-family authored work.
 GPT-authored ranges try Fable then Opus; Claude-authored ranges try Astra then
 Sol. A valid review with findings stops for repair; exhausting eligible models
@@ -264,8 +264,11 @@ later model/policy changes do not revoke exact approved ranges. Status and push
 still require contiguous coverage ending in a clean approval. Explicit native
 reviewer selection and historical migration details live in
 `docs/agents/verification.md`. Runtime permission to use a provider is separate.
-Standing execution defaults remain governed by global instructions; a specific
-session override does not install a permanent model default.
+Read `~/.agents/execution-policy.md` before launching execution workers or
+choosing fallback or reasoning escalation. It governs Astra Low, Sol High,
+then Fable High availability selection, diagnosed Astra Medium escalation,
+and preservation of the candidate lineage and non-convergence breaker.
+Execution selection remains separate from ranked cross-family review.
 
 Haiku is retired. Never launch it for implementation, review, classification,
 or fallback work (Jon, 2026-09-04).

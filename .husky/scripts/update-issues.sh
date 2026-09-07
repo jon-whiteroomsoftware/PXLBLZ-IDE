@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Default automation remains Sol High. An explicit paired override requires
-# Jon's authorization; it never inherits the interactive session's model.
-CLASSIFIER_MODEL="gpt-5.6-sol"
-CLASSIFIER_EFFORT="high"
+# The execution policy defaults this optional classifier to Astra Low.
+# A supported paired override is explicit; session settings never choose it.
+CLASSIFIER_MODEL="gpt-6-astra"
+CLASSIFIER_EFFORT="low"
 if [ "${WRSP_ISSUE_CLASSIFIER_MODEL+x}" = x ] || [ "${WRSP_ISSUE_CLASSIFIER_EFFORT+x}" = x ]; then
   case "${WRSP_ISSUE_CLASSIFIER_MODEL-}:${WRSP_ISSUE_CLASSIFIER_EFFORT-}" in
     gpt-5.6-sol:high|gpt-6-astra:low)

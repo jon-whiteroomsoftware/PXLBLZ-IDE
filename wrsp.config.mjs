@@ -10,7 +10,7 @@
 // range, so executable configuration can never substitute its own patterns.
 export default {
   review: {
-    projectPolicy: `For changed user flows, assess whether the candidate's tests and required proof demonstrate the affected behavior. Focused checks support implementation and repairs; the required full suites in runner.suites produce exact-tip evidence before landing and the publication hook consumes it. An X-E2E trailer or an e2e spec change is not execution evidence. Do not demand an additional equivalent full local suite merely because runner evidence is produced separately. Missing behavioral coverage or required browser/artifact proof remains a review finding under the normal severity contract.`,
+    projectPolicy: `For changed user flows, assess whether the candidate's tests and required proof demonstrate the affected behavior. Focused checks support implementation and repairs; the required full suites in runner.suites produce exact-tip evidence before landing and the publication hook consumes it. An X-E2E trailer or an e2e spec change is not execution evidence. Do not demand an additional equivalent full local suite merely because runner evidence is produced separately. During explicit deferred-UI-proof code review, missing deferred UI evidence is not itself a defect; assess code, tests, and other required proof normally. During evidence review, proof-only insufficiency may return proof-incomplete; actual product defects retain normal severity. Ordinary review still requires browser/artifact proof, and missing behavioral coverage or other required proof remains a finding under the normal severity contract.`,
   },
   runner: {
     suites: {

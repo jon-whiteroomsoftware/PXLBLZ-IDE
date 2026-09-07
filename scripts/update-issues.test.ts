@@ -20,7 +20,7 @@ const HOOK_SCRIPT =
   join(process.cwd(), '.husky/scripts/update-issues.sh')
 
 const APPROVED_LAUNCH =
-  /^exec --model gpt-5\.6-sol --config model_reasoning_effort="high" /
+  /^exec --model gpt-6-astra --config model_reasoning_effort="low" /
 
 interface HookRun {
   status: number | null
@@ -116,10 +116,10 @@ describe('post-commit classifier launch (#940)', () => {
     expect(run.ghCalls).toContain('issue comment 598 --body Progress note.')
   })
 
-  it('uses an explicitly authorized Astra Low pair without changing the default (#969)', () => {
-    const run = runHook({ classifierModel: 'gpt-6-astra', classifierEffort: 'low', decision: '{"action":"nothing","message":""}' })
+  it('uses an explicit Sol High override while retaining the Astra Low default (#975)', () => {
+    const run = runHook({ classifierModel: 'gpt-5.6-sol', classifierEffort: 'high', decision: '{"action":"nothing","message":""}' })
     expect(run.status).toBe(0)
-    expect(run.codexArgs).toMatch(/^exec --model gpt-6-astra --config model_reasoning_effort="low" /)
+    expect(run.codexArgs).toMatch(/^exec --model gpt-5\.6-sol --config model_reasoning_effort="high" /)
     expect(runHook({ decision: '{"action":"nothing","message":""}' }).codexArgs).toMatch(APPROVED_LAUNCH)
   })
 
