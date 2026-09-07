@@ -244,7 +244,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
   }
 
   const drawerPane = (
-    <StudioEntityDrawerContext.Provider value={controls}>
+    <StudioEntityDrawerContext.Provider key="drawer" value={controls}>
       <aside
         ref={drawerRef}
         aria-label={`${definition.label} list`}
@@ -272,7 +272,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
         </>
       ) : (
         <>
-          <div className="h-full w-[22px] shrink-0 border-r border-seam bg-zinc-950/35">
+          <div key="tab" className="h-full w-[22px] shrink-0 border-r border-seam bg-zinc-950/35">
             <button
               type="button"
               data-testid="studio-drawer-edge-tab"

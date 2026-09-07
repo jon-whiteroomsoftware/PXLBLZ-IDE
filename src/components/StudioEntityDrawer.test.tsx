@@ -1,10 +1,18 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { StudioEntityDrawer, type StudioEntityDrawerHandle } from './StudioEntityDrawer'
 import { RailEntityHeader, RailFilterBar } from './rail/RailPrimitives'
 import { EntityOrganizationTree } from './rail/EntityOrganizationTree'
 import { useStudioEntityDrawerStore } from '@/store/studioEntityDrawerStore'
+
+function MountProbe({ mounted, unmounted }: { mounted: () => void; unmounted: () => void }) {
+  useEffect(() => {
+    mounted()
+    return unmounted
+  }, [mounted, unmounted])
+  return <RailEntityHeader title="Shows" />
+}
 
 function Harness({ onPreviewSpace = vi.fn() }: { onPreviewSpace?: () => void }) {
   const ref = useRef<StudioEntityDrawerHandle>(null)
@@ -74,6 +82,29 @@ describe('StudioEntityDrawer (#966)', () => {
     field.focus()
     fireEvent.keyDown(field, { key: 'l', ctrlKey: true, shiftKey: true })
     expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
+  })
+
+  it('keeps the entity list mounted while pinning, tucking, and opening', () => {
+    const mounted = vi.fn()
+    const unmounted = vi.fn()
+    useStudioEntityDrawerStore.setState({ pinPreferences: { shows: true } })
+    render(
+      <StudioEntityDrawer
+        place="shows"
+        narrow={false}
+        width={275}
+        divider={<div />}
+        drawer={<MountProbe mounted={mounted} unmounted={unmounted} />}
+        onPreviewSpace={vi.fn()}
+      >
+        <main />
+      </StudioEntityDrawer>,
+    )
+    expect(mounted).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole('button', { name: 'Unpin Shows list' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open the Shows list' }))
+    expect(mounted).toHaveBeenCalledOnce()
+    expect(unmounted).not.toHaveBeenCalled()
   })
 
   it('lets an owned row menu consume the first Escape before the drawer consumes the second', async () => {
