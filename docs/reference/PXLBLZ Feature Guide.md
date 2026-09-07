@@ -420,9 +420,12 @@ an animatable Split) that hold on any compatible surface.
 The **Stage** is the whole Show rendered over its output geometry and driven by
 Show transport. On desktop it fills the left side of a strip below the
 timeline; Stage, Preview, and Zone controls flow into one, two, or three
-columns beside it as room permits. Drag the horizontal divider to trade space
+columns beside it as room permits. Before a split is remembered, the timeline
+fits its content with a little slack and the Stage takes the remaining height,
+subject to the pane minimums. This default adjusts when lanes or window size
+change. Drag the horizontal divider to trade space
 between the timeline and Stage, or focus it and use **Up/Down**. PXLBLZ
-remembers the Show split. Zones begin folded with their coverage in the
+remembers the Show split; later lane changes preserve that position. Zones begin folded with their coverage in the
 heading, while the Zone-outline and selected-Clip-outline icons remain at hand
 in Preview. At 980 px and below, the established Preview overlay remains.
 

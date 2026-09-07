@@ -2,7 +2,7 @@ export const SHOW_WORKSPACE_DIVIDER_HEIGHT = 6
 export const SHOW_TIMELINE_MIN_HEIGHT = 164
 export const SHOW_STRIP_MIN_HEIGHT = 140
 export const SHOW_CONTROLS_MIN_WIDTH = 200
-export const SHOW_TIMELINE_DEFAULT_FRACTION = 0.6
+export const SHOW_TIMELINE_DEFAULT_SLACK = 12
 export const SHOW_TIMELINE_HEIGHT_STORAGE_KEY = 'pxlblz-show-workspace-timeline-height'
 
 export type ShowWorkspaceClamp = 'timeline-min' | 'controls-min' | 'strip-min' | null
@@ -21,18 +21,20 @@ export function resolveShowWorkspaceLayout({
   desiredTimelineHeight,
   previewAspect,
   timelineMinimumHeight = SHOW_TIMELINE_MIN_HEIGHT,
+  timelineContentHeight = timelineMinimumHeight,
 }: {
   width: number
   height: number
   desiredTimelineHeight: number | null
   previewAspect: number
   timelineMinimumHeight?: number
+  timelineContentHeight?: number
 }): ShowWorkspaceLayout {
   const workspaceWidth = Math.max(1, Math.floor(width))
   const availableHeight = Math.max(1, Math.floor(height) - SHOW_WORKSPACE_DIVIDER_HEIGHT)
   const aspect = Number.isFinite(previewAspect) && previewAspect > 0 ? previewAspect : 1
   const desiredTimeline = desiredTimelineHeight === null
-    ? Math.round(availableHeight * SHOW_TIMELINE_DEFAULT_FRACTION)
+    ? Math.ceil(timelineContentHeight + SHOW_TIMELINE_DEFAULT_SLACK)
     : Math.round(desiredTimelineHeight)
   const desiredStrip = availableHeight - desiredTimeline
   const minimumTimeline = Math.max(1, Math.ceil(timelineMinimumHeight))

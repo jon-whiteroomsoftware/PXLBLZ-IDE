@@ -432,6 +432,7 @@ function StudioApp() {
   const [showStageOverlayShowId, setShowStageOverlayShowId] = useState<string | null>(null)
   const [showStagePreviewAspect, setShowStagePreviewAspect] = useState(1)
   const [showTimelineMinimumHeight, setShowTimelineMinimumHeight] = useState(SHOW_TIMELINE_MIN_HEIGHT)
+  const [showTimelineContentHeight, setShowTimelineContentHeight] = useState(SHOW_TIMELINE_MIN_HEIGHT)
   const [studioViewportWidth, setStudioViewportWidth] = useState(() => window.innerWidth)
   const narrowShowWorkspace = studioViewportWidth <= 980
   const showStageReturnFocusRef = useRef<HTMLElement | null>(null)
@@ -825,6 +826,7 @@ function StudioApp() {
       transportClockActive={narrowShowWorkspace && showStageOverlayShowId !== activeShow.id}
       protectDetailPanelTransport={!narrowShowWorkspace}
       onTimelineMinimumHeightChange={setShowTimelineMinimumHeight}
+      onTimelineContentHeightChange={setShowTimelineContentHeight}
       onOpenStagePreview={(anchor) => {
         showStageReturnFocusRef.current = anchor
         setShowStageOverlayShowId(activeShow.id)
@@ -1440,6 +1442,7 @@ function StudioApp() {
                 <ShowWorkspace
                   previewAspect={showStagePreviewAspect}
                   timelineMinimumHeight={showTimelineMinimumHeight}
+                  timelineContentHeight={showTimelineContentHeight}
                   timeline={activeShowEditor}
                   stage={narrowShowWorkspace ? null : (
                       <ShowStagePreview

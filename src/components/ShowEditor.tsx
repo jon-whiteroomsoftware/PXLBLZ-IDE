@@ -12,7 +12,7 @@ import { PercentageField as UiPercentageField, type PercentageFieldProps as UiPe
 import { DomainNumberField as UiDomainNumberField, type DomainNumberFieldProps as UiDomainNumberFieldProps } from '@/components/ui/domain-number-field'
 import { BoundedNumberField } from '@/components/ui/bounded-number-field'
 import { formatDomainNumber } from '@/engine/domainNumberPresentation'
-import { measureShowTimelineMinimumHeight } from '@/engine/showWorkspaceLayout'
+import { measureShowTimelineMinimumHeight, SHOW_TIMELINE_MIN_HEIGHT } from '@/engine/showWorkspaceLayout'
 import { resolveLinearNumberPresentation } from '@/engine/linearNumberPresentation'
 import { formatPercentageValue } from '@/engine/percentageValue'
 import { formatShowTime, showBoundaryClipIdentity } from '@/engine/showClipIdentity'
@@ -946,6 +946,7 @@ export function ShowEditor({
   transportClockActive = false,
   protectDetailPanelTransport = false,
   onTimelineMinimumHeightChange,
+  onTimelineContentHeightChange,
   onOpenStagePreview,
 }: {
   showId: string
@@ -964,6 +965,7 @@ export function ShowEditor({
   transportClockActive?: boolean
   protectDetailPanelTransport?: boolean
   onTimelineMinimumHeightChange?: (height: number) => void
+  onTimelineContentHeightChange?: (height: number) => void
   onOpenStagePreview?: (anchor: HTMLElement) => void
 }) {
   useLayoutEffect(() => {
@@ -1615,14 +1617,16 @@ export function ShowEditor({
   }, [activeShow, stageDimension, userPatterns])
   const timelineComposition = timelineProjection?.composition ?? null
   useLayoutEffect(() => {
-    if (!onTimelineMinimumHeightChange) return
+    if (!onTimelineMinimumHeightChange && !onTimelineContentHeightChange) return
 
     const measure = () => {
       const root = showEditorPaneRef.current
       const toolbar = root?.querySelector<HTMLElement>('[data-testid="show-timeline-toolbar"]')
       const timelineGrid = root?.querySelector<HTMLElement>('[data-testid="show-timeline-grid"]')
       const footer = root?.querySelector<HTMLElement>('[data-testid="show-compile-bar"]')
-      if (!root || !toolbar || !timelineGrid || !footer) return
+      const scroll = root?.querySelector<HTMLElement>('[data-testid="show-editor-scroll"]')
+      const section = timelineWorkspaceRef.current
+      if (!root || !toolbar || !timelineGrid || !footer || !scroll || !section) return
 
       const laneRects = Array.from(root.querySelectorAll<HTMLElement>('[data-show-zone-id]'))
         .map((element) => element.getBoundingClientRect())
@@ -1630,15 +1634,26 @@ export function ShowEditor({
         .sort((left, right) => left.top - right.top)
         .filter((rect, index, rects) => index === 0 || Math.abs(rect.top - rects[index - 1].top) > 1)
       const firstLane = laneRects[0]
-      if (!firstLane) return
 
+      const rootTop = root.getBoundingClientRect().top
+      const sectionRect = section.getBoundingClientRect()
+      const padding = window.getComputedStyle(section.parentElement!)
+      const footerHeight = footer.getBoundingClientRect().height
       const rowGap = Number.parseFloat(window.getComputedStyle(timelineGrid).rowGap) || 0
-      const secondLaneBottom = laneRects[1]?.bottom ?? firstLane.bottom + rowGap + firstLane.height
-      onTimelineMinimumHeightChange(measureShowTimelineMinimumHeight({
-        editorTop: root.getBoundingClientRect().top,
-        secondLaneBottom,
-        fixedFooterHeight: footer.getBoundingClientRect().height,
+      const secondLaneBottom = laneRects[1]?.bottom ?? (firstLane ? firstLane.bottom + rowGap + firstLane.height : null)
+      // Preserve the visible chrome (including an open lesson note) and two
+      // complete lanes without letting scrolling change the minimum.
+      onTimelineMinimumHeightChange?.(secondLaneBottom === null ? SHOW_TIMELINE_MIN_HEIGHT : measureShowTimelineMinimumHeight({
+        editorTop: rootTop,
+        secondLaneBottom: secondLaneBottom + scroll.scrollTop,
+        fixedFooterHeight: footerHeight,
       }))
+      // Automatic fitting includes visible notes and all lanes. Undo scroll
+      // translation rather than measuring the scroll viewport's assigned size.
+      onTimelineContentHeightChange?.(Math.ceil(
+        sectionRect.bottom - rootTop + scroll.scrollTop
+          + (Number.parseFloat(padding.paddingBottom) || 0) + footerHeight,
+      ))
     }
 
     measure()
@@ -1648,6 +1663,8 @@ export function ShowEditor({
     if (root) {
       observer.observe(root)
       const measuredChildren = [
+        timelineWorkspaceRef.current,
+        root.querySelector<HTMLElement>('[data-testid="show-editor-scroll"]'),
         root.querySelector<HTMLElement>('[data-testid="show-timeline-toolbar"]'),
         root.querySelector<HTMLElement>('[data-testid="show-timeline-grid"]'),
         root.querySelector<HTMLElement>('[data-testid="show-compile-bar"]'),
@@ -1661,7 +1678,7 @@ export function ShowEditor({
       window.cancelAnimationFrame(frame)
       observer.disconnect()
     }
-  }, [onTimelineMinimumHeightChange, showId, timelineComposition])
+  }, [onTimelineMinimumHeightChange, onTimelineContentHeightChange, showId, showNoteOpen, timelineComposition])
   useEffect(() => {
     if (!activeShow) {
       setDiagnosticFocus(null)

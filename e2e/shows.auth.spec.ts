@@ -1,7 +1,9 @@
 import { expect, test } from './fixtures/authenticated'
 import { installFakeControllerHelper } from './fixtures/fakeControllerHelper'
 import type { Locator, Page } from '@playwright/test'
-import { readFile } from 'node:fs/promises'
+import { readFile, mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
+import { squareWorkspaceShow } from './fixtures/showWorkspace'
 
 test.describe('authenticated Show authoring', () => {
   test('confirms a lesson Pattern swap that removes a control animation (#828)', async ({ page }) => {
@@ -273,6 +275,13 @@ test.describe('authenticated Show authoring', () => {
     const splitter = page.getByRole('separator', { name: 'Resize timeline and Stage' })
     for (let step = 0; step < 30; step += 1) await splitter.press('Shift+ArrowUp')
     await expect(splitter).toHaveAttribute('data-clamp', 'timeline-min')
+    const minimum = await splitter.getAttribute('aria-valuemin')
+    const scrollRegion = page.getByTestId('show-editor-scroll')
+    await scrollRegion.evaluate((element) => { element.scrollTop = 80 })
+    await expect.poll(() => scrollRegion.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+    await page.setViewportSize({ width: 2400, height: 1216 })
+    await expect(splitter).toHaveAttribute('aria-valuemin', minimum!)
+    await scrollRegion.evaluate((element) => { element.scrollTop = 0 })
 
     await expect.poll(async () => page.getByTestId('show-timeline-pane').evaluate((pane) => {
       const scroll = pane.querySelector<HTMLElement>('[data-testid="show-editor-scroll"]')
@@ -302,10 +311,14 @@ test.describe('authenticated Show authoring', () => {
 
   test('drags and remembers the Show split across Show switches and reload (#967)', async ({ page }) => {
     test.slow()
-    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.setViewportSize({ width: 1440, height: 1100 })
     await page.goto('studio/shows/stock-show-remix-overture')
 
     const splitter = page.getByRole('separator', { name: 'Resize timeline and Stage' })
+    await expect(page.getByTestId('show-timeline-grid')).toBeVisible()
+    // Content fitting can begin at the strip clamp. Establish room for the
+    // explicit downward drag before checking its movement and persistence.
+    for (let step = 0; step < 3; step += 1) await splitter.press('Shift+ArrowUp')
     const initialValue = Number(await splitter.getAttribute('aria-valuenow'))
     const bounds = await splitter.boundingBox()
     expect(bounds).not.toBeNull()
@@ -314,7 +327,7 @@ test.describe('authenticated Show authoring', () => {
     await page.mouse.move(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2 + 80, { steps: 4 })
     await page.mouse.up()
     const draggedValue = Number(await splitter.getAttribute('aria-valuenow'))
-    expect(draggedValue).toBeGreaterThan(initialValue + 20)
+    expect(draggedValue).toBe(initialValue + 80)
 
     await page.goto('studio/shows/stock-show-106-built-from-basics')
     const switchedSplitter = page.getByRole('separator', { name: 'Resize timeline and Stage' })
@@ -2626,6 +2639,98 @@ test.describe('authenticated Show authoring', () => {
 
     await page.getByRole('button', { name: 'Undo Show edit' }).click()
     await waitForCurrentShow(page, (saved) => saved.composition?.groupDefinitions?.length === 1)
+  })
+
+  test('fits square Show lanes by default and preserves manual sizing (#977)', async ({ page }) => {
+    test.slow()
+    const capture = async (name: string) => {
+      const output = process.env.PXLBLZ_CAPTURE_OUTPUT
+      if (!output) return
+      await mkdir(output, { recursive: true })
+      await page.screenshot({ path: join(output, `977-${name}.png`) })
+    }
+    await page.setViewportSize({ width: 1440, height: 900 })
+    for (const count of [3, 6]) {
+      const show = squareWorkspaceShow(count)
+      const response = await page.context().request.post('/api/shows', { data: show })
+      expect(response.ok(), await response.text()).toBe(true)
+    }
+    const pane = page.getByTestId('show-timeline-pane')
+    const splitter = page.getByRole('separator', { name: 'Resize timeline and Stage' })
+    const strip = page.getByTestId('show-stage-strip')
+    const contentSlack = () => pane.evaluate((element) => {
+      const section = element.querySelector<HTMLElement>('[aria-label="Show timeline"]')!
+      const footer = element.querySelector<HTMLElement>('[data-testid="show-compile-bar"]')!
+      const padding = Number.parseFloat(getComputedStyle(section.parentElement!).paddingBottom)
+      return footer.getBoundingClientRect().top - section.getBoundingClientRect().bottom - padding
+    })
+    for (const count of [3, 6]) {
+      await page.goto(`studio/shows/workspace-square-${count}`)
+      await expect(splitter).toHaveAttribute('data-clamp', 'none')
+      await expect.poll(contentSlack).toBeGreaterThanOrEqual(11)
+      await expect.poll(contentSlack).toBeLessThanOrEqual(13)
+      await expect.poll(async () => page.getByTestId('show-stage-canvas-frame').evaluate((element) => {
+        const rect = element.getBoundingClientRect()
+        return Math.abs(rect.width - rect.height)
+      })).toBeLessThan(1)
+      await capture(`square-${count}-default`)
+    }
+    const fittedHeight = await pane.evaluate((element) => element.clientHeight)
+    const initialStrip = await strip.evaluate((element) => element.clientHeight)
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await expect.poll(() => pane.evaluate((element) => element.clientHeight)).toBe(fittedHeight)
+    await expect.poll(() => strip.evaluate((element) => element.clientHeight)).toBe(initialStrip + 100)
+    await capture('square-6-resized')
+
+    // Force overflow and measurement while scrolled; restoring the window must
+    // recover the same automatic height rather than capture the scrolled offset.
+    const minimum = await splitter.getAttribute('aria-valuemin')
+    await page.setViewportSize({ width: 1440, height: 600 })
+    await page.getByTestId('show-editor-scroll').evaluate((element) => { element.scrollTop = 80 })
+    await page.setViewportSize({ width: 1440, height: 620 })
+    await expect(splitter).toHaveAttribute('aria-valuemin', minimum!)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await expect.poll(() => pane.evaluate((element) => element.clientHeight)).toBe(fittedHeight)
+
+    const handle = await splitter.boundingBox()
+    expect(handle).not.toBeNull()
+    await page.mouse.move(handle!.x + handle!.width / 2, handle!.y + handle!.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(handle!.x + handle!.width / 2, handle!.y + handle!.height / 2 - 80, { steps: 8 })
+    await page.mouse.up()
+    const draggedHeight = await pane.evaluate((element) => element.clientHeight)
+    expect(draggedHeight).toBe(fittedHeight - 80)
+    await page.reload()
+    await expect.poll(() => pane.evaluate((element) => element.clientHeight)).toBe(draggedHeight)
+    await capture('square-6-drag-reload')
+
+    const toolbar = page.getByTestId('show-timeline-toolbar')
+    const play = toolbar.getByRole('button', { name: 'Play Show preview' })
+    const pause = toolbar.getByRole('button', { name: 'Pause Show preview' })
+    if (await pause.isVisible()) await pause.click()
+    await splitter.press('Space')
+    await expect(pause).toBeVisible()
+    await splitter.press('Space')
+    await expect(play).toBeVisible()
+    await expect.poll(() => pane.evaluate((element) => element.clientHeight)).toBe(draggedHeight)
+
+    await page.getByRole('button', { name: 'Open Zone Map' }).click()
+    await page.getByRole('dialog', { name: 'Zone Map' }).getByRole('button', { name: 'Add Zone', exact: true }).click()
+    await expect(page.getByRole('dialog', { name: 'Zone Map' }).getByRole('button', { name: 'Rename zone zone-7', exact: true })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect.poll(() => pane.evaluate((element) => element.clientHeight)).toBe(draggedHeight)
+    await splitter.press('ArrowDown')
+    await expect.poll(() => pane.evaluate((element) => element.clientHeight)).toBe(draggedHeight + 10)
+    await splitter.press('Shift+ArrowDown')
+    await expect.poll(() => pane.evaluate((element) => element.clientHeight)).toBe(draggedHeight + 60)
+    await page.reload()
+    await expect.poll(() => pane.evaluate((element) => element.clientHeight)).toBe(draggedHeight + 60)
+    await page.setViewportSize({ width: 900, height: 800 })
+    await expect(splitter).toHaveCount(0)
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
+    await capture('narrow')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await expect.poll(() => pane.evaluate((element) => element.clientHeight)).toBe(draggedHeight + 60)
   })
 })
 

@@ -11,11 +11,24 @@ import {
 } from './showWorkspaceLayout'
 
 describe('Show workspace over/under layout (#967)', () => {
+  it('fits three or six lanes before giving the square preview the remaining height (#977)', () => {
+    for (const [timelineContentHeight, timelineHeight, stripHeight] of [[290, 302, 492], [470, 482, 312]]) {
+      expect(resolveShowWorkspaceLayout({
+        width: 1200,
+        height: 800,
+        desiredTimelineHeight: null,
+        previewAspect: 1,
+        timelineContentHeight,
+      })).toMatchObject({ timelineHeight, stripHeight, previewWidth: stripHeight, clamp: null })
+    }
+  })
+
   it('turns the remembered timeline height into an aspect-true strip', () => {
     expect(resolveShowWorkspaceLayout({
       width: 900,
       height: 700,
       desiredTimelineHeight: 400,
+      timelineContentHeight: 470,
       previewAspect: 1,
     })).toEqual({
       timelineHeight: 400,
@@ -37,6 +50,15 @@ describe('Show workspace over/under layout (#967)', () => {
       desiredTimelineHeight: 300,
       previewAspect: 9 / 16,
     })).toMatchObject({ stripHeight: 394, previewWidth: 222, controlsWidth: 678 })
+  })
+
+  it.each([
+    [1200, 800, 900, 1, 654, 'strip-min'],
+    [900, 700, 100, 16 / 9, 301, 'controls-min'],
+    [1200, 800, 100, 1, 164, 'timeline-min'],
+  ] as const)('applies the same clamps to automatic fitting at %i × %i', (width, height, timelineContentHeight, previewAspect, timelineHeight, clamp) => {
+    expect(resolveShowWorkspaceLayout({ width, height, timelineContentHeight, previewAspect, desiredTimelineHeight: null }))
+      .toMatchObject({ timelineHeight, clamp })
   })
 
   it('stops at the timeline, controls, and strip boundaries', () => {

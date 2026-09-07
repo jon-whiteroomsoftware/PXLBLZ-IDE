@@ -12,11 +12,13 @@ import {
 export function ShowWorkspace({
   previewAspect,
   timelineMinimumHeight = SHOW_TIMELINE_MIN_HEIGHT,
+  timelineContentHeight,
   timeline,
   stage,
 }: {
   previewAspect: number
   timelineMinimumHeight?: number
+  timelineContentHeight?: number
   timeline: ReactNode
   stage: ReactNode | null
 }) {
@@ -46,7 +48,8 @@ export function ShowWorkspace({
     desiredTimelineHeight,
     previewAspect,
     timelineMinimumHeight,
-  }), [desiredTimelineHeight, previewAspect, size, timelineMinimumHeight])
+    timelineContentHeight,
+  }), [desiredTimelineHeight, previewAspect, size, timelineMinimumHeight, timelineContentHeight])
 
   const rememberTimelineHeight = useCallback((height: number) => {
     const rounded = Math.round(height)

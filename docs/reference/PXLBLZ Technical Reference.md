@@ -1066,7 +1066,13 @@ desktop over/under composition and delegates its measurements to
 `showWorkspaceLayout.ts`. The pure layout keeps the preview at the Stage map's
 aspect while enforcing the timeline, strip, and 200 px controls minimums. Its
 horizontal divider moves by 10 px, or 50 px with Shift, and persists one Show
-timeline height. `ShowStagePreview` reports aspect changes and uses container
+timeline height only after explicit pointer or keyboard movement. Without a
+remembered height, the timeline fits its measured content plus 12 px slack and
+the strip fills the remainder, recomputed on content and viewport changes.
+`ShowEditor` measures content independently of scroll position; visible lesson
+notes retain space in both automatic fitting and the two-lane minimum. Remembered
+height takes precedence over content and survives temporary viewport clamps.
+`ShowStagePreview` reports aspect changes and uses container
 queries to arrange controls at 300, 760, and 1,140 px boundaries.
 
 **Layout.** The top-bar place control owns the six Studio areas plus Docs and

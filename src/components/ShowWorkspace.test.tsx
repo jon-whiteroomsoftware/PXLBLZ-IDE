@@ -22,7 +22,19 @@ function resizeWorkspace(width: number, height: number) {
 }
 
 describe('ShowWorkspace (#967)', () => {
+  it('keeps automatic content fitting unremembered through resize and lane changes (#977)', () => {
+    const view = render(<ShowWorkspace previewAspect={1} timelineContentHeight={290} timeline={<div>timeline</div>} stage={<div>stage</div>} />)
+    resizeWorkspace(1200, 800)
+    expect(screen.getByTestId('show-timeline-pane')).toHaveStyle({ height: '302px' })
+    resizeWorkspace(1200, 900)
+    expect(screen.getByTestId('show-stage-strip')).toHaveStyle({ height: '592px' })
+    view.rerender(<ShowWorkspace previewAspect={1} timelineContentHeight={470} timeline={<div>timeline</div>} stage={<div>stage</div>} />)
+    expect(screen.getByTestId('show-timeline-pane')).toHaveStyle({ height: '482px' })
+    expect(window.localStorage.getItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY)).toBeNull()
+  })
+
   it('moves the horizontal divider by 10 px or 50 px and remembers the Show-mode split', () => {
+    window.localStorage.setItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY, '416')
     const first = render(
       <ShowWorkspace previewAspect={1} timeline={<div>timeline</div>} stage={<div>stage</div>} />,
     )
@@ -43,6 +55,19 @@ describe('ShowWorkspace (#967)', () => {
     resizeWorkspace(900, 700)
     expect(screen.getByRole('separator', { name: 'Resize timeline and Stage' }))
       .toHaveAttribute('aria-valuenow', '456')
+  })
+
+  it('preserves a keyed position through content changes and temporary window clamps (#977)', () => {
+    const view = render(<ShowWorkspace previewAspect={1} timelineContentHeight={290} timeline={<div>timeline</div>} stage={<div>stage</div>} />)
+    resizeWorkspace(1200, 800)
+    fireEvent.keyDown(screen.getByRole('separator'), { key: 'ArrowDown', shiftKey: true })
+    view.rerender(<ShowWorkspace previewAspect={1} timelineContentHeight={470} timeline={<div>timeline</div>} stage={<div>stage</div>} />)
+    expect(screen.getByTestId('show-timeline-pane')).toHaveStyle({ height: '352px' })
+    resizeWorkspace(1200, 400)
+    expect(screen.getByTestId('show-timeline-pane')).toHaveStyle({ height: '254px' })
+    expect(window.localStorage.getItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY)).toBe('352')
+    resizeWorkspace(1200, 800)
+    expect(screen.getByTestId('show-timeline-pane')).toHaveStyle({ height: '352px' })
   })
 
   it('marks a divider stopped by the preview-controls width clamp', () => {
