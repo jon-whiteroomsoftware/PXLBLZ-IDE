@@ -2,9 +2,9 @@
   "version": 1,
   "issue": "976",
   "route": "/PXLBLZ-IDE/studio/patterns/IridescentFibers",
-  "operation": "Patterns opened as an unpinned 240px overlay at 1440x900; typed Iridescent and observed filtered results and count, with no Close button. Captured with repo Playwright in an isolated context using the managed synthetic local-agent-09 session. Header {\"width\":239,\"height\":44,\"overflow\":false}.",
+  "operation": "Patterns opened as an unpinned 240px overlay at 1440x900; typed Iridescent and observed filtered results and count, with no Close button. Captured with repo Playwright in an isolated context using the managed synthetic local-agent-09 session. Header {\"width\":239,\"height\":40,\"overflow\":false}.",
   "captures": [
     ".wrsp/ui-proof/976-patterns-unpinned-search.png"
   ],
-  "capturedAtCommit": "5ce1a0bfbadb5916d7662b7dfaada353e822d224"
+  "capturedAtCommit": "618c013249216a69e78d2c2f9614ad9f457fd146"
 }

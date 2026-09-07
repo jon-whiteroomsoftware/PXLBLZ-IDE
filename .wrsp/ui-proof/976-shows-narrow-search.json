@@ -2,9 +2,9 @@
   "version": 1,
   "issue": "976",
   "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
-  "operation": "Shows overlay at 390x844 and 240px list width; typed Overture, observed results/count and the disabled pin below 980px. Captured with repo Playwright in an isolated context using the managed synthetic local-agent-09 session. Header {\"width\":239,\"height\":44,\"overflow\":false}.",
+  "operation": "Shows overlay at 390x844 and 240px list width; typed Overture, observed results/count and the disabled pin below 980px. Captured with repo Playwright in an isolated context using the managed synthetic local-agent-09 session. Header {\"width\":239,\"height\":40,\"overflow\":false}.",
   "captures": [
     ".wrsp/ui-proof/976-shows-narrow-search.png"
   ],
-  "capturedAtCommit": "5ce1a0bfbadb5916d7662b7dfaada353e822d224"
+  "capturedAtCommit": "618c013249216a69e78d2c2f9614ad9f457fd146"
 }
