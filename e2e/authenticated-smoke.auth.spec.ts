@@ -878,10 +878,15 @@ test('resized Pattern and Show previews keep their controls reachable', async ({
   await page.goto('studio/shows/stock-show-showcase-redline-installation')
   const showSplitter = page.getByRole('separator', { name: 'Resize timeline and Stage' })
   const showStrip = page.getByTestId('show-stage-strip')
+  // Content fitting may open at the strip minimum. Establish an interior
+  // manual split before checking the existing 50 px downward step (#977).
+  await showSplitter.press('Shift+ArrowUp')
+  await showSplitter.press('Shift+ArrowUp')
+  await expect.poll(async () => (await showStrip.boundingBox())?.height ?? 0).toBeGreaterThan(190)
   const initialStripHeight = (await showStrip.boundingBox())?.height ?? 0
   await showSplitter.press('Shift+ArrowDown')
   await expect.poll(async () => (await showStrip.boundingBox())?.height ?? 0)
-    .toBeLessThan(initialStripHeight - 40)
+    .toBe(initialStripHeight - 50)
   const showControls = page.getByTestId('show-stage-controls')
   await showControls.hover()
   await page.mouse.wheel(0, 1200)
