@@ -374,7 +374,7 @@ describe('App smoke test', () => {
     await userEvent.click(edgeTab)
     expect(layout).toHaveAttribute('data-drawer-mode', 'open')
     expect(screen.getByRole('button', { name: 'Pin Patterns list' })).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Close Patterns list' }))
+    await userEvent.click(screen.getByTestId('editor-pane'))
     expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
   })
 
