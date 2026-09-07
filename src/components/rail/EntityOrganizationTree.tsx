@@ -502,7 +502,13 @@ function OrganizationTreeNode(props: {
         {props.editable && !dragging && (
           <button
             type="button"
-            onKeyDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              event.stopPropagation()
+              if (event.key === 'Escape' && props.menuKey === key) {
+                event.preventDefault()
+                props.onMenu(null)
+              }
+            }}
             onClick={(event) => {
               event.stopPropagation()
               props.onMenu(props.menuKey === key ? null : key)
@@ -634,7 +640,7 @@ function MoveDialog({ organization, nodeKey, nodeName: name, rootLabel, onClose,
         <header className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2">
           <Folder {...inlineIcon} className="text-live" />
           <span className="min-w-0 flex-1 truncate text-[12px] text-zinc-100">Move {name}</span>
-          <button type="button" onClick={onClose} className="grid size-6 place-items-center text-zinc-500 hover:text-zinc-200" aria-label="Close"><X {...controlIcon} /></button>
+          <button autoFocus type="button" onClick={onClose} className="grid size-6 place-items-center text-zinc-500 hover:text-zinc-200" aria-label="Close"><X {...controlIcon} /></button>
         </header>
         <div className="max-h-72 overflow-auto p-2">
           <MoveDestination label={rootLabel} depth={0} selected={folderId === null} onSelect={() => setFolderId(null)} />

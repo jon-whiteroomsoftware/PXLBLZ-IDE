@@ -17,7 +17,8 @@ import {
   type StudioEntityDrawerState,
 } from '@/engine/studioEntityDrawer'
 import type { StudioEntityKind } from '@/engine/routes'
-import { studioPlaceDefinition, studioPlaceShortcutOwnsEvent } from '@/engine/studioPlaces'
+import { studioPlaceDefinition } from '@/engine/studioPlaces'
+import { studioControlOwnsKeyboardEvent } from '@/engine/keyboardShortcuts'
 import { useStudioEntityDrawerStore } from '@/store/studioEntityDrawerStore'
 import { StudioPlaceIcon } from '@/components/StudioPlaceControl'
 import {
@@ -148,7 +149,12 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
   useEffect(() => {
     if (mode !== 'open') return
     const observer = new MutationObserver(syncBusy)
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true })
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-studio-drawer-busy', 'data-studio-drawer-busy-kind'],
+    })
     document.addEventListener('focusin', syncBusy)
     document.addEventListener('focusout', syncBusy)
     syncBusy()
@@ -168,8 +174,8 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
       if (busy.size > 0) return
       apply({ type: 'close', reason: 'outside' })
     }
-    window.addEventListener('pointerdown', closeOutside)
-    return () => window.removeEventListener('pointerdown', closeOutside)
+    window.addEventListener('pointerdown', closeOutside, true)
+    return () => window.removeEventListener('pointerdown', closeOutside, true)
   }, [apply, mode, syncBusy])
 
   useEffect(() => {
@@ -178,7 +184,8 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
         && event.shiftKey
         && !event.altKey
         && event.key.toLocaleLowerCase() === 'l'
-      if (shortcut && !studioPlaceShortcutOwnsEvent(event.target)) {
+      if (shortcut && !studioControlOwnsKeyboardEvent(event.target)) {
+        if (studioEntityDrawerIsPinned(stateRef.current)) return
         event.preventDefault()
         event.stopPropagation()
         if (studioEntityDrawerMode(stateRef.current) === 'open') apply({ type: 'close', reason: 'escape' })
@@ -248,7 +255,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
         onPointerLeave={() => apply({ type: 'pointer', inside: false })}
         className={mode === 'pinned'
           ? 'relative flex h-full shrink-0 flex-col'
-          : `absolute inset-y-0 left-0 z-[55] flex flex-col border-r bg-zinc-950 shadow-2xl transition-[transform,visibility] duration-150 ease-out ${mode === 'open' ? 'visible translate-x-0 border-zinc-700 shadow-black/60' : 'invisible -translate-x-full border-seam shadow-transparent delay-150'}`}
+          : `absolute inset-y-0 left-0 z-[55] flex flex-col border-r bg-zinc-950 shadow-2xl [transition:transform_150ms_ease-out,visibility_0s_linear_150ms] ${mode === 'open' ? 'visible translate-x-0 border-zinc-700 shadow-black/60 [transition-delay:0s]' : 'invisible -translate-x-full border-seam shadow-transparent'}`}
         style={{ width, maxWidth: mode === 'pinned' ? '34vw' : 'calc(100vw - 22px)' }}
       >
         {drawer}
@@ -271,6 +278,8 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
               data-testid="studio-drawer-edge-tab"
               aria-label={`Open the ${definition.label} list`}
               aria-expanded={mode === 'open'}
+              aria-hidden={mode === 'open' || undefined}
+              tabIndex={mode === 'open' ? -1 : 0}
               data-studio-space-preview="true"
               {...studioEntityDrawerOwnedSurfaceProps}
               onClick={() => apply({ type: 'open', source: 'pointer' })}

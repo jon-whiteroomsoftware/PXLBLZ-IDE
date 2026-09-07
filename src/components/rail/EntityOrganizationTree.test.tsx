@@ -316,6 +316,36 @@ describe('EntityOrganizationTree', () => {
     }))
   })
 
+  it('moves focus into the Move dialog so Escape closes it before the drawer can act (#966)', () => {
+    const organization: EntityOrganizationV1 = {
+      version: 1,
+      nodes: [
+        { kind: 'folder', id: 'sets', name: 'Sets', children: [] },
+        { kind: 'entity', entityId: 'show-a' },
+      ],
+      trash: [],
+      collapsedFolderIds: [],
+    }
+    render(
+      <EntityOrganizationTree
+        organization={organization}
+        items={[{ id: 'show-a', name: 'Opening' }]}
+        activeEntityId={null}
+        query=""
+        noun="show"
+        onSelect={vi.fn()}
+        onRenameEntity={vi.fn()}
+        onOrganizationChange={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Opening' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move to...' }))
+    expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus()
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Close' }), { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Move Opening' })).not.toBeInTheDocument()
+  })
+
   it('closes the row menu and commits a spaced folder name on the first rename', () => {
     const organization: EntityOrganizationV1 = {
       version: 1,

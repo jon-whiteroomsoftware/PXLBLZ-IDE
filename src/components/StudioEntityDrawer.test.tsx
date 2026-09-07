@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useRef } from 'react'
 import { StudioEntityDrawer, type StudioEntityDrawerHandle } from './StudioEntityDrawer'
 import { RailEntityHeader, RailFilterBar } from './rail/RailPrimitives'
+import { EntityOrganizationTree } from './rail/EntityOrganizationTree'
 import { useStudioEntityDrawerStore } from '@/store/studioEntityDrawerStore'
 
 function Harness({ onPreviewSpace = vi.fn() }: { onPreviewSpace?: () => void }) {
@@ -25,7 +26,10 @@ function Harness({ onPreviewSpace = vi.fn() }: { onPreviewSpace?: () => void }) 
       )}
       onPreviewSpace={onPreviewSpace}
     >
-      <main data-testid="workspace"><button type="button">Workspace action</button></main>
+      <main data-testid="workspace" onPointerDown={(event) => event.stopPropagation()}>
+        <button type="button">Workspace action</button>
+        <input aria-label="Workspace field" />
+      </main>
     </StudioEntityDrawer>
   )
 }
@@ -45,6 +49,8 @@ describe('StudioEntityDrawer (#966)', () => {
     fireEvent.keyDown(tab, { key: 'Enter' })
     await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
     expect(tab).toHaveAttribute('aria-expanded', 'true')
+    expect(tab).toHaveAttribute('aria-hidden', 'true')
+    expect(tab).toHaveAttribute('tabindex', '-1')
     expect(screen.getByRole('textbox', { name: 'Search by name' })).toHaveFocus()
     expect(screen.getByText('Shows list open')).toBeInTheDocument()
 
@@ -53,6 +59,61 @@ describe('StudioEntityDrawer (#966)', () => {
     expect(tab).toHaveAttribute('aria-expanded', 'false')
     expect(tab).toHaveFocus()
     expect(screen.getByText('Shows list closed')).toBeInTheDocument()
+  })
+
+  it('opens with Command/Ctrl+Shift+L from controls but leaves editable fields alone', async () => {
+    render(<Harness />)
+    const layout = screen.getByTestId('studio-drawer-layout')
+    const workspaceAction = screen.getByRole('button', { name: 'Workspace action' })
+    workspaceAction.focus()
+    fireEvent.keyDown(workspaceAction, { key: 'l', metaKey: true, shiftKey: true })
+    expect(layout).toHaveAttribute('data-drawer-mode', 'open')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close Shows list' }))
+    const field = screen.getByRole('textbox', { name: 'Workspace field' })
+    field.focus()
+    fireEvent.keyDown(field, { key: 'l', ctrlKey: true, shiftKey: true })
+    expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
+  })
+
+  it('lets an owned row menu consume the first Escape before the drawer consumes the second', async () => {
+    const ref = { current: null as StudioEntityDrawerHandle | null }
+    render(
+      <StudioEntityDrawer
+        ref={ref}
+        place="shows"
+        narrow={false}
+        width={275}
+        divider={<div />}
+        drawer={(
+          <EntityOrganizationTree
+            organization={{ version: 1, nodes: [{ kind: 'entity', entityId: 'show-a' }], trash: [], collapsedFolderIds: [] }}
+            items={[{ id: 'show-a', name: 'Opening' }]}
+            activeEntityId={null}
+            query=""
+            noun="show"
+            onSelect={vi.fn()}
+            onRenameEntity={vi.fn()}
+            onOrganizationChange={vi.fn()}
+          />
+        )}
+        onPreviewSpace={vi.fn()}
+      >
+        <main />
+      </StudioEntityDrawer>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Open the Shows list' }))
+    const menuTrigger = screen.getByRole('button', { name: 'More actions for Opening' })
+    menuTrigger.focus()
+    fireEvent.click(menuTrigger)
+    expect(screen.getByRole('button', { name: 'Move to Trash' })).toBeInTheDocument()
+
+    fireEvent.keyDown(menuTrigger, { key: 'Escape' })
+    expect(screen.queryByRole('button', { name: 'Move to Trash' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('studio-drawer-layout')).toHaveAttribute('data-drawer-mode', 'open')
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.getByTestId('studio-drawer-layout')).toHaveAttribute('data-drawer-mode', 'tucked')
   })
 
   it('keeps Space assigned to Preview instead of opening the edge tab', () => {

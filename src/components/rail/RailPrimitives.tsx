@@ -54,11 +54,13 @@ export function HeaderAction({
   title,
   onClick,
   disabled,
+  pressed,
 }: {
   icon: React.ReactNode
   title: string
   onClick?: () => void
   disabled?: boolean
+  pressed?: boolean
 }) {
   return (
     <button
@@ -67,6 +69,7 @@ export function HeaderAction({
         onClick?.()
       }}
       disabled={disabled}
+      aria-pressed={pressed}
       title={title}
       aria-label={title}
       className="relative z-50 shrink-0 text-zinc-400 hover:text-live disabled:opacity-30 disabled:hover:text-zinc-400"
@@ -168,6 +171,7 @@ export function RailEntityHeader({
               : `${drawer.pinned ? 'Unpin' : 'Pin'} ${title} list`}
             onClick={drawer.pinDisabled ? undefined : () => drawer.setPinned(!drawer.pinned)}
             disabled={drawer.pinDisabled}
+            pressed={drawer.pinned}
           />
         ) : onCollapse ? (
           <HeaderAction
