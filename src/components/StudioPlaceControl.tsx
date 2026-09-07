@@ -36,10 +36,12 @@ export function StudioPlaceControl({
   current,
   details,
   onSelect,
+  onPreviewSpace,
 }: {
   current: StudioPlaceId
   details: StudioPlaceDetails
   onSelect: (place: StudioPlaceId) => void
+  onPreviewSpace: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(() => Math.max(0, STUDIO_PLACES.findIndex((place) => place.id === current)))
@@ -132,12 +134,17 @@ export function StudioPlaceControl({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
+        data-studio-space-preview="true"
         title={`${definition.label} · ${definition.shortcut}`}
         onClick={() => (open ? closeList(false) : openList())}
         onKeyDown={(event) => {
-          // Space deliberately stays unclaimed: the app-wide Preview shortcut
-          // prevents the native button click and keeps its established priority.
-          if (event.key === 'Enter') {
+          if (event.code === 'Space') {
+            // A focused button's native Space activation would open the menu.
+            // Claim it here and delegate the established Preview action instead.
+            event.preventDefault()
+            event.stopPropagation()
+            onPreviewSpace()
+          } else if (event.key === 'Enter') {
             event.preventDefault()
             event.stopPropagation()
             if (open) closeList(true)

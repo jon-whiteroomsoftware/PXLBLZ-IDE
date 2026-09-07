@@ -215,6 +215,16 @@ describe('App smoke test', () => {
     input.remove()
   })
 
+  it('does not arm Studio place shortcuts on public browse routes (#965)', () => {
+    setStudioLocation('/gallery')
+    seedSignedInWorkspace()
+    render(<App />)
+
+    fireEvent.keyDown(document.body, { key: 's' })
+
+    expect(window.location.pathname).toBe('/gallery')
+  })
+
   it('shows and restores the active Pattern and Show remembered across reference routes (#965)', async () => {
     const pattern: PatternRecord = {
       id: 'remembered-pattern',
@@ -756,6 +766,29 @@ describe('routing (#308)', () => {
     const visibleTreeItem = screen.getAllByRole('treeitem')[0]!
     fireEvent.keyDown(visibleTreeItem, { code: 'Space', key: ' ' })
     expect(usePreviewStore.getState().isRunning).toBe(true)
+  })
+
+  it('keeps focused place-trigger Space on Preview in Shows and inert in Docs (#965)', () => {
+    const show = createDefaultShow('space-place-show', 'Space place Show', 1_000)
+    setStudioLocation(`/studio/shows/${show.id}`)
+    seedSignedInWorkspace()
+    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
+    const showApp = render(<App />)
+
+    const showTrigger = within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Shows' })
+    expect(fireEvent.keyDown(showTrigger, { code: 'Space', key: ' ' })).toBe(false)
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+    expect(screen.queryByRole('listbox', { name: 'Places' })).not.toBeInTheDocument()
+
+    showApp.unmount()
+    usePreviewStore.setState({ isRunning: false })
+    setStudioLocation('/docs')
+    render(<App />)
+
+    const docsTrigger = within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Docs' })
+    expect(fireEvent.keyDown(docsTrigger, { code: 'Space', key: ' ' })).toBe(false)
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+    expect(screen.queryByRole('listbox', { name: 'Places' })).not.toBeInTheDocument()
   })
 
   it('toggles a Show preview only once when shared and Show shortcuts are mounted', () => {

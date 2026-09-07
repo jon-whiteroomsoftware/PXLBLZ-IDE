@@ -16,7 +16,7 @@ const details = {
 
 describe('StudioPlaceControl (#965)', () => {
   it('renders the accepted order, Reference group, current place, and remembered details', async () => {
-    render(<StudioPlaceControl current="shows" details={details} onSelect={vi.fn()} />)
+    render(<StudioPlaceControl current="shows" details={details} onSelect={vi.fn()} onPreviewSpace={vi.fn()} />)
     await userEvent.click(screen.getByRole('button', { name: 'Shows' }))
 
     const listbox = screen.getByRole('listbox', { name: 'Places' })
@@ -36,7 +36,7 @@ describe('StudioPlaceControl (#965)', () => {
 
   it('opens with Enter, navigates with arrows and typeahead, chooses, and returns focus', () => {
     const onSelect = vi.fn()
-    render(<StudioPlaceControl current="patterns" details={{}} onSelect={onSelect} />)
+    render(<StudioPlaceControl current="patterns" details={{}} onSelect={onSelect} onPreviewSpace={vi.fn()} />)
     const trigger = screen.getByRole('button', { name: 'Patterns' })
     trigger.focus()
     fireEvent.keyDown(trigger, { key: 'Enter' })
@@ -54,21 +54,20 @@ describe('StudioPlaceControl (#965)', () => {
   })
 
   it('closes with Escape and keeps Space available to the Preview from the trigger', () => {
-    const onPreviewSpace = vi.fn((event: KeyboardEvent) => event.preventDefault())
-    document.addEventListener('keydown', onPreviewSpace)
-    render(<StudioPlaceControl current="patterns" details={{}} onSelect={vi.fn()} />)
+    const onPreviewSpace = vi.fn()
+    render(<StudioPlaceControl current="patterns" details={{}} onSelect={vi.fn()} onPreviewSpace={onPreviewSpace} />)
     const trigger = screen.getByRole('button', { name: 'Patterns' })
     trigger.focus()
 
-    fireEvent.keyDown(trigger, { key: ' ', code: 'Space' })
+    const propagated = fireEvent.keyDown(trigger, { key: ' ', code: 'Space' })
     expect(onPreviewSpace).toHaveBeenCalledOnce()
+    expect(propagated).toBe(false)
     expect(screen.queryByRole('listbox', { name: 'Places' })).not.toBeInTheDocument()
 
     fireEvent.keyDown(trigger, { key: 'Enter' })
     fireEvent.keyDown(screen.getByRole('option', { name: /^Patterns/ }), { key: 'Escape' })
     expect(screen.queryByRole('listbox', { name: 'Places' })).not.toBeInTheDocument()
     expect(trigger).toHaveFocus()
-    document.removeEventListener('keydown', onPreviewSpace)
   })
 
   it('leaves global place shortcuts with editable and Monaco-owned controls', () => {

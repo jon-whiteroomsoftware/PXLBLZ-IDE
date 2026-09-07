@@ -966,6 +966,7 @@ function StudioApp() {
   ])
 
   useEffect(() => {
+    if (route.kind !== 'studio' && route.kind !== 'docs' && route.kind !== 'api-reference') return
     const handlePlaceShortcut = (event: KeyboardEvent) => {
       if (
         event.defaultPrevented
@@ -1046,6 +1047,9 @@ function StudioApp() {
             current={studioPlaceForRoute(route)}
             details={placeDetails}
             onSelect={selectStudioPlace}
+            onPreviewSpace={() => {
+              if (route.kind === 'studio') usePreviewStore.getState().toggle()
+            }}
           />
         </span>
         <span className="ml-auto flex min-w-0 items-center gap-1 min-[430px]:gap-1.5 sm:gap-2.5">
