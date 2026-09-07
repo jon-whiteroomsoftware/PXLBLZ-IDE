@@ -99,6 +99,8 @@ test('shared Studio chrome remains legible, dense, and reachable across routes (
   for (const viewport of [{ width: 1440, height: 900 }, { width: 720, height: 720 }]) {
     await page.setViewportSize(viewport)
     for (const route of routes) {
+      // Navigation retains pointer position; start away from the hover edge.
+      await page.mouse.move(viewport.width / 2, 0)
       await page.goto(route.path)
 
       await expect(placeTrigger(page)).toHaveAccessibleName(route.place)
@@ -106,7 +108,8 @@ test('shared Studio chrome remains legible, dense, and reachable across routes (
       await expect(placeTrigger(page)).toBeFocused()
 
       if (viewport.width <= 980) {
-        await page.getByRole('button', { name: `Open the ${route.heading} list` }).click()
+        await page.getByRole('button', { name: `Open the ${route.heading} list` }).hover()
+        await expect(page.getByTestId('studio-drawer-layout')).toHaveAttribute('data-drawer-mode', 'open')
       }
 
       const list = page.getByRole('region', { name: route.place, exact: true })
