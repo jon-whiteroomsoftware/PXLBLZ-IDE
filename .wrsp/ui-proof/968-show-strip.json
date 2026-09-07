@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "issue": "968",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-remix-overture",
+  "operation": "Isolated repository Playwright synthetic authenticated context on the rebased committed code. Inspect fresh default (Preview open, Stage/Zones/Source closed; six-lane content fit leaves the existing 140px strip), expand Stage/Zones/Source, scroll the actual Source inventory, resize to a wide Source view with playback active, clamp to 200px usable controls beside the 30px rail, and inspect the retained narrow footer. Existing outline buttons keep native Space/Enter; disclosure Space controls playback without folding, native renderer menu ownership and canvas identity verified by the focused browser case. No personal browser cookies used.",
+  "captures": [
+    ".wrsp/ui-proof/968-show-strip-desktop-default.png",
+    ".wrsp/ui-proof/968-show-strip-desktop-expanded.png",
+    ".wrsp/ui-proof/968-show-strip-source-expanded.png",
+    ".wrsp/ui-proof/968-show-strip-source-full.png",
+    ".wrsp/ui-proof/968-show-strip-minimum-controls.png",
+    ".wrsp/ui-proof/968-show-strip-narrow-footer.png"
+  ],
+  "capturedAtCommit": "14346f320f66f668afc14125d9e60c58847a1f2c"
+}
