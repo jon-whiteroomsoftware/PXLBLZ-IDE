@@ -590,6 +590,7 @@ function ShowNoteTrigger({ note, open, onToggle }: {
       className={`show-note-trigger inline-flex h-5 w-6 shrink-0 items-center justify-center rounded border p-0 text-[10px] uppercase tracking-wide focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-cyan-200 ${open
         ? 'border-cyan-200/50 bg-cyan-400/15 text-cyan-100 hover:bg-cyan-400/25'
         : 'border-cyan-200/30 bg-cyan-400/[0.07] text-cyan-100/80 hover:border-cyan-200/50 hover:bg-cyan-400/15 hover:text-cyan-100'}`}
+      onPointerUp={(event) => event.currentTarget.blur()}
       onClick={onToggle}
     >
       <BookOpen size={11} aria-hidden />
