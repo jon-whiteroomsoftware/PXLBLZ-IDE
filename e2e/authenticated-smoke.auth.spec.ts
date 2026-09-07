@@ -221,9 +221,11 @@ test('the Studio entity drawer overlays without reflow and preserves Preview Spa
   const drawer = page.getByTestId('studio-entity-drawer')
   await drawer.hover()
   await timelineToolbar.hover()
-  await expect(page.getByTestId('studio-drawer-close-progress')).toBeVisible()
+  await expect(page.getByTestId('studio-drawer-close-progress')).toHaveCount(0)
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
   await drawer.hover()
-  await expect(page.getByTestId('studio-drawer-close-progress')).toBeHidden()
+  await expect(page.getByTestId('studio-drawer-close-progress')).toHaveCount(0)
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
   await timelineToolbar.hover()
   await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked', { timeout: 2_000 })
 

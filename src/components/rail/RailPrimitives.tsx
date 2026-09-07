@@ -178,9 +178,6 @@ export function RailEntityHeader({
         ) : null}
       </div>
       {children}
-      {drawer?.timerArmed && (
-        <span aria-hidden data-testid="studio-drawer-close-progress" className="absolute bottom-0 left-0 z-50 h-0.5 bg-live [animation:studio-drawer-close-progress_600ms_linear_forwards]" />
-      )}
     </div>
   )
 }

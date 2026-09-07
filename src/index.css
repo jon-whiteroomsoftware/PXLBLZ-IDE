@@ -846,7 +846,3 @@
   opacity: 0.4;
 }
 
-@keyframes studio-drawer-close-progress {
-  from { width: 0; }
-  to { width: 100%; }
-}

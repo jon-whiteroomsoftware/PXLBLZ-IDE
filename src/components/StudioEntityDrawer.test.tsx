@@ -227,7 +227,7 @@ describe('StudioEntityDrawer (#966)', () => {
     expect(workspaceAction).toHaveFocus()
   })
 
-  it('shows the close timer after a pointer leave, cancels on re-entry, and closes after 600 ms', () => {
+  it('closes silently after 600 ms and cancels pending close on pointer return (#980)', () => {
     vi.useFakeTimers()
     render(<Harness />)
     const tab = screen.getByRole('button', { name: 'Open the Shows list' })
@@ -235,12 +235,18 @@ describe('StudioEntityDrawer (#966)', () => {
     const drawer = screen.getByTestId('studio-entity-drawer')
 
     fireEvent.pointerLeave(drawer)
-    expect(screen.getByTestId('studio-drawer-close-progress')).toBeInTheDocument()
+    expect(screen.queryByTestId('studio-drawer-close-progress')).not.toBeInTheDocument()
+    act(() => vi.advanceTimersByTime(300))
+    expect(tab).toHaveAttribute('aria-expanded', 'true')
     fireEvent.pointerEnter(drawer)
     expect(screen.queryByTestId('studio-drawer-close-progress')).not.toBeInTheDocument()
+    act(() => vi.advanceTimersByTime(600))
+    expect(tab).toHaveAttribute('aria-expanded', 'true')
 
     fireEvent.pointerLeave(drawer)
-    act(() => vi.advanceTimersByTime(600))
+    act(() => vi.advanceTimersByTime(599))
+    expect(tab).toHaveAttribute('aria-expanded', 'true')
+    act(() => vi.advanceTimersByTime(1))
     expect(tab).toHaveAttribute('aria-expanded', 'false')
     vi.useRealTimers()
   })
