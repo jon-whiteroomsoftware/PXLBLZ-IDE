@@ -3,6 +3,8 @@
   "issue": "981",
   "route": "/PXLBLZ-IDE/studio/shows/stock-show-100-getting-around",
   "operation": "Isolated authenticated repository Playwright on the real Show route: unpin the list, retain keyboard focus on the transport, cross the edge briefly and leave, then hover the edge without clicking until the list slides open (captured). Timeline geometry and keyboard focus remain unchanged. The same browser case verifies close after leaving and an actual splitter drag crossing the edge beyond the dwell without opening it. Existing drawer clip-drag and Show/Pattern Space checks also pass. Parent-coordinated Playwright fallback after unavailable child IAB discovery and unsupported synthetic cookie injection; no user cookies.",
-  "captures": [".wrsp/ui-proof/981-hover-open.png"],
-  "capturedAtCommit": "048c86dfda11d844b23e235977e0db0d4e08422d"
+  "captures": [
+    ".wrsp/ui-proof/981-hover-open.png"
+  ],
+  "capturedAtCommit": "86ae27c49b673a9438f09a8ffab72107d01d4bd7"
 }
