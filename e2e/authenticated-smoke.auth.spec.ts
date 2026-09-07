@@ -1833,3 +1833,52 @@ for (const subject of [
     await expect(edge).toBeFocused()
   })
 }
+
+test('hover opens the tucked Show list without focus or layout movement and ignores drags (#981)', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('studio/shows/stock-show-100-getting-around')
+  await page.getByRole('button', { name: 'Unpin Shows list' }).click()
+  const layout = page.getByTestId('studio-drawer-layout')
+  const edge = page.getByTestId('studio-drawer-edge-tab')
+  const drawer = page.getByTestId('studio-entity-drawer')
+  const timeline = page.getByRole('region', { name: 'Show timeline', exact: true })
+  const geometry = await timeline.boundingBox()
+  const transport = page.getByTestId('show-timeline-toolbar').getByRole('button', { name: 'Play Show preview' })
+  await transport.focus()
+  await page.mouse.move(10, 100)
+  await page.mouse.move(1000, 500)
+  // The quick crossing has left; observe beyond the dwell before re-entering.
+  await page.waitForTimeout(200)
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
+  await edge.hover()
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
+  await expect(transport).toBeFocused()
+  expect(await timeline.boundingBox()).toEqual(geometry)
+  if (process.env.PXLBLZ_HOVER_CAPTURE) await page.screenshot({ path: process.env.PXLBLZ_HOVER_CAPTURE })
+
+  await drawer.hover()
+  await timeline.hover()
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
+  await expect(drawer).toBeHidden()
+
+  // A real splitter drag crosses the edge with the primary button held.
+  const divider = page.getByRole('separator', { name: 'Resize timeline and Stage' })
+  const heightBeforeDrag = await divider.getAttribute('aria-valuenow')
+  const dividerBounds = await divider.boundingBox()
+  expect(dividerBounds).not.toBeNull()
+  const x = dividerBounds!.x + dividerBounds!.width / 2
+  const y = dividerBounds!.y + dividerBounds!.height / 2
+  await page.mouse.move(x, y)
+  await page.mouse.down()
+  await page.mouse.move(x, y - 20, { steps: 2 })
+  await expect(divider).not.toHaveAttribute('aria-valuenow', heightBeforeDrag!)
+  await page.mouse.move(10, y - 20, { steps: 4 })
+  // Observe beyond the specified dwell while dragging; this is the timer oracle.
+  await page.waitForTimeout(200)
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
+  await page.mouse.up()
+  await page.mouse.move(1000, 500)
+  await edge.hover()
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
+})

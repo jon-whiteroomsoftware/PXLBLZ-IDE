@@ -79,8 +79,11 @@ remain in each list's existing buttons and Add menu.
 
 The entity list starts pinned beside the workspace. Its pin remembers a
 separate choice for Patterns, Shows, Maps, Controllers, Mixins, and Libraries.
-Unpin it to leave a narrow place tab at the workspace edge; opening that tab
-slides the list over the workspace without moving or resizing what is under it.
+Unpin it to leave a narrow place tab at the workspace edge. Hover there for
+150 ms, click, or use Tab and Enter to slide the list over the workspace without
+moving or resizing what is under it. Leaving before the hover delay cancels
+opening, and dragging across the tab never opens the list. Hover leaves keyboard
+focus where it was.
 Choosing an entity, pressing Escape, clicking outside, or leaving the list for
 a moment closes the overlay. A rename, search, menu, dialog, or in-list drag
 holds it open until that work finishes. At 980 px and below the list always uses

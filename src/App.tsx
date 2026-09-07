@@ -1229,6 +1229,7 @@ function StudioApp() {
       <StudioEntityDrawer
         ref={studioDrawerRef}
         place={studioDrawerPlace}
+        routeKey={routePath(route, import.meta.env.BASE_URL)}
         narrow={narrowShowWorkspace}
         width={leftWidth}
         onPreviewSpace={() => usePreviewStore.getState().toggle()}

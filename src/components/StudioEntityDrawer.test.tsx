@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useEffect, useRef, useState } from 'react'
 import { StudioEntityDrawer, type StudioEntityDrawerHandle } from './StudioEntityDrawer'
 import { RailEntityHeader } from './rail/RailPrimitives'
@@ -14,14 +14,20 @@ function MountProbe({ mounted, unmounted }: { mounted: () => void; unmounted: ()
   return <RailEntityHeader title="Shows" />
 }
 
-function Harness({ onPreviewSpace = vi.fn() }: { onPreviewSpace?: () => void }) {
+function Harness({ onPreviewSpace = vi.fn(), routeKey = 'shows/one', place = 'shows', narrow = false }: {
+  onPreviewSpace?: () => void
+  routeKey?: string
+  place?: 'shows' | 'maps'
+  narrow?: boolean
+}) {
   const ref = useRef<StudioEntityDrawerHandle>(null)
   const [query, setQuery] = useState('')
   return (
     <StudioEntityDrawer
       ref={ref}
-      place="shows"
-      narrow={false}
+      place={place}
+      routeKey={routeKey}
+      narrow={narrow}
       width={275}
       divider={<div data-testid="divider" />}
       drawer={(
@@ -250,4 +256,111 @@ describe('StudioEntityDrawer (#966)', () => {
     expect(tab).toHaveAttribute('aria-expanded', 'false')
     vi.useRealTimers()
   })
+})
+
+
+describe('Studio entity drawer hover (#981)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    localStorage.clear()
+    useStudioEntityDrawerStore.setState({ pinPreferences: { shows: false } })
+  })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('opens after 150 ms without moving keyboard focus and restarts dwell after leaving', () => {
+    render(<Harness />)
+    const edge = screen.getByRole('button', { name: 'Open the Shows list' })
+    const field = screen.getByRole('textbox', { name: 'Workspace field' })
+    field.focus()
+    fireEvent.pointerEnter(edge)
+    act(() => { vi.advanceTimersByTime(149) })
+    expect(edge).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.pointerLeave(edge)
+    act(() => { vi.advanceTimersByTime(150) })
+    expect(edge).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.pointerEnter(edge)
+    act(() => { vi.advanceTimersByTime(149) })
+    expect(edge).toHaveAttribute('aria-expanded', 'false')
+    act(() => { vi.advanceTimersByTime(1) })
+    expect(edge).toHaveAttribute('aria-expanded', 'true')
+    expect(field).toHaveFocus()
+  })
+
+  it.each(['pointer', 'native'] as const)('cancels pending hover and suppresses crossing during a %s drag', (kind) => {
+    render(<Harness />)
+    const edge = screen.getByRole('button', { name: 'Open the Shows list' })
+    const workspace = screen.getByTestId('workspace')
+    fireEvent.pointerEnter(edge)
+    act(() => { vi.advanceTimersByTime(100) })
+    if (kind === 'pointer') fireEvent.pointerDown(workspace)
+    else fireEvent.dragStart(workspace)
+    act(() => { vi.advanceTimersByTime(150) })
+    expect(edge).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.pointerLeave(edge)
+    fireEvent.pointerEnter(edge)
+    // A native drag cancels pointer events but is still active until dragend.
+    if (kind === 'native') fireEvent.pointerCancel(workspace)
+    act(() => { vi.advanceTimersByTime(150) })
+    expect(edge).toHaveAttribute('aria-expanded', 'false')
+    if (kind === 'pointer') fireEvent.pointerUp(workspace)
+    else fireEvent.dragEnd(workspace)
+    act(() => { vi.advanceTimersByTime(150) })
+    expect(edge).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.pointerLeave(edge)
+    fireEvent.pointerEnter(edge)
+    act(() => { vi.advanceTimersByTime(150) })
+    expect(edge).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it.each(['route', 'place', 'pin', 'narrow'] as const)('cancels pending hover on %s changes', (change) => {
+    const view = render(<Harness />)
+    fireEvent.pointerEnter(screen.getByRole('button', { name: 'Open the Shows list' }))
+    act(() => { vi.advanceTimersByTime(100) })
+    if (change === 'route') view.rerender(<Harness routeKey="shows/two" />)
+    if (change === 'place') {
+      view.rerender(<Harness place="maps" />)
+      view.rerender(<Harness />)
+    }
+    if (change === 'pin') {
+      act(() => { useStudioEntityDrawerStore.getState().setPinned('shows', true) })
+      act(() => { useStudioEntityDrawerStore.getState().setPinned('shows', false) })
+    }
+    if (change === 'narrow') {
+      view.rerender(<Harness narrow />)
+      view.rerender(<Harness />)
+    }
+    act(() => { vi.advanceTimersByTime(150) })
+    expect(screen.getByTestId('studio-drawer-layout')).toHaveAttribute('data-drawer-mode', 'tucked')
+  })
+
+  it('cancels pending dwell on immediate click open so a later close stays closed', () => {
+    render(<Harness />)
+    const edge = screen.getByRole('button', { name: 'Open the Shows list' })
+    fireEvent.pointerEnter(edge)
+    act(() => { vi.advanceTimersByTime(100) })
+    fireEvent.click(edge)
+    expect(edge).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(screen.getByRole('treeitem', { name: 'Current show' }))
+    act(() => { vi.advanceTimersByTime(150) })
+    expect(edge).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('keeps the existing close delay and cancels it on re-entry after hover opening', () => {
+    render(<Harness />)
+    const edge = screen.getByRole('button', { name: 'Open the Shows list' })
+    fireEvent.pointerEnter(edge)
+    act(() => { vi.advanceTimersByTime(150) })
+    const drawer = screen.getByTestId('studio-entity-drawer')
+    fireEvent.pointerEnter(drawer)
+    fireEvent.pointerLeave(drawer)
+    act(() => { vi.advanceTimersByTime(599) })
+    expect(edge).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.pointerEnter(drawer)
+    act(() => { vi.advanceTimersByTime(600) })
+    expect(edge).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.pointerLeave(drawer)
+    act(() => { vi.advanceTimersByTime(600) })
+    expect(edge).toHaveAttribute('aria-expanded', 'false')
+  })
+
 })

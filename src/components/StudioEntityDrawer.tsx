@@ -27,6 +27,7 @@ import {
   studioEntityDrawerOwnedSurfaceProps,
 } from '@/components/studioEntityDrawerContext'
 
+const HOVER_OPEN_DELAY_MS = 150
 const CLOSE_DELAY_MS = 600
 const BUSY_KINDS: StudioEntityDrawerBusyKind[] = ['drag', 'field', 'menu', 'dialog']
 
@@ -37,6 +38,7 @@ export interface StudioEntityDrawerHandle {
 
 export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
   place: StudioEntityKind
+  routeKey?: string
   narrow: boolean
   width: number
   drawer: ReactNode
@@ -46,6 +48,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
   children: ReactNode
 }>(function StudioEntityDrawer({
   place,
+  routeKey,
   narrow,
   width,
   drawer,
@@ -65,8 +68,16 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
   const focusReturnRef = useRef<HTMLElement | null>(null)
   const keyboardRefocusAllowedRef = useRef(false)
   const mode = studioEntityDrawerMode(state)
+  const hoverTimerRef = useRef<number | null>(null)
+  const pointerPressedRef = useRef(false)
+  const nativeDragRef = useRef(false)
+  const cancelHoverOpen = useCallback(() => {
+    if (hoverTimerRef.current !== null) window.clearTimeout(hoverTimerRef.current)
+    hoverTimerRef.current = null
+  }, [])
 
   const apply = useCallback((event: StudioEntityDrawerEvent) => {
+    cancelHoverOpen()
     if (event.type === 'open' && event.source === 'keyboard') {
       focusReturnRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
       keyboardRefocusAllowedRef.current = true
@@ -82,7 +93,36 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
       window.setTimeout(() => target?.focus(), 0)
     }
     return result
-  }, [])
+  }, [cancelHoverOpen])
+
+  useEffect(() => {
+    cancelHoverOpen()
+    return cancelHoverOpen
+  }, [cancelHoverOpen, routeKey])
+
+  useEffect(() => {
+    const pressed = () => { pointerPressedRef.current = true; cancelHoverOpen() }
+    const released = () => { pointerPressedRef.current = false }
+    const dragStarted = () => { nativeDragRef.current = true; cancelHoverOpen() }
+    const dragEnded = () => { nativeDragRef.current = false }
+    const blurred = () => { released(); dragEnded(); cancelHoverOpen() }
+    window.addEventListener('pointerdown', pressed, true)
+    window.addEventListener('pointerup', released, true)
+    window.addEventListener('pointercancel', released, true)
+    window.addEventListener('dragstart', dragStarted, true)
+    window.addEventListener('dragend', dragEnded, true)
+    window.addEventListener('drop', dragEnded, true)
+    window.addEventListener('blur', blurred)
+    return () => {
+      window.removeEventListener('pointerdown', pressed, true)
+      window.removeEventListener('pointerup', released, true)
+      window.removeEventListener('pointercancel', released, true)
+      window.removeEventListener('dragstart', dragStarted, true)
+      window.removeEventListener('dragend', dragEnded, true)
+      window.removeEventListener('drop', dragEnded, true)
+      window.removeEventListener('blur', blurred)
+    }
+  }, [cancelHoverOpen])
 
   useEffect(() => { apply({ type: 'set-place', place }) }, [apply, place])
   useEffect(() => { apply({ type: 'set-pin-preferences', pinPreferences }) }, [apply, pinPreferences])
@@ -281,6 +321,15 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
               tabIndex={mode === 'open' ? -1 : 0}
               data-studio-space-preview="true"
               {...studioEntityDrawerOwnedSurfaceProps}
+              onPointerEnter={(event) => {
+                cancelHoverOpen()
+                if (event.pointerType === 'touch' || event.buttons > 0 || pointerPressedRef.current || nativeDragRef.current || mode !== 'tucked') return
+                hoverTimerRef.current = window.setTimeout(() => {
+                  hoverTimerRef.current = null
+                  if (!pointerPressedRef.current && !nativeDragRef.current && studioEntityDrawerMode(stateRef.current) === 'tucked') apply({ type: 'open', source: 'pointer' })
+                }, HOVER_OPEN_DELAY_MS)
+              }}
+              onPointerLeave={cancelHoverOpen}
               onPointerUp={(event) => event.currentTarget.blur()}
               onClick={() => apply({ type: 'open', source: 'pointer' })}
               onKeyDown={(event) => {
