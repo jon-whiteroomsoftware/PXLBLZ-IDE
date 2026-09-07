@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "issue": "968",
+  "route": "/PXLBLZ-IDE/studio/patterns/IridescentFibers",
+  "capturedAtCommit": "f785f5891b9ba04409f1af2a077215af76399a46",
+  "captures": [
+    ".wrsp/ui-proof/968-controller-power-400-default.png",
+    ".wrsp/ui-proof/968-controller-power-400-open.png",
+    ".wrsp/ui-proof/968-controller-power-320-default.png",
+    ".wrsp/ui-proof/968-controller-power-320-open.png",
+    ".wrsp/ui-proof/968-controller-restored-ice-floes.png"
+  ],
+  "operation": "Live Burner bag Controller at 192.168.8.224 through the real helper extension in isolated repository Playwright Chromium and managed synthetic session on localhost5178. In-app browser could not install synthetic session through supported API. Temporary extension copied from this code commit: sole manifest difference appends http://localhost:5178/* to content_scripts[0].matches; normal popup Grant access obtained optional HTTP/WS device permissions. No fabricated relay or telemetry. Desktop viewport1440 produced400px popover; narrow viewport336 produced318.40625px outer popover (320px nominal responsive target). Captured folded/default and all-expanded sections using already-saved IridescentFibers after Jon authorized temporary switching, then restored exact original Ice Floes2D id. All five images inspected. Live Power duty10–11%, duty cap65%, scale100%; read-only map Unknown map2D and256px. Original Pattern correctly has no Power section. Restoration evidence: {\"originalProgramId\":\"pxbDrxdoMmDWAhzW6\",\"originalName\":\"Ice Floes 2D\",\"sourceUnchanged\":true,\"brightnessBeforeAndAfter\":0.012769,\"pixelCountBeforeAndAfter\":256,\"sequencerModeBeforeAndAfter\":0,\"runSequencerBeforeAndAfter\":false,\"exportedVarsUnchanged\":true,\"speedBeforeAndAfter\":0.574982,\"rawActiveControls\":\"Firmware returned invalid negative sliderSpeed before (-1.694739e+38) and after (-0.001322); these drifted values were not replayed. Exported speed remained exactly0.574982. No brightness, map, pixel-count, saved-source or sequencer writes; only existing saved-Pattern switch and restoration.\"}. Focused verification: 129 component/engine cases passed after rebase; 400/320 Chromium component layout:2 passed; Authenticated Controller surfaces keep live state and switch saved Patterns in place:1 passed."
+}
