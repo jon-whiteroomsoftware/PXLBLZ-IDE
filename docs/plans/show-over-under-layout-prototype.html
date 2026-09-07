@@ -104,9 +104,8 @@ section.prop:first-of-type{border-top:0}
 .preview canvas{display:block}
 .preview .badge{position:absolute;left:8px;bottom:6px;font-family:var(--mono);font-size:9.5px;color:var(--ink4)}
 .preview .ov{position:absolute;inset:0;pointer-events:none}
-.controls{flex:1;min-width:0;overflow:auto;padding:10px 14px;container-type:inline-size}
-.status{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;color:var(--z300);margin-bottom:8px}
-.status .play{margin-left:auto;color:var(--warn)}
+.controls{flex:1;min-width:0;overflow:auto;padding:0;container-type:inline-size;display:flex}
+.controls-body{flex:1;min-width:0;overflow:auto;padding:6px 14px 10px}
 .secs{display:grid;grid-template-columns:1fr;gap:10px 22px}
 @container (max-width: 300px){.sl{grid-template-columns:1fr auto}.sl span:first-child{grid-column:1/-1;margin-bottom:-4px}.kv{flex-wrap:wrap}.status{flex-wrap:wrap}details.zones summary{flex-wrap:wrap}details.zones summary .cov{margin-left:20px;width:100%}.controls{padding:8px 10px}.sec h3 .tog{width:22px;height:22px}}
 @container (min-width: 760px){.secs{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -134,6 +133,56 @@ details.zones[open] summary .ch{transform:rotate(90deg)}
 .zone .px{margin-left:auto;color:var(--z500)}
 .zone svg{width:13px;height:13px;color:var(--z500)}
 .srlive{position:absolute;left:-9999px}
+/* strip revision (2026-09-07): rail + header-is-summary sections + Source */
+.under .rail{width:30px;flex-shrink:0;border-right:1px solid var(--hair);display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 0}
+.under .rail .tog{width:24px;height:24px;border-radius:5px}
+.under .rail .tog svg{width:13px;height:13px}
+.under .rail .sep{width:14px;height:1px;background:var(--z800);margin:2px 0}
+
+.controls .secs{display:grid;grid-template-columns:minmax(0,1fr);gap:0 24px;max-width:480px}
+.controls .sec{border-top:1px solid var(--hair);min-width:0}
+.controls .sec:first-child{border-top:0}
+.controls .sec .hd{display:flex;align-items:center;gap:8px;min-height:30px;padding:3px 0;cursor:pointer;user-select:none;list-style:none}
+.controls .sec .hd::-webkit-details-marker{display:none}
+.controls .sec .lbl{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--z400);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.controls .sec .lbl svg{width:11px;height:11px;color:var(--z500);transition:transform .12s}
+.controls .sec[open] .lbl svg{transform:rotate(90deg)}
+.controls .sec .sum{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;white-space:nowrap;overflow:hidden;font-family:var(--mono);font-size:10.5px;color:var(--z300);min-width:0;flex:1;mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
+.controls .sec[open] .sum{display:none}
+.controls .sum > *{flex-shrink:0}
+.controls .sum .g{display:inline-flex;align-items:center;gap:3px;color:var(--z400)}
+.controls .sum .g svg{width:11px;height:11px;color:var(--z500)}
+.controls .sum .v{color:var(--z100)}
+.controls .sum .v.live{color:var(--live)}
+.controls .sum .v.ok{color:var(--ok)}
+.controls .sum .dot{color:var(--z700)}
+.controls .sec .help{margin-left:auto;width:18px;height:18px;border-radius:50%;border:1px solid var(--z700);display:grid;place-items:center;font-size:10px;color:var(--z500);flex-shrink:0}
+.controls .sec .body{padding:2px 0 10px}
+.controls .grid2{display:grid;grid-template-columns:max-content minmax(0,1fr) max-content minmax(0,1fr);gap:4px 16px;align-items:center}
+@container (max-width: 420px){.controls .grid2{grid-template-columns:max-content minmax(0,1fr)}}
+.controls .f{display:contents;font-family:var(--mono);font-size:11px;color:var(--z300)}
+.controls .f .k{color:var(--z400);white-space:nowrap;font-family:var(--mono);font-size:11px}
+.controls .f .val{display:flex;align-items:center;gap:8px;min-width:0;height:24px}
+.controls .f .val input[type=range]{flex:1;min-width:0;max-width:200px;height:14px;accent-color:var(--live)}
+.controls .f .n{color:var(--live);min-width:40px;text-align:right;flex-shrink:0}
+.controls .f .ro{color:var(--live)}
+.meter{display:inline-flex;align-items:center;gap:8px;min-width:0}
+.meter .bar{width:120px;height:8px;border-radius:4px;background:var(--z800);overflow:hidden;flex-shrink:0}
+.meter .bar i{display:block;height:100%;background:var(--live)}
+.meter .bar i.hot{background:var(--warn)}
+.inv{font-family:var(--mono);font-size:11px;color:var(--z300)}
+.inv .r{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:3px 0;border-bottom:1px solid var(--hair)}
+.inv .r .sw{width:8px;height:8px;border-radius:2px}
+.inv .r .nm{display:flex;align-items:center;gap:8px;min-width:0}
+.inv .r .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inv .r .b{color:var(--z100);text-align:right}
+.inv .r .pc{color:var(--z500);width:38px;text-align:right}
+.inv .axes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:8px}
+.inv .ax .k{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--z500)}
+.inv .ax .v{color:var(--z100)}
+.inv .ax .d{color:var(--z500);font-size:10px}
+.inv .note{color:var(--z500);font-size:10.5px;margin-top:8px;max-width:60ch}
+
 </style>
 </head>
 <body>
@@ -146,7 +195,7 @@ details.zones[open] summary .ch{transform:rotate(90deg)}
 
   <section class="prop">
     <div class="prop-head"><span class="n">01</span><h2>Live</h2><span class="where">1500 px · after slices 1 and 2 · Overture Installation</span></div>
-    <p class="prop-why">Switch the map shape to see the width follow the height. Add Zones to see the timeline want more room. Drag the divider up until the timeline hits its minimum, or down until the preview would leave the controls under 200 px: the handle turns red at a clamp and stops. Under about 300 px the controls switch to their compact form. The controls under the preview are today's, moved and tidied: the Zones and Clip overlay toggles now match the Show header's icon toggles, and Zones is folded with its coverage line in the fold.</p>
+    <p class="prop-why">Revised 2026-09-07 after the first build shipped. A 30 px <em>preview rail</em> sits hard against the preview with the preview's own controls stacked as icon toggles: play/pause, Zone outlines, selected-Clip outline, full screen. The status line is gone. The controls beside it are four header-is-summary sections in the #968 vocabulary, each one row when collapsed: <em>Stage</em>, <em>Preview</em> (open by default), <em>Zones</em>, and <em>Source</em>, which absorbs the old footer: its collapsed row is the thermometer and the numbers, its body is the inventory popover. Content is one column capped at 480 px, left against the rail; sliders cap at 200 px; space to the right stays empty. Switch the map shape to see the width follow the height; drag the divider; click headers.</p>
     <div class="ctl">
       <span>map</span><button data-map="square" aria-pressed="false">square 32×32</button><button data-map="wide" aria-pressed="true">proscenium 16:9</button><button data-map="tall" aria-pressed="false">portrait 9:16</button>
       <span class="g">timeline</span><button data-zones="3" aria-pressed="true">3 Zones</button><button data-zones="6" aria-pressed="false">6 Zones</button>
@@ -182,8 +231,10 @@ details.zones[open] summary .ch{transform:rotate(90deg)}
       <dt>divider</dt><dd>one horizontal divider between timeline and strip; drag, or focus and use Up/Down (10 px) and Shift+Up/Down (50 px), as today's pane dividers; position remembered per Show mode</dd>
       <dt>preview</dt><dd>fills the strip's height at its map's aspect; width follows; no letterboxing inside a box of another shape; the overlays (Zone outlines, selected Clip outline) draw over it</dd>
       <dt>clamps</dt><dd>the timeline never drops below its minimum height (transport plus ruler plus two lanes); the preview never grows past the strip width minus the controls' minimum width (200 px); at a clamp the handle stops and shows the clamp colour</dd>
-      <dt>compact controls</dt><dd>below about 300 px the controls take a compact form: slider labels above their tracks, key-value rows wrap, the coverage line drops under the Zones fold header, paddings tighten. Nothing in the controls needs more than that; the sliders are the only things that were wide, and they were wide because the column was.</dd>
-      <dt>controls</dt><dd>the remainder; Stage, Preview and Zones as sections that flow from one column to two and three as width allows, each section capped at 440 px; Zones folded by default with its coverage line in the fold header; the two overlay toggles are 24 px icon toggles in the Preview section, the same treatment as the Show header's icon toggles</dd>
+      <dt>compact controls</dt><dd>below about 420 px the expanded grids go to one field per row; below about 300 px paddings tighten. Nothing in the controls needs more than that.</dd>
+      <dt>rail</dt><dd>30 px, hard against the preview, the preview's own controls as 24 px icon toggles in the Show header's treatment: play/pause, Zone outlines, selected-Clip outline, full screen; separators between the groups; no status text anywhere (the play glyph says paused, the renderer is in the Preview readout)</dd>
+      <dt>controls</dt><dd>the remainder, left-aligned against the rail: Stage, Preview, Zones, Source as header-is-summary sections (#968 rules: one-row readouts, label-left rows when expanded); Preview open by default, the rest collapsed; one column capped at 480 px; sliders capped at 200 px; space to the right stays empty (no multi-column flow: collapsible sections of different heights do not pair well across columns)</dd>
+      <dt>source</dt><dd>the old footer becomes the Source section: collapsed, the thermometer plus delivered/budget KB, VM words and running copies; expanded, the inventory popover's content unchanged (per-Pattern rows with bytes and share, Controller transforms, the three axes, the busiest-LED note); the footer row under the timeline is removed</dd>
       <dt>detail panel</dt><dd>the floating Entity Detail Panel keeps its anchoring to the selected element in the timeline; it may overlap the strip, never the transport</dd>
       <dt>narrow</dt><dd>below the Show workspace breakpoint the strip collapses and the stage preview stays reachable as today's overlay; unchanged</dd>
       <dt>deferred</dt><dd>the Controller and preview controls themselves are not redesigned here; they are moved and resized only</dd>
@@ -224,18 +275,40 @@ function timelineHTML(){
     h+='</div>'; }
   return h;
 }
+let sopen={stage:false,preview:true,zones:false,source:false}, playing=false, fullscreen=false;
+const Iplay='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 3 14 9-14 9z"/></svg>';
+const Ipause='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></svg>';
+const Ifull='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+const Ilayers='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>';
+const dot='<span class="dot">·</span>';
+const g=(icon,val,cls='')=>`<span class="g">${I[icon]||''}<span class="v ${cls}">${val}</span></span>`;
+const sec=(key,label,summary,body)=>`<details class="sec" data-sec="${key}" ${sopen[key]?'open':''}><summary class="hd"><span class="lbl">${I.right}${label}</span><span class="sum">${summary}</span><span class="help">?</span></summary><div class="body">${body}</div></details>`;
+function railHTML(){
+  return `<div class="rail" role="toolbar" aria-label="Preview controls">
+    <button class="tog" data-rail="play" aria-pressed="${playing}" aria-label="${playing?'Pause Show preview':'Play Show preview'}" title="${playing?'Pause':'Play'} preview">${playing?Ipause:Iplay}</button>
+    <span class="sep"></span>
+    <button class="tog" data-ov="zones" aria-pressed="${zoneOutlines}" aria-label="Zone outlines" title="Zone outlines">${I.zones}</button>
+    <button class="tog" data-ov="clip" aria-pressed="${clipOutline}" aria-label="Selected Clip outline" title="Selected Clip outline">${I.clip}</button>
+    <span class="sep"></span>
+    <button class="tog" data-rail="full" aria-pressed="${fullscreen}" aria-label="Full-screen preview" title="Full screen">${Ifull}</button>
+  </div>`;
+}
 function controlsHTML(){
   const m=MAPS[map]; const zl=ZONES.slice(0,zones); const total=zl.reduce((a,z)=>a+z[2],0);
-  return `<div class="status">show paused · Precise<span class="play">▷</span></div>
-  <div class="secs">
-    <div class="sec"><h3>Stage</h3><div class="kv">${I.map}Output map <b>${m.name}</b> · ${m.px} px</div><div class="kv">Aspect <b>${m.ar===1?'1:1':m.ar>1?'16:9':'9:16'}</b> · ${zones} Zones</div></div>
-    <div class="sec"><h3>Preview <span class="tog" style="width:20px;height:20px;border:0;background:none">${I.help}</span><span class="sp"></span><button class="tog" data-ov="zones" aria-pressed="${zoneOutlines}" aria-label="Zone outlines" title="Zone outlines">${I.zones}</button><button class="tog" data-ov="clip" aria-pressed="${clipOutline}" aria-label="Selected Clip outline" title="Selected Clip outline">${I.clip}</button></h3>
-      <div class="sl"><span>light size</span><input type="range" min="0" max="100" value="70"><span class="v">0.70</span></div>
-      <div class="sl"><span>diffusion</span><input type="range" min="0" max="100" value="75"><span class="v">75%</span></div>
-      <div class="kv">renderer <select class="sel"><option>Precise</option><option>Fast</option></select> <span style="margin-left:10px">fps</span> <b>–</b></div></div>
-    <div class="sec"><details class="zones"><summary>${I.right}Zones · solo<span class="cov">${total}/${total} assigned · complete</span></summary>
-      ${zl.map(([n,c,px])=>`<div class="zone"><i style="background:${c}"></i>${n}<span class="px">${px} px</span>${I.eye}</div>`).join('')}</details></div>
-  </div>`;
+  const isInstall = zones>0;
+  const stageSum = `${g('map',m.name)}${dot}<span class="v">${isInstall?'output':'reference'} map</span>${dot}<span class="v">${m.px} px</span>${dot}<span class="v">${m.ar===1?'1:1':m.ar>1?'16:9':'9:16'}</span>`;
+  const stageBody = `<div class="grid2"><div class="f"><span class="k">${isInstall?'output map':'reference map'}</span><span class="val"><select class="sel"><option>${m.name}</option></select></span></div><div class="f"><span class="k">pixels</span><span class="val"><span class="ro">${m.px}</span></span></div><div class="f"><span class="k">aspect</span><span class="val"><span class="ro">${m.ar===1?'1:1':m.ar>1?'16:9':'9:16'}</span></span></div><div class="f"><span class="k">kind</span><span class="val"><span class="ro">${isInstall?'Installation':'Portable'}</span></span></div></div>`;
+  const pvSum = `${g('drop','0.70')}${dot}${g('ring','75%')}${dot}<span class="v">Precise</span>${dot}${g('gauge',playing?'58':'–','live')}`;
+  const pvBody = `<div class="grid2"><div class="f"><span class="k">light</span><span class="val"><input type="range" min="0" max="100" value="70"><span class="n">0.70</span></span></div><div class="f"><span class="k">diffusion</span><span class="val"><input type="range" min="0" max="100" value="75"><span class="n">75%</span></span></div><div class="f"><span class="k">renderer</span><span class="val"><select class="sel"><option>Precise</option><option>Fast</option></select></span></div><div class="f"><span class="k">fps</span><span class="val"><span class="ro">${playing?'58':'–'}</span></span></div></div>`;
+  const zSum = `<span class="v ok">${total}/${total} assigned · complete</span>${dot}${zl.map(([n,c])=>`<span class="g"><i style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${c}"></i><span class="v">${n}</span></span>`).join(dot)}`;
+  const zBody = zl.map(([n,c,px])=>`<div class="zone"><i style="background:${c}"></i>${n}<span class="px">${px} px</span>${I.eye}</div>`).join('');
+  const used=18.2, budget=66.8, pct=Math.round(used/budget*100), vm=6012, vmb=10240;
+  const srcSum = `<span class="meter"><span class="bar"><i style="width:${pct}%"></i></span><span class="v">${used} / ${budget} KB</span></span>${dot}<span class="v">VM ${vm.toLocaleString()} / ${vmb.toLocaleString()}</span>${dot}<span class="v" style="color:var(--z500)">${zl.length+1} copies</span>`;
+  const rows=[['TunnelOfSquares2D','#38bdf8',7.9,43],['CometLoom','#8b5cf6',6.1,34],['Controller transforms','#71717a',4.2,23]];
+  const srcBody = `<div class="inv">${rows.map(([n,c,b,p])=>`<div class="r"><span class="nm"><i class="sw" style="background:${c}"></i><span>${n}</span></span><span class="b">${b.toFixed(1)} KB</span><span class="pc">${p}%</span></div>`).join('')}
+    <div class="axes"><div class="ax"><div class="k">Controller source</div><div class="v">${used} / ${budget} KB</div><div class="d">${(budget-used).toFixed(1)} KB free · advisory</div></div><div class="ax"><div class="k">VM words</div><div class="v">${vm.toLocaleString()} / ${vmb.toLocaleString()}</div><div class="d">${(vmb-vm).toLocaleString()} free</div></div><div class="ax"><div class="k">Pattern copies running</div><div class="v">${zl.length+1}</div><div class="d">busiest LED: 2 Pattern colors</div></div></div>
+    <div class="note">Code this Show sends to one Pixelblaze, including Pattern copies and generated choreography. Effects modify colors; they do not add another Pattern calculation.</div></div>`;
+  return railHTML() + `<div class="controls-body"><div class="secs">${sec('stage','Stage',stageSum,stageBody)}${sec('preview','Preview',pvSum,pvBody)}${zl.length?sec('zones','Zones',zSum,zBody):''}${sec('source','Source',srcSum,srcBody)}</div></div>`;
 }
 function drawPreview(w,h){
   const cv=$('cv'); const dpr=window.devicePixelRatio||1; cv.width=w*dpr; cv.height=h*dpr; cv.style.width=w+'px'; cv.style.height=h+'px';
@@ -260,7 +333,7 @@ function layout(){
   const pw=Math.round(strip*ar); $('preview').style.width=pw+'px'; $('preview').style.height=strip+'px';
   drawPreview(pw,strip);
   $('badge').textContent=`${MAPS[map].name} · ${pw}×${strip}`;
-  const cw=width-pw; $('ro-t').textContent=total-strip; $('ro-s').textContent=strip; $('ro-p').textContent=pw+'×'+strip; $('ro-c').textContent=cw; $('ro-form').textContent=cw>=1140?'3 columns':cw>=760?'2 columns':cw<=300?'1 column, compact':'1 column'; $('ro-clamp').textContent=clamp;
+  const cw=width-pw; $('ro-t').textContent=total-strip; $('ro-s').textContent=strip; $('ro-p').textContent=pw+'×'+strip; $('ro-c').textContent=cw; $('ro-form').textContent=cw<=300?'compact':'one column, max 480'; $('ro-clamp').textContent=clamp;
   $('divider').classList.toggle('clamped', !!clamp); $('divider').setAttribute('aria-valuenow', Math.round(split*100));
 }
 function render(){ $('timeline').innerHTML=timelineHTML(); $('controls').innerHTML=controlsHTML(); layout(); }
@@ -275,8 +348,10 @@ document.addEventListener('click',e=>{
   const z=e.target.closest('[data-zones]'); if(z){ zones=+z.dataset.zones; document.querySelectorAll('[data-zones]').forEach(x=>x.setAttribute('aria-pressed',String(x===z))); render(); return; }
   const s=e.target.closest('[data-split]'); if(s){ split=+s.dataset.split; layout(); return; }
   const o=e.target.closest('[data-ov]'); if(o){ if(o.dataset.ov==='zones') zoneOutlines=!zoneOutlines; else clipOutline=!clipOutline; $('controls').innerHTML=controlsHTML(); layout(); return; }
+  const r=e.target.closest('[data-rail]'); if(r){ if(r.dataset.rail==='play') playing=!playing; else fullscreen=!fullscreen; $('controls').innerHTML=controlsHTML(); layout(); return; }
 });
 new ResizeObserver(()=>layout()).observe($('shell'));
+document.addEventListener('toggle',e=>{ const d=e.target; if(d.matches&&d.matches('#controls details')) sopen[d.dataset.sec]=d.open; },true);
 render();
 })();
 </script>
