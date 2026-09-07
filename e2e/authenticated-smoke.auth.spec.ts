@@ -237,6 +237,11 @@ test('the Studio entity drawer overlays without reflow and preserves Preview Spa
   // The tucked state precedes the drawer's completed exit transition.
   await expect(drawer).toBeHidden()
 
+  // Keep the moving playhead hit target away from the intended clip drag.
+  await timelineToolbar.getByRole('button', { name: 'Pause Show preview' }).click()
+  await timelineToolbar.getByRole('button', { name: 'Go to Show start' }).click()
+  await expect(page.getByRole('slider', { name: 'Show playhead' })).toHaveValue('0')
+
   // Buffer at the browser boundary so a runner-only missed drag reports the
   // actual target and event order without adding awaits inside the gesture.
   await page.evaluate(() => {
