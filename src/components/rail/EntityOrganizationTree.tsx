@@ -616,8 +616,8 @@ function RowActionMenu(props: { onClose: () => void; onRename?: () => void; onDu
         if (event.key === 'Escape') props.onClose()
       }}
     >
-      {actions.map(([label, action]) => (
-        <button key={label} type="button" onClick={action} className="block h-6 w-full px-2 text-left text-[10px] text-zinc-300 hover:bg-zinc-800">
+      {actions.map(([label, action], index) => (
+        <button key={label} autoFocus={index === 0} type="button" onClick={action} className="block h-6 w-full px-2 text-left text-[10px] text-zinc-300 hover:bg-zinc-800">
           {label}
         </button>
       ))}

@@ -50,8 +50,8 @@ local controls. They do not claim letters while you type in Monaco, rename an
 entity, adjust a slider, or use a menu, dialog, link, button, or tree row.
 
 When the current Studio place's entity list is tucked, press
-`Command/Ctrl+Shift+L` to open or close it outside editable fields and focused
-local controls. Opening from the keyboard moves focus into list search, and
+`Command/Ctrl+Shift+L` to open or close it outside text fields and the code
+editor. Opening from the keyboard moves focus into list search, and
 closing or choosing an entity returns focus to the opener. The 22-pixel edge
 tab also opens with a click or `Enter`; `Space` remains Preview or Show
 playback.

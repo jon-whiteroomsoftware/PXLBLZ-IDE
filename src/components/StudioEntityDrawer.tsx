@@ -255,7 +255,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
         onPointerLeave={() => apply({ type: 'pointer', inside: false })}
         className={mode === 'pinned'
           ? 'relative flex h-full shrink-0 flex-col'
-          : `absolute inset-y-0 left-0 z-[55] flex flex-col border-r bg-zinc-950 shadow-2xl [transition:transform_150ms_ease-out,visibility_0s_linear_150ms] ${mode === 'open' ? 'visible translate-x-0 border-zinc-700 shadow-black/60 [transition-delay:0s]' : 'invisible -translate-x-full border-seam shadow-transparent'}`}
+          : `absolute inset-y-0 left-0 z-[55] flex flex-col border-r bg-zinc-950 shadow-2xl ${mode === 'open' ? 'visible translate-x-0 border-zinc-700 shadow-black/60 [transition:transform_150ms_ease-out,visibility_0s_linear_0s]' : 'invisible -translate-x-full border-seam shadow-transparent [transition:transform_150ms_ease-out,visibility_0s_linear_150ms]'}`}
         style={{ width, maxWidth: mode === 'pinned' ? '34vw' : 'calc(100vw - 22px)' }}
       >
         {drawer}
@@ -278,7 +278,6 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
               data-testid="studio-drawer-edge-tab"
               aria-label={`Open the ${definition.label} list`}
               aria-expanded={mode === 'open'}
-              aria-hidden={mode === 'open' || undefined}
               tabIndex={mode === 'open' ? -1 : 0}
               data-studio-space-preview="true"
               {...studioEntityDrawerOwnedSurfaceProps}

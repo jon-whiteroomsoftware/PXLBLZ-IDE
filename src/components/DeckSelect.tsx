@@ -36,6 +36,7 @@ export function DeckSelect<T extends string | number>({
   menuSide = 'bottom',
   block = false,
   portaled = false,
+  menuProps,
 }: {
   ariaLabel: string
   value: T
@@ -58,6 +59,9 @@ export function DeckSelect<T extends string | number>({
   // Preview controls live inside an overflow-clipped region. Opt those callers
   // into document-level placement without changing containment for other decks.
   portaled?: boolean
+  // Optional ownership/busy markers for callers whose menu participates in a
+  // larger interaction boundary. They exist only while the menu is open.
+  menuProps?: Record<string, string>
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -172,6 +176,7 @@ export function DeckSelect<T extends string | number>({
 
   const menu = isOpen ? (
     <div
+      {...menuProps}
       ref={menuRef}
       role="listbox"
       aria-label={ariaLabel}

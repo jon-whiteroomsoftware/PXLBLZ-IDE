@@ -147,6 +147,7 @@ test('the place control reaches every Studio and reference workspace (#965)', as
 })
 
 test('the Studio entity drawer overlays without reflow and preserves Preview Space (#966)', async ({ page }) => {
+  test.setTimeout(45_000)
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
 
@@ -185,6 +186,44 @@ test('the Studio entity drawer overlays without reflow and preserves Preview Spa
   await page.getByRole('textbox', { name: 'Search by name' }).press('Escape')
   await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
   await page.keyboard.press('Escape')
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
+
+  await edgeTab.click()
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
+  await timelineToolbar.click()
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
+
+  await edgeTab.click()
+  await page.getByRole('button', { name: 'Close Shows list' }).click()
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
+
+  await edgeTab.click()
+  const drawer = page.getByTestId('studio-entity-drawer')
+  await drawer.hover()
+  await timelineToolbar.hover()
+  await expect(page.getByTestId('studio-drawer-close-progress')).toBeVisible()
+  await drawer.hover()
+  await expect(page.getByTestId('studio-drawer-close-progress')).toBeHidden()
+  await timelineToolbar.hover()
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked', { timeout: 2_000 })
+
+  await edgeTab.click()
+  const currentShow = page.getByRole('treeitem', { name: /Clips, Cuts, and Blank Time$/ })
+  if (!await currentShow.isVisible()) await page.getByRole('treeitem', { name: /^100/ }).click()
+  await currentShow.click()
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
+
+  const clip = page.locator('[data-show-composition-clip="true"]').first()
+  const clipBounds = await clip.boundingBox()
+  expect(clipBounds).not.toBeNull()
+  await page.keyboard.down('Shift')
+  await page.mouse.move(clipBounds!.x + clipBounds!.width / 2, clipBounds!.y + clipBounds!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(clipBounds!.x + clipBounds!.width / 2 + 12, clipBounds!.y + clipBounds!.height / 2, { steps: 2 })
+  await expect(page.getByTestId('show-clip-move-preview')).toBeVisible()
+  await page.mouse.move(5, clipBounds!.y + clipBounds!.height / 2, { steps: 6 })
+  await page.mouse.up()
+  await page.keyboard.up('Shift')
   await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
 
   await choosePlace(page, 'Maps')

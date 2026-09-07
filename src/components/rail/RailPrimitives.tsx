@@ -343,6 +343,10 @@ export function RailFilterBar({
           onChange={onLensChange}
           menuWidthClass="w-16"
           menuAlign="right"
+          menuProps={{
+            ...studioEntityDrawerOwnedSurfaceProps,
+            ...studioEntityDrawerBusySurfaceProps('menu'),
+          }}
         />
       )}
     </div>
