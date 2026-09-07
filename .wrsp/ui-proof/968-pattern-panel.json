@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "968",
+  "route": "/PXLBLZ-IDE/studio/patterns/IridescentFibers",
+  "operation": "Repository Playwright Chromium in an isolated managed synthetic session (in-app browser could not install the session through its supported API). Resized the actual pane divider to 520px and 340px; captured default tiers and all sections expanded while IridescentFibers continued rendering. Inspected all four captures.",
+  "captures": [
+    ".wrsp/ui-proof/968-pattern-520-default.png",
+    ".wrsp/ui-proof/968-pattern-520-open.png",
+    ".wrsp/ui-proof/968-pattern-340-default.png",
+    ".wrsp/ui-proof/968-pattern-340-open.png"
+  ],
+  "capturedAtCommit": "94f7c1f289bf76862528b13b320248effd644399"
+}
