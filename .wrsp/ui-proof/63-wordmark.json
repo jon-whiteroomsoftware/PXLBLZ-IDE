@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "63",
+  "route": "http://[::1]:5178/PXLBLZ-IDE/",
+  "operation": "Chrome, anonymous Gallery: followed the home wordmark from gallery/zranger1, reloaded the visited home route, and captured the restored amber letters. Verified keyboard focus on Home and the existing icon-only wordmark at 390px; restored viewport afterward. The e2e/wordmark.spec.ts painted-frame regression separately proves forward and return crest positions after a real home-link visit in full persistent Chromium, including reduced motion.",
+  "captures": [
+    ".wrsp/ui-proof/63-wordmark-visited.jpg",
+    ".wrsp/ui-proof/63-wordmark-focus.jpg",
+    ".wrsp/ui-proof/63-wordmark-narrow.jpg"
+  ],
+  "capturedAtCommit": "929d23ec4405819b7646fd64b88f47d93562a37f"
+}
