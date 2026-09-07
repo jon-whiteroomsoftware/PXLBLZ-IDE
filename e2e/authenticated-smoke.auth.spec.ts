@@ -720,24 +720,24 @@ test('keeps the Shows header inside the center editor pane (#758)', async ({ pag
 
   const geometry = await page.locator('.show-pane-header').evaluate((header) => {
     const editor = header.closest('[data-testid="editor-pane"]')
-    const preview = document.querySelector('[data-testid="preview-pane"]')
-    if (!editor || !preview) return null
+    const workspace = document.querySelector('[data-testid="show-over-under-workspace"]')
+    if (!editor || !workspace) return null
 
     const headerBounds = header.getBoundingClientRect()
     const editorBounds = editor.getBoundingClientRect()
-    const previewBounds = preview.getBoundingClientRect()
+    const workspaceBounds = workspace.getBoundingClientRect()
     return {
       editorWidth: editorBounds.width,
       headerRight: Math.round(headerBounds.right),
       editorRight: Math.round(editorBounds.right),
-      previewLeft: Math.round(previewBounds.left),
+      workspaceRight: Math.round(workspaceBounds.right),
     }
   })
 
   expect(geometry).not.toBeNull()
   expect(geometry!.editorWidth).toBeGreaterThan(0)
   expect(geometry!.headerRight).toBe(geometry!.editorRight)
-  expect(geometry!.headerRight).toBeLessThanOrEqual(geometry!.previewLeft)
+  expect(geometry!.headerRight).toBe(geometry!.workspaceRight)
 })
 
 test('Studio authoring keeps the rail and editor reachable at 390px (#622)', async ({ page }) => {
@@ -876,9 +876,16 @@ test('resized Pattern and Show previews keep their controls reachable', async ({
   await expect(page.getByRole('button', { name: 'Watch variables' })).toBeInViewport()
 
   await page.goto('studio/shows/stock-show-showcase-redline-installation')
-  await previewPane.hover()
+  const showSplitter = page.getByRole('separator', { name: 'Resize timeline and Stage' })
+  const showStrip = page.getByTestId('show-stage-strip')
+  const initialStripHeight = (await showStrip.boundingBox())?.height ?? 0
+  await showSplitter.press('Shift+ArrowDown')
+  await expect.poll(async () => (await showStrip.boundingBox())?.height ?? 0)
+    .toBeLessThan(initialStripHeight - 40)
+  const showControls = page.getByTestId('show-stage-controls')
+  await showControls.hover()
   await page.mouse.wheel(0, 1200)
-  await expect(previewPane.getByRole('button', { name: 'Renderer' })).toBeInViewport()
+  await expect(showControls.getByRole('button', { name: 'Renderer' })).toBeInViewport()
 })
 
 test('edits and persists a Controller input use across responsive and keyboard flows (#772)', async ({ page }) => {
