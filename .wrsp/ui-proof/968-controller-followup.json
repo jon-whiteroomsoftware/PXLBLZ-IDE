@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "968",
+  "route": "/PXLBLZ-IDE/studio/patterns/IridescentFibers",
+  "capturedAtCommit": "148f63e5786c998e1a46d411346f142cc0df84c9",
+  "captures": [
+    ".wrsp/ui-proof/968-followup-controller-long-menu.png",
+    ".wrsp/ui-proof/968-followup-controller-pixel-editor.png",
+    ".wrsp/ui-proof/968-followup-controller-power-fallback.png"
+  ],
+  "operation": "Repository Playwright authenticated real Studio route with isolated synthetic user and existing fake Controller helper fixture, not hardware. In-app browser supported API could not install synthetic session; authorized repository fallback retained. At1440px viewport a12-program menu extends beyond the Controller panel; its final option is hit-testable and selected without scrolling the outer panel. Existing pixel editor escapes both outer and section clipping; inset corner hit-tests pass, Escape dismisses it, and folding Pixelblaze removes the open editor. At336px viewport with an explicitly persisted profile having no Power transform, duty-cap telemetry aligns with the other Power value track (previously54px off). All three fresh captures inspected. Focused existing Controller integration and new regression passed; TypeScript/scoped lint and two Chromium layout cases passed. Existing live device verification remains unchanged and no further hardware operations were performed."
+}
