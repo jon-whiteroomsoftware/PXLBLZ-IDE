@@ -299,6 +299,38 @@ describe('App smoke test', () => {
     },
   )
 
+  it('keeps an explicit personal Pattern route while its record is still loading (#965)', async () => {
+    const starter: PatternRecord = {
+      id: 'pxlblz-starter-pattern-v1',
+      name: 'Starter Pattern',
+      src: 'export function render(index) {}',
+      controls: {},
+      updatedAt: 1,
+    }
+    const requested: PatternRecord = {
+      ...starter,
+      id: 'requested-pattern',
+      name: 'Requested Pattern',
+    }
+    setStudioLocation(`/studio/patterns/${requested.id}`)
+    seedSignedInWorkspace()
+    usePatternStore.setState({
+      activePatternId: starter.id,
+      userPatterns: [starter],
+      patternsLoaded: false,
+    })
+    render(<App />)
+
+    await waitFor(() => expect(window.location.pathname).toBe(`/studio/patterns/${requested.id}`))
+
+    act(() => usePatternStore.setState({ userPatterns: [starter, requested], patternsLoaded: true }))
+    await waitFor(() => expect(usePatternStore.getState().activePatternId).toBe(requested.id))
+    expect(window.location.pathname).toBe(`/studio/patterns/${requested.id}`)
+
+    act(() => usePatternStore.getState().setActivePattern(starter.id))
+    await waitFor(() => expect(window.location.pathname).toBe(`/studio/patterns/${starter.id}`))
+  })
+
   it('links the PXLBLZ wordmark to the app root', () => {
     render(<App />)
     expect(screen.getByRole('link', { name: 'PXLBLZ home' })).toHaveAttribute('href', import.meta.env.BASE_URL)

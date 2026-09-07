@@ -617,6 +617,12 @@ function StudioApp() {
     const current = useRouterStore.getState().route
     if (current.kind !== 'studio') return
     const patternState = usePatternStore.getState()
+    const requestedPatternId = current.entity?.kind === 'patterns' ? current.entity.id : null
+    const pendingPatternRoute = requestedPatternId !== null
+      && !patternState.patternsLoaded
+      && DEMOS[requestedPatternId] === undefined
+      && !patternState.userPatterns.some((pattern) => pattern.id === requestedPatternId)
+    if (pendingPatternRoute) return
     if (patternState.activePatternId !== null && (current.entity === null || current.entity.kind === 'patterns')) {
       const target: Route = { kind: 'studio', entity: { kind: 'patterns', id: patternState.activePatternId } }
       if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
