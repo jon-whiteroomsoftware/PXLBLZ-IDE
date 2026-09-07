@@ -25,7 +25,7 @@ function Harness({ onPreviewSpace = vi.fn() }: { onPreviewSpace?: () => void }) 
       )}
       onPreviewSpace={onPreviewSpace}
     >
-      <main data-testid="workspace" />
+      <main data-testid="workspace"><button type="button">Workspace action</button></main>
     </StudioEntityDrawer>
   )
 }
@@ -97,6 +97,25 @@ describe('StudioEntityDrawer (#966)', () => {
 
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(tab).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('reacquires focus after list hydration replaces the field without stealing it after an intentional departure', async () => {
+    render(<Harness />)
+    const tab = screen.getByRole('button', { name: 'Open the Shows list' })
+    fireEvent.keyDown(tab, { key: 'Enter' })
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+
+    const originalSearch = screen.getByRole('textbox', { name: 'Search by name' })
+    const replacement = originalSearch.cloneNode(true) as HTMLInputElement
+    originalSearch.replaceWith(replacement)
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+    expect(replacement).toHaveFocus()
+
+    const workspaceAction = screen.getByRole('button', { name: 'Workspace action' })
+    workspaceAction.focus()
+    replacement.parentElement?.append(document.createElement('span'))
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+    expect(workspaceAction).toHaveFocus()
   })
 
   it('shows the close timer after a pointer leave, cancels on re-entry, and closes after 600 ms', () => {

@@ -86,9 +86,10 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
 
   useEffect(() => {
     if (mode !== 'open' || state.openSource !== 'keyboard') return
+    let refocusAllowed = true
     const focusList = () => {
       const rail = drawerRef.current
-      if (!rail || rail.contains(document.activeElement)) return
+      if (!refocusAllowed || !rail || rail.contains(document.activeElement)) return
       const search = rail.querySelector<HTMLInputElement>('input[aria-label="Search by name"]')
       const selected = rail.querySelector<HTMLElement>('[role="treeitem"][aria-selected="true"]')
       const first = rail.querySelector<HTMLElement>('[role="treeitem"]')
@@ -97,11 +98,20 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
     const rail = drawerRef.current
     const observer = new MutationObserver(focusList)
     if (rail) observer.observe(rail, { childList: true, subtree: true })
+    const stopRefocusingAfterIntentionalDeparture = (event: FocusEvent) => {
+      if (
+        rail?.contains(event.target as Node)
+        && event.relatedTarget instanceof Node
+        && !rail.contains(event.relatedTarget)
+      ) refocusAllowed = false
+    }
+    rail?.addEventListener('focusout', stopRefocusingAfterIntentionalDeparture)
     const initial = window.setTimeout(focusList, 0)
     const stop = window.setTimeout(() => observer.disconnect(), 1_000)
     return () => {
       window.clearTimeout(initial)
       window.clearTimeout(stop)
+      rail?.removeEventListener('focusout', stopRefocusingAfterIntentionalDeparture)
       observer.disconnect()
     }
   }, [mode, state.openSource])
