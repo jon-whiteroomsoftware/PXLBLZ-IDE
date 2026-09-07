@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "issue": "966",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
+  "operation": "As issue 966's authenticated synthetic user, show the entity list pinned, tucked, and open at 1440x900, then tucked and open at 390x844. The proof driver also asserted identical editor and timeline bounds and scroll position between each tucked/open pair.",
+  "captures": [
+    ".wrsp/ui-proof/966-shows-drawer-desktop-pinned.png",
+    ".wrsp/ui-proof/966-shows-drawer-desktop-tucked.png",
+    ".wrsp/ui-proof/966-shows-drawer-desktop-open.png",
+    ".wrsp/ui-proof/966-shows-drawer-narrow-tucked.png",
+    ".wrsp/ui-proof/966-shows-drawer-narrow-open.png"
+  ],
+  "capturedAtCommit": "9a650dbcc8c9f09a840ea4705c1e8f4d29ff5033"
+}
