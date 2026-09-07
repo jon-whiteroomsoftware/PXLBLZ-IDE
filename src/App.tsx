@@ -975,13 +975,14 @@ function StudioApp() {
       ) return
       const place = studioPlaceForShortcut(event)
       if (!place) return
+      if (place !== 'docs' && place !== 'api-reference' && !personalWorkspaceAuthenticated) return
       event.preventDefault()
       event.stopPropagation()
       selectStudioPlace(place)
     }
     document.addEventListener('keydown', handlePlaceShortcut)
     return () => document.removeEventListener('keydown', handlePlaceShortcut)
-  }, [route.kind, selectStudioPlace])
+  }, [personalWorkspaceAuthenticated, route.kind, selectStudioPlace])
 
   const continueFromStudioWelcome = useCallback((provider: AuthProvider) => {
     try {

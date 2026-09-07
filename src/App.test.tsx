@@ -225,6 +225,19 @@ describe('App smoke test', () => {
     expect(window.location.pathname).toBe('/gallery')
   })
 
+  it('keeps signed-out reference readers on the page for Studio place shortcuts (#965)', () => {
+    setStudioLocation('/docs')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: false,
+      personalWorkspaceResolved: true,
+    })
+    render(<App />)
+
+    fireEvent.keyDown(document.body, { key: 's' })
+
+    expect(window.location.pathname).toBe('/docs')
+  })
+
   it('shows and restores the active Pattern and Show remembered across reference routes (#965)', async () => {
     const pattern: PatternRecord = {
       id: 'remembered-pattern',
