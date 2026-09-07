@@ -56,6 +56,9 @@ export function DeckSection({
   summary,
   actions,
   flushTop = false,
+  summaryRow = false,
+  expanded: controlledExpanded,
+  onExpandedChange,
   children,
 }: {
   label: string
@@ -66,14 +69,19 @@ export function DeckSection({
   summary?: ReactNode
   actions?: ReactNode
   flushTop?: boolean
+  summaryRow?: boolean
+  expanded?: boolean
+  onExpandedChange?: (expanded: boolean) => void
   children: ReactNode
 }) {
-  const [expanded, setExpandedState] = useState(
+  const [localExpanded, setExpandedState] = useState(
     persistKey && deckSectionExpandedByKey.has(persistKey)
       ? deckSectionExpandedByKey.get(persistKey)!
       : defaultExpanded,
   )
+  const expanded = controlledExpanded ?? localExpanded
   const setExpanded = (next: boolean) => {
+    onExpandedChange?.(next)
     if (persistKey) deckSectionExpandedByKey.set(persistKey, next)
     setExpandedState(next)
   }
@@ -83,7 +91,7 @@ export function DeckSection({
     <div
       data-expanded={contentVisible}
       data-deck="section"
-      className={`${flushTop ? 'mt-0 pt-0.5' : 'mt-0.5 pt-1'} ${contentVisible ? 'pb-1.5' : 'pb-0'}`}
+      className={summaryRow ? 'panel-section' : `${flushTop ? 'mt-0 pt-0.5' : 'mt-0.5 pt-1'} ${contentVisible ? 'pb-1.5' : 'pb-0'}`}
     >
       {collapsible ? (
         <DeckDisclosureHeader
@@ -96,9 +104,9 @@ export function DeckSection({
               {hint}
             </HelpHint>
           )}
-          className={expanded || !summary
-            ? `${expanded ? 'mb-1' : 'mb-0'} h-[18px]`
-            : 'mb-0'}
+          summaryRow={summaryRow}
+          actions={actions}
+          className={expanded || !summary ? `${expanded ? 'mb-1' : 'mb-0'} h-[18px]` : 'mb-0'}
         />
       ) : (
         <div
@@ -116,7 +124,7 @@ export function DeckSection({
           {actions && <span className="ml-auto flex items-center gap-1">{actions}</span>}
         </div>
       )}
-      {contentVisible && children}
+      {summaryRow ? <div className="panel-section-body" hidden={!contentVisible}>{contentVisible && children}</div> : contentVisible && children}
     </div>
   )
 }
@@ -128,6 +136,8 @@ export function DeckDisclosureHeader({
   hint,
   summary,
   className = '',
+  summaryRow = false,
+  actions,
 }: {
   label: string
   expanded: boolean
@@ -135,7 +145,25 @@ export function DeckDisclosureHeader({
   hint?: ReactNode
   summary?: ReactNode
   className?: string
+  summaryRow?: boolean
+  actions?: ReactNode
 }) {
+  if (summaryRow) return (
+    <div className="panel-section-header" data-deck="section-header">
+      <h4 className="shrink-0">
+        <button type="button" aria-expanded={expanded} aria-label={label} onClick={onToggle} className="panel-section-toggle">
+          <ChevronDown size={12} className={expanded ? '' : '-rotate-90'} aria-hidden />
+          <span>{label}</span>
+        </button>
+      </h4>
+      {/* The specified folded readout deliberately fades surplus text at the right edge. */}
+      <div className="panel-section-summary" data-deck="section-summary" data-testid="deck-section-summary" data-layout-allow="overflow-x">
+        <div className="panel-section-summary-content" data-layout-allow="escape-x">{summary}</div>
+      </div>
+      {actions && <span className="shrink-0 flex items-center gap-1">{actions}</span>}
+      {hint}
+    </div>
+  )
   return (
     <div
       className={`flex gap-1.5 ${summary ? 'items-start' : 'items-center'} ${className}`}

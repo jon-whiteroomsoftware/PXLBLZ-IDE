@@ -962,8 +962,8 @@ test('resized Pattern and Show previews keep their controls reachable', async ({
   }).toBe(true)
   await previewPane.getByRole('button', { name: 'Pixelblaze', exact: true }).click()
   await previewPane.getByRole('button', { name: 'Preview', exact: true }).click()
-  await previewPane.getByRole('button', { name: 'Pattern controls', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Watch variables' })).toBeInViewport()
+  await previewPane.getByRole('button', { name: 'Controls', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Variables', exact: true })).toBeInViewport()
 
   await page.goto('studio/shows/stock-show-showcase-redline-installation')
   const showSplitter = page.getByRole('separator', { name: 'Resize timeline and Stage' })

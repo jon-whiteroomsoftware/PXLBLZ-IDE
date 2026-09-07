@@ -90,8 +90,8 @@ function mapSelectMeta(
 }
 
 export function useMapSelectMeta() {
-  const { mapDim, maps } = useLayoutControls()
-  return { ...mapSelectMeta(mapDim, maps), mapDim }
+  const { mapDim, maps, coordinateViews, activeMapId, mapValue } = useLayoutControls()
+  return { ...mapSelectMeta(mapDim, maps), mapDim, hasCoordinateViewChoice: coordinateViews.length > 1, coordinateViewLabel: coordinateViews.find(v => v.mapId === activeMapId)?.label, mapLabel: maps.find(m => m.id === mapValue)?.name ?? 'Index' }
 }
 
 export function useEmbeddingSelectMeta() {
@@ -133,12 +133,12 @@ export function MapSelect({ portaled = false }: { portaled?: boolean } = {}) {
   )
 }
 
-export function CoordinateViewSelect({ portaled = false }: { portaled?: boolean } = {}) {
+export function CoordinateViewSelect({ portaled = false, bare = false }: { portaled?: boolean; bare?: boolean } = {}) {
   const { coordinateViews, activeMapId, route } = useLayoutControls()
   if (coordinateViews.length < 2) return null
   return (
-    <div className="mt-1 flex items-center justify-end gap-1.5">
-      <span className="text-[10px] lowercase tracking-wide text-structural">view</span>
+    <div className={bare ? 'min-w-0' : 'mt-1 flex items-center justify-end gap-1.5'}>
+      {!bare && <span className="text-[10px] lowercase tracking-wide text-structural">view</span>}
       <DeckSelect
         ariaLabel="Coordinate view"
         value={activeMapId}

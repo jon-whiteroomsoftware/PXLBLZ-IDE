@@ -4,7 +4,10 @@ import { useControlStore, type ControlValue } from '@/store/controlStore'
 import { DeckSlider } from '@/components/DeckSlider'
 import { TimeField } from '@/components/ui/time-field'
 import { HelpHint } from '@/components/HelpHint'
-import { DeckDisclosureHeader } from '@/components/Deck'
+import { DeckDisclosureHeader, DeckSection } from '@/components/Deck'
+import { usePanelSection } from '@/store/panelPreferencesStore'
+import { describeControlsReadout } from '@/engine/previewPanel'
+import { PanelReadout } from '@/components/PanelReadout'
 
 function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
   const i = Math.floor(h * 6)
@@ -55,8 +58,11 @@ function tripletToHex(kind: string, value: ControlValue): string {
   return rgbToHex(v[0], v[1], v[2])
 }
 
-export function ControlsPanel() {
-  const [expanded, setExpanded] = useState(true)
+export function ControlsPanel({ mode }: { mode?: string } = {}) {
+  const [legacyExpanded, setLegacyExpanded] = useState(true)
+  const [panelExpanded, setPanelExpanded] = usePanelSection(mode ?? 'pattern', 'Controls')
+  const expanded = mode ? panelExpanded : legacyExpanded
+  const setExpanded = mode ? setPanelExpanded : setLegacyExpanded
   const controls = useEditorStore((s) => s.controls)
   const controlValues = useControlStore((s) => s.controlValues)
   const setControlValue = useControlStore((s) => s.setControlValue)
@@ -142,6 +148,19 @@ export function ControlsPanel() {
     )
   }
 
+  if (mode) return (
+    <DeckSection label="Controls" collapsible summaryRow expanded={expanded} onExpandedChange={setExpanded}
+      summary={<PanelReadout items={describeControlsReadout(controls, controlValues)} />}
+      hint={hasDescriptions ? <div className="flex flex-col gap-1.5">{controls.map(c => <div key={c.exportName}><span className="text-zinc-200">{c.label}</span>{c.description && <span> — {c.description}</span>}</div>)}</div> : undefined}
+    >
+      <div className="panel-fields">
+        {sliders.map(renderSlider)}
+        {toggles.map(renderToggle)}
+        {pickers.map(renderPicker)}
+      </div>
+    </DeckSection>
+  )
+
   return (
     <div
       data-expanded={expanded}
@@ -150,7 +169,7 @@ export function ControlsPanel() {
       <DeckDisclosureHeader
         label="Pattern controls"
         expanded={expanded}
-        onToggle={() => setExpanded((value) => !value)}
+        onToggle={() => setExpanded(!expanded)}
         className={expanded ? 'mb-2' : 'mb-0'}
         hint={hasDescriptions && (
           <HelpHint label="About these controls" width={300}>

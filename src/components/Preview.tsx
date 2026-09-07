@@ -34,6 +34,7 @@ import { snapshotWatchValue } from '@/engine/watchValue'
 import { captureEnabled, createPreviewCapture } from '@/dev/previewCapture'
 import { runCaptureSequence, type CaptureSequenceOptions } from '@/dev/captureSequence'
 import { beginCaptureOrbit } from '@/dev/captureOrbit'
+import { VariablesCanvasReadout } from '@/components/Variables'
 
 // Square 3D viewport size (CSS px): fill the available pane edge-to-edge (the
 // smaller of its two sides), so the 3D canvas is exactly as tall as a square 2D
@@ -45,15 +46,7 @@ function cube3DCanvasPx(containerWidth: number, containerHeight?: number): numbe
   return Math.max(1, Math.floor(Math.min(containerWidth, containerHeight)))
 }
 
-// Keep the transport and collapsed disclosure stack reachable when a wide
-// preview would otherwise let its width-sized canvas consume the full pane.
-const PREVIEW_CONTROLS_MIN_HEIGHT_PX = 180
-
-function availableCanvasHeight(paneHeight: number, constrainHeight: boolean): number | undefined {
-  if (!constrainHeight) return undefined
-  return Math.max(1, Math.floor(paneHeight - PREVIEW_CONTROLS_MIN_HEIGHT_PX))
-}
-
+// The deck uses its intrinsic height; the preview fits the remaining space.
 export function Preview({
   showDeck = true,
   pixelCountCap = null,
@@ -106,6 +99,9 @@ export function Preview({
     lightSize: number
   } | null>(null)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
+  const viewportRef = useRef(viewport)
+  useEffect(() => { viewportRef.current = viewport }, [viewport])
+  const viewportReady = viewport !== null
   const showsLastWorkingPreview = (
     previewUnavailableReason === null
     && editorFlavor === 'pattern'
@@ -127,10 +123,7 @@ export function Preview({
     if (!el || !root) return
     const fitPreview = () => {
       const containerWidth = Math.max(1, el.getBoundingClientRect().width)
-      const containerHeight = availableCanvasHeight(
-        root.getBoundingClientRect().height,
-        constrainCanvasHeight,
-      )
+      const containerHeight = constrainCanvasHeight ? Math.max(1, el.getBoundingClientRect().height) : undefined
       const lightSize = usePreviewStore.getState().lightSize
       const nextViewport = { containerWidth, containerHeight, lightSize }
       setViewport(nextViewport)
@@ -156,17 +149,15 @@ export function Preview({
     const { width } = el.getBoundingClientRect()
     setViewport({
       containerWidth: Math.max(1, width),
-      containerHeight: availableCanvasHeight(
-        root.getBoundingClientRect().height,
-        constrainCanvasHeight,
-      ),
+      containerHeight: constrainCanvasHeight ? Math.max(1, el.getBoundingClientRect().height) : undefined,
       lightSize,
     })
   }, [lightSize, constrainCanvasHeight])
 
-  // Rebuild the loop whenever source or the viewport changes
+  // Source/layout changes rebuild the loop; viewport resizing only refits it.
   useEffect(() => {
     const canvas = canvasRef.current
+    const viewport = viewportRef.current
     if (!canvas || !viewport) return
     setRuntimeError(null)
     useEditorStore.getState().setRenderAdaptation(null)
@@ -387,7 +378,7 @@ export function Preview({
     if (usePreviewStore.getState().isRunning) loop.start()
 
     return () => loop.stop()
-  }, [previewSource, viewport, fidelity, libraries, activeMapId, activeShapeId, activeSurfaceId, previewPixelCount, pixelCountCap, activeNormalizeMode, activeDemoName])
+  }, [previewSource, viewportReady, fidelity, libraries, activeMapId, activeShapeId, activeSurfaceId, previewPixelCount, pixelCountCap, activeNormalizeMode, activeDemoName])
 
   // Seed the live working state from the resolved settings cascade on open:
   // one pass that composes per-pattern override → recommended (demos) → global-sticky
@@ -423,6 +414,9 @@ export function Preview({
   useEffect(() => {
     if (!viewport) return
     rendererRef.current?.resize2D(viewport)
+    const canvasPx = cube3DCanvasPx(viewport.containerWidth, viewport.containerHeight)
+    rendererRef.current?.resize3D(canvasPx, viewport.lightSize)
+    if (useEditorStore.getState().displayDim === 3) canvas3DPxRef.current = canvasPx
     if (!usePreviewStore.getState().isRunning) {
       loopRef.current?.renderPreviewFrame()
     }
@@ -615,7 +609,7 @@ export function Preview({
     >
       {/* Canvas flush at the top of the pane (#150): no header strip above it. The
           container drives the ResizeObserver fit; the deck stacks below. */}
-      <div ref={containerRef} className="relative w-full shrink-0">
+      <div ref={containerRef} className={constrainCanvasHeight ? 'relative w-full min-h-[100px] flex-1 overflow-hidden flex items-center justify-center' : 'relative w-full shrink-0'}>
         <div className="relative block w-fit">
           <canvas ref={canvasRef} className="rounded-sm" />
           {/* Orbit viewport controls — gated on the active layout's display
@@ -664,9 +658,10 @@ export function Preview({
             </div>
           )}
         </div>
+        {showDeck && <VariablesCanvasReadout mode={editorFlavor} />}
       </div>
       {showDeck && (
-        <div data-testid="preview-controls-region" className="min-h-[180px] flex-1 overflow-clip">
+        <div data-testid="preview-controls-region" className={constrainCanvasHeight ? 'pattern-panel-container shrink-0 max-h-[calc(100%-100px)] overflow-y-auto rail-list-scroll' : 'pattern-panel-container shrink-0 overflow-y-auto rail-list-scroll'}>
           <PreviewDeck />
         </div>
       )}

@@ -161,11 +161,22 @@ renderers:
   catching the ports that look fine on a laptop and break on hardware.
 
 The settings deck is split by what hardware could carry. **PIXELBLAZE**
-settings (map, modeled pixel count, Fill/Contain fit, brightness) describe
+settings (map, modeled pixel count, Fill/Contain fit) describe
 what the Pattern computes against; **PREVIEW** settings (renderer, playback
 speed, light size, diffusion, solidity) are purely how the browser draws it.
 Most settings are remembered per Pattern, and none of them ride along when
 you send to a Controller.
+
+Brightness stays beside the Pattern title. **Controls** opens by default;
+**Pixelblaze**, **Preview**, and **Variables** fold to one-line readouts.
+Each section remembers its open state per Studio mode across reloads. The
+folded Map chip remains interactive. Expanded fields align in two columns,
+falling to one column in a narrow preview pane.
+
+The Variables header can show the same values on the canvas; opening the
+section hides that overlay. Expanding sections takes space from the preview
+without restarting the Pattern. The controls scroll when their expanded
+height leaves less than the minimum preview space.
 
 ![Preview state stays in the browser; only explicit Run, Save, and Send map actions reach the Controller](../images/preview-deck-boundary.svg)
 

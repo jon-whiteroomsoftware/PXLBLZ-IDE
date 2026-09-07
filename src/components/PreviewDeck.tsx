@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
-import { Lock, Play, Pause, RotateCcw, TriangleAlert } from 'lucide-react'
+import { Lock, Play, Pause, RotateCcw, TriangleAlert, Sun } from 'lucide-react'
 import { controlIcon } from '@/components/iconScale'
 import { usePreviewStore, MIN_LIGHT_SIZE, MAX_LIGHT_SIZE } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
@@ -32,9 +32,12 @@ import {
   DeckSectionHint,
   DeckGrid,
   DeckCell,
-  DeckField,
   DeckTelemetry,
 } from '@/components/Deck'
+import { usePanelSection } from '@/store/panelPreferencesStore'
+import { describePixelblazeReadout, describePreviewReadout } from '@/engine/previewPanel'
+import { PanelReadout } from '@/components/PanelReadout'
+import '@/components/PatternPanel.css'
 
 // Card content for the two viewport sections. The contrast is the point: the
 // Pixelblaze section is real device state that travels to hardware; the Preview
@@ -44,7 +47,6 @@ const PIXELBLAZE_HINT = (
     heading="Pixelblaze controller settings"
     items={[
       ['map', 'the coordinates sampled by each physical pixel in 1D/2D/3D space'],
-      ['brightness', 'master output level applied to every pixel'],
       ['fit', 'pixel map normalization to pattern space — Contain keeps the aspect ratio, Fill stretches each axis to fill it'],
       ['pixel count', 'how many LEDs the pattern drives'],
     ]}
@@ -86,15 +88,23 @@ const SHOW_PREVIEW_HINT = (
 // to be its own Readout section — both are preview-only, so they share one section);
 // then the author's pattern controls; then the Variables turn-down.
 export function PreviewDeck({ showPrimaryBand = true }: { showPrimaryBand?: boolean }) {
+  const mode = useEditorStore(s => s.editorFlavor)
   return (
-    <div className="font-mono pl-3" data-testid="preview-deck">
+    <div className="pattern-panel-container" data-testid="preview-deck">
+      <div className="font-mono pattern-panel">
       {showPrimaryBand && <PrimaryBand />}
       {!showPrimaryBand && <ActiveMapBakeStatus standalone />}
-      <SecondaryBand />
-      <ControlsPanel />
-      <Variables />
+      <SecondaryBand mode={mode} />
+      <ControlsPanel mode={mode} />
+      <Variables mode={mode} />
+      </div>
     </div>
   )
+}
+
+function PatternSection({ label, mode, ...props }: Omit<Parameters<typeof DeckSection>[0], 'collapsible' | 'summaryRow'> & { mode: string }) {
+  const [expanded, setExpanded] = usePanelSection(mode, label)
+  return <DeckSection {...props} label={label} collapsible summaryRow expanded={expanded} onExpandedChange={setExpanded} />
 }
 
 function ActiveMapBakeStatus({ standalone = false }: { standalone?: boolean }) {
@@ -143,12 +153,15 @@ function PrimaryBand() {
   usePatternStore((s) => s.demoOverrides)
   const showReset = hasActiveOverrides()
 
+  const brightness = usePreviewStore(s => s.brightness)
+  const setBrightness = usePreviewStore(s => s.setBrightness)
+
   // The name truncates first; the embedding control and play/pause never do (both
   // `shrink-0`), so the controls stay fully readable and only the title gives up space
   // (#63). The MAP control no longer lives here — it moved to the PIXELBLAZE block
   // (#253); this row holds only viewport affordances + transport.
   return (
-    <div className="flex items-center gap-3 py-2 pr-3 border-b border-zinc-800">
+    <div className="panel-primary flex items-center gap-2 py-2 border-b border-zinc-800" data-testid="pattern-preview-title">
       <div className="flex-1 min-w-0 flex items-center gap-2">
         <span
           className="min-w-0 truncate text-sm text-zinc-200"
@@ -159,6 +172,10 @@ function PrimaryBand() {
         </span>
         <DimPills dims={exportedDims(previewSource)} />
         <ActiveMapBakeStatus />
+      </div>
+      <div className="panel-brightness" title={`Brightness ${Math.round(brightness * 100)}%`}>
+        <Sun size={13} aria-hidden className="text-zinc-400 shrink-0" />
+        <DeckSlider label="brightness" ariaLabel="Brightness" value={brightness} min={0} max={1} step={0.01} presentation="percentage" curve={2} onChange={v => { setBrightness(v); writeCascadedOverride('brightness', v) }} />
       </div>
       {showReset && (
         <button
@@ -256,9 +273,14 @@ function PixelCountInput() {
 // renderer, speed — "never serialize toward a controller") which also
 // absorbs the read-only telemetry (fps/elapsed/layout). All sliders use the one shared
 // long DeckSlider style; non-slider rows stay on the deck's 2-col label/value grid.
-function SecondaryBand() {
-  const brightness = usePreviewStore((s) => s.brightness)
-  const setBrightness = usePreviewStore((s) => s.setBrightness)
+function SecondaryBand({ mode }: { mode: string }) {
+  const activePixelCount = useMapStore(s => s.activePixelCount)
+  const activeMapId = useMapStore(s => s.activeMapId)
+  const userMaps = useMapStore(s => s.userMaps)
+  const { mapDim } = useMapSelectMeta()
+  const activeMap = resolveMap(activeMapId, userMaps)
+  const count = activeMap.fixedPixelCount ?? effectivePixelCount({ persisted: activePixelCount, fallback: defaultPixelCountForDim(mapDim) })
+
   const renderAdaptation = useEditorStore((s) => s.renderAdaptation)
   // Fill/Contain (#174): a real Mapper map-coordinate normalization setting, so it
   // sits in the Pixelblaze section. Contain (default) preserves aspect; Fill stretches
@@ -271,39 +293,17 @@ function SecondaryBand() {
   // by its physical spectrum, Transparent ↔ Solid.
   // Map stays available across dimensions. Fit keys off the selected map and is
   // absent for 1D because Contain and Fill are equivalent on one axis.
-  const { hasMapChoice, hasMappedCoordinates } = useMapSelectMeta()
+  const { hasMapChoice, hasMappedCoordinates, hasCoordinateViewChoice, coordinateViewLabel, mapLabel } = useMapSelectMeta()
 
   return (
-    <div className="text-xs pr-3">
-      <DeckSection label="Pixelblaze" hint={PIXELBLAZE_HINT} collapsible>
+    <div className="text-xs">
+      <PatternSection label="Pixelblaze" mode={mode} hint={PIXELBLAZE_HINT} summary={<>
+        {hasMapChoice ? <span className="panel-map-chip"><MapSelect portaled /></span> : <span>{mapLabel}</span>}
+        <PanelReadout items={describePixelblazeReadout({ coordinateView: coordinateViewLabel, mapped: hasMappedCoordinates, normalize: normalizeMode, pixelCount: count })} />
+      </>}>
         <DeckGrid>
-          {/* Row 1 is the two controls that want room: map (stacked, so its dropdown
-              gets the full column width for long map names) and brightness (the stacked
-              slider). Row 2 holds the two compact one-liners: fit and pixel count, as
-              inline label-left/value-right cells. Fit drops out for an active 1D map;
-              the Map control remains because Other dimensions are always available. */}
-          {hasMapChoice && (
-            <DeckField label="map">
-              <div className="flex flex-col items-end">
-                <MapSelect portaled />
-                <CoordinateViewSelect portaled />
-              </div>
-            </DeckField>
-          )}
-          <DeckSlider
-            label="brightness"
-            ariaLabel="Brightness"
-            value={brightness}
-            min={0}
-            max={1}
-            step={0.01}
-            presentation="percentage"
-            curve={2}
-            onChange={(v) => {
-              setBrightness(v)
-              writeCascadedOverride('brightness', v)
-            }}
-          />
+          {hasMapChoice && <DeckCell label="map"><MapSelect portaled /></DeckCell>}
+          {hasCoordinateViewChoice && <DeckCell label="view"><CoordinateViewSelect portaled bare /></DeckCell>}
           {hasMappedCoordinates && (
             <DeckCell label="fit">
               <DeckSelect
@@ -334,8 +334,8 @@ function SecondaryBand() {
             {renderAdaptation}
           </div>
         )}
-      </DeckSection>
-      <PreviewViewportSection profile="pattern" />
+      </PatternSection>
+      <PreviewViewportSection profile="pattern" mode={mode} />
     </div>
   )
 }
@@ -343,9 +343,11 @@ function SecondaryBand() {
 export function PreviewViewportSection({
   profile,
   headerActions,
+  mode = 'pattern',
 }: {
   profile: 'pattern' | 'show'
   headerActions?: ReactNode
+  mode?: string
 }) {
   const lightSize = usePreviewStore((s) => s.lightSize)
   const setLightSize = usePreviewStore((s) => s.setLightSize)
@@ -362,6 +364,8 @@ export function PreviewViewportSection({
   const solidity = useMapStore((s) => s.activeSolidity)
   const setSolidity = useMapStore((s) => s.setActiveSolidity)
   const pattern = profile === 'pattern'
+  const speed = usePreviewStore(s => s.speed)
+  const [expanded, setExpanded] = usePanelSection(mode, 'Preview')
 
   const updateLightSize = (value: number) => {
     setLightSize(value)
@@ -379,6 +383,10 @@ export function PreviewViewportSection({
       label="Preview"
       hint={pattern ? PREVIEW_HINT : SHOW_PREVIEW_HINT}
       collapsible={pattern}
+      summaryRow={pattern}
+      expanded={pattern ? expanded : undefined}
+      onExpandedChange={pattern ? setExpanded : undefined}
+      summary={pattern ? <PanelReadout items={describePreviewReadout({ lightSize, diffusion, fidelity, speed, fps, elapsed, layout: layoutLabel })} /> : undefined}
       actions={headerActions}
     >
       <DeckGrid className="mb-[5px]">

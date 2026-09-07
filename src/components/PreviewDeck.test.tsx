@@ -1,3 +1,4 @@
+import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { PreviewDeck } from './PreviewDeck'
@@ -9,6 +10,7 @@ import { INDEX_MAP_ID } from '@/engine/layout'
 import { AUTO_MAP_ID } from '@/engine/settings'
 
 beforeEach(() => {
+  usePanelPreferencesStore.setState({ expanded: { 'pattern:pixelblaze': true, 'pattern:preview': true }, overlays: {} })
   usePreviewStore.setState(previewInitialState)
   useMapStore.setState(mapInitialState)
   useEditorStore.setState(editorInitialState)
@@ -180,7 +182,7 @@ describe('PreviewDeck (smoke)', () => {
 
     fireEvent.click(pixelblazeToggle)
     expect(pixelblazeToggle).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('slider', { name: 'Brightness' })).not.toBeInTheDocument()
+    expect(screen.getByRole('slider', { name: 'Brightness' })).toBeInTheDocument()
     expect(screen.getByRole('slider', { name: 'Light size' })).toBeInTheDocument()
 
     fireEvent.click(pixelblazeToggle)
@@ -197,14 +199,14 @@ describe('PreviewDeck (smoke)', () => {
     const header = toggle.closest('h4')?.parentElement
 
     expect(section).toHaveAttribute('data-expanded', 'true')
-    expect(section).toHaveClass('pb-1.5')
-    expect(header).toHaveClass('mb-1')
+    expect(section?.querySelector('.panel-section-body')).not.toHaveAttribute('hidden')
+    expect(header).toHaveClass('panel-section-header')
 
     fireEvent.click(toggle)
 
     expect(section).toHaveAttribute('data-expanded', 'false')
-    expect(section).toHaveClass('pb-0')
-    expect(header).toHaveClass('mb-0')
+    expect(section?.querySelector('.panel-section-body')).toHaveAttribute('hidden')
+    expect(header).toHaveClass('panel-section-header')
   })
 
   it('uses the compact trailing rhythm for Preview inner grids', () => {

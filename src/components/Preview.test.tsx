@@ -14,7 +14,7 @@ beforeEach(() => {
 })
 
 describe('Preview (smoke)', () => {
-  it('keeps the LED canvas outside a non-scrolling clipped controls region', () => {
+  it('keeps the LED canvas outside the independently scrolling controls region', () => {
     const { container } = render(<Preview />)
     const root = container.firstElementChild as HTMLElement
     expect(root.className).toContain('overflow-clip')
@@ -25,7 +25,7 @@ describe('Preview (smoke)', () => {
     expect(root).toHaveAttribute('data-height-constrained', 'true')
 
     const controlsRegion = container.querySelector('[data-testid="preview-controls-region"]')
-    expect(controlsRegion).toHaveClass('min-h-[180px]', 'flex-1', 'overflow-clip')
+    expect(controlsRegion).toHaveClass('shrink-0', 'overflow-y-auto', 'rail-list-scroll')
   })
 
   it('keeps a deckless Gallery preview width-authoritative', () => {
