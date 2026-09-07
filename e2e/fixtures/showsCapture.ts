@@ -37,8 +37,10 @@ export async function createShowsCaptureAdapter(page: Page, count: number): Prom
       await expect.poll(async () => {
         const response = await page.request.get('/api/controllers')
         if (!response.ok()) return 0
-        const body = await response.json() as { controllers: unknown[] }
-        return body.controllers.length
+        const body = await response.json() as { controllers: Array<{ deviceId: string; lastKnownDeviceName: string }> }
+        const visibleNames = await page.getByTestId('controller-pill').locator('[data-controller-pill-label]').allTextContents()
+        const matching = body.controllers.filter((record) => visibleNames.includes(record.lastKnownDeviceName))
+        return new Set(matching.map((record) => record.deviceId)).size
       }).toBe(count)
     },
     async observe() {
