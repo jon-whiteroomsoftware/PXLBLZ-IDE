@@ -2,9 +2,9 @@
   "version": 1,
   "issue": "981",
   "route": "/PXLBLZ-IDE/studio/shows/stock-show-100-getting-around",
-  "operation": "Real authenticated Show route: hover the collapsed edge, wait for the opening slide to reach x=0, then leave the pointer completely stationary for 800ms, longer than the 600ms close delay. The drawer remains open and transport keyboard focus and timeline geometry remain unchanged; screenshot taken before any further pointer movement. The same focused run preserves quick-departure, panel-return, drag, keyboard and reduced-motion cases. Authorized isolated repository Playwright fallback; no user cookies.",
+  "operation": "Real authenticated Show route: hover the collapsed edge through its 300ms dwell, wait for the opening slide to reach x=0, then leave the pointer completely stationary for 800ms, longer than the 600ms close delay. The drawer remains open and transport keyboard focus and timeline geometry remain unchanged; screenshot taken before any further pointer movement. The same focused run preserves quick-departure, panel-return, drag, keyboard and reduced-motion cases. Authorized isolated repository Playwright fallback; no user cookies.",
   "captures": [
     ".wrsp/ui-proof/981-stationary-hover.png"
   ],
-  "capturedAtCommit": "14a33be82afc8cb920d636840165245d381db180"
+  "capturedAtCommit": "383d7794dd23e288aacb28af83e508c48fdc5930"
 }
