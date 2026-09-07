@@ -2704,9 +2704,9 @@ async function getShowAction(
 
 async function createInstallationShow(page: Page): Promise<void> {
   const addShow = page.getByRole('button', { name: 'Add show' })
-  if (!await addShow.isVisible()) {
-    await page.getByRole('button', { name: 'Open the Shows list' }).click()
-  }
+  const openShows = page.getByRole('button', { name: 'Open the Shows list' })
+  await expect(addShow.or(openShows).first()).toBeVisible()
+  if (await openShows.isVisible()) await openShows.click()
   await addShow.click()
   await page.getByRole('button', { name: 'New show' }).click()
   await page.getByRole('button', { name: 'Create Installation Show' }).click()
