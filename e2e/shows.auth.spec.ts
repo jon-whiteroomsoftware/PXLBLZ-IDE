@@ -3119,6 +3119,15 @@ test('Show strip summaries retain controls, keyboard ownership and canvas at the
   await expect.poll(async () => (await rail.boundingBox())?.width).toBe(30)
   const pause = rail.getByRole('button', { name: 'Pause Show preview', exact: true })
   if (await pause.isVisible()) await pause.click()
+  for (const name of ['Zone outlines', 'Selected Clip outline']) {
+    const outline = rail.getByRole('button', { name: new RegExp(`^(Show|Hide) ${name}$`) })
+    const before = await outline.getAttribute('aria-pressed')
+    await outline.press('Space')
+    await expect(outline).toHaveAttribute('aria-pressed', before === 'true' ? 'false' : 'true')
+    await expect(rail.getByRole('button', { name: 'Play Show preview', exact: true })).toBeVisible()
+    await outline.press('Enter')
+    await expect(outline).toHaveAttribute('aria-pressed', before!)
+  }
   const stageSection = controls.getByRole('button', { name: 'Stage', exact: true })
   await stageSection.focus()
   await stageSection.press('Space')

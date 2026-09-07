@@ -1064,7 +1064,7 @@ export function ShowStagePreview({
         </div>
       </div>
       {presentation === 'strip' && <>
-        <div className="show-preview-rail" role="group" aria-label="Show preview controls" data-studio-space-preview="true">
+        <div className="show-preview-rail" role="group" aria-label="Show preview controls">
           <button type="button" aria-label={isRunning ? 'Pause Show preview' : 'Play Show preview'} title={isRunning ? 'Pause Show preview' : 'Play Show preview'} aria-pressed={isRunning} onClick={togglePlayback} className={isRunning ? 'text-green-400' : 'text-red-400'}>{isRunning ? <Pause size={14} aria-hidden /> : <Play size={14} aria-hidden />}</button>
           <span className="show-preview-rail-separator" />
           <StageDiagnosticToggle label="Zone outlines" icon={<Grid2X2 size={13} aria-hidden />} active={diagnostics.zoneOutlines} onChange={active => setDiagnostic('zoneOutlines', active)} />
