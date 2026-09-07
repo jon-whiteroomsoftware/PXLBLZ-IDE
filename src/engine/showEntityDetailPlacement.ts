@@ -22,6 +22,7 @@ export function placeShowEntityDetailPanel({
   viewport,
   avoid = [],
   margin = 8,
+  minimumTop = margin,
   gap = 10,
   collisionGap = 8,
 }: {
@@ -30,15 +31,16 @@ export function placeShowEntityDetailPanel({
   viewport: Pick<ShowEntityDetailRect, 'width' | 'height'>
   avoid?: ShowEntityDetailRect[]
   margin?: number
+  minimumTop?: number
   gap?: number
   collisionGap?: number
 }): ShowEntityDetailPlacement {
   const anchorCenter = anchor.left + anchor.width / 2
   const anchorMiddle = anchor.top + anchor.height / 2
   const placeBeside = (side: 'left' | 'right'): ShowEntityDetailPlacement => {
-    const maxHeight = Math.max(1, viewport.height - margin * 2)
+    const maxHeight = Math.max(1, viewport.height - minimumTop - margin)
     const renderedHeight = Math.min(panel.height, maxHeight)
-    const top = clamp(anchorMiddle - renderedHeight / 2, margin, viewport.height - renderedHeight - margin)
+    const top = clamp(anchorMiddle - renderedHeight / 2, minimumTop, viewport.height - renderedHeight - margin)
     return {
       left: side === 'right' ? anchor.left + anchor.width + gap : anchor.left - gap - panel.width,
       top,
@@ -58,13 +60,13 @@ export function placeShowEntityDetailPanel({
   }
   const belowTop = anchor.top + anchor.height + gap
   const roomBelow = viewport.height - margin - belowTop
-  const roomAbove = anchor.top - gap - margin
+  const roomAbove = anchor.top - gap - minimumTop
   const locallyCramped = roomBelow < panel.height && roomAbove < panel.height
   const placement = roomBelow >= panel.height || roomBelow >= roomAbove ? 'below' : 'above'
   const placeOnSide = (side: 'above' | 'below', leftOverride?: number): ShowEntityDetailPlacement => {
     const maxHeight = Math.max(
       1,
-      locallyCramped ? viewport.height - margin * 2 : side === 'below' ? roomBelow : roomAbove,
+      locallyCramped ? viewport.height - minimumTop - margin : side === 'below' ? roomBelow : roomAbove,
     )
     const renderedHeight = Math.min(panel.height, maxHeight)
     const desiredTop = side === 'below' ? belowTop : anchor.top - gap - renderedHeight
@@ -73,7 +75,7 @@ export function placeShowEntityDetailPanel({
       margin,
       viewport.width - panel.width - margin,
     )
-    const top = clamp(desiredTop, margin, viewport.height - renderedHeight - margin)
+    const top = clamp(desiredTop, minimumTop, viewport.height - renderedHeight - margin)
     const stemLeft = clamp(anchorCenter - left, 16, panel.width - 16)
     return { left, top, maxHeight, placement: side, stemLeft }
   }

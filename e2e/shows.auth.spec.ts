@@ -162,23 +162,26 @@ test.describe('authenticated Show authoring', () => {
     await expect(showEnd).toBeHidden()
   })
 
-  test('keeps the Show End diamond aligned when the preview pane resizes the timeline (#63)', async ({ page }) => {
+  test('keeps the Show End diamond aligned when the Stage split resizes the timeline (#63, #967)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
 
     const showEnd = page.getByRole('button', { name: /Show End at/ })
     const endAnchor = page.getByTestId('show-timeline-end-anchor')
-    const previewSplitter = page.getByRole('separator', { name: 'Resize preview pane' })
+    const stageSplitter = page.getByRole('separator', { name: 'Resize timeline and Stage' })
+    const timelinePane = page.getByTestId('show-timeline-pane')
     await expect(showEnd).toBeVisible()
 
     const initialAnchor = await endAnchor.boundingBox()
     expect(initialAnchor).not.toBeNull()
-    await previewSplitter.press('Shift+ArrowLeft')
+    const initialTimeline = await timelinePane.boundingBox()
+    expect(initialTimeline).not.toBeNull()
+    await stageSplitter.press('Shift+ArrowDown')
 
     await expect.poll(async () => {
-      const anchor = await endAnchor.boundingBox()
-      return anchor?.x ?? initialAnchor!.x
-    }).toBeLessThan(initialAnchor!.x - 40)
+      const pane = await timelinePane.boundingBox()
+      return pane?.height ?? initialTimeline!.height
+    }).toBeGreaterThan(initialTimeline!.height + 40)
     await expect.poll(async () => {
       const anchor = await endAnchor.boundingBox()
       const marker = await showEnd.boundingBox()
@@ -189,50 +192,116 @@ test.describe('authenticated Show authoring', () => {
       const verticalOffset = Math.abs(anchor.y - (marker.y + marker.height / 2))
       return Math.max(horizontalOffset, verticalOffset)
     }).toBeLessThan(1)
-    await expect.poll(async () => {
-      const marker = await showEnd.boundingBox()
-      const splitter = await previewSplitter.boundingBox()
-      return Boolean(marker && splitter && marker.x + marker.width <= splitter.x)
-    }).toBe(true)
   })
 
-  test('keeps the Stage canvas inside its scrollport across the scrollbar threshold (#686)', async ({ page }) => {
+  test('keeps the Stage aspect exact while the divider reaches both desktop clamps (#686, #967)', async ({ page }) => {
+    test.slow()
     await page.setViewportSize({ width: 1950, height: 1196 })
-    await page.goto('studio/shows/stock-show-106-built-from-basics')
+    await page.goto('studio/shows/stock-show-remix-overture')
 
-    const previewPane = page.getByTestId('preview-pane')
-    const previewSplitter = page.getByRole('separator', { name: 'Resize preview pane' })
-    const geometry = () => previewPane.evaluate((pane) => {
-      const scrollport = pane.firstElementChild as HTMLElement | null
-      const canvas = pane.querySelector('canvas')
-      const canvasContainer = canvas?.parentElement?.parentElement
-      if (!scrollport || !canvas || !canvasContainer) return null
-      const scrollStyle = getComputedStyle(scrollport)
+    const splitter = page.getByRole('separator', { name: 'Resize timeline and Stage' })
+    const frame = page.getByTestId('show-stage-canvas-frame')
+    const controls = page.getByTestId('show-stage-controls')
+    const sections = page.locator('.show-stage-control-sections')
+    const geometry = () => frame.evaluate((element) => {
+      const bounds = element.getBoundingClientRect()
+      const declaredAspect = Number.parseFloat((element as HTMLElement).style.aspectRatio)
       return {
-        paneWidth: Math.round(pane.getBoundingClientRect().width),
-        overflowX: scrollStyle.overflowX,
-        scrollbarGutter: scrollStyle.scrollbarGutter,
-        horizontalOverflow: scrollport.scrollWidth - scrollport.clientWidth,
-        canvasOverflow: Math.ceil(
-          canvas.getBoundingClientRect().width - canvasContainer.getBoundingClientRect().width,
-        ),
+        aspectError: Math.abs(bounds.width / bounds.height - declaredAspect),
+        horizontalOverflow: element.scrollWidth - element.clientWidth,
       }
     })
 
-    for (let step = 0; step < 5; step += 1) await previewSplitter.press('Shift+ArrowLeft')
-    await previewSplitter.press('ArrowLeft')
-
-    for (const targetWidth of [720, 740, 760]) {
-      await expect.poll(geometry).toEqual({
-        paneWidth: targetWidth,
-        overflowX: 'hidden',
-        scrollbarGutter: 'stable',
-        horizontalOverflow: 0,
-        canvasOverflow: 0,
-      })
-      await previewSplitter.press('ArrowLeft')
-      await previewSplitter.press('ArrowLeft')
+    for (const [width, expectedColumns] of [[1180, 1], [1440, 1], [1920, 2]] as const) {
+      await page.setViewportSize({ width, height: 1196 })
+      await expect.poll(async () => page.getByTestId('show-over-under-workspace').evaluate((workspace) => {
+        const timeline = workspace.querySelector<HTMLElement>('[data-testid="show-timeline-pane"]')
+        const divider = workspace.querySelector<HTMLElement>('[aria-label="Resize timeline and Stage"]')
+        const strip = workspace.querySelector<HTMLElement>('[data-testid="show-stage-strip"]')
+        if (!timeline || !divider || !strip) return Number.POSITIVE_INFINITY
+        const workspaceBox = workspace.getBoundingClientRect()
+        const timelineBox = timeline.getBoundingClientRect()
+        const dividerBox = divider.getBoundingClientRect()
+        const stripBox = strip.getBoundingClientRect()
+        return Math.max(
+          Math.abs(timelineBox.width - workspaceBox.width),
+          Math.abs(stripBox.width - workspaceBox.width),
+          Math.abs(dividerBox.y - timelineBox.bottom),
+          Math.abs(stripBox.y - dividerBox.bottom),
+        )
+      })).toBeLessThan(1)
+      await expect.poll(async () => sections.evaluate((element) => (
+        getComputedStyle(element).gridTemplateColumns.split(' ').length
+      ))).toBe(expectedColumns)
     }
+    await page.setViewportSize({ width: 1950, height: 1196 })
+
+    for (let step = 0; step < 20; step += 1) await splitter.press('Shift+ArrowUp')
+    await expect(splitter).toHaveAttribute('data-clamp', 'controls-min')
+    await expect.poll(async () => Math.round((await controls.boundingBox())?.width ?? 0)).toBeGreaterThanOrEqual(200)
+    await expect.poll(async () => controls.evaluate((element) => (
+      Array.from(element.querySelectorAll<HTMLElement>('*'))
+        .filter((child) => child.scrollWidth > child.clientWidth + 1)
+        .map((child) => child.textContent?.trim().slice(0, 40) ?? child.tagName)
+    ))).toEqual([])
+    await expect.poll(async () => (await geometry()).aspectError).toBeLessThan(0.002)
+    await expect.poll(async () => (await geometry()).horizontalOverflow).toBe(0)
+
+    for (let step = 0; step < 30; step += 1) await splitter.press('Shift+ArrowDown')
+    await expect(splitter).toHaveAttribute('data-clamp', 'strip-min')
+    await expect.poll(async () => sections.evaluate((element) => (
+      getComputedStyle(element).gridTemplateColumns.split(' ').length
+    ))).toBe(3)
+    await expect.poll(async () => (await geometry()).aspectError).toBeLessThan(0.002)
+    await expect.poll(async () => (await geometry()).horizontalOverflow).toBe(0)
+
+    await page.goto('studio/shows/stock-show-106-built-from-basics')
+    const squareSplitter = page.getByRole('separator', { name: 'Resize timeline and Stage' })
+    for (let step = 0; step < 30; step += 1) await squareSplitter.press('Shift+ArrowUp')
+    await expect(squareSplitter).toHaveAttribute('data-clamp', 'timeline-min')
+    await expect.poll(async () => {
+      const bounds = await page.getByTestId('show-stage-canvas-frame').boundingBox()
+      return bounds ? Math.abs(bounds.width / bounds.height - 1) : Number.POSITIVE_INFINITY
+    }).toBeLessThan(0.001)
+  })
+
+  test('drags and remembers the Show split across Show switches and reload (#967)', async ({ page }) => {
+    test.slow()
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows/stock-show-remix-overture')
+
+    const splitter = page.getByRole('separator', { name: 'Resize timeline and Stage' })
+    const initialValue = Number(await splitter.getAttribute('aria-valuenow'))
+    const bounds = await splitter.boundingBox()
+    expect(bounds).not.toBeNull()
+    await page.mouse.move(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2 + 80, { steps: 4 })
+    await page.mouse.up()
+    const draggedValue = Number(await splitter.getAttribute('aria-valuenow'))
+    expect(draggedValue).toBeGreaterThan(initialValue + 20)
+
+    await page.goto('studio/shows/stock-show-106-built-from-basics')
+    await expect(page.getByRole('separator', { name: 'Resize timeline and Stage' }))
+      .toHaveAttribute('aria-valuenow', String(draggedValue))
+    await page.reload()
+    await expect(page.getByRole('separator', { name: 'Resize timeline and Stage' }))
+      .toHaveAttribute('aria-valuenow', String(draggedValue))
+  })
+
+  test('keeps the established Show Preview overlay below the workspace breakpoint (#588, #967)', async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 800 })
+    await page.goto('studio/shows/stock-show-remix-overture')
+
+    await expect(page.getByTestId('show-stage-strip')).toHaveCount(0)
+    await expect(page.getByRole('separator', { name: 'Resize timeline and Stage' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Preview Stage' }).click()
+    const overlay = page.getByRole('dialog', { name: 'Show Stage preview' })
+    await expect(overlay).toBeVisible()
+    await expect(overlay.getByLabel('Show stage')).toBeVisible()
+    await overlay.getByRole('button', { name: 'Close Stage preview' }).click()
+    await expect(overlay).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Preview Stage' })).toBeFocused()
   })
 
   test('keeps the compact sparkline gutter and time-zero playhead crisp (#63)', async ({ page }) => {
@@ -502,7 +571,6 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByTestId('controller-pill')).toHaveAttribute('data-phase', 'live')
 
     const header = page.locator('.show-pane-header')
-    const previewSplitter = page.getByRole('separator', { name: 'Resize preview pane' })
     const outputSummary = page.getByTitle('Show output summary')
     const guide = page.getByRole('button', { name: 'Collapse 301 Installation Mapping guide' })
     const commonActions = [
@@ -528,14 +596,11 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('menuitem', { name: 'Download .epe' })).toBeVisible()
     await showActions.click()
 
-    // Constrain the authoring pane itself: viewport width is not the responsive
-    // boundary because the rail and Stage have independently resizable widths.
-    // Quiet output metadata now survives the ordinary desktop squeeze, then
-    // leaves shortly before common actions lose their labels.
-    for (let step = 0; step < 20; step += 1) {
-      if (await header.evaluate((element) => element.clientWidth <= 800)) break
-      await previewSplitter.press('Shift+ArrowLeft')
-    }
+    // The Show timeline now takes the full authoring width. Quiet output
+    // metadata survives the ordinary desktop squeeze, then leaves shortly
+    // before common actions lose their labels.
+    await page.setViewportSize({ width: 1090, height: 900 })
+    await expect.poll(async () => header.evaluate((element) => element.clientWidth)).toBeLessThanOrEqual(800)
     const metadataCompactWidth = await header.evaluate((element) => element.clientWidth)
     expect(metadataCompactWidth).toBeGreaterThan(760)
     expect(metadataCompactWidth).toBeLessThanOrEqual(800)
@@ -546,10 +611,8 @@ test.describe('authenticated Show authoring', () => {
 
     // Action copy then folds behind the controls' accessible icon buttons while
     // the Show title retains useful room.
-    for (let step = 0; step < 20; step += 1) {
-      if (await header.evaluate((element) => element.clientWidth <= 700)) break
-      await previewSplitter.press('Shift+ArrowLeft')
-    }
+    await page.setViewportSize({ width: 990, height: 900 })
+    await expect.poll(async () => header.evaluate((element) => element.clientWidth)).toBeLessThanOrEqual(700)
     const constrainedWidth = await header.evaluate((element) => element.clientWidth)
     expect(constrainedWidth).toBeGreaterThan(640)
     expect(constrainedWidth).toBeLessThanOrEqual(700)
@@ -586,10 +649,8 @@ test.describe('authenticated Show authoring', () => {
     expect(constrainedGeometry.titleActionsGap).toBeGreaterThanOrEqual(0)
     expect(constrainedGeometry.buttonOverlaps).toEqual([])
 
-    for (let step = 0; step < 20; step += 1) {
-      if (await header.evaluate((element) => element.clientWidth >= 900)) break
-      await previewSplitter.press('Shift+ArrowRight')
-    }
+    await page.setViewportSize({ width: 1300, height: 900 })
+    await expect.poll(async () => header.evaluate((element) => element.clientWidth)).toBeGreaterThanOrEqual(900)
     await expect(outputSummary).toBeVisible()
     for (const action of commonActions) {
       await expect.poll(async () => (await action.innerText()).trim()).not.toBe('')
@@ -696,10 +757,12 @@ test.describe('authenticated Show authoring', () => {
     await expect.poll(() => editor.evaluate((element) => element.scrollTop)).toBeGreaterThan(beforeVertical)
     expect(await timeline.evaluate((element) => element.scrollLeft)).toBe(beforeHorizontal)
 
+    await timeline.hover()
     await page.mouse.wheel(480, 0)
     await expect.poll(() => timeline.evaluate((element) => element.scrollLeft)).toBeGreaterThan(beforeHorizontal)
     const afterTrackpad = await timeline.evaluate((element) => element.scrollLeft)
 
+    await timeline.hover()
     await page.keyboard.down('Shift')
     await page.mouse.wheel(0, 480)
     await page.keyboard.up('Shift')
@@ -1021,13 +1084,21 @@ test.describe('authenticated Show authoring', () => {
 
     const clipBounds = await clip.boundingBox()
     const bounds = await panel.boundingBox()
+    const transportBounds = await page.getByTestId('show-timeline-toolbar').boundingBox()
     expect(clipBounds).not.toBeNull()
     expect(bounds).not.toBeNull()
+    expect(transportBounds).not.toBeNull()
     expect(bounds!.x).toBeGreaterThanOrEqual(clipBounds!.x + clipBounds!.width + 9)
     expect(bounds!.height).toBe(488)
     expect(bounds!.x).toBeGreaterThanOrEqual(0)
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(1440)
     expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(900)
+    expect(
+      bounds!.x < transportBounds!.x + transportBounds!.width
+      && bounds!.x + bounds!.width > transportBounds!.x
+      && bounds!.y < transportBounds!.y + transportBounds!.height
+      && bounds!.y + bounds!.height > transportBounds!.y,
+    ).toBe(false)
   })
 
   test('preserves an exact Clip edit across a reload', async ({ page }) => {
@@ -2774,7 +2845,7 @@ async function waitForCurrentShow(page: Page, predicate: (show: PersistedShow) =
 }
 
 async function showStageCanvasStats(page: Page): Promise<{ checksum: number; maxChannel: number }> {
-  const canvas = page.getByTestId('preview-pane').locator('canvas')
+  const canvas = page.getByTestId('show-stage-preview').locator('canvas')
   await expect(canvas).toBeVisible()
   return canvas.evaluate((element) => {
     const target = element as HTMLCanvasElement

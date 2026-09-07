@@ -427,8 +427,8 @@ describe('App smoke test', () => {
     expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '660px' })
 
     await choosePlace('Shows')
-    expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '460px', minWidth: '300px' })
-    expect(within(screen.getByTestId('show-workspace')).getByRole('separator', { name: 'Resize preview pane' })).toBeVisible()
+    expect(screen.queryByTestId('preview-pane')).not.toBeInTheDocument()
+    expect(within(screen.getByTestId('show-workspace')).queryByRole('separator', { name: 'Resize timeline and Stage' })).not.toBeInTheDocument()
 
     await choosePlace('Patterns')
     expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '660px' })
@@ -601,18 +601,18 @@ describe('routing (#308)', () => {
     vi.stubGlobal('innerWidth', 1200)
     fireEvent(window, new Event('resize'))
     expect(screen.queryByRole('dialog', { name: 'Show Stage preview' })).not.toBeInTheDocument()
-    expect(within(screen.getByTestId('preview-pane')).getByLabelText('Show stage')).toBeInTheDocument()
+    expect(within(screen.getByTestId('show-stage-strip')).getByLabelText('Show stage')).toBeInTheDocument()
 
     vi.stubGlobal('innerWidth', 900)
     fireEvent(window, new Event('resize'))
-    await user.click(previewStage)
+    await user.click(screen.getByRole('button', { name: 'Preview Stage' }))
     const reopenedDialog = screen.getByRole('dialog', { name: 'Show Stage preview' })
     const close = within(reopenedDialog).getByRole('button', { name: 'Close Stage preview' })
     expect(close).toHaveFocus()
     await user.click(close)
     expect(screen.queryByRole('dialog', { name: 'Show Stage preview' })).not.toBeInTheDocument()
     expect(within(screen.getByTestId('preview-pane')).queryByLabelText('Show stage')).not.toBeInTheDocument()
-    await waitFor(() => expect(previewStage).toHaveFocus())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Preview Stage' })).toHaveFocus())
   })
 
   it('advances narrow Show playback while the Stage preview is closed (#593)', async () => {
@@ -687,7 +687,7 @@ describe('routing (#308)', () => {
     vi.stubGlobal('innerWidth', 1200)
     fireEvent(window, new Event('resize'))
 
-    expect(within(screen.getByTestId('preview-pane')).getByLabelText('Show stage')).toBeInTheDocument()
+    expect(within(screen.getByTestId('show-stage-strip')).getByLabelText('Show stage')).toBeInTheDocument()
     expect(usePreviewStore.getState().isRunning).toBe(true)
     // Widening remounts the Stage mid-Show, which reconstructs its replay
     // runtime asynchronously; drain those setTimeout(0) turns inside act so
@@ -714,7 +714,9 @@ describe('routing (#308)', () => {
     await choosePlace('Shows')
     await waitFor(() => expect(screen.getByRole('region', { name: 'Show timeline' })).toBeInTheDocument())
 
-    expect(Boolean(within(screen.getByTestId('preview-pane')).queryByLabelText('Show stage'))).toBe(hasStage)
+    expect(Boolean(width > 980
+      ? within(screen.getByTestId('show-stage-strip')).queryByLabelText('Show stage')
+      : within(screen.getByTestId('preview-pane')).queryByLabelText('Show stage'))).toBe(hasStage)
     expect(usePreviewStore.getState().isRunning).toBe(false)
     expect(useShowTransportStore.getState().positionMs).toBe(0)
   })
@@ -761,26 +763,20 @@ describe('routing (#308)', () => {
 
     const workspace = screen.getByTestId('show-workspace')
     const editor = screen.getByTestId('editor-pane')
-    const stage = screen.getByTestId('preview-pane')
+    const stage = screen.getByTestId('show-stage-strip')
 
     expect(workspace).toContainElement(editor)
     expect(workspace).toContainElement(stage)
     expect(workspace).toHaveClass('contents')
     expect(editor).toHaveClass('flex-1', 'min-w-0', 'flex', 'flex-col', 'overflow-hidden')
-    expect(stage).toHaveClass('studio-preview-pane', 'max-[980px]:hidden')
-    expect(stage).toHaveStyle({ width: '460px', minWidth: '300px' })
-    const previewSplitter = within(workspace).getByRole('separator', { name: 'Resize preview pane' })
-    expect(previewSplitter).toHaveClass('studio-preview-splitter', 'max-[980px]:hidden')
+    expect(stage).toContainElement(screen.getByTestId('show-stage-preview'))
+    expect(screen.getByTestId('show-stage-preview')).toHaveAttribute('data-presentation', 'strip')
+    const previewSplitter = within(workspace).getByRole('separator', { name: 'Resize timeline and Stage' })
     expect(previewSplitter).toHaveAttribute('tabindex', '0')
-    expect(previewSplitter).toHaveAttribute('aria-valuemin', '300')
-    expect(previewSplitter).toHaveAttribute('aria-valuenow', '460')
-    fireEvent.mouseDown(previewSplitter, { clientX: 800 })
-    fireEvent(window, new MouseEvent('mousemove', { clientX: 700 }))
-    fireEvent(window, new MouseEvent('mouseup'))
-    expect(stage).toHaveStyle({ width: '560px', minWidth: '300px' })
-    fireEvent.keyDown(previewSplitter, { key: 'ArrowLeft' })
-    expect(stage).toHaveStyle({ width: '570px', minWidth: '300px' })
-    expect(previewSplitter).toHaveAttribute('aria-valuenow', '570')
+    expect(previewSplitter).toHaveAttribute('aria-orientation', 'horizontal')
+    const before = Number(previewSplitter.getAttribute('aria-valuenow'))
+    fireEvent.keyDown(previewSplitter, { key: 'ArrowDown' })
+    expect(previewSplitter).toHaveAttribute('aria-valuenow', String(before + 10))
     expect(within(workspace).getByText('Workspace owner')).toBeInTheDocument()
     expect(within(workspace).getByRole('region', { name: 'Show timeline' })).toBeInTheDocument()
     expect(within(workspace).getByLabelText('Show stage')).toBeInTheDocument()

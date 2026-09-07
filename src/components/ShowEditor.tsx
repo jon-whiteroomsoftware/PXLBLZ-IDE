@@ -943,6 +943,7 @@ export function ShowEditor({
   headerGuideTarget = null,
   headerActionsTarget = null,
   transportClockActive = false,
+  protectDetailPanelTransport = false,
   onOpenStagePreview,
 }: {
   showId: string
@@ -959,6 +960,7 @@ export function ShowEditor({
   headerGuideTarget?: HTMLElement | null
   headerActionsTarget?: HTMLElement | null
   transportClockActive?: boolean
+  protectDetailPanelTransport?: boolean
   onOpenStagePreview?: (anchor: HTMLElement) => void
 }) {
   useLayoutEffect(() => {
@@ -2399,6 +2401,8 @@ export function ShowEditor({
     </>
   )
   const pinnedDetailAnchor = pinnedDetail?.anchor ?? null
+  const detailPanelTransportBoundary = timelineWorkspaceRef.current
+    ?.querySelector<HTMLElement>('[data-testid="show-timeline-toolbar"]')
 
   return (
     <div className="show-editor-pane flex h-full min-h-0 flex-col bg-zinc-950/75 font-mono text-xs text-zinc-400">
@@ -2408,18 +2412,6 @@ export function ShowEditor({
       {headerActionsTarget
         ? createPortal(headerActions, headerActionsTarget)
         : <div className="mb-2 flex shrink-0 items-center justify-end gap-1.5 px-3 pt-3">{!headerGuideTarget && showNoteTrigger}{headerActions}</div>}
-      {builtInContext?.note && showNoteOpen && (
-        <ShowNoteDisclosure
-          note={builtInContext.note}
-          show={activeShow}
-          reference={builtInContext.reference}
-          patternSlots={builtInSlotGroups}
-          patternOptions={referencePatternOptions}
-          selections={selectedReferencePatterns}
-          onSelectPattern={requestPatternSlotSelection}
-          onCollapse={() => setShowNoteOpen(showId, false)}
-        />
-      )}
       <AlertDialogRoot
         open={pendingPatternSlotSelection !== null}
         onOpenChange={(open) => { if (!open) setPendingPatternSlotSelection(null) }}
@@ -2490,6 +2482,18 @@ export function ShowEditor({
         />
       )}
       <div data-testid="show-editor-scroll" className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-auto">
+        {builtInContext?.note && showNoteOpen && (
+          <ShowNoteDisclosure
+            note={builtInContext.note}
+            show={activeShow}
+            reference={builtInContext.reference}
+            patternSlots={builtInSlotGroups}
+            patternOptions={referencePatternOptions}
+            selections={selectedReferencePatterns}
+            onSelectPattern={requestPatternSlotSelection}
+            onCollapse={() => setShowNoteOpen(showId, false)}
+          />
+        )}
         <div className="min-w-0 p-3">
           <section
             ref={timelineWorkspaceRef}
@@ -2812,6 +2816,7 @@ export function ShowEditor({
               avoidPinnedPanel={!detail.pinned}
               bodyOwnsOverflow={detailIsClip}
               bodyHeightOffset={detailIsClip && readOnly ? 32 : 0}
+              keepBelow={protectDetailPanelTransport ? detailPanelTransportBoundary : null}
               onPinnedChange={() => {
                 if (detail.pinned) {
                   setPinnedDetail(null)

@@ -63,10 +63,11 @@ chooses among six Studio areas, each with stable routes:
 
 The place menu remembers the entity open in each Studio area and shows its
 name below that area. It also groups the public **Docs** and **API** workspaces
-under Reference. The layout is three panes: the entity list opens and creates
-within the selected place, the center edits, and
-the right pane shows context: a Pattern's preview, a map's wiring check, a
-library's API reference, or a Show's Stage.
+under Reference. Most places use three panes: the entity list opens and creates
+within the selected place, the center edits, and the right pane shows context
+such as a Pattern preview, map wiring check, or library API reference. Shows
+use the center workspace differently on desktop: the full-width timeline sits
+above an aspect-correct Stage preview and its controls.
 
 The entity list starts pinned beside the workspace. Its pin remembers a
 separate choice for Patterns, Shows, Maps, Controllers, Mixins, and Libraries.
@@ -416,8 +417,14 @@ physical pixel ranges, with coverage validated exactly. Portable Layouts use
 normalized routing modes (Stripes, Grid, Checker, Rings, Pinwheel, Wave, or
 an animatable Split) that hold on any compatible surface.
 
-The right pane is the **Stage**: the whole Show rendered over its output
-geometry, driven by Show transport.
+The **Stage** is the whole Show rendered over its output geometry and driven by
+Show transport. On desktop it fills the left side of a strip below the
+timeline; Stage, Preview, and Zone controls flow into one, two, or three
+columns beside it as room permits. Drag the horizontal divider to trade space
+between the timeline and Stage, or focus it and use **Up/Down**. PXLBLZ
+remembers the Show split. Zones begin folded with their coverage in the
+heading, while the Zone-outline and selected-Clip-outline icons remain at hand
+in Preview. At 980 px and below, the established Preview overlay remains.
 
 ## 17. Cost, sending, and sharing
 

@@ -1,5 +1,5 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Eye, EyeOff, LoaderCircle, Map as MapIcon, Pause, Play } from 'lucide-react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { AlertTriangle, Eye, EyeOff, Grid2X2, LoaderCircle, Map as MapIcon, Pause, Play, Scan } from 'lucide-react'
 import { useShowStore } from '@/store/showStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
@@ -20,7 +20,7 @@ import {
 } from '@/engine/fastReplayCheckpoints'
 import { createRenderer } from '@/engine/renderer'
 import { applyNormalizeMode, type MapPoint, type PixelMap } from '@/engine/maps'
-import { advanceAutoOrbit, type OrbitCamera } from '@/engine/camera'
+import { advanceAutoOrbit, posBounds2D, type OrbitCamera } from '@/engine/camera'
 import {
   applyShowStageMaskPacked,
   buildShowStageProjection,
@@ -40,6 +40,7 @@ import {
 } from '@/engine/showInstallationCoverage'
 import type { ShowClipTransform, ShowRecord } from '@/engine/personalContentRecords'
 import { PreviewViewportSection } from '@/components/PreviewDeck'
+import { DeckSection } from '@/components/Deck'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { buildShowStageClipDiagnosticPoints, buildShowStageDiagnosticRects } from '@/engine/showStageDiagnostics'
 import { materializeShowGroupOccurrences } from '@/engine/showGroupModel'
@@ -109,8 +110,16 @@ function yieldForShowReplayPrewarm(): Promise<void> {
   })
 }
 
-function cube3DCanvasPx(containerWidth: number): number {
-  return Math.max(220, Math.floor(containerWidth))
+function cube3DCanvasPx(containerWidth: number, minimum = 220): number {
+  return Math.max(minimum, Math.floor(containerWidth))
+}
+
+export function showStagePreviewAspect(layout: StageLayout | null): number {
+  if (!layout || layout.draw.kind === '3d') return 1
+  const bounds = posBounds2D(layout.draw.positions)
+  const width = bounds.maxX - bounds.minX
+  const height = bounds.maxY - bounds.minY
+  return width > 0 && height > 0 ? width / height : 1
 }
 
 function stableShowSeed(showId: string): number {
@@ -145,9 +154,13 @@ function diagnosticPointList(points: [number, number][]): string {
 export function ShowStagePreview({
   showId,
   showOverride,
+  presentation = 'pane',
+  onPreviewAspectChange,
 }: {
   showId: string
   showOverride?: ShowRecord
+  presentation?: 'pane' | 'strip'
+  onPreviewAspectChange?: (aspect: number) => void
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -195,7 +208,9 @@ export function ShowStagePreview({
   const seekRequest = useShowTransportStore((state) => state.showId === showId ? state.seekRequest : null)
   const seekStatus = useShowTransportStore((state) => state.showId === showId ? state.seekStatus : 'idle')
   const [viewportWidth, setViewportWidth] = useState(1)
+  const [viewportHeight, setViewportHeight] = useState(1)
   const viewportWidthRef = useRef(viewportWidth)
+  const viewportHeightRef = useRef(viewportHeight)
   const lightSizeRef = useRef(lightSize)
   const diffusionRef = useRef(diffusion)
   const [soloZoneId, setSoloZoneId] = useState<string | null>(null)
@@ -214,9 +229,10 @@ export function ShowStagePreview({
 
   useEffect(() => {
     viewportWidthRef.current = viewportWidth
+    viewportHeightRef.current = viewportHeight
     lightSizeRef.current = lightSize
     diffusionRef.current = diffusion
-  }, [diffusion, lightSize, viewportWidth])
+  }, [diffusion, lightSize, viewportHeight, viewportWidth])
 
   useEffect(() => {
     const preview = usePreviewStore.getState()
@@ -358,6 +374,11 @@ export function ShowStagePreview({
         focusedClipTransform(show, diagnosticFocus),
       )
     : null
+  const previewAspect = showStagePreviewAspect(layout)
+
+  useEffect(() => {
+    onPreviewAspectChange?.(previewAspect)
+  }, [onPreviewAspectChange, previewAspect])
   const durationMs = show ? showLoopDurationMs(show) : 0
   const stageMaskPlan = useMemo(
     () => layout ? createShowStageMaskPlan(layout.projection, layout.mapPoints.length) : null,
@@ -582,6 +603,9 @@ export function ShowStagePreview({
     if (!element) return
     const observer = new ResizeObserver(([entry]) => {
       setViewportWidth(Math.max(1, entry.contentRect.width))
+      setViewportHeight(Number.isFinite(entry.contentRect.height)
+        ? Math.max(1, entry.contentRect.height)
+        : 1)
     })
     observer.observe(element)
     return () => observer.disconnect()
@@ -597,13 +621,17 @@ export function ShowStagePreview({
     setRuntimeError(null)
 
     const currentViewportWidth = viewportWidthRef.current
+    const currentViewportHeight = viewportHeightRef.current
     const renderer = createRenderer(canvas, {
       containerWidth: currentViewportWidth,
+      ...(presentation === 'strip' ? { containerHeight: currentViewportHeight } : {}),
       lightSize: lightSizeRef.current,
     })
     rendererRef.current = renderer
     if (layout.draw.kind === '3d') {
-      const px = cube3DCanvasPx(currentViewportWidth)
+      const px = cube3DCanvasPx(presentation === 'strip'
+        ? Math.min(currentViewportWidth, currentViewportHeight)
+        : currentViewportWidth, presentation === 'strip' ? 1 : 220)
       renderer.set3DPositions(layout.draw.positions, { canvasPx: px })
       const view = useCameraStore.getState()
       renderer.setCamera(view.camera)
@@ -611,6 +639,7 @@ export function ShowStagePreview({
     } else {
       renderer.set2DPositions(layout.draw.positions, {
         containerWidth: currentViewportWidth,
+        ...(presentation === 'strip' ? { containerHeight: currentViewportHeight } : {}),
         lightSize: lightSizeRef.current,
       })
     }
@@ -696,15 +725,21 @@ export function ShowStagePreview({
       replayRef.current = null
       replayKeyRef.current = null
     }
-  }, [compiled.artifact, durationMs, fidelity, layout, paintFastFrame, replayCheckpointKey, replayRandomSeed, showId])
+  }, [compiled.artifact, durationMs, fidelity, layout, paintFastFrame, presentation, replayCheckpointKey, replayRandomSeed, showId])
 
   useEffect(() => {
     const renderer = rendererRef.current
     if (!renderer || !layout) return
     if (layout.draw.kind === '3d') {
-      renderer.resize3D(cube3DCanvasPx(viewportWidth), lightSize)
+      renderer.resize3D(cube3DCanvasPx(presentation === 'strip'
+        ? Math.min(viewportWidth, viewportHeight)
+        : viewportWidth, presentation === 'strip' ? 1 : 220), lightSize)
     } else {
-      renderer.resize2D({ containerWidth: viewportWidth, lightSize })
+      renderer.resize2D({
+        containerWidth: viewportWidth,
+        ...(presentation === 'strip' ? { containerHeight: viewportHeight } : {}),
+        lightSize,
+      })
     }
     performanceProbeRef.current?.recordResize()
     const repaintTimer = window.setTimeout(() => {
@@ -713,7 +748,7 @@ export function ShowStagePreview({
       paintFastFrame(runtime.advanceTo(runtime.getElapsedMs(), { stepMs: SHOW_REPLAY_STEP_MS }))
     }, SHOW_STAGE_RESIZE_REPAINT_SETTLE_MS)
     return () => window.clearTimeout(repaintTimer)
-  }, [layout, lightSize, paintFastFrame, viewportWidth])
+  }, [layout, lightSize, paintFastFrame, presentation, viewportHeight, viewportWidth])
 
   useEffect(() => {
     const renderer = rendererRef.current
@@ -912,12 +947,30 @@ export function ShowStagePreview({
 
   const error = compiled.error ?? runtimeError
   const rendererLabel = fidelity === 'fast' ? 'Fast' : 'Precise'
-  const showZoneInventory = (layout?.projection.zones.length ?? 0) > 1 || installationCoverage?.valid === false
+  const stageZoneCount = layout?.projection.zones.length ?? 0
+  const showZoneInventory = presentation === 'strip'
+    ? stageZoneCount > 0
+    : stageZoneCount > 1 || installationCoverage?.valid === false
+  const coverage = installationCoverage?.layouts[0]
+  const fullCoverage = coverage && installationCoverage
+    ? `${coverage.assignedPixelCount} assigned · ${coverage.missingPixelCount} missing · ${coverage.overlappingPixelCount} overlapping · ${coverage.outOfRangePixelCount} out of range · ${installationCoverage.pixelCount} total`
+    : null
+  const compactCoverage = coverage && installationCoverage
+    ? installationCoverage.valid
+      ? `${coverage.assignedPixelCount}/${installationCoverage.pixelCount} assigned · complete coverage`
+      : `${coverage.assignedPixelCount}/${installationCoverage.pixelCount} assigned · ${coverage.missingPixelCount} missing · ${coverage.overlappingPixelCount} overlap · ${coverage.outOfRangePixelCount} out of range`
+    : null
 
   return (
     // Reserve classic-scrollbar width before the square canvas changes height,
     // preventing its ResizeObserver from toggling the scrollbar on and off (#686).
-    <div className="flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] bg-zinc-950 font-mono text-xs text-zinc-400">
+    <div
+      data-testid="show-stage-preview"
+      data-presentation={presentation}
+      className={presentation === 'strip'
+        ? 'flex h-full min-h-0 overflow-hidden bg-zinc-950 font-mono text-xs text-zinc-400'
+        : 'flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] bg-zinc-950 font-mono text-xs text-zinc-400'}
+    >
       {import.meta.env.DEV && (
         <output
           ref={performanceOutputRef}
@@ -926,7 +979,14 @@ export function ShowStagePreview({
           aria-hidden="true"
         />
       )}
-      <div ref={containerRef} className="relative shrink-0 bg-black/70">
+      <div
+        ref={containerRef}
+        data-testid="show-stage-canvas-frame"
+        className={presentation === 'strip'
+          ? 'relative flex h-full shrink-0 items-center justify-center overflow-hidden border-r border-zinc-800 bg-black'
+          : 'relative shrink-0 bg-black/70'}
+        style={presentation === 'strip' ? { aspectRatio: previewAspect } : undefined}
+      >
         <div className="relative inline-block">
           <canvas ref={canvasRef} className="rounded-sm" />
           {layout?.draw.kind === '2d' && diagnostics.zoneOutlines && diagnosticRects.length > 0 && (
@@ -998,7 +1058,12 @@ export function ShowStagePreview({
           )}
         </div>
       </div>
-      <div className="shrink-0 border-t border-zinc-900 px-3 py-3">
+      <div
+        data-testid="show-stage-controls"
+        className={presentation === 'strip'
+          ? 'show-stage-controls min-w-[200px] flex-1 overflow-x-hidden overflow-y-auto px-3 py-2 [container-type:inline-size]'
+          : 'shrink-0 border-t border-zinc-900 px-3 py-3'}
+      >
         <div className="mb-3 flex min-h-7 items-center gap-2 text-zinc-500">
           <span className="min-w-0 flex-1">
             {seekStatus === 'rebuilding'
@@ -1019,31 +1084,24 @@ export function ShowStagePreview({
             {isRunning ? <Pause size={20} aria-hidden /> : <Play size={20} aria-hidden />}
           </button>
         </div>
-        <div aria-label="Show stage" className="text-[10px] text-zinc-500">
-          <div className="flex h-5 items-center justify-between gap-2">
+        <div
+          aria-label="Show stage"
+          className={presentation === 'strip'
+            ? 'show-stage-control-sections grid min-w-0 grid-cols-1 gap-x-5 gap-y-1 text-[10px] text-zinc-500'
+            : 'text-[10px] text-zinc-500'}
+        >
+          <section className="show-stage-control-section min-w-0">
+          <div className="flex h-5 items-center gap-2">
             <h3 className="font-semibold uppercase tracking-wider text-structural">Stage</h3>
-            <div className="flex items-center gap-0.5" aria-label="Stage diagnostics">
-              <StageDiagnosticToggle
-                label="Zone outlines"
-                active={diagnostics.zoneOutlines}
-                onChange={(active) => setDiagnostic('zoneOutlines', active)}
-              />
-              <StageDiagnosticToggle
-                label="Clip outline"
-                active={diagnostics.clipOutlines}
-                onChange={(active) => setDiagnostic('clipOutlines', active)}
-              />
-            </div>
           </div>
-          <div className="mt-1.5 flex min-w-0 items-center gap-1.5 leading-5">
+          <div className="show-stage-identity mt-1.5 flex min-w-0 items-center gap-1.5 leading-5">
             <MapIcon size={12} aria-hidden className="shrink-0 text-zinc-600" />
-            <span className="shrink-0 text-zinc-500">{stageIdentityRole}</span>
+            <span className="show-stage-identity-role shrink-0 text-zinc-500">{stageIdentityRole}</span>
             <span aria-hidden className="text-zinc-700">·</span>
-            <span className="truncate text-zinc-200">{selectedStageMap?.name ?? 'Zone strips - generic'}</span>
+            <span className="show-stage-map-name truncate text-zinc-200">{selectedStageMap?.name ?? 'Zone strips - generic'}</span>
             <span aria-hidden className="text-zinc-700">·</span>
-            <span className="shrink-0 tabular-nums text-zinc-400">{layout?.mapPoints.length ?? 0} px</span>
+            <span className="show-stage-pixel-count shrink-0 tabular-nums text-zinc-400">{layout?.mapPoints.length ?? 0} px</span>
           </div>
-        </div>
         {(layout?.note || (layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0)) && (
           <div className="mt-2 rounded border border-zinc-800 bg-zinc-950/60 p-2 text-[10px] leading-4 text-zinc-500">
           {layout?.note && <div className="mt-1 text-amber-300">{layout.note}</div>}
@@ -1052,9 +1110,74 @@ export function ShowStagePreview({
           )}
           </div>
         )}
-        <PreviewViewportSection profile="show" />
+          </section>
+        <PreviewViewportSection
+          profile="show"
+          headerActions={(
+            <span className="flex items-center gap-1" aria-label="Stage diagnostics">
+              <StageDiagnosticToggle
+                label="Zone outlines"
+                icon={<Grid2X2 size={13} aria-hidden />}
+                active={diagnostics.zoneOutlines}
+                onChange={(active) => setDiagnostic('zoneOutlines', active)}
+              />
+              <StageDiagnosticToggle
+                label="Selected Clip outline"
+                icon={<Scan size={13} aria-hidden />}
+                active={diagnostics.clipOutlines}
+                onChange={(active) => setDiagnostic('clipOutlines', active)}
+              />
+            </span>
+          )}
+        />
 
-        {showZoneInventory && <section aria-label="Zones" className="mt-2.5">
+        {showZoneInventory && (presentation === 'strip' ? (
+          <DeckSection
+            label="Zones - solo"
+            collapsible
+            defaultExpanded={false}
+            persistKey={`show-stage-zones:${showId}`}
+            summary={compactCoverage && (
+              <span
+                role="status"
+                aria-label="Zone coverage"
+                title={fullCoverage ?? undefined}
+                className={installationCoverage?.valid ? 'text-emerald-500' : 'text-amber-300'}
+              >
+                {compactCoverage}
+              </span>
+            )}
+          >
+            <div className="flex h-6 items-center justify-end">
+              <button
+                type="button"
+                aria-label="Show all zones"
+                disabled={!effectiveSoloZoneId}
+                onClick={() => setSoloZoneId(null)}
+                className="h-6 rounded px-2 text-[10px] uppercase tracking-wider text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 disabled:pointer-events-none disabled:invisible"
+              >
+                All
+              </button>
+            </div>
+            {compactCoverage && (
+              <div
+                role="status"
+                aria-label="Zone coverage"
+                title={fullCoverage ?? undefined}
+                className={`show-stage-zone-coverage mt-1 flex min-h-6 min-w-0 items-center rounded border px-2 py-1 text-[9px] leading-tight ${installationCoverage?.valid
+                  ? 'border-emerald-900/60 bg-emerald-950/15 text-emerald-500'
+                  : 'border-amber-800/60 bg-amber-950/20 text-amber-300'}`}
+              >
+                {compactCoverage}
+              </div>
+            )}
+            <ZoneInventoryRows
+              layout={layout}
+              effectiveSoloZoneId={effectiveSoloZoneId}
+              onSoloZone={setSoloZoneId}
+            />
+          </DeckSection>
+        ) : <section aria-label="Zones" className="mt-2.5">
           <div className="flex h-6 items-center justify-between gap-2">
             <h3 className="text-[11px] font-semibold uppercase tracking-wider text-structural">Zones - solo</h3>
             <button
@@ -1067,61 +1190,71 @@ export function ShowStagePreview({
               All
             </button>
           </div>
-          {installationCoverage?.layouts[0] && (() => {
-            const coverage = installationCoverage.layouts[0]
-            const fullCoverage = `${coverage.assignedPixelCount} assigned · ${coverage.missingPixelCount} missing · ${coverage.overlappingPixelCount} overlapping · ${coverage.outOfRangePixelCount} out of range · ${installationCoverage.pixelCount} total`
-            const compactCoverage = installationCoverage.valid
-              ? `${coverage.assignedPixelCount}/${installationCoverage.pixelCount} assigned · complete coverage`
-              : `${coverage.assignedPixelCount}/${installationCoverage.pixelCount} assigned · ${coverage.missingPixelCount} missing · ${coverage.overlappingPixelCount} overlap · ${coverage.outOfRangePixelCount} out of range`
-            return (
+          {compactCoverage && (
               <div
                 role="status"
                 aria-label="Zone coverage"
-                title={fullCoverage}
-                className={`mt-1 flex h-6 min-w-0 items-center overflow-hidden rounded border px-2 text-[9px] leading-none whitespace-nowrap ${installationCoverage.valid
+                title={fullCoverage ?? undefined}
+                className={`mt-1 flex h-6 min-w-0 items-center overflow-hidden rounded border px-2 text-[9px] leading-none whitespace-nowrap ${installationCoverage?.valid
                   ? 'border-emerald-900/60 bg-emerald-950/15 text-emerald-500'
                   : 'border-amber-800/60 bg-amber-950/20 text-amber-300'}`}
               >
                 <span className="truncate">{compactCoverage}</span>
               </div>
-            )
-          })()}
-          <div className="mt-1.5 space-y-1">
-          {layout?.projection.zones.map((zone) => {
-            const active = zone.id === effectiveSoloZoneId
-            return (
-              <div key={zone.id} className="grid h-9 grid-cols-[1fr_auto_auto] items-center gap-2 rounded border border-zinc-800 bg-zinc-950/55 px-2">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="h-2 w-2 shrink-0 rounded-sm" style={{ backgroundColor: zone.color }} />
-                  <span className="truncate text-zinc-200" title={zone.name}>{zone.name}</span>
-                </div>
-                <span className={zone.offStage && layout.kind === 'map' ? 'text-amber-300' : 'text-zinc-500'}>
-                  {zone.offStage && layout.kind === 'map' ? (
-                    <span className="inline-flex items-center gap-1">
-                      <AlertTriangle size={12} aria-hidden />
-                      off stage
-                    </span>
-                  ) : `${zone.pixelCount} px`}
-                </span>
-                <button
-                  type="button"
-                  aria-label={active ? `Unsolo zone ${zone.name}` : `Solo zone ${zone.name}`}
-                  title={active ? `Unsolo ${zone.name}` : `Solo ${zone.name}`}
-                  onClick={() => setSoloZoneId(active ? null : zone.id)}
-                  className={`grid h-7 w-7 place-items-center rounded transition-colors ${
-                    active
-                      ? 'bg-live/10 text-live ring-1 ring-live/50'
-                      : 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100'
-                  }`}
-                >
-                  {active ? <EyeOff size={14} /> : <Eye size={14} />}
-                </button>
-              </div>
-            )
-          })}
-          </div>
-        </section>}
+            )}
+          <ZoneInventoryRows
+            layout={layout}
+            effectiveSoloZoneId={effectiveSoloZoneId}
+            onSoloZone={setSoloZoneId}
+          />
+        </section>)}
       </div>
+      </div>
+    </div>
+  )
+}
+
+function ZoneInventoryRows({
+  layout,
+  effectiveSoloZoneId,
+  onSoloZone,
+}: {
+  layout: StageLayout | null
+  effectiveSoloZoneId: string | null
+  onSoloZone: (zoneId: string | null) => void
+}) {
+  return (
+    <div className="mt-1.5 space-y-1">
+      {layout?.projection.zones.map((zone) => {
+        const active = zone.id === effectiveSoloZoneId
+        return (
+          <div key={zone.id} className="grid h-9 grid-cols-[1fr_auto_auto] items-center gap-2 rounded border border-zinc-800 bg-zinc-950/55 px-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="h-2 w-2 shrink-0 rounded-sm" style={{ backgroundColor: zone.color }} />
+              <span className="truncate text-zinc-200" title={zone.name}>{zone.name}</span>
+            </div>
+            <span className={zone.offStage && layout.kind === 'map' ? 'text-amber-300' : 'text-zinc-500'}>
+              {zone.offStage && layout.kind === 'map' ? (
+                <span className="inline-flex items-center gap-1">
+                  <AlertTriangle size={12} aria-hidden />
+                  off stage
+                </span>
+              ) : `${zone.pixelCount} px`}
+            </span>
+            <button
+              type="button"
+              aria-label={active ? `Unsolo zone ${zone.name}` : `Solo zone ${zone.name}`}
+              title={active ? `Unsolo ${zone.name}` : `Solo ${zone.name}`}
+              onClick={() => onSoloZone(active ? null : zone.id)}
+              className={`grid h-7 w-7 place-items-center rounded transition-colors ${active
+                ? 'bg-live/10 text-live ring-1 ring-live/50'
+                : 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100'}`}
+            >
+              {active ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -1163,8 +1296,9 @@ function samePatternRef(
   return Boolean(right && left.kind === right.kind && left.id === right.id)
 }
 
-function StageDiagnosticToggle({ label, active, onChange }: {
+function StageDiagnosticToggle({ label, icon, active, onChange }: {
   label: string
+  icon: ReactNode
   active: boolean
   onChange: (active: boolean) => void
 }) {
@@ -1172,14 +1306,14 @@ function StageDiagnosticToggle({ label, active, onChange }: {
     <button
       type="button"
       aria-label={`${active ? 'Hide' : 'Show'} ${label}`}
+      title={label}
       aria-pressed={active}
       onClick={() => onChange(!active)}
-      className={`flex h-5 items-center gap-1 rounded px-1.5 text-[8px] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300 ${active
-        ? 'bg-cyan-300/12 text-cyan-200 ring-1 ring-inset ring-cyan-300/30'
-        : 'text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300'}`}
+      className={`grid size-6 place-items-center rounded border transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300 ${active
+        ? 'border-amber-300/50 bg-amber-300/12 text-amber-200'
+        : 'border-zinc-700 bg-zinc-900 text-zinc-500 hover:border-zinc-500 hover:text-zinc-200'}`}
     >
-      <i aria-hidden className={`size-1 rounded-full ${active ? 'bg-cyan-300' : 'bg-zinc-700'}`} />
-      {label === 'Zone outlines' ? 'Zones' : 'Clip'}
+      {icon}
     </button>
   )
 }

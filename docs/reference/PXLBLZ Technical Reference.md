@@ -1061,7 +1061,13 @@ coverage, the 2,000-pixel ceiling, and resource limits for inspection,
 export, Run, Save, and reconciliation. Installation preview uses the
 contract's saved count and ranges; Portable preview uses the saved reference,
 never a connected Controller. Zone outlines and timing guides are session-only
-SVG diagnostics that never mutate compiled pixels.
+SVG diagnostics that never mutate compiled pixels. `ShowWorkspace` owns the
+desktop over/under composition and delegates its measurements to
+`showWorkspaceLayout.ts`. The pure layout keeps the preview at the Stage map's
+aspect while enforcing the timeline, strip, and 200 px controls minimums. Its
+horizontal divider moves by 10 px, or 50 px with Shift, and persists one Show
+timeline height. `ShowStagePreview` reports aspect changes and uses container
+queries to arrange controls at 300, 760, and 1,140 px boundaries.
 
 **Layout.** The top-bar place control owns the six Studio areas plus Docs and
 API Reference, and remembers the last open entity in each Studio area. The
@@ -1074,9 +1080,11 @@ viewports force the effective state unpinned without changing those stored
 preferences. Owned surfaces carry one explicit drawer-owner identity across
 portals; focused fields, menus, dialogs, and tree drags suppress outside and
 mouse-out close. Panes retain explicit minimums and remembered per-entity
-divider widths. At 390 px the wordmark becomes its mark, Controller pills and secondary
-controls become icon-only, and the bar remains one row. At 980 px and below the
-Stage yields to a Preview overlay without creating a second runtime. Rail
+divider widths. Shows replace the desktop center/right split with the
+timeline-over-Stage workspace; Pattern and other Studio layouts retain their
+existing right panes. At 390 px the wordmark becomes its mark, Controller pills
+and secondary controls become icon-only, and the bar remains one row. At 980 px
+and below the Stage yields to a Preview overlay without creating a second runtime. Rail
 typography follows `ui/ideMicrotype.ts`. The authenticated responsive and
 persistence smokes cover these surfaces; deep Show editing lives in the
 dedicated suite.

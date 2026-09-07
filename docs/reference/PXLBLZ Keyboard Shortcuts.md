@@ -96,9 +96,12 @@ the keyboard.
 |---|---|
 | `Left` or `Right` | Move a focused pane divider by 10 pixels. |
 | `Shift+Left` or `Shift+Right` | Move a focused pane divider by 50 pixels. |
+| `Up` or `Down` | Move the focused Show timeline/Stage divider by 10 pixels. |
+| `Shift+Up` or `Shift+Down` | Move the focused Show timeline/Stage divider by 50 pixels. |
 
 You can also drag a divider to resize the adjacent panes directly. Once you
-set a divider position, PXLBLZ remembers it for that Studio mode.
+set a divider position, PXLBLZ remembers it for that Studio mode. The Show
+timeline/Stage divider is horizontal; the other pane dividers are vertical.
 To use the arrow shortcuts, press `Tab` until the divider receives keyboard
 focus; clicking or dragging a divider does not move keyboard focus to it.
 

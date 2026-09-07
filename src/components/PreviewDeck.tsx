@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Lock, Play, Pause, RotateCcw, TriangleAlert } from 'lucide-react'
 import { controlIcon } from '@/components/iconScale'
 import { usePreviewStore, MIN_LIGHT_SIZE, MAX_LIGHT_SIZE } from '@/store/previewStore'
@@ -340,7 +340,13 @@ function SecondaryBand() {
   )
 }
 
-export function PreviewViewportSection({ profile }: { profile: 'pattern' | 'show' }) {
+export function PreviewViewportSection({
+  profile,
+  headerActions,
+}: {
+  profile: 'pattern' | 'show'
+  headerActions?: ReactNode
+}) {
   const lightSize = usePreviewStore((s) => s.lightSize)
   const setLightSize = usePreviewStore((s) => s.setLightSize)
   const setLightSizeSticky = usePreviewStore((s) => s.setLightSizeSticky)
@@ -373,6 +379,7 @@ export function PreviewViewportSection({ profile }: { profile: 'pattern' | 'show
       label="Preview"
       hint={pattern ? PREVIEW_HINT : SHOW_PREVIEW_HINT}
       collapsible={pattern}
+      actions={headerActions}
     >
       <DeckGrid className="mb-[5px]">
         <DeckSlider

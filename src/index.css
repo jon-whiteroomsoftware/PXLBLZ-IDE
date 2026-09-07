@@ -508,6 +508,75 @@
   container-type: inline-size;
 }
 
+/* Desktop Shows place the aspect-true Stage beside a controls container in
+   the lower strip. The controls respond to their remainder, not the browser. */
+.show-stage-control-sections > .show-stage-control-section,
+.show-stage-control-sections > [data-deck='section'] {
+  min-width: 0;
+  max-width: 440px;
+}
+
+@container (max-width: 300px) {
+  .show-stage-controls {
+    padding: 0.5rem 0.625rem;
+  }
+
+  .show-stage-controls [data-deck='grid'] {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 0.375rem;
+  }
+
+  .show-stage-controls [data-deck='cell'] {
+    flex-wrap: wrap;
+  }
+
+  .show-stage-controls [data-deck='cell'] > span:first-child {
+    white-space: normal;
+  }
+
+  .show-stage-controls [data-deck='section-summary'],
+  .show-stage-controls .show-stage-zone-coverage {
+    white-space: normal;
+  }
+
+  .show-stage-controls .show-stage-identity {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 0.5rem;
+    row-gap: 0.125rem;
+    line-height: 1.25;
+  }
+
+  .show-stage-controls .show-stage-identity > svg,
+  .show-stage-controls .show-stage-identity > [aria-hidden='true'] {
+    display: none;
+  }
+
+  .show-stage-controls .show-stage-map-name {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    overflow: visible;
+    white-space: normal;
+  }
+
+  .show-stage-controls .show-stage-pixel-count {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+@container (min-width: 760px) {
+  .show-stage-control-sections {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1140px) {
+  .show-stage-control-sections {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 /* At phone widths the editor is the authoring surface. The preview remains an
    instrument on larger Studio widths, but it must not consume the center pane
    by merely flex-shrinking out of sight alongside the rail. */

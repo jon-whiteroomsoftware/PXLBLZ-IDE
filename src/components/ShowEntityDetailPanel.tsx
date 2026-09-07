@@ -30,6 +30,7 @@ export function ShowEntityDetailPanel({
   avoidPinnedPanel = false,
   bodyOwnsOverflow = false,
   bodyHeightOffset = 0,
+  keepBelow,
   onPinnedChange,
   onClose,
   children,
@@ -40,6 +41,7 @@ export function ShowEntityDetailPanel({
   avoidPinnedPanel?: boolean
   bodyOwnsOverflow?: boolean
   bodyHeightOffset?: number
+  keepBelow?: HTMLElement | null
   onPinnedChange?: () => void
   onClose: () => void
   children: ReactNode
@@ -61,6 +63,9 @@ export function ShowEntityDetailPanel({
           .filter((candidate) => candidate !== panel)
           .map((candidate) => candidate.getBoundingClientRect())
       : []
+    const minimumTop = keepBelow
+      ? keepBelow.getBoundingClientRect().bottom + 8
+      : undefined
     setPosition(placeShowEntityDetailPanel({
       anchor: anchorRect,
       panel: {
@@ -69,8 +74,9 @@ export function ShowEntityDetailPanel({
       },
       viewport: { width: window.innerWidth, height: window.innerHeight },
       avoid,
+      minimumTop,
     }))
-  }, [anchor, avoidPinnedPanel, bodyOwnsOverflow, effectiveBodyHeight])
+  }, [anchor, avoidPinnedPanel, bodyOwnsOverflow, effectiveBodyHeight, keepBelow])
 
   useLayoutEffect(() => {
     updatePosition()
@@ -79,6 +85,7 @@ export function ShowEntityDetailPanel({
       : new ResizeObserver(updatePosition)
     observer?.observe(anchor)
     if (panelRef.current) observer?.observe(panelRef.current)
+    if (keepBelow) observer?.observe(keepBelow)
     if (avoidPinnedPanel) {
       document
         .querySelectorAll<HTMLElement>('[data-testid="show-entity-detail-panel"][data-pinned="true"]')
@@ -91,7 +98,7 @@ export function ShowEntityDetailPanel({
       window.removeEventListener('resize', updatePosition)
       window.removeEventListener('scroll', updatePosition, true)
     }
-  }, [anchor, avoidPinnedPanel, updatePosition])
+  }, [anchor, avoidPinnedPanel, keepBelow, updatePosition])
 
   const sidePlacement = position?.placement === 'left' || position?.placement === 'right'
   const panelMaxHeight = position

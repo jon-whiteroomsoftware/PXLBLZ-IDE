@@ -37,6 +37,7 @@ import { ControllerProfilesEmptyState } from '@/components/ControllerProfilesEmp
 import { ShowEditor } from '@/components/ShowEditor'
 import { ShowEditorOverhaulPrototype } from '@/components/ShowEditorOverhaulPrototype'
 import { ShowStagePreview } from '@/components/ShowStagePreview'
+import { ShowWorkspace } from '@/components/ShowWorkspace'
 import { ShowCreationFlow, type ShowCreationMapOption } from '@/components/ShowCreationFlow'
 import { useControllerStore } from '@/store/controllerStore'
 import { MapModeHeader } from '@/components/MapModeHeader'
@@ -428,6 +429,7 @@ function StudioApp() {
   const [showHeaderActionsTarget, setShowHeaderActionsTarget] = useState<HTMLSpanElement | null>(null)
   const [showHeaderGuideTarget, setShowHeaderGuideTarget] = useState<HTMLSpanElement | null>(null)
   const [showStageOverlayShowId, setShowStageOverlayShowId] = useState<string | null>(null)
+  const [showStagePreviewAspect, setShowStagePreviewAspect] = useState(1)
   const [studioViewportWidth, setStudioViewportWidth] = useState(() => window.innerWidth)
   const narrowShowWorkspace = studioViewportWidth <= 980
   const showStageReturnFocusRef = useRef<HTMLElement | null>(null)
@@ -447,6 +449,7 @@ function StudioApp() {
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
   useEffect(() => {
     if (route.kind === 'studio' && route.entity?.id) rememberPlace(route.entity.kind, route.entity.id)
   }, [rememberPlace, route])
@@ -803,6 +806,28 @@ function StudioApp() {
     ), (ref) => bundledPatternSliderNames(sourceForShowPatternRef(ref, userPatterns), compileLibrarySet))
   }, [compileLibrarySet, routedStockShow, routedStockShowDraft, selectedReferencePatterns, userPatterns])
   const activeShow = routedStockShowOverride ?? (activeShowId ? shows.find((show) => show.id === activeShowId) : undefined)
+  const activeShowEditor = activeShow ? (
+    <ShowEditor
+      showId={activeShow.id}
+      showOverride={routedStockShowOverride}
+      builtInContext={routedStockShow ? {
+        track: routedStockShow.track,
+        lesson: routedStockShow.lesson,
+        description: routedStockShow.description,
+        note: routedStockShow.note,
+        patternSlots: routedStockShow.patternSlots,
+        reference: routedStockShow.reference,
+      } : undefined}
+      headerGuideTarget={showHeaderGuideTarget}
+      headerActionsTarget={showHeaderActionsTarget}
+      transportClockActive={narrowShowWorkspace && showStageOverlayShowId !== activeShow.id}
+      protectDetailPanelTransport={!narrowShowWorkspace}
+      onOpenStagePreview={(anchor) => {
+        showStageReturnFocusRef.current = anchor
+        setShowStageOverlayShowId(activeShow.id)
+      }}
+    />
+  ) : null
 
   const handleDeletePattern = useCallback(async () => {
     if (!activePatternId) return
@@ -1409,24 +1434,17 @@ function StudioApp() {
                   />
                 </div>
               ) : activeShow ? (
-                <ShowEditor
-                  showId={activeShow.id}
-                  showOverride={routedStockShowOverride}
-                  builtInContext={routedStockShow ? {
-                    track: routedStockShow.track,
-                    lesson: routedStockShow.lesson,
-                    description: routedStockShow.description,
-                    note: routedStockShow.note,
-                    patternSlots: routedStockShow.patternSlots,
-                    reference: routedStockShow.reference,
-                  } : undefined}
-                  headerGuideTarget={showHeaderGuideTarget}
-                  headerActionsTarget={showHeaderActionsTarget}
-                  transportClockActive={narrowShowWorkspace && showStageOverlayShowId !== activeShow.id}
-                  onOpenStagePreview={(anchor) => {
-                    showStageReturnFocusRef.current = anchor
-                    setShowStageOverlayShowId(activeShow.id)
-                  }}
+                <ShowWorkspace
+                  previewAspect={showStagePreviewAspect}
+                  timeline={activeShowEditor}
+                  stage={narrowShowWorkspace ? null : (
+                      <ShowStagePreview
+                        showId={activeShow.id}
+                        showOverride={routedStockShowOverride}
+                        presentation="strip"
+                        onPreviewAspectChange={setShowStagePreviewAspect}
+                      />
+                  )}
                 />
               ) : (
                 <StudioPaneMessage
@@ -1458,7 +1476,7 @@ function StudioApp() {
             )}
           </div>
         </main>
-        {!controllerProfilesEmpty && (
+        {!controllerProfilesEmpty && (studioEntityKind !== 'shows' || narrowShowWorkspace) && (
           <>
             <Splitter
               label="Resize preview pane"

@@ -50,6 +50,15 @@ describe('Show Entity Detail Panel placement (#467, #665)', () => {
     })).toEqual({ left: 196, top: 8, maxHeight: 584, placement: 'above', stemLeft: 204 })
   })
 
+  it('keeps a cramped panel below protected transport controls (#967)', () => {
+    expect(placeShowEntityDetailPanel({
+      anchor: { left: 319, top: 118, width: 530, height: 34 },
+      panel: { width: 408, height: 496 },
+      viewport: { width: 1440, height: 900 },
+      minimumTop: 88,
+    })).toEqual({ left: 859, top: 88, maxHeight: 804, placement: 'right', stemTop: 47 })
+  })
+
   it('uses the full vertical viewport budget and clamps a tall side panel', () => {
     expect(placeShowEntityDetailPanel({
       anchor: { left: 623, top: 321, width: 289, height: 44 },

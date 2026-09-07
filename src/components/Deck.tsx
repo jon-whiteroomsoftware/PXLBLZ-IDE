@@ -54,6 +54,7 @@ export function DeckSection({
   defaultExpanded = true,
   persistKey,
   summary,
+  actions,
   flushTop = false,
   children,
 }: {
@@ -63,6 +64,7 @@ export function DeckSection({
   defaultExpanded?: boolean
   persistKey?: string
   summary?: ReactNode
+  actions?: ReactNode
   flushTop?: boolean
   children: ReactNode
 }) {
@@ -111,6 +113,7 @@ export function DeckSection({
               {hint}
             </HelpHint>
           )}
+          {actions && <span className="ml-auto flex items-center gap-1">{actions}</span>}
         </div>
       )}
       {contentVisible && children}

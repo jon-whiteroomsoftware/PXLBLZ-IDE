@@ -1,0 +1,90 @@
+import { describe, expect, it } from 'vitest'
+import {
+  SHOW_CONTROLS_MIN_WIDTH,
+  SHOW_STRIP_MIN_HEIGHT,
+  SHOW_TIMELINE_MIN_HEIGHT,
+  parseShowTimelineHeight,
+  resolveShowWorkspaceLayout,
+  serializeShowTimelineHeight,
+  showControlsLayoutMode,
+} from './showWorkspaceLayout'
+
+describe('Show workspace over/under layout (#967)', () => {
+  it('turns the remembered timeline height into an aspect-true strip', () => {
+    expect(resolveShowWorkspaceLayout({
+      width: 900,
+      height: 700,
+      desiredTimelineHeight: 400,
+      previewAspect: 1,
+    })).toEqual({
+      timelineHeight: 400,
+      stripHeight: 294,
+      previewWidth: 294,
+      controlsWidth: 606,
+      clamp: null,
+    })
+
+    expect(resolveShowWorkspaceLayout({
+      width: 900,
+      height: 700,
+      desiredTimelineHeight: 500,
+      previewAspect: 16 / 9,
+    })).toMatchObject({ stripHeight: 194, previewWidth: 345, controlsWidth: 555 })
+    expect(resolveShowWorkspaceLayout({
+      width: 900,
+      height: 700,
+      desiredTimelineHeight: 300,
+      previewAspect: 9 / 16,
+    })).toMatchObject({ stripHeight: 394, previewWidth: 222, controlsWidth: 678 })
+  })
+
+  it('stops at the timeline, controls, and strip boundaries', () => {
+    expect(resolveShowWorkspaceLayout({
+      width: 900,
+      height: 500,
+      desiredTimelineHeight: 40,
+      previewAspect: 1,
+    })).toMatchObject({
+      timelineHeight: SHOW_TIMELINE_MIN_HEIGHT,
+      clamp: 'timeline-min',
+    })
+
+    const controlsClamp = resolveShowWorkspaceLayout({
+      width: 900,
+      height: 700,
+      desiredTimelineHeight: 100,
+      previewAspect: 16 / 9,
+    })
+    expect(controlsClamp.clamp).toBe('controls-min')
+    expect(controlsClamp.controlsWidth).toBeGreaterThanOrEqual(SHOW_CONTROLS_MIN_WIDTH)
+
+    expect(resolveShowWorkspaceLayout({
+      width: 900,
+      height: 700,
+      desiredTimelineHeight: 680,
+      previewAspect: 1,
+    })).toMatchObject({
+      stripHeight: SHOW_STRIP_MIN_HEIGHT,
+      clamp: 'strip-min',
+    })
+  })
+
+  it('round-trips a finite remembered Show-mode split and rejects corrupt storage', () => {
+    expect(parseShowTimelineHeight(serializeShowTimelineHeight(412))).toBe(412)
+    expect(parseShowTimelineHeight('NaN')).toBeNull()
+    expect(parseShowTimelineHeight('-20')).toBeNull()
+    expect(parseShowTimelineHeight(null)).toBeNull()
+  })
+
+  it.each([
+    [200, 'compact'],
+    [300, 'compact'],
+    [301, 'one-column'],
+    [759, 'one-column'],
+    [760, 'two-column'],
+    [1139, 'two-column'],
+    [1140, 'three-column'],
+  ] as const)('uses the controls container width %i for the %s form', (width, mode) => {
+    expect(showControlsLayoutMode(width)).toBe(mode)
+  })
+})

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { resolveShowStagePreviewInput, ShowStagePreview } from './ShowStagePreview'
-import { createDefaultShow, createShowWithOutputContract } from '@/engine/showModel'
+import { addShowZone, createDefaultShow, createShowWithOutputContract } from '@/engine/showModel'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { resetPersonalContentProvider, setPersonalContentProvider, type PersonalContentProvider } from '@/engine/personalContentProvider'
 import type { ControllerProfile } from '@/engine/controllerProfile'
@@ -73,6 +73,38 @@ beforeEach(() => {
 })
 
 describe('ShowStagePreview (#339)', () => {
+  it('lays out the desktop Stage as an aspect-true strip with folded Zone coverage and icon toggles (#967)', async () => {
+    const onPreviewAspectChange = vi.fn()
+    let show = createDefaultShow('show-stage-strip', 'Stage strip', 1000)
+    show = addShowZone(show, { name: 'Wings', nominalPixelCount: 4 })
+    show.stageMapId = importedMap.id
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useMapStore.setState({ userMaps: [importedMap], mapsLoaded: true })
+
+    render(
+      <ShowStagePreview
+        showId={show.id}
+        presentation="strip"
+        onPreviewAspectChange={onPreviewAspectChange}
+      />,
+    )
+
+    await waitFor(() => expect(onPreviewAspectChange).toHaveBeenCalledWith(1))
+    expect(screen.getByTestId('show-stage-preview')).toHaveAttribute('data-presentation', 'strip')
+    expect(screen.getByTestId('show-stage-controls')).toHaveClass('show-stage-controls')
+    expect(screen.getByRole('button', { name: 'Zones - solo' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByTestId('deck-section-summary')).toHaveTextContent(/assigned/i)
+    expect(screen.queryByRole('button', { name: 'Show all zones' })).not.toBeInTheDocument()
+
+    const zoneToggle = screen.getByRole('button', { name: 'Show Zone outlines' })
+    const clipToggle = screen.getByRole('button', { name: 'Show Selected Clip outline' })
+    expect(zoneToggle).toHaveClass('size-6', 'border')
+    expect(clipToggle).toHaveClass('size-6', 'border')
+    fireEvent.click(zoneToggle)
+    expect(zoneToggle).toHaveAttribute('aria-pressed', 'true')
+    expect(zoneToggle).toHaveClass('text-amber-200')
+  })
+
   it('does not defer a same-Show Pattern-source change behind an older snapshot (#710)', () => {
     const deferred = createDefaultShow('show-pattern-source-change', 'Deferred Show', 1000)
     const nonPatternEdit = { ...deferred, name: 'Resolved Show' }
@@ -598,7 +630,7 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     render(<ShowStagePreview showId={show.id} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Show Zone outlines' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Show Clip outline' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show Selected Clip outline' }))
     expect(screen.getByTestId('show-stage-zone-outlines')).toBeInTheDocument()
     expect(screen.getByTestId('show-stage-clip-outline')).toBeInTheDocument()
     expect(useShowEditorSessionStore.getState().diagnostics).toMatchObject({ zoneOutlines: true, clipOutlines: true })
@@ -619,14 +651,14 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     })
 
     render(<ShowStagePreview showId={show.id} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Show Clip outline' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show Selected Clip outline' }))
 
     const outline = screen.getByTestId('show-stage-clip-outline')
     const polygon = outline.querySelector('polygon')
     expect(polygon).toBeInTheDocument()
     expect(polygon).toHaveAttribute('points', '0.5116,0.0848 0.8652,0.4384 0.6884,0.6152 0.3348,0.2616')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Hide Clip outline' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Hide Selected Clip outline' }))
     expect(screen.queryByTestId('show-stage-clip-outline')).not.toBeInTheDocument()
   })
 
