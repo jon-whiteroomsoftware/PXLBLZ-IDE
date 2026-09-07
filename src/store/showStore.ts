@@ -57,6 +57,14 @@ import { useMapStore } from '@/store/mapStore'
 import { createInstallationShowOutputContract } from '@/engine/showOutputContract'
 import { normalizeShowComposition } from '@/engine/showCompositionModel'
 import { stockShowById } from '@/pixelblaze/stock/shows'
+import {
+  createShowEditSession,
+  type ShowEditIntent,
+  type ShowEditRequest,
+  type ShowEditReceipt,
+  type ShowEditSession,
+  type ShowEditSettlement,
+} from '@/engine/showEditAdmission'
 
 const showPersistenceQueues = new Map<string, Promise<void>>()
 const showsPendingDeletion = new Set<string>()
@@ -91,6 +99,17 @@ function replacementWithNextOrderingStamp(previous: ShowRecord, replacement: Sho
 }
 
 interface ShowState {
+  showRevisions: Record<string, number>
+  beginShowEditSession: (showId: string, capacity?: number) => string
+  retireShowEditSession: (sessionId: string) => void
+  beginShowEdit: (sessionId: string, intent: ShowEditIntent) => ShowEditReceipt
+  readShowEdit: (sessionId: string, operationId: string) => ShowEditReceipt | undefined
+  cancelShowEdit: (sessionId: string, operationId: string) => ShowEditReceipt | undefined
+  admitShowEdit: (
+    request: ShowEditRequest,
+    evaluate: (current: ShowRecord) => ShowRecord | null,
+    validate: (candidate: ShowRecord, current: ShowRecord) => boolean,
+  ) => ShowEditReceipt
   shows: ShowRecord[]
   showsLoaded: boolean
   activeShowId: string | null
@@ -191,6 +210,7 @@ export interface ShowHistory {
 export type { ShowRecord }
 
 export const showInitialState = {
+  showRevisions: {} as Record<string, number>,
   shows: [] as ShowRecord[],
   showsLoaded: false,
   activeShowId: null as string | null,
@@ -220,6 +240,10 @@ async function updateShowQuietly(
 }
 
 export const useShowStore = create<ShowState>()((set, get) => {
+  let editSession: ShowEditSession | undefined
+  const revisionPatch = (state: ShowState, id: string) => ({
+    showRevisions: { ...state.showRevisions, [id]: (state.showRevisions[id] ?? 0) + 1 },
+  })
   // All personal replacement paths use this one adoption and recovery policy.
   // The ordering stamp is assigned here, where V2 accepts the replacement;
   // manual and agent callers cannot accidentally retain a captured stamp.
@@ -228,9 +252,11 @@ export const useShowStore = create<ShowState>()((set, get) => {
     replacement: ShowRecord,
     history: ShowHistory,
     fallback: { record: ShowRecord; history: ShowHistory },
+    onSettlement?: (settlement: Exclude<ShowEditSettlement, 'saving' | 'draft'>) => void,
   ): Promise<void> => {
     const adopted = replacementWithNextOrderingStamp(fallback.record, replacement)
     set((state) => ({
+      ...revisionPatch(state, id),
       shows: replaceShowRecord(state.shows, adopted),
       showHistories: { ...state.showHistories, [id]: history },
       ...(state.showSaveFailure?.showId === id ? { showSaveFailure: null } : {}),
@@ -247,6 +273,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
           ? { showHistories: { ...state.showHistories, [id]: history } }
           : {}),
       }))
+      onSettlement?.(get().shows.find((show) => show.id === id)?.updatedAt === adopted.updatedAt ? 'saved' : 'superseded')
     } catch (cause) {
       let rolledBack = false
       set((state) => {
@@ -258,17 +285,108 @@ export const useShowStore = create<ShowState>()((set, get) => {
         rolledBack = true
         const durable = lastPersistedShowRecords.get(id)
         return {
+          ...revisionPatch(state, id),
           shows: replaceShowRecord(state.shows, durable?.record ?? fallback.record),
           showHistories: { ...state.showHistories, [id]: durable?.history ?? fallback.history },
           showSaveFailure: { showId: id, record: adopted },
         }
       })
+      onSettlement?.(rolledBack ? 'rolled-back' : 'superseded')
       if (rolledBack) throw cause
     }
   }
 
+  const updateShowRecord = async (
+    id: string,
+    next: ShowRecord,
+    onSettlement?: (settlement: Exclude<ShowEditSettlement, 'saving'>) => void,
+  ): Promise<void> => {
+    if (stockShowById(id)) {
+      const previousRecord = get().resolveEditableShow(id)
+      if (!previousRecord || next === previousRecord) return
+      next = reconcileShowExecutionModelOnCastReturn(previousRecord, forfeitShowExecutionModelOnCastChange(previousRecord, next))
+      const previous = normalizeShowRecord(previousRecord)
+      const adopted = replacementWithNextOrderingStamp(previous, next)
+      const previousHistory = get().showHistories[id] ?? { past: [], future: [] }
+      set((state) => ({
+        ...revisionPatch(state, id),
+        stockShowDrafts: { ...state.stockShowDrafts, [id]: adopted },
+        showHistories: {
+          ...state.showHistories,
+          [id]: { past: [...previousHistory.past, previous], future: [] },
+        },
+      }))
+      onSettlement?.('draft')
+      return
+    }
+    if (showsPendingDeletion.has(id)) return
+    const previousRecord = get().shows.find((show) => show.id === id)
+    if (!previousRecord || next === previousRecord) return
+    next = reconcileShowExecutionModelOnCastReturn(previousRecord, forfeitShowExecutionModelOnCastChange(previousRecord, next))
+    const previous = normalizeShowRecord(previousRecord)
+    const previousHistory = get().showHistories[id] ?? { past: [], future: [] }
+    const optimisticHistory = { past: [...previousHistory.past, previous], future: [] }
+    await adoptPersonalShowReplacement(id, next, optimisticHistory, {
+      record: previous,
+      history: previousHistory,
+    }, onSettlement)
+  }
+
   return {
   ...showInitialState,
+
+  beginShowEditSession: (showId, capacity) => {
+    editSession?.retire()
+    editSession = createShowEditSession(crypto.randomUUID(), showId, capacity)
+    return editSession.sessionId
+  },
+  retireShowEditSession: (sessionId) => {
+    if (editSession?.sessionId !== sessionId) return
+    editSession.retire()
+    editSession = undefined
+  },
+  beginShowEdit: (sessionId, intent) => {
+    if (!editSession || editSession.sessionId !== sessionId) {
+      return { status: 'retired', request: { ...intent, targets: [...intent.targets], sessionId, showId: '', baseRevision: -1 } }
+    }
+    const result = editSession.begin(intent, get().showRevisions[editSession.showId] ?? 0)
+    if (result.status === 'pending' && (!get().resolveEditableShow(editSession.showId) || showsPendingDeletion.has(editSession.showId))) {
+      return editSession.refuse(intent.operationId, 'missing-show') ?? result
+    }
+    return result
+  },
+  readShowEdit: (sessionId, operationId) => editSession?.sessionId === sessionId ? editSession.read(operationId) : undefined,
+  cancelShowEdit: (sessionId, operationId) => editSession?.sessionId === sessionId ? editSession.cancel(operationId) : undefined,
+  admitShowEdit: (request, evaluate, validate) => {
+    const session = editSession
+    if (!session || session.sessionId !== request.sessionId) return { request, status: 'retired' }
+    const eligibility = () => ({ sessionId: session.sessionId, showId: session.showId, revision: get().showRevisions[session.showId] ?? 0 })
+    const checked = session.check(request, eligibility())
+    if (checked.status !== 'pending') return checked
+    const current = get().resolveEditableShow(request.showId)
+    if (!current || showsPendingDeletion.has(request.showId)) return session.refuse(request.operationId, 'missing-show')!
+    let candidate: ShowRecord
+    try {
+      const privateCurrent = structuredClone(current)
+      const evaluated = evaluate(privateCurrent)
+      if (!evaluated || evaluated === privateCurrent) return session.refuse(request.operationId, 'no-candidate')!
+      candidate = normalizeShowRecord(reconcileShowExecutionModelOnCastReturn(current, forfeitShowExecutionModelOnCastChange(current, structuredClone(evaluated))))
+      if (candidate.id !== request.showId || validate(structuredClone(candidate), structuredClone(current)) !== true) {
+        return session.refuse(request.operationId, 'invalid-candidate')!
+      }
+    } catch {
+      return session.refuse(request.operationId, 'invalid-candidate')!
+    }
+    // Recheck after trusted synchronous callbacks in case they reentered the store.
+    if (editSession !== session) return { request, status: 'retired' }
+    const rechecked = session.check(request, eligibility())
+    if (rechecked.status !== 'pending') return rechecked
+    const adopted = session.adopted(request.operationId, stockShowById(request.showId) ? 'draft' : 'saving')
+    void updateShowRecord(request.showId, candidate, (settlement) => {
+      if (settlement !== 'draft') session.settle(request.operationId, settlement)
+    }).catch(() => { /* Store recovery notice and receipt own the failure. */ })
+    return adopted
+  },
 
   loadShows: async () => {
     const hydration = (async () => {
@@ -276,6 +394,10 @@ export const useShowStore = create<ShowState>()((set, get) => {
       .map(normalizeShowRecord)
     set((state) => ({
       ...reconcileHydratedShows(state, shows),
+      showRevisions: Object.fromEntries(
+        [...new Set([...Object.keys(state.showRevisions), ...state.shows.map((show) => show.id), ...shows.map((show) => show.id)])]
+          .map((id) => [id, (state.showRevisions[id] ?? 0) + 1]),
+      ),
       showsLoaded: true,
     }))
     })()
@@ -317,6 +439,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
 
   beginShowCreation: () => {
     if (get().showCreation) return
+    if (editSession) get().retireShowEditSession(editSession.sessionId)
     set({ showCreation: { previousShowId: get().activeShowId } })
   },
 
@@ -328,12 +451,14 @@ export const useShowStore = create<ShowState>()((set, get) => {
 
   openShow: async (id) => {
     if (id === null) {
+      if (editSession) get().retireShowEditSession(editSession.sessionId)
       set({ activeShowId: null, showCreation: null })
       return
     }
     if (get().activeShowId === id) return
     const show = get().shows.find((candidate) => candidate.id === id)
     if (!show) return
+    if (editSession && editSession.showId !== id) get().retireShowEditSession(editSession.sessionId)
     set({ activeShowId: id, showCreation: null })
     getPersonalContentProvider().setLastActive({ type: 'show', id }).catch(() => {})
   },
@@ -345,7 +470,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
     await getPersonalContentProvider().createShow(record)
     lastPersistedShowRecords.set(record.id, { record: normalizeShowRecord(record), history: { past: [], future: [] } })
     trackEntityCreated('show')
-    set((state) => ({ shows: [record, ...state.shows], showsLoaded: true }))
+    set((state) => ({ ...revisionPatch(state, record.id), shows: [record, ...state.shows], showsLoaded: true }))
   },
 
   addImportedShow: async (record) => {
@@ -362,6 +487,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
   removeShow: async (id) => {
     if (showsPendingDeletion.has(id)) return
     showsPendingDeletion.add(id)
+    set((state) => revisionPatch(state, id))
     try {
       await deletePersistedShow(id)
       lastPersistedShowRecords.delete(id)
@@ -411,38 +537,10 @@ export const useShowStore = create<ShowState>()((set, get) => {
     delete stockShowDrafts[id]
     const showHistories = { ...state.showHistories }
     delete showHistories[id]
-    return { stockShowDrafts, showHistories }
+    return { ...revisionPatch(state, id), stockShowDrafts, showHistories }
   }),
 
-  updateShow: async (id, next) => {
-    if (stockShowById(id)) {
-      const previousRecord = get().resolveEditableShow(id)
-      if (!previousRecord || next === previousRecord) return
-      next = reconcileShowExecutionModelOnCastReturn(previousRecord, forfeitShowExecutionModelOnCastChange(previousRecord, next))
-      const previous = normalizeShowRecord(previousRecord)
-      const adopted = replacementWithNextOrderingStamp(previous, next)
-      const previousHistory = get().showHistories[id] ?? { past: [], future: [] }
-      set((state) => ({
-        stockShowDrafts: { ...state.stockShowDrafts, [id]: adopted },
-        showHistories: {
-          ...state.showHistories,
-          [id]: { past: [...previousHistory.past, previous], future: [] },
-        },
-      }))
-      return
-    }
-    if (showsPendingDeletion.has(id)) return
-    const previousRecord = get().shows.find((show) => show.id === id)
-    if (!previousRecord || next === previousRecord) return
-    next = reconcileShowExecutionModelOnCastReturn(previousRecord, forfeitShowExecutionModelOnCastChange(previousRecord, next))
-    const previous = normalizeShowRecord(previousRecord)
-    const previousHistory = get().showHistories[id] ?? { past: [], future: [] }
-    const optimisticHistory = { past: [...previousHistory.past, previous], future: [] }
-    await adoptPersonalShowReplacement(id, next, optimisticHistory, {
-      record: previous,
-      history: previousHistory,
-    })
-  },
+  updateShow: (id, next) => updateShowRecord(id, next),
 
   dismissShowSaveFailure: () => set({ showSaveFailure: null }),
 
@@ -647,6 +745,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
     if (stockShowById(showId)) {
       const next = replacementWithNextOrderingStamp(show, replacement)
       set((state) => ({
+        ...revisionPatch(state, showId),
         stockShowDrafts: { ...state.stockShowDrafts, [showId]: next },
         showHistories: { ...state.showHistories, [showId]: nextHistory },
       }))
@@ -674,6 +773,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
     if (stockShowById(showId)) {
       const next = replacementWithNextOrderingStamp(show, replacement)
       set((state) => ({
+        ...revisionPatch(state, showId),
         stockShowDrafts: { ...state.stockShowDrafts, [showId]: next },
         showHistories: { ...state.showHistories, [showId]: nextHistory },
       }))

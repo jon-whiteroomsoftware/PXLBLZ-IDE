@@ -36,6 +36,30 @@ stock draft update remains in memory. The store owns those semantics in
 [Show command semantics](show-command-semantics.md) covers the V2 registry only;
 the V3 grammar is a separate adapter and is not yet equivalent to that registry.
 
+## Internal admission foundation
+
+The Show store now exposes an internal session/request admission API, independent
+of component effects. It registers immutable operation identity before private
+work, checks a monotonic whole-Show revision, evaluates and validates through
+synchronous engine callbacks, and adopts once into ordinary store history.
+Session retirement, cancellation, duplicate delivery and altered envelopes
+produce typed non-application outcomes. Its session-only receipt lookup separates
+applied/saving from saved, rolled-back, superseded and stock draft settlement.
+
+[Show state, history, and persistence](show-state-history-persistence.md#internal-request-admission)
+defines lifetime, revision inventory, retry identity and the configurable entry
+cap. [Pure policy tests](../../../src/engine/showEditAdmission.test.ts) and
+[store admission tests](../../../src/store/showEditAdmission.test.ts) exercise
+full records/history, provider writes, revision ABA, retirement, deduplication
+and delayed persistence outcomes.
+
+This foundation is not wired into `__pxlblzEditor`, the diagnostic overlay,
+grammar or turn runner. The live boundary and baseline failures described below
+remain current. Layer dependency qualification, active-input waiting, canonical
+command replay and the accepted final authoring validation policy remain later
+#949 slices. Trusted callbacks at this internal seam are not a production
+command or validation escape hatch.
+
 ## Present limits
 
 The browser's busy flag serializes its own submissions while manual editing
@@ -208,7 +232,8 @@ diagnostic until #946, #947 and #959 decide what becomes engine code (#949).
   integration.
 
 Revision admission, request retirement, and explicit applied/durable outcomes
-remain roadmap work. This baseline does not claim those guarantees or select a
+exist at the internal store seam only. Their live request integration remains
+roadmap work. The baseline does not claim those guarantees or select a
 merge policy. The shared-agentic Show editing roadmap now lives at
 [`docs/plans/shared-agentic-show-editing-roadmap-prd.md`](../../plans/shared-agentic-show-editing-roadmap-prd.md)
 with its V3 provenance. Migration into V2 does not itself implement the

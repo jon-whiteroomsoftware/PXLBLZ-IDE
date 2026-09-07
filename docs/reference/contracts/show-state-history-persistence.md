@@ -28,6 +28,53 @@ Stock drafts and their history stay in memory until an explicit save-as or
 other persistence operation creates personal content. Editing a draft therefore
 does not prove that a durable personal Show exists.
 
+## Internal request admission
+
+The internal admission API binds each request to an explicit editor session,
+Show id, store revision and immutable operation identity. Starting another
+session or explicitly retiring the current one makes its requests ineligible,
+even when the next editor opens the same Show. Adapters must retain the session
+token across ordinary component effect recreation and retire it on editor
+departure. Store navigation away and Show creation retire the current session;
+the diagnostic editor bridge has not yet adopted this API.
+
+Document revisions advance independently of persistence timestamps. Personal
+and stock updates, undo/redo, recovery rollback, creation, deletion start and
+stock draft reset invalidate earlier requests. Successful hydration conservatively
+advances known Show revisions even when it retains an equal or queued record.
+Revisions survive identity removal, so delete/recreate and edit/undo cannot
+restore old eligibility. Same-reference updates, exhausted history, unchanged
+rename, absent draft reset and notice dismissal do not advance revisions.
+Equal-content replacement objects retain the existing manual update behavior.
+
+Admission checks the whole Show revision, evaluates a private clone through
+trusted synchronous engine callbacks, normalizes the candidate, requires a
+synchronous final-validation success, and checks eligibility again before
+adoption. The operation receipt is registered before the one history entry is
+published; no persistence await separates those steps. Invalid identity,
+validation failure, cancellation, retirement, stale revision and duplicate
+delivery cannot replace the document or add history/provider writes. A callback
+returning no candidate or its original input identity produces a no-candidate
+refusal. Command-specific no-change semantics remain in the command registry.
+
+The operation table retains immutable pending, refused, cancelled and applied
+receipts for the live session. Duplicate delivery reads the existing outcome;
+a changed envelope under the same id refuses without replacing that identity.
+Explicit retry requires a new id and retains the original payload identity,
+reference context and target identities. Target qualification remains the
+engine adapter's responsibility. The configurable default is 256 entries per
+session, a conservative memory bound. A full table refuses new registrations
+instead of evicting ids. Retirement clears historical lookup; unknown or old
+requests never register themselves during delivery.
+
+Applied receipts distinguish saving from settlement. The existing personal
+write queue reports saved when that adoption is still current at successful
+settlement, superseded when a later state owns the outcome, and rolled-back
+when current-write failure restores its durable record/history pair. Stock
+admission reports draft immediately. Receipt lookup is session-only; an adopted
+save still settles normally after retirement without recreating lost receipts.
+These outcomes use the existing recovery policy, not a second persistence queue.
+
 ## Personal saves and recovery
 
 Full-record saves are queued per Show within this client. A later save starts
@@ -64,8 +111,8 @@ write cannot recreate the deleted provider record.
 
 ## Write, reload, and reset inventory
 
-This is the complete V2 ownership inventory for the document-revision work in
-#946. None of these paths currently carries an expected document revision.
+This is the complete V2 ownership inventory. The internal request API checks
+store revisions; existing manual replacement callers retain their original API.
 
 - Personal creation: `createNewShow`, `createShowFromController`,
   `addImportedShow`, and `duplicateShow` converge on `addShow` and provider
@@ -89,8 +136,8 @@ This is the complete V2 ownership inventory for the document-revision work in
 - Durable-baseline ordering uses store-assigned `updatedAt` ordering stamps.
   They are not server revisions or a cross-client conflict protocol; clock skew
   can still misorder records from different clients. #802 owns that boundary.
-- The store accepts complete records without comparing an expected base
-  revision. Save serialization alone does not prevent a stale replacement
+- The manual `updateShow` API, still used by the diagnostic bridge, accepts
+  complete records without comparing an expected base revision. Save serialization alone does not prevent a stale replacement
   from overwriting a newer edit; baseline sequences A, B, and C reproduce
   that overwrite on the live editor.
 
@@ -111,3 +158,9 @@ stock history/reset behavior. The browser baseline's green sequence E proves
 the delayed agent-save failure and reopen surface from an unsandboxed host run.
 Together those cases establish bounded single-client recovery; they do not
 prove general collaborative editing or clock-skew safety.
+
+[Admission tests](../../../src/store/showEditAdmission.test.ts) cover the internal
+request seam with complete record/history and provider oracles, including
+stale revisions, hydration/reset/deletion, session retirement, duplicates,
+capacity, rollback/supersession and stock drafts. These tests do not prove
+live editor integration or qualified Layer independence.
