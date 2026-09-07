@@ -99,3 +99,31 @@ test('address-scoped helpers answer map and compile once and preserve connection
     expect.objectContaining({ connId: 'scope-regression-connection', payload: { text: '{"ack":1}' } }),
   ])
 })
+
+test('capture preparation waits for persisted names as well as Controller rows (#969)', async ({ page }) => {
+  const adapter = await createShowsCaptureAdapter(page, 1)
+  const get = page.request.get.bind(page.request)
+  let pendingNames = 0
+  // Fault injection at the adapter's API boundary: existing rows precede their
+  // final names for two observations, independently of real network timing.
+  page.request.get = async (...args) => {
+    const response = await get(...args)
+    if (args[0] === '/api/controllers' && response.ok()) {
+      const body = await response.json() as { controllers: Array<Record<string, unknown>> }
+      if (body.controllers.length === 1 && pendingNames < 2) {
+        pendingNames += 1
+        return Object.assign(Object.create(response), {
+          json: async () => ({ ...body, controllers: body.controllers.map((record) => ({ ...record, lastKnownDeviceName: 'pending profile name' })) }),
+        }) as typeof response
+      }
+    }
+    return response
+  }
+  try {
+    await adapter.prepare(scenario(1440, 900, 1))
+    expect(pendingNames).toBe(2)
+    expect((await adapter.observe(scenario(1440, 900, 1))).deviceIds).toHaveLength(1)
+  } finally {
+    page.request.get = get
+  }
+})
