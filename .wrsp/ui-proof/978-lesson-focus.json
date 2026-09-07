@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "978",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-100-getting-around",
+  "operation": "Isolated authenticated repository Playwright on the real stock lesson Show: pointer open and close each release book focus; Space starts playback with the guide closed (captured), and a second Space pauses. Tab and Enter preserve deliberate book focus, and the list search retains native typed spaces. In-app browser fallback was coordinated by the parent after unavailable child IAB discovery and unsupported synthetic cookie injection.",
+  "captures": [".wrsp/ui-proof/978-lesson-focus.png"],
+  "capturedAtCommit": "66b5d19b47602a8d25b20c49776da8d776fffde4"
+}
