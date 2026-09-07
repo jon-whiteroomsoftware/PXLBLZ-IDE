@@ -2647,6 +2647,13 @@ test.describe('authenticated Show authoring', () => {
       const output = process.env.PXLBLZ_CAPTURE_OUTPUT
       if (!output) return
       await mkdir(output, { recursive: true })
+      if (await page.getByTestId('show-stage-preview').isVisible()) {
+        const toolbar = page.getByTestId('show-timeline-toolbar')
+        const play = toolbar.getByRole('button', { name: 'Play Show preview' })
+        if (await play.isVisible()) await play.click()
+        await expect.poll(async () => (await showStageCanvasStats(page)).maxChannel).toBeGreaterThan(100)
+        await toolbar.getByRole('button', { name: 'Pause Show preview' }).click()
+      }
       await page.screenshot({ path: join(output, `977-${name}.png`) })
     }
     await page.setViewportSize({ width: 1440, height: 900 })
@@ -2665,7 +2672,7 @@ test.describe('authenticated Show authoring', () => {
       return footer.getBoundingClientRect().top - section.getBoundingClientRect().bottom - padding
     })
     for (const count of [3, 6]) {
-      await page.goto(`studio/shows/workspace-square-${count}`)
+      await page.goto(`studio/shows/workspace-square-${count}?capture`)
       await expect(splitter).toHaveAttribute('data-clamp', 'none')
       await expect.poll(contentSlack).toBeGreaterThanOrEqual(11)
       await expect.poll(contentSlack).toBeLessThanOrEqual(13)
