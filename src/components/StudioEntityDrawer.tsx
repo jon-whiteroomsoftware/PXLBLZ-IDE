@@ -62,14 +62,17 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
   const stateRef = useRef(state)
   const drawerRef = useRef<HTMLElement>(null)
   const focusReturnRef = useRef<HTMLElement | null>(null)
+  const keyboardRefocusAllowedRef = useRef(false)
   const mode = studioEntityDrawerMode(state)
 
   const apply = useCallback((event: StudioEntityDrawerEvent) => {
     if (event.type === 'open' && event.source === 'keyboard') {
       focusReturnRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      keyboardRefocusAllowedRef.current = true
     }
     const result = transitionStudioEntityDrawer(stateRef.current, event)
     stateRef.current = result.state
+    if (studioEntityDrawerMode(result.state) !== 'open') keyboardRefocusAllowedRef.current = false
     setState(result.state)
     if (result.announce) setAnnouncement(result.announce)
     if (result.focus === 'restore') {
@@ -86,10 +89,9 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
 
   useEffect(() => {
     if (mode !== 'open' || state.openSource !== 'keyboard') return
-    let refocusAllowed = true
     const focusList = () => {
       const rail = drawerRef.current
-      if (!refocusAllowed || !rail || rail.contains(document.activeElement)) return
+      if (!keyboardRefocusAllowedRef.current || !rail || rail.contains(document.activeElement)) return
       const search = rail.querySelector<HTMLInputElement>('input[aria-label="Search by name"]')
       const selected = rail.querySelector<HTMLElement>('[role="treeitem"][aria-selected="true"]')
       const first = rail.querySelector<HTMLElement>('[role="treeitem"]')
@@ -103,7 +105,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
         rail?.contains(event.target as Node)
         && event.relatedTarget instanceof Node
         && !rail.contains(event.relatedTarget)
-      ) refocusAllowed = false
+      ) keyboardRefocusAllowedRef.current = false
     }
     rail?.addEventListener('focusout', stopRefocusingAfterIntentionalDeparture)
     const initial = window.setTimeout(focusList, 0)
@@ -187,7 +189,10 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
       const busy = syncBusy()
       if (busy.size > 0) {
         const active = document.activeElement
-        if (active instanceof HTMLInputElement && active.getAttribute('aria-label') === 'Search by name') active.blur()
+        if (active instanceof HTMLInputElement && active.getAttribute('aria-label') === 'Search by name') {
+          keyboardRefocusAllowedRef.current = false
+          active.blur()
+        }
         else dismissOwnedBusy?.()
         return
       }

@@ -92,6 +92,7 @@ describe('StudioEntityDrawer (#966)', () => {
     expect(search).toHaveFocus()
 
     fireEvent.keyDown(search, { key: 'Escape' })
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
     expect(search).not.toHaveFocus()
     expect(tab).toHaveAttribute('aria-expanded', 'true')
 
