@@ -162,7 +162,7 @@ export function RailEntityHeader({
   const drawer = useStudioEntityDrawerControls()
   return (
     <div className="relative shrink-0 border-b border-seam">
-      <div className="rail-entity-row relative flex h-10 w-full items-center gap-2 px-2">
+      <div className="rail-entity-row relative flex h-[40px] w-full items-center gap-2 px-2">
         {onQueryChange ? <RailSearchField label={`Search ${title.toLocaleLowerCase()}`} query={query} onQueryChange={onQueryChange} /> : <span className="flex-1" />}
         {action && <div className="rail-entity-actions flex shrink-0 items-center gap-2">{action}</div>}
         {drawer ? (

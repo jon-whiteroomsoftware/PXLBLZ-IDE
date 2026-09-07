@@ -855,6 +855,7 @@ test('rail search stays inside the list pane at narrow widths', async ({ page })
       inputLeft: inputBounds.left,
       inputRight: inputBounds.right,
       inputWidth: inputBounds.width,
+      headerHeight: input.closest('.rail-entity-row')?.getBoundingClientRect().height,
       railLeft: railBounds?.left,
       railRight: railBounds?.right,
     }
@@ -863,6 +864,7 @@ test('rail search stays inside the list pane at narrow widths', async ({ page })
   expect(bounds.inputLeft).toBeGreaterThanOrEqual(bounds.railLeft ?? Number.POSITIVE_INFINITY)
   expect(bounds.inputRight).toBeLessThanOrEqual(bounds.railRight ?? Number.NEGATIVE_INFINITY)
   expect(bounds.inputWidth).toBeGreaterThanOrEqual(120)
+  expect(bounds.headerHeight).toBe(40)
 
   await searchInput.press('Escape')
   await page.setViewportSize({ width: 1440, height: 720 })
