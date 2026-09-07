@@ -106,12 +106,13 @@ export async function installFakeControllerHelper(
         })
         return
       }
-      if (fixture.address && message.type !== 'send') return
       if (message.type === 'get-map') {
+        if (fixture.address && message.address !== fixture.address) return
         emit({ type: 'map-data', reqId: message.reqId, ok: true })
         return
       }
       if (message.type === 'compile') {
+        if (fixture.address && message.address !== fixture.address) return
         emit({
           type: 'compile-result',
           reqId: message.reqId,
