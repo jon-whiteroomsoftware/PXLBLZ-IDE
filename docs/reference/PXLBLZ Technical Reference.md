@@ -1071,7 +1071,8 @@ never a connected Controller. Zone outlines and timing guides are session-only
 SVG diagnostics that never mutate compiled pixels. `ShowWorkspace` owns the
 desktop over/under composition and delegates its measurements to
 `showWorkspaceLayout.ts`. The pure layout keeps the preview at the Stage map's
-aspect while enforcing the timeline, strip, and 200 px controls minimums. Its
+aspect while enforcing the timeline and strip minimums, reserving a 30 px
+preview rail and at least 200 px of usable controls. Its
 horizontal divider moves by 10 px, or 50 px with Shift, and persists one Show
 timeline height only after explicit pointer or keyboard movement. Without a
 remembered height, the timeline fits its measured content plus 12 px slack and
@@ -1079,8 +1080,14 @@ the strip fills the remainder, recomputed on content and viewport changes.
 `ShowEditor` measures content independently of scroll position; visible lesson
 notes retain space in both automatic fitting and the two-lane minimum. Remembered
 height takes precedence over content and survives temporary viewport clamps.
-`ShowStagePreview` reports aspect changes and uses container
-queries to arrange controls at 300, 760, and 1,140 px boundaries.
+`ShowStagePreview` reports aspect changes and retains its canvas while the
+strip sections expand independently. Controls use one column capped at 480 px,
+with slider tracks capped at 200 px and the existing rail scrolling treatment.
+`ShowSourceOutlet` lets `ShowEditor` retain ownership of compilation and delivery
+state while rendering the Source section into the desktop strip. Timeline
+measurements include the source footer only in the narrow layout, where that
+footer remains the inventory entry point. `ShowArtifactInventoryBody` supplies
+the same inventory content to both presentations.
 
 **Layout.** The top-bar place control owns the six Studio areas plus Docs and
 API Reference, and remembers the last open entity in each Studio area. The

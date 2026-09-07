@@ -442,23 +442,27 @@ an animatable Split) that hold on any compatible surface.
 
 The **Stage** is the whole Show rendered over its output geometry and driven by
 Show transport. On desktop it fills the left side of a strip below the
-timeline; Stage, Preview, and Zone controls flow into one, two, or three
-columns beside it as room permits. Before a split is remembered, the timeline
+timeline. A narrow rail beside the canvas holds playback and the Zone-outline
+and selected-Clip-outline toggles. Stage, Preview, Zones, and Source form one
+controls column beside the rail, capped at 480 px. Each header summarizes its
+folded section. Preview begins open; the other sections begin folded, and
+PXLBLZ remembers each section independently for Shows. Before a split is remembered, the timeline
 fits its content with a little slack and the Stage takes the remaining height,
 subject to the pane minimums. This default adjusts when lanes or window size
 change. Drag the horizontal divider to trade space
 between the timeline and Stage, or focus it and use **Up/Down**. PXLBLZ
-remembers the Show split; later lane changes preserve that position. Zones begin folded with their coverage in the
-heading, while the Zone-outline and selected-Clip-outline icons remain at hand
-in Preview. At 980 px and below, the established Preview overlay remains.
+remembers the Show split; later lane changes preserve that position. The controls
+retain at least 200 px beside the rail and scroll when expanded content exceeds
+the strip height. At 980 px and below, the established Preview overlay remains.
 
 ## 17. Cost, sending, and sharing
 
-The compile bar under the timeline is the honest accountant: delivered source
-size, memory words, and short warnings or blockers. Open the source figure for
-a byte-level inventory. Hovering lets the pointer move from the source figure
-into the inventory; selecting the figure keeps the inventory open until it is
-closed. Every Pattern row distinguishes three things in plain language:
+On desktop, the Source section beside the Stage reports delivered source size,
+memory words, and running Pattern copies. Expand it for the byte-level inventory.
+Warnings, blockers, and send results remain visible below the section. Where
+the desktop strip is absent, the compile bar remains under the timeline:
+hover its source figure to inspect the inventory, or select it to keep the
+inventory open until closed. Every Pattern row distinguishes three things in plain language:
 **configured uses** are separately configured versions of that Pattern in the
 Show, **copies in delivered code** are the copies the compiler kept in the
 generated Pixelblaze Pattern, and **timeline placements** are the Clips that

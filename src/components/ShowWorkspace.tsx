@@ -8,6 +8,7 @@ import {
   resolveShowWorkspaceLayout,
   serializeShowTimelineHeight,
 } from '@/engine/showWorkspaceLayout'
+import ShowSourceOutletContext from './ShowSourceOutlet'
 
 export function ShowWorkspace({
   previewAspect,
@@ -32,6 +33,7 @@ export function ShowWorkspace({
       return null
     }
   })
+  const [sourceOutlet, setSourceOutlet] = useState<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const workspace = workspaceRef.current
@@ -79,60 +81,68 @@ export function ShowWorkspace({
 
   const stageAvailable = stage !== null
 
+  const sourceContext = useMemo(() => ({
+    enabled: stageAvailable,
+    target: sourceOutlet,
+    setTarget: setSourceOutlet,
+  }), [sourceOutlet, stageAvailable])
+
   return (
-    <div ref={workspaceRef} className="flex h-full min-h-0 flex-col overflow-hidden" data-testid="show-over-under-workspace">
-      <div
-        data-testid="show-timeline-pane"
-        className="min-h-0 shrink-0 overflow-hidden"
-        style={{ height: stageAvailable ? layout.timelineHeight : '100%' }}
-      >
-        {timeline}
+    <ShowSourceOutletContext.Provider value={sourceContext}>
+      <div ref={workspaceRef} className="flex h-full min-h-0 flex-col overflow-hidden" data-testid="show-over-under-workspace">
+        <div
+          data-testid="show-timeline-pane"
+          className="min-h-0 shrink-0 overflow-hidden"
+          style={{ height: stageAvailable ? layout.timelineHeight : '100%' }}
+        >
+          {timeline}
+        </div>
+        {stageAvailable && <div
+          role="separator"
+          tabIndex={0}
+          aria-label="Resize timeline and Stage"
+          aria-orientation="horizontal"
+          aria-valuemin={Math.min(timelineMinimumHeight, Math.max(1, size.height - SHOW_WORKSPACE_DIVIDER_HEIGHT))}
+          aria-valuemax={Math.max(1, size.height - SHOW_WORKSPACE_DIVIDER_HEIGHT - SHOW_STRIP_MIN_HEIGHT)}
+          aria-valuenow={layout.timelineHeight}
+          data-clamp={layout.clamp ?? 'none'}
+          className={`group relative h-[6px] shrink-0 cursor-row-resize select-none border-y transition-colors focus-visible:outline-none ${layout.clamp
+            ? 'border-red-400/45 bg-red-400/15'
+            : 'border-seam bg-zinc-900 hover:border-amber-300/45 focus-visible:border-amber-300/60'}`}
+          onPointerDown={beginDragging}
+          onPointerMove={(event) => {
+            const drag = dragRef.current
+            if (!drag || drag.pointerId !== event.pointerId) return
+            moveDivider(event.clientY - drag.y)
+            drag.y = event.clientY
+          }}
+          onPointerUp={(event) => {
+            if (dragRef.current?.pointerId !== event.pointerId) return
+            dragRef.current = null
+            event.currentTarget.releasePointerCapture?.(event.pointerId)
+          }}
+          onPointerCancel={() => { dragRef.current = null }}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+            event.preventDefault()
+            moveDivider((event.key === 'ArrowUp' ? -1 : 1) * (event.shiftKey ? 50 : 10))
+          }}
+        >
+          <span
+            aria-hidden
+            className={`absolute left-1/2 top-1/2 h-0.5 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors ${layout.clamp
+              ? 'bg-red-400'
+              : 'bg-zinc-600 group-hover:bg-amber-300 group-focus-visible:bg-amber-300'}`}
+          />
+        </div>}
+        {stageAvailable && <div
+          data-testid="show-stage-strip"
+          className="min-h-0 shrink-0 overflow-hidden bg-zinc-950"
+          style={{ height: layout.stripHeight }}
+        >
+          {stage}
+        </div>}
       </div>
-      {stageAvailable && <div
-        role="separator"
-        tabIndex={0}
-        aria-label="Resize timeline and Stage"
-        aria-orientation="horizontal"
-        aria-valuemin={Math.min(timelineMinimumHeight, Math.max(1, size.height - SHOW_WORKSPACE_DIVIDER_HEIGHT))}
-        aria-valuemax={Math.max(1, size.height - SHOW_WORKSPACE_DIVIDER_HEIGHT - SHOW_STRIP_MIN_HEIGHT)}
-        aria-valuenow={layout.timelineHeight}
-        data-clamp={layout.clamp ?? 'none'}
-        className={`group relative h-[6px] shrink-0 cursor-row-resize select-none border-y transition-colors focus-visible:outline-none ${layout.clamp
-          ? 'border-red-400/45 bg-red-400/15'
-          : 'border-seam bg-zinc-900 hover:border-amber-300/45 focus-visible:border-amber-300/60'}`}
-        onPointerDown={beginDragging}
-        onPointerMove={(event) => {
-          const drag = dragRef.current
-          if (!drag || drag.pointerId !== event.pointerId) return
-          moveDivider(event.clientY - drag.y)
-          drag.y = event.clientY
-        }}
-        onPointerUp={(event) => {
-          if (dragRef.current?.pointerId !== event.pointerId) return
-          dragRef.current = null
-          event.currentTarget.releasePointerCapture?.(event.pointerId)
-        }}
-        onPointerCancel={() => { dragRef.current = null }}
-        onKeyDown={(event) => {
-          if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
-          event.preventDefault()
-          moveDivider((event.key === 'ArrowUp' ? -1 : 1) * (event.shiftKey ? 50 : 10))
-        }}
-      >
-        <span
-          aria-hidden
-          className={`absolute left-1/2 top-1/2 h-0.5 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors ${layout.clamp
-            ? 'bg-red-400'
-            : 'bg-zinc-600 group-hover:bg-amber-300 group-focus-visible:bg-amber-300'}`}
-        />
-      </div>}
-      {stageAvailable && <div
-        data-testid="show-stage-strip"
-        className="min-h-0 shrink-0 overflow-hidden bg-zinc-950"
-        style={{ height: layout.stripHeight }}
-      >
-        {stage}
-      </div>}
-    </div>
+    </ShowSourceOutletContext.Provider>
   )
 }

@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   SHOW_CONTROLS_MIN_WIDTH,
+  SHOW_PREVIEW_RAIL_WIDTH,
   SHOW_STRIP_MIN_HEIGHT,
   SHOW_TIMELINE_MIN_HEIGHT,
   parseShowTimelineHeight,
   measureShowTimelineMinimumHeight,
   resolveShowWorkspaceLayout,
   serializeShowTimelineHeight,
-  showControlsLayoutMode,
 } from './showWorkspaceLayout'
 
 describe('Show workspace over/under layout (#967)', () => {
@@ -34,7 +34,7 @@ describe('Show workspace over/under layout (#967)', () => {
       timelineHeight: 400,
       stripHeight: 294,
       previewWidth: 294,
-      controlsWidth: 606,
+      controlsWidth: 576,
       clamp: null,
     })
 
@@ -43,18 +43,18 @@ describe('Show workspace over/under layout (#967)', () => {
       height: 700,
       desiredTimelineHeight: 500,
       previewAspect: 16 / 9,
-    })).toMatchObject({ stripHeight: 194, previewWidth: 345, controlsWidth: 555 })
+    })).toMatchObject({ stripHeight: 194, previewWidth: 345, controlsWidth: 525 })
     expect(resolveShowWorkspaceLayout({
       width: 900,
       height: 700,
       desiredTimelineHeight: 300,
       previewAspect: 9 / 16,
-    })).toMatchObject({ stripHeight: 394, previewWidth: 222, controlsWidth: 678 })
+    })).toMatchObject({ stripHeight: 394, previewWidth: 222, controlsWidth: 648 })
   })
 
   it.each([
     [1200, 800, 900, 1, 654, 'strip-min'],
-    [900, 700, 100, 16 / 9, 301, 'controls-min'],
+    [900, 700, 100, 16 / 9, 318, 'controls-min'],
     [1200, 800, 100, 1, 164, 'timeline-min'],
   ] as const)('applies the same clamps to automatic fitting at %i × %i', (width, height, timelineContentHeight, previewAspect, timelineHeight, clamp) => {
     expect(resolveShowWorkspaceLayout({ width, height, timelineContentHeight, previewAspect, desiredTimelineHeight: null }))
@@ -80,6 +80,7 @@ describe('Show workspace over/under layout (#967)', () => {
     })
     expect(controlsClamp.clamp).toBe('controls-min')
     expect(controlsClamp.controlsWidth).toBeGreaterThanOrEqual(SHOW_CONTROLS_MIN_WIDTH)
+    expect(controlsClamp.previewWidth + SHOW_PREVIEW_RAIL_WIDTH + controlsClamp.controlsWidth).toBe(900)
 
     expect(resolveShowWorkspaceLayout({
       width: 900,
@@ -115,15 +116,4 @@ describe('Show workspace over/under layout (#967)', () => {
     expect(parseShowTimelineHeight(null)).toBeNull()
   })
 
-  it.each([
-    [200, 'compact'],
-    [300, 'compact'],
-    [301, 'one-column'],
-    [759, 'one-column'],
-    [760, 'two-column'],
-    [1139, 'two-column'],
-    [1140, 'three-column'],
-  ] as const)('uses the controls container width %i for the %s form', (width, mode) => {
-    expect(showControlsLayoutMode(width)).toBe(mode)
-  })
 })

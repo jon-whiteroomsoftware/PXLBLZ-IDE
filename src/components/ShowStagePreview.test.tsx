@@ -13,6 +13,7 @@ import { controllerProfileInitialState, useControllerProfileStore } from '@/stor
 import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { stockShowById } from '@/pixelblaze/stock/shows'
+import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
 import * as fastReplay from '@/engine/fastReplay'
 import * as fastReplayCheckpoints from '@/engine/fastReplayCheckpoints'
 
@@ -62,6 +63,7 @@ const importedMap: MapRecord = {
 }
 
 beforeEach(() => {
+  usePanelPreferencesStore.setState({ expanded: {} })
   resetPersonalContentProvider()
   useShowStore.setState(showInitialState)
   usePatternStore.setState(patternInitialState)
@@ -91,15 +93,22 @@ describe('ShowStagePreview (#339)', () => {
 
     await waitFor(() => expect(onPreviewAspectChange).toHaveBeenCalledWith(1))
     expect(screen.getByTestId('show-stage-preview')).toHaveAttribute('data-presentation', 'strip')
-    expect(screen.getByTestId('show-stage-controls')).toHaveClass('show-stage-controls')
-    expect(screen.getByRole('button', { name: 'Zones - solo' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByTestId('deck-section-summary')).toHaveTextContent(/assigned/i)
+    expect(screen.getByTestId('show-stage-controls')).toHaveClass('show-strip-controls')
+    expect(screen.getByRole('button', { name: 'Zones' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('status', { name: 'Zone coverage' })).toHaveTextContent(/assigned/i)
     expect(screen.queryByRole('button', { name: 'Show all zones' })).not.toBeInTheDocument()
 
     const zoneToggle = screen.getByRole('button', { name: 'Show Zone outlines' })
     const clipToggle = screen.getByRole('button', { name: 'Show Selected Clip outline' })
     expect(zoneToggle).toHaveClass('size-6', 'border')
     expect(clipToggle).toHaveClass('size-6', 'border')
+    const canvas = document.querySelector('canvas')
+    expect(screen.getByRole('button', { name: 'Preview' })).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Stage' }))
+    expect(document.querySelector('canvas')).toBe(canvas)
+    expect(usePanelPreferencesStore.getState().expanded['show-strip:preview']).toBe(false)
+    expect(usePanelPreferencesStore.getState().expanded['show-strip:stage']).toBe(true)
     fireEvent.click(zoneToggle)
     expect(zoneToggle).toHaveAttribute('aria-pressed', 'true')
     expect(zoneToggle).toHaveClass('text-amber-200')

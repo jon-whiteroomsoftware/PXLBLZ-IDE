@@ -42,7 +42,7 @@ import { ShowTransitionPalette, ShowTransitionParameters } from '@/components/Sh
 import { ShowLayerTransitionPalette } from '@/components/ShowLayerTransitionPalette'
 import { ShowLayerTransitionEditor } from '@/components/ShowLayerTransitionEditor'
 import { ShowTransitionXrayPictogram } from '@/components/ShowTransitionXrayPictogram'
-import { ShowArtifactInventoryPopover } from '@/components/ShowArtifactInventoryPopover'
+import { ShowArtifactInventoryPopover, ShowArtifactInventoryBody } from '@/components/ShowArtifactInventoryPopover'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
 import { PatternDeploymentActions } from '@/components/PatternDeploymentActions'
@@ -320,6 +320,8 @@ import {
 } from '@/engine/showLayoutIntervals'
 import { SaveFailureNotice } from '@/components/SaveFailureNotice'
 import { recordAgentObservation, showRecordDigest } from '@/dev/agentObservation'
+import ShowSourceOutletContext from '@/components/ShowSourceOutlet'
+import { ShowStripSection } from '@/components/ShowStripSection'
 
 const field =
   'h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
@@ -1627,7 +1629,7 @@ export function ShowEditor({
       const footer = root?.querySelector<HTMLElement>('[data-testid="show-compile-bar"]')
       const scroll = root?.querySelector<HTMLElement>('[data-testid="show-editor-scroll"]')
       const section = timelineWorkspaceRef.current
-      if (!root || !toolbar || !timelineGrid || !footer || !scroll || !section) return
+      if (!root || !toolbar || !timelineGrid || !scroll || !section) return
 
       const laneRects = Array.from(root.querySelectorAll<HTMLElement>('[data-show-zone-id]'))
         .map((element) => element.getBoundingClientRect())
@@ -1639,7 +1641,7 @@ export function ShowEditor({
       const rootTop = root.getBoundingClientRect().top
       const sectionRect = section.getBoundingClientRect()
       const padding = window.getComputedStyle(section.parentElement!)
-      const footerHeight = footer.getBoundingClientRect().height
+      const footerHeight = footer?.getBoundingClientRect().height ?? 0
       const rowGap = Number.parseFloat(window.getComputedStyle(timelineGrid).rowGap) || 0
       const secondLaneBottom = laneRects[1]?.bottom ?? (firstLane ? firstLane.bottom + rowGap + firstLane.height : null)
       // Preserve the visible chrome (including an open lesson note) and two
@@ -10549,13 +10551,17 @@ function CompileBar({
   controllerDelivery?: { totalBytes: number; transformBytes: number } | null
   pushResult: string | null
 }) {
+  const outlet = useContext(ShowSourceOutletContext)
   if (compiled.error) {
-    return (
+    const errorNotice = (
       <div className="flex min-h-10 shrink-0 items-center gap-2 border-t border-seam bg-zinc-950 px-3 font-mono text-xs text-amber-300">
         <Zap size={14} aria-hidden />
         {presentShowDiagnostic(compiled.error)}
       </div>
     )
+    return outlet.enabled
+      ? outlet.target && createPortal(<ShowStripSection label="Source" summary={presentShowDiagnostic(compiled.error)}>{errorNotice}</ShowStripSection>, outlet.target)
+      : errorNotice
   }
   const summary = compiled.artifact?.summary
   // Gauge and inventory share one numerator: the source offered to the
@@ -10578,6 +10584,61 @@ function CompileBar({
     budgetBytes: summary.measuredDeviceBudgetBytes,
     worstInstantRenderersPerPixel: 0,
   }) : null
+  if (outlet.enabled) return outlet.target && createPortal(
+    <>
+    <ShowStripSection label="Source" summary={summary && <>
+      <span className="show-source-thermometer" aria-label={`Show source ${formatBytes(deliveredBytes)} / ${formatBytes(summary.measuredDeviceBudgetBytes)} advisory.`}>
+        <span className={sourcePressure?.sourceStatus === 'over' ? 'bg-red-500' : sourcePressure?.sourceStatus === 'warning' ? 'bg-amber-400' : 'bg-live'} style={{ width: `${Math.min(100, deliveredRatio * 100)}%` }} />
+      </span>
+      <span>{formatBytes(deliveredBytes)} / {formatBytes(summary.measuredDeviceBudgetBytes)}</span>
+      <span className="panel-readout-dot">·</span>
+      <span>VM {summary.resources.totalWords.toLocaleString('en-US')}/{summary.resources.vmWordBudget.toLocaleString('en-US')} words</span>
+      <span className="panel-readout-dot">·</span>
+      <span>up to {summary.creatorPatternPressure.patternCopiesRunning.worst} copies</span>
+    </>}>
+      {summary && artifactInventory && (
+        <ShowArtifactInventoryBody
+          inventory={artifactInventory.inventory}
+          model={artifactInventory.model}
+          vmWords={{
+            used: summary.resources.totalWords,
+            budget: summary.resources.vmWordBudget,
+            remaining: summary.resources.remainingWords,
+          }}
+          renderers={{
+            controller: {
+              steady: summary.creatorPatternPressure.patternCopiesRunning.steady,
+              worst: summary.creatorPatternPressure.patternCopiesRunning.worst,
+            },
+            perPixel: {
+              steady: summary.creatorPatternPressure.patternCalculationsPerPixel.steady,
+              worst: summary.creatorPatternPressure.patternCalculationsPerPixel.worst,
+            },
+          }}
+          structure={{
+            transitionCount: summary.transitionCount,
+          }}
+          delivery={controllerDelivery ?? undefined}
+        />
+      )}
+    </ShowStripSection>
+      <div className="show-source-notices flex flex-col gap-1 text-[10px]">
+      {compiled.artifactBlocker && (
+        <span className="text-red-300" title={presentShowDiagnostic(compiled.artifactBlocker)}>
+          Output blocked: {presentShowTrayDiagnostic(compiled.artifactBlocker)}
+        </span>
+      )}
+      {pressure?.blocks.map((block) => <span key={block} className="text-red-300">Output blocked: {block}</span>)}
+      {pressure?.warnings.map((warning) => <span key={warning} className="text-amber-300">{warning}</span>)}
+      {summary?.warnings.map((warning) => (
+        <span key={warning} className="text-amber-300" title={presentShowDiagnostic(warning)}>
+          {presentShowTrayDiagnostic(warning)}
+        </span>
+      ))}
+      {pushResult && <span className="text-zinc-300">{pushResult}</span>}
+      </div>
+    </>, outlet.target,
+  )
   return (
     <div data-testid="show-compile-bar" className="scrollbar-hidden min-h-8 shrink-0 overflow-x-auto border-t border-seam bg-zinc-950 px-3 font-mono text-[10px] text-zinc-500">
       <div className="flex min-h-8 min-w-max items-center gap-2 whitespace-nowrap">

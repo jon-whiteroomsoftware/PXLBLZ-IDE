@@ -2,6 +2,7 @@ export const SHOW_WORKSPACE_DIVIDER_HEIGHT = 6
 export const SHOW_TIMELINE_MIN_HEIGHT = 164
 export const SHOW_STRIP_MIN_HEIGHT = 140
 export const SHOW_CONTROLS_MIN_WIDTH = 200
+export const SHOW_PREVIEW_RAIL_WIDTH = 30
 export const SHOW_TIMELINE_DEFAULT_SLACK = 12
 export const SHOW_TIMELINE_HEIGHT_STORAGE_KEY = 'pxlblz-show-workspace-timeline-height'
 
@@ -39,7 +40,7 @@ export function resolveShowWorkspaceLayout({
   const desiredStrip = availableHeight - desiredTimeline
   const minimumTimeline = Math.max(1, Math.ceil(timelineMinimumHeight))
   const timelineBound = Math.max(1, availableHeight - minimumTimeline)
-  const controlsBound = Math.max(1, Math.floor((workspaceWidth - SHOW_CONTROLS_MIN_WIDTH) / aspect))
+  const controlsBound = Math.max(1, Math.floor((workspaceWidth - SHOW_CONTROLS_MIN_WIDTH - SHOW_PREVIEW_RAIL_WIDTH) / aspect))
   const upperStrip = Math.max(1, Math.min(timelineBound, controlsBound))
   const lowerStrip = Math.min(SHOW_STRIP_MIN_HEIGHT, upperStrip)
 
@@ -56,13 +57,13 @@ export function resolveShowWorkspaceLayout({
   const timelineHeight = availableHeight - stripHeight
   const previewWidth = Math.max(1, Math.min(
     Math.round(stripHeight * aspect),
-    Math.max(1, workspaceWidth - SHOW_CONTROLS_MIN_WIDTH),
+    Math.max(1, workspaceWidth - SHOW_CONTROLS_MIN_WIDTH - SHOW_PREVIEW_RAIL_WIDTH),
   ))
   return {
     timelineHeight,
     stripHeight,
     previewWidth,
-    controlsWidth: Math.max(0, workspaceWidth - previewWidth),
+    controlsWidth: Math.max(0, workspaceWidth - previewWidth - SHOW_PREVIEW_RAIL_WIDTH),
     clamp,
   }
 }
@@ -77,13 +78,6 @@ export function measureShowTimelineMinimumHeight({
   fixedFooterHeight: number
 }): number {
   return Math.max(1, Math.ceil(secondLaneBottom - editorTop + fixedFooterHeight))
-}
-
-export function showControlsLayoutMode(width: number): 'compact' | 'one-column' | 'two-column' | 'three-column' {
-  if (width <= 300) return 'compact'
-  if (width < 760) return 'one-column'
-  if (width < 1140) return 'two-column'
-  return 'three-column'
 }
 
 export function serializeShowTimelineHeight(height: number): string {

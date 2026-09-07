@@ -57,6 +57,7 @@ export function DeckSection({
   actions,
   flushTop = false,
   summaryRow = false,
+  previewSpace = false,
   expanded: controlledExpanded,
   onExpandedChange,
   children,
@@ -70,6 +71,7 @@ export function DeckSection({
   actions?: ReactNode
   flushTop?: boolean
   summaryRow?: boolean
+  previewSpace?: boolean
   expanded?: boolean
   onExpandedChange?: (expanded: boolean) => void
   children: ReactNode
@@ -105,6 +107,7 @@ export function DeckSection({
             </HelpHint>
           )}
           summaryRow={summaryRow}
+          previewSpace={previewSpace}
           actions={actions}
           className={expanded || !summary ? `${expanded ? 'mb-1' : 'mb-0'} h-[18px]` : 'mb-0'}
         />
@@ -137,6 +140,7 @@ export function DeckDisclosureHeader({
   summary,
   className = '',
   summaryRow = false,
+  previewSpace = false,
   actions,
 }: {
   label: string
@@ -146,12 +150,13 @@ export function DeckDisclosureHeader({
   summary?: ReactNode
   className?: string
   summaryRow?: boolean
+  previewSpace?: boolean
   actions?: ReactNode
 }) {
   if (summaryRow) return (
     <div className="panel-section-header" data-deck="section-header">
       <h4 className="shrink-0">
-        <button type="button" aria-expanded={expanded} aria-label={label} onClick={onToggle} className="panel-section-toggle">
+        <button type="button" data-studio-space-preview={previewSpace || undefined} aria-expanded={expanded} aria-label={label} onClick={onToggle} className="panel-section-toggle">
           <ChevronDown size={12} className={expanded ? '' : '-rotate-90'} aria-hidden />
           <span>{label}</span>
         </button>
@@ -172,6 +177,7 @@ export function DeckDisclosureHeader({
       <h4 className="min-w-0 flex-1">
         <button
           type="button"
+          data-studio-space-preview={previewSpace || undefined}
           aria-expanded={expanded}
           aria-label={label}
           onClick={onToggle}

@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AlertTriangle, Eye, EyeOff, Grid2X2, LoaderCircle, Map as MapIcon, Pause, Play, Scan } from 'lucide-react'
 import { useShowStore } from '@/store/showStore'
 import { usePatternStore } from '@/store/patternStore'
@@ -40,7 +40,11 @@ import {
 } from '@/engine/showInstallationCoverage'
 import type { ShowClipTransform, ShowRecord } from '@/engine/personalContentRecords'
 import { PreviewViewportSection } from '@/components/PreviewDeck'
-import { DeckSection } from '@/components/Deck'
+import { DeckCell, DeckGrid } from '@/components/Deck'
+import ShowSourceOutletContext from '@/components/ShowSourceOutlet'
+import { ShowStripSection } from '@/components/ShowStripSection'
+import { ShowStripPreviewSection } from '@/components/ShowStripPreviewSection'
+import './ShowStripPanel.css'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { buildShowStageClipDiagnosticPoints, buildShowStageDiagnosticRects } from '@/engine/showStageDiagnostics'
 import { materializeShowGroupOccurrences } from '@/engine/showGroupModel'
@@ -162,6 +166,7 @@ export function ShowStagePreview({
   presentation?: 'pane' | 'strip'
   onPreviewAspectChange?: (aspect: number) => void
 }) {
+  const { setTarget: setSourceTarget } = useContext(ShowSourceOutletContext)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const captureRef = useRef(createPreviewCapture())
@@ -1058,11 +1063,74 @@ export function ShowStagePreview({
           )}
         </div>
       </div>
-      <div
+      {presentation === 'strip' && <>
+        <div className="show-preview-rail" role="group" aria-label="Show preview controls" data-studio-space-preview="true">
+          <button type="button" aria-label={isRunning ? 'Pause Show preview' : 'Play Show preview'} title={isRunning ? 'Pause Show preview' : 'Play Show preview'} aria-pressed={isRunning} onClick={togglePlayback} className={isRunning ? 'text-green-400' : 'text-red-400'}>{isRunning ? <Pause size={14} aria-hidden /> : <Play size={14} aria-hidden />}</button>
+          <span className="show-preview-rail-separator" />
+          <StageDiagnosticToggle label="Zone outlines" icon={<Grid2X2 size={13} aria-hidden />} active={diagnostics.zoneOutlines} onChange={active => setDiagnostic('zoneOutlines', active)} />
+          <StageDiagnosticToggle label="Selected Clip outline" icon={<Scan size={13} aria-hidden />} active={diagnostics.clipOutlines} onChange={active => setDiagnostic('clipOutlines', active)} />
+        </div>
+        <div data-testid="show-stage-controls" className="show-strip-controls rail-list-scroll">
+          <div className="show-strip-sections" aria-label="Show stage">
+            <ShowStripSection label="Stage" summary={<>
+              <MapIcon size={10} aria-hidden /><span>{selectedStageMap?.name ?? 'Zone strips - generic'}</span><span className="panel-readout-dot">·</span><span>{stageIdentityRole}</span><span className="panel-readout-dot">·</span><span>{layout?.mapPoints.length ?? 0} px</span>
+            </>}>
+          <DeckGrid>
+            <DeckCell label="map"><span className="show-stage-map-name truncate text-zinc-200" title={selectedStageMap?.name ?? 'Zone strips - generic'}>{selectedStageMap?.name ?? 'Zone strips - generic'}</span></DeckCell>
+            <DeckCell label="pixels"><span className="show-stage-pixel-count tabular-nums text-zinc-400">{layout?.mapPoints.length ?? 0} px</span></DeckCell>
+            <DeckCell label="kind"><span className="text-zinc-400">{stageIdentityRole}</span></DeckCell>
+          </DeckGrid>
+            </ShowStripSection>
+        {(layout?.note || (layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0)) && (
+          <div className="mt-2 rounded border border-zinc-800 bg-zinc-950/60 p-2 text-[10px] leading-4 text-zinc-500">
+          {layout?.note && <div className="mt-1 text-amber-300">{layout.note}</div>}
+          {layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0 && (
+            <div className="mt-1">{layout.projection.unstagedPixelCount} stage pixels are not covered by a show zone.</div>
+          )}
+          </div>
+        )}
+            <ShowStripPreviewSection />
+            {showZoneInventory && <ShowStripSection label="Zones" summary={<>
+              {compactCoverage && <span role="status" aria-label="Zone coverage" title={fullCoverage ?? undefined} className={installationCoverage?.valid ? 'text-emerald-500' : 'text-amber-300'}>{compactCoverage}</span>}
+              {layout?.projection.zones.map(zone => <span key={zone.id} className="inline-flex items-center gap-1"><span className="panel-readout-dot">·</span><span className="size-1.5 rounded-full" style={{ background: zone.color }} /><span>{zone.name}</span></span>)}
+            </>}>
+            <div className="flex h-6 items-center justify-end">
+              <button
+                type="button"
+                aria-label="Show all zones"
+                disabled={!effectiveSoloZoneId}
+                onClick={() => setSoloZoneId(null)}
+                className="h-6 rounded px-2 text-[10px] uppercase tracking-wider text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 disabled:pointer-events-none disabled:invisible"
+              >
+                All
+              </button>
+            </div>
+            {compactCoverage && (
+              <div
+                role="status"
+                aria-label="Zone coverage"
+                title={fullCoverage ?? undefined}
+                className={`show-stage-zone-coverage mt-1 flex min-h-6 min-w-0 items-center rounded border px-2 py-1 text-[9px] leading-tight ${installationCoverage?.valid
+                  ? 'border-emerald-900/60 bg-emerald-950/15 text-emerald-500'
+                  : 'border-amber-800/60 bg-amber-950/20 text-amber-300'}`}
+              >
+                {compactCoverage}
+              </div>
+            )}
+            <ZoneInventoryRows
+              layout={layout}
+              effectiveSoloZoneId={effectiveSoloZoneId}
+              onSoloZone={setSoloZoneId}
+            />
+
+            </ShowStripSection>}
+            <div ref={setSourceTarget} data-testid="show-source-outlet" />
+          </div>
+        </div>
+      </>}
+      {presentation !== 'strip' && <div
         data-testid="show-stage-controls"
-        className={presentation === 'strip'
-          ? 'show-stage-controls min-w-[200px] flex-1 overflow-x-hidden overflow-y-auto px-3 py-2 [container-type:inline-size]'
-          : 'shrink-0 border-t border-zinc-900 px-3 py-3'}
+        className="shrink-0 border-t border-zinc-900 px-3 py-3"
       >
         <div className="mb-3 flex min-h-7 items-center gap-2 text-zinc-500">
           <span className="min-w-0 flex-1">
@@ -1086,9 +1154,7 @@ export function ShowStagePreview({
         </div>
         <div
           aria-label="Show stage"
-          className={presentation === 'strip'
-            ? 'show-stage-control-sections grid min-w-0 grid-cols-1 gap-x-5 gap-y-1 text-[10px] text-zinc-500'
-            : 'text-[10px] text-zinc-500'}
+          className="text-[10px] text-zinc-500"
         >
           <section className="show-stage-control-section min-w-0">
           <div className="flex h-5 items-center gap-2">
@@ -1131,53 +1197,7 @@ export function ShowStagePreview({
           )}
         />
 
-        {showZoneInventory && (presentation === 'strip' ? (
-          <DeckSection
-            label="Zones - solo"
-            collapsible
-            defaultExpanded={false}
-            persistKey={`show-stage-zones:${showId}`}
-            summary={compactCoverage && (
-              <span
-                role="status"
-                aria-label="Zone coverage"
-                title={fullCoverage ?? undefined}
-                className={installationCoverage?.valid ? 'text-emerald-500' : 'text-amber-300'}
-              >
-                {compactCoverage}
-              </span>
-            )}
-          >
-            <div className="flex h-6 items-center justify-end">
-              <button
-                type="button"
-                aria-label="Show all zones"
-                disabled={!effectiveSoloZoneId}
-                onClick={() => setSoloZoneId(null)}
-                className="h-6 rounded px-2 text-[10px] uppercase tracking-wider text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 disabled:pointer-events-none disabled:invisible"
-              >
-                All
-              </button>
-            </div>
-            {compactCoverage && (
-              <div
-                role="status"
-                aria-label="Zone coverage"
-                title={fullCoverage ?? undefined}
-                className={`show-stage-zone-coverage mt-1 flex min-h-6 min-w-0 items-center rounded border px-2 py-1 text-[9px] leading-tight ${installationCoverage?.valid
-                  ? 'border-emerald-900/60 bg-emerald-950/15 text-emerald-500'
-                  : 'border-amber-800/60 bg-amber-950/20 text-amber-300'}`}
-              >
-                {compactCoverage}
-              </div>
-            )}
-            <ZoneInventoryRows
-              layout={layout}
-              effectiveSoloZoneId={effectiveSoloZoneId}
-              onSoloZone={setSoloZoneId}
-            />
-          </DeckSection>
-        ) : <section aria-label="Zones" className="mt-2.5">
+        {showZoneInventory && (<section aria-label="Zones" className="mt-2.5">
           <div className="flex h-6 items-center justify-between gap-2">
             <h3 className="text-[11px] font-semibold uppercase tracking-wider text-structural">Zones - solo</h3>
             <button
@@ -1209,7 +1229,7 @@ export function ShowStagePreview({
           />
         </section>)}
       </div>
-      </div>
+      </div>}
     </div>
   )
 }

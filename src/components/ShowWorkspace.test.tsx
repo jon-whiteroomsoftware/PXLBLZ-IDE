@@ -79,8 +79,8 @@ describe('ShowWorkspace (#967)', () => {
     fireEvent.keyDown(divider, { key: 'ArrowUp', shiftKey: true })
     fireEvent.keyDown(divider, { key: 'ArrowUp', shiftKey: true })
     expect(divider).toHaveAttribute('data-clamp', 'controls-min')
-    expect(screen.getByTestId('show-stage-strip')).toHaveStyle({ height: '393px' })
-    expect(window.localStorage.getItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY)).toBe('301')
+    expect(screen.getByTestId('show-stage-strip')).toHaveStyle({ height: '376px' })
+    expect(window.localStorage.getItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY)).toBe('318')
   })
 
   it('uses the timeline chrome measurement as the keyboard clamp', () => {

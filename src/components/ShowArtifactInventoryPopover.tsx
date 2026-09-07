@@ -8,7 +8,7 @@ import type {
   ShowArtifactInventoryRow,
 } from '@/engine/showSourceInventory'
 
-interface Props {
+export interface ShowArtifactInventoryProps {
   inventory: DeliveredShowSourceInventory
   model: ShowArtifactInventoryModel
   vmWords: { used: number; budget: number; remaining: number }
@@ -77,7 +77,7 @@ function busiestLedWork(steady: number, worst: number): string {
   return `Busiest LED: ${normalWork} normally, up to ${worst} when visuals overlap`
 }
 
-export function ShowArtifactInventoryPopover({ inventory, model, vmWords, renderers, structure, delivery }: Props) {
+export function ShowArtifactInventoryPopover({ inventory, model, vmWords, renderers, structure, delivery }: ShowArtifactInventoryProps) {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const pointerCloseTimerRef = useRef<number | null>(null)
@@ -86,7 +86,6 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
   const [pinned, setPinned] = useState(false)
   const [position, setPosition] = useState<CSSProperties>({ left: 8, bottom: 38 })
   const deliveredBytes = delivery?.totalBytes ?? inventory.totalBytes
-  const transformBytes = Math.max(0, delivery?.transformBytes ?? 0)
 
   function cancelScheduledPointerClose() {
     if (pointerCloseTimerRef.current === null) return
@@ -191,6 +190,45 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
           <span className="text-[8px] text-zinc-500">Select the meter to keep this open</span>
         )}
       </div>
+      <ShowArtifactInventoryBody inventory={inventory} model={model} vmWords={vmWords} renderers={renderers} structure={structure} delivery={delivery} />
+
+    </div>,
+    document.body,
+  ) : null
+
+  return (
+    <span onPointerEnter={reveal} onPointerLeave={schedulePointerClose}>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={`Show source inventory, ${formatBytes(deliveredBytes)} / ${formatBytes(model.budgetBytes)} advisory`}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        className="inline-flex items-center gap-1 rounded-sm px-1 py-0.5 font-semibold tabular-nums text-zinc-300 outline-none transition-colors hover:bg-amber-400/10 hover:text-amber-200 focus-visible:bg-amber-400/10 focus-visible:text-amber-200 focus-visible:ring-1 focus-visible:ring-amber-400/60"
+        onFocus={() => { if (!suppressFocusRevealRef.current) reveal() }}
+        onBlur={closeUnlessFocused}
+        onClick={() => {
+          const nextPinned = !pinned
+          setPinned(nextPinned)
+          if (nextPinned) reveal()
+          else {
+            cancelScheduledPointerClose()
+            setOpen(false)
+          }
+        }}
+      >
+        {formatBytes(deliveredBytes)} / {formatBytes(model.budgetBytes)}
+        <ChevronUp size={11} aria-hidden />
+      </button>
+      {panel}
+    </span>
+  )
+}
+
+export function ShowArtifactInventoryBody({ inventory, model, vmWords, renderers, structure, delivery }: ShowArtifactInventoryProps) {
+  const deliveredBytes = delivery?.totalBytes ?? inventory.totalBytes
+  const transformBytes = Math.max(0, delivery?.transformBytes ?? 0)
+  return <div className="show-source-inventory-body">
       <p className="mt-1 text-[9px] leading-relaxed text-zinc-500">
         Code this Show sends to one Pixelblaze, including Pattern copies and generated choreography.
       </p>
@@ -265,37 +303,7 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
         Effects modify those colors; they do not add another Pattern calculation.
       </p>
 
-    </div>,
-    document.body,
-  ) : null
-
-  return (
-    <span onPointerEnter={reveal} onPointerLeave={schedulePointerClose}>
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-label={`Show source inventory, ${formatBytes(deliveredBytes)} / ${formatBytes(model.budgetBytes)} advisory`}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        className="inline-flex items-center gap-1 rounded-sm px-1 py-0.5 font-semibold tabular-nums text-zinc-300 outline-none transition-colors hover:bg-amber-400/10 hover:text-amber-200 focus-visible:bg-amber-400/10 focus-visible:text-amber-200 focus-visible:ring-1 focus-visible:ring-amber-400/60"
-        onFocus={() => { if (!suppressFocusRevealRef.current) reveal() }}
-        onBlur={closeUnlessFocused}
-        onClick={() => {
-          const nextPinned = !pinned
-          setPinned(nextPinned)
-          if (nextPinned) reveal()
-          else {
-            cancelScheduledPointerClose()
-            setOpen(false)
-          }
-        }}
-      >
-        {formatBytes(deliveredBytes)} / {formatBytes(model.budgetBytes)}
-        <ChevronUp size={11} aria-hidden />
-      </button>
-      {panel}
-    </span>
-  )
+  </div>
 }
 
 function ResourceAxis({ label, value, detail }: { label: string; value: string; detail?: string }) {

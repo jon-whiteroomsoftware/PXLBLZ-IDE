@@ -1,3 +1,5 @@
+import ShowSourceOutletContext from './ShowSourceOutlet'
+import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ShowEditor } from './ShowEditor'
@@ -7704,6 +7706,27 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('relocates identical inventory into Source while preserving the narrow footer (#968)', () => {
+    usePanelPreferencesStore.setState({ expanded: {} })
+    const property = STOCK_SHOWS.find(candidate => candidate.id === 'stock-show-reference-property-animation')!
+    const show = createPropertySlotQualificationShow()
+    const narrow = render(<ShowEditor showId={property.id} showOverride={show} readOnly />)
+    fireEvent.focus(screen.getByRole('button', { name: /show source inventory/i }))
+    const oldBody = document.querySelector('.show-source-inventory-body')!.textContent
+    const oldGauge = screen.getByLabelText(/^Show source .* advisory\.$/i).getAttribute('aria-label')
+    narrow.unmount()
+    const outlet = document.createElement('div')
+    document.body.append(outlet)
+    const desktop = render(<ShowSourceOutletContext.Provider value={{ enabled: true, target: outlet, setTarget: () => {} }}><ShowEditor showId={property.id} showOverride={show} readOnly /></ShowSourceOutletContext.Provider>)
+    expect(screen.queryByTestId('show-compile-bar')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Source' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByLabelText(/^Show source .* advisory\.$/i)).toHaveAttribute('aria-label', oldGauge)
+    fireEvent.click(screen.getByRole('button', { name: 'Source' }))
+    expect(outlet.querySelector('.show-source-inventory-body')!.textContent).toBe(oldBody)
+    desktop.unmount()
+    outlet.remove()
   })
 
   it('reports an exact proportional Show source inventory from keyboard-equivalent focus (#545, #756)', () => {

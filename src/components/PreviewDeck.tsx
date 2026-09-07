@@ -70,7 +70,7 @@ const PREVIEW_HINT = (
   />
 )
 
-const SHOW_PREVIEW_HINT = (
+export const SHOW_PREVIEW_HINT = (
   <DeckSectionHint
     heading="Show Stage preview settings"
     items={[

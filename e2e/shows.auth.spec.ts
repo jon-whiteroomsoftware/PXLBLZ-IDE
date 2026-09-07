@@ -204,7 +204,7 @@ test.describe('authenticated Show authoring', () => {
     const splitter = page.getByRole('separator', { name: 'Resize timeline and Stage' })
     const frame = page.getByTestId('show-stage-canvas-frame')
     const controls = page.getByTestId('show-stage-controls')
-    const sections = page.locator('.show-stage-control-sections')
+    const sections = page.locator('.show-strip-sections')
     const geometry = () => frame.evaluate((element) => {
       const bounds = element.getBoundingClientRect()
       const declaredAspect = Number.parseFloat((element as HTMLElement).style.aspectRatio)
@@ -214,7 +214,7 @@ test.describe('authenticated Show authoring', () => {
       }
     })
 
-    for (const [width, expectedColumns] of [[1180, 1], [1440, 1], [1920, 2]] as const) {
+    for (const [width, expectedColumns] of [[1180, 1], [1440, 1], [1920, 1]] as const) {
       await page.setViewportSize({ width, height: 1196 })
       await expect.poll(async () => page.getByTestId('show-over-under-workspace').evaluate((workspace) => {
         const timeline = workspace.querySelector<HTMLElement>('[data-testid="show-timeline-pane"]')
@@ -243,7 +243,7 @@ test.describe('authenticated Show authoring', () => {
     await expect.poll(async () => Math.round((await controls.boundingBox())?.width ?? 0)).toBeGreaterThanOrEqual(200)
     await expect.poll(async () => controls.evaluate((element) => (
       Array.from(element.querySelectorAll<HTMLElement>('*'))
-        .filter((child) => child.scrollWidth > child.clientWidth + 1)
+        .filter((child) => !child.closest('[data-deck="section-summary"]') && child.scrollWidth > child.clientWidth + 1)
         .map((child) => child.textContent?.trim().slice(0, 40) ?? child.tagName)
     ))).toEqual([])
     await expect.poll(async () => (await geometry()).aspectError).toBeLessThan(0.002)
@@ -254,7 +254,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(splitter).toHaveAttribute('data-clamp', 'strip-min')
     await expect.poll(async () => sections.evaluate((element) => (
       getComputedStyle(element).gridTemplateColumns.split(' ').length
-    ))).toBe(3)
+    ))).toBe(1)
     await expect.poll(async () => (await geometry()).aspectError).toBeLessThan(0.002)
     await expect.poll(async () => (await geometry()).horizontalOverflow).toBe(0)
 
@@ -268,7 +268,7 @@ test.describe('authenticated Show authoring', () => {
     }).toBeLessThan(0.001)
   })
 
-  test('keeps transport, ruler, and two complete lanes above the footer at the high clamp (#967)', async ({ page }) => {
+  test('keeps transport, ruler, and two complete lanes above the divider at the high clamp (#967)', async ({ page }) => {
     await page.setViewportSize({ width: 2400, height: 1196 })
     await page.goto('studio/shows/stock-show-remix-overture')
 
@@ -287,8 +287,7 @@ test.describe('authenticated Show authoring', () => {
       const scroll = pane.querySelector<HTMLElement>('[data-testid="show-editor-scroll"]')
       const toolbar = pane.querySelector<HTMLElement>('[data-testid="show-timeline-toolbar"]')
       const ruler = pane.querySelector<HTMLElement>('[data-testid="show-timeline-ruler"]')
-      const footer = pane.querySelector<HTMLElement>('[data-testid="show-compile-bar"]')
-      if (!scroll || !toolbar || !ruler || !footer) return Number.POSITIVE_INFINITY
+      if (!scroll || !toolbar || !ruler) return Number.POSITIVE_INFINITY
 
       const laneRects = Array.from(pane.querySelectorAll<HTMLElement>('[data-show-zone-id]'))
         .map((element) => element.getBoundingClientRect())
@@ -299,8 +298,7 @@ test.describe('authenticated Show authoring', () => {
       if (laneRects.length < 2) return Number.POSITIVE_INFINITY
 
       const scrollRect = scroll.getBoundingClientRect()
-      const footerRect = footer.getBoundingClientRect()
-      const visibleBottom = Math.min(scrollRect.bottom, footerRect.top)
+      const visibleBottom = Math.min(scrollRect.bottom, pane.getBoundingClientRect().bottom)
       const visibleRects = [toolbar.getBoundingClientRect(), ruler.getBoundingClientRect(), ...laneRects]
       return Math.max(...visibleRects.map((rect) => Math.max(
         scrollRect.top - rect.top,
@@ -582,6 +580,14 @@ test.describe('authenticated Show authoring', () => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows/stock-show-301-installation-mapping')
 
+    await expect(page.getByTestId('show-compile-bar')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Source', exact: true }).click()
+    const stripInventory = page.getByTestId('show-source-outlet')
+    await expect(stripInventory).toContainText('Pattern copies running')
+    await expect(stripInventory).toContainText('Up to 3 at once')
+    await expect(stripInventory).toContainText('Busiest LED: 1 Pattern color calculation')
+
+    await page.setViewportSize({ width: 390, height: 800 })
     const sourceMeter = page.getByRole('button', { name: /Show source inventory/ })
     await sourceMeter.hover()
     const inventory = page.getByRole('dialog', { name: 'Show source inventory' })
@@ -589,15 +595,8 @@ test.describe('authenticated Show authoring', () => {
     await page.waitForTimeout(200)
     await expect(inventory).toBeVisible()
     await expect(inventory.getByRole('button', { name: 'Close Show source inventory' })).toHaveCount(0)
-    await expect(inventory).toContainText('Pattern copies running')
-    await expect(inventory).toContainText('Up to 3 at once')
-    await expect(inventory).toContainText('Busiest LED: 1 Pattern color calculation')
-
     await sourceMeter.click()
     await expect(inventory.getByRole('button', { name: 'Close Show source inventory' })).toBeVisible()
-
-    await page.setViewportSize({ width: 390, height: 800 })
-    await expect(inventory).toBeVisible()
     const bounds = await inventory.boundingBox()
     expect(bounds).not.toBeNull()
     expect(bounds!.x).toBeGreaterThanOrEqual(0)
@@ -2667,9 +2666,8 @@ test.describe('authenticated Show authoring', () => {
     const strip = page.getByTestId('show-stage-strip')
     const contentSlack = () => pane.evaluate((element) => {
       const section = element.querySelector<HTMLElement>('[aria-label="Show timeline"]')!
-      const footer = element.querySelector<HTMLElement>('[data-testid="show-compile-bar"]')!
       const padding = Number.parseFloat(getComputedStyle(section.parentElement!).paddingBottom)
-      return footer.getBoundingClientRect().top - section.getBoundingClientRect().bottom - padding
+      return element.getBoundingClientRect().bottom - section.getBoundingClientRect().bottom - padding
     })
     for (const count of [3, 6]) {
       await page.goto(`studio/shows/workspace-square-${count}?capture`)
@@ -3102,4 +3100,74 @@ test('lesson pointer toggles release focus for Space playback and preserve keybo
   await search.press('Space')
   await expect(search).toHaveValue('Getting ')
   await expect(play).toBeVisible()
+})
+
+test('Show strip summaries retain controls, keyboard ownership and canvas at the usable width clamp (#968)', async ({ page }) => {
+  await page.setViewportSize({ width: 1180, height: 1196 })
+  await page.goto('studio/shows/stock-show-remix-overture')
+  const strip = page.getByTestId('show-stage-strip')
+  const controls = page.getByTestId('show-stage-controls')
+  const previewSection = controls.getByRole('button', { name: 'Preview', exact: true })
+  await expect(previewSection).toHaveAttribute('aria-expanded', 'true')
+  for (const name of ['Stage', 'Zones', 'Source']) await expect(controls.getByRole('button', { name, exact: true })).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByTestId('show-compile-bar')).toHaveCount(0)
+  await expect(strip.getByText(/show paused|previewing Show/)).toHaveCount(0)
+  await expect(strip.getByRole('slider', { name: /brightness/i })).toHaveCount(0)
+  const canvas = await strip.locator('canvas').elementHandle()
+  expect(canvas).not.toBeNull()
+  const rail = strip.getByRole('group', { name: 'Show preview controls' })
+  await expect.poll(async () => (await rail.boundingBox())?.width).toBe(30)
+  const pause = rail.getByRole('button', { name: 'Pause Show preview', exact: true })
+  if (await pause.isVisible()) await pause.click()
+  const stageSection = controls.getByRole('button', { name: 'Stage', exact: true })
+  await stageSection.focus()
+  await stageSection.press('Space')
+  await expect(pause).toBeVisible()
+  await expect(stageSection).toHaveAttribute('aria-expanded', 'false')
+  await stageSection.press('Space')
+  await expect(rail.getByRole('button', { name: 'Play Show preview', exact: true })).toBeVisible()
+  await stageSection.press('Enter')
+  await expect(stageSection).toHaveAttribute('aria-expanded', 'true')
+  const renderer = controls.getByRole('button', { name: 'Renderer', exact: true })
+  await renderer.press('Enter')
+  await page.getByRole('option', { name: 'Fast', exact: true }).press('Space')
+  await expect(page.getByRole('listbox', { name: 'Renderer', exact: true })).toBeHidden()
+  await expect(rail.getByRole('button', { name: 'Play Show preview', exact: true })).toBeVisible()
+  await renderer.press('Enter')
+  await page.getByRole('option', { name: 'Fast', exact: true }).press('Escape')
+  await expect(renderer).toBeFocused()
+  const light = controls.getByRole('slider', { name: 'Light size', exact: true })
+  const lightBefore = Number(await light.inputValue())
+  await light.press('ArrowLeft')
+  await expect.poll(async () => Number(await light.inputValue())).toBeLessThan(lightBefore)
+  const lightAfter = Number(await light.inputValue())
+  await previewSection.click()
+  const folded = controls.locator('[data-deck="section"]').filter({ has: page.getByRole('button', { name: 'Preview', exact: true }) }).getByTestId('deck-section-summary')
+  await expect(folded).toContainText(lightAfter.toFixed(2))
+  await controls.getByRole('button', { name: 'Source', exact: true }).click()
+  await expect(page.getByTestId('show-source-outlet')).toContainText('Pattern copies running')
+  await expect(page.getByTestId('show-source-outlet')).toContainText('Busiest LED')
+  await expect.poll(() => canvas!.evaluate(element => element === document.querySelector('[data-testid="show-stage-strip"] canvas'))).toBe(true)
+  await page.reload()
+  await expect(previewSection).toHaveAttribute('aria-expanded', 'false')
+  await expect(stageSection).toHaveAttribute('aria-expanded', 'true')
+  await expect(controls.getByRole('button', { name: 'Source', exact: true })).toHaveAttribute('aria-expanded', 'true')
+  await previewSection.click()
+  const divider = page.getByRole('separator', { name: 'Resize timeline and Stage' })
+  for (let step = 0; step < 30; step += 1) await divider.press('Shift+ArrowUp')
+  await expect(divider).toHaveAttribute('data-clamp', 'controls-min')
+  await expect.poll(async () => (await controls.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(200)
+  await expect.poll(async () => (await controls.locator('.show-strip-sections').boundingBox())?.width ?? 999).toBeLessThanOrEqual(480)
+  for (const control of [light, controls.getByRole('slider', { name: 'Diffusion', exact: true }), controls.getByRole('button', { name: 'Renderer', exact: true })]) {
+    await control.scrollIntoViewIfNeeded()
+    const box = await control.boundingBox()
+    const panel = await controls.boundingBox()
+    expect(box).not.toBeNull()
+    expect(box!.x).toBeGreaterThanOrEqual(panel!.x)
+    expect(box!.x + box!.width).toBeLessThanOrEqual(panel!.x + panel!.width)
+    if (await control.getAttribute('type') === 'range') {
+      expect(box!.width).toBeGreaterThanOrEqual(60)
+      expect(box!.width).toBeLessThanOrEqual(200)
+    }
+  }
 })
