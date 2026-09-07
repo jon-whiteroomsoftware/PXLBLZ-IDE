@@ -232,6 +232,8 @@ test('the Studio entity drawer overlays without reflow and preserves Preview Spa
   if (!await currentShow.isVisible()) await page.getByRole('treeitem', { name: /^100/ }).click()
   await currentShow.click()
   await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
+  // The tucked state precedes the drawer's completed exit transition.
+  await expect(drawer).toBeHidden()
 
   const clip = page.locator('[data-show-composition-clip="true"]').first()
   const clipBounds = await clip.boundingBox()

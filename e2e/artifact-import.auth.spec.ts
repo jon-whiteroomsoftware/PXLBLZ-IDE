@@ -16,7 +16,7 @@ test('EPE import preserves source and discloses a missing preferred custom map',
     buffer: Buffer.from(JSON.stringify({ name: 'Installation Show', sources: { main: source } })),
   })
 
-  await expect(page.getByRole('status')).toContainText('Preferred custom map "Missing Stage" is not available')
+  await expect(page.getByRole('status', { name: /Preferred custom map/ })).toContainText('Preferred custom map "Missing Stage" is not available')
   await expect(page.getByTestId('pattern-list-scroll').getByText('Installation Show', { exact: true })).toBeVisible()
   await expect(page).toHaveURL(/\/studio\/patterns\/[a-z0-9-]+$/)
 })
