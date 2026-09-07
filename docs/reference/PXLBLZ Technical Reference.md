@@ -1085,7 +1085,10 @@ height takes precedence over content and survives temporary viewport clamps.
 The Lesson pill opens a portaled Reading card; its hover/pinned state is local
 to the current Show. The card's switch and the Live strip's hide button share
 the existing per-Show session visibility. The strip renders reference narration
-or the Scene at loop time, plus the existing Pattern slot selectors inline or
+or the Scene at loop time for multi-Scene Shows. Single-Scene Shows instead name
+the Pattern of the most recently started Clip on the first Zone's main lane,
+with the counter ordered by Clip start; blank time retains that Clip. The strip
+also renders the existing Pattern slot selectors inline or
 in the shared toolbar popover. Floating surfaces use the Show Escape registry
 and contribute no layout height; slot projection and swap confirmation retain
 their existing ownership.

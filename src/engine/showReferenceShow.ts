@@ -311,6 +311,22 @@ export function currentShowScene(show: ShowRecord, positionMs: number) {
   return { scene: timeline.scenes[index].scene, index }
 }
 
+/** Names the most recently started Clip on a single Scene's first main lane. */
+export function currentShowClip(show: ShowRecord, positionMs: number) {
+  if (show.scenes.length !== 1) return null
+  const scene = show.composition?.scenes.find((candidate) => candidate.sceneId === show.scenes[0].id)
+  const clips = [...(scene?.zones[0]?.main ?? [])].sort((a, b) => a.startMs - b.startMs)
+  if (clips.length === 0) return null
+  const durationMs = projectShowTimeline(show).durationMs
+  const position = durationMs > 0 ? ((positionMs % durationMs) + durationMs) % durationMs : 0
+  let index = 0
+  for (let candidate = 1; candidate < clips.length; candidate++) {
+    if (clips[candidate].startMs <= position) index = candidate
+  }
+  const instance = show.composition?.patternInstances.find((candidate) => candidate.id === clips[index].instanceId)
+  return { patternName: instance?.patternName ?? 'Unknown Pattern', index, count: clips.length }
+}
+
 export function currentShowReferenceExample(
   show: ShowRecord,
   guide: ShowReferenceGuide,

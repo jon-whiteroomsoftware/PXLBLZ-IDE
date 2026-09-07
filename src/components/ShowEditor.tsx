@@ -243,6 +243,7 @@ import {
   applyShowPatternSlotSelections,
   currentShowReferenceExample,
   currentShowScene,
+  currentShowClip,
   restoreShowReferencePatternSlots,
   showPatternSlotRemovedControlNames,
   type ShowPatternSlotGroup,
@@ -841,15 +842,17 @@ function ShowLiveNarration({ show, reference }: { show: ShowRecord; reference?: 
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
   const current = reference ? currentShowReferenceExample(show, reference, positionMs) : null
   const scene = reference ? null : currentShowScene(show, positionMs)
-  const index = reference ? (current ? reference.examples.findIndex((example) => example.id === current.id) : -1) : scene?.index ?? -1
-  const count = reference ? reference.examples.length : show.scenes.length
+  const clipNarration = !reference && show.scenes.length === 1
+  const clip = clipNarration ? currentShowClip(show, positionMs) : null
+  const index = reference ? (current ? reference.examples.findIndex((example) => example.id === current.id) : -1) : clipNarration ? clip?.index ?? -1 : scene?.index ?? -1
+  const count = reference ? reference.examples.length : clipNarration ? clip?.count ?? 0 : show.scenes.length
   const durationMs = showLoopDurationMs(show)
   const progress = durationMs > 0 ? Math.max(0, Math.min(1, positionMs / durationMs)) : 0
   const easingOption = current?.easing ? SHOW_EASING_OPTIONS.find((option) => option.id === showEasingOptionId(current.easing!)) : undefined
   return (
     <div role="group" aria-label="Live narration" className="relative flex h-6 min-w-0 flex-1 items-center gap-2 whitespace-nowrap">
-      <span className="shrink-0 text-[9px] font-semibold uppercase tracking-[0.1em] text-cyan-200/75">{reference ? 'LIVE' : 'CLIP'}</span>
-      <strong className="min-w-0 truncate font-medium text-zinc-100">{reference ? current?.label ?? 'Reference frame' : scene?.scene.name ?? 'No Scene'}</strong>
+      <span className="shrink-0 text-[9px] font-semibold uppercase tracking-[0.1em] text-cyan-200/75">{reference ? 'LIVE' : clipNarration ? 'CLIP' : 'SCENE'}</span>
+      <strong className="min-w-0 truncate font-medium text-zinc-100">{reference ? current?.label ?? 'Reference frame' : clipNarration ? clip?.patternName ?? 'No Clip' : scene?.scene.name ?? 'No Scene'}</strong>
       {reference && <span className="show-note-detail min-w-0 flex-1 truncate text-zinc-500">{current?.detail ?? 'The fixed comparison source before the first example.'}</span>}
       <span className="shrink-0 tabular-nums text-zinc-500">{index + 1}/{count}</span>
       {easingOption && <svg role="img" aria-label={`${easingOption.label} easing curve`} viewBox="0 0 48 20" className="show-note-detail h-4 w-9 shrink-0 text-cyan-200/80">

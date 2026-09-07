@@ -503,6 +503,17 @@
   }
 }
 
+/* Keep the multi-slot chip compact in narrow windows even when the editor
+   occupies the full viewport and has not reached its 560 px container fold. */
+@media (max-width: 760px) {
+  .show-note-chip-label {
+    display: none;
+  }
+  .show-note-pattern-chip {
+    width: auto;
+  }
+}
+
 /* Clips progressively shed copy before they shed meaning. At narrow scene
    widths the second row becomes the same category glyphs used by Entity Detail. */
 .show-timeline-clip {

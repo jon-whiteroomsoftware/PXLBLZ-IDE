@@ -3341,18 +3341,40 @@ test.describe('lesson pill, Reading card and Live strip (#985)', () => {
     await expect(card.getByRole('switch', { name: 'Live strip' })).toBeVisible()
   })
 
-  test('103 follows the Scene under the playhead through its five teaching Scenes', async ({ page }) => {
+  test('103 follows the Clip under the playhead through its five teaching Clips', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows/stock-show-103-clip-transform')
     const toolbar = await pauseAtStart(page)
     const strip = page.getByRole('region', { name: '103 Clip Transform live strip' })
     await expect(strip.getByText('CLIP', { exact: true })).toBeVisible()
-    // #985 requires five Scenes. The current fixture has one Scene (Poses)
-    // with five Clips; keep this acceptance oracle explicit until resolved.
-    await expect(strip.getByText('Reference', { exact: true })).toBeVisible()
+    await expect(strip.getByText('CompassRose', { exact: true })).toBeVisible()
     await expect(strip.getByText('1/5', { exact: true })).toBeVisible()
     await toolbar.getByRole('button', { name: 'Play Show preview' }).click()
-    await expect(strip.getByText('Position', { exact: true })).toBeVisible({ timeout: 10_000 })
-    await expect(strip.getByText('2/5', { exact: true })).toBeVisible()
+    await expect(strip.getByText('2/5', { exact: true })).toBeVisible({ timeout: 10_000 })
+    await expect(strip.getByText('CompassRose', { exact: true })).toBeVisible()
+  })
+
+  test('105 narrates its three Scenes', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows/stock-show-105-portable-zones')
+    const toolbar = await pauseAtStart(page)
+    const strip = page.getByRole('region', { name: '105 Zones live strip' })
+    await expect(strip.getByText('SCENE', { exact: true })).toBeVisible()
+    await expect(strip.getByText('Split', { exact: true })).toBeVisible()
+    await expect(strip.getByText('1/3', { exact: true })).toBeVisible()
+    await toolbar.getByRole('button', { name: 'Play Show preview' }).click()
+    await expect(strip.getByText('2/3', { exact: true })).toBeVisible({ timeout: 15_000 })
+    await expect(strip.getByText('Rings', { exact: true })).toBeVisible()
+  })
+
+  test('102 compact chip hides Pattern names at 760px', async ({ page }) => {
+    await page.setViewportSize({ width: 760, height: 900 })
+    await page.goto('studio/shows/stock-show-102-transitions-values')
+    await pauseAtStart(page)
+    const strip = page.getByRole('region', { name: '102 Transitions and Values live strip' })
+    const chip = strip.getByRole('button', { name: 'Patterns (3)' })
+    await expect(chip).toBeVisible()
+    await expect.poll(() => chip.innerText()).toBe('(3)')
+    expect((await strip.boundingBox())!.height).toBe(32)
   })
 })

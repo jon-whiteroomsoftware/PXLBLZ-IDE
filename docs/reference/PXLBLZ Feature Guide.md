@@ -516,7 +516,10 @@ It floats above the timeline without shrinking the Stage preview.
 
 The card's **Live strip** switch shows or hides one 32 px row above the
 timeline, remembered per Show. The strip follows the current reference example
-or Scene as the Show plays. **Try with Pattern** runs another Pattern through
+as the Show plays. Without a reference guide it follows the Scene in a multi-Scene
+Show, or the most recently started Clip on the first Zone's main lane in a
+single-Scene Show, showing its Pattern name and Clip counter even through gaps.
+**Try with Pattern** runs another Pattern through
 the same choreography: one slot has an inline chooser; several slots share a
 **Patterns** chip that opens their choosers and Reset. The strip's × hides it.
 At narrow widths, the pill becomes an icon and the strip keeps the narration
