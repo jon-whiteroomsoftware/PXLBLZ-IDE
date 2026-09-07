@@ -66,15 +66,15 @@ export function resolveShowWorkspaceLayout({
 }
 
 export function measureShowTimelineMinimumHeight({
-  transportTop,
+  editorTop,
   secondLaneBottom,
   fixedFooterHeight,
 }: {
-  transportTop: number
+  editorTop: number
   secondLaneBottom: number
   fixedFooterHeight: number
 }): number {
-  return Math.max(1, Math.ceil(secondLaneBottom - transportTop + fixedFooterHeight))
+  return Math.max(1, Math.ceil(secondLaneBottom - editorTop + fixedFooterHeight))
 }
 
 export function showControlsLayoutMode(width: number): 'compact' | 'one-column' | 'two-column' | 'three-column' {

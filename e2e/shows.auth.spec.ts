@@ -265,6 +265,40 @@ test.describe('authenticated Show authoring', () => {
     }).toBeLessThan(0.001)
   })
 
+  test('keeps transport, ruler, and two complete lanes above the footer at the high clamp (#967)', async ({ page }) => {
+    await page.setViewportSize({ width: 2400, height: 1196 })
+    await page.goto('studio/shows/stock-show-remix-overture')
+
+    const splitter = page.getByRole('separator', { name: 'Resize timeline and Stage' })
+    for (let step = 0; step < 30; step += 1) await splitter.press('Shift+ArrowUp')
+    await expect(splitter).toHaveAttribute('data-clamp', 'timeline-min')
+
+    await expect.poll(async () => page.getByTestId('show-timeline-pane').evaluate((pane) => {
+      const scroll = pane.querySelector<HTMLElement>('[data-testid="show-editor-scroll"]')
+      const toolbar = pane.querySelector<HTMLElement>('[data-testid="show-timeline-toolbar"]')
+      const ruler = pane.querySelector<HTMLElement>('[data-testid="show-timeline-ruler"]')
+      const footer = pane.querySelector<HTMLElement>('[data-testid="show-compile-bar"]')
+      if (!scroll || !toolbar || !ruler || !footer) return Number.POSITIVE_INFINITY
+
+      const laneRects = Array.from(pane.querySelectorAll<HTMLElement>('[data-show-zone-id]'))
+        .map((element) => element.getBoundingClientRect())
+        .filter((rect) => rect.height > 0)
+        .sort((left, right) => left.top - right.top)
+        .filter((rect, index, rects) => index === 0 || Math.abs(rect.top - rects[index - 1].top) > 1)
+        .slice(0, 2)
+      if (laneRects.length < 2) return Number.POSITIVE_INFINITY
+
+      const scrollRect = scroll.getBoundingClientRect()
+      const footerRect = footer.getBoundingClientRect()
+      const visibleBottom = Math.min(scrollRect.bottom, footerRect.top)
+      const visibleRects = [toolbar.getBoundingClientRect(), ruler.getBoundingClientRect(), ...laneRects]
+      return Math.max(...visibleRects.map((rect) => Math.max(
+        scrollRect.top - rect.top,
+        rect.bottom - visibleBottom,
+      )))
+    })).toBeLessThanOrEqual(1)
+  })
+
   test('drags and remembers the Show split across Show switches and reload (#967)', async ({ page }) => {
     test.slow()
     await page.setViewportSize({ width: 1440, height: 900 })

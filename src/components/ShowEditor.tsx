@@ -1635,7 +1635,7 @@ export function ShowEditor({
       const rowGap = Number.parseFloat(window.getComputedStyle(timelineGrid).rowGap) || 0
       const secondLaneBottom = laneRects[1]?.bottom ?? firstLane.bottom + rowGap + firstLane.height
       onTimelineMinimumHeightChange(measureShowTimelineMinimumHeight({
-        transportTop: toolbar.getBoundingClientRect().top,
+        editorTop: root.getBoundingClientRect().top,
         secondLaneBottom,
         fixedFooterHeight: footer.getBoundingClientRect().height,
       }))

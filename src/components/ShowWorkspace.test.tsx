@@ -62,7 +62,7 @@ describe('ShowWorkspace (#967)', () => {
     render(
       <ShowWorkspace
         previewAspect={1}
-        timelineMinimumHeight={247}
+        timelineMinimumHeight={271}
         timeline={<div>timeline</div>}
         stage={<div>stage</div>}
       />,
@@ -73,7 +73,7 @@ describe('ShowWorkspace (#967)', () => {
     for (let step = 0; step < 10; step += 1) {
       fireEvent.keyDown(divider, { key: 'ArrowUp', shiftKey: true })
     }
-    expect(divider).toHaveAttribute('aria-valuenow', '247')
+    expect(divider).toHaveAttribute('aria-valuenow', '271')
     expect(divider).toHaveAttribute('data-clamp', 'timeline-min')
   })
 })
