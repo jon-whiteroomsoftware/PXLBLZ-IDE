@@ -2,12 +2,12 @@
   "version": 1,
   "issue": "965",
   "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
-  "operation": "At the committed Shows route, open the top-bar place list after visiting the remembered Pattern, Map, Mixin, and Library entities; the menu capture shows those sub-details plus the active Show, exact order, Reference group, and current check. The menu was driven and captured in the Codex in-app browser as synthetic local-agent-08. The Controller captures use the repository authenticated Playwright runner and its production-transport fake Controller fixture as playwright-worker-00: connect one Controller at 1440 px, then three at 1180 px and 390 px. The 390 px capture proves one 40 px row with the mark only, full place control, and icon-only secondary controls. The IAB evaluator cannot install the synthetic Controller transport, so Playwright produced only those spec-named Controller-count captures.",
+  "operation": "At the committed Shows route, open the top-bar place list; the menu capture shows the active Show sub-detail, exact order, Reference group, and current check. The menu was driven and captured in the Codex in-app browser as synthetic local-agent-08. The Controller captures use the repository authenticated Playwright runner and its production-transport fake Controller fixture as playwright-worker-00: connect one Controller at 1440 px, then three at 1180 px and 390 px. The 390 px capture proves one 40 px row with the mark only, full place control, and icon-only secondary controls. The IAB evaluator cannot install the synthetic Controller transport, so Playwright produced only those spec-named Controller-count captures.",
   "captures": [
     ".wrsp/ui-proof/965-shows-menu-1440.jpg",
     ".wrsp/ui-proof/965-shows-one-controller-1440.png",
     ".wrsp/ui-proof/965-shows-three-controllers-1180.png",
     ".wrsp/ui-proof/965-shows-three-controllers-390.png"
   ],
-  "capturedAtCommit": "eaa24e43e885047c1f1999530ec8a99609625c43"
+  "capturedAtCommit": "bc70396c4150bf107ee90086ea4ca156de4062fc"
 }
