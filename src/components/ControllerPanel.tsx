@@ -395,7 +395,9 @@ export function ControllerPanel() {
                 />
               </div>
             ) : (
-              <DeckTelemetry label="duty cap" value={powerTelemetry.limitLabel} />
+              <div className="controller-field-wide">
+                <DeckTelemetry label="duty cap" value={powerTelemetry.limitLabel} />
+              </div>
             )}
             <div className="controller-field-wide">
               <DeckCell label="limiting">

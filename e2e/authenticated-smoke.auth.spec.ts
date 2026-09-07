@@ -2024,3 +2024,60 @@ test.describe('entity drawer motion (#982)', () => {
     }
   })
 })
+
+test('Controller menus escape the panel and narrow Power telemetry aligns (#968)', async ({ page }) => {
+  const created = await page.context().request.post('/api/controllers', { data: {
+    id: 'e2e-968-no-power-profile', name: 'Menu bench', deviceId: 'pixelblaze_pb32_99d4ee549434', lastSeenIp: '192.168.8.224',
+    board: { kind: 'pixelblaze-v3-standard' },
+    inputs: [], globalTransforms: [], keepPatternsUpToDate: false, patternBindings: [], zones: [], updatedAt: Date.now(),
+  } })
+  expect(created.ok(), await created.text()).toBe(true)
+  await installFakeControllerHelper(page, {
+    programs: Array.from({ length: 12 }, (_, i) => ({ id: `MENU${i}`, name: `Pattern ${String(i).padStart(2, '0')}` })),
+    activeProgramId: 'MENU0', deviceName: 'Menu bench', boardType: 'pb32', mac: '34:94:54:ee:d4:99', pixelCount: 256,
+    vars: { __px_powerDutyRecent: 0.4, __px_powerDutySinceStart: 0.3, __px_powerLimit: 0.65, __px_powerScale: 1 },
+  })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('studio/patterns/IridescentFibers')
+  await page.getByRole('button', { name: 'Connect a Controller' }).click()
+  await page.getByRole('textbox', { name: 'Controller IP address' }).fill('192.168.8.224')
+  await page.getByTestId('controller-go').click()
+  await expect(page.getByTestId('controller-pill')).toHaveAttribute('data-phase', 'live')
+  await page.getByTestId('controller-pill').click()
+  const panel = page.getByTestId('controller-panel-popover')
+  await panel.getByRole('button', { name: 'Switch running Pattern' }).click()
+  const last = page.getByRole('option', { name: 'Pattern 11', exact: true })
+  await last.scrollIntoViewIfNeeded()
+  await expect(last).toBeInViewport()
+  expect(await panel.evaluate(element => element.scrollTop)).toBe(0)
+  const lastBox = await last.boundingBox()
+  expect(lastBox).not.toBeNull()
+  expect(await last.evaluate(element => {
+    const r = element.getBoundingClientRect()
+    return element.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2))
+  })).toBe(true)
+  if (process.env.CONTROLLER_PROOF_DIR) await page.screenshot({ path: `${process.env.CONTROLLER_PROOF_DIR}/controller-long-menu.png` })
+  await last.click()
+  await expect(panel).toContainText('Pattern 11')
+  await panel.getByRole('button', { name: 'Pixelblaze', exact: true }).click()
+  await panel.getByRole('button', { name: 'Edit controller pixel count' }).click()
+  const editor = page.getByRole('dialog', { name: 'Controller pixel count editor' })
+  await expect(editor).toBeVisible()
+  expect(await editor.evaluate(element => {
+    const r = element.getBoundingClientRect()
+    return [r.x + 10, r.right - 10].every(x => [r.y + 10, r.bottom - 10].every(y => element.contains(document.elementFromPoint(x, y))))
+  })).toBe(true)
+  if (process.env.CONTROLLER_PROOF_DIR) await page.screenshot({ path: `${process.env.CONTROLLER_PROOF_DIR}/controller-pixel-editor.png` })
+  await page.getByRole('textbox', { name: 'Controller pixel count', exact: true }).press('Escape')
+  await expect(editor).toBeHidden()
+  await panel.getByRole('button', { name: 'Edit controller pixel count' }).click()
+  await panel.getByRole('button', { name: 'Pixelblaze', exact: true }).click()
+  await expect(editor).toBeHidden()
+  await page.setViewportSize({ width: 336, height: 900 })
+  await panel.getByRole('button', { name: 'Power', exact: true }).click()
+  await expect(panel.getByRole('slider', { name: 'Live duty cap' })).toHaveCount(0)
+  const valuePositions = await panel.locator('.controller-section-power [data-deck="cell"]').evaluateAll(cells => cells.map(cell => cell.lastElementChild!.getBoundingClientRect().left))
+  expect(valuePositions.length).toBeGreaterThan(2)
+  expect(Math.max(...valuePositions) - Math.min(...valuePositions)).toBeLessThan(1)
+  if (process.env.CONTROLLER_PROOF_DIR) await page.screenshot({ path: `${process.env.CONTROLLER_PROOF_DIR}/controller-power-fallback.png` })
+})

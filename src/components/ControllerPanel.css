@@ -1,4 +1,4 @@
-.controller-panel-popover { container: controller-panel / inline-size; max-width: min(400px, calc(100vw - 16px)); max-height: calc(100dvh - 80px); overflow-y: auto; }
+.controller-panel-popover { container: controller-panel / inline-size; max-width: min(400px, calc(100vw - 16px)); }
 .controller-panel { min-width: 0; font-size: 10.5px; }
 .controller-panel .panel-section-header, .controller-panel .panel-section-toggle { height: 28px; }
 .controller-panel .panel-section-body [data-deck="grid"] { display: grid; grid-template-columns: minmax(0, 60px) minmax(0, 1fr) minmax(0, 60px) minmax(0, 1fr); gap: 8px 8px; align-items: center; }
@@ -18,3 +18,5 @@
   .controller-field-wide { grid-template-columns: 72px minmax(0, 1fr); }
   .controller-panel-popover > div:first-child { gap: 6px; }
 }
+/* Existing local editors must escape the shared section's fold-animation clip. */
+.controller-panel .panel-section-body:has([role="dialog"]) { overflow: visible; }
