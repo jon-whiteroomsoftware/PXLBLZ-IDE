@@ -272,6 +272,33 @@ describe('App smoke test', () => {
     expect(window.location.pathname).toBe(`/studio/patterns/${pattern.id}`)
   })
 
+  it.each([null, 'IridescentFibers'] as const)(
+    'keeps the routed demo remembered across personal Pattern hydration from demo state %s (#965)',
+    async (activeDemoName) => {
+    setStudioLocation('/studio/patterns/IridescentFibers')
+    seedSignedInWorkspace()
+    usePatternStore.setState({
+      activeDemoName,
+      activePatternId: 'pxlblz-starter-pattern-v1',
+      userPatterns: [{
+        id: 'pxlblz-starter-pattern-v1',
+        name: 'Starter Pattern',
+        src: 'export function render(index) {}',
+        controls: {},
+        updatedAt: 1,
+      }],
+      patternsLoaded: true,
+    })
+    render(<App />)
+
+    await waitFor(() => expect(window.location.pathname).toBe('/studio/patterns/IridescentFibers'))
+    await waitFor(() => expect(useStudioPlaceStore.getState().remembered.patterns).toBe('IridescentFibers'))
+
+    act(() => usePatternStore.getState().setActivePattern('pxlblz-starter-pattern-v1'))
+    await waitFor(() => expect(window.location.pathname).toBe('/studio/patterns/pxlblz-starter-pattern-v1'))
+    },
+  )
+
   it('links the PXLBLZ wordmark to the app root', () => {
     render(<App />)
     expect(screen.getByRole('link', { name: 'PXLBLZ home' })).toHaveAttribute('href', import.meta.env.BASE_URL)

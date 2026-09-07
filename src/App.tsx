@@ -451,7 +451,7 @@ function StudioApp() {
     if (route.kind === 'studio' && route.entity?.id) rememberPlace(route.entity.kind, route.entity.id)
   }, [rememberPlace, route])
   useEffect(() => {
-    const id = activePatternId ?? activeDemoName
+    const id = activeDemoName ?? activePatternId
     if (id) rememberPlace('patterns', id)
   }, [activeDemoName, activePatternId, rememberPlace])
   useEffect(() => {
@@ -559,38 +559,42 @@ function StudioApp() {
   // link to /studio/patterns/<id> or /studio/maps/<id> resolves once the record
   // exists.
   useEffect(() => {
-    if (route.kind === 'docs') {
-      if (route.docId === null) syncDocsFromRoute('ecosystem-primer')
-      else if (isDocId(route.docId)) syncDocsFromRoute(route.docId)
+    const currentRoute = useRouterStore.getState().route
+    if (currentRoute.kind === 'docs') {
+      if (currentRoute.docId === null) syncDocsFromRoute('ecosystem-primer')
+      else if (isDocId(currentRoute.docId)) syncDocsFromRoute(currentRoute.docId)
       return
     }
     syncDocsFromRoute(null)
-    if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'patterns') {
+    if (currentRoute.kind === 'studio' && currentRoute.entity !== null && currentRoute.entity.kind === 'patterns') {
       const { userPatterns, activePatternId, activeDemoName } = usePatternStore.getState()
-      const entityId = route.entity.id
+      const entityId = currentRoute.entity.id
       if (entityId !== null) {
         const record = userPatterns.find((p) => p.id === entityId)
-        if (record && activePatternId !== entityId) openPatternRecord(record)
-        else if (!record && DEMOS[entityId] && activeDemoName !== entityId) openDemoPattern(entityId)
+        if (record && activePatternId !== entityId) {
+          openPatternRecord(record)
+        } else if (!record && DEMOS[entityId] && (activeDemoName !== entityId || activePatternId !== null)) {
+          openDemoPattern(entityId)
+        }
       } else if (patternsLoaded && activePatternId === null && activeDemoName === null && userPatterns.length > 0) {
         openPatternRecord(userPatterns[0])
       }
-    } else if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'maps' && route.entity.id !== null) {
-      const entityId = route.entity.id
+    } else if (currentRoute.kind === 'studio' && currentRoute.entity !== null && currentRoute.entity.kind === 'maps' && currentRoute.entity.id !== null) {
+      const entityId = currentRoute.entity.id
       const { userMaps, editingMap, openExistingMap, openStockMap } = useMapStore.getState()
       if (editingMap?.id === entityId) return
       const record = userMaps.find((m) => m.id === entityId)
       if (record) openExistingMap(record)
       else if (STOCK_MAP_ITEMS.some((m) => m.id === entityId)) openStockMap(entityId)
-    } else if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'mixins' && route.entity.id !== null) {
-      const entityId = route.entity.id
+    } else if (currentRoute.kind === 'studio' && currentRoute.entity !== null && currentRoute.entity.kind === 'mixins' && currentRoute.entity.id !== null) {
+      const entityId = currentRoute.entity.id
       const { userMixins, editingMixin, openExistingMixin, openStockMixin } = useMixinStore.getState()
       if (editingMixin?.id === entityId) return
       const record = userMixins.find((m) => m.id === entityId)
       if (record) openExistingMixin(record)
       else if (STOCK_MIXIN_ITEMS.some((m) => m.id === entityId)) openStockMixin(entityId)
-    } else if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'libraries' && route.entity.id !== null) {
-      const entityId = route.entity.id
+    } else if (currentRoute.kind === 'studio' && currentRoute.entity !== null && currentRoute.entity.kind === 'libraries' && currentRoute.entity.id !== null) {
+      const entityId = currentRoute.entity.id
       const { userLibraries, editingLibrary, openExistingLibrary } = useLibraryStore.getState()
       if (editingLibrary?.id === entityId) return
       const record = userLibraries.find((library) => library.id === entityId)
@@ -598,8 +602,8 @@ function StudioApp() {
       else if (LIBRARIES[entityId] && !(editingLibrary?.kind === 'stock' && editingLibrary.id === entityId)) {
         openStockLibrary(entityId)
       }
-    } else if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'shows' && route.entity.id !== null) {
-      const entityId = route.entity.id
+    } else if (currentRoute.kind === 'studio' && currentRoute.entity !== null && currentRoute.entity.kind === 'shows' && currentRoute.entity.id !== null) {
+      const entityId = currentRoute.entity.id
       if (stockShowById(entityId)) {
         if (activeShowId !== null) void openShow(null)
       } else if (shows.some((show) => show.id === entityId) && activeShowId !== entityId) openShow(entityId)
@@ -612,11 +616,12 @@ function StudioApp() {
   useEffect(() => {
     const current = useRouterStore.getState().route
     if (current.kind !== 'studio') return
-    if (activePatternId !== null && (current.entity === null || current.entity.kind === 'patterns')) {
-      const target: Route = { kind: 'studio', entity: { kind: 'patterns', id: activePatternId } }
+    const patternState = usePatternStore.getState()
+    if (patternState.activePatternId !== null && (current.entity === null || current.entity.kind === 'patterns')) {
+      const target: Route = { kind: 'studio', entity: { kind: 'patterns', id: patternState.activePatternId } }
       if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
-    } else if (activeDemoName !== null && (current.entity === null || current.entity.kind === 'patterns')) {
-      const target: Route = { kind: 'studio', entity: { kind: 'patterns', id: activeDemoName } }
+    } else if (patternState.activeDemoName !== null && (current.entity === null || current.entity.kind === 'patterns')) {
+      const target: Route = { kind: 'studio', entity: { kind: 'patterns', id: patternState.activeDemoName } }
       if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
     } else if (
       activeShowId !== null &&
