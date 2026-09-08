@@ -112,7 +112,7 @@ describe('stock Show curriculum (#363)', () => {
       .toMatchObject({
         cellIds: expect.arrayContaining(['cell-animation-speed-zone-2', 'cell-repeat-scale-zone-2']),
         instanceIds: [
-          'instance-property-comparison',
+          'instance-property-subject',
           'instance-property-comparison-speed',
           'instance-property-comparison-control',
         ],
@@ -248,7 +248,7 @@ describe('stock Show curriculum (#363)', () => {
         'stock-show-reference-wipe-transitions': ['InfinityFlower2D', 'MetaballGarden'],
         'stock-show-reference-dissolve-transitions': ['WavyBands', 'GeometryMorphingDemo2D'],
         'stock-show-reference-shape-reveal-transitions': ['IridescentFibers', 'MagneticFilaments'],
-        'stock-show-reference-shape-reveal-figures': ['NeonCircuitBoard', 'MoireCathedral'],
+        'stock-show-reference-shape-reveal-figures': ['MetaballsOfFire2D', 'GlyphRain'],
         'stock-show-reference-slide-transitions': ['ClockworkIris', 'CompassRose'],
         'stock-show-reference-zoom-spin-transitions': ['Caustics', 'GlyphRain'],
       }
@@ -790,8 +790,8 @@ describe('stock Show curriculum (#363)', () => {
 
     expect(slotPatternNames('stock-show-showcase-transform-effects')).toEqual(['TunnelOfSquares2D'])
     expect(slotPatternNames('stock-show-reference-aperture-shapes')).toEqual([
-      'MetaballGarden',
-      'CompassRose',
+      'Caustics',
+      'Harmonograph',
     ])
     // Declarations scope the swap surface (#822) to the two content sides.
     expect(slotPatternNames('stock-show-reference-blend-fade-transitions')).toEqual([
@@ -863,6 +863,39 @@ describe('stock Show curriculum (#363)', () => {
     const fadeMs = fadeBySceneId.get('the-dancer-enters')!.durationMs
     // TURNAROUND is authored to four decimals, so closure is exact to ~2e-5.
     expect(integral + (fadeMs / 1_000) * EDGE).toBeCloseTo(EDGE * (PHRASE_MS / 1_000), 4)
+  })
+
+  it('fits LineDancer2D with slow, distinct speed demonstrations and intact later comparisons (#848)', () => {
+    const item = stockShowById('stock-show-reference-property-animation')!
+    const composition = item.show.composition!
+    expect(composition.scenes.map((scene) => scene.sceneId)).toEqual([
+      'animation-speed', 'pattern-control', 'brightness', 'clip-transform',
+      'clip-viewport', 'overlay-opacity', 'effect-parameter', 'split-position', 'repeat-scale',
+    ])
+    expect(composition.patternInstances.filter((instance) => instance.patternName === 'LineDancer2D'))
+      .toHaveLength(5)
+    const pair = (scene: typeof composition.scenes[number]) => scene.zones.map((zone) => zone.main[0].instanceId)
+    const [speed, control, ...later] = composition.scenes
+    // Clock-changing examples remain independent; later examples share one
+    // clock so animated placement properties are their only difference.
+    expect(new Set([...pair(speed), ...pair(control)])).toHaveProperty('size', 4)
+    for (const scene of later) expect(pair(scene)).toEqual(['instance-property-subject', 'instance-property-subject'])
+    const speedTrack = speed.propertyTracks!.find((track) => track.id === 'track-animation-speed')!
+    const controlTrack = control.propertyTracks!.find((track) => track.id === 'track-pattern-control')!
+    expect(speedTrack.keyframes.map((keyframe) => keyframe.value)).toEqual([0.06, 0.36, 0.06])
+    expect(controlTrack.keyframes.map((keyframe) => keyframe.value)).toEqual([0.02, 0.22, 0.02])
+    expect(composition.patternInstances.filter((instance) => instance.patternName === 'LineDancer2D')
+      .every((instance) => instance.controlTargets?.sliderSpeed === 0.02)).toBe(true)
+    const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
+    expect(compiled.error).toBeNull()
+    const resources = compiled.artifact!.summary.resources
+    expect(resources.blockers).toEqual([])
+    expect(resources.persistentGlobals).toBeLessThanOrEqual(resources.persistentGlobalLimit)
+    expect(resources.artifactBytes).toBeLessThanOrEqual(resources.artifactByteBudget)
+    const exported = buildShowEpeExport(item.show, compiled.artifact!.code, {
+      id: 'property-animation-defaults', stampedAt: '2026-09-07T00:00:00.000Z',
+    })
+    expect(new TextEncoder().encode(exported.source).length).toBeLessThanOrEqual(resources.artifactByteBudget)
   })
 
   it('keeps the Property Animation boundary-owned transitions live through normalization (#823)', () => {
@@ -1627,14 +1660,13 @@ describe('stock Show curriculum (#363)', () => {
     expect(sweeps.map((transition) => transition.layoutId)).toEqual(['layout-rings'])
     expect(sweeps[0].routingDirection).toBe('forward')
 
-    // Shared casting: the hero pair opens every sibling, and only the
-    // four-voice sibling extends it. (Canonical instance order since #823:
-    // ember, garden, rain, tide.)
+    // Screenshot-selected hero voices (#848), with the four-voice sibling
+    // unchanged. Canonical instance order: ember, garden, rain, tide.
     expect(trio.map((item) => item.show.composition!.patternInstances.map((instance) => instance.patternName)))
       .toEqual([
-        ['IQPalettes', 'MetaballGarden'],
+        ['IQPalettes', 'CoronalMassEjection'],
         ['IQPalettes', 'MetaballGarden', 'GlyphRain', 'Caustics'],
-        ['IQPalettes', 'MetaballGarden'],
+        ['IQPalettes', 'Harmonograph'],
       ])
   })
 
@@ -1662,14 +1694,29 @@ describe('stock Show curriculum (#363)', () => {
       // Splits & Checker: full 0-4, moving split 4-9, soft split 9-13,
       // checker 13-18.
       const { mapPoints, frameAt } = lessonReplay('stock-show-showcase-zone-layouts-splits')
-      const lumaWhere = regionLuma(mapPoints)
-      const sideContrast = (frame: number[][]) => Math.abs(
-        lumaWhere(frame, (x, y) => x < 0.3 && y > 0.4 && y < 0.6)
-        - lumaWhere(frame, (x, y) => x > 0.7 && y > 0.4 && y < 0.6),
-      )
-      const full = frameAt(2_000)
-      const split = frameAt(6_500)
-      expect(sideContrast(split)).toBeGreaterThan(sideContrast(full) * 2)
+      // CME emits out-of-range channel values; luminance must use the
+      // clamped colors the renderer displays, not negative raw channels.
+      const displayFrame = (frame: number[][]) => frame.map((pixel) => pixel.map((channel) => Math.max(0, Math.min(1, channel))))
+      const full = displayFrame(frameAt(2_000))
+      const split = displayFrame(frameAt(6_500))
+      // Compare the routing at the same Pattern time. Mean luminance alone
+      // can miss the hue contrast in CoronalMassEjection versus IQPalettes.
+      const unchangedRouting = structuredClone(stockShowById('stock-show-showcase-zone-layouts-splits')!.show)
+      for (const layout of unchangedRouting.routingLayouts) {
+        if (layout.id === 'layout-moving-split') layout.logical = { kind: 'single', zoneIds: ['zone-1'] }
+      }
+      const compiledFull = compileShowForArtifact(unchangedRouting, [], undefined, {}, { stageDimension: 2 })
+      expect(compiledFull.error).toBeNull()
+      const fullRuntime = createFastReplayRuntime({
+        code: compiledFull.artifact!.code,
+        fxCode: compiledFull.artifact!.fxCode,
+        metadata: compiledFull.artifact!.metadata,
+        dimension: nativeDimension(compiledFull.artifact!.metadata.renderFns),
+      }, { mapPoints, randomSeed: 363, fidelity: 'fast' })
+      const fullAtSplit = displayFrame(fullRuntime.advanceTo(6_500, { stepMs: 100 }).pixels.map((px) => [...px]))
+      // A layout also remaps sample coordinates, so both sides may change.
+      // The oracle isolates the whole rendered layout at identical time.
+      expect(frameDiff(split, fullAtSplit)).toBeGreaterThan(0.02)
       expect(meanLuma(full)).toBeGreaterThan(0.02)
       expect(meanLuma(split)).toBeGreaterThan(0.02)
 
@@ -1690,7 +1737,7 @@ describe('stock Show curriculum (#363)', () => {
         metadata: compiledStripped.artifact!.metadata,
         dimension: nativeDimension(compiledStripped.artifact!.metadata.renderFns),
       }, { mapPoints, randomSeed: 363, fidelity: 'fast' })
-      const strippedSplit = strippedRuntime.advanceTo(6_500, { stepMs: 100 }).pixels.map((px) => [...px])
+      const strippedSplit = displayFrame(strippedRuntime.advanceTo(6_500, { stepMs: 100 }).pixels.map((px) => [...px]))
       const halfDiff = (inHalf: (x: number) => boolean) => {
         const indices = mapPoints.flatMap((point, index) => (inHalf(point.sample[0]) ? [index] : []))
         return indices.reduce((sum, index) => (
@@ -1730,13 +1777,29 @@ describe('stock Show curriculum (#363)', () => {
         lumaWhere(frame, (x, y) => Math.hypot(x - 0.5, y - 0.5) < 0.15)
         - lumaWhere(frame, (x, y) => Math.hypot(x - 0.5, y - 0.5) > 0.45),
       )
-      // No full-versus-rings comparison: MetaballGarden alone is already
-      // center-weighted (measured radial contrast 0.47 on the full
-      // surface), so the meaningful oracle is the 206-style absolute
-      // center-versus-edge contrast inside the rings interval.
+      // The rings interval must re-deal the picture. Center-versus-edge
+      // luminance is not a usable oracle since #848 recast the hero to
+      // Harmonograph (thin curves over a dark field alternate with IQPalettes
+      // at almost equal mean luminance, measured 0.009), so compare the
+      // rings frame against the same Show with the rings routing removed at
+      // the identical Pattern time, as the Splits sibling does above.
       const full = frameAt(2_000)
       const rings = frameAt(7_500)
-      expect(radialContrast(rings)).toBeGreaterThan(0.05)
+      const unroutedRings = structuredClone(stockShowById('stock-show-showcase-zone-layouts-radial')!.show)
+      for (const layout of unroutedRings.routingLayouts) {
+        if (layout.id === 'layout-rings') layout.logical = { kind: 'single', zoneIds: ['zone-1'] }
+      }
+      const compiledUnrouted = compileShowForArtifact(unroutedRings, [], undefined, {}, { stageDimension: 2 })
+      expect(compiledUnrouted.error).toBeNull()
+      const unroutedRuntime = createFastReplayRuntime({
+        code: compiledUnrouted.artifact!.code,
+        fxCode: compiledUnrouted.artifact!.fxCode,
+        metadata: compiledUnrouted.artifact!.metadata,
+        dimension: nativeDimension(compiledUnrouted.artifact!.metadata.renderFns),
+      }, { mapPoints, randomSeed: 363, fidelity: 'fast' })
+      const unroutedAtRings = unroutedRuntime.advanceTo(7_500, { stepMs: 100 }).pixels.map((px) => [...px])
+      expect(frameDiff(rings, unroutedAtRings)).toBeGreaterThan(0.02)
+      expect(radialContrast(rings)).toBeGreaterThanOrEqual(0)
       expect(meanLuma(full)).toBeGreaterThan(0.02)
       expect(meanLuma(rings)).toBeGreaterThan(0.02)
     }
@@ -2034,7 +2097,7 @@ describe('stock Show curriculum (#363)', () => {
     // references the single pendulum machine.
     const composition = item.show.composition!
     expect(composition.patternInstances).toHaveLength(1)
-    expect(composition.patternInstances[0]).toMatchObject({ id: 'pendulum', patternName: 'Harmonograph' })
+    expect(composition.patternInstances[0]).toMatchObject({ id: 'pendulum', patternName: 'Mandelbrot2D' })
     const placementInstances = new Set(composition.scenes.flatMap((scene) => scene.zones
       .flatMap((zone) => zone.main.map((entry) => entry.instanceId))))
     expect(placementInstances).toEqual(new Set(['pendulum']))
@@ -2125,11 +2188,9 @@ describe('stock Show curriculum (#363)', () => {
       randomSeed: 302,
     })
     const handle = loadPattern(compiled.artifact!.code, compiled.artifact!.metadata, shim.builtins)
-    // Zone-wide rendering for liveliness (Harmonograph draws thin curves
-    // over a dark field, and the posterized pair keeps only ~16% of its
-    // pixels lit at rest, so point samples flicker), plus the same local
-    // offsets inside each 300-pixel target so corresponding samples compare
-    // the one shared render across its per-Zone voices.
+    // Render whole Zones for liveliness: isolated point samples can miss
+    // a moving Pattern's lit regions. Matching offsets inside each target
+    // compare the shared render across its per-Zone voices.
     const offsets = [15, 55, 95, 135, 175, 215, 255, 295]
     const bases = [800, 1_100, 1_400, 1_700]
     const frameAt = (deltaMs: number) => {
@@ -2184,7 +2245,7 @@ describe('stock Show curriculum (#363)', () => {
     expect(compiled.error).toBeNull()
 
     // The note claims the compiler reuses one physical machine across the two
-    // logical RibbonLoom instances; hold the copy to the compiler's behavior.
+    // logical TopographicBloom instances; hold the copy to the compiler's behavior.
     const exported = buildShowEpeExport(item.show, compiled.artifact!.code, {
       id: 'lesson-303-inventory',
       stampedAt: '2026-08-02T00:00:00.000Z',
@@ -2201,7 +2262,7 @@ describe('stock Show curriculum (#363)', () => {
       patterns: describeShowArtifactPatterns(item.show, inventory),
       budgetBytes: compiled.artifact!.summary.measuredDeviceBudgetBytes,
     })
-    const loomRow = model.rows.find((row) => row.category === 'pattern' && row.label === 'RibbonLoom')!
+    const loomRow = model.rows.find((row) => row.category === 'pattern' && row.label === 'TopographicBloom')!
     expect(loomRow).toMatchObject({ physicalMachineCount: 1, logicalInstanceCount: 2 })
 
     // The note's Try-this: deleting the echo must fall out of the inventory

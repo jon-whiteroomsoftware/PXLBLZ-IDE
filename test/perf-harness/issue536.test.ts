@@ -121,12 +121,16 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // stays 0. IridescentFibers #916 adds one member global for its frame
     // table, so the weighted figure dilutes again and the stop verdict is
     // unchanged.
+    // #848 screenshot recast: member-global deltas are 207 -2, 302 -12,
+    // 303 -13 (+1 reclaimed), Figures -4, Property Animation +64,
+    // Geometric apertures +10, Icons +23, Splits -3, and Radial +4.
+    // All still fit: no compile failures or ceiling rescues; emission stays off.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 2_729,
-      representativeReclaimedGlobals: 21,
+      representativeMemberGlobals: 2_796,
+      representativeReclaimedGlobals: 22,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.00769513, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.00786838, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

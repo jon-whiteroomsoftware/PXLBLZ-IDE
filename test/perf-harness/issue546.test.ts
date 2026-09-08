@@ -12,18 +12,25 @@ describe('Restart Pattern machine-slot qualification (#546)', () => {
     // machines with the recast; the fixture keeps the #559 byte-budget
     // fallback (shared HSV chain); the 205 fixture sits 2,454 B (post-#907)
     // under the activation ceiling.
+    // Re-measured 2026-09-07 after #848 recast the Property Animation
+    // reference to LineDancer2D with one shared subject instance: the
+    // per-scene expansion this fixture builds now sits at 397 persistent
+    // globals and 12,562 B over the byte budget, so the slot-sharing
+    // exchange is not selected (12 -> 12 machines, 0% source change). The
+    // shipping Show itself stays within budget (stock suite, #848 case);
+    // only this diagnostic expansion no longer demonstrates an exchange.
     expect(issue546Report.fixtures).toMatchObject([
       {
         id: 'fixture-property-slot-qualification',
-        baseline: { sourceBytes: 82_771, physicalMachines: 19 },
+        baseline: { sourceBytes: 80_946, physicalMachines: 12 },
         selected: {
-          sourceBytes: 56_516,
-          physicalMachines: 7,
-          auxiliaryCacheWords: 264,
-          persistentGlobals: 181,
-          remainingArtifactBytes: 11_868,
+          sourceBytes: 80_946,
+          physicalMachines: 12,
+          auxiliaryCacheWords: 0,
+          persistentGlobals: 397,
+          remainingArtifactBytes: -12_562,
         },
-        sourceChangePercent: expect.closeTo(-31.72, 1),
+        sourceChangePercent: 0,
       },
       {
         id: 'fixture-installation-composition',

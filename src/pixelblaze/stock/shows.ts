@@ -908,31 +908,24 @@ function learn202(): StockShow {
   })
 }
 
-// 207 extends 202's frame construction with the shaped apertures from
-// #591/#678: a subject behind a half-size frame over a dim bed. The subject
-// stays CompassRose (unlike 202's Harmonograph recast): nothing moves here,
-// so its striations cannot swim, and its cardinal arms make every
-// silhouette's coverage obvious. Shaped
-// apertures feather Soft by default and the lesson keeps that default -
-// smooth is what people want - so the passages run rectangle, soft ellipse,
-// soft ring, and then the one deliberate exception: the same Ring cut Hard.
-// The Ring passage is the visceral one - the bed shows straight through its
-// center, which no rectangle can do. Everything holds still on purpose:
-// motion belongs to 202, and the full silhouette-by-edge matrix belongs to
-// the Aperture Shapes reference.
+// 207 extends 202's frame construction with shaped apertures: MagneticFilaments
+// behind a half-size frame over a dim NeonCircuitBoard bed (#848). The frame
+// stays fixed while the silhouette changes through Rectangle, Ellipse, Star,
+// and Ring. Soft is the default; the final Ring uses Hard for comparison.
+// The full silhouette-by-edge matrix belongs to the Aperture Shapes reference.
 function learn207(): StockShow {
   const id = 'stock-show-207-aperture-shapes-edges'
   const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
   const scenes: SceneSpec[] = [
-    scene('silhouettes', 'Silhouettes', 20, [clip('zone-1', 'MetaballGarden', LESSON_TIME_SCALE)]),
+    scene('silhouettes', 'Silhouettes', 20, [clip('zone-1', 'NeonCircuitBoard', LESSON_TIME_SCALE)]),
   ]
   const frame = { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5 }
   const composition: ShowCompositionV1 = {
     version: 1,
     executionModel: 'deterministic-loop',
     patternInstances: [
-      instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
-      instance('rose', 'CompassRose', LESSON_TIME_SCALE),
+      instance('garden', 'NeonCircuitBoard', LESSON_TIME_SCALE),
+      instance('rose', 'MagneticFilaments', LESSON_TIME_SCALE),
     ],
     scenes: [{
       sceneId: 'silhouettes',
@@ -971,7 +964,7 @@ function learn207(): StockShow {
   return catalogue({
     id, title: 'Aperture Shapes and Edges', track: 'portable', collection: 'learn', level: 200, order: 7,
     purpose: 'The aperture from 202 has a shape of its own: the Clip Viewport picks a silhouette from a catalogue of geometric shapes, icons, and the Signature cats. Every silhouette has an edge - Soft by default, Hard and Stable Dither as deliberate choices - and can rotate inside its axis-aligned frame or flip its Mode to cut the silhouette out.',
-    notice: 'Nothing moves in this lesson: the frame stays put and only the silhouette changes, Clip by Clip - Rectangle, Ellipse, Star, then Ring. Every edge is the Soft default until the last Clip, which cuts the same Ring with a Hard edge. The Ring makes the comparison easy: the lower Layer shows through its open center, and hardening the edge shows exactly what the feather was smoothing.',
+    notice: 'The frame never moves in this lesson; only the silhouette changes, Clip by Clip - Rectangle, Ellipse, Star, then Ring. Every edge is the Soft default until the last Clip, which cuts the same Ring with a Hard edge. The Ring makes the comparison easy: the lower Layer shows through its open center, and hardening the edge shows exactly what the feather was smoothing.',
     prompts: ['Rotate the Star, then flip its Mode to Cut out - the frame stays axis-aligned while the silhouette turns, and Cut out removes exactly the pixels Admit was showing.', 'On the last Clip, switch the Hard edge back to Soft, then try Stable Dither: it trades the smooth ramp for a per-pixel speckle that never shimmers.'],
     guideHeading: 'aperture-shapes-and-edges',
     patternSlots: [['garden'], ['rose']],
@@ -1348,37 +1341,10 @@ function learn301(): StockShow {
 }
 
 // 302 spends its whole variety budget on one Pattern instance: a single
-// Harmonograph render drives all five surfaces of the Redline stage (Jon's
-// "one clock" brief, #706). Harmonograph over MetaballGarden for the solo:
-// livelier motion and the tightest single-hue field in the roster
-// (yellow-orange, hue 63°), so placement-phase rotations read as clean new
-// colors - phase is compiled as `hsv(h + adapt_phase, ...)` inside the
-// shared member's sink, the cheapest voice in the toolkit. The arc
-// introduces one tier per junction: geometry alone (the same frame lands as
-// a panel and four radial blooms), then free adaptations (the hue-wheel
-// quartet at 0/0.25/0.5/0.75, a mirror pair), then Effects (quarter-frame
-// translate windows under wrap, a posterize pair), then property animation
-// (two timed invert pulses flashing the hero's dark field on the beat).
-// Clips split mid-passage so each new voice arrives as its own visible
-// event, and from the quartet's arrival the colors never sit still: at each
-// change beat the four phases move corners by a different rule - rotate
-// clockwise, swap diagonals, rotate back - within a split-complementary
-// gold/blue family rather than full-spectrum primaries, and every move GLIDES via
-// placement-view phase tracks with staggered starts, so color travels
-// around the ring as a wave instead of snapping. That glide is also the
-// transition policy: full five-Zone crossfade boundaries measured ~20
-// budget points each, while phase tracks are score data on the same single
-// machine, so the junctions stay Cuts and the color motion carries the ease.
-// Three solo events give single satellites their own moments at different
-// times - an iris breath (vignette radius), a slow half-turn spin (rotate
-// turns), a posterize crush to two levels - all property tracks over the
-// same one machine; trails/persistence effects do not exist in the toolkit
-// (Effects are stateless per-frame). The whole Show runs at twice the curriculum clock (0.64,
-// still under the 0.7 legibility pin) because a solo Harmonograph at lesson
-// speed reads sedate. Junctions are Cuts (crossfading five physical Zones
-// measured ~20 budget points per boundary), so the 6/8/6-second holds make
-// a 20-second Show, and the artifact inventory prices the whole score at
-// one physical machine.
+// Mandelbrot render drives all five surfaces of the Redline stage (#848).
+// Geometry, placement adaptations, Effects, and property animation supply
+// the variation while all placements share one clock and one machine.
+// The existing phase journeys, 0.64 clock, and 6/8/6-second holds are retained.
 function learn302(): StockShow {
   const id = 'stock-show-302-installation-composition'
   // One shared clock for the whole Show, like every lesson - just faster.
@@ -1389,27 +1355,21 @@ function learn302(): StockShow {
   )
   const scenes: SceneSpec[] = [
     scene('render', 'One render', 6, [
-      clip('zone-1', 'Harmonograph', SOLO_TIME_SCALE),
-      ...zones.slice(1).map((zone) => clip(zone.id, 'Harmonograph', SOLO_TIME_SCALE)),
+      clip('zone-1', 'Mandelbrot2D', SOLO_TIME_SCALE),
+      ...zones.slice(1).map((zone) => clip(zone.id, 'Mandelbrot2D', SOLO_TIME_SCALE)),
     ]),
     scene('windows', 'Quarter windows', 8, [
-      clip('zone-1', 'Harmonograph', SOLO_TIME_SCALE),
-      ...zones.slice(1).map((zone) => clip(zone.id, 'Harmonograph', SOLO_TIME_SCALE)),
+      clip('zone-1', 'Mandelbrot2D', SOLO_TIME_SCALE),
+      ...zones.slice(1).map((zone) => clip(zone.id, 'Mandelbrot2D', SOLO_TIME_SCALE)),
     ]),
     scene('answer', 'Answer', 6, [
-      clip('zone-1', 'Harmonograph', SOLO_TIME_SCALE),
-      ...zones.slice(1).map((zone) => clip(zone.id, 'Harmonograph', SOLO_TIME_SCALE)),
+      clip('zone-1', 'Mandelbrot2D', SOLO_TIME_SCALE),
+      ...zones.slice(1).map((zone) => clip(zone.id, 'Mandelbrot2D', SOLO_TIME_SCALE)),
     ]),
   ]
-  // The palette quartet in motion. Even quarter turns read as unrelated
-  // primaries, so the four phases are instead a split-complementary family
-  // drawn from Harmonograph's own gold base (~63°): gold, warm yellow
-  // (+0.05), azure (+0.42), and blue-violet (+0.5) - two warms, two cools,
-  // one scheme. Satellites sit LU/LL/RU/RL (zone order); each segment
-  // reassigns the same four phases to corners by a different rule, so the
-  // colors travel at every change beat: the quartet deals clockwise, then
-  // rotates one corner clockwise, then swaps diagonals, then rotates back
-  // counter-clockwise.
+  // Preserve the authored phase offsets and journeys with the new source.
+  // These color names refer to the original score; displayed hues follow
+  // Mandelbrot's palette.
   const GOLD = 0
   const YELLOW = 0.05
   const AZURE = 0.42
@@ -1481,7 +1441,7 @@ function learn302(): StockShow {
     // End wrap (measured); upgrade path is engine state snapshot/restore (#841).
     patternInstances: [
       // The only instance in the Show: one clock, one machine, five surfaces.
-      instance('pendulum', 'Harmonograph', SOLO_TIME_SCALE),
+      instance('pendulum', 'Mandelbrot2D', SOLO_TIME_SCALE),
     ],
     scenes: [
       {
@@ -1620,9 +1580,9 @@ function learn302(): StockShow {
   }
   return normalizedCatalogue({
     id, title: 'Installation Composition', track: 'installation', collection: 'learn', level: 300, order: 2,
-    purpose: 'One Pattern instance drives all five surfaces of the Redline stage: a single Harmonograph render lands as a panel in the middle and four radial windows around it. Every further difference costs only a per-Clip adaptation or Effect: a hue phase, a shifted window, a mirror, a posterize, a timed invert.',
+    purpose: 'One Pattern instance drives all five surfaces of the Redline stage: a single Mandelbrot2D render lands as a panel in the middle and four radial windows around it. Every further difference costs only a per-Clip adaptation or Effect: a hue phase, a shifted window, a mirror, a posterize, a timed invert.',
     notice: 'The four satellites get four hues from placement phase alone; the compiled artifact adds one number inside the shared hsv call. At each change beat the hues move to new values by a different rule, while shifted windows, a mirrored pair, a posterized pair, and two invert pulses stack onto the same single render.',
-    prompts: ['Drag one satellite window\'s Translate X: its quarter-frame slides while the other three hold. Four windows, one render.', 'Open the artifact inventory: five surfaces, a dozen Effects, one Harmonograph instance. That single-instance line is the point of the lesson.'],
+    prompts: ['Drag one satellite window\'s Translate X: its quarter-frame slides while the other three hold. Four windows, one render.', 'Open the artifact inventory: five surfaces, a dozen Effects, one Mandelbrot2D instance. That single-instance line is the point of the lesson.'],
     guideHeading: 'composing-a-fixed-installation',
     patternSlots: [['pendulum']],
     output: { kind: 'installation', mapId: 'redline-stage-2d', pixelCount: 2_000 },
@@ -1636,23 +1596,14 @@ function learn302(): StockShow {
   })
 }
 
-// 303 closes the curriculum at the publication boundary: a Show saves as
-// choreography but ships as one ordinary Pixelblaze Pattern, and the artifact
-// inventory prices every contributor. The score carries one deliberately
-// expensive treatment - the closing weave echo, an independent RibbonLoom
-// instance overlaid on the garden. Measured against the real compiler: the
-// echo does NOT duplicate the executable (one compiled copy serves both
-// configured uses); what it costs is its simultaneous overlay structure -
-// 6,421 bytes of render plans and score
-// data, 15,894 B (23.2% of budget) with the echo against 9,473 B without.
-// Because the echo is independent it also restarts the opening weave from
-// its first frame, which is why the treatment earns those bytes; deleting it
-// and reading the inventory is the note's measured Try-this.
+// 303 demonstrates the delivery cost of a separate TopographicBloom echo
+// over ShapeShifter (#848). The echo has its own clock; the artifact inventory
+// distinguishes its configured use from compiled code and overlay structure.
 function learn303(): StockShow {
   const id = 'stock-show-303-compile-simplify-deliver'
   const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
   const scenes: SceneSpec[] = [
-    scene('score', 'Score', 16, [clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE)]),
+    scene('score', 'Score', 16, [clip('zone-1', 'TopographicBloom', LESSON_TIME_SCALE)]),
   ]
   const composition: ShowCompositionV1 = {
     version: 1,
@@ -1661,12 +1612,11 @@ function learn303(): StockShow {
     // transition-extended timeline the census cannot phase-lock); upgrade
     // path is engine state snapshot/restore (#841).
     patternInstances: [
-      instance('loom', 'RibbonLoom', LESSON_TIME_SCALE),
-      instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
-      // Independent on purpose: a fresh instance restarts the weave from its
-      // opening frame. Lifetime-colored state lets it share one compiled copy
-      // with the first use without sharing that clock or state.
-      instance('loom-echo', 'RibbonLoom', LESSON_TIME_SCALE),
+      instance('loom', 'TopographicBloom', LESSON_TIME_SCALE),
+      instance('garden', 'ShapeShifter', LESSON_TIME_SCALE),
+      // Independent on purpose: the echo restarts TopographicBloom from its
+      // opening frame while sharing a compiled copy with the first use.
+      instance('loom-echo', 'TopographicBloom', LESSON_TIME_SCALE),
     ],
     scenes: [{
       sceneId: 'score',
@@ -1685,7 +1635,7 @@ function learn303(): StockShow {
         main: [placement('clip-loom', 'loom', 0, 8), placement('clip-garden', 'garden', 8, 8)],
         overlays: [{
           id: 'layer-echo',
-          name: 'Weave echo',
+          name: 'Bloom echo',
           placements: [{ ...placement('clip-echo', 'loom-echo', 10, 5.5), opacity: 0 }],
         }],
       }],
@@ -1695,8 +1645,8 @@ function learn303(): StockShow {
   return normalizedCatalogue({
     id, title: 'Compile, Simplify, and Deliver', track: 'portable', collection: 'learn', level: 300, order: 3,
     purpose: 'A Show stays editable choreography, but it ships as one ordinary Pixelblaze Pattern. The artifact inventory separates compiled Pattern code from the source generated for Show settings, placements, Effects, and score structure.',
-    notice: 'The weave echo near the end is a separately configured RibbonLoom use, and the inventory shows the compiler keeping one copy of the code for both uses. The echo\'s real cost is its overlay structure, about six kilobytes of render plans and score data. Its separate clock is why it restarts the weave from its first frame.',
-    prompts: ['Open the artifact inventory: RibbonLoom lists two configured uses but one copy in the delivered code, while the render-plan row shows what the echo\'s Layer costs. Delete the echo Clip and watch the total fall.', 'Undo the deletion, then export the EPE or open the generated code: everything on the timeline ships inside that one ordinary Pattern.'],
+    notice: 'The bloom echo near the end is a separately configured TopographicBloom use over ShapeShifter, and the inventory shows the compiler keeping one copy of the code for both uses. The echo\'s real cost is its overlay structure: render plans and score data. Its separate clock is why it restarts the bloom from its first frame.',
+    prompts: ['Open the artifact inventory: TopographicBloom lists two configured uses but one copy in the delivered code, while the render-plan row shows what the echo\'s Layer costs. Delete the echo Clip and watch the total fall.', 'Undo the deletion, then export the EPE or open the generated code: everything on the timeline ships inside that one ordinary Pattern.'],
     guideHeading: 'compile-simplify-and-deliver',
     patternSlots: [['loom', 'loom-echo'], ['garden']],
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
@@ -1711,11 +1661,9 @@ function learn303(): StockShow {
 // compiled to 259 KB against the 68 KB activation ceiling. The trio
 // compiles at roughly 61% / 51% / 42% of budget, which leaves the
 // session-edit headroom the notes' prompts assume.
-// Casting follows the palette-role doctrine: the green garden is the hero
-// voice that opens every sibling, warm embers is the counter-voice, and the
-// four-voice sibling adds blue water plus the mostly-dark GlyphRain (82%
-// dark at the 44x44 reference) as the negative-space voice that keeps
-// partitions legible. Every boundary is an atomic routing switch except the
+// Each sibling holds its hero Pattern against IQPalettes; #848 recasts
+// Splits to CoronalMassEjection and Radial to Harmonograph. The four-voice
+// sibling retains MetaballGarden, Caustics, and GlyphRain. Every boundary is an atomic routing switch except the
 // Radial sibling's entry into rings, the single travelling switch, so both
 // switch styles appear across the family.
 type ZoneLayoutShowcaseKind = 'splits' | 'bands' | 'radial'
@@ -1726,7 +1674,8 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
   // the Layouts lane, and the Stage agree about who owns what.
   const voiceColors = ['#22c55e', '#f97316', '#38bdf8', '#a78bfa']
   const voiceIds = ['garden', 'ember', 'tide', 'rain']
-  const voicePatterns = ['MetaballGarden', 'IQPalettes', 'Caustics', 'GlyphRain']
+  const heroPattern = kind === 'splits' ? 'CoronalMassEjection' : kind === 'radial' ? 'Harmonograph' : 'MetaballGarden'
+  const voicePatterns = [heroPattern, 'IQPalettes', 'Caustics', 'GlyphRain']
   type Passage = {
     id: string
     label: string
@@ -1807,7 +1756,7 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
       title: 'Zone Layouts: Radial',
       order: 19,
       voiceCount: 2,
-      purpose: 'Rings, a wave, and a pinwheel place the same two Patterns from the center outward. The bullseye reads Garden-Ember-Garden because rings take turns through the Zones.',
+      purpose: 'Rings, a wave, and a pinwheel place the same two Patterns from the center outward. The bullseye alternates the two Patterns because rings take turns through the Zones.',
       notice: 'The move into the rings sweeps across the Stage so you can watch it happen; the wave and pinwheel switch in one step. Neither Pattern ever restarts: a Layout change moves pixels, not Patterns.',
       prompts: ['Select the Pinwheel chip and raise its Twist turns: the arms curl tighter while both Patterns keep playing.', 'Give the Rings chip five rings: the bullseye gains bands without touching either Pattern.'],
       summary: 'Rings, a wave, and a pinwheel route two constant voices radially.',
@@ -2195,7 +2144,7 @@ function shapeRevealFigureReference(): StockShow {
     purpose: 'Heart, ring, star, crescent, polygon, and cat head, each shrinking out and then growing in.',
     notice: 'Only the shape changes. The reveals are slow and the holds short, because the motion is the lesson.',
     prompts: ['Give the Star 6 points.', 'Widen the Ring.'],
-    guideHeading: 'shape-reveal-figures-reference', specs, referencePattern: 'NeonCircuitBoard', selectedPattern: 'MoireCathedral',
+    guideHeading: 'shape-reveal-figures-reference', specs, referencePattern: 'MetaballsOfFire2D', selectedPattern: 'GlyphRain',
   })
 }
 
@@ -2256,7 +2205,7 @@ function propertyAnimationReference(): StockShow {
     sceneId,
     label,
     5,
-    [clip('zone-1', 'CompassRose', 0.32), clip('zone-2', 'CompassRose', 0.32)],
+    [clip('zone-1', 'LineDancer2D', 0.2), clip('zone-2', 'LineDancer2D', 0.2)],
     { splitPosition: sceneId === 'effect-parameter' ? 0.25 : sceneId === 'split-position' ? 0.75 : 0.5 },
     { repeatScale: sceneId === 'repeat-scale' ? 4 : 1 },
   ))
@@ -2265,17 +2214,14 @@ function propertyAnimationReference(): StockShow {
     // Cut cannot own one (#418 strips it silently - which is how this
     // showcase shipped with two dead tweens, #823). The carrier is a
     // live-live Crossfade between identical shared instances: visually
-    // neutral, so the eased property tween stays the only demonstrated
-    // change. The carrier must run the full 1,800 ms - normalization caps a
-    // descriptor's duration at its boundary's - but stays linear, since
-    // blending identical frames makes the carrier's own easing invisible;
-    // a sine carrier measured 3.3 KB heavier and 197 bytes over the #514
-    // activation ceiling, and the linear one clears it with ~3 KB headroom.
+    // neutral, so the property tween stays the only demonstrated change.
+    // Both carrier and property ramps stay linear for the LineDancer2D
+    // source budget (#848), with the full 1,800 ms duration preserved.
     if (item.afterSceneId === 'effect-parameter') {
       return boundary('effect-parameter', 'crossfade', 1_800, LINEAR, {
         crossfadePolicy: 'live-live',
         propertyTransitions: {
-          routing: { splitPosition: { from: 0.25, durationMs: 1_800, easing: SINE_IN_OUT } },
+          routing: { splitPosition: { from: 0.25, durationMs: 1_800, easing: LINEAR } },
         },
       })
     }
@@ -2283,7 +2229,7 @@ function propertyAnimationReference(): StockShow {
       return boundary('split-position', 'crossfade', 1_800, LINEAR, {
         crossfadePolicy: 'live-live',
         propertyTransitions: {
-          sample: { repeatScale: { from: 1, durationMs: 1_800, easing: SINE_IN_OUT } },
+          sample: { repeatScale: { from: 1, durationMs: 1_800, easing: LINEAR } },
         },
       })
     }
@@ -2297,16 +2243,16 @@ function propertyAnimationReference(): StockShow {
     id: trackId,
     target,
     keyframes: [
-      keyframe(`${trackId}-start`, 0, values[0]),
-      keyframe(`${trackId}-middle`, 2.5, values[1]),
-      keyframe(`${trackId}-end`, 5, values[2]),
+      keyframe(`${trackId}-start`, 0, values[0], LINEAR),
+      keyframe(`${trackId}-middle`, 2.5, values[1], LINEAR),
+      keyframe(`${trackId}-end`, 5, values[2], LINEAR),
     ],
   })
   const localTracks = (sceneId: string): ShowPropertyAnimationTrack[] => {
     const instanceId = columnInstanceIds(sceneId).subject
     const placementId = `placement-${sceneId}-a`
-    if (sceneId === 'animation-speed') return [track('track-animation-speed', { kind: 'instance-time-scale', instanceId }, [0.12, 0.9, 0.12])]
-    if (sceneId === 'pattern-control') return [track('track-pattern-control', { kind: 'instance-control', instanceId, exportName: 'sliderSpeed' }, [0.08, 0.92, 0.08])]
+    if (sceneId === 'animation-speed') return [track('track-animation-speed', { kind: 'instance-time-scale', instanceId }, [0.06, 0.36, 0.06])]
+    if (sceneId === 'pattern-control') return [track('track-pattern-control', { kind: 'instance-control', instanceId, exportName: 'sliderSpeed' }, [0.02, 0.22, 0.02])]
     if (sceneId === 'brightness') return [track('track-brightness', { kind: 'placement-view', placementId, property: 'brightness' }, [0.1, 1, 0.1])]
     if (sceneId === 'clip-transform') return [track('track-clip-transform', { kind: 'placement-transform', placementId, property: 'positionX' }, [-0.25, 0.25, -0.25])]
     if (sceneId === 'clip-viewport') return [track('track-clip-viewport', { kind: 'placement-viewport', placementId, property: 'width' }, [0.9, 0.4, 0.9])]
@@ -2316,38 +2262,27 @@ function propertyAnimationReference(): StockShow {
     }, [0, -0.35, 0])]
     return []
   }
-  // Phase is the one placement-view target left to the inspector: the #514
-  // census prices each passage at roughly five kilobytes of generated scene
-  // structure, Brightness already demonstrates the placement-view kind, and
-  // nine passages is what fits under the activation ceiling.
-  // One shared subject and one shared comparison voice instead of a fresh
-  // pair per passage: the #514 census caught the per-scene pairs blowing the
-  // 256-persistent-global limit (265) and the activation source ceiling.
-  // The comparison column runs the same Pattern as the subject, deliberately
-  // unanimated - an identical twin on an identical clock - so the animated
-  // value is the only difference between the two Zones, and the second
-  // member Pattern the census flagged drops out of the artifact entirely.
-  // The two clock-perturbing passages get their own scene-local pair
-  // (review P2): animating the shared subject's time scale or speed control
-  // would permanently advance its clock relative to the twin, so every later
-  // passage would compare out-of-phase Patterns and the divergence would
-  // grow each loop. Scene-local instances run only while presented, so both
-  // columns of those passages first start at the same instant, stay
-  // phase-identical twins at every loop, and leave the shared pair's clocks
-  // untouched for the other seven passages.
+  // The seven placement/boundary examples share one LineDancer2D instance
+  // across both columns (#848): identical clock and controls, distinct
+  // placement properties. Removing the redundant twin saves generated source
+  // and globals without dropping a demonstrated property.
+  // The two speed examples retain independent scene-local pairs so their
+  // clock changes cannot leak into later comparisons. The low public-speed
+  // range and 0.2 base clock keep LineDancer2D legible; the animation-speed
+  // example still spans sixfold while public speed spans roughly 2.5-fold.
+  // Linear ramps retain every midpoint and endpoint while reducing source.
   const patternInstances: ShowCompositionV1['patternInstances'] = [
-    instance('instance-property-subject', 'CompassRose', 0.32, { sliderSpeed: 0.08 }),
-    instance('instance-property-comparison', 'CompassRose', 0.32, { sliderSpeed: 0.08 }),
-    instance('instance-property-subject-speed', 'CompassRose', 0.32, { sliderSpeed: 0.08 }),
-    instance('instance-property-comparison-speed', 'CompassRose', 0.32, { sliderSpeed: 0.08 }),
-    instance('instance-property-subject-control', 'CompassRose', 0.32, { sliderSpeed: 0.08 }),
-    instance('instance-property-comparison-control', 'CompassRose', 0.32, { sliderSpeed: 0.08 }),
+    instance('instance-property-subject', 'LineDancer2D', 0.2, { sliderSpeed: 0.02 }),
+    instance('instance-property-subject-speed', 'LineDancer2D', 0.2, { sliderSpeed: 0.02 }),
+    instance('instance-property-comparison-speed', 'LineDancer2D', 0.2, { sliderSpeed: 0.02 }),
+    instance('instance-property-subject-control', 'LineDancer2D', 0.2, { sliderSpeed: 0.02 }),
+    instance('instance-property-comparison-control', 'LineDancer2D', 0.2, { sliderSpeed: 0.02 }),
     instance('instance-overlay-opacity-overlay', 'SignalMandala', 0.28),
   ]
   const columnInstanceIds = (sceneId: string): { subject: string; comparison: string } => {
     if (sceneId === 'animation-speed') return { subject: 'instance-property-subject-speed', comparison: 'instance-property-comparison-speed' }
     if (sceneId === 'pattern-control') return { subject: 'instance-property-subject-control', comparison: 'instance-property-comparison-control' }
-    return { subject: 'instance-property-subject', comparison: 'instance-property-comparison' }
+    return { subject: 'instance-property-subject', comparison: 'instance-property-subject' }
   }
   const composition: ShowCompositionV1 = {
     version: 1,
@@ -2410,7 +2345,7 @@ function propertyAnimationReference(): StockShow {
       patternSlots: {
         cellIds: properties.map(([sceneId]) => cellId(sceneId, 'zone-2')),
         instanceIds: [
-          'instance-property-comparison',
+          'instance-property-subject',
           'instance-property-comparison-speed',
           'instance-property-comparison-control',
         ],
@@ -2478,13 +2413,13 @@ function apertureShapesReference(): StockShow {
     { id: 'ring-dither', label: 'Ring, Stable Dither', seconds: 3, detail: 'The same Ring with a stable dithered edge that survives LED quantization.', viewport: { ...frame, aperture: 'ring' as const, edge: 'dither' as const } },
   ]
   const scenes: SceneSpec[] = variants.map((variant) => (
-    scene(variant.id, variant.label, variant.seconds, [clip('zone-1', 'CompassRose', LESSON_TIME_SCALE)])
+    scene(variant.id, variant.label, variant.seconds, [clip('zone-1', 'Harmonograph', LESSON_TIME_SCALE)])
   ))
   const composition: ShowCompositionV1 = {
     version: 1,
     patternInstances: [
-      instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
-      instance('rose', 'CompassRose', LESSON_TIME_SCALE),
+      instance('garden', 'Caustics', LESSON_TIME_SCALE),
+      instance('rose', 'Harmonograph', LESSON_TIME_SCALE),
     ],
     scenes: variants.map((variant) => ({
       sceneId: variant.id,
@@ -2557,13 +2492,13 @@ function apertureIconsReference(): StockShow {
     { id: 'cloud-cut-out', label: 'Cloud, Cut out', seconds: 3, detail: 'The same cloud in Cut-out mode: the silhouette becomes the hole, and the bed shows through it.', viewport: { ...frame, aperture: 'cloud' as const, invert: true } },
   ]
   const scenes: SceneSpec[] = variants.map((variant) => (
-    scene(variant.id, variant.label, variant.seconds, [clip('zone-1', 'CompassRose', LESSON_TIME_SCALE)])
+    scene(variant.id, variant.label, variant.seconds, [clip('zone-1', 'Kishimisu', LESSON_TIME_SCALE)])
   ))
   const composition: ShowCompositionV1 = {
     version: 1,
     patternInstances: [
       instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
-      instance('rose', 'CompassRose', LESSON_TIME_SCALE),
+      instance('rose', 'Kishimisu', LESSON_TIME_SCALE),
     ],
     scenes: variants.map((variant) => ({
       sceneId: variant.id,
@@ -2588,7 +2523,7 @@ function apertureIconsReference(): StockShow {
   }
   return catalogue({
     id, title: 'Aperture Icons & Signature', track: 'portable', collection: 'showcases', level: null, order: 16,
-    purpose: 'The icon shapes - Heart, Star, Crescent, Cloud, and the three cats - over the same picture as the geometric showcase, then rotation and Cut out. Only one thing changes at a time.',
+    purpose: 'The icon shapes - Heart, Star, Crescent, Cloud, and the three cats - over Kishimisu and a dim MetaballGarden bed, then rotation and Cut out. Only one thing changes at a time.',
     notice: 'The first seven change only the shape. The last two hold a shape and change one control: rotation turns the star while the frame stays still, and Cut out flips the cloud so the shape becomes the hole.',
     prompts: ['Drag the rotation on the turned star - the frame never moves, only the shape.', "Flip any passage's Mode between Admit inside and Cut out - both sides share one boundary and one feather."],
     guideHeading: 'aperture-icons-and-signature-reference',
