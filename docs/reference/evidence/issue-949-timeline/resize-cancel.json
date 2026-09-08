@@ -1,7 +1,7 @@
 {
   "actualGesture": true,
   "before": {
-    "id": "gesture-resize-cancel-mtt3deyy",
+    "id": "gesture-resize-cancel-mtt3zcia",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -120,7 +120,7 @@
     }
   },
   "durableBefore": {
-    "id": "gesture-resize-cancel-mtt3deyy",
+    "id": "gesture-resize-cancel-mtt3zcia",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -238,15 +238,15 @@
     }
   },
   "done": {
-    "requestId": "req-mtt3dg79-wzuiyd",
-    "showId": "gesture-resize-cancel-mtt3deyy",
+    "requestId": "req-mtt3zdpj-r2o272",
+    "showId": "gesture-resize-cancel-mtt3zcia",
     "capturedUpdatedAt": 1757000000000,
-    "submittedAt": 1788897483336,
-    "responseAt": 1788897483363,
-    "firstEventAt": 1788897483366,
-    "doneAt": 1788897485942,
-    "applyStartedAt": 1788897485942,
-    "applyEndedAt": 1788897486612,
+    "submittedAt": 1788898506537,
+    "responseAt": 1788898506553,
+    "firstEventAt": 1788898506555,
+    "doneAt": 1788898509155,
+    "applyStartedAt": 1788898509155,
+    "applyEndedAt": 1788898509839,
     "changed": true,
     "applied": true,
     "error": null,
@@ -254,54 +254,54 @@
       {
         "kind": "accepted",
         "name": null,
-        "at": 1788897483366
+        "at": 1788898506555
       },
       {
         "kind": "tool",
         "name": "describe_show",
-        "at": 1788897485940
+        "at": 1788898509155
       },
       {
         "kind": "tool",
         "name": "resize_clip",
-        "at": 1788897485940
+        "at": 1788898509155
       },
       {
         "kind": "validation",
         "name": null,
-        "at": 1788897485940
+        "at": 1788898509155
       },
       {
         "kind": "validation",
         "name": null,
-        "at": 1788897485940
+        "at": 1788898509155
       },
       {
         "kind": "done",
         "name": null,
-        "at": 1788897485942
+        "at": 1788898509155
       }
     ],
     "bridgeTiming": {
-      "acceptedAt": 1788897483338,
+      "acceptedAt": 1788898506541,
       "delayMs": 2500,
-      "agentStartedAt": 1788897485933,
-      "agentEndedAt": 1788897485937,
-      "exportedAt": 1788897485937,
+      "agentStartedAt": 1788898509148,
+      "agentEndedAt": 1788898509154,
+      "exportedAt": 1788898509154,
       "toolCalls": [
         {
           "name": "describe_show",
-          "at": 1788897485933,
-          "ms": 1
+          "at": 1788898509148,
+          "ms": 2
         },
         {
           "name": "resize_clip",
-          "at": 1788897485935,
-          "ms": 1
+          "at": 1788898509150,
+          "ms": 3
         }
       ],
       "validation": {
-        "at": 1788897485937,
+        "at": 1788898509154,
         "ms": 0,
         "ok": true
       }
@@ -312,7 +312,7 @@
     }
   },
   "current": {
-    "id": "gesture-resize-cancel-mtt3deyy",
+    "id": "gesture-resize-cancel-mtt3zcia",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -376,7 +376,7 @@
         "resolution": "variable"
       }
     },
-    "updatedAt": 1788897486487,
+    "updatedAt": 1788898509704,
     "composition": {
       "version": 1,
       "patternInstances": [
@@ -431,7 +431,7 @@
     }
   },
   "reopened": {
-    "id": "gesture-resize-cancel-mtt3deyy",
+    "id": "gesture-resize-cancel-mtt3zcia",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -495,7 +495,7 @@
         "resolution": "variable"
       }
     },
-    "updatedAt": 1788897486487,
+    "updatedAt": 1788898509704,
     "composition": {
       "version": 1,
       "patternInstances": [
@@ -552,10 +552,10 @@
   "writes": [
     {
       "method": "PATCH",
-      "url": "http://localhost:5205/api/shows/gesture-resize-cancel-mtt3deyy",
-      "at": 1788897486514,
+      "url": "http://localhost:5205/api/shows/gesture-resize-cancel-mtt3zcia",
+      "at": 1788898509733,
       "status": 200,
-      "updatedAt": 1788897486487,
+      "updatedAt": 1788898509704,
       "firstMainStartMs": 0,
       "firstMain": {
         "durationMs": 8000,
@@ -566,10 +566,10 @@
     },
     {
       "method": "PATCH",
-      "url": "http://localhost:5205/api/shows/gesture-resize-cancel-mtt3deyy",
-      "at": 1788897486860,
+      "url": "http://localhost:5205/api/shows/gesture-resize-cancel-mtt3zcia",
+      "at": 1788898510085,
       "status": 200,
-      "updatedAt": 1788897486833,
+      "updatedAt": 1788898510057,
       "firstMainStartMs": 0,
       "firstMain": {
         "durationMs": 4000,

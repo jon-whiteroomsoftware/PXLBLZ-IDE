@@ -7,8 +7,13 @@ waiting candidate. Movement, authored representation, history and save algorithm
 remain with their existing owners. Production change: 145 added and 67 removed
 lines in ShowEditor (net 78); the reusable 43-line field scope is unchanged.
 
-Source: `a5dd79f0ecc8eeaab714c8558df3d3a8c7fe05e7`. The auxiliary-button repair and refreshed captures use
-`90874ae7be25f549868f78ee8d0a974be4b8eb1e`.
+Source: `a5dd79f0ecc8eeaab714c8558df3d3a8c7fe05e7`. The auxiliary-button repair was qualified at
+`90874ae7be25f549868f78ee8d0a974be4b8eb1e`. After a conflict-free rebase onto
+docs-only main `9f15610cbb0498601a5e75a0afeea63c442351be`, fresh captures use
+`ae3dfa121a62de87f32b1195cce547af7b3070ce`. Source and e2e files byte-match
+the previous candidate `e83c4d589ed5d5b586202fb1ac7b8141c090e218`. The fresh
+three-case GA run passed in 13.6 seconds (17.4 overall), recorded in
+`browser-rebase.log`; unchanged-source focused and fault evidence is retained.
 
 ## Consumer proof
 

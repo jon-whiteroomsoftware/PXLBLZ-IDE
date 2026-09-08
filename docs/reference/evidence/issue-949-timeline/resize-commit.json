@@ -1,7 +1,7 @@
 {
   "actualGesture": true,
   "before": {
-    "id": "gesture-resize-commit-mtt3diyw",
+    "id": "gesture-resize-commit-mtt3zghr",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -120,7 +120,7 @@
     }
   },
   "durableBefore": {
-    "id": "gesture-resize-commit-mtt3diyw",
+    "id": "gesture-resize-commit-mtt3zghr",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -238,15 +238,15 @@
     }
   },
   "done": {
-    "requestId": "req-mtt3djin-qi69hp",
-    "showId": "gesture-resize-commit-mtt3diyw",
+    "requestId": "req-mtt3zh05-wflmz3",
+    "showId": "gesture-resize-commit-mtt3zghr",
     "capturedUpdatedAt": 1757000000000,
-    "submittedAt": 1788897487632,
-    "responseAt": 1788897487646,
-    "firstEventAt": 1788897487646,
-    "doneAt": 1788897490139,
-    "applyStartedAt": 1788897490139,
-    "applyEndedAt": 1788897490707,
+    "submittedAt": 1788898510807,
+    "responseAt": 1788898510819,
+    "firstEventAt": 1788898510819,
+    "doneAt": 1788898513315,
+    "applyStartedAt": 1788898513315,
+    "applyEndedAt": 1788898513874,
     "changed": true,
     "applied": false,
     "error": null,
@@ -254,55 +254,55 @@
       {
         "kind": "accepted",
         "name": null,
-        "at": 1788897487646
+        "at": 1788898510819
       },
       {
         "kind": "tool",
         "name": "describe_show",
-        "at": 1788897490139
+        "at": 1788898513315
       },
       {
         "kind": "tool",
         "name": "resize_clip",
-        "at": 1788897490139
+        "at": 1788898513315
       },
       {
         "kind": "validation",
         "name": null,
-        "at": 1788897490139
+        "at": 1788898513315
       },
       {
         "kind": "validation",
         "name": null,
-        "at": 1788897490139
+        "at": 1788898513315
       },
       {
         "kind": "done",
         "name": null,
-        "at": 1788897490139
+        "at": 1788898513315
       }
     ],
     "bridgeTiming": {
-      "acceptedAt": 1788897487633,
+      "acceptedAt": 1788898510808,
       "delayMs": 2500,
-      "agentStartedAt": 1788897490137,
-      "agentEndedAt": 1788897490138,
-      "exportedAt": 1788897490139,
+      "agentStartedAt": 1788898513314,
+      "agentEndedAt": 1788898513315,
+      "exportedAt": 1788898513315,
       "toolCalls": [
         {
           "name": "describe_show",
-          "at": 1788897490137,
-          "ms": 1
+          "at": 1788898513314,
+          "ms": 0
         },
         {
           "name": "resize_clip",
-          "at": 1788897490138,
-          "ms": 0
+          "at": 1788898513314,
+          "ms": 1
         }
       ],
       "validation": {
-        "at": 1788897490138,
-        "ms": 1,
+        "at": 1788898513315,
+        "ms": 0,
         "ok": true
       }
     },
@@ -312,7 +312,7 @@
     }
   },
   "current": {
-    "id": "gesture-resize-commit-mtt3diyw",
+    "id": "gesture-resize-commit-mtt3zghr",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -376,7 +376,7 @@
         "resolution": "variable"
       }
     },
-    "updatedAt": 1788897490603,
+    "updatedAt": 1788898513774,
     "composition": {
       "version": 1,
       "patternInstances": [
@@ -431,7 +431,7 @@
     }
   },
   "reopened": {
-    "id": "gesture-resize-commit-mtt3diyw",
+    "id": "gesture-resize-commit-mtt3zghr",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -495,7 +495,7 @@
         "resolution": "variable"
       }
     },
-    "updatedAt": 1788897490603,
+    "updatedAt": 1788898513774,
     "composition": {
       "version": 1,
       "patternInstances": [
@@ -552,10 +552,10 @@
   "writes": [
     {
       "method": "PATCH",
-      "url": "http://localhost:5205/api/shows/gesture-resize-commit-mtt3diyw",
-      "at": 1788897490630,
+      "url": "http://localhost:5205/api/shows/gesture-resize-commit-mtt3zghr",
+      "at": 1788898513800,
       "status": 200,
-      "updatedAt": 1788897490603,
+      "updatedAt": 1788898513774,
       "firstMainStartMs": 0,
       "firstMain": {
         "durationMs": 7000,
@@ -566,10 +566,10 @@
     },
     {
       "method": "PATCH",
-      "url": "http://localhost:5205/api/shows/gesture-resize-commit-mtt3diyw",
-      "at": 1788897490911,
+      "url": "http://localhost:5205/api/shows/gesture-resize-commit-mtt3zghr",
+      "at": 1788898514083,
       "status": 200,
-      "updatedAt": 1788897490882,
+      "updatedAt": 1788898514056,
       "firstMainStartMs": 0,
       "firstMain": {
         "durationMs": 4000,

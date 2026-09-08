@@ -1,7 +1,7 @@
 {
   "actualGesture": true,
   "before": {
-    "id": "gesture-end-commit-mtt3dm3l",
+    "id": "gesture-end-commit-mtt3zjl1",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -120,7 +120,7 @@
     }
   },
   "durableBefore": {
-    "id": "gesture-end-commit-mtt3dm3l",
+    "id": "gesture-end-commit-mtt3zjl1",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -238,15 +238,15 @@
     }
   },
   "done": {
-    "requestId": "req-mtt3dmn6-q5tfp7",
-    "showId": "gesture-end-commit-mtt3dm3l",
+    "requestId": "req-mtt3zk1f-dayesu",
+    "showId": "gesture-end-commit-mtt3zjl1",
     "capturedUpdatedAt": 1757000000000,
-    "submittedAt": 1788897491684,
-    "responseAt": 1788897491696,
-    "firstEventAt": 1788897491697,
-    "doneAt": 1788897494198,
-    "applyStartedAt": 1788897494198,
-    "applyEndedAt": 1788897494770,
+    "submittedAt": 1788898514740,
+    "responseAt": 1788898514753,
+    "firstEventAt": 1788898514755,
+    "doneAt": 1788898517251,
+    "applyStartedAt": 1788898517251,
+    "applyEndedAt": 1788898517822,
     "changed": true,
     "applied": false,
     "error": null,
@@ -254,55 +254,55 @@
       {
         "kind": "accepted",
         "name": null,
-        "at": 1788897491697
+        "at": 1788898514755
       },
       {
         "kind": "tool",
         "name": "describe_show",
-        "at": 1788897494198
+        "at": 1788898517251
       },
       {
         "kind": "tool",
         "name": "resize_clip",
-        "at": 1788897494198
+        "at": 1788898517251
       },
       {
         "kind": "validation",
         "name": null,
-        "at": 1788897494198
+        "at": 1788898517251
       },
       {
         "kind": "validation",
         "name": null,
-        "at": 1788897494198
+        "at": 1788898517251
       },
       {
         "kind": "done",
         "name": null,
-        "at": 1788897494198
+        "at": 1788898517251
       }
     ],
     "bridgeTiming": {
-      "acceptedAt": 1788897491687,
+      "acceptedAt": 1788898514742,
       "delayMs": 2500,
-      "agentStartedAt": 1788897494193,
-      "agentEndedAt": 1788897494195,
-      "exportedAt": 1788897494197,
+      "agentStartedAt": 1788898517248,
+      "agentEndedAt": 1788898517250,
+      "exportedAt": 1788898517250,
       "toolCalls": [
         {
           "name": "describe_show",
-          "at": 1788897494193,
+          "at": 1788898517248,
           "ms": 1
         },
         {
           "name": "resize_clip",
-          "at": 1788897494194,
+          "at": 1788898517249,
           "ms": 1
         }
       ],
       "validation": {
-        "at": 1788897494195,
-        "ms": 2,
+        "at": 1788898517250,
+        "ms": 0,
         "ok": true
       }
     },
@@ -312,7 +312,7 @@
     }
   },
   "current": {
-    "id": "gesture-end-commit-mtt3dm3l",
+    "id": "gesture-end-commit-mtt3zjl1",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -376,7 +376,7 @@
         "resolution": "variable"
       }
     },
-    "updatedAt": 1788897494693,
+    "updatedAt": 1788898517718,
     "composition": {
       "version": 1,
       "durationMs": 18000,
@@ -432,7 +432,7 @@
     }
   },
   "reopened": {
-    "id": "gesture-end-commit-mtt3dm3l",
+    "id": "gesture-end-commit-mtt3zjl1",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -496,7 +496,7 @@
         "resolution": "variable"
       }
     },
-    "updatedAt": 1788897494693,
+    "updatedAt": 1788898517718,
     "composition": {
       "version": 1,
       "durationMs": 18000,
@@ -554,10 +554,10 @@
   "writes": [
     {
       "method": "PATCH",
-      "url": "http://localhost:5205/api/shows/gesture-end-commit-mtt3dm3l",
-      "at": 1788897494719,
+      "url": "http://localhost:5205/api/shows/gesture-end-commit-mtt3zjl1",
+      "at": 1788898517746,
       "status": 200,
-      "updatedAt": 1788897494693,
+      "updatedAt": 1788898517718,
       "firstMainStartMs": 0,
       "firstMain": {
         "durationMs": 4000,
@@ -568,10 +568,10 @@
     },
     {
       "method": "PATCH",
-      "url": "http://localhost:5205/api/shows/gesture-end-commit-mtt3dm3l",
-      "at": 1788897495042,
+      "url": "http://localhost:5205/api/shows/gesture-end-commit-mtt3zjl1",
+      "at": 1788898518047,
       "status": 200,
-      "updatedAt": 1788897495015,
+      "updatedAt": 1788898518022,
       "firstMainStartMs": 0,
       "firstMain": {
         "durationMs": 4000,
