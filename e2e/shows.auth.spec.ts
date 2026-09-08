@@ -3330,7 +3330,7 @@ test.describe('lesson pill, Reading card and Live strip (#985)', () => {
     await expect(strip.getByText('1/9', { exact: true })).toBeVisible()
     expect(Math.abs((await strip.boundingBox())!.height - 2 * await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize)))).toBeLessThanOrEqual(0.5)
     expect(await strip.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
-    expect((await strip.getByRole('combobox', { name: 'Try with Pattern' }).boundingBox())!.width).toBe(128)
+    expect(Math.abs((await strip.getByRole('combobox', { name: 'Try with Pattern' }).boundingBox())!.width - 8 * await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize)))).toBeLessThanOrEqual(0.5)
     await expect(strip.locator('.show-note-detail').first()).toBeHidden()
     await pill.click()
     const card = page.getByRole('dialog', { name: `${apertureTitle} guide`, exact: true })
