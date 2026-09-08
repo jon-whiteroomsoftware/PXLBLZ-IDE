@@ -20,6 +20,8 @@ import {
 } from '@/engine/showInstallationCoverage'
 import { validatePortableShowCompatibility } from '@/engine/showPortableCompatibility'
 import { stockPatternSource } from './stockCatalogue.js'
+import { captureShowAuthoringBaseline, validateShowAuthoring } from '@/engine/showAuthoringValidation'
+import { LIBRARIES } from '@/pixelblaze/libs'
 
 export interface ShowIssue {
   /** Machine-checkable issue family. */
@@ -31,6 +33,11 @@ export interface ShowIssue {
     | 'coverage'
     | 'portable-compatibility'
     | 'compile-error'
+    | 'structure'
+    | 'composition'
+    | 'missing-reference'
+    | 'metadata'
+    | 'delivery'
   /** JSON pointer into the document, where one applies. */
   path?: string
   message: string
@@ -60,6 +67,8 @@ export interface ShowEvaluationOptions {
    * ignores this flag - an artifact never silently substitutes.
    */
   allowUnresolvedUserPatterns?: boolean
+  /** Optional exact personal Library metadata for authoring inspection. */
+  authoringLibraries?: Record<string, string>
 }
 
 export type CompileShowResult =
@@ -80,7 +89,7 @@ const schemaPath = fileURLToPath(new URL('../../../schemas/show-record.schema.js
 let cachedValidator: ValidateFunction | null = null
 function structuralValidator(): ValidateFunction {
   if (!cachedValidator) {
-    const ajv = new Ajv({ allErrors: true, strict: false })
+    const ajv = new Ajv({ allErrors: true, strict: false, strictNumbers: true })
     cachedValidator = ajv.compile(JSON.parse(readFileSync(schemaPath, 'utf8')))
   }
   return cachedValidator
@@ -272,6 +281,28 @@ export function validateShowDocument(
   }
 
   return { valid: errors.length === 0, errors, warnings }
+}
+
+export function validateAuthoringShowDocument(
+  input: unknown,
+  inlinePatterns: InlinePattern[] = [],
+  options: ShowEvaluationOptions = {},
+  baseline?: { show: ShowRecord; inlinePatterns: InlinePattern[]; options: ShowEvaluationOptions },
+): ValidateShowResult {
+  const parsed = parseShowDocument(input)
+  if ('error' in parsed) return { valid: false, errors: [parsed.error], warnings: [] }
+  const errors = validateShowStructure(parsed.document)
+  if (errors.length) return { valid: false, errors, warnings: [] }
+  return validateShowAuthoring(parsed.document as ShowRecord, {
+    source: ref => ref.kind === 'stock' ? stockPatternSource(ref.id) : inlinePatterns.find(pattern => pattern.id === ref.id)?.source,
+    baseline: baseline ? captureShowAuthoringBaseline(baseline.show, {
+      source: ref => ref.kind === 'stock' ? stockPatternSource(ref.id) : baseline.inlinePatterns.find(pattern => pattern.id === ref.id)?.source,
+      libraries: { ...LIBRARIES, ...baseline.options.authoringLibraries },
+    }) : undefined,
+    allowExistingMissing: options.allowUnresolvedUserPatterns,
+    stageDimension: options.stageDimension,
+    libraries: { ...LIBRARIES, ...options.authoringLibraries },
+  })
 }
 
 export function compileShowDocument(

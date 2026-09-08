@@ -337,3 +337,15 @@ describe('Show file bundle export', () => {
 function patternRecord(id: string, name: string, src: string): PatternRecord {
   return { id, name, src, controls: {}, updatedAt: 10 }
 }
+
+it.each(['unknown-zone', 'duplicate-zone', 'extra-range-field'] as const)('refuses unqualified physical restoration: %s', fault => {
+  const show = createDefaultShow('physical-import', 'Physical', 1)
+  show.routingLayouts[0].zones = [{ zoneId: show.zones[0].id, ranges: [{ start: -1, end: 8 }] }]
+  delete show.routingLayouts[0].logical
+  if (fault === 'unknown-zone') show.routingLayouts[0].zones[0].zoneId = 'missing'
+  if (fault === 'duplicate-zone') show.routingLayouts[0].zones.push(structuredClone(show.routingLayouts[0].zones[0]))
+  if (fault === 'extra-range-field') Object.assign(show.routingLayouts[0].zones[0].ranges[0], { unknown: 1 })
+  const { bundle } = buildShowFileBundle(show, { patterns: [], maps: [] }, { appVersion: 'D1' })
+  const bytes = new TextEncoder().encode(JSON.stringify(bundle))
+  return expect(parseShowFileBundle(bytes, { preserveAuthoringPhysicalRanges: true })).rejects.toThrow('physical')
+})

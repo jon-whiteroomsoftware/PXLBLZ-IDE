@@ -8,10 +8,16 @@ export interface PortablePatternSource {
   source: string
 }
 
+export interface PortableShowDiagnostic {
+  category: 'capability' | 'structure' | 'metadata'
+  message: string
+}
+
 export interface PortableShowCompatibility {
   compatible: boolean
   issues: string[]
   advisories: string[]
+  diagnostics: PortableShowDiagnostic[]
 }
 
 export function validatePortableShowCompatibility(
@@ -22,9 +28,14 @@ export function validatePortableShowCompatibility(
   if (show.outputContract?.kind !== 'portable-2d') return null
   const issues: string[] = []
   const advisories: string[] = []
+  const diagnostics: PortableShowDiagnostic[] = []
+  const add = (category: PortableShowDiagnostic['category'], message: string) => {
+    diagnostics.push({ category, message })
+    issues.push(message)
+  }
 
   if (referenceMapDimension !== 2) {
-    issues.push(referenceMapDimension === 3
+    add('capability', referenceMapDimension === 3
       ? 'The reference output is 3D; Portable currently supports only 2D mapped surfaces.'
       : 'The reference output must be a 2D mapped surface.')
   }
@@ -32,14 +43,14 @@ export function validatePortableShowCompatibility(
   const zoneIds = new Set(show.zones.map((zone) => zone.id))
   for (const layout of show.routingLayouts) {
     if (!layout.logical) {
-      issues.push(`Routing layout "${layout.name}" uses physical pixel ranges; Portable requires normalized position-based zones.`)
+      add('capability', `Routing layout "${layout.name}" uses physical pixel ranges; Portable requires normalized position-based zones.`)
       continue
     }
     const logical = layout.logical
     if (logical.zoneIds.some((zoneId) => !zoneIds.has(zoneId))) {
-      issues.push(`Routing layout "${layout.name}" references a missing logical zone.`)
+      add('structure', `Routing layout "${layout.name}" references a missing logical zone.`)
     }
-    issues.push(...validateShowLogicalRouting(logical).map((issue) => `Routing layout "${layout.name}": ${issue}`))
+    for (const issue of validateShowLogicalRouting(logical)) add('structure', `Routing layout "${layout.name}": ${issue}`)
   }
 
   const seenSources = new Set<string>()
@@ -50,7 +61,7 @@ export function validatePortableShowCompatibility(
     try {
       const renderFns = inspectPatternMetadata(entry.source).renderFns
       if (!renderFns.hasRender2D && !renderFns.hasRender) {
-        issues.push(renderFns.hasRender3D
+        add('capability', renderFns.hasRender3D
           ? `${entry.patternName} defines only render3D.`
           : `${entry.patternName} defines no render2D or render entry point.`)
       } else if (!renderFns.hasRender2D && renderFns.hasRender) {
@@ -59,11 +70,11 @@ export function validatePortableShowCompatibility(
         )
       }
     } catch {
-      issues.push(`${entry.patternName} cannot be inspected for Portable renderer compatibility.`)
+      add('metadata', `${entry.patternName} cannot be inspected for Portable renderer compatibility.`)
     }
   }
 
-  return { compatible: issues.length === 0, issues, advisories }
+  return { compatible: issues.length === 0, issues, advisories, diagnostics }
 }
 
 export function portableCompatibilityBlockingMessage(

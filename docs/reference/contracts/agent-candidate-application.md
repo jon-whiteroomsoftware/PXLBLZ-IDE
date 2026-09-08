@@ -139,6 +139,78 @@ readiness nor establishes that every manually editable draft is accepted by the
 grammar. The live editor bridge itself checks identity, not full authoring
 validity.
 
+## Internal authoring validation
+
+The internal `createSessionStore({ authoringValidation: true })` policy accepts
+final authoring candidates independently of delivery readiness. Its importer
+uses the same explicit policy argument. No bridge, MCP server or browser caller
+enables it; those callers retain their existing delivery-oriented defaults.
+The shared URL opt-in and live admission integration remain separate work.
+
+The pure engine seam checks schema-qualified composition v1, authored owner
+identities, routing references and logical routing before accepting a candidate.
+Same-Layer overlap, missing instances, duplicate identities and unknown owners
+refuse; cross-Layer overlap remains valid. Portable renderer/reference capability
+mismatches are delivery diagnostics. Missing, overlapping and out-of-output-range
+physical assignments also remain authorable with coverage diagnostics and the
+existing first-match behavior. Malformed routing and uninspectable required
+metadata remain errors. Range endpoints and output counts must be safe integers
+(the count must be positive); negative integer endpoints remain coverage
+conditions. Coverage evaluation uses range events, so memory does not grow with
+the requested output count. Counts of unions wider than JavaScript's exact
+integer range may round in diagnostics; nonzero coverage violations still block
+delivery. No hardware-capacity limit becomes an authoring limit. Internal open,
+pending validation and commit return the authoring warnings. Exported `.pxlshow` records pass through the real
+Show-file importer; hardware artifact gates remain unchanged.
+
+Missing dependencies survive only through a captured diagnostic identity:
+owner, Pattern reference, Library namespace/function where applicable, and the
+Pattern plus traversed Library sources. Capture stores values rather than source
+callbacks or mutable metadata maps. A new owner, different missing reference or
+changed dependency source cannot inherit an old exception. Import clones the
+record and supplied metadata. New control targets and control animation require
+actual slider metadata; missing stock or personal source no longer bypasses even the
+ordinary diagnostic control command. Existing missing stock and personal Pattern
+references may survive on the composition path. Flat projection requiring absent
+Pattern source refuses instead of using the preview's stock substitute.
+
+The file importer has a separate explicit internal option,
+`parseShowFileBundle(bytes, { preserveAuthoringPhysicalRanges: true })`. It keeps
+ordinary Show normalization and then restores only validated physical endpoint
+pairs and their original order, keyed by known Layout and Zone identities.
+Negative, reversed and above-output integer pairs survive this path. Invalid
+endpoints or owner identities refuse. Default product import still normalizes
+physical ranges; no product caller enables the new option. Callers must still
+run final authoring validation; the file option does not replace that gate.
+
+Library inspection reuses the bundler's AST helpers without changing code
+emission. Its finite domain is direct `Namespace.function` and
+`Namespace.inline.function` calls. It inspects every function in each referenced
+Library, including transitive references; cycles are visited once. This is
+conservative compared with the compiler's reachable-function traversal.
+Unresolved computed or nested member-call forms and unparseable required source
+refuse. It does not claim arbitrary JavaScript dependency analysis, dynamic
+execution safety, or Library artifact export support.
+
+Private commit compares against the committed pre-transaction document and its
+metadata. A refused candidate preserves committed document and both history
+directions; private work stays open for repair or rollback. Generic patches
+retain their existing per-member schema and identity restrictions. This seam
+does not qualify new intermediate batching, canonical command replay, live
+application, persistence, active-input waiting or Layer independence.
+
+Evidence lives in [authoring session tests](../../../src/agent-harness/test/authoringValidation.test.ts)
+and [pure validation tests](../../../src/engine/showAuthoringValidation.test.ts).
+They include `.pxlshow` reopen, default-policy isolation, complete undo/redo
+preservation, exact personal control metadata, and changed-source dependency
+refusal. The established Library, Portable and artifact suites guard unchanged emission
+and delivery behavior. The coverage suite compares the interval implementation
+with an enumerated ownership oracle over small domains, including legacy
+fractional endpoint normalization; authoring refuses fractional endpoints earlier.
+The resource ledger remains the authoritative full artifact-fit diagnostic; this
+authoring seam reports the known output-count ceiling without compiling a
+second estimate of generated resource use.
+
 ## Ownership and evidence
 
 The agent sources and tests moved from the V3 repository into this one in the

@@ -21,7 +21,7 @@
 // dropped whole with its tracker.
 import { z } from 'zod'
 import type { ShowRecord } from '@/engine/personalContentRecords'
-import { validateShowDocument, validateShowStructure } from '../../shows/evaluate.js'
+import { validateAuthoringShowDocument, validateShowDocument, validateShowStructure } from '../../shows/evaluate.js'
 import { createIdentityTracker, type IdentityTracker } from '../identity.js'
 import type { GrammarOperationResult, ShowGrammarOperation } from '../registry.js'
 import type { GrammarIssue, ShowGrammarDocument } from '../types.js'
@@ -338,7 +338,8 @@ function concludeGeneric(
   pointers: string[],
   description: string,
 ): GrammarOperationResult {
-  const validation = validateShowDocument(next, document.inlinePatterns, document.options)
+  const validate = document.authoringValidation ? validateAuthoringShowDocument : validateShowDocument
+  const validation = validate(next, document.inlinePatterns, document.options, document)
   if (!validation.valid) {
     return refuse(...validation.errors.map((issue) => ({
       code: 'result-invalid' as const,

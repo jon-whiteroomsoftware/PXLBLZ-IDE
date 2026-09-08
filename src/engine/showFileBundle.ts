@@ -111,7 +111,12 @@ export async function serializeShowFileBundle(bundle: ShowFileBundleV1): Promise
   return new Uint8Array(await new Response(compressed).arrayBuffer())
 }
 
-export async function parseShowFileBundle(bytes: Uint8Array): Promise<ShowFileBundleV1> {
+export interface ParseShowFileBundleOptions {
+  /** Internal authoring qualification only; product import callers keep normalization. */
+  preserveAuthoringPhysicalRanges?: boolean
+}
+
+export async function parseShowFileBundle(bytes: Uint8Array, options: ParseShowFileBundleOptions = {}): Promise<ShowFileBundleV1> {
   let payload = bytes
   if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
     try {
@@ -138,7 +143,7 @@ export async function parseShowFileBundle(bytes: Uint8Array): Promise<ShowFileBu
       `This Show file uses format version ${String(parsed.version)}. Update PXLBLZ to import it.`,
     )
   }
-  return validateParsedBundle(parsed)
+  return validateParsedBundle(parsed, options)
 }
 
 function referencedMapIds(show: ShowRecord): string[] {
@@ -159,8 +164,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
-function validateParsedBundle(value: Record<string, unknown>): ShowFileBundleV1 {
-  const show = normalizeParsedShow(value.show)
+function validateParsedBundle(value: Record<string, unknown>, options: ParseShowFileBundleOptions): ShowFileBundleV1 {
+  const show = normalizeParsedShow(value.show, options)
   if (!Array.isArray(value.patterns) || !value.patterns.every(isPatternRecord)) {
     invalid('This Show file has an invalid embedded Pattern list.')
   }
@@ -190,7 +195,35 @@ function validateParsedBundle(value: Record<string, unknown>): ShowFileBundleV1 
   }
 }
 
-function normalizeParsedShow(value: unknown): ShowRecord {
+/** Preserve only endpoint pairs and their authored order. Everything else still
+ * passes through the ordinary importer and its composition/owner checks. */
+function preservePhysicalRanges(value: Record<string, unknown>, show: ShowRecord): ShowRecord {
+  const knownZones = new Set(show.zones.map(zone => zone.id))
+  const layouts = new Map<string, Map<string, Array<{ start: number; end: number }>>>()
+  const seenLayouts = new Set<string>()
+  for (const layout of value.routingLayouts as unknown[]) {
+    if (!isRecord(layout) || !isNonEmptyString(layout.id) || seenLayouts.has(layout.id)) invalid('This Show file has invalid physical Layout identities.')
+    seenLayouts.add(layout.id)
+    if (layout.logical !== undefined) continue
+    if (!Array.isArray(layout.zones)) invalid('This Show file has invalid physical routing Zones.')
+    const rangesByZone = new Map<string, Array<{ start: number; end: number }>>()
+    for (const zone of layout.zones) {
+      if (!isRecord(zone) || typeof zone.zoneId !== 'string' || !knownZones.has(zone.zoneId) || rangesByZone.has(zone.zoneId) || !Array.isArray(zone.ranges)) invalid('This Show file has invalid physical Zone identities.')
+      const ranges = zone.ranges.map(range => {
+        if (!isRecord(range) || Object.keys(range).some(key => key !== 'start' && key !== 'end') || !Number.isSafeInteger(range.start) || !Number.isSafeInteger(range.end)) invalid('This Show file has invalid physical range endpoints.')
+        return { start: range.start as number, end: range.end as number }
+      })
+      rangesByZone.set(zone.zoneId, ranges)
+    }
+    layouts.set(layout.id, rangesByZone)
+  }
+  return { ...show, routingLayouts: show.routingLayouts.map(layout => ({
+    ...layout,
+    zones: layout.zones.map(zone => ({ ...zone, ranges: layouts.get(layout.id)?.get(zone.zoneId) ?? zone.ranges })),
+  })) }
+}
+
+function normalizeParsedShow(value: unknown, options: ParseShowFileBundleOptions): ShowRecord {
   if (!isRecord(value)) invalid('This Show file is missing a valid Show record.')
   if (
     !isNonEmptyString(value.id)
@@ -210,13 +243,14 @@ function normalizeParsedShow(value: unknown): ShowRecord {
     invalid('This Show file has an invalid flat Show cell list.')
   }
   try {
-    const show = normalizeShowEntryState(normalizeShowTransitionState(normalizeShowRoutingState({
+    let show = normalizeShowEntryState(normalizeShowTransitionState(normalizeShowRoutingState({
       ...clone(value),
       outputContract: requireShowOutputContract(value.outputContract, value.id),
       ...(Array.isArray(value.outputEffects)
         ? { outputEffects: normalizeShowOutputEffects(value.outputEffects) }
         : {}),
     } as unknown as ShowRecord)))
+    if (options.preserveAuthoringPhysicalRanges) show = preservePhysicalRanges(value, show)
     if (value.composition === undefined || value.composition === null) {
       const { composition: _composition, ...flat } = show
       return flat

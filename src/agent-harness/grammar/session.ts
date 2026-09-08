@@ -10,7 +10,7 @@
 // is auto-wrapped in a single-operation transaction, so it validates and
 // commits immediately and produces one history entry, exactly as in #17.
 import type { ShowRecord } from '@/engine/personalContentRecords'
-import { validateShowDocument, type InlinePattern, type ShowEvaluationOptions } from '../shows/evaluate.js'
+import { validateAuthoringShowDocument, validateShowDocument, type InlinePattern, type ShowEvaluationOptions, type ShowIssue } from '../shows/evaluate.js'
 import { openShowDocument, projectClipListing } from './openShow.js'
 import {
   describeShow,
@@ -68,7 +68,7 @@ export interface GrammarSessionStore {
     input: unknown,
     inlinePatterns?: InlinePattern[],
     options?: ShowEvaluationOptions,
-  ) => { ok: true; sessionId: string; listing: ShowClipListing } | Refusal
+  ) => { ok: true; sessionId: string; listing: ShowClipListing; warnings?: ShowIssue[] } | Refusal
   apply: (
     sessionId: string,
     operation: string,
@@ -79,10 +79,10 @@ export interface GrammarSessionStore {
   begin: (sessionId: string, label?: string) => { ok: true; label: string } | Refusal
   commit: (
     sessionId: string,
-  ) => { ok: true; label: string; summary: string; changes: GrammarChange[]; listing: ShowClipListing } | Refusal
+  ) => { ok: true; label: string; summary: string; changes: GrammarChange[]; listing: ShowClipListing; warnings?: ShowIssue[] } | Refusal
   /** Validate the open transaction's working copy exactly as commit would,
    * without committing (#945 repair: a staged finish_turn checks here). */
-  validatePending: (sessionId: string) => { ok: true; changes: number; summary: string } | Refusal
+  validatePending: (sessionId: string) => { ok: true; changes: number; summary: string; warnings?: ShowIssue[] } | Refusal
   rollback: (sessionId: string) => { ok: true; label: string; discardedChanges: number } | Refusal
   /** The open transaction, if any: its label and how many changes it holds. */
   pending: (sessionId: string) => { ok: true; open: { label: string; changes: number } | null } | Refusal
@@ -129,7 +129,7 @@ function logGenericUse(
   })
 }
 
-export function createSessionStore(): GrammarSessionStore {
+export function createSessionStore(policy: { authoringValidation?: boolean } = {}): GrammarSessionStore {
   const sessions = new Map<string, Session>()
   let counter = 0
 
@@ -167,10 +167,12 @@ export function createSessionStore(): GrammarSessionStore {
     }],
   }
 
-  /** The refusal a commit of this working copy would produce, or null. */
-  function pendingValidationIssues(working: ShowGrammarDocument): Refusal | null {
-    const validation = validateShowDocument(working.show, working.inlinePatterns, working.options)
-    if (validation.valid) return null
+  /** The final validation result a commit of this working copy would produce. */
+  function pendingValidationIssues(working: ShowGrammarDocument, baseline: ShowGrammarDocument): { ok: true; warnings?: ShowIssue[] } | Refusal {
+    const validation = working.authoringValidation
+      ? validateAuthoringShowDocument(working.show, working.inlinePatterns, working.options, baseline)
+      : validateShowDocument(working.show, working.inlinePatterns, working.options)
+    if (validation.valid) return { ok: true, ...(working.authoringValidation ? { warnings: validation.warnings } : {}) }
     return {
       ok: false,
       issues: validation.errors.map((issue) => ({
@@ -186,7 +188,7 @@ export function createSessionStore(): GrammarSessionStore {
 
   return {
     open(input, inlinePatterns = [], options = {}) {
-      const opened = openShowDocument(input, inlinePatterns, options)
+      const opened = openShowDocument(input, inlinePatterns, options, policy)
       if (!opened.ok) return opened
       counter += 1
       const sessionId = `show-${counter}`
@@ -198,7 +200,7 @@ export function createSessionStore(): GrammarSessionStore {
         context: {},
         genericUse: [],
       })
-      return { ok: true, sessionId, listing: opened.listing }
+      return { ok: true, sessionId, listing: opened.listing, ...(policy.authoringValidation ? { warnings: opened.warnings } : {}) }
     },
 
     apply(sessionId, operation, args) {
@@ -261,12 +263,12 @@ export function createSessionStore(): GrammarSessionStore {
       const { session } = found
       if (!session.open) return NO_TRANSACTION
       const { label, working, changes } = session.open
-      const refused = pendingValidationIssues(working)
-      if (refused) return refused
+      const validation = pendingValidationIssues(working, session.document)
+      if (!validation.ok) return validation
       const summary = changes.length > 0 ? summarize(changes) : 'No operations were applied.'
       commitEntry(session, { label, summary, changes, before: session.document, after: working })
       session.open = null
-      return { ok: true, label, summary, changes, listing: projectClipListing(session.document) }
+      return { ...validation, label, summary, changes, listing: projectClipListing(session.document) }
     },
 
     validatePending(sessionId) {
@@ -274,11 +276,11 @@ export function createSessionStore(): GrammarSessionStore {
       if (!found.ok) return found
       const { session } = found
       if (!session.open) return NO_TRANSACTION
-      const refused = pendingValidationIssues(session.open.working)
-      if (refused) return refused
+      const validation = pendingValidationIssues(session.open.working, session.document)
+      if (!validation.ok) return validation
       const { changes } = session.open
       return {
-        ok: true,
+        ...validation,
         changes: changes.length,
         summary: changes.length > 0 ? summarize(changes) : 'No operations were applied.',
       }

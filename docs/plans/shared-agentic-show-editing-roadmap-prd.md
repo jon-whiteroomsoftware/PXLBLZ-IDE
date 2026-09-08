@@ -300,6 +300,9 @@ subsequent progress. An open issue is not necessarily unfinished implementation.
 5. Admission: #949's internal session/revision/store slice is reviewed and landed at
    `1a6cfc07`. Bounded B1 typed private-turn completion is implemented in the
    diagnostic harness; its service outcome does not imply live application or saving.
+   D1 provides an explicit internal authoring-validation session/import policy with
+   dependency, numeric-domain and artifact proof; default bridge/MCP callers retain
+   delivery-oriented admission. Live integration and full #949 scope remain pending.
    Broader Layer/command qualification still coordinates with #947/#950; no full
    implementation or production capability is claimed.
 6. Shared resize: #950 pure semantic-owner slice A is reviewed and landed at
@@ -518,14 +521,15 @@ state enters live history, persistence or preview. Final authoring validity uses
 missing-dependency and delivery-capacity policies, not a universal hardware-readiness gate.
 This adds no unrestricted patch tool or arbitrary scratch-container capability.
 
-### Accepted validation class: incomplete installation coverage — 2026-09-07
+### Accepted validation class: physical installation coverage — 2026-09-08
 
-Jon permits editing and saving an Installation Show while required coverage is incomplete.
-Keep the coverage diagnostic visible; otherwise valid agent edits may preserve or create that
-incomplete arrangement while authoring. Explicit delivery enforces coverage where the selected
-artifact/output contract requires it. Structural Zone/Layout identity and reference validation
-remain in force. Verify incomplete edit/save/reopen, subsequent completion and required-coverage
-delivery refusal without a send. Portable compatibility is settled below.
+Jon permits editing and saving an Installation Show with missing, overlapping or
+out-of-output-range physical assignments. Known first-match routing remains unchanged; keep
+coverage diagnostics visible and block delivery wherever the selected output contract requires
+exactly-once coverage. This includes negative and above-output integer assignments. Structural
+Zone/Layout identities and valid finite integer endpoints remain required. Verify each coverage
+class through edit/reopen and required-delivery refusal without a send, plus malformed numeric
+and unknown-owner refusal. Portable compatibility is settled below.
 
 ### Accepted validation class: Portable compatibility — 2026-09-07
 
@@ -674,8 +678,9 @@ existing distinction between authoring validity and artifact eligibility. A Show
 editable and previewable when a hardware resource limit blocks delivery. Introducing agent
 editing must not accidentally turn every delivery blocker into a prohibition on saving
 choreography. Classify each existing validation rule before adopting it as a shared commit gate
-(#946). The transferred grammar elevates installation coverage and portable compatibility into
-transaction failures; V2 saving has a different boundary. Missing-reference and dependency cases
+(#946). Default diagnostic sessions still elevate installation coverage and Portable compatibility into
+transaction failures; the explicit internal D1 authoring policy qualifies their accepted
+diagnostic classes without broadening bridge/MCP exposure. V2 saving has a separate boundary. Missing-reference and dependency cases
 also need explicit policy, not a blanket classification inferred from the validator name.
 
 The PRD's requirement for private batches that can pass through temporarily invalid composition

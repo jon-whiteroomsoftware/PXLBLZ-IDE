@@ -22,6 +22,7 @@ import {
   type ShowUnifiedTimelineClipProjection,
 } from '@/engine/showUnifiedTimelineProjection'
 import type { GrammarIssue, ShowGrammarDocument } from './types.js'
+import { inspectPatternMetadata } from '@/engine/bundle'
 
 export interface GrammarRefusal {
   ok: false
@@ -322,10 +323,7 @@ export function trackState(document: ShowGrammarDocument, trackId: string): Trac
 }
 
 /**
- * A control export name must be one the clip's Pattern declares (#39). Stock
- * patterns are checked against the catalogue's declared controls; a
- * user-library Pattern has no source in an editing session and passes
- * through unchecked. Returns the typed issue to refuse with, or null.
+ * A control edit requires inspectable source and a declared slider export.
  */
 export function controlExportIssue(
   document: ShowGrammarDocument,
@@ -333,12 +331,17 @@ export function controlExportIssue(
   exportName: string,
 ): GrammarIssue | null {
   const instance = compositionOf(document).patternInstances.find((candidate) => candidate.id === instanceId)
-  if (!instance || instance.pattern.kind !== 'stock') return null
+  if (!instance) return { code: 'unknown-control', message: `Unknown Pattern instance "${instanceId}".` }
   let controls: Array<{ exportName: string; kind: string }>
   try {
-    controls = getStockPattern(instance.pattern.id).controls
+    if (instance.pattern.kind === 'stock') controls = getStockPattern(instance.pattern.id).controls
+    else {
+      const source = document.inlinePatterns.find(pattern => pattern.id === instance.pattern.id)?.source
+      if (source === undefined) return { code: 'unknown-control', message: `Pattern metadata for "${instance.pattern.id}" is unavailable; supply its source before editing controls.` }
+      controls = inspectPatternMetadata(source).controls
+    }
   } catch {
-    return null
+    return { code: 'unknown-control', message: `Pattern metadata for "${instance.pattern.id}" cannot be inspected.` }
   }
   const sliders = controls.filter((control) => control.kind === 'slider').map((control) => control.exportName)
   if (sliders.includes(exportName)) return null

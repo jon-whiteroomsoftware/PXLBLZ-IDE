@@ -828,9 +828,10 @@ count + map) or `portable-2d` (reference count/map + variable-resolution
 declaration) contract, capped at 2,000 pixels. D1 loading validates the
 contract strictly and reports rejected rows in `unreadableShows` without
 failing the collection. `showInstallationCoverage.ts` requires every index
-assigned exactly once (missing/overlap/out-of-range are distinct
-diagnostics); `showPortableCompatibility.ts` requires logical geometry and 2D
-capability, admitting 1D `render` members through an explicit adaptation.
+assigned exactly once at delivery (missing/overlap/out-of-range are distinct
+diagnostics). Its interval sweep scales with authored range count rather than
+allocating one counter per output pixel. `showPortableCompatibility.ts` requires
+logical geometry and 2D capability, admitting 1D `render` members through an explicit adaptation.
 
 **Built-in Shows.** `src/pixelblaze/stock/shows.ts` owns pristine fixtures
 plus catalogue metadata. Editing is session-scoped: the first mutation creates
@@ -877,6 +878,12 @@ Adding a command requires a descriptor in its family module plus a golden
 accepted case and refusal partition. The faithfulness sweep fails entries
 whose goldens write outside declared `touches` or leave a declared pattern
 unexercised.
+
+The explicit internal authoring-validation policy accepts delivery-incomplete
+candidates while preserving typed structural and dependency checks. Default
+diagnostic bridge/MCP sessions remain delivery-oriented. The finite policy,
+immutable missing-reference baseline, metadata requirements and consumer proof
+are defined in [Agent candidate application](contracts/agent-candidate-application.md#internal-authoring-validation).
 
 **Coverage gate.** `schemas/show-record.schema.json` is generated from the
 ShowRecord type (`npm run schema:show-record`; a drift test keeps it exact),

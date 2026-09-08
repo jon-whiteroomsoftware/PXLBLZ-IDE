@@ -88,6 +88,8 @@ export interface GrammarChange {
  * composition shape, plus everything tier-0 validation needs to re-run.
  */
 export interface ShowGrammarDocument {
+  /** Internal qualification path only; no bridge or MCP caller enables it. */
+  authoringValidation?: true
   show: ShowRecord
   inlinePatterns: InlinePattern[]
   options: ShowEvaluationOptions

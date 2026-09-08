@@ -89,7 +89,9 @@ function validateLayout(layout: ShowRoutingLayout, pixelCount: number): Installa
     }
   }
 
-  const ownership = new Uint16Array(pixelCount)
+  // Coverage cost follows authored ranges, not the requested Controller size.
+  const events = new Map<number, number>()
+  const event = (at: number, delta: number) => events.set(at, (events.get(at) ?? 0) + delta)
   const outside: Array<{ start: number; end: number }> = []
   for (const zone of layout.zones) {
     for (const range of zone.ranges) {
@@ -98,14 +100,26 @@ function validateLayout(layout: ShowRoutingLayout, pixelCount: number): Installa
       const end = Math.floor(Math.max(range.start, range.end))
       const inRangeStart = Math.max(0, start)
       const inRangeEnd = Math.min(pixelCount - 1, end)
-      for (let index = inRangeStart; index <= inRangeEnd; index += 1) ownership[index] += 1
+      if (inRangeStart <= inRangeEnd) {
+        event(inRangeStart, 1)
+        event(inRangeEnd + 1, -1)
+      }
       if (start < 0) outside.push({ start, end: Math.min(-1, end) })
       if (end >= pixelCount) outside.push({ start: Math.max(pixelCount, start), end })
     }
   }
 
-  const assignedPixelCount = ownership.reduce((sum, owners) => sum + Number(owners > 0), 0)
-  const overlappingPixelCount = ownership.reduce((sum, owners) => sum + Number(owners > 1), 0)
+  let assignedPixelCount = 0
+  let overlappingPixelCount = 0
+  let owners = 0
+  let previous = 0
+  for (const [at, delta] of [...events].sort(([left], [right]) => left - right)) {
+    if (owners > 0) assignedPixelCount += at - previous
+    if (owners > 1) overlappingPixelCount += at - previous
+    owners += delta
+    previous = at
+  }
+
   const outOfRangePixelCount = intervalUnionLength(outside)
   const missingPixelCount = pixelCount - assignedPixelCount
   return {

@@ -449,6 +449,35 @@ function collectUnknownLibraryRefs(ast: unknown, knownLibs: Set<string>): LibRef
   ))
 }
 
+/** Metadata-only census using the compiler's existing supported member-call forms.
+ * Direct Namespace.fn and Namespace.inline.fn calls only; no source execution. */
+export function inspectPatternLibraryReferences(source: string): {
+  references: Array<{ namespace: string; fnName: string }>
+  unsupportedCalls: boolean
+} {
+  const ast = parseModule(source)
+  const declared = collectDeclaredIdentifiers(ast)
+  const direct = collectUnknownLibraryRefs(ast, new Set())
+  const inline = collectInlineLibraryRefs(ast)
+  const supportedStarts = new Set([...direct, ...inline].map(ref => ref.start))
+  let unsupportedCalls = false
+  walkAst(ast, node => {
+    const call = node as Record<string, unknown>
+    if (call.type !== 'CallExpression') return
+    const callee = call.callee as Record<string, unknown>
+    if (callee?.type !== 'MemberExpression') return
+    let root = callee
+    while (root.type === 'MemberExpression') root = root.object as Record<string, unknown>
+    if (root.type !== 'Identifier') return
+    const name = root.name as string
+    if (!declared.has(name) && !SAFE_MEMBER_CALL_GLOBALS.has(name) && !supportedStarts.has(callee.start as number)) unsupportedCalls = true
+  })
+  return {
+    references: [...direct, ...inline].map(({ namespace, fnName }) => ({ namespace, fnName })),
+    unsupportedCalls,
+  }
+}
+
 // ── dependency resolution (BFS) ───────────────────────────────────────────────
 
 interface ResolvedFn {

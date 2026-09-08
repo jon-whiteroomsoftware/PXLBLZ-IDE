@@ -62,7 +62,7 @@ describe('control exports are checked against the Pattern (#39)', () => {
     expect(accepted.ok).toBe(true)
   })
 
-  it('leaves a user-library clip unchecked', () => {
+  it('refuses a user-library control without source metadata', () => {
     const { store, sessionId } = open('empty-second-scene')
     const added = store.apply(sessionId, 'add_clip', {
       zone_id: 'z1', start_ms: 35_000, duration_ms: 10_000, pattern_kind: 'user', pattern_id: 'my-pattern',
@@ -72,6 +72,7 @@ describe('control exports are checked against the Pattern (#39)', () => {
     const accepted = store.apply(sessionId, 'set_clip_control_target', {
       clip_id: added.changes[0].targetId, export_name: 'anything', value: 0.5,
     })
-    expect(accepted.ok).toBe(true)
+    expect(accepted.ok).toBe(false)
+    if (!accepted.ok) expect(accepted.issues[0].message).toContain('unavailable')
   })
 })

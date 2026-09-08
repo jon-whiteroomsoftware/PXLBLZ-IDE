@@ -343,6 +343,21 @@ the private transaction boundary. The owning candidate contract and typed-turn/
 service tests describe the current behavior. Live-editor admission remains
 separate. The original V3 hashes and historical paid baseline are unchanged.
 
+## V2 internal authoring validation (#949 D1)
+
+An explicit internal session/import policy now delegates final authoring
+validation to `src/engine/showAuthoringValidation.ts`. Default bridge/MCP
+sessions retain delivery-oriented admission. The new engine module owns stable
+missing-reference baselines, composition/routing identity checks and required
+control metadata; Portable diagnostics carry owner-defined categories. The
+bundler exposes metadata-only Library inspection through its existing AST
+helpers; emitted artifacts are unchanged. Personal control commands now refuse
+unavailable source instead of passing arbitrary export names through unchecked.
+
+The candidate contract and `test/authoringValidation.test.ts` describe the
+finite internal boundary and its `.pxlshow` consumer proof. Original V3 hashes,
+paid evidence and diagnostic patch restrictions remain intact.
+
 ## Dependencies declared for this closure
 
 | Package | V3 range | Declared here | Installed |

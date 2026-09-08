@@ -95,3 +95,35 @@ describe('Installation physical-zone coverage (#435)', () => {
     ])
   })
 })
+
+it('classifies a large authoring output without allocating per-pixel ownership', () => {
+  const show = { ...installationShow(), outputContract: { ...installationShow().outputContract, pixelCount: Number.MAX_SAFE_INTEGER } }
+  show.routingLayouts[0].zones = [{ zoneId: 'zone-1', ranges: [{ start: 0, end: 7 }, { start: 4, end: 5 }] }]
+  expect(validateInstallationCoverage(show)).toMatchObject({
+    valid: false,
+    layouts: [{ assignedPixelCount: 8, missingPixelCount: Number.MAX_SAFE_INTEGER - 8, overlappingPixelCount: 2, outOfRangePixelCount: 0 }],
+  })
+})
+
+it('matches an enumerated pixel-ownership oracle across small physical range combinations', () => {
+  const ranges = [
+    { start: -2, end: 1 }, { start: 3, end: 0 }, { start: 0.5, end: 2.75 },
+    { start: 7, end: 9 }, { start: -3, end: -1 }, { start: 0, end: 3 }, { start: 4, end: 4 },
+  ]
+  for (const count of [1, 4, 8]) for (const first of ranges) for (const second of ranges) {
+    const show = installationShow(count)
+    show.routingLayouts[0].zones = [{ zoneId: 'zone-1', ranges: [first, second] }]
+    const owners = new Map<number, number>()
+    for (const range of [first, second]) {
+      const [low, high] = [range.start, range.end].sort((a, b) => a - b)
+      for (let pixel = Math.floor(low); pixel <= Math.floor(high); pixel++) owners.set(pixel, (owners.get(pixel) ?? 0) + 1)
+    }
+    const inOutput = [...owners].filter(([pixel]) => pixel >= 0 && pixel < count)
+    const overlapping = inOutput.filter(([, uses]) => uses > 1).length
+    const outside = [...owners.keys()].filter(pixel => pixel < 0 || pixel >= count).length
+    expect(validateInstallationCoverage(show)).toMatchObject({
+      valid: inOutput.length === count && overlapping === 0 && outside === 0,
+      layouts: [{ assignedPixelCount: inOutput.length, missingPixelCount: count - inOutput.length, overlappingPixelCount: overlapping, outOfRangePixelCount: outside }],
+    })
+  }
+})

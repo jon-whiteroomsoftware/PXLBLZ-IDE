@@ -3,13 +3,15 @@
 // normalization to the composition shape (the editor's projection), then the
 // compact clip listing an agent addresses clips through. Pure logic — the MCP
 // session tools are thin wrappers over these functions.
-import type { ShowCompositionV1 } from '@/engine/personalContentRecords'
+import type { ShowCompositionV1, ShowRecord } from '@/engine/personalContentRecords'
 import { projectFlatShowToCompositionV1WithCellOrigins } from '@/engine/showCompositionModel'
 import { projectShowTimeline } from '@/engine/showModel'
 import { sourceForShowCell } from '@/engine/showPreviewArtifact'
 import { projectShowUnifiedTimeline } from '@/engine/showUnifiedTimelineProjection'
 import {
+  parseShowDocument,
   prepareShowDocument,
+  validateAuthoringShowDocument,
   validateShowDocument,
   type InlinePattern,
   type ShowEvaluationOptions,
@@ -26,7 +28,7 @@ function openIssue(issue: ShowIssue): GrammarIssue {
 }
 
 export type OpenShowResult =
-  | { ok: true; document: ShowGrammarDocument; listing: ShowClipListing }
+  | { ok: true; document: ShowGrammarDocument; listing: ShowClipListing; warnings: ShowIssue[] }
   | { ok: false; issues: GrammarIssue[] }
 
 /**
@@ -38,16 +40,24 @@ export function openShowDocument(
   input: unknown,
   inlinePatterns: InlinePattern[] = [],
   options: ShowEvaluationOptions = {},
+  policy: { authoringValidation?: boolean } = {},
 ): OpenShowResult {
-  const prepared = prepareShowDocument(input, inlinePatterns, options)
-  if ('errors' in prepared) return { ok: false, issues: prepared.errors.map(openIssue) }
-
-  const validation = validateShowDocument(input, inlinePatterns, options)
+  const validate = policy.authoringValidation ? validateAuthoringShowDocument : validateShowDocument
+  const validation = validate(input, inlinePatterns, options)
   if (!validation.valid) return { ok: false, issues: validation.errors.map(openIssue) }
 
-  const { show, userPatterns } = prepared.prepared
+  const prepared = prepareShowDocument(input, inlinePatterns, options)
+  const parsed = parseShowDocument(input)
+  if ('error' in parsed) return { ok: false, issues: [openIssue(parsed.error)] }
+  const show = parsed.document as ShowRecord
+  if ('errors' in prepared && (!policy.authoringValidation || !show.composition)) return { ok: false, issues: prepared.errors.map(openIssue) }
+  const userPatterns = 'prepared' in prepared ? prepared.prepared.userPatterns : []
   let composition = show.composition as ShowCompositionV1 | undefined | null
   if (!composition) {
+    if (policy.authoringValidation && 'prepared' in prepared && prepared.prepared.unresolved.length) return {
+      ok: false,
+      issues: [{ code: 'open-failed', message: 'Flat Show projection needs the unavailable Pattern source; supply exact metadata before opening.' }],
+    }
     try {
       const projection = projectFlatShowToCompositionV1WithCellOrigins(show, {
         byCellId: Object.fromEntries(
@@ -68,12 +78,15 @@ export function openShowDocument(
     }
   }
 
-  const document: ShowGrammarDocument = {
+  const document: ShowGrammarDocument = structuredClone({
     show: { ...show, composition },
     inlinePatterns,
     options,
-  }
-  return { ok: true, document, listing: projectClipListing(document) }
+    ...(policy.authoringValidation ? { authoringValidation: true as const } : {}),
+  })
+  const normalized = validate(document.show, document.inlinePatterns, document.options)
+  if (!normalized.valid) return { ok: false, issues: normalized.errors.map(openIssue) }
+  return { ok: true, document, listing: projectClipListing(document), warnings: normalized.warnings }
 }
 
 /** The compact clip listing: every clip with its id, Zone, layer, and range. */

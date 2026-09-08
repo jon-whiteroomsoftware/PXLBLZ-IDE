@@ -12,7 +12,7 @@
 // a typed refusal, never as success. Planner-backed operations run the
 // vendored plan* function first and pass its user-legible reason through.
 import { z, type ZodRawShape } from 'zod'
-import { validateShowDocument } from '../shows/evaluate.js'
+import { validateAuthoringShowDocument, validateShowDocument } from '../shows/evaluate.js'
 import type { GrammarChange, GrammarIssue, ShowGrammarDocument } from './types.js'
 
 export type GrammarOperationResult =
@@ -94,10 +94,12 @@ export function applyShowGrammarOperation(
   // working copy may pass through resolvable-invalid states.
   if (options.validateResult === false) return outcome
 
-  const validation = validateShowDocument(
+  const validate = document.authoringValidation ? validateAuthoringShowDocument : validateShowDocument
+  const validation = validate(
     outcome.document.show,
     outcome.document.inlinePatterns,
     outcome.document.options,
+    document,
   )
   if (!validation.valid) {
     return {
