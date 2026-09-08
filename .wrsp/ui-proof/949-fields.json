@@ -1,12 +1,12 @@
 {
   "version": 1,
   "issue": "949",
-  "route": "/PXLBLZ-IDE/studio/shows/fields-draft-cancel-1788892646910?agent=1",
-  "operation": "A real scripted request waits while the actual Clip duration draft remains 7 seconds. Escape permits one exact 8-second saved adoption; manual Enter refuses the stale candidate; diagnostic Cancel preserves dirty field and focus at 800px. Focus alone admits immediately. Full visible/durable records, Undo and reopened exports checked.",
+  "route": "/PXLBLZ-IDE/studio/shows/fields-draft-cancel-1788894848114?agent=1",
+  "operation": "Actual Clip duration draft 7 keeps the scripted request waiting. Ordinary Escape closes the inspector with Cancel hidden and cancels the waiting dirty draft before exact 8-second saved adoption. Manual Enter refuses the stale candidate; pointer Cancel preserves draft and focus at 800px; focus alone admits immediately. Full visible/durable records, Undo and reopened exports checked.",
   "captures": [
     ".wrsp/ui-proof/949-fields-desktop.png",
     ".wrsp/ui-proof/949-fields-narrow.png",
     ".wrsp/ui-proof/949-fields-saved.png"
   ],
-  "capturedAtCommit": "9c0afc80655ec91164a35fdfdb0688de4b082f79"
+  "capturedAtCommit": "2fdb907c2641600136a703796c55129d711c41cf"
 }
