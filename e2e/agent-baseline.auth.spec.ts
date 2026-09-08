@@ -757,6 +757,8 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
 
   test('GA: real timeline gestures wait and settle after cancellation or manual adoption', async ({ page }) => {
     test.setTimeout(150000)
+    const pageErrors: string[] = []
+    page.on('pageerror', error => { pageErrors.push(error.stack ?? error.message); saveRecord('GA-page-errors', pageErrors) })
     for (const action of ['resize-cancel', 'resize-commit', 'end-commit'] as const) {
       await page.setViewportSize({ width: action === 'end-commit' ? 800 : 1440, height: 900 })
       const record = resizeBoundaryShow(`gesture-${action}-${Date.now().toString(36)}`)
@@ -821,7 +823,8 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       await page.getByRole('button', { name: 'Undo Show edit' }).click()
       await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
       await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
-      saveRecord(`GA-${action}`, { actualGesture: true, before, durableBefore, done, current, reopened: reopened.show, writes })
+      expect(pageErrors).toEqual([])
+      saveRecord(`GA-${action}`, { actualGesture: true, before, durableBefore, done, current, reopened: reopened.show, writes, pageErrors })
     }
   })
 
