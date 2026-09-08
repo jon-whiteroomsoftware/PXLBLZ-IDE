@@ -52,11 +52,11 @@ production Agent panel or hosted endpoint.
 
 ## Focused and fault evidence
 
-The focused suites pass 20 cases across the selector, spatial-selection engine,
+The focused suites pass 21 cases across the selector, spatial-selection engine,
 and new lifecycle suite. Complete Show/history/provider checks cover clean source
 adoption, retained-draft cancellation/manual Save, and retirement before unmount.
 Lifecycle checks cover foreign pointers, overlapping controls, session activation
-and replacement, source replacement, lost capture, Clear, return to the current
+and replacement, source replacement (including colon-containing ID tuples), lost capture, Clear, return to the current
 authoritative set, failed/throwing Save and detached late events.
 
 Removing retained-draft ownership made ten focused cases fail, including the

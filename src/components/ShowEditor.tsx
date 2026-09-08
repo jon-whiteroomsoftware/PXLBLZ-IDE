@@ -2048,7 +2048,7 @@ export function ShowEditor({
       return (
         <FieldActivityContext.Provider value={fieldActivity}>
           <ShowZoneSpatialSelector
-            key={`${activeShow.id}:${spatialZoneSelection.layoutId}:${zone.id}:${savedStageMap.id}`}
+            key={JSON.stringify([activeShow.id, spatialZoneSelection.layoutId, zone.id, savedStageMap.id])}
             show={activeShow}
             zone={zone}
             layoutId={spatialZoneSelection.layoutId}

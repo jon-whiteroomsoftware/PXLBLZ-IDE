@@ -35,7 +35,7 @@ export function ShowZoneSpatialSelector({
   const [selected, setSelected] = useState(() => indexesFromPhysicalRanges(initialRanges, points.length))
   const selectedRef = useRef(selected)
   const authoritativeRef = useRef(selected)
-  const sourceIdentity = `${show.id}:${layoutId}:${zone.id}:${points.length}`
+  const sourceIdentity = JSON.stringify([show.id, layoutId, zone.id, points.length])
   const sourceRef = useRef(sourceIdentity)
   const [mode, setMode] = useState<SpatialSelectionMode>('replace')
   const [drag, setDrag] = useState<{ from: SpatialPoint2D; to: SpatialPoint2D } | null>(null)

@@ -204,3 +204,24 @@ it('retires a live rectangle on unmount and ignores detached late terminal event
   expect(commit).not.toHaveBeenCalled()
   expect(test.active()).toBe(0)
 })
+
+it('distinguishes source tuples containing colons when replacing a dirty selector', () => {
+  const scope = createFieldActivityScope()
+  let active = 0
+  scope.bind(() => { active++; return () => { active-- } })
+  const first = fixture()
+  first.id = 'a:b'
+  first.routingLayouts[0].id = 'c'
+  const second = structuredClone(first)
+  second.id = 'a'
+  second.routingLayouts[0].id = 'b:c'
+  const view = (show: typeof first) => <FieldActivityContext.Provider value={scope}><ShowZoneSpatialSelector
+    show={show} zone={show.zones[0]} layoutId={show.routingLayouts[0].id} mapName="Plane" points={points}
+    onCommit={vi.fn()} onCancel={vi.fn()} /></FieldActivityContext.Provider>
+  const mounted = render(view(first))
+  fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+  expect(active).toBe(1)
+  mounted.rerender(view(second))
+  expect(screen.getByText('Indexes 0-1')).toBeInTheDocument()
+  expect(active).toBe(0)
+})
