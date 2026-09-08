@@ -7,8 +7,13 @@ reviewed and landed on main; both issues are closed.
 The #949 internal admission foundation is reviewed and landed at `1a6cfc07`.
 Its bounded B1 diagnostic private-turn completion is implemented in the diagnostic harness:
 explicit apply/ask/refuse/incomplete intent controls private commit/rollback and
-the service carries a typed private outcome. Live editor
-admission, shared command convergence and production agent access remain unimplemented. #946 and #947
+the service carries a typed private outcome. D1 adds opt-in internal authoring
+validation and authoring-file import qualification. C1 adds internal resolved
+exact-resize admission with finite Layer dependency observation, current-state
+replay and final authoring validation; its scope and store/artifact evidence live
+in the [candidate application contract](../reference/contracts/agent-candidate-application.md#internal-qualified-exact-resize).
+Live editor admission, shared command convergence and production agent access
+remain unimplemented. #946 and #947
 product decisions are complete. The [finite command census](agent-show-command-census.md) maps
 54 existing names into 45 canonical operations. #956 service decisions and final #959 surface
 placement remain partly open. This roadmap records those distinctions without approving

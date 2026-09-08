@@ -21,7 +21,7 @@ export type ShowEditRefusal = 'revision-conflict' | 'wrong-session' | 'wrong-sho
   | 'identity-mismatch' | 'capacity' | 'invalid-retry' | 'missing-show' | 'invalid-candidate' | 'no-candidate'
 
 export type ShowEditReceipt = { readonly request: ShowEditRequest } & (
-  | { readonly status: 'pending' | 'cancelled' | 'retired'; readonly reason?: never; readonly settlement?: never }
+  | { readonly status: 'pending' | 'cancelled' | 'retired' | 'noop'; readonly reason?: never; readonly settlement?: never }
   | { readonly status: 'refused'; readonly reason: ShowEditRefusal; readonly settlement?: never }
   | { readonly status: 'applied'; readonly settlement: ShowEditSettlement; readonly reason?: never }
 )
@@ -98,6 +98,11 @@ export function createShowEditSession(
     cancel(id: string): ShowEditReceipt | undefined {
       const existing = read(id)
       return existing?.status === 'pending' ? remember(receipt(existing.request, 'cancelled')) : existing
+    },
+    noop(id: string): ShowEditReceipt {
+      const existing = read(id)
+      if (retired || existing?.status !== 'pending') throw new Error('Operation is not eligible for no-op completion')
+      return remember(receipt(existing.request, 'noop'))
     },
     adopted(id: string, settlement: 'saving' | 'draft'): ShowEditReceipt {
       const existing = read(id)

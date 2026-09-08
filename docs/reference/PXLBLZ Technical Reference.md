@@ -885,6 +885,13 @@ diagnostic bridge/MCP sessions remain delivery-oriented. The finite policy,
 immutable missing-reference baseline, metadata requirements and consumer proof
 are defined in [Agent candidate application](contracts/agent-candidate-application.md#internal-authoring-validation).
 
+The internal exact-resize admission owner replays one resolved operation on the
+current Show after observing finite Layer dependencies. Independent placement
+edits survive; conflicts remain refused across change-and-restore. It shares
+ordinary history/save recovery and adds validated no-op receipts. Its
+[finite contract and store/artifact proof](contracts/agent-candidate-application.md#internal-qualified-exact-resize)
+do not expose a live agent or migrate the command catalogue.
+
 **Coverage gate.** `schemas/show-record.schema.json` is generated from the
 ShowRecord type (`npm run schema:show-record`; a drift test keeps it exact),
 and `npm run coverage:show-commands` regenerates

@@ -58,10 +58,55 @@ and delayed persistence outcomes.
 
 This foundation is not wired into `__pxlblzEditor`, the diagnostic overlay,
 grammar or turn runner. The live boundary and baseline failures described below
-remain current. Layer dependency qualification, active-input waiting, canonical
-command replay and the accepted final authoring validation policy remain later
-#949 slices. Trusted callbacks at this internal seam are not a production
+remain current. The internal exact-resize path below qualifies one operation;
+active-input waiting, live admission and command-catalogue migration remain
+later #949 slices. Trusted callbacks at the whole-Show seam are not a production
 command or validation escape hatch.
+
+## Internal qualified exact resize
+
+`beginResolvedShowResize` captures a resolved logical Clip and exact integer
+resize request in the current internal store session. `admitResolvedShowResize`
+replays that stored operation through `resizeShowClipExactly` on the current
+Show, validates the complete candidate with `validateShowAuthoring`, and adopts
+once through ordinary store history and persistence. A validated no-op has a
+terminal `noop` receipt and creates no history, timestamp or provider write.
+
+The finite reference meaning is the original logical Clip identity. Its private
+dependency context protects the complete affected logical Layer across Scenes,
+including connected successors. Scene-local Layer identities and array order,
+placement membership/instance links, all Pattern instances, tracks, Transitions,
+shared timing and other Show fields remain guarded. Only unrelated placement
+values are excluded. Thus a manual brightness or duration edit on another Layer
+or Zone survives admission; same-Layer edits anywhere conflict. Groups and
+missing composition/targets refuse this narrow path. Broad model context and
+other operations retain the whole-Show callback guard.
+
+Pending observation makes conflicts permanent even when later edits restore
+identical bytes. Authoritative Show replacements, undo/redo and removal are
+observed; hydration, stock reset and save recovery invalidate conservatively.
+Pattern, Library and Map array replacements also invalidate all pending qualified
+requests, including change-and-restore. These external guards deliberately refuse
+unrelated metadata edits too. Observation exists only while requests are pending,
+shares the existing session operation cap, and ends on completion, cancellation,
+refusal or retirement. It is volatile session state, not a manual-edit ledger.
+
+The receipt preserves original reference meaning and exact operation identity;
+explicit retry uses a new operation id and fresh current dependencies. A missing
+original Clip refuses instead of selecting a replacement. The owner supplies the
+dependency context; callers cannot provide narrow guards or run arbitrary
+callbacks under a resize receipt. This internal capability proves only the finite
+context it owns. A future adapter must qualify all context actually supplied to a
+model; it cannot infer narrow context from the returned operation. No browser,
+bridge, MCP, URL or server schema exposes these APIs.
+
+[Store consumer proof](../../../src/store/showQualifiedResize.test.ts) compares
+complete current records/history and attributable writes, including undo/redo,
+durable provider records and reopened `.pxlshow` files. It covers Main/Overlay and
+Zone independence, multi-Scene connected resize, same-Layer and shared-dependency
+conflicts, ABA, external source changes, retry identity, no-op validation,
+cancellation/retirement, bounded observation and save rollback/supersession.
+This is internal proof only; the live editor defects below remain unqualified.
 
 ## Present limits
 

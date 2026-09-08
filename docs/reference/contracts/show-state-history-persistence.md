@@ -40,30 +40,32 @@ the diagnostic editor bridge has not yet adopted this API.
 
 Document revisions advance independently of persistence timestamps. Personal
 and stock updates, undo/redo, recovery rollback, creation, deletion start and
-stock draft reset invalidate earlier requests. Successful hydration conservatively
-advances known Show revisions even when it retains an equal or queued record.
-Revisions survive identity removal, so delete/recreate and edit/undo cannot
-restore old eligibility. Same-reference updates, exhausted history, unchanged
-rename, absent draft reset and notice dismissal do not advance revisions.
-Equal-content replacement objects retain the existing manual update behavior.
+stock draft reset invalidate earlier whole-Show requests. Successful hydration
+conservatively advances known Show revisions even when it retains an equal or
+queued record. Revisions survive identity removal, so delete/recreate and
+edit/undo cannot restore old eligibility. Same-reference updates, exhausted
+history, unchanged rename, absent draft reset and notice dismissal do not
+advance revisions. Equal-content replacement objects retain the existing manual
+update behavior.
 
-Admission checks the whole Show revision, evaluates a private clone through
-trusted synchronous engine callbacks, normalizes the candidate, requires a
-synchronous final-validation success, and checks eligibility again before
-adoption. The operation receipt is registered before the one history entry is
-published; no persistence await separates those steps. Invalid identity,
-validation failure, cancellation, retirement, stale revision and duplicate
-delivery cannot replace the document or add history/provider writes. A callback
-returning no candidate or its original input identity produces a no-candidate
-refusal. Command-specific no-change semantics remain in the command registry.
+The whole-Show callback admission checks the whole Show revision, evaluates a
+private clone through trusted synchronous engine callbacks, normalizes the
+candidate, requires a synchronous final-validation success, and checks
+eligibility again before adoption. The operation receipt is registered before
+the one history entry is published; no persistence await separates those steps.
+Invalid identity, validation failure, cancellation, retirement, stale revision
+and duplicate delivery cannot replace the document or add history/provider
+writes. A callback returning no candidate or its original input identity
+produces a no-candidate refusal. Command-specific no-change semantics remain in
+the command registry.
 
-The operation table retains immutable pending, refused, cancelled and applied
-receipts for the live session. Duplicate delivery reads the existing outcome;
-a changed envelope under the same id refuses without replacing that identity.
-Explicit retry requires a new id and retains the original payload identity,
-reference context and target identities. Target qualification remains the
-engine adapter's responsibility. The configurable default is 256 entries per
-session, a conservative memory bound. A full table refuses new registrations
+The operation table retains immutable pending, refused, cancelled, no-op and
+applied receipts for the live session. Duplicate delivery reads the existing
+outcome; a changed envelope under the same id refuses without replacing that
+identity. Explicit retry requires a new id and retains the original payload
+identity, reference context and target identities. Target qualification remains
+the engine adapter's responsibility. The configurable default is 256 entries
+per session, a conservative memory bound. A full table refuses new registrations
 instead of evicting ids. Retirement clears historical lookup; unknown or old
 requests never register themselves during delivery.
 
@@ -74,6 +76,17 @@ when current-write failure restores its durable record/history pair. Stock
 admission reports draft immediately. Receipt lookup is session-only; an adopted
 save still settles normally after retirement without recreating lost receipts.
 These outcomes use the existing recovery policy, not a second persistence queue.
+
+The internal exact-resize owner can admit across unrelated placement edits by
+observing engine-owned Layer dependencies throughout the pending lifetime. Its
+receipt binds the original resolved logical target and exact range; retry
+retains that meaning while recapturing dependencies from current state. The
+owner replays the stored operation on current state and validates the final
+authoring candidate synchronously before ordinary adoption. A terminal validated
+`noop` adds no history or write and remains deduplicated at the existing session
+cap. Qualified receipts cannot be submitted to the arbitrary callback path. The
+finite supported scope, conservative lifecycle/source invalidation and evidence
+are defined in [Internal qualified exact resize](agent-candidate-application.md#internal-qualified-exact-resize).
 
 ## Personal saves and recovery
 
