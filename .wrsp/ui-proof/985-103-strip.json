@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "985",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-103-clip-transform",
+  "operation": "103 Clip Transform at 1440 x 900: pressed Play and captured after 3.7 s; strip read \"CLIP CompassRose 1/5 TRY WITH PATTERN\" at t=0 and \"CLIP CompassRose 2/5 TRY WITH PATTERN\" at capture.",
+  "captures": [
+    ".wrsp/ui-proof/985-103-strip.png"
+  ],
+  "capturedAtCommit": "46c83e1ce392b7d57946acd3ce4b5034d80857e9"
+}
