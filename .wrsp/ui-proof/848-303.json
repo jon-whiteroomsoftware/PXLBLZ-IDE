@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "848",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-303-compile-simplify-deliver",
+  "operation": "Pristine stock-show-303-compile-simplify-deliver at 1440 x 900 with the live strip open (chooser popover opened when the Show has several slots); Pattern pickers read \"TopographicBloom, ShapeShifter\", expected TopographicBloom, ShapeShifter.",
+  "captures": [
+    ".wrsp/ui-proof/848-303.png"
+  ],
+  "capturedAtCommit": "26a03ce7b02c736bbe624aba9342c14dd8e9f40c"
+}

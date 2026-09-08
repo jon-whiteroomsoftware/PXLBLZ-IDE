@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "848",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-showcase-zone-layouts-radial",
+  "operation": "Pristine stock-show-showcase-zone-layouts-radial at 1440 x 900 with the live strip open (chooser popover opened when the Show has several slots); Pattern pickers read \"Harmonograph\", expected Harmonograph (the hero slot; IQPalettes is the fixed counter-voice, not a slot).",
+  "captures": [
+    ".wrsp/ui-proof/848-radial.png"
+  ],
+  "capturedAtCommit": "26a03ce7b02c736bbe624aba9342c14dd8e9f40c"
+}

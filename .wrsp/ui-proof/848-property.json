@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "848",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-reference-property-animation",
+  "operation": "Pristine stock-show-reference-property-animation at 1440 x 900 with the live strip open (chooser popover opened when the Show has several slots); Pattern pickers read \"LineDancer2D\", expected LineDancer2D.",
+  "captures": [
+    ".wrsp/ui-proof/848-property.png"
+  ],
+  "capturedAtCommit": "26a03ce7b02c736bbe624aba9342c14dd8e9f40c"
+}
