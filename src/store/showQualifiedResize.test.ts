@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { showInitialState, useShowStore } from './showStore'
 import { createDefaultShow } from '@/engine/showModel'
 import type { ShowRecord } from '@/engine/personalContentRecords'
@@ -10,6 +10,9 @@ import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import { resizeShowClipExactly } from '@/engine/showExactClipResize'
 import { validateShowComposition } from '@/engine/showCompositionModel'
 import { validateShowAuthoring } from '@/engine/showAuthoringValidation'
+import * as authoring from '@/engine/showAuthoringValidation'
+import * as dependencies from '@/engine/showResizeDependencies'
+import { useMapStore } from './mapStore'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 
@@ -60,7 +63,7 @@ it('replays exact resize on current Show and undo removes only agent work', asyn
 })
 
 
-function preservation() { return structuredClone({ show: current(), history: store().showHistories, durable, writes: write.mock.calls.length }) }
+function preservation() { return structuredClone({ show: current(), history: store().showHistories, revisions: store().showRevisions, durable, writes: write.mock.calls.length }) }
 function refuseUnchanged(request: ReturnType<typeof begin>['request']) {
   const before = preservation()
   expect(store().admitResolvedShowResize(request).status).toBe('refused')
@@ -302,7 +305,7 @@ it('reports superseded saving and preserves a later manual edit', async () => {
   const pending = begin()
   const gate = deferredWrite()
   write.mockImplementationOnce(async () => gate.promise)
-  expect(store().admitResolvedShowResize(pending.request).settlement).toBe('saving')
+  expect(store().admitResolvedShowResize(pending.request)).toMatchObject({ status: 'applied', settlement: 'saving' })
   const next = structuredClone(current())
   next.composition!.scenes[0].zones[0].overlays[1].placements[0].opacity = 0.2
   const saved = store().updateShow(next.id, next)
@@ -322,6 +325,8 @@ it('rolls back a failed adoption, refuses pending work, and accepts an explicit 
   store().admitResolvedShowResize(pending.request)
   const other = store().beginResolvedShowResize(pending.request.sessionId, { operationId: 'during-save', resize: { clipId: current().composition!.scenes[0].zones[0].overlays[1].placements[0].id, durationMs: 5_000 } })
   expect(other.status).toBe('pending')
+  const token = store().acquireShowEditActivity(pending.request.sessionId, durable.id, 'drag')!
+  expect(store().admitResolvedShowResize(other.request).status).toBe('waiting')
   gate.reject(new Error('Save failed'))
   await vi.waitFor(() => expect(store().readShowEdit(pending.request.sessionId, pending.request.operationId)?.settlement).toBe('rolled-back'))
   expect(current()).toEqual(before)
@@ -329,7 +334,9 @@ it('rolls back a failed adoption, refuses pending work, and accepts an explicit 
   refuseUnchanged(other.request)
   const retry = store().beginResolvedShowResize(pending.request.sessionId, { operationId: 'retry', retryOf: pending.request.operationId, resize: { clipId: pending.request.targets[0], durationMs: 6_000 } })
   expect(retry.status).toBe('pending')
-  expect(store().admitResolvedShowResize(retry.request).status).toBe('applied')
+  expect(store().admitResolvedShowResize(retry.request).status).toBe('waiting')
+  store().releaseShowEditActivity(token)
+  expect(store().readShowEditCandidate(retry.request.sessionId, retry.request.operationId)?.status).toBe('applied')
   await vi.waitFor(() => expect(store().readShowEdit(retry.request.sessionId, retry.request.operationId)?.settlement).toBe('saved'))
   expect(store().showHistories[durable.id].past).toEqual([before])
 })
@@ -405,7 +412,10 @@ it('invalidates qualified stock draft work on the authoritative reset action', (
   const session = store().beginShowEditSession(id)
   const pending = store().beginResolvedShowResize(session, { operationId: 'stock-reset', resize: { clipId: draft.composition!.scenes[0].zones[0].overlays[0].placements[0].id, durationMs: 6_000 } })
   expect(pending.status).toBe('pending')
+  const token = store().acquireShowEditActivity(session, id, 'dirty-field')!
+  expect(store().admitResolvedShowResize(pending.request).status).toBe('waiting')
   store().resetStockShowDraft(id)
+  store().releaseShowEditActivity(token)
   const before = structuredClone({ draft: store().resolveEditableShow(id), history: store().showHistories, writes: write.mock.calls })
   expect(store().admitResolvedShowResize(pending.request).status).toBe('refused')
   expect({ draft: store().resolveEditableShow(id), history: store().showHistories, writes: write.mock.calls }).toEqual(before)
@@ -424,4 +434,241 @@ it('qualifies Main independently of an Overlay manual edit', async () => {
   expected.composition!.scenes[0].zones[0].main[0].durationMs = 6_000
   expect(store().admitResolvedShowResize(pending.request).status).toBe('applied')
   expect(current()).toEqual({ ...expected, updatedAt: current().updatedAt })
+})
+
+it('waits for overlapping input and preserves an independent Layer edit through resize and undo', async () => {
+  const pending = begin()
+  const { sessionId, operationId, showId } = pending.request
+  const drag = store().acquireShowEditActivity(sessionId, showId, 'drag')!
+  const dirty = store().acquireShowEditActivity(sessionId, showId, 'dirty-field')!
+  const before = preservation()
+  expect(store().admitResolvedShowResize(pending.request).status).toBe('waiting')
+  expect(preservation()).toEqual(before)
+  store().releaseShowEditActivity(drag)
+  expect(store().readShowEditCandidate(sessionId, operationId)?.status).toBe('waiting')
+  await edit(show => { show.composition!.scenes[0].zones[0].overlays[1].placements[0].view.brightness = 0.3 })
+  const manual = preservation()
+  expect(store().admitResolvedShowResize(pending.request).status).toBe('waiting')
+  expect(preservation()).toEqual(manual)
+  store().releaseShowEditActivity(dirty)
+  await vi.waitFor(() => expect(store().readShowEditCandidate(sessionId, operationId)).toMatchObject({ status: 'applied', settlement: 'saved' }))
+  const expected = structuredClone(manual.show)
+  expected.composition!.scenes[0].zones[0].overlays[0].placements[0].durationMs = 6_000
+  expect(current()).toEqual({ ...expected, updatedAt: current().updatedAt })
+  expect(write).toHaveBeenCalledTimes(2)
+  const { bundle } = buildShowFileBundle(durable, { patterns: [], maps: [] }, { appVersion: 'C2' })
+  expect((await parseShowFileBundle(await serializeShowFileBundle(bundle))).show).toEqual(current())
+  const adopted = preservation()
+  expect(store().admitResolvedShowResize(pending.request).status).toBe('applied')
+  expect(preservation()).toEqual(adopted)
+  await store().undoShow(showId)
+  expect(current()).toEqual({ ...manual.show, updatedAt: current().updatedAt })
+})
+
+describe('qualified resize waiting lifetime', () => {
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] }) })
+  afterEach(() => {
+    store().beginShowEditSession(durable.id)
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
+  function waiting() {
+    const receipt = begin()
+    const token = store().acquireShowEditActivity(receipt.request.sessionId, durable.id, 'dirty-field')!
+    expect(store().admitResolvedShowResize(receipt.request)).toMatchObject({ status: 'waiting', deadline: 5000 })
+    return { request: receipt.request, token }
+  }
+  function read(request: ReturnType<typeof begin>['request']) { return store().readShowEditCandidate(request.sessionId, request.operationId) }
+
+  it.each([4999, 5000, 5001])('settles at monotonic %i with delayed timers and never repeats adoption', async now => {
+    const { request, token } = waiting()
+    const before = preservation()
+    vi.spyOn(performance, 'now').mockReturnValue(now)
+    store().releaseShowEditActivity(token)
+    if (now < 5000) {
+      expect(read(request)?.status).toBe('applied')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(write).toHaveBeenCalledTimes(1)
+      expect(store().showHistories[durable.id].past).toEqual([before.show])
+    } else {
+      expect(read(request)).toMatchObject({ status: 'refused', reason: 'interaction-timeout' })
+      expect(preservation()).toEqual(before)
+    }
+    const after = preservation()
+    store().releaseShowEditActivity(token)
+    store().admitResolvedShowResize(request)
+    expect(preservation()).toEqual(after)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('retains its original deadline through duplicate delivery and overlapping new activity', () => {
+    const { request, token } = waiting()
+    vi.advanceTimersByTime(4000)
+    const second = store().acquireShowEditActivity(request.sessionId, durable.id, 'drag')!
+    store().releaseShowEditActivity(token)
+    expect(store().admitResolvedShowResize(request)).toMatchObject({ status: 'waiting', deadline: 5000 })
+    const before = preservation()
+    vi.advanceTimersByTime(1000)
+    expect(read(request)).toMatchObject({ reason: 'interaction-timeout' })
+    store().releaseShowEditActivity(second)
+    expect(preservation()).toEqual(before)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it.each([false, true])('slow final authoring validation has a deadline only after actual waiting: %s', async waited => {
+    const pending = begin()
+    const before = preservation()
+    const token = waited ? store().acquireShowEditActivity(pending.request.sessionId, durable.id, 'drag')! : undefined
+    const real = authoring.validateShowAuthoring
+    vi.spyOn(authoring, 'validateShowAuthoring').mockImplementation((...args) => {
+      const result = real(...args)
+      vi.spyOn(performance, 'now').mockReturnValue(6000)
+      return result
+    })
+    const result = store().admitResolvedShowResize(pending.request)
+    if (token) {
+      expect(result.status).toBe('waiting')
+      vi.advanceTimersByTime(4999)
+      store().releaseShowEditActivity(token)
+      expect(read(pending.request)).toMatchObject({ reason: 'interaction-timeout' })
+      expect(preservation()).toEqual(before)
+    } else {
+      expect(result.status).toBe('applied')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(write).toHaveBeenCalledTimes(1)
+    }
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it.each(['layer', 'undo', 'pattern', 'library', 'map', 'cancel', 'hydrate', 'remove', 'reset', 'retire', 'complete'] as const)('promptly discards waiting resources on %s', async mode => {
+    const originalSubscribe = usePatternStore.subscribe
+    const stop = vi.fn()
+    vi.spyOn(usePatternStore, 'subscribe').mockImplementation(listener => {
+      const unsubscribe = originalSubscribe(listener)
+      return () => { stop(); unsubscribe() }
+    })
+    const { request, token } = waiting()
+    if (mode === 'layer' || mode === 'undo') {
+      await edit(show => { show.composition!.scenes[0].zones[0].overlays[0].placements[0].opacity = 0.2 })
+      if (mode === 'undo') await store().undoShow(durable.id)
+    }
+    if (mode === 'pattern') usePatternStore.setState({ userPatterns: [...usePatternStore.getState().userPatterns] })
+    if (mode === 'library') useLibraryStore.setState({ userLibraries: [...useLibraryStore.getState().userLibraries] })
+    if (mode === 'map') useMapStore.setState({ userMaps: [...useMapStore.getState().userMaps] })
+    if (mode === 'cancel') store().cancelShowEdit(request.sessionId, request.operationId)
+    if (mode === 'hydrate') await store().loadShows()
+    if (mode === 'remove') { getPersonalContentProvider().deleteShow = async () => {}; await store().removeShow(durable.id) }
+    if (mode === 'reset') useShowStore.setState(showInitialState)
+    if (mode === 'retire') store().retireShowEditSession(request.sessionId)
+    if (mode === 'complete') store().completeShowEdit(request, 'asked')
+    expect(vi.getTimerCount()).toBe(0)
+    expect(stop).toHaveBeenCalledTimes(1)
+    const before = preservation()
+    store().releaseShowEditActivity(token)
+    vi.advanceTimersByTime(6000)
+    expect(preservation()).toEqual(before)
+    expect(store().admitResolvedShowResize(request).status).not.toBe('applied')
+  })
+
+  it('metadata invalidation preserves active input for a fresh qualified request', () => {
+    const { request, token } = waiting()
+    useMapStore.setState({ userMaps: [...useMapStore.getState().userMaps] })
+    expect(vi.getTimerCount()).toBe(0)
+    const next = store().beginResolvedShowResize(request.sessionId, { operationId: 'next', resize: { clipId: request.targets[0], durationMs: 6000 } })
+    expect(store().admitResolvedShowResize(next.request).status).toBe('waiting')
+    expect(write).not.toHaveBeenCalled()
+    store().releaseShowEditActivity(token)
+    expect(read(next.request)?.status).toBe('applied')
+  })
+
+  it('timeout releases qualified observers immediately', () => {
+    const original = usePatternStore.subscribe
+    const stop = vi.fn()
+    vi.spyOn(usePatternStore, 'subscribe').mockImplementation(listener => {
+      const unsubscribe = original(listener)
+      return () => { stop(); unsubscribe() }
+    })
+    waiting()
+    vi.advanceTimersByTime(5000)
+    expect(stop).toHaveBeenCalledTimes(1)
+    expect(vi.getTimerCount()).toBe(0)
+    expect(write).not.toHaveBeenCalled()
+  })
+
+  it('wrong envelopes and broad callback delivery cannot replace or bypass the wait', () => {
+    const { request, token } = waiting()
+    const before = preservation()
+    for (const patch of [{ payloadKey: 'other' }, { targets: ['other'] }, { baseRevision: 100 }, { showId: 'other' }]) {
+      expect(store().admitResolvedShowResize({ ...request, ...patch }).status).toBe('refused')
+    }
+    const evaluate = vi.fn((show: ShowRecord) => ({ ...show, name: 'Bypass' }))
+    expect(store().admitShowEdit(request, evaluate, () => true).status).toBe('refused')
+    expect(store().deliverShowEditCandidate(request, current(), () => true).status).toBe('refused')
+    expect(evaluate).not.toHaveBeenCalled()
+    expect(read(request)?.status).toBe('waiting')
+    expect(preservation()).toEqual(before)
+    store().releaseShowEditActivity(token)
+    expect(read(request)?.status).toBe('applied')
+  })
+
+  it('validates and deduplicates a waiting no-op at the original operation capacity', () => {
+    const session = store().beginShowEditSession(durable.id, 1)
+    const intent = { operationId: 'noop', resize: { clipId: current().composition!.scenes[0].zones[0].overlays[0].placements[0].id, durationMs: 4000 } }
+    const request = store().beginResolvedShowResize(session, intent).request
+    const token = store().acquireShowEditActivity(session, durable.id, 'drag')!
+    const before = preservation()
+    expect(store().admitResolvedShowResize(request).status).toBe('waiting')
+    store().releaseShowEditActivity(token)
+    expect(store().admitResolvedShowResize(request).status).toBe('noop')
+    expect(store().beginResolvedShowResize(session, { ...intent, operationId: 'new' })).toMatchObject({ reason: 'capacity' })
+    expect(preservation()).toEqual(before)
+  })
+})
+
+it('checks stale qualification before active input can queue it', async () => {
+  const pending = begin()
+  const token = store().acquireShowEditActivity(pending.request.sessionId, durable.id, 'drag')!
+  await edit(show => { show.composition!.scenes[0].zones[0].overlays[0].placements[0].opacity = 0.3 })
+  const before = preservation()
+  expect(store().admitResolvedShowResize(pending.request)).toMatchObject({ reason: 'revision-conflict' })
+  store().releaseShowEditActivity(token)
+  expect(preservation()).toEqual(before)
+})
+
+it('captures delivery arrival before readiness preparation when input is active', () => {
+  const pending = begin()
+  const token = store().acquireShowEditActivity(pending.request.sessionId, durable.id, 'drag')!
+  const before = preservation()
+  const clock = vi.spyOn(performance, 'now').mockReturnValue(0)
+  const original = globalThis.structuredClone
+  const clone = vi.spyOn(globalThis, 'structuredClone').mockImplementation(value => {
+    const result = original(value)
+    clock.mockReturnValue(5000)
+    return result
+  })
+  try {
+    expect(store().admitResolvedShowResize(pending.request)).toMatchObject({ reason: 'interaction-timeout' })
+    store().releaseShowEditActivity(token)
+    expect(preservation()).toEqual(before)
+  } finally { clone.mockRestore(); clock.mockRestore() }
+})
+
+it('refuses if final dependency qualification crosses the armed deadline', () => {
+  const pending = begin()
+  const token = store().acquireShowEditActivity(pending.request.sessionId, durable.id, 'drag')!
+  const before = preservation()
+  const clock = vi.spyOn(performance, 'now').mockReturnValue(0)
+  const original = dependencies.showResizeDependencyContext
+  let calls = 0
+  const context = vi.spyOn(dependencies, 'showResizeDependencyContext').mockImplementation((...args) => {
+    const result = original(...args)
+    if (++calls === 3) clock.mockReturnValue(5000)
+    return result
+  })
+  try {
+    expect(store().admitResolvedShowResize(pending.request).status).toBe('waiting')
+    store().releaseShowEditActivity(token)
+    expect(store().readShowEditCandidate(pending.request.sessionId, pending.request.operationId)).toMatchObject({ reason: 'interaction-timeout' })
+    expect(preservation()).toEqual(before)
+  } finally { context.mockRestore(); clock.mockRestore() }
 })

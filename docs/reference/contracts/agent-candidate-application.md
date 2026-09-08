@@ -46,7 +46,11 @@ and known whole-Show eligibility, then either admits synchronously or waits for
 explicit session/Show-bound `drag` and `dirty-field` ownership tokens. Focus alone
 is not activity. `readShowEditCandidate` projects a typed `waiting` status over
 the existing pending operation; terminal outcomes remain in the session table.
-The existing bridge and manual APIs are unchanged and do not use this wait path.
+The existing bridge and manual UI APIs do not use this wait path. Internal
+`admitResolvedShowResize` consumes the same owner, checks its private dependency
+qualification before waiting, and replays the captured operation on current state
+at settlement. It returns the same waiting projection; no immediate resize
+entrypoint bypasses active ownership.
 
 When active input requires waiting, the original completed-candidate arrival
 establishes one 5,000 ms monotonic deadline, captured before snapshot/serialization
@@ -70,17 +74,23 @@ same-session manual activity. Session replacement/retirement clears activity as
 well. Cancellation and noncandidate completion release pending candidate resources;
 adopted saves keep ordinary settlement ownership after retirement.
 
-Pending snapshots/callbacks/timers are discarded on terminal action. Exact
-serialized candidate identities remain separately, bounded by the existing
+Pending snapshots/callbacks/timers are discarded on terminal action. Qualified
+resize observation is discarded with its wait, including timeout; dependency or
+metadata invalidation also releases the wait immediately without retiring active
+same-session input tokens. Exact serialized candidate identities remain separately,
+bounded by the existing
 operation-table capacity until session retirement, so changed payloads cannot
-replace an original delivery or make a terminal id new. Wrong envelopes refuse
+replace an original delivery or make a terminal id new. Qualified resize uses its
+captured resolved payload identity in that same bound. Wrong envelopes refuse
 without poisoning the original. No automatic retry or provider/model call is
 introduced. [Store consumer tests](../../../src/store/showInputWait.test.ts)
 cover complete records/history, zero attributable writes while waiting/refused,
 monotonic boundaries and a serialized `.pxlshow` reopened through its importer.
-This is internal evidence only: the diagnostic bridge, real input-owner UI wiring,
-visible waiting/Cancel cue and qualified exact-resize wait consumption remain
-unqualified. The exact-resize API retains its existing immediate admission path.
+[Qualified resize consumer tests](../../../src/store/showQualifiedResize.test.ts)
+also prove independent Layer preservation through waiting and undo, final
+qualification crossing the armed deadline, and observation cleanup. This is
+internal evidence only: the diagnostic bridge, real input-owner UI wiring,
+visible waiting/Cancel cue and external Layer-scoped context remain unqualified.
 
 Manual pointer and composition-inspector duration commits also use the exact
 resize semantic owner, with two explicitly tagged manual Transition-to-Cut
@@ -92,10 +102,12 @@ sharing semantics does not give them this request lifecycle or narrow context.
 
 `beginResolvedShowResize` captures a resolved logical Clip and exact integer
 resize request in the current internal store session. `admitResolvedShowResize`
-replays that stored operation through `resizeShowClipExactly` on the current
+checks identity and observed dependencies, consumes the bounded active-input wait,
+then replays that stored operation through `resizeShowClipExactly` on the current
 Show, validates the complete candidate with `validateShowAuthoring`, and adopts
-once through ordinary store history and persistence. A validated no-op has a
-terminal `noop` receipt and creates no history, timestamp or provider write.
+once through ordinary store history and persistence. Final dependency qualification
+and validation must finish before an armed wait deadline; never-waited admission
+has no computation deadline. A validated no-op has a terminal `noop` receipt and creates no history, timestamp or provider write.
 
 The finite reference meaning is the original logical Clip identity. Its private
 dependency context protects the complete affected logical Layer across Scenes,

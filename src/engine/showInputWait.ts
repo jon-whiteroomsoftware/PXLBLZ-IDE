@@ -10,11 +10,12 @@ export type ShowInputWaitReceipt = ShowEditReceipt | { readonly status: 'waiting
 export function createShowInputWait(session: () => ShowEditSession | undefined) {
   const activity = new Set<ShowEditActivity>()
   const identities = new Map<string, string>()
-  const pending = new Map<string, { request: ShowEditRequest; deadline: number; timer: ReturnType<typeof setTimeout>; apply: () => ShowEditReceipt }>()
-  const release = (id: string) => {
+  const pending = new Map<string, { request: ShowEditRequest; deadline: number; timer: ReturnType<typeof setTimeout>; apply: () => ShowEditReceipt; discard?: () => void }>()
+  const release = (id: string, discard = true) => {
     const value = pending.get(id)
     if (value) clearTimeout(value.timer)
     pending.delete(id)
+    if (discard) value?.discard?.()
   }
   const settle = (id: string) => {
     const value = pending.get(id)
@@ -27,7 +28,7 @@ export function createShowInputWait(session: () => ShowEditSession | undefined) 
       release(id)
       current.refuse(id, 'interaction-timeout')
     } else if (!activity.size) {
-      release(id)
+      release(id, false)
       value.apply()
     } else {
       clearTimeout(value.timer)
@@ -58,7 +59,7 @@ export function createShowInputWait(session: () => ShowEditSession | undefined) 
       if (!activity.delete(token)) return
       for (const id of [...pending.keys()]) settle(id)
     },
-    deliver(request: ShowEditRequest, identity: string, arrivedAt: number, apply: (timing: ShowInputAdmissionTiming) => ShowEditReceipt, eligible: () => ShowEditReceipt): ShowInputWaitReceipt {
+    deliver(request: ShowEditRequest, identity: string, arrivedAt: number, apply: (timing: ShowInputAdmissionTiming) => ShowEditReceipt, eligible: () => ShowEditReceipt, discard?: () => void): ShowInputWaitReceipt {
       const current = session()
       if (!current || current.sessionId !== request.sessionId) return { status: 'retired', request }
       const checked = current.checkIdentity(request, current)
@@ -73,8 +74,12 @@ export function createShowInputWait(session: () => ShowEditSession | undefined) 
       if (admitted.status !== 'pending') return admitted
       if (!activity.size) return apply({ kind: 'immediate' })
       const deadline = arrivedAt + SHOW_INPUT_WAIT_MS
-      if (performance.now() >= deadline) return current.refuse(request.operationId, 'interaction-timeout')!
-      pending.set(request.operationId, { request: checked.request, deadline, apply: () => apply({ kind: 'after-active-input', deadline }), timer: setTimeout(() => settle(request.operationId), deadline - performance.now()) })
+      if (performance.now() >= deadline) {
+        current.refuse(request.operationId, 'interaction-timeout')
+        discard?.()
+        return current.read(request.operationId)!
+      }
+      pending.set(request.operationId, { request: checked.request, deadline, apply: () => apply({ kind: 'after-active-input', deadline }), discard, timer: setTimeout(() => settle(request.operationId), deadline - performance.now()) })
       return read(request.operationId)!
     },
     invalidate(showId?: string) {

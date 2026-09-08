@@ -59,12 +59,14 @@ writes. A callback returning no candidate or its original input identity
 produces a no-candidate refusal. Command-specific no-change semantics remain in
 the command registry.
 
-The internal completed-candidate wait path defers ordinary whole-Show admission
-while explicit drag/dirty owners remain active. Manual commit publishes its store
-replacement before releasing activity; settlement then performs the same current
-revision/final validation/adoption sequence without an await. Timeout, cancellation
-and lifecycle invalidation discard pending resources without taking over history
-or persistence. The [bounded wait contract](agent-candidate-application.md#internal-bounded-active-input-wait)
+The internal completed-candidate wait path defers whole-Show admission and
+qualified exact resize while explicit drag/dirty owners remain active. Manual
+commit publishes its store replacement before releasing activity; settlement
+then performs the applicable current qualification, final validation and adoption
+sequence without an await. Whole-Show work uses revision equality; qualified resize
+replays on current state under its private Layer dependencies, preserving unrelated
+placement edits. Timeout, cancellation and lifecycle invalidation discard pending
+resources without taking over history or persistence. The [bounded wait contract](agent-candidate-application.md#internal-bounded-active-input-wait)
 defines ownership, timing and its internal-only limits.
 
 The operation table retains immutable pending, refused, cancelled, completed, no-op and

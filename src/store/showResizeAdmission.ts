@@ -8,6 +8,7 @@ import { LIBRARIES } from '@/pixelblaze/libs'
 import { usePatternStore } from './patternStore'
 import { useLibraryStore } from './libraryStore'
 import { useMapStore } from './mapStore'
+import type { createShowInputWait, ShowInputAdmissionTiming, ShowInputWaitReceipt } from '@/engine/showInputWait'
 
 export interface ResolvedShowResizeIntent {
   operationId: string
@@ -22,6 +23,7 @@ interface Owner {
   missing: (id: string) => boolean
   adopt: (id: string, show: ShowRecord, settle: (value: Exclude<ShowEditSettlement, 'saving'>) => void) => Promise<void>
   isStock: (id: string) => boolean
+  inputWait: ReturnType<typeof createShowInputWait>
 }
 
 /** Internal owner only. The receipt identifies original logical-reference intent;
@@ -42,6 +44,7 @@ export function createShowResizeAdmission(owner: Owner) {
   }
   const release = (id: string) => {
     pending.delete(id)
+    owner.inputWait.release(id)
     if (!pending.size) { subscriptions.forEach(stop => stop()); subscriptions = [] }
   }
   const invalidate = (showId?: string) => {
@@ -67,6 +70,39 @@ export function createShowResizeAdmission(owner: Owner) {
       useMapStore.subscribe((next, previous) => { if (next.userMaps !== previous.userMaps) invalidate() }),
     ]
   }
+  const check = (request: ShowEditRequest): ShowEditReceipt => {
+    const session = owner.session()
+    if (!session || session.sessionId !== request.sessionId) return { status: 'retired', request }
+    // Only the private dependency observer can establish independence from revisions.
+    const checked = session.check(request, { sessionId: session.sessionId, showId: session.showId, revision: owned.has(request.operationId) ? request.baseRevision : owner.revision(session.showId) })
+    if (checked.status !== 'pending') return checked
+    if (!pending.has(request.operationId)) return session.refuse(request.operationId, 'invalid-candidate')!
+    observe()
+    return session.read(request.operationId)!
+  }
+  const apply = (request: ShowEditRequest, timing: ShowInputAdmissionTiming): ShowEditReceipt => {
+    const checked = check(request)
+    if (checked.status !== 'pending') return checked
+    const session = owner.session()!
+    const value = pending.get(request.operationId)!
+    const current = owner.current(request.showId)!
+    const result = resizeShowClipExactly(current, current.composition!, value.resize)
+    if (result.status === 'refused') { release(request.operationId); return session.refuse(request.operationId, 'invalid-candidate')! }
+    const candidate = { ...current, composition: result.composition }
+    const valid = validateShowAuthoring(candidate, { ...metadata(), baseline: value.baseline, allowExistingMissing: true }).valid
+    const final = check(request)
+    if (final.status !== 'pending') return final
+    if (timing.kind === 'after-active-input' && performance.now() >= timing.deadline) {
+      release(request.operationId)
+      return session.refuse(request.operationId, 'interaction-timeout')!
+    }
+    if (!valid) { release(request.operationId); return session.refuse(request.operationId, 'invalid-candidate')! }
+    release(request.operationId)
+    if (result.status === 'noop') return session.noop(request.operationId)
+    const applied = session.adopted(request.operationId, owner.isStock(request.showId) ? 'draft' : 'saving')
+    void owner.adopt(request.showId, candidate, settlement => { if (settlement !== 'draft') session.settle(request.operationId, settlement) }).catch(() => { /* Store recovery and receipt own failure. */ })
+    return applied
+  }
   return {
     owns: (id: string) => owned.has(id),
     invalidate,
@@ -91,31 +127,11 @@ export function createShowResizeAdmission(owner: Owner) {
       watch()
       return result
     },
-    admit(request: ShowEditRequest): ShowEditReceipt {
-      const session = owner.session()
-      if (!session || session.sessionId !== request.sessionId) return { status: 'retired', request }
-      // The envelope is checked against the stored request, while only the
-      // authoritative observer can establish independence from later revisions.
-      const checked = session.check(request, { sessionId: session.sessionId, showId: session.showId, revision: owned.has(request.operationId) ? request.baseRevision : owner.revision(session.showId) })
-      if (checked.status !== 'pending') return checked
-      const value = pending.get(request.operationId)
-      if (!value) return session.refuse(request.operationId, 'invalid-candidate')!
-      observe()
-      const observed = session.read(request.operationId)!
-      if (observed.status !== 'pending') return observed
-      const current = owner.current(request.showId)!
-      const result = resizeShowClipExactly(current, current.composition!, value.resize)
-      if (result.status === 'refused') { release(request.operationId); return session.refuse(request.operationId, 'invalid-candidate')! }
-      const candidate = { ...current, composition: result.composition }
-      if (!validateShowAuthoring(candidate, { ...metadata(), baseline: value.baseline, allowExistingMissing: true }).valid) {
-        release(request.operationId)
-        return session.refuse(request.operationId, 'invalid-candidate')!
-      }
-      release(request.operationId)
-      if (result.status === 'noop') return session.noop(request.operationId)
-      const applied = session.adopted(request.operationId, owner.isStock(request.showId) ? 'draft' : 'saving')
-      void owner.adopt(request.showId, candidate, settlement => { if (settlement !== 'draft') session.settle(request.operationId, settlement) }).catch(() => { /* Store recovery and receipt own failure. */ })
-      return applied
+    admit(request: ShowEditRequest): ShowInputWaitReceipt {
+      const arrivedAt = performance.now()
+      const captured = structuredClone(request)
+      return owner.inputWait.deliver(captured, captured.payloadKey, arrivedAt,
+        timing => apply(captured, timing), () => check(captured), () => release(captured.operationId))
     },
   }
 }

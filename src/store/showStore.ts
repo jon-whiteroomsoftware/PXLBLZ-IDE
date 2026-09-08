@@ -114,7 +114,7 @@ interface ShowState {
     validate: (candidate: ShowRecord, current: ShowRecord) => boolean,
   ) => ShowEditReceipt
   beginResolvedShowResize: (sessionId: string, intent: ResolvedShowResizeIntent) => ShowEditReceipt
-  admitResolvedShowResize: (request: ShowEditRequest) => ShowEditReceipt
+  admitResolvedShowResize: (request: ShowEditRequest) => ShowInputWaitReceipt
   shows: ShowRecord[]
   showsLoaded: boolean
   activeShowId: string | null
@@ -252,6 +252,7 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
   let editSession: ShowEditSession | undefined
   const inputWait = createShowInputWait(() => editSession)
   const resizeAdmission = createShowResizeAdmission({
+    inputWait,
     session: () => editSession,
     current: id => get().resolveEditableShow(id),
     revision: id => get().showRevisions[id] ?? 0,
