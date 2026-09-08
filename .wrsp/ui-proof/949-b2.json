@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "949",
+  "route": "/PXLBLZ-IDE/studio/shows/d7c918a1-b425-4075-8d59-c98f71cdaa77?agent=1",
+  "operation": "On managed synthetic issue runtime 5178, the actual scripted overlay applied and saved a two-operation candidate once. A later delayed marker reply refused after manual brightness 75%. Desktop/narrow captures show truthful outcomes; closing and removing opt-in prevented reinjection. Repository Playwright fallback after IAB lacked synthetic session/script APIs.",
+  "captures": [
+    ".wrsp/ui-proof/949-b2-applied.png",
+    ".wrsp/ui-proof/949-b2-refused.png",
+    ".wrsp/ui-proof/949-b2-narrow.png"
+  ],
+  "capturedAtCommit": "7e76f14dadc1751333791b750e0eac218b931c1a"
+}

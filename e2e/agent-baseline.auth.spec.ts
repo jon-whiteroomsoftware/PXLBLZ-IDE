@@ -690,16 +690,25 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     const writes = watchShowWrites(page)
 
     await page.goto(`studio/shows/${record.id}?agent=1`)
+    // H tests an already-loaded source context; hydration during inference is
+    // separately a conservative invalidation, not a stable-source acceptance.
+    await expect.poll(() => page.evaluate(async () => {
+      const load = (path: string) => import(path)
+      const [{ usePatternStore }, { useLibraryStore }, { useMapStore }] = await Promise.all([
+        load('/PXLBLZ-IDE/src/store/patternStore.ts'), load('/PXLBLZ-IDE/src/store/libraryStore.ts'), load('/PXLBLZ-IDE/src/store/mapStore.ts'),
+      ])
+      return usePatternStore.getState().patternsLoaded && useLibraryStore.getState().librariesLoaded && useMapStore.getState().mapsLoaded
+    })).toBe(true)
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
     await injectOverlay(page, bridge.url)
     const requestId = await submitUtterance(page, RESIZE_UTTERANCE)
     const request = await waitForDone(page, requestId)
-    expect(request.applied).toBe(true)
+    expect(request.applied, JSON.stringify(request)).toBe(true)
     const visible = await visibleClipFacts(page, BASELINE_LIBRARY_PATTERN.name)
     expect(visible.durationSeconds).toBe('12')
     await waitForDurable(page, record.id, (show) => firstMain(show)?.durationMs === 12_000)
     const observations = await readObservations(page)
-    const previewText = await page.getByTestId('preview-pane').textContent().catch(() => null)
+    const previewText = await page.getByTestId('show-stage-preview').textContent()
     await page.screenshot({ path: join(REPORT_DIR, 'H-personal-library.png'), fullPage: true })
     saveRecord('H-personal-library', {
       showId: record.id, request, writes, observations, visible,
