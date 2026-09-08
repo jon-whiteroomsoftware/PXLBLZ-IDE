@@ -2,8 +2,7 @@
 
 The first service is for a small allowlisted testing audience. Reuse the existing app and
 OpenAI setup, keep the feature absent without explicit URL opt-in, and preserve manual Show
-editing throughout failures. This document separates accepted product decisions from a compact
-recommendation for the remaining choices. It does not authorize deployment or claim a live
+editing throughout failures. Jon approved the complete policy package on 2026-09-08. It does not authorize deployment or claim a live
 OAuth/MCP service exists.
 
 ## Accepted
@@ -23,7 +22,7 @@ Authoritative product scope and scenarios remain in #946, #947, #956 and #959. B
 external connections have distinct inference ownership but share one semantic/admission path.
 External conversations stay in the external client.
 
-## Remaining recommendation for Jon
+## Policy package accepted 2026-09-08
 
 1. **URL:** use `?agent=1` (or `&agent=1` on a URL with other parameters). Only the exact value
    `1` enables the feature. Keep the parameter through ordinary in-app navigation in that tab;
@@ -31,7 +30,7 @@ External conversations stay in the external client.
    unapplied work and preserves already-adopted Show saves. The current URL is the opt-in source.
 2. **Built-in conversation:** keep the transcript in the current Show editing session only.
    Reload or leaving the Show clears it. Do not create a chat database for the first version.
-   This is a separate proposed choice from the already accepted session-only edit receipts.
+   Transcript lifetime and edit-receipt lifetime are separate accepted contracts.
 3. **Deployment direction:** extend the existing Cloudflare Worker for the built-in streaming
    route and keep external MCP on the same platform. Avoid a new VM/process service. Qualify
    the actual execution plan and external live-tab routing before calling this production-ready;
@@ -42,9 +41,8 @@ External conversations stay in the external client.
    separate boundary and needs verification against the actual API/account settings; app-side
    transcript policy does not promise provider-side zero retention.
 
-These four choices are recommendations, not silently accepted requirements. The spending
-ceiling is already accepted. Engineering can choose the simple configuration spelling and
-bounded implementation mechanics once this policy package is accepted; return to Jon for a
+These four choices and the spending ceiling are accepted. Engineering can choose
+bounded implementation mechanics; return to Jon for a
 change in behavior, cost boundary or storage scope.
 
 ## Implementation constraints and evidence
@@ -124,3 +122,10 @@ current local eligibility checks. The accepted #959 binding/session model remain
 #957 implements the built-in path, #963 the external path and #964 per-client interoperability.
 #949/#950 supply the qualified editor/command seam. The final #959 surface mock-up and its
 interaction proof remain separate. Nothing in this packet makes those dependent issues done.
+
+### Current diagnostic implementation
+
+B2 wires the existing DEV editable-Show bridge and manually injected overlay to exact
+URL gating, session-only transcripts, whole-Show admission and truthful save receipts.
+It does not implement hosted inference, OAuth/MCP, logging/accounting or final #959
+placement. The accepted Cloudflare direction still requires runtime qualification.

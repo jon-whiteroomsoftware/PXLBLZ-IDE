@@ -1564,6 +1564,13 @@ on the live editor route through the real overlay and a scripted bridge, with
 request ids correlated across the overlay, the bridge phase clock, the
 dev-only read-only observation seam in `src/dev/agentObservation.ts`, and
 the personal-content writes; it is an explicit diagnostic, not a push gate.
+The DEV editable-Show bridge requires exact URL `agent=1`. Its adapter registers
+immutable requests before inference and admits through whole-Show revision and
+current authoring/source validation, with session/source restoration invalidation
+and typed save outcomes. The overlay retains the original bridge and clears its
+transcript on departure, query removal or close. Broad model context does not
+qualify for internal Layer-independent resize admission. Active-input waiting,
+final panel and hosted service remain separate integration work.
 
 The harness's paid model calls (`agent:corpus --live`, live `agent:bridge`)
 are owned by its paid-call guard (`src/agent-harness/experiment/paidCallGuard.ts`,

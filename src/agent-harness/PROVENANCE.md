@@ -369,3 +369,13 @@ paid evidence and diagnostic patch restrictions remain intact.
 
 All four are devDependencies: only `src/main.tsx`'s import graph is bundled, and the production
 build was scanned for both SDKs after the transfer.
+
+## B2 gated diagnostic integration (#949, #956)
+
+The V2-authored browser adapter in `src/dev/agentEditorAdmission.ts` registers
+immutable whole-Show requests before inference, validates incoming structure and
+final authoring semantics, and returns store-owned admission/save receipts. The
+transferred overlay now retains its original gated editor bridge, clears the
+session transcript on departure/removal/close and reports actual application.
+The original V3 provenance remains above. No hosted service, paid inference,
+final panel, active-input wait or command-catalogue parity is claimed.

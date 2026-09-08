@@ -795,7 +795,10 @@ outside the app. The Astra Low implementation-worker policy is separate from thi
 choice. This decision adds no numerical latency target or new benchmark claim.
 
 The [service decision packet](agent-show-service-decisions.md) separates these accepted choices
-from the remaining proposed URL lifecycle, transcript/log retention and deployment direction.
+including the URL lifecycle, session-only transcript, minimal redacted operational records
+and existing Cloudflare deployment direction approved on 2026-09-08. B2 implements
+the URL/session/admission boundary in the existing diagnostic overlay only; hosted
+service, final panel placement, active-input wait and full command migration remain.
 
 #958 runs the agreed capability and real-editor campaign on the release candidate, scores the
 sealed held-out utterances, verifies that manual authoring and generated artifacts remain
@@ -955,8 +958,8 @@ expands. An unanswered decision is not approval.
 | Numerical speed targets | #946 | rejected by Jon; optimize and observe both paths without latency limits |
 | Canonical commands, resize, no-change semantics and finite census | #947 | product decisions accepted; source-verified census complete; documentation review pending |
 | Final agent surface placement and interaction approval | #959 | layout prerequisites complete; final design/approval remains |
-| Service/provider, grants, transport, allowance, retention and disable | #956 | open, constrained by accepted #946/#959 policy |
-| URL flag spelling, navigation and in-flight disable semantics | #956 | default-off requirement accepted; details before first exposure |
+| Service/provider, grants, transport, allowance, retention and disable | #956 | policy package accepted; hosted implementation/qualification remains |
+| URL flag spelling, navigation and in-flight disable semantics | #956 | exact agent=1 accepted; B2 diagnostic lifecycle implemented |
 | Release acceptance | #958, including #964 external proof | after approved capability and operational evidence |
 
 The desired final result is concrete: the author points, asks, and keeps working. A fast agent

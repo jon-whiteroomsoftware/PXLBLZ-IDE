@@ -105,6 +105,7 @@ interface ShowState {
   retireShowEditSession: (sessionId: string) => void
   beginShowEdit: (sessionId: string, intent: ShowEditIntent) => ShowEditReceipt
   readShowEdit: (sessionId: string, operationId: string) => ShowEditReceipt | undefined
+  completeShowEdit: (request: ShowEditRequest, completion: import('@/engine/showEditAdmission').ShowEditCompletion) => ShowEditReceipt
   cancelShowEdit: (sessionId: string, operationId: string) => ShowEditReceipt | undefined
   admitShowEdit: (
     request: ShowEditRequest,
@@ -408,6 +409,15 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
       if (settlement !== 'draft') session.settle(request.operationId, settlement)
     }).catch(() => { /* Store recovery notice and receipt own the failure. */ })
     return adopted
+  },
+  completeShowEdit: (request, completion) => {
+    const session = editSession
+    if (!session || session.sessionId !== request.sessionId) return { request, status: 'retired' }
+    const checked = session.check(request, { sessionId: session.sessionId, showId: session.showId, revision: get().showRevisions[session.showId] ?? 0 })
+    if (checked.status !== 'pending') return checked
+    if (!['asked', 'refused', 'nothing-applied', 'commit-refused', 'incomplete', 'service-refused', 'service-failed'].includes(completion)) return { request, status: 'refused', reason: 'identity-mismatch' }
+    resizeAdmission.release(request.operationId)
+    return session.complete(request.operationId, completion)!
   },
 
   loadShows: async () => {

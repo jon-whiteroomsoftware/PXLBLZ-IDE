@@ -36,7 +36,7 @@ session or explicitly retiring the current one makes its requests ineligible,
 even when the next editor opens the same Show. Adapters must retain the session
 token across ordinary component effect recreation and retire it on editor
 departure. Store navigation away and Show creation retire the current session;
-the diagnostic editor bridge has not yet adopted this API.
+the gated diagnostic editor bridge uses this API.
 
 Document revisions advance independently of persistence timestamps. Personal
 and stock updates, undo/redo, recovery rollback, creation, deletion start and
@@ -59,7 +59,7 @@ writes. A callback returning no candidate or its original input identity
 produces a no-candidate refusal. Command-specific no-change semantics remain in
 the command registry.
 
-The operation table retains immutable pending, refused, cancelled, no-op and
+The operation table retains immutable pending, refused, cancelled, completed, no-op and
 applied receipts for the live session. Duplicate delivery reads the existing
 outcome; a changed envelope under the same id refuses without replacing that
 identity. Explicit retry requires a new id and retains the original payload
@@ -149,10 +149,9 @@ store revisions; existing manual replacement callers retain their original API.
 - Durable-baseline ordering uses store-assigned `updatedAt` ordering stamps.
   They are not server revisions or a cross-client conflict protocol; clock skew
   can still misorder records from different clients. #802 owns that boundary.
-- The manual `updateShow` API, still used by the diagnostic bridge, accepts
-  complete records without comparing an expected base revision. Save serialization alone does not prevent a stale replacement
-  from overwriting a newer edit; baseline sequences A, B, and C reproduce
-  that overwrite on the live editor.
+- The manual `updateShow` API accepts complete records without comparing an
+  expected base revision. It remains an internal manual-owner primitive; the
+  diagnostic bridge uses checked admission instead.
 
 These limits describe present behavior. They do not authorize weakening the
 ordinary-update recovery guarantee or claim that shared editing is safe.
@@ -175,5 +174,5 @@ prove general collaborative editing or clock-skew safety.
 [Admission tests](../../../src/store/showEditAdmission.test.ts) cover the internal
 request seam with complete record/history and provider oracles, including
 stale revisions, hydration/reset/deletion, session retirement, duplicates,
-capacity, rollback/supersession and stock drafts. These tests do not prove
-live editor integration or qualified Layer independence.
+capacity, rollback/supersession and stock drafts. These tests qualify the internal owner. The diagnostic browser baseline covers
+live whole-Show admission; qualified Layer independence has separate C1 evidence.

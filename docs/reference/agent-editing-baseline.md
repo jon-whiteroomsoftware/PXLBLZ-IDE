@@ -22,7 +22,7 @@ Contracts this evidence serves:
 
 | Command | What it proves | CI |
 | --- | --- | --- |
-| `npm run test:e2e:agent-baseline` | Eight sequences on the live editor route in Chromium against a real scripted bridge process: seven reproductions plus the green sequence E recovery regression. Writes `reports/agent-harness/baseline/browser/<run>/` (one JSON record and one screenshot per sequence, plus the bridge log). | explicit only; not a push gate |
+| `npm run test:e2e:agent-baseline` | Nine cases on the live editor route: B2 exact gating plus A-D stale/session prevention and E-H retained recovery/adoption cases. Writes `reports/agent-harness/baseline/browser/<run>/` (captures, selected phase records and the bridge log). | explicit only; not a push gate |
 | `npm run agent:baseline:fixtures` | Every baseline fixture exported as `.pxlshow` and `.epe` at a fixed stamp, one scripted bridge turn, export again; compares hashes against `src/agent-harness/baseline/evidence/fixtures.json` and exits 1 on drift. `-- --write` re-records after a human has read the diff. | explicit only |
 | `npm run agent:smoke`, `npm run agent:corpus -- --fake` | Unchanged from the first slice: bridge path and corpus without an editor. | manual |
 | `npx vitest run src/agent-harness src/dev` | Bridge request-id and phase-clock tests, fixture-set coverage and record-hash pins, the observation log. | `npm test` |
@@ -53,7 +53,9 @@ the personal-content PATCH, and the stage preview compile all run for real.
 The #945 run below established all eight bad outcomes as reproductions. #948
 inverted sequence E in place: its current oracle requires the saved candidate
 to remain visible after a later failed save, remain durable, and reopen as the
-same record. Sequences A-D and F-H retain their original diagnostic oracles.
+same record. B2 inverted A-D to prevention assertions and added exact URL gating. E now begins
+with an eligible candidate because stale application is correctly refused. F-G
+retain adoption/draft assertions; H retains its separately unqualified preview limitation.
 
 | Seq | Sequence | Observed on the live editor |
 | --- | --- | --- |
@@ -271,3 +273,20 @@ correctness checks, durable settlement, and matching preview publication hold.
   rerun or tuned.
 - The threshold proposals are not accepted; #946 owns that decision.
 - The sealed held-out set remains untouched until #958.
+
+## B2 current diagnostic qualification
+
+The current suite requires exact `agent=1`, rejects off/ambiguous flags, clears
+transcript on departure and query removal, preserves manual updates/deletion/movement/
+time insertion against late full-record replies, and keeps manual Undo/save usable.
+The adapter tests cover immutable envelopes, duplicate delivery, edit-undo and external
+Pattern/Library/Map restoration, malformed/new missing references, bounded completed
+turns and actual delayed save receipts. Historical observations above remain pinned
+to their original code and are not present-behavior claims. Active-input waiting,
+final panel, hosted service and broad-model Layer independence remain unqualified.
+
+Browser proof uses repository Playwright. The in-app browser connected, but its
+documented API allows read-only evaluation and advertises no cookie/session setup
+or script injection; the two capability probes established that limit before the
+explicit fallback. The fallback uses synthetic authenticated real routes and the
+actual manually injected overlay/HTTP/scripted service without paid inference.

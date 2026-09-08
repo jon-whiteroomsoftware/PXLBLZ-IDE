@@ -321,7 +321,7 @@ import {
   type ShowLayoutInterval,
 } from '@/engine/showLayoutIntervals'
 import { SaveFailureNotice } from '@/components/SaveFailureNotice'
-import { recordAgentObservation, showRecordDigest } from '@/dev/agentObservation'
+import { agentUrlEnabled, createAgentEditorAdmission, observeAgentLocation } from '@/dev/agentEditorAdmission'
 import ShowSourceOutletContext from '@/components/ShowSourceOutlet'
 import { ShowStripSection } from '@/components/ShowStripSection'
 import { useAnchoredOverlayPosition } from '@/components/useAnchoredOverlayPosition'
@@ -1062,70 +1062,31 @@ export function ShowEditor({
   // script the editor without a component handle.
   useEffect(() => {
     if (!import.meta.env.DEV || readOnly) return
-    const w = window as unknown as { __pxlblzEditor?: unknown }
-    const api = {
-      // Cloned both ways: handing out the live store object would let
-      // tooling alias state (an in-place mutation defeats the identity
-      // check in updateShow and corrupts the history snapshot).
-      getShow: (): ShowRecord | undefined => {
-        const record = useShowStore.getState().resolveEditableShow(showId)
-        return record ? structuredClone(record) : undefined
-      },
-      getEditorFocus: () => ({
-        showId,
-        selection: useShowEditorViewStore.getState().selection,
-        viewport: useShowEditorViewStore.getState().viewport,
-        hoveredClipId: useShowClipHoverStore.getState().hoveredClipId,
-        playheadMs: useShowTransportStore.getState().showId === showId
-          ? useShowTransportStore.getState().positionMs
-          : 0,
-      }),
-      applyShow: async (record: ShowRecord, options?: { requestId?: string }): Promise<boolean> => {
-        // A retained bridge object dies with its install: after a Show
-        // switch or unmount this instance is no longer the window value,
-        // and a stale apply must not persist an inactive Show.
-        const requestId = options?.requestId
-        const observe = (
-          phase: 'admitted' | 'adopted' | 'settled' | 'rejected' | 'failed',
-        ) => {
-          // Read-only baseline instrumentation (#945): phases of one
-          // application, correlated by the caller's request id. No record
-          // content is kept, only a digest of what the editor now shows.
-          const current = useShowStore.getState().resolveEditableShow(showId)
-          recordAgentObservation({
-            kind: 'agent-apply',
-            phase,
-            showId,
-            ...(requestId ? { requestId } : {}),
-            at: Date.now(),
-            ...(current ? { digest: showRecordDigest(current), updatedAt: current.updatedAt } : {}),
-            historyDepth: useShowStore.getState().showHistories[showId]?.past.length ?? 0,
-          })
-        }
-        observe('admitted')
-        if (w.__pxlblzEditor !== api) {
-          observe('rejected')
-          return false
-        }
-        if (!record || record.id !== showId) {
-          observe('rejected')
-          return false
-        }
-        const update = useShowStore.getState().updateShow(showId, structuredClone(record))
-        // updateShow adopts the record synchronously before awaiting its save.
-        observe('adopted')
-        try {
-          await update
-        } catch (error) {
-          observe('failed')
-          throw error
-        }
-        observe('settled')
-        return true
-      },
+    const w = window as unknown as { __pxlblzEditor?: ReturnType<typeof createAgentEditorAdmission> }
+    const pathname = window.location.pathname
+    let api: ReturnType<typeof createAgentEditorAdmission> | undefined
+    const sync = () => {
+      if (!agentUrlEnabled() || window.location.pathname !== pathname) {
+        api?.close()
+        if (w.__pxlblzEditor === api) delete w.__pxlblzEditor
+        api = undefined
+      } else if (!api) {
+        api = createAgentEditorAdmission(showId, () => ({
+          showId,
+          selection: useShowEditorViewStore.getState().selection,
+          viewport: useShowEditorViewStore.getState().viewport,
+          hoveredClipId: useShowClipHoverStore.getState().hoveredClipId,
+          playheadMs: useShowTransportStore.getState().showId === showId
+            ? useShowTransportStore.getState().positionMs : 0,
+        }))
+        w.__pxlblzEditor = api
+      }
     }
-    w.__pxlblzEditor = api
+    const stop = observeAgentLocation(sync)
+    sync()
     return () => {
+      api?.close()
+      stop()
       if (w.__pxlblzEditor === api) delete w.__pxlblzEditor
     }
   }, [readOnly, showId])

@@ -187,12 +187,12 @@ function watchShowWrites(page: Page): ShowWrite[] {
 }
 
 async function createPersonalShow(page: Page): Promise<string> {
-  await page.goto('studio/shows')
+  await page.goto('studio/shows?agent=1')
   await page.getByRole('button', { name: 'Add show' }).click()
   await page.getByRole('button', { name: 'New show' }).click()
   await page.getByRole('button', { name: 'Create Installation Show' }).click()
   await page.getByRole('button', { name: 'Create Show' }).click()
-  await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+$/)
+  await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+\?agent=1$/)
   await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
   return new URL(page.url()).pathname.split('/').at(-1)!
 }
@@ -429,230 +429,144 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     writeFileSync(join(REPORT_DIR, 'bridge.log'), `${bridge.logLines.join('\n')}\n`)
   })
 
-  test('A: a delayed reply overwrites a manual edit made during inference (stale whole record)', async ({ page }) => {
+  test('B2 gate: off injection, query retirement and same-URL rerenders preserve manual ownership', async ({ page }) => {
     test.setTimeout(90_000)
-    const writes = watchShowWrites(page)
     const showId = await createPersonalShow(page)
-    await injectOverlay(page, bridge.url)
-    const before = await visibleClipFacts(page, 'TestPattern1D')
-    expect(before).toEqual({ durationSeconds: '30', brightnessPercent: '100' })
-
-    const requestId = await submitUtterance(page, RESIZE_UTTERANCE)
-    await waitForAccepted(page, requestId)
-    // Manual edit B while the candidate is pending on the bridge.
-    const manualAt = Date.now()
+    for (const search of ['', '?agent', '?agent=0', '?agent=true', '?agent=1&agent=0']) {
+      await page.evaluate(search => window.history.replaceState(null, '', window.location.pathname + search), search)
+      await page.addScriptTag({ url: `${bridge.url}/chat.js` })
+      await expect(page.getByTestId('agent-chat-panel')).toHaveCount(0)
+      expect(await page.evaluate(() => !!(window as unknown as { __pxlblzEditor?: unknown }).__pxlblzEditor)).toBe(false)
+    }
     await setClipBrightness(page, 'TestPattern1D', '75')
-    await waitForDurable(page, showId, (show) => firstMain(show)?.brightness === 0.75)
-
-    const request = await waitForDone(page, requestId)
-    expect(request.changed).toBe(true)
-    expect(request.applied).toBe(true)
-
-    // Visible: the agent's resize landed and the manual brightness is gone.
-    const after = await visibleClipFacts(page, 'TestPattern1D')
-    expect(after).toEqual({ durationSeconds: '12', brightnessPercent: '100' })
-    // Durable: the candidate's whole record, stamped older than the manual save it replaced.
-    await waitForDurable(page, showId, (show) => firstMain(show)?.durationMs === 12_000)
-    const durable = await durableShow(page, showId)
-    expect(firstMain(durable)?.brightness).toBe(1)
-    // The route as the author sees it once the reply has replaced the manual edit.
-    await page.screenshot({ path: join(REPORT_DIR, 'A-stale-overwrite.png'), fullPage: true })
-    const patches = writes.filter((write) => write.method === 'PATCH')
-    expect(patches.map((write) => write.firstMain)).toEqual([
-      { durationMs: 30_000, brightness: 0.75 },
-      { durationMs: 12_000, brightness: 1 },
-    ])
-    expect(patches[1].updatedAt).toBe(request.capturedUpdatedAt)
-    expect(patches[1].updatedAt!).toBeLessThan(patches[0].updatedAt!)
-    expect(durable?.updatedAt).toBe(request.capturedUpdatedAt)
-    // History: the replacement is one entry above the manual edit.
-    expect(await undoEnabled(page)).toBe(true)
-    await page.getByRole('button', { name: 'Undo Show edit' }).click()
-    expect(await visibleClipFacts(page, 'TestPattern1D')).toEqual({ durationSeconds: '30', brightnessPercent: '75' })
-
-    const observations = await readObservations(page)
-    const phases = observations.filter((entry) => entry.kind === 'agent-apply' && entry.requestId === requestId).map((entry) => entry.phase)
-    expect(phases).toEqual(['admitted', 'adopted', 'settled'])
-    const adopted = observations.find((entry) => entry.kind === 'agent-apply' && entry.requestId === requestId && entry.phase === 'adopted')
-    expect(observations.some((entry) => entry.kind === 'preview-published' && entry.digest === adopted?.digest && entry.at >= adopted.at)).toBe(true)
-
-    await page.screenshot({ path: join(REPORT_DIR, 'A-after-undo.png'), fullPage: true })
-    saveRecord('A-stale-overwrite', {
-      showId, manualEditAt: manualAt, request, writes, observations, visible: { before, after },
-      durable: { updatedAt: durable?.updatedAt, firstMain: firstMain(durable) },
-      timeline: phaseTimeline(request, observations, writes),
+    await waitForDurable(page, showId, show => firstMain(show)?.brightness === 0.75)
+    await page.evaluate(() => window.history.replaceState(null, '', window.location.pathname + '?capture&agent=1&unrelated=kept'))
+    await injectOverlay(page, bridge.url)
+    const result = await page.evaluate(() => {
+      const win = window as unknown as { __pxlblzEditor: { sessionId: string; beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: Record<string, unknown> }; applyShow: (show: unknown, request: unknown) => { status: string }; getEditorFocus: () => unknown }; __retained?: unknown }
+      const original = win.__pxlblzEditor
+      const captured = original.beginRequest('retained', 'rename', [])
+      window.history.replaceState(null, '', window.location.href)
+      const same = win.__pxlblzEditor === original
+      window.history.replaceState(null, '', window.location.pathname + '?capture&unrelated=kept')
+      window.history.replaceState(null, '', window.location.pathname + '?capture&agent=1&unrelated=kept')
+      return { same, old: original.applyShow({ ...captured.show, name: 'Stale' }, captured.request), changed: win.__pxlblzEditor.sessionId !== original.sessionId }
     })
+    expect(result).toEqual({ same: true, old: { request: expect.any(Object), status: 'retired' }, changed: true })
+    await expect(page.getByTestId('agent-chat-panel')).toHaveCount(0)
+    expect(new URL(page.url()).searchParams.get('unrelated')).toBe('kept')
+    expect((await durableShow(page, showId))?.name).toBe('Untitled Show')
+    await page.getByRole('button', { name: 'Undo Show edit' }).click()
+    await waitForDurable(page, showId, show => firstMain(show)?.brightness === 1)
   })
 
-  test('B: a delayed reply resurrects a deleted target, then reverts a real target-Clip drag', async ({ page }) => {
+  test('A: a delayed reply refuses after a manual edit and preserves its durable record', async ({ page }) => {
     test.setTimeout(90_000)
     const writes = watchShowWrites(page)
     const showId = await createPersonalShow(page)
     await injectOverlay(page, bridge.url)
+    const requestId = await submitUtterance(page, RESIZE_UTTERANCE)
+    await waitForAccepted(page, requestId)
+    await setClipBrightness(page, 'TestPattern1D', '75')
+    await waitForDurable(page, showId, show => firstMain(show)?.brightness === 0.75)
+    const before = await durableShow(page, showId)
+    const request = await waitForDone(page, requestId)
+    expect(request.applied).toBe(false)
+    expect(await durableShow(page, showId)).toEqual(before)
+    expect(await visibleClipFacts(page, 'TestPattern1D')).toEqual({ durationSeconds: '30', brightnessPercent: '75' })
+    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+    await page.getByRole('button', { name: 'Undo Show edit' }).click()
+    expect(await visibleClipFacts(page, 'TestPattern1D')).toEqual({ durationSeconds: '30', brightnessPercent: '100' })
+    const observations = await readObservations(page)
+    expect(observations.filter(entry => entry.kind === 'agent-apply' && entry.requestId === requestId).map(entry => entry.phase)).toEqual(['admitted', 'rejected'])
+    await page.screenshot({ path: join(REPORT_DIR, 'A-stale-refused.png'), fullPage: true })
+    saveRecord('A-stale-refused', { showId, request, writes, observations, preserved: before })
+  })
 
-    // Delete the target while the reply is pending.
+  test('B: a delayed reply cannot resurrect a deleted target or undo its restored manual movement', async ({ page }) => {
+    test.setTimeout(90_000)
+    const writes = watchShowWrites(page)
+    const showId = await createPersonalShow(page)
+    await injectOverlay(page, bridge.url)
     const deleteId = await submitUtterance(page, RESIZE_UTTERANCE)
     await waitForAccepted(page, deleteId)
     const target = page.getByRole('button', { name: 'Select TestPattern1D', exact: true })
     await target.click()
     await page.keyboard.press('Delete')
     await expect(target).toHaveCount(0)
-    await waitForDurable(page, showId, (show) => mainPlacements(show).length === 1)
-    const deleteRequest = await waitForDone(page, deleteId)
-    expect(deleteRequest.applied).toBe(true)
+    await waitForDurable(page, showId, show => mainPlacements(show).length === 1)
+    const deleted = await durableShow(page, showId)
+    expect((await waitForDone(page, deleteId)).applied).toBe(false)
+    expect(await durableShow(page, showId)).toEqual(deleted)
+    await expect(target).toHaveCount(0)
+    await page.getByRole('button', { name: 'Undo Show edit' }).click()
     await expect(target).toBeVisible()
-    const afterDelete = await visibleClipFacts(page, 'TestPattern1D')
-    expect(afterDelete.durationSeconds).toBe('12')
-    await waitForDurable(page, showId, (show) => firstMain(show)?.durationMs === 12_000 && mainPlacements(show).length === 2)
-
-    // Move the same target Clip by dragging its visible timeline body while a
-    // second reply is pending. The first reply shortened it to 12 s, leaving
-    // enough space to place it wholly inside the vacancy before CometLoom.
+    await target.click()
+    const detail = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+    await detail.getByRole('textbox', { name: 'Duration seconds exact time' }).fill('12')
+    await detail.getByRole('textbox', { name: 'Duration seconds exact time' }).press('Enter')
+    await page.keyboard.press('Escape')
+    await waitForDurable(page, showId, show => firstMain(show)?.durationMs === 12_000)
     const moveId = await submitUtterance(page, MARKER_UTTERANCE)
     await waitForAccepted(page, moveId)
-    expect(await visibleClipStart(page, 'TestPattern1D')).toBe('0')
-    const manualMoveAt = Date.now()
-    const previewTime = await dragClipToStart(page, 'TestPattern1D', 12_000, 15_000)
-    expect(previewTime).toBe('15s')
-    await waitForDurable(page, showId, (show) => firstMain(show)?.startMs === 15_000)
-    const movedVisible = await visibleClipStart(page, 'TestPattern1D')
-    expect(movedVisible).toBe('15')
-    const durableAfterMove = await durableShow(page, showId)
-    expect(firstMain(durableAfterMove)?.startMs).toBe(15_000)
-    await page.screenshot({ path: join(REPORT_DIR, 'B-target-moved-before-reply.png'), fullPage: true })
-
-    const moveRequest = await waitForDone(page, moveId)
-    expect(moveRequest.applied).toBe(true)
-    const startAfterReply = await visibleClipStart(page, 'TestPattern1D')
-    expect(startAfterReply).toBe('0')
-    await waitForDurable(page, showId, (show) => (
-      firstMain(show)?.startMs === 0
-      && show.composition?.markers?.some((marker) => marker.name === 'Drop' && marker.timeMs === 10_000) === true
-    ))
-    const durableAfterReply = await durableShow(page, showId)
-    expect(firstMain(durableAfterReply)?.startMs).toBe(0)
-    await page.screenshot({ path: join(REPORT_DIR, 'B-target-move-overwritten.png'), fullPage: true })
-
-    // The stale agent replacement is one history entry above the accepted
-    // manual drag. One undo restores the moved Clip and removes the marker.
-    await page.getByRole('button', { name: 'Undo Show edit' }).click()
+    await dragClipToStart(page, 'TestPattern1D', 12_000, 15_000)
+    await waitForDurable(page, showId, show => firstMain(show)?.startMs === 15_000)
+    const moved = await durableShow(page, showId)
+    expect((await waitForDone(page, moveId)).applied).toBe(false)
+    expect(await durableShow(page, showId)).toEqual(moved)
     expect(await visibleClipStart(page, 'TestPattern1D')).toBe('15')
-    await waitForDurable(page, showId, (show) => (
-      firstMain(show)?.startMs === 15_000
-      && !(show.composition?.markers ?? []).some((marker) => marker.name === 'Drop')
-    ))
-    const durableAfterUndo = await durableShow(page, showId)
-    expect(writes.filter((write) => write.method === 'PATCH' && write.at >= manualMoveAt).map((write) => ({
-      startMs: write.firstMainStartMs,
-      markers: write.markers,
-    }))).toEqual([
-      { startMs: 15_000, markers: null },
-      { startMs: 0, markers: 1 },
-      { startMs: 15_000, markers: null },
-    ])
-
-    const observations = await readObservations(page)
-    await page.screenshot({ path: join(REPORT_DIR, 'B-target-move-after-undo.png'), fullPage: true })
-    saveRecord('B-target-delete-move', {
-      showId, deleteRequest, moveRequest, manualMoveAt, writes, observations,
-      visible: { afterDelete, targetStart: { preview: previewTime, moved: movedVisible, afterReply: startAfterReply, afterUndo: '15' } },
-      durable: {
-        afterMove: firstMain(durableAfterMove),
-        afterReply: firstMain(durableAfterReply),
-        afterUndo: firstMain(durableAfterUndo),
-      },
-      timelines: [phaseTimeline(deleteRequest, observations, writes), phaseTimeline(moveRequest, observations, writes)],
-    })
+    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(4)
+    await page.screenshot({ path: join(REPORT_DIR, 'B-target-refused.png'), fullPage: true })
   })
 
-  test('C: time inserted before the target during inference is undone by the reply', async ({ page }) => {
+  test('C: time inserted during inference is preserved when the reply refuses', async ({ page }) => {
     test.setTimeout(90_000)
     const writes = watchShowWrites(page)
     const showId = await createPersonalShow(page)
     await injectOverlay(page, bridge.url)
-    const durableBefore = await durableShow(page, showId)
-
     const requestId = await submitUtterance(page, RESIZE_UTTERANCE)
     await waitForAccepted(page, requestId)
     await page.getByRole('button', { name: 'Add to Show' }).click()
     await page.getByRole('menuitem', { name: 'Time' }).click()
     const popover = page.getByRole('dialog', { name: 'Insert Time' })
-    await expect(popover).toBeVisible()
     const amount = popover.getByRole('textbox', { name: 'Time to insert in seconds' })
     await amount.fill('5')
     await amount.press('Enter')
-    const insertButton = popover.getByRole('button', { name: 'Insert' })
-    const insertEnabled = await insertButton.isEnabled()
-    const reason = insertEnabled ? null : await popover.textContent()
-    if (insertEnabled) {
-      await insertButton.click()
-      await expect(popover).toHaveCount(0)
-      await waitForDurable(page, showId, (show) => (firstMain(show)?.startMs ?? 0) === 5_000 || (show.composition?.durationMs ?? 0) > (durableBefore?.composition?.durationMs ?? 0))
-    } else {
-      await page.keyboard.press('Escape')
-    }
-    const insertedDurable = await durableShow(page, showId)
-
-    const request = await waitForDone(page, requestId)
-    expect(request.applied).toBe(true)
-    await waitForDurable(page, showId, (show) => firstMain(show)?.durationMs === 12_000)
-    const durable = await durableShow(page, showId)
-    const visible = await visibleRecord(page)
-    const observations = await readObservations(page)
-    await page.screenshot({ path: join(REPORT_DIR, 'C-insert-time.png'), fullPage: true })
-    saveRecord('C-insert-time', {
-      showId, insertEnabled, reason, request, writes, observations,
-      durable: { before: durableBefore?.composition, inserted: insertedDurable?.composition, afterReply: durable?.composition },
-      visibleFirstMain: firstMain(visible),
-      timeline: phaseTimeline(request, observations, writes),
-    })
-    if (insertEnabled) {
-      // Reproduction: the inserted time is gone from both the visible and the durable record.
-      expect(firstMain(insertedDurable)?.startMs).toBe(5_000)
-      expect(firstMain(durable)?.startMs).toBe(0)
-      expect(firstMain(visible)?.startMs).toBe(0)
-      expect(durable?.composition?.durationMs ?? null).toBe(durableBefore?.composition?.durationMs ?? null)
-    }
+    await expect(popover.getByRole('button', { name: 'Insert' })).toBeEnabled()
+    await popover.getByRole('button', { name: 'Insert' }).click()
+    await waitForDurable(page, showId, show => firstMain(show)?.startMs === 5_000)
+    const inserted = await durableShow(page, showId)
+    expect((await waitForDone(page, requestId)).applied).toBe(false)
+    expect(await durableShow(page, showId)).toEqual(inserted)
+    expect(firstMain(await visibleRecord(page))?.startMs).toBe(5_000)
+    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+    await page.screenshot({ path: join(REPORT_DIR, 'C-insert-preserved.png'), fullPage: true })
   })
 
-  test('D: navigating away and back during inference applies the late reply to the new editor install', async ({ page }) => {
+  test('D: departure clears the transcript and a late reply cannot apply on same-Show reopen', async ({ page }) => {
     test.setTimeout(90_000)
     const writes = watchShowWrites(page)
-    // A second personal Show, seeded through the API, is the place to navigate away to.
     const other = personalBaseShow(`baseline-away-${Date.now().toString(36)}`)
     const seeded = await page.context().request.post('/api/shows', { data: other })
     expect(seeded.status(), await seeded.text()).toBe(201)
     const showId = await createPersonalShow(page)
+    const original = await durableShow(page, showId)
     await injectOverlay(page, bridge.url)
-
     const requestId = await submitUtterance(page, RESIZE_UTTERANCE)
     await waitForAccepted(page, requestId)
-    const navigatedAwayAt = Date.now()
     await page.getByRole('treeitem', { name: other.name, exact: true }).click()
-    await expect(page).toHaveURL(new RegExp(`${other.id}$`))
+    await expect(page).toHaveURL(new RegExp(`${other.id}\\?agent=1$`))
+    await expect(page.getByTestId('agent-chat-panel')).toHaveCount(0)
     await page.getByRole('treeitem', { name: 'Untitled Show', exact: true }).click()
-    await expect(page).toHaveURL(new RegExp(`${showId}$`))
-    const navigatedBackAt = Date.now()
-    await expect(page.getByTestId('agent-chat-input')).toBeVisible()
-
-    const request = await waitForDone(page, requestId)
-    const visible = await visibleClipFacts(page, 'TestPattern1D')
-    const observations = await readObservations(page)
-    const durable = await durableShow(page, showId)
-    await page.screenshot({ path: join(REPORT_DIR, 'D-navigate-away-back.png'), fullPage: true })
-    saveRecord('D-navigate-away-back', {
-      showId, navigatedAwayAt, navigatedBackAt, request, writes, observations, visible,
-      durableFirstMain: firstMain(durable),
-      timeline: phaseTimeline(request, observations, writes),
-    })
-    // Reproduction: the response outlived the editor install it was captured
-    // in and still applied to the re-opened Show.
-    expect(request.doneAt!).toBeGreaterThan(navigatedBackAt)
-    expect(request.applied).toBe(true)
-    expect(visible.durationSeconds).toBe('12')
-    expect(firstMain(durable)?.durationMs).toBe(12_000)
-    const adopted = observations.find((entry) => entry.kind === 'agent-apply' && entry.requestId === requestId && entry.phase === 'adopted')
-    expect(adopted && adopted.at > navigatedBackAt).toBe(true)
+    await expect(page).toHaveURL(new RegExp(`${showId}\\?agent=1$`))
+    await page.waitForTimeout(BRIDGE_DELAY_MS + 1_000)
+    expect(await overlayRequests(page)).toEqual([])
+    expect(await durableShow(page, showId)).toEqual(original)
+    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(0)
+    await injectOverlay(page, bridge.url)
+    expect(await overlayRequests(page)).toEqual([])
+    await expect(page.getByTestId('agent-chat-log')).not.toContainText(RESIZE_UTTERANCE)
+    await page.screenshot({ path: join(REPORT_DIR, 'D-session-retired.png'), fullPage: true })
   })
 
   test.describe('E: failed save after the reply', () => {
@@ -664,11 +578,9 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       const showId = await createPersonalShow(page)
       await injectOverlay(page, bridge.url)
 
-      // Same race as A: manual save B after capture, then the older-stamped candidate.
+      // Establish an accepted durable candidate before the later failed save.
       const requestId = await submitUtterance(page, RESIZE_UTTERANCE)
       await waitForAccepted(page, requestId)
-      await setClipBrightness(page, 'TestPattern1D', '75')
-      await waitForDurable(page, showId, (show) => firstMain(show)?.brightness === 0.75)
       const request = await waitForDone(page, requestId)
       expect(request.applied).toBe(true)
       await waitForDurable(page, showId, (show) => firstMain(show)?.durationMs === 12_000)
@@ -743,7 +655,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
   test('G: a built-in Show draft accepts a reply in memory with no personal write', async ({ page }) => {
     test.setTimeout(90_000)
     const writes = watchShowWrites(page)
-    await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
+    await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time?agent=1')
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
     await injectOverlay(page, bridge.url)
     const reset = page.getByRole('button', { name: 'Reset built-in Show' })
@@ -777,7 +689,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     expect(created.status(), await created.text()).toBe(201)
     const writes = watchShowWrites(page)
 
-    await page.goto(`studio/shows/${record.id}`)
+    await page.goto(`studio/shows/${record.id}?agent=1`)
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
     await injectOverlay(page, bridge.url)
     const requestId = await submitUtterance(page, RESIZE_UTTERANCE)

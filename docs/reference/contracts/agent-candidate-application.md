@@ -1,43 +1,23 @@
 # Agent candidate application
 
-The local dictation experiment edits a private Show snapshot and returns a
-candidate to the live V2 editor. A grammar-session commit accepts private work;
-only editor application can change the author's open Show. This contract
-records the current experimental boundary. Agentic editing is intended to ship
-in V2; its relevant code and documentation may move here from V3. The broader
-V3 platform remains separate.
+The local diagnostic service edits a private Show snapshot and returns a candidate to the live V2 editor. A private grammar commit is not editor adoption or durable saving.
 
 ## Ownership and acceptance
 
-The current `__pxlblzEditor` bridge is installed only in development builds
-and editable Show editors. Production builds and read-only editors do not
-expose this application path; shipping agent editing requires an explicit
-production integration.
+`__pxlblzEditor` exists only in development builds, editable Show editors and a current URL containing exactly one `agent=1` parameter. Absent, empty, other and duplicate values disable access. The flag is not authentication. Ordinary router navigation preserves query parameters and its existing navigation guards. No storage preference enables this bridge.
 
-The browser bridge captures a Show through the editor's cloning `getShow`
-interface. The service opens a separate grammar session for the request.
-Operations inside a transaction update private working state; commit validates
-the complete candidate with that session's evaluation options. A validation
-refusal leaves the transaction open for repair or rollback. Successful commit
-adds one private history entry and clears private redo. None of these events
-persists the live editor's Show.
+The finite URL lifecycle covers app navigation, History push/replace, popstate and hashchange, with the current URL also checked at every capability/request use. Query removal or pathname departure retires pending work synchronously; restoring the URL cannot revive it. Unmount and explicit overlay close retire the session and clear transcript/request memory. Ordinary rerenders retain the session. After explicit diagnostic-overlay close,
+reopening currently requires URL gate toggle, navigation or reload; reinjection
+on the unchanged URL cannot revive the retired bridge. Final panel session renewal
+remains outside this diagnostic slice. Already adopted saves follow ordinary store settlement after retirement. This is a local lifecycle contract, not protection against arbitrary third-party JavaScript replacing browser APIs or a claim of instantaneous provider cancellation.
 
-The service returns a reply, a typed `privateOutcome`, change indication, and
-an exported Show only for a validated private commit. `committed` at this
-boundary is private-session success, never live application or durable saving.
-Ask, refusal, incompletion and successful no-change completion expose no candidate.
-The browser submits a changed candidate to `applyShow`. The editor
-rejects an obsolete retained bridge object or a mismatched Show id, clones an
-accepted input, and awaits its ordinary store update. The replacement enters
-editor history as one update; the private session's history does not replace
-editor history.
+`beginRequest` registers immutable operation/session/Show/revision identity before inference and captures the Show and reference context once. The overlay retains that original bridge for response delivery; it never asks a newly opened editor to authorize old work. Broad full-Show model context always uses whole-Show revision admission. It cannot use the internal C1 narrow resize guard.
 
-The editor's boolean result is an admission signal, not a durable-save receipt.
-A rejected store update throws; a superseded failed update can resolve, and a
-stock draft update remains in memory. The store owns those semantics in
-[Show state, history, and persistence](show-state-history-persistence.md).
-[Show command semantics](show-command-semantics.md) covers the V2 registry only;
-the V3 grammar is a separate adapter and is not yet equivalent to that registry.
+The adapter validates incoming structure against the Show schema with browser-safe imports, then validates accepted authoring semantics with exact current Pattern/Library source metadata and the original missing-reference baseline. Pattern, Library and Map array replacements during pending work permanently invalidate that request, including change/restore. A malformed/newly missing reference or stale candidate refuses without history or persistence changes. The browser cannot supply a validator or use a legacy tokenless apply bypass.
+
+`applyShow` returns the store's typed receipt. A duplicate identical response reads its existing result; changed request or candidate identity refuses. One accepted candidate creates one ordinary history entry. `readOutcome` recovers a surviving session's result after acknowledgement loss; retired history is unavailable and never replayed. Applied receipts distinguish saving, saved, rolled-back, superseded and an in-memory stock draft. Private asked/refused/nothing-applied/commit-refused/incomplete/service-refused/service-failed outcomes terminate via a checked `completed` receipt without mutation; this is neither a validated authoring `noop` nor user cancellation. The same bounded operation table retains these terminal identities.
+
+The overlay displays private prose alongside the actual editor outcome and includes that outcome in subsequent session dialogue. The store owns save recovery in [Show state, history, and persistence](show-state-history-persistence.md). [Show command semantics](show-command-semantics.md) covers the V2 registry; the diagnostic grammar is not yet equivalent to it.
 
 ## Internal admission foundation
 
@@ -56,12 +36,7 @@ cap. [Pure policy tests](../../../src/engine/showEditAdmission.test.ts) and
 full records/history, provider writes, revision ABA, retirement, deduplication
 and delayed persistence outcomes.
 
-This foundation is not wired into `__pxlblzEditor`, the diagnostic overlay,
-grammar or turn runner. The live boundary and baseline failures described below
-remain current. The internal exact-resize path below qualifies one operation;
-active-input waiting, live admission and command-catalogue migration remain
-later #949 slices. Trusted callbacks at the whole-Show seam are not a production
-command or validation escape hatch.
+The diagnostic bridge uses this foundation conservatively. Active-input waiting, final panel placement, hosted service/MCP/OAuth and command-catalogue migration remain unimplemented. Trusted callbacks at the whole-Show seam stay internal; the exposed adapter supplies its own structural and authoring validation.
 
 ## Internal qualified exact resize
 
@@ -106,43 +81,17 @@ durable provider records and reopened `.pxlshow` files. It covers Main/Overlay a
 Zone independence, multi-Scene connected resize, same-Layer and shared-dependency
 conflicts, ABA, external source changes, retry identity, no-op validation,
 cancellation/retirement, bounded observation and save rollback/supersession.
-This is internal proof only; the live editor defects below remain unqualified.
+This qualifies the internal resize path only; broad diagnostic requests remain conservative.
 
 ## Present limits
 
-The browser's busy flag serializes its own submissions while manual editing
-continues. Neither the request nor editor application carries an expected
-Show revision. A returned full record can therefore overwrite edits made during
-inference even when the Show id still matches. Reproduced on the live editor
-by the #945 browser baseline (sequence A: a brightness edit saved during
-inference is gone after the reply; sequence B: a Clip deleted during
-inference comes back, and a later visible drag of that target from 0 s to 15 s
-is replaced back to 0 s; sequence C: time inserted before the target is undone).
-
-Composition edits still retain the captured `updatedAt`, but the live V2 store
-now assigns every accepted replacement a new single-client ordering stamp at
-adoption. The candidate's captured timestamp therefore cannot leave the
-durable baseline behind a successful save. Baseline sequence E is the browser
-regression: after an intervening manual save and an accepted agent replacement,
-a later failed save restores that saved replacement and reopening shows the
-same record. The stamp is not a document revision and does not repair the stale
-whole-record overwrite described above.
-
-The service separately permits one request at a time across clients. A busy
-service returns HTTP 429 as JSON, while the overlay expects a streamed terminal
-result and reports a missing-result error. Its per-tab busy flag therefore does
-not provide a coherent cross-tab waiting or retry protocol.
-
-The browser looks up the current window bridge when applying the response.
-Consequently, the obsolete-object check does not bind the request to its
-originating editor installation: navigating away and back to the same Show
-leaves an old response eligible for application, reproduced by baseline
-sequence D. There is no request cancellation or operation-id deduplication
-contract at this boundary; the request id the overlay now sends is a
-diagnostic correlation key, not an admission token.
-
-Conversation history records the reply before editor application succeeds.
-A model reply or private commit is therefore not evidence that the edit landed.
+The browser serializes its own submissions while manual editing continues. Pending
+full-Show requests conservatively refuse any intervening Show or source-context
+change. The five-second active-drag/dirty-field wait and final activity placement
+remain unimplemented; focus alone does not retire a request. The service still
+serializes loopback requests across clients and supplies no hosted connection,
+OAuth, allowlist or budget owner. Transport failure terminates private work without
+claiming a model success or paying for automatic retry.
 
 The diagnostic turn requires an explicit completion object:
 `{ intent: 'apply' | 'ask' | 'refuse' | 'incomplete', reply?: string }`.
@@ -342,9 +291,8 @@ diagnostic until #946, #947 and #959 decide what becomes engine code (#949).
   `npm run test:e2e:agent-baseline`, report in
   [`agent-editing-baseline.md`](../agent-editing-baseline.md)) drives the
   actual editor route in Chromium through the real overlay and a real scripted
-  bridge process, and asserts the observed bad outcomes as reproductions:
-  stale whole-record replacement (A, B, C), application after navigation
-  away and back (D), recovery to the durable candidate after a later failed
+  bridge process. Its current assertions prevent stale whole-record replacement
+  (A, B, C) and application after navigation away and back (D), and prove recovery to the durable candidate after a later failed
   save and reopen (green regression E), one history entry and one save for a multi-operation reply (F), an
   in-memory stock draft with no personal write (G), and a personal Pattern
   on a personal Library (H). It is an explicit diagnostic command, never a
@@ -355,7 +303,7 @@ diagnostic until #946, #947 and #959 decide what becomes engine code (#949).
   inference after the one scripted delay and ends with the final inference,
   including a validation-repair pass, as covered by
   [`test/bridgeRequestIds.test.ts`](../../../src/agent-harness/test/bridgeRequestIds.test.ts).
-  The editor's `applyShow` accepts an optional request id and records
+  The editor's `applyShow` requires the captured immutable request and records
   admission, adoption, settlement, rejection, and failure through the
   dev-only, read-only observation seam in
   [`src/dev/agentObservation.ts`](../../../src/dev/agentObservation.ts); the
@@ -368,10 +316,7 @@ diagnostic until #946, #947 and #959 decide what becomes engine code (#949).
   baseline's pinned commit; recheck this boundary when changing the editor
   integration.
 
-Revision admission, request retirement, and explicit applied/durable outcomes
-exist at the internal store seam only. Their live request integration remains
-roadmap work. The baseline does not claim those guarantees or select a
-merge policy. The shared-agentic Show editing roadmap now lives at
-[`docs/plans/shared-agentic-show-editing-roadmap-prd.md`](../../plans/shared-agentic-show-editing-roadmap-prd.md)
-with its V3 provenance. Migration into V2 does not itself implement the
-proposed guarantees.
+The diagnostic adapter now qualifies whole-Show revision admission, URL/session
+retirement and typed outcomes on the local route. The broader
+[roadmap](../../plans/shared-agentic-show-editing-roadmap-prd.md) retains active-input
+waiting, command migration, final placement and production service qualification.

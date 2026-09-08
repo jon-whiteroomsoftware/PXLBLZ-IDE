@@ -20,8 +20,11 @@ export type ShowEditSettlement = 'saving' | 'saved' | 'rolled-back' | 'supersede
 export type ShowEditRefusal = 'revision-conflict' | 'wrong-session' | 'wrong-show' | 'unknown-operation'
   | 'identity-mismatch' | 'capacity' | 'invalid-retry' | 'missing-show' | 'invalid-candidate' | 'no-candidate'
 
+export type ShowEditCompletion = 'asked' | 'refused' | 'nothing-applied' | 'commit-refused' | 'incomplete' | 'service-refused' | 'service-failed'
+
 export type ShowEditReceipt = { readonly request: ShowEditRequest } & (
   | { readonly status: 'pending' | 'cancelled' | 'retired' | 'noop'; readonly reason?: never; readonly settlement?: never }
+  | { readonly status: 'completed'; readonly completion: ShowEditCompletion; readonly reason?: never; readonly settlement?: never }
   | { readonly status: 'refused'; readonly reason: ShowEditRefusal; readonly settlement?: never }
   | { readonly status: 'applied'; readonly settlement: ShowEditSettlement; readonly reason?: never }
 )
@@ -47,7 +50,7 @@ export function createShowEditSession(
   if (!Number.isSafeInteger(capacity) || capacity < 1) throw new RangeError('Invalid operation capacity')
   const entries = new Map<string, ShowEditReceipt>()
   let retired = false
-  const receipt = (request: ShowEditRequest, status: Exclude<ShowEditReceipt['status'], 'applied'>, reason?: ShowEditRefusal): ShowEditReceipt =>
+  const receipt = (request: ShowEditRequest, status: Exclude<ShowEditReceipt['status'], 'applied' | 'completed'>, reason?: ShowEditRefusal): ShowEditReceipt =>
     status === 'refused'
       ? Object.freeze({ request, status, reason: reason! })
       : Object.freeze({ request, status })
@@ -94,6 +97,10 @@ export function createShowEditSession(
     refuse(id: string, reason: ShowEditRefusal): ShowEditReceipt | undefined {
       const existing = read(id)
       return existing?.status === 'pending' ? remember(receipt(existing.request, 'refused', reason)) : existing
+    },
+    complete(id: string, completion: ShowEditCompletion): ShowEditReceipt | undefined {
+      const existing = read(id)
+      return existing?.status === 'pending' ? remember(Object.freeze({ request: existing.request, status: 'completed', completion })) : existing
     },
     cancel(id: string): ShowEditReceipt | undefined {
       const existing = read(id)

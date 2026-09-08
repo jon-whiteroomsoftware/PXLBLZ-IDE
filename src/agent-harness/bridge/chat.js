@@ -14,7 +14,11 @@
 ;(() => {
   'use strict'
   if (window.__pxlblzChat) return
+  const editor = window.__pxlblzEditor
+  if (!editor || !editor.available()) return
   const BRIDGE = (document.currentScript && document.currentScript.src.replace(/\/chat\.js.*$/, '')) || 'http://127.0.0.1:8791'
+  let disposed = false
+  let activeRequest = null
 
   const panel = document.createElement('div')
   panel.dataset.testid = 'agent-chat-panel'
@@ -28,10 +32,12 @@
   const header = document.createElement('div')
   header.textContent = 'Luna'
   header.style.cssText = 'padding:8px 12px;font-weight:600;color:#67e8f9;border-bottom:1px solid #27272a;display:flex;justify-content:space-between;align-items:center;cursor:default'
-  const close = document.createElement('span')
+  const close = document.createElement('button')
+  close.type = 'button'
+  close.setAttribute('aria-label', 'Close diagnostic chat')
   close.textContent = '×'
   close.style.cssText = 'cursor:pointer;color:#71717a;font-size:15px;padding:0 2px'
-  close.onclick = () => { panel.remove(); delete window.__pxlblzChat }
+  close.onclick = () => editor.close()
   header.appendChild(close)
 
   const log = document.createElement('div')
@@ -84,8 +90,7 @@
   }
   const toolLabel = (name) => TOOL_LABELS[name] || name.replace(/_/g, ' ') + '…'
 
-  const editorFocusContext = () => {
-    const focus = window.__pxlblzEditor.getEditorFocus()
+  const editorFocusContext = (focus) => {
     const context = {}
     if (focus.hoveredClipId) context.hoveredClipId = focus.hoveredClipId
     if (focus.selection && focus.selection.kind === 'clip') context.selectedClipIds = [focus.selection.clipId]
@@ -101,26 +106,34 @@
   // Client-side phase records, one per submission (#945). Read-only for
   // callers: window.__pxlblzChat.requests returns copies.
   const requests = []
+  const publicOutcome = ({ status, settlement, reason, completion }) => ({ status, settlement, reason, completion })
+  editor.onClose(() => {
+    disposed = true
+    history.length = 0
+    requests.length = 0
+    log.replaceChildren()
+    input.value = ''
+    panel.remove()
+    delete window.__pxlblzChat
+  })
   const mintRequestId = () => `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
   let busy = false
   form.onsubmit = async (event) => {
     event.preventDefault()
-    if (busy) return
+    if (busy || disposed || !editor.available()) return
     const utterance = input.value.trim()
     if (!utterance) return
-    if (!window.__pxlblzEditor) {
-      line('The editor bridge is missing — open a Show in a dev build first.', '#fca5a5')
+    const requestId = mintRequestId()
+    const captured = editor.beginRequest(requestId, utterance, history.slice(-12))
+    if (!captured) {
+      line('The editor refused to start this request.', '#fca5a5')
       return
     }
-    const show = window.__pxlblzEditor.getShow()
-    if (!show) {
-      line('No editable Show is open.', '#fca5a5')
-      return
-    }
+    activeRequest = captured.request
+    const show = captured.show
     busy = true
     input.value = ''
-    const requestId = mintRequestId()
     const record = {
       requestId,
       showId: show.id,
@@ -144,7 +157,7 @@
       const response = await fetch(`${BRIDGE}/utterance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requestId, show, utterance, history: history.slice(-12), context: editorFocusContext() }),
+        body: JSON.stringify({ requestId, show, utterance, history: history.slice(-12), context: editorFocusContext(captured.context) }),
       })
       record.responseAt = Date.now()
       // NDJSON stream: progress lines narrate the turn, the last line is the
@@ -169,6 +182,8 @@
           buffered = buffered.slice(newline + 1)
           if (!lineText.trim()) continue
           const event = JSON.parse(lineText)
+          if (disposed || !editor.available()) return
+          if (event.requestId !== requestId) throw new Error('the bridge returned another request identity')
           if (record.firstEventAt === null) record.firstEventAt = Date.now()
           record.events.push({ kind: event.kind, name: event.name || null, at: Date.now() })
           if (event.kind === 'tool') {
@@ -182,25 +197,43 @@
         }
       }
       if (!result) throw new Error('the bridge stream ended without a result')
+      if (disposed || !editor.available()) return
       record.doneAt = Date.now()
       record.changed = result.changed === true
       record.bridgeTiming = result.timing || null
       history.push({ role: 'user', text: utterance })
-      if (typeof result.reply === 'string') history.push({ role: 'assistant', text: result.reply })
-      if (result.changed && result.show) {
+      if (result.changed && result.show && result.privateOutcome?.kind === 'committed') {
         record.applyStartedAt = Date.now()
-        const applied = await window.__pxlblzEditor.applyShow(result.show, { requestId })
+        let outcome = editor.applyShow(result.show, captured.request)
+        const describe = value => value.status === 'applied'
+          ? ({ saving: 'Applied; saving…', saved: 'Applied and saved.', 'rolled-back': 'Save failed; the edit was rolled back.', superseded: 'Applied, then superseded by a newer edit.', draft: 'Applied to the in-memory stock draft.' })[value.settlement]
+          : `Editor ${value.status}${value.reason ? ': ' + value.reason : ''}.`
+        const display = () => {
+          record.outcome = publicOutcome(outcome)
+          record.applied = outcome.status === 'applied' && outcome.settlement !== 'rolled-back'
+          pending.textContent = `Luna: ${result.reply}\n${describe(outcome)}`
+          pending.style.color = record.applied ? '#86efac' : '#fca5a5'
+          pending.dataset.applied = record.applied ? 'true' : 'false'
+        }
+        display()
+        while (outcome.status === 'applied' && outcome.settlement === 'saving') {
+          await new Promise(resolve => window.setTimeout(resolve, 50))
+          if (disposed || !editor.available()) return
+          outcome = editor.readOutcome(captured.request) || { status: 'retired' }
+          display()
+        }
         record.applyEndedAt = Date.now()
-        record.applied = applied
-        pending.textContent = `Luna: ${result.reply}${applied ? '' : ' (but the editor refused the update)'}`
-        pending.style.color = applied ? '#86efac' : '#fca5a5'
-        pending.dataset.applied = applied ? 'true' : 'false'
+        history.push({ role: 'assistant', text: `${result.reply}\n${describe(outcome)}` })
       } else {
-        pending.textContent = `Luna: ${result.reply}`
+        record.outcome = publicOutcome(editor.complete(captured.request, ['asked', 'refused', 'nothing-applied', 'commit-refused', 'incomplete', 'service-refused'].includes(result.privateOutcome?.kind) ? result.privateOutcome.kind : 'incomplete'))
+        pending.textContent = `Luna: ${result.reply}\nNo editor change (${result.privateOutcome?.kind || 'incomplete'}).`
         pending.style.color = '#e4e4e7'
         pending.dataset.applied = 'none'
+        history.push({ role: 'assistant', text: pending.textContent })
       }
     } catch (error) {
+      record.outcome = publicOutcome(editor.complete(captured.request, 'service-failed'))
+      if (disposed) return
       record.error = error && error.message ? error.message : String(error)
       if (record.applyStartedAt !== null && record.applyEndedAt === null) {
         record.applyEndedAt = Date.now()
@@ -211,7 +244,8 @@
       pending.dataset.applied = 'error'
     } finally {
       busy = false
-      input.focus()
+      activeRequest = null
+      if (!disposed) input.focus()
     }
   }
 
@@ -220,6 +254,7 @@
     get requests() {
       return requests.map((record) => JSON.parse(JSON.stringify(record)))
     },
+    cancel() { if (activeRequest) return editor.cancel(activeRequest) },
   }
   input.focus()
   line('Connected. Edits land as single undo steps; Cmd+Z reverts a whole request.', '#71717a')
