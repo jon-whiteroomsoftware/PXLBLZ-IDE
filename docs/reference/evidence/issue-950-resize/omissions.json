@@ -1,0 +1,27 @@
+[
+  {
+    "fault": "start forwarding",
+    "exit": 1,
+    "detected": true
+  },
+  {
+    "fault": "movement report",
+    "exit": 1,
+    "detected": true
+  },
+  {
+    "fault": "noop classification",
+    "exit": 1,
+    "detected": true
+  },
+  {
+    "fault": "raw schema validation",
+    "exit": 1,
+    "detected": true
+  },
+  {
+    "fault": "implicit Cut equivalence",
+    "exit": 1,
+    "detected": true
+  }
+]

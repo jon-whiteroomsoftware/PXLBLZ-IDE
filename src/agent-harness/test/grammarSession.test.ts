@@ -92,7 +92,7 @@ describe('grammar session store (#17)', () => {
 
     const refused = store.apply(opened.sessionId, 'resize_clip', { clip_id: clipId, duration_ms: 40_000 })
     expect(refused.ok).toBe(false)
-    if (!refused.ok) expect(refused.issues[0].code).toBe('overlap')
+    if (!refused.ok) expect(refused.issues[0].code).toBe('no-space')
 
     const after = store.export(opened.sessionId)
     if (!after.ok) throw new Error('export failed')

@@ -30,7 +30,6 @@ import {
   planShowClipSplitAtGlobalTime,
   projectShowClipPatternInstanceOwnership,
   rejoinShowClipPatternInstance,
-  resizeShowClipAtGlobalTime,
   splitShowClipAtGlobalTime,
   type ShowClipAddTarget,
   type ShowTimelineClipMoveTarget,
@@ -51,6 +50,7 @@ import {
   type ClipContext,
   controlExportIssue,
 } from '../support.js'
+import { canonicalResizeOperation } from './resizeAdapter.js'
 
 function unknownZone(document: ShowGrammarDocument, zoneId: string): GrammarIssue {
   return {
@@ -88,95 +88,7 @@ function overlapConflict(
   return conflict ? { clip: conflict.clip, zoneName: conflict.zoneName } : null
 }
 
-const resizeClip: ShowGrammarOperation = {
-  name: 'resize_clip',
-  description:
-    'Change the duration of one clip on the global timeline, keeping its start time. Address the clip ' +
-    'by the clip id from open_show. Give exactly one of duration_ms (new length) or end_ms (new absolute ' +
-    'end on the global timeline), in milliseconds. A clip spanning several internal Scenes resizes as one ' +
-    'clip. Refused if the new span would overlap another clip on the same Zone and layer, or run past the ' +
-    'end of the Show.',
-  mutates: [
-    '/composition/scenes/*/zones/*/main/*',
-    '/composition/scenes/*/zones/*/overlays/*/placements/*',
-  ],
-  inputShape: {
-    clip_id: z.string().describe('Clip id from the open_show listing'),
-    duration_ms: z.number().optional().describe('New clip length in milliseconds'),
-    end_ms: z.number().optional().describe('New absolute clip end on the global timeline, in milliseconds'),
-  },
-  apply(document, args) {
-    const resolved = resolveClip(document, args.clip_id as string)
-    if (!resolved.ok) return resolved
-    const context = resolved.context
-    const { clip, zoneName, timelineDurationMs } = context
-
-    const hasDuration = args.duration_ms !== undefined
-    const hasEnd = args.end_ms !== undefined
-    if (hasDuration === hasEnd) {
-      return refuse({ code: 'invalid-argument', message: 'Give exactly one of duration_ms or end_ms.' })
-    }
-    const durationMs = hasDuration
-      ? (args.duration_ms as number)
-      : (args.end_ms as number) - clip.startMs
-    if (!Number.isFinite(durationMs) || durationMs <= 0) {
-      return refuse({
-        code: 'invalid-argument',
-        message: `The clip would be ${durationMs} ms long; a clip needs a positive duration.`,
-      })
-    }
-    const endMs = clip.startMs + durationMs
-    if (endMs > timelineDurationMs) {
-      return refuse({
-        code: 'outside-timeline',
-        message: `The clip would end at ${endMs} ms, past the end of the Show at ${timelineDurationMs} ms.`,
-        remedy:
-          `Choose a duration of at most ${timelineDurationMs - clip.startMs} ms, or move Show End ` +
-          'later with set_show_end first.',
-      })
-    }
-    const conflict = overlapConflict(context, clip.zoneId, clip.kind, clip.layerIndex, clip.startMs, endMs)
-    if (conflict) {
-      return refuse({
-        code: 'overlap',
-        message:
-          `Resizing to ${durationMs} ms would overlap clip ${describeClip(conflict.clip, conflict.zoneName)} ` +
-          'on the same Zone and layer.',
-        remedy:
-          `Resize to at most ${conflict.clip.startMs - clip.startMs} ms, or move or resize clip ` +
-          `${conflict.clip.id} first.`,
-      })
-    }
-
-    const composition = compositionOf(document)
-    const result = resizeShowClipAtGlobalTime(document.show, composition, {
-      owner: ownerFor(clip),
-      globalStartMs: clip.startMs,
-      durationMs,
-    })
-    if (result === composition) {
-      return refuse({
-        code: 'engine-refused',
-        message:
-          `The engine declined to resize clip ${clip.id} to ${durationMs} ms. ` +
-          'Re-read the clip listing; the clip may span a boundary this operation cannot cross.',
-      })
-    }
-    return {
-      ok: true,
-      document: composedShow(document, result),
-      changes: [{
-        op: 'resize_clip',
-        targetId: clip.id,
-        description:
-          `Clip ${clip.id} (${clip.patternName} on ${zoneName}) now runs ` +
-          `${clip.startMs}–${endMs} ms (${durationMs} ms).`,
-        before: { startMs: clip.startMs, durationMs: clip.durationMs },
-        after: { startMs: clip.startMs, durationMs },
-      }],
-    }
-  },
-}
+const resizeClip: ShowGrammarOperation = canonicalResizeOperation()
 
 const addClip: ShowGrammarOperation = {
   name: 'add_clip',

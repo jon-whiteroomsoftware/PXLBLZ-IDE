@@ -14,7 +14,9 @@ covers the registry, not every direct engine mutation or editor gesture.
   issues. Domain refusal carries a reason; optional remedies and candidates
   help the caller recover. Descriptor schemas own invocation shape; the
   [generated coverage report](../show-command-coverage.md) owns the inventory.
-- An unchanged engine identity result is a typed refusal, not success. Some
+- An unchanged engine identity result alone is a typed refusal, not success.
+  `resize_clip` separately validates an already-satisfied request and returns
+  the original record with zero changes and no timestamp. Some
   commands also explicitly refuse no change, such as renaming to the current
   name. Such a step aborts its containing batch; replay is not guaranteed to
   succeed merely because the desired state already exists.
@@ -80,12 +82,31 @@ follow the logical Clip when Scene coverage changes. Group-owned Clips,
 Transition removal, and edits that would remove a visual Scene-boundary
 Transition refuse. Existing manual authoring paths retain their own behavior.
 
-This internal operation currently requires a valid input composition and returns
-only a candidate. Registry, gesture, inspector, grammar, shared admission,
-history and provider integration remain pending under #949/#950. In particular,
-the registry agreement above still governs exposed commands; this seam does not
-establish final-valid private batches, stale-context qualification, or any
-browser/agent parity claim.
+The registry `resize_clip` descriptor owns `clip_id`, exactly one safe-integer
+`duration_ms`/`end_ms`, and optional safe-integer `start_ms`. The diagnostic
+adapter derives its argument leaves from this definition and delegates raw
+validation and evaluation to the registry. Both return exact/no-op/refused
+outcomes; capacity refusals carry `availableRange`. Changed results include the
+actual target range, changed/moved logical Clip ids and Transition duration
+adjustments. No duplicate overlap or time-conversion policy lives in either
+adapter. The diagnostic `resize_connected_clip` spelling is historical
+compatibility through the same owner, not a production alias.
+
+Boundary comparison normalizes both the original and planned Show through the
+same existing Transition normalizer, so materializing an implicit Cut does not
+falsely count as visual Transition removal. The returned Show retains every
+original authored Transition, including explicit Cut identity and easing.
+
+The operation requires a valid input composition. Registry transactions and
+private grammar sessions accept no-op before/after a changed step. Wholly no-op
+private work creates no history entry or candidate. The existing valid-intermediate
+move-B then resize-A sequence is qualified; arbitrary temporarily overlapping
+intermediates and swaps are not. Manual gesture/inspector convergence and paired
+mouse/agent proof remain pending. Broad diagnostic requests retain whole-Show
+admission rather than the internal qualified Layer guard.
+
+[Adapter/session/artifact and route evidence](../evidence/issue-950-resize/README.md)
+records the bounded qualifications and residuals.
 
 [Exact resize owner](../../../src/engine/showExactClipResize.ts) delegates to the
 existing timeline and Layer Transition engines.

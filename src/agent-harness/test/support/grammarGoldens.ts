@@ -162,6 +162,10 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     expect(clips(overlayResized).find((candidate) => candidate.clipId === overlayClip.clipId)?.durationMs)
       .toBe(12_000)
+    const connected = withLayerTransition()
+    applyOk(connected.document, 'resize_clip', { clip_id: connected.firstClipId, duration_ms: 8000 })
+    const leading = applyOk(connected.document, 'resize_clip', { clip_id: connected.secondClipId, start_ms: 12500, end_ms: 22000 })
+    expect(leading.changes[0].details?.transitionChanges).toEqual([{ transitionId: connected.transitionId, previousDurationMs: 2000, durationMs: 2500 }])
   },
   split_clip: () => {
     // Splitting a multi-Scene clip at a point inside its second Scene.
@@ -568,6 +572,7 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
   },
   resize_connected_clip: () => {
     const base = withLayerTransition()
+    applyOk(base.document, 'resize_connected_clip', { clip_id: base.secondClipId, start_ms: 12500, end_ms: 22000 })
     const { document: next } = applyOk(base.document, 'resize_connected_clip', {
       clip_id: base.firstClipId,
       duration_ms: 8_000,

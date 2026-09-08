@@ -9,7 +9,7 @@
 //
 // Contract: apply never mutates its arguments; a refusal is typed and leaves
 // the record untouched; an engine identity refusal (input returned
-// unchanged) is surfaced as a typed refusal, never as success; commands
+// unchanged) is a refusal unless the command independently validates a no-op; commands
 // backed by a plan* function run the plan first and pass its user-legible
 // reason through.
 import type { ShowCompositionV1, ShowRecord } from '../personalContentRecords'
@@ -22,6 +22,7 @@ export interface ShowCommandIssue {
   remedy?: string
   /** Nearest known ids when an id failed to resolve. */
   candidates?: string[]
+  availableRange?: { startMs: number; endMs: number }
 }
 
 /** One entry of the structured change list an accepted command returns. */
@@ -45,6 +46,7 @@ export interface ShowCommandField {
   enum?: readonly string[]
   /** May the value be null (distinct from omitted)? */
   nullable?: boolean
+  safeInteger?: boolean
 }
 
 export interface ShowCommandDescriptor {
@@ -55,6 +57,7 @@ export interface ShowCommandDescriptor {
   /** ShowRecord JSON-pointer patterns this command may write; '*' matches one segment. */
   touches: string[]
   fields: Record<string, ShowCommandField>
+  exactlyOne?: readonly string[]
   apply: (record: ShowRecord, input: Record<string, unknown>) => ShowCommandOutcome
 }
 
@@ -103,7 +106,7 @@ function fieldTypeMatches(field: ShowCommandField, value: unknown): boolean {
     case 'number':
       return typeof value === 'number' && Number.isFinite(value)
     case 'integer':
-      return typeof value === 'number' && Number.isInteger(value)
+      return typeof value === 'number' && (field.safeInteger ? Number.isSafeInteger(value) : Number.isInteger(value))
     case 'boolean':
       return typeof value === 'boolean'
     case 'json':
@@ -116,6 +119,9 @@ export function validateShowCommandInput(
   input: Record<string, unknown>,
 ): ShowCommandIssue[] {
   const issues: ShowCommandIssue[] = []
+  if (descriptor.exactlyOne && descriptor.exactlyOne.filter(name => input[name] !== undefined).length !== 1) {
+    issues.push({ code: 'invalid-argument', message: `Give exactly one of ${descriptor.exactlyOne.join(' or ')}.` })
+  }
   for (const [name, field] of Object.entries(descriptor.fields)) {
     const value = input[name]
     if (value === undefined) {

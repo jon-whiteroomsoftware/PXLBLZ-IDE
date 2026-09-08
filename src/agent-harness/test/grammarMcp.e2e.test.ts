@@ -126,8 +126,8 @@ describe('grammar tools over MCP (#17)', () => {
       duration_ms: 40_000,
     })
     expect(refusedIsError).toBe(true)
-    expect(refused.issues[0].code).toBe('overlap')
-    expect(refused.issues[0].remedy).toBeTruthy()
+    expect(refused.issues[0].code).toBe('no-space')
+    expect(refused.issues[0].availableRange).toEqual({ startMs: 0, endMs: 30000 })
 
     const { payload: unknownClip, isError: unknownClipIsError } = await callJson('resize_clip', {
       session_id: sessionId,

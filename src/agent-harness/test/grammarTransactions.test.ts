@@ -213,7 +213,7 @@ describe('editing-session transactions (#20)', () => {
     if (!redoOpen.ok) expect(redoOpen.issues[0].code).toBe('transaction-open')
   })
 
-  it('describe_changes bounds its entry index and an empty commit still records a labelled entry', () => {
+  it('describe_changes bounds its entry index and an empty commit preserves history', () => {
     const store = createSessionStore()
     const { sessionId } = openSession(store)
     const emptyIndex = store.describeChanges(sessionId, 0)
@@ -223,9 +223,26 @@ describe('editing-session transactions (#20)', () => {
     const committed = store.commit(sessionId)
     if (!committed.ok) throw new Error('commit failed')
     expect(committed.summary).toBe('No operations were applied.')
-    expect(historyLength(store, sessionId)).toBe(1)
+    expect(historyLength(store, sessionId)).toBe(0)
     const outOfRange = store.describeChanges(sessionId, 5)
     expect(outOfRange.ok).toBe(false)
-    if (!outOfRange.ok) expect(outOfRange.issues[0].message).toContain('0–0')
+    if (!outOfRange.ok) expect(outOfRange.issues[0].message).toBe('The history is empty.')
   })
+})
+
+it('preserves session history and redo across valid no-op resize, including a wholly no-op batch', () => {
+  const store = createSessionStore()
+  const { sessionId, clipId } = openSession(store)
+  const initial = exported(store, sessionId)
+  expect(store.apply(sessionId, 'resize_clip', { clip_id: clipId, duration_ms: 12000 }).ok).toBe(true)
+  const future = exported(store, sessionId)
+  expect(store.undo(sessionId).ok).toBe(true)
+  expect(store.apply(sessionId, 'resize_clip', { clip_id: clipId, duration_ms: 30000 })).toMatchObject({ ok: true, changes: [] })
+  expect(store.begin(sessionId, 'Already requested').ok).toBe(true)
+  expect(store.apply(sessionId, 'resize_clip', { clip_id: clipId, duration_ms: 30000 })).toMatchObject({ ok: true, changes: [] })
+  expect(store.commit(sessionId)).toMatchObject({ ok: true, changes: [] })
+  expect(exported(store, sessionId)).toEqual(initial)
+  expect(historyLength(store, sessionId)).toBe(0)
+  expect(store.redo(sessionId).ok).toBe(true)
+  expect(exported(store, sessionId)).toEqual(future)
 })

@@ -22,7 +22,7 @@ Contracts this evidence serves:
 
 | Command | What it proves | CI |
 | --- | --- | --- |
-| `npm run test:e2e:agent-baseline` | Nine cases on the live editor route: B2 exact gating plus A-D stale/session prevention and E-H retained recovery/adoption cases. Writes `reports/agent-harness/baseline/browser/<run>/` (captures, selected phase records and the bridge log). | explicit only; not a push gate |
+| `npm run test:e2e:agent-baseline` | Live editor cases, including #950 exact resize R: B2 exact gating plus A-D stale/session prevention and E-H retained recovery/adoption cases. Writes `reports/agent-harness/baseline/browser/<run>/` (captures, selected phase records and the bridge log). | explicit only; not a push gate |
 | `npm run agent:baseline:fixtures` | Every baseline fixture exported as `.pxlshow` and `.epe` at a fixed stamp, one scripted bridge turn, export again; compares hashes against `src/agent-harness/baseline/evidence/fixtures.json` and exits 1 on drift. `-- --write` re-records after a human has read the diff. | explicit only |
 | `npm run agent:smoke`, `npm run agent:corpus -- --fake` | Unchanged from the first slice: bridge path and corpus without an editor. | manual |
 | `npx vitest run src/agent-harness src/dev` | Bridge request-id and phase-clock tests, fixture-set coverage and record-hash pins, the observation log. | `npm test` |
@@ -290,3 +290,9 @@ documented API allows read-only evaluation and advertises no cookie/session setu
 or script injection; the two capability probes established that limit before the
 explicit fallback. The fallback uses synthetic authenticated real routes and the
 actual manually injected overlay/HTTP/scripted service without paid inference.
+
+## Canonical resize qualification (#950)
+
+[Fixture R evidence](evidence/issue-950-resize/README.md) records exact boundary
+adoption, valid no-op, capacity refusal and undo/redo through the scripted live
+route. It does not claim paired manual/agent or Layer-independent context proof.

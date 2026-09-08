@@ -61,6 +61,8 @@ export interface GrammarIssue {
     | 'logical-clip'
     | 'nonlinear-property-animation'
     | 'missing-composition'
+    | 'unsupported-topology'
+    | 'domain-refusal'
   message: string
   /** What the agent can do instead, where one exists. */
   remedy?: string
@@ -68,6 +70,7 @@ export interface GrammarIssue {
   path?: string
   /** Nearest known ids when an id failed to resolve. */
   candidates?: string[]
+  availableRange?: { startMs: number; endMs: number }
 }
 
 /** One entry of the structured change list an accepted operation returns. */

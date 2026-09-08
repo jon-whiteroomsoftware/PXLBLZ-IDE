@@ -225,3 +225,20 @@ export function resolveBaselineFixtureRecord(
   if (!record) throw new Error(`stock Show ${fixture.source.stockShowId} is not in the catalogue`)
   return structuredClone(record)
 }
+
+/** #950 fixture R: exact resize capacity is the unrelated same-Layer B. */
+export function resizeBoundaryShow(id = 'resize-boundary'): ShowRecord {
+  const show = personalBaseShow(id)
+  show.scenes = [{ ...show.scenes[0], durationMs: 20000 }]
+  show.cells = [show.cells[0]]
+  const placement = { instanceId: 'resize-instance', view: { mirror: false, phase: 0, brightness: 1 } }
+  show.composition = {
+    version: 1,
+    patternInstances: [{ id: 'resize-instance', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'CometLoom', time: { timeScale: 1, timeOffsetMs: 0 } }],
+    scenes: [{ sceneId: 's1', zones: [{ zoneId: 'z1', main: [
+      { ...placement, id: 'resize-a', startMs: 0, durationMs: 4000 },
+      { ...placement, id: 'resize-b', startMs: 8000, durationMs: 2000 },
+    ], overlays: [] }] }],
+  }
+  return show
+}

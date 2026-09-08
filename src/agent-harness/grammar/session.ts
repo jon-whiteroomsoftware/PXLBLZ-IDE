@@ -227,6 +227,9 @@ export function createSessionStore(policy: { authoringValidation?: boolean } = {
       // Auto-wrapped single-operation transaction: validate and commit now.
       const outcome = applyShowGrammarOperation(session.document, operation, args)
       if (!outcome.ok) return outcome
+      if (outcome.document === session.document && outcome.changes.length === 0) {
+        return { ok: true, changes: [], listing: projectClipListing(session.document) }
+      }
       commitEntry(session, {
         label: operation,
         summary: summarize(outcome.changes),
@@ -266,7 +269,9 @@ export function createSessionStore(policy: { authoringValidation?: boolean } = {
       const validation = pendingValidationIssues(working, session.document)
       if (!validation.ok) return validation
       const summary = changes.length > 0 ? summarize(changes) : 'No operations were applied.'
-      commitEntry(session, { label, summary, changes, before: session.document, after: working })
+      if (working !== session.document || changes.length > 0) {
+        commitEntry(session, { label, summary, changes, before: session.document, after: working })
+      }
       session.open = null
       return { ...validation, label, summary, changes, listing: projectClipListing(session.document) }
     },

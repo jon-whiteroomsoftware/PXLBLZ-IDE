@@ -25,6 +25,7 @@ import {
   BASELINE_LIBRARY,
   BASELINE_LIBRARY_PATTERN,
   personalBaseShow,
+  resizeBoundaryShow,
   personalLibraryPatternShow,
 } from '../src/agent-harness/baseline/fixtures'
 
@@ -620,6 +621,56 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       expect(visibleAfterReopen).toEqual({ durationSeconds: '12', brightnessPercent: '100' })
       expect(firstMain(durableAfterReopen)).toEqual(firstMain(durableAfterFailure))
     })
+  })
+
+  test('R: canonical exact resize accepts the boundary, preserves no-op, and refuses excess', async ({ page }) => {
+    test.setTimeout(90000)
+    const record = resizeBoundaryShow(`resize-r-${Date.now().toString(36)}`)
+    expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+    const writes = watchShowWrites(page)
+    await page.goto(`studio/shows/${record.id}?agent=1`)
+    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+    await expect.poll(() => page.evaluate(async () => {
+      const load = (path: string) => import(path)
+      const [{ usePatternStore }, { useLibraryStore }, { useMapStore }] = await Promise.all([
+        load('/PXLBLZ-IDE/src/store/patternStore.ts'), load('/PXLBLZ-IDE/src/store/libraryStore.ts'), load('/PXLBLZ-IDE/src/store/mapStore.ts'),
+      ])
+      return usePatternStore.getState().patternsLoaded && useLibraryStore.getState().librariesLoaded && useMapStore.getState().mapsLoaded
+    })).toBe(true)
+    await injectOverlay(page, bridge.url)
+    const before = await visibleRecord(page)
+    page.on('response', response => {
+      if (response.url().includes('/utterance')) void response.text().then(body => saveRecord('R-transport', { body })).catch(() => {})
+    })
+    const accepted = await waitForDone(page, await submitUtterance(page, 'make the first Clip exactly eight seconds'))
+    saveRecord('R-admission', { before, accepted, current: await visibleRecord(page), observations: await readObservations(page) })
+    expect(accepted.applied, JSON.stringify(accepted)).toBe(true)
+    await waitForDurable(page, record.id, show => firstMain(show)?.durationMs === 8000)
+    const after = await visibleRecord(page)
+    const expected = structuredClone(before!)
+    expected.composition!.scenes[0].zones[0].main[0].durationMs = 8000
+    expect(after).toEqual({ ...expected, updatedAt: after!.updatedAt })
+    const durable = await durableShow(page, record.id)
+    expect(durable).toEqual(after)
+    await page.screenshot({ path: join(REPORT_DIR, 'R-exact-boundary.png'), fullPage: true })
+    const noop = await waitForDone(page, await submitUtterance(page, 'make the first Clip exactly eight seconds'))
+    expect(noop.changed).toBe(false)
+    expect(await visibleRecord(page)).toEqual(after)
+    expect(await durableShow(page, record.id)).toEqual(durable)
+    const refused = await waitForDone(page, await submitUtterance(page, 'try twelve seconds with the next Clip at eight'))
+    expect(refused.changed).toBe(false)
+    const refusedTools = (refused.bridgeTiming as { toolCalls: Array<{ name: string; isError?: boolean; issue?: string }> }).toolCalls
+    expect(refusedTools.find(tool => tool.name === 'resize_clip')).toMatchObject({ isError: true, issue: 'The same-Layer range at this start is 0–8000 ms.' })
+    await expect(page.getByText('The requested twelve seconds do not fit. Available range: 0–8000 ms.', { exact: false })).toBeVisible()
+    expect(await visibleRecord(page)).toEqual(after)
+    expect(await durableShow(page, record.id)).toEqual(durable)
+    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+    await page.screenshot({ path: join(REPORT_DIR, 'R-noop-refused.png'), fullPage: true })
+    await page.getByRole('button', { name: 'Undo Show edit' }).click()
+    expect(await visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
+    await page.getByRole('button', { name: 'Redo Show edit' }).click()
+    expect(await visibleRecord(page)).toEqual({ ...after, updatedAt: expect.any(Number) })
+    saveRecord('R-exact-resize', { before, after, durable, accepted, noop, refused, writes, observations: await readObservations(page) })
   })
 
   test('F: a multi-operation reply lands as one history entry and one save', async ({ page }) => {

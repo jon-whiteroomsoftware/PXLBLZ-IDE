@@ -17,6 +17,19 @@ export interface BaselineUtterance {
 
 export const BASELINE_UTTERANCES: BaselineUtterance[] = [
   {
+    utterance: 'try twelve seconds with the next Clip at eight',
+    intent: '#950 fixture R: report the exact capacity refusal without authoring a candidate.',
+    script: [
+      { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 12000 } },
+      { say: 'The requested twelve seconds do not fit. Available range: 0–8000 ms.', intent: 'refuse' },
+    ],
+  },
+  {
+    utterance: 'make the first Clip exactly eight seconds',
+    intent: '#950 fixture R: the exact neighbor boundary is accepted; repetition is a valid no-op.',
+    script: [{ tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 8000, finish_turn_reply: { intent: 'apply', reply: 'The first Clip is exactly eight seconds.' } } }],
+  },
+  {
     utterance: 'make the first Clip twelve seconds',
     intent: 'The Clip starting at 0 ms becomes 12 000 ms long.',
     script: [

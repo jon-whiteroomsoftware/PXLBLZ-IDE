@@ -379,3 +379,20 @@ transferred overlay now retains its original gated editor bridge, clears the
 session transcript on departure/removal/close and reports actual application.
 The original V3 provenance remains above. No hosted service, paid inference,
 final panel, active-input wait or command-catalogue parity is claimed.
+
+
+## Canonical resize adaptation (#950)
+
+The imported resize implementations in `operations/clips.ts` and
+`operations/layerTransitions.ts` now delegate through `resizeAdapter.ts` to the
+V2 registry and `resizeShowClipExactly`. Registry-owned safe-integer arguments,
+exact refusal/capacity and validated no-op semantics replace the former separate
+plain/connected logic. `resize_connected_clip` remains historical diagnostic
+compatibility only. The session preserves history/redo on valid no-op.
+
+The exact owner compares canonical boundary representations to allow an implicit
+Cut to materialize without confusing it with removal; original authored Show
+Transitions remain untouched. Real visual-boundary removal still refuses.
+[Consumer proof](../../docs/reference/evidence/issue-950-resize/README.md) covers
+registry, grammar, private exports and a no-paid real route. Existing manual
+adapters, broader catalogue/context and live mixed-batch proof remain pending.

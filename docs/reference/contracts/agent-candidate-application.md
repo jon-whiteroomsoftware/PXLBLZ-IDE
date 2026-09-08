@@ -17,7 +17,7 @@ The adapter validates incoming structure against the Show schema with browser-sa
 
 `applyShow` returns the store's typed receipt. A duplicate identical response reads its existing result; changed request or candidate identity refuses. One accepted candidate creates one ordinary history entry. `readOutcome` recovers a surviving session's result after acknowledgement loss; retired history is unavailable and never replayed. Applied receipts distinguish saving, saved, rolled-back, superseded and an in-memory stock draft. Private asked/refused/nothing-applied/commit-refused/incomplete/service-refused/service-failed outcomes terminate via a checked `completed` receipt without mutation; this is neither a validated authoring `noop` nor user cancellation. The same bounded operation table retains these terminal identities.
 
-The overlay displays private prose alongside the actual editor outcome and includes that outcome in subsequent session dialogue. The store owns save recovery in [Show state, history, and persistence](show-state-history-persistence.md). [Show command semantics](show-command-semantics.md) covers the V2 registry; the diagnostic grammar is not yet equivalent to it.
+The overlay displays private prose alongside the actual editor outcome and includes that outcome in subsequent session dialogue. The store owns save recovery in [Show state, history, and persistence](show-state-history-persistence.md). [Show command semantics](show-command-semantics.md) covers the V2 registry; canonical resize now delegates to it, while other diagnostic operations remain independently implemented.
 
 ## Internal admission foundation
 
@@ -152,7 +152,10 @@ record explicit intent; historical paid transcripts retain their original format
 
 Apply validates the private working copy and stages completion. Ask, refuse and
 incomplete discard pending work. Apply with no changes yields `nothing-applied`
-and preserves history. No finish commits while the agent is running. Abnormal
+and preserves history. A validated already-satisfied resize contributes zero
+changes, retains the complete grammar document, and does not stamp `updatedAt`.
+Auto-wrapped or wholly no-op explicit grammar transactions preserve undo/redo;
+a no-op beside a changed operation does not abort the transaction. No finish commits while the agent is running. Abnormal
 return (including exhaustion after a staged finish) or an exception rolls back
 the complete transaction. Within a tool round, operations execute in order,
 inline completions take precedence in operation order, then explicit finishes

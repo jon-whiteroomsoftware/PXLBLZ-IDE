@@ -10,7 +10,6 @@ import {
   moveShowConnectedClipAtGlobalTime,
   planShowLayerTransitionInsertion,
   resetShowLayerTransitionToCut,
-  resizeShowConnectedClipAtGlobalTime,
   resizeShowLayerTransition,
 } from '@/engine/showLayerTransitionAuthoring'
 import type { ShowTimelineClipMoveTarget } from '@/engine/showTimelineClipAuthoring'
@@ -28,6 +27,7 @@ import {
 } from '../support.js'
 import { toolkitTransitionItem } from './junctions.js'
 import { showTransitionChangesForPresentation } from '@/engine/showTransitionAuthoring'
+import { canonicalResizeOperation } from './resizeAdapter.js'
 
 function findLayerTransition(
   document: ShowGrammarDocument,
@@ -276,66 +276,7 @@ const moveConnectedClip: ShowGrammarOperation = {
   },
 }
 
-const resizeConnectedClip: ShowGrammarOperation = {
-  name: 'resize_connected_clip',
-  description:
-    'Resize a clip that has layer Transitions attached, keeping the Transitions intact: connected clips ' +
-    'move to absorb the change. Give exactly one of duration_ms or end_ms; start_ms optionally trims the ' +
-    'clip’s start. Use resize_clip for a clip with no attached layer Transitions.',
-  mutates: ['/composition/scenes/*/zones/*', '/composition/scenes/*/propertyTracks'],
-  inputShape: {
-    clip_id: z.string().describe('Clip id from the open_show listing'),
-    duration_ms: z.number().optional().describe('New clip length in milliseconds'),
-    end_ms: z.number().optional().describe('New absolute clip end on the global timeline, in milliseconds'),
-    start_ms: z.number().optional().describe('New absolute clip start (default: unchanged)'),
-  },
-  apply(document, args) {
-    const resolved = resolveClip(document, args.clip_id as string)
-    if (!resolved.ok) return resolved
-    const { clip } = resolved.context
-    const hasDuration = args.duration_ms !== undefined
-    const hasEnd = args.end_ms !== undefined
-    if (hasDuration === hasEnd) {
-      return refuse({ code: 'invalid-argument', message: 'Give exactly one of duration_ms or end_ms.' })
-    }
-    const startMs = Math.round((args.start_ms as number | undefined) ?? clip.startMs)
-    const durationMs = hasDuration
-      ? Math.round(args.duration_ms as number)
-      : Math.round(args.end_ms as number) - startMs
-    if (!Number.isFinite(durationMs) || durationMs <= 0) {
-      return refuse({
-        code: 'invalid-argument',
-        message: `The clip would be ${durationMs} ms long; a clip needs a positive duration.`,
-      })
-    }
-    const composition = compositionOf(document)
-    const result = resizeShowConnectedClipAtGlobalTime(document.show, composition, {
-      owner: ownerFor(clip),
-      globalStartMs: startMs,
-      durationMs,
-    })
-    if (result === composition) {
-      return refuse({
-        code: 'engine-refused',
-        message:
-          `The engine declined to resize clip ${clip.id} to ${durationMs} ms with its connected ` +
-          'Transitions; the change may not fit around the connected clips.',
-        remedy: 'Check the clip listing for room, or resize the attached Transitions first.',
-      })
-    }
-    return {
-      ok: true,
-      document: composedShow(document, result),
-      changes: [{
-        op: 'resize_connected_clip',
-        targetId: clip.id,
-        description: `Clip ${clip.id} now runs ${startMs}–${startMs + durationMs} ms (${durationMs} ms), Transitions kept.`,
-        before: { startMs: clip.startMs, durationMs: clip.durationMs },
-        after: { startMs, durationMs },
-      }],
-    }
-  },
-}
+const resizeConnectedClip: ShowGrammarOperation = canonicalResizeOperation('resize_connected_clip')
 
 export const LAYER_TRANSITION_OPERATIONS: ShowGrammarOperation[] = [
   insertLayerTransition,

@@ -238,13 +238,10 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     expect(summaryClips(record).find((clip) => clip.clipId === 'clip-b')?.durationMs).toBe(9_000)
 
-    // A generous request clamps to the free time before the next clip.
-    const clamped = applyOk(showCommandFixture(), 'resize_clip', {
-      clip_id: 'clip-b',
-      duration_ms: 20_000,
-    })
-    expect(clamped.changes[0].description).toContain('clamped')
-    expect(summaryClips(clamped.record).find((clip) => clip.clipId === 'clip-b')?.durationMs).toBe(10_000)
+    // Exact resize refuses a generous request instead of silently clamping.
+    applyRefused(showCommandFixture(), 'resize_clip', { clip_id: 'clip-b', duration_ms: 20_000 }, 'no-space')
+    const exact = applyOk(showCommandFixture(), 'resize_clip', { clip_id: 'clip-b', duration_ms: 10_000 })
+    expect(summaryClips(exact.record).find((clip) => clip.clipId === 'clip-b')?.durationMs).toBe(10_000)
 
     const overlay = applyOk(showCommandFixture(), 'resize_clip', {
       clip_id: 'clip-ov',
@@ -252,8 +249,7 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     expect(summaryClips(overlay.record).find((clip) => clip.clipId === 'clip-ov')?.durationMs).toBe(4_000)
 
-    // Overlay layers join across Scenes by index: the clamp sees the next
-    // Scene's overlay clip even though its Scene-local layer id differs.
+    // Overlay layers join across Scenes by index; Scene-local ids differ.
     const base = boundaryFreeTrackedFixture()
     const crossScene = {
       ...base,
@@ -281,10 +277,9 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
           : scene),
       },
     }
-    const crossClamped = applyOk(crossScene, 'resize_clip', { clip_id: 'clip-ov', duration_ms: 90_000 })
-    expect(crossClamped.changes[0].description).toContain('clamped')
-    expect(summaryClips(crossClamped.record).find((clip) => clip.clipId === 'clip-ov')?.durationMs)
-      .toBe(34_000)
+    applyRefused(crossScene, 'resize_clip', { clip_id: 'clip-ov', duration_ms: 90_000 }, 'no-space')
+    const crossExact = applyOk(crossScene, 'resize_clip', { clip_id: 'clip-ov', duration_ms: 34_000 })
+    expect(summaryClips(crossExact.record).find((clip) => clip.clipId === 'clip-ov')?.durationMs).toBe(34_000)
 
     // Growing a clip whose sole-use instance carries an instance track
     // across the Scene boundary splits that track segment per Scene.
@@ -297,6 +292,15 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     const scene2Tracks = grown.record.composition?.scenes
       .find((scene) => scene.sceneId === 'scene-2')?.propertyTracks ?? []
     expect(scene2Tracks.length).toBe(1)
+    const adjacent = applyOk(showCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 10_000 })
+    const connectedComposition = insertShowLayerTransition(adjacent.record, adjacent.record.composition!, {
+      id: 'resize-transition', fromPlacementId: 'clip-a', toPlacementId: 'clip-b', kind: 'crossfade',
+      durationMs: 1000, easing: { curve: 'linear' }, crossfadePolicy: 'live-live',
+    })
+    const connected = { ...adjacent.record, composition: connectedComposition }
+    const clip = summaryClips(connected).find(clip => clip.clipId === 'clip-b')!
+    const leading = applyOk(connected, 'resize_clip', { clip_id: 'clip-b', start_ms: clip.startMs + 500, end_ms: clip.endMs })
+    expect(leading.changes[0].details?.transitionChanges).toEqual([{ transitionId: 'resize-transition', previousDurationMs: 1000, durationMs: 1500 }])
   },
   split_clip: () => {
     const { record, changes } = applyOk(showCommandFixture(), 'split_clip', {

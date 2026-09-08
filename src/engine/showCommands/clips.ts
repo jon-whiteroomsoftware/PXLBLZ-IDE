@@ -20,10 +20,10 @@ import {
   planShowClipPatternRejoin,
   planShowClipSplitAtGlobalTime,
   rejoinShowClipPatternInstance,
-  resizeShowClipAtGlobalTime,
   splitShowClipAtGlobalTime,
   type ShowTimelineClipMoveTarget,
 } from '../showTimelineClipAuthoring'
+import { resizeShowClipExactly, type ShowExactClipResizeRequest } from '../showExactClipResize'
 import {
   commandComposition,
   refuseShowCommand,
@@ -181,58 +181,44 @@ const moveClip: ShowCommandDescriptor = {
 
 const resizeClip: ShowCommandDescriptor = {
   name: 'resize_clip',
-  description:
-    'Resize a clip to a new duration with its start fixed, clamping into the free time after it. ' +
-    'Transition-connected clips refuse here.',
-  touches: ['/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/updatedAt'],
+  description: 'Resize a logical Clip exactly on the global timeline using safe integer milliseconds. Give exactly one of duration_ms or end_ms; start_ms optionally changes its start. Supported connected Clips move together and Transitions retain their identity. An already-satisfied valid request makes no changes; insufficient space or unsupported topology refuses atomically.',
+  touches: ['/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/composition/transitions', '/updatedAt'],
+  exactlyOne: ['duration_ms', 'end_ms'],
   fields: {
-    clip_id: { kind: 'string', description: 'The clip to resize' },
-    duration_ms: { kind: 'number', description: 'New duration in milliseconds' },
+    clip_id: { kind: 'string', description: 'Logical Clip id from the timeline listing' },
+    duration_ms: { kind: 'integer', safeInteger: true, optional: true, description: 'Exact new duration in milliseconds; give this or end_ms' },
+    end_ms: { kind: 'integer', safeInteger: true, optional: true, description: 'Exact global end in milliseconds; give this or duration_ms' },
+    start_ms: { kind: 'integer', safeInteger: true, optional: true, description: 'Exact global start in milliseconds; default unchanged' },
   },
   apply(record, input) {
     const resolved = commandComposition(record)
     if (!resolved.ok) return resolved
-    const composition = resolved.composition
-    const found = resolveCommandClip(record, composition, input.clip_id as string)
-    if (!found.ok) return found
-    const { clip, owner, zoneName } = found.context
-    // Clamp into the free time before the next clip on the same layer, so a
-    // generous request lands instead of refusing on the neighbor.
-    // Siblings on the same projected layer: the unified timeline joins
-    // overlay layers across Scenes by index, and overlay layer ids are
-    // Scene-local, so position (zone, kind, layerIndex) is the identity.
-    const nextStartMs = found.context.siblings
-      .filter((sibling) => (
-        sibling.clip.zoneId === clip.zoneId
-        && sibling.clip.kind === clip.kind
-        && sibling.clip.layerIndex === clip.layerIndex
-        && sibling.clip.startMs > clip.startMs
-      ))
-      .reduce((nearest, sibling) => Math.min(nearest, sibling.clip.startMs), Number.POSITIVE_INFINITY)
-    const availableMs = Math.min(nextStartMs, found.context.timelineDurationMs) - clip.startMs
-    const requestedMs = Math.round(input.duration_ms as number)
-    const durationMs = Math.min(requestedMs, availableMs)
-    const result = resizeShowClipAtGlobalTime(record, composition, {
-      owner,
-      globalStartMs: clip.startMs,
-      durationMs,
-    })
-    if (result === composition) {
-      return engineIdentityRefusal(
-        'resize_clip',
-        `${describeCommandClip(clip, zoneName)} did not resize; the duration may be invalid or the clip ` +
-        'connected to a layer transition.',
-      )
+    const result = resizeShowClipExactly(record, resolved.composition, {
+      clipId: input.clip_id,
+      ...(input.duration_ms !== undefined ? { durationMs: input.duration_ms } : {}),
+      ...(input.end_ms !== undefined ? { globalEndMs: input.end_ms } : {}),
+      ...(input.start_ms !== undefined ? { globalStartMs: input.start_ms } : {}),
+    } as ShowExactClipResizeRequest)
+    if (result.status === 'refused' && result.code === 'missing-target') {
+      const missing = resolveCommandClip(record, resolved.composition, input.clip_id as string)
+      if (!missing.ok) return missing
     }
+    if (result.status === 'refused') return refuseShowCommand({
+      code: result.code === 'invalid-request' ? 'invalid-argument' : result.code === 'missing-target' ? 'unknown-clip' : result.code,
+      message: result.reason,
+      ...(result.availableRange ? { availableRange: result.availableRange } : {}),
+    })
+    if (result.status === 'noop') return { ok: true, record, changes: [] }
+    const found = resolveCommandClip(record, result.composition, input.clip_id as string)
+    if (!found.ok) return found
+    const { clip } = found.context
     return {
       ok: true,
-      record: withComposition(record, result),
+      record: withComposition(record, result.composition),
       changes: [{
-        command: 'resize_clip',
-        targetId: clip.id,
-        description:
-          `Clip ${clip.patternName} resized to ${durationMs} ms` +
-          `${durationMs < requestedMs ? ' (clamped to the free time)' : ''}.`,
+        command: 'resize_clip', targetId: clip.id,
+        description: `Clip ${clip.id} now runs ${clip.startMs}–${clip.endMs} ms (${clip.durationMs} ms).`,
+        details: { startMs: clip.startMs, endMs: clip.endMs, durationMs: clip.durationMs, changedClipIds: result.changedClipIds, movedClipIds: result.movedClipIds, transitionChanges: result.transitionChanges },
       }],
     }
   },

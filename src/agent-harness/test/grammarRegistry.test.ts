@@ -82,7 +82,7 @@ function expectRefused(
   name: string,
   args: Record<string, unknown>,
   code: string,
-): Array<{ code: string; message: string; remedy?: string; candidates?: string[] }> {
+): Array<{ code: string; message: string; remedy?: string; candidates?: string[]; availableRange?: { startMs: number; endMs: number } }> {
   let issues: Array<{ code: string; message: string; remedy?: string; candidates?: string[] }> = []
   expectRefusedShowAuthoringEdit({
     show: document.show,
@@ -203,7 +203,7 @@ describe('grammar registry (#17)', () => {
       expect(firstClip(next).durationMs).toBe(12_000)
     })
 
-    it('refuses to resize into an overlap, naming the conflicting clip and a remedy', () => {
+    it('refuses to resize into an overlap and reports the actual available range', () => {
       const { document } = openFixture()
       const clip = firstClip(document)
       const other = secondClip(document)
@@ -211,16 +211,15 @@ describe('grammar registry (#17)', () => {
         document,
         'resize_clip',
         { clip_id: clip.clipId, duration_ms: 40_000 },
-        'overlap',
+        'no-space',
       )
-      expect(issues[0].message).toContain(other.clipId)
-      expect(issues[0].remedy).toBeTruthy()
+      expect(issues[0].availableRange).toEqual({ startMs: clip.startMs, endMs: other.startMs })
     })
 
     it('refuses to resize past the end of the timeline', () => {
       const { document } = openFixture()
       const clip = secondClip(document)
-      expectRefused(document, 'resize_clip', { clip_id: clip.clipId, duration_ms: 40_000 }, 'outside-timeline')
+      expectRefused(document, 'resize_clip', { clip_id: clip.clipId, duration_ms: 40_000 }, 'no-space')
     })
 
     it('refuses an unknown clip id and offers the known ids', () => {

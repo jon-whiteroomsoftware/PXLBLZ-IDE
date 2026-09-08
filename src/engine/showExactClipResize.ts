@@ -1,4 +1,5 @@
 import type { ShowCompositionV1, ShowRecord } from './personalContentRecords'
+import { normalizeShowTransitionState } from './showModel'
 import { validateShowComposition } from './showCompositionModel'
 import { resizeShowClipAtGlobalTime } from './showTimelineClipAuthoring'
 import {
@@ -94,8 +95,11 @@ export function resizeShowClipExactly(
       transitionChanges.push({ transitionId: previous.id, previousDurationMs: previous.durationMs, durationMs: next.durationMs })
     }
   }
+  // Compare the same canonical boundary representation on both sides: an
+  // implicit Cut may be materialized without changing boundary semantics.
+  // The returned composition leaves every original Show Transition untouched.
   const canonical = resizeShowConnectedClipInShowAtGlobalTime(show, composition, { owner, globalStartMs, durationMs, plannedComposition: candidate })
-  if (JSON.stringify(canonical.transitions) !== JSON.stringify(show.transitions)) {
+  if (JSON.stringify(normalizeShowTransitionState(canonical).transitions) !== JSON.stringify(normalizeShowTransitionState(show).transitions)) {
     return { status: 'refused', code: 'unsupported-topology', reason: 'This resize would remove a Scene-boundary Transition.' }
   }
   const changed = after.filter(next => {

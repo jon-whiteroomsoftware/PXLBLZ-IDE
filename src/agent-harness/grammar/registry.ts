@@ -9,7 +9,8 @@
 // the v2 editor's mouse calls), never Scene-relative coordinates. Every apply
 // works on a copy, runs tier-0 validation on the result, and refuses with
 // typed issues; an engine refusal (input returned by identity) is surfaced as
-// a typed refusal, never as success. Planner-backed operations run the
+// a typed refusal unless the semantic owner independently validates a no-op.
+// Planner-backed operations run the
 // vendored plan* function first and pass its user-legible reason through.
 import { z, type ZodRawShape } from 'zod'
 import { validateAuthoringShowDocument, validateShowDocument } from '../shows/evaluate.js'
@@ -27,6 +28,7 @@ export interface ShowGrammarOperation {
   mutates: string[]
   /** Zod shape for the operation's own arguments (session_id is added by the server). */
   inputShape: ZodRawShape
+  validateInput?: (args: Record<string, unknown>) => GrammarIssue[]
   apply: (document: ShowGrammarDocument, args: Record<string, unknown>) => GrammarOperationResult
 }
 
@@ -78,6 +80,8 @@ export function applyShowGrammarOperation(
       }],
     }
   }
+  const inputIssues = operation.validateInput?.(rawArgs ?? {})
+  if (inputIssues?.length) return { ok: false, issues: inputIssues }
   const parsed = z.object(operation.inputShape).safeParse(rawArgs ?? {})
   if (!parsed.success) {
     return {
