@@ -62,8 +62,10 @@ Clip resize, Clip move/duplicate (native drag/drop and shift-pointer), Marker
 creation/movement and Show End use the same scope. Each gesture retains ownership
 through its authored callback and save settlement or cancellation. Native dragend
 cannot release a committed drop still settling. A Marker source click retains its
-pointer ownership between pointerup and the click's authoring callback, including
-implicit capture loss. Unrelated pointer identities cannot finish or cancel a
+primary-pointer ownership between pointerup and the click's authoring callback,
+including implicit capture loss. Below-threshold auxiliary releases end at pointerup
+because they emit auxclick rather than click; moved auxiliary drags retain their
+existing authored behavior. Unrelated pointer identities cannot finish or cancel a
 gesture; retired window listeners cannot author or re-register input. Rebinding
 uses the surviving gesture state before exposing the replacement session.
 Viewport, transport, workspace-divider and marquee gestures remain view state.

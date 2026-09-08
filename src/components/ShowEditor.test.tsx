@@ -8469,3 +8469,48 @@ describe('timeline settlement ordering (#949)', () => {
     expect(await provider.listShows()).toEqual(useShowStore.getState().shows.map(record => ({ ...record, stageMapId: null })))
   })
 })
+
+
+it.each([1, 2])('releases a below-threshold auxiliary Marker button %s without waiting for click (#949)', async button => {
+  const show = resizeBoundaryShow(`aux-marker-${button}`)
+  show.cells[0].restartOnEntry = false
+  const provider = memoryProvider([show])
+  const writes = vi.spyOn(provider, 'updateShow')
+  setPersonalContentProvider(provider)
+  useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+  window.history.replaceState(null, '', `/studio/shows/${show.id}?agent=1`)
+  const mounted = render(<ShowEditor showId={show.id} />)
+  const api = (window as unknown as { __pxlblzEditor: ReturnType<typeof import('@/dev/agentEditorAdmission').createAgentEditorAdmission> }).__pxlblzEditor
+  const handle = screen.getByRole('button', { name: 'Add Marker at playhead' })
+  fireEvent.pointerDown(handle, { pointerId: 1, button, clientX: 40 })
+  if (button === 2) fireEvent.contextMenu(handle, { button })
+  const captured = api.beginRequest('aux', 'Rename', [])!
+  act(() => { expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request).status).toBe('waiting') })
+  fireEvent.pointerUp(handle, { pointerId: 1, button, clientX: 40 })
+  fireEvent.lostPointerCapture(handle, { pointerId: 1 })
+  fireEvent(handle, new MouseEvent('auxclick', { button, bubbles: true }))
+  await act(async () => {})
+  expect(api.readOutcome(captured.request)?.status).toBe('applied')
+  expect(writes).toHaveBeenCalledTimes(1)
+  expect(useShowStore.getState().shows[0]).toEqual({ ...show, name: 'Agent', updatedAt: expect.any(Number) })
+  expect(useShowStore.getState().showHistories[show.id].past).toEqual([show])
+  fireEvent.pointerDown(handle, { pointerId: 2, button: 0, clientX: 40 })
+  const next = api.beginRequest('primary-after-aux', 'Rename', [])!
+  act(() => { expect(api.applyShow({ ...next.show, name: 'Next' }, next.request).status).toBe('waiting') })
+  fireEvent.pointerCancel(handle, { pointerId: 2 })
+  await act(async () => {})
+  expect(api.readOutcome(next.request)?.status).toBe('applied')
+  const beforeDrag = structuredClone(useShowStore.getState().shows[0])
+  vi.spyOn(screen.getByTestId('show-timeline-ruler'), 'getBoundingClientRect').mockReturnValue({ left: 0, right: 200, width: 200 } as DOMRect)
+  fireEvent.pointerDown(handle, { pointerId: 3, button, clientX: 10, altKey: true })
+  fireEvent.pointerUp(handle, { pointerId: 3, button, clientX: 30, altKey: true })
+  await act(async () => {})
+  expect(useShowStore.getState().shows[0]).toEqual({
+    ...beforeDrag,
+    updatedAt: expect.any(Number),
+    composition: { ...beforeDrag.composition, markers: [{ id: expect.any(String), name: 'Marker 1', color: '#f59e0b', timeMs: 3000 }] },
+  })
+  expect(writes).toHaveBeenCalledTimes(3)
+  mounted.unmount()
+  window.history.replaceState(null, '', '/')
+})

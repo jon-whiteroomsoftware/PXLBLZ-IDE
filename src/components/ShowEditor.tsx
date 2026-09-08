@@ -6993,7 +6993,11 @@ function TimelineMarkerSource({
           if (!drag || drag.pointerId !== event.pointerId || drag.phase) return
           // The ensuing click owns playhead creation. Keep the pointer's
           // activity across implicit capture loss until that handler authors.
-          if (Math.abs(event.clientX - drag.startX) < 3) { drag.phase = 'click'; return }
+          if (Math.abs(event.clientX - drag.startX) < 3) {
+            if (event.button === 0) drag.phase = 'click'
+            else cancelMarkerCreation(event) // Auxiliary buttons emit auxclick, not click.
+            return
+          }
           suppressMarkerClickRef.current = true
           const timeMs = resolveDragTime(event.clientX, event)
           if (timeMs === null) { cancelMarkerCreation(event); return }
