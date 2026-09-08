@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "949",
+  "route": "/PXLBLZ-IDE/studio/shows/spatial-clean-mtt6r7xc?agent=1",
+  "operation": "An unchanged focused physical-zone selector accepts changed indexes through the existing diagnostic adapter; subsequent explicit Save preserves them. The downloaded Show reopens identically, while invalid coverage still blocks device delivery.",
+  "captures": [
+    ".wrsp/ui-proof/949-spatial-clean-open.png",
+    ".wrsp/ui-proof/949-spatial-clean-saved.png"
+  ],
+  "capturedAtCommit": "ddff1a6395cb1f45658166287bc60aaf5566a4b6"
+}

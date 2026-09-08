@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "949",
+  "route": "/PXLBLZ-IDE/studio/shows/spatial-cancel-mtt6r9u8?agent=1",
+  "operation": "A real LED rectangle leaves retained changed indexes after pointerup; a scripted candidate waits without writes. Cancel admits one candidate; the exported Show reopens identically.",
+  "captures": [
+    ".wrsp/ui-proof/949-spatial-cancel-waiting.png",
+    ".wrsp/ui-proof/949-spatial-cancel-saved.png"
+  ],
+  "capturedAtCommit": "ddff1a6395cb1f45658166287bc60aaf5566a4b6"
+}

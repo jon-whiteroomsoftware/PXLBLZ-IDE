@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "949",
+  "route": "/PXLBLZ-IDE/studio/shows/spatial-clear-cancel-mtt6rg5v?agent=1",
+  "operation": "At 720px, Clear and a cancelled rectangle retain the empty dirty selection while a scripted candidate waits. Explicit Cancel admits one candidate; the exported Show reopens identically.",
+  "captures": [
+    ".wrsp/ui-proof/949-spatial-clear-cancel-waiting.png",
+    ".wrsp/ui-proof/949-spatial-clear-cancel-saved.png"
+  ],
+  "capturedAtCommit": "ddff1a6395cb1f45658166287bc60aaf5566a4b6"
+}

@@ -71,3 +71,21 @@ accurate. Optional Property Beat movement remains component-qualified only, and
 unlisted inputs, final Agent panel placement, hosted endpoints and model/grammar
 coverage remain outside this slice. The coordinator owns final committed-tip
 suites, native review and landing. Publication remains held.
+
+
+Fresh committed-source capture at `ddff1a6395cb1f45658166287bc60aaf5566a4b6`
+passed all four cases in 14.8 seconds (18.5 overall). The four
+`.wrsp/ui-proof/949-spatial-*.json` records pin that source and attach desktop
+and narrow screenshots. Complete records and reopened exports are retained for
+[clean source replacement](issue-949-spatial-drafts/clean.json),
+[Cancel](issue-949-spatial-drafts/cancel.json),
+[manual Save](issue-949-spatial-drafts/save.json), and
+[Clear/pointercancel](issue-949-spatial-drafts/clear-cancel.json).
+Write arrays also include subsequent Undo operations.
+
+The source-identity collision test first failed for `('a:b', 'c')` versus
+`('a', 'b:c')`; both selector identity and React key now encode complete tuples.
+Normal source hooks passed lint, typecheck and 267 staged tests. The optional
+post-commit issue reporter returned SIGPIPE 141 after successful commits. Layout
+classifier advisories for the selector and lifecycle suite are covered by the
+actual SA desktop/narrow flow; no visual layout change is introduced.

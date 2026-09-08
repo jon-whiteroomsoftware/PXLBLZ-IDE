@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "949",
+  "route": "/PXLBLZ-IDE/studio/shows/spatial-save-mtt6rd00?agent=1",
+  "operation": "A real retained LED selection holds a scripted candidate after pointerup. Save adopts the manual indexes before release and the stale broad candidate refuses; the exported Show reopens identically.",
+  "captures": [
+    ".wrsp/ui-proof/949-spatial-save-waiting.png",
+    ".wrsp/ui-proof/949-spatial-save-saved.png"
+  ],
+  "capturedAtCommit": "ddff1a6395cb1f45658166287bc60aaf5566a4b6"
+}
