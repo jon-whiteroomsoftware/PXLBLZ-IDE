@@ -80,7 +80,7 @@ resize that keeps the Clip's end fixed may adjust incoming Transition duration;
 the result reports its previous and new duration. Segment endpoint references
 follow the logical Clip when Scene coverage changes. Group-owned Clips,
 Transition removal, and edits that would remove a visual Scene-boundary
-Transition refuse. Existing manual authoring paths retain their own behavior.
+Transition refuse. The manual exceptions below do not broaden the agent operation.
 
 The registry `resize_clip` descriptor owns `clip_id`, exactly one safe-integer
 `duration_ms`/`end_ms`, and optional safe-integer `start_ms`. The diagnostic
@@ -101,9 +101,43 @@ The operation requires a valid input composition. Registry transactions and
 private grammar sessions accept no-op before/after a changed step. Wholly no-op
 private work creates no history entry or candidate. The existing valid-intermediate
 move-B then resize-A sequence is qualified; arbitrary temporarily overlapping
-intermediates and swaps are not. Manual gesture/inspector convergence and paired
-mouse/agent proof remain pending. Broad diagnostic requests retain whole-Show
+intermediates and swaps are not. Broad diagnostic requests retain whole-Show
 admission rather than the internal qualified Layer guard.
+
+### Manual resize commits
+
+Ordinary pointer and composition-inspector duration commits use
+`resizeShowClipManually`, which delegates to the exact owner. Start-only inspector
+edits remain connected move operations; other inspector properties and Group
+isolation retain their existing owners. The inspector refuses excess duration.
+Pointer feedback may bound a fixed-start end resize to the exact owner's reported
+capacity; release submits that painted integer extent again, never the preview
+composition. A 12000 ms pointer request can paint and commit 8000 ms while the
+same 12000 ms exact inspector/agent request refuses.
+
+Only two source-qualified manual Transition exceptions use legacy Show
+canonicalization: a fixed-end leading-edge edit reducing an incoming Layer Transition
+to zero, and a resize breaking a visual Scene-boundary junction into a Cut.
+The exact owner tags these specific refusals; invalid sources, unknown targets,
+Group ownership, other topology failures and capacity refusals do not trigger
+that path. Group children remain editable through their separate isolation
+inspector. Boundary-to-Cut edits collapse boundary time and therefore remain
+outside exact global-range equivalence with agent requests.
+
+A malformed historical cross-Scene Layer Transition is rejected by the real
+Show-file importer, with a repaired-record positive control. Its legacy engine
+repair remains a diagnostic, not an accepted source for the shared operation.
+A separate valid-source multi-Scene fixture proves endpoint retargeting and
+complete manual/canonical record parity.
+
+Pointer release conservatively refuses if the captured Show, composition or
+current saved/draft identity changed. It does not replay independent metadata
+edits. Accepted changes retain the editor's Pattern-slot persistence wrapper and
+ordinary store history/save recovery; no-op, refusal and cancellation save nothing.
+This semantic convergence does not migrate manual callbacks to agent admission
+or qualify Layer-independent model context, arbitrary private batches or live
+active-input waiting. [Manual proof](../evidence/issue-950-resize/manual.md)
+records the finite consumer cases.
 
 [Adapter/session/artifact and route evidence](../evidence/issue-950-resize/README.md)
 records the bounded qualifications and residuals.

@@ -17,7 +17,7 @@
 // screenshot per sequence land under reports/agent-harness/baseline/browser/.
 // Not part of the push gates: this is an explicit diagnostic command.
 import { spawn, type ChildProcess } from 'node:child_process'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { Page, Request } from '@playwright/test'
 import { expect, test } from './fixtures/authenticated'
@@ -639,6 +639,38 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     })).toBe(true)
     await injectOverlay(page, bridge.url)
     const before = await visibleRecord(page)
+    // Pair real manual entry points with the scripted canonical operation.
+    const handle = page.getByRole('separator', { name: 'Resize CometLoom end' }).first()
+    const lane = page.locator('[data-show-layer-kind="main"]').first()
+    const rect = (await lane.boundingBox())!
+    const edge = (await handle.boundingBox())!
+    await page.keyboard.down('Alt')
+    await page.mouse.move(edge.x + edge.width / 2, edge.y + edge.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(edge.x + edge.width / 2 + rect.width * 0.4, edge.y + edge.height / 2)
+    expect(await visibleRecord(page)).toEqual(before)
+    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(0)
+    await page.screenshot({ path: join(REPORT_DIR, 'R-manual-preview.png'), fullPage: true })
+    await page.mouse.up()
+    await page.keyboard.up('Alt')
+    await waitForDurable(page, record.id, show => firstMain(show)?.durationMs === 8000)
+    const pointerAfter = await visibleRecord(page)
+    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+    await page.getByRole('button', { name: 'Undo Show edit' }).click()
+    await waitForDurable(page, record.id, show => firstMain(show)?.durationMs === 4000)
+    expect(await visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
+    await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+    await page.getByRole('button', { name: 'Select CometLoom', exact: true }).first().click()
+    const duration = page.getByRole('textbox', { name: 'Duration seconds exact time' })
+    await duration.fill('7.999')
+    await duration.press('Enter')
+    await waitForDurable(page, record.id, show => firstMain(show)?.durationMs === 7999)
+    const inspectorAfter = await visibleRecord(page)
+    await page.screenshot({ path: join(REPORT_DIR, 'R-manual-inspector.png'), fullPage: true })
+    await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: 'Undo Show edit' }).click()
+    await waitForDurable(page, record.id, show => firstMain(show)?.durationMs === 4000)
+    expect(await visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
     page.on('response', response => {
       if (response.url().includes('/utterance')) void response.text().then(body => saveRecord('R-transport', { body })).catch(() => {})
     })
@@ -652,6 +684,20 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     expect(after).toEqual({ ...expected, updatedAt: after!.updatedAt })
     const durable = await durableShow(page, record.id)
     expect(durable).toEqual(after)
+    expect(pointerAfter).toEqual({ ...after, updatedAt: pointerAfter!.updatedAt })
+    const inspectorExpected = structuredClone(after!)
+    inspectorExpected.composition!.scenes[0].zones[0].main[0].durationMs = 7999
+    expect(inspectorAfter).toEqual({ ...inspectorExpected, updatedAt: inspectorAfter!.updatedAt })
+    await page.getByRole('button', { name: 'Show actions' }).click()
+    const downloadPending = page.waitForEvent('download')
+    await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
+    const downloaded = await downloadPending
+    const reopened = await page.evaluate(async bytes => {
+      const load = (path: string) => import(path)
+      const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
+      return parseShowFileBundle(new Uint8Array(bytes))
+    }, [...readFileSync((await downloaded.path())!)])
+    expect(reopened.show).toEqual(after)
     await page.screenshot({ path: join(REPORT_DIR, 'R-exact-boundary.png'), fullPage: true })
     const noop = await waitForDone(page, await submitUtterance(page, 'make the first Clip exactly eight seconds'))
     expect(noop.changed).toBe(false)
@@ -664,13 +710,13 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     await expect(page.getByText('The requested twelve seconds do not fit. Available range: 0–8000 ms.', { exact: false })).toBeVisible()
     expect(await visibleRecord(page)).toEqual(after)
     expect(await durableShow(page, record.id)).toEqual(durable)
-    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(5)
     await page.screenshot({ path: join(REPORT_DIR, 'R-noop-refused.png'), fullPage: true })
     await page.getByRole('button', { name: 'Undo Show edit' }).click()
     expect(await visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
     await page.getByRole('button', { name: 'Redo Show edit' }).click()
     expect(await visibleRecord(page)).toEqual({ ...after, updatedAt: expect.any(Number) })
-    saveRecord('R-exact-resize', { before, after, durable, accepted, noop, refused, writes, observations: await readObservations(page) })
+    saveRecord('R-exact-resize', { before, pointerAfter, inspectorAfter, reopened, after, durable, accepted, noop, refused, writes, observations: await readObservations(page) })
   })
 
   test('F: a multi-operation reply lands as one history entry and one save', async ({ page }) => {

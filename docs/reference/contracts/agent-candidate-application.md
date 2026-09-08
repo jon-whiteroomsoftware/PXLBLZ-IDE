@@ -82,6 +82,12 @@ This is internal evidence only: the diagnostic bridge, real input-owner UI wirin
 visible waiting/Cancel cue and qualified exact-resize wait consumption remain
 unqualified. The exact-resize API retains its existing immediate admission path.
 
+Manual pointer and composition-inspector duration commits also use the exact
+resize semantic owner, with two explicitly tagged manual Transition-to-Cut
+exceptions ([command contract](show-command-semantics.md#manual-resize-commits)).
+They retain ordinary editor persistence and conservative captured-source refusal;
+sharing semantics does not give them this request lifecycle or narrow context.
+
 ## Internal qualified exact resize
 
 `beginResolvedShowResize` captures a resolved logical Clip and exact integer

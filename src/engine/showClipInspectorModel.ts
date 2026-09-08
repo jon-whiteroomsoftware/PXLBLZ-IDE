@@ -16,10 +16,10 @@ import {
   updateShowCellEffects,
   updateShowCellPattern,
 } from './showModel'
+import { resizeShowClipManually } from './showManualClipResize'
 import { partitionShowPatternControls } from './showPatternControlPartition'
 import {
   moveShowConnectedClipAtGlobalTime,
-  resizeShowConnectedClipAtGlobalTime,
 } from './showLayerTransitionAuthoring'
 import type {
   ShowCell,
@@ -190,6 +190,7 @@ export function updateShowClipInspector(
     return show
   }
   let composition = show.composition
+  let resizedShow = show
   const originalPatternKey = patternKey(resolved.instance.pattern)
   const changesPattern = Boolean(
     patch.pattern && patternKey(patch.pattern.ref) !== originalPatternKey,
@@ -279,11 +280,12 @@ export function updateShowClipInspector(
           })
         }
       } else {
-        resized = resizeShowConnectedClipAtGlobalTime(show, stagedLocal, {
-          owner: timelineOwner,
+        resizedShow = resizeShowClipManually(show, stagedLocal, {
+          clipId: current.logicalClipId ?? current.id,
           globalStartMs,
           durationMs: desiredDurationMs,
         })
+        resized = resizedShow === show ? stagedLocal : resizedShow.composition!
       }
       const timingAccepted = resized !== stagedLocal
         || (desiredStartMs === range.globalStartMs && desiredDurationMs === range.durationMs)
@@ -293,7 +295,7 @@ export function updateShowClipInspector(
     }
   }
   if (composition === show.composition) return show
-  return { ...show, composition, updatedAt: Math.max(Date.now(), show.updatedAt + 1) }
+  return { ...resizedShow, composition, updatedAt: Math.max(Date.now(), show.updatedAt + 1) }
 }
 
 function projectGlobalClip(cell: ShowCell, owner: Extract<ShowClipInspectorOwner, { kind: 'global' }>): ShowClipInspectorValue {

@@ -1,3 +1,4 @@
+import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
 import ShowSourceOutletContext from './ShowSourceOutlet'
 import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -4183,6 +4184,66 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument())
   })
 
+  it.each(['commit', 'cancel', 'save-failure', 'noop'] as const)('bounds a twelve-second pointer preview and preserves %s semantics (#950)', async (outcome) => {
+    const show = resizeBoundaryShow(`resize-${outcome}`)
+    show.cells[0].restartOnEntry = false
+    const provider = memoryProvider([show])
+    const save = vi.spyOn(provider, 'updateShow')
+    if (outcome === 'save-failure') save.mockRejectedValueOnce(new Error('Synthetic resize save failure'))
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+    const lane = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
+    Object.defineProperty(lane, 'getBoundingClientRect', {
+      value: () => ({ left: 0, right: 200, top: 0, bottom: 40, width: 200, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    fireEvent.pointerDown(screen.getAllByRole('separator', { name: 'Resize CometLoom end' })[0], { clientX: 40, pointerId: 1, altKey: true })
+    const endX = outcome === 'noop' ? 40 : 120
+    fireEvent.pointerMove(window, { clientX: endX, pointerId: 1, altKey: true })
+    expect(useShowStore.getState().shows[0]).toEqual(show)
+    expect(save).not.toHaveBeenCalled()
+    expect(screen.getAllByRole('button', { name: 'Select CometLoom' })[0]).toHaveStyle({ width: outcome === 'noop' ? '20%' : '40%' })
+    if (outcome === 'cancel') fireEvent.pointerCancel(window, { pointerId: 1 })
+    else fireEvent.pointerUp(window, { clientX: endX, pointerId: 1, altKey: true })
+    if (outcome !== 'commit') {
+      await waitFor(() => expect(useShowStore.getState().shows[0]).toEqual(show))
+      expect(save).toHaveBeenCalledTimes(outcome === 'save-failure' ? 1 : 0)
+      expect(screen.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+      expect(screen.getAllByRole('button', { name: 'Select CometLoom' })[0]).toHaveStyle({ width: '20%' })
+      return
+    }
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+    const expected = structuredClone(show)
+    expected.composition!.scenes[0].zones[0].main[0].durationMs = 8000
+    expect(useShowStore.getState().shows[0]).toEqual({ ...expected, updatedAt: expect.any(Number) })
+    await act(async () => { await useShowStore.getState().undoShow(show.id) })
+    expect(useShowStore.getState().shows[0]).toEqual({ ...show, updatedAt: expect.any(Number) })
+    await act(async () => { await useShowStore.getState().redoShow(show.id) })
+    expect(useShowStore.getState().shows[0]).toEqual({ ...expected, updatedAt: expect.any(Number) })
+  })
+
+  it.each(['metadata', 'composition'] as const)('refuses an old resize listener after a current %s edit (#950)', async (kind) => {
+    const show = createDefaultShow('stale-resize', 'Stale resize', 1000)
+    const provider = memoryProvider([show])
+    const save = vi.spyOn(provider, 'updateShow')
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+    const lane = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
+    Object.defineProperty(lane, 'getBoundingClientRect', {
+      value: () => ({ left: 0, right: 620, top: 0, bottom: 40, width: 620, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    fireEvent.pointerDown(screen.getByRole('separator', { name: 'Resize TestPattern1D end' }), { clientX: 300, pointerId: 1, altKey: true })
+    fireEvent.pointerMove(window, { clientX: 200, pointerId: 1, altKey: true })
+    expect(save).not.toHaveBeenCalled()
+    const current = kind === 'metadata' ? { ...show, name: 'Current name' } : { ...show, scenes: show.scenes.map((scene, index) => index ? scene : { ...scene, durationMs: 35_000 }) }
+    act(() => useShowStore.setState({ shows: [current] }))
+    fireEvent.pointerUp(window, { clientX: 200, pointerId: 1, altKey: true })
+    await act(async () => {})
+    expect(useShowStore.getState().shows[0]).toEqual(current)
+    expect(save).not.toHaveBeenCalled()
+  })
+
   it('removes hidden Scene-boundary Transition time when resizing a generated Clip (#695)', async () => {
     const show = createDefaultShow('show-resize-boundary-transition', 'Resize boundary Transition', 1000)
     setPersonalContentProvider(memoryProvider([show]))
@@ -4214,10 +4275,10 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       })
       expect(validateShowComposition(saved, saved.composition!)).toEqual([])
     })
-    expect(screen.getByRole('button', { name: 'Select CometLoom' })).toHaveStyle({
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Select CometLoom' })).toHaveStyle({
       left: `${34_000 / 60_000 * 100}%`,
       width: `${26_000 / 60_000 * 100}%`,
-    })
+    }))
   })
 
   it('snaps a Clip start resize across visible Markers without opening Details on release', async () => {

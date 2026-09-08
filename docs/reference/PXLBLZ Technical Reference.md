@@ -855,6 +855,12 @@ Hold) shared by Transitions, property animation, and Effect parameters. Legacy
 ease names map to their exact prior behavior; invalid structures normalize to
 Linear with field-addressed validator issues.
 
+Pointer and composition-inspector duration commits share the exact resize owner
+through `showManualClipResize.ts`. Bounded pointer feedback uses the owner's
+reported capacity; release resolves the painted range against its captured source.
+Named manual Transition-to-Cut exceptions remain distinct from exact agent
+requests. See the [manual resize contract](contracts/show-command-semantics.md#manual-resize-commits).
+
 Timeline authoring is framework-free: `showTimelineClipAuthoring.ts` (split,
 duplicate, resize, move as atomic composition updates in global time, with
 refusal by returning the input), `showClipInspectorModel.ts` (Show-global

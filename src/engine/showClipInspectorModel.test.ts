@@ -10,6 +10,8 @@ import {
 } from './showClipInspectorModel'
 import type { ShowCompositionV1, ShowRecord } from './personalContentRecords'
 import { validateShowComposition } from './showCompositionModel'
+import { parseShowFileBundle } from './showFileBundle'
+import { resizeShowConnectedClipAtGlobalTime } from './showLayerTransitionAuthoring'
 
 function fixture(): ShowRecord {
   const show = createDefaultShow('clip-inspector-model', 'Clip inspector model', 1)
@@ -357,6 +359,20 @@ describe('shared Clip inspector owner model (#498)', () => {
     expect(projectShowClipInspector(show, overlayOwner(show))?.local?.opacity).toBe(0.75)
   })
 
+  it('refuses fractional inspector duration before rounding (#950)', () => {
+    const show = fixture()
+    expect(updateShowClipInspector(show, overlayOwner(show), { local: { durationMs: 2_000.4 } })).toBe(show)
+  })
+
+  it('refuses an exact inspector duration beyond its neighbor instead of clamping (#950)', () => {
+    const show = fixture()
+    const layer = show.composition!.scenes[0].zones[0].overlays[0]
+    layer.placements.push({ ...layer.placements[0], id: 'neighbor', startMs: 8_000, durationMs: 2_000 })
+    const original = structuredClone(show)
+    expect(updateShowClipInspector(show, overlayOwner(show), { local: { durationMs: 12_000 } })).toBe(show)
+    expect(show).toEqual(original)
+  })
+
   it('preserves opacity when a timing edit moves the logical Clip root into another Scene (#63)', () => {
     const show = logicalClipFixture()
 
@@ -382,7 +398,7 @@ describe('shared Clip inspector owner model (#498)', () => {
     ])
   })
 
-  it('retargets an outgoing Transition after an exact logical Clip duration edit (#63)', () => {
+  it('documents malformed historical cross-Scene Transition repair and refuses its import (#63, #950)', async () => {
     const show = logicalClipFixture()
     show.scenes.push({ id: 'scene-3', name: 'Scene 3', durationMs: 30_000 })
     show.transitions.push({
@@ -423,9 +439,22 @@ describe('shared Clip inspector owner model (#498)', () => {
       crossfadePolicy: 'live-live',
     }]
 
-    const updated = updateShowClipInspector(show, overlayOwner(show), {
-      local: { durationMs: 34_000 },
+    expect(validateShowComposition(show, show.composition!).map(issue => issue.code)).toEqual(['cross-layer', 'invalid-transition'])
+    const fileBytes = (record: ShowRecord) => new TextEncoder().encode(JSON.stringify({
+      version: 1, show: record, patterns: [], maps: [],
+      provenance: { appVersion: '1.0.0', exportedAt: '2026-09-08T00:00:00.000Z', originalShowId: show.id },
+    }))
+    await expect(parseShowFileBundle(fileBytes(show))).rejects.toMatchObject({
+      code: 'invalid_file', message: 'This Show file has an invalid Show composition.',
     })
+    expect(updateShowClipInspector(show, overlayOwner(show), { local: { durationMs: 34_000 } })).toBe(show)
+    // Historical lower-level repair is retained as a diagnostic; neither
+    // import nor ordinary authoring admits this cross-Scene Layer Transition.
+    const updated = { ...show, composition: resizeShowConnectedClipAtGlobalTime(show, show.composition!, {
+      owner: { ...overlayOwner(show), kind: 'overlay', layerId: 'layer-front', sceneId: show.scenes[0].id, zoneId: show.zones[0].id, placementId: 'placement-overlay' },
+      globalStartMs: 29_000, durationMs: 34_000,
+    }) }
+    expect((await parseShowFileBundle(fileBytes(updated))).show.composition).toEqual(updated.composition)
 
     expect(updated).not.toBe(show)
     expect(updated.composition!.transitions).toContainEqual(expect.objectContaining({

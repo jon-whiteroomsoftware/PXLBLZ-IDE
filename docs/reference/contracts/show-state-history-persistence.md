@@ -103,6 +103,17 @@ cap. Qualified receipts cannot be submitted to the arbitrary callback path. The
 finite supported scope, conservative lifecycle/source invalidation and evidence
 are defined in [Internal qualified exact resize](agent-candidate-application.md#internal-qualified-exact-resize).
 
+## Manual resize source check
+
+The editor's pointer resize callback checks the captured Show/composition against
+the latest render and the current personal/stock record identity before resolving
+the painted range. A stale drag refuses, including an unrelated metadata change;
+it cannot spread an old Show over current state. No persistence occurs during
+preview. Accepted pointer and inspector duration edits still pass through the
+editor's reference-Pattern-slot restoration wrapper and the ordinary store update,
+so one changed commit owns one history/save and the existing failure recovery.
+They do not create or retire an agent session, or use narrow Layer admission.
+
 ## Personal saves and recovery
 
 Full-record saves are queued per Show within this client. A later save starts

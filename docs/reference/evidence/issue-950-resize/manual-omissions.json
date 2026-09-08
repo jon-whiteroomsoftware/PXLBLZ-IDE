@@ -1,0 +1,24 @@
+[
+  {
+    "fault": "shared-dispatch",
+    "test": "src/engine/showManualClipResize.test.ts",
+    "case": "pairs fixture R",
+    "exitCode": 1,
+    "detected": true
+  },
+  {
+    "fault": "stale-source",
+    "test": "src/components/ShowEditor.test.tsx",
+    "case": "old resize listener",
+    "exitCode": 1,
+    "detected": true
+  },
+  {
+    "fault": "duplicate-adoption",
+    "test": "src/components/ShowEditor.test.tsx",
+    "case": "preserves commit semantics",
+    "exitCode": 1,
+    "detected": true,
+    "qualification": "Fault applied specifically inside onResizeCompositionClip; initial probe touched another callback and was not relevant evidence."
+  }
+]

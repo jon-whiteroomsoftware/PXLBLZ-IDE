@@ -385,6 +385,9 @@ constantly:
 - Drags land on the tick grid and snap magnetically to Clip, Marker, and
   playhead boundaries; Alt suspends snapping for one gesture, Shift gives
   fixed fine steps.
+- An end resize stops at available same-Layer capacity. Exact Duration entries
+  refuse a range that does not fit. If the Show changes during a resize drag,
+  release discards that stale drag; start again on the current timeline.
 - Every commit is one undo step (Cmd/Ctrl+Z), session-only.
 - Select anything (a Clip, Group, Transition, Zone, or the Show itself)
   and its floating Entity Detail Panel opens with exactly that entity's

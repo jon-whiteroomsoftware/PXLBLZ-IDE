@@ -27,6 +27,8 @@ export type ShowExactClipResizeResult =
       status: 'refused'
       code: 'invalid-request' | 'missing-target' | 'unsupported-topology' | 'no-space' | 'domain-refusal'
       reason: string
+      /** Existing manual-only Transition edits; never an agent fallback. */
+      manualResidual?: 'incoming-transition-cut' | 'scene-boundary-cut'
       /** Fixed-start same-Layer capacity; additional engine constraints may apply. */
       availableRange?: { startMs: number; endMs: number }
     }
@@ -87,7 +89,13 @@ export function resizeShowClipExactly(
   const transitionChanges: Array<{ transitionId: string; previousDurationMs: number; durationMs: number }> = []
   for (const previous of composition.transitions ?? []) {
     const next = candidate.transitions?.find(transition => transition.id === previous.id)
-    if (!next) return { status: 'refused', code: 'unsupported-topology', reason: 'Exact resize cannot remove an attached Transition.' }
+    if (!next) return {
+      status: 'refused', code: 'unsupported-topology', reason: 'Exact resize cannot remove an attached Transition.',
+      ...(previous.toPlacementId === clip.startPlacementId
+        && globalStartMs + durationMs === clip.endMs
+        && previous.durationMs + globalStartMs - clip.startMs === 0
+        ? { manualResidual: 'incoming-transition-cut' as const } : {}),
+    }
     if (next.durationMs !== previous.durationMs) {
       if (previous.toPlacementId !== clip.startPlacementId || globalStartMs + durationMs !== clip.endMs) {
         return { status: 'refused', code: 'unsupported-topology', reason: 'This Transition timing change is not supported by exact resize.' }
@@ -100,7 +108,7 @@ export function resizeShowClipExactly(
   // The returned composition leaves every original Show Transition untouched.
   const canonical = resizeShowConnectedClipInShowAtGlobalTime(show, composition, { owner, globalStartMs, durationMs, plannedComposition: candidate })
   if (JSON.stringify(normalizeShowTransitionState(canonical).transitions) !== JSON.stringify(normalizeShowTransitionState(show).transitions)) {
-    return { status: 'refused', code: 'unsupported-topology', reason: 'This resize would remove a Scene-boundary Transition.' }
+    return { status: 'refused', code: 'unsupported-topology', reason: 'This resize would remove a Scene-boundary Transition.', manualResidual: 'scene-boundary-cut' }
   }
   const changed = after.filter(next => {
     const previous = clips.find(other => other.id === next.id)

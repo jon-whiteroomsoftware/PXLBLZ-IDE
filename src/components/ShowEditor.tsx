@@ -188,8 +188,6 @@ import {
   planShowLayerTransitionInsertion,
   planShowLayerTransitionInsertionForClip,
   resizeShowLayerTransition,
-  resizeShowConnectedClipAtGlobalTime,
-  resizeShowConnectedClipInShowAtGlobalTime,
   resetShowLayerTransitionToCut,
   showLayerTransitionsConnectedToClip,
 } from '@/engine/showLayerTransitionAuthoring'
@@ -325,6 +323,7 @@ import { agentUrlEnabled, createAgentEditorAdmission, observeAgentLocation } fro
 import ShowSourceOutletContext from '@/components/ShowSourceOutlet'
 import { ShowStripSection } from '@/components/ShowStripSection'
 import { useAnchoredOverlayPosition } from '@/components/useAnchoredOverlayPosition'
+import { previewShowClipResize, resizeShowClipManually } from '@/engine/showManualClipResize'
 
 const field =
   'h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
@@ -570,7 +569,6 @@ type ShowClipResizePreview = {
 type ShowClipResizePlan = {
   preview: ShowClipResizePreview
   sourceComposition: ShowCompositionV1
-  composition: ShowCompositionV1
   owner: ShowTimelineClipOwner
 }
 
@@ -1556,6 +1554,8 @@ export function ShowEditor({
     }
   }, [activeShow, stageDimension, userPatterns])
   const timelineComposition = timelineProjection?.composition ?? null
+  const manualResizeSourceRef = useRef({ activeShow, timelineComposition })
+  manualResizeSourceRef.current = { activeShow, timelineComposition }
   useLayoutEffect(() => {
     if (!onTimelineMinimumHeightChange && !onTimelineContentHeightChange) return
 
@@ -2671,20 +2671,17 @@ export function ShowEditor({
                   globalStartMs,
                   durationMs,
                   sourceComposition,
-                  plannedComposition,
                 }) => {
-                  if (!timelineComposition) return false
-                  if (sourceComposition && sourceComposition !== timelineComposition) return false
-                  const nextShow = resizeShowConnectedClipInShowAtGlobalTime(
-                    activeShow,
-                    timelineComposition,
-                    {
-                      owner,
-                      globalStartMs,
-                      durationMs,
-                      plannedComposition,
-                    },
-                  )
+                  const current = useShowStore.getState()
+                  if (!timelineComposition
+                    || sourceComposition !== timelineComposition
+                    || manualResizeSourceRef.current.activeShow !== activeShow
+                    || manualResizeSourceRef.current.timelineComposition !== timelineComposition
+                    || current.shows.find(item => item.id === showId) !== savedShow
+                    || current.stockShowDrafts[showId] !== stockShowDraft) return false
+                  const nextShow = resizeShowClipManually(activeShow, timelineComposition, {
+                    clipId: owner.placementId, globalStartMs, durationMs,
+                  })
                   if (nextShow === activeShow) return false
                   return tryUpdateShow(activeShow.id, {
                     ...nextShow,
@@ -3898,8 +3895,7 @@ function ShowTimelineWorkspace({
     owner: ShowTimelineClipOwner,
     globalStartMs: number,
     durationMs: number,
-    sourceComposition?: ShowCompositionV1
-    plannedComposition?: ShowCompositionV1
+    sourceComposition: ShowCompositionV1
   }) => Promise<boolean>
   onOpenLayerTransition: (target: ShowLayerTransitionTarget) => void
   onInsertTime: (atMs: number, durationMs: number) => Promise<boolean>
@@ -4712,8 +4708,8 @@ function ShowTimelineWorkspace({
     }
     const plan = (pointer: PointerEvent): ShowClipResizePlan | null => {
       const next = resolve(pointer)
-      const composition = resizeShowConnectedClipAtGlobalTime(show, timelineComposition, {
-        owner,
+      const composition = previewShowClipResize(show, timelineComposition, {
+        clipId: clip.id,
         globalStartMs: next.startMs,
         durationMs: next.durationMs,
       })
@@ -4729,7 +4725,6 @@ function ShowTimelineWorkspace({
           durationMs: plannedClip.durationMs,
         },
         sourceComposition: timelineComposition,
-        composition,
         owner,
       }
     }
@@ -4762,7 +4757,6 @@ function ShowTimelineWorkspace({
         globalStartMs: activePlan.preview.startMs,
         durationMs: activePlan.preview.durationMs,
         sourceComposition: activePlan.sourceComposition,
-        plannedComposition: activePlan.composition,
       }).finally(() => {
         resizePlanRef.current = null
         setResizePreview(null)
