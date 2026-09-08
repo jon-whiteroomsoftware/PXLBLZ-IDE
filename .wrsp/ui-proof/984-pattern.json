@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "984",
+  "route": "/PXLBLZ-IDE/studio/patterns/pxlblz-starter-pattern-v1",
+  "operation": "In-app browser on committed candidate, synthetic local developer account. Reset preview then press ArrowLeft on brightness: 100% becomes 99%, Reset appears leftmost, slider x=1142.0078125 and Run x=1232.8046875 stay identical. Inspect tight readout grouping and 48px track. Space on brightness starts playback and a second Space pauses. Optional Display was not exposed by this map.",
+  "captures": [
+    ".wrsp/ui-proof/984-pattern-before.jpg",
+    ".wrsp/ui-proof/984-pattern-after.jpg"
+  ],
+  "capturedAtCommit": "1300b46a2e5e5c6323bc802e18b8fb5381337557"
+}

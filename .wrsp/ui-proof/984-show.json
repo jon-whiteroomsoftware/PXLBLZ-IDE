@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "984",
+  "route": "/PXLBLZ-IDE/studio/shows/proof-967-portrait",
+  "operation": "In-app browser on committed candidate, synthetic local developer account with Portrait overlay proof Show. Preview folded: brightness remains available. Home changes 100% to 0% and blacks out the paused Stage; End restores it. Space from brightness starts and pauses Show playback. No Show edits or hardware changes.",
+  "captures": [
+    ".wrsp/ui-proof/984-show-full.jpg",
+    ".wrsp/ui-proof/984-show-zero.jpg"
+  ],
+  "capturedAtCommit": "1300b46a2e5e5c6323bc802e18b8fb5381337557"
+}
