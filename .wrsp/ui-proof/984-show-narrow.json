@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "984",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-remix-overture",
+  "operation": "In-app browser at 1180x1196 on the committed correction. Repeated Shift+ArrowUp on the divider reaches controls-min: pane width 200.421875px, Preview header width 184.421875px, scrollWidth184, no horizontal overflow. Inspect complete folded Preview heading including sun, 48px slider, adjacent read-only percentage and help action. Focused real-route Stage clamp and Show strip interaction regressions both passed.",
+  "captures": [
+    ".wrsp/ui-proof/984-show-narrow.jpg"
+  ],
+  "capturedAtCommit": "b51f99312b6cfdfdff8dd9ab8060b32cf9cb5541"
+}
