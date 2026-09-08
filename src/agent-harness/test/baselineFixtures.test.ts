@@ -9,6 +9,7 @@ import { stockShowById } from '@/pixelblaze/stock/shows'
 import { showLoopDurationMs } from '@/engine/showModel'
 import { BASELINE_FIXTURES, resolveBaselineFixtureRecord, type BaselineFixtureFeature } from '../baseline/fixtures.js'
 import { canonicalJson, evidenceDifferences, recordSha256, type BaselineFixtureEvidence } from '../baseline/evidence.js'
+import { collectFixtureEvidence } from '../baseline/fixturesCli.js'
 import { openShowDocument } from '../grammar/openShow.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -19,6 +20,21 @@ const REQUIRED: BaselineFixtureFeature[] = [
 ]
 
 describe('baseline fixtures', () => {
+  it('runs the original applying resize scenario despite prepended browser utterances', async () => {
+    const { document } = await collectFixtureEvidence()
+    const repeated = await collectFixtureEvidence()
+    expect(repeated.document).toEqual(document)
+    expect(document.utterance).toBe('make the first Clip twelve seconds')
+    const personal = document.fixtures.find((fixture) => fixture.id === 'personal-base')!
+    expect(personal.bridge.changed).toBe(true)
+    expect(personal.bridge.refusals).toEqual([])
+    expect(personal.after?.firstClipDurationMs).toBe(12_000)
+    expect(personal.after?.epe).toHaveProperty('sourceSha256')
+    const pinned = JSON.parse(readFileSync(evidencePath, 'utf8')) as BaselineFixtureEvidence
+    expect(document.fixtures.map(({ id, recordSha256, before }) => ({ id, recordSha256, before })))
+      .toEqual(pinned.fixtures.map(({ id, recordSha256, before }) => ({ id, recordSha256, before })))
+  })
+
   it('covers every feature the issue names, with unique ids', () => {
     const covered = new Set(BASELINE_FIXTURES.flatMap((fixture) => fixture.features))
     for (const feature of REQUIRED) expect(covered.has(feature), feature).toBe(true)

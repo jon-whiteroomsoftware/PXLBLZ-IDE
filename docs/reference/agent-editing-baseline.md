@@ -74,11 +74,24 @@ the new browser assertions and reopen check in 9.9 seconds. Its record and
 capture are under
 `reports/agent-harness/baseline/browser/2026-09-06T03-24-40-328Z/`.
 
-The fixture command records three refusals verbatim: on the stock lesson 101,
+The original #945 fixture command recorded three refusals verbatim: on the stock lesson 101,
 the property-animation reference, and the changing-layouts lesson, resizing
 the first Clip to 12 s overlaps the next Clip and the grammar refuses. The
 Groups lesson, the constructed six-minute Show, and both personal fixtures
 accept it.
+
+The current #950 fixture evidence explicitly selects the named original
+`make the first Clip twelve seconds` scenario, independently of browser utterance
+ordering. Canonical resize now reports the three capacity refusals as 0–5000 ms
+and also refuses the long-timeline edit because it would remove a visual
+Scene-boundary Transition. Both personal fixtures and the Groups lesson still
+accept 12 seconds. Their after-artifact hashes remain identical to #945; only
+the successful summary wording changes. All seven source records and before
+artifacts retain their original hashes, including the personal-Library export
+failure. For deterministic evidence only, returned candidate `updatedAt` is
+reset to the source fixture timestamp before export and hashing: canonical
+commands now stamp this bookkeeping field at execution time. No other candidate
+field is normalized, and the bridge's actual candidate is unchanged.
 
 ## Instrumentation and raw records
 

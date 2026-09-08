@@ -28,12 +28,12 @@ import {
   type FixtureEvidence,
 } from './evidence.js'
 import { BASELINE_FIXTURES, resolveBaselineFixtureRecord, type BaselineFixture } from './fixtures.js'
-import { BASELINE_UTTERANCES } from './scripts.js'
+import { BASELINE_FIXTURE_RESIZE } from './scripts.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 export const EVIDENCE_PATH = join(here, 'evidence', 'fixtures.json')
 const STAMPED_AT = '2026-09-05T00:00:00.000Z'
-const UTTERANCE = BASELINE_UTTERANCES[0].utterance
+const UTTERANCE = BASELINE_FIXTURE_RESIZE.utterance
 
 async function artifactEvidence(show: ShowRecord, patterns: PatternRecord[], epeId: string): Promise<ArtifactEvidence> {
   let pxlshow: ArtifactEvidence['pxlshow']
@@ -87,7 +87,10 @@ export async function runFixture(fixture: BaselineFixture, bridgeUrl: string): P
   const turnMs = Date.now() - turnStart
   const done = events[events.length - 1]
   if (!done || done.kind !== 'done') throw new Error(`${fixture.id}: the bridge stream ended without a result`)
-  const candidate = done.show as ShowRecord | undefined
+  const returned = done.show as ShowRecord | undefined
+  // Canonical commands stamp updatedAt with wall-clock time. Evidence compares
+  // authored content at the original fixture revision, not execution timing.
+  const candidate = returned ? { ...returned, updatedAt: record.updatedAt } : undefined
   const after = candidate
     ? {
         ...(await artifactEvidence(candidate, patterns, `agent-baseline-${fixture.id}`)),

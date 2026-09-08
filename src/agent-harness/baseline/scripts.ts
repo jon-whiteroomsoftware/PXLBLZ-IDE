@@ -15,6 +15,15 @@ export interface BaselineUtterance {
   intent: string
 }
 
+// Stable fixture-runner scenario; browser additions must not change its identity.
+export const BASELINE_FIXTURE_RESIZE: BaselineUtterance = {
+  utterance: 'make the first Clip twelve seconds',
+  intent: 'The Clip starting at 0 ms becomes 12 000 ms long.',
+  script: [
+    { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 12_000, finish_turn_reply: { intent: 'apply', reply: 'The first Clip is twelve seconds.' } } },
+  ],
+}
+
 export const BASELINE_UTTERANCES: BaselineUtterance[] = [
   {
     utterance: 'try twelve seconds with the next Clip at eight',
@@ -29,13 +38,7 @@ export const BASELINE_UTTERANCES: BaselineUtterance[] = [
     intent: '#950 fixture R: the exact neighbor boundary is accepted; repetition is a valid no-op.',
     script: [{ tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 8000, finish_turn_reply: { intent: 'apply', reply: 'The first Clip is exactly eight seconds.' } } }],
   },
-  {
-    utterance: 'make the first Clip twelve seconds',
-    intent: 'The Clip starting at 0 ms becomes 12 000 ms long.',
-    script: [
-      { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 12_000, finish_turn_reply: { intent: 'apply', reply: 'The first Clip is twelve seconds.' } } },
-    ],
-  },
+  BASELINE_FIXTURE_RESIZE,
   {
     utterance: 'make the first Clip twelve seconds and dim it to half',
     intent: 'One turn, two operations: the first Clip is 12 000 ms long at brightness 0.5, committed as one change set.',

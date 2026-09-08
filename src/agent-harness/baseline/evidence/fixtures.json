@@ -31,7 +31,7 @@
         "opened": true,
         "changed": true,
         "summaries": [
-          "Clip placement-c1-s1 (CometLoom on Main) now runs 0–12000 ms (12000 ms)."
+          "Clip placement-c1-s1 now runs 0–12000 ms (12000 ms)."
         ],
         "reply": "The first Clip is twelve seconds.",
         "toolEvents": [
@@ -84,7 +84,7 @@
         "opened": true,
         "changed": true,
         "summaries": [
-          "Clip placement-c1-s1 (Library Pulse on Main) now runs 0–12000 ms (12000 ms)."
+          "Clip placement-c1-s1 now runs 0–12000 ms (12000 ms)."
         ],
         "reply": "The first Clip is twelve seconds.",
         "toolEvents": [
@@ -142,7 +142,7 @@
           "resize_clip"
         ],
         "refusals": [
-          "resize_clip: Resizing to 12000 ms would overlap clip clip-garden (MetaballGarden on Main, 5000–10000 ms) on the same Zone and layer."
+          "resize_clip: The same-Layer range at this start is 0–5000 ms."
         ]
       },
       "after": null
@@ -176,7 +176,7 @@
         "opened": true,
         "changed": true,
         "summaries": [
-          "Clip clip-loom (RibbonLoom on Main) now runs 0–12000 ms (12000 ms)."
+          "Clip clip-loom now runs 0–12000 ms (12000 ms)."
         ],
         "reply": "The first Clip is twelve seconds.",
         "toolEvents": [
@@ -237,7 +237,7 @@
           "resize_clip"
         ],
         "refusals": [
-          "resize_clip: Resizing to 12000 ms would overlap clip placement-pattern-control-a (LineDancer2D on A, 5000–10000 ms) on the same Zone and layer."
+          "resize_clip: The same-Layer range at this start is 0–5000 ms."
         ]
       },
       "after": null
@@ -277,7 +277,7 @@
           "resize_clip"
         ],
         "refusals": [
-          "resize_clip: Resizing to 12000 ms would overlap clip clip-split-loom (RibbonLoom on Weave, 5000–11000 ms) on the same Zone and layer."
+          "resize_clip: The same-Layer range at this start is 0–5000 ms."
         ]
       },
       "after": null
@@ -310,33 +310,18 @@
       },
       "bridge": {
         "opened": true,
-        "changed": true,
-        "summaries": [
-          "Clip placement-c1-s1 (CometLoom on Main) now runs 0–12000 ms (12000 ms)."
-        ],
-        "reply": "The first Clip is twelve seconds.",
+        "changed": false,
+        "summaries": [],
+        "reply": "(no reply)",
         "toolEvents": [
           "describe_show",
           "resize_clip"
         ],
-        "refusals": []
+        "refusals": [
+          "resize_clip: This resize would remove a Scene-boundary Transition."
+        ]
       },
-      "after": {
-        "pxlshow": {
-          "filename": "baseline-long-timeline.pxlshow",
-          "bytes": 1084,
-          "contentSha256": "634b326f49a40db7bb2f1de1f74850baf39883488832eb49d2032ca627d66287"
-        },
-        "epe": {
-          "filename": "baseline-long-timeline.epe",
-          "bytes": 28809,
-          "sourceSha256": "683e957963dfe248c4b894c03f06e18ea13cb052df1746decfc3f0dc656b14cd",
-          "stampKind": "show"
-        },
-        "recordSha256": "b31d06121a499b0f262b8f4e9cbdf3321d1d52131a26466164b4699a2bcc0867",
-        "clipCount": 12,
-        "firstClipDurationMs": 12000
-      }
+      "after": null
     }
   ]
 }
