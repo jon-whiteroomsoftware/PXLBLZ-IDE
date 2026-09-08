@@ -454,7 +454,12 @@ fits its content with a little slack and the Stage takes the remaining height,
 subject to the pane minimums. This default adjusts when lanes or window size
 change. Drag the horizontal divider to trade space
 between the timeline and Stage, or focus it and use **Up/Down**. PXLBLZ
-remembers the Show split; later lane changes preserve that position. The controls
+remembers the Show split; later lane changes preserve that position. While
+paused, the Stage redraws the frozen picture throughout resizing without
+advancing Show time. Light size and Diffusion update while paused in both the
+Show and Pattern previews. Their sliders release focus after pointer adjustment;
+Space plays or pauses, including when a slider has keyboard focus. Arrow keys
+still adjust a keyboard-focused slider. The controls
 retain at least 200 px beside the rail and scroll when expanded content exceeds
 the strip height. At 980 px and below, the established Preview overlay remains.
 

@@ -15,6 +15,7 @@ import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/stor
 import { stockShowById } from '@/pixelblaze/stock/shows'
 import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
 import * as fastReplay from '@/engine/fastReplay'
+import * as rendererModule from '@/engine/renderer'
 import * as fastReplayCheckpoints from '@/engine/fastReplayCheckpoints'
 
 function memoryProvider(seedShows: ShowRecord[] = []): PersonalContentProvider {
@@ -141,7 +142,9 @@ describe('ShowStagePreview (#339)', () => {
     expect(resolveShowStagePreviewInput(deferred.id, resolved, deferred)).toBe(resolved)
   })
 
-  it('repaints once after a paused Stage resize settles without rebuilding or advancing runtime state (#508, #837)', () => {
+  it.each([
+    ['plane', 'pane'], ['plane', 'strip'], ['cube', 'pane'], ['cube', 'strip'],
+  ] as const)('repaints every paused %s %s resize immediately without changing simulation state (#63)', (stageMapId, presentation) => {
     vi.useFakeTimers()
     let resize: ResizeObserverCallback | null = null
     vi.stubGlobal('ResizeObserver', class {
@@ -151,31 +154,34 @@ describe('ShowStagePreview (#339)', () => {
       disconnect() {}
     })
     const createRuntime = vi.spyOn(fastReplay, 'createFastReplayRuntime')
+    const createRenderer = vi.spyOn(rendererModule, 'createRenderer')
     try {
       const show = createDefaultShow('show-incremental-resize', 'Incremental resize', 1000)
+      show.stageMapId = stageMapId
       useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
-      render(<ShowStagePreview showId={show.id} />)
+      render(<ShowStagePreview showId={show.id} presentation={presentation} />)
       expect(createRuntime).toHaveBeenCalledTimes(1)
       const runtime = createRuntime.mock.results[0]!.value
-      const initialElapsedMs = runtime.getElapsedMs()
-      const advanceTo = vi.spyOn(runtime, 'advanceTo')
+      const renderer = createRenderer.mock.results[0]!.value
+      const paint = vi.spyOn(renderer, 'paint')
+      const initialState = runtime.snapshot()
+      const initialPosition = useShowTransportStore.getState().positionMs
 
-      act(() => resize?.([{ contentRect: { width: 700 } } as ResizeObserverEntry], {} as ResizeObserver))
-      act(() => vi.advanceTimersByTime(50))
-      act(() => resize?.([{ contentRect: { width: 800 } } as ResizeObserverEntry], {} as ResizeObserver))
-      act(() => vi.advanceTimersByTime(99))
-
-      expect(advanceTo).not.toHaveBeenCalled()
-
-      act(() => vi.advanceTimersByTime(1))
-
-      expect(advanceTo).toHaveBeenCalledOnce()
-      expect(advanceTo).toHaveBeenCalledWith(initialElapsedMs, { stepMs: 1000 / 60 })
-      expect(runtime.getElapsedMs()).toBe(initialElapsedMs)
+      // A burst has no settled interval. Every applied resize must repaint
+      // synchronously, before a browser can present the cleared drawing buffer.
+      for (const [width, height] of [[700, 300], [800, 300], [800, 400], [700, 300]]) {
+        paint.mockClear()
+        act(() => resize?.([{ contentRect: { width, height } } as ResizeObserverEntry], {} as ResizeObserver))
+        expect(paint).toHaveBeenCalledOnce()
+        expect(paint.mock.calls[0]![0]).toEqual(initialState.frame)
+        expect(runtime.snapshot()).toEqual(initialState)
+        expect(useShowTransportStore.getState().positionMs).toBe(initialPosition)
+      }
       expect(createRuntime).toHaveBeenCalledTimes(1)
+      expect(createRenderer).toHaveBeenCalledTimes(1)
     } finally {
-      createRuntime.mockRestore()
+      vi.restoreAllMocks()
       vi.unstubAllGlobals()
       vi.useRealTimers()
     }
@@ -689,6 +695,8 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
   })
 
   it('shares Light size and Diffusion controls with the preview comfort baseline (#484)', async () => {
+    const createRuntime = vi.spyOn(fastReplay, 'createFastReplayRuntime')
+    const createRenderer = vi.spyOn(rendererModule, 'createRenderer')
     const show = createDefaultShow('show-stage-comfort', 'Stage comfort', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     usePreviewStore.setState({
@@ -707,15 +715,26 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     await waitFor(() => expect(lightSize).toHaveValue('0.7'))
     expect(diffusion).toHaveValue('0.2')
 
-    fireEvent.change(lightSize, { target: { value: '0.8' } })
-    fireEvent.change(diffusion, { target: { value: '0.6' } })
-
-    expect(usePreviewStore.getState()).toMatchObject({
-      lightSize: 0.8,
-      lightSizeSticky: 0.8,
-      diffusion: 0.6,
-      diffusionSticky: 0.6,
-    })
+    const runtime = createRuntime.mock.results[0]!.value
+    const initialState = runtime.snapshot()
+    const paint = vi.spyOn(createRenderer.mock.results[0]!.value, 'paint')
+    try {
+      for (const [slider, value] of [[lightSize, '0.8'], [diffusion, '0.6']] as const) {
+        paint.mockClear()
+        fireEvent.change(slider, { target: { value } })
+        expect(paint).toHaveBeenCalledOnce()
+        expect(paint.mock.calls[0]![0]).toEqual(initialState.frame)
+        expect(runtime.snapshot()).toEqual(initialState)
+      }
+      expect(usePreviewStore.getState()).toMatchObject({
+        lightSize: 0.8,
+        lightSizeSticky: 0.8,
+        diffusion: 0.6,
+        diffusionSticky: 0.6,
+      })
+    } finally {
+      vi.restoreAllMocks()
+    }
   })
 
   it('switches the actual Show renderer without exposing Pattern-only controls (#484)', async () => {

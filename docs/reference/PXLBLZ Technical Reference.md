@@ -909,6 +909,17 @@ without a resolution layer.
 
 ## 20. Timeline editor and Stage preview
 
+**Paused Stage resizing.** Canvas resizing and repainting happen in the same
+synchronous effect, including during a drag. The repaint reads the retained
+frame with `advanceTo(runtime.getElapsedMs())`; this does not tick the Pattern,
+advance Show time, or reconstruct the runtime. Do not substitute
+`renderCurrentFrame()`: it executes Pattern code even at zero elapsed delta.
+Delaying the repaint would expose the drawing buffer cleared by resizing.
+Show Light size and Diffusion updates also repaint retained pixels while paused.
+Browser preview sliders opt into a shared Space playback action and release
+pointer focus on completion. Keyboard adjustment retains focus and its native
+range keys; Space is claimed once before enclosing playback handlers see it.
+
 `ShowEditor` renders one proportional grid: ruler, Zone/Layer stacks, Clips,
 per-Layer Transition junctions, disclosed property lanes, Markers, Show End,
 playhead. This section names the seams; the interaction details live in the

@@ -4,6 +4,7 @@
 // diffusion, solidity, and the author's pattern sliders — replacing the teensy
 // short sliders so each has real travel/granularity and shows its value.
 import { formatPercentageValue } from '@/engine/percentageValue'
+import { claimStudioPreviewSpace } from '@/engine/keyboardShortcuts'
 
 export function DeckSlider({
   label,
@@ -13,6 +14,7 @@ export function DeckSlider({
   max,
   step,
   onChange,
+  onSpace,
   format,
   presentation = 'number',
   curve = 1,
@@ -32,6 +34,9 @@ export function DeckSlider({
   max: number
   step: number
   onChange: (v: number) => void
+  /** Preview controls may reserve Space for playback and release pointer focus.
+   * Keyboard range adjustment retains focus; other sliders keep native behavior. */
+  onSpace?: () => void
   format?: (v: number) => string
   presentation?: 'number' | 'percentage'
   /** Position-vs-value curve. `1` (default) is linear. Values > 1 devote more of the
@@ -70,6 +75,10 @@ export function DeckSlider({
       : value
   const handleChange = (raw: number) => onChange(curved ? fromPos(raw) : raw)
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (onSpace && event.code === 'Space') {
+      if (claimStudioPreviewSpace(event.nativeEvent)) onSpace()
+      return
+    }
     if (!curved) return
     const direction = event.key === 'ArrowLeft' || event.key === 'ArrowDown'
       ? -1
@@ -109,6 +118,8 @@ export function DeckSlider({
           value={sliderValue}
           onChange={(e) => handleChange(Number(e.target.value))}
           onKeyDown={handleKeyDown}
+          onPointerUp={onSpace ? (event) => event.currentTarget.blur() : undefined}
+          onPointerCancel={onSpace ? (event) => event.currentTarget.blur() : undefined}
           className={`flex-1 min-w-0 ${indeterminate ? 'deck-slider-unset' : 'accent-live'}`}
         />
         <span

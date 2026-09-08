@@ -3,6 +3,27 @@ import { vi } from 'vitest'
 import { DeckSlider } from './DeckSlider'
 
 describe('DeckSlider', () => {
+  it('releases pointer focus only when configured with a preview Space action (#63)', () => {
+    const { rerender } = render(<DeckSlider label="diffusion" value={0.5} min={0} max={1} step={0.01} onChange={() => {}} />)
+    const slider = screen.getByRole('slider', { name: 'diffusion' })
+    slider.focus()
+    fireEvent.pointerUp(slider)
+    expect(slider).toHaveFocus()
+
+    const onSpace = vi.fn()
+    rerender(<DeckSlider label="diffusion" value={0.5} min={0} max={1} step={0.01} onChange={() => {}} onSpace={onSpace} />)
+    fireEvent.pointerUp(slider)
+    expect(slider).not.toHaveFocus()
+    slider.focus()
+    fireEvent.keyDown(slider, { key: 'ArrowRight', code: 'ArrowRight' })
+    expect(slider).toHaveFocus()
+    fireEvent.keyDown(slider, { key: ' ', code: 'Space' })
+    expect(onSpace).toHaveBeenCalledOnce()
+    fireEvent.keyDown(slider, { key: ' ', code: 'Space', repeat: true })
+    expect(onSpace).toHaveBeenCalledOnce()
+    expect(slider).toHaveFocus()
+  })
+
   it('shows the value when set', () => {
     render(<DeckSlider label="brightness" value={0.75} min={0} max={1} step={0.01} onChange={() => {}} />)
     const slider = screen.getByLabelText('brightness') as HTMLInputElement

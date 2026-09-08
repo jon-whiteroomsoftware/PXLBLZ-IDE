@@ -2739,6 +2739,54 @@ test.describe('authenticated Show authoring', () => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await expect.poll(() => pane.evaluate((element) => element.clientHeight)).toBe(draggedHeight + 60)
   })
+
+  test('keeps paused Stage pixels visible throughout window resizing (#63)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await page.goto('studio/shows/stock-show-showcase-distortion-effects?capture')
+    const transport = page.getByTestId('show-timeline-toolbar')
+    const canvas = page.getByTestId('show-stage-preview').locator('canvas')
+    await expect(transport.getByRole('button', { name: 'Play Show preview', exact: true })).toBeVisible()
+    await expect.poll(async () => (await showStageCanvasStats(page)).maxChannel).toBeGreaterThan(0)
+
+    // Attribute mutations are delivered after the synchronous resize task,
+    // before a trailing timer can repaint. Observe real WebGL output rather
+    // than polling until an eventually correct settled frame appears.
+    await canvas.evaluate((element) => {
+      const target = element as HTMLCanvasElement
+      const gl = target.getContext('webgl')!
+      const observations: number[] = []
+      ;(window as unknown as { resizeFrames: number[] }).resizeFrames = observations
+      new MutationObserver(() => {
+        const pixels = new Uint8Array(target.width * target.height * 4)
+        gl.readPixels(0, 0, target.width, target.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels)
+        let maxChannel = 0
+        for (let index = 0; index < pixels.length; index += 4) {
+          maxChannel = Math.max(maxChannel, pixels[index], pixels[index + 1], pixels[index + 2])
+        }
+        observations.push(maxChannel)
+      }).observe(target, { attributes: true, attributeFilter: ['width', 'height'] })
+    })
+    const readFrames = () => page.evaluate(() => (window as unknown as { resizeFrames: number[] }).resizeFrames)
+    const resizePaused = async () => {
+      const time = (await page.getByRole('status', { name: 'Show time', exact: true }).textContent())!
+      for (const height of [940, 1020, 960, 1000]) {
+        const count = (await readFrames()).length
+        await page.setViewportSize({ width: 1440, height })
+        await expect.poll(async () => (await readFrames()).length).toBeGreaterThan(count)
+        expect((await readFrames()).slice(count).every((maxChannel) => maxChannel > 0)).toBe(true)
+        await expect(page.getByRole('status', { name: 'Show time', exact: true })).toHaveText(time)
+      }
+    }
+    await resizePaused()
+    await transport.getByRole('button', { name: 'Play Show preview', exact: true }).click()
+    await expect(page.getByRole('status', { name: 'Show time', exact: true })).not.toContainText('00:00.0')
+    await transport.getByRole('button', { name: 'Pause Show preview', exact: true }).click()
+    await resizePaused()
+    await transport.getByRole('button', { name: 'Go to Show start', exact: true }).click()
+    await expect(page.getByRole('status', { name: 'Show time', exact: true })).toContainText('00:00.0')
+    await expect.poll(async () => (await showStageCanvasStats(page)).maxChannel).toBeGreaterThan(0)
+    await resizePaused()
+  })
 })
 
 type PersistedShow = {

@@ -12,6 +12,21 @@ beforeEach(() => {
 })
 
 describe('Show strip Preview controls (#968)', () => {
+  it.each(['Light size', 'Diffusion'])('leaves Space for playback after adjusting %s (#63)', async (name) => {
+    const user = userEvent.setup()
+    render(<ShowStripPreviewSection />)
+    const slider = screen.getByRole('slider', { name })
+    await user.click(slider)
+    expect(slider).not.toHaveFocus()
+    slider.focus()
+    await user.keyboard('{ArrowLeft}')
+    expect(slider).toHaveFocus()
+    await user.keyboard(' ')
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+    await user.keyboard(' ')
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+  })
+
   it('keeps existing controls live and reports those same values when folded', () => {
     render(<ShowStripPreviewSection />)
     const toggle = screen.getByRole('button', { name: 'Preview' })

@@ -13,6 +13,74 @@ async function paneWidth(page: Page, width: number) {
   await expect.poll(async () => Math.round((await pane.boundingBox())!.width)).toBe(width)
 }
 
+for (const profile of ['Show', 'Pattern'] as const) {
+  test(`${profile} preview sliders repaint while paused and leave Space for playback (#63)`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await page.goto(profile === 'Show'
+      ? 'studio/shows/stock-show-showcase-distortion-effects?capture'
+      : 'studio/patterns/TestPattern2D?capture')
+    const transport = profile === 'Show'
+      ? page.getByTestId('show-timeline-toolbar')
+      : page.getByTestId('preview-pane')
+    const play = transport.getByRole('button', { name: profile === 'Show' ? 'Play Show preview' : 'Run', exact: true })
+    const pause = transport.getByRole('button', { name: profile === 'Show' ? 'Pause Show preview' : 'Pause', exact: true })
+    await expect(play.or(pause)).toBeVisible()
+    if (await pause.isVisible()) await pause.click()
+    if (profile === 'Pattern') {
+      const disclosure = transport.getByRole('button', { name: 'Preview', exact: true })
+      if (await disclosure.getAttribute('aria-expanded') !== 'true') await disclosure.click()
+    }
+    const canvas = profile === 'Show'
+      ? page.getByTestId('show-stage-preview').locator('canvas')
+      : transport.locator('canvas.rounded-sm')
+    const pixels = () => canvas.evaluate((element) => {
+      const target = element as HTMLCanvasElement
+      const gl = target.getContext('webgl')!
+      const frame = new Uint8Array(target.width * target.height * 4)
+      gl.readPixels(0, 0, target.width, target.height, gl.RGBA, gl.UNSIGNED_BYTE, frame)
+      let checksum = 2166136261
+      let maxChannel = 0
+      for (let index = 0; index < frame.length; index += 4) {
+        maxChannel = Math.max(maxChannel, frame[index], frame[index + 1], frame[index + 2])
+        checksum = Math.imul(checksum ^ frame[index], 16777619)
+        checksum = Math.imul(checksum ^ frame[index + 1], 16777619)
+        checksum = Math.imul(checksum ^ frame[index + 2], 16777619)
+      }
+      return { checksum, maxChannel }
+    })
+    await expect.poll(async () => (await pixels()).maxChannel).toBeGreaterThan(0)
+    for (const name of ['Light size', 'Diffusion']) {
+      const slider = page.getByRole('slider', { name, exact: true })
+      await slider.focus()
+      await page.keyboard.press('Home')
+      const before = await pixels()
+      await page.keyboard.press('End')
+      await expect.poll(async () => (await pixels()).checksum).not.toBe(before.checksum)
+      await expect(play).toBeVisible()
+      await expect(slider).toBeFocused()
+      const value = Number(await slider.inputValue())
+      await page.keyboard.press('ArrowLeft')
+      await expect.poll(async () => Number(await slider.inputValue())).toBeLessThan(value)
+      await expect(slider).toBeFocused()
+      await page.keyboard.press('Space')
+      await expect(pause).toBeVisible()
+      await page.keyboard.press('Space')
+      await expect(play).toBeVisible()
+
+      const box = (await slider.boundingBox())!
+      await page.mouse.move(box.x + box.width * 0.7, box.y + box.height / 2)
+      await page.mouse.down()
+      await page.mouse.move(box.x + box.width * 0.3, box.y + box.height / 2, { steps: 5 })
+      await page.mouse.up()
+      await expect(slider).not.toBeFocused()
+      await page.keyboard.press('Space')
+      await expect(pause).toBeVisible()
+      await page.keyboard.press('Space')
+      await expect(play).toBeVisible()
+    }
+  })
+}
+
 test('Pattern panel preserves controls, Space ownership, canvas execution and reload preferences (#968)', async ({ page }) => {
   test.setTimeout(60_000)
   await page.setViewportSize({ width: 1450, height: 1000 })

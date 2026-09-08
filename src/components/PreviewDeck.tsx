@@ -177,7 +177,7 @@ function PrimaryBand() {
       </div>
       <div className="panel-brightness" title={`Brightness ${Math.round(brightness * 100)}%`}>
         <Sun size={13} aria-hidden className="text-zinc-400 shrink-0" />
-        <DeckSlider label="brightness" ariaLabel="Brightness" value={brightness} min={0} max={1} step={0.01} presentation="percentage" curve={2} onChange={v => { setBrightness(v); writeCascadedOverride('brightness', v) }} />
+        <DeckSlider label="brightness" ariaLabel="Brightness" value={brightness} min={0} max={1} step={0.01} presentation="percentage" curve={2} onSpace={toggle} onChange={v => { setBrightness(v); writeCascadedOverride('brightness', v) }} />
       </div>
       {showReset && (
         <button
@@ -276,6 +276,7 @@ function PixelCountInput() {
 // absorbs the read-only telemetry (fps/elapsed/layout). All sliders use the one shared
 // long DeckSlider style; non-slider rows stay on the deck's 2-col label/value grid.
 function SecondaryBand({ mode }: { mode?: string }) {
+  const toggle = usePreviewStore((s) => s.toggle)
   const brightness = usePreviewStore(s => s.brightness)
   const setBrightness = usePreviewStore(s => s.setBrightness)
   const activePixelCount = useMapStore(s => s.activePixelCount)
@@ -308,7 +309,7 @@ function SecondaryBand({ mode }: { mode?: string }) {
         <DeckGrid>
           {hasMapChoice && (mode ? <DeckCell label="map"><MapSelect portaled /></DeckCell> : <DeckField label="map"><div className="flex flex-col items-end"><MapSelect portaled /><CoordinateViewSelect portaled /></div></DeckField>)}
           {mode && hasCoordinateViewChoice && <DeckCell label="view"><CoordinateViewSelect portaled bare /></DeckCell>}
-          {!mode && <DeckSlider label="brightness" ariaLabel="Brightness" value={brightness} min={0} max={1} step={0.01} presentation="percentage" curve={2} onChange={value => { setBrightness(value); writeCascadedOverride('brightness', value) }} />}
+          {!mode && <DeckSlider label="brightness" ariaLabel="Brightness" value={brightness} min={0} max={1} step={0.01} presentation="percentage" curve={2} onSpace={toggle} onChange={value => { setBrightness(value); writeCascadedOverride('brightness', value) }} />}
           {hasMappedCoordinates && (
             <DeckCell label="fit">
               <DeckSelect
@@ -369,6 +370,7 @@ export function PreviewViewportSection({
   const solidity = useMapStore((s) => s.activeSolidity)
   const setSolidity = useMapStore((s) => s.setActiveSolidity)
   const pattern = profile === 'pattern'
+  const togglePlayback = usePreviewStore((s) => s.toggle)
   const speed = usePreviewStore(s => s.speed)
   const [expanded, setExpanded] = usePanelSection(mode ?? 'pattern', 'Preview')
   const summaryMode = pattern && Boolean(mode)
@@ -404,6 +406,7 @@ export function PreviewViewportSection({
           max={MAX_LIGHT_SIZE}
           step={0.05}
           onChange={updateLightSize}
+          onSpace={togglePlayback}
         />
         <DeckSlider
           label="diffusion"
@@ -414,11 +417,13 @@ export function PreviewViewportSection({
           step={0.01}
           presentation="percentage"
           onChange={updateDiffusion}
+          onSpace={togglePlayback}
         />
         {pattern && solidEligible && (
           <DeckSlider
             label="interior opacity"
             ariaLabel="Interior opacity (Transparent ↔ Solid)"
+            onSpace={togglePlayback}
             value={solidity}
             min={0}
             max={1}

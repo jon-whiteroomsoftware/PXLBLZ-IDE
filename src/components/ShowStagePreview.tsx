@@ -101,7 +101,6 @@ interface StageLayout {
 const SHOW_REPLAY_STEP_MS = 1000 / 60
 const SHOW_REPLAY_CHUNK_MS = 250
 const SHOW_REPLAY_PREWARM_SETTLE_MS = 400
-const SHOW_STAGE_RESIZE_REPAINT_SETTLE_MS = 100
 const SHOW_TEMPORAL_FEEDBACK_SEEK = 'clear-at-target' as const
 
 function yieldForShowReplayPrewarm(): Promise<void> {
@@ -747,12 +746,13 @@ export function ShowStagePreview({
       })
     }
     performanceProbeRef.current?.recordResize()
-    const repaintTimer = window.setTimeout(() => {
-      const runtime = replayRef.current
-      if (!runtime || usePreviewStore.getState().isRunning) return
-      paintFastFrame(runtime.advanceTo(runtime.getElapsedMs(), { stepMs: SHOW_REPLAY_STEP_MS }))
-    }, SHOW_STAGE_RESIZE_REPAINT_SETTLE_MS)
-    return () => window.clearTimeout(repaintTimer)
+    // Sizing clears the drawing buffer. Repaint before the browser presents it,
+    // including throughout a drag. At the current time advanceTo returns the
+    // retained pixels without ticking the Pattern; renderCurrentFrame would
+    // execute stateful Pattern code even with a zero time delta.
+    const runtime = replayRef.current
+    if (!runtime || usePreviewStore.getState().isRunning) return
+    paintFastFrame(runtime.advanceTo(runtime.getElapsedMs(), { stepMs: SHOW_REPLAY_STEP_MS }))
   }, [layout, lightSize, paintFastFrame, presentation, viewportHeight, viewportWidth])
 
   useEffect(() => {
@@ -765,7 +765,7 @@ export function ShowStagePreview({
     const runtime = replayRef.current
     if (!runtime || usePreviewStore.getState().isRunning) return
     paintFastFrame(runtime.advanceTo(runtime.getElapsedMs(), { stepMs: 1000 / 60 }))
-  }, [brightness, paintFastFrame])
+  }, [brightness, diffusion, paintFastFrame])
 
   useEffect(() => {
     const preview = usePreviewStore.getState()
