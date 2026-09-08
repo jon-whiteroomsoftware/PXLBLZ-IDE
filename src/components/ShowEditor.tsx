@@ -7524,6 +7524,13 @@ function TimelineMarkers({
   } | null>(null)
   const refreshMarkerMoveActivity = useFieldActivity(() => markerPointerRef.current !== null)
   const refreshShowEndActivity = useFieldActivity(() => showEndPointerRef.current !== null)
+  useLayoutEffect(() => {
+    const pointer = markerPointerRef.current
+    if (!pointer || pointer.settling || markers.some(marker => marker.id === pointer.markerId && marker.timeMs <= durationMs)) return
+    markerPointerRef.current = null
+    setMarkerMovePreview(null)
+    refreshMarkerMoveActivity()
+  }, [markers, durationMs, refreshMarkerMoveActivity])
   useLayoutEffect(() => () => { markerPointerRef.current = null; showEndPointerRef.current = null }, [])
   const cancelMarkerMove = (event: ReactPointerEvent<HTMLElement>) => {
     if (markerPointerRef.current?.pointerId !== event.pointerId || markerPointerRef.current.settling) return

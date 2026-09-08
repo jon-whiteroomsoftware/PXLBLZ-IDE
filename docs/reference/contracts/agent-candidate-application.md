@@ -61,7 +61,10 @@ Shared controls outside this scope have no Show-store dependency.
 Clip resize, Clip move/duplicate (native drag/drop and shift-pointer), Marker
 creation/movement and Show End use the same scope. Each gesture retains ownership
 through its authored callback and save settlement or cancellation. Native dragend
-cannot release a committed drop still settling. A Marker source click retains its
+cannot release a committed drop still settling. A removed or hidden Marker button
+retires its non-settling move, including a
+Marker outside the rendered Show duration; a committed move retains ownership
+until its existing authoritative callback settles. A Marker source click retains its
 primary-pointer ownership between pointerup and the click's authoring callback,
 including implicit capture loss. Below-threshold auxiliary releases end at pointerup
 because they emit auxclick rather than click; moved auxiliary drags retain their

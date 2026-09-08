@@ -8340,6 +8340,70 @@ describe('timeline settlement ordering (#949)', () => {
     const api = (window as unknown as { __pxlblzEditor: ReturnType<typeof import('@/dev/agentEditorAdmission').createAgentEditorAdmission> }).__pxlblzEditor
     return { show, provider, persist, writes, mounted, api }
   }
+  it.each(['remove', 'hide', 'outside-duration'] as const)('retires a Marker drag when its button disappears: %s', async reason => {
+    const { show, api, writes, provider } = open(`marker-disappears-${reason}`)
+    const marker = screen.getByRole('button', { name: 'Cue at 1 seconds' })
+    fireEvent.pointerDown(marker, { pointerId: 41, clientX: 10 })
+    fireEvent.pointerMove(marker, { pointerId: 41, clientX: 20 })
+    if (reason === 'hide') fireEvent.click(screen.getByRole('button', { name: 'Hide Markers' }))
+    else await act(async () => {
+      await useShowStore.getState().updateShow(show.id, {
+        ...show,
+        composition: { ...show.composition!, markers: reason === 'remove' ? [] : [{ id: 'cue', name: 'Cue', timeMs: 21000 }] },
+      })
+    })
+    expect(screen.queryByRole('button', { name: 'Cue at 1 seconds' })).not.toBeInTheDocument()
+    const before = structuredClone(useShowStore.getState().shows[0])
+    const history = structuredClone(useShowStore.getState().showHistories[show.id])
+    const count = writes.mock.calls.length
+    fireEvent.pointerUp(marker, { pointerId: 41, clientX: 70 })
+    fireEvent.lostPointerCapture(marker, { pointerId: 41 })
+    await act(async () => {})
+    expect(useShowStore.getState().shows).toEqual([before])
+    expect(useShowStore.getState().showHistories[show.id]).toEqual(history)
+    expect(writes).toHaveBeenCalledTimes(count)
+    const captured = api.beginRequest('after-disappearance', 'Rename', [])!
+    act(() => { expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request).status).toBe('applied') })
+    await act(async () => {})
+    expect(useShowStore.getState().shows).toEqual([{ ...before, name: 'Agent', updatedAt: expect.any(Number) }])
+    expect(writes).toHaveBeenCalledTimes(count + 1)
+    expect(await provider.listShows()).toEqual(useShowStore.getState().shows.map(record => ({ ...record, stageMapId: null })))
+    if (reason === 'hide') fireEvent.click(screen.getByRole('button', { name: 'Show Markers' }))
+    else await act(async () => { await useShowStore.getState().updateShow(show.id, { ...useShowStore.getState().shows[0], composition: { ...before.composition!, markers: show.composition!.markers } }) })
+    const nextMarker = screen.getByRole('button', { name: 'Cue at 1 seconds' })
+    fireEvent.pointerDown(nextMarker, { pointerId: 42, clientX: 10 })
+    const next = api.beginRequest('next-marker', 'Rename', [])!
+    act(() => { expect(api.applyShow({ ...next.show, name: 'Next' }, next.request).status).toBe('waiting') })
+    fireEvent.pointerCancel(nextMarker, { pointerId: 42 })
+    await act(async () => {})
+    expect(api.readOutcome(next.request)?.status).toBe('applied')
+  })
+
+  it('keeps a hidden Marker move owned until its deferred save settles', async () => {
+    const { show, api, provider, persist, writes } = open('hidden-settling-marker')
+    let resolveSave!: () => void
+    writes.mockImplementationOnce(async (...args) => { await new Promise<void>(resolve => { resolveSave = resolve }); return persist(...args) })
+    vi.spyOn(screen.getByLabelText('Timeline Markers and Show End'), 'getBoundingClientRect').mockReturnValue({ left: 0, width: 200 } as DOMRect)
+    const marker = screen.getByRole('button', { name: 'Cue at 1 seconds' })
+    fireEvent.pointerDown(marker, { pointerId: 9, clientX: 10, altKey: true })
+    fireEvent.pointerUp(marker, { pointerId: 9, clientX: 30, altKey: true })
+    await act(async () => {})
+    const manual = structuredClone(useShowStore.getState().shows[0])
+    const history = structuredClone(useShowStore.getState().showHistories[show.id])
+    fireEvent.click(screen.getByRole('button', { name: 'Hide Markers' }))
+    const captured = api.beginRequest('hidden-saving', 'Rename', [])!
+    act(() => { expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request).status).toBe('waiting') })
+    fireEvent.lostPointerCapture(marker, { pointerId: 9 })
+    expect(api.readOutcome(captured.request)?.status).toBe('waiting')
+    expect(useShowStore.getState().shows).toEqual([manual])
+    expect(useShowStore.getState().showHistories[show.id]).toEqual(history)
+    expect(writes).toHaveBeenCalledTimes(1)
+    expect(await provider.listShows()).toEqual([show])
+    await act(async () => { resolveSave() })
+    expect(api.readOutcome(captured.request)?.status).toBe('applied')
+    expect(writes).toHaveBeenCalledTimes(2)
+    expect(useShowStore.getState().shows).toEqual([{ ...manual, name: 'Agent', updatedAt: expect.any(Number) }])
+  })
   it('retains independent Marker-name ownership and the original deadline during movement and partial release', async () => {
     const { show, api, writes } = open('gesture-overlap')
     const marker = screen.getByRole('button', { name: 'Cue at 1 seconds' })
