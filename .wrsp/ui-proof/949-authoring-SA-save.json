@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "949",
+  "route": "/PXLBLZ-IDE/studio/shows/spatial-save-mttb6oxj?agent=1",
+  "operation": "Diagnostic authoring: SA-save; complete records, durable save, downloaded Show reopen and exhausted Undo; synthetic fixture only.",
+  "captures": [
+    ".wrsp/ui-proof/949-authoring-SA-save-saved.png",
+    ".wrsp/ui-proof/949-authoring-SA-save-waiting.png"
+  ],
+  "capturedAtCommit": "0454c0f9272e500180572f5d6653e6f126ad4763"
+}

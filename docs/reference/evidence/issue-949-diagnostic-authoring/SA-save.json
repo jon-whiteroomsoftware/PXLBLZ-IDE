@@ -1,0 +1,631 @@
+{
+  "boundary": "scripted bridge",
+  "before": {
+    "id": "spatial-save-mttb6oxj",
+    "name": "Baseline personal Show",
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 20000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 4
+      },
+      {
+        "id": "z2",
+        "name": "Accent",
+        "nominalPixelCount": 4
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Physical",
+        "zones": [
+          {
+            "zoneId": "z1",
+            "ranges": [
+              {
+                "start": 0,
+                "end": 1
+              }
+            ]
+          },
+          {
+            "zoneId": "z2",
+            "ranges": [
+              {
+                "start": 3,
+                "end": 3
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "transitions": [],
+    "stageMapId": "spatial-save-mttb6oxj-map",
+    "outputContract": {
+      "version": 1,
+      "kind": "installation",
+      "outputMapId": "spatial-save-mttb6oxj-map",
+      "pixelCount": 4,
+      "resolution": "fixed"
+    },
+    "updatedAt": 1757000000000,
+    "composition": {
+      "version": 1,
+      "patternInstances": [
+        {
+          "id": "resize-instance",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-a",
+                  "startMs": 0,
+                  "durationMs": 4000
+                },
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-b",
+                  "startMs": 8000,
+                  "durationMs": 2000
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "durableBefore": {
+    "id": "spatial-save-mttb6oxj",
+    "name": "Baseline personal Show",
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 20000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 4
+      },
+      {
+        "id": "z2",
+        "name": "Accent",
+        "nominalPixelCount": 4
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        }
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Physical",
+        "zones": [
+          {
+            "zoneId": "z1",
+            "ranges": [
+              {
+                "start": 0,
+                "end": 1
+              }
+            ]
+          },
+          {
+            "zoneId": "z2",
+            "ranges": [
+              {
+                "start": 3,
+                "end": 3
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "transitions": [],
+    "stageMapId": "spatial-save-mttb6oxj-map",
+    "outputContract": {
+      "version": 1,
+      "kind": "installation",
+      "outputMapId": "spatial-save-mttb6oxj-map",
+      "pixelCount": 4,
+      "resolution": "fixed"
+    },
+    "updatedAt": 1757000000000,
+    "composition": {
+      "version": 1,
+      "patternInstances": [
+        {
+          "id": "resize-instance",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-a",
+                  "startMs": 0,
+                  "durationMs": 4000
+                },
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-b",
+                  "startMs": 8000,
+                  "durationMs": 2000
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "done": {
+    "requestId": "req-mttb6pk1-wth7zu",
+    "showId": "spatial-save-mttb6oxj",
+    "capturedUpdatedAt": 1757000000000,
+    "submittedAt": 1788910605794,
+    "responseAt": 1788910605808,
+    "firstEventAt": 1788910605824,
+    "doneAt": 1788910608320,
+    "applyStartedAt": 1788910608320,
+    "applyEndedAt": 1788910608785,
+    "changed": true,
+    "applied": false,
+    "error": null,
+    "events": [
+      {
+        "kind": "accepted",
+        "name": null,
+        "at": 1788910605824
+      },
+      {
+        "kind": "tool",
+        "name": "describe_show",
+        "at": 1788910608320
+      },
+      {
+        "kind": "tool",
+        "name": "resize_clip",
+        "at": 1788910608320
+      },
+      {
+        "kind": "validation",
+        "name": null,
+        "at": 1788910608320
+      },
+      {
+        "kind": "validation",
+        "name": null,
+        "at": 1788910608320
+      },
+      {
+        "kind": "done",
+        "name": null,
+        "at": 1788910608320
+      }
+    ],
+    "bridgeTiming": {
+      "acceptedAt": 1788910605795,
+      "delayMs": 2500,
+      "agentStartedAt": 1788910608302,
+      "agentEndedAt": 1788910608313,
+      "exportedAt": 1788910608319,
+      "toolCalls": [
+        {
+          "name": "describe_show",
+          "at": 1788910608302,
+          "ms": 2
+        },
+        {
+          "name": "resize_clip",
+          "at": 1788910608304,
+          "ms": 2
+        }
+      ],
+      "validation": {
+        "at": 1788910608313,
+        "ms": 6,
+        "ok": true
+      }
+    },
+    "outcome": {
+      "status": "refused",
+      "reason": "revision-conflict"
+    }
+  },
+  "current": {
+    "id": "spatial-save-mttb6oxj",
+    "name": "Baseline personal Show",
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 20000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 4
+      },
+      {
+        "id": "z2",
+        "name": "Accent",
+        "nominalPixelCount": 4
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Physical",
+        "zones": [
+          {
+            "zoneId": "z1",
+            "ranges": [
+              {
+                "start": 1,
+                "end": 1
+              }
+            ]
+          },
+          {
+            "zoneId": "z2",
+            "ranges": [
+              {
+                "start": 3,
+                "end": 3
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "transitions": [],
+    "stageMapId": "spatial-save-mttb6oxj-map",
+    "outputContract": {
+      "version": 1,
+      "kind": "installation",
+      "outputMapId": "spatial-save-mttb6oxj-map",
+      "pixelCount": 4,
+      "resolution": "fixed"
+    },
+    "updatedAt": 1788910608742,
+    "composition": {
+      "version": 1,
+      "patternInstances": [
+        {
+          "id": "resize-instance",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-a",
+                  "startMs": 0,
+                  "durationMs": 4000
+                },
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-b",
+                  "startMs": 8000,
+                  "durationMs": 2000
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "reopened": {
+    "id": "spatial-save-mttb6oxj",
+    "name": "Baseline personal Show",
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 20000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 4
+      },
+      {
+        "id": "z2",
+        "name": "Accent",
+        "nominalPixelCount": 4
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Physical",
+        "zones": [
+          {
+            "zoneId": "z1",
+            "ranges": [
+              {
+                "start": 1,
+                "end": 1
+              }
+            ]
+          },
+          {
+            "zoneId": "z2",
+            "ranges": [
+              {
+                "start": 3,
+                "end": 3
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "transitions": [],
+    "stageMapId": "spatial-save-mttb6oxj-map",
+    "outputContract": {
+      "version": 1,
+      "kind": "installation",
+      "outputMapId": "spatial-save-mttb6oxj-map",
+      "pixelCount": 4,
+      "resolution": "fixed"
+    },
+    "updatedAt": 1788910608742,
+    "composition": {
+      "version": 1,
+      "patternInstances": [
+        {
+          "id": "resize-instance",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-a",
+                  "startMs": 0,
+                  "durationMs": 4000
+                },
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-b",
+                  "startMs": 8000,
+                  "durationMs": 2000
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "writes": [
+    {
+      "method": "PATCH",
+      "url": "http://localhost:5205/api/shows/spatial-save-mttb6oxj",
+      "at": 1788910608785,
+      "status": 200,
+      "updatedAt": 1788910608742,
+      "firstMainStartMs": 0,
+      "firstMain": {
+        "durationMs": 4000,
+        "brightness": 1
+      },
+      "compositionDurationMs": null,
+      "markers": null
+    },
+    {
+      "method": "PATCH",
+      "url": "http://localhost:5205/api/shows/spatial-save-mttb6oxj",
+      "at": 1788910609056,
+      "status": 200,
+      "updatedAt": 1788910609026,
+      "firstMainStartMs": 0,
+      "firstMain": {
+        "durationMs": 4000,
+        "brightness": 1
+      },
+      "compositionDurationMs": null,
+      "markers": null
+    }
+  ],
+  "pageErrors": []
+}

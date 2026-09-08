@@ -1,0 +1,815 @@
+{
+  "showId": "baseline-library-mttb6gmu",
+  "before": {
+    "id": "baseline-library-mttb6gmu",
+    "name": "Baseline Library Pattern Show",
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 30000
+      },
+      {
+        "id": "s2",
+        "name": "Closing",
+        "durationMs": 30000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 64
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "user",
+          "id": "baseline-pattern-library-pulse"
+        },
+        "patternName": "Library Pulse",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      },
+      {
+        "id": "c2",
+        "zoneId": "z1",
+        "sceneId": "s2",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "TestPattern1D"
+        },
+        "patternName": "TestPattern1D",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Full Stage",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "z1"
+          ]
+        }
+      }
+    ],
+    "transitions": [
+      {
+        "id": "transition-s1",
+        "afterSceneId": "s1",
+        "kind": "cut",
+        "durationMs": 0,
+        "easing": {
+          "curve": "linear"
+        }
+      }
+    ],
+    "stageMapId": null,
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "updatedAt": 1757000000000
+  },
+  "current": {
+    "id": "baseline-library-mttb6gmu",
+    "name": "Baseline Library Pattern Show",
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 30000
+      },
+      {
+        "id": "s2",
+        "name": "Closing",
+        "durationMs": 30000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 64
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "user",
+          "id": "baseline-pattern-library-pulse"
+        },
+        "patternName": "Library Pulse",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      },
+      {
+        "id": "c2",
+        "zoneId": "z1",
+        "sceneId": "s2",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "TestPattern1D"
+        },
+        "patternName": "TestPattern1D",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Full Stage",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "z1"
+          ]
+        }
+      }
+    ],
+    "transitions": [
+      {
+        "id": "transition-s1",
+        "afterSceneId": "s1",
+        "kind": "cut",
+        "durationMs": 0,
+        "easing": {
+          "curve": "linear"
+        }
+      }
+    ],
+    "stageMapId": null,
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "updatedAt": 1788910598547,
+    "composition": {
+      "version": 1,
+      "executionModel": "deterministic-loop",
+      "patternInstances": [
+        {
+          "id": "c1",
+          "pattern": {
+            "kind": "user",
+            "id": "baseline-pattern-library-pulse"
+          },
+          "patternName": "Library Pulse",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "c2",
+          "pattern": {
+            "kind": "stock",
+            "id": "TestPattern1D"
+          },
+          "patternName": "TestPattern1D",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "id": "placement-c1-s1",
+                  "instanceId": "c1",
+                  "startMs": 0,
+                  "durationMs": 12000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        },
+        {
+          "sceneId": "s2",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "id": "placement-c2-s2",
+                  "instanceId": "c2",
+                  "startMs": 0,
+                  "durationMs": 30000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "reopened": {
+    "id": "baseline-library-mttb6gmu",
+    "name": "Baseline Library Pattern Show",
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 30000
+      },
+      {
+        "id": "s2",
+        "name": "Closing",
+        "durationMs": 30000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 64
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "user",
+          "id": "baseline-pattern-library-pulse"
+        },
+        "patternName": "Library Pulse",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      },
+      {
+        "id": "c2",
+        "zoneId": "z1",
+        "sceneId": "s2",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "TestPattern1D"
+        },
+        "patternName": "TestPattern1D",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Full Stage",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "z1"
+          ]
+        }
+      }
+    ],
+    "transitions": [
+      {
+        "id": "transition-s1",
+        "afterSceneId": "s1",
+        "kind": "cut",
+        "durationMs": 0,
+        "easing": {
+          "curve": "linear"
+        }
+      }
+    ],
+    "stageMapId": null,
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "updatedAt": 1788910598547,
+    "composition": {
+      "version": 1,
+      "executionModel": "deterministic-loop",
+      "patternInstances": [
+        {
+          "id": "c1",
+          "pattern": {
+            "kind": "user",
+            "id": "baseline-pattern-library-pulse"
+          },
+          "patternName": "Library Pulse",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "c2",
+          "pattern": {
+            "kind": "stock",
+            "id": "TestPattern1D"
+          },
+          "patternName": "TestPattern1D",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "id": "placement-c1-s1",
+                  "instanceId": "c1",
+                  "startMs": 0,
+                  "durationMs": 12000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        },
+        {
+          "sceneId": "s2",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "id": "placement-c2-s2",
+                  "instanceId": "c2",
+                  "startMs": 0,
+                  "durationMs": 30000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "pageErrors": [],
+  "sentShow": {
+    "id": "baseline-library-mttb6gmu",
+    "name": "Baseline Library Pattern Show",
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 30000
+      },
+      {
+        "id": "s2",
+        "name": "Closing",
+        "durationMs": 30000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 64
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "user",
+          "id": "baseline-pattern-library-pulse"
+        },
+        "patternName": "Library Pulse",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      },
+      {
+        "id": "c2",
+        "zoneId": "z1",
+        "sceneId": "s2",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "TestPattern1D"
+        },
+        "patternName": "TestPattern1D",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Full Stage",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "z1"
+          ]
+        }
+      }
+    ],
+    "transitions": [
+      {
+        "id": "transition-s1",
+        "afterSceneId": "s1",
+        "kind": "cut",
+        "durationMs": 0,
+        "easing": {
+          "curve": "linear"
+        }
+      }
+    ],
+    "stageMapId": null,
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "updatedAt": 1757000000000,
+    "composition": {
+      "version": 1,
+      "patternInstances": [
+        {
+          "id": "c1",
+          "pattern": {
+            "kind": "user",
+            "id": "baseline-pattern-library-pulse"
+          },
+          "patternName": "Library Pulse",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "c2",
+          "pattern": {
+            "kind": "stock",
+            "id": "TestPattern1D"
+          },
+          "patternName": "TestPattern1D",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "id": "placement-c1-s1",
+                  "instanceId": "c1",
+                  "startMs": 0,
+                  "durationMs": 30000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        },
+        {
+          "sceneId": "s2",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "id": "placement-c2-s2",
+                  "instanceId": "c2",
+                  "startMs": 0,
+                  "durationMs": 30000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        }
+      ],
+      "executionModel": "deterministic-loop"
+    }
+  },
+  "request": {
+    "requestId": "req-mttb6hy0-zo7mxt",
+    "showId": "baseline-library-mttb6gmu",
+    "capturedUpdatedAt": 1757000000000,
+    "submittedAt": 1788910595930,
+    "responseAt": 1788910595958,
+    "firstEventAt": 1788910595959,
+    "doneAt": 1788910598532,
+    "applyStartedAt": 1788910598532,
+    "applyEndedAt": 1788910598653,
+    "changed": true,
+    "applied": true,
+    "error": null,
+    "events": [
+      {
+        "kind": "accepted",
+        "name": null,
+        "at": 1788910595959
+      },
+      {
+        "kind": "tool",
+        "name": "describe_show",
+        "at": 1788910598529
+      },
+      {
+        "kind": "tool",
+        "name": "resize_clip",
+        "at": 1788910598529
+      },
+      {
+        "kind": "validation",
+        "name": null,
+        "at": 1788910598529
+      },
+      {
+        "kind": "validation",
+        "name": null,
+        "at": 1788910598529
+      },
+      {
+        "kind": "done",
+        "name": null,
+        "at": 1788910598532
+      }
+    ],
+    "bridgeTiming": {
+      "acceptedAt": 1788910595931,
+      "delayMs": 2500,
+      "agentStartedAt": 1788910598515,
+      "agentEndedAt": 1788910598527,
+      "exportedAt": 1788910598528,
+      "toolCalls": [
+        {
+          "name": "describe_show",
+          "at": 1788910598516,
+          "ms": 4
+        },
+        {
+          "name": "resize_clip",
+          "at": 1788910598520,
+          "ms": 5
+        }
+      ],
+      "validation": {
+        "at": 1788910598527,
+        "ms": 1,
+        "ok": true
+      }
+    },
+    "outcome": {
+      "status": "applied",
+      "settlement": "saved"
+    }
+  },
+  "writes": [
+    {
+      "method": "PATCH",
+      "url": "http://localhost:5205/api/shows/baseline-library-mttb6gmu",
+      "at": 1788910598586,
+      "status": 200,
+      "updatedAt": 1788910598547,
+      "firstMainStartMs": 0,
+      "firstMain": {
+        "durationMs": 12000,
+        "brightness": 1
+      },
+      "compositionDurationMs": null,
+      "markers": null
+    },
+    {
+      "method": "PATCH",
+      "url": "http://localhost:5205/api/shows/baseline-library-mttb6gmu",
+      "at": 1788910599140,
+      "status": 200,
+      "updatedAt": 1788910599111,
+      "firstMainStartMs": null,
+      "firstMain": null,
+      "compositionDurationMs": null,
+      "markers": null
+    }
+  ],
+  "observations": [
+    {
+      "kind": "preview-published",
+      "showId": "baseline-library-mttb6gmu",
+      "at": 1788910595476,
+      "digest": "cf8a98df",
+      "updatedAt": 1757000000000
+    },
+    {
+      "kind": "preview-published",
+      "showId": "baseline-library-mttb6gmu",
+      "at": 1788910595479,
+      "digest": "cf8a98df",
+      "updatedAt": 1757000000000
+    },
+    {
+      "kind": "agent-apply",
+      "phase": "admitted",
+      "showId": "baseline-library-mttb6gmu",
+      "requestId": "req-mttb6hy0-zo7mxt",
+      "at": 1788910598534,
+      "digest": "cf8a98df",
+      "updatedAt": 1757000000000,
+      "historyDepth": 0
+    },
+    {
+      "kind": "agent-apply",
+      "phase": "adopted",
+      "showId": "baseline-library-mttb6gmu",
+      "requestId": "req-mttb6hy0-zo7mxt",
+      "at": 1788910598547,
+      "digest": "4c040e2a",
+      "updatedAt": 1788910598547,
+      "historyDepth": 1
+    },
+    {
+      "kind": "agent-apply",
+      "phase": "settled",
+      "showId": "baseline-library-mttb6gmu",
+      "requestId": "req-mttb6hy0-zo7mxt",
+      "at": 1788910598653,
+      "digest": "4c040e2a",
+      "updatedAt": 1788910598547,
+      "historyDepth": 1
+    }
+  ],
+  "visible": {
+    "durationSeconds": "12",
+    "brightnessPercent": "100"
+  },
+  "previewPublished": true,
+  "previewText": "Unknown library namespace \"Blz\"StageZone strips - generic·Reference map·64 pxPreviewbrightness100%?light size0.50diffusion50%rendererFastfps—Zones·MainSourcePortable 2D compatibility failed: The reference output must be a 2D mapped surface. Choose a 2D reference map before export or send.",
+  "timeline": {
+    "requestId": "req-mttb6hy0-zo7mxt",
+    "scripted": true,
+    "delayMs": 2500,
+    "submitToAcceptedMs": 1,
+    "acceptedToAgentStartMs": 2584,
+    "agentMs": 12,
+    "toolCalls": [
+      {
+        "name": "describe_show",
+        "at": 1788910598516,
+        "ms": 4
+      },
+      {
+        "name": "resize_clip",
+        "at": 1788910598520,
+        "ms": 5
+      }
+    ],
+    "validationMs": 1,
+    "agentEndToExportMs": 1,
+    "exportToOverlayDoneMs": 4,
+    "doneToApplyStartMs": 0,
+    "applyStartToAdoptedMs": 15,
+    "adoptedToSettledMs": 106,
+    "settledPhase": "settled",
+    "adoptedToPreviewPublishedMs": null,
+    "candidatePatchStatus": 200,
+    "submitToApplyEndMs": 2723
+  }
+}

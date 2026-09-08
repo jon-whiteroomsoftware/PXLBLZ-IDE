@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "949",
+  "route": "/PXLBLZ-IDE/studio/shows/spatial-clean-mttb6kij?agent=1",
+  "operation": "Diagnostic authoring: SA-clean; complete records, durable save, downloaded Show reopen and exhausted Undo; synthetic fixture only.",
+  "captures": [
+    ".wrsp/ui-proof/949-authoring-SA-clean-open.png",
+    ".wrsp/ui-proof/949-authoring-SA-clean-saved.png"
+  ],
+  "capturedAtCommit": "0454c0f9272e500180572f5d6653e6f126ad4763"
+}
