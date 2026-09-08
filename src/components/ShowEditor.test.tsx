@@ -8065,4 +8065,50 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     )
   })
 
+  it('clears only Pattern picks and preserves the draft and Undo history (#987)', async () => {
+    const user = userEvent.setup()
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-102-transitions-values')!
+    await useShowStore.getState().updateShow(stock.id, { ...stock.show, name: 'Session edit' })
+    useShowEditorSessionStore.getState().setReferencePattern(stock.id, 1, { kind: 'stock', id: 'Caustics' })
+    const draft = useShowStore.getState().stockShowDrafts[stock.id]
+    const history = useShowStore.getState().showHistories[stock.id]
+    const resetDraft = vi.spyOn(useShowStore.getState(), 'resetStockShowDraft')
+    const clearPicks = vi.spyOn(useShowEditorSessionStore.getState(), 'clearReferencePatterns')
+    try {
+      render(<ShowEditor showId={stock.id} showOverride={stock.show} builtInContext={stock} />)
+      await user.click(screen.getByRole('button', { name: 'Patterns (3)' }))
+      await user.click(within(screen.getByRole('dialog', { name: 'Try with Pattern' })).getByRole('button', { name: 'Reset' }))
+      expect(clearPicks).toHaveBeenCalledExactlyOnceWith(stock.id)
+      expect(resetDraft).not.toHaveBeenCalled()
+      expect(useShowStore.getState().stockShowDrafts[stock.id]).toBe(draft)
+      expect(useShowStore.getState().showHistories[stock.id]).toBe(history)
+      expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toBeUndefined()
+      await user.click(screen.getByRole('button', { name: 'Patterns (3)' }))
+      expect(screen.getByRole('combobox', { name: 'Pattern 2' })).toHaveValue('EventHorizon')
+    } finally {
+      resetDraft.mockRestore()
+      clearPicks.mockRestore()
+    }
+  })
+
+  it.each([
+    ['no picks', undefined, false],
+    ['empty picks', {}, false],
+    ['authored pick', { 1: { kind: 'stock', id: 'EventHorizon' } }, false],
+    ['different pick', { 1: { kind: 'stock', id: 'Caustics' } }, true],
+    ['same id from another source', { 1: { kind: 'user', id: 'EventHorizon' } }, true],
+  ] as const)('enables chooser Reset only for changed Patterns: %s (#987)', async (_label, selections, enabled) => {
+    const user = userEvent.setup()
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-102-transitions-values')!
+    useShowStore.setState({ stockShowDrafts: { [stock.id]: { ...stock.show, name: 'Session edit' } } })
+    if (selections) {
+      useShowEditorSessionStore.setState({ referencePatternsByShowId: { [stock.id]: selections } })
+    }
+    render(<ShowEditor showId={stock.id} showOverride={stock.show} builtInContext={stock} />)
+    expect(screen.getByRole('button', { name: 'Reset built-in Show' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Patterns (3)' }))
+    const reset = within(screen.getByRole('dialog', { name: 'Try with Pattern' })).getByRole('button', { name: 'Reset' })
+    if (enabled) expect(reset).toBeEnabled()
+    else expect(reset).toBeDisabled()
+  })
 })

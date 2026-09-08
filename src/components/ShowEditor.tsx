@@ -2542,8 +2542,13 @@ export function ShowEditor({
             selections={selectedReferencePatterns}
             onSelectPattern={requestPatternSlotSelection}
             onCollapse={() => setShowNoteOpen(showId, false)}
-            canReset={Boolean(hasStockDraft || selectedReferencePatterns)}
-            onReset={() => { resetStockShowDraft(showId); clearReferencePatterns(showId) }}
+            canReset={Boolean(builtInSlotGroups?.some((group, index) => {
+              const selected = selectedReferencePatterns?.[index]
+              const authored = editableShow?.cells.find((cell) => group.cellIds.includes(cell.id))?.pattern
+                ?? editableShow?.composition?.patternInstances.find((instance) => group.instanceIds.includes(instance.id))?.pattern
+              return selected && authored && (selected.kind !== authored.kind || selected.id !== authored.id)
+            }))}
+            onReset={() => clearReferencePatterns(showId)}
           />
         )}
         <div className="min-w-0 p-3">
