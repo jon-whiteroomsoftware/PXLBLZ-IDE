@@ -32,9 +32,13 @@ one Undo restores the original record.
 
 These checks qualify the registered shared text/numeric field families (including
 BoundedNumberField wrappers and slider portals), alongside focused lifecycle tests.
-Timeline, placement-pad, sparkline, Effect reorder and spatial-selection input
-ownership, external narrow context, and the final Agent panel remain outside this
-proof. The fixture's existing reference-map delivery diagnostic is unchanged;
+GA adds actual Clip resize cancellation/manual commit and Show End manual commit
+through the same scripted bridge, with complete visible/durable record comparison,
+one history/save and production export reopening. Focused lifecycle tests cover
+native/shift-pointer Clip move/duplicate and Marker creation/movement, including
+pointer identity, session rebinding, save rejection and overlapping field ownership.
+Placement-pad, sparkline, Effect reorder and retained physical-zone input ownership,
+external narrow context, and the final Agent panel remain outside this proof. The fixture's existing reference-map delivery diagnostic is unchanged;
 successful authoring does not claim Controller delivery readiness.
 
 ## Commands

@@ -324,7 +324,7 @@ import ShowSourceOutletContext from '@/components/ShowSourceOutlet'
 import { ShowStripSection } from '@/components/ShowStripSection'
 import { useAnchoredOverlayPosition } from '@/components/useAnchoredOverlayPosition'
 import { previewShowClipResize, resizeShowClipManually } from '@/engine/showManualClipResize'
-import { FieldActivityContext, createFieldActivityScope } from './ui/field-activity'
+import { FieldActivityContext, createFieldActivityScope, useFieldActivity } from './ui/field-activity'
 
 const field =
   'h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
@@ -3981,10 +3981,21 @@ function ShowTimelineWorkspace({
     mode: 'move' | 'duplicate'
     duplicatePlacementId: string | null
     duplicateInstanceId: string | null
+    settling?: boolean
   } | null>(null)
   const draggingCompositionClipRef = useRef(draggingCompositionClip)
+  const movePointerCleanupRef = useRef<(() => void) | null>(null)
+  const refreshMoveActivity = useFieldActivity(() => draggingCompositionClipRef.current !== null)
+  useLayoutEffect(() => () => {
+    movePointerCleanupRef.current?.()
+    movePointerCleanupRef.current = null
+    draggingCompositionClipRef.current = null
+  }, [])
   const [resizePreview, setResizePreview] = useState<ShowClipResizePreview | null>(null)
   const resizePlanRef = useRef<ShowClipResizePlan | null>(null)
+  const resizeGestureRef = useRef<(() => void) | null>(null)
+  const refreshResizeActivity = useFieldActivity(() => resizeGestureRef.current !== null)
+  useLayoutEffect(() => () => { resizeGestureRef.current?.(); resizeGestureRef.current = null }, [])
   const suppressResizeClipClickRef = useRef<string | null>(null)
   const [movePreview, setMovePreview] = useState<ShowClipMovePreview | null>(null)
   const movePlanRef = useRef<ShowClipMovePlan | null>(null)
@@ -4278,7 +4289,7 @@ function ShowTimelineWorkspace({
   }) => {
     const draggedClip = draggingCompositionClipRef.current
     const compositionTimeline = unifiedCompositionTimeline
-    if (!draggedClip || !compositionTimeline || readOnly) return
+    if (!draggedClip || draggedClip.settling || !compositionTimeline || readOnly) return
     if (input.dataTransfer) input.dataTransfer.dropEffect = draggedClip.mode === 'duplicate' ? 'copy' : 'move'
     setDropTargetKey(input.targetKey)
     const rect = input.element.getBoundingClientRect()
@@ -4362,6 +4373,7 @@ function ShowTimelineWorkspace({
     setMovePreview(nextPreview)
   }
   const resetCompositionClipMove = () => {
+    if (draggingCompositionClipRef.current?.settling) return
     activeMoveLayerRef.current = null
     draggingCompositionClipRef.current = null
     setDraggingCompositionClip(null)
@@ -4369,16 +4381,19 @@ function ShowTimelineWorkspace({
     setMovePreview(null)
     setDropTargetKey(null)
     onDirectManipulationChange(false)
+    refreshMoveActivity()
   }
   const commitCompositionClipMove = (targetKey: string) => {
     const draggedClip = draggingCompositionClipRef.current
     const activePlan = movePlanRef.current
+    if (draggedClip?.settling) return
     if (!draggedClip
       || activePlan?.preview.clipId !== draggedClip.clipId
       || activePlan.preview.targetKey !== targetKey) {
       resetCompositionClipMove()
       return
     }
+    draggedClip.settling = true
     const commit = activePlan.mode === 'duplicate'
       ? onDuplicateCompositionClipAtTarget({
           sourceComposition: activePlan.sourceComposition,
@@ -4391,13 +4406,17 @@ function ShowTimelineWorkspace({
           plannedComposition: activePlan.composition,
         })
     void commit.then((changed) => {
-      if (!changed) return
+      if (!changed || draggingCompositionClipRef.current !== draggedClip) return
       const clipId = activePlan.mode === 'duplicate'
         ? draggedClip.duplicatePlacementId!
         : draggedClip.clipId
       if (activePlan.mode === 'duplicate') onSelect({ kind: 'clip', clipId })
       onReanchorDetails({ kind: 'clip', clipId })
-    }).catch(() => {}).finally(resetCompositionClipMove)
+    }).catch(() => {}).finally(() => {
+      if (draggingCompositionClipRef.current !== draggedClip) return
+      draggedClip.settling = false
+      resetCompositionClipMove()
+    })
     setDropTargetKey(null)
   }
   const propertyLanesByZone = useMemo(() => {
@@ -4671,11 +4690,13 @@ function ShowTimelineWorkspace({
     edge: 'start' | 'end',
     event: ReactPointerEvent<HTMLSpanElement>,
   ) => {
-    if (readOnly || !timelineComposition) return
+    if (readOnly || !timelineComposition || resizeGestureRef.current) return
     event.preventDefault()
     event.stopPropagation()
     const lane = event.currentTarget.closest<HTMLElement>('[data-show-layer-kind]')
     if (!lane) return
+    const pointerId = event.pointerId
+    const handle = event.currentTarget
     const rect = lane.getBoundingClientRect()
     onDirectManipulationChange(true)
     const startClientX = event.clientX
@@ -4733,23 +4754,35 @@ function ShowTimelineWorkspace({
       }
     }
     const move = (pointer: PointerEvent) => {
+      if (pointer.pointerId !== pointerId || !resizeGestureRef.current) return
       const nextPlan = plan(pointer)
       resizePlanRef.current = nextPlan
       setResizePreview(nextPlan?.preview ?? null)
     }
-    const finish = (pointer: PointerEvent) => {
+    const detach = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', finish)
       window.removeEventListener('pointercancel', cancel)
+      handle.removeEventListener('lostpointercapture', cancel)
+    }
+    const settle = () => {
+      if (resizeGestureRef.current !== detach) return
+      resizeGestureRef.current = null
+      resizePlanRef.current = null
+      setResizePreview(null)
+      onDirectManipulationChange(false)
+      refreshResizeActivity()
+    }
+    const finish = (pointer: PointerEvent) => {
+      if (pointer.pointerId !== pointerId || resizeGestureRef.current !== detach) return
+      detach()
       const activePlan = resizePlanRef.current ?? plan(pointer)
       suppressResizeClipClickRef.current = clip.id
       window.setTimeout(() => {
         if (suppressResizeClipClickRef.current === clip.id) suppressResizeClipClickRef.current = null
       }, 0)
       if (!activePlan) {
-        resizePlanRef.current = null
-        setResizePreview(null)
-        onDirectManipulationChange(false)
+        settle()
         return
       }
       resizePlanRef.current = activePlan
@@ -4761,25 +4794,21 @@ function ShowTimelineWorkspace({
         globalStartMs: activePlan.preview.startMs,
         durationMs: activePlan.preview.durationMs,
         sourceComposition: activePlan.sourceComposition,
-      }).finally(() => {
-        resizePlanRef.current = null
-        setResizePreview(null)
-        onDirectManipulationChange(false)
-      })
+      }).catch(() => {}).finally(settle)
     }
-    const cancel = () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', finish)
-      window.removeEventListener('pointercancel', cancel)
-      resizePlanRef.current = null
-      setResizePreview(null)
-      onDirectManipulationChange(false)
+    const cancel = (pointer: PointerEvent) => {
+      if (pointer.pointerId !== pointerId || resizeGestureRef.current !== detach) return
+      detach()
+      settle()
     }
+    resizeGestureRef.current = detach
+    refreshResizeActivity()
     resizePlanRef.current = null
     setResizePreview({ clipId: clip.id, startMs: clip.startMs, durationMs: clip.durationMs })
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', finish)
     window.addEventListener('pointercancel', cancel)
+    handle.addEventListener('lostpointercapture', cancel)
   }
   return (
     <div
@@ -5671,7 +5700,7 @@ function ShowTimelineWorkspace({
                 onDrop={(event) => {
                   const draggedClip = draggingCompositionClipRef.current
                   const compositionTimeline = unifiedCompositionTimeline
-                  if (!draggedClip || !compositionTimeline || readOnly) return
+                  if (!draggedClip || draggedClip.settling || !compositionTimeline || readOnly) return
                   event.preventDefault()
                   const rect = event.currentTarget.getBoundingClientRect()
                   const totalMs = Math.max(1, compositionTimeline.durationMs)
@@ -5699,6 +5728,7 @@ function ShowTimelineWorkspace({
                         newInstanceId: draggedClip.duplicateInstanceId,
                       })
                     : null
+                  draggedClip.settling = true
                   const commit = draggedClip.mode === 'duplicate' && timelineComposition && plannedComposition
                     ? onDuplicateCompositionClipAtTarget({
                         sourceComposition: timelineComposition,
@@ -5706,19 +5736,16 @@ function ShowTimelineWorkspace({
                       })
                     : onMoveCompositionClip({ owner: draggedClip.owner, target })
                   void commit.then((changed) => {
-                    if (!changed) return
+                    if (!changed || draggingCompositionClipRef.current !== draggedClip) return
                     const clipId = draggedClip.mode === 'duplicate'
                       ? draggedClip.duplicatePlacementId!
                       : draggedClip.clipId
                     if (draggedClip.mode === 'duplicate') onSelect({ kind: 'clip', clipId })
                     onReanchorDetails({ kind: 'clip', clipId })
                   }).catch(() => {}).finally(() => {
-                    activeMoveLayerRef.current = null
-                    draggingCompositionClipRef.current = null
-                    setDraggingCompositionClip(null)
-                    movePlanRef.current = null
-                    setMovePreview(null)
-                    onDirectManipulationChange(false)
+                    if (draggingCompositionClipRef.current !== draggedClip) return
+                    draggedClip.settling = false
+                    resetCompositionClipMove()
                   })
                   setDropTargetKey(null)
                 }}
@@ -5830,7 +5857,7 @@ function ShowTimelineWorkspace({
                 onDragOver={(event) => {
                   const draggedClip = draggingCompositionClipRef.current
                   const compositionTimeline = unifiedCompositionTimeline
-                  if (!draggedClip || !compositionTimeline || readOnly) return
+                  if (!draggedClip || draggedClip.settling || !compositionTimeline || readOnly) return
                   event.preventDefault()
                   const targetKey = `composition:${layer.id}`
                   activeMoveLayerRef.current = {
@@ -5992,6 +6019,7 @@ function ShowTimelineWorkspace({
                     }
                     activeMoveLayerRef.current = null
                     draggingCompositionClipRef.current = dragState
+                    refreshMoveActivity()
                     setDraggingCompositionClip(dragState)
                     onDirectManipulationChange(true)
                     return dragState
@@ -6011,18 +6039,23 @@ function ShowTimelineWorkspace({
                       onPointerEnter={() => useShowClipHoverStore.getState().setHoveredClip(clip.id)}
                       onPointerLeave={() => useShowClipHoverStore.getState().clearHoveredClip(clip.id)}
                       onPointerDown={(event) => {
-                        if (!event.shiftKey || event.button !== 0 || readOnly || group) return
+                        if (!event.shiftKey || event.button !== 0 || readOnly || group || movePointerCleanupRef.current || draggingCompositionClipRef.current) return
                         event.stopPropagation()
                         const pointerId = event.pointerId
                         const clipElement = event.currentTarget
                         const startX = event.clientX
                         const startY = event.clientY
                         let fallbackStarted = false
-                        const finish = (pointer: PointerEvent, commit: boolean) => {
-                          if (pointer.pointerId !== pointerId) return
+                        const detach = () => {
                           window.removeEventListener('pointermove', move)
                           window.removeEventListener('pointerup', up)
                           window.removeEventListener('pointercancel', cancel)
+                          clipElement.removeEventListener('lostpointercapture', cancel)
+                        }
+                        const finish = (pointer: PointerEvent, commit: boolean) => {
+                          if (pointer.pointerId !== pointerId || movePointerCleanupRef.current !== detach) return
+                          detach()
+                          movePointerCleanupRef.current = null
                           if (!fallbackStarted) return
                           if (commit && activeMoveLayerRef.current) {
                             commitCompositionClipMove(activeMoveLayerRef.current.targetKey)
@@ -6031,7 +6064,7 @@ function ShowTimelineWorkspace({
                           }
                         }
                         const move = (pointer: PointerEvent) => {
-                          if (pointer.pointerId !== pointerId) return
+                          if (pointer.pointerId !== pointerId || movePointerCleanupRef.current !== detach) return
                           if (!fallbackStarted) {
                             if (Math.hypot(pointer.clientX - startX, pointer.clientY - startY) < 3) return
                             pointer.preventDefault()
@@ -6067,12 +6100,14 @@ function ShowTimelineWorkspace({
                         }
                         const up = (pointer: PointerEvent) => finish(pointer, true)
                         const cancel = (pointer: PointerEvent) => finish(pointer, false)
+                        movePointerCleanupRef.current = detach
+                        clipElement.addEventListener('lostpointercapture', cancel)
                         window.addEventListener('pointermove', move)
                         window.addEventListener('pointerup', up)
                         window.addEventListener('pointercancel', cancel)
                       }}
                       onDragStart={(event) => {
-                        if (readOnly || group) return
+                        if (readOnly || group || draggingCompositionClipRef.current) { event.preventDefault(); return }
                         event.stopPropagation()
                         const dragState = beginClipDrag(event.currentTarget, event.clientX, event.altKey)
                         event.dataTransfer.effectAllowed = dragState.mode === 'duplicate' ? 'copy' : 'move'
@@ -6888,7 +6923,15 @@ function TimelineMarkerSource({
 }) {
   const durationMs = showLoopDurationMs(show)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
-  const markerDragRef = useRef<{ pointerId: number; startX: number } | null>(null)
+  const markerDragRef = useRef<{ pointerId: number; startX: number; phase?: 'click' | 'saving' } | null>(null)
+  const refreshMarkerActivity = useFieldActivity(() => markerDragRef.current !== null)
+  useLayoutEffect(() => () => { markerDragRef.current = null }, [])
+  const cancelMarkerCreation = (event: ReactPointerEvent<HTMLElement>) => {
+    if (markerDragRef.current?.pointerId !== event.pointerId || markerDragRef.current.phase === 'saving') return
+    markerDragRef.current = null
+    onMarkerFeedback(null)
+    refreshMarkerActivity()
+  }
   const suppressMarkerClickRef = useRef(false)
   const confirmationTimerRef = useRef<number | null>(null)
   useEffect(() => () => {
@@ -6934,43 +6977,57 @@ function TimelineMarkerSource({
           event.stopPropagation()
           clearConfirmation()
           onMarkerFeedback(null)
+          if (markerDragRef.current) return
           markerDragRef.current = { pointerId: event.pointerId, startX: event.clientX }
+          refreshMarkerActivity()
           event.currentTarget.setPointerCapture?.(event.pointerId)
         }}
         onPointerMove={(event) => {
           const drag = markerDragRef.current
-          if (!drag || drag.pointerId !== event.pointerId || Math.abs(event.clientX - drag.startX) < 3) return
+          if (!drag || drag.phase || drag.pointerId !== event.pointerId || Math.abs(event.clientX - drag.startX) < 3) return
           const timeMs = resolveDragTime(event.clientX, event)
           onMarkerFeedback(timeMs === null ? null : { kind: 'drag', timeMs })
         }}
         onPointerUp={(event) => {
           const drag = markerDragRef.current
-          markerDragRef.current = null
-          if (!drag || drag.pointerId !== event.pointerId || Math.abs(event.clientX - drag.startX) < 3) return
+          if (!drag || drag.pointerId !== event.pointerId || drag.phase) return
+          // The ensuing click owns playhead creation. Keep the pointer's
+          // activity across implicit capture loss until that handler authors.
+          if (Math.abs(event.clientX - drag.startX) < 3) { drag.phase = 'click'; return }
           suppressMarkerClickRef.current = true
+          const timeMs = resolveDragTime(event.clientX, event)
+          if (timeMs === null) { cancelMarkerCreation(event); return }
+          drag.phase = 'saving'
           onMarkerFeedback(null)
           event.currentTarget.releasePointerCapture?.(event.pointerId)
-          const timeMs = resolveDragTime(event.clientX, event)
-          if (timeMs !== null) void onCreateMarker(timeMs)
+          void onCreateMarker(timeMs).catch(() => {}).finally(() => {
+            if (markerDragRef.current !== drag) return
+            markerDragRef.current = null
+            refreshMarkerActivity()
+          })
         }}
-        onPointerCancel={(event) => {
-          if (markerDragRef.current?.pointerId !== event.pointerId) return
-          markerDragRef.current = null
-          onMarkerFeedback(null)
-        }}
-        onClick={() => {
+        onPointerCancel={cancelMarkerCreation}
+        onLostPointerCapture={(event) => { if (markerDragRef.current?.phase !== 'click') cancelMarkerCreation(event) }}
+        onClick={(event) => {
           if (suppressMarkerClickRef.current) {
             suppressMarkerClickRef.current = false
             return
           }
+          const source = event.currentTarget
+          const drag = markerDragRef.current
+          if (drag) drag.phase = 'saving'
           void onCreateMarker(positionMs).then((created) => {
-            if (!created) return
+            if (!created || !source.isConnected) return
             clearConfirmation()
             onMarkerFeedback({ kind: 'confirmation', timeMs: positionMs })
             confirmationTimerRef.current = window.setTimeout(() => {
               confirmationTimerRef.current = null
               onMarkerFeedback(null)
             }, 1_100)
+          }).catch(() => {}).finally(() => {
+            if (!drag || markerDragRef.current !== drag) return
+            markerDragRef.current = null
+            refreshMarkerActivity()
           })
         }}
       >
@@ -7449,7 +7506,7 @@ function TimelineMarkers({
   const [showEndDragBlocked, setShowEndDragBlocked] = useState(false)
   const [showEndAnchor, setShowEndAnchor] = useState<HTMLSpanElement | null>(null)
   const markerSurfaceRef = useRef<HTMLDivElement>(null)
-  const markerPointerRef = useRef<{ markerId: string; pointerId: number; startX: number } | null>(null)
+  const markerPointerRef = useRef<{ markerId: string; pointerId: number; startX: number; settling?: boolean } | null>(null)
   // A Marker follows the pointer while it is dragged (#667): the handle and
   // stem render at the resolved (quantized/magnetized) time continuously
   // instead of jumping only on release.
@@ -7459,7 +7516,17 @@ function TimelineMarkers({
     startX: number
     startDurationMs: number
     surfaceWidthPx: number
+    settling?: boolean
   } | null>(null)
+  const refreshMarkerMoveActivity = useFieldActivity(() => markerPointerRef.current !== null)
+  const refreshShowEndActivity = useFieldActivity(() => showEndPointerRef.current !== null)
+  useLayoutEffect(() => () => { markerPointerRef.current = null; showEndPointerRef.current = null }, [])
+  const cancelMarkerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    if (markerPointerRef.current?.pointerId !== event.pointerId || markerPointerRef.current.settling) return
+    markerPointerRef.current = null
+    setMarkerMovePreview(null)
+    refreshMarkerMoveActivity()
+  }
   const suppressMarkerHandleClickRef = useRef(false)
   const suppressShowEndClickRef = useRef(false)
   useEffect(() => {
@@ -7525,6 +7592,7 @@ function TimelineMarkers({
     return { timeMs, blocked: rawTimeMs < minimumShowEndMs }
   }
   const beginShowEndDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    if (showEndPointerRef.current) return
     event.stopPropagation()
     const rect = markerSurfaceRef.current?.getBoundingClientRect()
     showEndPointerRef.current = {
@@ -7533,6 +7601,7 @@ function TimelineMarkers({
       startDurationMs: durationMs,
       surfaceWidthPx: rect?.width ?? 1,
     }
+    refreshShowEndActivity()
     setShowEndDragging(true)
     setShowEndDragBlocked(false)
     onPreviewShowEnd(durationMs)
@@ -7540,7 +7609,7 @@ function TimelineMarkers({
   }
   const previewShowEndDrag = (event: ReactPointerEvent<HTMLElement>) => {
     const pointer = showEndPointerRef.current
-    if (!pointer || pointer.pointerId !== event.pointerId) return
+    if (!pointer || pointer.settling || pointer.pointerId !== event.pointerId) return
     event.stopPropagation()
     const resolved = resolveShowEndDrag(event, pointer)
     setShowEndDragBlocked(resolved.blocked)
@@ -7549,30 +7618,30 @@ function TimelineMarkers({
   const finishShowEndDrag = (event: ReactPointerEvent<HTMLElement>) => {
     event.stopPropagation()
     const pointer = showEndPointerRef.current
-    showEndPointerRef.current = null
+    if (!pointer || pointer.pointerId !== event.pointerId || pointer.settling) return
+    if (Math.abs(event.clientX - pointer.startX) < 3) { cancelShowEndDrag(event); return }
+    pointer.settling = true
     event.currentTarget.releasePointerCapture?.(event.pointerId)
-    if (!pointer || pointer.pointerId !== event.pointerId || Math.abs(event.clientX - pointer.startX) < 3) {
-      setShowEndDragging(false)
-      setShowEndDragBlocked(false)
-      onPreviewShowEnd(null)
-      return
-    }
     const { timeMs } = resolveShowEndDrag(event, pointer)
     setShowEndDragBlocked(false)
     suppressShowEndClickRef.current = true
     onPreviewShowEnd(timeMs)
-    void onSetShowEnd(timeMs).finally(() => {
+    void onSetShowEnd(timeMs).catch(() => {}).finally(() => {
+      if (showEndPointerRef.current !== pointer) return
+      showEndPointerRef.current = null
       setShowEndDragging(false)
       setShowEndDragBlocked(false)
       onPreviewShowEnd(null)
+      refreshShowEndActivity()
     })
   }
   const cancelShowEndDrag = (event: ReactPointerEvent<HTMLElement>) => {
-    if (showEndPointerRef.current?.pointerId !== event.pointerId) return
+    if (showEndPointerRef.current?.pointerId !== event.pointerId || showEndPointerRef.current.settling) return
     showEndPointerRef.current = null
     setShowEndDragging(false)
     setShowEndDragBlocked(false)
     onPreviewShowEnd(null)
+    refreshShowEndActivity()
   }
   const toggleShowEndDetails = (event: ReactMouseEvent<HTMLElement>) => {
     event.stopPropagation()
@@ -7661,30 +7730,35 @@ function TimelineMarkers({
             style={{ left: `${left}%`, color: marker.color ?? '#f59e0b' }}
             onPointerDown={(event) => {
               event.stopPropagation()
+              if (markerPointerRef.current) return
               markerPointerRef.current = { markerId: marker.id, pointerId: event.pointerId, startX: event.clientX }
+              refreshMarkerMoveActivity()
               event.currentTarget.setPointerCapture?.(event.pointerId)
             }}
             onPointerMove={(event) => {
               const pointer = markerPointerRef.current
-              if (!pointer || pointer.markerId !== marker.id || pointer.pointerId !== event.pointerId) return
+              if (!pointer || pointer.settling || pointer.markerId !== marker.id || pointer.pointerId !== event.pointerId) return
               if (Math.abs(event.clientX - pointer.startX) < 3 && markerMovePreview === null) return
               setMarkerMovePreview({ markerId: marker.id, timeMs: resolvePointerTime(event, marker.timeMs) })
             }}
             onPointerUp={(event) => {
               event.stopPropagation()
               const pointer = markerPointerRef.current
-              markerPointerRef.current = null
+              if (!pointer || pointer.markerId !== marker.id || pointer.pointerId !== event.pointerId || pointer.settling) return
+              if (Math.abs(event.clientX - pointer.startX) < 3) { cancelMarkerMove(event); return }
+              pointer.settling = true
               setMarkerMovePreview(null)
-              if (!pointer || pointer.markerId !== marker.id || pointer.pointerId !== event.pointerId || Math.abs(event.clientX - pointer.startX) < 3) return
               const timeMs = resolvePointerTime(event, marker.timeMs)
               event.currentTarget.releasePointerCapture?.(event.pointerId)
               suppressMarkerHandleClickRef.current = true
-              void onMoveMarker(marker.id, timeMs)
+              void onMoveMarker(marker.id, timeMs).catch(() => {}).finally(() => {
+                if (markerPointerRef.current !== pointer) return
+                markerPointerRef.current = null
+                refreshMarkerMoveActivity()
+              })
             }}
-            onPointerCancel={() => {
-              markerPointerRef.current = null
-              setMarkerMovePreview(null)
-            }}
+            onPointerCancel={cancelMarkerMove}
+            onLostPointerCapture={cancelMarkerMove}
             onClick={(event) => {
               event.stopPropagation()
               if (suppressMarkerHandleClickRef.current) {

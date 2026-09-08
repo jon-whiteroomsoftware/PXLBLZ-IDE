@@ -755,6 +755,76 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     }
   })
 
+  test('GA: real timeline gestures wait and settle after cancellation or manual adoption', async ({ page }) => {
+    test.setTimeout(150000)
+    for (const action of ['resize-cancel', 'resize-commit', 'end-commit'] as const) {
+      await page.setViewportSize({ width: action === 'end-commit' ? 800 : 1440, height: 900 })
+      const record = resizeBoundaryShow(`gesture-${action}-${Date.now().toString(36)}`)
+      expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+      await page.goto(`studio/shows/${record.id}?agent=1`)
+      await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+      await expect.poll(() => page.evaluate(async () => {
+        const load = (path: string) => import(path)
+        const [p, l, m] = await Promise.all(['pattern', 'library', 'map'].map(name => load(`/PXLBLZ-IDE/src/store/${name}Store.ts`)))
+        return p.usePatternStore.getState().patternsLoaded && l.useLibraryStore.getState().librariesLoaded && m.useMapStore.getState().mapsLoaded
+      })).toBe(true)
+      await injectOverlay(page, bridge.url)
+      const before = await visibleRecord(page)
+      const durableBefore = await durableShow(page, record.id)
+      const writes = watchShowWrites(page)
+      const id = await submitUtterance(page, 'make the first Clip exactly eight seconds')
+      const handle = action === 'end-commit'
+        ? page.getByRole('button', { name: 'Show End at 20 seconds' })
+        : page.getByRole('separator', { name: 'Resize CometLoom end' }).first()
+      await handle.scrollIntoViewIfNeeded()
+      const bounds = (await handle.boundingBox())!
+      const clip = (await page.getByRole('button', { name: 'Select CometLoom', exact: true }).first().boundingBox())!
+      const surface = (await page.getByLabel('Timeline Markers and Show End', { exact: true }).boundingBox())!
+      const x = bounds.x + bounds.width / 2
+      const y = bounds.y + bounds.height / 2
+      await page.keyboard.down('Alt')
+      await page.mouse.move(x, y)
+      await page.mouse.down()
+      await page.mouse.move(action === 'end-commit' ? x - surface.width / 10 : x + clip.width * 3 / 4, y, { steps: 3 })
+      await expect(page.getByTestId('agent-chat-log')).toContainText('Waiting for active editing')
+      expect(await visibleRecord(page)).toEqual(before)
+      expect(await durableShow(page, record.id)).toEqual(durableBefore)
+      expect(writes).toHaveLength(0)
+      await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+      await page.screenshot({ path: join(REPORT_DIR, `GA-${action}-waiting.png`), fullPage: true })
+      if (action === 'resize-cancel') await handle.dispatchEvent('pointercancel', { pointerId: 1, bubbles: true })
+      await page.mouse.up()
+      await page.keyboard.up('Alt')
+      const done = await waitForDone(page, id)
+      expect(done.applied).toBe(action === 'resize-cancel')
+      await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(1)
+      const current = await visibleRecord(page)
+      const expected = structuredClone(before!)
+      if (action === 'end-commit') {
+        expected.composition!.durationMs = 18000
+        expected.scenes![0].durationMs = 18000
+      } else expected.composition!.scenes[0].zones[0].main[0].durationMs = action === 'resize-cancel' ? 8000 : 7000
+      expect(current).toEqual({ ...expected, updatedAt: current!.updatedAt })
+      expect(await durableShow(page, record.id)).toEqual(current)
+      expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+      await page.getByRole('button', { name: 'Show actions' }).click()
+      const download = page.waitForEvent('download')
+      await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
+      const file = await download
+      const reopened = await page.evaluate(async bytes => {
+        const load = (path: string) => import(path)
+        const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
+        return parseShowFileBundle(new Uint8Array(bytes))
+      }, [...readFileSync((await file.path())!)])
+      expect(reopened.show).toEqual(current)
+      await page.screenshot({ path: join(REPORT_DIR, `GA-${action}-saved.png`), fullPage: true })
+      await page.getByRole('button', { name: 'Undo Show edit' }).click()
+      await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
+      await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+      saveRecord(`GA-${action}`, { actualGesture: true, before, durableBefore, done, current, reopened: reopened.show, writes })
+    }
+  })
+
   test('R: canonical exact resize accepts the boundary, preserves no-op, and refuses excess', async ({ page }) => {
     test.setTimeout(90000)
     const record = resizeBoundaryShow(`resize-r-${Date.now().toString(36)}`)

@@ -36,7 +36,7 @@ cap. [Pure policy tests](../../../src/engine/showEditAdmission.test.ts) and
 full records/history, provider writes, revision ABA, retirement, deduplication
 and delayed persistence outcomes.
 
-The diagnostic bridge uses this foundation conservatively. Existing shared text/numeric fields register live input activity under editable ShowEditor. Timeline/spatial gestures, final panel placement, hosted service/MCP/OAuth and command-catalogue migration remain unimplemented. Trusted callbacks at the whole-Show seam stay internal; the exposed adapter supplies its own structural and authoring validation.
+The diagnostic bridge uses this foundation conservatively. Existing shared text/numeric fields register live input activity under editable ShowEditor. Authored timeline gestures also register their live ownership. Placement-pad, sparkline, Effect reorder, retained physical-zone drafts, final panel placement, hosted service/MCP/OAuth and command-catalogue migration remain unqualified. Trusted callbacks at the whole-Show seam stay internal; the exposed adapter supplies its own structural and authoring validation.
 
 ## Internal bounded active-input wait
 
@@ -58,6 +58,18 @@ while their drafts remain dirty; successful commit/cancellation releases only
 after synchronous manual callbacks. Preview-end alone does not release ownership.
 Shared controls outside this scope have no Show-store dependency.
 
+Clip resize, Clip move/duplicate (native drag/drop and shift-pointer), Marker
+creation/movement and Show End use the same scope. Each gesture retains ownership
+through its authored callback and save settlement or cancellation. Native dragend
+cannot release a committed drop still settling. A Marker source click retains its
+pointer ownership between pointerup and the click's authoring callback, including
+implicit capture loss. Unrelated pointer identities cannot finish or cancel a
+gesture; retired window listeners cannot author or re-register input. Rebinding
+uses the surviving gesture state before exposing the replacement session.
+Viewport, transport, workspace-divider and marquee gestures remain view state.
+Placement-pad, sparkline, Effect reorder and retained physical-zone drafts remain
+unregistered; this finite inventory does not qualify all active editor input.
+
 The editor binds surviving dirty controls before exposing each new diagnostic
 session. Closing retires the session before releasing fields; old cleanup cannot
 unbind a replacement session. Capacity failure retires the diagnostic capability
@@ -65,7 +77,8 @@ before manual input continues, so no eligible candidate can bypass untracked inp
 Diagnostic Cancel preserves the inspector for pointer dismissal and prevents blur
 before cancellation. It does not claim Escape; ordinary editor layers and actual
 detail-owned portals retain their existing keyboard ownership.
-The FA browser regression drives actual duration drafts and focus; W retains its
+The FA browser regression drives actual duration drafts and focus; GA drives actual
+Clip resize cancellation/manual commit and Show End manual commit. W retains its
 explicit synthetic-token protocol proof. Internal
 `admitResolvedShowResize` consumes the same owner, checks its private dependency
 qualification before waiting, and replays the captured operation on current state
@@ -176,7 +189,7 @@ This qualifies the internal resize path only; broad diagnostic requests remain c
 
 The browser serializes its own submissions while manual editing continues. Pending
 full-Show requests conservatively refuse any intervening Show or source-context
-change. Real active-drag/dirty-field registration and final activity placement
+change. The remaining spatial/other-gesture registration and final activity placement
 remain unimplemented; focus alone does not retire a request. The service still
 serializes loopback requests across clients and supplies no hosted connection,
 OAuth, allowlist or budget owner. Transport failure terminates private work without

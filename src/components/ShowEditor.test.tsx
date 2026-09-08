@@ -8173,3 +8173,299 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     else expect(reset).toBeDisabled()
   })
 })
+
+
+describe('authored timeline candidate activity (#949)', () => {
+  afterEach(() => { window.history.replaceState(null, '', '/') })
+  it.each(['cancel', 'commit', 'noop', 'unmount'] as const)('owns the real resize through %s', async ending => {
+    const show = resizeBoundaryShow(`activity-${ending}`)
+    show.cells[0].restartOnEntry = false
+    const provider = memoryProvider([show])
+    const writes = vi.spyOn(provider, 'updateShow')
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    window.history.replaceState(null, '', `/studio/shows/${show.id}?agent=1`)
+    const mounted = render(<ShowEditor showId={show.id} />)
+    const api = (window as unknown as { __pxlblzEditor: ReturnType<typeof import('@/dev/agentEditorAdmission').createAgentEditorAdmission> }).__pxlblzEditor
+    const captured = api.beginRequest('resize-activity', 'Rename', [])!
+    const lane = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
+    Object.defineProperty(lane, 'getBoundingClientRect', { value: () => ({ left: 0, width: 200 }) })
+    fireEvent.pointerDown(screen.getAllByRole('separator', { name: 'Resize CometLoom end' })[0], { clientX: 40, pointerId: 1, altKey: true })
+    const before = structuredClone({ shows: useShowStore.getState().shows, history: useShowStore.getState().showHistories })
+    act(() => { expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request).status).toBe('waiting') })
+    expect({ shows: useShowStore.getState().shows, history: useShowStore.getState().showHistories }).toEqual(before)
+    expect(writes).not.toHaveBeenCalled()
+    fireEvent.pointerUp(window, { clientX: 120, pointerId: 2, altKey: true })
+    expect(api.readOutcome(captured.request)?.status).toBe('waiting')
+    if (ending === 'unmount') mounted.unmount()
+    else if (ending === 'cancel') fireEvent.pointerCancel(window, { pointerId: 1 })
+    else fireEvent.pointerUp(window, { clientX: ending === 'noop' ? 40 : 120, pointerId: 1, altKey: true })
+    await act(async () => {})
+    if (ending === 'unmount') {
+      fireEvent.pointerUp(window, { clientX: 120, pointerId: 1, altKey: true })
+      await act(async () => {})
+      expect(writes).not.toHaveBeenCalled()
+      expect(useShowStore.getState().shows).toEqual(before.shows)
+    } else {
+      expect(api.readOutcome(captured.request)).toMatchObject(ending === 'commit' ? { status: 'refused', reason: 'revision-conflict' } : { status: 'applied' })
+      expect(writes).toHaveBeenCalledTimes(1)
+      expect(useShowStore.getState().showHistories[show.id].past).toEqual([show])
+      const expected = structuredClone(show)
+      if (ending === 'commit') expected.composition!.scenes[0].zones[0].main[0].durationMs = 8000
+      else expected.name = 'Agent'
+      expect(useShowStore.getState().shows[0]).toEqual({ ...expected, updatedAt: expect.any(Number) })
+      expect(await provider.listShows()).toEqual(useShowStore.getState().shows.map(record => ({ ...record, stageMapId: null })))
+    }
+  })
+})
+
+
+describe('timeline Marker and Show End activity (#949)', () => {
+  afterEach(() => window.history.replaceState(null, '', '/'))
+  it.each(['create', 'move', 'end'] as const)('owns %s through cancellation, rebind and independent pointer identity', async kind => {
+    const show = resizeBoundaryShow(`activity-${kind}`)
+    show.cells[0].restartOnEntry = false
+    show.composition!.markers = [{ id: 'marker', name: 'Cue', timeMs: 1000 }]
+    const provider = memoryProvider([show])
+    const writes = vi.spyOn(provider, 'updateShow')
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    window.history.replaceState(null, '', `/studio/shows/${show.id}`)
+    render(<ShowEditor showId={show.id} />)
+    const handle = screen.getByRole('button', { name: kind === 'create' ? 'Add Marker at playhead' : kind === 'move' ? 'Cue at 1 seconds' : 'Show End at 20 seconds' })
+    fireEvent.pointerDown(handle, { pointerId: 1, clientX: 40, altKey: true })
+    act(() => window.history.replaceState(null, '', `/studio/shows/${show.id}?agent=1`))
+    const api = (window as unknown as { __pxlblzEditor: ReturnType<typeof import('@/dev/agentEditorAdmission').createAgentEditorAdmission> }).__pxlblzEditor
+    const captured = api.beginRequest('marker-activity', 'Rename', [])!
+    act(() => { expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request).status).toBe('waiting') })
+    fireEvent.pointerUp(handle, { pointerId: 2, clientX: 80, altKey: true })
+    expect(api.readOutcome(captured.request)?.status).toBe('waiting')
+    expect(useShowStore.getState().shows).toEqual([show])
+    expect(writes).not.toHaveBeenCalled()
+    fireEvent.lostPointerCapture(handle, { pointerId: 1 })
+    await act(async () => {})
+    expect(api.readOutcome(captured.request)?.status).toBe('applied')
+    expect(writes).toHaveBeenCalledTimes(1)
+    expect(useShowStore.getState().showHistories[show.id].past).toEqual([show])
+    expect(await provider.listShows()).toEqual(useShowStore.getState().shows.map(record => ({ ...record, stageMapId: null })))
+  })
+})
+
+
+describe('Clip move activity (#949)', () => {
+  afterEach(() => window.history.replaceState(null, '', '/'))
+  it.each(['move', 'duplicate', 'shift'] as const)('owns actual %s drag until cancellation and removes retired listeners', async mode => {
+    const show = resizeBoundaryShow(`drag-${mode}`)
+    show.cells[0].restartOnEntry = false
+    const provider = memoryProvider([show])
+    const writes = vi.spyOn(provider, 'updateShow')
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    window.history.replaceState(null, '', `/studio/shows/${show.id}?agent=1`)
+    const mounted = render(<ShowEditor showId={show.id} />)
+    const api = (window as unknown as { __pxlblzEditor: ReturnType<typeof import('@/dev/agentEditorAdmission').createAgentEditorAdmission> }).__pxlblzEditor
+    const clip = screen.getAllByRole('button', { name: 'Select CometLoom' })[0]
+    const drag = (type: string) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperties(event, { clientX: { value: 20 }, altKey: { value: mode === 'duplicate' }, dataTransfer: { value: { setData() {}, effectAllowed: 'none' } } })
+      return event
+    }
+    const captured = api.beginRequest('drag', 'Rename', [])!
+    if (mode === 'shift') {
+      fireEvent.pointerDown(clip, { pointerId: 1, clientX: 10, clientY: 10, shiftKey: true, button: 0 })
+      Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => null })
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: 30, clientY: 10, shiftKey: true })
+    } else fireEvent(clip, drag('dragstart'))
+    act(() => { expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request).status).toBe('waiting') })
+    expect(useShowStore.getState().shows).toEqual([show])
+    expect(writes).not.toHaveBeenCalled()
+    if (mode === 'shift') fireEvent.lostPointerCapture(clip, { pointerId: 1 })
+    else fireEvent(clip, drag('dragend'))
+    await act(async () => {})
+    expect(api.readOutcome(captured.request)?.status).toBe('applied')
+    expect(writes).toHaveBeenCalledTimes(1)
+    expect(useShowStore.getState().showHistories[show.id].past).toEqual([show])
+    mounted.unmount()
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 60, shiftKey: true })
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 60, shiftKey: true })
+    expect(writes).toHaveBeenCalledTimes(1)
+  })
+})
+
+
+it.each(['click', 'cancel'] as const)('keeps a below-threshold Marker release owned until %s (#949)', async ending => {
+  const show = resizeBoundaryShow(`marker-click-order-${ending}`)
+  show.cells[0].restartOnEntry = false
+  const provider = memoryProvider([show])
+  const writes = vi.spyOn(provider, 'updateShow')
+  setPersonalContentProvider(provider)
+  useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+  window.history.replaceState(null, '', `/studio/shows/${show.id}?agent=1`)
+  const mounted = render(<ShowEditor showId={show.id} />)
+  const api = (window as unknown as { __pxlblzEditor: ReturnType<typeof import('@/dev/agentEditorAdmission').createAgentEditorAdmission> }).__pxlblzEditor
+  const captured = api.beginRequest('click', 'Rename', [])!
+  const handle = screen.getByRole('button', { name: 'Add Marker at playhead' })
+  fireEvent.pointerDown(handle, { pointerId: 1, clientX: 40 })
+  act(() => { expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request).status).toBe('waiting') })
+  fireEvent.pointerUp(handle, { pointerId: 1, clientX: 40 })
+  fireEvent.lostPointerCapture(handle, { pointerId: 1 })
+  expect(api.readOutcome(captured.request)?.status).toBe('waiting')
+  expect(writes).not.toHaveBeenCalled()
+  if (ending === 'click') fireEvent.click(handle)
+  else fireEvent.pointerCancel(handle, { pointerId: 1 })
+  await act(async () => {})
+  expect(api.readOutcome(captured.request)).toMatchObject(ending === 'click' ? { status: 'refused', reason: 'revision-conflict' } : { status: 'applied' })
+  expect(writes).toHaveBeenCalledTimes(1)
+  expect(useShowStore.getState().shows[0].name).toBe(ending === 'click' ? show.name : 'Agent')
+  expect(useShowStore.getState().shows[0].composition!.markers ?? []).toHaveLength(ending === 'click' ? 1 : 0)
+  expect(useShowStore.getState().showHistories[show.id].past).toEqual([show])
+  mounted.unmount()
+  window.history.replaceState(null, '', '/')
+})
+
+
+describe('timeline settlement ordering (#949)', () => {
+  afterEach(() => window.history.replaceState(null, '', '/'))
+  const open = (id: string) => {
+    const show = resizeBoundaryShow(id)
+    show.cells[0].restartOnEntry = false
+    show.composition!.markers = [{ id: 'cue', name: 'Cue', timeMs: 1000 }]
+    const provider = memoryProvider([show])
+    const persist = provider.updateShow.bind(provider)
+    const writes = vi.spyOn(provider, 'updateShow')
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    window.history.replaceState(null, '', `/studio/shows/${show.id}?agent=1`)
+    const mounted = render(<ShowEditor showId={show.id} />)
+    const api = (window as unknown as { __pxlblzEditor: ReturnType<typeof import('@/dev/agentEditorAdmission').createAgentEditorAdmission> }).__pxlblzEditor
+    return { show, provider, persist, writes, mounted, api }
+  }
+  it('retains independent Marker-name ownership and the original deadline during movement and partial release', async () => {
+    const { show, api, writes } = open('gesture-overlap')
+    const marker = screen.getByRole('button', { name: 'Cue at 1 seconds' })
+    fireEvent.click(marker)
+    const name = screen.getByRole('textbox', { name: 'Marker name' })
+    fireEvent.change(name, { target: { value: 'Draft' } })
+    fireEvent.pointerDown(marker, { pointerId: 1, clientX: 10 })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+    try {
+      const captured = api.beginRequest('overlap', 'Rename', [])!
+      act(() => { expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request).status).toBe('waiting') })
+      for (let i = 0; i < 4; i++) {
+        act(() => vi.advanceTimersByTime(1000))
+        fireEvent.pointerMove(marker, { pointerId: 1, clientX: 15 + i })
+      }
+      fireEvent.pointerCancel(marker, { pointerId: 1 })
+      expect(api.readOutcome(captured.request)?.status).toBe('waiting')
+      act(() => vi.advanceTimersByTime(1000))
+      expect(api.readOutcome(captured.request)).toMatchObject({ status: 'refused', reason: 'interaction-timeout' })
+      expect(useShowStore.getState().shows).toEqual([show])
+      expect(writes).not.toHaveBeenCalled()
+      const next = api.beginRequest('after-timeout', 'Rename', [])!
+      act(() => { expect(api.applyShow({ ...next.show, name: 'Agent' }, next.request).status).toBe('waiting') })
+      fireEvent.keyDown(name, { key: 'Escape' })
+      await act(async () => {})
+      expect(api.readOutcome(next.request)?.status).toBe('applied')
+      expect(writes).toHaveBeenCalledTimes(1)
+    } finally { vi.useRealTimers() }
+  })
+  it.each(['create', 'move', 'end'] as const)('releases %s after rejected persistence and never commits from a retired pointer', async kind => {
+    const { show, api, writes, mounted } = open(`failure-${kind}`)
+    writes.mockRejectedValueOnce(new Error('Synthetic gesture persistence failure'))
+    const rect = { left: 0, right: 200, top: 0, bottom: 40, width: 200, height: 40, x: 0, y: 0, toJSON() {} }
+    vi.spyOn(screen.getByTestId('show-timeline-ruler'), 'getBoundingClientRect').mockReturnValue(rect)
+    vi.spyOn(screen.getByLabelText('Timeline Markers and Show End'), 'getBoundingClientRect').mockReturnValue(rect)
+    const handle = screen.getByRole('button', { name: kind === 'create' ? 'Add Marker at playhead' : kind === 'move' ? 'Cue at 1 seconds' : 'Show End at 20 seconds' })
+    fireEvent.pointerDown(handle, { pointerId: 1, clientX: kind === 'end' ? 200 : 10, altKey: true })
+    fireEvent.pointerUp(handle, { pointerId: 1, clientX: kind === 'end' ? 240 : 30, altKey: true })
+    await act(async () => {})
+    expect(useShowStore.getState().shows).toEqual([show])
+    expect(useShowStore.getState().showHistories[show.id].past).toEqual([])
+    expect(writes).toHaveBeenCalledTimes(1)
+    const captured = api.beginRequest('after-failure', 'Rename', [])!
+    act(() => { expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request).status).toBe('applied') })
+    await act(async () => {})
+    expect(writes).toHaveBeenCalledTimes(2)
+    fireEvent.pointerDown(handle, { pointerId: 2, clientX: 10, altKey: true })
+    mounted.unmount()
+    fireEvent.pointerUp(handle, { pointerId: 2, clientX: 50, altKey: true })
+    await act(async () => {})
+    expect(writes).toHaveBeenCalledTimes(2)
+  })
+  it.each(['create', 'move', 'end'] as const)('adopts manual %s before releasing the waiting broad candidate', async kind => {
+    const { show, api, provider, writes } = open(`manual-${kind}`)
+    const rect = { left: 0, right: 200, top: 0, bottom: 40, width: 200, height: 40, x: 0, y: 0, toJSON() {} }
+    vi.spyOn(screen.getByTestId('show-timeline-ruler'), 'getBoundingClientRect').mockReturnValue(rect)
+    vi.spyOn(screen.getByLabelText('Timeline Markers and Show End'), 'getBoundingClientRect').mockReturnValue(rect)
+    const handle = screen.getByRole('button', { name: kind === 'create' ? 'Add Marker at playhead' : kind === 'move' ? 'Cue at 1 seconds' : 'Show End at 20 seconds' })
+    const captured = api.beginRequest('manual', 'Rename', [])!
+    fireEvent.pointerDown(handle, { pointerId: 1, clientX: kind === 'end' ? 200 : 10, altKey: true })
+    act(() => { expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request).status).toBe('waiting') })
+    fireEvent.pointerMove(handle, { pointerId: 1, clientX: kind === 'end' ? 240 : 30, altKey: true })
+    fireEvent.pointerUp(handle, { pointerId: 1, clientX: kind === 'end' ? 240 : 30, altKey: true })
+    await act(async () => {})
+    expect(api.readOutcome(captured.request)).toMatchObject({ status: 'refused', reason: 'revision-conflict' })
+    expect(writes).toHaveBeenCalledTimes(1)
+    expect(useShowStore.getState().showHistories[show.id].past).toEqual([show])
+    const expected = structuredClone(show)
+    if (kind === 'end') { expected.composition!.durationMs = 24000; expected.scenes[0].durationMs = 24000 }
+    else if (kind === 'move') expected.composition!.markers![0].timeMs = 3000
+    else expected.composition!.markers!.push({ id: expect.any(String), name: 'Marker 2', timeMs: 3000, color: '#f59e0b' })
+    expect(useShowStore.getState().shows[0]).toEqual({ ...expected, updatedAt: expect.any(Number) })
+    expect(await provider.listShows()).toEqual(useShowStore.getState().shows.map(record => ({ ...record, stageMapId: null })))
+  })
+  it.each(['move', 'duplicate', 'shift'].flatMap(mode => ['saved', 'failed'].map(outcome => ({ mode, outcome }))))('holds $mode drop through dragend and $outcome persistence', async ({ mode, outcome }) => {
+    const { show, api, provider, persist, writes } = open(`settle-${mode}-${outcome}`)
+    let resolveSave!: () => void
+    writes.mockImplementationOnce(async (...args) => { await new Promise<void>(resolve => { resolveSave = resolve }); if (outcome === 'failed') throw new Error('Synthetic drag save failure'); return persist(...args) })
+    const clip = screen.getAllByRole('button', { name: 'Select CometLoom' })[0]
+    const lane = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
+    const rect = { left: 0, right: 200, top: 0, bottom: 40, width: 200, height: 40, x: 0, y: 0, toJSON() {} }
+    vi.spyOn(lane, 'getBoundingClientRect').mockReturnValue(rect)
+    vi.spyOn(clip, 'getBoundingClientRect').mockReturnValue({ ...rect, right: 40, width: 40 })
+    Object.defineProperty(screen.getByTestId('show-timeline-scroll-region'), 'clientWidth', { value: 200 })
+    const drag = (type: string, clientX: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperties(event, { clientX: { value: clientX }, altKey: { value: mode === 'duplicate' }, dataTransfer: { value: { setData() {}, effectAllowed: 'none', dropEffect: 'none' } } })
+      return event
+    }
+    if (mode === 'shift') {
+      Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => lane })
+      fireEvent.pointerDown(clip, { pointerId: 1, clientX: 0, clientY: 10, shiftKey: true, button: 0 })
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: 40, clientY: 10, shiftKey: true })
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: 40, clientY: 10, shiftKey: true })
+    } else {
+      fireEvent(clip, drag('dragstart', 0))
+      fireEvent(lane, drag('dragover', 40))
+      fireEvent(lane, drag('drop', 40))
+    }
+    await act(async () => {})
+    expect(writes).toHaveBeenCalledTimes(1)
+    const manual = structuredClone(useShowStore.getState().shows[0])
+    const placements = manual.composition!.scenes[0].zones[0].main
+    expect(placements.map(item => item.startMs).sort((a,b) => a-b)).toEqual(mode === 'duplicate' ? [0, 4000, 8000] : [4000, 8000])
+    const captured = api.beginRequest('during-save', 'Rename', [])!
+    act(() => { expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request).status).toBe('waiting') })
+    if (mode !== 'shift') fireEvent(clip, drag('dragend', 40))
+    else fireEvent.lostPointerCapture(clip, { pointerId: 1 })
+    expect(api.readOutcome(captured.request)?.status).toBe('waiting')
+    expect(useShowStore.getState().shows[0]).toEqual(manual)
+    await act(async () => { resolveSave() })
+    if (outcome === 'failed') {
+      expect(api.readOutcome(captured.request)).toMatchObject({ status: 'refused', reason: 'revision-conflict' })
+      expect(useShowStore.getState().shows).toEqual([show])
+      expect(useShowStore.getState().showHistories[show.id].past).toEqual([])
+      expect(writes).toHaveBeenCalledTimes(1)
+      const next = api.beginRequest('after-failure', 'Rename', [])!
+      act(() => { expect(api.applyShow({ ...next.show, name: 'Agent' }, next.request).status).toBe('applied') })
+      await act(async () => {})
+      expect(writes).toHaveBeenCalledTimes(2)
+      return
+    }
+    expect(api.readOutcome(captured.request)).toEqual(expect.objectContaining({ status: 'applied' }))
+    expect(writes).toHaveBeenCalledTimes(2)
+    expect(useShowStore.getState().showHistories[show.id].past).toEqual([show, manual])
+    expect(useShowStore.getState().shows[0]).toEqual({ ...manual, name: 'Agent', updatedAt: expect.any(Number) })
+    expect(await provider.listShows()).toEqual(useShowStore.getState().shows.map(record => ({ ...record, stageMapId: null })))
+  })
+})

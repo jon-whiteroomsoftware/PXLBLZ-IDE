@@ -905,8 +905,11 @@ private Layer qualification and current-state replay, and final adoption and sav
 remain in the Show store. Its [contract and consumer proof](contracts/agent-candidate-application.md#internal-bounded-active-input-wait)
 qualify diagnostic waiting/Cancel. Existing shared text and numeric fields under
 editable ShowEditor register dirty drafts and slider lifetimes, including portals
-and session rebinding before bridge exposure. Timeline/spatial gestures and external
-Layer-scoped context remain unqualified.
+and session rebinding before bridge exposure. Clip resize, Clip move/duplicate
+(native and shift-pointer), Marker creation/movement and Show End register their
+actual gesture lifetimes through authored settlement. Placement-pad, sparkline,
+Effect reorder, retained physical-zone drafts and external Layer-scoped context
+remain unqualified.
 
 **Coverage gate.** `schemas/show-record.schema.json` is generated from the
 ShowRecord type (`npm run schema:show-record`; a drift test keeps it exact),
@@ -1588,11 +1591,10 @@ transcript on departure, query removal or close. Broad model context does not
 qualify for internal Layer-independent resize admission. The diagnostic overlay
 consumes bounded active-input waiting, displays Cancel, and keeps one submission
 busy through saving. Browser sequence FA uses actual duration drafts and focus;
-W retains synthetic-token protocol checks. Shared text/numeric field registration
-is live, while other authored gestures, final panel placement and hosted service
-qualification remain separate work. Its browser proof uses synthetic activity
-tokens; real manual-input registration, final panel placement and hosted service
-qualification remain separate work.
+GA uses actual Clip resize and Show End gestures. W retains synthetic-token
+protocol checks. Shared fields and authored timeline gestures register live input;
+placement-pad, sparkline, Effect reorder, retained physical-zone drafts, final
+panel placement and hosted service qualification remain separate work.
 
 The harness's paid model calls (`agent:corpus --live`, live `agent:bridge`)
 are owned by its paid-call guard (`src/agent-harness/experiment/paidCallGuard.ts`,
