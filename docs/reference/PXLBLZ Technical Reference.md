@@ -886,8 +886,9 @@ whose goldens write outside declared `touches` or leave a declared pattern
 unexercised.
 
 The explicit internal authoring-validation policy accepts delivery-incomplete
-candidates while preserving typed structural and dependency checks. Default
-diagnostic bridge/MCP sessions remain delivery-oriented. The finite policy,
+candidates while preserving typed structural and dependency checks. The diagnostic
+bridge selects that policy; standalone/default MCP sessions remain delivery-oriented.
+Browser capture projects flat Shows privately using exact loaded Pattern metadata. The finite policy,
 immutable missing-reference baseline, metadata requirements and consumer proof
 are defined in [Agent candidate application](contracts/agent-candidate-application.md#internal-authoring-validation).
 

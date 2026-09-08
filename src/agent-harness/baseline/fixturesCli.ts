@@ -29,6 +29,8 @@ import {
 } from './evidence.js'
 import { BASELINE_FIXTURES, resolveBaselineFixtureRecord, type BaselineFixture } from './fixtures.js'
 import { BASELINE_FIXTURE_RESIZE } from './scripts.js'
+import { captureAgentShowSnapshot } from '@/dev/agentShowSnapshot'
+import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 
 const here = dirname(fileURLToPath(import.meta.url))
 export const EVIDENCE_PATH = join(here, 'evidence', 'fixtures.json')
@@ -77,11 +79,13 @@ export async function runFixture(fixture: BaselineFixture, bridgeUrl: string): P
   const facts = showFacts(record)
   const opened = openShowDocument(record, [], { allowUnresolvedUserPatterns: true })
   const before = await artifactEvidence(record, patterns, `agent-baseline-${fixture.id}`)
+  const captured = captureAgentShowSnapshot(record, ref => ref.kind === 'stock' ? DEMOS[resolveStockPatternId(ref.id)] : patterns.find(pattern => pattern.id === ref.id)?.src)
+  if (!captured) throw new Error(`Fixture ${fixture.id} lacks exact projection metadata`)
   const turnStart = Date.now()
   const response = await fetch(`${bridgeUrl}/utterance`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ requestId: `fixture-${fixture.id}`, show: record, utterance: UTTERANCE, delayMs: 0, context: {} }),
+    body: JSON.stringify({ requestId: `fixture-${fixture.id}`, show: captured, utterance: UTTERANCE, delayMs: 0, context: {} }),
   })
   const events = parseBridgeEvents(await response.text())
   const turnMs = Date.now() - turnStart

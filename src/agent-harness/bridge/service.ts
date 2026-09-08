@@ -191,7 +191,7 @@ export async function runUtterance(
     exportedAt: acceptedAt,
     toolCalls: [],
   }
-  const rawStore = createSessionStore()
+  const rawStore = createSessionStore({ authoringValidation: true })
   const store = observedSessionStore(rawStore, (validation) => {
     timing.validation = validation
     onProgress({ kind: 'validation', ...(requestId ? { requestId } : {}), ...validation })
@@ -202,8 +202,9 @@ export async function runUtterance(
   await server.connect(serverTransport)
   await client.connect(clientTransport)
   try {
-    // Editing-session mode: a personal-library pattern on a clip is fine to
-    // edit around without its source; only compile needs sources.
+    // Preserve identical missing references in an existing composition. Operations
+    // needing unavailable metadata (including flat projection) still refuse;
+    // the editor validates the candidate against its exact current metadata.
     const opened = store.open(request.show, [], { allowUnresolvedUserPatterns: true })
     if (!opened.ok) {
       return {

@@ -259,19 +259,31 @@ and a committed candidate after `.pxlshow` export/reopen. These tests do not
 qualify live editor admission, active-input waiting, Layer independence or the
 accepted broader authoring validation policy.
 
-Session validation and editor admission are different checks. The service opens
-with unresolved personal Patterns allowed, while other document validation
-rules still apply. Passing that validation neither proves hardware delivery
-readiness nor establishes that every manually editable draft is accepted by the
-grammar. The live editor bridge separately checks identity and authoring validity.
+Session validation and editor admission are different checks. The diagnostic
+service uses the authoring policy with identical existing missing dependencies
+allowed. Passing that validation neither proves hardware delivery readiness nor
+establishes that every manually editable draft is accepted by the grammar. The
+live editor separately checks identity and authoring validity using current metadata.
 
 ## Internal authoring validation
 
-The internal `createSessionStore({ authoringValidation: true })` policy accepts
-final authoring candidates independently of delivery readiness. Its importer
-uses the same explicit policy argument. No bridge, MCP server or browser caller
-enables it; those callers retain their existing delivery-oriented defaults.
-The shared URL opt-in and live admission integration remain separate work.
+The `createSessionStore({ authoringValidation: true })` policy accepts final
+authoring candidates independently of delivery readiness. The diagnostic service
+selects it for open, pending validation and commit; standalone/default grammar
+and MCP sessions retain their delivery-oriented defaults.
+
+Before inference, browser request capture projects a flat Show through the
+existing composition projector with exact loaded Pattern sources and the current
+Stage dimension. Missing source or an unsupported projection refuses capture.
+Existing compositions are copied unchanged. This is a private transport snapshot:
+capture and non-application completions never write or create history. Successful
+adoption uses the original authoritative Show as its ordinary Undo base. Repeated
+capture of one operation retains its first snapshot; full-Show revision and
+Pattern/Library/Map replacement (including ABA) guards still apply. No source
+upload or service metadata channel is introduced. The fixture runner uses the
+same helper with its actual fixture sources; original artifact baselines remain
+unchanged. [Diagnostic authoring evidence](../evidence/issue-949-diagnostic-authoring.md)
+records the service and actual browser qualification.
 
 The pure engine seam checks schema-qualified composition v1, authored owner
 identities, routing references and logical routing before accepting a candidate.

@@ -11,6 +11,7 @@ import { useMapStore, STOCK_MAPS } from '@/store/mapStore'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { recordAgentObservation, showRecordDigest, type AgentApplyPhase } from './agentObservation'
+import { captureAgentShowSnapshot } from './agentShowSnapshot'
 
 const structural = new Ajv({ allErrors: true, strict: false, strictNumbers: true }).compile(JSON.parse(schemaText))
 export const agentUrlEnabled = () => {
@@ -142,7 +143,10 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
     beginRequest(operationId: string, utterance: string, history: unknown) {
       if (!available() || typeof operationId !== 'string' || !operationId || typeof utterance !== 'string') return undefined
       const prior = entries.get(operationId)
-      const show = prior?.show ?? structuredClone(store().resolveEditableShow(showId))
+      const current = prior?.show ?? structuredClone(store().resolveEditableShow(showId))
+      if (!current) return undefined
+      const stageMap = [...STOCK_MAPS, ...useMapStore.getState().userMaps].find(map => map.id === current.stageMapId)
+      const show = prior?.show ?? captureAgentShowSnapshot(current, metadata().source, stageMap?.dim === 3 ? 3 : 2)
       if (!show) return undefined
       const context = prior?.context ?? structuredClone(getContext())
       const result = store().beginShowEdit(sessionId, { operationId, payloadKey: JSON.stringify({ utterance, history }), referenceContext: JSON.stringify(context), targets: [showId] })

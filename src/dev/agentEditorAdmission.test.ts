@@ -163,6 +163,7 @@ it.each(['rolled-back', 'superseded'] as const)('reports delayed failed save as 
 })
 it('exports and reopens the adopted Show and Undo restores only its one candidate', async () => {
   const api = await setup()
+  const original = api.getShow()!
   const captured = api.beginRequest('op', 'rename', [])!
   const candidate = { ...captured.show, name: 'Agent' }
   expect(api.applyShow(candidate, captured.request).status).toBe('applied')
@@ -175,7 +176,7 @@ it('exports and reopens the adopted Show and Undo restores only its one candidat
   expect(reopened.show).toEqual(current)
   expect(state().showHistories.test.past).toHaveLength(1)
   await state().undoShow('test')
-  expect(state().shows[0]).toEqual({ ...captured.show, updatedAt: state().shows[0].updatedAt })
+  expect(state().shows[0]).toEqual({ ...original, updatedAt: state().shows[0].updatedAt })
 })
 
 it('refuses a newly unavailable Stage Map reference', async () => {
@@ -341,4 +342,82 @@ it('records a foreign-Show candidate refusal once, releases metadata and permits
     expect(rejected).toHaveLength(1)
     expect(state().beginShowEdit(api.sessionId, { ...captured.request, operationId: 'retry', retryOf: captured.request.operationId })).toMatchObject({ status: 'pending' })
   } finally { subscriptions.forEach(spy => spy.mockRestore()) }
+})
+
+
+it('projects a flat personal Show for transport without changing the authoritative Undo base', async () => {
+  const { personalLibraryPatternShow, BASELINE_LIBRARY_PATTERN, BASELINE_LIBRARY } = await import('@/agent-harness/baseline/fixtures')
+  const { usePatternStore } = await import('@/store/patternStore')
+  const { useLibraryStore } = await import('@/store/libraryStore')
+  const fixture = personalLibraryPatternShow('test')
+  setPersonalContentProvider({ updateShow: writes, listShows: async () => [fixture] } as unknown as PersonalContentProvider)
+  await state().loadShows()
+  const original = structuredClone(state().shows[0])
+  usePatternStore.setState({ userPatterns: [BASELINE_LIBRARY_PATTERN] })
+  useLibraryStore.setState({ userLibraries: [BASELINE_LIBRARY] })
+  const api = createAgentEditorAdmission('test', () => ({}))
+  stop = api.close
+  const before = snapshot()
+  for (const completion of ['asked', 'refused', 'nothing-applied'] as const) {
+    const captured = api.beginRequest(completion, 'test', [])!
+    expect(captured.show.composition?.patternInstances.some(instance => instance.pattern.id === BASELINE_LIBRARY_PATTERN.id)).toBe(true)
+    expect(api.beginRequest(completion, 'test', [])).toEqual(captured)
+    api.complete(captured.request, completion)
+    expect(snapshot()).toEqual(before)
+    expect(writes).not.toHaveBeenCalled()
+  }
+  const captured = api.beginRequest('apply', 'rename', [])!
+  expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request).status).toBe('applied')
+  await vi.waitFor(() => expect(api.readOutcome(captured.request)).toMatchObject({ settlement: 'saved' }))
+  expect(state().showHistories.test.past).toEqual([original])
+  await state().undoShow('test')
+  expect(state().shows[0]).toEqual(expect.objectContaining({ ...original, updatedAt: expect.any(Number) }))
+})
+
+it('refuses unavailable flat sources without opening a request or writing', async () => {
+  const api = await setup()
+  const show = state().shows[0]
+  useShowStore.setState({ shows: [{ ...show, cells: show.cells.map(cell => ({ ...cell, pattern: { kind: 'user' as const, id: 'unavailable' } })) }] })
+  const before = snapshot()
+  expect(api.beginRequest('missing', 'rename', [])).toBeUndefined()
+  expect(snapshot()).toEqual(before)
+  expect(writes).not.toHaveBeenCalled()
+})
+
+it.each(['Pattern', 'Library', 'Map'] as const)('keeps %s metadata ABA guarded after flat projection', async kind => {
+  const api = await setup()
+  const captured = api.beginRequest('metadata', 'rename', [])!
+  expect(captured.show.composition).toBeDefined()
+  const { usePatternStore } = await import('@/store/patternStore')
+  const { useLibraryStore } = await import('@/store/libraryStore')
+  const { useMapStore } = await import('@/store/mapStore')
+  if (kind === 'Pattern') {
+    const original = usePatternStore.getState().userPatterns
+    usePatternStore.setState({ userPatterns: [...original] })
+    usePatternStore.setState({ userPatterns: original })
+  } else if (kind === 'Library') {
+    const original = useLibraryStore.getState().userLibraries
+    useLibraryStore.setState({ userLibraries: [...original] })
+    useLibraryStore.setState({ userLibraries: original })
+  } else {
+    const original = useMapStore.getState().userMaps
+    useMapStore.setState({ userMaps: [...original] })
+    useMapStore.setState({ userMaps: original })
+  }
+  const before = snapshot()
+  expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request).status).toBe('refused')
+  expect(snapshot()).toEqual(before)
+  expect(writes).not.toHaveBeenCalled()
+})
+
+it('retains an imported prototype-named cell with its exact personal Pattern source', async () => {
+  const { captureAgentShowSnapshot } = await import('./agentShowSnapshot')
+  const original = createDefaultShow('odd-id', 'Imported')
+  original.cells[0].id = '__proto__'
+  original.cells[0].pattern = { kind: 'user', id: 'exact' }
+  const before = structuredClone(original)
+  const { DEMOS, resolveStockPatternId } = await import('@/pixelblaze/stock/patterns')
+  const captured = captureAgentShowSnapshot(original, ref => ref.id === 'exact' ? 'export function render3D(index, x, y, z) { hsv(x, y, z) }' : DEMOS[resolveStockPatternId(ref.id)], 3)
+  expect(captured?.composition?.patternInstances[0].pattern).toEqual({ kind: 'user', id: 'exact' })
+  expect(original).toEqual(before)
 })

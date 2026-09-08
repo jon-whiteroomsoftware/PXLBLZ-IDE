@@ -981,7 +981,8 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
   })
 
   test('H: a personal Show on a personal Pattern that calls a personal Library takes the reply', async ({ page }) => {
-    test.setTimeout(90_000)
+    const pageErrors: string[] = []
+    page.on('pageerror', error => pageErrors.push(error.message))
     const api = page.context().request
     const library = await api.post('/api/libraries', { data: BASELINE_LIBRARY })
     expect(library.status(), await library.text()).toBe(201)
@@ -1004,17 +1005,43 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     })).toBe(true)
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
     await injectOverlay(page, bridge.url)
+    const sent = page.waitForRequest(request => request.url() === `${bridge.url}/utterance` && request.method() === 'POST')
+    const before = await visibleRecord(page) as unknown as ShowRecord
+    expect(before.composition).toBeUndefined()
     const requestId = await submitUtterance(page, RESIZE_UTTERANCE)
+    const sentBody = (await sent).postDataJSON() as { show: ShowRecord }
     const request = await waitForDone(page, requestId)
+    expect(sentBody.show.composition).toBeDefined()
     expect(request.applied, JSON.stringify(request)).toBe(true)
     const visible = await visibleClipFacts(page, BASELINE_LIBRARY_PATTERN.name)
     expect(visible.durationSeconds).toBe('12')
     await waitForDurable(page, record.id, (show) => firstMain(show)?.durationMs === 12_000)
+    const current = await visibleRecord(page) as unknown as ShowRecord
+    const expected = structuredClone(sentBody.show)
+    expected.composition!.scenes[0].zones[0].main[0].durationMs = 12_000
+    expect(current).toEqual({ ...expected, updatedAt: current.updatedAt })
+    expect(await durableShow(page, record.id)).toEqual(current)
+    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+    await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: 'Show actions' }).click()
+    const downloaded = page.waitForEvent('download')
+    await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
+    const file = await downloaded
+    const reopened = await page.evaluate(async bytes => {
+      const load = (path: string) => import(path)
+      const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
+      return parseShowFileBundle(new Uint8Array(bytes))
+    }, [...readFileSync((await file.path())!)])
+    expect(reopened.show).toEqual(current)
     const observations = await readObservations(page)
     const previewText = await page.getByTestId('show-stage-preview').textContent()
     await page.screenshot({ path: join(REPORT_DIR, 'H-personal-library.png'), fullPage: true })
+    await page.getByRole('button', { name: 'Undo Show edit' }).click()
+    await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
+    await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+    expect(pageErrors).toEqual([])
     saveRecord('H-personal-library', {
-      showId: record.id, request, writes, observations, visible,
+      showId: record.id, before, current, reopened: reopened.show, pageErrors, sentShow: sentBody.show, request, writes, observations, visible,
       previewPublished: observations.some((entry) => entry.kind === 'preview-published'),
       previewText,
       timeline: phaseTimeline(request, observations, writes),
@@ -1127,7 +1154,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       record.zones.push({ id: 'z2', name: 'Accent', nominalPixelCount: 4 })
       record.routingLayouts = [{ id: 'l1', name: 'Physical', zones: [
         { zoneId: 'z1', ranges: [{ start: 0, end: 1 }] },
-        { zoneId: 'z2', ranges: [action === 'clean' ? { start: 0, end: 4 } : { start: 2, end: 3 }] },
+        { zoneId: 'z2', ranges: [action === 'clean' ? { start: 0, end: 4 } : { start: 3, end: 3 }] },
       ] }]
       expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
       await page.goto(`studio/shows/${record.id}?agent=1`)
@@ -1199,8 +1226,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       await page.keyboard.press('Escape')
       await page.getByRole('button', { name: 'Show actions' }).click()
       const delivery = page.getByRole('menuitem', { name: 'Download .epe', exact: true })
-      if (action === 'clean' || action === 'save') await expect(delivery).toBeDisabled()
-      else await expect(delivery).toBeEnabled()
+      await expect(delivery).toBeDisabled()
       const downloaded = page.waitForEvent('download')
       await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
       const file = await downloaded
