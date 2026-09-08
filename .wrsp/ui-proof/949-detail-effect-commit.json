@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "949",
+  "route": "/PXLBLZ-IDE/studio/shows/detail-effect-commit-mtt5uaoa?agent=1",
+  "operation": "Native Effect reorder waits at 800px, then drop preserves manual order and refuses the stale candidate; exported Show reopens identically.",
+  "captures": [
+    ".wrsp/ui-proof/949-detail-effect-commit-waiting.png",
+    ".wrsp/ui-proof/949-detail-effect-commit-saved.png"
+  ],
+  "capturedAtCommit": "82172a60c20c31d32de39a79952392e387531865"
+}

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "949",
+  "route": "/PXLBLZ-IDE/studio/shows/detail-placement-cancel-mtt5tzv2?agent=1",
+  "operation": "Placement pointer preview waits without changing the Show; lost capture permits one candidate, which is exported and reopened.",
+  "captures": [
+    ".wrsp/ui-proof/949-detail-placement-cancel-waiting.png",
+    ".wrsp/ui-proof/949-detail-placement-cancel-saved.png"
+  ],
+  "capturedAtCommit": "82172a60c20c31d32de39a79952392e387531865"
+}

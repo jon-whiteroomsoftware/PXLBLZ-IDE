@@ -31,7 +31,13 @@ One Undo restored the original complete Show and exhausted history. The recorded
 write arrays also include that later Undo write. The browser boundary asserted
 zero page and serious console errors. Desktop captures use 1440x900; narrow uses
 800x900. This qualifies the diagnostic editor route, not a production Agent panel
-or hosted endpoint. The committed UI proof record carries the exact capture pin.
+or hosted endpoint. Fresh committed-source capture at `82172a60c20c31d32de39a79952392e387531865`
+passed in 18.5 seconds (22.3 overall). The two `.wrsp/ui-proof/949-detail-*`
+records carry that pin. Complete synthetic records and reopened exports are
+[placement cancellation](issue-949-detail-gestures/placement-cancel.json),
+[manual placement](issue-949-detail-gestures/placement-commit.json),
+[Effect cancellation](issue-949-detail-gestures/effect-cancel.json) and
+[manual Effect reorder](issue-949-detail-gestures/effect-commit.json).
 
 The in-app browser bootstrap listed only Chrome; two direct `iab` probes returned
 unavailable after consulting connection troubleshooting. The disclosed fallback
@@ -61,5 +67,10 @@ Physical-zone retained drafts remain unregistered. Property Beat movement has
 component evidence only because its optional callback is not currently wired.
 External native payload provenance is limited to observable stack lifetimes;
 arbitrary payload authenticity is not claimed. Existing engine suites retain
-transformation coverage. CONTEXT.md requires no vocabulary change. The coordinator
+transformation coverage. CONTEXT.md requires no vocabulary change; the Feature Guide remains accurate.
+The Technical Reference overview and both affected contracts now name the exact
+registered families. Normal source-commit hooks passed; the optional post-commit
+issue reporter hit the previously documented SIGPIPE 141. A layout-classifier
+advisory on the new lifecycle test file is covered by the actual DA browser flow;
+no visual layout change is introduced. The coordinator
 owns final committed-tip suites, native review and landing; publication is held.
