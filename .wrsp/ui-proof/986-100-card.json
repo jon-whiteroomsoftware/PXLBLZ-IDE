@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "986",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-100-getting-around",
+  "operation": "Learn 100 Getting Around at 1440 x 900: hovered the lesson pill (100 Getting Around guide) and clicked it to pin the reading card showing the rewritten note; card began \"LEARN 100 100 Getting Around PINNED · ESC CLOSES WHAT THIS SHOWS This first Show exists to get you familiar with the basics, simplest first. Space plays and pau\".",
+  "captures": [
+    ".wrsp/ui-proof/986-100-card.png"
+  ],
+  "capturedAtCommit": "225b5c1c1f6a4204d014bb6d6ebe40150d4b100e"
+}

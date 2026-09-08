@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "986",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-remix-coronal-mass-ejection",
+  "operation": "Portable Show Coronal Mass Ejection Remix at 1440 x 900: hovered the lesson pill (Coronal Mass Ejection guide) and clicked it to pin the reading card showing the rewritten note; card began \"PORTABLE SHOWS Coronal Mass Ejection PINNED · ESC CLOSES WHAT THIS SHOWS One Pattern, 40 seconds. ZRanger1's Coronal Mass Ejection opens at half speed; rotation\".",
+  "captures": [
+    ".wrsp/ui-proof/986-cme-card.png"
+  ],
+  "capturedAtCommit": "225b5c1c1f6a4204d014bb6d6ebe40150d4b100e"
+}

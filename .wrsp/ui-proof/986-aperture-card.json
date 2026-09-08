@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "986",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-reference-aperture-icons",
+  "operation": "Showcase Aperture Icons & Signature at 1440 x 900: hovered the lesson pill (Aperture Icons & Signature guide) and clicked it to pin the reading card showing the rewritten note; card began \"SHOWCASES Aperture Icons & Signature PINNED · ESC CLOSES WHAT THIS SHOWS The icon shapes - Heart, Star, Crescent, Cloud, and the three cats - over the same pict\".",
+  "captures": [
+    ".wrsp/ui-proof/986-aperture-card.png"
+  ],
+  "capturedAtCommit": "225b5c1c1f6a4204d014bb6d6ebe40150d4b100e"
+}
