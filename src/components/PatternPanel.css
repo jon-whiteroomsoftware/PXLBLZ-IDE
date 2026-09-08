@@ -20,9 +20,11 @@
 .pattern-panel .panel-fields > label:has(input[type="checkbox"]) span { grid-column: 1; grid-row: 1; }
 .pattern-panel .panel-fields > label > span:first-child { overflow: hidden; text-overflow: ellipsis; }
 .panel-brightness { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.panel-brightness [data-deck="slider"] { width: 72px; }
-.panel-brightness [data-deck="slider"] > span, .panel-brightness [data-deck="slider"] > div > span { display: none; }
-.panel-brightness input { width: 72px; }
+.panel-brightness [data-deck="slider"] { width: 82px; font-size: 10.5px; }
+.panel-brightness [data-deck="slider"] > span { display: none; }
+.panel-brightness [data-deck="slider"] > div { gap: 2px; }
+.panel-brightness [data-deck="slider"] > div > span { width: 32px; text-align: left; }
+.panel-brightness input { width: 48px; flex: 0 0 48px; }
 .panel-variable-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 16px; }
 .panel-variable-values > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; min-width: 0; }
 .panel-variable-values > div > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

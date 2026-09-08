@@ -675,7 +675,7 @@ describe('ControllerPanel', () => {
     expect(screen.getByLabelText('Controller brightness')).toHaveAttribute('aria-valuetext', 'not set')
     expect(screen.getByTestId('controller-title-brightness')).toHaveAttribute('title', 'Brightness not set — drag to set a value.')
     act(() => useControllerPanelStore.setState({ brightness: 0.125 }))
-    expect(screen.getByTestId('controller-title-brightness')).toHaveAttribute('title', 'Brightness 12.5%')
+    expect(screen.getByTestId('controller-title-brightness')).toHaveAttribute('title', 'Brightness 13%')
   })
 
 })

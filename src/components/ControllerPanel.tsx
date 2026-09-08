@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore, type ReactNode } from 'react'
-import { ExternalLink, Sun, Map as MapIcon } from 'lucide-react'
+import { ExternalLink, Map as MapIcon } from 'lucide-react'
 import { inlineIcon } from '@/components/iconScale'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { useControllerStore } from '@/store/controllerStore'
@@ -37,8 +37,8 @@ import {
 } from '@/components/InstalledMapPresentation'
 import { usePanelSection } from '@/store/panelPreferencesStore'
 import { useRouterStore } from '@/store/routerStore'
-import { formatPercentageValue } from '@/engine/percentageValue'
 import { PanelReadout } from '@/components/PanelReadout'
+import { CompactBrightness } from './CompactBrightness'
 import './PatternPanel.css'
 import './ControllerPanel.css'
 function LimitingWord({ active, testId }: { active: boolean; testId: string }) {
@@ -152,10 +152,7 @@ export function ControllerPanelBrightness() {
   const brightness = useControllerPanelStore(s => s.brightness)
   const setBrightness = useControllerPanelStore(s => s.setBrightness)
   if (status.kind !== 'connected') return null
-  return <div className="panel-brightness" data-testid="controller-title-brightness" title={brightness === null ? "Brightness not set — drag to set a value." : `Brightness ${formatPercentageValue(brightness, 0.01)}`}>
-    <Sun size={12} aria-hidden className="text-zinc-400" />
-    <DeckSlider label="brightness" ariaLabel="Controller brightness" value={brightness} min={0} max={1} step={0.01} presentation="percentage" curve={2} onChange={setBrightness} />
-  </div>
+  return <CompactBrightness curve={2} value={brightness} onChange={setBrightness} ariaLabel="Controller brightness" testId="controller-title-brightness" />
 }
 
 export function ControllerPanel() {

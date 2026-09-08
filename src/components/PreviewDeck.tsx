@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
-import { Lock, Play, Pause, RotateCcw, TriangleAlert, Sun } from 'lucide-react'
+import { Lock, Play, Pause, RotateCcw, TriangleAlert } from 'lucide-react'
+import { CompactBrightness } from './CompactBrightness'
 import { controlIcon } from '@/components/iconScale'
 import { usePreviewStore, MIN_LIGHT_SIZE, MAX_LIGHT_SIZE } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
@@ -175,10 +176,6 @@ function PrimaryBand() {
         <DimPills dims={exportedDims(previewSource)} />
         <ActiveMapBakeStatus />
       </div>
-      <div className="panel-brightness" title={`Brightness ${Math.round(brightness * 100)}%`}>
-        <Sun size={13} aria-hidden className="text-zinc-400 shrink-0" />
-        <DeckSlider label="brightness" ariaLabel="Brightness" value={brightness} min={0} max={1} step={0.01} presentation="percentage" curve={2} onSpace={toggle} onChange={v => { setBrightness(v); writeCascadedOverride('brightness', v) }} />
-      </div>
       {showReset && (
         <button
           type="button"
@@ -191,6 +188,7 @@ function PrimaryBand() {
         </button>
       )}
       <EmbeddingSelect portaled />
+      <CompactBrightness onSpace={toggle} value={brightness} onChange={v => { setBrightness(v); writeCascadedOverride('brightness', v) }} />
       <button
         aria-label={hasPattern ? (isRunning ? 'Pause' : 'Run') : 'No pattern loaded'}
         title={hasPattern ? (isRunning ? 'Pause preview' : 'Run preview') : 'No pattern loaded'}
@@ -309,7 +307,7 @@ function SecondaryBand({ mode }: { mode?: string }) {
         <DeckGrid>
           {hasMapChoice && (mode ? <DeckCell label="map"><MapSelect portaled /></DeckCell> : <DeckField label="map"><div className="flex flex-col items-end"><MapSelect portaled /><CoordinateViewSelect portaled /></div></DeckField>)}
           {mode && hasCoordinateViewChoice && <DeckCell label="view"><CoordinateViewSelect portaled bare /></DeckCell>}
-          {!mode && <DeckSlider label="brightness" ariaLabel="Brightness" value={brightness} min={0} max={1} step={0.01} presentation="percentage" curve={2} onSpace={toggle} onChange={value => { setBrightness(value); writeCascadedOverride('brightness', value) }} />}
+          {!mode && <DeckSlider label="brightness" ariaLabel="Brightness" value={brightness} min={0} max={1} step={0.01} presentation="percentage" onSpace={toggle} onChange={value => { setBrightness(value); writeCascadedOverride('brightness', value) }} />}
           {hasMappedCoordinates && (
             <DeckCell label="fit">
               <DeckSelect

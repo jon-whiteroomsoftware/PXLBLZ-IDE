@@ -171,7 +171,7 @@ speed, light size, diffusion, solidity) are purely how the browser draws it.
 Most settings are remembered per Pattern, and none of them ride along when
 you send to a Controller.
 
-In Studio, brightness stays beside the Pattern title. **Controls** opens by default;
+In Studio, the right-aligned controls run from Reset through Display (when available), brightness, and Play/Pause. Reset appears to the left without moving the other controls. Brightness uses a sun icon, a short linear slider, and a read-only percentage. **Controls** opens by default;
 **Pixelblaze**, **Preview**, and **Variables** fold to one-line readouts.
 Each section remembers its open state per Studio mode across reloads. The
 folded Map chip remains interactive. Expanded fields align in two columns,
@@ -446,7 +446,7 @@ an animatable Split) that hold on any compatible surface.
 The **Stage** is the whole Show rendered over its output geometry and driven by
 Show transport. On desktop it fills the left side of a strip below the
 timeline. A narrow rail beside the canvas holds playback and the Zone-outline
-and selected-Clip-outline toggles. Stage, Preview, Zones, and Source form one
+and selected-Clip-outline toggles. The Preview heading keeps overall browser brightness available when folded or expanded, using the same compact slider and percentage as the Pattern and Controller panels. It adjusts browser rendering without changing authored Clip brightness or Controller output. Stage, Preview, Zones, and Source form one
 controls column beside the rail, capped at 480 px. Each header summarizes its
 folded section. Preview begins open; the other sections begin folded, and
 PXLBLZ remembers each section independently for Shows. Before a split is remembered, the timeline

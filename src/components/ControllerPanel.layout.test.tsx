@@ -42,7 +42,7 @@ for (const width of [400, 320]) it(`keeps Controller fields operable at ${width}
   await screen.findByRole('button', { name: 'Power' })
   const brightness = screen.getByRole('slider', { name: 'Controller brightness' })
   expect(brightness.closest('[data-deck="section"]')).toBeNull()
-  await waitFor(() => expect(Math.round(brightness.getBoundingClientRect().width)).toBe(72))
+  await waitFor(() => expect(Math.round(brightness.getBoundingClientRect().width)).toBe(48))
   for (const header of popover.querySelectorAll('.panel-section-header')) expect(header.getBoundingClientRect().height).toBe(28)
   const controlGrid = popover.querySelector('.controller-section-controls [data-deck="grid"]')!
   expect(getComputedStyle(controlGrid).gridTemplateColumns.split(' ')).toHaveLength(width < 360 ? 2 : 4)

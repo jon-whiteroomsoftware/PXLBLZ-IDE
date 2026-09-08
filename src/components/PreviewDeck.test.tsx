@@ -27,7 +27,7 @@ describe('PreviewDeck (smoke)', () => {
     expect(screen.getByRole('button', { name: 'Preview' })).toHaveAttribute('aria-expanded', 'true')
     const brightness = screen.getByRole('slider', { name: 'Brightness' })
     fireEvent.change(brightness, { target: { value: '0.7' } })
-    expect(usePreviewStore.getState().brightness).toBe(0.49)
+    expect(usePreviewStore.getState().brightness).toBe(0.7)
     expect(screen.getByRole('button', { name: 'Edit pixel count' })).toBeInTheDocument()
     expect(screen.getByText('12×12×12')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Watch variables' })).toHaveAttribute('aria-expanded', 'false')

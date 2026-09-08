@@ -1,4 +1,5 @@
 import { DeckCell, DeckGrid, DeckSection, DeckTelemetry } from './Deck'
+import { CompactBrightness } from './CompactBrightness'
 import { DeckSlider } from './DeckSlider'
 import { DeckSelect } from './DeckSelect'
 import { PanelReadout } from './PanelReadout'
@@ -8,6 +9,7 @@ import { usePreviewStore, MIN_LIGHT_SIZE, MAX_LIGHT_SIZE } from '@/store/preview
 import { describeShowPreviewReadout } from '@/engine/showStripPanel'
 
 export function ShowStripPreviewSection() {
+  const brightness = usePreviewStore(s => s.brightness)
   const lightSize = usePreviewStore(s => s.lightSize)
   const diffusion = usePreviewStore(s => s.diffusion)
   const fidelity = usePreviewStore(s => s.fidelity)
@@ -15,6 +17,7 @@ export function ShowStripPreviewSection() {
   const togglePlayback = usePreviewStore(s => s.toggle)
   const [expanded, setExpanded] = useShowStripSection('Preview')
   return <DeckSection previewSpace label="Preview" hint={SHOW_PREVIEW_HINT} summaryRow collapsible expanded={expanded} onExpandedChange={setExpanded}
+    actions={<CompactBrightness onSpace={togglePlayback} ariaLabel="Show preview brightness" value={brightness} onChange={value => usePreviewStore.getState().setBrightness(value)} />}
     summary={<PanelReadout items={describeShowPreviewReadout({ lightSize, diffusion, fidelity, fps })} />}
   >
     <DeckGrid>
