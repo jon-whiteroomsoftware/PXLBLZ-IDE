@@ -62,10 +62,13 @@ the command registry.
 The internal completed-candidate wait path defers whole-Show admission and
 qualified exact resize while explicit drag/dirty owners remain active. Manual
 commit publishes its store replacement before releasing activity. Registered
-Clip resize/move/duplicate, Marker creation/movement and Show End keep their
-control-owned lifetime through callback settlement, including a failed save;
-cleanup never creates an extra history step or rollback policy. Existing pointer
-identity and cancellation semantics remain authoritative. Candidate settlement
+Clip resize/move/duplicate, Marker creation/movement, Show End, placement-pad
+and native Effect reorder keep their control-owned lifetime through callback
+settlement, including a failed save; cleanup never creates an extra history step
+or rollback policy. Placement still commits once on pointerup or pointercancel;
+its lost-capture cleanup discards preview without authoring. The optional Property
+Beat movement callback still authors each move rather than batching history.
+Existing pointer identity and cancellation semantics remain authoritative. Candidate settlement
 then performs the applicable current qualification, final validation and adoption
 sequence without an await. Whole-Show work uses revision equality; qualified resize
 replays on current state under its private Layer dependencies, preserving unrelated

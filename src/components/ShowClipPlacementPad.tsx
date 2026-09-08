@@ -1,4 +1,5 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useFieldActivity } from './ui/field-activity'
 import type { ShowClipTransform, ShowClipViewport, ShowSpatialShape } from '@/engine/personalContentRecords'
 import { showShapeRevealDistance } from '@/engine/showShapeReveal'
 import {
@@ -191,7 +192,7 @@ export interface ShowClipPlacementPadProps {
   grid?: number
   onGridChange?: (grid: number) => void
   /** Commits a value. Called once per gesture, not once per pointer move. */
-  onChange: (patch: { transform?: ShowClipTransform; viewport?: ShowClipViewport }) => void
+  onChange: (patch: { transform?: ShowClipTransform; viewport?: ShowClipViewport }) => boolean | void | Promise<void>
   /** Continuous feedback during a gesture. Falls back to onChange when absent. */
   onPreview?: (patch: { transform?: ShowClipTransform; viewport?: ShowClipViewport }) => void
   onPreviewEnd?: () => void
@@ -222,7 +223,32 @@ export function ShowClipPlacementPad({
   const surface = useRef<SVGSVGElement>(null)
   const drag = useRef<DragKind | null>(null)
   const pending = useRef<PlacementPadResult | null>(null)
-
+  const pointer = useRef<number | null>(null)
+  const pointerTarget = useRef<Element | null>(null)
+  const settling = useRef(false)
+  const previewEndRef = useRef(onPreviewEnd)
+  useLayoutEffect(() => { previewEndRef.current = onPreviewEnd })
+  useLayoutEffect(() => () => {
+    drag.current = null
+    pointer.current = null
+    pointerTarget.current = null
+    settling.current = false
+    const hadPreview = pending.current !== null
+    pending.current = null
+    if (hadPreview) previewEndRef.current?.()
+  }, [])
+  const refreshActivity = useFieldActivity(() => pointer.current !== null)
+  useLayoutEffect(() => {
+    if (pointer.current !== null && !settling.current && (readOnly || !pointerTarget.current?.isConnected)) {
+      drag.current = null
+      pointer.current = null
+      pointerTarget.current = null
+      const hadPreview = pending.current !== null
+      pending.current = null
+      setLive(null)
+      try { if (hadPreview) previewEndRef.current?.() } finally { refreshActivity() }
+    }
+  }, [readOnly, controlledFocus, uncontrolledFocus, committedViewport.enabled, refreshActivity])
   const transform = live?.transform ?? committedTransform
   const viewport = live?.viewport ?? committedViewport
   const context: PlacementPadContext = { transform, viewport, grid }
@@ -271,8 +297,7 @@ export function ShowClipPlacementPad({
     pending.current = null
     setLive(null)
     if (!result) return
-    onChange(result)
-    onPreviewEnd?.()
+    try { return onChange(result) } finally { onPreviewEnd?.() }
   }
 
   const pointerUnit = (event: { clientX: number; clientY: number }) => {
@@ -285,17 +310,20 @@ export function ShowClipPlacementPad({
   }
 
   const beginDrag = (event: ReactPointerEvent, next: DragKind) => {
-    if (readOnly) return
+    if (readOnly || pointer.current !== null) return
     event.preventDefault()
     event.stopPropagation()
-    ;(event.currentTarget as Element).setPointerCapture?.(event.pointerId)
     drag.current = next
+    pointer.current = event.pointerId
+    pointerTarget.current = event.currentTarget
+    refreshActivity()
+    ;(event.currentTarget as Element).setPointerCapture?.(event.pointerId)
   }
 
   // Reaching the surface means the pointer went down on bare pad, which is the
   // only place a fresh cell sweep can start.
   const onSurfaceDown = (event: ReactPointerEvent) => {
-    if (drag.current || !apertureActive) return
+    if (pointer.current !== null || !apertureActive) return
     const point = pointerUnit(event)
     beginDrag(event, { kind: 'viewport-sweep', originX: point.x, originY: point.y })
     previewResult(sweepViewport(context, point.x, point.y, point.x, point.y))
@@ -303,7 +331,7 @@ export function ShowClipPlacementPad({
 
   const onPointerMove = (event: ReactPointerEvent) => {
     const gesture = drag.current
-    if (!gesture) return
+    if (!gesture || pointer.current !== event.pointerId) return
     const point = pointerUnit(event)
     if (gesture.kind === 'content-move') {
       previewResult(moveContentCentre(context, point.x - gesture.grabX, point.y - gesture.grabY))
@@ -322,9 +350,30 @@ export function ShowClipPlacementPad({
     }
   }
 
-  const endDrag = () => {
+  const endDrag = (event: ReactPointerEvent) => {
+    if (pointer.current !== event.pointerId || settling.current) return
     drag.current = null
-    commitPending()
+    settling.current = true
+    const finish = () => {
+      pointer.current = null
+      pointerTarget.current = null
+      settling.current = false
+      refreshActivity()
+    }
+    let result: ReturnType<typeof onChange>
+    try { result = commitPending() } catch (error) { finish(); throw error }
+    if (result && typeof result === 'object') void result.then(finish, finish)
+    else finish()
+  }
+  const loseCapture = (event: ReactPointerEvent) => {
+    if (pointer.current !== event.pointerId || settling.current) return
+    drag.current = null
+    pointer.current = null
+    pointerTarget.current = null
+    const hadPreview = pending.current !== null
+    pending.current = null
+    setLive(null)
+    try { if (hadPreview) onPreviewEnd?.() } finally { refreshActivity() }
   }
 
   const onKeyDown = (event: { key: string; shiftKey: boolean; preventDefault: () => void }) => {
@@ -434,6 +483,7 @@ export function ShowClipPlacementPad({
           onPointerMove={onPointerMove}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
+          onLostPointerCapture={loseCapture}
           onKeyDown={onKeyDown}
         >
         <rect x={toPad(0)} y={toPad(0)} width={span(1)} height={span(1)} fill="#18181b" stroke="#3f3f46" />

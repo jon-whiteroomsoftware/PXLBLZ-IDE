@@ -28,6 +28,7 @@ import {
   resizeBoundaryShow,
   personalLibraryPatternShow,
 } from '../src/agent-harness/baseline/fixtures'
+import type { ShowRecord } from '../src/engine/personalContentRecords'
 
 const RUN_ID = new Date().toISOString().replace(/[:.]/g, '-')
 const REPORT_DIR = resolve('reports', 'agent-harness', 'baseline', 'browser', RUN_ID)
@@ -1018,5 +1019,94 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       previewText,
       timeline: phaseTimeline(request, observations, writes),
     })
+  })
+
+  test('DA: placement and native Effect activity preserve complete editor records', async ({ page }) => {
+    test.setTimeout(180000)
+    const pageErrors: string[] = []
+    page.on('pageerror', error => pageErrors.push(error.message))
+    for (const action of ['placement-cancel', 'placement-commit', 'effect-cancel', 'effect-commit'] as const) {
+      await page.setViewportSize({ width: action === 'effect-commit' ? 800 : 1440, height: 900 })
+      const record = resizeBoundaryShow(`detail-${action}-${Date.now().toString(36)}`)
+      record.stageMapId = 'plane'
+      record.composition!.scenes[0].zones[0].main[0].effects = [
+        { id: 'move', kind: 'translate', x: 0.2, y: 0 },
+        { id: 'turn', kind: 'rotate', turns: 0.1 },
+      ]
+      expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+      await page.goto(`studio/shows/${record.id}?agent=1`)
+      await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+      await expect.poll(() => page.evaluate(async () => {
+        const load = (path: string) => import(path)
+        const [p, l, m] = await Promise.all(['pattern', 'library', 'map'].map(name => load(`/PXLBLZ-IDE/src/store/${name}Store.ts`)))
+        return p.usePatternStore.getState().patternsLoaded && l.useLibraryStore.getState().librariesLoaded && m.useMapStore.getState().mapsLoaded
+      })).toBe(true)
+      await page.getByRole('button', { name: 'Select CometLoom', exact: true }).first().click()
+      const detail = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+      await detail.getByRole('tab', { name: action.startsWith('placement') ? /^Place/ : /^Effects/ }).click({ timeout: 15000 })
+      await injectOverlay(page, bridge.url)
+      const before = await visibleRecord(page) as unknown as ShowRecord
+      const durableBefore = await durableShow(page, record.id)
+      const writes = watchShowWrites(page)
+      const id = await submitUtterance(page, 'make the first Clip exactly eight seconds')
+      await page.getByRole('button', { name: 'Select CometLoom', exact: true }).first().click()
+      await detail.getByRole('tab', { name: action.startsWith('placement') ? /^Place/ : /^Effects/ }).click({ timeout: 15000 })
+      const placement = action.startsWith('placement')
+      const target = placement ? detail.getByLabel('Move content', { exact: true })
+        : detail.getByRole('button', { name: 'Drag Translate Effect to reorder' })
+      const transfer = await page.evaluateHandle(() => new DataTransfer())
+      if (placement) {
+        const box = (await target.boundingBox())!
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+        await page.mouse.down()
+        await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2, { steps: 3 })
+      } else await target.dispatchEvent('dragstart', { dataTransfer: transfer })
+      await expect(page.getByTestId('agent-chat-log')).toContainText('Waiting for active editing')
+      expect(await visibleRecord(page)).toEqual(before)
+      expect(await durableShow(page, record.id)).toEqual(durableBefore)
+      expect(writes).toHaveLength(0)
+      await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+      await page.screenshot({ path: join(REPORT_DIR, `DA-${action}-waiting.png`), fullPage: true })
+      if (placement) {
+        if (action === 'placement-cancel') await target.dispatchEvent('lostpointercapture', { pointerId: 1, bubbles: true })
+        await page.mouse.up()
+      } else {
+        if (action === 'effect-commit') await detail.getByTestId('show-effect-turn').dispatchEvent('drop', { dataTransfer: transfer, clientY: 10000 })
+        await target.dispatchEvent('dragend', { dataTransfer: transfer })
+      }
+      await transfer.dispose()
+      const done = await waitForDone(page, id)
+      expect(done.applied).toBe(action.endsWith('cancel'))
+      await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(1)
+      const current = await visibleRecord(page) as unknown as ShowRecord
+      const expected = structuredClone(before)
+      const expectedClip = expected.composition!.scenes[0].zones[0].main[0]
+      if (action.endsWith('cancel')) expectedClip.durationMs = 8000
+      else if (placement) {
+        const transform = current.composition!.scenes[0].zones[0].main[0].transform!
+        expect(transform.positionX).toBeGreaterThan(0)
+        expectedClip.transform = transform
+      } else expectedClip.effects = [expectedClip.effects![1], expectedClip.effects![0]]
+      expect(current).toEqual({ ...expected, updatedAt: current.updatedAt })
+      expect(await durableShow(page, record.id)).toEqual(current)
+      expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+      await page.screenshot({ path: join(REPORT_DIR, `DA-${action}-saved.png`), fullPage: true })
+      await page.keyboard.press('Escape')
+      await page.getByRole('button', { name: 'Show actions' }).click({ timeout: 15000 })
+      const downloaded = page.waitForEvent('download')
+      await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
+      const file = await downloaded
+      const reopened = await page.evaluate(async bytes => {
+        const load = (path: string) => import(path)
+        const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
+        return parseShowFileBundle(new Uint8Array(bytes))
+      }, [...readFileSync((await file.path())!)])
+      expect(reopened.show).toEqual(current)
+      await page.getByRole('button', { name: 'Undo Show edit' }).click()
+      await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
+      await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+      expect(pageErrors).toEqual([])
+      saveRecord(`DA-${action}`, { before, durableBefore, done, current, reopened: reopened.show, writes, pageErrors })
+    }
   })
 })

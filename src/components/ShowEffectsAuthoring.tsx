@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type Ref } from 'react'
+import { useEffect, useLayoutEffect, useId, useMemo, useRef, useState, type Ref } from 'react'
 import { createPortal } from 'react-dom'
 import { NumberField } from '@/components/ui/number-field'
 import { PercentageField } from '@/components/ui/percentage-field'
@@ -41,6 +41,7 @@ import {
   type ShowEffectPipelineStage,
   type ShowToolkitPresentationItem,
 } from '@/engine/showVisualToolkitPresentation'
+import { useFieldActivity } from './ui/field-activity'
 
 const STAGES: Array<{ id: ShowEffectPipelineStage; label: string; detail: string }> = [
   { id: 'transform', label: 'Transform', detail: 'source coordinates' },
@@ -333,7 +334,7 @@ export function ShowEffectStack({
   effects: readonly ShowClipEffect[]
   mirror?: boolean
   animationPlacementId?: string
-  onChange: (effects: ShowClipEffect[]) => void
+  onChange: (effects: ShowClipEffect[]) => boolean | void | Promise<void>
   onPreview?: (effects: ShowClipEffect[]) => void
   onPreviewEnd?: () => void
   onMirrorChange?: (mirror: boolean) => void
@@ -344,7 +345,18 @@ export function ShowEffectStack({
   const catalogue = useMemo(() => buildShowToolkitPresentationCatalogue({ stageDimensions: 2 }), [])
   const byKey = useMemo(() => new Map(catalogue.map((item) => [item.key, item])), [catalogue])
   const draggedEffectRef = useRef<string | null>(null)
+  const dragSourceId = useId()
+  const settling = useRef(false)
   const [dropTarget, setDropTarget] = useState<{ effectId: string; edge: 'before' | 'after' } | null>(null)
+  useLayoutEffect(() => () => { draggedEffectRef.current = null; settling.current = false }, [])
+  const refreshActivity = useFieldActivity(() => draggedEffectRef.current !== null)
+  useLayoutEffect(() => {
+    if (draggedEffectRef.current && !settling.current && !effects.some(effect => effect.id === draggedEffectRef.current)) {
+      draggedEffectRef.current = null
+      setDropTarget(null)
+      refreshActivity()
+    }
+  }, [effects, refreshActivity])
 
   const draggedEffect = () => effects.find((effect) => effect.id === draggedEffectRef.current)
   const dropEdge = (event: React.DragEvent<HTMLElement>): 'before' | 'after' => {
@@ -438,15 +450,22 @@ export function ShowEffectStack({
                   }}
                   onDrop={(event) => {
                     event.preventDefault()
+                    if (settling.current) return
+                    if (!draggedEffectRef.current && event.dataTransfer.getData('application/x-pxlblz-effect-source') === dragSourceId) return
                     const sourceId = draggedEffectRef.current ?? event.dataTransfer.getData('application/x-pxlblz-effect')
                     const source = effects.find((candidate) => candidate.id === sourceId)
                     setDropTarget(null)
-                    draggedEffectRef.current = null
-                    if (!source || showClipEffectStage(source) !== stage.id) return
-                    const nextEffects = moveShowClipEffectToStagePosition(effects, source.id, effect.id, dropEdge(event))
-                    if (nextEffects.some((candidate, candidateIndex) => candidate.id !== effects[candidateIndex]?.id)) {
-                      onChange(nextEffects)
-                    }
+                    settling.current = true
+                    const finish = () => { draggedEffectRef.current = null; settling.current = false; refreshActivity() }
+                    let result: ReturnType<typeof onChange> = undefined
+                    try {
+                      if (source && showClipEffectStage(source) === stage.id) {
+                        const nextEffects = moveShowClipEffectToStagePosition(effects, source.id, effect.id, dropEdge(event))
+                        if (nextEffects.some((candidate, candidateIndex) => candidate.id !== effects[candidateIndex]?.id)) result = onChange(nextEffects)
+                      }
+                    } catch (error) { finish(); throw error }
+                    if (result && typeof result === 'object') void result.then(finish, finish)
+                    else finish()
                   }}
                 >
                   <button
@@ -457,13 +476,18 @@ export function ShowEffectStack({
                     title={`Drag ${label} Effect to reorder within ${stage.label}`}
                     className="grid size-6 cursor-grab place-items-center rounded text-zinc-600 opacity-0 hover:bg-zinc-800 hover:text-zinc-200 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300 active:cursor-grabbing group-hover:opacity-100 group-focus-within:opacity-100"
                     onDragStart={(event) => {
+                      if (settling.current) { event.preventDefault(); return }
                       draggedEffectRef.current = effect.id
+                      refreshActivity()
                       event.dataTransfer.effectAllowed = 'move'
                       event.dataTransfer.setData('application/x-pxlblz-effect', effect.id)
+                      event.dataTransfer.setData('application/x-pxlblz-effect-source', dragSourceId)
                     }}
                     onDragEnd={() => {
+                      if (settling.current) return
                       draggedEffectRef.current = null
                       setDropTarget(null)
+                      refreshActivity()
                     }}
                   >
                     <GripVertical size={12} aria-hidden />

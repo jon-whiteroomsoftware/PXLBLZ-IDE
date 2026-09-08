@@ -36,7 +36,7 @@ cap. [Pure policy tests](../../../src/engine/showEditAdmission.test.ts) and
 full records/history, provider writes, revision ABA, retirement, deduplication
 and delayed persistence outcomes.
 
-The diagnostic bridge uses this foundation conservatively. Existing shared text/numeric fields register live input activity under editable ShowEditor. Authored timeline gestures also register their live ownership. Placement-pad, sparkline, Effect reorder, retained physical-zone drafts, final panel placement, hosted service/MCP/OAuth and command-catalogue migration remain unqualified. Trusted callbacks at the whole-Show seam stay internal; the exposed adapter supplies its own structural and authoring validation.
+The diagnostic bridge uses this foundation conservatively. Existing shared text/numeric fields, authored timeline gestures, placement-pad gestures and native Effect reorder register live ownership under editable ShowEditor. Retained physical-zone drafts, final panel placement, hosted service/MCP/OAuth and command-catalogue migration remain unqualified. Trusted callbacks at the whole-Show seam stay internal; the exposed adapter supplies its own structural and authoring validation.
 
 ## Internal bounded active-input wait
 
@@ -72,8 +72,17 @@ existing authored behavior. Unrelated pointer identities cannot finish or cancel
 gesture; retired window listeners cannot author or re-register input. Rebinding
 uses the surviving gesture state before exposing the replacement session.
 Viewport, transport, workspace-divider and marquee gestures remain view state.
-Placement-pad, sparkline, Effect reorder and retained physical-zone drafts remain
-unregistered; this finite inventory does not qualify all active editor input.
+Placement content/aperture gestures and native Effect reorder retain their
+control-owned lifetime through authored callback settlement. Placement pointercancel
+still commits its pending preview; lost capture or removal discards the preview
+without authoring. Effect no-op, cross-stage rejection and dragend without drop
+release ownership. Removed sources and late local drops cannot revive a retired
+gesture; foreign/legacy Effect payload fallback retains its existing policy.
+`ShowPropertySparkline` registers its optional `onMoveBeat` gesture, preserving
+per-move authoring and releasing on pointer termination or removal of the target
+or callback. No current ShowEditor caller supplies that callback; this is component
+qualification, not proof of a wired editor movement path. Retained physical-zone
+drafts remain unregistered; this finite inventory does not qualify all editor input.
 
 The editor binds surviving dirty controls before exposing each new diagnostic
 session. Closing retires the session before releasing fields; old cleanup cannot
@@ -83,8 +92,10 @@ Diagnostic Cancel preserves the inspector for pointer dismissal and prevents blu
 before cancellation. It does not claim Escape; ordinary editor layers and actual
 detail-owned portals retain their existing keyboard ownership.
 The FA browser regression drives actual duration drafts and focus; GA drives actual
-Clip resize cancellation/manual commit and Show End manual commit. W retains its
-explicit synthetic-token protocol proof. Internal
+Clip resize cancellation/manual commit and Show End manual commit. DA drives
+placement preview cancellation/manual commit and native Effect dragend/drop;
+see [detail gesture evidence](../evidence/issue-949-detail-gesture-activity.md).
+W retains its explicit synthetic-token protocol proof. Internal
 `admitResolvedShowResize` consumes the same owner, checks its private dependency
 qualification before waiting, and replays the captured operation on current state
 at settlement. It returns the same waiting projection; no immediate resize

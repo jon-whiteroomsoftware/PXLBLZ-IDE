@@ -9,6 +9,7 @@ import {
 import { useShowTransportStore } from '@/store/showTransportStore'
 import { ShowPropertyLaneFamilyGlyph } from '@/components/ShowPropertyLaneFamilyGlyph'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useFieldActivity } from './ui/field-activity'
 
 const VERTICAL_INSET = 0.1
 const VERTICAL_SPAN = 1 - VERTICAL_INSET * 2
@@ -54,6 +55,7 @@ export function ShowPropertySparkline({
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const labelRef = useRef<HTMLSpanElement>(null)
+  const pointer = useRef<{ id: number; target: HTMLButtonElement } | null>(null)
   // How much of the lane the label covers changes with zoom and window width,
   // so the fade is recomputed from measured geometry rather than guessed (#631).
   const [covered, setCovered] = useState({ from: 0, to: 0, visibleFrom: 0, labelStart: 0 })
@@ -81,6 +83,21 @@ export function ShowPropertySparkline({
         : next
     })
   }, [stickyLeftPx])
+  useLayoutEffect(() => () => { pointer.current = null }, [])
+  const refreshActivity = useFieldActivity(() => pointer.current !== null)
+  useLayoutEffect(() => {
+    if (pointer.current && (!onMoveBeat || !pointer.current.target.isConnected)) {
+      pointer.current = null
+      refreshActivity()
+    }
+  })
+  const endPointer = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (pointer.current?.id !== event.pointerId || pointer.current.target !== event.currentTarget) return
+    pointer.current = null
+    try {
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture?.(event.pointerId)
+    } finally { refreshActivity() }
+  }
   useLayoutEffect(() => {
     if (!label || typeof ResizeObserver === 'undefined') return
     // ResizeObserver delivers an initial callback on observe, which supplies the
@@ -193,12 +210,15 @@ export function ShowPropertySparkline({
               onSelectBeat?.(beat, event.currentTarget)
             }}
             onPointerDown={onMoveBeat ? (event) => {
-              if (event.button !== 0) return
+              if (event.button !== 0 || pointer.current !== null) return
               event.stopPropagation()
+              pointer.current = { id: event.pointerId, target: event.currentTarget }
+              refreshActivity()
               onSelectBeat?.(beat, event.currentTarget)
               event.currentTarget.setPointerCapture?.(event.pointerId)
             } : undefined}
             onPointerMove={onMoveBeat ? (event) => {
+              if (pointer.current?.id !== event.pointerId || pointer.current.target !== event.currentTarget) return
               if (!event.currentTarget.hasPointerCapture?.(event.pointerId)) return
               const bounds = rootRef.current?.getBoundingClientRect()
               if (!bounds) return
@@ -206,16 +226,9 @@ export function ShowPropertySparkline({
               const displayY = Math.min(1, Math.max(0, (pointerY - VERTICAL_INSET) / VERTICAL_SPAN))
               onMoveBeat(beat, displayY)
             } : undefined}
-            onPointerUp={onMoveBeat ? (event) => {
-              if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
-                event.currentTarget.releasePointerCapture?.(event.pointerId)
-              }
-            } : undefined}
-            onPointerCancel={onMoveBeat ? (event) => {
-              if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
-                event.currentTarget.releasePointerCapture?.(event.pointerId)
-              }
-            } : undefined}
+            onPointerUp={onMoveBeat ? endPointer : undefined}
+            onPointerCancel={onMoveBeat ? endPointer : undefined}
+            onLostPointerCapture={onMoveBeat ? endPointer : undefined}
             className={`absolute z-[2] grid size-3 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-0 focus-visible:outline-amber-200 disabled:pointer-events-none motion-reduce:transition-none ${onMoveBeat ? 'cursor-ns-resize touch-none' : ''}`}
             style={{ left: `${beat.displayX * 100}%`, top: `${(VERTICAL_INSET + beat.displayY * VERTICAL_SPAN) * 100}%` }}
           >
