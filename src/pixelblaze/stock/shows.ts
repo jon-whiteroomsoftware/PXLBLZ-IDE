@@ -227,8 +227,8 @@ function learn100(): StockShow {
       + 'The Navigator strip above the timeline shows the whole Show: drag its window to move your view, drag its edges to zoom.\n'
       + 'Double-click an empty stretch of a Layer to place a Clip there. Drag a Clip between rows to move it.\n'
       + 'Whatever you break, Reset restores this lesson exactly.',
-    notice: 'Command/Ctrl+wheel also zooms the timeline around the playhead, and Shift+wheel pans it. This tour is deliberately incomplete; the guide below covers everything else.',
-    prompts: ['Hold Option/Alt and drag a Clip to pull off an independent copy - the original never moves. Try dropping it on the upper Layer row, then press Reset.', 'Hold Option/Alt while resizing or scrubbing a Clip to temporarily reverse Snap.'],
+    notice: 'Command/Ctrl+wheel also zooms the timeline around the playhead, and Shift+wheel pans it. This tour is deliberately short; the guide covers everything else.',
+    prompts: ['Hold Option/Alt and drag a Clip to pull off an independent copy: the original never moves. Try dropping it on the upper Layer row, then press Reset.', 'Hold Option/Alt while resizing or scrubbing a Clip to temporarily reverse Snap.'],
     guideHeading: 'creating-and-arranging-clips',
     patternSlots: [['ribbons'], ['glyphs'], ['garden']],
     guideDocumentId: 'keyboard-shortcuts',
@@ -561,11 +561,11 @@ function learn105(): StockShow {
   return catalogue({
     id, title: 'Zones', track: 'portable', collection: 'learn', level: 100, order: 5,
     purpose: 'The Stage can be split into Zones that each render their own Pattern, and a Zone Layout decides which pixels every Zone gets.\n'
-      + 'Three Layouts render the same pair very differently here: a left/right split, then a bullseye of rings, then a pinwheel. Each switch re-routes pixels while both Patterns keep playing.\n'
-      + "The Layouts lane above the Zone rows shows which Layout owns each stretch of the timeline. Click a chip to change that interval's Routing mode and parameters; the small route markers at its edges are the switches themselves.\n"
-      + 'The Zone Map (map icon above the Zone rows) renames, recolors, adds, and deletes Zones. A new Zone joins every Layout: the rings and the pinwheel deal it in, and the fixed split becomes stripes to fit it.',
-    notice: 'Nothing restarts at a switch: the weave and the water land in the rings, then in the pinwheel, mid-motion. A Layout switch changes where pixels go, never Pattern state - and both switches here sweep, so you can watch the geometry travel.',
-    prompts: ['Select the Pinwheel chip in the Layouts lane and raise its Twist turns - the arms curl tighter while both Patterns play on, because the Layout owns the geometry.', 'Add a third Zone in the Zone Map and give it a Clip. The split becomes stripes to make room; the rings and the pinwheel simply deal the newcomer in.'],
+      + 'Three Layouts render the same pair of Patterns here: a left/right split, then rings, then a pinwheel. Each switch re-routes pixels while both Patterns keep playing.\n'
+      + 'The Layouts lane above the Zone rows shows which Layout owns each stretch of the timeline. Click a chip to change that interval\'s Routing mode and parameters; the small route markers at its edges are the switches.\n'
+      + 'The Zone Map (map icon above the Zone rows) renames, recolors, adds, and deletes Zones. A new Zone joins every Layout: the rings and the pinwheel add a segment for it, and the fixed split becomes stripes to fit it.',
+    notice: 'Nothing restarts at a switch: both Patterns move into the rings, then into the pinwheel, without a pause. A Layout switch changes where pixels go, never Pattern state. Both switches here sweep across the Stage, so you can watch the geometry change.',
+    prompts: ['Select the Pinwheel chip in the Layouts lane and raise its Twist turns: the arms curl tighter while both Patterns keep playing, because the Layout owns the geometry.', 'Add a third Zone in the Zone Map and give it a Clip. The split becomes stripes to make room; the rings and the pinwheel add a segment for it.'],
     guideHeading: 'portable-zones',
     guideLabel: 'Read about Zones',
     patternSlots: [['ribbons'], ['water']],
@@ -709,9 +709,9 @@ function learn106(): StockShow {
   })
   return catalogue({
     id, title: 'Built from Basics', track: 'portable', collection: 'learn', level: 100, order: 6,
-    purpose: 'Everything in this Show came from the five lessons before it: Clips, Transitions, value curves, a Clip Transform, one Effect, and two Zones. What is new is that the pieces are timed against each other, so the Sky and the Ground arrive and leave as one gesture rather than two. Every junction here is a Transition rather than a Cut, which is the one deliberate departure from 101.',
-    notice: 'Three junctions, three different Transitions: a Crossfade, a circle opening from the center, and a Dissolve that reassembles the Ground. The garden then turns faster and faster while both Zones fade to black together and hold it.',
-    prompts: ['Change the circle Transition in the Sky to a different shape and watch the same junction tell a different story.', 'Drag the two release curves apart so the Zones stop fading together, then put them back.'],
+    purpose: 'Everything in this Show comes from the five lessons before it: Clips, Transitions, value curves, a Clip Transform, one Effect, and two Zones. What is new is timing: the Sky and the Ground arrive and leave together. Every junction is a Transition rather than a Cut, the one deliberate departure from 101.',
+    notice: 'Three junctions, three Transitions: a Crossfade, a circle opening from the center, and a Dissolve that reassembles the Ground. The garden then speeds up while both Zones fade to black together and hold.',
+    prompts: ['Change the circle Transition in the Sky to a different shape and compare the same junction.', 'Drag the two release curves apart so the Zones stop fading together, then put them back.'],
     guideHeading: 'building-a-complete-show',
     patternSlots: [['bloom'], ['garden'], ['mandala']],
     output: portableOutput(), zones, layouts: [splitLayout('layout-sky-ground', 'Sky and ground', zones, 'y')], scenes, composition,
@@ -1332,9 +1332,9 @@ function learn301(): StockShow {
   }
   return normalizedCatalogue({
     id, title: 'Installation Mapping', track: 'installation', collection: 'learn', level: 300, order: 1,
-    purpose: 'An Installation Show gives up portability on purpose. It promises one exact output - this proscenium stage, 1,000 measured LEDs - and in exchange each named Zone owns real pixels: a physical range over the map instead of a share of an abstract surface. Together the ranges must cover the output exactly once.',
-    notice: 'The ranges restate the installer\'s walk: left column, stage field, arch band, right column. That walk is why the Columns Zone owns two ranges at opposite ends of the index space - one physical role, two stretches of wire. At the halfway junction the stage and the columns trade Patterns; the ranges themselves never move.',
-    prompts: ['Open the Columns Zone in the map selector: one Zone, two separate ranges, and selecting its pixels spatially edits the same fact as the numbers.', 'Now break it on purpose - remove a few pixels from one column and watch the coverage diagnostic count the gap. Repair it, or use Reset to restore the pristine lesson.'],
+    purpose: 'An Installation Show targets one exact output, here a proscenium stage of 1,000 measured LEDs, instead of staying portable. In exchange, each named Zone owns real pixels: a physical range over the map rather than a share of an abstract surface. Together the ranges must cover the output exactly once.',
+    notice: 'The ranges follow the order the installer wired the stage: left column, stage field, arch band, right column. That is why the Columns Zone owns two ranges at opposite ends of the index space: one role, two stretches of wire. At the halfway junction the stage and the columns swap Patterns; the ranges never move.',
+    prompts: ['Open the Columns Zone in the map selector: one Zone, two separate ranges. Selecting its pixels on the map edits the same fact as the numbers.', 'Remove a few pixels from one column and watch the coverage diagnostic count the gap. Repair it, or press Reset to restore the lesson.'],
     guideHeading: 'installation-output-and-physical-ranges',
     patternSlots: [['garden'], ['palettes'], ['rose']],
     output: { kind: 'installation', mapId: 'proscenium-stage-2d', pixelCount: 1_000 },
@@ -1620,9 +1620,9 @@ function learn302(): StockShow {
   }
   return normalizedCatalogue({
     id, title: 'Installation Composition', track: 'installation', collection: 'learn', level: 300, order: 2,
-    purpose: 'This Show spends its entire variety budget on one Pattern instance: a single Harmonograph render drives all five surfaces of the Redline stage. Geometry deals the first difference - the same frame lands as a panel in the middle and four radial blooms around it - and every further voice costs only a per-Clip adaptation or Effect: a hue phase, a shifted window, a mirror, a posterize, a timed invert.',
-    notice: 'The satellites split into a four-hue family by placement phase alone - the compiled artifact adds one number inside the shared hsv call. Each change beat then glides the hues to new corners by a different rule, while shifted windows, a mirrored pair, a posterized pair, and two invert pulses stack onto the same single machine.',
-    prompts: ['Drag one satellite window\'s Translate X and watch its quarter-frame slide while the other three hold - four windows into one render.', 'Open the artifact inventory: five surfaces, a dozen Effects, one Harmonograph machine. That single-machine line is the whole lesson.'],
+    purpose: 'One Pattern instance drives all five surfaces of the Redline stage: a single Harmonograph render lands as a panel in the middle and four radial windows around it. Every further difference costs only a per-Clip adaptation or Effect: a hue phase, a shifted window, a mirror, a posterize, a timed invert.',
+    notice: 'The four satellites get four hues from placement phase alone; the compiled artifact adds one number inside the shared hsv call. At each change beat the hues move to new values by a different rule, while shifted windows, a mirrored pair, a posterized pair, and two invert pulses stack onto the same single render.',
+    prompts: ['Drag one satellite window\'s Translate X: its quarter-frame slides while the other three hold. Four windows, one render.', 'Open the artifact inventory: five surfaces, a dozen Effects, one Harmonograph instance. That single-instance line is the point of the lesson.'],
     guideHeading: 'composing-a-fixed-installation',
     patternSlots: [['pendulum']],
     output: { kind: 'installation', mapId: 'redline-stage-2d', pixelCount: 2_000 },
@@ -1695,8 +1695,8 @@ function learn303(): StockShow {
   return normalizedCatalogue({
     id, title: 'Compile, Simplify, and Deliver', track: 'portable', collection: 'learn', level: 300, order: 3,
     purpose: 'A Show stays editable choreography, but it ships as one ordinary Pixelblaze Pattern. The artifact inventory separates compiled Pattern code from the source generated for Show settings, placements, Effects, and score structure.',
-    notice: 'The weave echo near the end is a separately configured RibbonLoom use, and the inventory shows the compiler keeping one copy in the delivered code for both uses. What the echo really costs is its overlay structure - about six kilobytes of render plans and score data - and its separate clock is why it restarts the weave from its first frame.',
-    prompts: ["Open the artifact inventory: RibbonLoom lists two configured uses but one copy in the delivered code, while the render-plan row shows what the echo's Layer costs. Delete the echo Clip and watch the total fall.", 'Undo the deletion, then export the EPE or open the generated code: everything on the timeline ships inside that one ordinary Pattern.'],
+    notice: 'The weave echo near the end is a separately configured RibbonLoom use, and the inventory shows the compiler keeping one copy of the code for both uses. The echo\'s real cost is its overlay structure, about six kilobytes of render plans and score data. Its separate clock is why it restarts the weave from its first frame.',
+    prompts: ['Open the artifact inventory: RibbonLoom lists two configured uses but one copy in the delivered code, while the render-plan row shows what the echo\'s Layer costs. Delete the echo Clip and watch the total fall.', 'Undo the deletion, then export the EPE or open the generated code: everything on the timeline ships inside that one ordinary Pattern.'],
     guideHeading: 'compile-simplify-and-deliver',
     patternSlots: [['loom', 'loom-echo'], ['garden']],
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
@@ -1786,9 +1786,9 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
       title: 'Zone Layouts: Stripes & Grid',
       order: 18,
       voiceCount: 4,
-      purpose: 'One surface shared by four Patterns: equal stripes, then a 2 x 2 grid. Green garden, warm embers, blue water, and dark glyph rain never change; only the Layout that places them does.',
-      notice: 'Each Layout change is a clean switch: stripes become cells in one step while all four Patterns keep playing. The dark rain is there on purpose - its quiet band and cell keep the other three readable.',
-      prompts: ['Add a fifth Zone in the Zone Map and give it a Clip - the stripes simply deal it in, and the grid becomes stripes to make room.', 'Solo one Zone across the whole timeline - the same voice owns a band, then a cell.'],
+      purpose: 'One surface shared by four Patterns: equal stripes, then a 2 x 2 grid. The four Patterns never change; only the Layout that places them does.',
+      notice: 'Each Layout change is a clean switch: stripes become cells in one step while all four Patterns keep playing. The dark rain Pattern is deliberate: its quiet band and cell keep the other three readable.',
+      prompts: ['Add a fifth Zone in the Zone Map and give it a Clip: the stripes add a band for it, and the grid becomes stripes to make room.', 'Solo one Zone across the whole timeline: the same Pattern owns a band, then a cell.'],
       summary: 'Stripes and a 2 x 2 grid deal four constant voices around the Stage.',
       passages: [
         opener,
@@ -1808,8 +1808,8 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
       order: 19,
       voiceCount: 2,
       purpose: 'Rings, a wave, and a pinwheel place the same two Patterns from the center outward. The bullseye reads Garden-Ember-Garden because rings take turns through the Zones.',
-      notice: 'The move into the rings sweeps across the Stage so you can watch it happen; the wave and pinwheel switch in one step. Neither Pattern ever restarts - a Layout change moves pixels, not Patterns.',
-      prompts: ['Select the Pinwheel chip and raise its Twist turns - the arms curl tighter while both Patterns play on.', 'Give the Rings chip five rings - the bullseye gains bands without touching either Pattern.'],
+      notice: 'The move into the rings sweeps across the Stage so you can watch it happen; the wave and pinwheel switch in one step. Neither Pattern ever restarts: a Layout change moves pixels, not Patterns.',
+      prompts: ['Select the Pinwheel chip and raise its Twist turns: the arms curl tighter while both Patterns keep playing.', 'Give the Rings chip five rings: the bullseye gains bands without touching either Pattern.'],
       summary: 'Rings, a wave, and a pinwheel route two constant voices radially.',
       passages: [
         opener,
@@ -2026,9 +2026,9 @@ function redlineInstallation(): StockShow {
     collection: 'installations',
     level: null,
     order: 1,
-    purpose: 'A sixty-second club-installation score turns one hero panel and four target arrays into a single rhythmic machine.',
-    notice: 'One renderer owns each pixel. Shared target instances and cheap transforms create difference; black space, red pressure, white impact, sparse cyan ornaments, and one cyan takeover create the arc.',
-    prompts: ['Solo the four target Zones and compare their shared clock.', 'Jump between First drop, Vacuum, and Peak to compare one canvas with five instruments.'],
+    purpose: 'A sixty-second club installation: one hero panel and four target arrays driven as one rhythmic system.',
+    notice: 'One renderer owns each pixel. Shared target instances and cheap transforms create the differences between surfaces; the arc runs from black, through red pressure and white impacts with sparse cyan accents, to one cyan takeover.',
+    prompts: ['Solo the four target Zones and compare their shared clock.', 'Jump between the First drop, Vacuum, and Peak markers to compare how the five surfaces are used.'],
     guideHeading: 'ruthlessly-engineered-spectacle',
     defaultOpen: true,
     output: { kind: 'installation', mapId: 'redline-stage-2d', pixelCount: 2_000 },
@@ -2075,7 +2075,7 @@ function blendAndFadeTransitionReference(): StockShow {
     id: 'stock-show-reference-blend-fade-transitions', title: 'Blend and Fade Transitions', order: 6,
     purpose: 'The basic ways to get from one Clip to the next: a plain Cut, one slow Crossfade, and two Fades through a color.',
     notice: 'The Crossfade takes its time so you can watch it; the Fades go faster because the color they pass through is the whole point.',
-    prompts: ['Stretch the Crossfade and watch the two worlds coexist.', 'Change the Fade color from black to a deep blue in the inspector.'],
+    prompts: ['Stretch the Crossfade and watch both pictures show at once.', 'Change the Fade color from black to a deep blue in the inspector.'],
     guideHeading: 'blend-and-fade-transition-reference', specs,
     referencePattern: 'MetaballsOfFire2D',
   })
@@ -2114,8 +2114,8 @@ function dissolveTransitionReference(): StockShow {
   ]
   return transitionReferenceShow({
     id: 'stock-show-reference-dissolve-transitions', title: 'Dissolves', order: 8,
-    purpose: 'Four ways to crumble one picture into the next: pixel by pixel, in blocks, in cloudy patches, and through a soft edge.',
-    notice: 'The pixel Dissolve plays slowly; the other three differ only in the shape of what crumbles.',
+    purpose: 'Four ways to break one picture up into the next: pixel by pixel, in blocks, in cloudy patches, and through a soft edge.',
+    notice: 'The pixel Dissolve plays slowly; the other three differ only in the shape of what breaks up.',
     prompts: ['Change the block dissolve grid in the inspector.', 'Compare coherent-noise with soft-threshold at the same duration.'],
     guideHeading: 'dissolve-transition-reference', specs, referencePattern: 'WavyBands', selectedPattern: 'GeometryMorphingDemo2D',
   })
@@ -3116,8 +3116,8 @@ function compositingKeyShowcase(): StockShow {
   }
   return catalogue({
     id, title: 'Compositing and Key Effects', track: 'portable', collection: 'showcases', level: null, order: 4,
-    purpose: "Opacity, Luma Key, Chroma Key, and Vignette decide which of a Clip's pixels show through, so they only make sense with something underneath. A warm bed runs under the whole Show; wherever an Effect removes a pixel, you see the bed instead.",
-    notice: 'Each Effect gets the picture that shows it best: grayscale rings for Opacity and Luma Key, fire for Chroma Key, and a Vignette over keyed waves to close. Every key removes black, so gray edges fade rather than cut.',
+    purpose: 'Opacity, Luma Key, Chroma Key, and Vignette decide which of a Clip\'s pixels show through, so they only make sense with something underneath. A dim warm Pattern runs under the whole Show; wherever an Effect removes a pixel, you see that Pattern instead.',
+    notice: 'Each Effect gets the picture that shows it best: grayscale rings for Opacity and Luma Key, fire for Chroma Key, and a Vignette over keyed waves at the end. Every key removes black, so gray edges fade rather than cut.',
     prompts: ['Raise the Luma Key tolerance until only the brightest ring cores survive.', 'Point the Chroma Key at the fire\'s yellow instead and watch the cores vanish.'],
     guideHeading: 'compositing-and-key-effects',
     defaultOpen: true,
@@ -3447,14 +3447,9 @@ function remixCoronalMassEjection(): StockShow {
   const note: StockShowNote = {
     label: 'Portable Shows',
     title: 'Coronal Mass Ejection',
-    purpose: 'One Pattern, one 40-second gesture. ZRanger1\'s Coronal Mass Ejection opens at half speed; rotation and spin accelerate together into on-beat brightness pulses, then everything winds down to a dead stop and fades to black.',
-    notice: 'The Pattern is ZRanger1\'s Coronal Mass Ejection 2D, shipped as-is. Every motion beyond its own '
-      + 'animation is choreography: speed, rotation, scale, and brightness Property tracks over one held Clip. '
-      + 'Portable Shows are finished pieces rather than lessons, so read the tracks like a score.',
-    prompts: [
-      'Scrub the crescendo between the 24s and 28s markers: each brightness pulse lands on a beat, and the valleys deepen as the spin accelerates.',
-      'Drag the speed track\'s final keyframe up from zero and the dead stop becomes a slow-motion ending.',
-    ],
+    purpose: 'One Pattern, 40 seconds. ZRanger1\'s Coronal Mass Ejection opens at half speed; rotation and spin accelerate together into brightness pulses on the beat, then everything slows to a stop and fades to black.',
+    notice: 'The Pattern is ZRanger1\'s Coronal Mass Ejection 2D, shipped as-is. Every motion beyond its own animation is choreography: speed, rotation, scale, and brightness Property tracks over one held Clip. Portable Shows are finished pieces rather than lessons; the tracks are the thing to read.',
+    prompts: ['Scrub between the 24 s and 28 s markers: each brightness pulse lands on a beat, and the dips deepen as the spin accelerates.', 'Drag the speed track\'s final keyframe up from zero and the full stop becomes a slow-motion ending.'],
     guide: {
       documentId: 'show-visual-toolkit',
       heading: 'property-animation',
@@ -3758,12 +3753,9 @@ function quadrilleRemix(): StockShow {
   ))
   return catalogue({
     id, title: 'Quadrille', track: 'portable', collection: 'portable-shows', level: null, order: 2,
-    purpose: 'Two Patterns, four quarters, eight phrases at 75 BPM. ZRanger1\'s Wavy Bands is the substrate; Line Dancer 2D rides one internal swell, breathing in and out of its lace. The stage folds into mirrored quarters and finally rejoins - every quarter an echo of the same two live instances.',
-    notice: 'Line Dancer\'s looks ride one internal swell, and every phrase advances it by exactly half a cycle, so the phrases pair bloom-led and lace-led. Never more than two Pattern instances play: each quarter is a Viewport-framed placement, and the lace is a chroma key on black over the bands.',
-    prompts: [
-      'Scrub toward any phrase boundary: the lace shimmer is the dancer\'s own filigree, and each fade crosses it at the shared edge rate.',
-      'Open the artifact inventory: two Patterns, one machine each, serve every quarter on the stage.',
-    ],
+    purpose: 'Two Patterns, four quarters, eight phrases at 75 BPM. ZRanger1\'s Wavy Bands is the base layer; Line Dancer 2D fades in and out over it on one repeating swell. The Stage folds into mirrored quarters and rejoins at the end; every quarter shows the same two live instances.',
+    notice: 'Line Dancer\'s look follows one repeating swell, and every phrase advances it by exactly half a cycle, so phrases alternate between bands-led and dancer-led. Never more than two Pattern instances play: each quarter is a Viewport-framed placement, and the dancer is a chroma key on black over the bands.',
+    prompts: ['Scrub toward any phrase boundary: the shimmer is Line Dancer\'s own detail, and each fade crosses it at the shared edge rate.', 'Open the artifact inventory: two Patterns, one instance each, serve every quarter of the Stage.'],
     guideHeading: 'property-animation',
     guideLabel: 'Read property animation',
     defaultOpen: true,
@@ -4028,12 +4020,9 @@ function overtureRemix(): StockShow {
   const transitions: ShowBoundaryTransition[] = cutBoundaries(overtureScenes)
   return normalizedCatalogue({
     id, title: 'Overture Installation', track: 'installation', collection: 'installations', level: null, order: 2,
-    purpose: 'Three grayscale Luma instances play a 1,000-LED proscenium at 128 BPM, and every light event travels the architecture\'s own paths: the marquee chases the arch wiring, the columns climb in canon, blooms pour from the apex, and one cyan surge runs the installer\'s walk before the ghost light ends the night.',
-    notice: 'Every color is a placement tint over grayscale sources, and every reversal is a placement mirror on the Zone\'s wiring walk, landing on bar lines. One rings surface plays velvet body, apex bloom, and the closing ghost lamp through placement, scale, and Effects alone. No property tracks anywhere: the score only schedules ownership, and the Patterns carry the motion on bar-locked loops.',
-    prompts: [
-      'Watch the surge phrase: the bolt crosses column A, the stage, the arch, and column B in the exact order the installer wired them.',
-      'Open any marquee placement: one instance serves the arch and both columns, in both colors and both directions of travel.',
-    ],
+    purpose: 'Three grayscale Luma instances play a 1,000-LED proscenium at 128 BPM. Every light event follows the wiring: the marquee chases along the arch, the columns climb in canon, blooms spread down from the apex, and one cyan surge runs the installer\'s wiring order before the ghost light closes the Show.',
+    notice: 'Every color is a placement tint over grayscale sources, and every reversal is a placement mirror along the Zone\'s wiring order, landing on bar lines. One rings surface provides the body, the apex bloom, and the closing ghost lamp through placement, scale, and Effects alone. There are no property tracks: the score only schedules ownership, and the Patterns carry the motion on bar-locked loops.',
+    prompts: ['Watch the surge phrase: the bolt crosses column A, the stage, the arch, and column B in the exact order the installer wired them.', 'Open any marquee placement: one instance serves the arch and both columns, in both colors and both directions of travel.'],
     guideHeading: 'installation-output-and-physical-ranges',
     guideLabel: 'Read installation mapping',
     defaultOpen: true,
