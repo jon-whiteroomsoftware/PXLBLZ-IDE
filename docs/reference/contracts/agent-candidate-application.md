@@ -86,7 +86,12 @@ bounded by the existing
 operation-table capacity until session retirement, so changed payloads cannot
 replace an original delivery or make a terminal id new. Qualified resize uses its
 captured resolved payload identity in that same bound. Wrong envelopes refuse
-without poisoning the original. No automatic retry or provider/model call is
+without poisoning the original. A foreign-Show candidate delivered with the valid
+registered envelope receives a stored terminal `invalid-candidate` refusal: reads
+agree with delivery, the diagnostic adapter records rejection once and releases
+metadata subscriptions, and an explicit new operation may name it as `retryOf`.
+A changed duplicate cannot replace the original candidate identity. Broad delivery
+never consumes a qualified resize-owned request. No automatic retry or provider/model call is
 introduced. [Store consumer tests](../../../src/store/showInputWait.test.ts)
 cover complete records/history, zero attributable writes while waiting/refused,
 monotonic boundaries and a serialized `.pxlshow` reopened through its importer.

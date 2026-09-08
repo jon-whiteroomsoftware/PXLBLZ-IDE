@@ -362,7 +362,7 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
   readShowEditCandidate: (sessionId, id) => editSession?.sessionId === sessionId ? inputWait.read(id) : undefined,
   deliverShowEditCandidate: (request, candidate, validate, validateRaw) => {
     const arrivedAt = performance.now()
-    if (resizeAdmission.owns(request.operationId) || (candidate && typeof candidate === 'object' && 'id' in candidate && candidate.id !== request.showId)) return { request, status: 'refused', reason: 'invalid-candidate' }
+    if (resizeAdmission.owns(request.operationId)) return { request, status: 'refused', reason: 'invalid-candidate' }
     const capturedRequest = structuredClone(request)
     const capturedSession = editSession
     let capturedCandidate: ShowRecord

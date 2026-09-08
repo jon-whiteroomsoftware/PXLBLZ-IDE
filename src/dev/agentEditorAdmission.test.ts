@@ -298,7 +298,7 @@ it('observes the authoritative adoption once after rejected mismatches and repea
   const api = await setup()
   const captured = api.beginRequest('observation-' + crypto.randomUUID(), 'rename', [])!
   const token = state().acquireShowEditActivity(api.sessionId, 'test', 'drag')!
-  expect(api.applyShow({ ...captured.show, id: 'wrong' }, captured.request).status).toBe('refused')
+  expect(api.applyShow({ ...captured.show, name: 'Agent' }, { ...captured.request, payloadKey: 'wrong' }).status).toBe('refused')
   const candidate = { ...captured.show, name: 'Agent' }
   expect(api.applyShow(candidate, captured.request).status).toBe('waiting')
   expect(api.applyShow({ ...candidate, name: 'Mismatch' }, captured.request).status).toBe('refused')
@@ -309,4 +309,36 @@ it('observes the authoritative adoption once after rejected mismatches and repea
   expect(phases.filter(phase => phase === 'rejected')).toEqual([])
   expect(phases.filter(phase => phase === 'adopted')).toEqual(['adopted'])
   expect(phases.filter(phase => phase === 'settled')).toEqual(['settled'])
+})
+
+it('records a foreign-Show candidate refusal once, releases metadata and permits an explicit retry', async () => {
+  const stores = await Promise.all([import('@/store/patternStore'), import('@/store/libraryStore'), import('@/store/mapStore')])
+  const unsubscribes: ReturnType<typeof vi.fn>[] = []
+  const subscriptions = [stores[0].usePatternStore, stores[1].useLibraryStore, stores[2].useMapStore].map(store => {
+    const subscribe = store.subscribe
+    return vi.spyOn(store, 'subscribe').mockImplementation((listener: Parameters<typeof subscribe>[0]) => {
+      const unsubscribe = vi.fn(subscribe(listener as never))
+      unsubscribes.push(unsubscribe)
+      return unsubscribe
+    })
+  })
+  try {
+    const api = await setup()
+    const captured = api.beginRequest('foreign-' + crypto.randomUUID(), 'rename', [])!
+    const before = snapshot()
+    const candidate = { ...captured.show, id: 'foreign' }
+    const result = api.applyShow(candidate, captured.request)
+    expect(result).toMatchObject({ status: 'refused', reason: 'invalid-candidate' })
+    expect(api.readOutcome(captured.request)).toEqual(result)
+    expect(api.applyShow(candidate, captured.request)).toEqual(result)
+    expect(api.applyShow({ ...captured.show, name: 'Late' }, captured.request).status).toBe('refused')
+    expect(api.readOutcome(captured.request)).toEqual(result)
+    expect(snapshot()).toEqual(before)
+    expect(writes).not.toHaveBeenCalled()
+    expect(unsubscribes).toHaveLength(3)
+    unsubscribes.forEach(unsubscribe => expect(unsubscribe).toHaveBeenCalledTimes(1))
+    const rejected = window.__pxlblzObservations!.read().filter(event => event.kind === 'agent-apply' && event.requestId === captured.request.operationId && event.phase === 'rejected')
+    expect(rejected).toHaveLength(1)
+    expect(state().beginShowEdit(api.sessionId, { ...captured.request, operationId: 'retry', retryOf: captured.request.operationId })).toMatchObject({ status: 'pending' })
+  } finally { subscriptions.forEach(spy => spy.mockRestore()) }
 })

@@ -224,13 +224,17 @@ it('refuses a known stale arrival immediately despite active input', async () =>
   expect(writes).toHaveBeenCalledTimes(1)
 })
 
-it('a wrong candidate Show id refuses without reserving the completed-candidate identity', () => {
+it('a foreign-Show candidate terminally refuses without adopting after activity ends', () => {
+  const before = snapshot()
   const token = state().acquireShowEditActivity(session, request.showId, 'drag')!
-  expect(state().deliverShowEditCandidate(request, { ...candidate, id: 'wrong' }, validate)).toMatchObject({ status: 'refused', reason: 'invalid-candidate' })
+  const result = state().deliverShowEditCandidate(request, { ...candidate, id: 'wrong' }, validate)
+  expect(result).toMatchObject({ status: 'refused', reason: 'invalid-candidate' })
+  expect(state().readShowEditCandidate(session, request.operationId)).toEqual(result)
   expect(vi.getTimerCount()).toBe(0)
-  expect(state().deliverShowEditCandidate(request, candidate, validate).status).toBe('waiting')
+  expect(state().deliverShowEditCandidate(request, candidate, validate).status).toBe('refused')
   state().releaseShowEditActivity(token)
-  expect(state().resolveEditableShow(request.showId)?.name).toBe('Agent')
+  expect(snapshot()).toEqual(before)
+  expect(writes).not.toHaveBeenCalled()
 })
 
 it('stock reset releases a pending timer while preserving active draft ownership', async () => {
