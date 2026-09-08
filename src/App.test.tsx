@@ -807,14 +807,17 @@ describe('routing (#308)', () => {
     setStudioLocation(`/studio/shows/${stock.id}`)
     seedSignedInWorkspace()
     useShowStore.setState({ shows: [], showsLoaded: true, activeShowId: null })
+    useShowEditorSessionStore.getState().setShowNoteOpen(stock.id, true)
 
     render(<App />)
 
     const editorPane = screen.getByTestId('editor-pane')
+    await user.click(within(editorPane).getByRole('button', { name: 'Patterns (2)' }))
+    const patternDialog = screen.getByRole('dialog', { name: 'Try with Pattern' })
     // The Murmuration backdrop is doctrine-fixed and offers no swap box
     // since slot declarations began scoping the surface (#822).
-    expect(within(editorPane).getByRole('combobox', { name: 'Pattern 1' })).toHaveValue('InfinityFlower2D')
-    const selector = within(editorPane).getByRole('combobox', { name: 'Pattern 2' })
+    expect(within(patternDialog).getByRole('combobox', { name: 'Pattern 1' })).toHaveValue('InfinityFlower2D')
+    const selector = within(patternDialog).getByRole('combobox', { name: 'Pattern 2' })
     expect(selector).toHaveValue('MetaballGarden')
     await user.click(selector)
     await user.click(screen.getByRole('option', { name: 'Caustics' }))
