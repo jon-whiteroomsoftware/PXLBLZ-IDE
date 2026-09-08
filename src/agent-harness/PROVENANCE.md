@@ -332,6 +332,17 @@ between declared placement owners. The earlier sections remain as the exact hist
 provenance model was introduced and repaired; they do not claim scratch transit is a current
 supported surface.
 
+## V2 typed private completion (#949 B1)
+
+The diagnostic turn runner now requires explicit apply/ask/refuse/incomplete
+completion instead of classifying reply punctuation. The provider-neutral
+completion object is used by explicit and inline finish, fake-script intent,
+and the service's private outcome transport. Normal return, final validation,
+one private history entry, first successful finish and abnormal rollback remain
+the private transaction boundary. The owning candidate contract and typed-turn/
+service tests describe the current behavior. Live-editor admission remains
+separate. The original V3 hashes and historical paid baseline are unchanged.
+
 ## Dependencies declared for this closure
 
 | Package | V3 range | Declared here | Installed |

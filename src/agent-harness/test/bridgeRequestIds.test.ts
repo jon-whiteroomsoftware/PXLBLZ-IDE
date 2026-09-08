@@ -40,7 +40,7 @@ function repairingAgent(): DictationAgent & { passes: Array<{ startedAt: number;
         const changes = (result.payload as { changes?: Array<{ targetId?: string }> }).changes
         invalidClipId = changes?.[0]?.targetId ?? ''
         pass.endedAt = Date.now()
-        return { finalText: 'Added the stock Pattern.' }
+        return { finalText: 'Added the stock Pattern.', completion: { intent: 'apply', reply: 'Added the stock Pattern.' } }
       }
       await context.callTool('remove_clip', { session_id: context.sessionId, clip_id: invalidClipId })
       await context.callTool('add_clip', {
@@ -52,7 +52,7 @@ function repairingAgent(): DictationAgent & { passes: Array<{ startedAt: number;
         pattern_id: 'CometLoom',
       })
       pass.endedAt = Date.now()
-      return { finalText: 'Added a CometLoom clip instead.' }
+      return { finalText: 'Added a CometLoom clip instead.', completion: { intent: 'apply', reply: 'Added a CometLoom clip instead.' } }
     },
   }
 }
@@ -110,7 +110,7 @@ describe('bridge request ids and timing', () => {
       if (!done || done.kind !== 'done') throw new Error('no done event')
       expect(done.changed).toBe(true)
       expect(agent.passes).toHaveLength(2)
-      expect(events.filter((event) => event.kind === 'validation').map((event) => event.ok)).toEqual([false, false, true])
+      expect(events.filter((event) => event.kind === 'validation').map((event) => event.ok)).toEqual([false, true, true])
 
       const [first, repaired] = agent.passes
       expect(done.timing.delayMs).toBe(30)

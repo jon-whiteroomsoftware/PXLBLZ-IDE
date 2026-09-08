@@ -31,7 +31,7 @@ export const SMOKE_UTTERANCE = 'make the first Clip twelve seconds'
 export const SMOKE_REPLY = 'The first Clip is twelve seconds.'
 /** The scripted solution: resolve the Clip at 0 ms, resize it, finish in the same call. */
 export const SMOKE_SCRIPT: ScriptStep[] = [
-  { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 12_000, finish_turn_reply: SMOKE_REPLY } },
+  { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 12_000, finish_turn_reply: { intent: 'apply', reply: SMOKE_REPLY } } },
 ]
 const STAMPED_AT = '2026-09-04T00:00:00.000Z'
 

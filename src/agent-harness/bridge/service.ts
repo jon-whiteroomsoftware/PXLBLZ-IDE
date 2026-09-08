@@ -30,7 +30,7 @@ import { scriptForUtterance } from '../baseline/scripts.js'
 import type { ScriptStep } from '../experiment/corpus.js'
 import type { PaidCallGuard } from '../experiment/paidCallGuard.js'
 import { createFakeAgent, type DictationAgent } from '../experiment/runner.js'
-import { dictationTools, projectionForAgent, runDictationTurn } from '../experiment/turn.js'
+import { dictationTools, projectionForAgent, runDictationTurn, type TurnDisposition } from '../experiment/turn.js'
 import { DICTATION_RULES, type EditorContext } from '../grammar/read.js'
 import { createSessionStore, type GrammarSessionStore } from '../grammar/session.js'
 import { createShowsServer } from '../mcp/showsServer.js'
@@ -67,6 +67,8 @@ export interface UtteranceRequest {
 }
 
 export interface UtteranceResponse {
+  /** Private session outcome only; never a live application or save receipt. */
+  privateOutcome: TurnDisposition | { kind: 'service-refused' | 'service-error' }
   reply: string
   changed: boolean
   summaries: string[]
@@ -133,9 +135,8 @@ function timedAgent(
 }
 
 /**
- * The session store with its commit timed: final validation runs inside
- * `commit`, so wrapping that one method observes validation without touching
- * the grammar session itself.
+ * Observe pending validation and final commit validation without changing
+ * the grammar session or its private transaction ownership.
  */
 function observedSessionStore(
   store: GrammarSessionStore,
@@ -143,6 +144,12 @@ function observedSessionStore(
 ): GrammarSessionStore {
   return {
     ...store,
+    validatePending: (sessionId) => {
+      const at = Date.now()
+      const result = store.validatePending(sessionId)
+      onValidation({ at, ms: Date.now() - at, ok: result.ok })
+      return result
+    },
     commit: (sessionId) => {
       const at = Date.now()
       const result = store.commit(sessionId)
@@ -201,6 +208,7 @@ export async function runUtterance(
     if (!opened.ok) {
       return {
         reply: `The Show did not open for editing: ${opened.issues[0]?.message ?? 'unknown issue'}`,
+        privateOutcome: { kind: 'service-refused' },
         changed: false,
         summaries: [],
         timing,
@@ -215,6 +223,7 @@ export async function runUtterance(
     if (scripted && !script) {
       return {
         reply: 'This scripted bridge has no script for that utterance; use a baseline or corpus utterance, or send a script.',
+        privateOutcome: { kind: 'service-refused' },
         changed: false,
         summaries: [],
         timing,
@@ -237,7 +246,7 @@ export async function runUtterance(
     const dialogue = (request.history ?? [])
       .filter((entry) => (entry.role === 'user' || entry.role === 'assistant') && typeof entry.text === 'string')
       .slice(-12)
-    const { finalText } = await runDictationTurn({
+    const { finalText, disposition } = await runDictationTurn({
       store,
       sessionId,
       agent: timedAgent(
@@ -273,14 +282,15 @@ export async function runUtterance(
 
     const history = store.describeChanges(sessionId)
     const summaries = history.ok ? history.entries.map((entry) => entry.summary) : []
-    const changed = summaries.length > 0
-    const exported = store.export(sessionId)
+    const changed = disposition.kind === 'committed'
+    const exported = changed ? store.export(sessionId) : null
     timing.exportedAt = Date.now()
     return {
       reply: finalText || '(no reply)',
+      privateOutcome: disposition,
       changed,
       summaries,
-      ...(changed && exported.ok ? { show: exported.show } : {}),
+      ...(changed && exported?.ok ? { show: exported.show } : {}),
       timing,
     }
   } finally {
@@ -393,6 +403,7 @@ export function createBridgeServer(options: BridgeOptions): Server {
                 kind: 'done',
                 requestId,
                 reply: 'The request needs a show and an utterance.',
+                privateOutcome: { kind: 'service-refused' },
                 changed: false,
                 summaries: [],
                 timing: { acceptedAt, delayMs: 0, agentStartedAt: acceptedAt, agentEndedAt: acceptedAt, exportedAt: acceptedAt, toolCalls: [] },
@@ -417,6 +428,7 @@ export function createBridgeServer(options: BridgeOptions): Server {
               kind: 'done',
               requestId,
               reply: `The bridge hit an error: ${error instanceof Error ? error.message : String(error)}`,
+              privateOutcome: { kind: 'service-error' },
               changed: false,
               summaries: [],
               timing: { acceptedAt: at, delayMs: 0, agentStartedAt: at, agentEndedAt: at, exportedAt: at, toolCalls: [] },

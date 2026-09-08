@@ -79,9 +79,11 @@ export function createOpenAiAgent(options: OpenAiAgentOptions): DictationAgent {
         'does not exist, ask exactly one clarifying question instead of editing. If the request is ' +
         'impossible but a near alternative exists, leave the document unchanged and offer the ' +
         'alternative as a question. Only when it is impossible with no alternative do you state why ' +
-        'in one line without a question mark. Your turn is already one transaction held by the editor: ' +
-        'do not open or commit transactions yourself. A question mark in your reply means you are asking, ' +
-        'and any edits made this turn are discarded.'
+        'in one line. Your turn is already one private transaction held by the harness: ' +
+        'do not open or commit transactions yourself. End with finish_turn or the final operation\'s ' +
+        'finish_turn_reply object, carrying explicit apply, ask, refuse or incomplete intent. ' +
+        'Punctuation never controls mutation. Plain text alone does not complete the turn. ' +
+        'Private completion is not proof of live-editor application or saving.'
 
       const contextLines: string[] = []
       const editorContext = context.editorContext

@@ -1,10 +1,13 @@
 # Shared agentic Show editing: roadmap and product requirements
 
 Status: accepted roadmap for the public V2 v1.9 release; reconciled with landed evidence and
-Jon's decisions on 2026-09-07. Epic #943 and its children carry implementation state.
+Jon's decisions on 2026-09-08. Epic #943 and its children carry implementation state.
 #945's diagnostic baseline and #948's single-client persistence recovery are implemented,
-reviewed and landed on main, and remain open with `📦 implemented` for Jon's close-out.
-The #949 internal admission foundation is reviewed and landed at `1a6cfc07`; live editor
+reviewed and landed on main; both issues are closed.
+The #949 internal admission foundation is reviewed and landed at `1a6cfc07`.
+Its bounded B1 diagnostic private-turn completion is implemented in the diagnostic harness:
+explicit apply/ask/refuse/incomplete intent controls private commit/rollback and
+the service carries a typed private outcome. Live editor
 admission, shared command convergence and production agent access remain unimplemented. #946 and #947
 product decisions are complete. The [finite command census](agent-show-command-census.md) maps
 54 existing names into 45 canonical operations. #956 service decisions and final #959 surface
@@ -283,24 +286,25 @@ remain outside this release unless explicitly added later.
 
 ## Execution order and gates
 
-The following is the planning state on 2026-09-07; issue bodies and their attached evidence own
+The following is the planning state on 2026-09-08; issue bodies and their attached evidence own
 subsequent progress. An open issue is not necessarily unfinished implementation.
 
 1. Process readiness: #942, completed by #940.
-2. Baseline: #945 implemented, reviewed and landed through `acd8ea81`; marked implemented and
-   left open for Jon. Browser races, the paid semantic baseline, sealed held-out metadata and
+2. Baseline: #945 implemented, reviewed and landed through `acd8ea81`; closed. Browser races, the paid semantic baseline, sealed held-out metadata and
    historical measurements are recorded. Jon rejected numerical latency targets in #946.
-3. Persistence: #948 implemented, reviewed and landed at `de0e09c2`; marked implemented and
-   left open for Jon. This fixes single-client recovery, not stale-candidate admission.
+3. Persistence: #948 implemented, reviewed and landed at `de0e09c2`; closed. This fixes single-client recovery, not stale-candidate admission.
 4. #946 decisions are resolved below and in its canonical issue body. #947 command decisions and the source-verified census are complete. Remaining decision work is
    #956 production service.
    Final surface placement and Jon's UX approval remain separate; the layout prerequisites
    are complete, so that design work can resume.
 5. Admission: #949's internal session/revision/store slice is reviewed and landed at
-   `1a6cfc07`. Broader Layer/command qualification still coordinates with #947/#950; no full
+   `1a6cfc07`. Bounded B1 typed private-turn completion is implemented in the
+   diagnostic harness; its service outcome does not imply live application or saving.
+   Broader Layer/command qualification still coordinates with #947/#950; no full
    implementation or production capability is claimed.
-6. Shared resize: #950 pure semantic-owner work is assigned to Astra Low under the completed
-   #947 census; paired integration follows #949. Command families #951–#954 follow resize.
+6. Shared resize: #950 pure semantic-owner slice A is reviewed and landed at
+   `513d13ca` under the completed #947 census; paired integration remains pending
+   on #949. Command families #951–#954 follow resize.
    #955 preview/delivery invalidation can proceed after #949 alongside command migration.
 7. Production: #957 implements built-in access; #963 implements external MCP access. Both
    consume the implemented shared admission/command seam and approved service/UX design,
@@ -398,8 +402,9 @@ reload and reset paths for the revision owner. It landed at `de0e09c2` with stor
 mutation and real-editor failure/reopen evidence. Its `updatedAt` ordering stamp is not a
 document revision, and the repair does not prevent stale whole-record replacement.
 
-The admission increment (#949) replaces punctuation-based transaction classification with explicit finish
-outcomes and carries request/session identity through application. It captures editor focus
+The bounded B1 diagnostic slice of #949 implements explicit private finish outcomes.
+Live request/session identity through application remains pending. The complete admission
+increment captures editor focus
 once at submission so later pointer movement cannot retarget the request. Dialogue history
 records whether the candidate actually applied; a successful-sounding model reply cannot become
 false context for the next request. Distinguish a refused candidate, a retired request, and a

@@ -20,7 +20,7 @@ export const BASELINE_UTTERANCES: BaselineUtterance[] = [
     utterance: 'make the first Clip twelve seconds',
     intent: 'The Clip starting at 0 ms becomes 12 000 ms long.',
     script: [
-      { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 12_000, finish_turn_reply: 'The first Clip is twelve seconds.' } },
+      { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 12_000, finish_turn_reply: { intent: 'apply', reply: 'The first Clip is twelve seconds.' } } },
     ],
   },
   {
@@ -28,14 +28,14 @@ export const BASELINE_UTTERANCES: BaselineUtterance[] = [
     intent: 'One turn, two operations: the first Clip is 12 000 ms long at brightness 0.5, committed as one change set.',
     script: [
       { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 12_000 } },
-      { tool: 'set_clip_view', args: { clip_id: '$clipAt:0', brightness: 0.5, finish_turn_reply: 'The first Clip is twelve seconds at half brightness.' } },
+      { tool: 'set_clip_view', args: { clip_id: '$clipAt:0', brightness: 0.5, finish_turn_reply: { intent: 'apply', reply: 'The first Clip is twelve seconds at half brightness.' } } },
     ],
   },
   {
     utterance: 'add a marker at ten seconds called Drop',
     intent: 'A Marker named Drop appears at 10 000 ms; nothing else changes.',
     script: [
-      { tool: 'add_marker', args: { at_ms: 10_000, name: 'Drop', finish_turn_reply: 'Added the Drop marker at ten seconds.' } },
+      { tool: 'add_marker', args: { at_ms: 10_000, name: 'Drop', finish_turn_reply: { intent: 'apply', reply: 'Added the Drop marker at ten seconds.' } } },
     ],
   },
 ]

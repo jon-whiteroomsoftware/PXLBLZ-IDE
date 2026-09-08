@@ -31,7 +31,7 @@ export const DICTATION_CASES: DictationCase[] = [
       assertions: [{ kind: 'clip-duration', clip: { start_ms: 0 }, duration_ms: 12_000 }],
     },
     script: [
-      { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 12_000, finish_turn_reply: 'The first clip now runs 0–12 s.' } },
+      { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 12_000, finish_turn_reply: { intent: 'apply', reply: 'The first clip now runs 0–12 s.' } } },
     ],
   },
   {
@@ -55,7 +55,7 @@ export const DICTATION_CASES: DictationCase[] = [
           pattern_kind: 'stock', pattern_id: 'CometLoom',
         },
       },
-      { say: 'Added a CometLoom clip at 35–45 s.' },
+      { say: 'Added a CometLoom clip at 35–45 s.', intent: 'apply' },
     ],
   },
   {
@@ -71,7 +71,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'move_clip', args: { clip: { hovered: true }, start_ms: 20_000 } },
-      { say: 'The clip now starts at 20 s.' },
+      { say: 'The clip now starts at 20 s.', intent: 'apply' },
     ],
   },
   {
@@ -90,7 +90,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'split_clip', args: { clip: { at_playhead: true }, at_ms: 12_000 } },
-      { say: 'Split the clip at 12 s.' },
+      { say: 'Split the clip at 12 s.', intent: 'apply' },
     ],
   },
   {
@@ -108,7 +108,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'duplicate_clip', args: { clip_id: '$patternClip:comet', linked: true } },
-      { say: 'Duplicated the comet clip as a linked copy at 30–60 s.' },
+      { say: 'Duplicated the comet clip as a linked copy at 30–60 s.', intent: 'apply' },
     ],
   },
   {
@@ -123,7 +123,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'remove_clip', args: { clip_id: '$patternClip:test' } },
-      { say: 'Removed the TestPattern1D clip.' },
+      { say: 'Removed the TestPattern1D clip.', intent: 'apply' },
     ],
   },
   {
@@ -143,7 +143,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'set_clip_view', args: { clip: { selected: true }, brightness: 0.5 } },
-      { say: 'The selected clip now renders at 50% brightness.' },
+      { say: 'The selected clip now renders at 50% brightness.', intent: 'apply' },
     ],
   },
   {
@@ -158,7 +158,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'set_clip_time', args: { clip_id: '$patternClip:comet', time_scale: 0.25 } },
-      { say: 'The comet clip now animates at quarter speed.' },
+      { say: 'The comet clip now animates at quarter speed.', intent: 'apply' },
     ],
   },
   {
@@ -179,7 +179,7 @@ export const DICTATION_CASES: DictationCase[] = [
     script: [
       { tool: 'get_stock_pattern', args: { id: 'CometLoom' } },
       { tool: 'set_clip_control_target', args: { clip_id: '$patternClip:comet', export_name: 'sliderSpeed', value: 0.3 } },
-      { say: "Set the comet clip's sliderSpeed control to 0.3." },
+      { say: "Set the comet clip's sliderSpeed control to 0.3.", intent: 'apply' },
     ],
   },
   {
@@ -191,7 +191,7 @@ export const DICTATION_CASES: DictationCase[] = [
     expect: { outcome: 'edit' },
     script: [
       { tool: 'set_clip_evaluation', args: { clip_id: '$clipAt:0', policy: 'freeze-at-entry' } },
-      { say: 'The first clip now holds its entry frame.' },
+      { say: 'The first clip now holds its entry frame.', intent: 'apply' },
     ],
   },
   {
@@ -218,7 +218,7 @@ export const DICTATION_CASES: DictationCase[] = [
       { tool: 'resize_clip', args: { clip_id: '$clipAt:10000', duration_ms: 8_000 } },
       { tool: 'resize_clip', args: { clip_id: '$clipAt:20000', duration_ms: 8_000 } },
       { tool: 'resize_clip', args: { clip_id: '$clipAt:30000', duration_ms: 8_000 } },
-      { tool: 'finish_turn', args: { reply: 'All four clips are eight seconds now.' } },
+      { tool: 'finish_turn', args: { intent: 'apply', reply: 'All four clips are eight seconds now.' } },
     ],
   },
   // ---- timeline ----------------------------------------------------------
@@ -237,7 +237,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'insert_time', args: { at_ms: 15_000, duration_ms: 5_000 } },
-      { say: 'Inserted 5 s at 15 s; everything after it moved later.' },
+      { say: 'Inserted 5 s at 15 s; everything after it moved later.', intent: 'apply' },
     ],
   },
   {
@@ -252,7 +252,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'set_show_end', args: { end_ms: 70_000 } },
-      { say: 'Show End is now at 70 s.' },
+      { say: 'Show End is now at 70 s.', intent: 'apply' },
     ],
   },
   {
@@ -267,7 +267,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'add_marker', args: { at_ms: 42_000, name: 'Chorus' } },
-      { tool: 'finish_turn', args: {} },
+      { tool: 'finish_turn', args: { intent: 'apply' } },
     ],
   },
   {
@@ -283,7 +283,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'move_marker', args: { marker_id: '$markerAt:12000', at_ms: 15_000 } },
-      { say: 'The Verse marker is at 15 s now.' },
+      { say: 'The Verse marker is at 15 s now.', intent: 'apply' },
     ],
   },
   // ---- animation ---------------------------------------------------------
@@ -323,7 +323,7 @@ export const DICTATION_CASES: DictationCase[] = [
           ],
         },
       },
-      { say: 'That clip is now 12 s with an opacity track: 80% at 3 s, 60% at 5 s, 40% at 8 s.' },
+      { say: 'That clip is now 12 s with an opacity track: 80% at 3 s, 60% at 5 s, 40% at 8 s.', intent: 'apply' },
     ],
   },
   {
@@ -354,7 +354,7 @@ export const DICTATION_CASES: DictationCase[] = [
           ],
         },
       },
-      { say: "The first clip's brightness now fades from 100% to 20% over 10 s." },
+      { say: "The first clip's brightness now fades from 100% to 20% over 10 s.", intent: 'apply' },
     ],
   },
   {
@@ -386,7 +386,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'add_keyframe', args: { track_id: '$trackOf:0:opacity', time_ms: 5_000, value: 0.6 } },
-      { say: 'Added a 60% opacity keyframe at 5 s.' },
+      { say: 'Added a 60% opacity keyframe at 5 s.', intent: 'apply' },
     ],
   },
   {
@@ -420,7 +420,7 @@ export const DICTATION_CASES: DictationCase[] = [
         tool: 'move_keyframe',
         args: { track_id: '$trackOf:0:opacity', keyframe_id: '$keyframeOf:0:opacity:0', time_ms: 2_000 },
       },
-      { say: 'The first opacity keyframe is at 2 s now.' },
+      { say: 'The first opacity keyframe is at 2 s now.', intent: 'apply' },
     ],
   },
   {
@@ -447,7 +447,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'delete_property_track', args: { track_id: '$trackOf:0:opacity' } },
-      { say: 'Removed the opacity animation.' },
+      { say: 'Removed the opacity animation.', intent: 'apply' },
     ],
   },
   // ---- junctions ---------------------------------------------------------
@@ -466,7 +466,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'set_junction_transition', args: { at_ms: 30_000, kind: 'wipe', duration_ms: 2_000 } },
-      { say: 'The scene transition is now a 2 s wipe.' },
+      { say: 'The scene transition is now a 2 s wipe.', intent: 'apply' },
     ],
   },
   {
@@ -481,7 +481,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'set_junction_timing', args: { at_ms: 30_000, duration_ms: 3_000, easing: 'ease-in-out' } },
-      { say: 'The scene transition now runs 3 s with ease-in-out.' },
+      { say: 'The scene transition now runs 3 s with ease-in-out.', intent: 'apply' },
     ],
   },
   {
@@ -497,7 +497,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'update_junction_parameter', args: { at_ms: 30_000, parameter: 'feather', value: 0.4 } },
-      { say: "The wipe's feather is 0.4 now." },
+      { say: "The wipe's feather is 0.4 now.", intent: 'apply' },
     ],
   },
   // ---- layer transitions -------------------------------------------------
@@ -526,7 +526,7 @@ export const DICTATION_CASES: DictationCase[] = [
         tool: 'insert_layer_transition',
         args: { from_clip_id: '$clipAt:0', to_clip_id: '$clipAt:10000', duration_ms: 2_000 },
       },
-      { say: 'The first two clips now crossfade over 2 s.' },
+      { say: 'The first two clips now crossfade over 2 s.', intent: 'apply' },
     ],
   },
   {
@@ -555,7 +555,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'resize_layer_transition', args: { transition_id: '$layerTransition:0', duration_ms: 3_000 } },
-      { say: 'The crossfade is 3 s now.' },
+      { say: 'The crossfade is 3 s now.', intent: 'apply' },
     ],
   },
   {
@@ -584,7 +584,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'reset_layer_transition_to_cut', args: { transition_id: '$layerTransition:0' } },
-      { say: 'The junction is a hard cut again.' },
+      { say: 'The junction is a hard cut again.', intent: 'apply' },
     ],
   },
   // ---- effects -----------------------------------------------------------
@@ -602,7 +602,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'add_clip_effect', args: { clip_id: '$clipAt:0', kind: 'vignette', parameters: { amount: 0.5 } } },
-      { say: 'Added a vignette at strength 0.5 to the first clip.' },
+      { say: 'Added a vignette at strength 0.5 to the first clip.', intent: 'apply' },
     ],
   },
   {
@@ -629,7 +629,7 @@ export const DICTATION_CASES: DictationCase[] = [
           parameter: 'brightness', value: 0.8,
         },
       },
-      { say: 'The brightness effect is at 0.8 now.' },
+      { say: 'The brightness effect is at 0.8 now.', intent: 'apply' },
     ],
   },
   {
@@ -648,7 +648,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'remove_clip_effect', args: { clip_id: '$clipAt:0', effect_id: '$effectOf:0:brightness' } },
-      { say: 'Removed the brightness effect.' },
+      { say: 'Removed the brightness effect.', intent: 'apply' },
     ],
   },
   // ---- structure ---------------------------------------------------------
@@ -664,7 +664,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'set_output_contract', args: { kind: 'portable-2d', map_id: 'plane', pixel_count: 512 } },
-      { say: 'The portable contract now references 512 pixels.' },
+      { say: 'The portable contract now references 512 pixels.', intent: 'apply' },
     ],
   },
   {
@@ -679,7 +679,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'add_layout_interval', args: { layout_id: 'l1', duration_ms: 10_000 } },
-      { say: 'Added a 10 s Full Stage section at the end; the show is 70 s now.' },
+      { say: 'Added a 10 s Full Stage section at the end; the show is 70 s now.', intent: 'apply' },
     ],
   },
   // ---- structure: Trails, once the registry's one family gap (#27) -------
@@ -695,7 +695,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'set_output_trails', args: { enabled: true, retention: 0.6 } },
-      { say: 'Trails is on at retention 0.6.' },
+      { say: 'Trails is on at retention 0.6.', intent: 'apply' },
     ],
   },
   // ---- multi-turn conversations (#30, seeded from live bridge sessions) --
@@ -710,14 +710,14 @@ export const DICTATION_CASES: DictationCase[] = [
       assertions: [{ kind: 'clip-duration', clip: { start_ms: 0 }, duration_ms: 10_000 }],
     },
     script: [
-      { say: 'How long should the first clip (CometLoom, 0–30 s) be?' },
+      { say: 'How long should the first clip (CometLoom, 0–30 s) be?', intent: 'ask' },
     ],
     followups: [
       {
         utterance: 'Ten seconds total.',
         script: [
           { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 10_000 } },
-          { say: 'CometLoom now runs 10 seconds.' },
+          { say: 'CometLoom now runs 10 seconds.', intent: 'apply' },
         ],
       },
     ],
@@ -734,14 +734,14 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       { tool: 'resolve_reference', args: { pattern_name: 'comet' } },
-      { say: 'Four clips use CometLoom — which one do you mean, and how long should it be?' },
+      { say: 'Four clips use CometLoom — which one do you mean, and how long should it be?', intent: 'ask' },
     ],
     followups: [
       {
         utterance: 'The one at thirty seconds — make it fifteen seconds long.',
         script: [
           { tool: 'resize_clip', args: { clip_id: '$clipAt:30000', duration_ms: 15_000 } },
-          { say: 'The CometLoom clip at 30 s now runs 15 seconds.' },
+          { say: 'The CometLoom clip at 30 s now runs 15 seconds.', intent: 'apply' },
         ],
       },
     ],
@@ -772,7 +772,7 @@ export const DICTATION_CASES: DictationCase[] = [
       ],
     },
     script: [
-      { say: 'The first clip is a main-layer clip, so opacity is not available — shall I fade its brightness to zero over 28–30 s instead?' },
+      { say: 'The first clip is a main-layer clip, so opacity is not available — shall I fade its brightness to zero over 28–30 s instead?', intent: 'ask' },
     ],
     followups: [
       {
@@ -789,7 +789,7 @@ export const DICTATION_CASES: DictationCase[] = [
               ],
             },
           },
-          { say: 'Brightness now fades 1 → 0 over 28–30 s.' },
+          { say: 'Brightness now fades 1 → 0 over 28–30 s.', intent: 'apply' },
         ],
       },
     ],
@@ -804,7 +804,7 @@ export const DICTATION_CASES: DictationCase[] = [
     expect: { outcome: 'ask' },
     script: [
       { tool: 'resolve_reference', args: { pattern_name: 'comet' } },
-      { say: 'Four clips use CometLoom — which one do you mean, and how long should it be?' },
+      { say: 'Four clips use CometLoom — which one do you mean, and how long should it be?', intent: 'ask' },
     ],
   },
   {
@@ -816,7 +816,7 @@ export const DICTATION_CASES: DictationCase[] = [
     expect: { outcome: 'ask' },
     script: [
       { tool: 'resolve_reference', args: { hovered: true } },
-      { say: 'Nothing is hovered right now — which clip should I delete?' },
+      { say: 'Nothing is hovered right now — which clip should I delete?', intent: 'ask' },
     ],
   },
   {
@@ -831,7 +831,7 @@ export const DICTATION_CASES: DictationCase[] = [
     utterance: 'Move the marker to 25 seconds.',
     expect: { outcome: 'ask' },
     script: [
-      { say: 'There are two markers (at 10 s and 20 s) — which one should move to 25 s?' },
+      { say: 'There are two markers (at 10 s and 20 s) — which one should move to 25 s?', intent: 'ask' },
     ],
   },
   // ---- impossible: a typed refusal is the correct outcome ----------------
@@ -847,7 +847,7 @@ export const DICTATION_CASES: DictationCase[] = [
     expect: { outcome: 'no-edit' },
     script: [
       { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 40_000 } },
-      { say: 'That would overlap the next clip on the same layer, so I left it unchanged. I can resize up to 30 s, or move the other clip first.' },
+      { say: 'That would overlap the next clip on the same layer, so I left it unchanged. I can resize up to 30 s, or move the other clip first.', intent: 'refuse' },
     ],
   },
   {
@@ -861,7 +861,7 @@ export const DICTATION_CASES: DictationCase[] = [
     expect: { outcome: 'no-edit' },
     script: [
       { tool: 'split_clip', args: { clip_id: '$clipAt:0', at_ms: 45_000 } },
-      { say: 'The first clip runs 0-30 s, so 45 s is not inside it; I left the Show unchanged.' },
+      { say: 'The first clip runs 0-30 s, so 45 s is not inside it; I left the Show unchanged.', intent: 'refuse' },
     ],
   },
   {
@@ -873,7 +873,7 @@ export const DICTATION_CASES: DictationCase[] = [
     expect: { outcome: 'no-edit' },
     script: [
       { tool: 'remove_clip', args: { clip_id: '$clipAt:0' } },
-      { say: 'A Show keeps at least one clip, so I left it in place. Add a replacement first if you want this one gone.' },
+      { say: 'A Show keeps at least one clip, so I left it in place. Add a replacement first if you want this one gone.', intent: 'refuse' },
     ],
   },
   {
@@ -898,7 +898,7 @@ export const DICTATION_CASES: DictationCase[] = [
           ],
         },
       },
-      { say: 'Opacity animation belongs to overlay clips; a main-layer clip has nothing beneath it to blend into. I left it unchanged — should I animate its view brightness down to zero instead?' },
+      { say: 'Opacity animation belongs to overlay clips; a main-layer clip has nothing beneath it to blend into. I left it unchanged — should I animate its view brightness down to zero instead?', intent: 'ask' },
     ],
   },
   {
@@ -913,7 +913,7 @@ export const DICTATION_CASES: DictationCase[] = [
     expect: { outcome: 'ask' },
     script: [
       { tool: 'get_stock_pattern', args: { id: 'CometLoom' } },
-      { say: 'CometLoom has no "sparkle" control; its exports are sliderSpeed, sliderComets, sliderTail, and sliderPalette. Which one should I set to 0.5?' },
+      { say: 'CometLoom has no "sparkle" control; its exports are sliderSpeed, sliderComets, sliderTail, and sliderPalette. Which one should I set to 0.5?', intent: 'ask' },
     ],
   },
 ]

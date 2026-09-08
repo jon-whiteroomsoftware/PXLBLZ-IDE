@@ -53,6 +53,11 @@ export interface DictationTranscript {
   timing?: CaseTiming
 }
 
+export interface TurnCompletion {
+  intent: 'apply' | 'ask' | 'refuse' | 'incomplete'
+  reply?: string
+}
+
 /** What an agent sees and can do while handling one utterance. */
 export interface AgentTurnContext {
   utterance: string
@@ -72,29 +77,24 @@ export interface AgentTurnContext {
   tools: Array<{ name: string; description?: string; inputSchema: unknown }>
   callTool: (name: string, args: Record<string, unknown>) => Promise<{ payload: unknown; isError: boolean }>
   /**
-   * End the turn from inside the same response as the operations (#38): the
-   * harness commits and replies without another model call. Refused with the
-   * typed issues when the working copy does not validate; the agent then
-   * continues its loop. Absent when no turn module holds the transaction.
+   * Stage typed completion in the same response as the operations.
+   * Apply validates private work; the runner commits only after normal return.
+   * Refused validation returns typed issues for repair. This is never a
+   * live-editor application/save receipt. Absent without a turn owner.
    */
-  finishTurn?: (reply?: string) => { ok: true; finalText: string } | { ok: false; issues: GrammarIssue[] }
+  finishTurn?: (completion: TurnCompletion) => { ok: true; finalText: string } | { ok: false; issues: GrammarIssue[] }
   /** The scripted solution, present for the fake agent only. */
   script?: ScriptStep[]
 }
 
 export type DictationAgent = {
   name: string
-  run: (context: AgentTurnContext) => Promise<{ finalText: string; timing?: TurnTiming; incomplete?: TurnIncompletion }>
+  run: (context: AgentTurnContext) => Promise<{ finalText: string; completion?: TurnCompletion; timing?: TurnTiming; incomplete?: TurnIncompletion }>
 }
 
-/**
- * Why an agent turn ended without completing (#945 correction): the agent
- * loop exhausted its round limit while the turn was still open. The turn
- * runner treats this as an abnormal completion and discards the turn's
- * pending operations; it never commits them, whatever the reply text says.
- */
+/** Why a turn cannot complete. Every reason discards pending private work. */
 export interface TurnIncompletion {
-  reason: 'turn-limit'
+  reason: 'turn-limit' | 'missing-finish' | 'invalid-finish' | 'model-incomplete'
 }
 
 interface Harness {
@@ -353,15 +353,16 @@ export function createFakeAgent(): DictationAgent {
     run: async (context) => {
       if (!context.script) throw new Error('the fake agent needs a case script')
       let finalText = ''
+      let completion: TurnCompletion | undefined
       let previousTarget: string | undefined
       for (const step of context.script) {
         if ('say' in step) {
           finalText = step.say
+          completion = { intent: step.intent, reply: step.say }
           continue
         }
         if (step.tool === 'finish_turn') {
-          const reply = (step.args as { reply?: string }).reply
-          const ended = context.finishTurn?.(reply)
+          const ended = context.finishTurn?.(step.args as unknown as TurnCompletion)
           if (!ended) throw new Error('finish_turn needs a turn module holding the transaction')
           if (!ended.ok) throw new Error(`finish_turn refused: ${JSON.stringify(ended.issues)}`)
           return { finalText: ended.finalText }
@@ -380,14 +381,14 @@ export function createFakeAgent(): DictationAgent {
           const changes = (payload as { changes: Array<{ targetId: string }> }).changes
           previousTarget = changes[0]?.targetId ?? previousTarget
         }
-        if (typeof finishReply === 'string' && !isError) {
-          const ended = context.finishTurn?.((finishReply as string).trim() || undefined)
+        if (finishReply !== undefined && !isError) {
+          const ended = context.finishTurn?.(finishReply as TurnCompletion)
           if (!ended) throw new Error('finish_turn_reply needs a turn module holding the transaction')
           if (!ended.ok) throw new Error(`finish refused: ${JSON.stringify(ended.issues)}`)
           return { finalText: ended.finalText }
         }
       }
-      return { finalText }
+      return { finalText, completion }
     },
   }
 }

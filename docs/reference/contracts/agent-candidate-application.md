@@ -22,8 +22,11 @@ refusal leaves the transaction open for repair or rollback. Successful commit
 adds one private history entry and clears private redo. None of these events
 persists the live editor's Show.
 
-The service returns a reply, change indication, and an exported Show when
-applicable. The browser submits a changed candidate to `applyShow`. The editor
+The service returns a reply, a typed `privateOutcome`, change indication, and
+an exported Show only for a validated private commit. `committed` at this
+boundary is private-session success, never live application or durable saving.
+Ask, refusal, incompletion and successful no-change completion expose no candidate.
+The browser submits a changed candidate to `applyShow`. The editor
 rejects an obsolete retained bridge object or a mismatched Show id, clones an
 accepted input, and awaits its ordinary store update. The replacement enters
 editor history as one update; the private session's history does not replace
@@ -95,22 +98,35 @@ diagnostic correlation key, not an admission token.
 
 Conversation history records the reply before editor application succeeds.
 A model reply or private commit is therefore not evidence that the edit landed.
-The turn runner also uses question-mark detection in both explicit-finish and
-text-close paths to choose between asking and committing; conversational wording is not a typed
-live-application result. A turn that ends abnormally is the exception: an
-agent that exhausts its round limit reports a typed incompletion, and an
-agent that throws propagates its error; in both cases the runner rolls the
-turn's transaction back before returning, so a partial candidate is never
-committed or offered to the editor (#945 correction; the transferred code
-committed it). `finish_turn` itself commits nothing: it validates the
-working copy as a commit would and stages the outcome, which the runner
-commits or discards only once the agent has returned normally, so an
-incompletion or exception after `finish_turn` still discards the turn and a
-second `finish_turn` in the same run is refused (#945 repair). Within one
-tool round the finishes take effect in the order they occur: an inline
-`finish_turn_reply` as its operation completes, an explicit `finish_turn`
-after every operation, in listed order; the first successful finish stands
-and every later one is refused as a duplicate (#945 second repair).
+
+The diagnostic turn requires an explicit completion object:
+`{ intent: 'apply' | 'ask' | 'refuse' | 'incomplete', reply?: string }`.
+Both `finish_turn` and the final operation's `finish_turn_reply` accept that
+object. Reply punctuation has no effect on mutation. Provider-neutral adapters
+may return the same typed completion; plain text alone fails closed as
+`missing-finish`. Unknown intent, invalid reply type, extra keys or a
+contradictory returned intent cannot authorize a candidate. Fake corpus scripts
+record explicit intent; historical paid transcripts retain their original format.
+
+Apply validates the private working copy and stages completion. Ask, refuse and
+incomplete discard pending work. Apply with no changes yields `nothing-applied`
+and preserves history. No finish commits while the agent is running. Abnormal
+return (including exhaustion after a staged finish) or an exception rolls back
+the complete transaction. Within a tool round, operations execute in order,
+inline completions take precedence in operation order, then explicit finishes
+are attempted in listed order. Any refused operation blocks all finishes in that
+round; the first successful finish stands and later finishes are refused.
+A validation refusal can produce one bounded repair run; repair must itself
+finish explicitly and return normally. The service observes pending validation
+and commit validation separately in its existing validation event stream.
+
+[Typed private-turn tests](../../../src/agent-harness/test/dictationTypedOutcome.test.ts)
+traverse existing past/future records through public undo/redo after rejected
+turns. [Typed service tests](../../../src/agent-harness/test/bridgeTypedOutcome.test.ts)
+prove same-response explicit/inline completion, no candidate for non-application,
+and a committed candidate after `.pxlshow` export/reopen. These tests do not
+qualify live editor admission, active-input waiting, Layer independence or the
+accepted broader authoring validation policy.
 
 Session validation and editor admission are different checks. The service opens
 with unresolved personal Patterns allowed, while other document validation

@@ -184,7 +184,7 @@ describe('abnormal turn completion through the turn runner (#945)', () => {
             pattern_id: 'nope',
           })
           if (added.isError) throw new Error('fixture add_clip refused')
-          return { finalText: 'Added the clip.' }
+          return { finalText: 'Added the clip.', completion: { intent: 'apply', reply: 'Added the clip.' } }
         }
         return { finalText: 'The turn limit was reached before the edit completed.', incomplete: { reason: 'turn-limit' } }
       },

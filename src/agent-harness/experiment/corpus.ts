@@ -87,7 +87,7 @@ const contextSchema = z.object({
 
 const scriptStepSchema = z.union([
   z.object({ tool: z.string(), args: z.record(z.unknown()) }),
-  z.object({ say: z.string() }),
+  z.object({ say: z.string(), intent: z.enum(['apply', 'ask', 'refuse', 'incomplete']) }),
 ])
 
 export type ScriptStep = z.infer<typeof scriptStepSchema>

@@ -18,7 +18,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { dictationFixture } from '../experiment/fixtures.js'
 import { createOpenAiAgent } from '../experiment/openaiAgent.js'
-import type { AgentTurnContext } from '../experiment/runner.js'
+import type { AgentTurnContext, TurnCompletion } from '../experiment/runner.js'
 import { FINISH_ARGUMENT, dictationTools, runDictationTurn, runToolRound } from '../experiment/turn.js'
 import { DICTATION_RULES } from '../grammar/read.js'
 import { createSessionStore, type GrammarSessionStore } from '../grammar/session.js'
@@ -32,7 +32,7 @@ describe('the first finish of a round stands, through the adapter (#945 second r
   it('an inline ask followed by an explicit finish_turn ends the turn as the ask and commits nothing', async () => {
     const { store, sessionId, resize, finish, runResponse, toolLog } = await harness()
     const before = exported(store, sessionId)
-    const result = await runResponse([resize('r1', { [FINISH_ARGUMENT]: ASK }), finish('f1', 'Done.')])
+    const result = await runResponse([resize('r1', { [FINISH_ARGUMENT]: { intent: 'ask', reply: ASK } }), finish('f1', { intent: 'apply', reply: 'Done.' })])
     expect(toolLog).toEqual([{ name: 'resize_clip', ok: true }])
     expect(result.disposition).toEqual({ kind: 'asked' })
     expect(result.finalText).toBe(ASK)
@@ -44,7 +44,7 @@ describe('the first finish of a round stands, through the adapter (#945 second r
   it('the same pair with finish_turn listed first: operations still run first, so the inline ask is the first finish', async () => {
     const { store, sessionId, resize, finish, runResponse } = await harness()
     const before = exported(store, sessionId)
-    const result = await runResponse([finish('f1', 'Done.'), resize('r1', { [FINISH_ARGUMENT]: ASK })])
+    const result = await runResponse([finish('f1', { intent: 'apply', reply: 'Done.' }), resize('r1', { [FINISH_ARGUMENT]: { intent: 'ask', reply: ASK } })])
     expect(result.disposition).toEqual({ kind: 'asked' })
     expect(result.finalText).toBe(ASK)
     expect(history(store, sessionId)).toEqual([])
@@ -54,7 +54,7 @@ describe('the first finish of a round stands, through the adapter (#945 second r
 
   it('an inline statement followed by an explicit ask commits the statement once', async () => {
     const { store, sessionId, resize, finish, runResponse } = await harness()
-    const result = await runResponse([resize('r1', { [FINISH_ARGUMENT]: STATEMENT }), finish('f1', 'Which clip did you mean?')])
+    const result = await runResponse([resize('r1', { [FINISH_ARGUMENT]: { intent: 'apply', reply: STATEMENT } }), finish('f1', { intent: 'ask', reply: 'Which clip did you mean?' })])
     expect(result.disposition).toMatchObject({ kind: 'committed' })
     expect(result.finalText).toBe(STATEMENT)
     expect(history(store, sessionId).map((entry) => entry.label)).toEqual(['Make the first clip twelve seconds.'])
@@ -66,8 +66,8 @@ describe('the first finish of a round stands, through the adapter (#945 second r
     const asked = await harness()
     const before = exported(asked.store, asked.sessionId)
     const askFirst = await asked.runResponse([
-      asked.resize('r1', { [FINISH_ARGUMENT]: ASK }),
-      asked.marker('m1', { [FINISH_ARGUMENT]: 'Done.' }),
+      asked.resize('r1', { [FINISH_ARGUMENT]: { intent: 'ask', reply: ASK } }),
+      asked.marker('m1', { [FINISH_ARGUMENT]: { intent: 'apply', reply: 'Done.' } }),
     ])
     expect(asked.toolLog.map((call) => call.name)).toEqual(['resize_clip', 'add_marker'])
     expect(askFirst.disposition).toEqual({ kind: 'asked' })
@@ -77,8 +77,8 @@ describe('the first finish of a round stands, through the adapter (#945 second r
 
     const committed = await harness()
     const statementFirst = await committed.runResponse([
-      committed.resize('r1', { [FINISH_ARGUMENT]: STATEMENT }),
-      committed.marker('m1', { [FINISH_ARGUMENT]: 'Which clip did you mean?' }),
+      committed.resize('r1', { [FINISH_ARGUMENT]: { intent: 'apply', reply: STATEMENT } }),
+      committed.marker('m1', { [FINISH_ARGUMENT]: { intent: 'ask', reply: 'Which clip did you mean?' } }),
     ])
     expect(statementFirst.disposition).toMatchObject({ kind: 'committed' })
     expect(statementFirst.finalText).toBe(STATEMENT)
@@ -101,7 +101,8 @@ describe('runToolRound attempts every finish in order and reports the duplicates
     let staged: string | null = null
     const context = {
       callTool: async (name: string) => ({ payload: { ok: true, changes: [{ targetId: 'x', description: `${name} done.` }] }, isError: false }),
-      finishTurn: (reply?: string) => {
+      finishTurn: (completion: TurnCompletion) => {
+        const reply = completion.reply
         attempts.push(reply)
         if (staged !== null) {
           return { ok: false as const, issues: [{ code: 'invalid-argument' as const, message: 'finish_turn was already called this turn; the turn ends when you return, with the first finish.' }] }
@@ -116,9 +117,9 @@ describe('runToolRound attempts every finish in order and reports the duplicates
   it('inline finishes in operation order, then explicit ones in listed order; the first stands', async () => {
     const { context, attempts } = turnModule()
     const round = await runToolRound(context, [
-      { id: 'a', name: 'resize_clip', args: { clip_id: 'c', duration_ms: 1, [FINISH_ARGUMENT]: ASK } },
-      { id: 'f', name: 'finish_turn', args: { reply: 'Done.' } },
-      { id: 'b', name: 'add_marker', args: { at_ms: 5, [FINISH_ARGUMENT]: 'Marker added.' } },
+      { id: 'a', name: 'resize_clip', args: { clip_id: 'c', duration_ms: 1, [FINISH_ARGUMENT]: { intent: 'ask', reply: ASK } } },
+      { id: 'f', name: 'finish_turn', args: { intent: 'apply', reply: 'Done.' } },
+      { id: 'b', name: 'add_marker', args: { at_ms: 5, [FINISH_ARGUMENT]: { intent: 'apply', reply: 'Marker added.' } } },
     ])
     expect(attempts).toEqual([ASK, 'Marker added.', 'Done.'])
     expect(round.ended).toEqual({ finalText: ASK })
@@ -132,8 +133,8 @@ describe('runToolRound attempts every finish in order and reports the duplicates
   it('an explicit finish listed before the operation is still second to the operation’s inline finish', async () => {
     const { context, attempts } = turnModule()
     const round = await runToolRound(context, [
-      { id: 'f', name: 'finish_turn', args: { reply: 'Done.' } },
-      { id: 'a', name: 'resize_clip', args: { clip_id: 'c', duration_ms: 1, [FINISH_ARGUMENT]: ASK } },
+      { id: 'f', name: 'finish_turn', args: { intent: 'apply', reply: 'Done.' } },
+      { id: 'a', name: 'resize_clip', args: { clip_id: 'c', duration_ms: 1, [FINISH_ARGUMENT]: { intent: 'ask', reply: ASK } } },
     ])
     expect(attempts).toEqual([ASK, 'Done.'])
     expect(round.ended).toEqual({ finalText: ASK })
@@ -144,7 +145,8 @@ describe('runToolRound attempts every finish in order and reports the duplicates
     let calls = 0
     const context = {
       callTool: async () => ({ payload: { ok: true, changes: [] }, isError: false }),
-      finishTurn: (reply?: string) => {
+      finishTurn: (completion: TurnCompletion) => {
+        const reply = completion.reply
         attempts.push(reply)
         calls += 1
         return calls === 1
@@ -153,8 +155,8 @@ describe('runToolRound attempts every finish in order and reports the duplicates
       },
     }
     const round = await runToolRound(context, [
-      { id: 'a', name: 'resize_clip', args: { clip_id: 'c', duration_ms: 1, [FINISH_ARGUMENT]: 'First.' } },
-      { id: 'f', name: 'finish_turn', args: { reply: 'Second.' } },
+      { id: 'a', name: 'resize_clip', args: { clip_id: 'c', duration_ms: 1, [FINISH_ARGUMENT]: { intent: 'apply', reply: 'First.' } } },
+      { id: 'f', name: 'finish_turn', args: { intent: 'apply', reply: 'Second.' } },
     ])
     expect(attempts).toEqual(['First.', 'Second.'])
     expect(round.ended).toEqual({ finalText: 'Second.' })
@@ -191,7 +193,7 @@ async function harness() {
     functionCall(id, 'resize_clip', { session_id: sessionId, clip_id: clipId, duration_ms: 12_000, ...extra })
   const marker = (id: string, extra: Record<string, unknown> = {}) =>
     functionCall(id, 'add_marker', { session_id: sessionId, at_ms: 5_000, name: 'Drop', ...extra })
-  const finish = (id: string, reply: string) => functionCall(id, 'finish_turn', { reply })
+  const finish = (id: string, completion: TurnCompletion) => functionCall(id, 'finish_turn', { ...completion })
   const runResponse = async (output: unknown[]) => {
     vi.stubEnv('OPENAI_API_KEY', 'test-key-not-a-credential')
     const openai = createGuardedOpenAiTestFixture('finish order')

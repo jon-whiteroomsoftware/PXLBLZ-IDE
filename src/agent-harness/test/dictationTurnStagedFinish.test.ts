@@ -82,7 +82,7 @@ function resizeThenFinish(
       const clipId = context.listing.clips[0].clipId
       const applied = await context.callTool('resize_clip', { session_id: context.sessionId, clip_id: clipId, duration_ms: 12_000 })
       if (applied.isError) throw new Error('fixture resize refused')
-      const finish = context.finishTurn!('The first clip is now twelve seconds.')
+      const finish = context.finishTurn!({ intent: 'apply', reply: 'The first clip is now twelve seconds.' })
       return after(finish, context)
     },
   }
@@ -140,7 +140,7 @@ describe('finish_turn stages the outcome until the agent returns (#945 repair)',
     let second: FinishResult | null = null
     const result = await run(resizeThenFinish(async (first, context) => {
       expect(first.ok).toBe(true)
-      second = context.finishTurn!('Nothing was changed after all.')
+      second = context.finishTurn!({ intent: 'apply', reply: 'Nothing was changed after all.' })
       return { finalText: first.ok ? first.finalText : '' }
     }))
     expect(second).toMatchObject({ ok: false })
@@ -160,7 +160,7 @@ describe('finish_turn stages the outcome until the agent returns (#945 repair)',
       run: async (context) => {
         const clipId = context.listing.clips[0].clipId
         await context.callTool('resize_clip', { session_id: context.sessionId, clip_id: clipId, duration_ms: 12_000 })
-        const finish = context.finishTurn!('Did you mean the first clip?')
+        const finish = context.finishTurn!({ intent: 'ask', reply: 'Did you mean the first clip?' })
         expect(finish.ok).toBe(true)
         throw new Error('dropped after asking')
       },

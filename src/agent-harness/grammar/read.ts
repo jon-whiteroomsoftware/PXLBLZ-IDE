@@ -465,13 +465,14 @@ export function operatingRules(mode: 'server' | 'dictation'): string {
   const transaction = mode === 'server'
     ? `4. One transaction per user turn: bracket the turn's operations in begin_edit … commit_edit so the whole
    turn is one undo step. A refused commit stays open — fix it or roll it back before ending the turn.`
-    : `4. One transaction per user turn, held by the editor: this turn's operations are already bracketed as
-   one undo step; do not open or commit transactions yourself. A question mark in your reply means you
-   are asking, and an ask never changes the document — the turn's edits are discarded — so ask only
-   when you have not edited. End the turn with the operation that completes the request: set its
-   finish_turn_reply argument to your one-line reply (or "" to reply from the results) and the editor
-   commits and replies without another round trip. A request needing several operations ends on the
-   last one the same way; finish_turn is the fallback when nothing else remains to call.`
+    : `4. One transaction per user turn, held by the editor: do not open or commit transactions yourself.
+   Every completion requires explicit intent: apply, ask, refuse or incomplete. Reply punctuation never
+   decides mutation. Ask, refuse and incomplete discard all private edits. Apply validates private work
+   as one history entry; this is not live-editor application or durable saving.
+   End in the same response as the final operation by setting its finish_turn_reply to
+   { "intent": "apply", "reply": "One line describing the edit." } (omit reply to use change descriptions).
+   Or call finish_turn with {intent, reply?}, including when asking or refusing. Plain text alone does
+   not complete a turn. No extra final acknowledgement round trip is needed.`
   return `PXLBLZ Show grammar editing — operating rules:
 1. Resolve before acting: an operation that takes clip_id also takes a clip referent instead — clip:
    { hovered: true } for "that clip", { at_playhead: true }, { at_ms }, { pattern_name }, or { ordinal,

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { dictationFixture } from '../experiment/fixtures.js'
-import type { AgentTurnContext, DictationAgent } from '../experiment/runner.js'
+import type { AgentTurnContext, DictationAgent, TurnCompletion } from '../experiment/runner.js'
 import { DICTATION_READ_TOOLS, FINISH_ARGUMENT, dictationTools, projectionForAgent, runDictationTurn, runToolRound } from '../experiment/turn.js'
 import { runCase } from '../experiment/runner.js'
 import { DICTATION_CASES } from '../experiment/cases.js'
@@ -22,7 +22,7 @@ import { createShowsServer } from '../mcp/showsServer.js'
 // nothing+statement, invalid working copy with a successful repair, with a
 // failed repair, and with a repair that asks; two turns of one conversation.
 
-type Step = { tool: string; args: Record<string, unknown> } | { say: string }
+type Step = { tool: string; args: Record<string, unknown> } | { say: string; intent: TurnCompletion['intent'] }
 
 /** An agent that plays one scripted turn per run call, in order. */
 function scriptedTurns(turns: Step[][]): DictationAgent & { prompts: string[]; finishRefusals: string[][] } {
@@ -38,17 +38,19 @@ function scriptedTurns(turns: Step[][]): DictationAgent & { prompts: string[]; f
       prompts.push(context.utterance)
       const steps = turns.shift() ?? []
       let finalText = ''
+      let completion: TurnCompletion | undefined
       for (const step of steps) {
         if ('say' in step) {
           finalText = step.say
+          completion = { intent: step.intent, reply: step.say }
           continue
         }
         const args = Object.fromEntries(
           Object.entries(step.args).map(([key, value]) => [key, value === '$last' ? lastTarget : value]),
         )
         if (step.tool === 'finish_turn') {
-          const ended = context.finishTurn!(args.reply as string | undefined)
-          if (ended.ok) return { finalText: ended.finalText, timing: { calls: [{ ms: 1, toolCalls: steps.length }], rateLimitWaitMs: 0 } }
+          const ended = context.finishTurn!(args as unknown as TurnCompletion)
+          if (ended.ok) return { finalText: ended.finalText, completion, timing: { calls: [{ ms: 1, toolCalls: steps.length }], rateLimitWaitMs: 0 } }
           finishRefusals.push(ended.issues.map((issue) => issue.code))
           continue
         }
@@ -57,7 +59,7 @@ function scriptedTurns(turns: Step[][]): DictationAgent & { prompts: string[]; f
           lastTarget = (payload as { changes: Array<{ targetId: string }> }).changes[0]?.targetId
         }
       }
-      return { finalText, timing: { calls: [{ ms: 1, toolCalls: steps.length }], rateLimitWaitMs: 0 } }
+      return { finalText, completion, timing: { calls: [{ ms: 1, toolCalls: steps.length }], rateLimitWaitMs: 0 } }
     },
   }
 }
@@ -139,7 +141,8 @@ describe('one tool round (#38)', () => {
           ? { payload: { ok: false, issues: [{ code: 'overlap', message: 'no' }] }, isError: true }
           : { payload: { ok: true, changes: [{ targetId: 'x', description: `${name} done.` }] }, isError: false }
       },
-      finishTurn: (reply?: string) => {
+      finishTurn: (completion: TurnCompletion) => {
+        const reply = completion.reply?.trim() || undefined
         finishes.push(reply)
         return finishOk
           ? { ok: true as const, finalText: reply ?? 'from results' }
@@ -153,7 +156,7 @@ describe('one tool round (#38)', () => {
     const { context, called, finishes } = stub()
     const round = await runToolRound(context, [
       { id: 'a', name: 'resize_clip', args: { clip_id: 'c', duration_ms: 1 } },
-      { id: 'b', name: 'add_marker', args: { at_ms: 5, [FINISH_ARGUMENT]: 'Done both.' } },
+      { id: 'b', name: 'add_marker', args: { at_ms: 5, [FINISH_ARGUMENT]: { intent: 'apply', reply: 'Done both.' } } },
     ])
     expect(called.map((call) => call.name)).toEqual(['resize_clip', 'add_marker'])
     expect(called[1].args).toEqual({ at_ms: 5 })
@@ -163,7 +166,7 @@ describe('one tool round (#38)', () => {
 
   it('an empty finish_turn_reply replies from the results', async () => {
     const { context, finishes } = stub()
-    const round = await runToolRound(context, [{ id: 'a', name: 'add_marker', args: { at_ms: 5, [FINISH_ARGUMENT]: '' } }])
+    const round = await runToolRound(context, [{ id: 'a', name: 'add_marker', args: { at_ms: 5, [FINISH_ARGUMENT]: { intent: 'apply', reply: '' } } }])
     expect(finishes).toEqual([undefined])
     expect(round.ended).toEqual({ finalText: 'from results' })
   })
@@ -171,7 +174,7 @@ describe('one tool round (#38)', () => {
   it('runs finish_turn after the operations whatever order the model listed them', async () => {
     const { context, called } = stub()
     const round = await runToolRound(context, [
-      { id: 'f', name: 'finish_turn', args: { reply: 'Ok.' } },
+      { id: 'f', name: 'finish_turn', args: { intent: 'apply', reply: 'Ok.' } },
       { id: 'a', name: 'resize_clip', args: { clip_id: 'c', duration_ms: 1 } },
     ])
     expect(called.map((call) => call.name)).toEqual(['resize_clip'])
@@ -182,7 +185,7 @@ describe('one tool round (#38)', () => {
   it('never finishes a round in which an operation was refused', async () => {
     const { context, finishes } = stub(['resize_clip'])
     const round = await runToolRound(context, [
-      { id: 'a', name: 'resize_clip', args: { clip_id: 'c', duration_ms: 1, [FINISH_ARGUMENT]: 'Done.' } },
+      { id: 'a', name: 'resize_clip', args: { clip_id: 'c', duration_ms: 1, [FINISH_ARGUMENT]: { intent: 'apply', reply: 'Done.' } } },
       { id: 'f', name: 'finish_turn', args: {} },
     ])
     expect(finishes).toEqual([])
@@ -192,7 +195,7 @@ describe('one tool round (#38)', () => {
 
   it('hands a refused commit back on the operation output when finishing by argument', async () => {
     const { context } = stub([], false)
-    const round = await runToolRound(context, [{ id: 'a', name: 'add_marker', args: { at_ms: 5, [FINISH_ARGUMENT]: 'Done.' } }])
+    const round = await runToolRound(context, [{ id: 'a', name: 'add_marker', args: { at_ms: 5, [FINISH_ARGUMENT]: { intent: 'apply', reply: 'Done.' } } }])
     expect(round.ended).toBeNull()
     expect(round.outputs[0].payload).toMatchObject({ ok: true, finish_turn: { ok: false } })
   })
@@ -262,7 +265,7 @@ describe('one dictation turn (#34)', () => {
   it('commits applied operations as one entry labelled with the utterance', async () => {
     const { store, sessionId, clipId, run } = await harness()
     const result = await run(
-      scriptedTurns([[{ tool: 'resize_clip', args: { clip_id: clipId, duration_ms: 12_000 } }, { say: 'The clip is 12 s.' }]]),
+      scriptedTurns([[{ tool: 'resize_clip', args: { clip_id: clipId, duration_ms: 12_000 } }, { say: 'The clip is 12 s.', intent: 'apply' }]]),
       'Make the first clip twelve seconds long.',
     )
     expect(result.disposition).toEqual({ kind: 'committed', summary: expect.stringContaining('12000 ms') })
@@ -278,7 +281,7 @@ describe('one dictation turn (#34)', () => {
     const { store, sessionId, clipId, run } = await harness()
     const before = exported(store, sessionId)
     const result = await run(
-      scriptedTurns([[{ tool: 'resize_clip', args: { clip_id: clipId, duration_ms: 12_000 } }, { say: 'Did you mean the first clip?' }]]),
+      scriptedTurns([[{ tool: 'resize_clip', args: { clip_id: clipId, duration_ms: 12_000 } }, { say: 'Did you mean the first clip?', intent: 'ask' }]]),
       'Make that clip twelve seconds.',
     )
     expect(result.disposition).toEqual({ kind: 'asked' })
@@ -290,7 +293,7 @@ describe('one dictation turn (#34)', () => {
   it('leaves no entry when nothing was applied', async () => {
     const { store, sessionId, run } = await harness()
     const before = exported(store, sessionId)
-    const result = await run(scriptedTurns([[{ say: 'A main-layer clip cannot animate opacity.' }]]), 'Fade its opacity.')
+    const result = await run(scriptedTurns([[{ say: 'A main-layer clip cannot animate opacity.', intent: 'apply' }]]), 'Fade its opacity.')
     expect(result.disposition).toEqual({ kind: 'nothing-applied' })
     expect(history(store, sessionId)).toEqual([])
     expect(exported(store, sessionId)).toBe(before)
@@ -301,11 +304,11 @@ describe('one dictation turn (#34)', () => {
   it('hands a refused commit back as one repair turn and commits the repaired edit', async () => {
     const { store, sessionId, run } = await harness()
     const agent = scriptedTurns([
-      [badClip, { say: 'Added the clip.' }],
+      [badClip, { say: 'Added the clip.', intent: 'apply' }],
       [
         { tool: 'remove_clip', args: { clip_id: '$last' } },
         { tool: 'add_clip', args: { zone_id: 'z1', start_ms: 35_000, duration_ms: 10_000, pattern_kind: 'stock', pattern_id: 'CometLoom' } },
-        { say: 'Added a CometLoom clip at 35 s instead.' },
+        { say: 'Added a CometLoom clip at 35 s instead.', intent: 'apply' },
       ],
     ])
     const result = await run(agent, 'Add my library pattern at 35 seconds.')
@@ -323,7 +326,7 @@ describe('one dictation turn (#34)', () => {
     const { store, sessionId, run } = await harness()
     const before = exported(store, sessionId)
     const result = await run(
-      scriptedTurns([[badClip, { say: 'Added the clip.' }], [{ say: 'The library pattern is not available here.' }]]),
+      scriptedTurns([[badClip, { say: 'Added the clip.', intent: 'apply' }], [{ say: 'The library pattern is not available here.', intent: 'apply' }]]),
       'Add my library pattern at 35 seconds.',
     )
     expect(result.disposition.kind).toBe('commit-refused')
@@ -337,20 +340,20 @@ describe('one dictation turn (#34)', () => {
   it('discards the edit when the repair turn asks instead', async () => {
     const { store, sessionId, run } = await harness()
     const result = await run(
-      scriptedTurns([[badClip, { say: 'Added the clip.' }], [{ say: 'Should I use a stock pattern instead?' }]]),
+      scriptedTurns([[badClip, { say: 'Added the clip.', intent: 'apply' }], [{ say: 'Should I use a stock pattern instead?', intent: 'ask' }]]),
       'Add my library pattern at 35 seconds.',
     )
-    expect(result.disposition.kind).toBe('commit-refused')
+    expect(result.disposition.kind).toBe('asked')
     expect(history(store, sessionId)).toEqual([])
     expect(store.pending(sessionId)).toEqual({ ok: true, open: null })
   })
 
   it('counts entries per turn across a conversation', async () => {
     const { store, sessionId, clipId, run } = await harness()
-    const asked = await run(scriptedTurns([[{ say: 'Which clip: the first or the second?' }]]), 'Make it longer.')
+    const asked = await run(scriptedTurns([[{ say: 'Which clip: the first or the second?', intent: 'ask' }]]), 'Make it longer.')
     expect(asked.disposition).toEqual({ kind: 'asked' })
     const answered = await run(
-      scriptedTurns([[{ tool: 'resize_clip', args: { clip_id: clipId, duration_ms: 15_000 } }, { say: 'The first clip is 15 s.' }]]),
+      scriptedTurns([[{ tool: 'resize_clip', args: { clip_id: clipId, duration_ms: 15_000 } }, { say: 'The first clip is 15 s.', intent: 'apply' }]]),
       'The first one.',
       [{ role: 'user', text: 'Make it longer.' }, { role: 'assistant', text: asked.finalText }],
     )
@@ -367,8 +370,8 @@ describe('finish_turn ends the turn in the same response (#38)', () => {
     const result = await run(
       scriptedTurns([[
         { tool: 'resize_clip', args: { clip_id: clipId, duration_ms: 12_000 } },
-        { tool: 'finish_turn', args: { reply: 'The first clip is 12 s.' } },
-        { say: 'never reached' },
+        { tool: 'finish_turn', args: { intent: 'apply', reply: 'The first clip is 12 s.' } },
+        { say: 'never reached', intent: 'apply' },
       ]]),
       'Make the first clip twelve seconds long.',
     )
@@ -382,7 +385,7 @@ describe('finish_turn ends the turn in the same response (#38)', () => {
   it('replies from the change descriptions when no reply is given', async () => {
     const { clipId, run } = await harness()
     const result = await run(
-      scriptedTurns([[{ tool: 'resize_clip', args: { clip_id: clipId, duration_ms: 12_000 } }, { tool: 'finish_turn', args: {} }]]),
+      scriptedTurns([[{ tool: 'resize_clip', args: { clip_id: clipId, duration_ms: 12_000 } }, { tool: 'finish_turn', args: { intent: 'apply' } }]]),
       'Make the first clip twelve seconds long.',
     )
     expect(result.disposition.kind).toBe('committed')
@@ -393,7 +396,7 @@ describe('finish_turn ends the turn in the same response (#38)', () => {
     const { store, sessionId, clipId, run } = await harness()
     const before = exported(store, sessionId)
     const result = await run(
-      scriptedTurns([[{ tool: 'resize_clip', args: { clip_id: clipId, duration_ms: 12_000 } }, { tool: 'finish_turn', args: { reply: 'Did you mean the first clip?' } }]]),
+      scriptedTurns([[{ tool: 'resize_clip', args: { clip_id: clipId, duration_ms: 12_000 } }, { tool: 'finish_turn', args: { intent: 'ask', reply: 'Did you mean the first clip?' } }]]),
       'Make that clip twelve seconds.',
     )
     expect(result.disposition).toEqual({ kind: 'asked' })
@@ -405,11 +408,11 @@ describe('finish_turn ends the turn in the same response (#38)', () => {
     const { store, sessionId, run } = await harness()
     const agent = scriptedTurns([[
       badClip,
-      { tool: 'finish_turn', args: { reply: 'Added the clip.' } },
+      { tool: 'finish_turn', args: { intent: 'apply', reply: 'Added the clip.' } },
       // The model's next round, after seeing the refusal:
       { tool: 'remove_clip', args: { clip_id: '$last' } },
       { tool: 'add_clip', args: { zone_id: 'z1', start_ms: 35_000, duration_ms: 10_000, pattern_kind: 'stock', pattern_id: 'CometLoom' } },
-      { tool: 'finish_turn', args: { reply: 'Added a CometLoom clip at 35 s instead.' } },
+      { tool: 'finish_turn', args: { intent: 'apply', reply: 'Added a CometLoom clip at 35 s instead.' } },
     ]])
     const result = await run(agent, 'Add my library pattern at 35 seconds.')
     expect(agent.finishRefusals).toEqual([['result-invalid']])
@@ -422,7 +425,7 @@ describe('finish_turn ends the turn in the same response (#38)', () => {
   it('ends a turn with nothing applied as a statement', async () => {
     const { store, sessionId, run } = await harness()
     const result = await run(
-      scriptedTurns([[{ tool: 'finish_turn', args: { reply: 'A main-layer clip cannot animate opacity.' } }]]),
+      scriptedTurns([[{ tool: 'finish_turn', args: { intent: 'apply', reply: 'A main-layer clip cannot animate opacity.' } }]]),
       'Fade its opacity.',
     )
     expect(result.disposition).toEqual({ kind: 'nothing-applied' })

@@ -1,15 +1,9 @@
 // Provenance: pxlblz-v3 src/experiment/turn.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
-// One dictation turn (#34): the harness, not the model, holds the
-// transaction. The turn opens a transaction labelled with the utterance,
-// runs the agent over the dictation tool list (the editing vocabulary only:
-// registry operations plus the four read tools), and closes it by the
-// contract the model is told: operations applied and a statement given
-// commit as one history entry; a reply carrying a question mark asks, and
-// an ask never changes the document, so the turn rolls back; a turn that
-// applied nothing rolls back too. A commit refused by tier-0 validation
-// comes back to the model once as a repair turn carrying the typed issues;
-// a second refusal discards the edit and reports it. The corpus runner and
-// the bridge both run turns through here so the two surfaces cannot drift.
+// #949: The harness owns one private transaction. Explicit typed completion
+// stages validation; only normal agent return may commit. Reply punctuation
+// never controls mutation. Missing/malformed completion and abnormal return
+// discard all pending work. A final-validation refusal gets one repair run.
+// Private commit is not live-editor application or durable persistence.
 //
 // #945 correction (integration review): a turn that ends abnormally - the
 // agent reports a typed incompletion (its round limit tripped) or throws -
@@ -27,14 +21,14 @@
 // #945 repair (candidate review of 54f47d5b): a tool round's finishes take
 // effect in the order they occur. Before, the round ran every explicit
 // finish_turn call before the inline finish_turn_reply it had collected, so
-// an operation that asked, followed by finish_turn("Done."), committed.
+// an operation that asked, followed by the then-string finish_turn("Done."), committed.
 import type { GrammarIssue } from '../grammar/types.js'
 import type { EditorContext } from '../grammar/read.js'
 import { SHOW_GRAMMAR_OPERATIONS } from '../grammar/registry.js'
 import type { GrammarSessionStore } from '../grammar/session.js'
 import type { ShowClipListing } from '../grammar/types.js'
 import { listStockPatterns } from '../shows/stockCatalogue.js'
-import type { AgentTurnContext, DictationAgent, TurnIncompletion } from './runner.js'
+import type { AgentTurnContext, DictationAgent, TurnCompletion, TurnIncompletion } from './runner.js'
 import type { TurnTiming } from './timing.js'
 
 /** Front-loaded once (#40): the stock catalogue's ids and dimensions, so an
@@ -48,22 +42,20 @@ export function projectionForAgent(description: Record<string, unknown> | null |
 /** The harness-implemented tool that ends a turn in the same response as its
  * operations (#38). Not on the MCP server; the agent loops route it to
  * AgentTurnContext.finishTurn. */
+const COMPLETION_SCHEMA = {
+  type: 'object',
+  properties: {
+    intent: { type: 'string', enum: ['apply', 'ask', 'refuse', 'incomplete'], description: 'apply validates private edits; all other intents discard them.' },
+    reply: { type: 'string', description: 'One-line reply; punctuation has no effect on the outcome. Omit to use change descriptions.' },
+  },
+  required: ['intent'],
+  additionalProperties: false,
+} as Record<string, unknown>
+
 export const FINISH_TURN_TOOL = {
   name: 'finish_turn',
-  description:
-    'End this turn now: include it in the SAME response as the operation calls that complete the ' +
-    'request. The editor runs the operations first, commits them as one undo step, and replies with ' +
-    'your one-line reply (or, if you give none, with the operations\u2019 own change descriptions) ' +
-    'without another round trip. If an operation in this response is refused, or the commit fails, ' +
-    'finish_turn returns the issues and you get another turn to fix or explain. A reply with a ' +
-    'question mark is an ask and discards the edits.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      reply: { type: 'string', description: 'One line stating what changed, in the user\u2019s terms; omit to use the change descriptions.' },
-    },
-    additionalProperties: false,
-  } as Record<string, unknown>,
+  description: 'End this turn in the SAME response as its final operations. Supply explicit apply, ask, refuse or incomplete intent. Apply validates private work as one history entry after normal return; it does not mean the live editor applied or saved it. Refused operations or validation return issues for repair. No extra acknowledgement round trip is needed.',
+  inputSchema: COMPLETION_SCHEMA,
 }
 
 /** Read tools the dictation loop keeps alongside the registry operations. */
@@ -88,11 +80,18 @@ export function isDictationTool(name: string): boolean {
  * one model call, no parallel tool call needed. */
 export const FINISH_ARGUMENT = 'finish_turn_reply'
 const FINISH_ARGUMENT_SCHEMA = {
-  type: 'string',
-  description:
-    'Set this when THIS operation completes the request: the editor commits the turn and replies with ' +
-    'this one line without another round trip (an empty string replies from the change descriptions). ' +
-    'Leave it out when more operations follow.',
+  ...COMPLETION_SCHEMA,
+  description: 'Set a typed {intent, reply?} completion on the final operation to end in this response. Leave it out when more operations follow.',
+}
+
+/** Validate provider data at the boundary; unknown keys cannot carry contradictory intent. */
+function completionFrom(value: unknown): TurnCompletion | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  if (Object.keys(record).some((key) => key !== 'intent' && key !== 'reply')) return null
+  if (!['apply', 'ask', 'refuse', 'incomplete'].includes(record.intent as string)) return null
+  if (record.reply !== undefined && typeof record.reply !== 'string') return null
+  return record as unknown as TurnCompletion
 }
 
 function withFinishArgument<T extends { name: string; inputSchema?: unknown }>(tool: T): T {
@@ -133,7 +132,7 @@ const FINISH_BLOCKED: { ok: false; issues: GrammarIssue[] } = {
 }
 const FINISH_UNAVAILABLE: { ok: false; issues: GrammarIssue[] } = {
   ok: false,
-  issues: [{ code: 'invalid-argument', message: 'finish_turn is unavailable here; reply in text instead.' }],
+  issues: [{ code: 'invalid-argument', message: 'finish_turn is unavailable here; a transaction owner is required for typed completion.' }],
 }
 
 /**
@@ -156,7 +155,7 @@ export async function runToolRound(
   const explicitFinishes = calls.filter((call) => call.name === 'finish_turn')
   let roundHadError = false
   /** Finish requests in the order they take effect. */
-  const requests: Array<{ id: string; reply: string | undefined; inline: boolean }> = []
+  const requests: Array<{ id: string; completion: unknown; inline: boolean; parseError?: string }> = []
   for (const call of operations) {
     const { [FINISH_ARGUMENT]: finishReply, ...args } = call.args
     const result = call.parseError
@@ -164,16 +163,19 @@ export async function runToolRound(
       : await context.callTool(call.name, args)
     if (result.isError) roundHadError = true
     outputs.push({ id: call.id, payload: result.payload, isError: result.isError })
-    if (typeof finishReply === 'string' && !result.isError) {
-      requests.push({ id: call.id, reply: finishReply.trim() || undefined, inline: true })
+    if (finishReply !== undefined && !result.isError) {
+      requests.push({ id: call.id, completion: finishReply, inline: true })
     }
   }
   for (const call of explicitFinishes) {
-    requests.push({ id: call.id, reply: typeof call.args.reply === 'string' ? call.args.reply : undefined, inline: false })
+    requests.push({ id: call.id, completion: call.args, inline: false, parseError: call.parseError })
   }
   let ended: RoundOutcome['ended'] = null
   for (const request of requests) {
-    const outcome = roundHadError ? FINISH_BLOCKED : context.finishTurn ? context.finishTurn(request.reply) : FINISH_UNAVAILABLE
+    const completion = request.parseError ? null : completionFrom(request.completion)
+    const outcome = roundHadError ? FINISH_BLOCKED
+      : !completion ? { ok: false as const, issues: [{ code: 'invalid-argument' as const, message: 'Finish requires a valid explicit intent and optional string reply.' }] }
+        : context.finishTurn ? context.finishTurn(completion) : FINISH_UNAVAILABLE
     if (outcome.ok) {
       if (!ended) ended = { finalText: outcome.finalText }
       continue
@@ -211,6 +213,7 @@ export interface DictationTurnInput {
 export type TurnDisposition =
   | { kind: 'committed'; summary: string }
   | { kind: 'asked' }
+  | { kind: 'refused' }
   | { kind: 'nothing-applied' }
   | { kind: 'commit-refused'; issues: GrammarIssue[] }
   /** The agent ended abnormally; the pending operations were discarded (#945). */
@@ -223,11 +226,6 @@ export interface DictationTurnResult {
   timings: TurnTiming[]
 }
 
-/** The scorer's convention: a reply containing a question mark is an ask. */
-export function isAsking(text: string): boolean {
-  return text.includes('?')
-}
-
 function issueText(issues: GrammarIssue[]): string {
   return issues.map((issue) => (issue.remedy ? `${issue.message} ${issue.remedy}` : issue.message)).join(' ')
 }
@@ -235,177 +233,98 @@ function issueText(issues: GrammarIssue[]): string {
 export async function runDictationTurn(input: DictationTurnInput): Promise<DictationTurnResult> {
   const { store, sessionId, agent } = input
   const begun = store.begin(sessionId, input.utterance)
-  if (!begun.ok) {
-    // A transaction left open is a harness defect, not a model one.
-    throw new Error(`could not open the turn's transaction: ${issueText(begun.issues)}`)
-  }
+  if (!begun.ok) throw new Error(`could not open the turn's transaction: ${issueText(begun.issues)}`)
   const timings: TurnTiming[] = []
-  /** The outcome finish_turn staged during the current model run (#38, #945 repair). */
-  let staged: { kind: 'asked' | 'nothing-applied' | 'committed'; text: string } | null = null
-  const finishTurn: NonNullable<AgentTurnContext['finishTurn']> = (reply) => {
-    if (staged) {
-      return {
-        ok: false,
-        issues: [{
-          code: 'invalid-argument',
-          message: 'finish_turn was already called this turn; the turn ends when you return, with the first finish.',
-        }],
-      }
-    }
-    const text = reply?.trim() || ''
+  let staged: TurnCompletion | null = null
+  let validationIssues: GrammarIssue[] | null
+  let invalidFinish: boolean
+  const abandon = (): number => {
     const pending = store.pending(sessionId)
-    const applied = pending.ok && pending.open ? pending.open.changes : 0
-    if (text && isAsking(text)) {
-      staged = { kind: 'asked', text }
-      return { ok: true, finalText: text }
-    }
-    if (applied === 0) {
-      const finalText = text || 'Nothing was changed.'
-      staged = { kind: 'nothing-applied', text: finalText }
-      return { ok: true, finalText }
-    }
-    const checked = store.validatePending(sessionId)
-    if (!checked.ok) return { ok: false, issues: checked.issues }
-    const finalText = text || checked.summary
-    staged = { kind: 'committed', text: finalText }
-    return { ok: true, finalText }
+    const count = pending.ok && pending.open ? pending.open.changes : 0
+    if (pending.ok && pending.open) store.rollback(sessionId)
+    return count
   }
-  const runModel = async (utterance: string, history: DialogueEntry[], script?: AgentTurnContext['script']) => {
+  const incomplete = (text: string, reason: TurnIncompletion['reason']): DictationTurnResult => {
+    const discardedChanges = abandon()
+    return {
+      finalText: discardedChanges ? `${text} The pending changes were discarded.` : text,
+      disposition: { kind: 'incomplete', reason, discardedChanges },
+      timings,
+    }
+  }
+  const finishTurn: NonNullable<AgentTurnContext['finishTurn']> = (value) => {
+    if (staged) return { ok: false, issues: [{ code: 'invalid-argument', message: 'finish_turn was already called this turn; the first successful finish stands.' }] }
+    const completion = completionFrom(value)
+    if (!completion) {
+      invalidFinish = true
+      return { ok: false, issues: [{ code: 'invalid-argument', message: 'Finish requires a valid explicit intent and optional string reply.' }] }
+    }
+    if (completion.intent === 'apply') {
+      const checked = store.validatePending(sessionId)
+      if (!checked.ok) {
+        validationIssues = checked.issues
+        return checked
+      }
+      staged = { ...completion, reply: completion.reply?.trim() || checked.summary || 'Nothing was changed.' }
+    } else {
+      staged = { ...completion, reply: completion.reply?.trim() || 'Nothing was changed.' }
+    }
+    return { ok: true, finalText: staged.reply! }
+  }
+  let utterance = input.utterance
+  let history = input.history
+  for (let attempt = 0; attempt < 2; attempt += 1) {
     staged = null
+    validationIssues = null
+    invalidFinish = false
     let result: Awaited<ReturnType<DictationAgent['run']>>
     try {
       result = await agent.run({
-        utterance,
-        history,
-        sessionId,
-        listing: input.listing,
-        description: input.description,
-        instructions: input.instructions,
-        editorContext: input.editorContext,
-        tools: input.tools,
-        callTool: input.callTool,
-        finishTurn,
-        ...(script ? { script } : {}),
+        utterance, history, sessionId, listing: input.listing,
+        description: input.description, instructions: input.instructions,
+        editorContext: input.editorContext, tools: input.tools,
+        callTool: input.callTool, finishTurn,
+        ...(attempt === 0 && input.script ? { script: input.script } : {}),
       })
     } catch (error) {
-      // The agent failed mid-turn (transport, provider, or a harness bug):
-      // the turn's transaction must not outlive it.
       abandon()
       throw error
     }
     if (result.timing) timings.push(result.timing)
-    return result
-  }
-
-  /** Discard whatever the turn applied and close its transaction. */
-  const abandon = (): number => {
-    const pending = store.pending(sessionId)
-    const applied = pending.ok && pending.open ? pending.open.changes : 0
-    if (pending.ok && pending.open) store.rollback(sessionId)
-    return applied
-  }
-
-  const discardIncomplete = (finalText: string, reason: TurnIncompletion['reason']): DictationTurnResult => {
-    staged = null
-    const discardedChanges = abandon()
-    const text = discardedChanges > 0
-      ? `${finalText} The ${discardedChanges === 1 ? 'pending change was' : `${discardedChanges} pending changes were`} discarded.`
-      : finalText
-    return { finalText: text, disposition: { kind: 'incomplete', reason, discardedChanges }, timings }
-  }
-
-  const close = (finalText: string): DictationTurnResult | null => {
-    const pending = store.pending(sessionId)
-    const applied = pending.ok && pending.open ? pending.open.changes : 0
-    if (isAsking(finalText)) {
-      store.rollback(sessionId)
-      return { finalText, disposition: { kind: 'asked' }, timings }
+    if (result.incomplete) return incomplete(result.finalText, result.incomplete.reason)
+    // Adapters may return typed completion directly. A contradictory envelope
+    // cannot override a finish already staged by a tool in the same run.
+    if (result.completion !== undefined) {
+      const returned = completionFrom(result.completion)
+      const prior = staged as TurnCompletion | null
+      if (!returned || (prior && returned.intent !== prior.intent)) return incomplete(result.finalText, 'invalid-finish')
+      if (!prior) finishTurn(returned)
     }
-    if (applied === 0) {
-      store.rollback(sessionId)
-      return { finalText, disposition: { kind: 'nothing-applied' }, timings }
-    }
-    const committed = store.commit(sessionId)
-    if (committed.ok) {
-      return { finalText, disposition: { kind: 'committed', summary: committed.summary }, timings }
-    }
-    return null
-  }
-
-  /** Act on the outcome finish_turn staged, now that the agent returned normally. */
-  const settle = (): DictationTurnResult | null => {
-    if (!staged) return null
-    const outcome = staged
-    staged = null
-    if (outcome.kind === 'asked') {
-      abandon()
-      return { finalText: outcome.text, disposition: { kind: 'asked' }, timings }
-    }
-    if (outcome.kind === 'nothing-applied') {
-      abandon()
-      return { finalText: outcome.text, disposition: { kind: 'nothing-applied' }, timings }
-    }
-    const committed = store.commit(sessionId)
-    if (!committed.ok) {
-      // The working copy stopped validating after finish_turn: nothing lands.
-      abandon()
-      return {
-        finalText: `${outcome.text} The edit was discarded: ${committed.issues[0]?.message ?? 'the document did not validate'}`,
-        disposition: { kind: 'commit-refused', issues: committed.issues },
-        timings,
+    const outcome = staged as TurnCompletion | null
+    if (outcome) {
+      const finalText = outcome.reply!
+      if (outcome.intent === 'incomplete') return incomplete(finalText, 'model-incomplete')
+      if (outcome.intent === 'ask' || outcome.intent === 'refuse') {
+        abandon()
+        return { finalText, disposition: { kind: outcome.intent === 'ask' ? 'asked' : 'refused' }, timings }
       }
+      const pending = store.pending(sessionId)
+      if (pending.ok && pending.open?.changes === 0) {
+        abandon()
+        return { finalText, disposition: { kind: 'nothing-applied' }, timings }
+      }
+      const committed = store.commit(sessionId)
+      if (committed.ok) return { finalText, disposition: { kind: 'committed', summary: committed.summary }, timings }
+      validationIssues = committed.issues
     }
-    return { finalText: outcome.text, disposition: { kind: 'committed', summary: committed.summary }, timings }
-  }
-
-  const firstResult = await runModel(input.utterance, input.history, input.script)
-  if (firstResult.incomplete) return discardIncomplete(firstResult.finalText, firstResult.incomplete.reason)
-  const settledFirst = settle()
-  if (settledFirst) return settledFirst
-  const firstText = firstResult.finalText
-  const first = close(firstText)
-  if (first) return first
-
-  // The commit was refused: one repair turn with the typed issues, then
-  // either a clean commit or a discarded edit reported in the reply.
-  const refusal = store.commit(sessionId)
-  const issues = refusal.ok ? [] : refusal.issues
-  const repairPrompt =
-    `[editor] The edit could not be applied: ${issueText(issues)} ` +
-    'Fix it with further operations and reply with one line, or explain in one line why it cannot be done.'
-  const repairResult = await runModel(repairPrompt, [
-    ...input.history,
-    { role: 'user', text: input.utterance },
-    { role: 'assistant', text: firstText },
-  ])
-  if (repairResult.incomplete) return discardIncomplete(repairResult.finalText, repairResult.incomplete.reason)
-  const settledRepair = settle()
-  if (settledRepair) {
-    if (settledRepair.disposition.kind === 'committed' || settledRepair.disposition.kind === 'commit-refused') return settledRepair
-    return {
-      ...settledRepair,
-      finalText: `${settledRepair.finalText} The edit was discarded: ${issues[0]?.message ?? 'the document did not validate'}`,
-      disposition: { kind: 'commit-refused', issues },
+    const issues = validationIssues as GrammarIssue[] | null
+    if (!issues) return incomplete(result.finalText, invalidFinish ? 'invalid-finish' : 'missing-finish')
+    if (attempt === 1) {
+      abandon()
+      return { finalText: `${result.finalText} The edit was discarded: ${issueText(issues)}`, disposition: { kind: 'commit-refused', issues }, timings }
     }
+    utterance = `[editor] The edit could not be applied: ${issueText(issues)} Fix it with further operations and finish with explicit apply intent, or finish with ask/refuse to discard it.`
+    history = [...input.history, { role: 'user', text: input.utterance }, { role: 'assistant', text: result.finalText }]
   }
-  const repairText = repairResult.finalText
-  const second = close(repairText)
-  if (second && second.disposition.kind === 'committed') return second
-  if (second) {
-    // Rolled back already (asked or nothing further applied): the reply
-    // must say the edit did not land.
-    return {
-      finalText: `${repairText} The edit was discarded: ${issues[0]?.message ?? 'the document did not validate'}`,
-      disposition: { kind: 'commit-refused', issues },
-      timings,
-    }
-  }
-  const again = store.commit(sessionId)
-  const finalIssues = again.ok ? issues : again.issues
-  store.rollback(sessionId)
-  return {
-    finalText: `${repairText} The edit was discarded: ${finalIssues[0]?.message ?? 'the document did not validate'}`,
-    disposition: { kind: 'commit-refused', issues: finalIssues },
-    timings,
-  }
+  throw new Error('unreachable turn completion')
 }
