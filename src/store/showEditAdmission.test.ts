@@ -312,3 +312,67 @@ it('rechecks revision after synchronous policy execution and preserves a reentra
   expect(provider.updateShow).toHaveBeenCalledTimes(1)
   expect(provider.records.get(show.id)?.name).toBe('Manual during policy')
 })
+
+it.each([
+  ['sessionId', 'other', 'retired', undefined],
+  ['showId', 'other', 'refused', 'wrong-show'],
+  ['operationId', 'other', 'refused', 'unknown-operation'],
+  ['payloadKey', 'other', 'refused', 'identity-mismatch'],
+  ['referenceContext', 'other', 'refused', 'identity-mismatch'],
+  ['targets', ['other'], 'refused', 'identity-mismatch'],
+  ['baseRevision', -1, 'refused', 'identity-mismatch'],
+  ['retryOf', 'other', 'refused', 'identity-mismatch'],
+] as const)('binds noncandidate completion to unchanged %s', async (key, value, status, reason) => {
+  const show = createDefaultShow('completion-identity', 'Original')
+  const provider = providerFor(show)
+  await state().loadShows()
+  const session = state().beginShowEditSession(show.id)
+  const pending = state().beginShowEdit(session, intent())
+  await state().updateShow(show.id, { ...state().resolveEditableShow(show.id)!, name: 'Manual' })
+  const before = snapshot()
+  const result = state().completeShowEdit({ ...pending.request, [key]: value }, 'asked')
+  expect(result.status).toBe(status)
+  expect(result.reason).toBe(reason)
+  expect(state().readShowEdit(session, 'op')).toBe(pending)
+  expect(state().completeShowEdit(pending.request, 'asked')).toEqual({ request: pending.request, status: 'completed', completion: 'asked' })
+  expect(snapshot()).toEqual(before)
+  expect(provider.updateShow).toHaveBeenCalledTimes(1)
+})
+
+it.each(['cancelled', 'retired', 'applied', 'refused'] as const)('preserves %s when noncandidate completion arrives', async terminal => {
+  const show = createDefaultShow('completion-terminal', 'Original')
+  const provider = providerFor(show)
+  await state().loadShows()
+  const session = state().beginShowEditSession(show.id)
+  const pending = state().beginShowEdit(session, intent())
+  if (terminal === 'cancelled') state().cancelShowEdit(session, 'op')
+  if (terminal === 'retired') state().retireShowEditSession(session)
+  if (terminal === 'applied') {
+    state().admitShowEdit(pending.request, evaluate, validate)
+    await vi.waitFor(() => expect(state().readShowEdit(session, 'op')?.settlement).toBe('saved'))
+  }
+  if (terminal === 'refused') state().admitShowEdit(pending.request, evaluate, () => false)
+  const prior = state().readShowEdit(session, 'op')
+  const before = snapshot()
+  const records = structuredClone([...provider.records])
+  const writes = provider.updateShow.mock.calls.length
+  const result = state().completeShowEdit(pending.request, 'asked')
+  expect(result.status).toBe(terminal)
+  if (prior) expect(result).toBe(prior)
+  expect(snapshot()).toEqual(before)
+  expect([...provider.records]).toEqual(records)
+  expect(provider.updateShow).toHaveBeenCalledTimes(writes)
+})
+
+it('refuses an unknown completion value without consuming the pending identity', async () => {
+  const show = createDefaultShow('completion-value', 'Original')
+  const provider = providerFor(show)
+  await state().loadShows()
+  const session = state().beginShowEditSession(show.id)
+  const pending = state().beginShowEdit(session, intent())
+  const before = snapshot()
+  expect(state().completeShowEdit(pending.request, 'invented' as never)).toMatchObject({ status: 'refused', reason: 'identity-mismatch' })
+  expect(state().readShowEdit(session, 'op')).toBe(pending)
+  expect(snapshot()).toEqual(before)
+  expect(provider.updateShow).not.toHaveBeenCalled()
+})

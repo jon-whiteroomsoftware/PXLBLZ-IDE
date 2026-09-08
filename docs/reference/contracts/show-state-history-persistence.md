@@ -69,6 +69,13 @@ per session, a conservative memory bound. A full table refuses new registrations
 instead of evicting ids. Retirement clears historical lookup; unknown or old
 requests never register themselves during delivery.
 
+Noncandidate completion checks the live session, Show, operation and exact captured
+envelope, including its original base revision, but does not compare that revision
+with the current document. Manual edits, Undo and hydration cannot turn an answer
+or service disposition into a revision-conflict refusal. Completion changes no
+document, history or provider state; its terminal receipt cannot be an explicit
+`retryOf` original. Candidate admission retains both current-revision checks.
+
 Applied receipts distinguish saving from settlement. The existing personal
 write queue reports saved when that adoption is still current at successful
 settlement, superseded when a later state owns the outcome, and rolled-back

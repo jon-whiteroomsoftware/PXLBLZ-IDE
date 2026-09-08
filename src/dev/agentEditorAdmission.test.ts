@@ -184,3 +184,26 @@ it('refuses a newly unavailable Stage Map reference', async () => {
   expect(api.applyShow({ ...captured.show, stageMapId: 'missing' }, captured.request).status).toBe('refused')
   expect(writes).not.toHaveBeenCalled()
 })
+
+it.each(['asked', 'refused', 'nothing-applied', 'commit-refused', 'incomplete', 'service-refused', 'service-failed'] as const)('retains %s completion after manual edit, Undo ABA and hydration', async completion => {
+  const api = await setup()
+  for (const action of ['manual', 'aba', 'hydrate'] as const) {
+    const captured = api.beginRequest(action, 'question', [])!
+    if (action === 'hydrate') await state().loadShows()
+    else {
+      await state().updateShow('test', { ...captured.show, name: 'Manual ' + action })
+      if (action === 'aba') await state().undoShow('test')
+    }
+    expect(state().showRevisions.test).toBeGreaterThan(captured.request.baseRevision)
+    const before = snapshot()
+    const count = writes.mock.calls.length
+    const result = api.complete(captured.request, completion)
+    expect(result).toEqual({ request: captured.request, status: 'completed', completion })
+    expect(api.readOutcome(captured.request)).toEqual(result)
+    expect(api.complete(captured.request, 'asked')).toBe(result)
+    expect(api.applyShow({ ...captured.show, name: 'Late candidate' }, captured.request)).toBe(result)
+    expect(state().beginShowEdit(api.sessionId, { ...captured.request, operationId: 'retry-' + action, retryOf: action })).toMatchObject({ status: 'refused', reason: 'invalid-retry' })
+    expect(snapshot()).toEqual(before)
+    expect(writes).toHaveBeenCalledTimes(count)
+  }
+})

@@ -413,7 +413,7 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
   completeShowEdit: (request, completion) => {
     const session = editSession
     if (!session || session.sessionId !== request.sessionId) return { request, status: 'retired' }
-    const checked = session.check(request, { sessionId: session.sessionId, showId: session.showId, revision: get().showRevisions[session.showId] ?? 0 })
+    const checked = session.checkIdentity(request, { sessionId: session.sessionId, showId: session.showId })
     if (checked.status !== 'pending') return checked
     if (!['asked', 'refused', 'nothing-applied', 'commit-refused', 'incomplete', 'service-refused', 'service-failed'].includes(completion)) return { request, status: 'refused', reason: 'identity-mismatch' }
     resizeAdmission.release(request.operationId)

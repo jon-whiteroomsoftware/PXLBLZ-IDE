@@ -29,9 +29,12 @@ export type ShowEditReceipt = { readonly request: ShowEditRequest } & (
   | { readonly status: 'applied'; readonly settlement: ShowEditSettlement; readonly reason?: never }
 )
 
-export interface ShowEditEligibility {
+export interface ShowEditIdentity {
   sessionId: string
   showId: string
+}
+
+export interface ShowEditEligibility extends ShowEditIdentity {
   revision: number
 }
 
@@ -59,10 +62,23 @@ export function createShowEditSession(
     return value
   }
   const read = (id: string) => entries.get(id)
+  /** Bind the captured envelope without deciding whether a candidate can still apply. */
+  const checkIdentity = (request: ShowEditRequest, current: ShowEditIdentity): ShowEditReceipt => {
+    if (retired) return receipt(request, 'retired')
+    if (request.sessionId !== sessionId || current.sessionId !== sessionId) return receipt(request, 'refused', 'wrong-session')
+    if (request.showId !== showId || current.showId !== showId) return receipt(request, 'refused', 'wrong-show')
+    const existing = read(request.operationId)
+    if (!existing) return receipt(request, 'refused', 'unknown-operation')
+    if (!sameIntent(existing.request, request) || existing.request.baseRevision !== request.baseRevision) {
+      return receipt(request, 'refused', 'identity-mismatch')
+    }
+    return existing
+  }
   return {
     sessionId,
     showId,
     read,
+    checkIdentity,
     begin(input: ShowEditIntent, revision: number): ShowEditReceipt {
       const request = Object.freeze({ ...input, targets: Object.freeze([...input.targets]), sessionId, showId, baseRevision: revision })
       if (retired) return receipt(request, 'retired')
@@ -82,14 +98,7 @@ export function createShowEditSession(
       return remember(receipt(request, 'pending'))
     },
     check(request: ShowEditRequest, current: ShowEditEligibility): ShowEditReceipt {
-      if (retired) return receipt(request, 'retired')
-      if (request.sessionId !== sessionId || current.sessionId !== sessionId) return receipt(request, 'refused', 'wrong-session')
-      if (request.showId !== showId || current.showId !== showId) return receipt(request, 'refused', 'wrong-show')
-      const existing = read(request.operationId)
-      if (!existing) return receipt(request, 'refused', 'unknown-operation')
-      if (!sameIntent(existing.request, request) || existing.request.baseRevision !== request.baseRevision) {
-        return receipt(request, 'refused', 'identity-mismatch')
-      }
+      const existing = checkIdentity(request, current)
       if (existing.status !== 'pending') return existing
       if (request.baseRevision !== current.revision) return remember(receipt(existing.request, 'refused', 'revision-conflict'))
       return existing
