@@ -1,3 +1,4 @@
+import { registerShowEscapeLayer, SHOW_ESCAPE_LAYER_RANK } from '@/engine/showEscapeLayers'
 // @vitest-environment jsdom
 import source from '../agent-harness/bridge/chat.js?raw'
 import { TextEncoder, TextDecoder } from 'node:util'
@@ -52,4 +53,25 @@ it.each(['release', 'cancel'] as const)('keeps one waiting request busy until %s
   expect(apply).toHaveBeenCalledTimes(1)
   expect(cancel).toHaveBeenCalledTimes(action === 'cancel' ? 1 : 0)
   expect(button.hidden).toBe(true)
+})
+
+it.each(['idle', 'waiting'] as const)('leaves ordinary Escape ownership intact while %s', async phase => {
+  if (phase === 'waiting') {
+    submit()
+    await vi.waitFor(() => expect(document.body.textContent).toContain('Waiting for active editing'))
+  }
+  const peel = vi.fn(() => true)
+  const stop = registerShowEscapeLayer({ rank: SHOW_ESCAPE_LAYER_RANK.editorSurfaces, onEscape: peel })
+  try {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(peel).toHaveBeenCalledTimes(1)
+    // A real detail-owned portal still owns Escape; diagnostic Cancel never does.
+    const portal = document.createElement('div')
+    portal.dataset.showDetailOwnedPortal = 'true'
+    document.body.appendChild(portal)
+    try {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      expect(peel).toHaveBeenCalledTimes(1)
+    } finally { portal.remove() }
+  } finally { stop() }
 })

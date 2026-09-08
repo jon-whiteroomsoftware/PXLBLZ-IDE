@@ -62,7 +62,9 @@ The editor binds surviving dirty controls before exposing each new diagnostic
 session. Closing retires the session before releasing fields; old cleanup cannot
 unbind a replacement session. Capacity failure retires the diagnostic capability
 before manual input continues, so no eligible candidate can bypass untracked input.
-Diagnostic Cancel preserves the inspector and prevents blur before cancellation.
+Diagnostic Cancel preserves the inspector for pointer dismissal and prevents blur
+before cancellation. It does not claim Escape; ordinary editor layers and actual
+detail-owned portals retain their existing keyboard ownership.
 The FA browser regression drives actual duration drafts and focus; W retains its
 explicit synthetic-token protocol proof. Internal
 `admitResolvedShowResize` consumes the same owner, checks its private dependency

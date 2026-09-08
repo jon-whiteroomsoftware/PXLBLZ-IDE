@@ -686,6 +686,11 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         return p.usePatternStore.getState().patternsLoaded && l.useLibraryStore.getState().librariesLoaded && m.useMapStore.getState().mapsLoaded
       })).toBe(true)
       await injectOverlay(page, bridge.url)
+      await expect(page.getByTestId('agent-chat-cancel')).toBeHidden()
+      await page.getByRole('button', { name: 'Select CometLoom', exact: true }).first().click()
+      await expect(page.getByRole('textbox', { name: 'Duration seconds exact time' })).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(page.getByRole('textbox', { name: 'Duration seconds exact time' })).toHaveCount(0)
       const before = await visibleRecord(page)
       const durableBefore = await durableShow(page, record.id)
       const writes = watchShowWrites(page)
@@ -703,7 +708,10 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         expect(writes).toHaveLength(0)
         await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
         await page.screenshot({ path: join(REPORT_DIR, `FA-${action}-waiting.png`), fullPage: true })
-        if (action === 'draft-cancel') await duration.press('Escape')
+        if (action === 'draft-cancel') {
+          await duration.press('Escape')
+          await expect(duration).toHaveCount(0)
+        }
         else if (action === 'manual-commit') await duration.press('Enter')
         else {
           await page.getByTestId('agent-chat-cancel').click()
