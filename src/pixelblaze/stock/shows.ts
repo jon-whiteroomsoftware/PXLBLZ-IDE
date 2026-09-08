@@ -3754,7 +3754,7 @@ function quadrilleRemix(): StockShow {
   return catalogue({
     id, title: 'Quadrille', track: 'portable', collection: 'portable-shows', level: null, order: 2,
     purpose: 'Two Patterns, four quarters, eight phrases at 75 BPM. ZRanger1\'s Wavy Bands is the base layer; Line Dancer 2D fades in and out over it on one repeating swell. The Stage folds into mirrored quarters and rejoins at the end; every quarter shows the same two live instances.',
-    notice: 'Line Dancer\'s look follows one repeating swell, and every phrase advances it by exactly half a cycle, so phrases alternate between bands-led and dancer-led. Never more than two Pattern instances play: each quarter is a Viewport-framed placement, and the dancer is a chroma key on black over the bands.',
+    notice: 'Line Dancer\'s look follows one repeating swell between two states, a bloom and a lace, and every phrase advances it by exactly half a cycle, so phrases alternate between bloom-led and lace-led. Never more than two Pattern instances play: each quarter is a Viewport-framed placement, and the dancer is a chroma key on black over the bands.',
     prompts: ['Scrub toward any phrase boundary: the shimmer is Line Dancer\'s own detail, and each fade crosses it at the shared edge rate.', 'Open the artifact inventory: two Patterns, one instance each, serve every quarter of the Stage.'],
     guideHeading: 'property-animation',
     guideLabel: 'Read property animation',
