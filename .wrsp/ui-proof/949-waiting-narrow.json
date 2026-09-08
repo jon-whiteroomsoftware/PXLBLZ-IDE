@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "949",
+  "route": "/PXLBLZ-IDE/studio/shows/waiting-cancel-1788890205099?agent=1",
+  "operation": "Real scripted service/editor with explicitly synthetic dirty-field activity: waiting and accessible Cancel, followed by cancellation with zero writes and preserved visible/durable records.",
+  "captures": [
+    ".wrsp/ui-proof/949-waiting-narrow.png"
+  ],
+  "capturedAtCommit": "8b33715a2ba83c9dd8b54017e666db90b19a0bb6"
+}

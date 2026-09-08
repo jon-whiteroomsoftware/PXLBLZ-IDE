@@ -903,8 +903,8 @@ for explicit drag/dirty ownership before admission. A fixed monotonic five-secon
 deadline and lifecycle cleanup are owned by `showInputWait.ts`; resize retains its
 private Layer qualification and current-state replay, and final adoption and saves
 remain in the Show store. Its [contract and consumer proof](contracts/agent-candidate-application.md#internal-bounded-active-input-wait)
-do not qualify live input wiring, waiting/Cancel presentation or external
-Layer-scoped context.
+qualify diagnostic waiting/Cancel with synthetic activity tokens. Real input
+wiring and external Layer-scoped context remain unqualified.
 
 **Coverage gate.** `schemas/show-record.schema.json` is generated from the
 ShowRecord type (`npm run schema:show-record`; a drift test keeps it exact),
