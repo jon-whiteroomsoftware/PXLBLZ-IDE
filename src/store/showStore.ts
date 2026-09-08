@@ -66,7 +66,7 @@ import {
   type ShowEditSettlement,
 } from '@/engine/showEditAdmission'
 import { createShowResizeAdmission, type ResolvedShowResizeIntent } from './showResizeAdmission'
-import { createShowInputWait, SHOW_INPUT_WAIT_MS, type ShowEditActivity, type ShowInputWaitReceipt } from '@/engine/showInputWait'
+import { createShowInputWait, type ShowEditActivity, type ShowInputWaitReceipt } from '@/engine/showInputWait'
 
 const showPersistenceQueues = new Map<string, Promise<void>>()
 const showsPendingDeletion = new Set<string>()
@@ -364,13 +364,12 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     const capturedRequest = structuredClone(request)
     const capturedCandidate = structuredClone(candidate)
     const capturedSession = editSession
-    const validateBeforeDeadline = (next: ShowRecord, current: ShowRecord) => {
-      const valid = validate(next, current)
-      if (performance.now() >= arrivedAt + SHOW_INPUT_WAIT_MS) capturedSession?.refuse(capturedRequest.operationId, 'interaction-timeout')
-      return valid
-    }
     return inputWait.deliver(capturedRequest, JSON.stringify(capturedCandidate), arrivedAt,
-      () => get().admitShowEdit(capturedRequest, () => capturedCandidate, validateBeforeDeadline),
+      timing => get().admitShowEdit(capturedRequest, () => capturedCandidate, (next, current) => {
+        const valid = validate(next, current)
+        if (timing.kind === 'after-active-input' && performance.now() >= timing.deadline) capturedSession?.refuse(capturedRequest.operationId, 'interaction-timeout')
+        return valid
+      }),
       () => editSession!.check(capturedRequest, { sessionId: editSession!.sessionId, showId: editSession!.showId, revision: get().showRevisions[capturedRequest.showId] ?? 0 }))
   },
   beginResolvedShowResize: (sessionId, intent) => resizeAdmission.begin(sessionId, intent),

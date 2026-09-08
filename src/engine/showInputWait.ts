@@ -3,6 +3,7 @@ import type { ShowEditReceipt, ShowEditRequest, ShowEditSession } from './showEd
 export const SHOW_INPUT_WAIT_MS = 5000
 export const SHOW_ACTIVITY_CAPACITY = 256
 export type ShowEditActivity = Readonly<{ sessionId: string; showId: string; kind: 'drag' | 'dirty-field' }>
+export type ShowInputAdmissionTiming = { readonly kind: 'immediate' } | { readonly kind: 'after-active-input'; readonly deadline: number }
 export type ShowInputWaitReceipt = ShowEditReceipt | { readonly status: 'waiting'; readonly request: ShowEditRequest; readonly deadline: number }
 
 /** Internal synchronous owner. Tokens are object capabilities, never DOM focus. */
@@ -57,7 +58,7 @@ export function createShowInputWait(session: () => ShowEditSession | undefined) 
       if (!activity.delete(token)) return
       for (const id of [...pending.keys()]) settle(id)
     },
-    deliver(request: ShowEditRequest, identity: string, arrivedAt: number, apply: () => ShowEditReceipt, eligible: () => ShowEditReceipt): ShowInputWaitReceipt {
+    deliver(request: ShowEditRequest, identity: string, arrivedAt: number, apply: (timing: ShowInputAdmissionTiming) => ShowEditReceipt, eligible: () => ShowEditReceipt): ShowInputWaitReceipt {
       const current = session()
       if (!current || current.sessionId !== request.sessionId) return { status: 'retired', request }
       const checked = current.checkIdentity(request, current)
@@ -70,10 +71,10 @@ export function createShowInputWait(session: () => ShowEditSession | undefined) 
       identities.set(request.operationId, identity)
       const admitted = eligible()
       if (admitted.status !== 'pending') return admitted
+      if (!activity.size) return apply({ kind: 'immediate' })
       const deadline = arrivedAt + SHOW_INPUT_WAIT_MS
       if (performance.now() >= deadline) return current.refuse(request.operationId, 'interaction-timeout')!
-      if (!activity.size) return apply()
-      pending.set(request.operationId, { request: checked.request, deadline, apply, timer: setTimeout(() => settle(request.operationId), deadline - performance.now()) })
+      pending.set(request.operationId, { request: checked.request, deadline, apply: () => apply({ kind: 'after-active-input', deadline }), timer: setTimeout(() => settle(request.operationId), deadline - performance.now()) })
       return read(request.operationId)!
     },
     invalidate(showId?: string) {

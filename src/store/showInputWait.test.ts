@@ -306,3 +306,18 @@ it('does not adopt when final synchronous validation reaches the deadline', () =
   expect(snapshot()).toEqual(before)
   expect(writes).not.toHaveBeenCalled()
 })
+
+it('does not impose a validation deadline on an immediate candidate that never waited for input', async () => {
+  const before = snapshot()
+  const result = state().deliverShowEditCandidate(request, candidate, () => {
+    vi.spyOn(performance, 'now').mockReturnValue(6000)
+    return true
+  })
+  expect(result.status).toBe('applied')
+  expect(state().showHistories[request.showId]).toEqual({ past: before.shows, future: [] })
+  expect(state().shows[0]).toEqual({ ...before.shows[0], name: 'Agent', updatedAt: expect.any(Number) })
+  expect(vi.getTimerCount()).toBe(0)
+  await vi.advanceTimersByTimeAsync(0)
+  expect(writes).toHaveBeenCalledTimes(1)
+  expect(state().readShowEditCandidate(session, 'op')).toMatchObject({ status: 'applied', settlement: 'saved' })
+})

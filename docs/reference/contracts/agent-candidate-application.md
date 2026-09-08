@@ -48,9 +48,11 @@ is not activity. `readShowEditCandidate` projects a typed `waiting` status over
 the existing pending operation; terminal outcomes remain in the session table.
 The existing bridge and manual APIs are unchanged and do not use this wait path.
 
-The original completed-candidate arrival establishes one 5,000 ms monotonic
-deadline, captured before snapshot/serialization work. Final validation also checks
-that deadline before adoption. Duplicates, additional activity and partial releases never extend it.
+When active input requires waiting, the original completed-candidate arrival
+establishes one 5,000 ms monotonic deadline, captured before snapshot/serialization
+work. Final validation after that wait also checks the deadline before adoption.
+A candidate that never waits for active input has no validation deadline; the
+five-second policy is not a general computation or model-latency limit. Duplicates, additional activity and partial releases never extend it.
 Before the deadline, the final ownership release synchronously rechecks current
 eligibility, validates and adopts through the ordinary store owner. At or after
 the deadline, including a delayed timer callback or late release, the operation
