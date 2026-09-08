@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "987",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-102-transitions-values",
+  "operation": "102 Transitions and Values at 1440 x 900: opened the Patterns (3) popover (Reset disabled: true), picked Caustics for Pattern 2, reopened the popover; Pattern 2 reads Caustics and Reset is enabled: true.",
+  "captures": [
+    ".wrsp/ui-proof/987-reset-enabled.png"
+  ],
+  "capturedAtCommit": "aebc571d3a547a49cbef4561c1a19665f977e536"
+}
