@@ -10,6 +10,15 @@
 // this fixture re-expands the shipping reference into its pre-consolidation
 // shape: every placement gets a scene-local clone of its Pattern instance,
 // and instance-targeted Property tracks follow their clones.
+//
+// #848 recast the shipping reference to LineDancer2D with one shared subject
+// instance for its seven placement examples. That casting is heavier than
+// the qualified one (the per-scene expansion lands at 397 persistent
+// globals and over the byte budget, so the exchange cannot select), and a
+// single shared subject leaves one clone per scene instead of the twin
+// pair the exchange was measured on. This fixture therefore preserves the
+// qualified subject: CompassRose at the lesson clock with the historical
+// speed control, and one clone per column so every example keeps its twin.
 import type { ShowRecord } from './personalContentRecords'
 import { STOCK_SHOWS } from '../pixelblaze/stock/shows'
 
@@ -20,10 +29,29 @@ export function createPropertySlotQualificationShow(): ShowRecord {
   const composition = show.composition
   if (!composition) throw new Error('Property Animation reference has no composition.')
 
-  const baseById = new Map(composition.patternInstances.map((instance) => [instance.id, instance]))
+  const QUALIFIED_PATTERN = 'CompassRose'
+  const QUALIFIED_TIME_SCALE = 0.32
+  const QUALIFIED_SPEED = 0.08
+  const recast = (instance: (typeof composition.patternInstances)[number]) => (
+    instance.patternName === 'LineDancer2D'
+      ? {
+        ...instance,
+        patternName: QUALIFIED_PATTERN,
+        pattern: { ...instance.pattern, id: QUALIFIED_PATTERN },
+        timeScale: QUALIFIED_TIME_SCALE,
+        controlTargets: { sliderSpeed: QUALIFIED_SPEED },
+      }
+      : instance
+  )
+  for (const cell of show.cells) {
+    if (cell.pattern.id === 'LineDancer2D') cell.pattern = { ...cell.pattern, id: QUALIFIED_PATTERN }
+  }
+  const baseById = new Map(composition.patternInstances.map((instance) => [instance.id, recast(instance)]))
   const expanded: typeof composition.patternInstances = []
-  const cloneFor = (sceneId: string, instanceId: string): string => {
-    const cloneId = `${instanceId}--${sceneId}`
+  // One clone per column: the seven placement examples share one subject
+  // instance since #848, and the exchange was measured on twin columns.
+  const cloneFor = (sceneId: string, instanceId: string, column = 'a'): string => {
+    const cloneId = column === 'a' ? `${instanceId}--${sceneId}` : `${instanceId}--${sceneId}--${column}`
     if (!expanded.some((instance) => instance.id === cloneId)) {
       const base = baseById.get(instanceId)
       if (!base) throw new Error(`Unknown Pattern instance ${instanceId}.`)
@@ -33,11 +61,12 @@ export function createPropertySlotQualificationShow(): ShowRecord {
   }
 
   for (const scene of composition.scenes) {
-    for (const zone of scene.zones) {
+    scene.zones.forEach((zone, zoneIndex) => {
+      const column = zoneIndex === 0 ? 'a' : 'b'
       for (const entry of [...zone.main, ...zone.overlays.flatMap((layer) => layer.placements)]) {
-        entry.instanceId = cloneFor(scene.sceneId, entry.instanceId)
+        entry.instanceId = cloneFor(scene.sceneId, entry.instanceId, column)
       }
-    }
+    })
     for (const track of scene.propertyTracks ?? []) {
       if ('instanceId' in track.target) {
         track.target = { ...track.target, instanceId: cloneFor(scene.sceneId, track.target.instanceId) }

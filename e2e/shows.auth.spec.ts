@@ -19,7 +19,7 @@ test.describe('authenticated Show authoring', () => {
       await page.getByRole('option', { name: swapPattern }).click()
     }
 
-    await expect(picker).toHaveValue('CompassRose')
+    await expect(picker).toHaveValue('LineDancer2D')
     await chooseTestPattern()
     // The swap dialog is titled by the chosen Pattern's runtime name.
     let dialog = page.getByRole('alertdialog', { name: `Use ${swapPattern}?` })
@@ -29,7 +29,7 @@ test.describe('authenticated Show authoring', () => {
 
     await dialog.getByRole('button', { name: 'Cancel' }).click()
     await expect(dialog).toBeHidden()
-    await expect(picker).toHaveValue('CompassRose')
+    await expect(picker).toHaveValue('LineDancer2D')
 
     await chooseTestPattern()
     dialog = page.getByRole('alertdialog', { name: `Use ${swapPattern}?` })
@@ -359,12 +359,12 @@ test.describe('authenticated Show authoring', () => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows/stock-show-reference-property-animation')
 
-    const speedLane = page.getByRole('group', { name: 'CompassRose animation speed animation for A' })
-    const speedLaneLabel = page.getByTestId('show-property-lane-label').filter({ hasText: 'CompassRose animation speed' })
+    const speedLane = page.getByRole('group', { name: 'LineDancer2D animation speed animation for A' })
+    const speedLaneLabel = page.getByTestId('show-property-lane-label').filter({ hasText: 'LineDancer2D animation speed' })
     await expect(speedLane).toBeVisible()
     await expect(speedLaneLabel).toHaveAttribute('data-compact', 'true')
     await expect(speedLaneLabel.getByTestId('show-property-lane-compact-mark')).toBeVisible()
-    await expect(speedLaneLabel).toHaveAttribute('title', 'CompassRose animation speed')
+    await expect(speedLaneLabel).toHaveAttribute('title', 'LineDancer2D animation speed')
 
     const laneBounds = await speedLane.boundingBox()
     const playheadBounds = await page.getByTestId('show-timeline-playhead').boundingBox()
@@ -488,12 +488,12 @@ test.describe('authenticated Show authoring', () => {
   test('navigates from a built-in Clip summary to its field (#599, #650)', async ({ page }) => {
     await page.goto('studio/shows/stock-show-reference-property-animation')
 
-    const clip = page.getByRole('button', { name: 'Select CompassRose' }).first()
+    const clip = page.getByRole('button', { name: 'Select LineDancer2D' }).first()
     await expect(clip).toBeVisible()
     await clip.click()
 
     const clipProperties = page.getByRole('region', { name: 'Clip properties' })
-    await expect(clipProperties.getByRole('heading', { name: 'CompassRose' })).toBeVisible()
+    await expect(clipProperties.getByRole('heading', { name: 'LineDancer2D' })).toBeVisible()
     const summary = clipProperties.getByRole('region', { name: 'Clip summary' })
     await expect(summary).toBeVisible()
 
@@ -3316,7 +3316,7 @@ test.describe('lesson pill, Reading card and Live strip (#985)', () => {
     await expect(strip.getByText('Heart', { exact: true })).toBeVisible()
     await expect(strip.getByText('1/9', { exact: true })).toBeVisible()
     await expect(strip.getByText('The inscribed heart', { exact: false })).toBeVisible()
-    await expect(strip.getByRole('combobox', { name: 'Try with Pattern' })).toHaveValue('CompassRose')
+    await expect(strip.getByRole('combobox', { name: 'Try with Pattern' })).toHaveValue('Kishimisu')
     const progress = strip.getByTestId('show-live-progress')
     const initialWidth = (await progress.boundingBox())!.width
     await toolbar.getByRole('button', { name: 'Play Show preview' }).click()

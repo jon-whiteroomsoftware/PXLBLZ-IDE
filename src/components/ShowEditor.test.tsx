@@ -5306,7 +5306,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
         .find((instance) => instance.id === instanceId)?.pattern
       const pair = [patternOf('loom'), patternOf('loom-echo')]
       expect(pair).toContainEqual({ kind: 'stock', id: 'CometLoom' })
-      expect(pair).toContainEqual({ kind: 'stock', id: 'RibbonLoom' })
+      expect(pair).toContainEqual({ kind: 'stock', id: 'TopographicBloom' })
     })
     expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toBeUndefined()
   })
@@ -5333,8 +5333,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(within(guide).queryByRole('combobox')).not.toBeInTheDocument()
     await user.click(within(guide).getByRole('button', { name: 'Patterns (2)' }))
     const slotRow = screen.getByRole('dialog', { name: 'Try with Pattern' })
-    expect(within(slotRow).getByRole('combobox', { name: 'Pattern 1' })).toHaveValue('MetaballGarden')
-    expect(within(slotRow).getByRole('combobox', { name: 'Pattern 2' })).toHaveValue('CompassRose')
+    expect(within(slotRow).getByRole('combobox', { name: 'Pattern 1' })).toHaveValue('Caustics')
+    expect(within(slotRow).getByRole('combobox', { name: 'Pattern 2' })).toHaveValue('Harmonograph')
 
     await user.click(within(slotRow).getByRole('combobox', { name: 'Pattern 2' }))
     await user.click(screen.getByRole('option', { name: 'Caustics' }))

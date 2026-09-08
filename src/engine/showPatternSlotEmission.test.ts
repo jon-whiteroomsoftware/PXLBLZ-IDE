@@ -111,8 +111,12 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
     // fixture. The per-member HSV conversions alone would cross the
     // activation ceiling here, so the #559 byte-budget fallback keeps the
     // shared chain.
-    expect(baseline.summary.artifactBytes).toBe(82_771)
-    expect(selected.summary.artifactBytes).toBe(56_516)
+    // Re-measured 2026-09-07 after #848: the fixture preserves the qualified
+    // CompassRose casting and twin columns, but its tracks now follow the
+    // shipping reference's linear ramps and lower speed values, so both
+    // artifacts shrink by the same score data while the exchange holds.
+    expect(baseline.summary.artifactBytes).toBe(79_092)
+    expect(selected.summary.artifactBytes).toBe(52_847)
     // #717 interning shrank the fixture enough that the #559 byte-budget
     // fallback no longer binds: the faster per-member HSV chain fits.
     expect(selected.summary.specializations.hsvCaptureChain).toMatchObject({

@@ -211,19 +211,19 @@
       "features": [
         "animation"
       ],
-      "recordSha256": "081dea22e78bc84eb75e0f4948bdf9cab3f404b44b31705f67188c8c90ef88be",
+      "recordSha256": "af280e326519ea31fb2cc8bead934cfae71ff515e4150019ae5710e490fec3cd",
       "loopDurationMs": 48600,
       "clipCount": 19,
       "before": {
         "pxlshow": {
           "filename": "property-animation.pxlshow",
-          "bytes": 1929,
-          "contentSha256": "dfcc63aed90e0db40b017d37a1cc4e51fe1f0e7e302cfaf86edda7310e2fa9fb"
+          "bytes": 1909,
+          "contentSha256": "d8343883889faf20a9b9a9d4b98f19840977ad5ab59c69525fca510280df3c6f"
         },
         "epe": {
           "filename": "property-animation.epe",
-          "bytes": 69121,
-          "sourceSha256": "83aa5acc3512b7ecc9d72dea90880f264549ce7aab836bd10ea5cc9b124343a1",
+          "bytes": 67736,
+          "sourceSha256": "c7068998df6903b0a6f71917d192bbab184bc098b4f09bddf812a3aec12d744b",
           "stampKind": "show"
         }
       },
@@ -237,7 +237,7 @@
           "resize_clip"
         ],
         "refusals": [
-          "resize_clip: Resizing to 12000 ms would overlap clip placement-pattern-control-a (CompassRose on A, 5000–10000 ms) on the same Zone and layer."
+          "resize_clip: Resizing to 12000 ms would overlap clip placement-pattern-control-a (LineDancer2D on A, 5000–10000 ms) on the same Zone and layer."
         ]
       },
       "after": null
