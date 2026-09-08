@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "63",
+  "route": "/PXLBLZ-IDE/studio/patterns/TestPattern2D?capture",
+  "operation": "In the Codex in-app browser, paused TestPattern2D, adjusted Diffusion from Home to End and Light size with ArrowRight, clicked the slider and used Space to play then pause. The paused preview displays the changed settings.",
+  "captures": [
+    ".wrsp/ui-proof/63-paused-pattern.jpg"
+  ],
+  "capturedAtCommit": "0c15419987f04986b474b7fb168b4be29d0a2bfd"
+}

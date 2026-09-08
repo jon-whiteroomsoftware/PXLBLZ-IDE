@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "63",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-showcase-distortion-effects?capture",
+  "operation": "In the Codex in-app browser, adjusted Diffusion from Home to End and Light size with ArrowRight while paused, clicked the slider and used Space to play then pause, then resized the viewport from 1440x940 to 1440x1000. The paused Stage remained visible.",
+  "captures": [
+    ".wrsp/ui-proof/63-paused-show.jpg"
+  ],
+  "capturedAtCommit": "0c15419987f04986b474b7fb168b4be29d0a2bfd"
+}
