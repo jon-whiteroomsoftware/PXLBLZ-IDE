@@ -166,7 +166,7 @@ it('exports and reopens the adopted Show and Undo restores only its one candidat
   const captured = api.beginRequest('op', 'rename', [])!
   const candidate = { ...captured.show, name: 'Agent' }
   expect(api.applyShow(candidate, captured.request).status).toBe('applied')
-  await vi.waitFor(() => expect(api.readOutcome(captured.request)?.settlement).toBe('saved'))
+  await vi.waitFor(() => expect(api.readOutcome(captured.request)).toMatchObject({ status: 'applied', settlement: 'saved' }))
   vi.stubGlobal('Blob', (await import('node:buffer')).Blob)
   const { buildShowFileBundle, serializeShowFileBundle, parseShowFileBundle } = await import('@/engine/showFileBundle')
   const current = structuredClone(state().shows[0])
@@ -206,4 +206,107 @@ it.each(['asked', 'refused', 'nothing-applied', 'commit-refused', 'incomplete', 
     expect(snapshot()).toEqual(before)
     expect(writes).toHaveBeenCalledTimes(count)
   }
+})
+
+it('waits for overlapping synthetic activity, captures once, and adopts only after final release', async () => {
+  const api = await setup()
+  const captured = api.beginRequest('wait', 'rename', [])!
+  const drag = state().acquireShowEditActivity(api.sessionId, 'test', 'drag')!
+  const dirty = state().acquireShowEditActivity(api.sessionId, 'test', 'dirty-field')!
+  const candidate = { ...captured.show, name: 'Agent' }
+  const before = snapshot()
+  expect(api.applyShow(candidate, captured.request)).toMatchObject({ status: 'waiting' })
+  expect(api.readOutcome(captured.request)).toMatchObject({ status: 'waiting' })
+  expect(api.applyShow(candidate, captured.request)).toMatchObject({ status: 'waiting' })
+  candidate.name = 'Changed after delivery'
+  expect(api.applyShow(candidate, captured.request)).toMatchObject({ status: 'refused', reason: 'identity-mismatch' })
+  state().releaseShowEditActivity(drag)
+  expect(api.readOutcome(captured.request)).toMatchObject({ status: 'waiting' })
+  expect(snapshot()).toEqual(before)
+  expect(writes).not.toHaveBeenCalled()
+  state().releaseShowEditActivity(dirty)
+  await vi.waitFor(() => expect(api.readOutcome(captured.request)).toMatchObject({ status: 'applied', settlement: 'saved' }))
+  expect(state().shows[0].name).toBe('Agent')
+  expect(state().showHistories.test.past).toHaveLength(1)
+  expect(writes).toHaveBeenCalledTimes(1)
+})
+
+it.each(['cancel', 'timeout', 'metadata', 'manual', 'close'] as const)('terminalizes waiting on %s without a later adoption', async action => {
+  const api = await setup()
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+  try {
+    const captured = api.beginRequest('wait', 'rename', [])!
+    const token = state().acquireShowEditActivity(api.sessionId, 'test', 'dirty-field')!
+    expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request).status).toBe('waiting')
+    if (action === 'cancel') api.cancel(captured.request)
+    else if (action === 'timeout') vi.advanceTimersByTime(5000)
+    else if (action === 'metadata') {
+      const { usePatternStore } = await import('@/store/patternStore')
+      usePatternStore.setState({ userPatterns: [...usePatternStore.getState().userPatterns] })
+      expect(api.readOutcome(captured.request)).toMatchObject({ status: 'refused' })
+      expect(vi.getTimerCount()).toBe(0)
+      const second = api.beginRequest('second', 'rename', [])!
+      expect(api.applyShow({ ...second.show, name: 'Second' }, second.request).status).toBe('waiting')
+      api.cancel(second.request)
+    } else if (action === 'manual') await state().updateShow('test', { ...captured.show, name: 'Manual' })
+    else api.close()
+    const before = snapshot()
+    const count = writes.mock.calls.length
+    state().releaseShowEditActivity(token)
+    vi.advanceTimersByTime(6000)
+    expect(api.readOutcome(captured.request)?.status).not.toBe('waiting')
+    expect(snapshot()).toEqual(before)
+    expect(writes).toHaveBeenCalledTimes(count)
+    expect(vi.getTimerCount()).toBe(0)
+  } finally { vi.useRealTimers() }
+})
+
+it.each([false, true])('bounds raw validation time only when activity actually requires waiting (%s)', async active => {
+  const api = await setup()
+  const authoring = await import('@/engine/showAuthoringValidation')
+  const original = authoring.validateShowAuthoring
+  const captured = api.beginRequest('timing', 'rename', [])!
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+  const token = active ? state().acquireShowEditActivity(api.sessionId, 'test', 'drag') : undefined
+  const spy = vi.spyOn(authoring, 'validateShowAuthoring').mockImplementation((...args) => { vi.advanceTimersByTime(5001); return original(...args) })
+  try {
+    const result = api.applyShow({ ...captured.show, name: 'Agent' }, captured.request)
+    expect(result).toMatchObject(active ? { status: 'refused', reason: 'interaction-timeout' } : { status: 'applied' })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(writes).toHaveBeenCalledTimes(active ? 0 : 1)
+  } finally { spy.mockRestore(); if (token) state().releaseShowEditActivity(token); vi.useRealTimers() }
+})
+it('duplicate waiting delivery cannot restart the original deadline', async () => {
+  const api = await setup()
+  const captured = api.beginRequest('deadline', 'rename', [])!
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+  const token = state().acquireShowEditActivity(api.sessionId, 'test', 'drag')!
+  try {
+    const candidate = { ...captured.show, name: 'Agent' }
+    const first = api.applyShow(candidate, captured.request)
+    vi.advanceTimersByTime(4999)
+    expect(api.applyShow(candidate, captured.request)).toEqual(first)
+    vi.advanceTimersByTime(1)
+    expect(api.readOutcome(captured.request)).toMatchObject({ status: 'refused', reason: 'interaction-timeout' })
+    state().releaseShowEditActivity(token)
+    expect(writes).not.toHaveBeenCalled()
+  } finally { vi.useRealTimers() }
+})
+
+it('observes the authoritative adoption once after rejected mismatches and repeated polling', async () => {
+  const api = await setup()
+  const captured = api.beginRequest('observation-' + crypto.randomUUID(), 'rename', [])!
+  const token = state().acquireShowEditActivity(api.sessionId, 'test', 'drag')!
+  expect(api.applyShow({ ...captured.show, id: 'wrong' }, captured.request).status).toBe('refused')
+  const candidate = { ...captured.show, name: 'Agent' }
+  expect(api.applyShow(candidate, captured.request).status).toBe('waiting')
+  expect(api.applyShow({ ...candidate, name: 'Mismatch' }, captured.request).status).toBe('refused')
+  state().releaseShowEditActivity(token)
+  await vi.waitFor(() => expect(api.readOutcome(captured.request)).toMatchObject({ status: 'applied', settlement: 'saved' }))
+  api.readOutcome(captured.request)
+  const phases = window.__pxlblzObservations!.read().filter(event => event.kind === 'agent-apply' && event.requestId === captured.request.operationId).map(event => event.kind === 'agent-apply' ? event.phase : '')
+  expect(phases.filter(phase => phase === 'rejected')).toEqual([])
+  expect(phases.filter(phase => phase === 'adopted')).toEqual(['adopted'])
+  expect(phases.filter(phase => phase === 'settled')).toEqual(['settled'])
 })

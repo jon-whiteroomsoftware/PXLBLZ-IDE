@@ -623,6 +623,55 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     })
   })
 
+  test('W: synthetic activity waits, cancels, or releases one diagnostic candidate', async ({ page }) => {
+    test.setTimeout(90000)
+    for (const action of ['cancel', 'release'] as const) {
+      const record = resizeBoundaryShow(`wait-${action}-${Date.now().toString(36)}`)
+      expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+      await page.goto(`studio/shows/${record.id}?agent=1`)
+      await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+      await expect.poll(() => page.evaluate(async () => {
+        const load = (path: string) => import(path)
+        const [p, l, m] = await Promise.all(['pattern', 'library', 'map'].map(name => load(`/PXLBLZ-IDE/src/store/${name}Store.ts`)))
+        return p.usePatternStore.getState().patternsLoaded && l.useLibraryStore.getState().librariesLoaded && m.useMapStore.getState().mapsLoaded
+      })).toBe(true)
+      await injectOverlay(page, bridge.url)
+      const before = await visibleRecord(page)
+      const durableBefore = await durableShow(page, record.id)
+      const writes = watchShowWrites(page)
+      // This internal token is explicit synthetic proof, not real field registration.
+      const acquired = await page.evaluate(async () => {
+        const load = (path: string) => import(path)
+        const url = performance.getEntriesByType('resource').map(entry => entry.name).filter(name => /\/src\/store\/showStore\.ts(?:\?|$)/.test(name)).at(-1)!
+        const { useShowStore } = await load(url)
+        const w = window as unknown as { __pxlblzEditor: { sessionId: string; getShow: () => { id: string } }; syntheticWaitRelease?: () => void }
+        const token = useShowStore.getState().acquireShowEditActivity(w.__pxlblzEditor.sessionId, w.__pxlblzEditor.getShow().id, 'dirty-field')
+        w.syntheticWaitRelease = () => useShowStore.getState().releaseShowEditActivity(token)
+        return !!token
+      })
+      expect(acquired).toBe(true)
+      const id = await submitUtterance(page, 'make the first Clip exactly eight seconds')
+      await expect(page.getByTestId('agent-chat-log')).toContainText('Waiting for active editing')
+      await expect(page.getByTestId('agent-chat-cancel')).toBeVisible()
+      expect(await visibleRecord(page)).toEqual(before)
+      expect(writes).toHaveLength(0)
+      if (action === 'cancel') await page.getByTestId('agent-chat-cancel').click()
+      else await page.evaluate(() => (window as unknown as { syntheticWaitRelease: () => void }).syntheticWaitRelease())
+      const done = await waitForDone(page, id)
+      expect(done.applied).toBe(action === 'release')
+      if (action === 'release') {
+        await waitForDurable(page, record.id, show => firstMain(show)?.durationMs === 8000)
+        expect(await durableShow(page, record.id)).toEqual(await visibleRecord(page))
+        expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+      } else {
+        expect(await visibleRecord(page)).toEqual(before)
+        expect(await durableShow(page, record.id)).toEqual(durableBefore)
+        expect(writes).toHaveLength(0)
+      }
+      saveRecord(`W-${action}`, { syntheticActivity: true, before, done, current: await visibleRecord(page), durable: await durableShow(page, record.id), writes })
+    }
+  })
+
   test('R: canonical exact resize accepts the boundary, preserves no-op, and refuses excess', async ({ page }) => {
     test.setTimeout(90000)
     const record = resizeBoundaryShow(`resize-r-${Date.now().toString(36)}`)

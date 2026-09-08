@@ -1,0 +1,22 @@
+[
+  {
+    "fault": "premature-loop",
+    "detected": true,
+    "exit": 1
+  },
+  {
+    "fault": "ignored-cancel",
+    "detected": true,
+    "exit": 1
+  },
+  {
+    "fault": "deadline-reset",
+    "detected": true,
+    "exit": 1
+  },
+  {
+    "fault": "stale-metadata",
+    "detected": true,
+    "exit": 1
+  }
+]

@@ -18,6 +18,20 @@ Contracts this evidence serves:
 [Show state, history, and persistence](contracts/show-state-history-persistence.md),
 [Show command semantics](contracts/show-command-semantics.md).
 
+## Diagnostic waiting protocol (#949)
+
+The diagnostic overlay consumes the internal bounded wait and displays Cancel.
+The W browser regression uses explicit synthetic activity tokens with the real
+scripted service and editor. It checks waiting without writes, cancellation, and
+one saved adoption after release. Additional local proof covers timeout and
+metadata invalidation, compares complete visible and durable records to their
+own pre-edit baselines, and reopens the accepted exported `.pxlshow`.
+
+These checks do not establish real field or gesture ownership. Manual-input
+registration, external narrow context, and the final Agent panel remain outside
+this proof. The fixture's existing reference-map delivery diagnostic is also
+unchanged; successful authoring does not claim Controller delivery readiness.
+
 ## Commands
 
 | Command | What it proves | CI |

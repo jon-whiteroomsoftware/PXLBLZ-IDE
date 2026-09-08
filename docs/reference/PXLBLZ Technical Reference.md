@@ -1583,8 +1583,11 @@ immutable requests before inference and admits through whole-Show revision and
 current authoring/source validation, with session/source restoration invalidation
 and typed save outcomes. The overlay retains the original bridge and clears its
 transcript on departure, query removal or close. Broad model context does not
-qualify for internal Layer-independent resize admission. Active-input waiting,
-final panel and hosted service remain separate integration work.
+qualify for internal Layer-independent resize admission. The diagnostic overlay
+consumes bounded active-input waiting, displays Cancel, and keeps one submission
+busy through saving. Its browser proof uses synthetic activity tokens; real
+manual-input registration, final panel placement and hosted service qualification
+remain separate work.
 
 The harness's paid model calls (`agent:corpus --live`, live `agent:bridge`)
 are owned by its paid-call guard (`src/agent-harness/experiment/paidCallGuard.ts`,

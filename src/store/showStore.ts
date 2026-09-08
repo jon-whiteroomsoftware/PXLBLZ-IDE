@@ -207,7 +207,8 @@ interface ShowState {
   retryShowSaveFailure: () => Promise<void>
   acquireShowEditActivity: (sessionId: string, showId: string, kind: ShowEditActivity['kind']) => ShowEditActivity | undefined
   releaseShowEditActivity: (token: ShowEditActivity) => void
-  deliverShowEditCandidate: (request: ShowEditRequest, candidate: ShowRecord, validate: (candidate: ShowRecord, current: ShowRecord) => boolean) => ShowInputWaitReceipt
+  deliverShowEditCandidate: (request: ShowEditRequest, candidate: unknown, validate: (candidate: ShowRecord, current: ShowRecord) => boolean, validateRaw?: (candidate: unknown) => boolean) => ShowInputWaitReceipt
+  invalidateShowEditCandidate: (request: ShowEditRequest) => ShowEditReceipt | undefined
   readShowEditCandidate: (sessionId: string, operationId: string) => ShowInputWaitReceipt | undefined
 }
 
@@ -359,19 +360,42 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
   acquireShowEditActivity: (sessionId, showId, kind) => inputWait.acquire(sessionId, showId, kind),
   releaseShowEditActivity: token => inputWait.releaseActivity(token),
   readShowEditCandidate: (sessionId, id) => editSession?.sessionId === sessionId ? inputWait.read(id) : undefined,
-  deliverShowEditCandidate: (request, candidate, validate) => {
+  deliverShowEditCandidate: (request, candidate, validate, validateRaw) => {
     const arrivedAt = performance.now()
-    if (candidate.id !== request.showId || resizeAdmission.owns(request.operationId)) return { request, status: 'refused', reason: 'invalid-candidate' }
+    if (resizeAdmission.owns(request.operationId) || (candidate && typeof candidate === 'object' && 'id' in candidate && candidate.id !== request.showId)) return { request, status: 'refused', reason: 'invalid-candidate' }
     const capturedRequest = structuredClone(request)
-    const capturedCandidate = structuredClone(candidate)
     const capturedSession = editSession
-    return inputWait.deliver(capturedRequest, JSON.stringify(capturedCandidate), arrivedAt,
+    let capturedCandidate: ShowRecord
+    let identity: string
+    try {
+      capturedCandidate = structuredClone(candidate) as ShowRecord
+      identity = JSON.stringify(capturedCandidate) ?? 'undefined'
+    } catch {
+      return { request, status: 'refused', reason: 'invalid-candidate' }
+    }
+    return inputWait.deliver(capturedRequest, identity, arrivedAt,
       timing => get().admitShowEdit(capturedRequest, () => capturedCandidate, (next, current) => {
         const valid = validate(next, current)
         if (timing.kind === 'after-active-input' && performance.now() >= timing.deadline) capturedSession?.refuse(capturedRequest.operationId, 'interaction-timeout')
         return valid
       }),
-      () => editSession!.check(capturedRequest, { sessionId: editSession!.sessionId, showId: editSession!.showId, revision: get().showRevisions[capturedRequest.showId] ?? 0 }))
+      () => {
+        const checked = editSession!.check(capturedRequest, { sessionId: editSession!.sessionId, showId: editSession!.showId, revision: get().showRevisions[capturedRequest.showId] ?? 0 })
+        if (checked.status !== 'pending') return checked
+        try {
+          if (!capturedCandidate || capturedCandidate.id !== request.showId || (validateRaw && !validateRaw(capturedCandidate))) return editSession!.refuse(request.operationId, 'invalid-candidate')!
+        } catch { return editSession!.refuse(request.operationId, 'invalid-candidate')! }
+        return checked
+      })
+  },
+  invalidateShowEditCandidate: request => {
+    const session = editSession
+    if (!session || session.sessionId !== request.sessionId) return undefined
+    if (resizeAdmission.owns(request.operationId)) return { request, status: 'refused', reason: 'invalid-candidate' }
+    const checked = session.checkIdentity(request, session)
+    if (checked !== session.read(request.operationId) || checked.status !== 'pending') return checked
+    inputWait.release(request.operationId)
+    return session.refuse(request.operationId, 'invalid-candidate')
   },
   beginResolvedShowResize: (sessionId, intent) => resizeAdmission.begin(sessionId, intent),
   admitResolvedShowResize: request => resizeAdmission.admit(request),

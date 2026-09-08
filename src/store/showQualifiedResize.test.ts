@@ -672,3 +672,11 @@ it('refuses if final dependency qualification crosses the armed deadline', () =>
     expect(preservation()).toEqual(before)
   } finally { context.mockRestore(); clock.mockRestore() }
 })
+
+it('refuses broad delivery and invalidation without consuming qualified resize authority', () => {
+  const pending = begin()
+  expect(store().deliverShowEditCandidate(pending.request, current(), () => true)).toMatchObject({ status: 'refused' })
+  expect(store().invalidateShowEditCandidate(pending.request)).toMatchObject({ status: 'refused' })
+  expect(store().readShowEdit(pending.request.sessionId, pending.request.operationId)?.status).toBe('pending')
+  expect(store().admitResolvedShowResize(pending.request).status).toBe('applied')
+})

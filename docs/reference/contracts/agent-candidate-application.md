@@ -17,7 +17,7 @@ The adapter validates incoming structure against the Show schema with browser-sa
 
 `applyShow` returns the store's typed receipt. A duplicate identical response reads its existing result; changed request or candidate identity refuses. One accepted candidate creates one ordinary history entry. `readOutcome` recovers a surviving session's result after acknowledgement loss; retired history is unavailable and never replayed. Applied receipts distinguish saving, saved, rolled-back, superseded and an in-memory stock draft. Private asked/refused/nothing-applied/commit-refused/incomplete/service-refused/service-failed outcomes terminate via a checked `completed` receipt without mutation; this is neither a validated authoring `noop` nor user cancellation. The same bounded operation table retains these terminal identities.
 
-The overlay displays private prose alongside the actual editor outcome and includes that outcome in subsequent session dialogue. The store owns save recovery in [Show state, history, and persistence](show-state-history-persistence.md). [Show command semantics](show-command-semantics.md) covers the V2 registry; canonical resize now delegates to it, while other diagnostic operations remain independently implemented.
+The overlay displays private prose alongside the actual editor outcome and includes that outcome in subsequent session dialogue. A delivered candidate remains one busy submission while waiting for active input and while saving. Waiting displays a Cancel action; cancellation prevents later adoption. Completion does not move focus away from a manual field. Closing the overlay releases its transport and polling resources while already-adopted saves retain store ownership. The store owns save recovery in [Show state, history, and persistence](show-state-history-persistence.md). [Show command semantics](show-command-semantics.md) covers the V2 registry; canonical resize now delegates to it, while other diagnostic operations remain independently implemented.
 
 ## Internal admission foundation
 
@@ -46,7 +46,11 @@ and known whole-Show eligibility, then either admits synchronously or waits for
 explicit session/Show-bound `drag` and `dirty-field` ownership tokens. Focus alone
 is not activity. `readShowEditCandidate` projects a typed `waiting` status over
 the existing pending operation; terminal outcomes remain in the session table.
-The existing bridge and manual UI APIs do not use this wait path. Internal
+The diagnostic bridge uses this path with raw structural and authoring validation
+inside the delivery-time boundary, followed by final normalized validation.
+Metadata changes terminate waiting promptly without clearing activity tokens.
+Actual manual UI owners do not yet register activity; diagnostic browser proof
+uses explicitly synthetic tokens. Internal
 `admitResolvedShowResize` consumes the same owner, checks its private dependency
 qualification before waiting, and replays the captured operation on current state
 at settlement. It returns the same waiting projection; no immediate resize
@@ -89,8 +93,9 @@ monotonic boundaries and a serialized `.pxlshow` reopened through its importer.
 [Qualified resize consumer tests](../../../src/store/showQualifiedResize.test.ts)
 also prove independent Layer preservation through waiting and undo, final
 qualification crossing the armed deadline, and observation cleanup. This is
-internal evidence only: the diagnostic bridge, real input-owner UI wiring,
-visible waiting/Cancel cue and external Layer-scoped context remain unqualified.
+internal evidence only for real input ownership: diagnostic waiting/Cancel is
+qualified with synthetic tokens; real input-owner UI wiring and external
+Layer-scoped context remain unqualified.
 
 Manual pointer and composition-inspector duration commits also use the exact
 resize semantic owner, with two explicitly tagged manual Transition-to-Cut
@@ -149,7 +154,7 @@ This qualifies the internal resize path only; broad diagnostic requests remain c
 
 The browser serializes its own submissions while manual editing continues. Pending
 full-Show requests conservatively refuse any intervening Show or source-context
-change. The five-second active-drag/dirty-field wait and final activity placement
+change. Real active-drag/dirty-field registration and final activity placement
 remain unimplemented; focus alone does not retire a request. The service still
 serializes loopback requests across clients and supplies no hosted connection,
 OAuth, allowlist or budget owner. Transport failure terminates private work without
@@ -195,8 +200,7 @@ Session validation and editor admission are different checks. The service opens
 with unresolved personal Patterns allowed, while other document validation
 rules still apply. Passing that validation neither proves hardware delivery
 readiness nor establishes that every manually editable draft is accepted by the
-grammar. The live editor bridge itself checks identity, not full authoring
-validity.
+grammar. The live editor bridge separately checks identity and authoring validity.
 
 ## Internal authoring validation
 

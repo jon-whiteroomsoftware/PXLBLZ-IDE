@@ -19,6 +19,8 @@
   const BRIDGE = (document.currentScript && document.currentScript.src.replace(/\/chat\.js.*$/, '')) || 'http://127.0.0.1:8791'
   let disposed = false
   let activeRequest = null
+  let stopPolling = () => {}
+  const transport = new window.AbortController()
 
   const panel = document.createElement('div')
   panel.dataset.testid = 'agent-chat-panel'
@@ -57,6 +59,16 @@
   send.textContent = 'Send'
   send.style.cssText = 'background:#164e63;border:1px solid #155e75;border-radius:6px;color:#a5f3fc;padding:6px 10px;font:inherit;cursor:pointer'
   form.append(input, send)
+  const cancel = document.createElement('button')
+  cancel.type = 'button'
+  cancel.dataset.testid = 'agent-chat-cancel'
+  cancel.textContent = 'Cancel'
+  cancel.hidden = true
+  cancel.style.cssText = send.style.cssText
+  // Keep a dirty field from blurring and releasing activity before cancellation.
+  cancel.onpointerdown = event => event.preventDefault()
+  cancel.onclick = () => { if (activeRequest) editor.cancel(activeRequest) }
+  form.appendChild(cancel)
 
   panel.append(header, log, form)
   document.body.appendChild(panel)
@@ -109,6 +121,8 @@
   const publicOutcome = ({ status, settlement, reason, completion }) => ({ status, settlement, reason, completion })
   editor.onClose(() => {
     disposed = true
+    stopPolling()
+    transport.abort()
     history.length = 0
     requests.length = 0
     log.replaceChildren()
@@ -133,6 +147,7 @@
     activeRequest = captured.request
     const show = captured.show
     busy = true
+    send.disabled = true
     input.value = ''
     const record = {
       requestId,
@@ -158,6 +173,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ requestId, show, utterance, history: history.slice(-12), context: editorFocusContext(captured.context) }),
+        signal: transport.signal,
       })
       record.responseAt = Date.now()
       // NDJSON stream: progress lines narrate the turn, the last line is the
@@ -207,17 +223,22 @@
         let outcome = editor.applyShow(result.show, captured.request)
         const describe = value => value.status === 'applied'
           ? ({ saving: 'Applied; saving…', saved: 'Applied and saved.', 'rolled-back': 'Save failed; the edit was rolled back.', superseded: 'Applied, then superseded by a newer edit.', draft: 'Applied to the in-memory stock draft.' })[value.settlement]
+          : value.status === 'waiting' ? 'Waiting for active editing to finish…'
           : `Editor ${value.status}${value.reason ? ': ' + value.reason : ''}.`
         const display = () => {
+          cancel.hidden = outcome.status !== 'waiting'
           record.outcome = publicOutcome(outcome)
           record.applied = outcome.status === 'applied' && outcome.settlement !== 'rolled-back'
           pending.textContent = `Luna: ${result.reply}\n${describe(outcome)}`
-          pending.style.color = record.applied ? '#86efac' : '#fca5a5'
+          pending.style.color = outcome.status === 'waiting' ? '#67e8f9' : record.applied ? '#86efac' : '#fca5a5'
           pending.dataset.applied = record.applied ? 'true' : 'false'
         }
         display()
-        while (outcome.status === 'applied' && outcome.settlement === 'saving') {
-          await new Promise(resolve => window.setTimeout(resolve, 50))
+        while (outcome.status === 'waiting' || (outcome.status === 'applied' && outcome.settlement === 'saving')) {
+          await new Promise(resolve => {
+            const timer = window.setTimeout(() => { stopPolling = () => {}; resolve() }, 50)
+            stopPolling = () => { window.clearTimeout(timer); resolve() }
+          })
           if (disposed || !editor.available()) return
           outcome = editor.readOutcome(captured.request) || { status: 'retired' }
           display()
@@ -244,8 +265,9 @@
       pending.dataset.applied = 'error'
     } finally {
       busy = false
+      send.disabled = false
+      cancel.hidden = true
       activeRequest = null
-      if (!disposed) input.focus()
     }
   }
 

@@ -396,3 +396,12 @@ Transitions remain untouched. Real visual-boundary removal still refuses.
 [Consumer proof](../../docs/reference/evidence/issue-950-resize/README.md) covers
 registry, grammar, private exports and a no-paid real route. Existing manual
 adapters, broader catalogue/context and live mixed-batch proof remain pending.
+
+## Diagnostic waiting integration (#949)
+
+The V2 diagnostic overlay consumes typed waiting outcomes through the existing
+editor admission owner, displays Cancel while waiting, and retains one busy
+submission through save settlement. Close releases transport and polling;
+completion preserves focus outside the overlay. The live proof uses synthetic
+internal activity tokens. Real manual-input registration and final Agent panel
+placement remain separate work. No paid product model calls qualify this slice.

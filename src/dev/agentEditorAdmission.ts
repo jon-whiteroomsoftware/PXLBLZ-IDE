@@ -2,6 +2,7 @@ import Ajv from 'ajv'
 import schemaText from '../../schemas/show-record.schema.json?raw'
 import type { ShowRecord } from '@/engine/personalContentRecords'
 import type { ShowEditRequest, ShowEditReceipt, ShowEditCompletion } from '@/engine/showEditAdmission'
+import type { ShowInputWaitReceipt } from '@/engine/showInputWait'
 import { captureShowAuthoringBaseline, validateShowAuthoring } from '@/engine/showAuthoringValidation'
 import { useShowStore } from '@/store/showStore'
 import { usePatternStore } from '@/store/patternStore'
@@ -44,7 +45,7 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
   const sessionId = store().beginShowEditSession(showId)
   let retired = false
   const listeners = new Set<() => void>()
-  const entries = new Map<string, { request: ShowEditRequest; show: ShowRecord; context: unknown; baseline: ReturnType<typeof captureShowAuthoringBaseline>; candidateKey?: string; invalidated: boolean }>()
+  const entries = new Map<string, { request: ShowEditRequest; show: ShowRecord; context: unknown; baseline: ReturnType<typeof captureShowAuthoringBaseline>; invalidated: boolean }>()
   let metadataStops: Array<() => void> = []
   const releaseMetadata = () => {
     if ([...entries.values()].some(entry => store().readShowEdit(sessionId, entry.request.operationId)?.status === 'pending')) return
@@ -58,6 +59,20 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
       historyDepth: store().showHistories[showId]?.past.length ?? 0 })
   }
   const observedSettlement = new Set<string>()
+  const observedApplication = new Set<string>()
+  const observeOutcome = (receipt: ShowInputWaitReceipt | undefined) => {
+    const result = receipt && store().readShowEdit(sessionId, receipt.request.operationId)
+    if (!result || result.status === 'pending' || result.status === 'completed') return
+    const id = result.request.operationId
+    if (!observedApplication.has(id)) {
+      observedApplication.add(id)
+      observe(result.request, result.status === 'applied' ? 'adopted' : 'rejected')
+    }
+    if (result.status === 'applied' && result.settlement !== 'saving' && !observedSettlement.has(id)) {
+      observedSettlement.add(id)
+      observe(result.request, result.settlement === 'rolled-back' ? 'failed' : 'settled')
+    }
+  }
   const metadata = () => ({
     source: (ref: { kind: string; id: string }) => ref.kind === 'stock' ? DEMOS[resolveStockPatternId(ref.id)] : usePatternStore.getState().userPatterns.find(pattern => pattern.id === ref.id)?.src,
     libraries: { ...LIBRARIES, ...Object.fromEntries(useLibraryStore.getState().userLibraries.map(library => [library.name, library.src])) },
@@ -78,7 +93,13 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
     if (!agentUrlEnabled() || window.location.pathname !== pathname) close()
     return !retired
   }
-  const invalidate = () => { for (const entry of entries.values()) if (store().readShowEdit(sessionId, entry.request.operationId)?.status === 'pending') entry.invalidated = true }
+  const invalidate = () => {
+    for (const entry of entries.values()) if (store().readShowEdit(sessionId, entry.request.operationId)?.status === 'pending') {
+      entry.invalidated = true
+      if (store().readShowEditCandidate(sessionId, entry.request.operationId)?.status === 'waiting') store().invalidateShowEditCandidate(entry.request)
+    }
+    releaseMetadata()
+  }
   window.addEventListener('pagehide', close)
   stops = [observeAgentLocation(available), () => window.removeEventListener('pagehide', close)]
   const watchMetadata = () => {
@@ -115,27 +136,17 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
       watchMetadata()
       return structuredClone({ request: result.request, show, context })
     },
-    applyShow(candidate: unknown, request?: ShowEditRequest): ShowEditReceipt {
+    applyShow(candidate: unknown, request?: ShowEditRequest): ShowInputWaitReceipt {
       if (!available()) return request ? { request, status: 'retired' } : invalid()
       if (!request || request.sessionId !== sessionId) return invalid(request)
       const entry = entries.get(request.operationId)
       if (!entry || JSON.stringify(request) !== JSON.stringify(entry.request)) return invalid(request)
-      let key: string
-      try { key = JSON.stringify(candidate) } catch { return invalid(request) }
-      if (entry.candidateKey !== undefined && entry.candidateKey !== key) return invalid(request)
-      entry.candidateKey = key
-      const existing = store().readShowEdit(sessionId, request.operationId)
-      if (existing && existing.status !== 'pending') return existing
-      observe(request, 'admitted')
-      const result = store().admitShowEdit(request, () => {
-        if (entry.invalidated || !structural(candidate) || !validate(candidate as ShowRecord, entry)) throw new Error('Invalid or stale candidate')
-        return structuredClone(candidate) as ShowRecord
-      }, next => validate(next, entry))
-      observe(request, result.status === 'applied' ? 'adopted' : 'rejected')
-      if (result.status === 'applied' && result.settlement === 'draft') {
-        observedSettlement.add(request.operationId)
-        observe(request, 'settled')
-      }
+      const existing = store().readShowEditCandidate(sessionId, request.operationId)
+      if (existing?.status === 'pending') observe(request, 'admitted')
+      const result = store().deliverShowEditCandidate(request, candidate,
+        next => !entry.invalidated && validate(next, entry),
+        raw => !entry.invalidated && structural(raw) && validate(raw as ShowRecord, entry))
+      observeOutcome(result)
       releaseMetadata()
       return result
     },
@@ -150,11 +161,9 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
     readOutcome(request: ShowEditRequest) {
       if (!available() || request.sessionId !== sessionId) return undefined
       const entry = entries.get(request.operationId)
-      const result = entry && JSON.stringify(request) === JSON.stringify(entry.request) ? store().readShowEdit(sessionId, request.operationId) : undefined
-      if (result?.status === 'applied' && result.settlement !== 'saving' && !observedSettlement.has(request.operationId)) {
-        observedSettlement.add(request.operationId)
-        observe(request, result.settlement === 'rolled-back' ? 'failed' : 'settled')
-      }
+      const result = entry && JSON.stringify(request) === JSON.stringify(entry.request) ? store().readShowEditCandidate(sessionId, request.operationId) : undefined
+      observeOutcome(result)
+      releaseMetadata()
       return result
     },
     cancel(request: ShowEditRequest) {
