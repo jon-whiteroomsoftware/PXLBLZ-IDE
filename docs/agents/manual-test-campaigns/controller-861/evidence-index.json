@@ -1,0 +1,30 @@
+{
+  "batch-1-initial": {
+    "localReport": "/private/tmp/c861-manual-b1-20260908/report.md",
+    "sha256": "cc2b2713819f540e76134bdf0666e32b7396c544afa10ac8411493cedfe30880"
+  },
+  "batch-1-continuation": {
+    "localReport": "/private/tmp/c861-manual-b1-20260908/continuation-report.md",
+    "sha256": "8248387ad2daee98ac48552c236aab55bcc2d5bf76d265dd6582b723e7c397ed"
+  },
+  "batch-2": {
+    "localReport": "/private/tmp/c861-manual-b2-20260908/report.md",
+    "sha256": "6f50a0bcdaf2a058dba9a2862f305cf602ab60294e45e7544ae6268739c865cf"
+  },
+  "batch-3-retry": {
+    "localReport": "/private/tmp/c861-manual-pilot-20260908/retry-report.md",
+    "sha256": "bcc2dc881c0c4687f4e75de74c718bb6c60e2df3310e1f38c21069ebffa6f4fc"
+  },
+  "batch-4": {
+    "localReport": "/private/tmp/c861-manual-b4-20260908/report.md",
+    "sha256": "e6925a14089cee687e99a36164b73c77fa22edac44719e5d5185c9d198207c29"
+  },
+  "batch-5": {
+    "localReport": "/private/tmp/c861-manual-b5-20260908/report.md",
+    "sha256": "80f2911ce6a0daa33bb1c0524de743c6247e738f5561e289c88cd76441b72b77"
+  },
+  "batch-6": {
+    "localReport": "/private/tmp/c861-manual-b6-20260908/report.md",
+    "sha256": "0c18197538325dfcb67e2f9a442091996e40e7b13f8c9aad7115b326352c490d"
+  }
+}
