@@ -55,7 +55,13 @@ const COMPLETION_SCHEMA = {
 export const FINISH_TURN_TOOL = {
   name: 'finish_turn',
   description: 'End this turn in the SAME response as its final operations. Supply explicit apply, ask, refuse or incomplete intent. Apply validates private work as one history entry after normal return; it does not mean the live editor applied or saved it. Refused operations or validation return issues for repair. No extra acknowledgement round trip is needed.',
-  inputSchema: COMPLETION_SCHEMA,
+  inputSchema: {
+    ...COMPLETION_SCHEMA,
+    properties: {
+      ...(COMPLETION_SCHEMA.properties as Record<string, unknown>),
+      session_id: { type: 'string', description: 'Optional transport identity; when supplied it must match the current session.' },
+    },
+  },
 }
 
 /** Read tools the dictation loop keeps alongside the registry operations. */
@@ -147,7 +153,7 @@ const FINISH_UNAVAILABLE: { ok: false; issues: GrammarIssue[] } = {
  * the issues and the loop continues. Provider formatting stays in the loops.
  */
 export async function runToolRound(
-  context: Pick<AgentTurnContext, 'callTool' | 'finishTurn'>,
+  context: Pick<AgentTurnContext, 'callTool' | 'finishTurn'> & Partial<Pick<AgentTurnContext, 'sessionId'>>,
   calls: RequestedCall[],
 ): Promise<RoundOutcome> {
   const outputs: RoundOutcome['outputs'] = []
@@ -155,7 +161,7 @@ export async function runToolRound(
   const explicitFinishes = calls.filter((call) => call.name === 'finish_turn')
   let roundHadError = false
   /** Finish requests in the order they take effect. */
-  const requests: Array<{ id: string; completion: unknown; inline: boolean; parseError?: string }> = []
+  const requests: Array<{ id: string; completion: unknown; inline: boolean; parseError?: string; wrongSession?: boolean }> = []
   for (const call of operations) {
     const { [FINISH_ARGUMENT]: finishReply, ...args } = call.args
     const result = call.parseError
@@ -168,12 +174,17 @@ export async function runToolRound(
     }
   }
   for (const call of explicitFinishes) {
-    requests.push({ id: call.id, completion: call.args, inline: false, parseError: call.parseError })
+    const args = call.args
+    const hasSession = args && typeof args === 'object' && !Array.isArray(args) && Object.prototype.hasOwnProperty.call(args, 'session_id')
+    const wrongSession = !!hasSession && (typeof args.session_id !== 'string' || args.session_id !== context.sessionId)
+    const completion = hasSession ? Object.fromEntries(Object.entries(args).filter(([key]) => key !== 'session_id')) : args
+    requests.push({ id: call.id, completion, inline: false, parseError: call.parseError, wrongSession })
   }
   let ended: RoundOutcome['ended'] = null
   for (const request of requests) {
     const completion = request.parseError ? null : completionFrom(request.completion)
     const outcome = roundHadError ? FINISH_BLOCKED
+      : request.wrongSession ? { ok: false as const, issues: [{ code: 'invalid-argument' as const, message: 'finish_turn session_id must match the current session.' }] }
       : !completion ? { ok: false as const, issues: [{ code: 'invalid-argument' as const, message: 'Finish requires a valid explicit intent and optional string reply.' }] }
         : context.finishTurn ? context.finishTurn(completion) : FINISH_UNAVAILABLE
     if (outcome.ok) {

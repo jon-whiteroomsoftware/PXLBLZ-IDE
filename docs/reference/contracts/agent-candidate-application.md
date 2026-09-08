@@ -102,7 +102,11 @@ A model reply or private commit is therefore not evidence that the edit landed.
 The diagnostic turn requires an explicit completion object:
 `{ intent: 'apply' | 'ask' | 'refuse' | 'incomplete', reply?: string }`.
 Both `finish_turn` and the final operation's `finish_turn_reply` accept that
-object. Reply punctuation has no effect on mutation. Provider-neutral adapters
+object. Explicit `finish_turn` also accepts an optional top-level `session_id`
+transport field: a supplied value must be a string matching the current session,
+or the finish is refused. The round strips only that field before validating the
+strict completion object. Inline and provider-returned completion objects still
+reject `session_id` and all other extra keys. Reply punctuation has no effect on mutation. Provider-neutral adapters
 may return the same typed completion; plain text alone fails closed as
 `missing-finish`. Unknown intent, invalid reply type, extra keys or a
 contradictory returned intent cannot authorize a candidate. Fake corpus scripts

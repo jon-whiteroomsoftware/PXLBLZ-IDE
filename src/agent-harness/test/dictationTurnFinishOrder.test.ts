@@ -163,6 +163,93 @@ describe('runToolRound attempts every finish in order and reports the duplicates
   })
 })
 
+describe('#949 explicit finish session transport', () => {
+  it.each(['apply', 'ask'] as const)('completes explicit %s with session transport in one provider call', async (intent) => {
+    const { store, sessionId, resize, runResponse } = await harness()
+    const before = exported(store, sessionId)
+    const result = await runResponse([
+      resize('r1'),
+      functionCall('f1', 'finish_turn', { session_id: sessionId, intent, reply: 'Done.' }),
+    ])
+    expect(result.disposition).toMatchObject({ kind: intent === 'apply' ? 'committed' : 'asked' })
+    expect(store.pending(sessionId)).toEqual({ ok: true, open: null })
+    if (intent === 'ask') {
+      expect(exported(store, sessionId)).toBe(before)
+      expect(history(store, sessionId)).toEqual([])
+    } else {
+      expect(exported(store, sessionId)).toContain('"durationMs":12000')
+      expect(history(store, sessionId)).toHaveLength(1)
+      const after = exported(store, sessionId)
+      expect(store.undo(sessionId).ok).toBe(true)
+      expect(exported(store, sessionId)).toBe(before)
+      expect(store.redo(sessionId).ok).toBe(true)
+      expect(exported(store, sessionId)).toBe(after)
+      const reopened = store.open(JSON.parse(after))
+      expect(reopened.ok).toBe(true)
+      if (reopened.ok) expect(exported(store, reopened.sessionId)).toBe(after)
+    }
+  })
+
+  it('checks the current session and passes only typed completion to its owner', async () => {
+    const finishTurn = vi.fn(() => ({ ok: true as const, finalText: 'Done.' }))
+    const round = await runToolRound({ sessionId: 'current', callTool: vi.fn(), finishTurn }, [
+      { id: 'f', name: 'finish_turn', args: { session_id: 'current', intent: 'apply', reply: 'Done.' } },
+    ])
+    expect(round.ended).toEqual({ finalText: 'Done.' })
+    expect(finishTurn).toHaveBeenCalledExactlyOnceWith({ intent: 'apply', reply: 'Done.' })
+  })
+
+  it.each([
+    { session_id: 'other' },
+    { session_id: 7 },
+    { session_id: null },
+    { session_id: undefined },
+    { session_id: 'current', extra: true },
+    { session_id: 'current', intent: 'unknown' },
+  ])('refuses invalid explicit transport or completion %j', async (extra) => {
+    const finishTurn = vi.fn(() => ({ ok: true as const, finalText: 'Done.' }))
+    const round = await runToolRound({ sessionId: 'current', callTool: vi.fn(), finishTurn }, [
+      { id: 'f', name: 'finish_turn', args: { intent: 'apply', reply: 'Done.', ...extra } },
+    ])
+    expect(round.ended).toBeNull()
+    expect(round.outputs).toMatchObject([{ id: 'f', isError: true, payload: { ok: false } }])
+    expect(finishTurn).not.toHaveBeenCalled()
+  })
+
+  it('refuses supplied session identity when the round has no current session', async () => {
+    const finishTurn = vi.fn(() => ({ ok: true as const, finalText: 'Done.' }))
+    const round = await runToolRound({ callTool: vi.fn(), finishTurn }, [
+      { id: 'f', name: 'finish_turn', args: { session_id: 'current', intent: 'apply' } },
+    ])
+    expect(round.ended).toBeNull()
+    expect(finishTurn).not.toHaveBeenCalled()
+  })
+
+  it('keeps session transport out of inline completion objects', async () => {
+    const finishTurn = vi.fn(() => ({ ok: true as const, finalText: 'Done.' }))
+    const round = await runToolRound({ sessionId: 'current', callTool: async () => ({ payload: { ok: true }, isError: false }), finishTurn }, [
+      { id: 'r', name: 'resize_clip', args: { session_id: 'current', [FINISH_ARGUMENT]: { session_id: 'current', intent: 'apply' } } },
+    ])
+    expect(round.ended).toBeNull()
+    expect(round.outputs[0].payload).toMatchObject({ finish_turn: { ok: false } })
+    expect(finishTurn).not.toHaveBeenCalled()
+  })
+
+  it.each(['wrong-session', 'extra-key'])('rolls back the complete private edit after %s exhausts the provider round', async (kind) => {
+    const { store, sessionId, resize, runResponse } = await harness()
+    const before = exported(store, sessionId)
+    const beforeHistory = history(store, sessionId)
+    const result = await runResponse([
+      resize('r1'),
+      functionCall('f1', 'finish_turn', { session_id: kind === 'wrong-session' ? 'other' : sessionId, intent: 'apply', ...(kind === 'extra-key' ? { extra: true } : {}) }),
+    ], 1)
+    expect(result.disposition).toMatchObject({ kind: 'incomplete', reason: 'turn-limit' })
+    expect(exported(store, sessionId)).toBe(before)
+    expect(history(store, sessionId)).toEqual(beforeHistory)
+    expect(store.pending(sessionId)).toEqual({ ok: true, open: null })
+  })
+})
+
 async function harness() {
   const store = createSessionStore()
   const server = createShowsServer({ sessions: store })
@@ -194,13 +281,13 @@ async function harness() {
   const marker = (id: string, extra: Record<string, unknown> = {}) =>
     functionCall(id, 'add_marker', { session_id: sessionId, at_ms: 5_000, name: 'Drop', ...extra })
   const finish = (id: string, completion: TurnCompletion) => functionCall(id, 'finish_turn', { ...completion })
-  const runResponse = async (output: unknown[]) => {
+  const runResponse = async (output: unknown[], maxTurns = 3) => {
     vi.stubEnv('OPENAI_API_KEY', 'test-key-not-a-credential')
     const openai = createGuardedOpenAiTestFixture('finish order')
     try {
       const agent = createOpenAiAgent({
         model: MOCKED_MODEL,
-        maxTurns: 3,
+        maxTurns,
         budget: openai.budget,
         transport: openai.transport,
       })

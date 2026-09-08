@@ -74,7 +74,7 @@ export function createOpenAiAgent(options: OpenAiAgentOptions): DictationAgent {
       const system =
         `${context.instructions}\n\n` +
         `You are editing a PXLBLZ Show through the tools. Session "${context.sessionId}" is already ` +
-        'open; every tool call must pass that session_id. Carry out the user\'s dictated edit, then ' +
+        'open; pass that session_id on session-scoped tools. Explicit finish_turn may include it; never put it inside finish_turn_reply. Carry out the user\'s dictated edit, then ' +
         'reply with one line stating what changed. If the request is ambiguous or names something that ' +
         'does not exist, ask exactly one clarifying question instead of editing. If the request is ' +
         'impossible but a near alternative exists, leave the document unchanged and offer the ' +
