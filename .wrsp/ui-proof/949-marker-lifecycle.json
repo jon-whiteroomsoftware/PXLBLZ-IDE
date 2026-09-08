@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "949",
+  "route": "/PXLBLZ-IDE/studio/shows/marker-lifecycle-hide-1788900070059?agent=1",
+  "operation": "Hold actual Marker pointer while Hide Markers or Undo removes its button; late pointerup preserves the Show; next diagnostic request applies and saves exact durable record, and a subsequent Marker gesture waits then releases normally. Desktop1440 captures show recovered Show and hidden/removed Marker.",
+  "captures": [
+    ".wrsp/ui-proof/949-marker-lifecycle-hide.png",
+    ".wrsp/ui-proof/949-marker-lifecycle-undo.png"
+  ],
+  "capturedAtCommit": "4fbc425069fe9bc2a9b1b06da584472eff8d9b7d"
+}
