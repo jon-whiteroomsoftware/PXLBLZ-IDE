@@ -1,0 +1,803 @@
+[
+  {
+    "button": "right",
+    "before": {
+      "id": "aux-probe-right-1788897447610",
+      "name": "Baseline personal Show",
+      "scenes": [
+        {
+          "id": "s1",
+          "name": "Opening",
+          "durationMs": 20000
+        }
+      ],
+      "zones": [
+        {
+          "id": "z1",
+          "name": "Main",
+          "nominalPixelCount": 64
+        }
+      ],
+      "cells": [
+        {
+          "id": "c1",
+          "zoneId": "z1",
+          "sceneId": "s1",
+          "sceneSpan": 1,
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "adaptations": {
+            "mirror": false,
+            "phase": 0,
+            "brightness": 1,
+            "timeScale": 1
+          },
+          "restartOnEntry": false
+        }
+      ],
+      "routingLayouts": [
+        {
+          "id": "l1",
+          "name": "Full Stage",
+          "zones": [],
+          "logical": {
+            "kind": "single",
+            "zoneIds": [
+              "z1"
+            ]
+          }
+        }
+      ],
+      "transitions": [],
+      "stageMapId": null,
+      "outputContract": {
+        "version": 1,
+        "kind": "portable-2d",
+        "referenceMapId": "plane",
+        "referencePixelCount": 256,
+        "compatibility": {
+          "dimensions": [
+            2
+          ],
+          "mapClass": "continuous-surface",
+          "resolution": "variable"
+        }
+      },
+      "updatedAt": 1757000000000,
+      "composition": {
+        "version": 1,
+        "patternInstances": [
+          {
+            "id": "resize-instance",
+            "pattern": {
+              "kind": "stock",
+              "id": "CometLoom"
+            },
+            "patternName": "CometLoom",
+            "time": {
+              "timeScale": 1,
+              "timeOffsetMs": 0
+            }
+          }
+        ],
+        "scenes": [
+          {
+            "sceneId": "s1",
+            "zones": [
+              {
+                "zoneId": "z1",
+                "main": [
+                  {
+                    "instanceId": "resize-instance",
+                    "view": {
+                      "mirror": false,
+                      "phase": 0,
+                      "brightness": 1
+                    },
+                    "id": "resize-a",
+                    "startMs": 0,
+                    "durationMs": 4000
+                  },
+                  {
+                    "instanceId": "resize-instance",
+                    "view": {
+                      "mirror": false,
+                      "phase": 0,
+                      "brightness": 1
+                    },
+                    "id": "resize-b",
+                    "startMs": 8000,
+                    "durationMs": 2000
+                  }
+                ],
+                "overlays": []
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "events": [
+      {
+        "type": "pointerdown",
+        "button": 2,
+        "pointerId": 1
+      },
+      {
+        "type": "contextmenu",
+        "button": 2,
+        "pointerId": 1
+      },
+      {
+        "type": "pointerup",
+        "button": 2,
+        "pointerId": 1
+      },
+      {
+        "type": "lostpointercapture",
+        "button": 2,
+        "pointerId": 1
+      },
+      {
+        "type": "auxclick",
+        "button": 2,
+        "pointerId": 1
+      }
+    ],
+    "outcome": {
+      "request": {
+        "operationId": "probe",
+        "payloadKey": "{\"utterance\":\"Rename\",\"history\":[]}",
+        "referenceContext": "{\"showId\":\"aux-probe-right-1788897447610\",\"selection\":{\"kind\":\"show\"},\"viewport\":null,\"hoveredClipId\":null,\"playheadMs\":0}",
+        "targets": [
+          "aux-probe-right-1788897447610"
+        ],
+        "sessionId": "4f826b98-ee41-4035-9589-11b320cc277a",
+        "showId": "aux-probe-right-1788897447610",
+        "baseRevision": 1
+      },
+      "status": "applied",
+      "settlement": "saving"
+    },
+    "show": {
+      "id": "aux-probe-right-1788897447610",
+      "name": "Agent",
+      "scenes": [
+        {
+          "id": "s1",
+          "name": "Opening",
+          "durationMs": 20000
+        }
+      ],
+      "zones": [
+        {
+          "id": "z1",
+          "name": "Main",
+          "nominalPixelCount": 64
+        }
+      ],
+      "cells": [
+        {
+          "id": "c1",
+          "zoneId": "z1",
+          "sceneId": "s1",
+          "sceneSpan": 1,
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "adaptations": {
+            "mirror": false,
+            "phase": 0,
+            "brightness": 1,
+            "timeScale": 1
+          },
+          "restartOnEntry": false
+        }
+      ],
+      "routingLayouts": [
+        {
+          "id": "l1",
+          "name": "Full Stage",
+          "zones": [],
+          "logical": {
+            "kind": "single",
+            "zoneIds": [
+              "z1"
+            ]
+          }
+        }
+      ],
+      "transitions": [],
+      "stageMapId": null,
+      "outputContract": {
+        "version": 1,
+        "kind": "portable-2d",
+        "referenceMapId": "plane",
+        "referencePixelCount": 256,
+        "compatibility": {
+          "dimensions": [
+            2
+          ],
+          "mapClass": "continuous-surface",
+          "resolution": "variable"
+        }
+      },
+      "updatedAt": 1788897448542,
+      "composition": {
+        "version": 1,
+        "patternInstances": [
+          {
+            "id": "resize-instance",
+            "pattern": {
+              "kind": "stock",
+              "id": "CometLoom"
+            },
+            "patternName": "CometLoom",
+            "time": {
+              "timeScale": 1,
+              "timeOffsetMs": 0
+            }
+          }
+        ],
+        "scenes": [
+          {
+            "sceneId": "s1",
+            "zones": [
+              {
+                "zoneId": "z1",
+                "main": [
+                  {
+                    "instanceId": "resize-instance",
+                    "view": {
+                      "mirror": false,
+                      "phase": 0,
+                      "brightness": 1
+                    },
+                    "id": "resize-a",
+                    "startMs": 0,
+                    "durationMs": 4000
+                  },
+                  {
+                    "instanceId": "resize-instance",
+                    "view": {
+                      "mirror": false,
+                      "phase": 0,
+                      "brightness": 1
+                    },
+                    "id": "resize-b",
+                    "startMs": 8000,
+                    "durationMs": 2000
+                  }
+                ],
+                "overlays": []
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "durable": {
+      "id": "aux-probe-right-1788897447610",
+      "name": "Agent",
+      "scenes": [
+        {
+          "id": "s1",
+          "name": "Opening",
+          "durationMs": 20000
+        }
+      ],
+      "zones": [
+        {
+          "id": "z1",
+          "name": "Main",
+          "nominalPixelCount": 64
+        }
+      ],
+      "cells": [
+        {
+          "id": "c1",
+          "zoneId": "z1",
+          "sceneId": "s1",
+          "sceneSpan": 1,
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "adaptations": {
+            "mirror": false,
+            "phase": 0,
+            "brightness": 1,
+            "timeScale": 1
+          },
+          "restartOnEntry": false
+        }
+      ],
+      "routingLayouts": [
+        {
+          "id": "l1",
+          "name": "Full Stage",
+          "zones": [],
+          "logical": {
+            "kind": "single",
+            "zoneIds": [
+              "z1"
+            ]
+          }
+        }
+      ],
+      "transitions": [],
+      "stageMapId": null,
+      "outputContract": {
+        "version": 1,
+        "kind": "portable-2d",
+        "referenceMapId": "plane",
+        "referencePixelCount": 256,
+        "compatibility": {
+          "dimensions": [
+            2
+          ],
+          "mapClass": "continuous-surface",
+          "resolution": "variable"
+        }
+      },
+      "updatedAt": 1788897448542,
+      "composition": {
+        "version": 1,
+        "patternInstances": [
+          {
+            "id": "resize-instance",
+            "pattern": {
+              "kind": "stock",
+              "id": "CometLoom"
+            },
+            "patternName": "CometLoom",
+            "time": {
+              "timeScale": 1,
+              "timeOffsetMs": 0
+            }
+          }
+        ],
+        "scenes": [
+          {
+            "sceneId": "s1",
+            "zones": [
+              {
+                "zoneId": "z1",
+                "main": [
+                  {
+                    "instanceId": "resize-instance",
+                    "view": {
+                      "mirror": false,
+                      "phase": 0,
+                      "brightness": 1
+                    },
+                    "id": "resize-a",
+                    "startMs": 0,
+                    "durationMs": 4000
+                  },
+                  {
+                    "instanceId": "resize-instance",
+                    "view": {
+                      "mirror": false,
+                      "phase": 0,
+                      "brightness": 1
+                    },
+                    "id": "resize-b",
+                    "startMs": 8000,
+                    "durationMs": 2000
+                  }
+                ],
+                "overlays": []
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "pageErrors": []
+  },
+  {
+    "button": "middle",
+    "before": {
+      "id": "aux-probe-middle-1788897448602",
+      "name": "Baseline personal Show",
+      "scenes": [
+        {
+          "id": "s1",
+          "name": "Opening",
+          "durationMs": 20000
+        }
+      ],
+      "zones": [
+        {
+          "id": "z1",
+          "name": "Main",
+          "nominalPixelCount": 64
+        }
+      ],
+      "cells": [
+        {
+          "id": "c1",
+          "zoneId": "z1",
+          "sceneId": "s1",
+          "sceneSpan": 1,
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "adaptations": {
+            "mirror": false,
+            "phase": 0,
+            "brightness": 1,
+            "timeScale": 1
+          },
+          "restartOnEntry": false
+        }
+      ],
+      "routingLayouts": [
+        {
+          "id": "l1",
+          "name": "Full Stage",
+          "zones": [],
+          "logical": {
+            "kind": "single",
+            "zoneIds": [
+              "z1"
+            ]
+          }
+        }
+      ],
+      "transitions": [],
+      "stageMapId": null,
+      "outputContract": {
+        "version": 1,
+        "kind": "portable-2d",
+        "referenceMapId": "plane",
+        "referencePixelCount": 256,
+        "compatibility": {
+          "dimensions": [
+            2
+          ],
+          "mapClass": "continuous-surface",
+          "resolution": "variable"
+        }
+      },
+      "updatedAt": 1757000000000,
+      "composition": {
+        "version": 1,
+        "patternInstances": [
+          {
+            "id": "resize-instance",
+            "pattern": {
+              "kind": "stock",
+              "id": "CometLoom"
+            },
+            "patternName": "CometLoom",
+            "time": {
+              "timeScale": 1,
+              "timeOffsetMs": 0
+            }
+          }
+        ],
+        "scenes": [
+          {
+            "sceneId": "s1",
+            "zones": [
+              {
+                "zoneId": "z1",
+                "main": [
+                  {
+                    "instanceId": "resize-instance",
+                    "view": {
+                      "mirror": false,
+                      "phase": 0,
+                      "brightness": 1
+                    },
+                    "id": "resize-a",
+                    "startMs": 0,
+                    "durationMs": 4000
+                  },
+                  {
+                    "instanceId": "resize-instance",
+                    "view": {
+                      "mirror": false,
+                      "phase": 0,
+                      "brightness": 1
+                    },
+                    "id": "resize-b",
+                    "startMs": 8000,
+                    "durationMs": 2000
+                  }
+                ],
+                "overlays": []
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "events": [
+      {
+        "type": "pointerdown",
+        "button": 1,
+        "pointerId": 1
+      },
+      {
+        "type": "pointerup",
+        "button": 1,
+        "pointerId": 1
+      },
+      {
+        "type": "lostpointercapture",
+        "button": 1,
+        "pointerId": 1
+      },
+      {
+        "type": "auxclick",
+        "button": 1,
+        "pointerId": 1
+      }
+    ],
+    "outcome": {
+      "request": {
+        "operationId": "probe",
+        "payloadKey": "{\"utterance\":\"Rename\",\"history\":[]}",
+        "referenceContext": "{\"showId\":\"aux-probe-middle-1788897448602\",\"selection\":{\"kind\":\"show\"},\"viewport\":null,\"hoveredClipId\":null,\"playheadMs\":0}",
+        "targets": [
+          "aux-probe-middle-1788897448602"
+        ],
+        "sessionId": "f4920abd-38b5-480b-9c31-55db76fb1286",
+        "showId": "aux-probe-middle-1788897448602",
+        "baseRevision": 1
+      },
+      "status": "applied",
+      "settlement": "saving"
+    },
+    "show": {
+      "id": "aux-probe-middle-1788897448602",
+      "name": "Agent",
+      "scenes": [
+        {
+          "id": "s1",
+          "name": "Opening",
+          "durationMs": 20000
+        }
+      ],
+      "zones": [
+        {
+          "id": "z1",
+          "name": "Main",
+          "nominalPixelCount": 64
+        }
+      ],
+      "cells": [
+        {
+          "id": "c1",
+          "zoneId": "z1",
+          "sceneId": "s1",
+          "sceneSpan": 1,
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "adaptations": {
+            "mirror": false,
+            "phase": 0,
+            "brightness": 1,
+            "timeScale": 1
+          },
+          "restartOnEntry": false
+        }
+      ],
+      "routingLayouts": [
+        {
+          "id": "l1",
+          "name": "Full Stage",
+          "zones": [],
+          "logical": {
+            "kind": "single",
+            "zoneIds": [
+              "z1"
+            ]
+          }
+        }
+      ],
+      "transitions": [],
+      "stageMapId": null,
+      "outputContract": {
+        "version": 1,
+        "kind": "portable-2d",
+        "referenceMapId": "plane",
+        "referencePixelCount": 256,
+        "compatibility": {
+          "dimensions": [
+            2
+          ],
+          "mapClass": "continuous-surface",
+          "resolution": "variable"
+        }
+      },
+      "updatedAt": 1788897449173,
+      "composition": {
+        "version": 1,
+        "patternInstances": [
+          {
+            "id": "resize-instance",
+            "pattern": {
+              "kind": "stock",
+              "id": "CometLoom"
+            },
+            "patternName": "CometLoom",
+            "time": {
+              "timeScale": 1,
+              "timeOffsetMs": 0
+            }
+          }
+        ],
+        "scenes": [
+          {
+            "sceneId": "s1",
+            "zones": [
+              {
+                "zoneId": "z1",
+                "main": [
+                  {
+                    "instanceId": "resize-instance",
+                    "view": {
+                      "mirror": false,
+                      "phase": 0,
+                      "brightness": 1
+                    },
+                    "id": "resize-a",
+                    "startMs": 0,
+                    "durationMs": 4000
+                  },
+                  {
+                    "instanceId": "resize-instance",
+                    "view": {
+                      "mirror": false,
+                      "phase": 0,
+                      "brightness": 1
+                    },
+                    "id": "resize-b",
+                    "startMs": 8000,
+                    "durationMs": 2000
+                  }
+                ],
+                "overlays": []
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "durable": {
+      "id": "aux-probe-middle-1788897448602",
+      "name": "Agent",
+      "scenes": [
+        {
+          "id": "s1",
+          "name": "Opening",
+          "durationMs": 20000
+        }
+      ],
+      "zones": [
+        {
+          "id": "z1",
+          "name": "Main",
+          "nominalPixelCount": 64
+        }
+      ],
+      "cells": [
+        {
+          "id": "c1",
+          "zoneId": "z1",
+          "sceneId": "s1",
+          "sceneSpan": 1,
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "adaptations": {
+            "mirror": false,
+            "phase": 0,
+            "brightness": 1,
+            "timeScale": 1
+          },
+          "restartOnEntry": false
+        }
+      ],
+      "routingLayouts": [
+        {
+          "id": "l1",
+          "name": "Full Stage",
+          "zones": [],
+          "logical": {
+            "kind": "single",
+            "zoneIds": [
+              "z1"
+            ]
+          }
+        }
+      ],
+      "transitions": [],
+      "stageMapId": null,
+      "outputContract": {
+        "version": 1,
+        "kind": "portable-2d",
+        "referenceMapId": "plane",
+        "referencePixelCount": 256,
+        "compatibility": {
+          "dimensions": [
+            2
+          ],
+          "mapClass": "continuous-surface",
+          "resolution": "variable"
+        }
+      },
+      "updatedAt": 1788897449173,
+      "composition": {
+        "version": 1,
+        "patternInstances": [
+          {
+            "id": "resize-instance",
+            "pattern": {
+              "kind": "stock",
+              "id": "CometLoom"
+            },
+            "patternName": "CometLoom",
+            "time": {
+              "timeScale": 1,
+              "timeOffsetMs": 0
+            }
+          }
+        ],
+        "scenes": [
+          {
+            "sceneId": "s1",
+            "zones": [
+              {
+                "zoneId": "z1",
+                "main": [
+                  {
+                    "instanceId": "resize-instance",
+                    "view": {
+                      "mirror": false,
+                      "phase": 0,
+                      "brightness": 1
+                    },
+                    "id": "resize-a",
+                    "startMs": 0,
+                    "durationMs": 4000
+                  },
+                  {
+                    "instanceId": "resize-instance",
+                    "view": {
+                      "mirror": false,
+                      "phase": 0,
+                      "brightness": 1
+                    },
+                    "id": "resize-b",
+                    "startMs": 8000,
+                    "durationMs": 2000
+                  }
+                ],
+                "overlays": []
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "pageErrors": []
+  }
+]

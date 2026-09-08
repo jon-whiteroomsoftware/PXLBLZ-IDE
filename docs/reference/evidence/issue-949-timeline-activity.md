@@ -4,11 +4,11 @@ The existing activity scope now binds Clip resize, native and shift-pointer Clip
 move/duplicate, Marker creation/movement, and Show End to diagnostic candidate
 waiting. A manual commit precedes activity release; cancellation permits the
 waiting candidate. Movement, authored representation, history and save algorithms
-remain with their existing owners. Production change: 141 added and 67 removed
-lines in ShowEditor (net 74); the reusable 43-line field scope is unchanged.
+remain with their existing owners. Production change: 145 added and 67 removed
+lines in ShowEditor (net 78); the reusable 43-line field scope is unchanged.
 
-Source: `a5dd79f0ecc8eeaab714c8558df3d3a8c7fe05e7`. The final route error oracle
-and captures use `b5035cd952bdaaefc7a2fe43ba023678a2ed7fc4`.
+Source: `a5dd79f0ecc8eeaab714c8558df3d3a8c7fe05e7`. The auxiliary-button repair and refreshed captures use
+`90874ae7be25f549868f78ee8d0a974be4b8eb1e`.
 
 ## Consumer proof
 
@@ -64,6 +64,19 @@ normal checks ran on the replacement. The optional post-commit issue reporter
 returned the previously diagnosed SIGPIPE141 on the long issue body; required
 checks and commits succeeded, with no hook bypass or reporter retry.
 
+The auxiliary-button correction passed 17 focused cases and all 246 ShowEditor
+tests through normal commit hooks. Real right and middle clicks reproduced the
+stranded Waiting state on `daf01537`: pointerup was followed by lost capture and
+auxclick, with no click; right-click also emitted contextmenu before pointerup.
+The repair releases below-threshold auxiliary sequences at pointerup, preserving
+primary click ownership and moved auxiliary drag authoring without a timer.
+Both actual browser sequences then applied and saved the next candidate with
+complete durable-record agreement and zero page errors. Raw evidence:
+[before repair](issue-949-timeline/auxiliary-before.json) and
+[after repair](issue-949-timeline/auxiliary-after.json). The refreshed GA run on
+that source commit passed all three cases (13.8 seconds, 17.7 overall); its log is
+`browser-aux-repair.log`.
+
 ## Limits and anomalous evidence
 
 The first actual GA run reached `invalid-candidate` and its error snapshot showed
@@ -75,8 +88,9 @@ unexplained, not diagnosed as fixed. Logs are `browser2.log`, `browser3-trace.lo
 and `browser-final.log` in the local evidence directory. The earlier anchored
 `^GA:` filter matched no full test titles and supplied no behavioral evidence.
 
-Real browser acceptance covers resize and Show End. Marker and Clip move/duplicate
-lifecycles use focused DOM/diagnostic tests plus existing authoring regressions.
+Real browser acceptance covers resize, Show End and auxiliary Marker clicks.
+Other Marker and Clip move/duplicate lifecycles use focused DOM/diagnostic tests
+plus existing authoring regressions.
 Placement-pad, sparkline, Effect reorder and retained physical-zone drafts remain
 unregistered. Viewport, transport, divider and marquee gestures remain view state.
 External narrow context, final Agent placement and hosted service remain separate.

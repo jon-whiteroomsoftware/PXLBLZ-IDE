@@ -1,7 +1,7 @@
 {
   "version": 1,
   "issue": "949",
-  "route": "/PXLBLZ-IDE/studio/shows/gesture-resize-cancel-mtt2syod?agent=1",
+  "route": "/PXLBLZ-IDE/studio/shows/gesture-resize-cancel-mtt3deyy?agent=1",
   "operation": "Actual Clip resize cancellation allows one waiting scripted candidate; manual resize and Show End commit refuse the stale candidate. Complete visible/durable records, one authored save/history step, Undo restoration and reopened exports verified. Desktop1440 and narrow800 pointer gestures captured; no synthetic activity tokens.",
   "captures": [
     ".wrsp/ui-proof/949-timeline-desktop.png",
@@ -9,5 +9,5 @@
     ".wrsp/ui-proof/949-timeline-saved.png",
     ".wrsp/ui-proof/949-timeline-manual.png"
   ],
-  "capturedAtCommit": "b5035cd952bdaaefc7a2fe43ba023678a2ed7fc4"
+  "capturedAtCommit": "90874ae7be25f549868f78ee8d0a974be4b8eb1e"
 }
