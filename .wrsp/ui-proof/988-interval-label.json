@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "988",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-105-portable-zones",
+  "operation": "105 Zones at 1440 x 900 with the live strip open at t=0; the narration reads \"INTERVAL Split 1/3 Patterns (2) · RibbonLoom, Caustics\", the interval label in place of the former Scene label.",
+  "captures": [
+    ".wrsp/ui-proof/988-interval-label.png"
+  ],
+  "capturedAtCommit": "2b56c9e09580a1b62c3eddc87b39910db12b52f7"
+}
