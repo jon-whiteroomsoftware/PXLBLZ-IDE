@@ -39,7 +39,7 @@ export function observeAgentLocation(listener: () => void): () => void {
 
 /** Broad full-Show diagnostic context is deliberately NOT qualified for C1. No
  * exposed callback or client-supplied validator can bypass this boundary. */
-export function createAgentEditorAdmission(showId: string, getContext: () => unknown) {
+export function createAgentEditorAdmission(showId: string, getContext: () => unknown, bindFieldActivity?: (acquire: () => () => void) => () => void) {
   const store = () => useShowStore.getState()
   const pathname = window.location.pathname
   const sessionId = store().beginShowEditSession(showId)
@@ -119,6 +119,21 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
     request: request ?? { operationId: '', payloadKey: '', referenceContext: '', targets: [], sessionId, showId, baseRevision: -1 },
     status: 'refused', reason: 'identity-mismatch',
   })
+  const unbindFields = bindFieldActivity?.(() => {
+    try {
+      const token = store().acquireShowEditActivity(sessionId, showId, 'dirty-field')
+      if (token) return () => store().releaseShowEditActivity(token)
+    } catch (error) {
+      if (!(error instanceof RangeError)) { close(); throw error }
+    }
+    // Manual input remains usable, but no candidate may use an untracked session.
+    close()
+    return () => {}
+  })
+  if (unbindFields) {
+    if (retired) unbindFields()
+    else stops.push(unbindFields)
+  }
   return {
     sessionId, available, close,
     onClose(listener: () => void) { if (retired) listener(); else listeners.add(listener); return () => { listeners.delete(listener) } },

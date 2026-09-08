@@ -21,16 +21,21 @@ Contracts this evidence serves:
 ## Diagnostic waiting protocol (#949)
 
 The diagnostic overlay consumes the internal bounded wait and displays Cancel.
-The W browser regression uses explicit synthetic activity tokens with the real
-scripted service and editor. It checks waiting without writes, cancellation, and
-one saved adoption after release. Additional local proof covers timeout and
-metadata invalidation, compares complete visible and durable records to their
-own pre-edit baselines, and reopens the accepted exported `.pxlshow`.
+The FA browser regression uses the actual Clip duration field while a real scripted
+request is in flight. A dirty draft keeps the candidate waiting without a visible
+record/history/provider change. Escape permits one exact adoption/save and an
+export reopened by the production importer; Enter publishes the manual duration
+first and refuses the stale candidate. Pointer-clicking diagnostic Cancel preserves
+the inspector, draft and focus without adoption. Focus-only permits immediate
+adoption. Accepted and manual records are compared in full with durable records;
+one Undo restores the original record.
 
-These checks do not establish real field or gesture ownership. Manual-input
-registration, external narrow context, and the final Agent panel remain outside
-this proof. The fixture's existing reference-map delivery diagnostic is also
-unchanged; successful authoring does not claim Controller delivery readiness.
+These checks qualify the registered shared text/numeric field families (including
+BoundedNumberField wrappers and slider portals), alongside focused lifecycle tests.
+Timeline, placement-pad, sparkline, Effect reorder and spatial-selection input
+ownership, external narrow context, and the final Agent panel remain outside this
+proof. The fixture's existing reference-map delivery diagnostic is unchanged;
+successful authoring does not claim Controller delivery readiness.
 
 ## Commands
 

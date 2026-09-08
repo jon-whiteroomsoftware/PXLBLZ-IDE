@@ -324,6 +324,7 @@ import ShowSourceOutletContext from '@/components/ShowSourceOutlet'
 import { ShowStripSection } from '@/components/ShowStripSection'
 import { useAnchoredOverlayPosition } from '@/components/useAnchoredOverlayPosition'
 import { previewShowClipResize, resizeShowClipManually } from '@/engine/showManualClipResize'
+import { FieldActivityContext, createFieldActivityScope } from './ui/field-activity'
 
 const field =
   'h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
@@ -1051,6 +1052,7 @@ export function ShowEditor({
   // view store is global, and a new editor instance must not inherit the
   // previous instance's selection or viewport.
   const detailShowIdRef = useRef<string | null>(null)
+  const { scope: fieldActivity } = useMemo(() => ({ showId, scope: createFieldActivityScope() }), [showId])
 
   // Dev-only local-tooling bridge on window, same species as the `?capture`
   // automation API and `__pxlblzShow` capture hooks: expose the active Show
@@ -1058,7 +1060,7 @@ export function ShowEditor({
   // local scripts, and apply a replacement record as one ordinary persisted
   // update - one history snapshot, one undo step. Lets external dev tooling
   // script the editor without a component handle.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!import.meta.env.DEV || readOnly) return
     const w = window as unknown as { __pxlblzEditor?: ReturnType<typeof createAgentEditorAdmission> }
     const pathname = window.location.pathname
@@ -1076,7 +1078,7 @@ export function ShowEditor({
           hoveredClipId: useShowClipHoverStore.getState().hoveredClipId,
           playheadMs: useShowTransportStore.getState().showId === showId
             ? useShowTransportStore.getState().positionMs : 0,
-        }))
+        }), fieldActivity.bind)
         w.__pxlblzEditor = api
       }
     }
@@ -1087,7 +1089,7 @@ export function ShowEditor({
       stop()
       if (w.__pxlblzEditor === api) delete w.__pxlblzEditor
     }
-  }, [readOnly, showId])
+  }, [readOnly, showId, fieldActivity])
   const timelineWorkspaceRef = useRef<HTMLElement>(null)
   const showEditorPaneRef = useRef<HTMLDivElement>(null)
   const lastTimelineFocusRef = useRef<HTMLElement | null>(null)
@@ -2415,6 +2417,7 @@ export function ShowEditor({
     ?.querySelector<HTMLElement>('[data-testid="show-timeline-toolbar"]')
 
   return (
+    <FieldActivityContext.Provider value={fieldActivity}>
     <div ref={showEditorPaneRef} className="show-editor-pane flex h-full min-h-0 flex-col bg-zinc-950/75 font-mono text-xs text-zinc-400">
       {headerGuideTarget && showNoteTrigger
         ? createPortal(showNoteTrigger, headerGuideTarget)
@@ -3249,6 +3252,7 @@ export function ShowEditor({
         pushResult={compileBarPushResult}
       />
     </div>
+    </FieldActivityContext.Provider>
   )
 }
 

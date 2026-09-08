@@ -7,6 +7,7 @@ import {
   type KeyboardEvent,
 } from 'react'
 import { DraftFieldActions } from './draft-field-actions'
+import { useFieldActivity } from './field-activity'
 
 export interface DraftTextFieldProps<T = string> {
   ariaLabel: string
@@ -42,6 +43,8 @@ export function DraftTextField<T = string>({
 }: DraftTextFieldProps<T>) {
   const [draft, setDraft] = useState(value)
   const [dirty, setDirty] = useState(false)
+  const dirtyRef = useRef(false)
+  const refreshActivity = useFieldActivity(() => dirtyRef.current && !inputProps?.disabled && !inputProps?.readOnly)
   const focusedRef = useRef(false)
   const committedDraftRef = useRef(value)
   const parsed = parse ? parse(draft) : draft as unknown as T
@@ -54,24 +57,32 @@ export function DraftTextField<T = string>({
     committedDraftRef.current = value
     setDraft(value)
     setDirty(false)
-  }, [value])
+    dirtyRef.current = false
+    refreshActivity()
+  }, [value, refreshActivity])
 
   const cancel = () => {
     focusedRef.current = false
+    dirtyRef.current = false
     setDirty(false)
     setDraft(committedDraftRef.current)
-    onDraftChange?.(committedDraftRef.current)
-    onCancel?.()
+    try {
+      onDraftChange?.(committedDraftRef.current)
+      onCancel?.()
+    } finally { refreshActivity() }
   }
   const apply = () => {
     if (!dirty || parsed === null) return
-    const accepted = onApply(parsed) !== false
-    if (!accepted) return
-    const appliedDraft = formatApplied?.(parsed, draft) ?? draft
-    committedDraftRef.current = appliedDraft
-    focusedRef.current = false
-    setDirty(false)
-    setDraft(appliedDraft)
+    try {
+      const accepted = onApply(parsed) !== false
+      if (!accepted) return
+      const appliedDraft = formatApplied?.(parsed, draft) ?? draft
+      committedDraftRef.current = appliedDraft
+      focusedRef.current = false
+      dirtyRef.current = false
+      setDirty(false)
+      setDraft(appliedDraft)
+    } finally { refreshActivity() }
   }
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     inputProps?.onKeyDown?.(event)
@@ -106,6 +117,8 @@ export function DraftTextField<T = string>({
         }}
         onChange={(event) => {
           focusedRef.current = true
+          dirtyRef.current = true
+          refreshActivity()
           setDirty(true)
           const nextDraft = sanitize?.(event.currentTarget.value) ?? event.currentTarget.value
           setDraft(nextDraft)

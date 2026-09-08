@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import { DraftFieldActions } from './draft-field-actions'
+import { useFieldActivity } from './field-activity'
 
 // The one simple numeric-entry contract for the app (#577, #656): this is a
 // decimal textbox, deliberately not a native number input/spinbutton. Keystrokes
@@ -36,15 +37,18 @@ export interface NumberFieldDraft {
   }
 }
 
-export function useNumberFieldDraft({ value, min, max, onChange }: {
+export function useNumberFieldDraft({ value, min, max, onChange, disabled = false }: {
   value?: number
   min?: number
   max?: number
+  disabled?: boolean
   onChange: (value: number) => void
 }): NumberFieldDraft {
   const renderedValue = value == null ? '' : String(value)
   const [draft, setDraft] = useState(renderedValue)
   const [dirty, setDirty] = useState(false)
+  const dirtyRef = useRef(false)
+  const refreshActivity = useFieldActivity(() => dirtyRef.current && !disabled)
   const focusedRef = useRef(false)
   const committedDraftRef = useRef(renderedValue)
 
@@ -53,10 +57,12 @@ export function useNumberFieldDraft({ value, min, max, onChange }: {
       committedDraftRef.current = renderedValue
       setDraft(renderedValue)
       setDirty(false)
+      dirtyRef.current = false
+      refreshActivity()
     } else {
       committedDraftRef.current = renderedValue
     }
-  }, [renderedValue])
+  }, [renderedValue, refreshActivity])
 
   const parsed = Number(draft)
   const parsedDraft = draft.trim() === '' || !Number.isFinite(parsed)
@@ -65,8 +71,10 @@ export function useNumberFieldDraft({ value, min, max, onChange }: {
 
   const cancel = () => {
     focusedRef.current = false
+    dirtyRef.current = false
     setDirty(false)
     setDraft(committedDraftRef.current)
+    refreshActivity()
   }
   const apply = () => {
     if (!dirty || parsedDraft == null) return
@@ -75,7 +83,8 @@ export function useNumberFieldDraft({ value, min, max, onChange }: {
     committedDraftRef.current = String(bounded)
     setDirty(false)
     setDraft(String(bounded))
-    if (bounded !== value) onChange(bounded)
+    try { if (bounded !== value) onChange(bounded) }
+    finally { dirtyRef.current = false; refreshActivity() }
   }
 
   return {
@@ -97,6 +106,8 @@ export function useNumberFieldDraft({ value, min, max, onChange }: {
       },
       onChange: (event) => {
         focusedRef.current = true
+        dirtyRef.current = true
+        refreshActivity()
         setDirty(true)
         setDraft(event.target.value)
       },
@@ -162,7 +173,7 @@ export function NumberField({
   variant = 'inspector',
   onChange,
 }: NumberFieldProps) {
-  const draftField = useNumberFieldDraft({ value, min, max, onChange })
+  const draftField = useNumberFieldDraft({ value, min, max, onChange, disabled })
   const { inputProps } = draftField
   const inputId = useId()
   const normalized = min === 0 && max === 1

@@ -62,6 +62,8 @@
   const cancel = document.createElement('button')
   cancel.type = 'button'
   cancel.dataset.testid = 'agent-chat-cancel'
+  // Cancellation preserves the active inspector as well as its input focus.
+  cancel.dataset.showDetailOwnedPortal = 'true'
   cancel.textContent = 'Cancel'
   cancel.hidden = true
   cancel.style.cssText = send.style.cssText

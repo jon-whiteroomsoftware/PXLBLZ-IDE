@@ -36,7 +36,7 @@ cap. [Pure policy tests](../../../src/engine/showEditAdmission.test.ts) and
 full records/history, provider writes, revision ABA, retirement, deduplication
 and delayed persistence outcomes.
 
-The diagnostic bridge uses this foundation conservatively. Live active-input wiring, final panel placement, hosted service/MCP/OAuth and command-catalogue migration remain unimplemented. Trusted callbacks at the whole-Show seam stay internal; the exposed adapter supplies its own structural and authoring validation.
+The diagnostic bridge uses this foundation conservatively. Existing shared text/numeric fields register live input activity under editable ShowEditor. Timeline/spatial gestures, final panel placement, hosted service/MCP/OAuth and command-catalogue migration remain unimplemented. Trusted callbacks at the whole-Show seam stay internal; the exposed adapter supplies its own structural and authoring validation.
 
 ## Internal bounded active-input wait
 
@@ -49,8 +49,22 @@ the existing pending operation; terminal outcomes remain in the session table.
 The diagnostic bridge uses this path with raw structural and authoring validation
 inside the delivery-time boundary, followed by final normalized validation.
 Metadata changes terminate waiting promptly without clearing activity tokens.
-Actual manual UI owners do not yet register activity; diagnostic browser proof
-uses explicitly synthetic tokens. Internal
+`DraftTextField`, `useNumberFieldDraft`/`NumberField`, and `BoundedNumberField`
+(including Time, Domain, Percentage and Angle wrappers) register their existing
+control-owned drafts and slider gestures through a generic React scope under
+editable ShowEditor. Portals inherit that scope. Focus and an idle pinned slider
+are not active input. Invalid text and rejected text applies retain ownership
+while their drafts remain dirty; successful commit/cancellation releases only
+after synchronous manual callbacks. Preview-end alone does not release ownership.
+Shared controls outside this scope have no Show-store dependency.
+
+The editor binds surviving dirty controls before exposing each new diagnostic
+session. Closing retires the session before releasing fields; old cleanup cannot
+unbind a replacement session. Capacity failure retires the diagnostic capability
+before manual input continues, so no eligible candidate can bypass untracked input.
+Diagnostic Cancel preserves the inspector and prevents blur before cancellation.
+The FA browser regression drives actual duration drafts and focus; W retains its
+explicit synthetic-token protocol proof. Internal
 `admitResolvedShowResize` consumes the same owner, checks its private dependency
 qualification before waiting, and replays the captured operation on current state
 at settlement. It returns the same waiting projection; no immediate resize
@@ -97,10 +111,11 @@ cover complete records/history, zero attributable writes while waiting/refused,
 monotonic boundaries and a serialized `.pxlshow` reopened through its importer.
 [Qualified resize consumer tests](../../../src/store/showQualifiedResize.test.ts)
 also prove independent Layer preservation through waiting and undo, final
-qualification crossing the armed deadline, and observation cleanup. This is
-internal evidence only for real input ownership: diagnostic waiting/Cancel is
-qualified with synthetic tokens; real input-owner UI wiring and external
-Layer-scoped context remain unqualified.
+qualification crossing the armed deadline, and observation cleanup. Actual field
+ownership is covered by `src/dev/agentFieldActivity.test.tsx`, shared-control
+lifecycle tests, and the FA browser sequence. Timeline resize/move/Marker/Show End,
+placement-pad, sparkline, Effect reorder and spatial-selection drafts remain
+unregistered, and external Layer-scoped context remains unqualified.
 
 Manual pointer and composition-inspector duration commits also use the exact
 resize semantic owner, with two explicitly tagged manual Transition-to-Cut

@@ -20,6 +20,7 @@ import {
   type FineAdjustDrag,
 } from '@/engine/fineAdjust'
 import { DraftFieldActions } from './draft-field-actions'
+import { useFieldActivity } from './field-activity'
 
 export interface BoundedNumberPresentation {
   kindLabel: string
@@ -168,6 +169,7 @@ export function BoundedNumberField({
   // incremental — returning to the native absolute mapping on release would
   // jump the value to the pointer's coarse position (#667 review).
   const popoverFineEngagedRef = useRef(false)
+  const refreshActivity = useFieldActivity(() => !disabled && (dirtyRef.current || sliderDirtyRef.current || pointerSessionRef.current !== null || sliderPointerIdRef.current !== null))
 
   useEffect(() => {
     if (!focusedRef.current) setDraft(interactionDraft)
@@ -209,6 +211,7 @@ export function BoundedNumberField({
     dirtyRef.current = false
     setDraftDirty(false)
     setDraft(formatDraft(interactionValue))
+    refreshActivity()
   }
   const commit = (raw: string) => {
     focusedRef.current = false
@@ -222,14 +225,15 @@ export function BoundedNumberField({
       return
     }
     const bounded = clampPercentageValue(parsed, min, max)
-    dirtyRef.current = false
     setDraftDirty(false)
     setDraft(formatDraft(bounded))
-    if (bounded !== interactionValue) {
-      const accepted = onChange(bounded) !== false
-      if (accepted) recordPendingCommit(bounded)
-      else setDraft(formatDraft(interactionValue))
-    }
+    try {
+      if (bounded !== interactionValue) {
+        const accepted = onChange(bounded) !== false
+        if (accepted) recordPendingCommit(bounded)
+        else setDraft(formatDraft(interactionValue))
+      }
+    } finally { dirtyRef.current = false; refreshActivity() }
   }
   const onExactKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
@@ -243,55 +247,64 @@ export function BoundedNumberField({
   }
   const previewSliderValue = (next: number) => {
     sliderDirtyRef.current = true
+    refreshActivity()
     previewActiveRef.current = true
     sliderValueRef.current = next
     setSliderValue(next)
     setDraft(formatDraft(next))
-    onPreview?.(next)
+    try { onPreview?.(next) }
+    catch (error) {
+      try { endPreview() } finally { finishSliderActivity() }
+      throw error
+    }
   }
   const closeSlider = () => {
     pointerSessionRef.current = null
     setSlider(null)
   }
-  const cancelSlider = () => {
-    const startValue = sliderStartValueRef.current
-    if (previewActiveRef.current) onPreview?.(startValue)
-    endPreview()
+  const finishSliderActivity = () => {
+    sliderPointerIdRef.current = null
     sliderDirtyRef.current = false
-    const boundedStartValue = clampPercentageValue(startValue, sliderMin, sliderMax)
-    sliderValueRef.current = boundedStartValue
-    setSliderValue(boundedStartValue)
-    setDraft(formatDraft(startValue))
     closeSlider()
+    refreshActivity()
+  }
+  const cancelSlider = () => {
+    try {
+      const startValue = sliderStartValueRef.current
+      if (previewActiveRef.current) onPreview?.(startValue)
+      endPreview()
+      const boundedStartValue = clampPercentageValue(startValue, sliderMin, sliderMax)
+      sliderValueRef.current = boundedStartValue
+      setSliderValue(boundedStartValue)
+      setDraft(formatDraft(startValue))
+    } finally { finishSliderActivity() }
   }
   const commitSlider = (next: number) => {
-    const startValue = sliderStartValueRef.current
-    endPreview()
-    const changed = sliderDirtyRef.current
-    sliderDirtyRef.current = false
-    if (!changed) {
-      sliderValueRef.current = boundedSliderValue
-      setSliderValue(boundedSliderValue)
-      setDraft(formatDraft(startValue))
-      closeSlider()
-      return
-    }
-    if (next !== startValue) {
-      const accepted = onChange(next) !== false
-      if (!accepted) {
-        const boundedStartValue = clampPercentageValue(startValue, sliderMin, sliderMax)
-        sliderValueRef.current = boundedStartValue
-        setSliderValue(boundedStartValue)
+    try {
+      const startValue = sliderStartValueRef.current
+      endPreview()
+      const changed = sliderDirtyRef.current
+      if (!changed) {
+        sliderValueRef.current = boundedSliderValue
+        setSliderValue(boundedSliderValue)
         setDraft(formatDraft(startValue))
-        closeSlider()
         return
       }
-      recordPendingCommit(next)
-    }
-    sliderValueRef.current = next
-    setSliderValue(next)
-    setDraft(formatDraft(next))
-    closeSlider()
+      if (next !== startValue) {
+        const accepted = onChange(next) !== false
+        if (!accepted) {
+          const boundedStartValue = clampPercentageValue(startValue, sliderMin, sliderMax)
+          sliderValueRef.current = boundedStartValue
+          setSliderValue(boundedStartValue)
+          setDraft(formatDraft(startValue))
+          return
+        }
+        recordPendingCommit(next)
+      }
+      sliderValueRef.current = next
+      setSliderValue(next)
+      setDraft(formatDraft(next))
+    } finally { finishSliderActivity() }
   }
   const placeSlider = (
     anchor: DOMRect,
@@ -324,7 +337,6 @@ export function BoundedNumberField({
   }
   const openSlider = (event: PointerEvent<HTMLButtonElement>) => {
     if (disabled) return
-    revert()
     const rect = event.currentTarget.getBoundingClientRect()
     const placement = placeSlider(rect, event.clientX, interactionValue)
     pointerSessionRef.current = {
@@ -335,6 +347,7 @@ export function BoundedNumberField({
       placement,
       drag: beginFineAdjust(event.clientX, toSliderPosition(interactionValue)),
     }
+    revert()
     sliderStartValueRef.current = interactionValue
     sliderDirtyRef.current = false
     sliderValueRef.current = boundedSliderValue
@@ -370,6 +383,7 @@ export function BoundedNumberField({
       return
     }
     setSlider((current) => current ? { ...current, pinned: true } : current)
+    refreshActivity()
     window.setTimeout(() => sliderRef.current?.focus(), 0)
   }
   const openPinnedSlider = (event: KeyboardEvent<HTMLButtonElement>) => {
@@ -430,6 +444,7 @@ export function BoundedNumberField({
             onChange={(event) => {
               focusedRef.current = true
               dirtyRef.current = true
+              refreshActivity()
               setDraftDirty(true)
               setDraft(event.currentTarget.value)
             }}
@@ -529,6 +544,7 @@ export function BoundedNumberField({
               value={Math.round(toSliderPosition(sliderValue) * sliderPositionCount)}
               onPointerDown={(event) => {
                 sliderPointerIdRef.current = event.pointerId
+                refreshActivity()
                 event.currentTarget.setPointerCapture(event.pointerId)
                 popoverFineEngagedRef.current = event.shiftKey
                 popoverTrackWidthRef.current = Math.max(
