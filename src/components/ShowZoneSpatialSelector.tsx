@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { ArrowLeft, Check, Eraser, MousePointer2, Plus, Minus } from 'lucide-react'
 import type { ShowRecord } from '@/engine/personalContentRecords'
 import { validateInstallationCoverage } from '@/engine/showInstallationCoverage'
@@ -11,6 +11,7 @@ import {
   type SpatialPoint2D,
   type SpatialSelectionMode,
 } from '@/engine/showSpatialSelection'
+import { useFieldActivity } from './ui/field-activity'
 
 export function ShowZoneSpatialSelector({
   show,
@@ -30,11 +31,31 @@ export function ShowZoneSpatialSelector({
   onCancel: () => void
 }) {
   const layout = show.routingLayouts.find((candidate) => candidate.id === layoutId)
-  const initialRanges = layout?.zones.find((entry) => entry.zoneId === zone.id)?.ranges ?? []
+  const initialRanges = useMemo(() => layout?.zones.find((entry) => entry.zoneId === zone.id)?.ranges ?? [], [layout, zone.id])
   const [selected, setSelected] = useState(() => indexesFromPhysicalRanges(initialRanges, points.length))
+  const selectedRef = useRef(selected)
+  const authoritativeRef = useRef(selected)
+  const sourceIdentity = `${show.id}:${layoutId}:${zone.id}:${points.length}`
+  const sourceRef = useRef(sourceIdentity)
   const [mode, setMode] = useState<SpatialSelectionMode>('replace')
   const [drag, setDrag] = useState<{ from: SpatialPoint2D; to: SpatialPoint2D } | null>(null)
-  const dragRef = useRef<{ from: SpatialPoint2D; to: SpatialPoint2D } | null>(null)
+  const dragRef = useRef<{ from: SpatialPoint2D; to: SpatialPoint2D; pointerId: number } | null>(null)
+  const refreshActivity = useFieldActivity(() => dragRef.current !== null || !sameIndexes(selectedRef.current, authoritativeRef.current))
+  useLayoutEffect(() => {
+    const next = indexesFromPhysicalRanges(initialRanges, points.length)
+    const replaced = sourceRef.current !== sourceIdentity
+    if (replaced || sameIndexes(selectedRef.current, authoritativeRef.current)) {
+      if (!sameIndexes(selectedRef.current, next)) {
+        selectedRef.current = next
+        setSelected(next)
+      }
+    }
+    if (replaced) { dragRef.current = null; setDrag(null) }
+    sourceRef.current = sourceIdentity
+    authoritativeRef.current = next
+    refreshActivity()
+  }, [initialRanges, points.length, sourceIdentity, refreshActivity])
+  useLayoutEffect(() => () => { dragRef.current = null }, [])
   const selectedIndexes = useMemo(() => [...selected].sort((a, b) => a - b), [selected])
   const ranges = useMemo(() => compactSpatialIndexes(selectedIndexes), [selectedIndexes])
   const draftShow = useMemo(
@@ -52,14 +73,16 @@ export function ShowZoneSpatialSelector({
   }
 
   function beginDrag(event: ReactPointerEvent<SVGSVGElement>) {
+    if (dragRef.current) return
     const from = position(event)
-    dragRef.current = { from, to: from }
+    dragRef.current = { from, to: from, pointerId: event.pointerId }
+    refreshActivity()
     setDrag(dragRef.current)
     event.currentTarget.setPointerCapture?.(event.pointerId)
   }
 
   function moveDrag(event: ReactPointerEvent<SVGSVGElement>) {
-    if (!dragRef.current) return
+    if (!dragRef.current || dragRef.current.pointerId !== event.pointerId) return
     const next = { ...dragRef.current, to: position(event) }
     dragRef.current = next
     setDrag(next)
@@ -67,20 +90,44 @@ export function ShowZoneSpatialSelector({
 
   function finishDrag(event: ReactPointerEvent<SVGSVGElement>) {
     const current = dragRef.current
-    if (!current) return
+    if (!current || current.pointerId !== event.pointerId) return
     const complete = { ...current, to: position(event) }
     const hits = selectIndexesInRect(points, complete.from, complete.to)
-    setSelected((existing) => applySpatialIndexSelection(existing, hits, mode))
+    selectedRef.current = applySpatialIndexSelection(selectedRef.current, hits, mode)
+    setSelected(selectedRef.current)
     dragRef.current = null
     setDrag(null)
+    refreshActivity()
     event.currentTarget.releasePointerCapture?.(event.pointerId)
+  }
+
+  function cancelDrag(event: ReactPointerEvent<SVGSVGElement>) {
+    if (dragRef.current?.pointerId !== event.pointerId) return
+    dragRef.current = null
+    setDrag(null)
+    refreshActivity()
+  }
+
+  function cancel() {
+    onCancel()
+    dragRef.current = null
+    setDrag(null)
+    selectedRef.current = authoritativeRef.current
+    setSelected(selectedRef.current)
+    refreshActivity()
+  }
+
+  function clear() {
+    selectedRef.current = new Set()
+    refreshActivity()
+    setSelected(selectedRef.current)
   }
 
   return (
     <div className="scrollbar-hidden h-full overflow-auto bg-zinc-950/75 p-3 font-mono text-zinc-300 sm:p-5">
       <section className="mx-auto max-w-5xl overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950/90 shadow-2xl shadow-black/30">
         <header className="flex flex-wrap items-start gap-3 border-b border-zinc-800 px-4 py-3 sm:px-5">
-          <button type="button" onClick={onCancel} className="mt-0.5 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.12em] text-zinc-500 hover:text-zinc-200">
+          <button type="button" onClick={cancel} className="mt-0.5 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.12em] text-zinc-500 hover:text-zinc-200">
             <ArrowLeft size={12} aria-hidden /> Zone properties
           </button>
           <div className="min-w-0 flex-1">
@@ -108,9 +155,10 @@ export function ShowZoneSpatialSelector({
               onPointerDown={beginDrag}
               onPointerMove={moveDrag}
               onPointerUp={finishDrag}
-              onPointerCancel={() => { dragRef.current = null; setDrag(null) }}
+              onPointerCancel={cancelDrag}
+              onLostPointerCapture={cancelDrag}
               onKeyDown={(event) => {
-                if (event.key === 'Escape') { event.preventDefault(); onCancel() }
+                if (event.key === 'Escape') { event.preventDefault(); cancel() }
                 if (event.key === 'Enter') { event.preventDefault(); onCommit(selectedIndexes) }
               }}
               className="aspect-square max-h-[65vh] w-full touch-none cursor-crosshair rounded-md border border-zinc-700 bg-[#050507] outline-none focus:border-live/70 focus:ring-2 focus:ring-live/20"
@@ -156,7 +204,7 @@ export function ShowZoneSpatialSelector({
                 <ModeButton label="Add selection" active={mode === 'add'} onClick={() => setMode('add')} icon={<Plus size={11} />} />
                 <ModeButton label="Subtract selection" active={mode === 'subtract'} onClick={() => setMode('subtract')} icon={<Minus size={11} />} />
               </div>
-              <button type="button" onClick={() => setSelected(new Set())} className="mt-2 inline-flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-200"><Eraser size={11} /> Clear</button>
+              <button type="button" onClick={clear} className="mt-2 inline-flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-200"><Eraser size={11} /> Clear</button>
             </div>
 
             <div className="rounded border border-zinc-800 bg-zinc-900/45 p-3">
@@ -195,4 +243,8 @@ function formatRanges(ranges: Array<{ start: number; end: number }>): string {
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value))
+}
+
+function sameIndexes(left: Set<number>, right: Set<number>): boolean {
+  return left.size === right.size && [...left].every(index => right.has(index))
 }

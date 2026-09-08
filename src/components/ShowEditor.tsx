@@ -2046,24 +2046,27 @@ export function ShowEditor({
         return { x: raw[0] ?? 0.5, y: raw[1] ?? 0.5 }
       })
       return (
-        <ShowZoneSpatialSelector
-          show={activeShow}
-          zone={zone}
-          layoutId={spatialZoneSelection.layoutId}
-          mapName={savedStageMap.name}
-          points={points}
-          onCancel={() => setSpatialZoneSelection(null)}
-          onCommit={(indexes) => {
-            const next = updateShowPhysicalZoneSelection(
-              activeShow,
-              spatialZoneSelection.layoutId,
-              zone.id,
-              indexes,
-            )
-            setSpatialZoneSelection(null)
-            updateShowInBackground(activeShow.id, next)
-          }}
-        />
+        <FieldActivityContext.Provider value={fieldActivity}>
+          <ShowZoneSpatialSelector
+            key={`${activeShow.id}:${spatialZoneSelection.layoutId}:${zone.id}:${savedStageMap.id}`}
+            show={activeShow}
+            zone={zone}
+            layoutId={spatialZoneSelection.layoutId}
+            mapName={savedStageMap.name}
+            points={points}
+            onCancel={() => setSpatialZoneSelection(null)}
+            onCommit={(indexes) => {
+              const next = updateShowPhysicalZoneSelection(
+                activeShow,
+                spatialZoneSelection.layoutId,
+                zone.id,
+                indexes,
+              )
+              updateShowInBackground(activeShow.id, next)
+              setSpatialZoneSelection(null)
+            }}
+          />
+        </FieldActivityContext.Provider>
       )
     }
   }

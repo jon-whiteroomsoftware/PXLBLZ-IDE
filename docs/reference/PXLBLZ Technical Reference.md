@@ -909,8 +909,9 @@ and session rebinding before bridge exposure. Clip resize, Clip move/duplicate
 (native and shift-pointer), Marker creation/movement, Show End, placement-pad and
 native Effect reorder register actual gesture lifetimes through authored
 settlement. The optional Property Beat movement callback is component-qualified
-but has no current ShowEditor caller. Retained physical-zone drafts and external
-Layer-scoped context remain unqualified.
+but has no current ShowEditor caller. The physical-zone selector registers its
+live rectangle and retained changed selection; clean drafts follow authoritative
+index updates. External Layer-scoped context remains unqualified.
 
 **Coverage gate.** `schemas/show-record.schema.json` is generated from the
 ShowRecord type (`npm run schema:show-record`; a drift test keeps it exact),
@@ -1593,10 +1594,12 @@ qualify for internal Layer-independent resize admission. The diagnostic overlay
 consumes bounded active-input waiting, displays Cancel, and keeps one submission
 busy through saving. Browser sequence FA uses actual duration drafts and focus;
 GA uses actual Clip resize and Show End gestures; DA uses placement previews and
-native Effect drag/drop. W retains synthetic-token protocol checks. Shared fields,
-authored timeline gestures, placement and Effect reorder register live input.
-Property Beat movement has component evidence only; retained physical-zone drafts,
-final panel placement and hosted service qualification remain separate work.
+native Effect drag/drop; SA uses retained physical-zone drafts, with a direct
+diagnostic adapter case for clean-source index replacement. W retains
+synthetic-token protocol checks. Shared fields, authored timeline gestures,
+placement, Effect reorder and physical-zone drafts register live input. Property
+Beat movement has component evidence only; final panel placement and hosted
+service qualification remain separate work.
 
 The harness's paid model calls (`agent:corpus --live`, live `agent:bridge`)
 are owned by its paid-call guard (`src/agent-harness/experiment/paidCallGuard.ts`,

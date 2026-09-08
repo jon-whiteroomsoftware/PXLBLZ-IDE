@@ -1109,4 +1109,115 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       saveRecord(`DA-${action}`, { before, durableBefore, done, current, reopened: reopened.show, writes, pageErrors })
     }
   })
+  test('SA: retained physical-zone drafts and clean source updates preserve editor records', async ({ page }) => {
+    test.setTimeout(180000)
+    const pageErrors: string[] = []
+    page.on('pageerror', error => pageErrors.push(error.message))
+    for (const action of ['clean', 'cancel', 'save', 'clear-cancel'] as const) {
+      await page.setViewportSize({ width: action === 'clear-cancel' ? 720 : 1440, height: 900 })
+      const record = resizeBoundaryShow(`spatial-${action}-${Date.now().toString(36)}`)
+      const mapId = `${record.id}-map`
+      expect((await page.context().request.post('/api/maps', { data: {
+        id: mapId, name: 'Spatial four', dim: 2, generator: 'custom', params: {},
+        points: [[0, 0], [0.3, 0.3], [0.7, 0.7], [1, 1]], updatedAt: Date.now(),
+      } })).ok()).toBe(true)
+      record.stageMapId = mapId
+      record.outputContract = { version: 1, kind: 'installation', outputMapId: mapId, pixelCount: 4, resolution: 'fixed' }
+      record.zones[0].nominalPixelCount = 4
+      record.zones.push({ id: 'z2', name: 'Accent', nominalPixelCount: 4 })
+      record.routingLayouts = [{ id: 'l1', name: 'Physical', zones: [
+        { zoneId: 'z1', ranges: [{ start: 0, end: 1 }] },
+        { zoneId: 'z2', ranges: [action === 'clean' ? { start: 0, end: 4 } : { start: 2, end: 3 }] },
+      ] }]
+      expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+      await page.goto(`studio/shows/${record.id}?agent=1`)
+      await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+      await expect.poll(() => page.evaluate(async () => {
+        const load = (path: string) => import(path)
+        const [p, l, m] = await Promise.all(['pattern', 'library', 'map'].map(name => load(`/PXLBLZ-IDE/src/store/${name}Store.ts`)))
+        return p.usePatternStore.getState().patternsLoaded && l.useLibraryStore.getState().librariesLoaded && m.useMapStore.getState().mapsLoaded
+      })).toBe(true)
+      await injectOverlay(page, bridge.url)
+      const open = page.getByRole('button', { name: 'Open Zones', exact: true })
+      if (await open.count()) await open.click()
+      await page.getByRole('button', { name: 'Open zone Main properties' }).click()
+      await page.getByRole('button', { name: 'Select Main LEDs on output map' }).click()
+      const surface = page.getByRole('img', { name: 'Select LEDs for zone Main' })
+      await expect(surface).toBeVisible()
+      const before = await visibleRecord(page) as unknown as ShowRecord
+      const durableBefore = await durableShow(page, record.id)
+      const writes = watchShowWrites(page)
+      let done: unknown
+      if (action === 'clean') {
+        // The current scripted grammar has no physical-range operation. This
+        // case uses the existing diagnostic adapter with a complete candidate.
+        await surface.focus()
+        done = await page.evaluate(() => {
+          const editor = (window as unknown as { __pxlblzEditor: {
+            beginRequest: (id: string, utterance: string, history: unknown[]) => { show: ShowRecord; request: unknown }
+            applyShow: (show: ShowRecord, request: unknown) => unknown
+          } }).__pxlblzEditor
+          const captured = editor.beginRequest('clean-spatial', 'Change physical indexes', [])
+          const candidate = structuredClone(captured.show)
+          candidate.routingLayouts[0].zones[0].ranges = [{ start: 1, end: 2 }]
+          return editor.applyShow(candidate, captured.request)
+        })
+        expect(done).toMatchObject({ status: 'applied' })
+        await expect(page.getByText('Indexes 1-2', { exact: true })).toBeVisible()
+        await expect.poll(() => writes.filter(write => write.status === 200).length).toBe(1)
+        await page.screenshot({ path: join(REPORT_DIR, 'SA-clean-open.png'), fullPage: true })
+        await page.getByRole('button', { name: 'Save physical zone' }).click()
+      } else {
+        const id = await submitUtterance(page, 'make the first Clip exactly eight seconds')
+        if (action === 'clear-cancel') await page.getByRole('button', { name: 'Clear', exact: true }).click()
+        const box = (await surface.boundingBox())!
+        await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.2)
+        await page.mouse.down()
+        await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.4)
+        if (action === 'clear-cancel') await surface.dispatchEvent('pointercancel', { pointerId: 1, bubbles: true })
+        await page.mouse.up()
+        await expect(page.getByText(action === 'clear-cancel' ? 'Indexes none' : 'Indexes 1', { exact: true })).toBeVisible()
+        await expect(page.getByTestId('agent-chat-log')).toContainText('Waiting for active editing')
+        expect(await visibleRecord(page)).toEqual(before)
+        expect(await durableShow(page, record.id)).toEqual(durableBefore)
+        expect(writes).toHaveLength(0)
+        await page.screenshot({ path: join(REPORT_DIR, `SA-${action}-waiting.png`), fullPage: true })
+        await page.getByRole('button', { name: action === 'save' ? 'Save physical zone' : 'Zone properties', exact: true }).click()
+        done = await waitForDone(page, id)
+        expect((done as OverlayRequest).applied).toBe(action !== 'save')
+      }
+      const writeCount = action === 'clean' ? 2 : 1
+      await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(writeCount)
+      const current = await visibleRecord(page) as unknown as ShowRecord
+      const expected = structuredClone(before)
+      if (action === 'clean') expected.routingLayouts[0].zones[0].ranges = [{ start: 1, end: 2 }]
+      else if (action === 'save') expected.routingLayouts[0].zones[0].ranges = [{ start: 1, end: 1 }]
+      else expected.composition!.scenes[0].zones[0].main[0].durationMs = 8000
+      expect(current).toEqual({ ...expected, updatedAt: current.updatedAt })
+      expect(await durableShow(page, record.id)).toEqual(current)
+      expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(writeCount)
+      await page.keyboard.press('Escape')
+      await page.getByRole('button', { name: 'Show actions' }).click()
+      const delivery = page.getByRole('menuitem', { name: 'Download .epe', exact: true })
+      if (action === 'clean' || action === 'save') await expect(delivery).toBeDisabled()
+      else await expect(delivery).toBeEnabled()
+      const downloaded = page.waitForEvent('download')
+      await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
+      const file = await downloaded
+      const reopened = await page.evaluate(async bytes => {
+        const load = (path: string) => import(path)
+        const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
+        return parseShowFileBundle(new Uint8Array(bytes))
+      }, [...readFileSync((await file.path())!)])
+      expect(reopened.show).toEqual(current)
+      await page.screenshot({ path: join(REPORT_DIR, `SA-${action}-saved.png`), fullPage: true })
+      if (action === 'clean') await page.getByRole('button', { name: 'Undo Show edit' }).click()
+      await page.getByRole('button', { name: 'Undo Show edit' }).click()
+      await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
+      await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+      expect(pageErrors).toEqual([])
+      saveRecord(`SA-${action}`, { boundary: action === 'clean' ? 'direct diagnostic adapter' : 'scripted bridge', before, durableBefore, done, current, reopened: reopened.show, writes, pageErrors })
+    }
+  })
+
 })

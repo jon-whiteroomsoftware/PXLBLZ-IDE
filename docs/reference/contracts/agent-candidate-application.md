@@ -36,7 +36,7 @@ cap. [Pure policy tests](../../../src/engine/showEditAdmission.test.ts) and
 full records/history, provider writes, revision ABA, retirement, deduplication
 and delayed persistence outcomes.
 
-The diagnostic bridge uses this foundation conservatively. Existing shared text/numeric fields, authored timeline gestures, placement-pad gestures and native Effect reorder register live ownership under editable ShowEditor. Retained physical-zone drafts, final panel placement, hosted service/MCP/OAuth and command-catalogue migration remain unqualified. Trusted callbacks at the whole-Show seam stay internal; the exposed adapter supplies its own structural and authoring validation.
+The diagnostic bridge uses this foundation conservatively. Existing shared text/numeric fields, authored timeline gestures, placement-pad gestures, native Effect reorder and retained physical-zone drafts register live ownership under editable ShowEditor. Final panel placement, hosted service/MCP/OAuth and command-catalogue migration remain unqualified. Trusted callbacks at the whole-Show seam stay internal; the exposed adapter supplies its own structural and authoring validation.
 
 ## Internal bounded active-input wait
 
@@ -81,8 +81,18 @@ gesture; foreign/legacy Effect payload fallback retains its existing policy.
 `ShowPropertySparkline` registers its optional `onMoveBeat` gesture, preserving
 per-move authoring and releasing on pointer termination or removal of the target
 or callback. No current ShowEditor caller supplies that callback; this is component
-qualification, not proof of a wired editor movement path. Retained physical-zone
-drafts remain unregistered; this finite inventory does not qualify all editor input.
+qualification, not proof of a wired editor movement path.
+`ShowZoneSpatialSelector` registers both its live rectangle and retained changed
+LED selection, including its early-return editor branch. Pointerup ends only the
+rectangle; pointercancel/lost capture preserve any earlier changed selection.
+Clear acquires synchronously, while returning to the current authoritative set
+becomes clean. Opening/focusing an unchanged selector does not block admission.
+A clean selector follows authoritative index changes before a later Save;
+a dirty draft survives same-target source changes. Save publishes the manual
+store adoption before closing; a failed callback leaves the actual retained state
+owned. Cancel and source-identity replacement discard local input. Pointer identity
+and session retirement prevent late events from reviving old work. This finite
+inventory does not qualify all editor input.
 
 The editor binds surviving dirty controls before exposing each new diagnostic
 session. Closing retires the session before releasing fields; old cleanup cannot
@@ -95,7 +105,9 @@ The FA browser regression drives actual duration drafts and focus; GA drives act
 Clip resize cancellation/manual commit and Show End manual commit. DA drives
 placement preview cancellation/manual commit and native Effect dragend/drop;
 see [detail gesture evidence](../evidence/issue-949-detail-gesture-activity.md).
-W retains its explicit synthetic-token protocol proof. Internal
+SA covers retained physical-zone drafts through the scripted bridge and clean-source
+index replacement through the existing diagnostic adapter; see [spatial draft
+evidence](../evidence/issue-949-spatial-draft-activity.md). W retains its explicit synthetic-token protocol proof. Internal
 `admitResolvedShowResize` consumes the same owner, checks its private dependency
 qualification before waiting, and replays the captured operation on current state
 at settlement. It returns the same waiting projection; no immediate resize
@@ -144,9 +156,9 @@ monotonic boundaries and a serialized `.pxlshow` reopened through its importer.
 also prove independent Layer preservation through waiting and undo, final
 qualification crossing the armed deadline, and observation cleanup. Actual field
 ownership is covered by `src/dev/agentFieldActivity.test.tsx`, shared-control
-lifecycle tests, and the FA browser sequence. Timeline resize/move/Marker/Show End,
-placement-pad, sparkline, Effect reorder and spatial-selection drafts remain
-unregistered, and external Layer-scoped context remains unqualified.
+lifecycle tests, and the FA browser sequence. The registered timeline, detail and
+spatial families and their GA/DA/SA evidence are enumerated above; external
+Layer-scoped context remains unqualified.
 
 Manual pointer and composition-inspector duration commits also use the exact
 resize semantic owner, with two explicitly tagged manual Transition-to-Cut
@@ -205,8 +217,8 @@ This qualifies the internal resize path only; broad diagnostic requests remain c
 
 The browser serializes its own submissions while manual editing continues. Pending
 full-Show requests conservatively refuse any intervening Show or source-context
-change. The remaining spatial/other-gesture registration and final activity placement
-remain unimplemented; focus alone does not retire a request. The service still
+change. Final activity placement and any input outside the enumerated registered
+families remain unqualified; focus alone does not retire a request. The service still
 serializes loopback requests across clients and supplies no hosted connection,
 OAuth, allowlist or budget owner. Transport failure terminates private work without
 claiming a model success or paying for automatic retry.

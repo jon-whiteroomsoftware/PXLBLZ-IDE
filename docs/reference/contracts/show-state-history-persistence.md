@@ -68,6 +68,11 @@ settlement, including a failed save; cleanup never creates an extra history step
 or rollback policy. Placement still commits once on pointerup or pointercancel;
 its lost-capture cleanup discards preview without authoring. The optional Property
 Beat movement callback still authors each move rather than batching history.
+Physical-zone selection retains its local changed indexes through pointerup and
+rectangle cancellation, until explicit Save/Cancel or source replacement. Save
+adopts before closing and releasing; failure follows the state actually retained.
+An unchanged open selector follows authoritative selection updates so a later Save
+cannot restore stale indexes. Explicit Save keeps its existing history boundary.
 Existing pointer identity and cancellation semantics remain authoritative. Candidate settlement
 then performs the applicable current qualification, final validation and adoption
 sequence without an await. Whole-Show work uses revision equality; qualified resize
