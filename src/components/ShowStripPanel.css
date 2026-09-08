@@ -17,3 +17,11 @@
 .show-source-thermometer > span { display: block; height: 100%; }
 .show-strip-sections .show-source-inventory-body { min-width: 0; }
 .show-strip-sections .show-source-inventory-body > .grid { grid-template-columns: minmax(0, 1fr); }
+
+/* The 200px pane leaves 184px after section padding. Keep the complete
+   brightness heading operable there, including its help action. */
+.show-strip-sections { container: show-strip-sections / inline-size; }
+@container show-strip-sections (max-width: 220px) {
+  .panel-section-header:has(.panel-brightness) { gap: 2px; }
+  .panel-section-header:has(.panel-brightness) .panel-section-toggle { letter-spacing: normal; }
+}
