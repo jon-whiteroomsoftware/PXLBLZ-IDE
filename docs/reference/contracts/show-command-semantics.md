@@ -55,3 +55,41 @@ and failure without partial mutation.
 [Command tests](../../../src/engine/showCommands/commands.test.ts) exercise
 individual outcomes, including retained Clip target ids for move and resize.
 These are executable examples, not exhaustive proof over every possible Show.
+
+## Internal exact Clip resize
+
+`resizeShowClipExactly` accepts a resolved logical Clip id and safe integer global
+milliseconds: exactly one duration or end time, with an optional start time.
+It returns a changed composition, a valid already-satisfied no-op, or a typed
+refusal. All outcomes preserve the supplied Show and composition. A no-op
+requires a valid composition and supported target before checking the requested
+range; an unchanged low-level engine result is never sufficient evidence.
+
+The operation selects ordinary or Layer-Transition-connected resize centrally.
+Accepted results retain the named Clip's exact requested range and logical id,
+including supported spans across Scenes. Connected successors move as required
+by the existing authoring engine; unrelated Clips remain fixed. The result
+reports changed and moved logical Clip ids. Fixed-start requests beyond the
+same-Layer neighbor or Show-end capacity refuse with that range, accounting for
+the downstream chain. Other engine constraints can also refuse an arrangement.
+
+Transitions retain their identities and visual settings. Explicit leading-edge
+resize that keeps the Clip's end fixed may adjust incoming Transition duration;
+the result reports its previous and new duration. Segment endpoint references
+follow the logical Clip when Scene coverage changes. Group-owned Clips,
+Transition removal, and edits that would remove a visual Scene-boundary
+Transition refuse. Existing manual authoring paths retain their own behavior.
+
+This internal operation currently requires a valid input composition and returns
+only a candidate. Registry, gesture, inspector, grammar, shared admission,
+history and provider integration remain pending under #949/#950. In particular,
+the registry agreement above still governs exposed commands; this seam does not
+establish final-valid private batches, stale-context qualification, or any
+browser/agent parity claim.
+
+[Exact resize owner](../../../src/engine/showExactClipResize.ts) delegates to the
+existing timeline and Layer Transition engines.
+[Exact resize tests](../../../src/engine/showExactClipResize.test.ts) qualify
+complete compositions, projected ranges, retained identities, connected timing,
+immutable refusals, Main/overlay bounds, logical Scene spans and supported no-op
+classification. These pure cases supply no adoption or browser evidence.
