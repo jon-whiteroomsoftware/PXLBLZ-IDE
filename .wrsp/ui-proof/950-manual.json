@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "950",
+  "route": "/PXLBLZ-IDE/studio/shows/manual-resize-proof-950",
+  "operation": "1440px desktop pointer request12000 painted and committed8000 with no preview write, inspector keyboard committed7999; at800px narrow width Duration keyboard committed8000 and Tab moved focus. Three total PATCH writes, no console or page errors.",
+  "captures": [
+    ".wrsp/ui-proof/950-manual-preview.png",
+    ".wrsp/ui-proof/950-manual-desktop.png",
+    ".wrsp/ui-proof/950-manual-narrow.png"
+  ],
+  "capturedAtCommit": "595244d4d7311c866f4db4a33e6d99f6f01911df"
+}
