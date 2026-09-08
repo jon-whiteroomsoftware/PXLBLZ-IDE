@@ -18,7 +18,7 @@ export interface ShowEditRequest extends ShowEditIntent {
 
 export type ShowEditSettlement = 'saving' | 'saved' | 'rolled-back' | 'superseded' | 'draft'
 export type ShowEditRefusal = 'revision-conflict' | 'wrong-session' | 'wrong-show' | 'unknown-operation'
-  | 'identity-mismatch' | 'capacity' | 'invalid-retry' | 'missing-show' | 'invalid-candidate' | 'no-candidate'
+  | 'interaction-timeout' | 'identity-mismatch' | 'capacity' | 'invalid-retry' | 'missing-show' | 'invalid-candidate' | 'no-candidate'
 
 export type ShowEditCompletion = 'asked' | 'refused' | 'nothing-applied' | 'commit-refused' | 'incomplete' | 'service-refused' | 'service-failed'
 

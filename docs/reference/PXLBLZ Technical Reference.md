@@ -892,6 +892,12 @@ ordinary history/save recovery and adds validated no-op receipts. Its
 [finite contract and store/artifact proof](contracts/agent-candidate-application.md#internal-qualified-exact-resize)
 do not expose a live agent or migrate the command catalogue.
 
+The internal completed-candidate store path can wait for explicit drag/dirty
+ownership before whole-Show admission. A fixed monotonic five-second deadline
+and lifecycle cleanup are owned by `showInputWait.ts`; final adoption and saves
+remain in the Show store. Its [contract and consumer proof](contracts/agent-candidate-application.md#internal-bounded-active-input-wait)
+do not qualify live input wiring or the exact-resize path.
+
 **Coverage gate.** `schemas/show-record.schema.json` is generated from the
 ShowRecord type (`npm run schema:show-record`; a drift test keeps it exact),
 and `npm run coverage:show-commands` regenerates

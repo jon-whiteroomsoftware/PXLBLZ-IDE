@@ -36,7 +36,49 @@ cap. [Pure policy tests](../../../src/engine/showEditAdmission.test.ts) and
 full records/history, provider writes, revision ABA, retirement, deduplication
 and delayed persistence outcomes.
 
-The diagnostic bridge uses this foundation conservatively. Active-input waiting, final panel placement, hosted service/MCP/OAuth and command-catalogue migration remain unimplemented. Trusted callbacks at the whole-Show seam stay internal; the exposed adapter supplies its own structural and authoring validation.
+The diagnostic bridge uses this foundation conservatively. Live active-input wiring, final panel placement, hosted service/MCP/OAuth and command-catalogue migration remain unimplemented. Trusted callbacks at the whole-Show seam stay internal; the exposed adapter supplies its own structural and authoring validation.
+
+## Internal bounded active-input wait
+
+`deliverShowEditCandidate` is an internal store path for completed whole-Show
+candidates. It snapshots the request and candidate, checks registered identity
+and known whole-Show eligibility, then either admits synchronously or waits for
+explicit session/Show-bound `drag` and `dirty-field` ownership tokens. Focus alone
+is not activity. `readShowEditCandidate` projects a typed `waiting` status over
+the existing pending operation; terminal outcomes remain in the session table.
+The existing bridge and manual APIs are unchanged and do not use this wait path.
+
+The original completed-candidate arrival establishes one 5,000 ms monotonic
+deadline, captured before snapshot/serialization work. Final validation also checks
+that deadline before adoption. Duplicates, additional activity and partial releases never extend it.
+Before the deadline, the final ownership release synchronously rechecks current
+eligibility, validates and adopts through the ordinary store owner. At or after
+the deadline, including a delayed timer callback or late release, the operation
+receives terminal `interaction-timeout` refusal and can never apply later.
+Manual owners must publish a committed edit through the store BEFORE releasing
+the token: a stale broad candidate then refuses, including edit/Undo ABA. Manual
+cancellation without authored change may release the token and permit adoption.
+
+Tokens are idempotent object capabilities; copies and retired-session tokens
+cannot release another owner. There are at most 256 active tokens. Exhaustion
+throws before issuing a token; the caller must not start an untracked edit.
+Wrong session/Show acquisition returns no token. Hydration, reset and removal
+invalidate pending candidates and clear their timers/callbacks, while preserving
+same-session manual activity. Session replacement/retirement clears activity as
+well. Cancellation and noncandidate completion release pending candidate resources;
+adopted saves keep ordinary settlement ownership after retirement.
+
+Pending snapshots/callbacks/timers are discarded on terminal action. Exact
+serialized candidate identities remain separately, bounded by the existing
+operation-table capacity until session retirement, so changed payloads cannot
+replace an original delivery or make a terminal id new. Wrong envelopes refuse
+without poisoning the original. No automatic retry or provider/model call is
+introduced. [Store consumer tests](../../../src/store/showInputWait.test.ts)
+cover complete records/history, zero attributable writes while waiting/refused,
+monotonic boundaries and a serialized `.pxlshow` reopened through its importer.
+This is internal evidence only: the diagnostic bridge, real input-owner UI wiring,
+visible waiting/Cancel cue and qualified exact-resize wait consumption remain
+unqualified. The exact-resize API retains its existing immediate admission path.
 
 ## Internal qualified exact resize
 
