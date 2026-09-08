@@ -273,8 +273,8 @@ _Avoid_: stock Show in user-facing copy; describing a Built-in Show as read-only
 The Lesson pill beside the Show title opens the floating Reading card with the
 Show's purpose, things to notice and try, and guide link. Hover opens it briefly;
 click pins it. The Live strip is a separate, optional 32 px row above the timeline
-that follows the current reference example, Scene, or single-Scene main-lane Clip
-and hosts Try with Pattern.
+that follows the current reference example, interval (labelled INTERVAL with its
+authored name and counter), or single-Scene main-lane Clip and hosts Try with Pattern.
 Its visibility is remembered per Show; the card never consumes layout height.
 _Avoid_: treating the card's open state as the strip's visibility; calling these
 surfaces authored Show content or adding their state to a Show record.

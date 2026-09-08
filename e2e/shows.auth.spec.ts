@@ -3449,12 +3449,12 @@ test.describe('lesson pill, Reading card and Live strip (#985)', () => {
     await expect(strip.getByText('CompassRose', { exact: true })).toBeVisible()
   })
 
-  test('105 narrates its three Scenes', async ({ page }) => {
+  test('105 narrates its three intervals', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows/stock-show-105-portable-zones')
     const toolbar = await pauseAtStart(page)
     const strip = page.getByRole('region', { name: '105 Zones live strip' })
-    await expect(strip.getByText('SCENE', { exact: true })).toBeVisible()
+    await expect(strip.getByText('INTERVAL', { exact: true })).toBeVisible()
     await expect(strip.getByText('Split', { exact: true })).toBeVisible()
     await expect(strip.getByText('1/3', { exact: true })).toBeVisible()
     await toolbar.getByRole('button', { name: 'Play Show preview' }).click()

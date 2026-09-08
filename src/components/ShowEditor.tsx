@@ -851,7 +851,7 @@ function ShowLiveNarration({ show, reference }: { show: ShowRecord; reference?: 
   const easingOption = current?.easing ? SHOW_EASING_OPTIONS.find((option) => option.id === showEasingOptionId(current.easing!)) : undefined
   return (
     <div role="group" aria-label="Live narration" className="relative flex h-6 min-w-0 flex-1 items-center gap-2 whitespace-nowrap">
-      <span className="shrink-0 text-[9px] font-semibold uppercase tracking-[0.1em] text-cyan-200/75">{reference ? 'LIVE' : clipNarration ? 'CLIP' : 'SCENE'}</span>
+      <span className="shrink-0 text-[9px] font-semibold uppercase tracking-[0.1em] text-cyan-200/75">{reference ? 'LIVE' : clipNarration ? 'CLIP' : 'INTERVAL'}</span>
       <strong className="min-w-0 truncate font-medium text-zinc-100">{reference ? current?.label ?? 'Reference frame' : clipNarration ? clip?.patternName ?? 'No Clip' : scene?.scene.name ?? 'No Scene'}</strong>
       {reference && <span className="show-note-detail min-w-0 flex-1 truncate text-zinc-500">{current?.detail ?? 'The fixed comparison source before the first example.'}</span>}
       <span className="shrink-0 tabular-nums text-zinc-500">{index + 1}/{count}</span>
