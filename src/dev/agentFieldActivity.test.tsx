@@ -37,7 +37,7 @@ it.each(['cancel', 'commit'] as const)('preserves the whole record while dirty a
   const input = screen.getByRole('textbox', { name: 'Name' })
   fireEvent.change(input, { target: { value: 'Manual' } })
   const before = snapshot()
-  const { captured, result } = deliver()
+  const { captured, candidate, result } = deliver()
   expect(result.status).toBe('waiting')
   expect(snapshot()).toEqual(before)
   expect(writes).not.toHaveBeenCalled()
@@ -45,7 +45,8 @@ it.each(['cancel', 'commit'] as const)('preserves the whole record while dirty a
   if (action === 'cancel') expect(api.readOutcome(captured.request)?.status).toBe('applied')
   else expect(api.readOutcome(captured.request)).toMatchObject({ status: 'refused', reason: 'revision-conflict' })
   await vi.waitFor(() => expect(writes).toHaveBeenCalledTimes(1))
-  expect(state().shows[0]).toEqual({ ...before.shows[0], name: action === 'cancel' ? 'Agent' : 'Manual', updatedAt: state().shows[0].updatedAt })
+  const expected = action === 'cancel' ? candidate : { ...before.shows[0], name: 'Manual' }
+  expect(state().shows[0]).toEqual({ ...expected, updatedAt: state().shows[0].updatedAt })
   expect(state().showHistories.test.past).toEqual([before.shows[0]])
 })
 it('rebinds an already dirty control before new-session delivery, without late old cleanup detaching it', () => {
