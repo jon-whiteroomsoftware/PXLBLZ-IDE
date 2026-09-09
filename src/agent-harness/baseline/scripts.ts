@@ -26,6 +26,31 @@ export const BASELINE_FIXTURE_RESIZE: BaselineUtterance = {
 
 export const BASELINE_UTTERANCES: BaselineUtterance[] = [
   {
+    utterance: 'move the second Clip to sixteen seconds then make the first Clip twelve seconds',
+    intent: '#950: move B then resize A, with both intermediate records valid.',
+    script: [
+      { tool: 'move_clip', args: { clip_id: '$clipAt:8000', start_ms: 16000 } },
+      { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 12000, finish_turn_reply: { intent: 'apply', reply: 'Moved the second Clip to sixteen seconds and resized the first to twelve seconds.' } } },
+    ],
+  },
+  {
+    utterance: 'move the second Clip to sixteen seconds then try seventeen seconds for the first',
+    intent: '#950: refused resize must not publish the earlier private move.',
+    script: [
+      { tool: 'move_clip', args: { clip_id: '$clipAt:8000', start_ms: 16000 } },
+      { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 17000 } },
+      { say: 'The first Clip cannot reach seventeen seconds. Neither edit was applied.', intent: 'refuse' },
+    ],
+  },
+  {
+    utterance: 'move the second Clip to sixteen seconds but leave the batch incomplete',
+    intent: '#950: incomplete typed completion must not publish a private move.',
+    script: [
+      { tool: 'move_clip', args: { clip_id: '$clipAt:8000', start_ms: 16000 } },
+      { say: 'The batch is incomplete. No edit was applied.', intent: 'incomplete' },
+    ],
+  },
+  {
     utterance: 'try twelve seconds with the next Clip at eight',
     intent: '#950 fixture R: report the exact capacity refusal without authoring a candidate.',
     script: [

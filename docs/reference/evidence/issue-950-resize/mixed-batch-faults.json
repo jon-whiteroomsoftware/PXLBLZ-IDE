@@ -1,0 +1,14 @@
+[
+  {
+    "fault": "early private adoption",
+    "exit": 1,
+    "detected": true,
+    "test": "moves B then resizes A"
+  },
+  {
+    "fault": "ignored final refusal",
+    "exit": 1,
+    "detected": true,
+    "test": "does not export an earlier move"
+  }
+]

@@ -925,6 +925,113 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     saveRecord('R-exact-resize', { before, pointerAfter, inspectorAfter, reopened, after, durable, accepted, noop, refused, writes, observations: await readObservations(page) })
   })
 
+  test('MR: mixed move-resize batches preserve complete records through adoption and active input', async ({ page }) => {
+    test.setTimeout(180000)
+    const wireRecord = (show: ShowRecord | null) => Object.fromEntries(Object.entries({ ...show, targetControllerProfileId: show?.targetControllerProfileId ?? null }).filter(([key]) => key !== 'id'))
+    const utterance = 'move the second Clip to sixteen seconds then make the first Clip twelve seconds'
+    for (const action of ['apply', 'refuse', 'incomplete', 'draft-cancel', 'manual-commit', 'pending-conflict'] as const) {
+      await page.setViewportSize({ width: action === 'draft-cancel' || action === 'refuse' ? 800 : 1440, height: 900 })
+      const record = resizeBoundaryShow(`mixed-${action}-${Date.now().toString(36)}`)
+      record.composition!.scenes[0].zones[0].main[1].durationMs = 4000
+      expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+      await page.goto(`studio/shows/${record.id}?agent=1`)
+      await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+      await expect.poll(() => page.evaluate(async () => {
+        const load = (path: string) => import(path)
+        // Startup may reload metadata after creating workspace starters. The
+        // final organization load follows that reload; simple loaded flags do not.
+        const { useEntityOrganizationStore } = await load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')
+        return useEntityOrganizationStore.getState().loaded.libraries
+      })).toBe(true)
+      await injectOverlay(page, bridge.url)
+      const before = await visibleRecord(page)
+      const durableBefore = await durableShow(page, record.id)
+      const writes = watchShowWrites(page)
+      const completeWrites: unknown[] = []
+      const captureWrite = (request: Request) => {
+        if (request.method() === 'PATCH' && request.url().endsWith(`/api/shows/${record.id}`)) completeWrites.push(request.postDataJSON())
+      }
+      page.on('request', captureWrite)
+      const id = await submitUtterance(page, action === 'refuse'
+        ? 'move the second Clip to sixteen seconds then try seventeen seconds for the first'
+        : action === 'incomplete' ? 'move the second Clip to sixteen seconds but leave the batch incomplete' : utterance)
+      const dirty = action === 'draft-cancel' || action === 'manual-commit'
+      if (dirty || action === 'pending-conflict') {
+        await page.getByRole('button', { name: 'Select CometLoom', exact: true }).first().click()
+        const duration = page.getByRole('textbox', { name: 'Duration seconds exact time' })
+        await duration.fill('7')
+        if (dirty) {
+          await expect(page.getByTestId('agent-chat-log')).toContainText('Waiting for active editing')
+          await expect(duration).toBeFocused()
+          expect(await visibleRecord(page)).toEqual(before)
+          expect(await durableShow(page, record.id)).toEqual(durableBefore)
+          expect(completeWrites).toEqual([])
+          await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+          await page.screenshot({ path: join(REPORT_DIR, `MR-${action}-waiting.png`), fullPage: true })
+        } else {
+          expect((await overlayRequests(page)).find(request => request.requestId === id)?.doneAt).toBeNull()
+        }
+        await duration.press(action === 'draft-cancel' ? 'Escape' : 'Enter')
+      }
+      const done = await waitForDone(page, id)
+      const applied = action === 'apply' || action === 'draft-cancel'
+      const manual = action === 'manual-commit' || action === 'pending-conflict'
+      if (action === 'refuse' || action === 'incomplete') {
+        expect(done).toMatchObject({ changed: false, applied: null, outcome: { status: 'completed', completion: action === 'refuse' ? 'refused' : 'incomplete' } })
+      } else expect(done.applied, JSON.stringify(done)).toBe(applied)
+      const tools = (done.bridgeTiming as { toolCalls: Array<{ name: string; isError?: boolean }> }).toolCalls
+      expect(tools.filter(tool => tool.name !== 'describe_show').map(tool => tool.name)).toEqual(action === 'incomplete' ? ['move_clip'] : ['move_clip', 'resize_clip'])
+      expect(tools.find(tool => tool.name === 'move_clip')).toMatchObject({ name: 'move_clip' })
+      expect(tools.find(tool => tool.name === 'move_clip')?.isError).not.toBe(true)
+      if (action === 'refuse') expect(tools.find(tool => tool.name === 'resize_clip')).toMatchObject({ isError: true })
+      const expected = structuredClone(before!)
+      if (applied) {
+        expected.composition!.scenes[0].zones[0].main[0].durationMs = 12000
+        expected.composition!.scenes[0].zones[0].main[1].startMs = 16000
+      } else if (manual) expected.composition!.scenes[0].zones[0].main[0].durationMs = 7000
+      if (applied || manual) await waitForDurable(page, record.id, show => firstMain(show)?.durationMs === (applied ? 12000 : 7000))
+      const after = await visibleRecord(page)
+      expect(after).toEqual({ ...expected, updatedAt: applied || manual ? after!.updatedAt : before!.updatedAt })
+      expect(await durableShow(page, record.id)).toEqual(applied || manual ? after : durableBefore)
+      expect(completeWrites).toEqual(applied || manual ? [wireRecord(after)] : [])
+      await page.keyboard.press('Escape')
+      if (applied) {
+        await page.getByRole('button', { name: 'Show actions' }).click()
+        const download = page.waitForEvent('download')
+        await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
+        const file = await download
+        const reopened = await page.evaluate(async bytes => {
+          const load = (path: string) => import(path)
+          const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
+          return parseShowFileBundle(new Uint8Array(bytes))
+        }, [...readFileSync((await file.path())!)])
+        expect(reopened.show).toEqual(after)
+        saveRecord(`MR-${action}-export`, reopened)
+      }
+      await page.screenshot({ path: join(REPORT_DIR, `MR-${action}-result.png`), fullPage: true })
+      if (applied || manual) {
+        await page.getByRole('button', { name: 'Undo Show edit' }).click()
+        await waitForDurable(page, record.id, show => firstMain(show)?.durationMs === 4000)
+        const undone = await visibleRecord(page)
+        expect(undone).toEqual({ ...before, updatedAt: undone!.updatedAt })
+        expect(await durableShow(page, record.id)).toEqual(undone)
+        await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+        await page.getByRole('button', { name: 'Redo Show edit' }).click()
+        await waitForDurable(page, record.id, show => firstMain(show)?.durationMs === (applied ? 12000 : 7000))
+        const redone = await visibleRecord(page)
+        expect(redone).toEqual({ ...after, updatedAt: redone!.updatedAt })
+        expect(await durableShow(page, record.id)).toEqual(redone)
+        await expect(page.getByRole('button', { name: 'Redo Show edit' })).toBeDisabled()
+        expect(completeWrites).toEqual([after, undone, redone].map(wireRecord))
+      } else {
+        await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+        await expect(page.getByRole('button', { name: 'Redo Show edit' })).toBeDisabled()
+      }
+      saveRecord(`MR-${action}`, { before, after, done, completeWrites, writes, durable: await durableShow(page, record.id), observations: await readObservations(page) })
+      page.off('request', captureWrite)
+    }
+  })
+
   test('F: a multi-operation reply lands as one history entry and one save', async ({ page }) => {
     test.setTimeout(90_000)
     const writes = watchShowWrites(page)

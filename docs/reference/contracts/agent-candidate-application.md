@@ -19,6 +19,24 @@ The adapter validates incoming structure against the Show schema with browser-sa
 
 The overlay displays private prose alongside the actual editor outcome and includes that outcome in subsequent session dialogue. A delivered candidate remains one busy submission while waiting for active input and while saving. Waiting displays a Cancel action; cancellation prevents later adoption. Completion does not move focus away from a manual field. Closing the overlay releases its transport and polling resources while already-adopted saves retain store ownership. The store owns save recovery in [Show state, history, and persistence](show-state-history-persistence.md). [Show command semantics](show-command-semantics.md) covers the V2 registry; canonical resize now delegates to it, while other diagnostic operations remain independently implemented.
 
+## Bounded mixed batches
+
+A diagnostic turn may move B from 8000 to 16000 ms, then resize A at 0 ms
+from 4000 to 12000 ms, with B lasting 4000 ms and Show End at 20000 ms.
+Both intermediate records must be valid. The service exposes only the complete
+committed candidate; declared refusal, incomplete completion and failed final
+validation expose no earlier private operation. An already-satisfied resize
+beside the move preserves the move as the single candidate.
+
+This uses whole-Show context and revision admission. One accepted delivery owns
+one ordinary save and Undo/Redo group. An actual dirty duration field holds the
+complete candidate: draft cancellation permits admission, while manual commit
+invalidates it. A manual edit during the pending response also refuses delivery.
+These finite cases do not qualify narrow model context, temporarily overlapping
+batches, swaps, or arbitrary operation combinations.
+[Mixed-batch evidence](../evidence/issue-950-resize/mixed-batch.md) distinguishes
+private transaction proof from live record, save, history and export proof.
+
 ## Internal admission foundation
 
 The Show store now exposes an internal session/request admission API, independent

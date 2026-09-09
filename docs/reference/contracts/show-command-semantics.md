@@ -148,3 +148,16 @@ existing timeline and Layer Transition engines.
 complete compositions, projected ranges, retained identities, connected timing,
 immutable refusals, Main/overlay bounds, logical Scene spans and supported no-op
 classification. These pure cases supply no adoption or browser evidence.
+
+### Diagnostic move-then-resize qualification
+
+The finite move-B-then-resize-A batch uses the private grammar transaction and
+conservative whole-Show editor admission. The exact resize owner receives a valid
+intermediate record after the move; its valid-input precondition is unchanged.
+No partial candidate escapes a declared refusal, incomplete completion or failed
+final validation. A refused operation may still be repaired within the existing
+private transaction; refusal is not a permanent taint on later corrected work.
+The [candidate contract](agent-candidate-application.md#bounded-mixed-batches)
+and [consumer evidence](../evidence/issue-950-resize/mixed-batch.md) bound this
+qualification. Other grammar commands and arbitrary temporary invalidity remain
+outside it.

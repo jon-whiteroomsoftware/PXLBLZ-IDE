@@ -4,20 +4,21 @@ Status: accepted roadmap for the public V2 v1.9 release; reconciled with landed 
 Jon's decisions on 2026-09-08. Epic #943 and its children carry implementation state.
 #945's diagnostic baseline and #948's single-client persistence recovery are implemented,
 reviewed and landed on main; both issues are closed.
-The #949 internal admission foundation is reviewed and landed at `1a6cfc07`.
-Its bounded B1 diagnostic private-turn completion is implemented in the diagnostic harness:
-explicit apply/ask/refuse/incomplete intent controls private commit/rollback and
-the service carries a typed private outcome. D1 adds opt-in internal authoring
-validation and authoring-file import qualification. C1 adds internal resolved
-exact-resize admission with finite Layer dependency observation, current-state
-replay and final authoring validation; its scope and store/artifact evidence live
-in the [candidate application contract](../reference/contracts/agent-candidate-application.md#internal-qualified-exact-resize).
-Live editor admission, shared command convergence and production agent access
-remain unimplemented. #946 and #947
-product decisions are complete. The [finite command census](agent-show-command-census.md) maps
-54 existing names into 45 canonical operations. #956 service decisions and final #959 surface
-placement remain partly open. This roadmap records those distinctions without approving
-any unresolved decision or claiming production readiness.
+The #949 diagnostic path now includes typed private-turn completion, conservative
+live editor admission, bounded active-input waiting, and authoring validation that
+permits delivery-incomplete drafts. Flat Show requests use exact loaded Pattern
+metadata for private projection; accepted edits retain the original Show as their
+Undo base. The [candidate application contract](../reference/contracts/agent-candidate-application.md)
+records the qualified boundaries and consumer evidence. The canonical resize owner,
+manual resize path, and internal qualified resize admission are implemented; actual
+narrow model-context qualification and broader final-valid batching remain open.
+
+#946 and #947 product decisions are complete. The
+[finite command census](agent-show-command-census.md) maps 54 existing names into
+45 canonical operations. The #956 service package is approved; hosted service
+implementation and the final #959 Agent surface remain unfinished. Epic #943 and
+its children carry the remaining implementation and design decisions. This roadmap
+does not claim production readiness for the diagnostic route.
 
 ## Provenance and adaptation
 
