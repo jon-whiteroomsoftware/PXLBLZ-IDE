@@ -19,4 +19,8 @@ legacy `ready-for-review` label is retired and should be removed when
 `📦 implemented` is applied. See `docs/agents/issue-tracker.md` for who
 applies and removes it.
 
-Edit the right-hand column to match whatever vocabulary you actually use.
+Purpose is a separate axis: use one of the five `work:` labels in
+[work types and feature grouping](work-types.md). Keep applicable triage, area,
+bug, enhancement, and Wayfinder labels. An epic is a grouping record, not a
+sixth work type. Missing/conflicting purpose labels are diagnostic; they do
+not introduce a commit, test, or deployment gate.

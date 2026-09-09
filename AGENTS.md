@@ -332,10 +332,14 @@ check the local D1 schema first.
 - Use GitHub Issues as implementation state. Follow
   `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`, and the
   `issue-workflow` skill for claiming, progress, review state, and commits.
+  Follow `docs/agents/work-types.md` for feature epic/typed child discovery
+  and one purpose label per work item; reuse suitable issues before creating.
+  Load canonical shared skills from `~/.agents/skills/`, not local copies.
   `📦 implemented` means identified commits claim the issue's full scope; the
   coordinator applies and removes it, the post-commit hook only comments, and
   it never implies review, landing, release, or closure. Attach a `Proof:`
-  line before closing an issue; `npm run check:issue-proof` audits for it.
+  line before closing an implementation issue with Jon's explicit authorization;
+  `npm run check:issue-proof` audits for it.
 - Use `docs/agents/domain.md` when preparing issues, plans, or architectural
   work. Name concepts exactly as `CONTEXT.md` defines them.
 - Use `doc-sweep` after feature or issue completion.

@@ -4,16 +4,21 @@ Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all op
 
 ## Conventions
 
-- **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
+- **Find or create work**: follow [work types and feature grouping](work-types.md)
+  to reuse the feature epic and a suitable typed child first. Create only missing
+  scoped work with `gh issue create --title "..." --body-file /tmp/issue.md --label work:implementation`
+  (choose the actual purpose label). Write multiline bodies to a file.
 - **Read an issue**: `gh issue view <number> --comments`, filtering comments by `jq` and also fetching labels.
 - **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
 - **Comment on an issue**: `gh issue comment <number> --body "..."`
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
-- **Close after landing**: `gh issue close <number> --comment "..."`. A candidate
+- **Close implementation issues only when authorized by Jon**: `gh issue close <number> --comment "..."`. A candidate
   commit is progress, not completion on any branch. The post-commit updater
   records progress but never treats a branch name as proof of review. The
-  coordinator closes the issue explicitly after its reviewed commit is
-  reachable from local `main`.
+  coordinator leaves implemented issues open for Jon. Explicit authorization,
+  attached proof, and the reviewed commit reachable from local `main` are
+  required before closing an implementation issue; landing alone grants no
+  closure authority.
 
 Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
 
@@ -53,7 +58,9 @@ report, not a gate, and history is not mass-edited to satisfy it.
 
 ## When a skill says "publish to the issue tracker"
 
-Create a GitHub issue.
+Find and reuse the appropriate GitHub issue first; create it only when missing.
+An existing PRD can be the feature epic. Actual work belongs to typed children,
+including definition work that writes the PRD; the epic groups their scope.
 
 ## When a skill says "fetch the relevant ticket"
 
@@ -62,7 +69,10 @@ Run `gh issue view <number> --comments`.
 ## Wayfinding operations
 
 Used by `/wayfinder`. The **map** is a single issue with **child** issues as
-decision tickets.
+decision tickets. Wayfinder labels describe coordination, while `work:` labels
+describe purpose. Preserve existing map/child relationships: inspect a child's
+current parent before linking it to a feature epic, and surface conflicting
+parents rather than silently reparenting it.
 
 - **Map**: a single issue labelled `wayfinder:map`, holding the Notes,
   Decisions-so-far, and Fog sections. Create it with
@@ -70,7 +80,8 @@ decision tickets.
 - **Child ticket**: an issue linked to the map as a GitHub sub-issue (`gh api`
   on the sub-issues endpoint). Where sub-issues are unavailable, add the child
   to a task list in the map body and put `Part of #<map>` at the top of the
-  child body. Apply one `wayfinder:<type>` label: `research`, `prototype`,
+  child body, recording the confirmed reason for fallback as described in the
+  [grouping guide](work-types.md). Apply one `wayfinder:<type>` label: `research`, `prototype`,
   `grilling`, or `task`. Once claimed, assign the ticket to the driving dev.
 - **Blocking**: use GitHub's native issue dependencies so blockers are visible
   in the UI. Add an edge with
@@ -84,9 +95,10 @@ decision tickets.
   blocker or an assignee, and take the first remaining child in map order.
 - **Claim**: `gh issue edit <n> --add-assignee @me` is the session's first
   write.
-- **Resolve**: comment with the answer, close the decision ticket, then append
-  a context pointer (gist and link) to the map's Decisions-so-far section.
+- **Resolve**: for an authorized decision-ticket resolution, comment with the
+  answer, close the decision ticket, then append a context pointer (gist and
+  link) to the map's Decisions-so-far section.
 
-Wayfinder tickets resolve planning decisions, so they close when the decision
-is recorded. Implementation issues continue to close only after their reviewed
-commit is reachable from local `main`, as specified above.
+Wayfinder tickets resolve planning decisions, so authorized resolution closes
+them when the decision is recorded. Implementation issues follow the explicit
+closure authority and reviewed-landing requirements above.
