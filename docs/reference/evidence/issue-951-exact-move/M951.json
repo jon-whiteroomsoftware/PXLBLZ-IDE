@@ -1,0 +1,583 @@
+{
+  "before": {
+    "id": "move-951-mttlgvh2",
+    "name": "Baseline personal Show",
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 20000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 64
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Full Stage",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "z1"
+          ]
+        }
+      }
+    ],
+    "transitions": [],
+    "stageMapId": null,
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "updatedAt": 1757000000000,
+    "composition": {
+      "version": 1,
+      "patternInstances": [
+        {
+          "id": "resize-instance",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "transitions": [
+        {
+          "id": "move-ab",
+          "fromPlacementId": "resize-a",
+          "toPlacementId": "resize-b",
+          "kind": "crossfade",
+          "durationMs": 1000,
+          "easing": {
+            "curve": "sine",
+            "direction": "in-out"
+          },
+          "crossfadePolicy": "live-live"
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-a",
+                  "startMs": 0,
+                  "durationMs": 2000
+                },
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-b",
+                  "startMs": 3000,
+                  "durationMs": 2000
+                }
+              ],
+              "overlays": [
+                {
+                  "id": "move-overlay",
+                  "name": "Destination",
+                  "placements": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "after": {
+    "id": "move-951-mttlgvh2",
+    "name": "Baseline personal Show",
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 20000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 64
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Full Stage",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "z1"
+          ]
+        }
+      }
+    ],
+    "transitions": [],
+    "stageMapId": null,
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "updatedAt": 1788927879506,
+    "composition": {
+      "version": 1,
+      "patternInstances": [
+        {
+          "id": "resize-instance",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "transitions": [
+        {
+          "id": "move-ab",
+          "fromPlacementId": "resize-a",
+          "toPlacementId": "resize-b",
+          "kind": "crossfade",
+          "durationMs": 1000,
+          "easing": {
+            "curve": "sine",
+            "direction": "in-out"
+          },
+          "crossfadePolicy": "live-live"
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-a",
+                  "startMs": 3000,
+                  "durationMs": 2000
+                },
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-b",
+                  "startMs": 6000,
+                  "durationMs": 2000
+                }
+              ],
+              "overlays": [
+                {
+                  "id": "move-overlay",
+                  "name": "Destination",
+                  "placements": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "undone": {
+    "id": "move-951-mttlgvh2",
+    "name": "Baseline personal Show",
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 20000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 64
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Full Stage",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "z1"
+          ]
+        }
+      }
+    ],
+    "transitions": [],
+    "stageMapId": null,
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "updatedAt": 1788927885915,
+    "composition": {
+      "version": 1,
+      "patternInstances": [
+        {
+          "id": "resize-instance",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "transitions": [
+        {
+          "id": "move-ab",
+          "fromPlacementId": "resize-a",
+          "toPlacementId": "resize-b",
+          "kind": "crossfade",
+          "durationMs": 1000,
+          "easing": {
+            "curve": "sine",
+            "direction": "in-out"
+          },
+          "crossfadePolicy": "live-live"
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-a",
+                  "startMs": 0,
+                  "durationMs": 2000
+                },
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-b",
+                  "startMs": 3000,
+                  "durationMs": 2000
+                }
+              ],
+              "overlays": [
+                {
+                  "id": "move-overlay",
+                  "name": "Destination",
+                  "placements": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "done": {
+    "requestId": "req-mttlgw38-chs1v0",
+    "showId": "move-951-mttlgvh2",
+    "capturedUpdatedAt": 1757000000000,
+    "submittedAt": 1788927876982,
+    "responseAt": 1788927876997,
+    "firstEventAt": 1788927876997,
+    "doneAt": 1788927879499,
+    "applyStartedAt": 1788927879499,
+    "applyEndedAt": 1788927879601,
+    "changed": true,
+    "applied": true,
+    "error": null,
+    "events": [
+      {
+        "kind": "accepted",
+        "name": null,
+        "at": 1788927876997
+      },
+      {
+        "kind": "tool",
+        "name": "move_clip",
+        "at": 1788927879499
+      },
+      {
+        "kind": "tool",
+        "name": "move_clip",
+        "at": 1788927879499
+      },
+      {
+        "kind": "validation",
+        "name": null,
+        "at": 1788927879499
+      },
+      {
+        "kind": "validation",
+        "name": null,
+        "at": 1788927879499
+      },
+      {
+        "kind": "done",
+        "name": null,
+        "at": 1788927879499
+      }
+    ],
+    "bridgeTiming": {
+      "acceptedAt": 1788927876983,
+      "delayMs": 2500,
+      "agentStartedAt": 1788927879492,
+      "agentEndedAt": 1788927879496,
+      "exportedAt": 1788927879499,
+      "toolCalls": [
+        {
+          "name": "move_clip",
+          "at": 1788927879492,
+          "ms": 2
+        },
+        {
+          "name": "move_clip",
+          "at": 1788927879494,
+          "ms": 0
+        }
+      ],
+      "validation": {
+        "at": 1788927879496,
+        "ms": 3,
+        "ok": true
+      }
+    },
+    "outcome": {
+      "status": "applied",
+      "settlement": "saved"
+    }
+  },
+  "writes": [
+    {
+      "method": "PATCH",
+      "url": "http://localhost:5205/api/shows/move-951-mttlgvh2",
+      "at": 1788927879534,
+      "status": 200,
+      "updatedAt": 1788927879506,
+      "firstMainStartMs": 3000,
+      "firstMain": {
+        "durationMs": 2000,
+        "brightness": 1
+      },
+      "compositionDurationMs": null,
+      "markers": null
+    },
+    {
+      "method": "PATCH",
+      "url": "http://localhost:5205/api/shows/move-951-mttlgvh2",
+      "at": 1788927885942,
+      "status": 200,
+      "updatedAt": 1788927885915,
+      "firstMainStartMs": 0,
+      "firstMain": {
+        "durationMs": 2000,
+        "brightness": 1
+      },
+      "compositionDurationMs": null,
+      "markers": null
+    }
+  ],
+  "observations": [
+    {
+      "kind": "preview-published",
+      "showId": "move-951-mttlgvh2",
+      "at": 1788927876714,
+      "digest": "587ba6ad",
+      "updatedAt": 1757000000000
+    },
+    {
+      "kind": "preview-published",
+      "showId": "move-951-mttlgvh2",
+      "at": 1788927876718,
+      "digest": "587ba6ad",
+      "updatedAt": 1757000000000
+    },
+    {
+      "kind": "agent-apply",
+      "phase": "admitted",
+      "showId": "move-951-mttlgvh2",
+      "requestId": "req-mttlgw38-chs1v0",
+      "at": 1788927879499,
+      "digest": "587ba6ad",
+      "updatedAt": 1757000000000,
+      "historyDepth": 0
+    },
+    {
+      "kind": "agent-apply",
+      "phase": "adopted",
+      "showId": "move-951-mttlgvh2",
+      "requestId": "req-mttlgw38-chs1v0",
+      "at": 1788927879506,
+      "digest": "3bf62869",
+      "updatedAt": 1788927879506,
+      "historyDepth": 1
+    },
+    {
+      "kind": "preview-published",
+      "showId": "move-951-mttlgvh2",
+      "at": 1788927879555,
+      "digest": "3bf62869",
+      "updatedAt": 1788927879506
+    },
+    {
+      "kind": "agent-apply",
+      "phase": "settled",
+      "showId": "move-951-mttlgvh2",
+      "requestId": "req-mttlgw38-chs1v0",
+      "at": 1788927879601,
+      "digest": "3bf62869",
+      "updatedAt": 1788927879506,
+      "historyDepth": 1
+    },
+    {
+      "kind": "preview-published",
+      "showId": "move-951-mttlgvh2",
+      "at": 1788927885946,
+      "digest": "587ba6ad",
+      "updatedAt": 1788927885915
+    }
+  ]
+}

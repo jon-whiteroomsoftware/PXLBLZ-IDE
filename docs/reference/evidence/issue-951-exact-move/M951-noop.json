@@ -1,0 +1,59 @@
+{
+  "requestId": "req-mttlgyf3-96n800",
+  "showId": "move-951-mttlgvh2",
+  "capturedUpdatedAt": 1788927879506,
+  "submittedAt": 1788927880000,
+  "responseAt": 1788927880014,
+  "firstEventAt": 1788927880014,
+  "doneAt": 1788927882518,
+  "applyStartedAt": null,
+  "applyEndedAt": null,
+  "changed": false,
+  "applied": null,
+  "error": null,
+  "events": [
+    {
+      "kind": "accepted",
+      "name": null,
+      "at": 1788927880014
+    },
+    {
+      "kind": "tool",
+      "name": "move_clip",
+      "at": 1788927882518
+    },
+    {
+      "kind": "validation",
+      "name": null,
+      "at": 1788927882518
+    },
+    {
+      "kind": "done",
+      "name": null,
+      "at": 1788927882518
+    }
+  ],
+  "bridgeTiming": {
+    "acceptedAt": 1788927880001,
+    "delayMs": 2500,
+    "agentStartedAt": 1788927882508,
+    "agentEndedAt": 1788927882518,
+    "exportedAt": 1788927882518,
+    "toolCalls": [
+      {
+        "name": "move_clip",
+        "at": 1788927882508,
+        "ms": 1
+      }
+    ],
+    "validation": {
+      "at": 1788927882510,
+      "ms": 7,
+      "ok": true
+    }
+  },
+  "outcome": {
+    "status": "completed",
+    "completion": "nothing-applied"
+  }
+}
