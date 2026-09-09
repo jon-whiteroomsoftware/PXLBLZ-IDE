@@ -76,7 +76,7 @@ The 20-second timeline placed A at 15% with 10% width and B at 30% with 10%
 width: 3–5 seconds and 6–8 seconds, joined by one crossfade. Dragging B two
 seconds later moved both Clips to 25% and 40%. One Undo restored 15% and 30%,
 retained the crossfade and disabled Undo. Console errors were empty. The
-coordinator opened and inspected the [restored capture](IAB-restored.png).
+coordinator opened and inspected the [restored capture](IAB-restored.jpg).
 
 This verifies the actual import and manual drag/Undo path independently of the
 canonical scripted-command proof above. The imported fixture retains its existing

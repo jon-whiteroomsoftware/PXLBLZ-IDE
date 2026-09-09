@@ -1,7 +1,7 @@
 {
   "sourceCommit": "d7892eb67031c8336f6933caf581f3451ec5f7bc",
   "browser": "Codex in-app browser",
-  "coordinator": "root gpt-6-astra/medium",
+  "coordinator": "root task",
   "runtime": "http://localhost:5178",
   "route": "/PXLBLZ-IDE/studio/shows/aa214ed9-922e-422c-aae8-60ea749a3a6e",
   "syntheticUser": "local-agent-08",
@@ -16,8 +16,8 @@
   "preservation": "Two Clips remain at 15%/30% of 20 seconds, widths 10%; one crossfade remains.",
   "consoleErrors": [],
   "captures": [
-    "../../../../.wrsp/ui-proof/951-markers-edited.png",
-    "../../../../.wrsp/ui-proof/951-markers-cleared.png"
+    "../../../../.wrsp/ui-proof/951-markers-edited.jpg",
+    "../../../../.wrsp/ui-proof/951-markers-cleared.jpg"
   ],
   "limits": [
     "Native color input fill did not commit a change; no manual color claim. Golden and scripted tests cover color.",
