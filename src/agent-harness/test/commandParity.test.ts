@@ -1,3 +1,4 @@
+import { bundle, validateLibraryContent } from '@/engine/bundle'
 import { insertShowLayerTransition, resizeShowLayerTransition, resetShowLayerTransitionToCut } from '@/engine/showLayerTransitionAuthoring'
 import { showLayerTransitionCommandFixture } from '@/test/showLayerTransitionCommandFixture'
 import { projectShowUnifiedTimeline } from '@/engine/showUnifiedTimelineProjection'
@@ -1092,7 +1093,12 @@ it('validates personal slider metadata before no-op and preserves captured Libra
   const show = showOverlayLayerFixture()
   show.composition!.patternInstances[0].pattern = { kind: 'user', id: 'personal-953' }
   const patterns = [{ id: 'personal-953', name: 'Personal', source: 'export function sliderSpeed(v) {} export function render(index) { Personal.paint(index) }' }]
-  const options = { allowUnresolvedUserPatterns: true, authoringLibraries: { Personal: 'export function paint(index) { rgb(1,0,0) }' } }
+  const options = { allowUnresolvedUserPatterns: true, authoringLibraries: { Personal: 'function paint(index) { rgb(1,0,0) }' } }
+  expect(validateLibraryContent(options.authoringLibraries.Personal)).toEqual([])
+  const compiled = bundle(patterns[0].source, options.authoringLibraries)
+  expect(compiled.metadata.controls.map(control => control.exportName)).toContain('sliderSpeed')
+  expect(compiled.code).not.toContain('Personal.paint')
+  expect(compiled.code).toContain('rgb(1,0,0)')
   const opened = openShowDocument(show, patterns, options)
   if (!opened.ok) throw new Error(JSON.stringify(opened))
   const context = capturedShowCommandContext(opened.document.inlinePatterns, opened.document.options)
