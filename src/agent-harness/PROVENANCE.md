@@ -405,3 +405,12 @@ submission through save settlement. Close releases transport and polling;
 completion preserves focus outside the overlay. The live proof uses synthetic
 internal activity tokens. Real manual-input registration and final Agent panel
 placement remain separate work. No paid product model calls qualify this slice.
+
+## Private two-Clip rearrangement (#949)
+
+The V2-authored private pair capability retains two plain Clip owners inside an
+explicit grammar transaction and reuses the engine's existing move/keyframe
+transform. It permits only their mutual temporary overlap and strictly validates
+the raw final composition before completion or commit. Ordinary movement and
+generic patch semantics remain unchanged. The [command contract](../../docs/reference/contracts/show-command-semantics.md#private-two-clip-rearrangement)
+defines the finite domain; sequence PP exercises the real scripted browser path.

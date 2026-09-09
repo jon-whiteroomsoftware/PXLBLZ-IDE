@@ -1226,6 +1226,80 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     }
   })
 
+  test('PP: private pair overlap saves one complete record and rejects stale or incomplete delivery', async ({ page }) => {
+    test.setTimeout(120000)
+    for (const action of ['apply', 'incomplete', 'stale'] as const) {
+      const record = resizeBoundaryShow(`private-pair-${action}-${Date.now().toString(36)}`)
+      record.composition!.scenes[0].zones[0].main[1].durationMs = 6000
+      expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+      await page.goto(`studio/shows/${record.id}?agent=1`)
+      await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+      await expect.poll(() => page.evaluate(async () => {
+        const load = (path: string) => import(path)
+        const { useEntityOrganizationStore } = await load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')
+        return useEntityOrganizationStore.getState().loaded.libraries
+      })).toBe(true)
+      await injectOverlay(page, bridge.url)
+      const before = await visibleRecord(page)
+      const durableBefore = await durableShow(page, record.id)
+      const completeWrites: unknown[] = []
+      const captureWrite = (request: Request) => {
+        if (request.method() === 'PATCH' && request.url().endsWith(`/api/shows/${record.id}`)) completeWrites.push(request.postDataJSON())
+      }
+      page.on('request', captureWrite)
+      const id = await submitUtterance(page, action === 'incomplete' ? 'leave the private overlap incomplete' : 'swap the two plain Clips through a private overlap')
+      expect(await visibleRecord(page)).toEqual(before)
+      expect(await durableShow(page, record.id)).toEqual(durableBefore)
+      expect(completeWrites).toEqual([])
+      await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+      if (action === 'stale') {
+        await page.getByRole('button', { name: 'Select CometLoom', exact: true }).first().click()
+        const duration = page.getByRole('textbox', { name: 'Duration seconds exact time' })
+        await duration.fill('7')
+        await duration.press('Enter')
+      }
+      const done = await waitForDone(page, id)
+      if (action === 'incomplete') expect(done).toMatchObject({ changed: false, applied: null })
+      else expect(done.applied, JSON.stringify(done)).toBe(action === 'apply')
+      const expected = structuredClone(before!)
+      const clips = expected.composition!.scenes[0].zones[0].main
+      if (action === 'apply') {
+        expected.composition!.scenes[0].zones[0].main = [{ ...clips[1], startMs: 0 }, { ...clips[0], startMs: 8000 }]
+      } else if (action === 'stale') clips[0].durationMs = 7000
+      if (action !== 'incomplete') await waitForDurable(page, record.id, show => firstMain(show)?.durationMs === (action === 'apply' ? 6000 : 7000))
+      const after = await visibleRecord(page)
+      expect(after).toEqual({ ...expected, updatedAt: action === 'incomplete' ? before!.updatedAt : after!.updatedAt })
+      expect(await durableShow(page, record.id)).toEqual(action === 'incomplete' ? durableBefore : after)
+      const wire = (show: ShowRecord | null) => Object.fromEntries(Object.entries({ ...show, targetControllerProfileId: show?.targetControllerProfileId ?? null }).filter(([key]) => key !== 'id'))
+      expect(completeWrites).toEqual(action === 'incomplete' ? [] : [wire(after)])
+      await page.keyboard.press('Escape')
+      if (action === 'apply') {
+        await page.getByRole('button', { name: 'Show actions' }).click()
+        const download = page.waitForEvent('download')
+        await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
+        const file = await download
+        const reopened = await page.evaluate(async bytes => {
+          const load = (path: string) => import(path)
+          const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
+          return parseShowFileBundle(new Uint8Array(bytes))
+        }, [...readFileSync((await file.path())!)])
+        expect(reopened.show).toEqual(after)
+        saveRecord('PP-export', reopened)
+      }
+      await page.screenshot({ path: join(REPORT_DIR, `PP-${action}.png`), fullPage: true })
+      if (action !== 'incomplete') {
+        await page.getByRole('button', { name: 'Undo Show edit' }).click()
+        await waitForDurable(page, record.id, show => firstMain(show)?.durationMs === 4000)
+        const undone = await visibleRecord(page)
+        expect(undone).toEqual({ ...before, updatedAt: undone!.updatedAt })
+        expect(await durableShow(page, record.id)).toEqual(undone)
+        await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+      }
+      saveRecord(`PP-${action}`, { before, after, done, completeWrites, durable: await durableShow(page, record.id) })
+      page.off('request', captureWrite)
+    }
+  })
+
   test('F: a multi-operation reply lands as one history entry and one save', async ({ page }) => {
     test.setTimeout(90_000)
     const writes = watchShowWrites(page)

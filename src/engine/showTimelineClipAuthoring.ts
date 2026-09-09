@@ -10,6 +10,7 @@ import {
   addShowMainClip,
   addShowOverlayClip,
   normalizeShowComposition,
+  qualifyPrivateClipPair,
   splitShowMainPlacement,
   splitShowOverlayPlacement,
   validateShowComposition,
@@ -621,6 +622,51 @@ export function moveShowClipAtGlobalTime(
   composition: ShowCompositionV1,
   input: { owner: ShowTimelineClipOwner; target: ShowTimelineClipMoveTarget },
 ): ShowCompositionV1 {
+  return moveShowClip(show, composition, input, draft => validateShowComposition(show, draft).length === 0)
+}
+
+export interface PrivateClipPairMove {
+  move: (owner: ShowTimelineClipOwner, target: ShowTimelineClipMoveTarget) => ShowCompositionV1 | null
+}
+
+/** A transaction owns this closure; it can only move these two retained Clips. */
+export function createPrivateClipPairMove(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  owners: readonly [ShowTimelineClipOwner, ShowTimelineClipOwner],
+): PrivateClipPairMove | null {
+  const validate = qualifyPrivateClipPair(show, composition, [owners[0].placementId, owners[1].placementId])
+  if (!validate) return null
+  const baseline = structuredClone(show)
+  const retainedOwners = structuredClone(owners)
+  let working = structuredClone(composition)
+  return {
+    move(owner, target) {
+      const retained = retainedOwners.find(candidate => candidate.placementId === owner.placementId)
+      if (!retained || retained.sceneId !== owner.sceneId || retained.zoneId !== owner.zoneId
+        || retained.kind !== owner.kind || (retained.kind === 'overlay' && (owner.kind !== 'overlay' || retained.layerId !== owner.layerId))) return null
+      if (target.kind !== retained.kind || target.zoneId !== retained.zoneId || !Number.isSafeInteger(target.globalStartMs)) return null
+      const scene = working.scenes.find(candidate => candidate.sceneId === retained.sceneId)
+      const zone = scene?.zones.find(candidate => candidate.zoneId === retained.zoneId)
+      if (retained.kind === 'overlay' && (target.kind !== 'overlay' || zone?.overlays[target.layerIndex]?.id !== retained.layerId)) return null
+      const placement = findTimelinePlacement(working, retained)
+      const range = projectShowTimeline(baseline).scenes.find(candidate => candidate.sceneId === retained.sceneId)
+      if (!placement || !range || !Number.isSafeInteger(target.globalStartMs + placement.durationMs)
+        || target.globalStartMs < range.startMs || target.globalStartMs + placement.durationMs > range.endMs) return null
+      const next = moveShowClip(baseline, working, { owner: retained, target }, draft => validate(draft).length === 0)
+      if (next === working) return null
+      working = next
+      return structuredClone(next)
+    },
+  }
+}
+
+function moveShowClip(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: { owner: ShowTimelineClipOwner; target: ShowTimelineClipMoveTarget },
+  accepts: (draft: ShowCompositionV1) => boolean,
+): ShowCompositionV1 {
   if (!Number.isFinite(input.target.globalStartMs)) return composition
   const logicalSegments = logicalClipSegments(show, composition, input.owner)
   const logicalRange = globalLogicalClipRange(logicalSegments)
@@ -705,7 +751,7 @@ export function moveShowClipAtGlobalTime(
     targetScene.propertyTracks = [...(targetScene.propertyTracks ?? []), ...movedTracks]
   }
 
-  if (validateShowComposition(show, draft).length > 0) return composition
+  if (!accepts(draft)) return composition
   return normalizeShowComposition(show, draft)
 }
 

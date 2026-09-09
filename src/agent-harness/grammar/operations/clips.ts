@@ -225,7 +225,7 @@ const moveClip: ShowGrammarOperation = {
     layer: z.union([z.literal('main'), z.number().int().min(0)]).optional()
       .describe('Target layer: "main" or an overlay layer index (default: the current layer)'),
   },
-  apply(document, args) {
+  apply(document, args, privateMove) {
     const resolved = resolveClip(document, args.clip_id as string)
     if (!resolved.ok) return resolved
     const context = resolved.context
@@ -265,7 +265,7 @@ const moveClip: ShowGrammarOperation = {
       })
     }
     const conflict = overlapConflict(context, zoneId, kind, layerIndex, startMs, endMs)
-    if (conflict) {
+    if (conflict && !privateMove) {
       return refuse({
         code: 'occupied',
         message:
@@ -279,8 +279,10 @@ const moveClip: ShowGrammarOperation = {
       ? { kind: 'main', zoneId, globalStartMs: startMs }
       : { kind: 'overlay', zoneId, layerIndex, globalStartMs: startMs }
     const composition = compositionOf(document)
-    const result = moveShowClipAtGlobalTime(document.show, composition, { owner: ownerFor(clip), target })
-    if (result === composition) {
+    const result = privateMove && (privateMove.active || conflict)
+      ? privateMove.move(ownerFor(clip), target, conflict ? ownerFor(conflict.clip) : undefined)
+      : moveShowClipAtGlobalTime(document.show, composition, { owner: ownerFor(clip), target })
+    if (!result || result === composition) {
       return refuse({
         code: 'engine-refused',
         message: `The engine declined to move clip ${clip.id} to ${startMs} ms on Zone ${zoneId}.`,

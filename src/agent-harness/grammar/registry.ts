@@ -15,10 +15,17 @@
 import { z, type ZodRawShape } from 'zod'
 import { validateAuthoringShowDocument, validateShowDocument } from '../shows/evaluate.js'
 import type { GrammarChange, GrammarIssue, ShowGrammarDocument } from './types.js'
+import type { ShowCompositionV1 } from '@/engine/personalContentRecords'
+import type { ShowTimelineClipOwner, ShowTimelineClipMoveTarget } from '@/engine/showTimelineClipAuthoring'
 
 export type GrammarOperationResult =
   | { ok: true; document: ShowGrammarDocument; changes: GrammarChange[] }
   | { ok: false; issues: GrammarIssue[] }
+
+export interface PrivateMoveContext {
+  active: boolean
+  move: (owner: ShowTimelineClipOwner, target: ShowTimelineClipMoveTarget, partner?: ShowTimelineClipOwner) => ShowCompositionV1 | null
+}
 
 export interface ShowGrammarOperation {
   name: string
@@ -29,7 +36,7 @@ export interface ShowGrammarOperation {
   /** Zod shape for the operation's own arguments (session_id is added by the server). */
   inputShape: ZodRawShape
   validateInput?: (args: Record<string, unknown>) => GrammarIssue[]
-  apply: (document: ShowGrammarDocument, args: Record<string, unknown>) => GrammarOperationResult
+  apply: (document: ShowGrammarDocument, args: Record<string, unknown>, context?: PrivateMoveContext) => GrammarOperationResult
 }
 
 export type { ShowGrammarDocument } from './types.js'
@@ -67,7 +74,7 @@ export function applyShowGrammarOperation(
   document: ShowGrammarDocument,
   name: string,
   rawArgs: Record<string, unknown>,
-  options: { validateResult?: boolean } = {},
+  options: { validateResult?: boolean; privateMove?: PrivateMoveContext } = {},
 ): GrammarOperationResult {
   const operation = SHOW_GRAMMAR_OPERATIONS.find((candidate) => candidate.name === name)
   if (!operation) {
@@ -92,7 +99,10 @@ export function applyShowGrammarOperation(
       })),
     }
   }
-  const outcome = operation.apply(document, parsed.data as Record<string, unknown>)
+  if (options.privateMove?.active && name !== 'move_clip') {
+    return { ok: false, issues: [{ code: 'invalid-argument', message: 'This private transaction retains two Clip participants; only their moves may change it until commit or rollback.' }] }
+  }
+  const outcome = operation.apply(document, parsed.data as Record<string, unknown>, options.privateMove)
   if (!outcome.ok) return outcome
   // Inside a transaction the session defers tier-0 to commit_edit, so a
   // working copy may pass through resolvable-invalid states.

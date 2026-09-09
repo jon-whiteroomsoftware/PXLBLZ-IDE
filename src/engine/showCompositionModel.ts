@@ -326,6 +326,60 @@ export function validateShowComposition(
   show: Pick<ShowRecord, 'scenes' | 'zones'>,
   composition: ShowCompositionV1,
 ): ShowCompositionValidationIssue[] {
+  return validateComposition(show, composition)
+}
+
+/** Internal finite qualification: no caller-supplied general validation policy. */
+export function qualifyPrivateClipPair(
+  show: Pick<ShowRecord, 'scenes' | 'zones'>,
+  composition: ShowCompositionV1,
+  ids: readonly [string, string],
+): ((next: ShowCompositionV1) => ShowCompositionValidationIssue[]) | null {
+  ids = structuredClone(ids)
+  if (ids[0] === ids[1] || validateShowComposition(show, composition).length > 0) return null
+  const retainedShow = structuredClone(show)
+  const owners = (value: ShowCompositionV1) => value.scenes.flatMap(scene => scene.zones.flatMap(zone => [
+    ...zone.main.map(placement => ({ sceneId: scene.sceneId, zoneId: zone.zoneId, layerId: null as string | null, placement })),
+    ...zone.overlays.flatMap(layer => layer.placements.map(placement => ({ sceneId: scene.sceneId, zoneId: zone.zoneId, layerId: layer.id, placement }))),
+  ]))
+  const all = owners(composition)
+  const pair = ids.map(id => all.filter(owner => owner.placement.id === id))
+  if (pair.some(matches => matches.length !== 1)) return null
+  const [a, b] = pair.map(matches => matches[0])
+  if (a.sceneId !== b.sceneId || a.zoneId !== b.zoneId || a.layerId !== b.layerId) return null
+  if (all.some(owner => ids.includes(owner.placement.logicalClipId ?? '') || (ids.includes(owner.placement.id) && owner.placement.logicalClipId !== undefined))) return null
+  if ((composition.transitions ?? []).some(t => ids.includes(t.fromPlacementId) || ids.includes(t.toPlacementId))) return null
+  // Conservatively refuse Group-bearing ownership in this Scene/Zone. Group
+  // materialization must never hide an occupant from the private collision check.
+  if ((composition.groupOccurrences ?? []).some(g => g.sceneId === a.sceneId && g.zoneId === a.zoneId)) return null
+  const retained = structuredClone([a, b])
+  return next => {
+    const nextOwners = owners(next)
+    if (retained.some(owner => {
+      const matches = nextOwners.filter(candidate => candidate.placement.id === owner.placement.id)
+      const candidate = matches[0]
+      return matches.length !== 1 || candidate.sceneId !== owner.sceneId || candidate.zoneId !== owner.zoneId
+        || candidate.layerId !== owner.layerId || candidate.placement.durationMs !== owner.placement.durationMs
+        || candidate.placement.instanceId !== owner.placement.instanceId || candidate.placement.logicalClipId !== undefined
+    })) return [{ path: 'scenes', code: 'invalid-logical-clip', message: 'Private Clip participants must retain their exact ownership, duration and instance binding.' }]
+    return validateComposition(retainedShow, next, ids)
+  }
+}
+
+function validateComposition(
+  show: Pick<ShowRecord, 'scenes' | 'zones'>,
+  composition: ShowCompositionV1,
+  pair?: readonly [string, string],
+): ShowCompositionValidationIssue[] {
+  const conflicts = (ordered: Array<ShowMainPlacement | ShowOverlayPlacement>, index: number) => {
+    const placement = ordered[index]
+    // Ordinary validation keeps its existing adjacent-neighbor diagnostics.
+    // Private overlap makes that insufficient: a long participant can enclose
+    // both its partner and a third Clip, so inspect every earlier interval.
+    const earlier = pair ? ordered.slice(0, index) : ordered.slice(Math.max(0, index - 1), index)
+    return earlier.some(previous => previous.startMs + previous.durationMs > placement.startMs
+      && !(pair && pair.includes(previous.id) && pair.includes(placement.id) && previous.id !== placement.id))
+  }
   const issues = validateShowCompositionTimelineMetadata(composition)
   const sceneById = new Map(show.scenes.map((scene) => [scene.id, scene]))
   const zoneIds = new Set(show.zones.map((zone) => zone.id))
@@ -383,8 +437,7 @@ export function validateShowComposition(
         if (placement.opacity !== undefined && (!Number.isFinite(placement.opacity) || placement.opacity < 0 || placement.opacity > 1)) {
           addIssue(issues, `${path}.opacity`, 'out-of-bounds', 'Main opacity must be between 0 and 1.')
         }
-        const previous = ordered[orderedIndex - 1]
-        if (previous && previous.startMs + previous.durationMs > placement.startMs) {
+        if (conflicts(ordered, orderedIndex)) {
           addIssue(issues, `${path}.startMs`, 'overlap', 'Main placements in one Scene and Zone cannot overlap.')
         }
       })
@@ -416,8 +469,7 @@ export function validateShowComposition(
           if (!Number.isFinite(placement.opacity) || placement.opacity < 0 || placement.opacity > 1) {
             addIssue(issues, `${path}.opacity`, 'out-of-bounds', 'Overlay opacity must be between 0 and 1.')
           }
-          const previous = orderedPlacements[orderedIndex - 1]
-          if (previous && previous.startMs + previous.durationMs > placement.startMs) {
+          if (conflicts(orderedPlacements, orderedIndex)) {
             addIssue(issues, `${path}.startMs`, 'overlap', 'Overlay placements in one layer cannot overlap.')
           }
         })
@@ -501,7 +553,7 @@ export function validateShowComposition(
   issues.push(...validateShowPropertyTracks(show, composition))
   if ((composition.groupDefinitions?.length ?? 0) > 0 || (composition.groupOccurrences?.length ?? 0) > 0) {
     const materialized = materializeShowGroupOccurrences(composition)
-    issues.push(...validateShowComposition(show, materialized))
+    issues.push(...validateComposition(show, materialized, pair))
   }
   return issues
 }

@@ -691,12 +691,13 @@ transaction failures; the explicit internal D1 authoring policy qualifies their 
 diagnostic classes without broadening bridge/MCP exposure. V2 saving has a separate boundary. Missing-reference and dependency cases
 also need explicit policy, not a blanket classification inferred from the validator name.
 
-The PRD's requirement for private batches that can pass through temporarily invalid composition
-is not implemented by the diagnostic patch path. #945 deliberately requires each generic patch
-member to leave declared Show structure valid, and registry commands retain individual
-preconditions. #946/#947 must enumerate supported intermediate states and final-validation
-fixtures before #949/#950 promote that seam. This does not reopen arbitrary scratch containers
-or add generic patch tools to the production allowlist.
+The private transaction now supports a finite two-plain-Clip rearrangement on the same
+Scene, Zone and Layer, retaining one pair through temporary mutual overlap and requiring
+strict raw final validation. The [command contract](../reference/contracts/show-command-semantics.md#private-two-clip-rearrangement)
+records its boundaries. Broader temporary-invalid composition remains unqualified.
+#945 deliberately requires each generic patch member to leave declared Show structure
+valid, and ordinary registry commands retain individual preconditions. This does not
+reopen arbitrary scratch containers or add generic patch tools to the production allowlist.
 
 Source ownership is single-repository. The agentic path now lives in V2, and subsequent slices
 must not require unreviewed V3 companion commits or an unpublished V3 checkout at runtime. #946

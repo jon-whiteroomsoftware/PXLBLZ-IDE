@@ -26,6 +26,22 @@ export const BASELINE_FIXTURE_RESIZE: BaselineUtterance = {
 
 export const BASELINE_UTTERANCES: BaselineUtterance[] = [
   {
+    utterance: 'swap the two plain Clips through a private overlap',
+    intent: '#949: one retained pair overlaps privately, then resolves before one complete candidate.',
+    script: [
+      { tool: 'move_clip', args: { clip_id: 'resize-a', start_ms: 8000 } },
+      { tool: 'move_clip', args: { clip_id: 'resize-b', start_ms: 0, finish_turn_reply: { intent: 'apply', reply: 'Swapped the two Clips.' } } },
+    ],
+  },
+  {
+    utterance: 'leave the private overlap incomplete',
+    intent: '#949: no private intermediate is published.',
+    script: [
+      { tool: 'move_clip', args: { clip_id: 'resize-a', start_ms: 8000 } },
+      { say: 'The private edit is incomplete.', intent: 'incomplete' },
+    ],
+  },
+  {
     utterance: 'move the second Clip to sixteen seconds then make the first Clip twelve seconds',
     intent: '#950: move B then resize A, with both intermediate records valid.',
     script: [

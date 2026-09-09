@@ -71,10 +71,30 @@ This uses whole-Show context and revision admission. One accepted delivery owns
 one ordinary save and Undo/Redo group. An actual dirty duration field holds the
 complete candidate: draft cancellation permits admission, while manual commit
 invalidates it. A manual edit during the pending response also refuses delivery.
-These finite cases do not qualify narrow model context, temporarily overlapping
-batches, swaps, or arbitrary operation combinations.
+These finite cases do not qualify narrow model context or arbitrary operation
+combinations. The separate private two-Clip qualification below owns its overlap exception.
 [Mixed-batch evidence](../evidence/issue-950-resize/mixed-batch.md) distinguishes
 private transaction proof from live record, save, history and export proof.
+
+## Private two-Clip rearrangement
+
+The explicit private transaction can retain two plain Clips and rearrange their
+starts through one specifically permitted same-Layer overlap. [Show command
+semantics](show-command-semantics.md#private-two-clip-rearrangement) defines the
+finite ownership and collision checks. Both pending completion and private commit
+strictly validate the raw final composition. The complete candidate alone reaches
+the existing whole-Show revision admission, one history group and ordinary save.
+
+An overlapping intermediate creates no live adoption, provider write or history.
+Rollback, incomplete completion and unresolved final overlap expose no candidate;
+a stale delivered candidate preserves intervening manual work. This path retains
+whole-Show context and admission. It does not qualify general canonical moves,
+Group rearrangement, destination changes or arbitrary temporary invalidity.
+
+[Private-pair tests](../../../src/agent-harness/test/privateClipRearrangement.test.ts)
+own full-record and private lifecycle checks. Browser sequence PP in the
+[scripted baseline](../../../e2e/agent-baseline.auth.spec.ts) owns durable record,
+export/reopen and Undo evidence for the finite two-Clip swap.
 
 ## Internal admission foundation
 

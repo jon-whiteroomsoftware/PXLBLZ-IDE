@@ -83,7 +83,7 @@ const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
   target(
     'move',
     'showTimelineClipAuthoring.ts',
-    'moveShowClipAtGlobalTime',
+    'moveShowClip',
     'if (logicalSegments.length > 1 || targetSlices.length > 1) {',
   ),
   target(

@@ -100,8 +100,9 @@ original authored Transition, including explicit Cut identity and easing.
 The operation requires a valid input composition. Registry transactions and
 private grammar sessions accept no-op before/after a changed step. Wholly no-op
 private work creates no history entry or candidate. The existing valid-intermediate
-move-B then resize-A sequence is qualified; arbitrary temporarily overlapping
-intermediates and swaps are not. Broad diagnostic requests retain whole-Show
+move-B then resize-A sequence is qualified. The separate private two-Clip
+qualification below permits its retained pair to overlap; arbitrary temporarily
+invalid intermediates remain outside the contract. Broad diagnostic requests retain whole-Show
 admission rather than the internal qualified Layer guard.
 
 ### Manual resize commits
@@ -161,3 +162,27 @@ The [candidate contract](agent-candidate-application.md#bounded-mixed-batches)
 and [consumer evidence](../evidence/issue-950-resize/mixed-batch.md) bound this
 qualification. Other grammar commands and arbitrary temporary invalidity remain
 outside it.
+
+## Private two-Clip rearrangement
+
+An explicit diagnostic transaction may retain two distinct plain Clips on the
+same Scene, Zone and Layer, including Main or an overlay, and move them through
+a temporary mutual overlap. The first overlapping move requires a valid composed
+input and fixes both participant identities for the rest of that transaction.
+Only moves of those two Clips can subsequently mutate it, even after overlap resolves.
+Commit, validation, reads and rollback remain available.
+
+Every step retains Clip IDs, durations, instance bindings and ownership, uses
+safe integer global starts within the original Scene, and reuses ordinary
+placement and keyframe movement. Shared-instance tracks keep their ordinary
+ownership rule. All intersecting pairs are checked; a third Clip enclosed by a
+long participant is still a collision. Segmented Clips, connected Transitions,
+owner changes and Group occurrences in the participants' Scene/Zone refuse.
+Groups outside that ownership remain unchanged.
+
+The capability belongs to private transaction state. Ordinary moves remain
+strict, and both pending completion and commit validate the raw final composition
+without overlap permission before document preparation. Unresolved overlap
+cannot be normalized into success. The [candidate contract](agent-candidate-application.md#private-two-clip-rearrangement)
+owns delivery and the [consumer tests](../../../src/agent-harness/test/privateClipRearrangement.test.ts)
+cover complete records, history, refusal and private lifecycle behavior.

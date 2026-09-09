@@ -150,7 +150,7 @@ describe('Show authoring mutation qualification (#597)', () => {
       'transition',
     ]))
     expect(scope.map(({ functionName }) => functionName)).toEqual(expect.arrayContaining([
-      'moveShowClipAtGlobalTime',
+      'moveShowClip',
       'resizeShowClipAtGlobalTime',
       'planShowClipSplitAtGlobalTime',
       'planShowClipDuplicateAfter',

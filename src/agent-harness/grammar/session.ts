@@ -24,6 +24,8 @@ import {
 } from './read.js'
 import { applyShowGrammarOperation } from './registry.js'
 import type { GrammarChange, GrammarIssue, ShowClipListing, ShowGrammarDocument } from './types.js'
+import { createPrivateClipPairMove, type PrivateClipPairMove } from '@/engine/showTimelineClipAuthoring'
+import { validateShowComposition } from '@/engine/showCompositionModel'
 
 export interface HistoryEntrySummary {
   index: number
@@ -44,6 +46,7 @@ interface OpenTransaction {
   label: string
   working: ShowGrammarDocument
   changes: GrammarChange[]
+  privatePair?: PrivateClipPairMove
 }
 
 export interface GenericUseEntry {
@@ -168,7 +171,11 @@ export function createSessionStore(policy: { authoringValidation?: boolean } = {
   }
 
   /** The final validation result a commit of this working copy would produce. */
-  function pendingValidationIssues(working: ShowGrammarDocument, baseline: ShowGrammarDocument): { ok: true; warnings?: ShowIssue[] } | Refusal {
+  function pendingValidationIssues(working: ShowGrammarDocument, baseline: ShowGrammarDocument, privatePair = false): { ok: true; warnings?: ShowIssue[] } | Refusal {
+    if (privatePair && working.show.composition) {
+      const issues = validateShowComposition(working.show, working.show.composition)
+      if (issues.length) return { ok: false, issues: issues.map(issue => ({ code: 'result-invalid', message: issue.message, path: issue.path })) }
+    }
     const validation = working.authoringValidation
       ? validateAuthoringShowDocument(working.show, working.inlinePatterns, working.options, baseline)
       : validateShowDocument(working.show, working.inlinePatterns, working.options)
@@ -209,8 +216,23 @@ export function createSessionStore(policy: { authoringValidation?: boolean } = {
       const { session } = found
 
       if (session.open) {
-        const outcome = applyShowGrammarOperation(session.open.working, operation, args, {
+        const transaction = session.open
+        const outcome = applyShowGrammarOperation(transaction.working, operation, args, {
           validateResult: false,
+          privateMove: {
+            active: Boolean(transaction.privatePair),
+            move(owner, target, partner) {
+              if (transaction.privatePair) return transaction.privatePair.move(owner, target)
+              if (!partner || !pendingValidationIssues(transaction.working, session.document, Boolean(transaction.privatePair)).ok) return null
+              const composition = transaction.working.show.composition
+              if (!composition) return null
+              const pair = createPrivateClipPairMove(transaction.working.show, composition, [owner, partner])
+              const result = pair?.move(owner, target)
+              if (!result) return null
+              transaction.privatePair = pair!
+              return result
+            },
+          },
         })
         if (!outcome.ok) return outcome
         session.open.working = outcome.document
@@ -266,7 +288,7 @@ export function createSessionStore(policy: { authoringValidation?: boolean } = {
       const { session } = found
       if (!session.open) return NO_TRANSACTION
       const { label, working, changes } = session.open
-      const validation = pendingValidationIssues(working, session.document)
+      const validation = pendingValidationIssues(working, session.document, Boolean(session.open.privatePair))
       if (!validation.ok) return validation
       const summary = changes.length > 0 ? summarize(changes) : 'No operations were applied.'
       if (working !== session.document || changes.length > 0) {
@@ -281,7 +303,7 @@ export function createSessionStore(policy: { authoringValidation?: boolean } = {
       if (!found.ok) return found
       const { session } = found
       if (!session.open) return NO_TRANSACTION
-      const validation = pendingValidationIssues(session.open.working, session.document)
+      const validation = pendingValidationIssues(session.open.working, session.document, Boolean(session.open.privatePair))
       if (!validation.ok) return validation
       const { changes } = session.open
       return {
