@@ -83,7 +83,6 @@ describe('pxlblz-shows MCP server (#7)', () => {
       'rename_show',
       'reset_layer_transition_to_cut',
       'resize_clip',
-      'resize_connected_clip',
       'resize_layer_transition',
       'resolve_reference',
       'restart_clip',

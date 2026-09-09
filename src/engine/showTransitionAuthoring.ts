@@ -127,3 +127,52 @@ function persistedParameterValue(
 ): ShowToolkitParameterValue | ReturnType<typeof showEasingFromOptionId> {
   return parameterId === 'easing' ? showEasingFromOptionId(String(value)) : value
 }
+
+/** kind (+ optional variant) to visual-toolkit family/variant. */
+const KIND_TO_FAMILY: Record<string, { familyId: string; defaultVariant: string }> = {
+  cut: { familyId: 'blend', defaultVariant: 'cut' },
+  crossfade: { familyId: 'blend', defaultVariant: 'crossfade' },
+  'fade-color': { familyId: 'fade', defaultVariant: 'through-color' },
+  wipe: { familyId: 'wipe', defaultVariant: 'linear' },
+  dither: { familyId: 'dissolve', defaultVariant: 'pixel' },
+  portal: { familyId: 'shape-reveal', defaultVariant: 'circle' },
+  motion: { familyId: 'motion', defaultVariant: 'cover' },
+}
+
+export function toolkitTransitionItem(
+  kind: string,
+  variant: string | undefined,
+): { ok: true; item: ShowToolkitPresentationItem } | { ok: false; issue: { code: 'invalid-argument'; message: string } } {
+  const mapping = KIND_TO_FAMILY[kind]
+  if (!mapping) {
+    return {
+      ok: false,
+      issue: {
+        code: 'invalid-argument',
+        message: `Unknown Transition kind "${kind}". Kinds: ${Object.keys(KIND_TO_FAMILY).join(', ')}.`,
+      },
+    }
+  }
+  const family = getShowToolkitFamily('transition', mapping.familyId)
+  const variantId = variant ?? mapping.defaultVariant
+  if (!family?.variants.some((candidate) => candidate.id === variantId)) {
+    return {
+      ok: false,
+      issue: {
+        code: 'invalid-argument',
+        message:
+          `"${variantId}" is not a variant of the ${kind} Transition. Variants: ${
+            family?.variants.map((candidate) => candidate.id).join(', ') ?? 'none'}.`,
+      },
+    }
+  }
+  return {
+    ok: true,
+    item: {
+      kind: 'transition',
+      familyId: mapping.familyId,
+      variantId,
+      key: `transition:${mapping.familyId}:${variantId}`,
+    } as unknown as ShowToolkitPresentationItem,
+  }
+}

@@ -1,3 +1,4 @@
+import { showLayerTransitionCommandFixture } from '../src/test/showLayerTransitionCommandFixture'
 import { showBoundaryCommandFixture } from '../src/test/showBoundaryCommandFixture'
 // Agent-editing baseline on the live editor (#945): known-outcome
 // reproductions, not product acceptance. Every sequence drives the real
@@ -1675,6 +1676,48 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     staleCommand?: { command: string; args: Record<string, unknown> }
     toolbarSplit?: { atMs: number; clipId: string | null; accepted: boolean }
   }> = [
+    {
+      id: 'ILT952', command: 'insert_layer_transition', args: { from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 1500, easing: 'ease-in' },
+      utterance: 'insert a fifteen hundred millisecond Layer crossfade with ease in',
+      fixture: () => { const record = showLayerTransitionCommandFixture(); record.id = `layer-insert-952-${Date.now().toString(36)}`; return record },
+      expectedFacts: before => {
+        const expected = structuredClone(before)
+        expected.composition!.scenes[0].zones[0].main.find(clip => clip.id === 'clip-b')!.startMs = 11500
+        for (const track of expected.composition!.scenes[0].propertyTracks ?? []) if (['track-b', 'track-inst-b'].includes(track.id)) for (const key of track.keyframes) key.timeMs += 1500
+        expected.composition!.transitions = [{ id: 'transition-1', fromPlacementId: 'clip-a', toPlacementId: 'clip-b', kind: 'crossfade', durationMs: 1500, easing: { curve: 'quadratic', direction: 'in' }, crossfadePolicy: 'snapshot-live' }]
+        return expected
+      },
+    },
+    {
+      id: 'RLT952', command: 'resize_layer_transition', args: { transition_id: 'connected-transition', duration_ms: 1500 },
+      utterance: 'make the overlay Layer Transition fifteen hundred milliseconds',
+      fixture: () => { const record = showLayerTransitionCommandFixture(true, true); record.id = `layer-resize-952-${Date.now().toString(36)}`; return record },
+      expectedFacts: before => {
+        const expected = structuredClone(before)
+        expected.composition!.scenes[0].zones[0].overlays[0].placements.find(clip => clip.id === 'clip-b')!.startMs = 11500
+        for (const track of expected.composition!.scenes[0].propertyTracks ?? []) if (['track-b', 'track-inst-b'].includes(track.id)) for (const key of track.keyframes) key.timeMs += 500
+        expected.composition!.transitions![0].durationMs = 1500
+        return expected
+      },
+    },
+    {
+      id: 'RLC952', command: 'reset_layer_transition_to_cut', args: { transition_id: 'connected-transition' },
+      utterance: 'reset the Layer Transition to Cut',
+      fixture: () => { const record = showLayerTransitionCommandFixture(false, true); record.id = `layer-cut-952-${Date.now().toString(36)}`; return record },
+      expectedFacts: before => {
+        const expected = structuredClone(before)
+        expected.composition!.scenes[0].zones[0].main.find(clip => clip.id === 'clip-b')!.startMs = 10000
+        for (const track of expected.composition!.scenes[0].propertyTracks ?? []) if (['track-b', 'track-inst-b'].includes(track.id)) for (const key of track.keyframes) key.timeMs -= 1000
+        expected.composition!.transitions = []
+        return expected
+      },
+    },
+    {
+      id: 'CCR952', command: 'resize_clip', args: { clip_id: 'clip-b', duration_ms: 9000 },
+      utterance: 'make the connected overlay Clip nine seconds',
+      fixture: () => { const record = showLayerTransitionCommandFixture(true, true); record.id = `connected-resize-952-${Date.now().toString(36)}`; return record },
+      expectedFacts: before => { const expected = structuredClone(before); expected.composition!.scenes[0].zones[0].overlays[0].placements.find(clip => clip.id === 'clip-b')!.durationMs = 9000; return expected },
+    },
     {
       id: 'BT952', command: 'set_boundary_transition', args: { transition_id: 'transition-scene-1', kind: 'fade-color', variant: 'through-color', duration_ms: 1500 },
       utterance: 'make the Boundary fade through black over fifteen hundred milliseconds',

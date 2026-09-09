@@ -2,6 +2,4 @@
 import { SHOW_JUNCTION_COMMANDS } from '@/engine/showCommands/junctions'
 import { descriptorOperation } from './descriptorAdapter.js'
 
-// The diagnostic Layer family reuses the same toolkit mapping until its migration.
-export { toolkitTransitionItem } from '@/engine/showCommands/junctions'
 export const JUNCTION_OPERATIONS = SHOW_JUNCTION_COMMANDS.map(command => descriptorOperation(command))

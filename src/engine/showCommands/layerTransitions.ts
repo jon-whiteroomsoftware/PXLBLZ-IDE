@@ -1,9 +1,12 @@
+import { validateShowComposition } from '../showCompositionModel'
 // Layer-transition command family: the endpoint-owned non-Cut transitions
 // between consecutive clips on one layer, and the rigid-chain move of a
 // transition-connected clip. All through the pure layer-transition authoring
 // functions; ids are the transition ids the timeline and summary report.
 import { newPersonalContentId } from '../personalContentMetadata'
-import type { ShowLayerTransition, ShowRecord } from '../personalContentRecords'
+import { showTransitionChangesForPresentation, toolkitTransitionItem } from '../showTransitionAuthoring'
+import { normalizeShowEasing } from '../showEasing'
+import type { ShowLayerTransition, ShowRecord, ShowTransitionEasing } from '../personalContentRecords'
 import {
   insertShowLayerTransition,
   planShowLayerTransitionInsertion,
@@ -15,6 +18,7 @@ import {
   refuseShowCommand,
   withComposition,
   type ShowCommandDescriptor,
+  type ShowCommandOutcome,
   type ShowCommandRefusal,
 } from './registry'
 import {
@@ -45,6 +49,69 @@ function resolveLayerTransition(
   return { ok: true, transition }
 }
 
+export function insertLayerTransitionCommandOutcome(
+  record: ShowRecord,
+  input: Record<string, unknown>,
+  idFactory: () => string = newPersonalContentId,
+): ShowCommandOutcome {
+  const resolved = commandComposition(record)
+  if (!resolved.ok) return resolved
+  const composition = resolved.composition
+  const from = resolveCommandClip(record, composition, input.from_clip_id as string)
+  if (!from.ok) return from
+  const to = resolveCommandClip(record, composition, input.to_clip_id as string)
+  if (!to.ok) return to
+  const plan = planShowLayerTransitionInsertion(record, composition, {
+    fromPlacementId: from.context.clip.endPlacementId,
+    toPlacementId: to.context.clip.startPlacementId,
+  })
+  if (!plan.enabled) {
+    return refuseShowCommand({
+      code: 'transition-refused',
+      message: `insert_layer_transition: ${plan.reason}`,
+    })
+  }
+  const durationMs = Math.round(input.duration_ms as number)
+  if (durationMs <= 0 || durationMs > plan.maxDurationMs) {
+    return refuseShowCommand({
+      code: 'invalid-duration',
+      message:
+        `insert_layer_transition: the duration must be between 1 and ${plan.maxDurationMs} ms here ` +
+        `(requested ${durationMs}).`,
+    })
+  }
+  const item = toolkitTransitionItem((input.kind as string | undefined) ?? 'crossfade', input.variant as string | undefined)
+  if (!item.ok) return refuseShowCommand(item.issue)
+  const transition: ShowLayerTransition = {
+    ...showTransitionChangesForPresentation(item.item),
+    id: idFactory(),
+    fromPlacementId: from.context.clip.endPlacementId,
+    toPlacementId: to.context.clip.startPlacementId,
+    kind: (input.kind as ShowLayerTransition['kind'] | undefined) ?? 'crossfade',
+    durationMs,
+    ...(input.easing === undefined ? {} : { easing: normalizeShowEasing(input.easing as ShowTransitionEasing) }),
+  } as ShowLayerTransition
+  const result = insertShowLayerTransition(record, composition, transition)
+  if (result === composition) {
+    return engineIdentityRefusal(
+      'insert_layer_transition',
+      'The shift may collide with a later clip or the clips may not meet at a cut.',
+    )
+  }
+  return {
+    ok: true,
+    record: withComposition(record, result),
+    changes: [{
+      command: 'insert_layer_transition',
+      targetId: transition.id,
+      details: { fromClipId: from.context.clip.id, toClipId: to.context.clip.id },
+      description:
+        `${transition.kind} of ${durationMs} ms inserted between ${from.context.clip.patternName} ` +
+        `and ${to.context.clip.patternName}.`,
+    }],
+  }
+}
+
 const insertLayerTransition: ShowCommandDescriptor = {
   name: 'insert_layer_transition',
   description:
@@ -62,65 +129,11 @@ const insertLayerTransition: ShowCommandDescriptor = {
       enum: ['crossfade', 'fade-color', 'wipe', 'dither', 'portal', 'motion'],
       description: 'Transition kind (default crossfade)',
     },
-    duration_ms: { kind: 'integer', description: 'Transition duration in milliseconds (positive)' },
+    duration_ms: { kind: 'number', description: 'Transition duration in milliseconds (positive after rounding)' },
+    variant: { kind: 'string', optional: true, description: 'Existing toolkit variant id' },
+    easing: { kind: 'easing', optional: true, description: 'Preset or structured easing curve' },
   },
-  apply(record, input) {
-    const resolved = commandComposition(record)
-    if (!resolved.ok) return resolved
-    const composition = resolved.composition
-    const from = resolveCommandClip(record, composition, input.from_clip_id as string)
-    if (!from.ok) return from
-    const to = resolveCommandClip(record, composition, input.to_clip_id as string)
-    if (!to.ok) return to
-    const plan = planShowLayerTransitionInsertion(record, composition, {
-      fromPlacementId: from.context.clip.endPlacementId,
-      toPlacementId: to.context.clip.startPlacementId,
-    })
-    if (!plan.enabled) {
-      return refuseShowCommand({
-        code: 'transition-refused',
-        message: `insert_layer_transition: ${plan.reason}`,
-      })
-    }
-    const durationMs = input.duration_ms as number
-    if (durationMs <= 0 || durationMs > plan.maxDurationMs) {
-      return refuseShowCommand({
-        code: 'invalid-duration',
-        message:
-          `insert_layer_transition: the duration must be between 1 and ${plan.maxDurationMs} ms here ` +
-          `(requested ${durationMs}).`,
-      })
-    }
-    const transition: ShowLayerTransition = {
-      id: newPersonalContentId(),
-      fromPlacementId: from.context.clip.endPlacementId,
-      toPlacementId: to.context.clip.startPlacementId,
-      kind: (input.kind as ShowLayerTransition['kind'] | undefined) ?? 'crossfade',
-      durationMs,
-      easing: { curve: 'linear' },
-      ...(((input.kind as string | undefined) ?? 'crossfade') === 'crossfade'
-        ? { crossfadePolicy: 'snapshot-live' as const }
-        : {}),
-    }
-    const result = insertShowLayerTransition(record, composition, transition)
-    if (result === composition) {
-      return engineIdentityRefusal(
-        'insert_layer_transition',
-        'The shift may collide with a later clip or the clips may not meet at a cut.',
-      )
-    }
-    return {
-      ok: true,
-      record: withComposition(record, result),
-      changes: [{
-        command: 'insert_layer_transition',
-        targetId: transition.id,
-        description:
-          `${transition.kind} of ${durationMs} ms inserted between ${from.context.clip.patternName} ` +
-          `and ${to.context.clip.patternName}.`,
-      }],
-    }
-  },
+  apply: insertLayerTransitionCommandOutcome,
 }
 
 const resizeLayerTransition: ShowCommandDescriptor = {
@@ -131,7 +144,7 @@ const resizeLayerTransition: ShowCommandDescriptor = {
   touches: ['/composition/transitions', '/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', ...VISUAL_TRANSITION_PARAMETER_TOUCHES, '/updatedAt'],
   fields: {
     transition_id: { kind: 'string', description: 'The layer transition id' },
-    duration_ms: { kind: 'integer', description: 'New duration in milliseconds; 0 closes to a cut' },
+    duration_ms: { kind: 'number', description: 'New duration in milliseconds, rounded; 0 closes to a cut' },
   },
   apply(record, input) {
     const resolved = commandComposition(record)
@@ -139,12 +152,11 @@ const resizeLayerTransition: ShowCommandDescriptor = {
     const composition = resolved.composition
     const found = resolveLayerTransition(record, input.transition_id as string)
     if (!found.ok) return found
-    const durationMs = input.duration_ms as number
+    const durationMs = Math.round(input.duration_ms as number)
+    if ((input.duration_ms as number) < 0) return refuseShowCommand({ code: 'invalid-duration', message: 'Layer duration cannot be negative.' })
     if (durationMs === found.transition.durationMs) {
-      return refuseShowCommand({
-        code: 'no-change',
-        message: `Layer transition ${found.transition.id} already runs ${durationMs} ms.`,
-      })
+      if (validateShowComposition(record, composition).length > 0) return engineIdentityRefusal('resize_layer_transition', 'The composition is invalid.')
+      return { ok: true, record, changes: [] }
     }
     const result = resizeShowLayerTransition(record, composition, found.transition.id, durationMs)
     if (result === composition) {

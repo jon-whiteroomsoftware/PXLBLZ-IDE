@@ -132,7 +132,6 @@ describe('grammar registry (#17)', () => {
       'rename_show',
       'reset_layer_transition_to_cut',
       'resize_clip',
-      'resize_connected_clip',
       'resize_layer_transition',
       'restart_clip',
       'set_boundary_layout',

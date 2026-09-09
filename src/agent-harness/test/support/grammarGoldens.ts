@@ -1,3 +1,4 @@
+import { showLayerTransitionCommandFixture } from '@/test/showLayerTransitionCommandFixture'
 // Provenance: pxlblz-v3 test/support/grammarGoldens.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
 // Golden accepted case per registry operation, shared by the breadth runner
 // (test/grammarBreadth.test.ts) and the touch-path faithfulness test. The
@@ -184,7 +185,10 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(clips(overlayResized).find((candidate) => candidate.clipId === overlayClip.clipId)?.durationMs)
       .toBe(12_000)
     const connected = withLayerTransition()
-    applyOk(connected.document, 'resize_clip', { clip_id: connected.firstClipId, duration_ms: 8000 })
+    const shorter = applyOk(connected.document, 'resize_clip', { clip_id: connected.firstClipId, duration_ms: 8000 })
+    expect(clipAt(shorter.document, 0).durationMs).toBe(8000)
+    expect(clipAt(shorter.document, 10000).clipId).toBe(connected.secondClipId)
+    expect(shorter.document.show.composition!.transitions).toHaveLength(1)
     const leading = applyOk(connected.document, 'resize_clip', { clip_id: connected.secondClipId, start_ms: 12500, end_ms: 22000 })
     expect(leading.changes[0].details?.transitionChanges).toEqual([{ transitionId: connected.transitionId, previousDurationMs: 2000, durationMs: 2500 }])
   },
@@ -642,6 +646,15 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(clipAt(next, 12_000).clipId).toBe(base.secondClipId)
   },
   resize_layer_transition: () => {
+    for (const { kind, variant } of BOUNDARY_VARIANT_CASES) {
+      const source = showLayerTransitionCommandFixture(false, false, true)
+      source.transitions[0].propertyTransitions = { brightness: { durationMs: 500, easing: { curve: 'linear' }, fromByCellId: {} } }
+      const opened = openShowDocument(source)
+      if (!opened.ok) throw new Error('Boundary-pinned Layer fixture')
+      const selected = applyOk(opened.document, 'set_boundary_transition', { transition_id: 'transition-scene-1', kind, variant, duration_ms: 1500 }).document
+      const reset = applyOk(selected, 'resize_layer_transition', { transition_id: 'connected-transition', duration_ms: 1000 })
+      expect(reset.document.show.transitions[0].kind).toBe('cut')
+    }
     const base = withLayerTransition()
     const { document: next } = applyOk(base.document, 'resize_layer_transition', {
       transition_id: base.transitionId,
@@ -653,23 +666,21 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(clipAt(next, 13_000).clipId).toBe(base.secondClipId)
   },
   reset_layer_transition_to_cut: () => {
+    for (const { kind, variant } of BOUNDARY_VARIANT_CASES) {
+      const source = showLayerTransitionCommandFixture(false, false, true)
+      source.transitions[0].propertyTransitions = { brightness: { durationMs: 500, easing: { curve: 'linear' }, fromByCellId: {} } }
+      const opened = openShowDocument(source)
+      if (!opened.ok) throw new Error('Boundary-pinned Layer fixture')
+      const selected = applyOk(opened.document, 'set_boundary_transition', { transition_id: 'transition-scene-1', kind, variant, duration_ms: 1500 }).document
+      const reset = applyOk(selected, 'reset_layer_transition_to_cut', { transition_id: 'connected-transition' })
+      expect(reset.document.show.transitions[0].kind).toBe('cut')
+    }
     const base = withLayerTransition()
     const { document: next } = applyOk(base.document, 'reset_layer_transition_to_cut', {
       transition_id: base.transitionId,
     })
     expect((next.show.composition as ShowCompositionV1).transitions ?? []).toEqual([])
     expect(clipAt(next, 10_000).clipId).toBe(base.secondClipId)
-  },
-  resize_connected_clip: () => {
-    const base = withLayerTransition()
-    applyOk(base.document, 'resize_connected_clip', { clip_id: base.secondClipId, start_ms: 12500, end_ms: 22000 })
-    const { document: next } = applyOk(base.document, 'resize_connected_clip', {
-      clip_id: base.firstClipId,
-      duration_ms: 8_000,
-    })
-    expect(clipAt(next, 0).durationMs).toBe(8_000)
-    expect(clipAt(next, 10_000).clipId).toBe(base.secondClipId)
-    expect((next.show.composition as ShowCompositionV1).transitions).toHaveLength(1)
   },
   add_clip_effect: () => {
     const { document, clip, effectId } = withEffect()

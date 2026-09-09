@@ -1,6 +1,6 @@
 // Provenance: pxlblz-v3 test/grammarStructure.test.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
 import { describe, expect, it } from 'vitest'
-import { SHOW_GRAMMAR_OPERATIONS } from '../grammar/registry.js'
+import { applyShowGrammarOperation, SHOW_GRAMMAR_OPERATIONS } from '../grammar/registry.js'
 import { SHOW_CLIP_EFFECT_KINDS } from '../grammar/operations/effects.js'
 import { openShowDocument } from '../grammar/openShow.js'
 import { grammarFixtureShow } from './support/grammarFixture.js'
@@ -102,7 +102,7 @@ describe('layer transition operations (#19)', () => {
       document,
       'insert_layer_transition',
       { from_clip_id: second.clipId, to_clip_id: first.clipId, duration_ms: 1_000 },
-      'transition-conflict',
+      'transition-refused',
     )
     expect(issues[0].message.length).toBeGreaterThan(40)
   })
@@ -113,9 +113,9 @@ describe('layer transition operations (#19)', () => {
       base.document,
       'insert_layer_transition',
       { from_clip_id: base.firstClipId, to_clip_id: base.secondClipId, duration_ms: 50_000 },
-      'transition-conflict',
+      'invalid-duration',
     )
-    expect(issues[0].message).toMatch(/at most \d+ ms/)
+    expect(issues[0].message).toMatch(/between 1 and \d+ ms/)
   })
 
   it('refuses a double insertion at the same junction', () => {
@@ -124,11 +124,11 @@ describe('layer transition operations (#19)', () => {
       base.document,
       'insert_layer_transition',
       { from_clip_id: base.firstClipId, to_clip_id: base.secondClipId, duration_ms: 1_000 },
-      'transition-conflict',
+      'transition-refused',
     )
   })
 
-  it('refuses unknown transition ids with candidates, and no-change resizes', () => {
+  it('refuses unknown transition ids with candidates, and accepts valid no-op resizes', () => {
     const base = withLayerTransition()
     const issues = applyRefused(
       base.document,
@@ -137,12 +137,7 @@ describe('layer transition operations (#19)', () => {
       'unknown-transition',
     )
     expect(issues[0].candidates).toContain(base.transitionId)
-    applyRefused(
-      base.document,
-      'resize_layer_transition',
-      { transition_id: base.transitionId, duration_ms: 2_000 },
-      'no-change',
-    )
+    expect(applyShowGrammarOperation(base.document, 'resize_layer_transition', { transition_id: base.transitionId, duration_ms: 2_000 })).toStrictEqual({ ok: true, document: base.document, changes: [] })
   })
 })
 

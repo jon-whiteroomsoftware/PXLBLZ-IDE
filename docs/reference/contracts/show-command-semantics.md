@@ -421,18 +421,34 @@ The four `BT952`/`BTT952`/`BTP952`/`BL952`
 bridge, one adoption/save, full-record export/reopen, Undo and stale/duplicate
 responses. They qualify deterministic tool execution, not paid model inference.
 
+## Layer Transition commands
+
+`insert_layer_transition`, `resize_layer_transition` and
+`reset_layer_transition_to_cut` share canonical descriptors with the diagnostic
+adapter. Insertion applies preset defaults before explicit rounded duration and
+easing. Resizing retains the owner's extent limits; zero resets to Cut and a
+valid unchanged duration is a no-op. Invalid compositions still refuse before
+no-op handling. Endpoint shifts retain their existing track and intrinsic timing
+rules. When those shifts affect a Boundary, `canonicalizeBoundaryAfterShift`
+retains its existing Cut-reset behavior.
+
+The shared parity table covers Main and overlay Layers, the variant catalogue,
+raw unrelated-field preservation, refusals, rollback and Undo. Its generated
+artifact sequence reopens both Show and compiled Pattern exports. The existing
+admission table's `ILT952`, `RLT952`, `RLC952` and `CCR952` rows exercise insertion,
+resizing, Cut reset and connected Clip resizing through the real bridge.
+
 ## Descriptor adapters and parity
 
-The [descriptor adapter](../../../src/agent-harness/grammar/operations/descriptorAdapter.ts) derives diagnostic fields, validation, descriptions, touches and outcome translation. Family registration retains existing identity factories; the private move wrapper and historical diagnostic resize spelling keep their existing scope.
+The [descriptor adapter](../../../src/agent-harness/grammar/operations/descriptorAdapter.ts) derives diagnostic fields, validation, descriptions, touches and outcome translation. Family registration retains existing identity factories and the private move wrapper. The historical `resize_connected_clip` diagnostic spelling is retired; `resize_clip` handles connected Clips through its existing owner.
 
 Normalization belongs at the store/file boundary. Command owners preserve
-unrelated authored fields and order rather than normalizing the whole composition.
-Existing delegated helpers `replaceLogicalClipGlobalSpan`, `moveShowClip` and
-`resizeShowClipAtGlobalTime` in `showTimelineClipAuthoring.ts`, plus Layer-transition
-insertion, resizing and reset owners in `showLayerTransitionAuthoring.ts`, still
-normalize composition output. These remain existing behavior. Split's
-`restoreOrder` remains in place; migrating these residual families is separate
-from the five-operation Slice B.
+unrelated authored fields and order. Layer Transition insertion, resizing and
+reset, connected resizing, and their shared timeline helpers return validated
+authored drafts. Moved entities retain required destination insertion order and
+logical roots omit their segment-only identity field; existing siblings are not
+sorted. `moveShowConnectedClipAtGlobalTime` still normalizes its output as existing
+behavior outside this migration. Split's `restoreOrder` remains in place.
 
 The [golden-run oracle](../../../src/engine/showCommands/commands.test.ts)
 checks existing id-bearing entities independently of nested entities and excludes

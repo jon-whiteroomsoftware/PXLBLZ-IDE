@@ -1,6 +1,6 @@
-import { getShowToolkitFamily, type ShowToolkitParameterValue } from '../showVisualToolkit'
+import { type ShowToolkitParameterValue } from '../showVisualToolkit'
 import type { ShowToolkitPresentationItem } from '../showVisualToolkitPresentation'
-import { showBoundaryTransitionPresentationKey, showBoundaryTransitionParameters, showBoundaryTransitionParameterChanges, showTransitionChangesForPresentation } from '../showTransitionAuthoring'
+import { showBoundaryTransitionPresentationKey, showBoundaryTransitionParameters, showBoundaryTransitionParameterChanges, showTransitionChangesForPresentation, toolkitTransitionItem } from '../showTransitionAuthoring'
 // Junction command family: the visual Transitions on Scene boundaries,
 // addressed by their stable boundary-transition ids (the ids the timeline
 // and summary projections report). Edits go through the pure showModel
@@ -60,56 +60,6 @@ const PARAMETER_FIELDS: Record<string, ParameterSpec> = {
   crossfadePolicy: { kind: 'enum', values: ['snapshot-live', 'live-live'] },
   featherPolicy: { kind: 'enum', values: ['dither', 'blend'] },
 }
-
-/** kind (+ optional variant) to visual-toolkit family/variant. */
-const KIND_TO_FAMILY: Record<string, { familyId: string; defaultVariant: string }> = {
-  cut: { familyId: 'blend', defaultVariant: 'cut' },
-  crossfade: { familyId: 'blend', defaultVariant: 'crossfade' },
-  'fade-color': { familyId: 'fade', defaultVariant: 'through-color' },
-  wipe: { familyId: 'wipe', defaultVariant: 'linear' },
-  dither: { familyId: 'dissolve', defaultVariant: 'pixel' },
-  portal: { familyId: 'shape-reveal', defaultVariant: 'circle' },
-  motion: { familyId: 'motion', defaultVariant: 'cover' },
-}
-
-export function toolkitTransitionItem(
-  kind: string,
-  variant: string | undefined,
-): { ok: true; item: ShowToolkitPresentationItem } | { ok: false; issue: { code: 'invalid-argument'; message: string } } {
-  const mapping = KIND_TO_FAMILY[kind]
-  if (!mapping) {
-    return {
-      ok: false,
-      issue: {
-        code: 'invalid-argument',
-        message: `Unknown Transition kind "${kind}". Kinds: ${Object.keys(KIND_TO_FAMILY).join(', ')}.`,
-      },
-    }
-  }
-  const family = getShowToolkitFamily('transition', mapping.familyId)
-  const variantId = variant ?? mapping.defaultVariant
-  if (!family?.variants.some((candidate) => candidate.id === variantId)) {
-    return {
-      ok: false,
-      issue: {
-        code: 'invalid-argument',
-        message:
-          `"${variantId}" is not a variant of the ${kind} Transition. Variants: ${
-            family?.variants.map((candidate) => candidate.id).join(', ') ?? 'none'}.`,
-      },
-    }
-  }
-  return {
-    ok: true,
-    item: {
-      kind: 'transition',
-      familyId: mapping.familyId,
-      variantId,
-      key: `transition:${mapping.familyId}:${variantId}`,
-    } as unknown as ShowToolkitPresentationItem,
-  }
-}
-
 
 const BOUNDARY_REFERENCE_FIELDS = {
   transition_id: { kind: 'string' as const, optional: true, description: 'Stable Scene Boundary transition id' },

@@ -1,3 +1,6 @@
+import { insertShowLayerTransition, resizeShowLayerTransition, resetShowLayerTransitionToCut } from '@/engine/showLayerTransitionAuthoring'
+import { showLayerTransitionCommandFixture } from '@/test/showLayerTransitionCommandFixture'
+import { projectShowUnifiedTimeline } from '@/engine/showUnifiedTimelineProjection'
 import { updateShowBoundaryTransition } from '@/engine/showModel'
 import { showBoundaryTransitionParameterChanges, showTransitionChangesForPresentation } from '@/engine/showTransitionAuthoring'
 import type { ShowToolkitPresentationItem } from '@/engine/showVisualToolkitPresentation'
@@ -9,6 +12,7 @@ import type { GrammarIssue, ShowGrammarDocument } from '../grammar/types'
 import { describe, expect, it } from 'vitest'
 import type { ShowRecord } from '@/engine/personalContentRecords'
 import { applyShowCommand, runShowCommandTransaction, type ShowCommandOutcome } from '@/engine/showCommands/registry'
+import { insertLayerTransitionCommandOutcome } from '@/engine/showCommands/layerTransitions'
 import { markerCommandOutcome } from '@/engine/showCommands/timeline'
 import { showSplitClipFixture } from '@/test/showSplitClipFixture'
 import { showRemoveClipFixture } from '@/test/showRemoveClipFixture'
@@ -440,7 +444,7 @@ it.each([false, true])('qualifies duration/end/start forms, Show End and other-L
   }
 })
 
-it.each([false, true])('preserves connected chain identities, tracks, leading edges and historical adapter (overlay=%s)', overlay => {
+it.each([false, true])('preserves connected chain identities, tracks, leading edges after retiring the historical adapter (overlay=%s)', overlay => {
   const document = fixture(overlay)
   const composition = document.show.composition!
   const zone = composition.scenes[0].zones[0]
@@ -464,8 +468,8 @@ it.each([false, true])('preserves connected chain identities, tracks, leading ed
   const input = { clip_id: 'b', start_ms: 3500, end_ms: 5000 }
   const next = compareAccepted(document, input, expected, { changedClipIds: ['b'], movedClipIds: ['b'], transitionChanges: [{ transitionId: 'ab', previousDurationMs: 1000, durationMs: 1500 }] })
   const historical = applyShowGrammarOperation(document, 'resize_connected_clip', input)
-  expect(historical.ok).toBe(true)
-  if (historical.ok) expect(historical.document).toEqual({ ...next, show: { ...next.show, updatedAt: historical.document.show.updatedAt } })
+  expect(historical).toMatchObject({ ok: false, issues: [{ code: 'unknown-operation' }] })
+  expect(next.show.composition).toStrictEqual(expected.composition)
   for (const input of [{ clip_id: 'b', start_ms: 2000, duration_ms: 3000 }, { clip_id: 'b', duration_ms: 3001 }]) {
     const original = structuredClone(document)
     const registry = applyShowCommand(document.show, 'resize_clip', input)
@@ -528,6 +532,27 @@ const clipOwner = (clipId: string) => clipId === 'clip-ov'
 // Shared seam: complete canonical/diagnostic/manual records, immutable input,
 // then the actual file importer. Rows retain their independent semantic facts.
 const PARITY_ROWS: ParityRow[] = [
+  ...BOUNDARY_VARIANT_CASES.map(({ kind, familyId, variant }): ParityRow => ({
+    command: 'insert_layer_transition', args: { from_clip_id: 'clip-a', to_clip_id: 'clip-b', kind, variant, duration_ms: 1500, easing: 'ease-in' }, fixture: showLayerTransitionCommandFixture,
+    canonical: (show, args) => insertLayerTransitionCommandOutcome(show, args, () => 'transition-1'),
+    manualOwner: show => insertShowLayerTransition(show, show.composition!, { ...showTransitionChangesForPresentation({ kind: 'transition', familyId, variantId: variant, key: `transition:${familyId}:${variant}` } as ShowToolkitPresentationItem), id: 'transition-1', fromPlacementId: 'clip-a', toPlacementId: 'clip-b', kind: kind as 'crossfade', durationMs: 1500, easing: { curve: 'quadratic', direction: 'in' } }),
+  })),
+  ...[false, true].flatMap((overlay): ParityRow[] => [
+    {
+      command: 'resize_layer_transition', args: { transition_id: 'connected-transition', duration_ms: 1500 }, fixture: () => showLayerTransitionCommandFixture(overlay, true),
+      manualOwner: show => resizeShowLayerTransition(show, show.composition!, 'connected-transition', 1500),
+      refusals: [{ transition_id: 'connected-transition', duration_ms: -0.1 }, { transition_id: 'missing', duration_ms: 1000 }, { transition_id: 'connected-transition', duration_ms: 10000 }],
+    },
+    {
+      command: 'reset_layer_transition_to_cut', args: { transition_id: 'connected-transition' }, fixture: () => showLayerTransitionCommandFixture(overlay, true),
+      manualOwner: show => resetShowLayerTransitionToCut(show, show.composition!, 'connected-transition'),
+      refusals: [{ transition_id: 'missing' }],
+    },
+    {
+      command: 'resize_clip', args: { clip_id: 'clip-b', duration_ms: 9000 }, fixture: () => showLayerTransitionCommandFixture(overlay, true),
+      manualOwner: show => resizeShowClipManually(show, show.composition!, { clipId: 'clip-b', durationMs: 9000 }).composition,
+    },
+  ]),
   ...BOUNDARY_VARIANT_CASES.map(({ kind, familyId, variant }): ParityRow => ({
     command: 'set_boundary_transition', args: { transition_id: 'transition-scene-1', kind, variant, duration_ms: 1500 }, fixture: showBoundaryCommandFixture,
     manualOwner: show => updateShowBoundaryTransition(show, 'transition-scene-1', { ...showTransitionChangesForPresentation({ kind: 'transition', familyId, variantId: variant, key: `transition:${familyId}:${variant}` } as ShowToolkitPresentationItem), durationMs: 1500 }),
@@ -683,7 +708,7 @@ const PARITY_ROWS: ParityRow[] = [
       const expected = structuredClone(document.show)
       expected.composition!.scenes[0].zones[0].overlays[0].placements[1].startMs = 16000
       expected.composition!.scenes[0].zones[0].overlays[0].placements[1].view!.brightness = 0.4
-      expect(moved.document.show).toEqual({ ...expected, composition: normalizeShowComposition(expected, expected.composition!), updatedAt: moved.document.show.updatedAt })
+      expect(moved.document.show).toStrictEqual({ ...expected, updatedAt: moved.document.show.updatedAt })
     },
   })),
   ...['add_marker', 'move_marker', 'update_marker', 'remove_marker'].map((command): ParityRow => ({
@@ -919,4 +944,112 @@ it('resets a Boundary to Cut without normalizing unrelated raw entities', () => 
   if (!result.ok) throw new Error('Cut')
   expect(result.record).toStrictEqual({ ...before, transitions: [{ id: 'transition-scene-1', afterSceneId: 'scene-1', kind: 'cut', durationMs: 0, easing: before.transitions[0].easing }], updatedAt: result.record.updatedAt })
   expect(applyShowCommand(result.record, 'set_boundary_transition', { transition_id: 'transition-scene-1', kind: 'cut' })).toStrictEqual({ ok: true, record: result.record, changes: [] })
+})
+
+it.each([false, true])('retains explicit Layer insertion duration, variant and easing (overlay=%s)', overlay => {
+  const source = showLayerTransitionCommandFixture(overlay)
+  const opened = openShowDocument(source)
+  if (!opened.ok) throw new Error(JSON.stringify(opened))
+  const document = opened.document
+  const before = structuredClone(document)
+  const args = { from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 1250.4, kind: 'wipe', variant: 'clock', easing: 'ease-in' }
+  for (const result of [applyShowCommand(document.show, 'insert_layer_transition', args), applyShowGrammarOperation(document, 'insert_layer_transition', args)]) {
+    expect(result.ok, JSON.stringify(result)).toBe(true)
+    if (!result.ok) throw new Error('Layer insertion')
+    const after = 'record' in result ? result.record : result.document.show
+    expect(after.composition!.transitions![0]).toMatchObject({ fromPlacementId: 'clip-a', toPlacementId: 'clip-b', durationMs: 1250, kind: 'wipe', wipeVariant: 'clock', easing: { curve: 'quadratic', direction: 'in' } })
+    const clips = projectShowUnifiedTimeline(after, after.composition!).zones[0].layers.flatMap(layer => layer.clips)
+    expect(clips.find(clip => clip.id === 'clip-b')).toMatchObject({ startMs: 11250, durationMs: 8000 })
+    expect(after.transitions).toStrictEqual(document.show.transitions)
+  }
+  expect(document).toStrictEqual(before)
+})
+
+it.each([
+  ['resize_clip', { clip_id: 'clip-b', duration_ms: 9000 }, true],
+  ['resize_clip', { clip_id: 'clip-a', duration_ms: 11000 }, true],
+  ['resize_clip', { clip_id: 'clip-b', start_ms: 11500, duration_ms: 7500 }, true],
+  ['insert_layer_transition', { from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 1500 }, false],
+  ['resize_layer_transition', { transition_id: 'connected-transition', duration_ms: 1500 }, true],
+  ['reset_layer_transition_to_cut', { transition_id: 'connected-transition' }, true],
+])('%s preserves raw unrelated entity fields and order', (command, args, attached) => {
+  const before = showLayerTransitionCommandFixture(false, attached as boolean)
+  before.composition!.patternInstances.reverse()
+  before.composition!.markers![0].color = undefined
+  const original = structuredClone(before)
+  const result = applyShowCommand(before, command as string, args as Record<string, unknown>)
+  expect(result.ok, JSON.stringify(result)).toBe(true)
+  if (!result.ok) throw new Error('Layer owner')
+  expect(result.record.composition!.patternInstances).toStrictEqual(before.composition!.patternInstances)
+  expect(result.record.composition!.markers).toStrictEqual(before.composition!.markers)
+  expect(result.record.composition!.scenes[1]).toStrictEqual(before.composition!.scenes[1])
+  expect(result.record.composition!.groupDefinitions).toStrictEqual(before.composition!.groupDefinitions)
+  expect(result.record.composition!.groupOccurrences).toStrictEqual(before.composition!.groupOccurrences)
+  expect(before).toStrictEqual(original)
+})
+
+it.each([false, true])('resizes Layer intervals with rounded duration, valid no-op and zero reset (overlay=%s)', overlay => {
+  const before = showLayerTransitionCommandFixture(overlay, true)
+  const original = structuredClone(before)
+  const noop = applyShowCommand(before, 'resize_layer_transition', { transition_id: 'connected-transition', duration_ms: 1000.4 })
+  expect(noop).toStrictEqual({ ok: true, record: before, changes: [] })
+  const changed = applyShowCommand(before, 'resize_layer_transition', { transition_id: 'connected-transition', duration_ms: 1500.4 })
+  expect(changed.ok).toBe(true)
+  if (!changed.ok) throw new Error('Layer resize')
+  expect(changed.record.composition!.transitions![0]).toStrictEqual({ ...before.composition!.transitions![0], durationMs: 1500 })
+  for (const input of [{ transition_id: 'connected-transition', duration_ms: -0.1 }, { transition_id: 'connected-transition', duration_ms: -1 }, { transition_id: 'missing', duration_ms: 1000 }, { transition_id: 'connected-transition', duration_ms: 10000 }]) expect(applyShowCommand(before, 'resize_layer_transition', input).ok).toBe(false)
+  const malformed = structuredClone(before)
+  malformed.composition!.patternInstances.push(structuredClone(malformed.composition!.patternInstances[0]))
+  expect(applyShowCommand(malformed, 'resize_layer_transition', { transition_id: 'connected-transition', duration_ms: 1000 }).ok).toBe(false)
+  const zero = applyShowCommand(changed.record, 'resize_layer_transition', { transition_id: 'connected-transition', duration_ms: 0 })
+  const reset = applyShowCommand(changed.record, 'reset_layer_transition_to_cut', { transition_id: 'connected-transition' })
+  expect(zero.ok && reset.ok).toBe(true)
+  if (!zero.ok || !reset.ok) throw new Error('Layer reset')
+  expect({ ...zero.record, updatedAt: reset.record.updatedAt }).toStrictEqual(reset.record)
+  expect(zero.record.composition!.transitions).toStrictEqual([])
+  expect(before).toStrictEqual(original)
+})
+
+it('keeps a Layer sequence atomic, undoes once, and reopens the restored generated artifact', async () => {
+  const source = showLayerTransitionCommandFixture()
+  const store = createSessionStore()
+  const opened = store.open(source)
+  if (!opened.ok) throw new Error('Layer session')
+  const id = opened.sessionId
+  const before = store.export(id)
+  expect(store.begin(id, 'Insert Layer interval').ok).toBe(true)
+  expect(store.apply(id, 'insert_layer_transition', { from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 1500 }).ok).toBe(true)
+  expect(store.apply(id, 'resize_layer_transition', { transition_id: 'transition-1', duration_ms: 1500 })).toMatchObject({ ok: true, changes: [] })
+  expect(store.export(id)).toStrictEqual(before)
+  expect(store.commit(id)).toMatchObject({ ok: true, changes: [{ op: 'insert_layer_transition' }] })
+  const inserted = store.export(id)
+  expect(store.begin(id, 'Refused Layer interval').ok).toBe(true)
+  expect(store.apply(id, 'resize_layer_transition', { transition_id: 'transition-1', duration_ms: 2000 }).ok).toBe(true)
+  expect(store.apply(id, 'reset_layer_transition_to_cut', { transition_id: 'missing' }).ok).toBe(false)
+  expect(store.rollback(id)).toMatchObject({ ok: true, discardedChanges: 1 })
+  expect(store.export(id)).toStrictEqual(inserted)
+  expect(store.undo(id).ok).toBe(true)
+  expect(store.export(id)).toStrictEqual(before)
+  expect(store.undo(id).ok).toBe(false)
+  expect(store.redo(id).ok).toBe(true)
+  expect(store.export(id)).toStrictEqual(inserted)
+  expect(store.begin(id, 'Reset Layer interval').ok).toBe(true)
+  expect(store.apply(id, 'reset_layer_transition_to_cut', { transition_id: 'transition-1' }).ok).toBe(true)
+  expect(store.commit(id).ok).toBe(true)
+  const restored = store.export(id)
+  if (!before.ok || !inserted.ok || !restored.ok) throw new Error('Layer export')
+  expect(restored.show).toStrictEqual({ ...before.show, composition: { ...before.show.composition!, transitions: [] }, updatedAt: restored.show.updatedAt })
+  const { compileShowForArtifact } = await import('@/engine/showPreviewArtifact')
+  const { buildShowEpeExport } = await import('@/engine/showEpeExport')
+  const { parseEpe } = await import('@/engine/epeImport')
+  const artifacts = await Promise.all([before.show, inserted.show, restored.show].map(async record => {
+    const reopened = await reopen(record)
+    const compiled = compileShowForArtifact(reopened, [], undefined, {})
+    expect(compiled.error).toBeNull()
+    if (!compiled.artifact) throw new Error('Layer compile')
+    return parseEpe(buildShowEpeExport(reopened, compiled.artifact.code, { stampedAt: '2026-09-09T00:00:00Z' }).text)
+  }))
+  expect(artifacts[1].src).not.toBe(artifacts[0].src)
+  expect(artifacts[2].src).toBe(artifacts[0].src)
+  expect(artifacts[2].stamp).toMatchObject({ kind: 'show', id: source.id })
 })

@@ -26,6 +26,26 @@ export const BASELINE_FIXTURE_RESIZE: BaselineUtterance = {
 
 export const BASELINE_UTTERANCES: BaselineUtterance[] = [
   {
+    utterance: 'insert a fifteen hundred millisecond Layer crossfade with ease in',
+    intent: '#952: Layer insertion retains explicit timing and easing.',
+    script: [{ tool: 'insert_layer_transition', args: { from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 1500, easing: 'ease-in', finish_turn_reply: { intent: 'apply', reply: 'Inserted the Layer crossfade.' } } }],
+  },
+  {
+    utterance: 'make the overlay Layer Transition fifteen hundred milliseconds',
+    intent: '#952: Layer resize shifts its endpoint chain.',
+    script: [{ tool: 'resize_layer_transition', args: { transition_id: 'connected-transition', duration_ms: 1500, finish_turn_reply: { intent: 'apply', reply: 'Resized the Layer Transition.' } } }],
+  },
+  {
+    utterance: 'reset the Layer Transition to Cut',
+    intent: '#952: Layer reset closes the interval once.',
+    script: [{ tool: 'reset_layer_transition_to_cut', args: { transition_id: 'connected-transition', finish_turn_reply: { intent: 'apply', reply: 'Reset the Layer Transition to Cut.' } } }],
+  },
+  {
+    utterance: 'make the connected overlay Clip nine seconds',
+    intent: '#952: connected resize uses the canonical Clip command.',
+    script: [{ tool: 'resize_clip', args: { clip_id: 'clip-b', duration_ms: 9000, finish_turn_reply: { intent: 'apply', reply: 'Resized the connected Clip.' } } }],
+  },
+  {
     utterance: 'make the Boundary fade through black over fifteen hundred milliseconds',
     intent: '#952: explicit Boundary variant adopts once.',
     script: [{ tool: 'set_boundary_transition', args: { transition_id: 'transition-scene-1', kind: 'fade-color', variant: 'through-color', duration_ms: 1500, finish_turn_reply: { intent: 'apply', reply: 'Selected the Boundary fade.' } } }],

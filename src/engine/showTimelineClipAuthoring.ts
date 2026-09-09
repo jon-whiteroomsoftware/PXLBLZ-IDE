@@ -10,7 +10,6 @@ import {
   addShowMainClip,
   addShowOverlayClip,
   insertAuthoredPatternInstance,
-  normalizeShowComposition,
   qualifyPrivateClipPair,
   splitShowMainPlacement,
   splitShowOverlayPlacement,
@@ -156,16 +155,21 @@ function appendLogicalClipGlobalSpan(
     const placement = {
       ...structuredClone(input.base),
       id,
-      ...(index === 0 ? { logicalClipId: undefined } : { logicalClipId: input.rootId }),
+      logicalClipId: input.rootId as string | undefined,
       startMs: Math.round(slice.localStartMs),
       durationMs: Math.round(slice.durationMs),
     }
+    if (index === 0) delete placement.logicalClipId
     if (input.target.kind === 'main') {
-      zone.main.push(placement)
+      const insertionIndex = zone.main.findIndex(existing => existing.startMs > placement.startMs
+        || (existing.startMs === placement.startMs && existing.id.localeCompare(placement.id) > 0))
+      zone.main.splice(insertionIndex < 0 ? zone.main.length : insertionIndex, 0, placement)
     } else {
       const layer = zone.overlays[input.target.layerIndex]
       if (!layer) return false
-      layer.placements.push({
+      const insertionIndex = layer.placements.findIndex(existing => existing.startMs > placement.startMs
+        || (existing.startMs === placement.startMs && existing.id.localeCompare(placement.id) > 0))
+      layer.placements.splice(insertionIndex < 0 ? layer.placements.length : insertionIndex, 0, {
         ...placement,
         opacity: 'opacity' in input.base && typeof input.base.opacity === 'number' ? input.base.opacity : 1,
       } as ShowOverlayPlacement)
@@ -407,7 +411,7 @@ function replaceLogicalClipGlobalSpan(
   ) return composition
 
   if (validateShowComposition(show, draft).length > 0) return composition
-  return normalizeShowComposition(show, draft)
+  return draft
 }
 
 export function addShowOverlayLayerAcrossTimeline(
@@ -730,17 +734,17 @@ function moveShowClip(
   const [sourcePlacement] = sourcePlacements.splice(sourceIndex, 1)
   const sourceStartMs = sourcePlacement.startMs
 
-  if (input.target.kind === 'main') {
-    targetZone.main.push({ ...sourcePlacement, startMs })
-  } else {
-    const targetLayer = targetZone.overlays[input.target.layerIndex]
-    if (!targetLayer) return composition
-    targetLayer.placements.push({
-      ...sourcePlacement,
-      startMs,
-      opacity: sourcePlacement.opacity ?? 1,
-    })
-  }
+  const movedPlacement = input.target.kind === 'main'
+    ? { ...sourcePlacement, startMs }
+    : { ...sourcePlacement, startMs, opacity: sourcePlacement.opacity ?? 1 }
+  const targetPlacements = input.target.kind === 'main'
+    ? targetZone.main
+    : targetZone.overlays[input.target.layerIndex]?.placements
+  if (!targetPlacements) return composition
+  // Retain chronological placement on ordered input without sorting siblings.
+  const insertionIndex = targetPlacements.findIndex(placement => placement.startMs > startMs
+    || (placement.startMs === startMs && placement.id.localeCompare(movedPlacement.id) > 0))
+  targetPlacements.splice(insertionIndex < 0 ? targetPlacements.length : insertionIndex, 0, movedPlacement)
 
   const movedTracks = (sourceScene.propertyTracks ?? []).filter((track) => (
     'placementId' in track.target && track.target.placementId === input.owner.placementId
@@ -759,11 +763,16 @@ function moveShowClip(
   if (sourceScene !== targetScene && movedTracks.length > 0) {
     sourceScene.propertyTracks = (sourceScene.propertyTracks ?? []).filter((track) => !movedTracks.includes(track))
     if (sourceScene.propertyTracks.length === 0) delete sourceScene.propertyTracks
-    targetScene.propertyTracks = [...(targetScene.propertyTracks ?? []), ...movedTracks]
+    const targetTracks = targetScene.propertyTracks ?? []
+    for (const track of [...movedTracks].sort((left, right) => left.id.localeCompare(right.id))) {
+      const insertionIndex = targetTracks.findIndex(existing => existing.id.localeCompare(track.id) > 0)
+      targetTracks.splice(insertionIndex < 0 ? targetTracks.length : insertionIndex, 0, track)
+    }
+    targetScene.propertyTracks = targetTracks
   }
 
   if (!accepts(draft)) return composition
-  return normalizeShowComposition(show, draft)
+  return draft
 }
 
 export type ShowClipSplitPlan =
@@ -1386,5 +1395,5 @@ export function resizeShowClipAtGlobalTime(
     }
   }
   if (validateShowComposition(show, draft).length > 0) return composition
-  return normalizeShowComposition(show, draft)
+  return draft
 }

@@ -243,7 +243,7 @@ export function insertShowLayerTransition(
   if (!draft) return composition
   draft.transitions = [...(draft.transitions ?? []), structuredClone(transition)]
   if (validateShowComposition(show, draft).length > 0 || hasConcurrentLayerTransitions(show, draft)) return composition
-  return normalizeShowComposition(show, draft)
+  return draft
 }
 
 /** Remove a non-Cut transition and close its interval into a derived Cut. */
@@ -264,7 +264,7 @@ export function resetShowLayerTransitionToCut(
   const changed = shiftTimelineClips(show, withoutTransition, chain, -transition.durationMs)
   if (!changed) return composition
   if (validateShowComposition(show, changed).length > 0) return composition
-  return normalizeShowComposition(show, changed)
+  return changed
 }
 
 export function resizeShowLayerTransition(
@@ -294,7 +294,7 @@ export function resizeShowLayerTransition(
   if (!changedTransition) return composition
   changedTransition.durationMs = durationMs
   if (validateShowComposition(show, draft).length > 0 || hasConcurrentLayerTransitions(show, draft)) return composition
-  return normalizeShowComposition(show, draft)
+  return draft
 }
 
 /**
@@ -533,7 +533,7 @@ export function resizeShowConnectedClipAtGlobalTime(
     ) {
       return composition
     }
-    return normalizeShowComposition(show, resizedComposition)
+    return resizedComposition
   }
 
   if (outgoing && startDeltaMs === 0 && endDeltaMs !== 0) {
@@ -572,7 +572,7 @@ export function resizeShowConnectedClipAtGlobalTime(
     if (validateShowComposition(show, changed).length > 0 || hasConcurrentLayerTransitions(show, changed)) {
       return composition
     }
-    return normalizeShowComposition(show, changed)
+    return changed
   }
 
   return resizeShowClipAtGlobalTime(show, composition, input)
