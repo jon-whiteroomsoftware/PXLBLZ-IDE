@@ -5,7 +5,7 @@ import { showBoundaryCommandFixture, BOUNDARY_VARIANT_CASES } from '@/test/showB
 import { moveShowClipExactly } from '@/engine/showExactClipMove'
 import { resizeShowClipManually } from '@/engine/showManualClipResize'
 import { editShowMarkerFromUI } from '@/engine/showExactTimelineMarker'
-import type { ShowGrammarDocument } from '../grammar/types'
+import type { GrammarIssue, ShowGrammarDocument } from '../grammar/types'
 import { describe, expect, it } from 'vitest'
 import type { ShowRecord } from '@/engine/personalContentRecords'
 import { applyShowCommand, runShowCommandTransaction, type ShowCommandOutcome } from '@/engine/showCommands/registry'
@@ -789,7 +789,7 @@ it('resolves Boundary selectors without merging Layer or cross-Zone junction ide
   for (const scene of ambiguous.composition!.scenes) {
     scene.zones[1].main = scene.zones[0].main.map(clip => ({ ...structuredClone(clip), id: `${clip.id}-other` }))
   }
-  expect(applyShowCommand(ambiguous, 'set_boundary_transition_timing', { at_ms: 31000, duration_ms: 1500 })).toMatchObject({ ok: false, issues: [{ code: 'ambiguous-junction' }] })
+  expect(applyShowCommand(ambiguous, 'set_boundary_transition_timing', { at_ms: 31000, duration_ms: 1500 })).toMatchObject({ ok: false, issues: [{ code: 'ambiguous-junction' satisfies GrammarIssue['code'] }] })
   expect(applyShowCommand(ambiguous, 'set_boundary_transition_timing', { transition_id: 'transition-scene-1', duration_ms: 1500 }).ok).toBe(true)
   expect(applyShowCommand(show, 'set_boundary_transition_timing', { after_clip_id: 'clip-a', duration_ms: 1500 })).toMatchObject({ ok: false, issues: [{ code: 'missing-target' }] })
   expect(applyShowCommand(show, 'set_boundary_transition_timing', { transition_id: 'transition-scene-1', at_ms: 31000, duration_ms: 1500 })).toMatchObject({ ok: false, issues: [{ code: 'invalid-argument' }] })

@@ -16,6 +16,7 @@ export interface GrammarIssue {
     | 'unknown-marker'
     | 'unknown-zone'
     | 'unknown-junction'
+    | 'ambiguous-junction'
     | 'unknown-transition'
     | 'unknown-effect'
     | 'unknown-parameter'
