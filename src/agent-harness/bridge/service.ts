@@ -361,7 +361,7 @@ export async function runRetryUtterance(
     const exported = store.export(id)
     if (!exported.ok) return refuse('The private retry could not be exported.')
     timing.exportedAt = Date.now()
-    return { privateOutcome: { kind: 'committed', summary: committed.summary }, reply: `The original Clip is now ${intent.durationMs / 1000}s long.`, changed: true, summaries: [committed.summary], show: exported.show, retryResize: intent, timing }
+    return { privateOutcome: { kind: 'committed', summary: committed.summary }, reply: `Resize the original Clip to ${intent.durationMs / 1000}s.`, changed: true, summaries: [committed.summary], show: exported.show, retryResize: intent, timing }
   } finally { store.close(id) }
 }
 
