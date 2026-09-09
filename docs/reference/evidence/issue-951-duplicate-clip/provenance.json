@@ -1,0 +1,54 @@
+{
+  "sourceCommit": "9addd4d4f3f3ecaaced6985442e47c067c93b88a",
+  "worktree": "pixelblaze-v2-951-duplicate-clip",
+  "manual": {
+    "browser": "Codex in-app browser",
+    "operator": "root coordinator",
+    "identity": "github:local-agent-08",
+    "origin": "http://localhost:5178/PXLBLZ-IDE/",
+    "mainRoute": "studio/shows/60e29d0d-1631-4041-9c87-25a898d4555c",
+    "overlayRoute": "studio/shows/1578b451-1ecf-4110-ae35-af3f169f3480",
+    "inspectedCaptures": [
+      "main-result.jpg",
+      "main-undo.jpg",
+      "overlay-result.jpg",
+      "overlay-undo.jpg"
+    ],
+    "mainShowDurationMs": 62000,
+    "overlayShowDurationMs": 60000,
+    "observations": [
+      "Main independent copy 20000\u201328000 ms with animation; incoming Transition/unrelated geometry preserved",
+      "Overlay independent copy 8000\u201314000 ms; Undo restores original 2000\u20138000 ms Clip",
+      "One Undo restores preimage, Undo disabled afterward, no save failure",
+      "Browser warning/error logs empty"
+    ],
+    "exportDownloaded": false
+  },
+  "scripted": {
+    "command": "npm run test:e2e:agent-baseline -- --grep 'DC951:'",
+    "runDirectory": "reports/agent-harness/baseline/browser/2026-09-09T12-56-11-693Z",
+    "origin": "http://localhost:5205/PXLBLZ-IDE/",
+    "result": "1 passed (10.7s); DC951 7.0s",
+    "exportDownloadedAndReopened": true,
+    "successfulPatchCount": 5,
+    "steps": [
+      "Independent duplicate and one Undo",
+      "Manual Layer insertion then stale duplicate refusal",
+      "Same fresh duplicate response twice, one adoption, then one Undo"
+    ]
+  },
+  "compression": [
+    {
+      "file": "DC951.json.gz",
+      "uncompressedBytes": 44330,
+      "uncompressedSha256": "031fda9fcb9fddd7609df868f414136a80311efac009def64ee3610f44fc5e18",
+      "sha256": "1acf0627de77f2cb6b42e81b88a48e806f5d4960442e303c38abac6a49244571"
+    },
+    {
+      "file": "mutation-qualified.json.gz",
+      "uncompressedBytes": 515364,
+      "uncompressedSha256": "e56af2ab9b760b524ce8327da6f2a69badf292260e8b78d62d5f00f8bcf2151a",
+      "sha256": "e8051111309252d106fc9b41d65ecc2bd2896104d8b16722d9772964cdbc3877"
+    }
+  ]
+}

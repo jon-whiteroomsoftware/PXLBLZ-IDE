@@ -1,0 +1,50 @@
+{
+  "tests": [
+    "src/engine/showCommands/duplicateClip.test.ts",
+    "src/agent-harness/test/canonicalDuplicateClip.test.ts"
+  ],
+  "faults": [
+    {
+      "name": "whole-composition-normalization",
+      "outcome": "killed by behavioral assertion",
+      "exitCode": 1
+    },
+    {
+      "name": "lost-independent-cast-invalidation",
+      "outcome": "killed by behavioral assertion",
+      "exitCode": 1
+    },
+    {
+      "name": "linked-loses-cast-proof",
+      "outcome": "killed by behavioral assertion",
+      "exitCode": 1
+    },
+    {
+      "name": "lost-copied-track-shift",
+      "outcome": "killed by behavioral assertion",
+      "exitCode": 1
+    },
+    {
+      "name": "lost-placement-tracks",
+      "outcome": "killed by behavioral assertion",
+      "exitCode": 1
+    },
+    {
+      "name": "lost-independent-instance-tracks",
+      "outcome": "killed by behavioral assertion",
+      "exitCode": 1
+    },
+    {
+      "name": "lost-full-gap-protection",
+      "outcome": "killed by behavioral assertion",
+      "exitCode": 1
+    },
+    {
+      "name": "skip-final-identity-validation",
+      "outcome": "killed by behavioral assertion",
+      "exitCode": 1
+    }
+  ],
+  "source": "9addd4d4f3f3ecaaced6985442e47c067c93b88a",
+  "restoredSuite": "test:show-command-convergence: 20 files, 298 tests passed; typecheck and lint passed"
+}

@@ -1,0 +1,41 @@
+{
+  "invariants": [
+    "Duplicate covers the full logical span at its immediate free tail; original records and ordering remain unchanged",
+    "Independent copy owns fresh Pattern settings/instance animation and clears cast proof; linked copy retains shared instance/proof",
+    "Supported placement and independent instance curves copy with fresh identities and local-time shift; original curves survive",
+    "No attached Transition copies; existing Transition parameters/IDs and Groups survive",
+    "Accepted whole result validates, input remains immutable; invalid identity/owner/protected or occupied target refuses atomically",
+    "Existing one-adoption/save/history and stale/duplicate delivery policy remains authoritative"
+  ],
+  "partitions": [
+    "Main/overlay; same Scene, different single Scene, supported Cut crossing and multi-Scene logical source",
+    "Omitted/false/true linkage; sole and surviving shared instance users; stamped cast",
+    "Supported placement/instance animation versus multi-Scene placement animation and independent instance-animation refusal",
+    "Free/occupied/out-of-Show/full Transition gap; malformed/missing owner, Group child and generated placement/track/instance collisions",
+    "Unrelated ordering/Groups/Transition values; absent and explicit empty track collections"
+  ],
+  "sequences": [
+    "Manual helper/canonical/diagnostic complete record parity and exported/imported records",
+    "Duplicate then edit/move the new copy through diagnostic commands",
+    "MCP optional boolean schema, invalid type refusal, duplicate/export/Undo/Redo",
+    "DC951 scripted delivery: actual download/importer, durable record, one Undo; manual Layer edit stale refusal; duplicate response one adoption",
+    "Coordinator manual selected overlay and Main Clone, selected fresh independent identity, imported fixtures and one Undo; DC951 alone downloads/reopens the export"
+  ],
+  "oracles": [
+    "Literal complete expected compositions and Show envelope; immutable input and validateShowComposition",
+    "Explicit file/store normalization boundaries for reopened/edited records",
+    "Both registry breadth/structure/golden/touch checks via test:show-command-convergence (20 files, 298 tests)",
+    "Actual API/visible records and downloaded export reopened by real importer",
+    "Coordinator-inspected IAB captures and subsequent committed-source DC951 run at 9addd4d4f3f3ecaaced6985442e47c067c93b88a"
+  ],
+  "faults": [
+    "Catalog scope 79/79 killed with duplicateClip.test.ts and canonicalDuplicateClip.test.ts actually included",
+    "Eight supplemental faults killed by behavioral assertions: unrelated normalization, lost independent stamp invalidation, linked stamp loss, track shift loss, placement/instance track loss, gap protection loss, final identity validation loss"
+  ],
+  "residualGaps": [
+    "No paid inference, Controller, hosted service, new concurrency authority or animation capability expansion",
+    "Global mover, store and file normalization remain separate owners",
+    "Existing no-selection legacy Split rollback remains outside duplication",
+    "Root owns final committed-tip suites, native review and landing"
+  ]
+}
