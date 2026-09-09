@@ -690,7 +690,13 @@ function assertParity(row: ParityRow, source: ShowRecord) {
   expect(diagnostic.ok, JSON.stringify(diagnostic)).toBe(true)
   if (!canonical.ok || !diagnostic.ok) throw new Error('parity refused')
   expect({ ...diagnostic.document.show, updatedAt: canonical.record.updatedAt }).toStrictEqual(canonical.record)
-  expect(diagnostic.changes).toEqual(canonical.changes.map(({ command, ...change }) => ({ op: command, ...change })))
+  for (const change of diagnostic.changes) {
+    expect(typeof change.targetId).toBe('string')
+    expect(change.targetId.length).toBeGreaterThan(0)
+  }
+  const expectedChanges = canonical.changes.map(({ command, ...change }) => ({ op: command, ...change }))
+  expect(diagnostic.changes).toStrictEqual(expectedChanges)
+  expect(JSON.parse(JSON.stringify(diagnostic.changes))).toStrictEqual(JSON.parse(JSON.stringify(expectedChanges)))
   if (row.manualOwner) expect(row.manualOwner(document.show, row.args)).toStrictEqual(canonical.record.composition)
   row.expectedFacts?.(before.show, canonical.record)
   expect(document).toStrictEqual(before)
@@ -725,4 +731,20 @@ it.each(['add_clip', 'make_clip_pattern_independent', 'insert_time'])('%s refuse
       : insertTimeCommandOutcome(before, { at_ms: 4000, duration_ms: 1000 }, () => 'clip-a')
   expect(result.ok).toBe(false)
   expect(before).toStrictEqual(original)
+})
+
+
+it.each([
+  { command: 'insert_time', args: { at_ms: 29000.4, duration_ms: 1000 }, targetId: 'at-29000', description: '1000 ms inserted at 29000 ms.', details: { splitClipIdsBySourceId: {} } },
+  { command: 'set_show_end', args: { end_ms: 70000.4 }, targetId: 'show-end', description: 'Show End is now 70000 ms.', before: { durationMs: 62000 }, after: { durationMs: 70000 } },
+  { command: 'set_show_end', args: { end_ms: 1 }, targetId: 'show-end', description: 'Show End is now 34000 ms.', before: { durationMs: 62000 }, after: { durationMs: 34000 } },
+])('$command preserves its serialized timeline receipt', ({ command, args, ...expected }) => {
+  const opened = openShowDocument(showOverlayLayerFixture())
+  if (!opened.ok) throw new Error('fixture')
+  const result = applyShowGrammarOperation(opened.document, command, args)
+  expect(result.ok).toBe(true)
+  if (!result.ok) throw new Error(JSON.stringify(result))
+  expect(typeof result.changes[0].targetId).toBe('string')
+  expect(result.changes[0].targetId.length).toBeGreaterThan(0)
+  expect(JSON.parse(JSON.stringify(result.changes))).toStrictEqual([{ op: command, ...expected }])
 })

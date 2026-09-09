@@ -416,7 +416,9 @@ checked separately on the original authored fixtures. Refusal partitions and
 private service/transaction sequences remain in the same test file.
 
 Add Clip, make Pattern independent, rejoin Pattern instance, Insert Time and
-Set Show End use that same descriptor adapter. Add and independence retain
+Set Show End use that same descriptor adapter. Timeline receipts retain stable targets: `at-<rounded milliseconds>`
+for Insert Time and `show-end` for Set Show End. The latter includes `before`
+and `after` duration values reflecting the actual clamped result. Add and independence retain
 caller-local fresh IDs. Fresh instances take their former lexical insertion
 position on ordered input without reordering existing siblings. Add preserves
 optional-field presence through the validated authored-edit helper. Rejoin

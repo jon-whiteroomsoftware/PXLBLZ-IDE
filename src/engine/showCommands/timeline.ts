@@ -31,6 +31,7 @@ export function insertTimeCommandOutcome(record: ShowRecord, input: Record<strin
     record: result,
     changes: [{
       command: 'insert_time',
+      targetId: `at-${Math.round(atMs)}`,
       description:
         `${Math.round(durationMs)} ms inserted at ${Math.round(atMs)} ms` +
         `${plan.crossingPlacementIds.length > 0 ? `, splitting ${plan.crossingPlacementIds.length} clip(s)` : ''}.`,
@@ -77,6 +78,9 @@ const setShowEnd: ShowCommandDescriptor = {
       record: result,
       changes: [{
         command: 'set_show_end',
+        targetId: 'show-end',
+        before: { durationMs: showLoopDurationMs(record) },
+        after: { durationMs: showLoopDurationMs(result) },
         description: `Show End is now ${showLoopDurationMs(result)} ms.`,
       }],
     }

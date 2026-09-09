@@ -30,6 +30,8 @@ export interface ShowCommandChange {
   command: string
   targetId?: string
   description: string
+  before?: unknown
+  after?: unknown
   details?: Record<string, unknown>
 }
 
