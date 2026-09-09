@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "992",
+  "route": "/PXLBLZ-IDE/studio/shows/e3869af5-e664-4635-9bb5-de9b8c575eee",
+  "operation": "Root coordinator drove and inspected the actual in-app browser: Transition selection at 1440x900, Zone selection at 640x900, and Zone Layout selection at 1280x720 (playhead observed at 15s), with Split/Undo exercised for each. The Transition and Zone screenshots show their selection panels but do not visibly establish enabled Split because the toolbar is offscreen or occluded; the Zone Layout screenshot shows its properties and enabled Split, followed by observed close-inspector, Split adding a Clip and Cut, and Undo restoring the timeline.",
+  "captures": [
+    ".wrsp/ui-proof/992-selection-transition.jpg",
+    ".wrsp/ui-proof/992-selection-zone.jpg",
+    ".wrsp/ui-proof/992-selection-layout.jpg"
+  ],
+  "capturedAtCommit": "10c33c362aa5c3699179f99be7ff4a72390ae914"
+}
