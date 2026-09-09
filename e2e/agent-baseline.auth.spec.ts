@@ -33,6 +33,45 @@ import { showRemoveClipFixture } from '../src/test/showRemoveClipFixture'
 import { showOverlayLayerFixture } from '../src/test/showOverlayLayerFixture'
 import { showSplitClipFixture } from '../src/test/showSplitClipFixture'
 
+const TOOLBAR_SPLIT_ID = '00000992-0000-4000-8000-000000000001'
+
+function splitFixtureExpected(before: ShowRecord, rightId = 'clip-1'): ShowRecord {
+  const expected = structuredClone(before)
+  expected.composition!.scenes[0].zones[0].main[1].durationMs = 4000
+  expected.composition!.scenes[0].zones[0].main.push({ id: rightId, instanceId: 'instance-b', startMs: 16000, durationMs: 14000, view: { mirror: false, phase: 0, brightness: 1 } })
+  expected.composition!.scenes[1].zones[0].main[0] = { id: `${rightId}--span-scene-2`, logicalClipId: rightId, instanceId: 'instance-b', startMs: 0, durationMs: 6000, view: { mirror: false, phase: 0, brightness: 1 } }
+  expected.composition!.scenes[0].propertyTracks!.splice(1, 0, {
+    id: `track-b-${rightId}`, target: { kind: 'placement-view', placementId: rightId, property: 'brightness' },
+    keyframes: [{ id: `kf-1-${rightId}`, timeMs: 12000, value: 1, easing: { curve: 'linear' } }, { id: `kf-2-${rightId}`, timeMs: 19000, value: 0.2, easing: { curve: 'linear' } }],
+  })
+  expected.composition!.scenes[1].propertyTracks![0].target = { kind: 'placement-view', placementId: `${rightId}--span-scene-2`, property: 'brightness' }
+  expected.composition!.transitions![1].fromPlacementId = `${rightId}--span-scene-2`
+  return expected
+}
+
+async function seekToolbarSplit(page: Page, atMs: number): Promise<void> {
+  await page.locator('body').press('a')
+  const playhead = page.getByRole('slider', { name: 'Show playhead' })
+  for (let step = 0; step < atMs / 1000; step++) await playhead.press('ArrowRight')
+  await expect(playhead).toHaveValue(String(atMs))
+}
+
+async function clickToolbarSplitWithFixedId(page: Page): Promise<void> {
+  // Control only the generated identity so selected and unselected actions can
+  // be compared as complete records, without normalizing away any references.
+  await page.evaluate(rightId => {
+    const win = window as unknown as { __restoreSplitId?: () => void }
+    const original = crypto.randomUUID
+    win.__restoreSplitId = () => { crypto.randomUUID = original }
+    crypto.randomUUID = () => rightId as `${string}-${string}-${string}-${string}-${string}`
+  }, TOOLBAR_SPLIT_ID)
+  try {
+    await page.getByRole('button', { name: 'Split at playhead' }).click()
+  } finally {
+    await page.evaluate(() => (window as unknown as { __restoreSplitId: () => void }).__restoreSplitId())
+  }
+}
+
 const RUN_ID = new Date().toISOString().replace(/[:.]/g, '-')
 const REPORT_DIR = resolve('reports', 'agent-harness', 'baseline', 'browser', RUN_ID)
 const BRIDGE_DELAY_MS = 2_500
@@ -1633,6 +1672,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     expectedFacts: (before: ShowRecord) => ShowRecord
     unchangedUtterances?: string[]
     staleCommand?: { command: string; args: Record<string, unknown> }
+    toolbarSplit?: { atMs: number; clipId: string | null; accepted: boolean }
   }> = [
     {
       id: 'AC951',
@@ -1754,19 +1794,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         record.id = `split-951-${Date.now().toString(36)}`
         return record
       },
-      expectedFacts: (before: ShowRecord) => {
-        const expected = structuredClone(before)
-        expected.composition!.scenes[0].zones[0].main[1].durationMs = 4000
-        expected.composition!.scenes[0].zones[0].main.push({ id: 'clip-1', instanceId: 'instance-b', startMs: 16000, durationMs: 14000, view: { mirror: false, phase: 0, brightness: 1 } })
-        expected.composition!.scenes[1].zones[0].main[0] = { id: 'clip-1--span-scene-2', logicalClipId: 'clip-1', instanceId: 'instance-b', startMs: 0, durationMs: 6000, view: { mirror: false, phase: 0, brightness: 1 } }
-        expected.composition!.scenes[0].propertyTracks!.splice(1, 0, {
-          id: 'track-b-clip-1', target: { kind: 'placement-view', placementId: 'clip-1', property: 'brightness' },
-          keyframes: [{ id: 'kf-1-clip-1', timeMs: 12000, value: 1, easing: { curve: 'linear' } }, { id: 'kf-2-clip-1', timeMs: 19000, value: 0.2, easing: { curve: 'linear' } }],
-        })
-        expected.composition!.scenes[1].propertyTracks![0].target = { kind: 'placement-view', placementId: 'clip-1--span-scene-2', property: 'brightness' }
-        expected.composition!.transitions![1].fromPlacementId = 'clip-1--span-scene-2'
-        return expected
-      }
+      expectedFacts: splitFixtureExpected
     },
     {
       id: 'DC951',
@@ -1821,12 +1849,42 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         return expected
       },
       unchangedUtterances: ['keep the final marker unchanged', 'remove the missing marker']
-    }
+    },
+    ...[
+      { partition: 'Main', atMs: 16000, clipId: 'clip-b', accepted: true },
+      { partition: 'overlay', atMs: 5000, clipId: 'clip-ov', accepted: true },
+      { partition: 'gap', atMs: 45000, clipId: null, accepted: false },
+      { partition: 'Cut', atMs: 30000, clipId: 'clip-b', accepted: false },
+    ].map(toolbarSplit => ({
+      id: `S992-${toolbarSplit.partition}`,
+      command: 'split_clip',
+      args: { clip_id: toolbarSplit.clipId, at_ms: toolbarSplit.atMs },
+      utterance: '',
+      toolbarSplit,
+      fixture: () => {
+        const record = showSplitClipFixture()
+        record.id = `toolbar-split-${toolbarSplit.partition.toLowerCase()}-${Date.now().toString(36)}`
+        if (toolbarSplit.partition === 'overlay') {
+          record.composition!.scenes[0].zones[0].main.shift()
+          record.composition!.transitions!.shift()
+        }
+        return record
+      },
+      expectedFacts: (before: ShowRecord) => {
+        if (!toolbarSplit.accepted) return structuredClone(before)
+        if (toolbarSplit.partition === 'Main') return splitFixtureExpected(before, TOOLBAR_SPLIT_ID)
+        const expected = structuredClone(before)
+        const clips = expected.composition!.scenes[0].zones[0].overlays[0].placements
+        clips[0].durationMs = 3000
+        clips.push({ id: TOOLBAR_SPLIT_ID, instanceId: 'instance-ov', startMs: 5000, durationMs: 3000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } })
+        return expected
+      },
+    }))
   ]
 
   // The table owns operation facts; this sequence owns the live admission contract.
   for (const admission of admissionCases) {
-    test(`${admission.id}: command admission saves once, reopens, undoes, refuses stale and deduplicates`, async ({ page }) => {
+    test(`${admission.id}: ${admission.toolbarSplit ? 'toolbar Split matches selected Split or refuses without saving' : 'command admission saves once, reopens, undoes, refuses stale and deduplicates'}`, async ({ page }) => {
       test.setTimeout(90000)
       await page.setViewportSize({ width: 1440, height: 900 })
       const record = admission.fixture()
@@ -1837,17 +1895,30 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         const load = (path: string) => import(path)
         return (await load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')).useEntityOrganizationStore.getState().loaded.libraries
       })).toBe(true)
-      await injectOverlay(page, bridge.url)
+      if (!admission.toolbarSplit) await injectOverlay(page, bridge.url)
       const before = (await visibleRecord(page)) as unknown as ShowRecord
       const writes = watchShowWrites(page)
       const successfulSaves = () => writes.filter(write => write.method === 'PATCH' && write.status === 200).length
-      const done = await waitForDone(page, await submitUtterance(page, admission.utterance))
-      expect(done.applied, JSON.stringify(done)).toBe(true)
-      await expect.poll(successfulSaves).toBe(1)
+      let done: OverlayRequest | null = null
+      if (admission.toolbarSplit) {
+        await seekToolbarSplit(page, admission.toolbarSplit.atMs)
+        const split = page.getByRole('button', { name: 'Split at playhead' })
+        if (admission.toolbarSplit.accepted) await clickToolbarSplitWithFixedId(page)
+        else {
+          await expect(split).toHaveAttribute('aria-disabled', 'true')
+          await split.press('Enter')
+          await expect(page.getByRole('status', { name: 'Split unavailable' })).toBeVisible()
+        }
+      } else {
+        done = await waitForDone(page, await submitUtterance(page, admission.utterance))
+        expect(done.applied, JSON.stringify(done)).toBe(true)
+      }
+      const accepted = admission.toolbarSplit?.accepted ?? true
+      await expect.poll(successfulSaves).toBe(accepted ? 1 : 0)
       const after = (await visibleRecord(page)) as unknown as ShowRecord
       expect(after).toEqual({ ...admission.expectedFacts(before), updatedAt: after.updatedAt })
       expect(await durableShow(page, record.id)).toEqual(after)
-      expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+      expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(accepted ? 1 : 0)
       await page.keyboard.press('Escape')
       await page.getByRole('button', { name: 'Show actions' }).click()
       const download = page.waitForEvent('download')
@@ -1859,6 +1930,13 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       }, [...readFileSync((await file.path())!)])
       expect(reopened.show).toEqual(after)
       saveRecord(`${admission.id}-export`, reopened)
+      if (!accepted) {
+        expect(after).toEqual(before)
+        await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+        await page.screenshot({ path: join(REPORT_DIR, `${admission.id}-refused.png`), fullPage: true })
+        saveRecord(admission.id, { before, after, writes, reopened })
+        return
+      }
       for (const utterance of admission.unchangedUtterances ?? []) {
         const outcome = await waitForDone(page, await submitUtterance(page, utterance))
         expect(outcome.changed, JSON.stringify(outcome)).toBe(false)
@@ -1886,6 +1964,25 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       await expect.poll(successfulSaves).toBe(++saveCount)
       expect(await durableShow(page, record.id)).toEqual(await visibleRecord(page))
       await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+      if (admission.toolbarSplit) {
+        // The same real toolbar action with explicit selection must save the
+        // exact same complete record (apart from its adoption timestamp).
+        await page.locator(`[data-show-selection-key="clip:${admission.toolbarSplit.clipId}"]`).press('Enter')
+        await page.keyboard.press('Escape')
+        await seekToolbarSplit(page, admission.toolbarSplit.atMs)
+        await clickToolbarSplitWithFixedId(page)
+        await expect.poll(successfulSaves).toBe(3)
+        const selected = await visibleRecord(page)
+        expect(selected).toEqual({ ...after, updatedAt: expect.any(Number) })
+        expect(await durableShow(page, record.id)).toEqual(selected)
+        expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(3)
+        await page.getByRole('button', { name: 'Undo Show edit' }).click()
+        await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
+        await expect.poll(successfulSaves).toBe(4)
+        expect(await durableShow(page, record.id)).toEqual(await visibleRecord(page))
+        saveRecord(admission.id, { before, after, selected, writes, reopened })
+        return
+      }
       // Capture before the real manual Add menu changes the Show revision.
       await page.evaluate(async ({ id, command, args }) => {
         const load = (path: string) => import(path)

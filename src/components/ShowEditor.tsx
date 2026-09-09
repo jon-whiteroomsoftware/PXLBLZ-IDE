@@ -67,7 +67,6 @@ import { trackEvent } from '@/analytics'
 import {
   addShowRoutingLayout,
   projectShowStrip,
-  showSplitCapability,
   formatShowRoutingRanges,
   parseShowRoutingRanges,
   showLoopDurationMs,
@@ -3463,9 +3462,7 @@ function ShowTimelineCommands({
   onDuplicateCompositionClip: (owner: ShowTimelineClipOwner) => Promise<string | null>
 }) {
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
-  const splitAtTime = useShowStore((state) => state.splitAtTime)
   const cloneClip = useShowStore((state) => state.cloneClip)
-  const legacySplitCapability = showSplitCapability(show, positionMs)
   const groupPlan = composition && selection.kind === 'multi'
     ? validateShowGroupSelection(composition, selection.groupSelection)
     : { enabled: false as const, code: 'empty' as const, reason: 'Select two or more Clips to make a Group.' }
@@ -3484,12 +3481,25 @@ function ShowTimelineCommands({
     ? compositionTimeline?.zones.flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
       .find((clip) => clip.id === compositionOwner.placementId)
     : null
-  const splitCapability = compositionOwner && composition
+  // Explicit Clip selection wins. With no Clip selected, reuse keyboard
+  // traversal precedence: start time, Zone, Layer, then stable identity.
+  const playheadTarget = !compositionOwner && selection.kind !== 'clip' && compositionTimeline
+    ? projectShowTimelineTraversalTargets(compositionTimeline).find((target) => {
+        if (target.kind !== 'clip') return false
+        const clip = compositionTimeline.zones.flatMap(zone => zone.layers.flatMap(layer => layer.clips))
+          .find(candidate => candidate.id === target.clipId)
+        return clip && !clip.groupOccurrenceId && positionMs > clip.startMs && positionMs < clip.endMs
+      })
+    : null
+  const splitOwner = compositionOwner ?? (playheadTarget?.kind === 'clip'
+    ? findTimelineClipOwner(composition, playheadTarget.clipId)
+    : null)
+  const splitCapability = splitOwner && composition
     ? planShowClipSplitAtGlobalTime(show, composition, {
-        owner: compositionOwner,
+        owner: splitOwner,
         globalTimeMs: positionMs,
       })
-    : legacySplitCapability
+    : { enabled: false as const, code: 'outside-clip' as const, reason: 'Place the playhead inside a Clip.' }
   const legacyCloneCapability = showCloneCapability(show, selection)
   const compositionClonePlan = compositionOwner && composition
     ? planShowClipDuplicateAfter(show, composition, {
@@ -3549,12 +3559,10 @@ function ShowTimelineCommands({
               return
             }
             if (usePreviewStore.getState().isRunning) usePreviewStore.getState().toggle()
-            if (compositionOwner) {
-              void onSplitCompositionClip(compositionOwner, positionMs).then((placementId) => {
+            if (splitOwner) {
+              void onSplitCompositionClip(splitOwner, positionMs).then((placementId) => {
                 if (placementId) onSelect({ kind: 'clip', clipId: placementId })
               }).catch(() => {})
-            } else {
-              void splitAtTime(show.id, positionMs)
             }
           }}
         >
@@ -3569,17 +3577,7 @@ function ShowTimelineCommands({
             aria-live="polite"
             className="absolute right-0 top-[calc(100%+5px)] z-40 w-44 rounded border border-amber-400/30 bg-zinc-950 px-2 py-1.5 text-left text-[9px] leading-3 text-amber-200 shadow-lg"
           >
-            {splitCapability.code === 'scene-edge-margin'
-              ? 'Split needs 1.0 s on both sides'
-              : splitCapability.code === 'logical-clip'
-                ? 'This multi-part Clip cannot be split here'
-              : splitCapability.code === 'transition-gap'
-                ? 'A Clip cannot be split inside a Transition'
-              : splitCapability.code === 'nonlinear-property-animation'
-                ? 'Add a keyframe here or make this segment Linear before splitting'
-                : splitCapability.code === 'outside-clip'
-                  ? 'Place the playhead inside the selected Clip'
-                  : 'Move the playhead inside the selected Clip'}
+            {splitCapability.reason}
           </span>
         )}
       </span>

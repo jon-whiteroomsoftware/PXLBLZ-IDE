@@ -42,6 +42,7 @@ import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/stor
 import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { createPropertySlotQualificationShow } from '@/engine/showPatternSlotTestFixture'
+import { showSplitClipFixture } from '@/test/showSplitClipFixture'
 
 // The pressure/blocked compile-bar tests need a show decisively over the
 // activation budget. Real fixtures keep shrinking as the compiler improves
@@ -4660,6 +4661,82 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     ))).toBe(true)
   })
 
+  it('splits the no-selection Main Clip without creating a Scene (#992)', async () => {
+    const user = userEvent.setup()
+    const show = showSplitClipFixture()
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+    act(() => useShowTransportStore.getState().setPosition(show.id, 16000))
+    await user.click(screen.getByRole('button', { name: 'Split at playhead' }))
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows[0]
+      expect(saved.composition!.scenes[0].zones[0].main.find(clip => clip.id === 'clip-b')?.durationMs).toBe(4000)
+      expect(saved.scenes).toEqual(show.scenes)
+    })
+    expect(useShowStore.getState().showSaveFailure).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Undo Show edit' }))
+    await waitFor(() => expect(useShowStore.getState().shows[0]).toEqual({ ...show, updatedAt: expect.any(Number) }))
+  })
+
+  it.each([
+    { partition: 'earlier Main when an overlay also covers the playhead', overlayOnly: false, clipId: 'clip-a', durationMs: 5000 },
+    { partition: 'overlay when no Main covers the playhead', overlayOnly: true, clipId: 'clip-ov', durationMs: 3000 },
+  ])('splits the no-selection $partition (#992)', async ({ overlayOnly, clipId, durationMs }) => {
+    const user = userEvent.setup()
+    const show = showSplitClipFixture()
+    if (overlayOnly) {
+      show.composition!.scenes[0].zones[0].main.shift()
+      show.composition!.transitions!.shift()
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+    act(() => useShowTransportStore.getState().setPosition(show.id, 5000))
+    await user.click(screen.getByRole('button', { name: 'Split at playhead' }))
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows[0]
+      const zone = saved.composition!.scenes[0].zones[0]
+      const clips = overlayOnly ? zone.overlays[0].placements : zone.main
+      expect(clips.find(clip => clip.id === clipId)?.durationMs).toBe(durationMs)
+      expect(saved.scenes).toEqual(show.scenes)
+      expect(useShowStore.getState().showHistories[show.id].past).toHaveLength(1)
+    })
+    const savedZone = useShowStore.getState().shows[0].composition!.scenes[0].zones[0]
+    expect(overlayOnly ? savedZone.main : savedZone.overlays).toEqual(overlayOnly ? show.composition!.scenes[0].zones[0].main : show.composition!.scenes[0].zones[0].overlays)
+    expect(useShowStore.getState().showSaveFailure).toBeNull()
+  })
+
+  it.each([{ partition: 'gap', atMs: 45000 }, { partition: 'exact Cut', atMs: 30000 }, { partition: 'Group projection only', atMs: 42500 }])('refuses no-selection Split in a $partition without saving (#992)', ({ atMs }) => {
+    const show = showSplitClipFixture()
+    const provider = memoryProvider([show])
+    const save = vi.spyOn(provider, 'updateShow')
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+    act(() => useShowTransportStore.getState().setPosition(show.id, atMs))
+    const split = screen.getByRole('button', { name: 'Split at playhead' })
+    expect(split).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(split)
+    expect(screen.getByRole('status', { name: 'Split unavailable' })).toBeVisible()
+    expect(useShowStore.getState().shows[0]).toEqual(show)
+    expect(save).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+  })
+
+  it('keeps explicit overlay selection ahead of the earlier Main Clip under the playhead (#992)', async () => {
+    const user = userEvent.setup()
+    const show = showSplitClipFixture()
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+    act(() => useShowTransportStore.getState().setPosition(show.id, 5000))
+    await user.click(document.querySelector<HTMLElement>('[data-show-selection-key="clip:clip-ov"]')!)
+    await user.click(screen.getByRole('button', { name: 'Split at playhead' }))
+    await waitFor(() => expect(useShowStore.getState().shows[0].composition!.scenes[0].zones[0].overlays[0].placements).toHaveLength(2))
+    expect(useShowStore.getState().shows[0].composition!.scenes[0].zones[0].main).toEqual(show.composition!.scenes[0].zones[0].main)
+  })
+
   it('splits and duplicates the selected composition Clip from timeline commands (#580)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-clip-commands', 'Clip commands', 1000)
@@ -6600,11 +6677,11 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(split).toHaveAttribute('aria-disabled', 'true')
     expect(refusal()).not.toBeInTheDocument()
     fireEvent.focus(split)
-    expect(refusal()).toHaveTextContent('Split needs 1.0 s on both sides')
+    expect(refusal()).toHaveTextContent('Place the playhead inside a Clip.')
 
     fireEvent.change(playhead, { target: { value: '500' } })
-    expect(split).toHaveAttribute('aria-disabled', 'true')
-    expect(refusal()).toHaveTextContent('Split needs 1.0 s on both sides')
+    expect(split).not.toHaveAttribute('aria-disabled')
+    expect(refusal()).not.toBeInTheDocument()
 
     fireEvent.change(playhead, { target: { value: '1000' } })
     expect(split).not.toHaveAttribute('aria-disabled')
@@ -6613,10 +6690,10 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     fireEvent.change(playhead, { target: { value: '30000' } })
     expect(split).toHaveAttribute('aria-disabled', 'true')
     fireEvent.click(split)
-    expect(refusal()).toHaveTextContent('Split needs 1.0 s on both sides')
+    expect(refusal()).toHaveTextContent('Place the playhead inside a Clip.')
 
     fireEvent.change(playhead, { target: { value: '30500' } })
-    expect(refusal()).toHaveTextContent('Move the playhead inside the selected Clip')
+    expect(refusal()).toHaveTextContent('Place the playhead inside a Clip.')
   })
 
   it('turns a named routing layout into a two-zone moving split (#405)', async () => {

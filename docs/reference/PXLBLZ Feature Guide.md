@@ -381,7 +381,10 @@ constantly:
   Show start, so it is exact — never approximate.
 - **Add Clip** places a Pattern at the playhead; double-click empty Layer
   time to choose one there. Drag to move, Option-drag to duplicate, edges to
-  resize, **Split** to divide at the playhead.
+  resize, **Split** to divide at the playhead. Split uses the selected Clip;
+  with none selected, it uses the first direct Clip under the playhead in
+  keyboard traversal order (start time, Zone, Layer, then identity). It is
+  unavailable in gaps and at boundaries where that Clip cannot be split.
 - Drags land on the tick grid and snap magnetically to Clip, Marker, and
   playhead boundaries; Alt suspends snapping for one gesture, Shift gives
   fixed fine steps.
