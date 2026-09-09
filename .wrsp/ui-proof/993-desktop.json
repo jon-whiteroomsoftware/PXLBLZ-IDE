@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "993",
+  "route": "/PXLBLZ-IDE/studio/shows/d43fd0bf-7819-4a53-9492-ef9f232adca4",
+  "operation": "At 1440x900, opened connected clip-b inspector and Delete confirmation. Cancel initially focused; Tab reached Remove Clip and Transition, Shift-Tab returned to Cancel. Enter Cancel preserved the open inspector (Start 11s, Duration 8s); reopened and keyboard-confirmed deletion, observed Clip removed, then one Undo restored it. In-app browser, synthetic local-agent-08; capture inspected. Fixture carries a pre-existing orphan-track compiler warning.",
+  "captures": [
+    ".wrsp/ui-proof/993-desktop-dialog.jpg"
+  ],
+  "capturedAtCommit": "e76c42011018285cf38e55125b0e2d65a8d20bec"
+}
