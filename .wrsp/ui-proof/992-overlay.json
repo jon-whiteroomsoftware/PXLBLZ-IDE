@@ -2,10 +2,10 @@
   "version": 1,
   "issue": "992",
   "route": "/PXLBLZ-IDE/studio/shows/e9b4a237-a8c5-42d3-aeaf-aa950fa4db92",
-  "operation": "At 640x900, with no Clip selected, positioned the playhead at5s and used toolbar Split on the overlay Clip. Closed the overlapping existing inspector, then one effective toolbar Undo restored it; the first covered click only focused an unchanged field. In-app browser, synthetic local-agent-08; both captures inspected.",
+  "operation": "At 640x900, with no Clip selected, positioned the playhead at 5s and used toolbar Split on the overlay Clip. Closed the inspector, undid once, verified Split remained enabled, split again without reselecting, then closed the inspector and undid once again. Captures show the repeated split and restored Clip with Split enabled. In-app browser, synthetic local-agent-08; both captures inspected.",
   "captures": [
     ".wrsp/ui-proof/992-overlay-split.jpg",
     ".wrsp/ui-proof/992-overlay-undo.jpg"
   ],
-  "capturedAtCommit": "a809d40e5cc04b4391f9292a8433bbcb2f59ce53"
+  "capturedAtCommit": "12b2eb66b2030985b3985e1bb36ee8abc69b6b16"
 }
