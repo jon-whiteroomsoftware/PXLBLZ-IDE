@@ -27,8 +27,16 @@ visible thinking-state Cancel control.
 
 The first browser probe exposed an ambiguous test selector because both Clips
 use CometLoom. The corrected selector uses the rendered logical Clip identity.
-The five-case uncommitted-source run passed in 37.2 seconds (41.5 seconds total).
-Committed-source proof and final coordinator checks are recorded in the handoff.
+The fresh five-case browser run passed on source commit
+`59ce0e4f57bc78fe1ebc1c0ab1ba34f25229b8b7` in 36.4 seconds (44.6 seconds
+total), using `npm run test:e2e:agent-baseline -- -g 'B5:'`. The complete
+[route records and reopened exports](route.json) retain the exact report path.
+Inspected captures show [applied and saved](applied.png), [narrow ready controls](ready-narrow.png),
+[deleted target refusal](deleted.png), [late cancellation](cancelled.png) and
+[Dismiss preserving history](dismissed.png). The fixture
+`agent:baseline:fixtures` check also passed: all seven committed hashes unchanged,
+without regeneration. The fixture preview retains its existing Portable 2D
+compatibility diagnostic; this slice qualifies Show editing and export.
 
 All five scoped temporary faults were detected by assertion failures and the
 source was restored: see [fault results](faults.json). The focused seven-suite
