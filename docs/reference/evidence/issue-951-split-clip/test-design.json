@@ -1,0 +1,46 @@
+{
+  "invariants": [
+    "Original left Clip identity and complete time extent retained; fresh right Clip shares Pattern-instance settings and instance tracks",
+    "Placement curves copy to applicable halves with derived identities, without crop or resampling",
+    "Incoming Transition remains on left; outgoing endpoint follows final right segment while Transition identity and parameters survive",
+    "Unrelated authored content and ordering preserved; complete output validates and input is immutable",
+    "One delivered candidate owns one save/history entry; stale and duplicate delivery preserve current state"
+  ],
+  "partitions": [
+    "Main, overlay, multi-Scene and shared Pattern users",
+    "Interior versus exact endpoints/outside, exact internal Cut boundary and hidden Scene Transition gap",
+    "Fractional rounding inward versus onto refused boundary",
+    "Placement and instance animation; incoming and outgoing Transitions",
+    "Unrelated Group, Group child, missing/malformed owner and fresh-ID collisions",
+    "Absent and explicitly empty unrelated track/Transition collections"
+  ],
+  "sequences": [
+    "Split then edit and move the new right Clip",
+    "Canonical/diagnostic/manual complete-record parity then actual exporter/importer",
+    "MCP schema discovery, fractional split, export, Undo and Redo",
+    "SC951 scripted split, one save, downloaded export/importer and one Undo",
+    "Captured split, manual Layer addition, stale refusal; fresh split delivered twice then one Undo",
+    "Actual selected Main split20 then Undo; actual selected overlay split5 then one Undo, no post-selection Escape"
+  ],
+  "oracles": [
+    "Literal full expected compositions with unchanged Show envelope",
+    "validateShowComposition and immutable input",
+    "Actual Show file importer and MCP exported records",
+    "Central command APPLIED/golden/touches plus registry and diagnostic schema/protocol",
+    "Committed-source browser visible/durable records and save counts; coordinator manual Split inspection",
+    "Coordinator inspected IAB captures with selected right identity and Undo-disabled restoration"
+  ],
+  "faults": [
+    "Catalogued Show authoring mutation includes splitClip.test.ts; all79 faults killed",
+    "Whole-composition normalization",
+    "Lost outgoing endpoint retarget",
+    "Lost fractional rounding",
+    "Lost placement tracks"
+  ],
+  "residualGaps": [
+    "No paid inference, Controller or hosted service",
+    "Store/file normalization retains separate ownership",
+    "Escape can clear Clip selection; the legacy no-selection Split then produced a save rollback in the existing legacy path, outside this bounded split owner",
+    "Coordinator owns final committed-tip suites and native review"
+  ]
+}

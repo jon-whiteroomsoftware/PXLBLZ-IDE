@@ -1770,6 +1770,51 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     saveRecord('RC951', { before, after, done, manual, stale, duplicate, writes, observations: await readObservations(page) })
   })
 
+  test('SC951-overlay: manual overlay split persists after a Main split and Undo', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    const record = showSplitClipFixture()
+    record.id = `split-overlay-951-${Date.now().toString(36)}`
+    expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+    await page.goto(`studio/shows/${record.id}?agent=1`)
+    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+    const before = await visibleRecord(page) as unknown as ShowRecord
+    const responses: unknown[] = []
+    page.on('response', async response => {
+      if (response.request().method() === 'PATCH' && response.url().includes(`/api/shows/${record.id}`)) responses.push({ status: response.status(), body: await response.text(), sent: response.request().postDataJSON() })
+    })
+    await page.locator('[data-show-selection-key="clip:clip-b"]').click()
+    await page.locator('body').press('Escape')
+    await page.locator('body').press('a')
+    for (let i = 0; i < 4; i++) await page.locator('body').press('ArrowRight')
+    await page.getByRole('button', { name: 'Split at playhead' }).click()
+    await expect.poll(() => responses.length).toBe(1)
+    await page.getByRole('button', { name: 'Undo Show edit' }).click()
+    await expect.poll(() => responses.length).toBe(2)
+    await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
+    await page.locator('body').press('a')
+    await page.locator('[data-show-selection-key="clip:clip-ov"]').click()
+    await page.locator('body').press('ArrowRight')
+    await expect(page.locator('[data-show-selection-key="clip:clip-ov"]')).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('button', { name: 'Split at playhead' })).toHaveAttribute('title', 'Split the selected Clip at the playhead.')
+    await page.getByRole('button', { name: 'Split at playhead' }).click()
+    await expect.poll(() => responses.length).toBe(3)
+    saveRecord('SC951-overlay-responses', responses)
+    expect(responses[2]).toMatchObject({ status: 200 })
+    const after = await visibleRecord(page) as unknown as ShowRecord
+    const expected = structuredClone(before)
+    const right = after.composition!.scenes[0].zones[0].overlays[0].placements[1]
+    expected.composition!.scenes[0].zones[0].overlays[0].placements = [
+      { ...before.composition!.scenes[0].zones[0].overlays[0].placements[0], durationMs: 3000 },
+      { id: right.id, instanceId: 'instance-ov', startMs: 5000, durationMs: 3000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } },
+    ]
+    expect(after).toEqual({ ...expected, updatedAt: after.updatedAt })
+    expect(await durableShow(page, record.id)).toEqual(after)
+    await page.getByRole('button', { name: 'Undo Show edit' }).click()
+    await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
+    await expect.poll(() => responses.length).toBe(4)
+    saveRecord('SC951-overlay', { before, after, responses })
+  })
+
   test('SC951: split saves once, exports the full surviving Show, and Undo restores its preimage', async ({ page }) => {
     test.setTimeout(90000)
     await page.setViewportSize({ width: 1440, height: 900 })

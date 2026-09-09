@@ -1,0 +1,23 @@
+{
+  "test": "src/engine/showCommands/splitClip.test.ts",
+  "faults": [
+    {
+      "name": "whole-composition-normalization",
+      "outcome": "killed by behavioral assertion"
+    },
+    {
+      "name": "lost-outgoing-endpoint",
+      "outcome": "killed by behavioral assertion"
+    },
+    {
+      "name": "lost-fractional-rounding",
+      "outcome": "killed by behavioral assertion"
+    },
+    {
+      "name": "lost-placement-tracks",
+      "outcome": "killed by behavioral assertion"
+    }
+  ],
+  "source": "543605e779256f07201d94cc2c3678731b09e1e8",
+  "restoredSuite": "19 owner tests passed"
+}
