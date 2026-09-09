@@ -1,7 +1,7 @@
 {
   "version": 1,
   "show": {
-    "id": "private-pair-apply-mttjrwm4",
+    "id": "private-pair-apply-mttk12fb",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -65,7 +65,7 @@
         "resolution": "variable"
       }
     },
-    "updatedAt": 1788925036265,
+    "updatedAt": 1788925463554,
     "composition": {
       "version": 1,
       "patternInstances": [
@@ -123,7 +123,7 @@
   "maps": [],
   "provenance": {
     "appVersion": "1.0.0",
-    "exportedAt": "2026-09-09T03:37:16.628Z",
-    "originalShowId": "private-pair-apply-mttjrwm4"
+    "exportedAt": "2026-09-09T03:44:23.922Z",
+    "originalShowId": "private-pair-apply-mttk12fb"
   }
 }

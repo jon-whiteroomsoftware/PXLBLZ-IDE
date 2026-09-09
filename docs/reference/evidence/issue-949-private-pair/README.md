@@ -3,13 +3,17 @@
 [Review test model](test-design.json) records invariants, partitions, sequences,
 oracles and residual gaps for the exact candidate review.
 
-Source: `00984eb4f722cac2838d99d90efecad553a6da3a`. Browser run:
-`2026-09-09T03-37-10-153Z`, Chromium, synthetic authenticated local user,
+Source: `fe58934b289da2c92f0a6b2c65597e89174575da`. Browser run:
+`2026-09-09T03-44-17-699Z`, Chromium, synthetic authenticated local user,
 real scripted HTTP/NDJSON/MCP bridge, no paid inference. Command:
-`npm run test:e2e:agent-baseline -- --grep 'PP:'` passed in 17 seconds.
-The in-app browser first connected to the managed issue runtime at 5178 and
-read its Gallery successfully. The repository's authenticated runner then
-exercised the complete acceptance flow on its isolated candidate runtime.
+`npm run test:e2e:agent-baseline -- --grep 'PP:'` passed in 16.4 seconds.
+The refreshed run exercised committed tip
+`f0c7b76aaaca7b1cf6a51123b55bfec7e4ff25db` after rebasing over the
+process-only #991 change; product code is unchanged. The in-app browser had
+connected to managed runtime 5178 for the original proof, but was disconnected
+at refresh: both the existing binding and explicit `iab` lookup failed, and
+discovery listed only Chrome. The repository's authenticated Chromium runner
+provided the fresh complete acceptance flow on its isolated candidate runtime.
 
 The input has A at 0–4000 ms and B at 8000–14000 ms. The private first move
 puts A at 8000–12000 ms; the second moves B to 0–6000 ms. Both IDs, durations

@@ -1,6 +1,6 @@
 {
   "before": {
-    "id": "private-pair-stale-mttjs3gp",
+    "id": "private-pair-stale-mttk193n",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -119,7 +119,7 @@
     }
   },
   "after": {
-    "id": "private-pair-stale-mttjs3gp",
+    "id": "private-pair-stale-mttk193n",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -183,7 +183,7 @@
         "resolution": "variable"
       }
     },
-    "updatedAt": 1788925041253,
+    "updatedAt": 1788925468445,
     "composition": {
       "version": 1,
       "patternInstances": [
@@ -238,15 +238,15 @@
     }
   },
   "done": {
-    "requestId": "req-mttjs3yy-87eytm",
-    "showId": "private-pair-stale-mttjs3gp",
+    "requestId": "req-mttk19le-kamstz",
+    "showId": "private-pair-stale-mttk193n",
     "capturedUpdatedAt": 1757000000000,
-    "submittedAt": 1788925041180,
-    "responseAt": 1788925041193,
-    "firstEventAt": 1788925041193,
-    "doneAt": 1788925043704,
-    "applyStartedAt": 1788925043704,
-    "applyEndedAt": 1788925043704,
+    "submittedAt": 1788925468372,
+    "responseAt": 1788925468384,
+    "firstEventAt": 1788925468386,
+    "doneAt": 1788925470904,
+    "applyStartedAt": 1788925470904,
+    "applyEndedAt": 1788925470905,
     "changed": true,
     "applied": false,
     "error": null,
@@ -254,55 +254,55 @@
       {
         "kind": "accepted",
         "name": null,
-        "at": 1788925041193
+        "at": 1788925468386
       },
       {
         "kind": "tool",
         "name": "move_clip",
-        "at": 1788925043704
+        "at": 1788925470904
       },
       {
         "kind": "tool",
         "name": "move_clip",
-        "at": 1788925043704
+        "at": 1788925470904
       },
       {
         "kind": "validation",
         "name": null,
-        "at": 1788925043704
+        "at": 1788925470904
       },
       {
         "kind": "validation",
         "name": null,
-        "at": 1788925043704
+        "at": 1788925470904
       },
       {
         "kind": "done",
         "name": null,
-        "at": 1788925043704
+        "at": 1788925470904
       }
     ],
     "bridgeTiming": {
-      "acceptedAt": 1788925041182,
+      "acceptedAt": 1788925468373,
       "delayMs": 2500,
-      "agentStartedAt": 1788925043692,
-      "agentEndedAt": 1788925043701,
-      "exportedAt": 1788925043704,
+      "agentStartedAt": 1788925470882,
+      "agentEndedAt": 1788925470900,
+      "exportedAt": 1788925470904,
       "toolCalls": [
         {
           "name": "move_clip",
-          "at": 1788925043692,
-          "ms": 7
+          "at": 1788925470882,
+          "ms": 10
         },
         {
           "name": "move_clip",
-          "at": 1788925043699,
-          "ms": 0
+          "at": 1788925470892,
+          "ms": 2
         }
       ],
       "validation": {
-        "at": 1788925043701,
-        "ms": 3,
+        "at": 1788925470900,
+        "ms": 4,
         "ok": true
       }
     },
@@ -429,7 +429,7 @@
           "resolution": "variable"
         }
       },
-      "updatedAt": 1788925041253
+      "updatedAt": 1788925468445
     },
     {
       "name": "Baseline personal Show",
@@ -548,11 +548,11 @@
           "resolution": "variable"
         }
       },
-      "updatedAt": 1788925044262
+      "updatedAt": 1788925471454
     }
   ],
   "durable": {
-    "id": "private-pair-stale-mttjs3gp",
+    "id": "private-pair-stale-mttk193n",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -616,7 +616,7 @@
         "resolution": "variable"
       }
     },
-    "updatedAt": 1788925044262,
+    "updatedAt": 1788925471454,
     "composition": {
       "version": 1,
       "patternInstances": [

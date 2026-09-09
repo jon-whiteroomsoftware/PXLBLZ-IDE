@@ -1,6 +1,6 @@
 {
   "before": {
-    "id": "private-pair-apply-mttjrwm4",
+    "id": "private-pair-apply-mttk12fb",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -119,7 +119,7 @@
     }
   },
   "after": {
-    "id": "private-pair-apply-mttjrwm4",
+    "id": "private-pair-apply-mttk12fb",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -183,7 +183,7 @@
         "resolution": "variable"
       }
     },
-    "updatedAt": 1788925036265,
+    "updatedAt": 1788925463554,
     "composition": {
       "version": 1,
       "patternInstances": [
@@ -238,15 +238,15 @@
     }
   },
   "done": {
-    "requestId": "req-mttjry5n-ewtje3",
-    "showId": "private-pair-apply-mttjrwm4",
+    "requestId": "req-mttk13uf-javgmx",
+    "showId": "private-pair-apply-mttk12fb",
     "capturedUpdatedAt": 1757000000000,
-    "submittedAt": 1788925033645,
-    "responseAt": 1788925033660,
-    "firstEventAt": 1788925033661,
-    "doneAt": 1788925036258,
-    "applyStartedAt": 1788925036258,
-    "applyEndedAt": 1788925036323,
+    "submittedAt": 1788925460921,
+    "responseAt": 1788925460935,
+    "firstEventAt": 1788925460936,
+    "doneAt": 1788925463542,
+    "applyStartedAt": 1788925463542,
+    "applyEndedAt": 1788925463669,
     "changed": true,
     "applied": true,
     "error": null,
@@ -254,55 +254,55 @@
       {
         "kind": "accepted",
         "name": null,
-        "at": 1788925033661
+        "at": 1788925460936
       },
       {
         "kind": "tool",
         "name": "move_clip",
-        "at": 1788925036258
+        "at": 1788925463539
       },
       {
         "kind": "tool",
         "name": "move_clip",
-        "at": 1788925036258
+        "at": 1788925463539
       },
       {
         "kind": "validation",
         "name": null,
-        "at": 1788925036258
+        "at": 1788925463539
       },
       {
         "kind": "validation",
         "name": null,
-        "at": 1788925036258
+        "at": 1788925463539
       },
       {
         "kind": "done",
         "name": null,
-        "at": 1788925036258
+        "at": 1788925463542
       }
     ],
     "bridgeTiming": {
-      "acceptedAt": 1788925033649,
+      "acceptedAt": 1788925460923,
       "delayMs": 2500,
-      "agentStartedAt": 1788925036246,
-      "agentEndedAt": 1788925036255,
-      "exportedAt": 1788925036257,
+      "agentStartedAt": 1788925463512,
+      "agentEndedAt": 1788925463532,
+      "exportedAt": 1788925463538,
       "toolCalls": [
         {
           "name": "move_clip",
-          "at": 1788925036246,
-          "ms": 5
+          "at": 1788925463513,
+          "ms": 12
         },
         {
           "name": "move_clip",
-          "at": 1788925036251,
+          "at": 1788925463525,
           "ms": 0
         }
       ],
       "validation": {
-        "at": 1788925036255,
-        "ms": 2,
+        "at": 1788925463532,
+        "ms": 6,
         "ok": true
       }
     },
@@ -429,7 +429,7 @@
           "resolution": "variable"
         }
       },
-      "updatedAt": 1788925036265
+      "updatedAt": 1788925463554
     },
     {
       "name": "Baseline personal Show",
@@ -548,11 +548,11 @@
           "resolution": "variable"
         }
       },
-      "updatedAt": 1788925036746
+      "updatedAt": 1788925464039
     }
   ],
   "durable": {
-    "id": "private-pair-apply-mttjrwm4",
+    "id": "private-pair-apply-mttk12fb",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -616,7 +616,7 @@
         "resolution": "variable"
       }
     },
-    "updatedAt": 1788925036746,
+    "updatedAt": 1788925464039,
     "composition": {
       "version": 1,
       "patternInstances": [
