@@ -245,3 +245,29 @@ describe('exact Clip resize semantic owner', () => {
     expect(composition).toEqual(original)
   })
 })
+
+it.each([false, true])('preserves authored Transition positions through both resize reattachments, reversed=%s', reversed => {
+  for (const request of [{ clipId: 'a', durationMs: 3000 }, { clipId: 'b', globalStartMs: 3500, durationMs: 1500 }]) {
+    const { show, composition } = connectedFixture()
+    if (reversed) composition.transitions!.reverse()
+    const original = structuredClone(composition)
+    const result = resizeShowClipExactly(show, composition, request)
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') continue
+    const expected = structuredClone(original)
+    const clips = expected.scenes[0].zones[0].main
+    if (request.clipId === 'a') {
+      clips[0].durationMs = 3000
+      clips[1].startMs = 4000
+      clips[2].startMs = 7000
+    } else {
+      clips[1].startMs = 3500
+      clips[1].durationMs = 1500
+      expected.transitions!.find(transition => transition.id === 'ab')!.durationMs = 1500
+    }
+    expect(result.composition).toStrictEqual(expected)
+    expect(result.composition.transitions!.map(transition => transition.id)).toEqual(original.transitions!.map(transition => transition.id))
+    expect(validateShowComposition(show, result.composition)).toEqual([])
+    expect(composition).toStrictEqual(original)
+  }
+})

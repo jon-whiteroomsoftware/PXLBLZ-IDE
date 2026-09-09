@@ -72,7 +72,8 @@ it.each([false, true])('moves owned placement tracks and only sole-use instance 
       { ...track.keyframes[0], timeMs: 8000 }, { ...track.keyframes[1], timeMs: 12000 },
     ]
   }
-  expectedScene.propertyTracks!.sort((a, b) => a.id.localeCompare(b.id))
+  expect(after.show.composition!.scenes[0].propertyTracks!.map(track => track.id))
+    .toEqual(before.show.composition!.scenes[0].propertyTracks!.map(track => track.id))
   expect(after.show).toEqual({ ...expected, updatedAt: after.show.updatedAt })
   expect(show).toEqual(inputBefore)
 })

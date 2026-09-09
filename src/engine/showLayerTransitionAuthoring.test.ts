@@ -1406,3 +1406,19 @@ describe('resizing Clips by their edges (#363)', () => {
     ])
   })
 })
+
+it('inserts a fresh Transition at its lexical position without reordering existing siblings', () => {
+  const { show, composition } = fixture()
+  composition.transitions![0].id = 'z-b-c'
+  composition.transitions!.push({ ...structuredClone(composition.transitions![0]), id: 'a-c-obstruction', fromPlacementId: 'clip-c', toPlacementId: 'obstruction', durationMs: 2000 })
+  const original = structuredClone(composition)
+  expect(validateShowComposition(show, composition)).toEqual([])
+  const result = insertShowLayerTransition(show, composition, {
+    id: 'm-a-b', fromPlacementId: 'clip-a', toPlacementId: 'clip-b', kind: 'crossfade', durationMs: 1000, easing: { curve: 'linear' }, crossfadePolicy: 'live-live',
+  })
+  expect(result).not.toBe(composition)
+  expect(result.transitions!.map(transition => transition.id)).toEqual(['m-a-b', 'z-b-c', 'a-c-obstruction'])
+  expect(result.transitions!.filter(transition => transition.id !== 'm-a-b')).toStrictEqual(original.transitions)
+  expect(validateShowComposition(show, result)).toEqual([])
+  expect(composition).toStrictEqual(original)
+})

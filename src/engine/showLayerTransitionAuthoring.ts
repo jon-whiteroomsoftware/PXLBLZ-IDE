@@ -241,7 +241,10 @@ export function insertShowLayerTransition(
 
   const draft = shiftTimelineClips(show, composition, chain, transition.durationMs)
   if (!draft) return composition
-  draft.transitions = [...(draft.transitions ?? []), structuredClone(transition)]
+  const transitions = draft.transitions ?? []
+  const insertionIndex = transitions.findIndex(existing => existing.id.localeCompare(transition.id) > 0)
+  transitions.splice(insertionIndex < 0 ? transitions.length : insertionIndex, 0, structuredClone(transition))
+  draft.transitions = transitions
   if (validateShowComposition(show, draft).length > 0 || hasConcurrentLayerTransitions(show, draft)) return composition
   return draft
 }
@@ -514,19 +517,13 @@ export function resizeShowConnectedClipAtGlobalTime(
       .flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
       .find((candidate) => candidate.id === clip.id)
     if (!resizedClip) return composition
-    resizedComposition.transitions = [
-      ...(resizedComposition.transitions ?? []),
-      ...(incoming && transitionDurationMs != null && transitionDurationMs > 0
-        ? [{
-            ...structuredClone(incoming),
-            toPlacementId: resizedClip.startPlacementId,
-            durationMs: transitionDurationMs,
-          }]
-        : []),
-      ...(outgoing
-        ? [{ ...structuredClone(outgoing), fromPlacementId: resizedClip.endPlacementId }]
-        : []),
-    ]
+    resizedComposition.transitions = (composition.transitions ?? []).flatMap((transition) => {
+      if (transition.id === incoming?.id) return transitionDurationMs != null && transitionDurationMs > 0
+        ? [{ ...structuredClone(transition), toPlacementId: resizedClip.startPlacementId, durationMs: transitionDurationMs }]
+        : []
+      if (transition.id === outgoing?.id) return [{ ...structuredClone(transition), fromPlacementId: resizedClip.endPlacementId }]
+      return (resizedComposition.transitions ?? []).filter(candidate => candidate.id === transition.id)
+    })
     if (
       validateShowComposition(show, resizedComposition).length > 0
       || hasConcurrentLayerTransitions(show, resizedComposition)
@@ -565,10 +562,9 @@ export function resizeShowConnectedClipAtGlobalTime(
       .flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
       .find((candidate) => candidate.id === clip.id)
     if (!resizedClip) return composition
-    changed.transitions = [
-      ...(changed.transitions ?? []),
-      { ...shiftedOutgoing, fromPlacementId: resizedClip.endPlacementId },
-    ]
+    changed.transitions = (draft.transitions ?? []).flatMap((transition) => transition.id === outgoing.id
+      ? [{ ...shiftedOutgoing, fromPlacementId: resizedClip.endPlacementId }]
+      : (changed.transitions ?? []).filter(candidate => candidate.id === transition.id))
     if (validateShowComposition(show, changed).length > 0 || hasConcurrentLayerTransitions(show, changed)) {
       return composition
     }
