@@ -164,8 +164,8 @@ validation and evaluation to the registry. Both return exact/no-op/refused
 outcomes; capacity refusals carry `availableRange`. Changed results include the
 actual target range, changed/moved logical Clip ids and Transition duration
 adjustments. No duplicate overlap or time-conversion policy lives in either
-adapter. The diagnostic `resize_connected_clip` spelling is historical
-compatibility through the same owner, not a production alias.
+adapter. The historical `resize_connected_clip` diagnostic spelling is retired;
+`resize_clip` owns connected Clip resizing through the same semantic owner.
 
 Boundary comparison normalizes both the original and planned Show through the
 same existing Transition normalizer, so materializing an implicit Cut does not

@@ -1,5 +1,6 @@
 // Provenance: pxlblz-v3 test/grammarStructure.test.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
 import { describe, expect, it } from 'vitest'
+import type { GrammarIssue } from '../grammar/types.js'
 import { applyShowGrammarOperation, SHOW_GRAMMAR_OPERATIONS } from '../grammar/registry.js'
 import { SHOW_CLIP_EFFECT_KINDS } from '../grammar/operations/effects.js'
 import { openShowDocument } from '../grammar/openShow.js'
@@ -102,7 +103,7 @@ describe('layer transition operations (#19)', () => {
       document,
       'insert_layer_transition',
       { from_clip_id: second.clipId, to_clip_id: first.clipId, duration_ms: 1_000 },
-      'transition-refused',
+      'transition-refused' satisfies GrammarIssue['code'],
     )
     expect(issues[0].message.length).toBeGreaterThan(40)
   })

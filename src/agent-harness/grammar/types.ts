@@ -23,7 +23,7 @@ export interface GrammarIssue {
     | 'unknown-control'
     | 'unknown-layout'
     | 'unknown-interval'
-    | 'transition-conflict'
+    | 'transition-refused'
     | 'transaction-open'
     | 'no-transaction'
     | 'history-exhausted'
