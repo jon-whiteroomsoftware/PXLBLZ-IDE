@@ -1730,7 +1730,43 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
     await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(2)
     await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
-    saveRecord('RC951', { before, after, done, writes, observations: await readObservations(page) })
+    // A removal captured before an independent manual edit is stale.
+    await page.evaluate(async () => {
+      const load = (path: string) => import(path)
+      const { applyShowCommand } = await load('/PXLBLZ-IDE/src/engine/showCommands/registry.ts')
+      const win = window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecord } }; __removePending?: unknown }
+      const captured = win.__pxlblzEditor.beginRequest('remove-stale', 'remove target Clip', [])
+      const outcome = applyShowCommand(captured.show, 'remove_clip', { clip_id: 'clip-b' })
+      if (!outcome.ok) throw new Error(JSON.stringify(outcome))
+      win.__removePending = { captured, candidate: outcome.record }
+    })
+    await page.getByRole('button', { name: 'Add to Show', exact: true }).click()
+    await page.getByRole('menuitem', { name: /^Layer in / }).first().click()
+    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(3)
+    const manual = await visibleRecord(page)
+    const stale = await page.evaluate(async () => {
+      const win = window as unknown as { __pxlblzEditor: { applyShow: (show: unknown, request: unknown) => Promise<unknown> }; __removePending: { candidate: unknown; captured: { request: unknown } } }
+      return win.__pxlblzEditor.applyShow(win.__removePending.candidate, win.__removePending.captured.request)
+    })
+    expect(stale).toMatchObject({ status: 'refused', reason: 'revision-conflict' })
+    expect(await visibleRecord(page)).toEqual(manual)
+    expect(await durableShow(page, record.id)).toEqual(manual)
+    const duplicate = await page.evaluate(async () => {
+      const load = (path: string) => import(path)
+      const { applyShowCommand } = await load('/PXLBLZ-IDE/src/engine/showCommands/registry.ts')
+      const api = (window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecord }; applyShow: (show: unknown, request: unknown) => Promise<unknown> } }).__pxlblzEditor
+      const captured = api.beginRequest('remove-duplicate', 'remove target Clip', [])
+      const outcome = applyShowCommand(captured.show, 'remove_clip', { clip_id: 'clip-b' })
+      if (!outcome.ok) throw new Error(JSON.stringify(outcome))
+      return { first: await api.applyShow(outcome.record, captured.request), second: await api.applyShow(outcome.record, captured.request) }
+    })
+    expect(duplicate.first).toMatchObject({ status: 'applied' })
+    expect(duplicate.second).toMatchObject({ status: 'applied' })
+    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(4)
+    await page.getByRole('button', { name: 'Undo Show edit' }).click()
+    await expect.poll(() => visibleRecord(page)).toEqual({ ...manual, updatedAt: expect.any(Number) })
+    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(5)
+    saveRecord('RC951', { before, after, done, manual, stale, duplicate, writes, observations: await readObservations(page) })
   })
 
   test('L951: Layer creation saves once, exports, undoes, deduplicates and refuses stale overlay indices', async ({ page }) => {

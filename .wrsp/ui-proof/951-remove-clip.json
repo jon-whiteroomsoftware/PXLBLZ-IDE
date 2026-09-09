@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "951",
+  "route": "/PXLBLZ-IDE/studio/shows/91ae4abb-a265-46e4-88a1-90488cf483d2",
+  "operation": "On managed shared runtime 5178, coordinator in-app browser deleted ordinary overlay clip-ov and undid it; deleted connected clip-b through the existing confirmation and verified unchanged survivor ranges and Groups; one Undo restored the complete target and Transition. Cancel preserved content.",
+  "captures": [
+    ".wrsp/ui-proof/951-remove-ordinary.jpg",
+    ".wrsp/ui-proof/951-remove-connected.jpg",
+    ".wrsp/ui-proof/951-remove-undo.jpg",
+    ".wrsp/ui-proof/951-remove-confirm-clear.jpg"
+  ],
+  "capturedAtCommit": "4919cd37e96fb4074ee16bbf222b5b1a7985f8ff"
+}
