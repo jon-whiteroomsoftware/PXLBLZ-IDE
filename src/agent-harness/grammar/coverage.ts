@@ -134,6 +134,8 @@ export const STRUCTURAL_DECLARATIONS: Array<{ operation: string; pattern: string
   { operation: 'add_layout_interval', pattern: '/routingLayouts' },
   { operation: 'duplicate_layout_interval', pattern: '/cells' },
   { operation: 'make_layout_interval_unique', pattern: '/zones' },
+  { operation: 'make_layout_interval_unique', pattern: '/routingLayouts' },
+  { operation: 'make_layout_interval_unique', pattern: '/transitions' },
   { operation: 'make_layout_interval_unique', pattern: '/cells' },
   { operation: 'make_layout_interval_unique', pattern: '/composition/scenes/*/zones' },
   { operation: 'insert_time', pattern: '/composition' },

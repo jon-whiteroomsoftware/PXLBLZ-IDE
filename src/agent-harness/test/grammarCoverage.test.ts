@@ -4,10 +4,12 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   coverageMatches,
+  STRUCTURAL_DECLARATIONS,
   enumerateSchemaLeafPaths,
   generateCoverageReport,
   renderCoverageReport,
 } from '../grammar/coverage.js'
+import { SHOW_STRUCTURE_COMMANDS } from '@/engine/showCommands/structure'
 import { createSessionStore } from '../grammar/session.js'
 import { grammarFixtureShow } from './support/grammarFixture.js'
 import { applyRefused, fixture } from './support/grammarHarness.js'
@@ -86,6 +88,14 @@ describe('coverage over the real schema and registry (#22)', () => {
     expect(report.unreachable).toEqual([])
   })
 
+  it('classifies every Layout occurrence blanket rewrite as structural', () => {
+    for (const command of SHOW_STRUCTURE_COMMANDS.filter(command => ['add_layout_interval', 'duplicate_layout_interval', 'make_layout_interval_unique'].includes(command.name))) {
+      for (const pattern of command.touches.filter(path => path !== '/updatedAt')) {
+        expect(STRUCTURAL_DECLARATIONS).toContainEqual({ operation: command.name, pattern })
+      }
+    }
+  })
+
   it('keeps the generic-only list as a reviewed snapshot', () => {
     // A schema node gaining no covering operation lands here first: update
     // test/fixtures/grammar-generic-only.json deliberately via
@@ -97,7 +107,7 @@ describe('coverage over the real schema and registry (#22)', () => {
     const families = Object.fromEntries(report.families.map((family) => [family.family, family]))
     expect(families['groups'].specific).toBe(0)
     expect(families['flat model (legacy)'].specific).toBe(0)
-    for (const path of ['/cells/*/viewport/starPoints', '/cells/*/effects/*/amount', '/zones/*/icon']) {
+    for (const path of ['/cells/*/viewport/starPoints', '/cells/*/effects/*/amount', '/zones/*/icon', '/routingLayouts/*/name', '/routingLayouts/*/zones/*/ranges/*/start', '/routingLayouts/*/logical/kind']) {
       expect(report.rows.find(row => row.path === path)).toEqual({ path, classification: 'generic-only', operations: [] })
     }
     expect(families['output effects'].percent).toBe(100)

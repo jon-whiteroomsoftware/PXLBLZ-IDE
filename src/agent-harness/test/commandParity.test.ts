@@ -1794,19 +1794,24 @@ it.each(['clip-a', 'clip-ov'])('refuses duplication of imported legacy Trails wi
   expect(imported).toStrictEqual(before)
 })
 
-it('capped Zone counts preserve no-op identity through canonical and diagnostic owners (#954)', () => {
-  const show = showOutputLayoutFixture()
-  show.zones[0].nominalPixelCount = 65536
-  const opened = openShowDocument(show)
+it('Zone count edits retain the actual manual owner rounding without a camera cap (#954)', () => {
+  const opened = openShowDocument(showOutputLayoutFixture())
   if (!opened.ok) throw new Error(JSON.stringify(opened))
-  const document = opened.document
-  for (const count of [65536, 65536.4, 1000000]) {
+  for (const count of [200000, 200000.6]) {
+    const document = opened.document
     const args = { zone_id: 'zone-1', nominal_pixel_count: count }
+    const manual = updateShowZone(document.show, 'zone-1', { nominalPixelCount: count })
+    expect(manual.zones[0].nominalPixelCount).toBe(Math.round(count))
     const canonical = applyShowCommand(document.show, 'update_zone', args)
-    expect(canonical).toStrictEqual({ ok: true, record: document.show, changes: [] })
-    if (canonical.ok) expect(canonical.record).toBe(document.show)
     const diagnostic = applyShowGrammarOperation(document, 'update_zone', args)
-    expect(diagnostic).toStrictEqual({ ok: true, document, changes: [] })
-    if (diagnostic.ok) expect(diagnostic.document).toBe(document)
+    if (!canonical.ok || !diagnostic.ok) throw new Error(JSON.stringify({ canonical, diagnostic }))
+    expect({ ...canonical.record, updatedAt: manual.updatedAt }).toStrictEqual(manual)
+    expect({ ...diagnostic.document.show, updatedAt: manual.updatedAt }).toStrictEqual(manual)
+    const repeated = applyShowCommand(canonical.record, 'update_zone', args)
+    expect(repeated).toStrictEqual({ ok: true, record: canonical.record, changes: [] })
+    if (repeated.ok) expect(repeated.record).toBe(canonical.record)
+    const diagnosticRepeated = applyShowGrammarOperation(diagnostic.document, 'update_zone', args)
+    expect(diagnosticRepeated).toStrictEqual({ ok: true, document: diagnostic.document, changes: [] })
+    if (diagnosticRepeated.ok) expect(diagnosticRepeated.document).toBe(diagnostic.document)
   }
 })

@@ -18,7 +18,7 @@ file drifts from the generator.
 | output effects | 2 | 2 | 100% |
 | property animation | 20 | 20 | 100% |
 | record | 3 | 3 | 100% |
-| structure | 28 | 27 | 96.4% |
+| structure | 28 | 9 | 32.1% |
 | timeline | 8 | 5 | 62.5% |
 
 Unreachable paths: none.
@@ -277,6 +277,24 @@ session; frequent use of a path here is the signal to add a specific operation.
 - `/composition/groupOccurrences/*/translationX`
 - `/composition/groupOccurrences/*/translationY`
 - `/composition/groupOccurrences/*/zoneId`
+- `/routingLayouts/*/logical/amplitude`
+- `/routingLayouts/*/logical/arms`
+- `/routingLayouts/*/logical/axis`
+- `/routingLayouts/*/logical/bands`
+- `/routingLayouts/*/logical/columns`
+- `/routingLayouts/*/logical/feather`
+- `/routingLayouts/*/logical/frequency`
+- `/routingLayouts/*/logical/kind`
+- `/routingLayouts/*/logical/phase`
+- `/routingLayouts/*/logical/rings`
+- `/routingLayouts/*/logical/rotation`
+- `/routingLayouts/*/logical/rows`
+- `/routingLayouts/*/logical/twist`
+- `/routingLayouts/*/logical/zoneIds/*`
+- `/routingLayouts/*/name`
+- `/routingLayouts/*/zones/*/ranges/*/end`
+- `/routingLayouts/*/zones/*/ranges/*/start`
+- `/routingLayouts/*/zones/*/zoneId`
 - `/scenes/*/name`
 - `/scenes/*/routingTargets/splitPosition`
 - `/scenes/*/sampleTargets/repeatScale`
