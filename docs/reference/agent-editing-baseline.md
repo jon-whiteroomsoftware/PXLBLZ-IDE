@@ -18,6 +18,42 @@ Contracts this evidence serves:
 [Show state, history, and persistence](contracts/show-state-history-persistence.md),
 [Show command semantics](contracts/show-command-semantics.md).
 
+## Preview dependency qualification (#955)
+
+Stage compilation now includes current personal Libraries, repairing the historical
+H missing-Library preview result below. H requires publication matching the
+adopted record as well as its existing save/export/reopen and Undo checks. F uses
+plain Clips with a Scene-boundary Cut before timing its two-setting batch; setup
+is outside the measured interval. Historical timings remain historical.
+
+The #955 before/after run used the same dev instrumentation on base `b1cc21e6`
+and the repaired consumers, respectively, with a scripted 2500 ms bridge delay.
+Repo Chromium collected timing channels; the coordinator's separate in-app
+browser captures show the actual UI. Setup and Undo are outside the timing window.
+
+| F channel (ms unless noted) | Before | After |
+| --- | ---: | ---: |
+| Submit to apply completion | 2779 | 2779 |
+| Native sampled input processing | 3.3 | 3.1 |
+| Actual compiler work | 17.1 | 18.4 |
+| Adoption to matching preview | 57 | 58 |
+| Actual final-state compilations | 1 | 1 |
+
+Each input total covers 28 reported native entries; events below the reporting
+threshold remain unmeasured. These single runs establish no meaningful latency
+improvement. The batch already avoids private intermediate compilation, so no
+compiler optimization or new scheduling owner was justified. H now publishes its
+adopted Library-backed preview (48 ms in this run) and passes its existing complete
+record, one-save, exported/reopened Show and Undo oracles.
+
+All seven fixture artifact reports match the unchanged base exactly after removing
+only `scriptedTurnMs`. Both runs report the same six historical post-edit Show
+bundle byte/hash pin differences; those pins were not rewritten. Generated
+Pattern hashes are unchanged. The affected component checks and existing
+Fast/Precise replay/checkpoint/Controller artifact cases pass; delayed Save after
+editor unmount now refuses through the existing snapshot check. These are browser
+and synthetic-provider observations, not Controller hardware proof.
+
 ## Private two-Clip rearrangement (#949)
 
 Sequence PP now qualifies a finite private two-plain-Clip swap: one complete
@@ -139,6 +175,12 @@ the record the editor then shows, and `preview-published` when a rebuilt
 stage runtime paints its first frame, with the digest of the record it
 compiled from. No utterance, reply, or Show content enters the observation
 log. The overlay keeps its own phase record under `window.__pxlblzChat.requests`.
+
+The same dev log now records `show-compile` request duration, actual compiler
+duration (null for a cache hit), cache outcome and Show digest. `input-event`
+records native event processing separately from the browser's event duration;
+its 16 ms reporting threshold means missing samples cannot be treated as zero.
+These are diagnostic timings, not hardware measurements or acceptance limits.
 
 Each sequence's JSON record holds the overlay request record, the bridge
 timing, the observation log, every non-GET `/api/shows` request with status,

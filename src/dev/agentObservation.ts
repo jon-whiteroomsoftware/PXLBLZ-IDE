@@ -23,6 +23,25 @@ export type AgentApplyPhase =
 
 export type AgentObservation =
   | {
+      kind: 'show-compile'
+      showId: string
+      at: number
+      digest: string
+      requestMs: number
+      compilerMs: number | null
+      cacheHit: boolean
+      ok: boolean
+    }
+  | {
+      kind: 'input-event'
+      at: number
+      event: string
+      processingMs: number
+      durationMs: number
+      // Native Event Timing reports only events meeting the browser threshold.
+      reportingThresholdMs: 16
+    }
+  | {
       kind: 'agent-apply'
       phase: AgentApplyPhase
       showId: string
@@ -89,6 +108,28 @@ export function showRecordDigest(show: ShowRecord): string {
 }
 
 const sharedLog = createObservationLog()
+let inputTimingObserver: PerformanceObserver | undefined
+
+function observeInputTiming(): void {
+  if (inputTimingObserver || typeof PerformanceObserver === 'undefined'
+    || !PerformanceObserver.supportedEntryTypes?.includes('event')) return
+  inputTimingObserver = new PerformanceObserver(list => {
+    for (const entry of list.getEntries() as PerformanceEventTiming[]) {
+      sharedLog.record({
+        kind: 'input-event',
+        at: performance.timeOrigin + entry.startTime,
+        event: entry.name,
+        processingMs: entry.processingEnd - entry.processingStart,
+        durationMs: entry.duration,
+        reportingThresholdMs: 16,
+      })
+    }
+  })
+  inputTimingObserver.observe({ type: 'event', buffered: false, durationThreshold: 16 } as PerformanceObserverInit)
+}
+
+if (import.meta.hot) import.meta.hot.dispose(() => inputTimingObserver?.disconnect())
+
 
 declare global {
   interface Window {
@@ -100,6 +141,7 @@ declare global {
 export function recordAgentObservation(entry: AgentObservation): void {
   if (!import.meta.env.DEV) return
   sharedLog.record(entry)
+  if (typeof window !== 'undefined') observeInputTiming()
   if (typeof window !== 'undefined' && !window.__pxlblzObservations) {
     window.__pxlblzObservations = { read: sharedLog.read }
   }

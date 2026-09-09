@@ -2,6 +2,7 @@ import { useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, 
 import { AlertTriangle, Eye, EyeOff, Grid2X2, LoaderCircle, Map as MapIcon, Pause, Play, Scan } from 'lucide-react'
 import { useShowStore } from '@/store/showStore'
 import { usePatternStore } from '@/store/patternStore'
+import { useLibraryStore } from '@/store/libraryStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useMapStore, defaultPixelCountForDim, resolveMap, STOCK_MAPS } from '@/store/mapStore'
 import { usePreviewStore } from '@/store/previewStore'
@@ -56,6 +57,8 @@ import { recordAgentObservation, showRecordDigest } from '@/dev/agentObservation
 import { runShowStageCaptureSequence } from '@/dev/showStageCapture'
 import { beginCaptureOrbit } from '@/dev/captureOrbit'
 import type { CaptureSequenceOptions, CaptureSequenceResult } from '@/dev/captureSequence'
+import { compileLibraries } from '@/engine/libraries'
+import { LIBRARIES } from '@/pixelblaze/libs'
 
 /** Dev-only `?capture` automation surface for the Show stage (#879); the
  * Pattern preview's counterpart is `window.__pxlblz` in Preview.tsx. */
@@ -178,6 +181,8 @@ export function ShowStagePreview({
   const deferredShow = useDeferredValue(resolvedShow)
   const show = resolveShowStagePreviewInput(showId, resolvedShow, deferredShow)
   const userPatterns = usePatternStore((state) => state.userPatterns)
+  const userLibraries = useLibraryStore((state) => state.userLibraries)
+  const compileLibrarySet = useMemo(() => compileLibraries(LIBRARIES, userLibraries), [userLibraries])
   const userMaps = useMapStore((state) => state.userMaps)
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)
   const isRunning = usePreviewStore((state) => state.isRunning)
@@ -267,11 +272,11 @@ export function ShowStagePreview({
   const compiled = useMemo(
     () =>
       show
-        ? compileShowForPreview(show, userPatterns, compilationControllerZones, {}, {
+        ? compileShowForPreview(show, userPatterns, compilationControllerZones, compileLibrarySet, {
             stageDimension: selectedStageMap?.dim,
           })
         : { artifact: null, error: null },
-    [compilationControllerZones, selectedStageMap?.dim, show, userPatterns],
+    [compilationControllerZones, compileLibrarySet, selectedStageMap?.dim, show, userPatterns],
   )
 
   const layout = useMemo((): StageLayout | null => {

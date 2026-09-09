@@ -1,3 +1,4 @@
+import { recordAgentObservation, showRecordDigest } from '@/dev/agentObservation'
 import type { ControllerZone } from './controllerProfile'
 import {
   installationCoverageBlockingMessage,
@@ -52,6 +53,10 @@ export function compileShowForPreview(
   libraries: Record<string, string>,
   options: ShowCompilationOptions = {},
 ): CompiledShowState {
+  const requestStarted = import.meta.env.DEV ? performance.now() : 0
+  let compilerMs: number | null = null
+  let cacheHit = false
+  let ok = false
   try {
     const compositionInstances = show.composition
       ? [
@@ -89,9 +94,18 @@ export function compileShowForPreview(
     if (cached) {
       showPreviewCompileCache.delete(cacheKey)
       showPreviewCompileCache.set(cacheKey, cached)
+      cacheHit = true
+      ok = true
       return cached
     }
-    const artifact = compileShow(recipe, { ...LIBRARIES, ...libraryOverrides }, compileOptions)
+    const compilerStarted = import.meta.env.DEV ? performance.now() : 0
+    let artifact: GeneratedShowArtifact
+    try {
+      artifact = compileShow(recipe, { ...LIBRARIES, ...libraryOverrides }, compileOptions)
+    } finally {
+      if (import.meta.env.DEV) compilerMs = performance.now() - compilerStarted
+    }
+    ok = true
     const compiled = {
       artifact: {
         ...artifact,
@@ -106,6 +120,11 @@ export function compileShowForPreview(
     return compiled
   } catch (error) {
     return { artifact: null, error: error instanceof Error ? error.message : 'Show compile failed' }
+  } finally {
+    if (import.meta.env.DEV) recordAgentObservation({
+      kind: 'show-compile', showId: show.id, at: Date.now(), digest: showRecordDigest(show),
+      requestMs: performance.now() - requestStarted, compilerMs, cacheHit, ok,
+    })
   }
 }
 

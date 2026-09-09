@@ -28,6 +28,25 @@ Stock drafts and their history stay in memory until an explicit save-as or
 other persistence operation creates personal content. Editing a draft therefore
 does not prove that a durable personal Show exists.
 
+## Preview and delivery publication
+
+Preview reconstruction and Controller preparation consume committed snapshots;
+they do not create history entries or provider writes. Stage compilation uses
+current personal Pattern and Library sources, Stage map/output inputs and the
+applicable profile. A temporary gesture override affects Stage preview only.
+The existing reconstruction generation retires old results on dependency
+replacement, navigation and unmount before they can paint.
+
+ShowEditor retains a prepared delivery snapshot only while that editor is
+mounted and its compilation inputs remain current. Run/Save checks that snapshot
+and the Controller session before delivery, including after asynchronous Save
+JPEG preparation. Unmount clears the snapshot, so a late JPEG cannot send.
+Generated-code downloads retain their explicitly captured export snapshot;
+later edits do not silently replace the requested export.
+
+The delayed consumer partitions live in `ShowStagePreview.test.tsx` and
+`ShowEditor.test.tsx`. Mocked sends prove selected inputs, not hardware execution.
+
 ## Internal request admission
 
 The internal admission API binds each request to an explicit editor session,

@@ -7,8 +7,10 @@ import type { ControllerProfile } from '@/engine/controllerProfile'
 import type { MapRecord, MixinRecord, PatternRecord, ShowRecord } from '@/engine/personalContentRecords'
 import { mapInitialState, useMapStore } from '@/store/mapStore'
 import { patternInitialState, usePatternStore } from '@/store/patternStore'
+import { libraryInitialState, useLibraryStore } from '@/store/libraryStore'
 import { previewInitialState, usePreviewStore } from '@/store/previewStore'
 import { showInitialState, useShowStore } from '@/store/showStore'
+import { showPreviewOverrideInitialState, useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import { controllerProfileInitialState, useControllerProfileStore } from '@/store/controllerProfileStore'
 import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
@@ -67,7 +69,9 @@ beforeEach(() => {
   usePanelPreferencesStore.setState({ expanded: {} })
   resetPersonalContentProvider()
   useShowStore.setState(showInitialState)
+  useShowPreviewOverrideStore.setState(showPreviewOverrideInitialState)
   usePatternStore.setState(patternInitialState)
+  useLibraryStore.setState(libraryInitialState)
   useMapStore.setState(mapInitialState)
   usePreviewStore.setState({ ...previewInitialState, isRunning: false })
   useControllerProfileStore.setState(controllerProfileInitialState)
@@ -990,3 +994,99 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     expect(screen.getByLabelText('Show stage')).toHaveTextContent('Zone strips - generic')
   })
 })
+
+
+it('renders current personal Library source and rebuilds after its saved edit (#955)', () => {
+  const show = createDefaultShow('library-preview-955', 'Library preview', 1)
+  show.cells[0].pattern = { kind: 'user', id: 'library-pattern-955' }
+  show.cells[0].patternName = 'Library Pattern'
+  useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+  usePatternStore.setState({ userPatterns: [{ id: 'library-pattern-955', name: 'Library Pattern', src: 'export function render(index) { Personal.paint(index) }', controls: {}, updatedAt: 1 }] })
+  const library = { id: 'library-955', name: 'Personal', src: 'function paint(index) { rgb(0.25,0,0) }', updatedAt: 1 }
+  useLibraryStore.setState({ userLibraries: [library] })
+  const createRuntime = vi.spyOn(fastReplay, 'createFastReplayRuntime')
+  try {
+    render(<ShowStagePreview showId={show.id} />)
+    expect(createRuntime).toHaveBeenCalledTimes(1)
+    expect(Array.from(createRuntime.mock.results[0].value.renderCurrentFrame().frame.slice(0, 3))).toEqual([0.25, 0, 0])
+    act(() => useLibraryStore.setState({ userLibraries: [{ ...library, src: 'function paint(index) { rgb(0,0.75,0) }', updatedAt: 2 }] }))
+    expect(createRuntime).toHaveBeenCalledTimes(2)
+    expect(Array.from(createRuntime.mock.results[1].value.renderCurrentFrame().frame.slice(0, 3))).toEqual([0, 0.75, 0])
+    expect(useShowStore.getState().shows[0]).toBe(show)
+  } finally { createRuntime.mockRestore() }
+})
+
+
+it.each(['Show', 'Pattern', 'Library', 'map', 'profile', 'output', 'preview override', 'navigation', 'unmount'] as const)(
+  'does not publish delayed reconstruction after %s changes (#955)', async (dependency) => {
+    const show = createDefaultShow('delayed-stage-955', 'Delayed Stage', 1)
+    show.cells[0].pattern = { kind: 'user', id: 'delayed-pattern' }
+    show.stageMapId = importedMap.id
+    useMapStore.setState({ userMaps: [importedMap] })
+    const pattern = { id: 'delayed-pattern', name: 'Personal Pattern', src: 'export function render(index) { Personal.paint(index) }', controls: {}, updatedAt: 1 }
+    const library = { id: 'delayed-library', name: 'Personal', src: 'function paint(index) { rgb(0.25,0,0) }', updatedAt: 1 }
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    usePatternStore.setState({ userPatterns: [pattern] })
+    useLibraryStore.setState({ userLibraries: [library] })
+    const profile: ControllerProfile = { id: 'stage-profile', name: 'Stage profile', board: { kind: 'pixelblaze-v3-standard' }, inputs: [], globalTransforms: [], patternBindings: [], lastKnownPixelCount: 60, updatedAt: 1 }
+    useControllerProfileStore.setState({ profiles: [profile] })
+    const transport = useShowTransportStore.getState()
+    transport.openShow(show.id, 62000)
+    transport.setPosition(show.id, 1000)
+    const original = fastReplayCheckpoints.reconstructFastReplayWithCheckpoints
+    const completions: Array<() => Promise<void>> = []
+    const reconstruction = vi.spyOn(fastReplayCheckpoints, 'reconstructFastReplayWithCheckpoints').mockImplementation((options) => new Promise((resolve, reject) => {
+      // A late worker completion may arrive even after cancellation. Produce
+      // real replay frames, but let the test choose the publication order.
+      completions.push(async () => {
+        try { resolve(await original({ ...options, isCurrent: () => true })) }
+        catch (error) { reject(error) }
+      })
+    }))
+    const realRenderer = rendererModule.createRenderer
+    const paint = vi.fn()
+    const renderer = vi.spyOn(rendererModule, 'createRenderer').mockImplementation((...args) => ({ ...realRenderer(...args), paint }))
+    try {
+      const view = render(<ShowStagePreview showId={show.id} />)
+      expect(completions).toHaveLength(1)
+      const changed = structuredClone(show)
+      changed.cells[0].adaptations.brightness = 0.5
+      act(() => {
+        switch (dependency) {
+          case 'Show': useShowStore.setState({ shows: [changed] }); break
+          case 'Pattern': usePatternStore.setState({ userPatterns: [{ ...pattern, src: 'export function render(index) { rgb(0,0.75,0) }', updatedAt: 2 }] }); break
+          case 'Library': useLibraryStore.setState({ userLibraries: [{ ...library, src: 'function paint(index) { rgb(0,0.75,0) }', updatedAt: 2 }] }); break
+          case 'map': useMapStore.setState({ userMaps: [{ ...importedMap, points: [[0, 0], [0.5, 0.5], [1, 1]], updatedAt: 2 }] }); break
+          case 'profile': useControllerProfileStore.setState({ profiles: [{ ...profile, lastKnownPixelCount: 120, updatedAt: 2 }] }); break
+          case 'output': useShowStore.setState({ shows: [{ ...show, outputContract: createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 8 }) }] }); break
+          case 'preview override': useShowPreviewOverrideStore.getState().preview(changed); break
+          case 'navigation': {
+            changed.id = 'next-stage-955'
+            useShowStore.setState({ shows: [show, changed] })
+            view.rerender(<ShowStagePreview showId={changed.id} />)
+            break
+          }
+          case 'unmount': view.unmount(); break
+        }
+      })
+      if (dependency !== 'unmount' && dependency !== 'navigation') {
+        expect(completions.length).toBeGreaterThanOrEqual(2)
+        await act(async () => { await completions[completions.length - 1]() })
+      }
+      const currentPaints = paint.mock.calls.length
+      if (dependency === 'unmount') expect(currentPaints).toBe(0)
+      else {
+        expect(currentPaints).toBeGreaterThan(0)
+        const frame = paint.mock.lastCall![0] as Float64Array
+        expect(Array.from(frame.slice(0, 3))).toEqual(
+          dependency === 'Pattern' || dependency === 'Library' ? [0, 0.75, 0]
+            : dependency === 'Show' || dependency === 'preview override' || dependency === 'navigation' ? [0.125, 0, 0] : [0.25, 0, 0],
+        )
+        if (dependency === 'output') expect(frame).toHaveLength(8 * 3)
+      }
+      await act(async () => { for (const finish of completions.slice(0, dependency === 'unmount' || dependency === 'navigation' ? undefined : -1)) await finish() })
+      expect(paint).toHaveBeenCalledTimes(currentPaints)
+      expect(screen.queryByText('Show preview failed')).not.toBeInTheDocument()
+    } finally { reconstruction.mockRestore(); renderer.mockRestore() }
+  },
+)

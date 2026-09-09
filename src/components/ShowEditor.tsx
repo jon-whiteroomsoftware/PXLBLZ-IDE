@@ -1905,6 +1905,7 @@ export function ShowEditor({
     // latest committed snapshot, not the render that opened a confirmation.
     // Layout timing closes the window before a user can confirm the new UI.
     preparedDeliverySnapshotRef.current = preparedDeliverySnapshot
+    return () => { preparedDeliverySnapshotRef.current = null }
   }, [preparedDeliverySnapshot])
   useEffect(() => {
     const pendingDelivery = pendingDeliveryRef.current

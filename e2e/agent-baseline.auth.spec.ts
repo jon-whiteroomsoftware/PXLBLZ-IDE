@@ -1348,10 +1348,17 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
 
   test('F: a multi-operation reply lands as one history entry and one save', async ({ page }) => {
     test.setTimeout(90_000)
-    const writes = watchShowWrites(page)
     const showId = await createPersonalShow(page)
+    // Measure a plain Clip batch. The default crossfade protects its boundary
+    // against shortening; fixture setup is outside the measured request.
+    expect((await page.context().request.patch(`/api/shows/${showId}`, { data: { transitions: [] } })).ok()).toBe(true)
+    await page.reload()
+    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+    const writes = watchShowWrites(page)
     await injectOverlay(page, bridge.url)
 
+    const before = await visibleRecord(page)
+    const measuredFrom = Date.now()
     const requestId = await submitUtterance(page, BATCH_UTTERANCE)
     const request = await waitForDone(page, requestId)
     expect(request.applied).toBe(true)
@@ -1362,8 +1369,11 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     expect(patches).toHaveLength(1)
     expect(patches[0].firstMain).toEqual({ durationMs: 12_000, brightness: 0.5 })
 
+    const after = await visibleRecord(page)
+    expect(await durableShow(page, showId)).toEqual(after)
     await page.getByRole('button', { name: 'Undo Show edit' }).click()
     expect(await visibleClipFacts(page, 'TestPattern1D')).toEqual({ durationSeconds: '30', brightnessPercent: '100' })
+    expect(await visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
     await page.getByRole('button', { name: 'Redo Show edit' }).click()
     expect(await visibleClipFacts(page, 'TestPattern1D')).toEqual({ durationSeconds: '12', brightnessPercent: '50' })
 
@@ -1373,7 +1383,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     // mutating calls are the two operations of the one committed turn.
     expect(tools?.filter((name) => name !== 'describe_show')).toEqual(['resize_clip', 'set_clip_view'])
     await page.screenshot({ path: join(REPORT_DIR, 'F-batch.png'), fullPage: true })
-    saveRecord('F-batch', { showId, request, writes, observations, visible, timeline: phaseTimeline(request, observations, writes) })
+    saveRecord('F-batch', { showId, before, after, measuredFrom, topology: 'plain Clips with Scene boundary Cut; setup excluded', request, writes, observations, visible, timeline: phaseTimeline(request, observations, writes) })
   })
 
   test('G: a built-in Show draft accepts a reply in memory with no personal write', async ({ page }) => {
@@ -1454,6 +1464,8 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       return parseShowFileBundle(new Uint8Array(bytes))
     }, [...readFileSync((await file.path())!)])
     expect(reopened.show).toEqual(current)
+    await expect.poll(async () => phaseTimeline(request, await readObservations(page), writes).adoptedToPreviewPublishedMs).not.toBeNull()
+    await expect(page.getByTestId('show-stage-preview')).not.toContainText('Unknown library namespace')
     const observations = await readObservations(page)
     const previewText = await page.getByTestId('show-stage-preview').textContent()
     await page.screenshot({ path: join(REPORT_DIR, 'H-personal-library.png'), fullPage: true })

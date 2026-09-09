@@ -19,6 +19,7 @@ import {
 } from '@/engine/showModel'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { libraryInitialState, useLibraryStore } from '@/store/libraryStore'
+import { mapInitialState, useMapStore } from '@/store/mapStore'
 import {
   controllerProfileInitialState,
   defaultControllerProfile,
@@ -189,6 +190,7 @@ beforeEach(() => {
   useShowStore.setState(showInitialState)
   usePatternStore.setState(patternInitialState)
   useLibraryStore.setState(libraryInitialState)
+  useMapStore.setState(mapInitialState)
   useControllerProfileStore.setState(controllerProfileInitialState)
   usePreviewStore.setState(previewInitialState)
   useShowTransportStore.setState(showTransportInitialState)
@@ -8742,3 +8744,56 @@ it.each([1, 2])('releases a below-threshold auxiliary Marker button %s without w
   mounted.unmount()
   window.history.replaceState(null, '', '/')
 })
+
+it.each(['Show', 'Library', 'map', 'profile', 'output', 'navigation', 'unmount', 'preview override'] as const)(
+  'revalidates delayed Save JPEG after %s changes (#955)', async (dependency) => {
+    const user = userEvent.setup()
+    let show = createDefaultShow('delayed-delivery-955', 'Delayed delivery', 1)
+    show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.1)
+    show.stageMapId = 'delivery-map'
+    show.cells[0].pattern = { kind: 'user', id: 'delivery-pattern' }
+    const library = { id: 'delivery-library', name: 'Personal', src: 'function paint(index) { rgb(0.25,0,0) }', updatedAt: 1 }
+    const map: MapRecord = { id: 'delivery-map', name: 'Delivery map', dim: 2, generator: 'custom', params: {}, points: [[0, 0], [1, 1]], updatedAt: 1 }
+    const profile: ControllerProfile = { id: 'delivery-profile', name: 'Bench', lastSeenIp: '10.0.0.5', board: { kind: 'pixelblaze-v3-standard' }, inputs: [], globalTransforms: [], patternBindings: [], lastKnownPixelCount: 60, updatedAt: 1 }
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    usePatternStore.setState({ userPatterns: [{ id: 'delivery-pattern', name: 'Personal Pattern', src: 'export function render(index) { Personal.paint(index) }', controls: {}, updatedAt: 1 }], patternsLoaded: true })
+    useLibraryStore.setState({ userLibraries: [library] })
+    useMapStore.setState({ userMaps: [map], mapsLoaded: true })
+    useControllerProfileStore.setState({ profiles: [profile], profilesLoaded: true })
+    const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
+    useControllerStore.setState({ controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Bench PB', phase: 'live', mapDim: 1, firmwareVersion: '3.67' } }, activeIp: '10.0.0.5', pushGeneratedArtifact })
+    setControllerProvider(new ConnectedControllerProvider())
+    let resolvePreview!: (image: Uint8Array) => void
+    const previewJpeg = vi.spyOn(previewThumbnailJpeg, 'buildPreviewJpeg').mockReturnValue(new Promise((resolve) => { resolvePreview = resolve }))
+    try {
+      const view = render(<ShowEditor showId={show.id} />)
+      await user.click(screen.getByRole('button', { name: 'Save to Bench PB' }))
+      const confirmedSave = user.click(screen.getByRole('button', { name: 'Send anyway' }))
+      await waitFor(() => expect(previewJpeg).toHaveBeenCalledTimes(1))
+      act(() => {
+        const changed = structuredClone(show)
+        changed.cells[0].adaptations.brightness = 0.5
+        switch (dependency) {
+          case 'Show': useShowStore.setState({ shows: [changed] }); break
+          case 'Library': useLibraryStore.setState({ userLibraries: [{ ...library, src: 'function paint(index) { rgb(0,0.75,0) }', updatedAt: 2 }] }); break
+          case 'map': useMapStore.setState({ userMaps: [{ ...map, points: [[0, 1], [1, 0]], updatedAt: 2 }] }); break
+          case 'profile': useControllerProfileStore.setState({ profiles: [{ ...profile, lastKnownPixelCount: 120, updatedAt: 2 }] }); break
+          case 'output': useShowStore.setState({ shows: [{ ...show, outputContract: createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 120 }) }] }); break
+          case 'navigation': changed.id = 'next-delivery-955'; useShowStore.setState({ shows: [show, changed] }); view.rerender(<ShowEditor showId={changed.id} />); break
+          case 'unmount': view.unmount(); break
+          // A temporary Stage gesture is not an authored Controller artifact.
+          case 'preview override': useShowPreviewOverrideStore.getState().preview(changed); break
+        }
+      })
+      resolvePreview(new Uint8Array([1, 2, 3]))
+      await confirmedSave
+      if (dependency === 'preview override') {
+        expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1)
+        expect(pushGeneratedArtifact.mock.calls[0][0].source).toContain('0.25')
+      } else {
+        expect(pushGeneratedArtifact).not.toHaveBeenCalled()
+        expect(useControllerStore.getState().artifactPushResult).toMatchObject({ ok: false, message: 'Show changed before delivery; try again', mode: 'save' })
+      }
+    } finally { previewJpeg.mockRestore() }
+  },
+)

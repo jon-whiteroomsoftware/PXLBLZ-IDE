@@ -5,6 +5,10 @@ The Show command registry defines edits for callers of `applyShowCommand` and
 refusal; the caller owns adoption, history, and persistence. This agreement
 covers the registry, not every direct engine mutation or editor gesture.
 
+Command evaluation has no live preview or Controller publication side effects.
+Only the adopted final candidate enters the editor's [preview and delivery
+publication policy](show-state-history-persistence.md#preview-and-delivery-publication).
+
 ## Agreement
 
 - Commands preserve their input record on acceptance and refusal. Callers use

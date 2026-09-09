@@ -577,3 +577,17 @@ The diagnostic adapter now qualifies whole-Show revision admission, URL/session
 retirement and typed outcomes on the local route. The broader
 [roadmap](../../plans/shared-agentic-show-editing-roadmap-prd.md) retains active-input
 waiting, command migration, final placement and production service qualification.
+
+## Committed artifact publication
+
+Private batch steps never enter the live preview compiler. The accepted final
+record alone reaches ordinary history/save and preview publication. The baseline
+F sequence uses a plain Main Clip with a Cut boundary: its two private settings
+produce one save, one Undo group and one actual final-state compile. Dev compile
+spans distinguish cache hits from actual compiler work; native input-event
+samples have a 16 ms reporting threshold and missing samples are not zero-time
+measurements. Request, input processing, compile and adoption-to-preview times
+remain separate observations, not latency acceptance thresholds.
+
+[Preview and delivery publication](show-state-history-persistence.md#preview-and-delivery-publication)
+defines stale reconstruction and prepared Controller snapshot ownership.
