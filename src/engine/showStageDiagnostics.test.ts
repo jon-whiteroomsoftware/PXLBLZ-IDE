@@ -94,3 +94,40 @@ describe('Show diagnostic time ownership (#983)', () => {
     expect(frame(15_000).clipPoints).toBeNull()
   })
 })
+
+it.each(['root', 'root--span-scene-2'])(
+  'shows every logical Clip segment when selecting %s (#983 review corrective)',
+  (placementId) => {
+    const show = createDefaultShow('logical-outline', 'Logical outline', 1)
+    const source = show.cells[0]
+    show.transitions = []
+    show.scenes = [
+      { id: 'scene-1', name: 'First', durationMs: 1_000 },
+      { id: 'scene-2', name: 'Second', durationMs: 1_000 },
+    ]
+    show.cells = []
+    const root = {
+      id: 'root', instanceId: 'pattern', startMs: 0, durationMs: 1_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    }
+    show.composition = {
+      version: 1,
+      patternInstances: [{ id: 'pattern', pattern: source.pattern, patternName: source.patternName,
+        time: { timeScale: 1, timeOffsetMs: 0 } }],
+      scenes: [
+        { sceneId: 'scene-1', zones: [{ zoneId: 'zone-1', main: [root], overlays: [] }] },
+        { sceneId: 'scene-2', zones: [{ zoneId: 'zone-1', main: [{
+          ...root, id: 'root--span-scene-2', logicalClipId: 'root',
+          transform: { positionX: 0, positionY: 0, rotation: 0, scaleX: 0.5, scaleY: 0.5 },
+        }], overlays: [] }] },
+      ],
+    }
+    const before = structuredClone(show)
+    const frame = createShowStageDiagnostics(show, square, points, buildShowStageProjection(show.zones, 4), false,
+      { sceneId: placementId === 'root' ? 'scene-1' : 'scene-2', zoneId: 'zone-1', placementId })
+    expect(frame(1_000).clipPoints).toEqual([[0.25, 0.25], [0.75, 0.25], [0.75, 0.75], [0.25, 0.75]])
+    expect(frame(0).clipPoints).toEqual([[0, 0], [1, 0], [1, 1], [0, 1]])
+    expect(frame(2_000).clipPoints).toBeNull()
+    expect(show).toEqual(before)
+  },
+)

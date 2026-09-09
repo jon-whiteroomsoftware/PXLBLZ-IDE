@@ -105,7 +105,7 @@ export function createShowStageDiagnostics(
         const start = timeline.scenes.find(range => range.sceneId === scene.sceneId)?.startMs ?? 0
         return scene.zones.filter(zone => zone.zoneId === focus?.zoneId).flatMap(zone => [
           ...zone.main, ...zone.overlays.flatMap(layer => layer.placements),
-        ]).filter(placement => placement.id === focus?.placementId || (logicalId && placement.logicalClipId === logicalId))
+        ]).filter(placement => placement.id === focus?.placementId || (logicalId && (placement.logicalClipId ?? placement.id) === logicalId))
           .map(placement => ({ startMs: start + placement.startMs, endMs: start + placement.startMs + placement.durationMs, transform: placement.transform }))
       })
     : timeline.rows.flatMap(row => row.cells).filter(cell => cell.id === selectedCell?.id)
