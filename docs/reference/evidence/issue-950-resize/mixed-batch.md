@@ -10,9 +10,17 @@ intermediate records are valid. The existing seven baseline fixtures are unchang
 The focused MR browser sequence drives the real overlay, loopback scripted HTTP
 service, MCP operations, typed completion, editor admission, ordinary provider
 writes and history. Desktop is 1440×900; refusal and dirty-field cancellation
-also run at 800×900. The original qualification run passed all six cases in
-27.6 seconds on 2026-09-09 UTC. Fresh committed-source captures are recorded
-with the proof packet after the source commit.
+also run at 800×900. The fresh committed-source run at `228d581d567838551be02b679110e4aabfe23491`
+passed all six cases in 38.7 seconds (48.6 seconds including setup) on
+2026-09-09 UTC. [Complete records and capture hashes](mixed-batch-route.json)
+retain the source identity, outcomes, writes, reopened exports and observations.
+The source stayed clean and unchanged throughout the run.
+
+[Desktop applied](mixed-batch-applied.png), [narrow dirty wait](mixed-batch-waiting.png),
+[narrow refusal](mixed-batch-refused.png), and [manual conflict](mixed-batch-manual-conflict.png)
+were opened and visually inspected. In-app browser discovery and DOM inspection
+succeeded first; fixture writes and proof ran through the repository's normal
+isolated Playwright workflow.
 
 - Apply: exact full visible/durable record, one complete PATCH, downloaded
   `.pxlshow` reopened through the real importer, one full Undo/Redo group and
