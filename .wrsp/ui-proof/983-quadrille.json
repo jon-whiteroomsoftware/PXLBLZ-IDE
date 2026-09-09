@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "issue": "983",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-remix-quadrille",
+  "operation": "At 7 seconds selected upper-left then lower-right transformed WavyBands Clips. Captured guides off/on and bright/dark content at 1440x1000 and 1180x900 window sizes (308px and 208px preview panes).",
+  "captures": [
+    ".wrsp/ui-proof/983-quadrille-lower-right-bright-1180.png",
+    ".wrsp/ui-proof/983-quadrille-lower-right-bright-1440.png",
+    ".wrsp/ui-proof/983-quadrille-lower-right-dark-1180.png",
+    ".wrsp/ui-proof/983-quadrille-lower-right-dark-1440.png",
+    ".wrsp/ui-proof/983-quadrille-off.png",
+    ".wrsp/ui-proof/983-quadrille-upper-left-bright-1440.png"
+  ],
+  "capturedAtCommit": "dff3e5f83607fc29a4a150e51ba8f7a116c5fcda"
+}

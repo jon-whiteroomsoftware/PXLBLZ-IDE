@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "983",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-showcase-zone-layouts-stripes-grid",
+  "operation": "Selected final IQPalettes Clip in Ember, sought to 14 seconds, waited for the rebuilt preview, and captured four Zone outlines with the selected upper-right Clip. Also verified full/stripes/Grid/back navigation, toggle preservation, and Show-switch selection clearing.",
+  "captures": [
+    ".wrsp/ui-proof/983-grid-ember.png"
+  ],
+  "capturedAtCommit": "dff3e5f83607fc29a4a150e51ba8f7a116c5fcda"
+}
