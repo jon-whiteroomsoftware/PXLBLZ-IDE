@@ -60,6 +60,8 @@ export interface TurnCompletion {
 
 /** What an agent sees and can do while handling one utterance. */
 export interface AgentTurnContext {
+  /** Explicit finite diagnostic; never inferred from ordinary chat. */
+  mode?: 'targeted-resize'
   utterance: string
   /**
    * Prior exchanges of the same conversation, oldest first. The document

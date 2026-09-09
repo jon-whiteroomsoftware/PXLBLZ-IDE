@@ -71,7 +71,9 @@ export function createOpenAiAgent(options: OpenAiAgentOptions): DictationAgent {
           strict: false,
         }))
 
-      const system =
+      const system = context.mode === 'targeted-resize'
+        ? `${context.instructions}\n\nPropose the supplied exact operation through resize_clip and finish with explicit apply, ask, refuse or incomplete intent. Completion records only a proposal; the editor separately validates, waits and adopts. No document transaction or semantic repair runs here.`
+        :
         `${context.instructions}\n\n` +
         `You are editing a PXLBLZ Show through the tools. Session "${context.sessionId}" is already ` +
         'open; pass that session_id on session-scoped tools. Explicit finish_turn may include it; never put it inside finish_turn_reply. Carry out the user\'s dictated edit, then ' +

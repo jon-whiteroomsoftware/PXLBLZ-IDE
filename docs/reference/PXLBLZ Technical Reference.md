@@ -897,7 +897,10 @@ current Show after observing finite Layer dependencies. Independent placement
 edits survive; conflicts remain refused across change-and-restore. It shares
 ordinary history/save recovery and adds validated no-op receipts. Its
 [finite contract and store/artifact proof](contracts/agent-candidate-application.md#internal-qualified-exact-resize)
-do not expose a live agent or migrate the command catalogue.
+bound the operation independently of model behavior. The explicit DEV typed
+resize path qualifies only its fixed Clip/duration packet before inference;
+ordinary chat and unrestricted text retain whole-Show admission. See the
+[typed diagnostic contract](contracts/agent-candidate-application.md#typed-exact-resize-diagnostic).
 
 The internal completed-candidate and qualified exact-resize store paths can wait
 for explicit drag/dirty ownership before admission. A fixed monotonic five-second

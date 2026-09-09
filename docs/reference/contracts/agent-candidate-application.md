@@ -218,10 +218,10 @@ The receipt preserves original reference meaning and exact operation identity;
 explicit retry uses a new operation id and fresh current dependencies. A missing
 original Clip refuses instead of selecting a replacement. The owner supplies the
 dependency context; callers cannot provide narrow guards or run arbitrary
-callbacks under a resize receipt. This internal capability proves only the finite
-context it owns. A future adapter must qualify all context actually supplied to a
-model; it cannot infer narrow context from the returned operation. No browser,
-bridge, MCP, URL or server schema exposes these APIs.
+callbacks under a resize receipt. The owner proves only the finite
+context it captures. Adapters must qualify all context actually supplied to a
+model; the returned operation alone is insufficient. The explicit typed diagnostic
+below is the only exposed narrow path.
 
 [Store consumer proof](../../../src/store/showQualifiedResize.test.ts) compares
 complete current records/history and attributable writes, including undo/redo,
@@ -230,6 +230,42 @@ Zone independence, multi-Scene connected resize, same-Layer and shared-dependenc
 conflicts, ABA, external source changes, retry identity, no-op validation,
 cancellation/retirement, bounded observation and save rollback/supersession.
 This qualifies the internal resize path only; broad diagnostic requests remain conservative.
+
+## Typed exact resize diagnostic
+
+The explicit DEV resize entry accepts only `{clipId, durationMs}`, where duration
+is a positive safe integer in milliseconds. It resolves and captures through the
+existing qualified owner before inference. The caller retains that request and
+its original editor API through response delivery. Ordinary chat still captures
+the whole Show and uses conservative revision admission.
+
+The finite model packet enumerates only that Clip id and requested duration,
+plus fixed instructions, empty focus/history/listing and the exact resize and
+completion schemas. The `/resize` loopback route rejects additional request
+keys. Dispatch independently rejects broad reads, other operations, foreign
+identity/range and unknown arguments; schema advertisement alone is not the
+boundary. Tool and completion feedback is fixed prose/codes, without Show
+records, grammar validation issues or prior dialogue. The installed provider
+serializer is exercised through an injected transport without a network call.
+
+A proposal requires a matching operation, strict typed apply completion and
+normal agent return. Ask, refusal, missing/contradictory completion, abnormal
+return and errors produce no proposal. There is no semantic repair or broad
+fallback in this finite mode. The existing browser/store owner alone replays the
+operation on current state, validates authoring, waits for active input and
+adopts through ordinary history and persistence.
+
+A mismatched proposal delivered with the valid pending envelope terminally
+refuses that operation and releases its observation. A foreign envelope does not
+consume the original; a changed duplicate cannot rewrite an already-terminal
+receipt. Broad candidate invalidation remains unable to consume qualified
+resize authority. URL/session retirement, cancellation, dependency ABA and
+metadata invalidation retain their existing semantics.
+
+This qualifies fixed typed requests only. Unrestricted text such as “like
+before,” automatic narrow-mode routing, model-selected duration and generic
+private grammar batches remain outside this boundary. The [evidence packet](../evidence/issue-949-targeted-resize/README.md)
+records the finite consumer cases and residual gaps.
 
 ## Present limits
 

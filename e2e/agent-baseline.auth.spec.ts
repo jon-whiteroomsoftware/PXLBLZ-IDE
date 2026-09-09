@@ -925,6 +925,95 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     saveRecord('R-exact-resize', { before, pointerAfter, inspectorAfter, reopened, after, durable, accepted, noop, refused, writes, observations: await readObservations(page) })
   })
 
+  test('TR: typed resize preserves independent pending edits and bounded active input', async ({ page }) => {
+    test.setTimeout(180000)
+    const wireRecord = (show: ShowRecord | null) => Object.fromEntries(Object.entries({ ...show, targetControllerProfileId: show?.targetControllerProfileId ?? null }).filter(([key]) => key !== 'id'))
+    for (const action of ['independent', 'conflict', 'draft-cancel', 'draft-commit'] as const) {
+      await page.setViewportSize({ width: action === 'draft-cancel' ? 800 : 1440, height: 900 })
+      const record = resizeBoundaryShow(`targeted-${action}-${Date.now().toString(36)}`)
+      const zone = record.composition!.scenes[0].zones[0]
+      record.composition!.patternInstances.push({ id: 'independent-pattern', pattern: { kind: 'stock', id: 'TestPattern1D' }, patternName: 'TestPattern1D', time: { timeScale: 1, timeOffsetMs: 0 } })
+      zone.overlays = [{ id: 'independent-layer', name: 'Independent', placements: [{ ...zone.main.pop()!, instanceId: 'independent-pattern', startMs: 0, durationMs: 4000, opacity: 1 }] }]
+      expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+      await page.goto(`studio/shows/${record.id}?agent=1`)
+      await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+      await expect.poll(() => page.evaluate(async () => {
+        const load = (path: string) => import(path)
+        const { useEntityOrganizationStore } = await load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')
+        return useEntityOrganizationStore.getState().loaded.libraries
+      })).toBe(true)
+      const before = await visibleRecord(page)
+      const writes: unknown[] = []
+      const captureWrite = (request: Request) => { if (request.method() === 'PATCH' && request.url().endsWith(`/api/shows/${record.id}`)) writes.push(request.postDataJSON()) }
+      page.on('request', captureWrite)
+      await page.evaluate(bridgeUrl => {
+        const w = window as unknown as { __pxlblzEditor: ReturnType<typeof import('../src/dev/agentEditorAdmission').createAgentEditorAdmission>; __targetedProof?: unknown }
+        const api = w.__pxlblzEditor
+        const captured = api.beginResizeRequest('targeted-proof', { clipId: 'resize-a', durationMs: 6000 })!
+        const proof = { captured, response: null as unknown, delivery: null as unknown }
+        w.__targetedProof = proof
+        void fetch(`${bridgeUrl}/resize`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(captured.intent) }).then(response => response.json()).then(result => {
+          proof.response = result
+          proof.delivery = result.kind === 'proposal' ? api.applyResize(result.intent, captured.request) : api.complete(captured.request, 'incomplete')
+        })
+      }, bridge.url)
+      const independent = action === 'independent'
+      await page.getByRole('button', { name: independent ? 'Select TestPattern1D' : 'Select CometLoom', exact: true }).click()
+      const duration = page.getByRole('textbox', { name: 'Duration seconds exact time' })
+      await duration.fill('7')
+      const dirty = action === 'draft-cancel' || action === 'draft-commit'
+      if (dirty) {
+        await expect.poll(() => page.evaluate(() => (window as unknown as { __targetedProof: { delivery?: { status: string } } }).__targetedProof.delivery?.status)).toBe('waiting')
+        expect(await visibleRecord(page)).toEqual(before)
+        expect(writes).toEqual([])
+        await expect(duration).toBeFocused()
+        await page.screenshot({ path: join(REPORT_DIR, `TR-${action}-waiting.png`), fullPage: true })
+      } else expect(await page.evaluate(() => (window as unknown as { __targetedProof: { response: unknown } }).__targetedProof.response)).toBeNull()
+      await duration.press(action === 'draft-cancel' ? 'Escape' : 'Enter')
+      const applied = independent || action === 'draft-cancel'
+      await expect.poll(() => page.evaluate(() => (window as unknown as { __targetedProof: { response: unknown } }).__targetedProof.response)).not.toBeNull()
+      await expect.poll(() => page.evaluate(() => {
+        const w = window as unknown as { __pxlblzEditor: { readOutcome: (request: unknown) => { status: string } }; __targetedProof: { captured: { request: unknown } } }
+        return w.__pxlblzEditor.readOutcome(w.__targetedProof.captured.request)?.status
+      })).toBe(applied ? 'applied' : 'refused')
+      await expect.poll(async () => (await durableShow(page, record.id))?.composition).toEqual((await visibleRecord(page))!.composition)
+      const after = await visibleRecord(page)
+      const expected = structuredClone(before!)
+      if (independent) expected.composition!.scenes[0].zones[0].overlays[0].placements[0].durationMs = 7000
+      expected.composition!.scenes[0].zones[0].main[0].durationMs = applied ? 6000 : 7000
+      expect(after).toEqual({ ...expected, updatedAt: after!.updatedAt })
+      expect(await durableShow(page, record.id)).toEqual(after)
+      expect(writes).toHaveLength(independent ? 2 : 1)
+      expect(writes.at(-1)).toEqual(wireRecord(after))
+      await page.keyboard.press('Escape')
+      if (applied) {
+        await page.getByRole('button', { name: 'Show actions' }).click()
+        const downloading = page.waitForEvent('download')
+        await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
+        const download = await downloading
+        const reopened = await page.evaluate(async bytes => {
+          const load = (path: string) => import(path)
+          return (await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')).parseShowFileBundle(new Uint8Array(bytes))
+        }, [...readFileSync((await download.path())!)])
+        expect(reopened.show).toEqual(after)
+        saveRecord(`TR-${action}-export`, reopened)
+        await page.getByRole('button', { name: 'Undo Show edit' }).click()
+        await waitForDurable(page, record.id, show => firstMain(show)?.durationMs === 4000)
+        const undone = await visibleRecord(page)
+        const expectedUndo = structuredClone(expected)
+        expectedUndo.composition!.scenes[0].zones[0].main[0].durationMs = 4000
+        expect(undone).toEqual({ ...expectedUndo, updatedAt: undone!.updatedAt })
+        expect(await durableShow(page, record.id)).toEqual(undone)
+        await page.getByRole('button', { name: 'Redo Show edit' }).click()
+        await waitForDurable(page, record.id, show => firstMain(show)?.durationMs === 6000)
+      }
+      await page.screenshot({ path: join(REPORT_DIR, `TR-${action}-result.png`), fullPage: true })
+      const proof = await page.evaluate(() => (window as unknown as { __targetedProof: unknown }).__targetedProof)
+      saveRecord(`TR-${action}`, { before, after, proof, writes, durable: await durableShow(page, record.id) })
+      page.off('request', captureWrite)
+    }
+  })
+
   test('MR: mixed move-resize batches preserve complete records through adoption and active input', async ({ page }) => {
     test.setTimeout(180000)
     const wireRecord = (show: ShowRecord | null) => Object.fromEntries(Object.entries({ ...show, targetControllerProfileId: show?.targetControllerProfileId ?? null }).filter(([key]) => key !== 'id'))

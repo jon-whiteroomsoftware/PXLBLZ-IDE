@@ -12,6 +12,7 @@ import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { recordAgentObservation, showRecordDigest, type AgentApplyPhase } from './agentObservation'
 import { captureAgentShowSnapshot } from './agentShowSnapshot'
+import { parseAgentResizeIntent, sameAgentResizeIntent, type AgentResizeIntent } from './agentResizeProtocol'
 
 const structural = new Ajv({ allErrors: true, strict: false, strictNumbers: true }).compile(JSON.parse(schemaText))
 export const agentUrlEnabled = () => {
@@ -46,6 +47,7 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
   const sessionId = store().beginShowEditSession(showId)
   let retired = false
   const listeners = new Set<() => void>()
+  const resizeEntries = new Map<string, { request: ShowEditRequest; intent: AgentResizeIntent }>()
   const entries = new Map<string, { request: ShowEditRequest; show: ShowRecord; context: unknown; baseline: ReturnType<typeof captureShowAuthoringBaseline>; invalidated: boolean }>()
   let metadataStops: Array<() => void> = []
   const releaseMetadata = () => {
@@ -86,6 +88,7 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
     stops.forEach(stop => stop())
     stops = []
     entries.clear()
+    resizeEntries.clear()
     releaseMetadata()
     listeners.forEach(listener => listener())
     listeners.clear()
@@ -140,6 +143,25 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
     onClose(listener: () => void) { if (retired) listener(); else listeners.add(listener); return () => { listeners.delete(listener) } },
     getShow() { return available() ? structuredClone(store().resolveEditableShow(showId)) : undefined },
     getEditorFocus() { return available() ? structuredClone(getContext()) : undefined },
+    beginResizeRequest(operationId: string, value: unknown) {
+      const intent = parseAgentResizeIntent(value)
+      if (!available() || typeof operationId !== 'string' || !operationId || !intent) return undefined
+      const result = store().beginResolvedShowResize(sessionId, { operationId, resize: intent })
+      if (result.status !== 'pending') return undefined
+      const prior = resizeEntries.get(operationId)
+      if (!prior) resizeEntries.set(operationId, { request: result.request, intent })
+      return structuredClone(resizeEntries.get(operationId)!)
+    },
+    applyResize(value: unknown, request?: ShowEditRequest): ShowInputWaitReceipt {
+      if (!available()) return request ? { request, status: 'retired' } : invalid()
+      if (!request) return invalid()
+      const entry = resizeEntries.get(request.operationId)
+      if (request.sessionId !== sessionId || !entry || JSON.stringify(request) !== JSON.stringify(entry.request)) return invalid(request)
+      if (!sameAgentResizeIntent(entry.intent, value)) return store().rejectResolvedShowResize(request)
+      const result = store().admitResolvedShowResize(request)
+      observeOutcome(result)
+      return result
+    },
     beginRequest(operationId: string, utterance: string, history: unknown) {
       if (!available() || typeof operationId !== 'string' || !operationId || typeof utterance !== 'string') return undefined
       const prior = entries.get(operationId)
@@ -171,7 +193,7 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
     },
     complete(request: ShowEditRequest, completion: ShowEditCompletion) {
       if (!available()) return { request, status: 'retired' } as const
-      const entry = entries.get(request.operationId)
+      const entry = entries.get(request.operationId) ?? resizeEntries.get(request.operationId)
       if (request.sessionId !== sessionId || !entry || JSON.stringify(request) !== JSON.stringify(entry.request)) return invalid(request)
       const result = store().completeShowEdit(request, completion)
       releaseMetadata()
@@ -179,7 +201,7 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
     },
     readOutcome(request: ShowEditRequest) {
       if (!available() || request.sessionId !== sessionId) return undefined
-      const entry = entries.get(request.operationId)
+      const entry = entries.get(request.operationId) ?? resizeEntries.get(request.operationId)
       const result = entry && JSON.stringify(request) === JSON.stringify(entry.request) ? store().readShowEditCandidate(sessionId, request.operationId) : undefined
       observeOutcome(result)
       releaseMetadata()
@@ -187,7 +209,7 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
     },
     cancel(request: ShowEditRequest) {
       if (!available() || request.sessionId !== sessionId) return undefined
-      const entry = entries.get(request.operationId)
+      const entry = entries.get(request.operationId) ?? resizeEntries.get(request.operationId)
       const result = entry && JSON.stringify(request) === JSON.stringify(entry.request) ? store().cancelShowEdit(sessionId, request.operationId) : undefined
       releaseMetadata()
       return result

@@ -1,0 +1,38 @@
+{
+  "faults": [
+    {
+      "fault": "late-dependency-recapture",
+      "detected": true,
+      "exitCode": 1,
+      "tests": [
+        "src/dev/agentResizeAdmission.test.ts"
+      ]
+    },
+    {
+      "fault": "broad-history-leak",
+      "detected": true,
+      "exitCode": 1,
+      "tests": [
+        "src/agent-harness/test/targetedResizeTurn.test.ts"
+      ]
+    },
+    {
+      "fault": "foreign-target-acceptance",
+      "detected": true,
+      "exitCode": 1,
+      "tests": [
+        "src/dev/agentResizeAdmission.test.ts",
+        "src/dev/agentResizeProtocol.test.ts"
+      ]
+    },
+    {
+      "fault": "stale-whole-record-replay",
+      "detected": true,
+      "exitCode": 1,
+      "tests": [
+        "src/dev/agentResizeAdmission.test.ts"
+      ]
+    }
+  ],
+  "restored": true
+}

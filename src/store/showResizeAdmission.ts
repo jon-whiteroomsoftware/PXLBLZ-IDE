@@ -127,6 +127,15 @@ export function createShowResizeAdmission(owner: Owner) {
       watch()
       return result
     },
+    reject(request: ShowEditRequest): ShowEditReceipt {
+      const session = owner.session()
+      if (!session || session.sessionId !== request.sessionId) return { request, status: 'retired' }
+      const checked = session.checkIdentity(request, session)
+      if (checked.status !== 'pending') return checked
+      if (!owned.has(request.operationId)) return { request, status: 'refused', reason: 'invalid-candidate' }
+      release(request.operationId)
+      return session.refuse(request.operationId, 'invalid-candidate')!
+    },
     admit(request: ShowEditRequest): ShowInputWaitReceipt {
       const arrivedAt = performance.now()
       const captured = structuredClone(request)

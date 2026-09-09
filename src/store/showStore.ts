@@ -115,6 +115,7 @@ interface ShowState {
   ) => ShowEditReceipt
   beginResolvedShowResize: (sessionId: string, intent: ResolvedShowResizeIntent) => ShowEditReceipt
   admitResolvedShowResize: (request: ShowEditRequest) => ShowInputWaitReceipt
+  rejectResolvedShowResize: (request: ShowEditRequest) => ShowEditReceipt
   shows: ShowRecord[]
   showsLoaded: boolean
   activeShowId: string | null
@@ -399,6 +400,7 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
   },
   beginResolvedShowResize: (sessionId, intent) => resizeAdmission.begin(sessionId, intent),
   admitResolvedShowResize: request => resizeAdmission.admit(request),
+  rejectResolvedShowResize: request => resizeAdmission.reject(request),
 
   beginShowEditSession: (showId, capacity) => {
     resizeAdmission.retire()

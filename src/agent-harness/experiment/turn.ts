@@ -91,7 +91,7 @@ const FINISH_ARGUMENT_SCHEMA = {
 }
 
 /** Validate provider data at the boundary; unknown keys cannot carry contradictory intent. */
-function completionFrom(value: unknown): TurnCompletion | null {
+export function completionFrom(value: unknown): TurnCompletion | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const record = value as Record<string, unknown>
   if (Object.keys(record).some((key) => key !== 'intent' && key !== 'reply')) return null

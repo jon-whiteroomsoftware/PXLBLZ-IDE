@@ -1,0 +1,111 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`isolates the actual provider request and refuses broad dispatch before a matching proposal 1`] = `
+{
+  "input": [
+    {
+      "content": "This is a typed exact resize diagnostic. Only the supplied Clip and duration are authorized. No references to previous dialogue or other content are available. Do not request document reads or other edits.
+
+Propose the supplied exact operation through resize_clip and finish with explicit apply, ask, refuse or incomplete intent. Completion records only a proposal; the editor separately validates, waits and adopts. No document transaction or semantic repair runs here.",
+      "role": "developer",
+    },
+    {
+      "content": "Editor context: Nothing is hovered or selected and no playhead is set.
+Current Show (describe_show projection): {"clipId":"target","durationMs":6000}
+The user says: "Propose exactly the supplied Clip duration, or finish with refusal."",
+      "role": "user",
+    },
+  ],
+  "max_output_tokens": 4000,
+  "model": "mocked-model",
+  "service_tier": "default",
+  "tools": [
+    {
+      "description": "Propose the exact supplied Clip duration.",
+      "name": "resize_clip",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "clip_id": {
+            "const": "target",
+            "type": "string",
+          },
+          "duration_ms": {
+            "const": 6000,
+            "type": "integer",
+          },
+          "finish_turn_reply": {
+            "additionalProperties": false,
+            "description": "Set a typed {intent, reply?} completion on the final operation to end in this response. Leave it out when more operations follow.",
+            "properties": {
+              "intent": {
+                "description": "apply validates private edits; all other intents discard them.",
+                "enum": [
+                  "apply",
+                  "ask",
+                  "refuse",
+                  "incomplete",
+                ],
+                "type": "string",
+              },
+              "reply": {
+                "description": "One-line reply; punctuation has no effect on the outcome. Omit to use change descriptions.",
+                "type": "string",
+              },
+            },
+            "required": [
+              "intent",
+            ],
+            "type": "object",
+          },
+          "session_id": {
+            "const": "targeted-resize",
+            "type": "string",
+          },
+        },
+        "required": [
+          "clip_id",
+          "duration_ms",
+        ],
+        "type": "object",
+      },
+      "strict": false,
+      "type": "function",
+    },
+    {
+      "description": "End this turn in the SAME response as its final operations. Supply explicit apply, ask, refuse or incomplete intent. Apply validates private work as one history entry after normal return; it does not mean the live editor applied or saved it. Refused operations or validation return issues for repair. No extra acknowledgement round trip is needed.",
+      "name": "finish_turn",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "intent": {
+            "description": "apply validates private edits; all other intents discard them.",
+            "enum": [
+              "apply",
+              "ask",
+              "refuse",
+              "incomplete",
+            ],
+            "type": "string",
+          },
+          "reply": {
+            "description": "One-line reply; punctuation has no effect on the outcome. Omit to use change descriptions.",
+            "type": "string",
+          },
+          "session_id": {
+            "description": "Optional transport identity; when supplied it must match the current session.",
+            "type": "string",
+          },
+        },
+        "required": [
+          "intent",
+        ],
+        "type": "object",
+      },
+      "strict": false,
+      "type": "function",
+    },
+  ],
+  "truncation": "disabled",
+}
+`;

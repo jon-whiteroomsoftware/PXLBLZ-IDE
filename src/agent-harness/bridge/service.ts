@@ -34,6 +34,7 @@ import { dictationTools, projectionForAgent, runDictationTurn, type TurnDisposit
 import { DICTATION_RULES, type EditorContext } from '../grammar/read.js'
 import { createSessionStore, type GrammarSessionStore } from '../grammar/session.js'
 import { createShowsServer } from '../mcp/showsServer.js'
+import { runTargetedResizeTurn } from '../experiment/targetedResizeTurn.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -372,6 +373,26 @@ export function createBridgeServer(options: BridgeOptions): Server {
         'Access-Control-Allow-Origin': '*',
       })
       response.end(chatScript)
+      return
+    }
+    if (request.method === 'POST' && request.url === '/resize') {
+      if (busy) { sendJson(response, 429, { kind: 'refused' }); return }
+      busy = true
+      const chunks: Buffer[] = []
+      request.on('data', (chunk: Buffer) => chunks.push(chunk))
+      request.on('end', () => {
+        void (async () => {
+          try {
+            const intent: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+            turns += 1
+            options.guard?.beginUnit(`bridge-turn-${turns}`)
+            if (options.scripted && defaultDelayMs > 0) await new Promise(resolve => setTimeout(resolve, defaultDelayMs))
+            sendJson(response, 200, await runTargetedResizeTurn(agent, intent, options.scripted === true))
+          } catch { sendJson(response, 200, { kind: 'service-error' }) }
+          finally { busy = false }
+        })()
+      })
+      request.on('error', () => { busy = false })
       return
     }
     if (request.method === 'POST' && request.url === '/utterance') {

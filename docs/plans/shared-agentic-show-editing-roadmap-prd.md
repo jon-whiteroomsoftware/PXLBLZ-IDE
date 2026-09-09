@@ -10,8 +10,10 @@ permits delivery-incomplete drafts. Flat Show requests use exact loaded Pattern
 metadata for private projection; accepted edits retain the original Show as their
 Undo base. The [candidate application contract](../reference/contracts/agent-candidate-application.md)
 records the qualified boundaries and consumer evidence. The canonical resize owner,
-manual resize path, and internal qualified resize admission are implemented; actual
-narrow model-context qualification and broader final-valid batching remain open.
+manual resize path, and qualified resize admission are implemented. The explicit
+typed fixed-duration diagnostic qualifies its finite model context; unrestricted
+text, model-selected timing, automatic routing and broader final-valid batching
+remain open.
 
 #946 and #947 product decisions are complete. The
 [finite command census](agent-show-command-census.md) maps 54 existing names into
