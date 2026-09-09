@@ -89,13 +89,17 @@ describe('coverage over the real schema and registry (#22)', () => {
   it('keeps the generic-only list as a reviewed snapshot', () => {
     // A schema node gaining no covering operation lands here first: update
     // test/fixtures/grammar-generic-only.json deliberately via
-    // `npm run -s coverage:grammar` after reviewing the gap.
+    // `npm run -s agent:coverage` after reviewing the gap.
     expect(report.genericOnly).toEqual(genericOnlySnapshot)
   })
 
   it('records the known gaps: groups and the flat model; Trails is covered (#27)', () => {
     const families = Object.fromEntries(report.families.map((family) => [family.family, family]))
     expect(families['groups'].specific).toBe(0)
+    expect(families['flat model (legacy)'].specific).toBe(0)
+    for (const path of ['/cells/*/viewport/starPoints', '/cells/*/effects/*/amount', '/zones/*/icon']) {
+      expect(report.rows.find(row => row.path === path)).toEqual({ path, classification: 'generic-only', operations: [] })
+    }
     expect(families['output effects'].percent).toBe(100)
     expect(report.genericOnly).not.toContain('/outputEffects/*/retention')
     expect(families['junctions'].percent).toBe(100)

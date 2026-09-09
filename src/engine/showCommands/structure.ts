@@ -1,6 +1,7 @@
 // Structure command family: the output contract, the Trails output Effect,
 // and Zone Layout occurrences (the hard routing intervals on the timeline),
 // through the pure contract, output-effect, and layout-interval functions.
+import { clampPixelCount } from '../camera'
 import type { ShowRecord } from '../personalContentRecords'
 import {
   appendShowLayoutInterval,
@@ -395,7 +396,7 @@ const updateZone: ShowCommandDescriptor = {
       code: 'duplicate-name', message: `Another Zone (${collision.id}) is already named "${name}".`,
       remedy: 'Choose a distinct name, or rename that Zone first.',
     })
-    const nominalPixelCount = count === undefined ? undefined : Math.max(1, Math.round(count))
+    const nominalPixelCount = count === undefined ? undefined : clampPixelCount(Math.round(count))
     if ((name === undefined || name === zone.name) &&
         (nominalPixelCount === undefined || nominalPixelCount === zone.nominalPixelCount) &&
         (color === undefined || color === zone.color)) return { ok: true, record, changes: [] }

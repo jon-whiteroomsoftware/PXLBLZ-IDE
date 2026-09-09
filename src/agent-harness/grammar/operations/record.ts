@@ -12,6 +12,7 @@ export const RECORD_OPERATIONS = commands.map(command => {
   if (command.name !== 'set_stage_map') return operation
   const compatibility = descriptorOperation({
     ...command,
+    description: 'Set or clear the Stage map without changing the output contract. Optional target_controller_profile_id also sets or clears the controller profile atomically; when omitted, the profile stays unchanged.',
     fields: {
       ...command.fields,
       target_controller_profile_id: { ...profile.fields.profile_id, optional: true },

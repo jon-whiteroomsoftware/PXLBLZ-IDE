@@ -1793,3 +1793,20 @@ it.each(['clip-a', 'clip-ov'])('refuses duplication of imported legacy Trails wi
   expect(opened.issues.some(issue => issue.code === 'open-failed' && issue.message.startsWith('[schema]'))).toBe(true)
   expect(imported).toStrictEqual(before)
 })
+
+it('capped Zone counts preserve no-op identity through canonical and diagnostic owners (#954)', () => {
+  const show = showOutputLayoutFixture()
+  show.zones[0].nominalPixelCount = 65536
+  const opened = openShowDocument(show)
+  if (!opened.ok) throw new Error(JSON.stringify(opened))
+  const document = opened.document
+  for (const count of [65536, 65536.4, 1000000]) {
+    const args = { zone_id: 'zone-1', nominal_pixel_count: count }
+    const canonical = applyShowCommand(document.show, 'update_zone', args)
+    expect(canonical).toStrictEqual({ ok: true, record: document.show, changes: [] })
+    if (canonical.ok) expect(canonical.record).toBe(document.show)
+    const diagnostic = applyShowGrammarOperation(document, 'update_zone', args)
+    expect(diagnostic).toStrictEqual({ ok: true, document, changes: [] })
+    if (diagnostic.ok) expect(diagnostic.document).toBe(document)
+  }
+})
