@@ -1,0 +1,23 @@
+{
+  "source": "4919cd37e96fb4074ee16bbf222b5b1a7985f8ff",
+  "test": "src/engine/showCommands/removeClip.test.ts",
+  "faults": [
+    {
+      "name": "one-segment-only",
+      "outcome": "killed by behavioral assertion"
+    },
+    {
+      "name": "lost-surviving-shared-instance",
+      "outcome": "killed by behavioral assertion"
+    },
+    {
+      "name": "retained-orphan-instance",
+      "outcome": "killed by behavioral assertion"
+    },
+    {
+      "name": "unintended-neighbor-movement",
+      "outcome": "killed by behavioral assertion"
+    }
+  ],
+  "restoredSuite": "9 passed"
+}

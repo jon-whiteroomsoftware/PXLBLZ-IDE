@@ -21,8 +21,26 @@ optional fields) as well as retained orphan dependencies. Focused checks passed
 lost shared instance, retained orphan, moved neighbor) were each killed by the
 owner assertions; the restored nine-case suite passed.
 
-Browser evidence is pending on the committed source. `RC951` in the scripted
-baseline drives a no-paid-model bridge turn, one save/adoption, downloaded
-Show-file reopen and one Undo restoring the complete preimage. The coordinator
-owns actual in-app ordinary and confirmed connected deletion proof, authoritative
-final suites and cross-family review. No Controller or hosted service is used.
+The committed-source `RC951` scripted browser sequence passed at
+`4919cd37e96fb4074ee16bbf222b5b1a7985f8ff` (5.1 seconds; 10.6 seconds including
+harness setup). A no-paid-model bridge turn produced one save/adoption. The
+actual downloaded `.pxlshow` reopened to the complete visible and durable Show;
+one Undo restored its complete preimage with one additional save and no earlier
+history. [Records](RC951.json), [reopened export](RC951-export.json) and
+[inspected capture](RC951-result.png) retain the synthetic evidence.
+
+The fixture intentionally contains the unrelated pre-existing `orphan-track`
+for `unrelated-orphan`. The compiler reports that unused instance as missing
+before and after deletion. This packet qualifies authoring preservation and
+export/reopen, not compilation, preview rendering or Controller delivery.
+
+The coordinator owns actual in-app ordinary and confirmed connected deletion
+proof, authoritative final suites and cross-family review. The existing whole-Show
+stale-response and duplicate-delivery guards are unchanged; this sequence does
+not independently requalify them. No Controller or hosted service is used.
+
+The command contract and Technical Reference pointer now identify shared
+removal ownership. The canonical inventory was regenerated; diagnostic inventory
+content is unchanged. CONTEXT and Feature Guide need no change: domain names and
+the existing confirmation workflow are unchanged. The active command census stays
+forward-looking until coordinator review and landing.

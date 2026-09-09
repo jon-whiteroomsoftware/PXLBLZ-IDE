@@ -1,0 +1,944 @@
+{
+  "before": {
+    "id": "remove-951-mttzoh3i",
+    "name": "Remove Clip preservation",
+    "scenes": [
+      {
+        "id": "scene-1",
+        "name": "Scene 1",
+        "durationMs": 30000
+      },
+      {
+        "id": "scene-2",
+        "name": "Scene 2",
+        "durationMs": 30000
+      }
+    ],
+    "zones": [
+      {
+        "id": "zone-1",
+        "name": "main",
+        "nominalPixelCount": 60,
+        "color": "#38bdf8"
+      },
+      {
+        "id": "zone-2",
+        "name": "Second",
+        "nominalPixelCount": 16
+      }
+    ],
+    "cells": [
+      {
+        "id": "cell-1",
+        "zoneId": "zone-1",
+        "sceneId": "scene-1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "TestPattern1D"
+        },
+        "patternName": "TestPattern1D",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      },
+      {
+        "id": "cell-2",
+        "zoneId": "zone-1",
+        "sceneId": "scene-2",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "layout-1",
+        "name": "Default",
+        "zones": [
+          {
+            "zoneId": "zone-1",
+            "ranges": [
+              {
+                "start": 0,
+                "end": 59
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "transitions": [
+      {
+        "id": "transition-scene-1",
+        "afterSceneId": "scene-1",
+        "kind": "crossfade",
+        "durationMs": 2000,
+        "easing": {
+          "curve": "linear"
+        },
+        "crossfadePolicy": "snapshot-live"
+      }
+    ],
+    "stageMapId": null,
+    "outputContract": {
+      "version": 1,
+      "kind": "installation",
+      "outputMapId": null,
+      "pixelCount": 60,
+      "resolution": "fixed"
+    },
+    "updatedAt": 1,
+    "composition": {
+      "version": 1,
+      "markers": [
+        {
+          "id": "marker-1",
+          "timeMs": 12000,
+          "name": "Drop"
+        }
+      ],
+      "patternInstances": [
+        {
+          "id": "instance-a",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "instance-b",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "instance-ov",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "unrelated-orphan",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "transitions": [
+        {
+          "id": "connected-transition",
+          "fromPlacementId": "clip-a",
+          "toPlacementId": "clip-b",
+          "kind": "crossfade",
+          "durationMs": 1000,
+          "easing": {
+            "curve": "linear"
+          },
+          "crossfadePolicy": "snapshot-live"
+        }
+      ],
+      "groupDefinitions": [
+        {
+          "id": "group-definition",
+          "name": "Mixed Group",
+          "patternInstances": [
+            {
+              "id": "group-pattern",
+              "pattern": {
+                "kind": "stock",
+                "id": "CometLoom"
+              },
+              "patternName": "CometLoom",
+              "time": {
+                "timeScale": 1,
+                "timeOffsetMs": 0
+              }
+            }
+          ],
+          "placements": [
+            {
+              "id": "group-main",
+              "instanceId": "group-pattern",
+              "startMs": 0,
+              "durationMs": 1000,
+              "layerOffset": 0,
+              "opacity": 1,
+              "view": {
+                "mirror": false,
+                "phase": 0,
+                "brightness": 1
+              }
+            },
+            {
+              "id": "group-overlay",
+              "instanceId": "group-pattern",
+              "startMs": 0,
+              "durationMs": 1000,
+              "layerOffset": 1,
+              "opacity": 1,
+              "view": {
+                "mirror": false,
+                "phase": 0,
+                "brightness": 1
+              }
+            }
+          ]
+        }
+      ],
+      "groupOccurrences": [
+        {
+          "id": "group-use",
+          "definitionId": "group-definition",
+          "sceneId": "scene-2",
+          "zoneId": "zone-1",
+          "startMs": 1000,
+          "baseLayer": 0,
+          "translationX": 0,
+          "translationY": 0
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "scene-1",
+          "zones": [
+            {
+              "zoneId": "zone-1",
+              "main": [
+                {
+                  "id": "clip-a",
+                  "instanceId": "instance-a",
+                  "startMs": 0,
+                  "durationMs": 10000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                },
+                {
+                  "id": "clip-b",
+                  "instanceId": "instance-b",
+                  "startMs": 11000,
+                  "durationMs": 8000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                },
+                {
+                  "id": "clip-c",
+                  "instanceId": "instance-a",
+                  "startMs": 22000,
+                  "durationMs": 6000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": [
+                {
+                  "id": "overlay-1",
+                  "name": "Overlay 1",
+                  "placements": [
+                    {
+                      "id": "clip-ov",
+                      "instanceId": "instance-ov",
+                      "startMs": 2000,
+                      "durationMs": 6000,
+                      "opacity": 1,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bottom-scene-1",
+                  "name": "Bottom",
+                  "placements": []
+                }
+              ]
+            },
+            {
+              "zoneId": "zone-2",
+              "main": [],
+              "overlays": [
+                {
+                  "id": "other-scene-1",
+                  "name": "Other Zone",
+                  "placements": []
+                }
+              ]
+            }
+          ],
+          "propertyTracks": [
+            {
+              "id": "track-b",
+              "target": {
+                "kind": "placement-view",
+                "placementId": "clip-b",
+                "property": "brightness"
+              },
+              "keyframes": [
+                {
+                  "id": "kf-1",
+                  "timeMs": 13000,
+                  "value": 1,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                },
+                {
+                  "id": "kf-2",
+                  "timeMs": 18000,
+                  "value": 0.2,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "track-inst",
+              "target": {
+                "kind": "instance-time-scale",
+                "instanceId": "instance-a"
+              },
+              "keyframes": [
+                {
+                  "id": "kf-3",
+                  "timeMs": 22500,
+                  "value": 1,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                },
+                {
+                  "id": "kf-4",
+                  "timeMs": 27000,
+                  "value": 0.5,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "track-inst-b",
+              "target": {
+                "kind": "instance-time-scale",
+                "instanceId": "instance-b"
+              },
+              "keyframes": [
+                {
+                  "id": "kf-5",
+                  "timeMs": 13000,
+                  "value": 1,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                },
+                {
+                  "id": "kf-6",
+                  "timeMs": 18000,
+                  "value": 0.75,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sceneId": "scene-2",
+          "zones": [
+            {
+              "zoneId": "zone-1",
+              "main": [],
+              "overlays": [
+                {
+                  "id": "bottom-scene-2",
+                  "name": "Bottom",
+                  "placements": []
+                }
+              ]
+            },
+            {
+              "zoneId": "zone-2",
+              "main": [],
+              "overlays": [
+                {
+                  "id": "other-scene-2",
+                  "name": "Other Zone",
+                  "placements": []
+                }
+              ]
+            }
+          ],
+          "propertyTracks": [
+            {
+              "id": "orphan-track",
+              "target": {
+                "kind": "instance-time-scale",
+                "instanceId": "unrelated-orphan"
+              },
+              "keyframes": [
+                {
+                  "id": "orphan-key",
+                  "timeMs": 0,
+                  "value": 1,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                },
+                {
+                  "id": "orphan-key-end",
+                  "timeMs": 1000,
+                  "value": 0.5,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "after": {
+    "id": "remove-951-mttzoh3i",
+    "name": "Remove Clip preservation",
+    "scenes": [
+      {
+        "id": "scene-1",
+        "name": "Scene 1",
+        "durationMs": 30000
+      },
+      {
+        "id": "scene-2",
+        "name": "Scene 2",
+        "durationMs": 30000
+      }
+    ],
+    "zones": [
+      {
+        "id": "zone-1",
+        "name": "main",
+        "nominalPixelCount": 60,
+        "color": "#38bdf8"
+      },
+      {
+        "id": "zone-2",
+        "name": "Second",
+        "nominalPixelCount": 16
+      }
+    ],
+    "cells": [
+      {
+        "id": "cell-1",
+        "zoneId": "zone-1",
+        "sceneId": "scene-1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "TestPattern1D"
+        },
+        "patternName": "TestPattern1D",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      },
+      {
+        "id": "cell-2",
+        "zoneId": "zone-1",
+        "sceneId": "scene-2",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "layout-1",
+        "name": "Default",
+        "zones": [
+          {
+            "zoneId": "zone-1",
+            "ranges": [
+              {
+                "start": 0,
+                "end": 59
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "transitions": [
+      {
+        "id": "transition-scene-1",
+        "afterSceneId": "scene-1",
+        "kind": "crossfade",
+        "durationMs": 2000,
+        "easing": {
+          "curve": "linear"
+        },
+        "crossfadePolicy": "snapshot-live"
+      }
+    ],
+    "stageMapId": null,
+    "outputContract": {
+      "version": 1,
+      "kind": "installation",
+      "outputMapId": null,
+      "pixelCount": 60,
+      "resolution": "fixed"
+    },
+    "updatedAt": 1788951749806,
+    "composition": {
+      "version": 1,
+      "markers": [
+        {
+          "id": "marker-1",
+          "timeMs": 12000,
+          "name": "Drop"
+        }
+      ],
+      "patternInstances": [
+        {
+          "id": "instance-a",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "instance-ov",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "unrelated-orphan",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "transitions": [],
+      "groupDefinitions": [
+        {
+          "id": "group-definition",
+          "name": "Mixed Group",
+          "patternInstances": [
+            {
+              "id": "group-pattern",
+              "pattern": {
+                "kind": "stock",
+                "id": "CometLoom"
+              },
+              "patternName": "CometLoom",
+              "time": {
+                "timeScale": 1,
+                "timeOffsetMs": 0
+              }
+            }
+          ],
+          "placements": [
+            {
+              "id": "group-main",
+              "instanceId": "group-pattern",
+              "startMs": 0,
+              "durationMs": 1000,
+              "layerOffset": 0,
+              "opacity": 1,
+              "view": {
+                "mirror": false,
+                "phase": 0,
+                "brightness": 1
+              }
+            },
+            {
+              "id": "group-overlay",
+              "instanceId": "group-pattern",
+              "startMs": 0,
+              "durationMs": 1000,
+              "layerOffset": 1,
+              "opacity": 1,
+              "view": {
+                "mirror": false,
+                "phase": 0,
+                "brightness": 1
+              }
+            }
+          ]
+        }
+      ],
+      "groupOccurrences": [
+        {
+          "id": "group-use",
+          "definitionId": "group-definition",
+          "sceneId": "scene-2",
+          "zoneId": "zone-1",
+          "startMs": 1000,
+          "baseLayer": 0,
+          "translationX": 0,
+          "translationY": 0
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "scene-1",
+          "zones": [
+            {
+              "zoneId": "zone-1",
+              "main": [
+                {
+                  "id": "clip-a",
+                  "instanceId": "instance-a",
+                  "startMs": 0,
+                  "durationMs": 10000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                },
+                {
+                  "id": "clip-c",
+                  "instanceId": "instance-a",
+                  "startMs": 22000,
+                  "durationMs": 6000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": [
+                {
+                  "id": "overlay-1",
+                  "name": "Overlay 1",
+                  "placements": [
+                    {
+                      "id": "clip-ov",
+                      "instanceId": "instance-ov",
+                      "startMs": 2000,
+                      "durationMs": 6000,
+                      "opacity": 1,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bottom-scene-1",
+                  "name": "Bottom",
+                  "placements": []
+                }
+              ]
+            },
+            {
+              "zoneId": "zone-2",
+              "main": [],
+              "overlays": [
+                {
+                  "id": "other-scene-1",
+                  "name": "Other Zone",
+                  "placements": []
+                }
+              ]
+            }
+          ],
+          "propertyTracks": [
+            {
+              "id": "track-inst",
+              "target": {
+                "kind": "instance-time-scale",
+                "instanceId": "instance-a"
+              },
+              "keyframes": [
+                {
+                  "id": "kf-3",
+                  "timeMs": 22500,
+                  "value": 1,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                },
+                {
+                  "id": "kf-4",
+                  "timeMs": 27000,
+                  "value": 0.5,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sceneId": "scene-2",
+          "zones": [
+            {
+              "zoneId": "zone-1",
+              "main": [],
+              "overlays": [
+                {
+                  "id": "bottom-scene-2",
+                  "name": "Bottom",
+                  "placements": []
+                }
+              ]
+            },
+            {
+              "zoneId": "zone-2",
+              "main": [],
+              "overlays": [
+                {
+                  "id": "other-scene-2",
+                  "name": "Other Zone",
+                  "placements": []
+                }
+              ]
+            }
+          ],
+          "propertyTracks": [
+            {
+              "id": "orphan-track",
+              "target": {
+                "kind": "instance-time-scale",
+                "instanceId": "unrelated-orphan"
+              },
+              "keyframes": [
+                {
+                  "id": "orphan-key",
+                  "timeMs": 0,
+                  "value": 1,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                },
+                {
+                  "id": "orphan-key-end",
+                  "timeMs": 1000,
+                  "value": 0.5,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "done": {
+    "requestId": "req-mttzoif8-p4s0kt",
+    "showId": "remove-951-mttzoh3i",
+    "capturedUpdatedAt": 1,
+    "submittedAt": 1788951747144,
+    "responseAt": 1788951747154,
+    "firstEventAt": 1788951747154,
+    "doneAt": 1788951749789,
+    "applyStartedAt": 1788951749789,
+    "applyEndedAt": 1788951749929,
+    "changed": true,
+    "applied": true,
+    "error": null,
+    "events": [
+      {
+        "kind": "accepted",
+        "name": null,
+        "at": 1788951747154
+      },
+      {
+        "kind": "tool",
+        "name": "remove_clip",
+        "at": 1788951749789
+      },
+      {
+        "kind": "validation",
+        "name": null,
+        "at": 1788951749789
+      },
+      {
+        "kind": "validation",
+        "name": null,
+        "at": 1788951749789
+      },
+      {
+        "kind": "done",
+        "name": null,
+        "at": 1788951749789
+      }
+    ],
+    "bridgeTiming": {
+      "acceptedAt": 1788951747147,
+      "delayMs": 2500,
+      "agentStartedAt": 1788951749750,
+      "agentEndedAt": 1788951749775,
+      "exportedAt": 1788951749788,
+      "toolCalls": [
+        {
+          "name": "remove_clip",
+          "at": 1788951749751,
+          "ms": 6
+        }
+      ],
+      "validation": {
+        "at": 1788951749775,
+        "ms": 13,
+        "ok": true
+      }
+    },
+    "outcome": {
+      "status": "applied",
+      "settlement": "saved"
+    }
+  },
+  "writes": [
+    {
+      "method": "PATCH",
+      "url": "http://localhost:5205/api/shows/remove-951-mttzoh3i",
+      "at": 1788951749870,
+      "status": 200,
+      "updatedAt": 1788951749806,
+      "firstMainStartMs": 0,
+      "firstMain": {
+        "durationMs": 10000,
+        "brightness": 1
+      },
+      "compositionDurationMs": null,
+      "markers": 1
+    },
+    {
+      "method": "PATCH",
+      "url": "http://localhost:5205/api/shows/remove-951-mttzoh3i",
+      "at": 1788951750302,
+      "status": 200,
+      "updatedAt": 1788951750238,
+      "firstMainStartMs": 0,
+      "firstMain": {
+        "durationMs": 10000,
+        "brightness": 1
+      },
+      "compositionDurationMs": null,
+      "markers": 1
+    }
+  ],
+  "observations": [
+    {
+      "kind": "agent-apply",
+      "phase": "admitted",
+      "showId": "remove-951-mttzoh3i",
+      "requestId": "req-mttzoif8-p4s0kt",
+      "at": 1788951749789,
+      "digest": "20edc22c",
+      "updatedAt": 1,
+      "historyDepth": 0
+    },
+    {
+      "kind": "agent-apply",
+      "phase": "adopted",
+      "showId": "remove-951-mttzoh3i",
+      "requestId": "req-mttzoif8-p4s0kt",
+      "at": 1788951749807,
+      "digest": "807db106",
+      "updatedAt": 1788951749806,
+      "historyDepth": 1
+    },
+    {
+      "kind": "agent-apply",
+      "phase": "settled",
+      "showId": "remove-951-mttzoh3i",
+      "requestId": "req-mttzoif8-p4s0kt",
+      "at": 1788951749928,
+      "digest": "807db106",
+      "updatedAt": 1788951749806,
+      "historyDepth": 1
+    }
+  ]
+}

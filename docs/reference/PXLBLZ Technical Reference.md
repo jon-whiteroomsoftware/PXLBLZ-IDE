@@ -879,6 +879,9 @@ invocation, refusal, identity, and batch obligations. The
 owns adoption and recovery; the
 [agent candidate application contract](contracts/agent-candidate-application.md)
 records the experimental external-editor boundary and its present limits.
+Logical Clip removal shares one validated owner across ordinary manual deletion,
+connected confirmation and the diagnostic descriptor adapter; its dependency
+cleanup and preservation boundary is in the [removal contract](contracts/show-command-semantics.md#logical-clip-removal-951).
 
 Adding a command requires a descriptor in its family module plus a golden
 accepted case and refusal partition. The faithfulness sweep fails entries
