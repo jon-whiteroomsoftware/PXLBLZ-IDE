@@ -30,12 +30,12 @@ function applyClipProperty(record: ShowRecord, input: Record<string, unknown>, c
     if (value !== null) {
       try {
         const source = context?.source(current.pattern)
-        if (source === undefined) return refuseShowCommand({ code: 'unknown-control', message: 'Exact Pattern source is required to set a control target.' })
+        if (source === undefined) return refuseShowCommand({ code: 'unknown-control', message: `Pattern metadata for "${current.pattern.id}" is unavailable; supply its source before editing controls.` })
         names = declaredPatternSliderNames(source)
       } catch {
         return refuseShowCommand({ code: 'unknown-control', message: 'Pattern metadata cannot be inspected.' })
       }
-      if (!names.has(name)) return refuseShowCommand({ code: 'unknown-control', message: `No exported slider named ${name}.`, candidates: [...names] })
+      if (!names.has(name)) return refuseShowCommand({ code: 'unknown-control', message: `${current.patternName} has no control export "${name}" available as a slider. Its slider exports: ${[...names].join(', ') || 'none'}.`, remedy: names.size ? 'Use one of the listed export names exactly; do not guess an identifier.' : 'This Pattern exposes no slider controls; tell the user.', candidates: [...names] })
     }
     const controls = { ...current.simulation.controlTargets }
     satisfied = value === null ? !(name in controls) : controls[name] === value

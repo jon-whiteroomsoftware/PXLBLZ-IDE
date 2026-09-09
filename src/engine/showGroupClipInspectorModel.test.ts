@@ -1,3 +1,4 @@
+import { resolveBundledPatternSliderNames } from './showPatternControls'
 import { describe, expect, it } from 'vitest'
 import { compileShow } from './showCompiler'
 import { validateShowComposition } from './showCompositionModel'
@@ -351,4 +352,22 @@ describe('Show Group Clip inspector model', () => {
       placementId: 'inside-clip',
     }, { local: { durationMs: 0 } })).toBe(show)
   })
+})
+
+it('preserves Group targets and tracks when replacement source or Library is unavailable (#953)', () => {
+  const show = fixture()
+  const definition = show.composition!.groupDefinitions![0]
+  definition.patternInstances[0].controlTargets = { sliderSpeed: 0.5 }
+  definition.propertyTracks = [propertyTrack('speed', { kind: 'instance-control', instanceId: 'inside-instance', exportName: 'sliderSpeed' })]
+  const before = structuredClone(show)
+  const owner = { occurrenceId: 'use-a', placementId: 'inside-clip' }
+  const patch = { pattern: { ref: { kind: 'user' as const, id: 'replacement' }, name: 'Replacement' } }
+  for (const source of [undefined, 'export function render(index) { Personal.paint(index) }']) {
+    expect(updateShowGroupClipInspector(show, owner, patch, resolveBundledPatternSliderNames(source, {}))).toBe(show)
+    expect(show).toEqual(before)
+  }
+  const changed = updateShowGroupClipInspector(show, owner, patch, resolveBundledPatternSliderNames('export function render(index) { rgb(1,0,0) }', {}))
+  expect(changed).not.toBe(show)
+  expect(changed.composition!.groupDefinitions![0].patternInstances[0].controlTargets).toBeUndefined()
+  expect(changed.composition!.groupDefinitions![0].propertyTracks ?? []).toEqual([])
 })

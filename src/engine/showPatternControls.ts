@@ -28,6 +28,15 @@ export function bundledPatternSliderNames(
     .map((control) => control.exportName))
 }
 
+/** Unavailable replacement metadata must never authorize pruning authored controls. */
+export function resolveBundledPatternSliderNames(
+  source: string | undefined,
+  libraries: Record<string, string>,
+): ReadonlySet<string> | null {
+  if (source === undefined) return null
+  try { return bundledPatternSliderNames(source, libraries) } catch { return null }
+}
+
 export function discoverAutomatablePatternControls(
   source: string,
   savedControls: Record<string, number | number[]> = {},

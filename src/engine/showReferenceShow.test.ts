@@ -1,8 +1,10 @@
+import { resolveBundledPatternSliderNames } from './showPatternControls'
 import { describe, expect, it } from 'vitest'
 import { createDefaultShow } from './showModel'
 import { projectFlatShowToCompositionV1WithCellOrigins } from './showCompositionModel'
 import {
   applyShowReferencePattern,
+  applyShowPatternSlotSelections,
   currentShowReferenceExample,
   restoreShowReferencePatternSlots,
   type ShowReferenceGuide,
@@ -183,4 +185,19 @@ describe('Show reference Pattern projection (#506)', () => {
 
     expect(currentShowReferenceExample(show, guide, 31_000)?.id).toBe('reference')
   })
+})
+
+it('preserves slot projection when replacement metadata is unavailable but honors known empty exports (#953)', () => {
+  const show = createDefaultShow('slot-metadata', 'Slot metadata', 1)
+  show.cells[0].controlTargets = { sliderSpeed: 0.5 }
+  const before = structuredClone(show)
+  const groups = [{ cellIds: [show.cells[0].id], instanceIds: [] }]
+  const selections = { 0: { kind: 'user' as const, id: 'replacement' } }
+  for (const source of [undefined, 'export function render(index) { Personal.paint(index) }']) {
+    expect(applyShowPatternSlotSelections(show, groups, selections, () => 'Replacement', () => resolveBundledPatternSliderNames(source, {}))).toBe(show)
+    expect(show).toEqual(before)
+  }
+  const changed = applyShowPatternSlotSelections(show, groups, selections, () => 'Replacement', () => resolveBundledPatternSliderNames('export function render(index) { rgb(1,0,0) }', {}))
+  expect(changed.cells[0].controlTargets).toBeUndefined()
+  expect(changed.cells[0].pattern).toEqual(selections[0])
 })

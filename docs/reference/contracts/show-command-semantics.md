@@ -512,6 +512,12 @@ including its pre-existing missing-dependency policy. Metadata is execution
 context, never model-authored arguments. Clearing a target also removes its
 matching automation tracks through the existing owner.
 
+Pattern replacement requires authoritative bundled destination slider metadata.
+Unavailable source or a failed dependency bundle refuses the direct Clip, Group
+Clip, or Pattern-slot replacement without changing authored controls or tracks.
+A successfully inspected Pattern with no sliders remains authoritative empty
+metadata and deliberately removes incompatible controls and their tracks.
+
 Shared goldens, raw untouched-field checks and canonical/diagnostic/manual parity
 cover this family with existing fixtures. `V953`, `C953`, `T953` and `E953` use
 the common live admission table for durable saves, actual file reopen, Undo,

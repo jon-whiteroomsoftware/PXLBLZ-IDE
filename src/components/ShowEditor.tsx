@@ -95,7 +95,7 @@ import {
 import { resolveShowZonePixelCount, validateInstallationCoverage } from '@/engine/showInstallationCoverage'
 import { updateShowPhysicalZoneSelection } from '@/engine/showSpatialSelection'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
-import { declaredPatternSliderNames, bundledPatternSliderNames, discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
+import { declaredPatternSliderNames, bundledPatternSliderNames, resolveBundledPatternSliderNames, discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
 import {
   projectCompositionShowClipSummary,
   projectGlobalShowClipSummary,
@@ -984,8 +984,7 @@ export function ShowEditor({
   const compileLibrarySet = useMemo(() => compileLibraries(LIBRARIES, userLibraries), [userLibraries])
   const exportedSliderNamesFor = useCallback((ref: ShowPatternRef) => {
     const source = ref.kind === 'stock' ? DEMOS[resolveStockPatternId(ref.id)] : userPatterns.find(pattern => pattern.id === ref.id)?.src
-    if (source === undefined) return new Set<string>()
-    try { return bundledPatternSliderNames(source, compileLibrarySet) } catch { return new Set<string>() }
+    return resolveBundledPatternSliderNames(source, compileLibrarySet)
   }, [compileLibrarySet, userPatterns])
   const userMaps = useMapStore((state) => state.userMaps)
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)
@@ -1226,10 +1225,12 @@ export function ShowEditor({
     const group = builtInSlotGroups?.[slotIndex]
     const patternName = slotPatternNameFor(pattern)
     if (!activeShow || !group || !patternName) return
+    const sliderNames = exportedSliderNamesFor(pattern)
+    if (sliderNames === null) return
     const removedControlNames = showPatternSlotRemovedControlNames(
       activeShow,
       group,
-      exportedSliderNamesFor(pattern),
+      sliderNames,
     )
     if (removedControlNames.length === 0) {
       setReferencePattern(showId, slotIndex, pattern)

@@ -1,10 +1,13 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ShowClipEntityDetail,
   type ShowClipEntityDetailProps,
 } from './ShowClipEntityDetail'
 import { InspectorPanel, InspectorReadOnlyContext } from './ShowEditor'
+import { declaredPatternSliderNames, resolveBundledPatternSliderNames } from '@/engine/showPatternControls'
+import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { LIBRARIES } from '@/pixelblaze/libs'
 import { resetShowClipDetailTabMemory } from '@/engine/showClipDetailTabs'
 import { createDefaultShow } from '@/engine/showModel'
 import { enableViewportForContent } from '@/engine/showClipPlacementPad'
@@ -39,6 +42,12 @@ import type { ShowClipEffect, ShowCompositionV1, ShowRecord } from '@/engine/per
 type Scope = ShowClipInspectorValue['scope']
 
 const SCOPES: Scope[] = ['global', 'scene-main', 'scene-overlay']
+const MATRIX_PATTERN_CONTROLS = [{ exportName: 'sliderSpeed', label: 'Speed', min: 0 as const, max: 1 as const, defaultValue: 0.5 }]
+function matrixSliderNames(show: ShowRecord, owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) {
+  const ref = patch.pattern?.ref ?? projectShowClipInspector(show, owner)!.pattern
+  const source = DEMOS[ref.id]
+  return patch.pattern ? resolveBundledPatternSliderNames(source, LIBRARIES) : declaredPatternSliderNames(source)
+}
 
 /**
  * One real ShowRecord backing all three scopes, mirroring the inspector model
@@ -50,6 +59,8 @@ function fixture(): ShowRecord {
   const show = createDefaultShow('clip-detail-matrix', 'Clip detail matrix', 1)
   const cell = {
     ...show.cells[0],
+    pattern: { kind: 'stock' as const, id: 'CometLoom' },
+    patternName: 'CometLoom',
     adaptations: {
       ...show.cells[0].adaptations,
       timeScale: 1,
@@ -63,14 +74,14 @@ function fixture(): ShowRecord {
     version: 1,
     patternInstances: [{
       id: 'instance-main',
-      pattern: { kind: 'stock', id: 'TestPattern1D' },
-      patternName: 'TestPattern1D',
+      pattern: { kind: 'stock', id: 'CometLoom' },
+      patternName: 'CometLoom',
       time: { timeScale: 1, timeOffsetMs: 0 },
       controlTargets: { sliderSpeed: 0.4 },
     }, {
       id: 'instance-overlay',
-      pattern: { kind: 'stock', id: 'TestPattern1D' },
-      patternName: 'TestPattern1D',
+      pattern: { kind: 'stock', id: 'CometLoom' },
+      patternName: 'CometLoom',
       time: { timeScale: 1, timeOffsetMs: 0 },
       controlTargets: { sliderSpeed: 0.4 },
     }],
@@ -139,7 +150,7 @@ function matrixProps(
       { value: 'stock:TestPattern1D', label: 'TestPattern1D', group: 'Built-in' },
       { value: 'stock:CometLoom', label: 'CometLoom', group: 'Built-in' },
     ],
-    patternControls: [{ exportName: 'sliderSpeed', label: 'Speed', min: 0, max: 1, defaultValue: 0.5 }],
+    patternControls: MATRIX_PATTERN_CONTROLS,
     layerOptions: scope === 'scene-overlay'
       ? [{ value: 'layer-front', label: 'Front' }, { value: 'layer-back', label: 'Back' }]
       : undefined,
@@ -228,19 +239,19 @@ const ROWS: RoundTripRow[] = [
     drive: () => {
       const pattern = screen.getByRole('combobox', { name: 'Source pattern' })
       fireEvent.focus(pattern)
-      fireEvent.change(pattern, { target: { value: 'comet' } })
-      fireEvent.click(screen.getByRole('option', { name: 'CometLoom' }))
+      fireEvent.change(pattern, { target: { value: 'testpattern1d' } })
+      fireEvent.click(screen.getByRole('option', { name: 'TestPattern1D' }))
     },
     expected: (value) => ({
       ...value,
-      pattern: { kind: 'stock', id: 'CometLoom' },
-      patternName: 'CometLoom',
-      // A different Pattern invalidates the previous export targets. The global
+      pattern: { kind: 'stock', id: 'TestPattern1D' },
+      patternName: 'TestPattern1D',
+      // The destination has no slider exports, invalidating the previous targets. The global
       // cell has none to begin with, so its projection is unchanged here.
       simulation: { ...value.simulation, controlTargets: undefined },
     }),
     display: () => {
-      expect(screen.getByRole('combobox', { name: 'Source pattern' })).toHaveValue('CometLoom')
+      expect(screen.getByRole('combobox', { name: 'Source pattern' })).toHaveValue('TestPattern1D')
     },
   },
   {
@@ -696,7 +707,7 @@ function applyPatches(
   owner: ShowClipInspectorOwner,
   patches: ShowClipInspectorPatch[],
 ): ShowRecord {
-  return patches.reduce((current, patch) => updateShowClipInspector(current, owner, patch), show)
+  return patches.reduce((current, patch) => updateShowClipInspector(current, owner, patch, matrixSliderNames(current, owner, patch)), show)
 }
 
 beforeEach(resetShowClipDetailTabMemory)
@@ -710,7 +721,7 @@ describe('Clip detail field round-trip matrix (#658)', () => {
       let show = fixture()
       const owner = ownerFor(show, scope)
       if (row.seed) {
-        const seeded = updateShowClipInspector(show, owner, row.seed)
+        const seeded = updateShowClipInspector(show, owner, row.seed, matrixSliderNames(show, owner, row.seed))
         expect(seeded, 'seed patch must be accepted').not.toBe(show)
         show = seeded
       }
@@ -723,7 +734,7 @@ describe('Clip detail field round-trip matrix (#658)', () => {
       const patches: ShowClipInspectorPatch[] = []
       const onPatch = vi.fn((patch: ShowClipInspectorPatch) => {
         patches.push(patch)
-        const applied = updateShowClipInspector(current, owner, patch)
+        const applied = updateShowClipInspector(current, owner, patch, matrixSliderNames(current, owner, patch))
         if (applied === current) return false
         current = applied
         return Promise.resolve()
@@ -954,4 +965,50 @@ describe('Clip detail typed-edit lifecycle sweep (#658)', () => {
       expect(onPatch, 'Enter must commit exactly once').toHaveBeenCalledTimes(1)
     },
   )
+})
+
+it.each(SCOPES)('refuses a stale displayed control when current slider metadata is unavailable (%s)', scope => {
+  const show = fixture()
+  const before = structuredClone(show)
+  const owner = ownerFor(show, scope)
+  const value = projectShowClipInspector(show, owner)!
+  const onPatch = vi.fn((patch: ShowClipInspectorPatch) => {
+    expect(updateShowClipInspector(show, owner, patch, new Set())).toBe(show)
+    return false
+  })
+  render(<ShowClipEntityDetail {...matrixProps(scope, value, onPatch)} />)
+  showTab('Pattern')
+  if (scope === 'global') toggle('Set Speed target')
+  else typeAndCommit('Speed target exact percentage', '75%')
+  expect(onPatch).toHaveBeenCalled()
+  expect(show).toEqual(before)
+  if (scope === 'global') expect(screen.getByRole('checkbox', { name: 'Set Speed target' })).not.toBeChecked()
+  else expectValue('Speed target exact percentage', '40')
+})
+
+it.each(SCOPES.flatMap(scope => [
+  { scope, reason: 'missing source', source: undefined },
+  { scope, reason: 'missing Library', source: 'export function render(index) { Personal.paint(index) }' },
+]))('refuses a replacement with $reason without saving or changing the selected Pattern ($scope)', ({ scope, source }) => {
+  const show = fixture()
+  const before = structuredClone(show)
+  const owner = ownerFor(show, scope)
+  const value = projectShowClipInspector(show, owner)!
+  const save = vi.fn()
+  const onPatch = vi.fn((patch: ShowClipInspectorPatch) => {
+    const next = updateShowClipInspector(show, owner, patch, resolveBundledPatternSliderNames(source, {}))
+    if (next === show) return false
+    save(next)
+  })
+  const props = matrixProps(scope, value, onPatch)
+  render(<ShowClipEntityDetail {...props} patternOptions={[...props.patternOptions, { value: 'user:unavailable', label: 'Unavailable replacement', group: 'Personal' }]} />)
+  showTab('Pattern')
+  const pattern = screen.getByRole('combobox', { name: 'Source pattern' })
+  act(() => pattern.focus())
+  fireEvent.change(pattern, { target: { value: 'unavailable' } })
+  fireEvent.click(screen.getByRole('option', { name: 'Unavailable replacement' }))
+  expect(onPatch).toHaveBeenCalledTimes(1)
+  expect(save).not.toHaveBeenCalled()
+  expect(show).toEqual(before)
+  expect(pattern).toHaveValue('CometLoom')
 })

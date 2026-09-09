@@ -79,8 +79,9 @@ export function updateShowGroupClipInspector(
   show: ShowRecord,
   owner: ShowGroupClipOwner,
   patch: ShowClipInspectorPatch,
-  exportedSliderNames: ReadonlySet<string> = new Set(),
+  exportedSliderNames: ReadonlySet<string> | null = new Set(),
 ): ShowRecord {
+  if (exportedSliderNames === null) return show
   const resolved = resolveGroupClip(show, owner)
   if (!show.composition || !resolved) return show
   const sceneRange = projectShowTimeline(show).scenes.find((scene) => scene.sceneId === resolved.occurrence.sceneId)

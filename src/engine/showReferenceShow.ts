@@ -69,19 +69,21 @@ export function applyShowPatternSlotSelections(
   slotGroups: readonly ShowPatternSlotGroup[],
   selections: Readonly<Record<number, ShowPatternRef>>,
   patternNameFor: (ref: ShowPatternRef) => string | undefined,
-  exportedSliderNamesFor: (ref: ShowPatternRef) => ReadonlySet<string>,
+  exportedSliderNamesFor: (ref: ShowPatternRef) => ReadonlySet<string> | null,
 ): ShowRecord {
   return slotGroups.reduce((current, group, index) => {
     const pattern = selections[index]
     if (!pattern) return current
     const patternName = patternNameFor(pattern)
     if (!patternName) return current
+    const sliderNames = exportedSliderNamesFor(pattern)
+    if (sliderNames === null) return current
     return applyShowReferencePattern(current, {
       pattern,
       patternName,
       cellIds: group.cellIds,
       instanceIds: group.instanceIds,
-    }, exportedSliderNamesFor(pattern))
+    }, sliderNames)
   }, show)
 }
 

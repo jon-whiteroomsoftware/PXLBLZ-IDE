@@ -181,8 +181,9 @@ export function updateShowClipInspector(
   show: ShowRecord,
   owner: ShowClipInspectorOwner,
   patch: ShowClipInspectorPatch,
-  exportedSliderNames: ReadonlySet<string> = new Set(),
+  exportedSliderNames: ReadonlySet<string> | null = new Set(),
 ): ShowRecord {
+  if (exportedSliderNames === null) return show
   // A captured control patch may outlive its Pattern metadata. Only changed
   // targets need a current exported slider; untouched legacy targets survive.
   if (patch.simulation && Object.prototype.hasOwnProperty.call(patch.simulation, 'controlTargets')) {

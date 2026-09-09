@@ -1,3 +1,4 @@
+import { resolveBundledPatternSliderNames } from './showPatternControls'
 import { describe, expect, it } from 'vitest'
 import { createShowClipEffect } from './showEffectAuthoring'
 import { buildShowToolkitPresentationCatalogue } from './showVisualToolkitPresentation'
@@ -730,5 +731,37 @@ describe('shared Clip inspector owner model (#498)', () => {
       view: { phase: 0, brightness: 1 },
       local: { opacity: 0 },
     })
+  })
+})
+
+describe('unavailable replacement metadata (#953)', () => {
+  it.each([globalOwner, mainOwner, overlayOwner])('preserves the complete authored record until destination metadata is authoritative', ownerFor => {
+    const show = fixture()
+    show.cells[0].controlTargets = { sliderSpeed: 0.4 }
+    show.composition!.patternInstances[0].controlTargets = { sliderSpeed: 0.4 }
+    show.composition!.scenes[0].propertyTracks = show.composition!.patternInstances.map(instance => ({
+      id: `track-${instance.id}`,
+      target: { kind: 'instance-control' as const, instanceId: instance.id, exportName: 'sliderSpeed' },
+      keyframes: [
+        { id: `start-${instance.id}`, timeMs: 0, value: 0.2, easing: { curve: 'linear' as const } },
+        { id: `end-${instance.id}`, timeMs: 1000, value: 0.8, easing: { curve: 'linear' as const } },
+      ],
+    }))
+    const before = structuredClone(show)
+    const owner = ownerFor(show)
+    const patch = { pattern: { ref: { kind: 'user' as const, id: 'replacement' }, name: 'Replacement' } }
+    for (const source of [undefined, 'export function render(index) { Personal.paint(index) }']) {
+      const names = resolveBundledPatternSliderNames(source, {})
+      expect(updateShowClipInspector(show, owner, patch, names)).toBe(show)
+      expect(show).toEqual(before)
+    }
+    const empty = resolveBundledPatternSliderNames('export function render(index) { rgb(1,0,0) }', {})
+    const changed = updateShowClipInspector(show, owner, patch, empty)
+    expect(changed).not.toBe(show)
+    expect(projectShowClipInspector(changed, owner)!.simulation.controlTargets).toBeUndefined()
+    if (owner.kind !== 'global') {
+      const instanceId = owner.kind === 'scene-main' ? 'instance-main' : 'instance-overlay'
+      expect(changed.composition!.scenes[0].propertyTracks!.some(track => track.target.kind === 'instance-control' && track.target.instanceId === instanceId)).toBe(false)
+    }
   })
 })
