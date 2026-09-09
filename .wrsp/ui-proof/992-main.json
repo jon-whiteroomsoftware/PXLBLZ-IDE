@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "992",
+  "route": "/PXLBLZ-IDE/studio/shows/e3869af5-e664-4635-9bb5-de9b8c575eee",
+  "operation": "At 1440x900, with no Clip selected, positioned the playhead at16s and used toolbar Split on the Main Clip, then one Undo restored it. In-app browser, synthetic local-agent-08; both captures inspected.",
+  "captures": [
+    ".wrsp/ui-proof/992-main-split.jpg",
+    ".wrsp/ui-proof/992-main-undo.jpg"
+  ],
+  "capturedAtCommit": "a809d40e5cc04b4391f9292a8433bbcb2f59ce53"
+}
