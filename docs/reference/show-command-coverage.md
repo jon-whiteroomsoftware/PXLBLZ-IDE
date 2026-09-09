@@ -674,7 +674,7 @@ and the diff reviewed.
 | Path | Commands |
 | --- | --- |
 | `/composition/durationMs` | add_clip, set_show_end |
-| `/composition/executionModel` | add_clip, duplicate_clip, make_clip_pattern_independent, rejoin_clip_pattern_instance |
+| `/composition/executionModel` | add_clip, duplicate_clip, remove_clip, make_clip_pattern_independent, rejoin_clip_pattern_instance |
 | `/name` | rename_show |
 | `/scenes/*/durationMs` | set_show_end |
 | `/stageMapId` | set_output_contract |

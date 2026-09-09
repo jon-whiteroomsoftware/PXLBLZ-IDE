@@ -88,6 +88,27 @@ describe('grammar tools over MCP (#17)', () => {
     expect(await callJson('export_show', { session_id })).toEqual(before)
   })
 
+  it('publishes the shared removal schema and preserves complete export/Undo over MCP', async () => {
+    const { showRemoveClipFixture } = await import('@/test/showRemoveClipFixture')
+    const tools = await client.listTools()
+    const schema = tools.tools.find(tool => tool.name === 'remove_clip')!.inputSchema
+    expect(Object.keys(schema.properties ?? {}).sort()).toEqual(['clip', 'clip_id', 'session_id'])
+    expect(schema.properties?.clip_id).toMatchObject({ type: 'string' })
+    const { payload: opened, isError } = await callJson('open_show', { show: showRemoveClipFixture() })
+    expect(isError).toBe(false)
+    const session_id = opened.sessionId
+    const before = await callJson('export_show', { session_id })
+    expect((await callJson('remove_clip', { session_id, clip_id: 'clip-b' })).isError).toBe(false)
+    const after = await callJson('export_show', { session_id })
+    expect(after).not.toEqual(before)
+    expect((await callJson('remove_clip', { session_id, clip_id: 'clip-b' })).isError).toBe(true)
+    expect(await callJson('export_show', { session_id })).toEqual(after)
+    expect((await callJson('undo', { session_id })).isError).toBe(false)
+    expect(await callJson('export_show', { session_id })).toEqual(before)
+    expect((await callJson('redo', { session_id })).isError).toBe(false)
+    expect(await callJson('export_show', { session_id })).toEqual(after)
+  })
+
   it("carries the owner's example end to end through the protocol", async () => {
     const fixture = openGrammarFixture({ overlay: true })
     const { payload: opened, isError: openError } = await callJson('open_show', {

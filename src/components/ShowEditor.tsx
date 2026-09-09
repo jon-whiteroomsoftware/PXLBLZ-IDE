@@ -87,8 +87,6 @@ import {
   type CompiledShowState,
 } from '@/engine/showPreviewArtifact'
 import {
-  deleteShowMainPlacement,
-  deleteShowOverlayPlacement,
   projectFlatShowToCompositionV1WithCellOrigins,
 } from '@/engine/showCompositionModel'
 import {
@@ -1366,9 +1364,7 @@ export function ShowEditor({
           setCompositionClipPendingDelete(compositionOwner)
           return true
         }
-        const composition = compositionOwner.kind === 'main'
-          ? deleteShowMainPlacement(activeShow.composition, compositionOwner)
-          : deleteShowOverlayPlacement(activeShow.composition, compositionOwner)
+        const composition = deleteShowClipWithLayerTransitions(activeShow, activeShow.composition, compositionOwner)
         if (composition === activeShow.composition) return false
         closeDetailPanel()
         closePinnedDetailForSelection(targetSelection)
@@ -2996,11 +2992,9 @@ export function ShowEditor({
                       setCompositionClipPendingDelete(timelineOwner)
                       return
                     }
-                    const composition = owner.kind === 'scene-main'
-                      ? deleteShowMainPlacement(timelineComposition, owner)
-                      : owner.kind === 'scene-overlay'
-                        ? deleteShowOverlayPlacement(timelineComposition, owner)
-                        : timelineComposition
+                    const composition = timelineOwner
+                      ? deleteShowClipWithLayerTransitions(activeShow, timelineComposition, timelineOwner)
+                      : timelineComposition
                     if (composition === timelineComposition) return
                     closeDetailPanel()
                     if (timelineOwner) {

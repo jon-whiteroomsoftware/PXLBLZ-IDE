@@ -117,6 +117,11 @@ export const BASELINE_UTTERANCES: BaselineUtterance[] = [
     ],
   },
   {
+    utterance: 'remove the connected target Clip',
+    intent: '#951: complete logical removal and orphan cleanup adopt once.',
+    script: [{ tool: 'remove_clip', args: { clip_id: 'clip-b', finish_turn_reply: { intent: 'apply', reply: 'Removed the target Clip and attached Transition.' } } }],
+  },
+  {
     utterance: 'add a topmost overlay Layer',
     intent: '#951: one fresh Layer in every Scene, adopted once.',
     script: [{ tool: 'add_overlay_layer', args: { zone_id: 'zone-1', finish_turn_reply: { intent: 'apply', reply: 'Added a topmost Layer.' } } }],

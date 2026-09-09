@@ -29,6 +29,7 @@ import {
   personalLibraryPatternShow,
 } from '../src/agent-harness/baseline/fixtures'
 import type { ShowRecord } from '../src/engine/personalContentRecords'
+import { showRemoveClipFixture } from '../src/test/showRemoveClipFixture'
 import { showOverlayLayerFixture } from '../src/test/showOverlayLayerFixture'
 
 const RUN_ID = new Date().toISOString().replace(/[:.]/g, '-')
@@ -1682,6 +1683,54 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
     expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(2)
     saveRecord('M951', { before, after, undone, done, writes, observations: await readObservations(page) })
+  })
+
+  test('RC951: removal saves once, exports the full surviving Show, and Undo restores its preimage', async ({ page }) => {
+    test.setTimeout(90000)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    const record = showRemoveClipFixture()
+    record.id = `remove-951-${Date.now().toString(36)}`
+    expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+    await page.goto(`studio/shows/${record.id}?agent=1`)
+    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+    await expect.poll(() => page.evaluate(async () => {
+      const load = (path: string) => import(path)
+      const { useEntityOrganizationStore } = await load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')
+      return useEntityOrganizationStore.getState().loaded.libraries
+    })).toBe(true)
+    await injectOverlay(page, bridge.url)
+    const before = await visibleRecord(page) as unknown as ShowRecord
+    const writes = watchShowWrites(page)
+    const done = await waitForDone(page, await submitUtterance(page, 'remove the connected target Clip'))
+    expect(done.applied, JSON.stringify(done)).toBe(true)
+    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(1)
+    const after = await visibleRecord(page) as unknown as ShowRecord
+    const expected = structuredClone(before)
+    expected.composition!.scenes[0].zones[0].main.splice(1, 1)
+    expected.composition!.patternInstances.splice(1, 1)
+    expected.composition!.scenes[0].propertyTracks = [expected.composition!.scenes[0].propertyTracks![1]]
+    expected.composition!.transitions = []
+    delete expected.composition!.executionModel
+    expect(after).toEqual({ ...expected, updatedAt: after.updatedAt })
+    expect(await durableShow(page, record.id)).toEqual(after)
+    await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: 'Show actions' }).click()
+    const download = page.waitForEvent('download')
+    await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
+    const file = await download
+    const reopened = await page.evaluate(async bytes => {
+      const load = (path: string) => import(path)
+      const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
+      return parseShowFileBundle(new Uint8Array(bytes))
+    }, [...readFileSync((await file.path())!)])
+    expect(reopened.show).toEqual(after)
+    saveRecord('RC951-export', reopened)
+    await page.screenshot({ path: join(REPORT_DIR, 'RC951-result.png'), fullPage: true })
+    await page.getByRole('button', { name: 'Undo Show edit' }).click()
+    await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
+    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(2)
+    await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+    saveRecord('RC951', { before, after, done, writes, observations: await readObservations(page) })
   })
 
   test('L951: Layer creation saves once, exports, undoes, deduplicates and refuses stale overlay indices', async ({ page }) => {

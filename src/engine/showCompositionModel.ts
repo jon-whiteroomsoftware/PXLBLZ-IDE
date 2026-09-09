@@ -864,6 +864,19 @@ function deleteLogicalPlacement(
     removePlacementTracks(draft, scene.sceneId, segmentIds)
   }
   removePlacementTransitions(draft, segmentIds)
+  // Only dependencies of this removal are eligible; pre-existing orphan data
+  // and instances still shared by surviving Clips remain authored content.
+  const removedInstanceIds = new Set(segments.map((segment) => segment.placement.instanceId))
+  for (const segment of directPlacementSegments(draft)) removedInstanceIds.delete(segment.placement.instanceId)
+  draft.patternInstances = draft.patternInstances.filter((instance) => !removedInstanceIds.has(instance.id))
+  if (draft.patternInstances.length !== composition.patternInstances.length) delete draft.executionModel
+  for (const scene of draft.scenes) {
+    if (!scene.propertyTracks) continue
+    scene.propertyTracks = scene.propertyTracks.filter((track) => (
+      !('instanceId' in track.target) || !removedInstanceIds.has(track.target.instanceId)
+    ))
+    if (scene.propertyTracks.length === 0) delete scene.propertyTracks
+  }
   return draft
 }
 

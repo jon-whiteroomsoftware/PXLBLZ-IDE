@@ -4,10 +4,11 @@ import type {
   ShowRecord,
 } from './personalContentRecords'
 import {
+  deleteShowMainPlacement,
+  deleteShowOverlayPlacement,
   normalizeShowComposition,
   validateShowComposition,
 } from './showCompositionModel'
-import { showCompositionClipCount } from './showClipInvariant'
 import { materializeShowGroupOccurrences } from './showGroupModel'
 import {
   moveShowClipAtGlobalTime,
@@ -615,40 +616,12 @@ export function deleteShowClipWithLayerTransitions(
   composition: ShowCompositionV1,
   owner: ShowTimelineClipOwner,
 ): ShowCompositionV1 {
-  if (showCompositionClipCount(composition) <= 1) return composition
-  const draft = structuredClone(composition)
-  const segmentIds = new Set<string>()
-  for (const scene of draft.scenes) {
-    for (const zone of scene.zones) {
-      for (const placement of zone.main) {
-        if ((placement.logicalClipId ?? placement.id) === owner.placementId) segmentIds.add(placement.id)
-      }
-      zone.main = zone.main.filter((placement) => (
-        (placement.logicalClipId ?? placement.id) !== owner.placementId
-      ))
-      for (const layer of zone.overlays) {
-        for (const placement of layer.placements) {
-          if ((placement.logicalClipId ?? placement.id) === owner.placementId) segmentIds.add(placement.id)
-        }
-        layer.placements = layer.placements.filter((placement) => (
-          (placement.logicalClipId ?? placement.id) !== owner.placementId
-        ))
-      }
-    }
-    scene.propertyTracks = scene.propertyTracks?.filter((track) => (
-      !('placementId' in track.target) || !segmentIds.has(track.target.placementId)
-    ))
-    if (scene.propertyTracks?.length === 0) delete scene.propertyTracks
-  }
-  if (segmentIds.size === 0) return composition
-  draft.transitions = (draft.transitions ?? []).filter((transition) => (
-    !segmentIds.has(transition.fromPlacementId)
-    && !segmentIds.has(transition.toPlacementId)
-    && transition.fromPlacementId !== owner.placementId
-    && transition.toPlacementId !== owner.placementId
-  ))
-  if (validateShowComposition(show, draft).length > 0) return composition
-  return normalizeShowComposition(show, draft)
+  if (validateShowComposition(show, composition).length > 0) return composition
+  const result = owner.kind === 'main'
+    ? deleteShowMainPlacement(composition, owner)
+    : deleteShowOverlayPlacement(composition, owner)
+  if (result === composition || validateShowComposition(show, result).length > 0) return composition
+  return result
 }
 
 function resolveEndpointLayer(

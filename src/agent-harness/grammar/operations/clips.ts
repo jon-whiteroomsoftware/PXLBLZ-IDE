@@ -12,8 +12,6 @@ import {
   type ShowClipInspectorPatch,
 } from '@/engine/showClipInspectorModel'
 import {
-  deleteShowMainPlacement,
-  deleteShowOverlayPlacement,
   restartShowMainPlacement,
 } from '@/engine/showCompositionModel'
 import {
@@ -50,6 +48,7 @@ import {
 } from '../support.js'
 import { canonicalResizeOperation } from './resizeAdapter.js'
 import { canonicalMoveOperation } from './moveAdapter.js'
+import { canonicalRemoveClipOperation } from './removeClipAdapter.js'
 import { canonicalOverlayLayerOperation } from './overlayLayerAdapter.js'
 
 function unknownZone(document: ShowGrammarDocument, zoneId: string): GrammarIssue {
@@ -405,80 +404,7 @@ const duplicateClip: ShowGrammarOperation = {
   },
 }
 
-const removeClip: ShowGrammarOperation = {
-  name: 'remove_clip',
-  description:
-    'Remove one clip from the timeline (all segments, if it spans several internal Scenes). The Show keeps ' +
-    'at least one clip; removing the last one is refused.',
-  mutates: [
-    '/composition/scenes/*/zones/*',
-    '/composition/scenes/*/propertyTracks',
-    '/composition/patternInstances',
-  ],
-  inputShape: {
-    clip_id: z.string().describe('Clip id from the open_show listing'),
-  },
-  apply(document, args) {
-    const resolved = resolveClip(document, args.clip_id as string)
-    if (!resolved.ok) return resolved
-    const { clip, siblings } = resolved.context
-    if (siblings.length <= 1) {
-      return refuse({
-        code: 'last-clip',
-        message: `Clip ${clip.id} is the Show's only clip; a Show keeps at least one.`,
-        remedy: 'Add a replacement clip first, or edit this one instead.',
-      })
-    }
-    const composition = compositionOf(document)
-    let result = clip.kind === 'main'
-      ? deleteShowMainPlacement(composition, {
-          sceneId: clip.sceneId,
-          zoneId: clip.zoneId,
-          placementId: clip.id,
-        })
-      : deleteShowOverlayPlacement(composition, {
-          sceneId: clip.sceneId,
-          zoneId: clip.zoneId,
-          layerId: clip.layerId ?? '',
-          placementId: clip.id,
-        })
-    if (result === composition) {
-      return refuse({
-        code: 'engine-refused',
-        message: `The engine declined to remove clip ${clip.id}.`,
-      })
-    }
-    // The engine leaves the clip's Pattern instance behind. An orphaned
-    // instance is dead weight — and an orphaned user-pattern instance keeps
-    // the document tier-0-invalid — so prune it (and its instance-targeted
-    // tracks) when no other placement references it.
-    const stillUsed = result.scenes.some((scene) => scene.zones.some((zone) =>
-      zone.main.some((placement) => placement.instanceId === clip.instanceId) ||
-      zone.overlays.some((layer) =>
-        layer.placements.some((placement) => placement.instanceId === clip.instanceId))))
-    if (!stillUsed) {
-      result = {
-        ...result,
-        patternInstances: result.patternInstances.filter((instance) => instance.id !== clip.instanceId),
-        scenes: result.scenes.map((scene) => {
-          const tracks = (scene.propertyTracks ?? []).filter((track) =>
-            !('instanceId' in track.target) || track.target.instanceId !== clip.instanceId)
-          const { propertyTracks: _dropped, ...rest } = scene
-          return tracks.length > 0 ? { ...rest, propertyTracks: tracks } : rest
-        }),
-      }
-    }
-    return {
-      ok: true,
-      document: composedShow(document, result),
-      changes: [{
-        op: 'remove_clip',
-        targetId: clip.id,
-        description: `Clip ${clip.id} (${clip.patternName}, ${clip.startMs}–${clip.endMs} ms) removed.`,
-      }],
-    }
-  },
-}
+const removeClip: ShowGrammarOperation = canonicalRemoveClipOperation()
 
 const makeClipPatternIndependent: ShowGrammarOperation = {
   name: 'make_clip_pattern_independent',

@@ -397,6 +397,9 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(tracked.record.composition?.executionModel).toBeUndefined()
   },
   remove_clip: () => {
+    const stamped = applyOk(stampedCommandFixture(), 'remove_clip', { clip_id: 'clip-b' })
+    expect(stamped.record.composition!.executionModel).toBeUndefined()
+
     const { record } = applyOk(showCommandFixture(), 'remove_clip', { clip_id: 'clip-b' })
     expect(summaryClips(record).some((clip) => clip.clipId === 'clip-b')).toBe(false)
 

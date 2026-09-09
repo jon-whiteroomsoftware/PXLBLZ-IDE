@@ -5,10 +5,8 @@ import { createOverlayLayerCommand } from './overlayLayer'
 // are the ids every projection (summary included) reports.
 import { newPersonalContentId } from '../personalContentMetadata'
 import type { ShowPatternInstance } from '../personalContentRecords'
-import {
-  deleteShowMainPlacement,
-  deleteShowOverlayPlacement,
-} from '../showCompositionModel'
+import { deleteShowClipWithLayerTransitions } from '../showLayerTransitionAuthoring'
+import { showCompositionClipCount } from '../showClipInvariant'
 import {
   addShowClipAtGlobalTime,
   addShowClipAtGlobalTimeExtendingShow,
@@ -293,12 +291,12 @@ const duplicateClip: ShowCommandDescriptor = {
   },
 }
 
-const removeClip: ShowCommandDescriptor = {
+export const removeClipCommand: ShowCommandDescriptor = {
   name: 'remove_clip',
   description:
-    'Remove a clip (every Scene segment of it) and its placement-owned property tracks. The last clip ' +
+    'Remove a clip (every Scene segment), its placement tracks and attached Layer Transitions, plus newly orphaned Pattern instances and their tracks. The last clip ' +
     'of a Show refuses; a Show keeps at least one clip.',
-  touches: ['/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/composition/transitions', '/updatedAt'],
+  touches: ['/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/composition/patternInstances', '/composition/executionModel', '/composition/transitions', '/updatedAt'],
   fields: {
     clip_id: { kind: 'string', description: 'The clip to remove' },
   },
@@ -309,13 +307,12 @@ const removeClip: ShowCommandDescriptor = {
     const found = resolveCommandClip(record, composition, input.clip_id as string)
     if (!found.ok) return found
     const { clip, owner } = found.context
-    const result = owner.kind === 'main'
-      ? deleteShowMainPlacement(composition, owner)
-      : deleteShowOverlayPlacement(composition, owner)
+    const result = deleteShowClipWithLayerTransitions(record, composition, owner)
     if (result === composition) {
       return refuseShowCommand({
-        code: 'last-clip',
-        message: `Clip ${clip.id} was not removed; a Show keeps at least one clip.`,
+        code: showCompositionClipCount(composition) <= 1 ? 'last-clip' : 'engine-refused',
+        message: `Clip ${clip.id} was not removed; a Show keeps at least one clip and valid composition owners.`,
+        remedy: 'Add a replacement Clip before removing the last Clip; otherwise repair invalid composition owners.',
       })
     }
     return {
@@ -423,7 +420,7 @@ export const SHOW_CLIP_COMMANDS: ShowCommandDescriptor[] = [
   resizeClip,
   splitClip,
   duplicateClip,
-  removeClip,
+  removeClipCommand,
   makeClipPatternIndependent,
   rejoinClipPatternInstance,
 ]

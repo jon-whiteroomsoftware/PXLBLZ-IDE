@@ -294,3 +294,28 @@ index cannot silently retarget after insertion. No narrow admission is granted.
 and [consumer evidence](../evidence/issue-951-overlay-layer/README.md) qualify
 this boundary. Layer removal/reorder, Group creation and add_clip migration
 remain outside this slice.
+
+## Logical Clip removal (#951)
+
+`remove_clip(clip_id)` removes every Scene segment of a direct logical Clip,
+its placement-owned tracks and attached Layer Transitions. Pattern instances
+used by those segments and their instance-owned tracks are removed only when
+no surviving direct Clip uses the instance. Unrelated pre-existing orphan
+instances and tracks remain unchanged. Removing an instance forfeits the
+cast-bound deterministic-loop stamp; shared-instance removal retains it.
+
+Missing targets, Group children, malformed composition owners and removal of
+the last logical Clip refuse. Surviving identities, ranges, settings, Layer
+order, Groups and routing remain unchanged. The owner validates its complete
+result without normalizing unrelated authored content.
+
+The canonical descriptor supplies the diagnostic invocation schema and touch
+inventory. Ordinary manual deletion and confirmed connected deletion call the
+same validated owner, `deleteShowClipWithLayerTransitions`, which delegates to
+the logical placement deletion in `showCompositionModel`. The existing connected
+confirmation remains the manual consent surface. Adoption, one-save history,
+and whole-Show revision admission retain their existing owners.
+
+[Removal evidence](../evidence/issue-951-remove-clip/README.md) records complete
+output, dependency preservation, protocol and browser checks. Group deletion,
+other Clip commands and narrow candidate admission remain outside this slice.

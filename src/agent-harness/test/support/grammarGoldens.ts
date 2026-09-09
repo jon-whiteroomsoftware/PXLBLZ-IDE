@@ -245,6 +245,10 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(totalTracks.length).toBe(2)
   },
   remove_clip: () => {
+    const connected = withLayerTransition()
+    const removedConnected = applyOk(connected.document, 'remove_clip', { clip_id: connected.secondClipId })
+    expect(removedConnected.document.show.composition!.transitions).toEqual([])
+
     // Removing a multi-Scene clip removes every segment.
     const document = fixture({ emptySecondScene: true })
     const clip = clipAt(document, 0)
