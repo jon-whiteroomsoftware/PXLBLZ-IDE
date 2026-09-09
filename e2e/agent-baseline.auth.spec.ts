@@ -1635,6 +1635,74 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     staleCommand?: { command: string; args: Record<string, unknown> }
   }> = [
     {
+      id: 'AC951',
+      command: 'add_clip',
+      args: { zone_id: 'zone-1', start_ms: 29000, duration_ms: 1000, overlay_layer_index: 0, pattern_kind: 'stock', pattern_id: 'CometLoom' },
+      utterance: 'add CometLoom to the overlay at twenty nine seconds',
+      fixture: () => { const record = showOverlayLayerFixture(); record.id = `add-951-${Date.now().toString(36)}`; return record },
+      expectedFacts: before => {
+        const expected = structuredClone(before)
+        expected.composition!.patternInstances.unshift({ id: 'instance-1', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'CometLoom', time: { timeScale: 1, timeOffsetMs: 0 } })
+        expected.composition!.scenes[0].zones[0].overlays[0].placements.push({ id: 'clip-1', instanceId: 'instance-1', startMs: 29000, durationMs: 1000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } })
+        return expected
+      },
+    },
+    {
+      id: 'IC951',
+      command: 'make_clip_pattern_independent',
+      args: { clip_id: 'clip-c' },
+      utterance: 'make the third Clip Pattern independent',
+      fixture: () => { const record = showOverlayLayerFixture(); record.id = `independent-951-${Date.now().toString(36)}`; return record },
+      expectedFacts: before => {
+        const expected = structuredClone(before)
+        expected.composition!.patternInstances.unshift({ ...structuredClone(before.composition!.patternInstances.find(instance => instance.id === 'instance-a')!), id: 'instance-1' })
+        expected.composition!.scenes[0].zones[0].main.find(clip => clip.id === 'clip-c')!.instanceId = 'instance-1'
+        const original = before.composition!.scenes[0].propertyTracks!.find(track => track.id === 'track-inst')!
+        expected.composition!.scenes[0].propertyTracks!.push({ ...structuredClone(original), id: 'track-inst-instance-1', target: { kind: 'instance-time-scale', instanceId: 'instance-1' }, keyframes: original.keyframes.map(keyframe => ({ ...structuredClone(keyframe), id: `${keyframe.id}-instance-1` })) })
+        return expected
+      },
+    },
+    {
+      id: 'RJ951',
+      command: 'rejoin_clip_pattern_instance',
+      args: { clip_id: 'clip-b', target_clip_id: 'clip-a' },
+      utterance: 'rejoin the second Clip to the first Pattern instance',
+      fixture: () => { const record = showOverlayLayerFixture(); record.id = `rejoin-951-${Date.now().toString(36)}`; return record },
+      expectedFacts: before => {
+        const expected = structuredClone(before)
+        expected.composition!.patternInstances = expected.composition!.patternInstances.filter(instance => instance.id !== 'instance-b')
+        expected.composition!.scenes[0].zones[0].main.find(clip => clip.id === 'clip-b')!.instanceId = 'instance-a'
+        expected.composition!.scenes[0].propertyTracks = expected.composition!.scenes[0].propertyTracks!.filter(track => track.id !== 'track-inst-b')
+        return expected
+      },
+    },
+    {
+      id: 'IT951',
+      command: 'insert_time',
+      args: { at_ms: 29000, duration_ms: 1000 },
+      utterance: 'insert one second at twenty nine seconds',
+      fixture: () => { const record = showOverlayLayerFixture(); record.id = `insert-time-951-${Date.now().toString(36)}`; return record },
+      expectedFacts: before => {
+        const expected = structuredClone(before)
+        expected.scenes[0].durationMs += 1000
+        expected.composition!.durationMs = 63000
+        return expected
+      },
+    },
+    {
+      id: 'SE951',
+      command: 'set_show_end',
+      args: { end_ms: 70000 },
+      utterance: 'set Show End to seventy seconds',
+      fixture: () => { const record = showOverlayLayerFixture(); record.id = `show-end-951-${Date.now().toString(36)}`; return record },
+      expectedFacts: before => {
+        const expected = structuredClone(before)
+        expected.scenes[1].durationMs = 38000
+        expected.composition!.durationMs = 70000
+        return expected
+      },
+    },
+    {
       id: 'M951',
       command: 'move_clip',
       args: { clip_id: 'resize-b', start_ms: 6000 },

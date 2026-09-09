@@ -390,10 +390,11 @@ The [descriptor adapter](../../../src/agent-harness/grammar/operations/descripto
 Normalization belongs at the store/file boundary. Command owners preserve
 unrelated authored fields and order rather than normalizing the whole composition.
 Existing delegated helpers `replaceLogicalClipGlobalSpan`, `moveShowClip` and
-`resizeShowClipAtGlobalTime` in `showTimelineClipAuthoring.ts` still normalize
-composition output; they are retained behavior, not an unqualified claim that all
-owners obey this boundary today. Split's `restoreOrder` remains in place. Any
-owner change needed to remove these residuals requires an explicit decision.
+`resizeShowClipAtGlobalTime` in `showTimelineClipAuthoring.ts`, plus Layer-transition
+insertion, resizing and reset owners in `showLayerTransitionAuthoring.ts`, still
+normalize composition output. These remain existing behavior. Split's
+`restoreOrder` remains in place; migrating these residual families is separate
+from the five-operation Slice B.
 
 The [golden-run oracle](../../../src/engine/showCommands/commands.test.ts)
 checks existing id-bearing entities independently of nested entities and excludes
@@ -413,3 +414,20 @@ normalization, preserve raw inputs, and reopen exported Shows. Stable importer
 inputs account for legacy entry defaults and implicit Cuts; owner parity is
 checked separately on the original authored fixtures. Refusal partitions and
 private service/transaction sequences remain in the same test file.
+
+Add Clip, make Pattern independent, rejoin Pattern instance, Insert Time and
+Set Show End use that same descriptor adapter. Add and independence retain
+caller-local fresh IDs. Fresh instances take their former lexical insertion
+position on ordered input without reordering existing siblings. Add preserves
+optional-field presence through the validated authored-edit helper. Rejoin
+removes the source instance and its tracks only when the last user leaves,
+including preserving unrelated explicitly empty track arrays.
+
+Insert Time and Set Show End validate their results without whole-composition
+normalization. Insertion orders newly created hold keys within the affected
+curve and places each fresh split half beside its source; unrelated track and
+instance order remain authored. Existing millisecond rounding, duration clamping,
+Transition/Group refusal and Show End no-change refusal remain unchanged.
+The shared rows cover manual/canonical/diagnostic parity and identity collisions;
+`AC951`, `IC951`, `RJ951`, `IT951` and `SE951` in the existing admission table
+cover saved records, file reopen, Undo and stale/duplicate delivery.

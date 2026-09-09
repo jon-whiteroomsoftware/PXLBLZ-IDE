@@ -12,8 +12,32 @@ import type { ShowRecord } from '../personalContentRecords'
 import {
   refuseShowCommand,
   type ShowCommandDescriptor,
+  type ShowCommandOutcome,
 } from './registry'
 import { engineIdentityRefusal, planRefusal } from './support'
+
+export function insertTimeCommandOutcome(record: ShowRecord, input: Record<string, unknown>, newId = newPersonalContentId): ShowCommandOutcome {
+  const atMs = input.at_ms as number
+  const durationMs = input.duration_ms as number
+  const plan = planShowTimeInsertion(record, atMs, durationMs)
+  if (!plan.enabled) return planRefusal(plan, 'insert_time')
+  const newPlacementIdBySourceId = Object.fromEntries(
+    plan.crossingPlacementIds.map((sourceId) => [sourceId, newId()]),
+  )
+  const result = insertShowTime(record, { atMs, durationMs, newPlacementIdBySourceId })
+  if (result === record) return engineIdentityRefusal('insert_time', '')
+  return {
+    ok: true,
+    record: result,
+    changes: [{
+      command: 'insert_time',
+      description:
+        `${Math.round(durationMs)} ms inserted at ${Math.round(atMs)} ms` +
+        `${plan.crossingPlacementIds.length > 0 ? `, splitting ${plan.crossingPlacementIds.length} clip(s)` : ''}.`,
+      details: { splitClipIdsBySourceId: newPlacementIdBySourceId },
+    }],
+  }
+}
 
 const insertTime: ShowCommandDescriptor = {
   name: 'insert_time',
@@ -26,28 +50,7 @@ const insertTime: ShowCommandDescriptor = {
     at_ms: { kind: 'number', description: 'Global insertion point in milliseconds' },
     duration_ms: { kind: 'number', description: 'How much time to insert' },
   },
-  apply(record, input) {
-    const atMs = input.at_ms as number
-    const durationMs = input.duration_ms as number
-    const plan = planShowTimeInsertion(record, atMs, durationMs)
-    if (!plan.enabled) return planRefusal(plan, 'insert_time')
-    const newPlacementIdBySourceId = Object.fromEntries(
-      plan.crossingPlacementIds.map((sourceId) => [sourceId, newPersonalContentId()]),
-    )
-    const result = insertShowTime(record, { atMs, durationMs, newPlacementIdBySourceId })
-    if (result === record) return engineIdentityRefusal('insert_time', '')
-    return {
-      ok: true,
-      record: result,
-      changes: [{
-        command: 'insert_time',
-        description:
-          `${Math.round(durationMs)} ms inserted at ${Math.round(atMs)} ms` +
-          `${plan.crossingPlacementIds.length > 0 ? `, splitting ${plan.crossingPlacementIds.length} clip(s)` : ''}.`,
-        details: { splitClipIdsBySourceId: newPlacementIdBySourceId },
-      }],
-    }
-  },
+  apply: insertTimeCommandOutcome,
 }
 
 const setShowEnd: ShowCommandDescriptor = {

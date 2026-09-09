@@ -646,11 +646,11 @@ export function addShowOverlayClip(
   composition: ShowCompositionV1,
   input: ShowOverlayLayerOwner & { instance: ShowPatternInstance; placement: ShowOverlayPlacement },
 ): ShowCompositionV1 {
-  return commitValidEdit(show, composition, (draft) => {
+  return commitValidAuthoredEdit(show, composition, (draft) => {
     if (draft.patternInstances.some((candidate) => candidate.id === input.instance.id)) return false
     const layer = findOverlayLayer(draft, input)
     if (!layer) return false
-    draft.patternInstances.push(cloneJson(input.instance))
+    insertAuthoredPatternInstance(draft.patternInstances, cloneJson(input.instance))
     layer.placements.push(cloneJson(input.placement))
     return true
   })
@@ -695,7 +695,7 @@ export function splitShowOverlayPlacement(
   composition: ShowCompositionV1,
   input: ShowOverlayPlacementOwner & { atMs: number; newPlacementId: string },
 ): ShowCompositionV1 {
-  return commitValidSplit(show, composition, (draft) => {
+  return commitValidAuthoredEdit(show, composition, (draft) => {
     const layer = findOverlayLayer(draft, input)
     const placement = layer?.placements.find((candidate) => candidate.id === input.placementId)
     if (!layer || !placement) return false
@@ -734,11 +734,11 @@ export function addShowMainClip(
   composition: ShowCompositionV1,
   input: { sceneId: string; zoneId: string; instance: ShowPatternInstance; placement: ShowMainPlacement },
 ): ShowCompositionV1 {
-  return commitValidEdit(show, composition, (draft) => {
+  return commitValidAuthoredEdit(show, composition, (draft) => {
     if (draft.patternInstances.some((candidate) => candidate.id === input.instance.id)) return false
     const zone = findZoneComposition(draft, input.sceneId, input.zoneId)
     if (!zone) return false
-    draft.patternInstances.push(cloneJson(input.instance))
+    insertAuthoredPatternInstance(draft.patternInstances, cloneJson(input.instance))
     zone.main.push(cloneJson(input.placement))
     return true
   })
@@ -776,7 +776,7 @@ export function splitShowMainPlacement(
   composition: ShowCompositionV1,
   input: ShowMainPlacementOwner & { atMs: number; newPlacementId: string },
 ): ShowCompositionV1 {
-  return commitValidSplit(show, composition, (draft) => {
+  return commitValidAuthoredEdit(show, composition, (draft) => {
     const zone = findZoneComposition(draft, input.sceneId, input.zoneId)
     const placement = zone?.main.find((candidate) => candidate.id === input.placementId)
     if (!zone || !placement) return false
@@ -1032,13 +1032,13 @@ export function resolveShowMainPlacementStart(
   return legalEdges.sort((a, b) => Math.abs(a - desired) - Math.abs(b - desired) || a - b)[0] ?? desired
 }
 
-function commitValidSplit(
+function commitValidAuthoredEdit(
   show: Pick<ShowRecord, 'scenes' | 'zones'>,
   composition: ShowCompositionV1,
   mutate: (draft: ShowCompositionV1) => boolean,
 ): ShowCompositionV1 {
   if (validateShowComposition(show, composition).length > 0) return composition
-  const draft = cloneJson(composition)
+  const draft = structuredClone(composition)
   if (!mutate(draft) || validateShowComposition(show, draft).length > 0) return composition
   return draft
 }
@@ -1202,4 +1202,9 @@ function ownerOrder(order: Map<string, number>, id: string): number {
 
 function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
+}
+
+export function insertAuthoredPatternInstance(instances: ShowPatternInstance[], instance: ShowPatternInstance): void {
+  const index = instances.findIndex(existing => existing.id.localeCompare(instance.id) > 0)
+  instances.splice(index < 0 ? instances.length : index, 0, instance)
 }

@@ -20,6 +20,8 @@ import {
   withConsecutiveClips,
   withLayerTransition,
 } from './grammarHarness.js'
+import { showOverlayLayerFixture } from '@/test/showOverlayLayerFixture'
+import { openShowDocument } from '../../grammar/openShow'
 
 function effectsOf(document: ShowGrammarDocument, startPlacementId: string) {
   const composition = document.show.composition as ShowCompositionV1
@@ -298,6 +300,10 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     expect(instanceOf(next, copy.clipId).id).toBe(changes[0].details?.newInstanceId)
     expect(instanceOf(next, copy.clipId).id).not.toBe(instanceOf(next, clip.clipId).id)
+    const tracked = openShowDocument(showOverlayLayerFixture())
+    if (!tracked.ok) throw new Error('tracked fixture')
+    const independent = applyOk(tracked.document, 'make_clip_pattern_independent', { clip_id: 'clip-c' })
+    expect(independent.document.show.composition!.scenes[0].propertyTracks!.some(track => track.id === 'track-inst-instance-1')).toBe(true)
   },
   rejoin_clip_pattern_instance: () => {
     const document = fixture({ emptySecondScene: true })
@@ -309,6 +315,13 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
       target_clip_id: clip.clipId,
     })
     expect(instanceOf(next, copy.clipId).id).toBe(instanceOf(next, clip.clipId).id)
+    const record = showOverlayLayerFixture()
+    record.composition!.executionModel = 'deterministic-loop'
+    const tracked = openShowDocument(record)
+    if (!tracked.ok) throw new Error('tracked fixture')
+    const rejoined = applyOk(tracked.document, 'rejoin_clip_pattern_instance', { clip_id: 'clip-b', target_clip_id: 'clip-a' })
+    expect(rejoined.document.show.composition!.scenes[0].propertyTracks!.some(track => track.id === 'track-inst-b')).toBe(false)
+    expect(rejoined.document.show.composition!.executionModel).toBeUndefined()
   },
   restart_clip: () => {
     const document = fixture()

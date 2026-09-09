@@ -12,7 +12,10 @@ import { showOverlayLayerFixture } from '@/test/showOverlayLayerFixture'
 import { overlayLayerCommandOutcome } from '@/engine/showCommands/overlayLayer'
 import { splitClipCommandOutcome } from '@/engine/showCommands/splitClip'
 import { duplicateClipCommandOutcome } from '@/engine/showCommands/duplicateClip'
-import { addShowOverlayLayerAcrossTimeline, splitShowClipAtGlobalTime, duplicateShowClipAfter, duplicateLinkedShowClipAfter } from '@/engine/showTimelineClipAuthoring'
+import { addClipCommandOutcome, independentClipCommandOutcome } from '@/engine/showCommands/clips'
+import { insertTimeCommandOutcome } from '@/engine/showCommands/timeline'
+import { insertShowTime, planShowTimeInsertion, setShowEndMs } from '@/engine/showTimelineAuthoring'
+import { addShowOverlayLayerAcrossTimeline, splitShowClipAtGlobalTime, duplicateShowClipAfter, duplicateLinkedShowClipAfter, addShowClipAtGlobalTime, addShowClipAtGlobalTimeExtendingShow, makeShowClipPatternIndependent, rejoinShowClipPatternInstance } from '@/engine/showTimelineClipAuthoring'
 import { deleteShowClipWithLayerTransitions } from '@/engine/showLayerTransitionAuthoring'
 import { buildShowFileBundle, parseShowFileBundle, serializeShowFileBundle } from '@/engine/showFileBundle'
 import { validateShowComposition, normalizeShowComposition } from '@/engine/showCompositionModel'
@@ -521,6 +524,67 @@ const clipOwner = (clipId: string) => clipId === 'clip-ov'
 // Shared seam: complete canonical/diagnostic/manual records, immutable input,
 // then the actual file importer. Rows retain their independent semantic facts.
 const PARITY_ROWS: ParityRow[] = [
+  ...[false, true].flatMap(reverse => [false, true].map((extend): ParityRow => ({
+    command: 'add_clip',
+    args: { zone_id: 'zone-1', start_ms: extend ? 62000.4 : 29000.4, duration_ms: 5000, overlay_layer_index: 0, pattern_kind: 'stock', pattern_id: 'CometLoom', extend_show: extend },
+    fixture: () => { const show = showOverlayLayerFixture(); if (reverse) show.composition!.patternInstances.reverse(); return show },
+    canonical: (show, args) => addClipCommandOutcome(show, args, kind => `${kind}-1`),
+    manualOwner: (show, args) => {
+      const input = { zoneId: 'zone-1', globalTimeMs: args.start_ms as number, target: { kind: 'overlay' as const, zoneId: 'zone-1', layerIndex: 0, globalStartMs: args.start_ms as number }, defaultDurationMs: 5000, instance: { id: 'instance-1', pattern: { kind: 'stock' as const, id: 'CometLoom' }, patternName: 'CometLoom', time: { timeScale: 1, timeOffsetMs: 0 } }, placementId: 'clip-1' }
+      return extend ? addShowClipAtGlobalTimeExtendingShow(show, show.composition!, input).composition : addShowClipAtGlobalTime(show, show.composition!, input)
+    },
+    expectedFacts: (before, after) => {
+      const originalIds = before.composition!.patternInstances.map(instance => instance.id)
+      expect(after.composition!.patternInstances.filter(instance => instance.id !== 'instance-1').map(instance => instance.id)).toEqual(originalIds)
+      if (!reverse) expect(after.composition!.patternInstances.map(instance => instance.id)).toEqual(['instance-1', ...originalIds])
+      const added = after.composition!.scenes.flatMap(scene => scene.zones.flatMap(zone => zone.overlays.flatMap(layer => layer.placements))).find(clip => clip.id === 'clip-1')!
+      expect(added.startMs).toBe(extend ? 30000 : 29000)
+      expect(added.durationMs).toBe(extend ? 5000 : 1000)
+    },
+    refusals: [{ zone_id: 'absent', start_ms: 0, pattern_kind: 'stock' }, { zone_id: 'zone-1', start_ms: NaN, pattern_kind: 'stock' }, { zone_id: 'zone-1', start_ms: 0, pattern_kind: 'stock', overlay_layer_index: 99 }, {}],
+  }))),
+  ...[false, true].map((reverse): ParityRow => ({
+    command: 'make_clip_pattern_independent', args: { clip_id: 'clip-c' },
+    fixture: () => { const show = showOverlayLayerFixture(); if (reverse) show.composition!.patternInstances.reverse(); return show },
+    canonical: (show, args) => independentClipCommandOutcome(show, args, () => 'instance-1'),
+    manualOwner: show => makeShowClipPatternIndependent(show.composition!, { owner: clipOwner('clip-c'), newInstanceId: 'instance-1' }),
+    expectedFacts: (before, after) => {
+      const ids = before.composition!.patternInstances.map(instance => instance.id)
+      expect(after.composition!.patternInstances.filter(instance => instance.id !== 'instance-1').map(instance => instance.id)).toEqual(ids)
+      if (!reverse) expect(after.composition!.patternInstances.map(instance => instance.id)).toEqual(['instance-1', ...ids])
+      expect(after.composition!.scenes[0].zones[0].main.find(clip => clip.id === 'clip-c')!.instanceId).toBe('instance-1')
+    },
+    refusals: [{ clip_id: 'absent' }, { clip_id: 'clip-ov' }, { clip_id: 'group-use:group-main' }, { clip_id: 'clip-c', extra: true }, {}],
+  })),
+  {
+    command: 'rejoin_clip_pattern_instance', args: { clip_id: 'clip-b', target_clip_id: 'clip-a' }, fixture: showOverlayLayerFixture,
+    manualOwner: show => rejoinShowClipPatternInstance(show.composition!, { owner: clipOwner('clip-b'), targetInstanceId: 'instance-a' }),
+    expectedFacts: (_before, after) => {
+      expect(after.composition!.patternInstances.some(instance => instance.id === 'instance-b')).toBe(false)
+      expect(after.composition!.scenes[0].zones[0].main.find(clip => clip.id === 'clip-b')!.instanceId).toBe('instance-a')
+    },
+    refusals: [{ clip_id: 'clip-c', target_clip_id: 'clip-a' }, { clip_id: 'clip-b', target_clip_id: 'absent' }, { clip_id: 'group-use:group-main', target_clip_id: 'clip-a' }, {}],
+  },
+  ...[4000.4, 29000.4].map((atMs): ParityRow => ({
+    command: 'insert_time', args: { at_ms: atMs, duration_ms: 1000.4 }, fixture: showOverlayLayerFixture,
+    canonical: (show, args) => { let id = 0; return insertTimeCommandOutcome(show, args, () => `clip-${++id}`) },
+    manualOwner: show => {
+      const plan = planShowTimeInsertion(show, atMs, 1000.4)
+      if (!plan.enabled) throw new Error(plan.reason)
+      return insertShowTime(show, { atMs, durationMs: 1000.4, newPlacementIdBySourceId: Object.fromEntries(plan.crossingPlacementIds.map((id, index) => [id, `clip-${index + 1}`])) }).composition
+    },
+    expectedFacts: (before, after) => {
+      expect(after.scenes[0].durationMs).toBe(before.scenes[0].durationMs + 1000)
+      expect(after.composition!.patternInstances).toStrictEqual(before.composition!.patternInstances)
+    },
+    refusals: [{ at_ms: -1, duration_ms: 1000 }, { at_ms: 0, duration_ms: 0 }, { at_ms: Infinity, duration_ms: 1000 }, {}],
+  })),
+  {
+    command: 'set_show_end', args: { end_ms: 70000.4 }, fixture: showOverlayLayerFixture,
+    manualOwner: show => setShowEndMs(show, 70000.4).composition,
+    expectedFacts: (before, after) => { expect(after.scenes[1].durationMs).toBe(38000); expect(after.composition!.scenes).toStrictEqual(before.composition!.scenes) },
+    refusals: [{ end_ms: 62000 }, { end_ms: NaN }, { end_ms: 70000, extra: true }, {}],
+  },
   ...[false, true].flatMap(overlay => [7999, 8000].map((durationMs): ParityRow => ({
     command: 'resize_clip', args: { clip_id: 'a', duration_ms: durationMs }, fixture: () => fixture(overlay).show,
     manualOwner: show => resizeShowClipManually(show, show.composition!, { clipId: 'a', durationMs }).composition,
@@ -648,4 +712,17 @@ it.each(PARITY_ROWS)('$command pairs full records and reopens $args', async row 
   const reopened = await reopen(diagnostic.show)
   expect(reopened).toEqual({ ...diagnostic.show, composition: normalizeShowComposition(diagnostic.show, diagnostic.show.composition!) })
   expect(validateShowComposition(reopened, reopened.composition!)).toEqual([])
+})
+
+
+it.each(['add_clip', 'make_clip_pattern_independent', 'insert_time'])('%s refuses a colliding caller-local identity atomically', command => {
+  const before = showOverlayLayerFixture()
+  const original = structuredClone(before)
+  const result = command === 'add_clip'
+    ? addClipCommandOutcome(before, { zone_id: 'zone-1', start_ms: 29000, overlay_layer_index: 0, pattern_kind: 'stock', pattern_id: 'CometLoom' }, kind => kind === 'instance' ? 'instance-a' : 'new-clip')
+    : command === 'make_clip_pattern_independent'
+      ? independentClipCommandOutcome(before, { clip_id: 'clip-c' }, () => 'instance-a')
+      : insertTimeCommandOutcome(before, { at_ms: 4000, duration_ms: 1000 }, () => 'clip-a')
+  expect(result.ok).toBe(false)
+  expect(before).toStrictEqual(original)
 })

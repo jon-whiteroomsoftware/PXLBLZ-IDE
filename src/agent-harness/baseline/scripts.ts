@@ -166,7 +166,31 @@ export const BASELINE_UTTERANCES: BaselineUtterance[] = [
     intent: '#951: removal preserves all other content.',
     script: [{ tool: 'remove_marker', args: { marker_id: 'marker-2', finish_turn_reply: { intent: 'apply', reply: 'Removed the marker.' } } }],
   },
-
+  {
+    utterance: 'add CometLoom to the overlay at twenty nine seconds',
+    intent: '#951: add Clip admits one complete candidate.',
+    script: [{ tool: 'add_clip', args: { zone_id: 'zone-1', start_ms: 29000, duration_ms: 1000, overlay_layer_index: 0, pattern_kind: 'stock', pattern_id: 'CometLoom', finish_turn_reply: { intent: 'apply', reply: 'Added CometLoom.' } } }],
+  },
+  {
+    utterance: 'make the third Clip Pattern independent',
+    intent: '#951: independent Pattern state admits once.',
+    script: [{ tool: 'make_clip_pattern_independent', args: { clip_id: 'clip-c', finish_turn_reply: { intent: 'apply', reply: 'Made the third Clip independent.' } } }],
+  },
+  {
+    utterance: 'rejoin the second Clip to the first Pattern instance',
+    intent: '#951: rejoin and source cleanup admit once.',
+    script: [{ tool: 'rejoin_clip_pattern_instance', args: { clip_id: 'clip-b', target_clip_id: 'clip-a', finish_turn_reply: { intent: 'apply', reply: 'Rejoined the second Clip.' } } }],
+  },
+  {
+    utterance: 'insert one second at twenty nine seconds',
+    intent: '#951: timeline insertion admits once.',
+    script: [{ tool: 'insert_time', args: { at_ms: 29000, duration_ms: 1000, finish_turn_reply: { intent: 'apply', reply: 'Inserted one second.' } } }],
+  },
+  {
+    utterance: 'set Show End to seventy seconds',
+    intent: '#951: Show End admits once.',
+    script: [{ tool: 'set_show_end', args: { end_ms: 70000, finish_turn_reply: { intent: 'apply', reply: 'Set Show End to seventy seconds.' } } }],
+  },
 ]
 
 /** The script for an utterance the scripted bridge knows, or null. */

@@ -5,7 +5,6 @@
 // first and surface a refusing plan as a typed issue; the rest pre-check the
 // cases the engine refuses silently.
 import { z } from 'zod'
-import type { ShowPatternInstance } from '@/engine/personalContentRecords'
 import {
   updateShowClipInspector,
   type ShowClipInspectorOwner,
@@ -15,14 +14,6 @@ import {
   restartShowMainPlacement,
 } from '@/engine/showCompositionModel'
 import {
-  addShowClipAtGlobalTime,
-  addShowClipAtGlobalTimeExtendingShow,
-  makeShowClipPatternIndependent,
-  planShowClipAtGlobalTime,
-  planShowClipPatternRejoin,
-  projectShowClipPatternInstanceOwnership,
-  rejoinShowClipPatternInstance,
-  type ShowClipAddTarget,
   type ShowTimelineClipMoveTarget,
 } from '@/engine/showTimelineClipAuthoring'
 import type { ShowUnifiedTimelineClipProjection } from '@/engine/showUnifiedTimelineProjection'
@@ -34,7 +25,6 @@ import {
   describeClip,
   idFactory,
   ownerFor,
-  planRefusal,
   refuse,
   replacedShow,
   resolveClip,
@@ -46,6 +36,7 @@ import { SHOW_COMMANDS } from '@/engine/showCommands/registry'
 import { overlayLayerCommandOutcome } from '@/engine/showCommands/overlayLayer'
 import { splitClipCommandOutcome } from '@/engine/showCommands/splitClip'
 import { duplicateClipCommandOutcome } from '@/engine/showCommands/duplicateClip'
+import { addClipCommandOutcome, independentClipCommandOutcome } from '@/engine/showCommands/clips'
 
 function unknownZone(document: ShowGrammarDocument, zoneId: string): GrammarIssue {
   return {
@@ -85,121 +76,7 @@ function overlapConflict(
 
 const resizeClip: ShowGrammarOperation = descriptorOperation(SHOW_COMMANDS.find(command => command.name === 'resize_clip')!)
 
-const addClip: ShowGrammarOperation = {
-  name: 'add_clip',
-  description:
-    'Add a new clip at a global time on a Zone and layer, referencing a stock pattern or an inline user ' +
-    'pattern supplied at open_show. Omit overlay_layer_index for the main layer. The clip takes the ' +
-    'requested duration_ms (default 5000) or as much free time as the layer has before the next clip; ' +
-    'the change list reports the actual span. With extend_show true, a clip placed at the very end of ' +
-    'the Show extends Show End to fit it. Refused when the time is invalid, the layer is occupied, or ' +
-    'there is no free time.',
-  mutates: [
-    '/composition/patternInstances',
-    '/composition/scenes/*/zones/*/main',
-    '/composition/scenes/*/zones/*/overlays/*/placements',
-    '/composition/durationMs',
-    // A new Pattern instance changes the cast; the engine forfeits the
-    // deterministic-loop proof, which re-stamps on the next open.
-    '/composition/executionModel',
-    '/scenes/*/durationMs',
-  ],
-  inputShape: {
-    zone_id: z.string().describe('Zone id from the open_show listing'),
-    start_ms: z.number().describe('Global timeline start in milliseconds'),
-    duration_ms: z.number().optional().describe('Requested clip length in milliseconds (default 5000)'),
-    pattern_kind: z.enum(['stock', 'user']).describe('Pattern reference kind'),
-    pattern_id: z.string().describe('Stock catalogue id, or an inline user-pattern id from open_show'),
-    pattern_name: z.string().optional().describe('Display name (defaults to the pattern id)'),
-    overlay_layer_index: z.number().int().min(0).optional()
-      .describe('Overlay layer index; omit for the main layer'),
-    extend_show: z.boolean().optional()
-      .describe('Allow a clip at Show End to extend the Show to fit (default false)'),
-  },
-  apply(document, args) {
-    const zoneId = args.zone_id as string
-    if (!document.show.zones.some((zone) => zone.id === zoneId)) {
-      return refuse(unknownZone(document, zoneId))
-    }
-    const layerIndex = args.overlay_layer_index as number | undefined
-    if (layerIndex !== undefined && layerIndex >= maxOverlayCount(document, zoneId)) {
-      return refuse({
-        code: 'missing-owner',
-        message:
-          `Zone ${zoneId} has ${maxOverlayCount(document, zoneId)} overlay layers; there is no layer ` +
-          `at index ${layerIndex}.`,
-        remedy: 'Add one with add_overlay_layer, or target an existing layer.',
-      })
-    }
-    const target: ShowClipAddTarget = layerIndex === undefined
-      ? { kind: 'main' }
-      : { kind: 'overlay', layerIndex }
-    const composition = compositionOf(document)
-    const location = {
-      zoneId,
-      globalTimeMs: args.start_ms as number,
-      defaultDurationMs: args.duration_ms as number | undefined,
-      target,
-    }
-    const plan = planShowClipAtGlobalTime(document.show, composition, location)
-    if (!plan.enabled) {
-      return refuse(planRefusal(plan, `Cannot add a clip at ${args.start_ms} ms on Zone ${zoneId}`))
-    }
-
-    const newId = idFactory(document)
-    const instance: ShowPatternInstance = {
-      id: newId('instance'),
-      pattern: { kind: args.pattern_kind as 'stock' | 'user', id: args.pattern_id as string },
-      patternName: (args.pattern_name as string | undefined) ?? (args.pattern_id as string),
-      time: { timeScale: 1, timeOffsetMs: 0 },
-    }
-    const placementId = newId('clip')
-
-    let nextDocument: ShowGrammarDocument
-    if (args.extend_show) {
-      const result = addShowClipAtGlobalTimeExtendingShow(document.show, composition, {
-        ...location,
-        instance,
-        placementId,
-      })
-      if (result === document.show) {
-        return refuse({
-          code: 'engine-refused',
-          message: `The engine declined to add the clip at ${args.start_ms} ms on Zone ${zoneId}.`,
-        })
-      }
-      nextDocument = replacedShow(document, result)
-    } else {
-      const result = addShowClipAtGlobalTime(document.show, composition, {
-        ...location,
-        instance,
-        placementId,
-      })
-      if (result === composition) {
-        return refuse({
-          code: 'engine-refused',
-          message: `The engine declined to add the clip at ${args.start_ms} ms on Zone ${zoneId}.`,
-        })
-      }
-      nextDocument = composedShow(document, result)
-    }
-    const requested = Math.max(1, Math.round((args.duration_ms as number | undefined) ?? 5_000))
-    return {
-      ok: true,
-      document: nextDocument,
-      changes: [{
-        op: 'add_clip',
-        targetId: placementId,
-        description:
-          `Clip ${placementId} (${instance.patternName}) added on Zone ${zoneId} ` +
-          `${layerIndex === undefined ? 'main layer' : `overlay layer ${layerIndex}`} at ` +
-          `${Math.round(args.start_ms as number)} ms for ${plan.durationMs} ms` +
-          `${plan.durationMs < requested ? ` (clamped from ${requested} ms by the next clip)` : ''}.`,
-        details: { instanceId: instance.id },
-      }],
-    }
-  },
-}
+const addClip: ShowGrammarOperation = descriptorOperation(SHOW_COMMANDS.find(command => command.name === 'add_clip')!, (document, args) => addClipCommandOutcome(document.show, args, idFactory(document)))
 
 const canonicalMove = descriptorOperation(SHOW_COMMANDS.find(command => command.name === 'move_clip')!)
 const moveClip: ShowGrammarOperation = {
@@ -295,102 +172,9 @@ const duplicateClip: ShowGrammarOperation = descriptorOperation(SHOW_COMMANDS.fi
 
 const removeClip: ShowGrammarOperation = descriptorOperation(SHOW_COMMANDS.find(command => command.name === 'remove_clip')!)
 
-const makeClipPatternIndependent: ShowGrammarOperation = {
-  name: 'make_clip_pattern_independent',
-  description:
-    'Give one clip its own Pattern instance, splitting it from the other clips that share the instance. ' +
-    'Instance-targeted property tracks are copied for the new instance. Refused when the clip already ' +
-    'owns its instance alone.',
-  mutates: ['/composition/patternInstances', '/composition/scenes/*'],
-  inputShape: {
-    clip_id: z.string().describe('Clip id from the open_show listing'),
-  },
-  apply(document, args) {
-    const resolved = resolveClip(document, args.clip_id as string)
-    if (!resolved.ok) return resolved
-    const { clip } = resolved.context
-    const composition = compositionOf(document)
-    const owner = ownerFor(clip)
-    const ownership = projectShowClipPatternInstanceOwnership(composition, owner)
-    if (ownership && ownership.useCount <= 1) {
-      return refuse({
-        code: 'already-independent',
-        message:
-          `Clip ${clip.id} already owns Pattern instance ${ownership.instanceId} alone; nothing shares it.`,
-        remedy: 'Use rejoin_clip_pattern_instance to share an instance instead.',
-      })
-    }
-    const newInstanceId = idFactory(document)('instance')
-    const result = makeShowClipPatternIndependent(composition, { owner, newInstanceId })
-    if (result === composition) {
-      return refuse({
-        code: 'engine-refused',
-        message: `The engine declined to make clip ${clip.id} independent.`,
-      })
-    }
-    return {
-      ok: true,
-      document: composedShow(document, result),
-      changes: [{
-        op: 'make_clip_pattern_independent',
-        targetId: clip.id,
-        description:
-          `Clip ${clip.id} now runs its own Pattern instance ${newInstanceId}, independent of the ` +
-          `${(ownership?.useCount ?? 2) - 1} other clip(s) on the previous instance.`,
-        details: { newInstanceId },
-      }],
-    }
-  },
-}
+const makeClipPatternIndependent: ShowGrammarOperation = descriptorOperation(SHOW_COMMANDS.find(command => command.name === 'make_clip_pattern_independent')!, (document, args) => independentClipCommandOutcome(document.show, args, () => idFactory(document)('instance')))
 
-const rejoinClipPatternInstance: ShowGrammarOperation = {
-  name: 'rejoin_clip_pattern_instance',
-  description:
-    'Make one clip share another clip’s Pattern instance (same Pattern required), so they render with ' +
-    'shared state and identity. If the source instance had no other users, it is discarded along with its ' +
-    'instance-targeted property tracks.',
-  mutates: ['/composition/patternInstances', '/composition/scenes/*'],
-  inputShape: {
-    clip_id: z.string().describe('The clip to re-home'),
-    target_clip_id: z.string().describe('A clip whose Pattern instance this clip should share'),
-  },
-  apply(document, args) {
-    const resolved = resolveClip(document, args.clip_id as string)
-    if (!resolved.ok) return resolved
-    const targetResolved = resolveClip(document, args.target_clip_id as string)
-    if (!targetResolved.ok) return targetResolved
-    const { clip } = resolved.context
-    const target = targetResolved.context.clip
-    const composition = compositionOf(document)
-    const owner = ownerFor(clip)
-    const plan = planShowClipPatternRejoin(composition, { owner, targetInstanceId: target.instanceId })
-    if (!plan.enabled) {
-      return refuse(planRefusal(
-        plan,
-        `Cannot rejoin clip ${clip.id} to clip ${target.id}'s instance ${target.instanceId}`,
-      ))
-    }
-    const result = rejoinShowClipPatternInstance(composition, { owner, targetInstanceId: target.instanceId })
-    if (result === composition) {
-      return refuse({
-        code: 'engine-refused',
-        message: `The engine declined to rejoin clip ${clip.id} to instance ${target.instanceId}.`,
-      })
-    }
-    return {
-      ok: true,
-      document: composedShow(document, result),
-      changes: [{
-        op: 'rejoin_clip_pattern_instance',
-        targetId: clip.id,
-        description:
-          `Clip ${clip.id} now shares Pattern instance ${plan.targetInstanceId} with clip ${target.id}` +
-          `${plan.discardsSourceState ? '; its previous sole-use instance was discarded' : ''}.`,
-        details: { targetInstanceId: plan.targetInstanceId },
-      }],
-    }
-  },
-}
+const rejoinClipPatternInstance: ShowGrammarOperation = descriptorOperation(SHOW_COMMANDS.find(command => command.name === 'rejoin_clip_pattern_instance')!)
 
 const restartClip: ShowGrammarOperation = {
   name: 'restart_clip',

@@ -38,7 +38,7 @@ describe('grammar registry breadth (#18)', () => {
       const base = { pattern_kind: 'stock', pattern_id: 'CometLoom' }
       applyRefused(fixture(), 'add_clip', { ...base, zone_id: 'z1', start_ms: 10_000 }, 'occupied')
       applyRefused(fixture(), 'add_clip', { ...base, zone_id: 'z1', start_ms: 70_000 }, 'invalid-time')
-      applyRefused(fixture(), 'add_clip', { ...base, zone_id: 'zz' , start_ms: 1_000 }, 'unknown-zone')
+      applyRefused(fixture(), 'add_clip', { ...base, zone_id: 'zz' , start_ms: 1_000 }, 'missing-owner')
       applyRefused(
         fixture(),
         'add_clip',
@@ -70,7 +70,7 @@ describe('grammar registry breadth (#18)', () => {
         { clip_id: first.clipId, target_clip_id: second.clipId },
         'incompatible-target',
       )
-      expect(issues[0].message).toContain(first.clipId)
+      expect(issues[0].message).toBe('rejoin_clip_pattern_instance: Choose an instance of the same Pattern.')
 
       const shared = applyOk(
         fixture({ emptySecondScene: true }),

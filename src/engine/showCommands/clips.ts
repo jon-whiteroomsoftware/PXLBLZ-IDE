@@ -5,7 +5,7 @@ import { createOverlayLayerCommand } from './overlayLayer'
 // ids; owners are resolved from the unified timeline projection, so the ids
 // are the ids every projection (summary included) reports.
 import { newPersonalContentId } from '../personalContentMetadata'
-import type { ShowPatternInstance } from '../personalContentRecords'
+import type { ShowPatternInstance, ShowRecord } from '../personalContentRecords'
 import { deleteShowClipWithLayerTransitions } from '../showLayerTransitionAuthoring'
 import { showCompositionClipCount } from '../showClipInvariant'
 import {
@@ -24,6 +24,7 @@ import {
   refuseShowCommand,
   withComposition,
   type ShowCommandDescriptor,
+  type ShowCommandOutcome,
 } from './registry'
 import {
   engineIdentityRefusal,
@@ -31,6 +32,73 @@ import {
   resolveCommandClip,
 } from './support'
 import { createDuplicateClipCommand } from './duplicateClip'
+
+export function addClipCommandOutcome(record: ShowRecord, input: Record<string, unknown>, newId: (kind: 'instance' | 'clip') => string = () => newPersonalContentId()): ShowCommandOutcome {
+  const resolved = commandComposition(record)
+  if (!resolved.ok) return resolved
+  const composition = resolved.composition
+  const target: ShowTimelineClipMoveTarget = input.overlay_layer_index === undefined
+    ? { kind: 'main', zoneId: input.zone_id as string, globalStartMs: input.start_ms as number }
+    : {
+        kind: 'overlay',
+        zoneId: input.zone_id as string,
+        layerIndex: input.overlay_layer_index as number,
+        globalStartMs: input.start_ms as number,
+      }
+  const location = {
+    zoneId: input.zone_id as string,
+    globalTimeMs: input.start_ms as number,
+    target,
+    defaultDurationMs: (input.duration_ms as number | undefined) ?? 5_000,
+  }
+  const instance: ShowPatternInstance = {
+    id: newId('instance'),
+    pattern: { kind: input.pattern_kind as 'stock' | 'user', id: input.pattern_id as string },
+    patternName: (input.pattern_name as string | undefined) ?? (input.pattern_id as string),
+    time: { timeScale: 1, timeOffsetMs: 0 },
+  }
+  const placementId = newId('clip')
+  if (input.extend_show) {
+    const result = addShowClipAtGlobalTimeExtendingShow(record, composition, {
+      ...location,
+      instance,
+      placementId,
+    })
+    if (result === record) {
+      const plan = planShowClipAtGlobalTime(record, composition, location)
+      if (!plan.enabled) return planRefusal(plan, 'add_clip')
+      return engineIdentityRefusal('add_clip', 'The extended placement did not fit.')
+    }
+    return {
+      ok: true,
+      record: result,
+      changes: [{
+        command: 'add_clip',
+        targetId: placementId,
+        description:
+          `Clip ${instance.patternName} added on ${location.zoneId} at ${Math.round(location.globalTimeMs)} ms, extending the Show.`,
+        details: { instanceId: instance.id },
+      }],
+    }
+  }
+  const plan = planShowClipAtGlobalTime(record, composition, location)
+  if (!plan.enabled) return planRefusal(plan, 'add_clip')
+  const result = addShowClipAtGlobalTime(record, composition, { ...location, instance, placementId })
+  if (result === composition) return engineIdentityRefusal('add_clip', 'Check the target layer.')
+  const clamped = plan.durationMs < ((input.duration_ms as number | undefined) ?? 5_000)
+  return {
+    ok: true,
+    record: withComposition(record, result),
+    changes: [{
+      command: 'add_clip',
+      targetId: placementId,
+      description:
+        `Clip ${instance.patternName} added on ${location.zoneId} at ${Math.round(location.globalTimeMs)} ms ` +
+        `for ${plan.durationMs} ms${clamped ? ' (clamped to the free time)' : ''}.`,
+      details: { instanceId: instance.id },
+    }],
+  }
+}
 
 const addClip: ShowCommandDescriptor = {
   name: 'add_clip',
@@ -50,72 +118,7 @@ const addClip: ShowCommandDescriptor = {
     overlay_layer_index: { kind: 'integer', optional: true, description: 'Overlay layer to target (0 = topmost); omit for main' },
     extend_show: { kind: 'boolean', optional: true, description: 'Grow the Show when adding at Show End' },
   },
-  apply(record, input) {
-    const resolved = commandComposition(record)
-    if (!resolved.ok) return resolved
-    const composition = resolved.composition
-    const target: ShowTimelineClipMoveTarget = input.overlay_layer_index === undefined
-      ? { kind: 'main', zoneId: input.zone_id as string, globalStartMs: input.start_ms as number }
-      : {
-          kind: 'overlay',
-          zoneId: input.zone_id as string,
-          layerIndex: input.overlay_layer_index as number,
-          globalStartMs: input.start_ms as number,
-        }
-    const location = {
-      zoneId: input.zone_id as string,
-      globalTimeMs: input.start_ms as number,
-      target,
-      defaultDurationMs: (input.duration_ms as number | undefined) ?? 5_000,
-    }
-    const instance: ShowPatternInstance = {
-      id: newPersonalContentId(),
-      pattern: { kind: input.pattern_kind as 'stock' | 'user', id: input.pattern_id as string },
-      patternName: (input.pattern_name as string | undefined) ?? (input.pattern_id as string),
-      time: { timeScale: 1, timeOffsetMs: 0 },
-    }
-    const placementId = newPersonalContentId()
-    if (input.extend_show) {
-      const result = addShowClipAtGlobalTimeExtendingShow(record, composition, {
-        ...location,
-        instance,
-        placementId,
-      })
-      if (result === record) {
-        const plan = planShowClipAtGlobalTime(record, composition, location)
-        if (!plan.enabled) return planRefusal(plan, 'add_clip')
-        return engineIdentityRefusal('add_clip', 'The extended placement did not fit.')
-      }
-      return {
-        ok: true,
-        record: result,
-        changes: [{
-          command: 'add_clip',
-          targetId: placementId,
-          description:
-            `Clip ${instance.patternName} added on ${location.zoneId} at ${Math.round(location.globalTimeMs)} ms, extending the Show.`,
-          details: { instanceId: instance.id },
-        }],
-      }
-    }
-    const plan = planShowClipAtGlobalTime(record, composition, location)
-    if (!plan.enabled) return planRefusal(plan, 'add_clip')
-    const result = addShowClipAtGlobalTime(record, composition, { ...location, instance, placementId })
-    if (result === composition) return engineIdentityRefusal('add_clip', 'Check the target layer.')
-    const clamped = plan.durationMs < ((input.duration_ms as number | undefined) ?? 5_000)
-    return {
-      ok: true,
-      record: withComposition(record, result),
-      changes: [{
-        command: 'add_clip',
-        targetId: placementId,
-        description:
-          `Clip ${instance.patternName} added on ${location.zoneId} at ${Math.round(location.globalTimeMs)} ms ` +
-          `for ${plan.durationMs} ms${clamped ? ' (clamped to the free time)' : ''}.`,
-        details: { instanceId: instance.id },
-      }],
-    }
-  },
+  apply: addClipCommandOutcome,
 }
 
 const moveClip: ShowCommandDescriptor = {
@@ -241,16 +244,7 @@ export const removeClipCommand: ShowCommandDescriptor = {
   },
 }
 
-const makeClipPatternIndependent: ShowCommandDescriptor = {
-  name: 'make_clip_pattern_independent',
-  description:
-    'Give a clip its own copy of its Pattern instance, so editing controls or timing no longer affects ' +
-    'the other clips that shared it. Refused when the clip is already the instance\'s only user.',
-  touches: ['/composition/patternInstances', '/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/composition/executionModel', '/updatedAt'],
-  fields: {
-    clip_id: { kind: 'string', description: 'The clip to make independent' },
-  },
-  apply(record, input) {
+export function independentClipCommandOutcome(record: ShowRecord, input: Record<string, unknown>, newId = newPersonalContentId): ShowCommandOutcome {
     const resolved = commandComposition(record)
     if (!resolved.ok) return resolved
     const composition = resolved.composition
@@ -267,7 +261,7 @@ const makeClipPatternIndependent: ShowCommandDescriptor = {
         message: `Clip ${clip.id} is already the only user of instance ${clip.instanceId}.`,
       })
     }
-    const newInstanceId = newPersonalContentId()
+    const newInstanceId = newId()
     const result = makeShowClipPatternIndependent(composition, {
       owner: found.context.owner,
       newInstanceId,
@@ -283,7 +277,18 @@ const makeClipPatternIndependent: ShowCommandDescriptor = {
         details: { newInstanceId },
       }],
     }
+}
+
+const makeClipPatternIndependent: ShowCommandDescriptor = {
+  name: 'make_clip_pattern_independent',
+  description:
+    'Give a clip its own copy of its Pattern instance, so editing controls or timing no longer affects ' +
+    'the other clips that shared it. Refused when the clip is already the instance\'s only user.',
+  touches: ['/composition/patternInstances', '/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/composition/executionModel', '/updatedAt'],
+  fields: {
+    clip_id: { kind: 'string', description: 'The clip to make independent' },
   },
+  apply: independentClipCommandOutcome,
 }
 
 const rejoinClipPatternInstance: ShowCommandDescriptor = {

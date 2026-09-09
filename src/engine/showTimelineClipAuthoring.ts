@@ -9,6 +9,7 @@ import type {
 import {
   addShowMainClip,
   addShowOverlayClip,
+  insertAuthoredPatternInstance,
   normalizeShowComposition,
   qualifyPrivateClipPair,
   splitShowMainPlacement,
@@ -1144,14 +1145,13 @@ export function makeShowClipPatternIndependent(
   const sourceInstance = draft.patternInstances.find((instance) => instance.id === placement.instanceId)
   if (!sourceInstance) return composition
 
-  draft.patternInstances.push({ ...structuredClone(sourceInstance), id: input.newInstanceId })
+  insertAuthoredPatternInstance(draft.patternInstances, { ...structuredClone(sourceInstance), id: input.newInstanceId })
   placements.forEach((segment) => {
     segment.placement.instanceId = input.newInstanceId
   })
   for (const sceneId of new Set(placements.map((segment) => segment.sceneId))) {
     cloneTimelineInstanceTracks(draft, sceneId, sourceInstance.id, input.newInstanceId, 0)
   }
-  draft.patternInstances.sort((left, right) => left.id.localeCompare(right.id))
   return draft
 }
 
@@ -1248,10 +1248,10 @@ export function rejoinShowClipPatternInstance(
   if (plan.discardsSourceState) {
     draft.patternInstances = draft.patternInstances.filter((instance) => instance.id !== plan.sourceInstanceId)
     for (const scene of draft.scenes) {
-      scene.propertyTracks = scene.propertyTracks?.filter((track) => (
-        !('instanceId' in track.target) || track.target.instanceId !== plan.sourceInstanceId
-      ))
-      if (scene.propertyTracks?.length === 0) delete scene.propertyTracks
+      const tracks = scene.propertyTracks
+      if (!tracks?.some(track => 'instanceId' in track.target && track.target.instanceId === plan.sourceInstanceId)) continue
+      scene.propertyTracks = tracks.filter(track => !('instanceId' in track.target) || track.target.instanceId !== plan.sourceInstanceId)
+      if (scene.propertyTracks.length === 0) delete scene.propertyTracks
     }
   }
   return draft

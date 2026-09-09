@@ -1590,3 +1590,27 @@ it('untouched oracle separates a keyframe insertion from its unchanged parent tr
   track.target = { kind: 'placement-view', placementId: 'clip-a', property: 'brightness' }
   expect(untouchedEntityViolations({ command: 'add_keyframe', input: { track_id: track.id, time_ms: 19000 }, changes: [{ command: 'add_keyframe', targetId: 'new-keyframe', description: 'Added' }], before, after }).length).toBeGreaterThan(0)
 })
+
+it.each([
+  ['add_clip', { zone_id: 'zone-1', start_ms: 10000, duration_ms: 1000, overlay_layer_index: 0, pattern_kind: 'stock', pattern_id: 'CometLoom' }],
+  ['make_clip_pattern_independent', { clip_id: 'clip-c' }],
+  ['rejoin_clip_pattern_instance', { clip_id: 'clip-b', target_clip_id: 'clip-a' }],
+  ['insert_time', { at_ms: 29000, duration_ms: 1000 }],
+  ['set_show_end', { end_ms: 70000 }],
+  ['split_clip', { clip_id: 'clip-b', at_ms: 16000 }],
+  ['split_clip', { clip_id: 'clip-ov', at_ms: 4000 }],
+] as Array<[string, Record<string, unknown>]>)('%s preserves unrelated nonlexical authored order', (command, input) => {
+  const before = showOverlayLayerFixture()
+  before.composition!.patternInstances.reverse()
+  before.composition!.patternInstances[0].evaluationPolicy = undefined
+  before.composition!.scenes[0].propertyTracks!.reverse()
+  before.composition!.scenes[1].propertyTracks = []
+  const original = structuredClone(before)
+  const outcome = applyShowCommand(before, command, input)
+  expect(outcome.ok, JSON.stringify(outcome)).toBe(true)
+  if (!outcome.ok) throw new Error('command refused')
+  expect(untouchedEntityViolations({ command, input, before, after: outcome.record, changes: outcome.changes })).toEqual([])
+  expect(outcome.record.composition!.scenes[1].propertyTracks).toEqual([])
+  expect(before).toStrictEqual(original)
+  expect(validateShowComposition(outcome.record, outcome.record.composition!)).toEqual([])
+})

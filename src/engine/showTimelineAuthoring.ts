@@ -1,5 +1,5 @@
 import { editShowMarkerFromUI, type ShowMarkerRequest } from './showExactTimelineMarker'
-import { normalizeShowComposition, validateShowComposition } from './showCompositionModel'
+import { validateShowComposition } from './showCompositionModel'
 import { multiSegmentLogicalClips, multiSegmentLogicalPlacementIds } from './showClipInvariant'
 import { normalizePersistedShowEasing } from './showEasing'
 import { projectShowTimeline, showLoopDurationMs } from './showModel'
@@ -190,9 +190,8 @@ export function insertShowTime(
   if (targetComposition.propertyTracks.length === 0) delete targetComposition.propertyTracks
 
   next.updatedAt = Math.max(Date.now(), show.updatedAt + 1)
-  const normalized = normalizeShowComposition(next, next.composition!)
-  if (validateShowComposition(next, normalized).length > 0) return show
-  return { ...next, composition: normalized }
+  if (validateShowComposition(next, next.composition!).length > 0) return show
+  return next
 }
 
 /** Final authored Clip boundary in global Show time. Groups are materialized by the projection. */
@@ -227,7 +226,8 @@ export function setShowEndMs(show: ShowRecord, requestedDurationMs: number): Sho
     composition: { ...show.composition, durationMs },
     updatedAt: Math.max(Date.now(), show.updatedAt + 1),
   }
-  return { ...next, composition: normalizeShowComposition(next, next.composition!) }
+  if (validateShowComposition(next, next.composition!).length > 0) return show
+  return next
 }
 
 export function addShowTimelineMarker(show: ShowRecord, marker: ShowTimelineMarker): ShowRecord {
@@ -258,7 +258,7 @@ function insertIntoPlacements<T extends ShowMainPlacement | ShowOverlayPlacement
   newPlacementIdBySourceId: Record<string, string>,
   splitIds: Map<string, string>,
 ): void {
-  const additions: T[] = []
+  const additions = new Map<T, T>()
   for (const placement of placements) {
     const endMs = placement.startMs + placement.durationMs
     if (placement.startMs >= atMs) {
@@ -272,10 +272,13 @@ function insertIntoPlacements<T extends ShowMainPlacement | ShowOverlayPlacement
     right.startMs = atMs + durationMs
     right.durationMs = endMs - atMs
     placement.durationMs = atMs - placement.startMs
-    additions.push(right)
+    additions.set(placement, right)
     splitIds.set(placement.id, newId)
   }
-  placements.push(...additions)
+  placements.splice(0, placements.length, ...placements.flatMap(placement => {
+    const right = additions.get(placement)
+    return right ? [placement, right] : [placement]
+  }))
 }
 
 function insertIntoPropertyTrack(
@@ -313,6 +316,7 @@ function insertIntoPropertyTrack(
       })
     }
   }
+  shifted.keyframes.sort((left, right) => left.timeMs - right.timeMs)
   return shifted
 }
 
