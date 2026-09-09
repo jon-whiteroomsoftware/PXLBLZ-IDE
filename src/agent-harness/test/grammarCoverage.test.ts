@@ -100,6 +100,10 @@ describe('coverage over the real schema and registry (#22)', () => {
     expect(report.genericOnly).not.toContain('/outputEffects/*/retention')
     expect(families['junctions'].percent).toBe(100)
     expect(families['property animation'].percent).toBe(100)
+    // Broad Scene writes in add/insert commands do not offer edits to these fields.
+    for (const path of ['/scenes/*/name', '/scenes/*/routingTargets/splitPosition', '/scenes/*/sampleTargets/repeatScale']) {
+      expect(report.rows.find(row => row.path === path)).toEqual({ path, classification: 'generic-only', operations: [] })
+    }
   })
 
   it('reproduces the committed report artifact from schema and registry alone', () => {

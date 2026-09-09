@@ -131,6 +131,8 @@ export function isAllowlisted(path: string): boolean {
  */
 export const STRUCTURAL_DECLARATIONS: Array<{ operation: string; pattern: string }> = [
   { operation: 'insert_time', pattern: '/composition' },
+  { operation: 'insert_time', pattern: '/scenes' },
+  { operation: 'add_clip', pattern: '/scenes' },
   { operation: 'add_layout_interval', pattern: '/composition' },
   { operation: 'add_layout_interval', pattern: '/scenes' },
   { operation: 'add_layout_interval', pattern: '/transitions' },
