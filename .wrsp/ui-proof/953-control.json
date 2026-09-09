@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "953",
+  "route": "/PXLBLZ-IDE/studio/shows/888f0b89-516d-4306-89be-0454d2f1c78b",
+  "operation": "Root drove the Codex in-app browser on runtime 5179 as synthetic local-agent-08 at source 15a445c4: at 1440x900, the first Main Personal 953 Clip (Start 0s) changed its Speed target from unchecked to checked at 50%; at 640x900, the linked second Main Clip (Start 22s) showed the same 50% target. Clearing the second checkbox removed the target; closing the inspector and Undo restored 50%, a second Undo restored the absent target on the first Clip, and full route navigation/reopen retained unchecked with Undo disabled. Both actual JPEGs were inspected. Limitation: the desktop Stage displays Unknown library namespace Personal despite the valid Personal Library persisting through the UI; the pre-existing ShowStagePreview path supplies only stock Libraries, while artifact compilation includes personal Libraries. The actual Personal.paint dependency is retained; this proof establishes control authoring, shared identity, Undo and reopen, not successful Stage rendering.",
+  "captures": [
+    ".wrsp/ui-proof/953-control-desktop.jpg",
+    ".wrsp/ui-proof/953-control-narrow.jpg"
+  ],
+  "capturedAtCommit": "15a445c426ec7b0380ec9f69bd9828d437fba2ea"
+}
