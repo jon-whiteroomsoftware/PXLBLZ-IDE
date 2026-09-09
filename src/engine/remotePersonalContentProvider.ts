@@ -133,10 +133,16 @@ export function createRemotePersonalContentProvider(
       // column, resurrecting the stale id on reload. Translate the clear to
       // an explicit wire-level null here, keeping the typed provider
       // contract (string | undefined) intact for every other provider.
-      const wireChanges = 'targetControllerProfileId' in changes
-        && changes.targetControllerProfileId === undefined
-        ? { ...changes, targetControllerProfileId: null }
-        : changes
+      const wireChanges = {
+        ...changes,
+        ...('targetControllerProfileId' in changes && changes.targetControllerProfileId === undefined
+          ? { targetControllerProfileId: null } : {}),
+        // Full-record replacement (including Undo) explicitly supplies undefined
+        // for absent Effects. Preserve that clear across JSON; sparse omission
+        // still leaves the remote column unchanged.
+        ...(Object.prototype.hasOwnProperty.call(changes, 'outputEffects') && changes.outputEffects === undefined
+          ? { outputEffects: [] } : {}),
+      }
       await requestJson(fetcher, `/api/shows/${encodeURIComponent(id)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

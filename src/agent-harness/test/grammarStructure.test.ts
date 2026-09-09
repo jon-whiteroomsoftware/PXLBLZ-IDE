@@ -208,14 +208,11 @@ describe('effect operations (#19)', () => {
 })
 
 describe('structure operations (#19)', () => {
-  it('set_output_contract refuses a no-change contract', () => {
+  it('set_output_contract accepts an identical aligned contract without a change', () => {
     const document = fixture()
-    applyRefused(
-      document,
-      'set_output_contract',
-      { kind: 'portable-2d', map_id: 'plane', pixel_count: 256 },
-      'no-change',
-    )
+    document.show.stageMapId = 'plane'
+    expect(applyShowGrammarOperation(
+      document, 'set_output_contract', { kind: 'portable-2d', map_id: 'plane', pixel_count: 256 })).toMatchObject({ ok: true, changes: [] })
   })
 
   it('layout interval operations refuse unknown layouts and intervals with candidates', () => {
@@ -238,26 +235,26 @@ describe('structure operations (#19)', () => {
 })
 
 describe('structure operations: Trails (#27)', () => {
-  it('set_output_trails refuses a no-change in both directions', () => {
-    applyRefused(fixture(), 'set_output_trails', { enabled: false }, 'no-change')
+  it('set_output_trails accepts no-op requests in both directions', () => {
+    expect(applyShowGrammarOperation(fixture(), 'set_output_trails', { enabled: false })).toMatchObject({ ok: true, changes: [] })
     const on = applyOk(fixture(), 'set_output_trails', { enabled: true, retention: 0.5 })
-    applyRefused(on.document, 'set_output_trails', { enabled: true, retention: 0.5 }, 'no-change')
+    expect(applyShowGrammarOperation(on.document, 'set_output_trails', { enabled: true, retention: 0.5 })).toMatchObject({ ok: true, changes: [] })
   })
 })
 
 describe('record and Zone metadata operations (#28)', () => {
-  it('rename_show refuses an empty and an unchanged name', () => {
+  it('rename_show refuses an empty name and accepts an unchanged name', () => {
     const document = fixture()
     applyRefused(document, 'rename_show', { name: '   ' }, 'invalid-argument')
-    applyRefused(document, 'rename_show', { name: 'Grammar fixture' }, 'no-change')
+    expect(applyShowGrammarOperation(document, 'rename_show', { name: 'Grammar fixture' })).toMatchObject({ ok: true, changes: [] })
   })
 
-  it('set_stage_map refuses a no-change binding', () => {
+  it('set_stage_map accepts an unchanged binding', () => {
     const document = fixture()
-    applyRefused(document, 'set_stage_map', { stage_map_id: null }, 'no-change')
+    expect(applyShowGrammarOperation(document, 'set_stage_map', { stage_map_id: null })).toMatchObject({ ok: true, changes: [] })
   })
 
-  it('update_zone refuses unknown Zones with candidates, empty input, and no-change', () => {
+  it('update_zone refuses unknown Zones with candidates, empty input, and accepts unchanged metadata', () => {
     const document = fixture()
     const issues = applyRefused(
       document,
@@ -268,12 +265,8 @@ describe('record and Zone metadata operations (#28)', () => {
     expect(issues[0].candidates).toEqual(['z1'])
     applyRefused(document, 'update_zone', { zone_id: 'z1' }, 'invalid-argument')
     applyRefused(document, 'update_zone', { zone_id: 'z1', name: '  ' }, 'invalid-argument')
-    applyRefused(
-      document,
-      'update_zone',
-      { zone_id: 'z1', name: 'Main', nominal_pixel_count: 64 },
-      'no-change',
-    )
+    expect(applyShowGrammarOperation(
+      document, 'update_zone', { zone_id: 'z1', name: 'Main', nominal_pixel_count: 64 })).toMatchObject({ ok: true, changes: [] })
   })
 
   it('update_zone refuses renaming a Zone onto another Zone’s name', () => {

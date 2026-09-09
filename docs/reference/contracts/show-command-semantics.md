@@ -16,9 +16,8 @@ covers the registry, not every direct engine mutation or editor gesture.
   [generated coverage report](../show-command-coverage.md) owns the inventory.
 - An unchanged engine identity result alone is a typed refusal, not success.
   `resize_clip`, `move_clip`, `move_marker` and `update_marker` separately validate an already-satisfied request and return
-  the original record with zero changes and no timestamp. Some
-  commands also explicitly refuse no change, such as renaming to the current
-  name. Such a step aborts its containing batch; replay is not guaranteed to
+  the original record with zero changes and no timestamp. Metadata/output setters also validate and accept already-satisfied requests. Other
+  commands explicitly refuse no change, such as setting the current Show End. Such a step aborts its containing batch; replay is not guaranteed to
   succeed merely because the desired state already exists.
 - Clip, marker, and transition ids identify existing targets. Moving or resizing a Clip retains its
   identity; creation and removal follow their command's semantics. Names,
@@ -574,3 +573,47 @@ other Effect identities, tracks and explicitly empty unrelated collections remai
 authored. Shared parity rows cover Main and overlay stacks, all declared numeric
 domains, colors, copies, ordering and reopened animation references. The existing
 admission table contains AE953/UE953/DE953/ME953/RE953 for live consumer acceptance.
+
+## Show metadata, output requirements and Layout occurrences
+
+The #954 family shares canonical descriptors with the diagnostic adapter.
+`rename_show` trims a nonempty name. `update_zone` permits only the existing
+Zone id plus name, nominal pixel count and color; names trim and remain distinct,
+counts must be finite and positive before rounding, and routing and Clips remain
+unchanged. Valid already-satisfied metadata, profile, output-contract and Trails
+requests return the original record with zero changes and no timestamp.
+
+`set_stage_map(stage_map_id)` is an agent-only independent staging preference.
+It does not change the output contract or target controller profile.
+`set_target_controller_profile(profile_id)` remains a distinct profile-only
+command. The retained experimental diagnostic `set_stage_map` input may include
+`target_controller_profile_id`; that spelling evaluates the two independent
+owners atomically and returns their individual receipts. Invalid profile input
+discards the provisional map result. Production commands expose no combined alias.
+The manual portable-reference control remains a different combined action:
+`set_output_contract` follows that owner by aligning the Stage map with the
+selected contract map. Its Installation branch remains agent-only. Missing or
+null `map_id` clears the contract map; pixel counts remain positive integers.
+
+`set_output_trails` requires at least one of `enabled` and `retention`. Omitted
+`enabled` preserves the current enabled state, so retention-only while disabled
+is a successful no-op. Enabling retains the current retention or uses the
+existing default; finite retention clamps to [0, 1]. These commands edit Show
+requirements only and never request a Controller provider or send to hardware.
+Production authoring validation keeps missing maps and incomplete/incompatible
+output requirements editable. File dependency and delivery checks remain separate;
+a missing custom map still prevents file export, and Installation coverage or
+Portable compatibility still blocks delivery.
+
+`add_layout_interval` inserts an existing Layout occurrence, retaining finite
+millisecond rounding; the manual Add menu's extra Layout-copy step remains
+separate. `duplicate_layout_interval` retains the linked Layout identity; its
+optional content copy retains the existing copied Pattern-instance behavior.
+`make_layout_interval_unique` copies that occurrence's Layout and physical or
+logical Zones, remapping occurrence references without making Patterns independent.
+Existing unsupported boundary and multipart-Clip refusals remain in the owner.
+
+The existing [command goldens](../../../src/engine/showCommands/commands.test.ts),
+[shared full-record parity](../../../src/agent-harness/test/commandParity.test.ts),
+and `RN954`, `SM954`, `CP954`, `UZ954`, `OC954`, `OT954`, `AI954`, `DI954`, `UI954`
+[admission rows](../../../e2e/agent-baseline.auth.spec.ts) cover the finite surface.

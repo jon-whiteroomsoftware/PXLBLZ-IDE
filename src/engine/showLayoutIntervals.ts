@@ -184,8 +184,9 @@ export function makeShowLayoutIntervalUnique(show: ShowRecord, intervalId: strin
   const usedIds = recordIds(show)
   const layoutId = uniqueId(usedIds, `${sourceLayout.id}-copy`)
   const zoneIdMap = new Map<string, string>()
-  const zones: ShowZone[] = sourceLayout.zones.flatMap((layoutZone) => {
-    const source = show.zones.find((zone) => zone.id === layoutZone.zoneId)
+  const sourceZoneIds = [...new Set([...sourceLayout.zones.map(zone => zone.zoneId), ...(sourceLayout.logical?.zoneIds ?? [])])]
+  const zones: ShowZone[] = sourceZoneIds.flatMap((zoneId) => {
+    const source = show.zones.find((zone) => zone.id === zoneId)
     if (!source) return []
     const id = uniqueId(usedIds, `${source.id}-copy`)
     zoneIdMap.set(source.id, id)

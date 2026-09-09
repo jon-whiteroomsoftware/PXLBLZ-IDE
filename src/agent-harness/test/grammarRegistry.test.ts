@@ -145,6 +145,7 @@ describe('grammar registry (#17)', () => {
       'set_output_trails',
       'set_show_end',
       'set_stage_map',
+      'set_target_controller_profile',
       'split_clip',
       'update_boundary_transition_parameter',
       'update_clip_effect',

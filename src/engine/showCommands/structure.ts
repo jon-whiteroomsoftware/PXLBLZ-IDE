@@ -20,6 +20,7 @@ import {
   type ShowCommandRefusal,
 } from './registry'
 import { monotonicRecord } from './support'
+import { updateShowZone } from '../showModel'
 
 function unknownInterval(record: ShowRecord, intervalId: string): ShowCommandRefusal {
   const intervals = projectShowLayoutIntervals(record)
@@ -46,7 +47,7 @@ const renameShow: ShowCommandDescriptor = {
       return refuseShowCommand({ code: 'invalid-argument', message: 'The Show name cannot be empty.' })
     }
     if (name === record.name) {
-      return refuseShowCommand({ code: 'no-change', message: `The Show is already named "${name}".` })
+      return { ok: true, record, changes: [] }
     }
     return {
       ok: true,
@@ -55,6 +56,39 @@ const renameShow: ShowCommandDescriptor = {
         command: 'rename_show',
         targetId: record.id,
         description: `Show renamed from "${record.name}" to "${name}".`,
+      }],
+    }
+  },
+}
+
+const setStageMap: ShowCommandDescriptor = {
+  name: 'set_stage_map',
+  description: 'Agent-only independent staging preference: set or clear the Stage map without changing the output contract or controller profile.',
+  touches: ['/stageMapId', '/updatedAt'],
+  fields: {
+    stage_map_id: { kind: 'string', nullable: true, description: 'The stage map id; null for none' },
+  },
+  apply(record, input) {
+    const stageMapId = input.stage_map_id === null ? null : (input.stage_map_id as string).trim()
+    if (stageMapId !== null && stageMapId.length === 0) {
+      return refuseShowCommand({
+        code: 'invalid-argument',
+        message: 'set_stage_map: a blank stage map id is not a target; pass null to return to none.',
+      })
+    }
+    if ((record.stageMapId ?? null) === stageMapId) {
+      return { ok: true, record, changes: [] }
+    }
+    const next = { ...record, stageMapId, updatedAt: Math.max(Date.now(), record.updatedAt + 1) }
+    return {
+      ok: true,
+      record: next,
+      changes: [{
+        command: 'set_stage_map',
+        targetId: record.id,
+        description: stageMapId === null
+          ? 'The Show has no stage map.'
+          : `The Show has stage map ${stageMapId}.`,
       }],
     }
   },
@@ -80,12 +114,7 @@ const setTargetControllerProfile: ShowCommandDescriptor = {
       })
     }
     if ((record.targetControllerProfileId ?? null) === profileId) {
-      return refuseShowCommand({
-        code: 'no-change',
-        message: profileId === null
-          ? 'The Show already selects its controller profile automatically.'
-          : `The Show already targets profile ${profileId}.`,
-      })
+      return { ok: true, record, changes: [] }
     }
     const next = { ...record, updatedAt: Math.max(Date.now(), record.updatedAt + 1) }
     if (profileId === null) delete next.targetControllerProfileId
@@ -109,21 +138,21 @@ const setOutputContract: ShowCommandDescriptor = {
   description:
     'Replace the Show\'s output contract: portable-2d (a reference map id and reference pixel count; ' +
     'the Show adapts to any continuous 2D surface) or installation (a fixed output map id and pixel ' +
-    'count). The stage map follows the contract\'s map. Refused when the Show already has exactly ' +
-    'this contract.',
+    'count, agent-only). The stage map follows the contract\'s map; an identical request is a successful no-op.',
   touches: ['/outputContract', '/stageMapId', '/updatedAt'],
   fields: {
     kind: { kind: 'string', enum: ['portable-2d', 'installation'], description: 'The contract kind' },
     map_id: {
       kind: 'string',
       nullable: true,
-      description: 'Reference map id (portable) or output map id (installation); null for none',
+      optional: true,
+      description: 'Reference map id (portable) or output map id (installation); null or omitted for none',
     },
     pixel_count: { kind: 'integer', description: 'Reference pixel count (portable) or fixed pixel count (installation)' },
   },
   apply(record, input) {
     const kind = input.kind as 'portable-2d' | 'installation'
-    const mapId = input.map_id as string | null
+    const mapId = (input.map_id as string | null | undefined) ?? null
     const pixelCount = input.pixel_count as number
     if (pixelCount <= 0) {
       return refuseShowCommand({
@@ -139,10 +168,7 @@ const setOutputContract: ShowCommandDescriptor = {
     const storedMapId = contract.kind === 'portable-2d' ? contract.referenceMapId : contract.outputMapId
     const storedPixelCount = contract.kind === 'portable-2d' ? contract.referencePixelCount : contract.pixelCount
     if (JSON.stringify(contract) === JSON.stringify(record.outputContract) && record.stageMapId === storedMapId) {
-      return refuseShowCommand({
-        code: 'no-change',
-        message: `The Show already has exactly this ${kind} output contract.`,
-      })
+      return { ok: true, record, changes: [] }
     }
     return {
       ok: true,
@@ -169,25 +195,24 @@ const setOutputTrails: ShowCommandDescriptor = {
   description:
     'Enable, disable, or retune the Show\'s Trails output Effect: brighter linear-RGB pixels from the ' +
     'previous frame are retained at the given retention (0–1, clamped). Enabling without a retention ' +
-    'keeps the current one, or the default when Trails was off. Refused when nothing would change.',
+    'keeps the current one, or the default when Trails was off. Omitted enabled preserves its current state.',
   touches: ['/outputEffects', '/updatedAt'],
   fields: {
-    enabled: { kind: 'boolean', description: 'Whether Trails runs on the Show output' },
+    enabled: { kind: 'boolean', optional: true, description: 'Whether Trails runs; omit to retain current enabled state' },
     retention: { kind: 'number', optional: true, description: 'Retention in [0, 1]; values outside clamp' },
   },
   apply(record, input) {
+    if (input.enabled === undefined && input.retention === undefined) {
+      return refuseShowCommand({ code: 'invalid-argument', message: 'Give enabled or retention.' })
+    }
+    const enabled = input.enabled as boolean | undefined ??
+      Boolean(record.outputEffects?.some(effect => effect.kind === 'trails'))
     const result = setShowOutputTrails(record, {
-      enabled: input.enabled as boolean,
+      enabled,
       ...(input.retention !== undefined ? { retention: input.retention as number } : {}),
     })
     if (result === record) {
-      return refuseShowCommand({
-        code: 'no-change',
-        message:
-          input.enabled
-            ? 'Trails is already enabled at exactly this retention.'
-            : 'Trails is already off.',
-      })
+      return { ok: true, record, changes: [] }
     }
     const trails = result.outputEffects?.find((effect) => effect.kind === 'trails')
     return {
@@ -213,7 +238,7 @@ const addLayoutInterval: ShowCommandDescriptor = {
   touches: ['/scenes', '/transitions', '/composition', '/cells', '/routingLayouts', '/updatedAt'],
   fields: {
     layout_id: { kind: 'string', description: 'The Zone Layout id the occurrence routes through' },
-    duration_ms: { kind: 'integer', description: 'Occurrence duration in milliseconds (positive)' },
+    duration_ms: { kind: 'number', description: 'Occurrence duration in milliseconds (positive)' },
     at_ms: { kind: 'number', optional: true, description: 'Global insertion point; omit to append at the end' },
   },
   apply(record, input) {
@@ -227,7 +252,10 @@ const addLayoutInterval: ShowCommandDescriptor = {
         candidates: record.routingLayouts.map((layout) => layout.id),
       })
     }
-    const durationMs = input.duration_ms as number
+    if ((input.duration_ms as number) <= 0) {
+      return refuseShowCommand({ code: 'invalid-argument', message: 'Occurrence duration must be positive.' })
+    }
+    const durationMs = Math.round(input.duration_ms as number)
     const atMs = input.at_ms as number | undefined
     const result = atMs === undefined
       ? appendShowLayoutInterval(record, { layoutId, durationMs })
@@ -336,8 +364,57 @@ const makeLayoutIntervalUnique: ShowCommandDescriptor = {
   },
 }
 
+const updateZone: ShowCommandDescriptor = {
+  name: 'update_zone',
+  description: 'Update Zone name, nominal pixel count or display color without changing routing or Clips.',
+  touches: ['/zones/*/name', '/zones/*/nominalPixelCount', '/zones/*/color', '/updatedAt'],
+  fields: {
+    zone_id: { kind: 'string', description: 'The Zone id' },
+    name: { kind: 'string', optional: true, description: 'Trimmed distinct Zone name' },
+    nominal_pixel_count: { kind: 'number', optional: true, description: 'Positive nominal pixel count, rounded to an integer' },
+    color: { kind: 'string', optional: true, description: 'Display color' },
+  },
+  apply(record, input) {
+    const zoneId = input.zone_id as string
+    const zone = record.zones.find(candidate => candidate.id === zoneId)
+    if (!zone) return refuseShowCommand({
+      code: 'unknown-zone', message: `No Zone has id "${zoneId}".`,
+      candidates: record.zones.map(candidate => candidate.id),
+    })
+    const name = (input.name as string | undefined)?.trim()
+    const count = input.nominal_pixel_count as number | undefined
+    const color = input.color as string | undefined
+    if (name === undefined && count === undefined && color === undefined) {
+      return refuseShowCommand({ code: 'invalid-argument', message: 'Give at least one of name, nominal_pixel_count, or color.' })
+    }
+    if (name === '' || (count !== undefined && count <= 0)) {
+      return refuseShowCommand({ code: 'invalid-argument', message: 'Zone names must be nonempty and nominal pixel counts positive.' })
+    }
+    const collision = name !== undefined && record.zones.find(candidate => candidate.id !== zoneId && candidate.name === name)
+    if (collision) return refuseShowCommand({
+      code: 'duplicate-name', message: `Another Zone (${collision.id}) is already named "${name}".`,
+      remedy: 'Choose a distinct name, or rename that Zone first.',
+    })
+    const nominalPixelCount = count === undefined ? undefined : Math.max(1, Math.round(count))
+    if ((name === undefined || name === zone.name) &&
+        (nominalPixelCount === undefined || nominalPixelCount === zone.nominalPixelCount) &&
+        (color === undefined || color === zone.color)) return { ok: true, record, changes: [] }
+    const next = monotonicRecord(record, updateShowZone(record, zoneId, {
+      ...(name !== undefined ? { name } : {}),
+      ...(nominalPixelCount !== undefined ? { nominalPixelCount } : {}),
+      ...(color !== undefined ? { color } : {}),
+    }))
+    return { ok: true, record: next, changes: [{
+      command: 'update_zone', targetId: zoneId, description: `Zone ${zoneId} metadata updated.`,
+      before: zone, after: next.zones.find(candidate => candidate.id === zoneId),
+    }] }
+  },
+}
+
 export const SHOW_STRUCTURE_COMMANDS: ShowCommandDescriptor[] = [
   renameShow,
+  setStageMap,
+  updateZone,
   setTargetControllerProfile,
   setOutputContract,
   setOutputTrails,

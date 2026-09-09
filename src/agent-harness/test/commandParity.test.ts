@@ -43,6 +43,11 @@ import { createScriptedAgent, runUtterance } from '../bridge/service'
 import { runToolRound } from '../experiment/turn'
 import { createSessionStore } from '../grammar/session'
 import { duplicateShowClipEffect, moveShowClipEffectWithinStage, updateShowClipEffectParameter } from '@/engine/showEffectAuthoring'
+import { showOutputLayoutFixture } from '@/test/showCommandFixture'
+import { updateShowZone } from '@/engine/showModel'
+import { createPortableShowOutputContract } from '@/engine/showOutputContract'
+import { setShowOutputTrails } from '@/engine/showOutputEffectAuthoring'
+import { appendShowLayoutInterval, duplicateShowLayoutInterval, makeShowLayoutIntervalUnique, projectShowLayoutIntervals } from '@/engine/showLayoutIntervals'
 
 
 it('shares canonical input and domain refusals without mutation', () => {
@@ -824,6 +829,82 @@ const PARITY_ROWS: ParityRow[] = [
       return result.record.composition
     },
   })),
+  {
+    command: 'rename_show', args: { name: '  Night Show  ' }, fixture: showOutputLayoutFixture,
+    manualOwner: show => ({ ...show, name: 'Night Show' }),
+    expectedFacts: (before, after) => expect(after).toStrictEqual({ ...before, name: 'Night Show', updatedAt: after.updatedAt }),
+    refusals: [{ name: ' ' }, { name: null }, { name: 'N', extra: true }],
+  },
+  {
+    command: 'set_stage_map', args: { stage_map_id: 'plane' }, fixture: showOutputLayoutFixture,
+    expectedFacts: (before, after) => expect(after).toStrictEqual({ ...before, stageMapId: 'plane', updatedAt: after.updatedAt }),
+    refusals: [{}, { stage_map_id: ' ' }],
+  },
+  {
+    command: 'set_target_controller_profile', args: { profile_id: 'profile-test' }, fixture: showOutputLayoutFixture,
+    manualOwner: show => ({ ...show, targetControllerProfileId: 'profile-test' }),
+    expectedFacts: (before, after) => expect(after).toStrictEqual({ ...before, targetControllerProfileId: 'profile-test', updatedAt: after.updatedAt }),
+    refusals: [{}, { profile_id: ' ' }],
+  },
+  {
+    command: 'update_zone', args: { zone_id: 'zone-1', name: '  Front  ', nominal_pixel_count: 123.6, color: '#abcdef' }, fixture: showOutputLayoutFixture,
+    manualOwner: show => updateShowZone(show, 'zone-1', { name: 'Front', nominalPixelCount: 124, color: '#abcdef' }),
+    expectedFacts: (before, after) => {
+      expect(after.zones[0]).toMatchObject({ id: 'zone-1', name: 'Front', nominalPixelCount: 124, color: '#abcdef' })
+      expect(after.composition).toStrictEqual(before.composition)
+      expect(after.routingLayouts).toStrictEqual(before.routingLayouts)
+    },
+    refusals: [{ zone_id: 'absent', name: 'N' }, { zone_id: 'zone-1' }, { zone_id: 'zone-1', nominal_pixel_count: 0 }, { zone_id: 'zone-1', nominal_pixel_count: NaN }],
+  },
+  {
+    command: 'set_output_contract', args: { kind: 'portable-2d', map_id: 'plane', pixel_count: 512 }, fixture: showOutputLayoutFixture,
+    manualOwner: show => ({ ...show, stageMapId: 'plane', outputContract: createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 512 }) }),
+    expectedFacts: (before, after) => {
+      expect(after.stageMapId).toBe('plane')
+      expect(after.outputContract).toMatchObject({ kind: 'portable-2d', referenceMapId: 'plane', referencePixelCount: 512 })
+      expect(after.routingLayouts).toStrictEqual(before.routingLayouts)
+    },
+    refusals: [{ kind: 'other', pixel_count: 512 }, { kind: 'portable-2d', pixel_count: 0 }],
+  },
+  ...[0, 0.5, 1, -1, 2].map((retention): ParityRow => ({
+    command: 'set_output_trails', args: { enabled: true, retention }, fixture: showOutputLayoutFixture,
+    manualOwner: show => setShowOutputTrails(show, { enabled: true, retention }),
+    expectedFacts: (_before, after) => expect(after.outputEffects).toEqual([{ id: 'trails', kind: 'trails', retention: Math.max(0, Math.min(1, retention)) }]),
+    refusals: [{}, { retention: NaN }, { enabled: null }],
+  })),
+  {
+    command: 'add_layout_interval', args: { layout_id: 'layout-1', duration_ms: 1000.4 }, fixture: showOutputLayoutFixture,
+    manualOwner: show => appendShowLayoutInterval(show, { layoutId: 'layout-1', durationMs: 1000 }),
+    expectedFacts: (before, after) => {
+      expect(after.routingLayouts).toStrictEqual(before.routingLayouts)
+      const intervals = projectShowLayoutIntervals(after)
+      expect(intervals[intervals.length - 1].durationMs).toBe(1000)
+    },
+    refusals: [{ layout_id: 'absent', duration_ms: 1000 }, { layout_id: 'layout-1', duration_ms: 0 }],
+  },
+  ...[false, true].map((with_content): ParityRow => ({
+    command: 'duplicate_layout_interval', args: { interval_id: 'layout-occurrence-scene-1', with_content }, fixture: showOutputLayoutFixture,
+    manualOwner: show => duplicateShowLayoutInterval(show, 'layout-occurrence-scene-1', { withContent: with_content }),
+    expectedFacts: (before, after) => {
+      expect(after.routingLayouts).toStrictEqual(before.routingLayouts)
+      expect(projectShowLayoutIntervals(after)).toHaveLength(2)
+      expect(after.composition!.patternInstances.slice(0, before.composition!.patternInstances.length)).toStrictEqual(before.composition!.patternInstances)
+      if (with_content) expect(after.composition!.patternInstances.slice(before.composition!.patternInstances.length)).toStrictEqual(before.composition!.patternInstances.map(instance => ({ ...instance, id: `${instance.id}-copy` })))
+    },
+    refusals: [{ interval_id: 'absent' }],
+  })),
+  {
+    command: 'make_layout_interval_unique', args: { interval_id: 'layout-occurrence-scene-1' },
+    fixture: () => appendShowLayoutInterval(showOutputLayoutFixture(), { layoutId: 'layout-1', durationMs: 1000 }),
+    manualOwner: show => makeShowLayoutIntervalUnique(show, 'layout-occurrence-scene-1'),
+    expectedFacts: (before, after) => {
+      expect(after.routingLayouts).toHaveLength(2)
+      expect(after.zones).toHaveLength(2)
+      expect(after.composition!.patternInstances).toStrictEqual(before.composition!.patternInstances)
+      expect(projectShowLayoutIntervals(after)[0].layoutId).not.toBe(projectShowLayoutIntervals(after)[1].layoutId)
+    },
+    refusals: [{ interval_id: 'absent' }],
+  },
 ]
 
 function assertParity(row: ParityRow, source: ShowRecord) {
@@ -1585,6 +1666,103 @@ it('applies each Effect edit to the logical Clip across Scenes without changing 
     expect(result.record.scenes).toEqual(original.scenes)
     expect(result.record.composition!.patternInstances).toEqual(original.composition!.patternInstances)
   }
+})
+
+it('metadata no-ops keep identity, and Stage map compatibility expands atomically', () => {
+  const opened = openShowDocument(showOutputLayoutFixture())
+  if (!opened.ok) throw new Error(JSON.stringify(opened))
+  const { document } = opened
+  const before = structuredClone(document)
+  const requests = [
+    { name: 'rename_show', input: { name: `  ${document.show.name}  ` } },
+    { name: 'set_stage_map', input: { stage_map_id: document.show.stageMapId ?? null } },
+    { name: 'set_target_controller_profile', input: { profile_id: null } },
+    { name: 'update_zone', input: { zone_id: 'zone-1', name: document.show.zones[0].name } },
+    { name: 'set_output_trails', input: { retention: 0.5 } },
+  ]
+  for (const request of requests) {
+    const canonical = applyShowCommand(document.show, request.name, request.input)
+    expect(canonical).toStrictEqual({ ok: true, record: document.show, changes: [] })
+    if (canonical.ok) expect(canonical.record).toBe(document.show)
+    expect(applyShowGrammarOperation(document, request.name, request.input)).toStrictEqual({ ok: true, document, changes: [] })
+  }
+  const mixed = runShowCommandTransaction(document.show, [...requests, { name: 'rename_show', input: { name: 'Changed' } }, ...requests.slice(1)])
+  expect(mixed).toMatchObject({ ok: true, record: { name: 'Changed' }, changes: [{ command: 'rename_show' }] })
+  const combined = applyShowGrammarOperation(document, 'set_stage_map', { stage_map_id: 'plane', target_controller_profile_id: 'profile-test' })
+  const canonical = runShowCommandTransaction(document.show, [
+    { name: 'set_stage_map', input: { stage_map_id: 'plane' } },
+    { name: 'set_target_controller_profile', input: { profile_id: 'profile-test' } },
+  ])
+  expect(combined.ok).toBe(true)
+  expect(canonical.ok).toBe(true)
+  if (!combined.ok || !canonical.ok) return
+  expect({ ...combined.document.show, updatedAt: canonical.record.updatedAt }).toStrictEqual(canonical.record)
+  expect(combined.changes).toStrictEqual(canonical.changes.map(({ command, ...change }) => ({ op: command, ...change })))
+  expect(applyShowGrammarOperation(document, 'set_stage_map', { stage_map_id: 'plane', target_controller_profile_id: ' ' })).toMatchObject({ ok: false, issues: [{ code: 'invalid-argument' }] })
+  expect(document).toStrictEqual(before)
+})
+
+it('retention-only Trails preserves enabled state, bounds retention, and rejects invalid metadata before no-op', () => {
+  const show = showOutputLayoutFixture()
+  const on = applyShowCommand(show, 'set_output_trails', { enabled: true })
+  if (!on.ok) throw new Error('enable')
+  const tuned = applyShowCommand(on.record, 'set_output_trails', { retention: 2 })
+  expect(tuned).toMatchObject({ ok: true, record: { outputEffects: [{ id: 'trails', retention: 1 }] } })
+  expect(applyShowCommand(show, 'update_zone', { zone_id: 'absent', name: show.zones[0].name }).ok).toBe(false)
+  const collision = structuredClone(show)
+  collision.zones.push({ ...collision.zones[0], id: 'other', name: 'Taken' })
+  expect(applyShowCommand(collision, 'update_zone', { zone_id: 'zone-1', name: ' Taken ' })).toMatchObject({ ok: false, issues: [{ code: 'duplicate-name' }] })
+})
+
+it('the production authoring policy accepts output blockers while export and delivery checks remain separate', async () => {
+  const { validateAuthoringShowDocument } = await import('../shows/evaluate')
+  const { validateInstallationCoverage } = await import('@/engine/showInstallationCoverage')
+  const { validatePortableShowCompatibility, portableCompatibilityBlockingMessage } = await import('@/engine/showPortableCompatibility')
+  const source = showOutputLayoutFixture()
+  const opened = openShowDocument(source, [], {}, { authoringValidation: true })
+  if (!opened.ok) throw new Error(JSON.stringify(opened))
+  const missing = applyShowGrammarOperation(opened.document, 'set_stage_map', { stage_map_id: 'missing-map' })
+  expect(missing.ok).toBe(true)
+  if (!missing.ok) return
+  expect(missing.document.show.outputContract).toStrictEqual(source.outputContract)
+  expect(() => buildShowFileBundle(missing.document.show, { patterns: [], maps: [] }, { appVersion: 'test' })).toThrow('not in the library')
+  const physical = structuredClone(source)
+  physical.routingLayouts = [{ id: 'layout-1', name: 'Physical', zones: [{ zoneId: 'zone-1', ranges: [{ start: 0, end: 3 }] }] }]
+  const physicalOpened = openShowDocument(physical, [], {}, { authoringValidation: true })
+  if (!physicalOpened.ok) throw new Error(JSON.stringify(physicalOpened))
+  const installed = applyShowGrammarOperation(physicalOpened.document, 'set_output_contract', { kind: 'installation', map_id: 'plane', pixel_count: 512 })
+  expect(installed.ok).toBe(true)
+  if (!installed.ok) return
+  expect(validateAuthoringShowDocument(installed.document.show).valid).toBe(true)
+  expect(validateInstallationCoverage(installed.document.show)).toMatchObject({ valid: false, layouts: [{ missingPixelCount: 508 }] })
+  expect(await reopen(installed.document.show)).toMatchObject({ outputContract: { kind: 'installation', pixelCount: 512 } })
+  const portable = applyShowGrammarOperation(physicalOpened.document, 'set_output_contract', { kind: 'portable-2d', map_id: 'plane', pixel_count: 512 })
+  expect(portable.ok).toBe(true)
+  if (!portable.ok) return
+  expect(validateAuthoringShowDocument(portable.document.show).valid).toBe(true)
+  expect(portableCompatibilityBlockingMessage(validatePortableShowCompatibility(portable.document.show, [], 3))).toContain('3D')
+  expect(portableCompatibilityBlockingMessage(validatePortableShowCompatibility(portable.document.show, [], 2))).toContain('physical pixel ranges')
+})
+
+it('a mixed metadata/Layout batch adopts one private history step and reopens after Undo/Redo', async () => {
+  const store = createSessionStore({ authoringValidation: true })
+  const opened = store.open(showOutputLayoutFixture())
+  if (!opened.ok) throw new Error('open')
+  const id = opened.sessionId
+  const before = store.export(id)
+  expect(store.begin(id, 'Show setup').ok).toBe(true)
+  expect(store.apply(id, 'rename_show', { name: 'Command fixture' }).ok).toBe(true)
+  expect(store.apply(id, 'update_zone', { zone_id: 'zone-1', name: 'Front' }).ok).toBe(true)
+  expect(store.apply(id, 'add_layout_interval', { layout_id: 'layout-1', duration_ms: 1000 }).ok).toBe(true)
+  expect(store.apply(id, 'set_output_trails', { enabled: true, retention: 0.5 }).ok).toBe(true)
+  expect(store.commit(id).ok).toBe(true)
+  const after = store.export(id)
+  expect(store.undo(id).ok).toBe(true)
+  expect(store.export(id)).toStrictEqual(before)
+  expect(store.redo(id).ok).toBe(true)
+  expect(store.export(id)).toStrictEqual(after)
+  if (!after.ok) throw new Error('export')
+  expect(await reopen(after.show)).toEqual({ ...after.show, composition: normalizeShowComposition(after.show, after.show.composition!) })
 })
 
 it.each(['clip-a', 'clip-ov'])('refuses duplication of imported legacy Trails without throwing or changing %s', async clipId => {

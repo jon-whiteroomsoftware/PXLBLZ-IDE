@@ -45,7 +45,10 @@
     "/transitions/*/starInner",
     "/transitions/*/starPoints",
     "/transitions/*/wipeMode",
-    "/transitions/*/wipeVariant"
+    "/transitions/*/wipeVariant",
+    "/zones/*/color",
+    "/zones/*/name",
+    "/zones/*/nominalPixelCount"
   ],
   "subtreeOnly": [
     "/cells/*/adaptations/brightness",
@@ -677,10 +680,7 @@
     "/transitions/*/propertyTransitions/transform/scaleY/easing/y2",
     "/transitions/*/propertyTransitions/transform/scaleY/fromByCellId/*",
     "/transitions/*/routingDirection",
-    "/zones/*/color",
-    "/zones/*/icon",
-    "/zones/*/name",
-    "/zones/*/nominalPixelCount"
+    "/zones/*/icon"
   ],
   "unreachable": [],
   "allowlisted": [

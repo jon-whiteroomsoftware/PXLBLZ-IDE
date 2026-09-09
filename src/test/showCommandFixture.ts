@@ -195,3 +195,14 @@ export function singleClipCommandFixture(): ShowRecord {
     },
   }
 }
+
+/** #954 family specimen: existing tracked Show with current exportable stock references. */
+export function showOutputLayoutFixture(): ShowRecord {
+  const show = trackedCommandFixture()
+  show.routingLayouts = [{ id: 'layout-1', name: 'Default', zones: [], logical: { kind: 'single', zoneIds: ['zone-1'] } }]
+  for (const instance of show.composition!.patternInstances) {
+    instance.pattern = { kind: 'stock', id: 'CometLoom' }
+    instance.patternName = 'Comet Loom'
+  }
+  return show
+}

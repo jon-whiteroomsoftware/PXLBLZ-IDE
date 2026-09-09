@@ -805,6 +805,9 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
       layout_id: 'l1',
       duration_ms: 10_000,
     })
+    applyOk(document, 'add_layout_interval', { layout_id: 'l1', duration_ms: 1000, at_ms: 15000 })
+    const unique = applyOk(next, 'make_layout_interval_unique', { interval_id: projectShowLayoutIntervals(next.show)[1].id })
+    applyOk(unique.document, 'add_layout_interval', { layout_id: unique.document.show.routingLayouts[1].id, duration_ms: 1000, at_ms: 0 })
     expect(showLoopDurationMs(next.show)).toBe(70_000)
     const intervals = projectShowLayoutIntervals(next.show)
     expect(intervals[intervals.length - 1].id).toBe(changes[0].details?.intervalId)
@@ -815,6 +818,7 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     const { document: next } = applyOk(document, 'duplicate_layout_interval', {
       interval_id: interval.id,
     })
+    applyOk(document, 'duplicate_layout_interval', { interval_id: interval.id, with_content: true })
     expect(showLoopDurationMs(next.show)).toBe(120_000)
     expect(projectShowLayoutIntervals(next.show)).toHaveLength(2)
   },
@@ -828,6 +832,7 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     const { document: next } = applyOk(withSecond, 'make_layout_interval_unique', {
       interval_id: intervals[1].id,
     })
+    applyOk(withSecond, 'make_layout_interval_unique', { interval_id: intervals[0].id })
     expect(next.show.routingLayouts.length).toBe(2)
   },
   rename_show: () => {
@@ -835,6 +840,11 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     const { document: next, changes } = applyOk(document, 'rename_show', { name: '  Night Set  ' })
     expect(next.show.name).toBe('Night Set')
     expect(changes[0].description).toContain('Grammar fixture')
+  },
+  set_target_controller_profile: () => {
+    const { document } = applyOk(fixture(), 'set_target_controller_profile', { profile_id: 'test-profile' })
+    expect(document.show.targetControllerProfileId).toBe('test-profile')
+    expect(applyOk(document, 'set_target_controller_profile', { profile_id: null }).document.show.targetControllerProfileId).toBeUndefined()
   },
   set_stage_map: () => {
     const document = fixture()
@@ -867,7 +877,7 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
       nominalPixelCount: 256,
       color: '#22aa66',
     })
-    expect(changes[0].description).toContain('renamed "Main"')
+    expect(changes[0]).toMatchObject({ targetId: 'z1', before: { name: 'Main' }, after: { name: 'Ceiling' } })
   },
   set_field: () => {
     const document = fixture()

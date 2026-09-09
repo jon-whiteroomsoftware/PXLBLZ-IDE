@@ -48,7 +48,7 @@ export function applyOk(document: ShowGrammarDocument, name: string, args: Recor
   expect(validateShowPropertyTracks(outcome.document.show, composition)).toEqual([])
   expect(outcome.changes.length).toBeGreaterThan(0)
   for (const change of outcome.changes) {
-    expect(change.op).toBe(name)
+    expect(name === 'set_stage_map' ? ['set_stage_map', 'set_target_controller_profile'] : [name]).toContain(change.op)
     expect(change.description.length).toBeGreaterThan(0)
   }
   if (recording) APPLIED_RECORDS.push({ op: name, before, after: structuredClone(outcome.document.show) })

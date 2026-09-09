@@ -134,6 +134,12 @@ Full-record saves are queued per Show within this client. A later save starts
 after the preceding save settles, including failure. This preserves submission
 order at the provider boundary without blocking optimistic editing.
 
+The remote provider preserves explicit output-Effect clearing: a replacement's
+`outputEffects: undefined` becomes `outputEffects: []` on the PATCH wire, while
+an absent property in a sparse patch remains absent. Undo can therefore restore
+a Show without Trails without leaving the previous Effects in durable storage.
+The existing profile-clear encoding remains independent.
+
 For every personal replacement, the current optimistic ordering stamp
 determines recovery. If a newer accepted record superseded the failed write,
 the failed call resolves without restoring its predecessor or publishing a

@@ -11,14 +11,14 @@ file drifts from the generator.
 | --- | --- | --- | --- |
 | clips | 84 | 84 | 100% |
 | effects | 62 | 62 | 100% |
-| flat model (legacy) | 78 | 0 | 0% |
+| flat model (legacy) | 78 | 78 | 100% |
 | groups | 157 | 0 | 0% |
 | junctions | 184 | 184 | 100% |
 | layer transitions | 51 | 51 | 100% |
 | output effects | 2 | 2 | 100% |
 | property animation | 20 | 20 | 100% |
 | record | 3 | 3 | 100% |
-| structure | 28 | 27 | 96.4% |
+| structure | 28 | 28 | 100% |
 | timeline | 8 | 5 | 62.5% |
 
 Unreachable paths: none.
@@ -42,84 +42,6 @@ preserve declared Show structure; arbitrary scratch paths and final-only-valid
 sequences are outside the generic contract. Generic-operation use is logged per
 session; frequent use of a path here is the signal to add a specific operation.
 
-- `/cells/*/adaptations/brightness`
-- `/cells/*/adaptations/lightShutter/clockBehavior`
-- `/cells/*/adaptations/lightShutter/duty`
-- `/cells/*/adaptations/lightShutter/phase`
-- `/cells/*/adaptations/lightShutter/rateHz`
-- `/cells/*/adaptations/mirror`
-- `/cells/*/adaptations/phase`
-- `/cells/*/adaptations/steppedClock/stepMs`
-- `/cells/*/adaptations/timeOffsetMs`
-- `/cells/*/adaptations/timeScale`
-- `/cells/*/blink/duty`
-- `/cells/*/blink/phase`
-- `/cells/*/blink/rateHz`
-- `/cells/*/controlTargets/*`
-- `/cells/*/effects/*/amount`
-- `/cells/*/effects/*/aspect`
-- `/cells/*/effects/*/brightness`
-- `/cells/*/effects/*/centerX`
-- `/cells/*/effects/*/centerY`
-- `/cells/*/effects/*/color`
-- `/cells/*/effects/*/columns`
-- `/cells/*/effects/*/contrast`
-- `/cells/*/effects/*/frequency`
-- `/cells/*/effects/*/highlightB`
-- `/cells/*/effects/*/highlightG`
-- `/cells/*/effects/*/highlightR`
-- `/cells/*/effects/*/kind`
-- `/cells/*/effects/*/levels`
-- `/cells/*/effects/*/opacity`
-- `/cells/*/effects/*/phase`
-- `/cells/*/effects/*/radius`
-- `/cells/*/effects/*/rotation`
-- `/cells/*/effects/*/rows`
-- `/cells/*/effects/*/saturation`
-- `/cells/*/effects/*/segments`
-- `/cells/*/effects/*/shadowB`
-- `/cells/*/effects/*/shadowG`
-- `/cells/*/effects/*/shadowR`
-- `/cells/*/effects/*/softness`
-- `/cells/*/effects/*/target`
-- `/cells/*/effects/*/threshold`
-- `/cells/*/effects/*/tolerance`
-- `/cells/*/effects/*/turns`
-- `/cells/*/effects/*/x`
-- `/cells/*/effects/*/y`
-- `/cells/*/evaluationPolicy`
-- `/cells/*/pattern/kind`
-- `/cells/*/patternName`
-- `/cells/*/presentation/cadenceMs`
-- `/cells/*/presentation/mode`
-- `/cells/*/restartOnEntry`
-- `/cells/*/sceneId`
-- `/cells/*/sceneSpan`
-- `/cells/*/transform/positionX`
-- `/cells/*/transform/positionY`
-- `/cells/*/transform/rotation`
-- `/cells/*/transform/scaleX`
-- `/cells/*/transform/scaleY`
-- `/cells/*/viewport/aperture`
-- `/cells/*/viewport/cornerRadius`
-- `/cells/*/viewport/crescentOffset`
-- `/cells/*/viewport/crossWidth`
-- `/cells/*/viewport/edge`
-- `/cells/*/viewport/enabled`
-- `/cells/*/viewport/feather`
-- `/cells/*/viewport/height`
-- `/cells/*/viewport/invert`
-- `/cells/*/viewport/polygonSides`
-- `/cells/*/viewport/ringWidth`
-- `/cells/*/viewport/rotation`
-- `/cells/*/viewport/starInner`
-- `/cells/*/viewport/starPoints`
-- `/cells/*/viewport/width`
-- `/cells/*/viewport/x`
-- `/cells/*/viewport/y`
-- `/cells/*/zoneId`
-- `/cells/*/zoneMode`
-- `/cells/*/zoneSpan`
 - `/composition/groupDefinitions/*/name`
 - `/composition/groupDefinitions/*/patternInstances/*/controlTargets/*`
 - `/composition/groupDefinitions/*/patternInstances/*/evaluationPolicy`
@@ -280,4 +202,3 @@ session; frequent use of a path here is the signal to add a specific operation.
 - `/scenes/*/name`
 - `/scenes/*/routingTargets/splitPosition`
 - `/scenes/*/sampleTargets/repeatScale`
-- `/zones/*/icon`

@@ -249,6 +249,29 @@ describe('remote personal content provider', () => {
     expect(requests[2].init?.body).toBe(JSON.stringify({ name: 'Renamed', updatedAt: 2 }))
   })
 
+  it('encodes explicit output-effect clearing without changing sparse Show patches (#954)', async () => {
+    const requests: unknown[] = []
+    const provider = createRemotePersonalContentProvider({
+      fetcher: async (_url, init) => {
+        requests.push(JSON.parse(String(init?.body)))
+        return Response.json({ ok: true })
+      },
+    })
+    const effects = [{ id: 'trails', kind: 'trails' as const, retention: 0.5 }]
+    await provider.updateShow('show-1', { name: 'Sparse' })
+    await provider.updateShow('show-1', { outputEffects: undefined })
+    await provider.updateShow('show-1', { outputEffects: [] })
+    await provider.updateShow('show-1', { outputEffects: effects })
+    await provider.updateShow('show-1', { outputEffects: undefined, targetControllerProfileId: undefined })
+    expect(requests).toEqual([
+      { name: 'Sparse' },
+      { outputEffects: [] },
+      { outputEffects: [] },
+      { outputEffects: effects },
+      { outputEffects: [], targetControllerProfileId: null },
+    ])
+  })
+
   it('raises a clear error when the API rejects the request', async () => {
     const provider = createRemotePersonalContentProvider({
       fetcher: async () => Response.json({ error: 'Unauthorized' }, { status: 401 }),

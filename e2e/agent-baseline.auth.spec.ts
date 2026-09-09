@@ -35,6 +35,7 @@ import type { ShowRecord } from '../src/engine/personalContentRecords'
 import { showRemoveClipFixture } from '../src/test/showRemoveClipFixture'
 import { showOverlayLayerFixture } from '../src/test/showOverlayLayerFixture'
 import { showSplitClipFixture } from '../src/test/showSplitClipFixture'
+import { showOutputLayoutFixture } from '../src/test/showCommandFixture'
 
 const TOOLBAR_SPLIT_ID = '00000992-0000-4000-8000-000000000001'
 
@@ -1666,6 +1667,11 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     }
   })
 
+  const admissionShow954 = () => {
+    const record = showOutputLayoutFixture()
+    record.id = `show-layout-954-${Date.now().toString(36)}`
+    return record
+  }
   const admissionCases: Array<{
     id: string
     command: string
@@ -1793,6 +1799,73 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       utterance: 'make the connected overlay Clip nine seconds',
       fixture: () => { const record = showLayerTransitionCommandFixture(true, true); record.id = `connected-resize-952-${Date.now().toString(36)}`; return record },
       expectedFacts: before => { const expected = structuredClone(before); expected.composition!.scenes[0].zones[0].overlays[0].placements.find(clip => clip.id === 'clip-b')!.durationMs = 9000; return expected },
+    },
+    {
+      id: 'RN954', command: 'rename_show', args: { name: 'Night Show' },
+      utterance: 'rename this Show Night Show', fixture: admissionShow954,
+      unchangedUtterances: ['rename this Show Night Show'],
+      expectedFacts: before => ({ ...structuredClone(before), name: 'Night Show' }),
+    },
+    {
+      id: 'SM954', command: 'set_stage_map', args: { stage_map_id: 'plane' },
+      utterance: 'stage this Show on the plane map', fixture: admissionShow954,
+      unchangedUtterances: ['stage this Show on the plane map'],
+      expectedFacts: before => ({ ...structuredClone(before), stageMapId: 'plane' }),
+    },
+    {
+      id: 'CP954', command: 'set_target_controller_profile', args: { profile_id: 'profile-test' },
+      utterance: 'target the test controller profile without sending', fixture: admissionShow954,
+      expectedFacts: before => ({ ...structuredClone(before), targetControllerProfileId: 'profile-test' }),
+    },
+    {
+      id: 'UZ954', command: 'update_zone', args: { zone_id: 'zone-1', name: 'Front', nominal_pixel_count: 124, color: '#abcdef' },
+      utterance: 'name the Zone Front with 124 pixels and color abcdef', fixture: admissionShow954,
+      expectedFacts: before => {
+        const expected = structuredClone(before)
+        expected.zones[0] = { ...expected.zones[0], name: 'Front', nominalPixelCount: 124, color: '#abcdef' }
+        return expected
+      },
+    },
+    {
+      id: 'OC954', command: 'set_output_contract', args: { kind: 'portable-2d', map_id: 'plane', pixel_count: 512 },
+      utterance: 'make the output portable with the plane map and 512 reference pixels', fixture: admissionShow954,
+      expectedFacts: before => ({
+        ...structuredClone(before), stageMapId: 'plane',
+        outputContract: { version: 1, kind: 'portable-2d', referenceMapId: 'plane', referencePixelCount: 512, compatibility: { dimensions: [2], mapClass: 'continuous-surface', resolution: 'variable' } },
+      }),
+    },
+    {
+      id: 'OT954', command: 'set_output_trails', args: { enabled: true, retention: 0.5 },
+      utterance: 'enable output Trails at half retention', fixture: admissionShow954,
+      expectedFacts: before => ({ ...structuredClone(before), outputEffects: [{ id: 'trails', kind: 'trails', retention: 0.5 }] }),
+    },
+    ...[
+      { id: 'AI954', command: 'add_layout_interval', args: { layout_id: 'layout-1', duration_ms: 1000 }, utterance: 'append a one second Layout interval', duration: 1000 },
+      { id: 'DI954', command: 'duplicate_layout_interval', args: { interval_id: 'layout-occurrence-scene-1' }, utterance: 'duplicate the first Layout interval empty', duration: 62000 },
+    ].map(({ duration, ...row }) => ({
+      ...row, fixture: admissionShow954,
+      expectedFacts: (before: ShowRecord) => {
+        const expected = structuredClone(before)
+        expected.scenes.push({ id: 'scene-3', name: 'Layout interval', durationMs: duration })
+        expected.transitions.push(
+          { id: 'transition-scene-2', afterSceneId: 'scene-2', kind: 'cut', durationMs: 0, easing: { curve: 'linear' } },
+          { id: 'routing-scene-2', afterSceneId: 'scene-2', kind: 'routing', durationMs: 0, easing: { curve: 'linear' }, layoutId: 'layout-1' },
+        )
+        expected.composition!.scenes.push({ sceneId: 'scene-3', zones: [{ zoneId: 'zone-1', main: [], overlays: [] }] })
+        return expected
+      },
+    })),
+    {
+      id: 'UI954', command: 'make_layout_interval_unique', args: { interval_id: 'layout-occurrence-scene-1' },
+      utterance: 'make the first Layout interval unique', fixture: admissionShow954,
+      expectedFacts: before => {
+        const expected = structuredClone(before)
+        expected.zones.push({ ...expected.zones[0], id: 'zone-1-copy' })
+        expected.routingLayouts.unshift({ id: 'layout-1-copy', name: 'Default copy', zones: [], logical: { kind: 'single', zoneIds: ['zone-1-copy'] } })
+        for (const cell of expected.cells) cell.zoneId = 'zone-1-copy'
+        for (const scene of expected.composition!.scenes) scene.zones[0].zoneId = 'zone-1-copy'
+        return expected
+      },
     },
     {
       id: 'BT952', command: 'set_boundary_transition', args: { transition_id: 'transition-scene-1', kind: 'fade-color', variant: 'through-color', duration_ms: 1500 },
@@ -2136,7 +2209,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(saveCount)
         await page.getByRole('button', { name: 'Undo Show edit' }).click()
         await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
-        await expect.poll(successfulSaves).toBe(++saveCount)
+        await expect.poll(successfulSaves).toBe(saveCount + 1)
         expect(await durableShow(page, record.id)).toEqual(await visibleRecord(page))
         saveRecord(admission.id, { before, after, selected, writes, reopened })
         return

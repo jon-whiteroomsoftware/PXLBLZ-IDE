@@ -3,11 +3,13 @@ import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import type { ShowCommandContext } from './registry'
 import { showSplitClipFixture } from '../../test/showSplitClipFixture'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import * as providers from '../controllerProviderRegistry'
 import {
   boundaryFreeInstanceTrackedFixture,
   boundaryFreeTrackedFixture,
   showCommandFixture,
+  showOutputLayoutFixture,
   singleClipCommandFixture,
   stampedCommandFixture,
   trackedCommandFixture,
@@ -876,6 +878,23 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     const { record } = applyOk(showCommandFixture(), 'rename_show', { name: '  Night Set  ' })
     expect(record.name).toBe('Night Set')
   },
+  set_stage_map: () => {
+    const source = showCommandFixture()
+    const { record } = applyOk(source, 'set_stage_map', { stage_map_id: 'missing-map' })
+    expect(record.stageMapId).toBe('missing-map')
+    expect(record.outputContract).toEqual(source.outputContract)
+    expect(record.targetControllerProfileId).toBe(source.targetControllerProfileId)
+    expect(applyOk(record, 'set_stage_map', { stage_map_id: null }).record.stageMapId).toBeNull()
+  },
+  update_zone: () => {
+    const source = showCommandFixture()
+    const { record } = applyOk(source, 'update_zone', {
+      zone_id: 'zone-1', name: '  Front  ', nominal_pixel_count: 123.6, color: '#abcdef',
+    })
+    expect(record.zones[0]).toMatchObject({ id: 'zone-1', name: 'Front', nominalPixelCount: 124, color: '#abcdef' })
+    expect(record.routingLayouts).toEqual(source.routingLayouts)
+    expect(record.composition).toEqual(source.composition)
+  },
   set_target_controller_profile: () => {
     const { record } = applyOk(showCommandFixture(), 'set_target_controller_profile', {
       profile_id: 'profile-pi',
@@ -968,11 +987,23 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
       interval_id: 'layout-occurrence-scene-1',
     })
     expect(contentUnique.record.zones.length).toBeGreaterThan(1)
+    const logical = applyOk(showOutputLayoutFixture(), 'make_layout_interval_unique', { interval_id: 'layout-occurrence-scene-1' })
+    expect(logical.record.zones).toHaveLength(2)
+    expect(logical.record.routingLayouts[0].logical?.zoneIds).toEqual(['zone-1-copy'])
   },
 
 }
 
 describe('Show command goldens (#885)', () => {
+  it('every registered command evaluates without requesting or creating a Controller provider', () => {
+    const access = ['getControllerProvider', 'createControllerProvider', 'detectControllerExtension', 'discoverControllers'] as const
+    const spies = access.map(name => vi.spyOn(providers, name))
+    try {
+      for (const run of Object.values(GOLDEN_RUNS)) run()
+      for (const spy of spies) expect(spy).not.toHaveBeenCalled()
+    } finally { spies.forEach(spy => spy.mockRestore()) }
+  })
+
   it('every registered command has a golden accepted case', () => {
     const missing = SHOW_COMMANDS.map((command) => command.name)
       .filter((name) => !(name in GOLDEN_RUNS))
@@ -1260,16 +1291,12 @@ describe('Show command refusal partitions (#885)', () => {
       map_id: 'plane',
       pixel_count: 512,
     })
-    applyRefused(
-      portable.record,
-      'set_output_contract',
-      { kind: 'portable-2d', map_id: 'plane', pixel_count: 512 },
-      'no-change',
-    )
-    applyRefused(showCommandFixture(), 'set_output_trails', { enabled: false }, 'no-change')
+    expect(applyShowCommand(
+      portable.record, 'set_output_contract', { kind: 'portable-2d', map_id: 'plane', pixel_count: 512 })).toMatchObject({ ok: true, changes: [] })
+    expect(applyShowCommand(showCommandFixture(), 'set_output_trails', { enabled: false })).toMatchObject({ ok: true, changes: [] })
     applyRefused(showCommandFixture(), 'rename_show', { name: '   ' }, 'invalid-argument')
-    applyRefused(showCommandFixture(), 'rename_show', { name: 'Command fixture' }, 'no-change')
-    applyRefused(showCommandFixture(), 'set_target_controller_profile', { profile_id: null }, 'no-change')
+    expect(applyShowCommand(showCommandFixture(), 'rename_show', { name: 'Command fixture' })).toMatchObject({ ok: true, changes: [] })
+    expect(applyShowCommand(showCommandFixture(), 'set_target_controller_profile', { profile_id: null })).toMatchObject({ ok: true, changes: [] })
     applyRefused(showCommandFixture(), 'set_target_controller_profile', { profile_id: '   ' }, 'invalid-argument')
     applyRefused(
       showCommandFixture(),
