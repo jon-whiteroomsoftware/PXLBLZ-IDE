@@ -1,0 +1,31 @@
+{
+  "capturedAtCommit": "6128f08d2f8fff63b65e91b77e3e35aae86d33f3",
+  "browser": "coordinator Codex in-app browser",
+  "runtime": "http://localhost:5178/PXLBLZ-IDE/",
+  "route": "/studio/shows/aa214ed9-922e-422c-aae8-60ea749a3a6e",
+  "syntheticUser": "local-agent-08",
+  "importFile": "/tmp/951-reopened-output.pxlshow",
+  "importProvenance": "JSON form of committed M951-export.json imported through actual Add show / Import Show file chooser and confirmation; not original downloaded bytes",
+  "timelineDurationMs": 20000,
+  "beforePercent": [
+    15,
+    30
+  ],
+  "widthPercent": [
+    10,
+    10
+  ],
+  "afterDragPercent": [
+    25,
+    40
+  ],
+  "afterUndoPercent": [
+    15,
+    30
+  ],
+  "crossfadeRetained": true,
+  "undoDisabledAfterRestore": true,
+  "consoleErrors": [],
+  "captureInspectedBy": "root coordinator",
+  "residual": "Existing Portable2D compatibility warning with 1D reference map; no Controller or device-export claim"
+}

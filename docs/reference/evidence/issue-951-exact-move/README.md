@@ -10,10 +10,9 @@ npm run test:e2e:agent-baseline -- --grep 'M951:|MR:|PP:'
 The repository Chromium runner used a synthetic authenticated user, isolated
 local D1, real editor route and scripted HTTP/NDJSON/MCP bridge. No paid model
 call was made. M951 passed in 9.9 seconds, MR in 24.5 seconds and PP in 11.4
-seconds; the complete run took 49.5 seconds. The coordinator's in-app browser
-connection is available for interactive verification. This worker's separate
-browser discovery could not select that backend; that is not a task-wide
-unavailability claim.
+seconds; the complete run took 49.5 seconds. The coordinator also completed
+the in-app browser check below. This worker's separate browser discovery could
+not select that backend; that was not task-wide unavailability.
 
 M951 starts A at 0–2000 ms and B at 3000–5000 ms, connected by the retained
 1000 ms crossfade. The two canonical `move_clip` calls put B at 8000 ms and
@@ -51,4 +50,26 @@ current-state move admission or finish the other #951 families. `CONTEXT.md`
 needs no terminology change. The technical overview still delegates command
 obligations to the updated contract; the generated command coverage inventory
 was refreshed with zero unreachable paths. Full committed-tip suites, native
-review, interactive verification and landing belong to the coordinator.
+review and landing belong to the coordinator.
+
+## Coordinator in-app browser check
+
+At commit `6128f08d2f8fff63b65e91b77e3e35aae86d33f3`, the coordinator imported
+the JSON form of the committed `M951-export.json`, saved as
+`/tmp/951-reopened-output.pxlshow`, through **Add show → Import Show file**,
+the actual file chooser and import confirmation. These were reserialized
+recorded export data, not the original browser download bytes. The import
+created Show `aa214ed9-922e-422c-aae8-60ea749a3a6e` under synthetic
+`local-agent-08` at runtime `5178`.
+
+The 20-second timeline placed A at 15% with 10% width and B at 30% with 10%
+width: 3–5 seconds and 6–8 seconds, joined by one crossfade. Dragging B two
+seconds later moved both Clips to 25% and 40%. One Undo restored 15% and 30%,
+retained the crossfade and disabled Undo. Console errors were empty. The
+coordinator opened and inspected the [restored capture](IAB-restored.png).
+
+This verifies the actual import and manual drag/Undo path independently of the
+canonical scripted-command proof above. The imported fixture retains its existing
+Portable 2D compatibility warning with the 1D reference map; this check makes no
+Controller or device-export claim. [Capture provenance](IAB-provenance.json)
+records the inspected source and route.
