@@ -1,6 +1,6 @@
 # Overlay Layer creation evidence (#951)
 
-The approved sparse Group repair is implemented; final consumer proof, review
+The approved sparse Group repair is implemented; final IAB inspection, review
 and landing remain coordinator work. Layer creation now realizes target-Zone
 implicit shells through the Group materializer's shared shell owner before
 prepending the fresh empty Layer. It retains Group definitions and occurrences.
@@ -8,8 +8,19 @@ prepending the fresh empty Layer. It retains Group definitions and occurrences.
 The accepted sparse importer regression failed before the repair and now passes.
 Focused tests cover multiple occurrences, ordinals and Scenes, unchanged other
 Zones, collisions, complete input/output preservation, and sparse/nonsparse
-canonical, diagnostic and manual parity. The existing real-editor sequence now
-uses sparse input; its fresh proof is recorded below after source freeze.
+canonical, diagnostic and manual parity. The real-editor sequence uses sparse input and passed against source commit
+`a77b98dfba69f988a54773fb2b363545a66a1bcb` in 5.5 seconds (9.0 seconds total).
+[Fresh records](L951-sparse.json), [reopened export](L951-sparse-export.json) and
+[capture](L951-sparse-result.png) prove one save, complete visible/durable/export
+identity, one-step Undo, manual insertion invalidating a pending old-index
+request, and duplicate delivery producing one adoption/save. The complete
+expected record includes the preserved implicit shell below the new empty Layer.
+The harness reported no unexpected console errors.
+
+All 118 focused tests across six files passed; normal source-commit hooks passed
+lint, locator/coverage checks, typecheck and 68 staged tests. The deliberate
+[omit-shell fault](sparse-fault.json) failed the regression; source was restored
+before those checks. Coordinator final suites and native review remain pending.
 
 ## Historical blocker and decision
 

@@ -26,12 +26,13 @@
     "Full canonical/diagnostic/manual result equality modulo independently assigned timestamps; actual published MCP schema and protocol response.",
     "Visible editor record, durable API record, downloaded .pxlshow importer, PATCH counts, receipt reason and disabled Undo after restoration.",
     "Coordinator manual in-app-browser inspection uses the committed importable rich fixture.",
-    "Sparse import acceptance plus complete composition validity and exact materialized Layer IDs/content; inspected actual IAB before/after JPEGs at source982e10d2, console errors empty."
+    "Sparse import acceptance plus complete composition validity and exact materialized Layer IDs/content; inspected actual IAB before/after JPEGs at source982e10d2, console errors empty.",
+    "Fresh sparse L951 at a77b98df: full expected shell+empty-top record, visible/durable/reopened export equality, Undo, stale revision refusal and duplicate one-save adoption."
   ],
   "residualGaps": [
-    "Fresh committed IAB and scripted sparse proof, final suites and native review belong to final qualification; historical sparse blocker evidence is retained separately.",
+    "Coordinator IAB inspection, final suites and native review remain pending; exact-source scripted sparse proof passed at a77b98dfba69f988a54773fb2b363545a66a1bcb. Historical sparse blocker evidence is retained separately.",
     "No paid inference, hosted service, Controller, new UI, Layer reorder/removal or add_clip migration.",
     "Duplicate adoption has real browser behavioral coverage; targeted injected faults cover the three changed transformation risks."
   ],
-  "status": "Approved sparse Group extension implemented; fresh committed consumer proof and coordinator final checks pending"
+  "status": "Approved sparse Group extension implemented; exact-source scripted consumer proof passed; coordinator IAB and final checks pending"
 }
