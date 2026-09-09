@@ -76,7 +76,10 @@ shared instance animation retains shared ownership. Unrelated Clips never ripple
 
 Invalid targets or times, occupied destinations, out-of-Show chains, Group-owned
 Clips and incompatible connected destinations refuse without a candidate. The
-owner validates the input before recognizing a no-op. Ordinary movement cannot
+owner validates the input before recognizing a no-op. After engine refusal,
+projected whole-chain bounds and target-Layer intersections supply
+`outside-timeline` or `occupied` diagnostics with a remedy and the blocking
+Clip identity. Other unsupported failures retain typed domain refusal. Ordinary movement cannot
 detach a Transition or break a visual Scene-boundary junction. Normalized implicit
 Cut materialization is not visual loss. Explicit reset-to-Cut followed by move is
 an independently supported disconnect sequence.

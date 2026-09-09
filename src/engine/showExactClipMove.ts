@@ -9,11 +9,12 @@ export interface ShowExactClipMoveRequest { clipId: string; globalStartMs: numbe
 export type ShowExactClipMoveResult =
   | { status: 'changed'; composition: ShowCompositionV1; movedClipIds: string[] }
   | { status: 'noop'; composition: ShowCompositionV1 }
-  | { status: 'refused'; code: 'invalid-request' | 'missing-target' | 'missing-destination' | 'unsupported-topology' | 'domain-refusal'; reason: string }
+  | { status: 'refused'; code: 'invalid-request' | 'missing-target' | 'missing-destination' | 'unsupported-topology' | 'domain-refusal' | 'occupied' | 'outside-timeline'; reason: string; remedy?: string }
 
 export function moveShowClipExactly(show: ShowRecord, composition: ShowCompositionV1, request: ShowExactClipMoveRequest): ShowExactClipMoveResult {
   if (typeof request.clipId !== 'string' || !request.clipId || !Number.isSafeInteger(request.globalStartMs) || request.globalStartMs < 0) return { status: 'refused', code: 'invalid-request', reason: 'Use a Clip id and nonnegative safe integer global milliseconds.' }
-  const clips = projectShowUnifiedTimeline(show, composition).zones.flatMap(zone => zone.layers.flatMap(layer => layer.clips))
+  const projection = projectShowUnifiedTimeline(show, composition)
+  const clips = projection.zones.flatMap(zone => zone.layers.flatMap(layer => layer.clips))
   const clip = clips.find(candidate => candidate.id === request.clipId)
   if (!clip) return { status: 'refused', code: 'missing-target', reason: 'The logical Clip no longer exists.' }
   if (clip.groupOccurrenceId) return { status: 'refused', code: 'unsupported-topology', reason: 'Group-owned Clips do not support this exact move.' }
@@ -34,7 +35,30 @@ export function moveShowClipExactly(show: ShowRecord, composition: ShowCompositi
     ? { kind: 'main' as const, zoneId, globalStartMs: request.globalStartMs }
     : { kind: 'overlay' as const, zoneId, layerIndex, globalStartMs: request.globalStartMs }
   const candidate = (connected.length ? moveShowConnectedClipAtGlobalTime : moveShowClipAtGlobalTime)(show, composition, { owner, target })
-  if (candidate === composition) return { status: 'refused', code: 'domain-refusal', reason: 'The requested move cannot be authored.' }
+  if (candidate === composition) {
+    // Explain only finite projected bounds/collisions after the engine refuses;
+    // these diagnostics never authorize a move or replace engine validation.
+    const members = new Set(showLayerTransitionConnectedClosure(composition, [clip.id]))
+    const delta = request.globalStartMs - clip.startMs
+    const shifted = clips.filter(value => members.has(value.id))
+      .map(value => ({ clip: value, startMs: value.startMs + delta, endMs: value.endMs + delta }))
+    if (shifted.some(value => value.startMs < 0 || value.endMs > projection.durationMs)) return {
+      status: 'refused', code: 'outside-timeline',
+      reason: `Moving Clip ${clip.id} would place its supported chain outside the Show's 0–${projection.durationMs} ms timeline.`,
+      remedy: 'Choose a time that fits the whole chain, or change Show End explicitly first.',
+    }
+    for (const member of shifted) {
+      const blocker = clips.find(value => !members.has(value.id) && value.zoneId === zoneId
+        && value.kind === kind && (kind === 'main' || value.layerIndex === layerIndex)
+        && value.startMs < member.endMs && value.endMs > member.startMs)
+      if (blocker) return {
+        status: 'refused', code: 'occupied',
+        reason: `Moving Clip ${clip.id} would overlap Clip ${blocker.id} (${blocker.patternName}) on the destination Layer.`,
+        remedy: `Choose another time or Layer, or move or resize Clip ${blocker.id} first.`,
+      }
+    }
+    return { status: 'refused', code: 'domain-refusal', reason: 'The requested move cannot be authored.' }
+  }
   if (validateShowComposition(show, candidate).length) return { status: 'refused', code: 'domain-refusal', reason: 'The requested move is invalid.' }
   const after = projectShowUnifiedTimeline(show, candidate).zones.flatMap(zone => zone.layers.flatMap(layer => layer.clips))
   const moved = after.find(next => next.id === clip.id)

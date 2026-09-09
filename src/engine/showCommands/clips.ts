@@ -145,8 +145,9 @@ const moveClip: ShowCommandDescriptor = {
       if (!missing.ok) return missing
     }
     if (result.status === 'refused') return refuseShowCommand({
-      code: result.code === 'invalid-request' ? 'invalid-argument' : result.code === 'missing-target' ? 'unknown-clip' : result.code,
+      code: result.code === 'invalid-request' ? 'invalid-argument' : result.code === 'missing-target' ? 'unknown-clip' : result.code === 'missing-destination' ? 'missing-owner' : result.code,
       message: result.reason,
+      ...(result.remedy ? { remedy: result.remedy } : {}),
       ...(result.reason.startsWith('Group-owned') ? { remedy: 'Move the Group through its supported Group operation.' } : {}),
     })
     if (result.status === 'noop') return { ok: true, record, changes: [] }

@@ -940,7 +940,7 @@ describe('Show command refusal partitions (#885)', () => {
   })
 
   it('move_clip refuses an occupied destination as an engine refusal', () => {
-    applyRefused(showCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 2_000 }, 'domain-refusal')
+    applyRefused(showCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 2_000 }, 'occupied')
   })
 
   it('split_clip refuses a point outside the clip', () => {
@@ -1127,7 +1127,7 @@ describe('Show command refusal partitions (#885)', () => {
     const inserted = applyOk(adjacent.record, 'insert_layer_transition', {
       from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 1_000,
     })
-    applyRefused(inserted.record, 'move_clip', { clip_id: 'clip-a', start_ms: 5_000 }, 'domain-refusal')
+    applyRefused(inserted.record, 'move_clip', { clip_id: 'clip-a', start_ms: 5_000 }, 'occupied')
     applyRefused(inserted.record, 'move_clip', { clip_id: 'nope', start_ms: 0 }, 'unknown-clip')
   })
 

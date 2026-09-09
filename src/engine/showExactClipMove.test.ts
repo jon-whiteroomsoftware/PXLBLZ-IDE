@@ -187,3 +187,15 @@ it('bounds the entire chain and leaves an unrelated neighbor unchanged', () => {
   expect(moved.composition.scenes[0].zones[0].main[2]).toEqual(original.scenes[0].zones[0].main[2])
   expect(composition).toEqual(original)
 })
+
+
+it('reports finite chain bounds and the actual blocking Clip without changing acceptance', () => {
+  const { show, composition } = fixture()
+  const zone = composition.scenes[0].zones[0]
+  zone.main.push({ ...zone.main[0], id: 'b', startMs: 3000 }, { ...zone.main[0], id: 'blocker', startMs: 9000 })
+  composition.transitions = [{ id: 'ab', fromPlacementId: 'a', toPlacementId: 'b', durationMs: 1000, kind: 'crossfade', easing: { curve: 'linear' }, crossfadePolicy: 'live-live' }]
+  const original = structuredClone(composition)
+  expect(moveShowClipExactly(show, composition, { clipId: 'a', globalStartMs: 5000 })).toMatchObject({ status: 'refused', code: 'occupied', reason: expect.stringContaining('blocker'), remedy: expect.stringContaining('blocker') })
+  expect(moveShowClipExactly(show, composition, { clipId: 'a', globalStartMs: 16000 })).toMatchObject({ status: 'refused', code: 'outside-timeline', remedy: expect.any(String) })
+  expect(composition).toEqual(original)
+})

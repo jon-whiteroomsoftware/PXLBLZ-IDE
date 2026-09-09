@@ -141,6 +141,16 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(clipAt(connectedNext, 5_000).clipId).toBe(connectedBase.firstClipId)
     expect(clipAt(connectedNext, 17_000).clipId).toBe(connectedBase.secondClipId)
     expect((connectedNext.show.composition as ShowCompositionV1).transitions).toHaveLength(1)
+    const crossing = fixture({ emptySecondScene: true })
+    const composition = crossing.show.composition!
+    const zone = composition.scenes[0].zones[0]
+    zone.main = [
+      { ...zone.main[0], id: 'cross-a', startMs: 24_000, durationMs: 2_000 },
+      { ...zone.main[0], id: 'cross-b', startMs: 27_000, durationMs: 2_000 },
+    ]
+    composition.transitions = [{ id: 'cross-ab', fromPlacementId: 'cross-a', toPlacementId: 'cross-b', kind: 'crossfade', durationMs: 1_000, easing: { curve: 'linear' }, crossfadePolicy: 'live-live' }]
+    const crossed = applyOk(crossing, 'move_clip', { clip_id: 'cross-a', start_ms: 29_000 })
+    expect(crossed.document.show.composition?.transitions?.[0]).toMatchObject({ id: 'cross-ab', fromPlacementId: `cross-a--span-${composition.scenes[1].sceneId}`, toPlacementId: 'cross-b', durationMs: 1_000 })
   },
   resize_clip: () => {
     // Growing across the Scene boundary keeps one logical clip; shrinking
