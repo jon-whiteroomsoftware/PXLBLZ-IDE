@@ -1128,7 +1128,15 @@ coverage, the 2,000-pixel ceiling, and resource limits for inspection,
 export, Run, Save, and reconciliation. Installation preview uses the
 contract's saved count and ranges; Portable preview uses the saved reference,
 never a connected Controller. Zone outlines and timing guides are session-only
-SVG diagnostics that never mutate compiled pixels. `ShowWorkspace` owns the
+SVG diagnostics that never mutate compiled pixels. `showStageDiagnostics.ts`
+resolves the current Zone Layout through the canonical interval projection and
+returns stable frames without rebuilding the renderer. Guides wait for seek
+rebuilding to finish so they describe the painted frame. Selected Clip bounds
+use authored transforms and appear only within the Clip's half-open time range,
+including materialized Group members. Guides remain sampled axis-aligned Zone
+bounds on 2D stages; aperture clipping, animated transforms, exact nonrectangular
+boundaries, and blended routing transitions are outside this diagnostic model.
+`ShowWorkspace` owns the
 desktop over/under composition and delegates its measurements to
 `showWorkspaceLayout.ts`. The pure layout keeps the preview at the Stage map's
 aspect while enforcing the timeline and strip minimums, reserving a 30 px

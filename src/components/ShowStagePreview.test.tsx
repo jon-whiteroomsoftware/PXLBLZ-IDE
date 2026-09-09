@@ -639,7 +639,7 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     useMapStore.setState({ userMaps: [importedMap], mapsLoaded: true })
     usePreviewStore.setState({ ...previewInitialState, isRunning: true })
     useShowEditorSessionStore.setState({
-      diagnosticFocus: { showId: show.id, sceneId: 'scene-1', zoneId: 'zone-1', placementId: 'placement-1' },
+      diagnosticFocus: { showId: show.id, sceneId: 'scene-1', zoneId: 'zone-1', placementId: 'cell-1' },
     })
 
     render(<ShowStagePreview showId={show.id} />)
@@ -648,8 +648,51 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     fireEvent.click(screen.getByRole('button', { name: 'Show Selected Clip outline' }))
     expect(screen.getByTestId('show-stage-zone-outlines')).toBeInTheDocument()
     expect(screen.getByTestId('show-stage-clip-outline')).toBeInTheDocument()
+    expect(Number(screen.getByTestId('show-stage-zone-outlines').querySelector('rect')!.getAttribute('stroke-width'))).toBeGreaterThanOrEqual(1)
+    expect(Number(screen.getByTestId('show-stage-clip-outline').querySelector('polygon')!.getAttribute('stroke-width'))).toBeGreaterThanOrEqual(1)
     expect(useShowEditorSessionStore.getState().diagnostics).toMatchObject({ zoneOutlines: true, clipOutlines: true })
     expect(usePreviewStore.getState().isRunning).toBe(true)
+  })
+
+  it('follows full surface, stripes, Grid and back without rebuilding the runtime (#983)', () => {
+    const show = structuredClone(stockShowById('stock-show-showcase-zone-layouts-stripes-grid')!.show)
+    const grid = show.composition!.scenes.find(scene => scene.sceneId === 'grid')!
+    const ember = grid.zones[1]
+    const authoredBefore = structuredClone(show)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowEditorSessionStore.setState({
+      diagnostics: { ...showEditorSessionInitialState.diagnostics, zoneOutlines: true, clipOutlines: true },
+      diagnosticFocus: { showId: show.id, sceneId: 'grid', zoneId: ember.zoneId, placementId: ember.main[0].id },
+    })
+    const runtime = vi.spyOn(fastReplay, 'createFastReplayRuntime')
+    render(<ShowStagePreview showId={show.id} />)
+    const initializations = runtime.mock.calls.length
+    const rects = () => Array.from(screen.getByTestId('show-stage-zone-outlines').querySelectorAll('rect'))
+    expect(rects()).toHaveLength(1)
+    expect(screen.queryByTestId('show-stage-clip-outline')).not.toBeInTheDocument()
+    act(() => useShowTransportStore.getState().setPosition(show.id, 5_000))
+    expect(rects()).toHaveLength(4)
+    expect(Number(rects()[0].getAttribute('width'))).toBeLessThan(0.3)
+    act(() => useShowTransportStore.getState().setPosition(show.id, 14_000))
+    expect(rects()).toHaveLength(4)
+    expect(Number(rects()[0].getAttribute('width'))).toBeGreaterThan(0.4)
+    expect(Number(rects()[0].getAttribute('height'))).toBeLessThan(0.5)
+    expect(screen.getByTestId('show-stage-clip-outline')).toBeInTheDocument()
+    const focus = useShowEditorSessionStore.getState().diagnosticFocus
+    act(() => useShowEditorSessionStore.getState().setDiagnosticFocus(null))
+    expect(screen.queryByTestId('show-stage-clip-outline')).not.toBeInTheDocument()
+    act(() => useShowEditorSessionStore.getState().setDiagnosticFocus({ ...focus!, showId: 'another-show' }))
+    expect(screen.queryByTestId('show-stage-clip-outline')).not.toBeInTheDocument()
+    act(() => useShowEditorSessionStore.getState().setDiagnosticFocus(focus))
+    expect(screen.getByTestId('show-stage-clip-outline')).toBeInTheDocument()
+    expect(useShowTransportStore.getState().positionMs).toBe(14_000)
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+    expect(useShowStore.getState().shows[0]).toEqual(authoredBefore)
+    act(() => useShowTransportStore.getState().setPosition(show.id, 0))
+    expect(rects()).toHaveLength(1)
+    expect(screen.queryByTestId('show-stage-clip-outline')).not.toBeInTheDocument()
+    expect(runtime.mock.calls).toHaveLength(initializations)
+    runtime.mockRestore()
   })
 
   it('draws and removes the selected transformed Clip content bounds (#791)', () => {

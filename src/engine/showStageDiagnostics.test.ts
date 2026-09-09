@@ -38,3 +38,59 @@ describe('buildShowStageDiagnosticRects (#491)', () => {
     expect(rects[0].width).toBeGreaterThan(0)
   })
 })
+
+// #983: consumer geometry and temporal selection, including Group materialization.
+import { createShowStageDiagnostics } from './showStageDiagnostics'
+import { createDefaultShow } from './showModel'
+import { buildShowStageProjection } from './zonePreview'
+import { stockShowById } from '@/pixelblaze/stock/shows'
+
+const square: [number, number][] = [[0, 0], [1, 0], [0, 1], [1, 1]]
+const points = square.map(point => ({ sample: point, pos: point }))
+
+describe('Show diagnostic time ownership (#983)', () => {
+  it('hides a selected Group member before and after its own interval, preserving authored input', () => {
+    const show = createDefaultShow('group-outline', 'Group outline', 1)
+    show.scenes[0].durationMs = 5_000
+    show.cells = []
+    show.composition = {
+      version: 1, patternInstances: [],
+      scenes: [{ sceneId: 'scene-1', zones: [{ zoneId: 'zone-1', main: [], overlays: [] }] }],
+      groupDefinitions: [{
+        id: 'definition', name: 'Group', patternInstances: [],
+        placements: [{ id: 'member', instanceId: 'pattern', layerOffset: 0, startMs: 500, durationMs: 1_000, opacity: 1,
+          view: { mirror: false, phase: 0, brightness: 1 },
+          transform: { positionX: 0, positionY: 0, scaleX: 0.5, scaleY: 0.5, rotation: 0 } }],
+      }],
+      groupOccurrences: [{ id: 'occurrence', definitionId: 'definition', sceneId: 'scene-1', zoneId: 'zone-1',
+        startMs: 1_000, baseLayer: 0, translationX: 0.1, translationY: 0 }],
+    }
+    const before = structuredClone(show)
+    const projection = buildShowStageProjection(show.zones, points.length)
+    const frame = createShowStageDiagnostics(show, square, points, projection, false,
+      { sceneId: 'scene-1', zoneId: 'zone-1', placementId: 'occurrence:member' })
+    expect(frame(1_499).clipPoints).toBeNull()
+    expect(frame(1_500).clipPoints).toEqual([[0.35, 0.25], [0.85, 0.25], [0.85, 0.75], [0.35, 0.75]])
+    expect(frame(2_499)).toBe(frame(1_500))
+    expect(frame(2_500).clipPoints).toBeNull()
+    expect(frame(1_500).clipPoints).not.toBeNull()
+    expect(show).toEqual(before)
+    const cleared = createShowStageDiagnostics(show, square, points, projection, false, null)
+    expect(cleared(1_500).clipPoints).toBeNull()
+  })
+
+  it('uses the new Layout at exact switch boundaries and excludes Clip End', () => {
+    const show = structuredClone(stockShowById('stock-show-showcase-zone-layouts-stripes-grid')!.show)
+    const grid = show.composition!.scenes.find(scene => scene.sceneId === 'grid')!
+    const zone = grid.zones[1]
+    const frame = createShowStageDiagnostics(show, square, points, buildShowStageProjection(show.zones, 4), true,
+      { sceneId: 'grid', zoneId: zone.zoneId, placementId: zone.main[0].id })
+    expect(frame(3_999).rects).toHaveLength(1)
+    expect(frame(4_000).rects).toHaveLength(2) // Four corner samples occupy the two outer stripes.
+    expect(frame(8_999).clipPoints).toBeNull()
+    expect(frame(9_000).rects).toHaveLength(4)
+    expect(frame(9_000).clipPoints).not.toBeNull()
+    expect(frame(14_999).clipPoints).not.toBeNull()
+    expect(frame(15_000).clipPoints).toBeNull()
+  })
+})

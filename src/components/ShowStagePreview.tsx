@@ -38,7 +38,7 @@ import {
   installationPhysicalZones,
   validateInstallationCoverage,
 } from '@/engine/showInstallationCoverage'
-import type { ShowClipTransform, ShowRecord } from '@/engine/personalContentRecords'
+import type { ShowRecord } from '@/engine/personalContentRecords'
 import { PreviewViewportSection } from '@/components/PreviewDeck'
 import { DeckCell, DeckGrid } from '@/components/Deck'
 import ShowSourceOutletContext from '@/components/ShowSourceOutlet'
@@ -46,8 +46,7 @@ import { ShowStripSection } from '@/components/ShowStripSection'
 import { ShowStripPreviewSection } from '@/components/ShowStripPreviewSection'
 import './ShowStripPanel.css'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
-import { buildShowStageClipDiagnosticPoints, buildShowStageDiagnosticRects } from '@/engine/showStageDiagnostics'
-import { materializeShowGroupOccurrences } from '@/engine/showGroupModel'
+import { createShowStageDiagnostics } from '@/engine/showStageDiagnostics'
 import {
   createShowStagePerformanceProbe,
   type ShowStagePerformanceProbe,
@@ -131,23 +130,6 @@ function stableShowSeed(showId: string): number {
     hash = Math.imul((hash ^ showId.charCodeAt(index)) >>> 0, 0x01000193)
   }
   return hash >>> 0
-}
-
-function focusedClipTransform(
-  show: ShowRecord,
-  focus: { sceneId: string; zoneId: string; placementId: string | null } | null,
-): ShowClipTransform | undefined {
-  if (!focus?.placementId) return undefined
-  const cell = show.cells.find((candidate) => candidate.id === focus.placementId)
-  if (cell) return cell.transform
-
-  const composition = show.composition ? materializeShowGroupOccurrences(show.composition) : null
-  const zone = composition?.scenes
-    .find((scene) => scene.sceneId === focus.sceneId)?.zones
-    .find((candidate) => candidate.zoneId === focus.zoneId)
-  return zone?.main.find((placement) => placement.id === focus.placementId)?.transform
-    ?? zone?.overlays.flatMap((layer) => layer.placements)
-      .find((placement) => placement.id === focus.placementId)?.transform
 }
 
 function diagnosticPointList(points: [number, number][]): string {
@@ -366,18 +348,12 @@ export function ShowStagePreview({
   }, [danglingStageMap, savedPhysicalZones, selectedStageMap, show, targetProfile?.lastKnownPixelCount, userMaps])
   const effectiveSoloZoneId =
     layout?.projection.zones.some((zone) => zone.id === soloZoneId) ? soloZoneId : null
-  const diagnosticRects = useMemo(() => layout?.draw.kind === '2d'
-    ? buildShowStageDiagnosticRects(layout.draw.positions, layout.projection)
-    : [], [layout])
-  const focusedDiagnosticRect = diagnosticFocus
-    ? diagnosticRects.find((rect) => rect.zoneId === diagnosticFocus.zoneId)
-    : undefined
-  const focusedDiagnosticPoints = show && focusedDiagnosticRect
-    ? buildShowStageClipDiagnosticPoints(
-        focusedDiagnosticRect,
-        focusedClipTransform(show, diagnosticFocus),
-      )
-    : null
+  const diagnosticFrameAtTime = useMemo(() => show && layout?.draw.kind === '2d'
+    ? createShowStageDiagnostics(show, layout.draw.positions, layout.mapPoints, layout.projection, layout.kind === 'map', diagnosticFocus)
+    : null, [show, layout, diagnosticFocus])
+  const diagnosticFrame = useShowTransportStore(state => diagnosticFrameAtTime?.(state.showId === showId ? state.positionMs : 0) ?? null)
+  const diagnosticRects = diagnosticFrame?.rects ?? []
+  const focusedDiagnosticPoints = diagnosticFrame?.clipPoints ?? null
   const previewAspect = showStagePreviewAspect(layout)
 
   useEffect(() => {
@@ -987,6 +963,7 @@ export function ShowStagePreview({
       <div
         ref={containerRef}
         data-testid="show-stage-canvas-frame"
+        aria-busy={seekStatus === 'rebuilding'}
         className={presentation === 'strip'
           ? 'relative flex h-full shrink-0 items-center justify-center overflow-hidden border-r border-zinc-800 bg-black'
           : 'relative shrink-0 bg-black/70'}
@@ -994,7 +971,7 @@ export function ShowStagePreview({
       >
         <div className="relative inline-block">
           <canvas ref={canvasRef} className="rounded-sm" />
-          {layout?.draw.kind === '2d' && diagnostics.zoneOutlines && diagnosticRects.length > 0 && (
+          {seekStatus === 'idle' && layout?.draw.kind === '2d' && diagnostics.zoneOutlines && diagnosticRects.length > 0 && (
             <svg
               data-testid="show-stage-zone-outlines"
               aria-label="Zone outlines"
@@ -1011,15 +988,15 @@ export function ShowStagePreview({
                   height={rect.height}
                   fill="none"
                   stroke={rect.color}
-                  strokeWidth="0.004"
-                  strokeDasharray="0.012 0.008"
-                  opacity="0.7"
+                  strokeWidth="1.5"
+                  strokeDasharray="6 4"
+                  opacity="0.9"
                   vectorEffect="non-scaling-stroke"
                 />
               ))}
             </svg>
           )}
-          {layout?.draw.kind === '2d' && diagnostics.clipOutlines && diagnosticFocus?.placementId && focusedDiagnosticPoints && (
+          {seekStatus === 'idle' && layout?.draw.kind === '2d' && diagnostics.clipOutlines && diagnosticFocus?.placementId && focusedDiagnosticPoints && (
             <svg
               data-testid="show-stage-clip-outline"
               aria-label="Selected Clip outline"
@@ -1031,7 +1008,7 @@ export function ShowStagePreview({
                 points={diagnosticPointList(focusedDiagnosticPoints)}
                 fill="rgba(103,232,249,0.025)"
                 stroke="#67e8f9"
-                strokeWidth="0.007"
+                strokeWidth="2"
                 opacity="0.9"
                 vectorEffect="non-scaling-stroke"
               />
