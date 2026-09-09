@@ -3447,6 +3447,7 @@ function ShowTimelineCommands({
   composition,
   readOnly,
   selection,
+  isolatedGroupOccurrenceId,
   onSelect,
   onCreateGroup,
   onSplitCompositionClip,
@@ -3456,6 +3457,7 @@ function ShowTimelineCommands({
   composition: ShowCompositionV1 | null
   readOnly: boolean
   selection: ShowSelection
+  isolatedGroupOccurrenceId: string | null
   onSelect: (selection: ShowSelection, anchor?: HTMLElement | null) => void
   onCreateGroup: (selection: ShowGroupSelection) => Promise<string | null>
   onSplitCompositionClip: (owner: ShowTimelineClipOwner, globalTimeMs: number) => Promise<string | null>
@@ -3481,17 +3483,20 @@ function ShowTimelineCommands({
     ? compositionTimeline?.zones.flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
       .find((clip) => clip.id === compositionOwner.placementId)
     : null
-  // Explicit Clip selection wins. With no Clip selected, reuse keyboard
-  // traversal precedence: start time, Zone, Layer, then stable identity.
-  const playheadTarget = !compositionOwner && selection.kind !== 'clip' && compositionTimeline
-    ? projectShowTimelineTraversalTargets(compositionTimeline).find((target) => {
+  // Explicit Clip selection wins. Undo can leave a removed Clip selected
+  // after its inspector closes; only that stale target or Show selection
+  // permits fallback through the existing, isolation-aware keyboard order.
+  const canResolveAtPlayhead = selection.kind === 'show'
+    || (selection.kind === 'clip' && !compositionOwner)
+  const playheadTarget = canResolveAtPlayhead && compositionTimeline
+    ? projectShowTimelineTraversalTargets(compositionTimeline, isolatedGroupOccurrenceId).find((target) => {
         if (target.kind !== 'clip') return false
         const clip = compositionTimeline.zones.flatMap(zone => zone.layers.flatMap(layer => layer.clips))
           .find(candidate => candidate.id === target.clipId)
         return clip && !clip.groupOccurrenceId && positionMs > clip.startMs && positionMs < clip.endMs
       })
     : null
-  const splitOwner = compositionOwner ?? (playheadTarget?.kind === 'clip'
+  const splitOwner = isolatedGroupOccurrenceId ? null : compositionOwner ?? (playheadTarget?.kind === 'clip'
     ? findTimelineClipOwner(composition, playheadTarget.clipId)
     : null)
   const splitCapability = splitOwner && composition
@@ -5156,6 +5161,7 @@ function ShowTimelineWorkspace({
             composition={timelineComposition}
             readOnly={readOnly}
             selection={selection}
+            isolatedGroupOccurrenceId={isolatedGroupOccurrenceId}
             onSelect={onSelect}
             onCreateGroup={onCreateGroup}
             onSplitCompositionClip={onSplitCompositionClip}

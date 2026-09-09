@@ -1959,26 +1959,39 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         await expect.poll(successfulSaves).toBe(++saveCount)
         saveRecord('MK951-removal', { removal, removed })
       }
+      if (admission.toolbarSplit) await page.keyboard.press('Escape')
       await page.getByRole('button', { name: 'Undo Show edit' }).click()
       await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
       await expect.poll(successfulSaves).toBe(++saveCount)
       expect(await durableShow(page, record.id)).toEqual(await visibleRecord(page))
       await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
       if (admission.toolbarSplit) {
+        // Closing the inspector preserves selection; Undo removes that selected
+        // right half. The same action must resolve the restored Clip again.
+        await expect(page.getByRole('button', { name: 'Split at playhead' })).not.toHaveAttribute('aria-disabled', 'true')
+        await clickToolbarSplitWithFixedId(page)
+        await expect.poll(successfulSaves).toBe(++saveCount)
+        expect(await visibleRecord(page)).toEqual({ ...after, updatedAt: expect.any(Number) })
+        expect(await durableShow(page, record.id)).toEqual(await visibleRecord(page))
+        await page.keyboard.press('Escape')
+        await page.getByRole('button', { name: 'Undo Show edit' }).click()
+        await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
+        await expect.poll(successfulSaves).toBe(++saveCount)
+        expect(await durableShow(page, record.id)).toEqual(await visibleRecord(page))
         // The same real toolbar action with explicit selection must save the
         // exact same complete record (apart from its adoption timestamp).
         await page.locator(`[data-show-selection-key="clip:${admission.toolbarSplit.clipId}"]`).press('Enter')
         await page.keyboard.press('Escape')
         await seekToolbarSplit(page, admission.toolbarSplit.atMs)
         await clickToolbarSplitWithFixedId(page)
-        await expect.poll(successfulSaves).toBe(3)
+        await expect.poll(successfulSaves).toBe(++saveCount)
         const selected = await visibleRecord(page)
         expect(selected).toEqual({ ...after, updatedAt: expect.any(Number) })
         expect(await durableShow(page, record.id)).toEqual(selected)
-        expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(3)
+        expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(saveCount)
         await page.getByRole('button', { name: 'Undo Show edit' }).click()
         await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
-        await expect.poll(successfulSaves).toBe(4)
+        await expect.poll(successfulSaves).toBe(++saveCount)
         expect(await durableShow(page, record.id)).toEqual(await visibleRecord(page))
         saveRecord(admission.id, { before, after, selected, writes, reopened })
         return
