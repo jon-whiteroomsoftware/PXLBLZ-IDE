@@ -3483,11 +3483,19 @@ function ShowTimelineCommands({
     ? compositionTimeline?.zones.flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
       .find((clip) => clip.id === compositionOwner.placementId)
     : null
-  // Explicit Clip selection wins. Undo can leave a removed Clip selected
-  // after its inspector closes; only that stale target or Show selection
-  // permits fallback through the existing, isolation-aware keyboard order.
-  const canResolveAtPlayhead = selection.kind === 'show'
-    || (selection.kind === 'clip' && !compositionOwner)
+  // Explicit Clip selection wins; a stale Clip or non-Clip inspector can
+  // resolve at the playhead. Group and multi selections retain their scope.
+  const fallbackBySelectionKind = {
+    show: true,
+    clip: !compositionOwner,
+    transition: true,
+    zone: true,
+    'zone-layout': true,
+    group: false,
+    'group-clip': false,
+    multi: false,
+  } satisfies Record<ShowSelection['kind'], boolean>
+  const canResolveAtPlayhead = fallbackBySelectionKind[selection.kind]
   const playheadTarget = canResolveAtPlayhead && compositionTimeline
     ? projectShowTimelineTraversalTargets(compositionTimeline, isolatedGroupOccurrenceId).find((target) => {
         if (target.kind !== 'clip') return false

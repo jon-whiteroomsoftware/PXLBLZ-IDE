@@ -43,6 +43,7 @@ import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { createPropertySlotQualificationShow } from '@/engine/showPatternSlotTestFixture'
 import { showSplitClipFixture } from '@/test/showSplitClipFixture'
+import { useShowEditorViewStore } from '@/store/showEditorViewStore'
 
 // The pressure/blocked compile-bar tests need a show decisively over the
 // activation budget. Real fixtures keep shrinking as the compiler improves
@@ -4747,6 +4748,38 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(useShowStore.getState().shows[0]).toEqual(show)
     expect(save).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+  })
+
+  it.each(['transition', 'zone', 'zone-layout'] as const)('splits at the playhead with a %s selected (#992)', async kind => {
+    const user = userEvent.setup()
+    const show = showSplitClipFixture()
+    if (kind === 'transition') {
+      show.transitions![0] = { ...show.transitions![0], kind: 'crossfade', durationMs: 2000, crossfadePolicy: 'live-live' }
+      delete show.composition!.scenes[1].zones[0].main[0].logicalClipId
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+    act(() => useShowTransportStore.getState().setPosition(show.id, 16000))
+    if (kind === 'zone-layout') await openZoneLayout(user, 'Default')
+    else if (kind === 'zone') {
+      await user.click(screen.getByRole('button', { name: 'Open Zones' }))
+      await user.click(screen.getByRole('button', { name: 'Open zone main properties' }))
+    } else {
+      const boundary = document.querySelector<HTMLElement>('[data-show-selection-key="transition:transition-scene-1"]')
+      expect(boundary).not.toBeNull()
+      await user.click(boundary!)
+    }
+    expect(useShowEditorViewStore.getState().selection.kind).toBe(kind)
+    await user.keyboard('{Escape}')
+    expect(useShowEditorViewStore.getState().selection.kind).toBe(kind)
+    const split = screen.getByRole('button', { name: 'Split at playhead' })
+    expect(split).not.toHaveAttribute('aria-disabled', 'true')
+    await user.click(split)
+    await waitFor(() => expect(useShowStore.getState().shows[0].composition!.scenes[0].zones[0].main.find(clip => clip.id === 'clip-b')?.durationMs).toBe(4000))
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: 'Undo Show edit' }))
+    await waitFor(() => expect(useShowStore.getState().shows[0]).toEqual({ ...show, updatedAt: expect.any(Number) }))
   })
 
   it.each(['Group', 'multi', 'isolated Group'] as const)('refuses toolbar Split for a %s selection over an external Clip (#992)', async partition => {
