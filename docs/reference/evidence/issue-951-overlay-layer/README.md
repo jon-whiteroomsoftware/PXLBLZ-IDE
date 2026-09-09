@@ -1,5 +1,33 @@
 # Overlay Layer creation evidence (#951)
 
+**WIP — BLOCKED on sparse Group semantics.** This candidate is not complete or
+review-ready. The passing cases below do not establish preservation for every
+accepted composition.
+
+An accepted Show can contain a Group overlay ordinal without a corresponding
+authored Layer. The importer retains that sparse form. Before insertion,
+materialization supplies `scene-2:zone-1:group-layer:1`; after insertion, the same
+Group child resolves into the newly minted Layer instead. Both complete
+compositions validate, so validation does not detect the changed identity or
+the loss of a fresh empty topmost Layer.
+
+The [accepted sparse fixture](951-sparse-group.pxlshow),
+[import result](951-sparse-import.json) and
+[before/after materialized records](951-sparse-group.json) preserve the exact
+reproduction. The materialized JSON is the identity oracle; the images establish
+the actual manual operation. At source `982e10d2d194923414cdeee0358138be86a28c58`,
+the coordinator imported that file through the in-app browser into
+`/studio/shows/d2613f73-3814-41aa-ae83-e6416ae772a4` on the shared issue runtime
+at port 5178. Add → Layer in main accepted; both Group buttons remained visible,
+and one Undo restored the prior Show. Console errors were empty. The coordinator
+opened and inspected both [before](951-sparse-before.jpg) and
+[after](951-sparse-after.jpg) JPEGs.
+
+The proposed decision is to preserve implicit Group Layers before creating a
+fresh empty topmost Layer. A bounded refusal would instead change currently
+accepted manual behavior. Neither policy has been implemented; Jon's decision
+is required before further product work, final proof, review or landing.
+
 The existing manual Layer helper now owns canonical and diagnostic creation.
 Complete-output tests first exposed unrelated Marker-order normalization drift
 and acceptance of duplicate Scene mappings; the repaired owner preserves order

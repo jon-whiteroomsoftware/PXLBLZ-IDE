@@ -9,24 +9,29 @@
   "partitions": [
     "Two Scenes, two Zones, unequal overlay counts, non-normalized marker order, tracked placements and mixed main/overlay Group.",
     "Empty/missing composition and owner; incomplete, duplicate and mismatched mappings; empty, duplicate and colliding Layer IDs.",
-    "Deterministic parity and UUID creation; valid new invocation versus repeated immutable request identity."
+    "Deterministic parity and UUID creation; valid new invocation versus repeated immutable request identity.",
+    "Accepted sparse Group overlay ordinal with no authored Layer: importer preserves empty overlays; materialization creates implicit Layer identity."
   ],
   "sequences": [
     "Add Layer then existing diagnostic add_clip at overlay zero.",
     "Materialize mixed Group before and after insertion and compare resolved old Layer identity and membership.",
     "Actual MCP discovery, refused unknown Zone with unchanged export, creation and Undo.",
     "Real scripted editor creation, one PATCH, downloaded .pxlshow reopen, Undo; pending old-index request then manual Add Layer revision refusal; duplicate creation response delivery with one adoption/save.",
-    "Wrong-index, membership-loss and collision-admission faults are each detected by focused tests; restored source passes."
+    "Wrong-index, membership-loss and collision-admission faults are each detected by focused tests; restored source passes.",
+    "Coordinator IAB imports sparse fixture, Add Layer in main accepts, both Group buttons remain, one Undo restores; materialized before/after records expose Group child retargeting into fresh Layer."
   ],
   "oracles": [
     "Literal complete expected composition plus input equality and validateShowComposition.",
     "Full canonical/diagnostic/manual result equality modulo independently assigned timestamps; actual published MCP schema and protocol response.",
     "Visible editor record, durable API record, downloaded .pxlshow importer, PATCH counts, receipt reason and disabled Undo after restoration.",
-    "Coordinator manual in-app-browser inspection uses the committed importable rich fixture."
+    "Coordinator manual in-app-browser inspection uses the committed importable rich fixture.",
+    "Sparse import acceptance plus complete composition validity and exact materialized Layer IDs/content; inspected actual IAB before/after JPEGs at source982e10d2, console errors empty."
   ],
   "residualGaps": [
-    "Coordinator IAB proof and final committed-tip suites/native review remain pending at worker source freeze.",
+    "BLOCKER: sparse Group creation currently replaces implicit Layer identity with the newly minted Layer and puts Group content in the supposedly empty topmost Layer. Proposed preservation algorithm versus behavior-changing refusal awaits Jon; no policy implemented.",
+    "Coordinator IAB reproduces sparse blocker; final successful proof, committed-tip suites and native review are held pending the semantics decision.",
     "No paid inference, hosted service, Controller, new UI, Layer reorder/removal or add_clip migration.",
     "Duplicate adoption has real browser behavioral coverage; targeted injected faults cover the three changed transformation risks."
-  ]
+  ],
+  "status": "WIP BLOCKED: accepted sparse Group Layer semantics require Jon decision; no completion or review-ready claim"
 }
