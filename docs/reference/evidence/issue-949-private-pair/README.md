@@ -1,5 +1,8 @@
 # Private two-Clip rearrangement proof
 
+[Review test model](test-design.json) records invariants, partitions, sequences,
+oracles and residual gaps for the exact candidate review.
+
 Source: `00984eb4f722cac2838d99d90efecad553a6da3a`. Browser run:
 `2026-09-09T03-37-10-153Z`, Chromium, synthetic authenticated local user,
 real scripted HTTP/NDJSON/MCP bridge, no paid inference. Command:

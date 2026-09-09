@@ -1,0 +1,41 @@
+{
+  "invariants": [
+    "Only an explicit private transaction can retain two distinct plain Clips from a valid composed input, with immutable Scene/Zone/Layer ownership, IDs, durations and instance bindings.",
+    "Only the retained pair may overlap; every other intersecting pair is refused, including a third short Clip nested beneath a long participant.",
+    "Only moves of the retained two Clips can mutate that transaction until commit or rollback, even after overlap resolves.",
+    "Every private step preserves the input record and reuses existing placement/owned-keyframe movement; shared-instance tracks preserve ordinary ownership semantics.",
+    "The raw final composition is strictly validated in both pending completion and commit; unresolved overlap cannot disappear through normalization.",
+    "An intermediate private move creates no live record, history or provider write. Final accepted delivery creates one complete save and one Undo group; stale delivery preserves manual work."
+  ],
+  "partitions": [
+    "Main and overlay ownership; unequal durations; shared Pattern/instance use versus sole-use instance animation; placement-owned animation.",
+    "Default delivery sessions and authoringValidation:true sessions; ordinary nontransaction moves remain strict.",
+    "Negative, fractional, Scene-crossing, beyond-end, unsafe and nonfinite starts; missing/duplicate identities, missing instance/Scene, logical segments and connected Transitions.",
+    "Third-Clip collision hidden by nested participant overlap; affected Scene/Zone Group refusal and unrelated Group preservation.",
+    "Equivalent owner records with reordered object properties; permitted repeated participant moves and refused unrelated operations after resolution.",
+    "Apply, rollback, ask, refuse, incomplete, unresolved final validation and abnormal completion after staged apply; browser current and stale whole-Show delivery."
+  ],
+  "sequences": [
+    "Begin, move A onto B, inspect unchanged committed export/history, refuse final validation, move B clear, commit once, Undo to full input.",
+    "Resolve overlap, attempt unrelated marker/resize/destination changes, refuse them, then move a retained participant and commit.",
+    "Refuse invalid second moves without losing the first private step, repair with the retained participant, then commit.",
+    "Real scripted HTTP/NDJSON/MCP browser swap, compare full visible/durable/PATCH records, download Show file, reopen through importer, Undo once.",
+    "Real browser incomplete private overlap discards all work; manual duration edit during pending swap survives stale delivery.",
+    "Remove early-adoption isolation, exact collision permission, raw final check and pair lock separately; each fault fails behavioral assertions; restore source and pass.",
+    "Run the existing 57-mutant Show-authoring qualification with unchanged fragment scope and verify all seven historical fixture hashes without regeneration."
+  ],
+  "oracles": [
+    "Complete immutable before/after Show records, exact retained IDs/durations/starts and animation tracks; no partial property-only success oracle.",
+    "Public session export/history/commit/rollback/Undo outcomes and complete service candidate/noncandidate results.",
+    "Strict ordinary composition validation rejects the intermediate private pair, while final output validates.",
+    "Actual browser complete request bodies, visible records, durable records, downloaded .pxlshow importer output and one-step Undo.",
+    "Inspected PP apply/incomplete/stale captures at source00984eb4f722cac2838d99d90efecad553a6da3a; four targeted source faults killed, standard57/57 killed, original7fixture hashes unchanged."
+  ],
+  "residualGaps": [
+    "The browser does not pause between internal moves; immediate first-step isolation is asserted directly at the session consumer seam, with browser pending-response/no-write and incomplete-discard evidence.",
+    "Group occurrences in the participants' entire Scene/Zone are conservatively refused, including Groups on another Layer of that ownership.",
+    "Scene/destination changes, connected rearrangement, Groups as participants, arbitrary temporary invalidity and broad canonical/manual move parity remain outside this slice (#951).",
+    "No paid inference, hosted Agent UI, Controller operation or preview visual-quality qualification.",
+    "Coordinator owns final committed-tip suites, native candidate review, landing and issue update; worker post-commit issue-comment hooks exited141 after successful commits."
+  ]
+}
