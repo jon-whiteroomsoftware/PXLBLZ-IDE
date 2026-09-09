@@ -1,0 +1,22 @@
+[
+  {
+    "fault": "early-adoption",
+    "exit": 1,
+    "killed": true
+  },
+  {
+    "fault": "unrestricted-overlap",
+    "exit": 1,
+    "killed": true
+  },
+  {
+    "fault": "omitted-raw-final",
+    "exit": 1,
+    "killed": true
+  },
+  {
+    "fault": "pair-lock-omitted",
+    "exit": 1,
+    "killed": true
+  }
+]

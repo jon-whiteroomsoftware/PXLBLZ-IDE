@@ -18,6 +18,15 @@ Contracts this evidence serves:
 [Show state, history, and persistence](contracts/show-state-history-persistence.md),
 [Show command semantics](contracts/show-command-semantics.md).
 
+## Private two-Clip rearrangement (#949)
+
+Sequence PP now qualifies a finite private two-plain-Clip swap: one complete
+saved record, real export/reopen and Undo, incomplete discard, and stale
+delivery preserving manual work. [Private-pair evidence](evidence/issue-949-private-pair/README.md)
+records the committed source and consumer results. Historical fixture hashes
+remain unchanged; broader temporary compositions and canonical move parity
+remain outside this qualification.
+
 ## Diagnostic waiting protocol (#949)
 
 The diagnostic overlay consumes the internal bounded wait and displays Cancel.

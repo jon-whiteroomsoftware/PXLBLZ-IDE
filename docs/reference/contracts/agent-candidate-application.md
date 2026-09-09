@@ -92,9 +92,9 @@ whole-Show context and admission. It does not qualify general canonical moves,
 Group rearrangement, destination changes or arbitrary temporary invalidity.
 
 [Private-pair tests](../../../src/agent-harness/test/privateClipRearrangement.test.ts)
-own full-record and private lifecycle checks. Browser sequence PP in the
-[scripted baseline](../../../e2e/agent-baseline.auth.spec.ts) owns durable record,
-export/reopen and Undo evidence for the finite two-Clip swap.
+own full-record and private lifecycle checks. The [consumer evidence](../evidence/issue-949-private-pair/README.md)
+records browser sequence PP's durable record, export/reopen and Undo results for
+the finite two-Clip swap.
 
 ## Internal admission foundation
 
