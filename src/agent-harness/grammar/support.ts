@@ -4,7 +4,7 @@
 // allocation, refusal construction, and the engine-refusal diagnosis. Pure
 // logic shared by src/grammar/operations/*.
 import { z } from 'zod'
-import { evaluateShowPropertyTrack } from '@/engine/showPropertyAnimation'
+import { describeShowPropertyTrack, type TrackState } from '@/engine/showPropertyAnimation'
 import { getStockPattern } from '../shows/stockCatalogue.js'
 import type {
   ShowCompositionV1,
@@ -282,44 +282,13 @@ export function engineRefusal(show: ShowRecord, draft: ShowCompositionV1): Gramm
   }]
 }
 
-/** A keyframe as the projection and operation results describe it: global time. */
-export interface DescribedKeyframe {
-  keyframeId: string
-  timeMs: number
-  value: number
-  easing: string
-}
-
-/** The state of one track after an edit: its keyframes at global times and
- * the engine-evaluated value at each keyframe and at the midpoints between
- * them, so a result confirms itself without a further read (#34). */
-export interface TrackState {
-  keyframes: DescribedKeyframe[]
-  evaluated: Array<{ atMs: number; value: number }>
-}
+export type { DescribedKeyframe, TrackState } from '@/engine/showPropertyAnimation'
 
 export function trackState(document: ShowGrammarDocument, trackId: string): TrackState | null {
   const found = findTrack(document, trackId)
   if (!found.ok) return null
-  const { sceneId, track } = found.site
-  const sceneStart = sceneRanges(document).find((range) => range.sceneId === sceneId)?.startMs ?? 0
-  const sorted = [...track.keyframes].sort((left, right) => left.timeMs - right.timeMs)
-  const keyframes = sorted.map((keyframe) => ({
-    keyframeId: keyframe.id,
-    timeMs: sceneStart + keyframe.timeMs,
-    value: keyframe.value,
-    easing: keyframe.easing.curve,
-  }))
-  const sampleLocalTimes: number[] = []
-  sorted.forEach((keyframe, index) => {
-    if (index > 0) sampleLocalTimes.push((sorted[index - 1].timeMs + keyframe.timeMs) / 2)
-    sampleLocalTimes.push(keyframe.timeMs)
-  })
-  const evaluated = sampleLocalTimes.map((localMs) => ({
-    atMs: sceneStart + localMs,
-    value: evaluateShowPropertyTrack(track, localMs),
-  }))
-  return { keyframes, evaluated }
+  const sceneStart = sceneRanges(document).find(range => range.sceneId === found.site.sceneId)?.startMs ?? 0
+  return describeShowPropertyTrack(found.site.track, sceneStart)
 }
 
 /**

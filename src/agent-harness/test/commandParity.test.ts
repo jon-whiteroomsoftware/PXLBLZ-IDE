@@ -17,6 +17,10 @@ import { describe, expect, it } from 'vitest'
 import type { ShowRecord } from '@/engine/personalContentRecords'
 import { applyShowCommand, runShowCommandTransaction, type ShowCommandOutcome } from '@/engine/showCommands/registry'
 import { insertLayerTransitionCommandOutcome } from '@/engine/showCommands/layerTransitions'
+import { addPropertyTrackCommandOutcome, addKeyframeCommandOutcome } from '@/engine/showCommands/animation'
+import { addShowPropertyTrack, addShowPropertyKeyframe, updateShowPropertyKeyframe, deleteShowPropertyKeyframe, deleteShowPropertyTrack } from '@/engine/showPropertyAnimation'
+import { showAnimationCommandFixture } from '@/test/showAnimationCommandFixture'
+import type { ShowPropertyAnimationTarget } from '@/engine/personalContentRecords'
 import { markerCommandOutcome } from '@/engine/showCommands/timeline'
 import { showSplitClipFixture } from '@/test/showSplitClipFixture'
 import { showRemoveClipFixture } from '@/test/showRemoveClipFixture'
@@ -535,7 +539,38 @@ const clipOwner = (clipId: string) => clipId === 'clip-ov'
 
 // Shared seam: complete canonical/diagnostic/manual records, immutable input,
 // then the actual file importer. Rows retain their independent semantic facts.
+const ANIMATION_TARGETS: ShowPropertyAnimationTarget[] = [
+  { kind: 'instance-time-scale', instanceId: 'instance-ov' },
+  { kind: 'instance-control', instanceId: 'instance-a', exportName: 'sliderSpeed' },
+  { kind: 'placement-opacity', placementId: 'clip-ov' },
+  { kind: 'placement-view', placementId: 'clip-a', property: 'phase' },
+  { kind: 'placement-transform', placementId: 'clip-a', property: 'positionX' },
+  { kind: 'placement-viewport', placementId: 'clip-a', property: 'x' },
+  { kind: 'placement-effect', placementId: 'clip-a', effectId: 'effect-a', effectKind: 'brightness', parameterId: 'brightness' },
+]
 const PARITY_ROWS: ParityRow[] = [
+  ...ANIMATION_TARGETS.map((target): ParityRow => ({
+    command: 'add_property_track', fixture: showAnimationCommandFixture,
+    args: { target, scene_id: 'scene-1', keyframes: [{ time_ms: 0, value: 0.2, easing: 'ease-in' }, { time_ms: 10000, value: 0.8 }] },
+    canonical: (show, args) => { let key = 6; return addPropertyTrackCommandOutcome(show, args, capturedShowCommandContext([], {}), kind => kind === 'kf' ? `kf-${++key}` : 'track-1') },
+    manualOwner: show => addShowPropertyTrack(show, show.composition!, 'scene-1', { id: 'track-1', target, keyframes: [{ id: 'kf-7', timeMs: 0, value: 0.2, easing: { curve: 'quadratic', direction: 'in' } }, { id: 'kf-8', timeMs: 10000, value: 0.8, easing: { curve: 'linear' } }] }),
+  })),
+  {
+    command: 'add_keyframe', fixture: showAnimationCommandFixture, args: { track_id: 'track-b', time_ms: 15000, value: 0.5, easing: 'ease-out' },
+    canonical: (show, args) => addKeyframeCommandOutcome(show, args, () => 'kf-7'),
+    manualOwner: show => addShowPropertyKeyframe(show, show.composition!, 'scene-1', 'track-b', { id: 'kf-7', timeMs: 15000, value: 0.5, easing: { curve: 'quadratic', direction: 'out' } }),
+  },
+  {
+    command: 'update_keyframe', fixture: showAnimationCommandFixture, args: { track_id: 'track-b', keyframe_id: 'kf-1', time_ms: 20000, value: 0.3, easing: 'ease-in-out' },
+    manualOwner: show => updateShowPropertyKeyframe(show, show.composition!, 'scene-1', 'track-b', 'kf-1', { timeMs: 20000, value: 0.3, easing: { curve: 'quadratic', direction: 'in-out' } }),
+  },
+  {
+    command: 'delete_keyframe', fixture: () => { const show = showAnimationCommandFixture(); show.composition!.scenes[0].propertyTracks![0].keyframes.splice(1, 0, { id: 'middle', timeMs: 15000, value: 0.5, easing: { curve: 'linear' } }); return show },
+    args: { track_id: 'track-b', keyframe_id: 'middle' }, manualOwner: show => deleteShowPropertyKeyframe(show.composition!, 'scene-1', 'track-b', 'middle'),
+  },
+  {
+    command: 'delete_property_track', fixture: showAnimationCommandFixture, args: { track_id: 'track-b' }, manualOwner: show => deleteShowPropertyTrack(show.composition!, 'scene-1', 'track-b'),
+  },
   ...BOUNDARY_VARIANT_CASES.map(({ kind, familyId, variant }): ParityRow => ({
     command: 'insert_layer_transition', args: { from_clip_id: 'clip-a', to_clip_id: 'clip-b', kind, variant, duration_ms: 1500, easing: 'ease-in' }, fixture: showLayerTransitionCommandFixture,
     canonical: (show, args) => insertLayerTransitionCommandOutcome(show, args, () => 'transition-1'),
@@ -1108,6 +1143,12 @@ it('validates personal slider metadata before no-op and preserves captured Libra
   expect(result.ok).toBe(true)
   if (!result.ok) return
   expect(result.record.composition!.patternInstances[0].controlTargets).toEqual({ sliderSpeed: 0.5 })
+  const trackArgs = { target: { kind: 'instance-control', instanceId: 'instance-a', exportName: 'sliderSpeed' }, scene_id: 'scene-1', initial_value: 0.5 }
+  expect(applyShowCommand(result.record, 'add_property_track', trackArgs, context).ok).toBe(true)
+  for (const unavailable of [undefined, { source: () => undefined }, { source: () => 'export function render(index) { rgb(1,0,0) }' }]) {
+    expect(applyShowCommand(result.record, 'add_property_track', trackArgs, unavailable)).toMatchObject({ ok: false, issues: [{ code: 'unknown-control' }] })
+  }
+
   expect(applyShowCommand(result.record, 'set_clip_control_target', args, context)).toEqual({ ok: true, record: result.record, changes: [] })
   for (const unavailable of [undefined, { source: () => undefined }, { source: () => 'export function render(index) { rgb(1,0,0) }' }]) {
     expect(applyShowCommand(result.record, 'set_clip_control_target', args, unavailable).ok).toBe(false)
@@ -1189,4 +1230,134 @@ it('keeps Clip-local independence plus time atomic and preserves linked users (#
   ])
   expect(invalid).toMatchObject({ ok: false, step: 1 })
   expect(show).toStrictEqual(before)
+})
+
+it.each([
+  ['add_property_track', { target: { kind: 'placement-view', placementId: 'clip-a', property: 'phase' }, keyframes: [{ time_ms: 0, value: 0 }, { time_ms: 10000, value: 1 }] }],
+  ['add_keyframe', { track_id: 'track-b', time_ms: 15000, value: 0.5 }],
+  ['update_keyframe', { track_id: 'track-b', keyframe_id: 'kf-1', value: 0.5 }],
+  ['delete_keyframe', { track_id: 'track-b', keyframe_id: 'middle' }],
+  ['delete_property_track', { track_id: 'track-b' }],
+])('animation %s preserves unrelated raw fields and track order', (command, input) => {
+  const show = showOverlayLayerFixture()
+  const composition = show.composition!
+  composition.patternInstances.reverse()
+  composition.markers![0].color = undefined
+  const tracks = composition.scenes[0].propertyTracks!
+  tracks.reverse()
+  const target = tracks.find(track => track.id === 'track-b')!
+  target.keyframes.splice(1, 0, { id: 'middle', timeMs: 16000, value: 0.6, easing: { curve: 'linear' } })
+  const original = structuredClone(show)
+  const result = applyShowCommand(show, command, input)
+  expect(result.ok, JSON.stringify(result)).toBe(true)
+  if (!result.ok) return
+  expect(result.record.composition!.patternInstances).toStrictEqual(composition.patternInstances)
+  expect(result.record.composition!.markers).toStrictEqual(composition.markers)
+  const unrelated = (record: ShowRecord) => record.composition!.scenes[0].propertyTracks!.filter(track => track.id !== 'track-b' && tracks.some(old => old.id === track.id))
+  expect(unrelated(result.record)).toStrictEqual(unrelated(show))
+  expect(result.record.composition!.scenes[1]).toStrictEqual(composition.scenes[1])
+  expect(show).toStrictEqual(original)
+})
+
+it('animation validates same-value keyframe requests before returning an adoption-free no-op', () => {
+  const show = showOverlayLayerFixture()
+  const args = { track_id: 'track-b', keyframe_id: 'kf-1', time_ms: 12000, value: 1, easing: { curve: 'linear' } }
+  expect(applyShowCommand(show, 'update_keyframe', args)).toStrictEqual({ ok: true, record: show, changes: [] })
+  const invalid = structuredClone(show)
+  invalid.composition!.scenes[0].propertyTracks![0].keyframes[1].timeMs = 12000
+  const original = structuredClone(invalid)
+  expect(applyShowCommand(invalid, 'update_keyframe', args).ok).toBe(false)
+  expect(invalid).toStrictEqual(original)
+})
+
+it.each([
+  { kind: 'placement-view', placementId: 'clip-a', property: 'invented' },
+  { kind: 'placement-transform', placementId: 'clip-a', property: 'invented' },
+  { kind: 'placement-viewport', placementId: 'clip-a', property: 'invented' },
+  { kind: 'instance-time-scale', instanceId: 'instance-a', placementId: 'clip-a' },
+])('animation refuses malformed typed target %j', target => {
+  const show = showOverlayLayerFixture()
+  const original = structuredClone(show)
+  expect(applyShowCommand(show, 'add_property_track', { target, keyframes: [{ time_ms: 0, value: 0.5 }, { time_ms: 1000, value: 0.5 }] }).ok).toBe(false)
+  expect(show).toStrictEqual(original)
+})
+
+it('animation seeds a constant track through canonical Clip convenience arguments', () => {
+  const show = showOverlayLayerFixture()
+  const result = applyShowCommand(show, 'add_property_track', { clip_id: 'clip-a', target: 'view-phase', initial_value: 0.3 })
+  expect(result.ok, JSON.stringify(result)).toBe(true)
+  if (!result.ok) return
+  const track = result.record.composition!.scenes[0].propertyTracks!.find(track => track.id === result.changes[0].targetId)!
+  expect(track.target).toEqual({ kind: 'placement-view', placementId: 'clip-a', property: 'phase' })
+  expect(track.keyframes.map(key => [key.timeMs, key.value, key.easing])).toEqual([[0, 0.3, { curve: 'linear' }], [30000, 0.3, { curve: 'linear' }]])
+  expect(result.changes[0].details).toEqual({ sceneId: 'scene-1', keyframeIds: track.keyframes.map(key => key.id), keyframes: [{ keyframeId: track.keyframes[0].id, timeMs: 0, value: 0.3, easing: 'linear' }, { keyframeId: track.keyframes[1].id, timeMs: 30000, value: 0.3, easing: 'linear' }], evaluated: [{ atMs: 0, value: 0.3 }, { atMs: 15000, value: 0.3 }, { atMs: 30000, value: 0.3 }] })
+})
+
+it('animation uses explicit instance Scene ownership and converts global boundary times exactly once', () => {
+  const show = showAnimationCommandFixture()
+  show.transitions = []
+  show.scenes[0].durationMs = 10000
+  const composition = show.composition!
+  composition.scenes[0].zones[0].main = composition.scenes[0].zones[0].main.slice(0, 1)
+  composition.scenes[0].propertyTracks = []
+  composition.scenes[1].zones[0].main = [{ ...structuredClone(composition.scenes[0].zones[0].main[0]), id: 'clip-second', durationMs: 10000 }]
+  const source = structuredClone(show)
+  let nextKey = 0
+  const added = addPropertyTrackCommandOutcome(show, { target: { kind: 'instance-time-scale', instanceId: 'instance-a' }, scene_id: 'scene-2', keyframes: [{ time_ms: 20000, value: 2 }, { time_ms: 10000, value: 1 }] }, undefined, kind => kind === 'track' ? 'new-track' : `key-${++nextKey}`)
+  expect(added.ok, JSON.stringify(added)).toBe(true)
+  if (!added.ok) return
+  const accepted = applyShowCommand(added.record, 'add_keyframe', { track_id: 'new-track', time_ms: 12000, value: 1.5, easing: 'ease-in' })
+  expect(accepted.ok).toBe(true)
+  if (!accepted.ok) return
+  expect(accepted.record.composition!.scenes[1].propertyTracks![0].keyframes.map(key => [key.timeMs, key.value])).toEqual([[0, 1], [2000, 1.5], [10000, 2]])
+  for (const time_ms of [9999, 40001, Infinity]) expect(applyShowCommand(added.record, 'add_keyframe', { track_id: 'new-track', time_ms, value: 1 }).ok).toBe(false)
+  expect(applyShowCommand(added.record, 'add_keyframe', { track_id: 'new-track', time_ms: 10000, value: 1 })).toMatchObject({ ok: false, issues: [{ code: 'duplicate-keyframe-time' }] })
+  expect(applyShowCommand(added.record, 'add_keyframe', { track_id: 'new-track', time_ms: 40000, value: 1 }).ok).toBe(true)
+  expect(accepted.record.composition!.scenes[0]).toStrictEqual(composition.scenes[0])
+  expect(show).toStrictEqual(source)
+})
+
+it('animation retains time-only value/easing/identity and refuses unsupported aliases and atomic invalid batches', () => {
+  const show = showAnimationCommandFixture()
+  const original = structuredClone(show)
+  const key = show.composition!.scenes[0].propertyTracks![0].keyframes[0]
+  const result = applyShowCommand(show, 'update_keyframe', { track_id: 'track-b', keyframe_id: key.id, time_ms: 20000 })
+  expect(result.ok).toBe(true)
+  if (!result.ok) return
+  expect(result.record.composition!.scenes[0].propertyTracks![0].keyframes[1]).toStrictEqual({ ...key, timeMs: 20000 })
+  expect(JSON.parse(JSON.stringify(result.changes))[0]).toMatchObject({ targetId: key.id, details: { trackId: 'track-b', keyframes: [{ keyframeId: 'kf-2', timeMs: 19000 }, { keyframeId: 'kf-1', timeMs: 20000 }] } })
+  const opened = openShowDocument(show)
+  if (!opened.ok) throw new Error('animation open')
+  expect(applyShowGrammarOperation(opened.document, 'move_keyframe', { track_id: 'track-b', keyframe_id: key.id, time_ms: 20000 })).toMatchObject({ ok: false, issues: [{ code: 'unknown-operation' }] })
+  expect(runShowCommandTransaction(show, [{ name: 'update_keyframe', input: { track_id: 'track-b', keyframe_id: key.id, value: 0.4 } }, { name: 'delete_keyframe', input: { track_id: 'track-b', keyframe_id: key.id } }])).toMatchObject({ ok: false, step: 1, issues: [{ code: 'minimum-keyframes' }] })
+  expect(show).toStrictEqual(original)
+})
+
+it('animation track → keyframe → Split is one private transaction and one Undo', () => {
+  const show = showAnimationCommandFixture()
+  const store = createSessionStore()
+  const opened = store.open(show)
+  if (!opened.ok) throw new Error(JSON.stringify(opened))
+  const id = opened.sessionId
+  const before = store.export(id)
+  expect(store.begin(id).ok).toBe(true)
+  const added = store.apply(id, 'add_property_track', { clip_id: 'clip-a', target: 'view-phase', keyframes: [{ time_ms: 0, value: 0 }, { time_ms: 10000, value: 1 }] })
+  expect(added.ok).toBe(true)
+  if (!added.ok) return
+  const trackId = added.changes[0].targetId
+  expect(typeof trackId).toBe('string')
+  expect(store.apply(id, 'add_keyframe', { track_id: trackId, time_ms: 5000, value: 0.8 }).ok).toBe(true)
+  expect(store.apply(id, 'split_clip', { clip_id: 'clip-a', at_ms: 4000 }).ok).toBe(true)
+  expect(store.export(id)).toStrictEqual(before)
+  expect(store.commit(id).ok).toBe(true)
+  const changed = store.export(id)
+  expect(changed.ok).toBe(true)
+  if (!changed.ok) return
+  expect(validateShowComposition(changed.show, changed.show.composition!)).toEqual([])
+  expect(changed.show.composition!.scenes[0].zones[0].main.map(clip => [clip.id, clip.startMs, clip.durationMs])).toEqual([['clip-a', 0, 4000], ['clip-1', 4000, 6000], ['clip-b', 12000, 8000], ['clip-c', 22000, 6000]])
+  const tracks = changed.show.composition!.scenes[0].propertyTracks!
+  expect(tracks.filter(track => track.id.startsWith('track-1')).map(track => track.target)).toEqual([{ kind: 'placement-view', placementId: 'clip-a', property: 'phase' }, { kind: 'placement-view', placementId: 'clip-1', property: 'phase' }])
+  expect(store.undo(id).ok).toBe(true)
+  expect(store.export(id)).toStrictEqual(before)
+  expect(store.undo(id).ok).toBe(false)
 })

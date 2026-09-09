@@ -517,15 +517,15 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     const track = findTrackById(next, trackId)
     expect(track.keyframes.find((keyframe) => keyframe.id === keyframeIds[1])?.value).toBe(0.4)
-  },
-  move_keyframe: () => {
+    {
     const { document, trackId, keyframeIds } = withBrightnessTrack()
-    const { document: next } = applyOk(document, 'move_keyframe', {
+    const { document: next } = applyOk(document, 'update_keyframe', {
       track_id: trackId,
       keyframe_id: keyframeIds[0],
       time_ms: 2_000,
     })
     expect(trackTimes(next, trackId)).toEqual([2_000, 10_000])
+    }
   },
   delete_keyframe: () => {
     const { document, trackId } = withBrightnessTrack(3)

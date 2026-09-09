@@ -484,7 +484,7 @@ describe('results carry verification (#34)', () => {
       expect(evaluation.ok && evaluation.evaluation.value).toBe(sample.value)
     }
 
-    const moved = store.apply(sessionId, 'move_keyframe', {
+    const moved = store.apply(sessionId, 'update_keyframe', {
       track_id: added.changes[0].targetId,
       keyframe_id: details.keyframes[1].keyframeId,
       time_ms: 6_000,

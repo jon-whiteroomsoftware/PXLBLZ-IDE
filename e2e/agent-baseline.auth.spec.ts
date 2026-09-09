@@ -1,4 +1,5 @@
 import { showLayerTransitionCommandFixture } from '../src/test/showLayerTransitionCommandFixture'
+import { showAnimationCommandFixture } from '../src/test/showAnimationCommandFixture'
 import { showBoundaryCommandFixture } from '../src/test/showBoundaryCommandFixture'
 // Agent-editing baseline on the live editor (#945): known-outcome
 // reproductions, not product acceptance. Every sequence drives the real
@@ -1691,6 +1692,32 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         if (row.id === 'C953') composition.patternInstances[0].controlTargets = { sliderSpeed: 0.75 }
         if (row.id === 'T953') composition.patternInstances[0].time = { timeScale: 0.5, timeOffsetMs: 250 }
         if (row.id === 'E953') composition.patternInstances[0].evaluationPolicy = 'freeze-at-entry'
+        return expected
+      },
+    })),
+
+    ...[
+      { id: 'APT953', command: 'add_property_track', args: { clip_id: 'clip-a', target: 'view-phase', initial_value: 0.3 }, utterance: 'seed a phase animation track at point three' },
+      { id: 'AK953', command: 'add_keyframe', args: { track_id: 'track-b', time_ms: 15000, value: 0.5 }, utterance: 'add a brightness keyframe at fifteen seconds' },
+      { id: 'UK953', command: 'update_keyframe', args: { track_id: 'track-b', keyframe_id: 'kf-1', time_ms: 20000 }, utterance: 'move the first brightness keyframe to twenty seconds' },
+      { id: 'DK953', command: 'delete_keyframe', args: { track_id: 'track-b', keyframe_id: 'middle' }, utterance: 'delete the middle brightness keyframe' },
+      { id: 'DPT953', command: 'delete_property_track', args: { track_id: 'track-b' }, utterance: 'remove the brightness animation track' },
+    ].map(row => ({ ...row,
+      fixture: () => {
+        const show = showAnimationCommandFixture()
+        show.id = `${row.id.toLowerCase()}-${Date.now().toString(36)}`
+        if (row.id === 'DK953') show.composition!.scenes[0].propertyTracks![0].keyframes.splice(1, 0, { id: 'middle', timeMs: 15000, value: 0.5, easing: { curve: 'linear' } })
+        return show
+      },
+      expectedFacts: (before: ShowRecord) => {
+        const expected = structuredClone(before)
+        const scene = expected.composition!.scenes[0]
+        const track = scene.propertyTracks!.find(track => track.id === 'track-b')!
+        if (row.id === 'APT953') scene.propertyTracks!.unshift({ id: 'track-1', target: { kind: 'placement-view', placementId: 'clip-a', property: 'phase' }, keyframes: [{ id: 'kf-7', timeMs: 0, value: 0.3, easing: { curve: 'linear' } }, { id: 'kf-8', timeMs: 30000, value: 0.3, easing: { curve: 'linear' } }] })
+        if (row.id === 'AK953') track.keyframes.splice(1, 0, { id: 'kf-7', timeMs: 15000, value: 0.5, easing: { curve: 'linear' } })
+        if (row.id === 'UK953') { const first = track.keyframes.shift()!; track.keyframes.push({ ...first, timeMs: 20000 }) }
+        if (row.id === 'DK953') track.keyframes = track.keyframes.filter(key => key.id !== 'middle')
+        if (row.id === 'DPT953') scene.propertyTracks = scene.propertyTracks!.filter(track => track.id !== 'track-b')
         return expected
       },
     })),

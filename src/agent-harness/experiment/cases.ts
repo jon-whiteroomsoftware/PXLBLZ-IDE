@@ -417,7 +417,7 @@ export const DICTATION_CASES: DictationCase[] = [
     },
     script: [
       {
-        tool: 'move_keyframe',
+        tool: 'update_keyframe',
         args: { track_id: '$trackOf:0:opacity', keyframe_id: '$keyframeOf:0:opacity:0', time_ms: 2_000 },
       },
       { say: 'The first opacity keyframe is at 2 s now.', intent: 'apply' },

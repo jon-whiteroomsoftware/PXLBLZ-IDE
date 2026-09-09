@@ -83,7 +83,7 @@ export function normalizeShowPropertyTracks(
   tracks: readonly ShowPropertyAnimationTrack[] | null | undefined,
 ): ShowPropertyAnimationTrack[] | undefined {
   if (tracks == null) return undefined
-  return [...cloneJson(tracks)]
+  return [...structuredClone(tracks)]
     .sort((left, right) => left.id.localeCompare(right.id))
     .map((track) => ({
       ...track,
@@ -142,7 +142,10 @@ export function addShowPropertyTrack(
   return commitValidTrackEdit(show, composition, (draft) => {
     const scene = draft.scenes.find((candidate) => candidate.sceneId === sceneId)
     if (!scene) return false
-    scene.propertyTracks = [...(scene.propertyTracks ?? []), cloneJson(track)]
+    const tracks = scene.propertyTracks ?? []
+    const insertionIndex = tracks.findIndex(existing => existing.id.localeCompare(track.id) > 0)
+    tracks.splice(insertionIndex < 0 ? tracks.length : insertionIndex, 0, structuredClone(track))
+    scene.propertyTracks = tracks
     return true
   })
 }
@@ -157,7 +160,7 @@ export function addShowPropertyKeyframe(
   return commitValidTrackEdit(show, composition, (draft) => {
     const track = findTrack(draft, sceneId, trackId)
     if (!track) return false
-    track.keyframes.push(cloneJson(keyframe))
+    track.keyframes.push(structuredClone(keyframe))
     track.keyframes.sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
     return true
   })
@@ -175,7 +178,7 @@ export function updateShowPropertyKeyframe(
     const track = findTrack(draft, sceneId, trackId)
     const keyframe = track?.keyframes.find((candidate) => candidate.id === keyframeId)
     if (!track || !keyframe) return false
-    Object.assign(keyframe, cloneJson(changes))
+    Object.assign(keyframe, structuredClone(changes))
     track.keyframes.sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
     return true
   })
@@ -198,7 +201,7 @@ export function deleteShowPropertyKeyframe(
   trackId: string,
   keyframeId: string,
 ): ShowCompositionV1 {
-  const draft = cloneJson(composition)
+  const draft = structuredClone(composition)
   const track = findTrack(draft, sceneId, trackId)
   if (!track?.keyframes.some((candidate) => candidate.id === keyframeId) || track.keyframes.length <= 2) return composition
   track.keyframes = track.keyframes.filter((candidate) => candidate.id !== keyframeId)
@@ -210,7 +213,7 @@ export function deleteShowPropertyTrack(
   sceneId: string,
   trackId: string,
 ): ShowCompositionV1 {
-  const draft = cloneJson(composition)
+  const draft = structuredClone(composition)
   const scene = draft.scenes.find((candidate) => candidate.sceneId === sceneId)
   if (!scene?.propertyTracks?.some((candidate) => candidate.id === trackId)) return composition
   scene.propertyTracks = scene.propertyTracks.filter((candidate) => candidate.id !== trackId)
@@ -246,12 +249,8 @@ function commitValidTrackEdit(
   composition: ShowCompositionV1,
   mutate: (draft: ShowCompositionV1) => boolean,
 ): ShowCompositionV1 {
-  const draft = cloneJson(composition)
+  const draft = structuredClone(composition)
   if (!mutate(draft) || validateShowPropertyTracks(show, draft).length > 0) return composition
-  draft.scenes = draft.scenes.map((scene) => ({
-    ...scene,
-    ...(scene.propertyTracks ? { propertyTracks: normalizeShowPropertyTracks(scene.propertyTracks) } : {}),
-  }))
   return draft
 }
 
@@ -359,6 +358,41 @@ function addIssue(
   issues.push({ path, code, message })
 }
 
-function cloneJson<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T
+
+// Track receipt projection migrated from agent-harness/grammar/support.ts;
+// provenance: pxlblz-v3 src/grammar/support.ts at 9ecd481f.
+/** A keyframe as the projection and operation results describe it: global time. */
+export interface DescribedKeyframe {
+  keyframeId: string
+  timeMs: number
+  value: number
+  easing: string
+}
+
+/** The state of one track after an edit: its keyframes at global times and
+ * the engine-evaluated value at each keyframe and at the midpoints between
+ * them, so a result confirms itself without a further read (#34). */
+export interface TrackState {
+  keyframes: DescribedKeyframe[]
+  evaluated: Array<{ atMs: number; value: number }>
+}
+
+export function describeShowPropertyTrack(track: ShowPropertyAnimationTrack, sceneStart: number): TrackState {
+  const sorted = [...track.keyframes].sort((left, right) => left.timeMs - right.timeMs)
+  const keyframes = sorted.map((keyframe) => ({
+    keyframeId: keyframe.id,
+    timeMs: sceneStart + keyframe.timeMs,
+    value: keyframe.value,
+    easing: keyframe.easing.curve,
+  }))
+  const sampleLocalTimes: number[] = []
+  sorted.forEach((keyframe, index) => {
+    if (index > 0) sampleLocalTimes.push((sorted[index - 1].timeMs + keyframe.timeMs) / 2)
+    sampleLocalTimes.push(keyframe.timeMs)
+  })
+  const evaluated = sampleLocalTimes.map((localMs) => ({
+    atMs: sceneStart + localMs,
+    value: evaluateShowPropertyTrack(track, localMs),
+  }))
+  return { keyframes, evaluated }
 }

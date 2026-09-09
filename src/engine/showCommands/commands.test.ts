@@ -1240,7 +1240,7 @@ describe('Show command refusal partitions (#885)', () => {
       { track_id: base.trackId, keyframe_id: track.keyframes[0].id },
       'minimum-keyframes',
     )
-    // A second track on the same target refuses through the validator.
+    // A second track on the same target refuses with the shared duplicate-target diagnostic.
     applyRefused(
       base.record,
       'add_property_track',
@@ -1251,7 +1251,7 @@ describe('Show command refusal partitions (#885)', () => {
           { time_ms: 4_000, value: 0.5 },
         ],
       },
-      'engine-refused',
+      'duplicate-target',
     )
     applyRefused(
       showCommandFixture(),

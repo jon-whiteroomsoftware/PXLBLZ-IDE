@@ -25,6 +25,14 @@ export const BASELINE_FIXTURE_RESIZE: BaselineUtterance = {
 }
 
 export const BASELINE_UTTERANCES: BaselineUtterance[] = [
+  ...[
+    { utterance: 'seed a phase animation track at point three', tool: 'add_property_track', args: { clip_id: 'clip-a', target: 'view-phase', initial_value: 0.3 } },
+    { utterance: 'add a brightness keyframe at fifteen seconds', tool: 'add_keyframe', args: { track_id: 'track-b', time_ms: 15000, value: 0.5 } },
+    { utterance: 'move the first brightness keyframe to twenty seconds', tool: 'update_keyframe', args: { track_id: 'track-b', keyframe_id: 'kf-1', time_ms: 20000 } },
+    { utterance: 'delete the middle brightness keyframe', tool: 'delete_keyframe', args: { track_id: 'track-b', keyframe_id: 'middle' } },
+    { utterance: 'remove the brightness animation track', tool: 'delete_property_track', args: { track_id: 'track-b' } },
+  ].map(row => ({ utterance: row.utterance, intent: '#953: edit authored animation through the shared command.', script: [{ tool: row.tool, args: { ...row.args, finish_turn_reply: { intent: 'apply', reply: 'Updated the animation.' } } }] })),
+
   {
     utterance: 'insert a fifteen hundred millisecond Layer crossfade with ease in',
     intent: '#952: Layer insertion retains explicit timing and easing.',

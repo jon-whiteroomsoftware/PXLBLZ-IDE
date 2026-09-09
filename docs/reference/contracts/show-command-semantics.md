@@ -522,3 +522,33 @@ Shared goldens, raw untouched-field checks and canonical/diagnostic/manual parit
 cover this family with existing fixtures. `V953`, `C953`, `T953` and `E953` use
 the common live admission table for durable saves, actual file reopen, Undo,
 stale refusal and duplicate delivery.
+
+## Scene property tracks and keyframes
+
+`add_property_track`, `add_keyframe`, `update_keyframe`, `delete_keyframe` and
+`delete_property_track` share their descriptors and existing pure animation
+owners with the diagnostic adapter. `move_keyframe` is retired; a time-only
+`update_keyframe` preserves the keyframe's value, easing and identity. A valid
+already-satisfied update returns no changes after owner validation.
+
+Track targets retain all seven persisted kinds: instance time scale and control;
+placement opacity, view, transform, viewport and Effect parameter. Short target
+names resolve from a single-Scene Clip into that same union. Explicit `scene_id`
+retains instance-target Scene choice; a placement target cannot name a different
+Scene. Control creation requires an authored control target and an exported
+slider in exact captured Pattern source, using the shared metadata context.
+The existing dependency admission policy still governs commit.
+
+Track creation accepts either a constant Scene-endpoint seed or at least two
+explicit global-time keys. Times convert once into Scene-local milliseconds;
+Scene endpoints are inclusive. Duplicate targets/times, malformed targets,
+invalid easing and out-of-range values refuse. Keyframe deletion retains the
+two-key minimum; deleting a track removes automation without changing its default.
+Receipts retain fresh string identities, global keyframes and evaluated samples.
+
+Animation edits preserve raw optional fields and unrelated track order. Only
+changed keyframes are sorted; a new track takes its lexical insertion position
+without sorting existing siblings. The shared parity and golden tables cover
+seven target kinds, raw preservation, manual owners and file reopen. Admission
+rows `APT953`, `AK953`, `UK953`, `DK953` and `DPT953` exercise the real bridge,
+save/reopen, Undo and stale/duplicate rejection.

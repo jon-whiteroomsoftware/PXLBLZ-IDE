@@ -72,7 +72,6 @@ describe('pxlblz-shows MCP server (#7)', () => {
       'measure_show',
       'move_clip',
       'move_clip_effect',
-      'move_keyframe',
       'move_marker',
       'open_show',
       'redo',

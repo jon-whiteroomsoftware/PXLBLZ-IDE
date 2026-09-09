@@ -163,11 +163,11 @@ describe('grammar registry breadth (#18)', () => {
       expect(issues[0].candidates).toContain(changes[0].targetId)
     })
 
-    it('move_keyframe refuses landing on a sibling keyframe', () => {
+    it('update_keyframe refuses landing on a sibling keyframe', () => {
       const { document, trackId, keyframeIds } = withBrightnessTrack()
       applyRefused(
         document,
-        'move_keyframe',
+        'update_keyframe',
         { track_id: trackId, keyframe_id: keyframeIds[0], time_ms: 10_000 },
         'duplicate-keyframe-time',
       )
