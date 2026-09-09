@@ -99,6 +99,7 @@ describe('pxlblz-shows MCP server (#7)', () => {
       'set_output_trails',
       'set_show_end',
       'set_stage_map',
+      'set_target_controller_profile',
       'split_clip',
       'undo',
       'update_boundary_transition_parameter',

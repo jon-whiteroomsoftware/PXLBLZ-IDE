@@ -2,7 +2,7 @@
 
 This document names every concept an agent must use to author a valid
 ShowRecord JSON document against
-[`schemas/show-record.schema.json`](../../schemas/show-record.schema.json).
+[`schemas/show-record.schema.json`](../../../schemas/show-record.schema.json).
 The schema is the structural authority; this document supplies the semantics
 the schema cannot express. Vocabulary is canonical PXLBLZ language.
 
