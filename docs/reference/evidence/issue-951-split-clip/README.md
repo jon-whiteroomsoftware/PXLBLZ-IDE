@@ -85,7 +85,7 @@ it did not invoke the selected overlay owner. This is retained as a separate
 legacy-path residual, not an overlay split failure or an implicit scope expansion.
 Concurrent test-file edits triggered a dev-server reload and retired history
 on an earlier successful attempt; this was verification interference, not a
-product Undo failure. the fresh paused-write proof above is the authoritative manual Undo.
+product Undo failure. The fresh paused-write proof above is the authoritative manual Undo.
 
 The command contract and Technical Reference describe shared split ownership;
 the candidate-application overview names the converged families. Inventories
@@ -94,3 +94,27 @@ no edits: domain terms and the existing Split control are unchanged. The census
 remains forward-looking until coordinator landing. The [test model](test-design.json)
 records the bounded partitions. The coordinator owns final committed-tip suites
 and native review; no paid inference, Controller or hosted service is used.
+
+## Cross-catalog correction
+
+Final-suite collection at `767414372842bbaff76248c85dd68270023ae3f2`
+found two diagnostic catalog omissions: outside-Clip refusal lost its Clip ID,
+and declared Transition touches lacked an outgoing-Transition diagnostic golden.
+Repair `71a7001a` restores the Clip ID in shared plan/engine refusals and adds a
+golden asserting the complete preserved Transition and its endpoint receipt.
+The split algorithm and accepted results are unchanged.
+
+`npm run test:show-command-convergence` passed **18 files / 278 tests** before
+repair freeze. Its explicit selection is the seven `src/engine/showCommands`
+suites; diagnostic `grammarBreadth`, `grammarStructure`, `grammarRegistry`,
+`grammarMcp.e2e`; and `canonicalMarkers`, `canonicalRemoveClip`,
+`canonicalSplitClip`, `canonicalResizeBridge`, `canonicalMove`,
+`canonicalOverlayLayer`, `canonicalResize`. This includes both catalogs'
+registry/golden/touch checks and the adapters; it is now documented in the
+verification guide as a pre-freeze check.
+
+Original browser proof remains tied to `543605e779256f07201d94cc2c3678731b09e1e8`.
+It is reused for the unchanged accepted/save/export/Undo/stale/duplicate flow;
+no browser capture is claimed at the repair hash. Existing mutation evidence
+also remains tied to its original source. The coordinator owns replacement
+committed-tip final suites and review; no review preceded this correction.

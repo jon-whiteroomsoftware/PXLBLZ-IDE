@@ -28,7 +28,8 @@
     "Actual Show file importer and MCP exported records",
     "Central command APPLIED/golden/touches plus registry and diagnostic schema/protocol",
     "Committed-source browser visible/durable records and save counts; coordinator manual Split inspection",
-    "Coordinator inspected IAB captures with selected right identity and Undo-disabled restoration"
+    "Coordinator inspected IAB captures with selected right identity and Undo-disabled restoration",
+    "Both catalogs: diagnostic Breadth actionable Clip identity and Structure exact declared-touch goldens, included with canonical registry/goldens in test:show-command-convergence (18 files, 278 tests)"
   ],
   "faults": [
     "Catalogued Show authoring mutation includes splitClip.test.ts; all79 faults killed",
