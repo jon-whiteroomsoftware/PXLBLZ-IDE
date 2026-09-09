@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "955",
+  "route": "/PXLBLZ-IDE/studio/shows/888f0b89-516d-4306-89be-0454d2f1c78b?agent=1&capture",
+  "operation": "On managed runtime 5178 in the in-app browser as synthetic local-agent-08, navigated to another Show and back, then played the personal-Library Show at desktop 1440x900: the previous Unknown library namespace Personal error is absent and the Stage displays lit pixels. Reloaded at 640x900, opened the Stage dialog, returned to Show start and played/paused it: the Library error is absent and controls work, but this Zone-strip fixture's top-edge pixels are clipped by the dialog canvas geometry, so the narrow image is not claimed as lit-frame proof. Deterministic replay-frame and delayed JPEG unmount refusal evidence is in the component tests; no hardware send was attempted.",
+  "captures": [".wrsp/ui-proof/955-preview-desktop.jpg", ".wrsp/ui-proof/955-preview-narrow.jpg"],
+  "capturedAtCommit": "c4a7e1841e5354faacbf43d7798261cbd1014395"
+}
