@@ -31,6 +31,17 @@ indices and DOM styles; console errors were empty. The coordinator opened both
 [Provenance](IAB-provenance.json) records the route and observed values. No TSX
 changed, so these are ordinary consumer evidence rather than an invented UI gate.
 
+The first final Vitest run at `9142534c` exposed a missing canonical golden:
+`commands.test.ts` required an accepted `add_overlay_layer` case and therefore
+had no recorded result for its touch-path sweep. The focused rerun reproduced
+both failures (55 other tests passed). The repair adds sparse and nonsparse
+complete-record goldens to the existing `GOLDEN_RUNS`/`APPLIED` mechanism,
+retaining all registry and declared-touch assertions. Canonical golden and
+relevant owner/adapter tests now pass: 80 tests across four files. Product source
+and the browser proof source remain `a77b98df`; the coordinator reruns final
+suites against the new candidate tip. `commands.test.ts` is now explicitly part
+of focused qualification for this slice.
+
 ## Historical blocker and decision
 
 An accepted Show can contain a Group overlay ordinal without a corresponding

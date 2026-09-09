@@ -7,6 +7,8 @@ import {
   stampedCommandFixture,
   trackedCommandFixture,
 } from '../../test/showCommandFixture'
+import { showOverlayLayerFixture } from '../../test/showOverlayLayerFixture'
+import { validateShowComposition } from '../showCompositionModel'
 import type { ShowRecord } from '../personalContentRecords'
 import { showLoopDurationMs } from '../showModel'
 import { projectShowSummary } from '../showSummaryProjection'
@@ -167,6 +169,32 @@ function trackTimes(record: ShowRecord, trackId: string): number[] {
 }
 
 export const GOLDEN_RUNS: Record<string, () => void> = {
+  add_overlay_layer: () => {
+    for (const sparse of [false, true]) {
+      const before = showOverlayLayerFixture()
+      if (sparse) before.composition!.scenes[1].zones[0].overlays = []
+      const original = structuredClone(before)
+      const { record, changes } = applyOk(before, 'add_overlay_layer', { zone_id: 'zone-1' })
+      const ids = changes[0].details?.layerIdsBySceneId as Record<string, string>
+      expect(Object.keys(ids)).toEqual(['scene-1', 'scene-2'])
+      expect(new Set(Object.values(ids)).size).toBe(2)
+      for (const id of Object.values(ids)) {
+        expect(typeof id).toBe('string')
+        expect(id.length).toBeGreaterThan(0)
+        expect(JSON.stringify(original)).not.toContain(id)
+      }
+      const expected = structuredClone(original)
+      if (sparse) expected.composition!.scenes[1].zones[0].overlays = [
+        { id: 'scene-2:zone-1:group-layer:1', name: 'Layer 1', placements: [] },
+      ]
+      expected.composition!.scenes[0].zones[0].overlays.unshift({ id: ids['scene-1'], name: 'Layer 3', placements: [] })
+      expected.composition!.scenes[1].zones[0].overlays.unshift({ id: ids['scene-2'], name: 'Layer 3', placements: [] })
+      expect(record).toEqual({ ...expected, updatedAt: record.updatedAt })
+      expect(record.updatedAt).toBeGreaterThan(before.updatedAt)
+      expect(before).toEqual(original)
+      expect(validateShowComposition(record, record.composition!)).toEqual([])
+    }
+  },
   add_clip: () => {
     const { record, changes } = applyOk(showCommandFixture(), 'add_clip', {
       zone_id: 'zone-1',
