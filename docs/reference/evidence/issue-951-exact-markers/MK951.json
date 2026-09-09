@@ -1,0 +1,706 @@
+{
+  "before": {
+    "id": "markers-951-mttng674",
+    "name": "Baseline personal Show",
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 20000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 64
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Full Stage",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "z1"
+          ]
+        }
+      }
+    ],
+    "transitions": [],
+    "stageMapId": null,
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "updatedAt": 1757000000000,
+    "composition": {
+      "version": 1,
+      "markers": [
+        {
+          "id": "marker-1",
+          "timeMs": 4000,
+          "name": "Existing",
+          "color": "#ff8800"
+        }
+      ],
+      "patternInstances": [
+        {
+          "id": "resize-instance",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-a",
+                  "startMs": 0,
+                  "durationMs": 4000
+                },
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-b",
+                  "startMs": 8000,
+                  "durationMs": 2000
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "after": {
+    "id": "markers-951-mttng674",
+    "name": "Baseline personal Show",
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 20000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 64
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Full Stage",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "z1"
+          ]
+        }
+      }
+    ],
+    "transitions": [],
+    "stageMapId": null,
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "updatedAt": 1788931207057,
+    "composition": {
+      "version": 1,
+      "markers": [
+        {
+          "id": "marker-1",
+          "timeMs": 4000,
+          "name": "Existing",
+          "color": "#ff8800"
+        },
+        {
+          "id": "marker-2",
+          "timeMs": 9000,
+          "name": "Final",
+          "color": "#38bdf8"
+        }
+      ],
+      "patternInstances": [
+        {
+          "id": "resize-instance",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-a",
+                  "startMs": 0,
+                  "durationMs": 4000
+                },
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-b",
+                  "startMs": 8000,
+                  "durationMs": 2000
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "removed": {
+    "id": "markers-951-mttng674",
+    "name": "Baseline personal Show",
+    "scenes": [
+      {
+        "id": "s1",
+        "name": "Opening",
+        "durationMs": 20000
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 64
+      }
+    ],
+    "cells": [
+      {
+        "id": "c1",
+        "zoneId": "z1",
+        "sceneId": "s1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "l1",
+        "name": "Full Stage",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "z1"
+          ]
+        }
+      }
+    ],
+    "transitions": [],
+    "stageMapId": null,
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "updatedAt": 1788931215986,
+    "composition": {
+      "version": 1,
+      "markers": [
+        {
+          "id": "marker-1",
+          "timeMs": 4000,
+          "name": "Existing",
+          "color": "#ff8800"
+        }
+      ],
+      "patternInstances": [
+        {
+          "id": "resize-instance",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "s1",
+          "zones": [
+            {
+              "zoneId": "z1",
+              "main": [
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-a",
+                  "startMs": 0,
+                  "durationMs": 4000
+                },
+                {
+                  "instanceId": "resize-instance",
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "id": "resize-b",
+                  "startMs": 8000,
+                  "durationMs": 2000
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "done": {
+    "requestId": "req-mttng7kh-4fshib",
+    "showId": "markers-951-mttng674",
+    "capturedUpdatedAt": 1757000000000,
+    "submittedAt": 1788931204436,
+    "responseAt": 1788931204464,
+    "firstEventAt": 1788931204464,
+    "doneAt": 1788931207047,
+    "applyStartedAt": 1788931207047,
+    "applyEndedAt": 1788931207193,
+    "changed": true,
+    "applied": true,
+    "error": null,
+    "events": [
+      {
+        "kind": "accepted",
+        "name": null,
+        "at": 1788931204464
+      },
+      {
+        "kind": "tool",
+        "name": "add_marker",
+        "at": 1788931207047
+      },
+      {
+        "kind": "tool",
+        "name": "move_marker",
+        "at": 1788931207047
+      },
+      {
+        "kind": "tool",
+        "name": "update_marker",
+        "at": 1788931207047
+      },
+      {
+        "kind": "validation",
+        "name": null,
+        "at": 1788931207047
+      },
+      {
+        "kind": "validation",
+        "name": null,
+        "at": 1788931207047
+      },
+      {
+        "kind": "done",
+        "name": null,
+        "at": 1788931207047
+      }
+    ],
+    "bridgeTiming": {
+      "acceptedAt": 1788931204439,
+      "delayMs": 2500,
+      "agentStartedAt": 1788931207030,
+      "agentEndedAt": 1788931207040,
+      "exportedAt": 1788931207045,
+      "toolCalls": [
+        {
+          "name": "add_marker",
+          "at": 1788931207030,
+          "ms": 4
+        },
+        {
+          "name": "move_marker",
+          "at": 1788931207034,
+          "ms": 1
+        },
+        {
+          "name": "update_marker",
+          "at": 1788931207035,
+          "ms": 0
+        }
+      ],
+      "validation": {
+        "at": 1788931207040,
+        "ms": 5,
+        "ok": true
+      }
+    },
+    "outcome": {
+      "status": "applied",
+      "settlement": "saved"
+    }
+  },
+  "removal": {
+    "requestId": "req-mttngeiv-yownm6",
+    "showId": "markers-951-mttng674",
+    "capturedUpdatedAt": 1788931207057,
+    "submittedAt": 1788931213449,
+    "responseAt": 1788931213463,
+    "firstEventAt": 1788931213464,
+    "doneAt": 1788931215980,
+    "applyStartedAt": 1788931215980,
+    "applyEndedAt": 1788931216136,
+    "changed": true,
+    "applied": true,
+    "error": null,
+    "events": [
+      {
+        "kind": "accepted",
+        "name": null,
+        "at": 1788931213464
+      },
+      {
+        "kind": "tool",
+        "name": "remove_marker",
+        "at": 1788931215980
+      },
+      {
+        "kind": "validation",
+        "name": null,
+        "at": 1788931215980
+      },
+      {
+        "kind": "validation",
+        "name": null,
+        "at": 1788931215980
+      },
+      {
+        "kind": "done",
+        "name": null,
+        "at": 1788931215980
+      }
+    ],
+    "bridgeTiming": {
+      "acceptedAt": 1788931213450,
+      "delayMs": 2500,
+      "agentStartedAt": 1788931215959,
+      "agentEndedAt": 1788931215970,
+      "exportedAt": 1788931215979,
+      "toolCalls": [
+        {
+          "name": "remove_marker",
+          "at": 1788931215960,
+          "ms": 4
+        }
+      ],
+      "validation": {
+        "at": 1788931215970,
+        "ms": 8,
+        "ok": true
+      }
+    },
+    "outcome": {
+      "status": "applied",
+      "settlement": "saved"
+    }
+  },
+  "writes": [
+    {
+      "method": "PATCH",
+      "url": "http://localhost:5205/api/shows/markers-951-mttng674",
+      "at": 1788931207090,
+      "status": 200,
+      "updatedAt": 1788931207057,
+      "firstMainStartMs": 0,
+      "firstMain": {
+        "durationMs": 4000,
+        "brightness": 1
+      },
+      "compositionDurationMs": null,
+      "markers": 2
+    },
+    {
+      "method": "PATCH",
+      "url": "http://localhost:5205/api/shows/markers-951-mttng674",
+      "at": 1788931216026,
+      "status": 200,
+      "updatedAt": 1788931215986,
+      "firstMainStartMs": 0,
+      "firstMain": {
+        "durationMs": 4000,
+        "brightness": 1
+      },
+      "compositionDurationMs": null,
+      "markers": 1
+    },
+    {
+      "method": "PATCH",
+      "url": "http://localhost:5205/api/shows/markers-951-mttng674",
+      "at": 1788931216436,
+      "status": 200,
+      "updatedAt": 1788931216401,
+      "firstMainStartMs": 0,
+      "firstMain": {
+        "durationMs": 4000,
+        "brightness": 1
+      },
+      "compositionDurationMs": null,
+      "markers": 2
+    },
+    {
+      "method": "PATCH",
+      "url": "http://localhost:5205/api/shows/markers-951-mttng674",
+      "at": 1788931216557,
+      "status": 200,
+      "updatedAt": 1788931216531,
+      "firstMainStartMs": 0,
+      "firstMain": {
+        "durationMs": 4000,
+        "brightness": 1
+      },
+      "compositionDurationMs": null,
+      "markers": 1
+    }
+  ],
+  "observations": [
+    {
+      "kind": "preview-published",
+      "showId": "markers-951-mttng674",
+      "at": 1788931203843,
+      "digest": "cf27d45b",
+      "updatedAt": 1757000000000
+    },
+    {
+      "kind": "preview-published",
+      "showId": "markers-951-mttng674",
+      "at": 1788931203845,
+      "digest": "cf27d45b",
+      "updatedAt": 1757000000000
+    },
+    {
+      "kind": "preview-published",
+      "showId": "markers-951-mttng674",
+      "at": 1788931204036,
+      "digest": "cf27d45b",
+      "updatedAt": 1757000000000
+    },
+    {
+      "kind": "agent-apply",
+      "phase": "admitted",
+      "showId": "markers-951-mttng674",
+      "requestId": "req-mttng7kh-4fshib",
+      "at": 1788931207047,
+      "digest": "cf27d45b",
+      "updatedAt": 1757000000000,
+      "historyDepth": 0
+    },
+    {
+      "kind": "agent-apply",
+      "phase": "adopted",
+      "showId": "markers-951-mttng674",
+      "requestId": "req-mttng7kh-4fshib",
+      "at": 1788931207057,
+      "digest": "00dcaaed",
+      "updatedAt": 1788931207057,
+      "historyDepth": 1
+    },
+    {
+      "kind": "preview-published",
+      "showId": "markers-951-mttng674",
+      "at": 1788931207097,
+      "digest": "00dcaaed",
+      "updatedAt": 1788931207057
+    },
+    {
+      "kind": "agent-apply",
+      "phase": "settled",
+      "showId": "markers-951-mttng674",
+      "requestId": "req-mttng7kh-4fshib",
+      "at": 1788931207193,
+      "digest": "00dcaaed",
+      "updatedAt": 1788931207057,
+      "historyDepth": 1
+    },
+    {
+      "kind": "agent-apply",
+      "phase": "admitted",
+      "showId": "markers-951-mttng674",
+      "requestId": "req-mttngeiv-yownm6",
+      "at": 1788931215980,
+      "digest": "00dcaaed",
+      "updatedAt": 1788931207057,
+      "historyDepth": 1
+    },
+    {
+      "kind": "agent-apply",
+      "phase": "adopted",
+      "showId": "markers-951-mttng674",
+      "requestId": "req-mttngeiv-yownm6",
+      "at": 1788931215986,
+      "digest": "cf27d45b",
+      "updatedAt": 1788931215986,
+      "historyDepth": 2
+    },
+    {
+      "kind": "preview-published",
+      "showId": "markers-951-mttng674",
+      "at": 1788931216035,
+      "digest": "cf27d45b",
+      "updatedAt": 1788931215986
+    },
+    {
+      "kind": "agent-apply",
+      "phase": "settled",
+      "showId": "markers-951-mttng674",
+      "requestId": "req-mttngeiv-yownm6",
+      "at": 1788931216136,
+      "digest": "cf27d45b",
+      "updatedAt": 1788931215986,
+      "historyDepth": 2
+    },
+    {
+      "kind": "preview-published",
+      "showId": "markers-951-mttng674",
+      "at": 1788931216441,
+      "digest": "00dcaaed",
+      "updatedAt": 1788931216401
+    },
+    {
+      "kind": "preview-published",
+      "showId": "markers-951-mttng674",
+      "at": 1788931216562,
+      "digest": "cf27d45b",
+      "updatedAt": 1788931216531
+    }
+  ]
+}

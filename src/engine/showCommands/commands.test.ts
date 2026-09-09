@@ -463,10 +463,7 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(record.composition?.markers?.find((marker) => marker.id === changes[0].targetId))
       .toMatchObject({ timeMs: 15_000, name: 'Chorus', color: '#ff8800' })
 
-    // The change list reports the clamped time the engine stores.
-    const clamped = applyOk(showCommandFixture(), 'add_marker', { at_ms: -50 })
-    expect(clamped.changes[0].description).toContain('at 0 ms')
-    expect(clamped.record.composition?.markers?.some((marker) => marker.timeMs === 0)).toBe(true)
+    applyRefused(showCommandFixture(), 'add_marker', { at_ms: -50 }, 'invalid-argument')
   },
   move_marker: () => {
     const { record } = applyOk(showCommandFixture(), 'move_marker', {

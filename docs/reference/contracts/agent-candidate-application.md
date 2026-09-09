@@ -351,7 +351,7 @@ record explicit intent; historical paid transcripts retain their original format
 
 Apply validates the private working copy and stages completion. Ask, refuse and
 incomplete discard pending work. Apply with no changes yields `nothing-applied`
-and preserves history. A validated already-satisfied resize contributes zero
+and preserves history. A validated already-satisfied resize, Clip move or marker move/update contributes zero
 changes, retains the complete grammar document, and does not stamp `updatedAt`.
 Auto-wrapped or wholly no-op explicit grammar transactions preserve undo/redo;
 a no-op beside a changed operation does not abort the transaction. No finish commits while the agent is running. Abnormal

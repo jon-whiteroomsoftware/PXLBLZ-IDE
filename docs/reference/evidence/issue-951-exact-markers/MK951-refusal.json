@@ -1,0 +1,51 @@
+{
+  "requestId": "req-mttngc7m-ggqguq",
+  "showId": "markers-951-mttng674",
+  "capturedUpdatedAt": 1788931207057,
+  "submittedAt": 1788931210452,
+  "responseAt": 1788931210462,
+  "firstEventAt": 1788931210462,
+  "doneAt": 1788931212971,
+  "applyStartedAt": null,
+  "applyEndedAt": null,
+  "changed": false,
+  "applied": null,
+  "error": null,
+  "events": [
+    {
+      "kind": "accepted",
+      "name": null,
+      "at": 1788931210462
+    },
+    {
+      "kind": "tool",
+      "name": "remove_marker",
+      "at": 1788931212970
+    },
+    {
+      "kind": "done",
+      "name": null,
+      "at": 1788931212970
+    }
+  ],
+  "bridgeTiming": {
+    "acceptedAt": 1788931210454,
+    "delayMs": 2500,
+    "agentStartedAt": 1788931212968,
+    "agentEndedAt": 1788931212969,
+    "exportedAt": 1788931212969,
+    "toolCalls": [
+      {
+        "name": "remove_marker",
+        "at": 1788931212968,
+        "ms": 1,
+        "isError": true,
+        "issue": "No marker has id \"absent\"."
+      }
+    ]
+  },
+  "outcome": {
+    "status": "completed",
+    "completion": "refused"
+  }
+}

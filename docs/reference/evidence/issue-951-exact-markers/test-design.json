@@ -1,0 +1,33 @@
+{
+  "invariants": [
+    "Structured marker times are nonnegative safe integers with no clamp, including beyond Show End.",
+    "Only marker collection and changed timestamp change; complete unrelated records, ordering, stable IDs and references survive.",
+    "Valid same-value move/update returns original record and no changes; missing IDs, duplicates, empty updates and malformed inputs refuse.",
+    "Canonical descriptors supply diagnostic schemas and shared exact owner supplies manual callbacks and legacy helper behavior.",
+    "One scripted batch adopts/saves once and one Undo restores it; no-op and refusal produce neither history nor saves."
+  ],
+  "partitions": [
+    "Zero, interior, exact Show End, beyond End and maximum safe integer; earlier/later/same time.",
+    "Individual and combined name/color/time changes; manual undefined name clearing; tie-time ordering and final collection removal.",
+    "Negative/fractional/nonfinite/unsafe times; missing and duplicate identities; empty structured update.",
+    "Two Scenes/two Zones/two overlays, separate/shared instances, unrelated missing Pattern, tracks, Transition and Layout records; complete input immutability."
+  ],
+  "sequences": [
+    "Add at zero, move to End then beyond then earlier, rename/recolor/combined update, no-op and remove.",
+    "Explicit mixed no-op/changed transaction, refused missing removal and empty update, export/Undo/Redo full records.",
+    "Real scripted editor add/move/update, one save, downloaded Show reopen, no-op/refusal no writes, remove and Undo twice.",
+    "Four separately injected faults fail targeted complete-record tests and source is restored."
+  ],
+  "oracles": [
+    "Literal expected target markers plus complete unrelated Show record equality and validateShowComposition.",
+    "Canonical and diagnostic complete records paired with deterministic IDs; actual MCP schema and protocol rejection.",
+    "Visible editor record, durable API record, downloaded .pxlshow importer, save count and Undo state.",
+    "Coordinator manual IAB interaction and committed capture pending."
+  ],
+  "residualGaps": [
+    "Whole-Show admission and final authoring validation remain authoritative; no narrow marker concurrency authority.",
+    "No Insert Time/Show End migration, new UI, paid inference, Controller or hosted service work.",
+    "Pure rich fixture covers census content preservation; scripted browser uses existing resize fixture with another marker.",
+    "Final committed-tip full suites and native review belong to coordinator."
+  ]
+}

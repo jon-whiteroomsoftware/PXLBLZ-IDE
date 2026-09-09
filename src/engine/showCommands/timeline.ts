@@ -3,34 +3,17 @@
 import { newPersonalContentId } from '../personalContentMetadata'
 import { showLoopDurationMs } from '../showModel'
 import {
-  addShowTimelineMarker,
   insertShowTime,
-  moveShowTimelineMarker,
   planShowTimeInsertion,
-  removeShowTimelineMarker,
   setShowEndMs,
-  updateShowTimelineMarker,
 } from '../showTimelineAuthoring'
+import { editShowMarkerExactly, type ShowMarkerRequest } from '../showExactTimelineMarker'
 import type { ShowRecord } from '../personalContentRecords'
 import {
   refuseShowCommand,
   type ShowCommandDescriptor,
-  type ShowCommandRefusal,
 } from './registry'
 import { engineIdentityRefusal, planRefusal } from './support'
-
-function unknownMarker(record: ShowRecord, markerId: string): ShowCommandRefusal {
-  const markers = record.composition?.markers ?? []
-  return refuseShowCommand({
-    code: 'unknown-marker',
-    message:
-      markers.length === 0
-        ? 'This Show has no markers yet; add one with add_marker.'
-        : `No marker has id "${markerId}". Markers: ${
-            markers.map((marker) => `${marker.id} (${marker.timeMs} ms${marker.name ? `, ${marker.name}` : ''})`).join('; ')}.`,
-    candidates: markers.map((marker) => marker.id),
-  })
-}
 
 const insertTime: ShowCommandDescriptor = {
   name: 'insert_time',
@@ -97,127 +80,33 @@ const setShowEnd: ShowCommandDescriptor = {
   },
 }
 
-const addMarker: ShowCommandDescriptor = {
-  name: 'add_marker',
-  description:
-    'Add a timeline marker at a global time, optionally named and colored. Markers are alignment ' +
-    'guides; they never affect playback.',
-  touches: ['/composition/markers', '/updatedAt'],
-  fields: {
-    at_ms: { kind: 'number', description: 'Global marker time in milliseconds' },
-    name: { kind: 'string', optional: true, description: 'Display name' },
-    color: { kind: 'string', optional: true, description: 'Display color (a CSS color)' },
-  },
-  apply(record, input) {
-    const marker = {
-      id: newPersonalContentId(),
-      // The engine rounds and clamps to zero; report what it will store.
-      timeMs: Math.max(0, Math.round(input.at_ms as number)),
-      ...(input.name !== undefined ? { name: input.name as string } : {}),
-      ...(input.color !== undefined ? { color: input.color as string } : {}),
-    }
-    const result = addShowTimelineMarker(record, marker)
-    if (result === record) {
-      return engineIdentityRefusal('add_marker', 'The Show may lack a composition or the time was not finite.')
-    }
-    return {
-      ok: true,
-      record: result,
-      changes: [{
-        command: 'add_marker',
-        targetId: marker.id,
-        description: `Marker${marker.name ? ` "${marker.name}"` : ''} added at ${Math.round(marker.timeMs)} ms.`,
-      }],
-    }
-  },
+const markerTime = { kind: 'integer' as const, safeInteger: true, description: 'Nonnegative safe integer global milliseconds; may be beyond Show End' }
+
+export function markerCommandOutcome(record: ShowRecord, name: string, input: Record<string, unknown>, newId = newPersonalContentId) {
+  const markerId = name === 'add_marker' ? newId() : input.marker_id as string
+  const patch = {
+    ...(input.name !== undefined ? { name: input.name as string } : {}),
+    ...(input.color !== undefined ? { color: input.color as string } : {}),
+    ...(input.at_ms !== undefined ? { timeMs: input.at_ms as number } : {}),
+  }
+  const request: ShowMarkerRequest = name === 'add_marker' ? { kind: 'add', marker: { id: markerId, timeMs: input.at_ms as number, ...patch } }
+    : name === 'move_marker' ? { kind: 'move', markerId, timeMs: input.at_ms as number }
+      : name === 'update_marker' ? { kind: 'update', markerId, patch }
+        : { kind: 'remove', markerId }
+  const result = editShowMarkerExactly(record, request)
+  if (result.status === 'refused') return refuseShowCommand({ code: result.code, message: result.reason, candidates: result.candidates })
+  return { ok: true as const, record: result.record, changes: result.status === 'noop' ? [] : [{ command: name, targetId: markerId, description: `Marker ${markerId}: ${name.replace('_marker', '')} applied.` }] }
 }
 
-const moveMarker: ShowCommandDescriptor = {
-  name: 'move_marker',
-  description: 'Move a timeline marker to a new global time; the marker keeps its name and color.',
-  touches: ['/composition/markers', '/updatedAt'],
-  fields: {
-    marker_id: { kind: 'string', description: 'The marker to move' },
-    at_ms: { kind: 'number', description: 'New global time in milliseconds' },
-  },
-  apply(record, input) {
-    const timeMs = Math.max(0, Math.round(input.at_ms as number))
-    const result = moveShowTimelineMarker(record, input.marker_id as string, timeMs)
-    if (result === record) return unknownMarker(record, input.marker_id as string)
-    return {
-      ok: true,
-      record: result,
-      changes: [{
-        command: 'move_marker',
-        targetId: input.marker_id as string,
-        description: `Marker ${input.marker_id} moved to ${timeMs} ms.`,
-      }],
-    }
-  },
-}
-
-const updateMarker: ShowCommandDescriptor = {
-  name: 'update_marker',
-  description: 'Rename or recolor a timeline marker, or change its time; give at least one field.',
-  touches: ['/composition/markers', '/updatedAt'],
-  fields: {
-    marker_id: { kind: 'string', description: 'The marker to update' },
-    name: { kind: 'string', optional: true, description: 'New display name' },
-    color: { kind: 'string', optional: true, description: 'New display color' },
-    at_ms: { kind: 'number', optional: true, description: 'New global time in milliseconds' },
-  },
-  apply(record, input) {
-    if (input.name === undefined && input.color === undefined && input.at_ms === undefined) {
-      return refuseShowCommand({
-        code: 'invalid-argument',
-        message: 'update_marker: give at least one of name, color, or at_ms.',
-      })
-    }
-    const result = updateShowTimelineMarker(record, input.marker_id as string, {
-      ...(input.name !== undefined ? { name: input.name as string } : {}),
-      ...(input.color !== undefined ? { color: input.color as string } : {}),
-      ...(input.at_ms !== undefined ? { timeMs: input.at_ms as number } : {}),
-    })
-    if (result === record) return unknownMarker(record, input.marker_id as string)
-    return {
-      ok: true,
-      record: result,
-      changes: [{
-        command: 'update_marker',
-        targetId: input.marker_id as string,
-        description: `Marker ${input.marker_id} updated.`,
-      }],
-    }
-  },
-}
-
-const removeMarker: ShowCommandDescriptor = {
-  name: 'remove_marker',
-  description: 'Remove a timeline marker from the Show; playback and clips are unaffected.',
-  touches: ['/composition/markers', '/updatedAt'],
-  fields: {
-    marker_id: { kind: 'string', description: 'The marker to remove' },
-  },
-  apply(record, input) {
-    const result = removeShowTimelineMarker(record, input.marker_id as string)
-    if (result === record) return unknownMarker(record, input.marker_id as string)
-    return {
-      ok: true,
-      record: result,
-      changes: [{
-        command: 'remove_marker',
-        targetId: input.marker_id as string,
-        description: `Marker ${input.marker_id} removed.`,
-      }],
-    }
-  },
-}
+export const SHOW_MARKER_COMMANDS: ShowCommandDescriptor[] = [
+  { name: 'add_marker', description: 'Add a timeline marker at an exact global time, optionally named and colored. Markers never affect playback.', fields: { at_ms: markerTime, name: { kind: 'string', optional: true, description: 'Display name' }, color: { kind: 'string', optional: true, description: 'Display color' } } },
+  { name: 'move_marker', description: 'Move a marker to an exact global time, preserving name and color. An already-satisfied request is a no-op.', fields: { marker_id: { kind: 'string', description: 'Marker id' }, at_ms: markerTime } },
+  { name: 'update_marker', description: 'Update marker name, color or exact time; give at least one field. An already-satisfied request is a no-op.', fields: { marker_id: { kind: 'string', description: 'Marker id' }, name: { kind: 'string', optional: true, description: 'New name' }, color: { kind: 'string', optional: true, description: 'New color' }, at_ms: { ...markerTime, optional: true } } },
+  { name: 'remove_marker', description: 'Remove an existing marker without changing playback or Clips. Missing targets refuse.', fields: { marker_id: { kind: 'string', description: 'Marker id' } } },
+].map((entry): ShowCommandDescriptor => ({ ...entry, fields: entry.fields as ShowCommandDescriptor['fields'], touches: ['/composition/markers', '/updatedAt'], apply: (record, input) => markerCommandOutcome(record, entry.name, input) }))
 
 export const SHOW_TIMELINE_COMMANDS: ShowCommandDescriptor[] = [
   insertTime,
   setShowEnd,
-  addMarker,
-  moveMarker,
-  updateMarker,
-  removeMarker,
+  ...SHOW_MARKER_COMMANDS,
 ]

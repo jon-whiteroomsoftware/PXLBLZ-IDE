@@ -1,3 +1,4 @@
+import { editShowMarkerFromUI } from '../engine/showExactTimelineMarker'
 import { Fragment, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
 import { Activity, BookOpen, ChevronDown, ChevronRight, Clock3, Code2, Copy, CopyPlus, Download, Eye, Flag, FlipHorizontal2, Grid2X2, Layers3, Lightbulb, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scaling, Scissors, Settings2, SkipBack, SlidersHorizontal, Square, SquareDashed, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
@@ -213,14 +214,10 @@ import {
   type ShowGroupClipOwner,
 } from '@/engine/showGroupClipInspectorModel'
 import {
-  addShowTimelineMarker,
   insertShowTime,
-  moveShowTimelineMarker,
   planShowTimeInsertion,
-  removeShowTimelineMarker,
   setShowEndMs,
   showTimelineContentEndMs,
-  updateShowTimelineMarker,
 } from '@/engine/showTimelineAuthoring'
 import { buildShowEpeExport, type ShowEpeExport } from '@/engine/showEpeExport'
 import { buildShowFileBundle, serializeShowFileBundle } from '@/engine/showFileBundle'
@@ -2719,35 +2716,39 @@ export function ShowEditor({
                   if (!timelineComposition) return false
                   const basis = { ...activeShow, composition: timelineComposition }
                   const markerNumber = (timelineComposition.markers?.length ?? 0) + 1
-                  const next = addShowTimelineMarker(basis, {
+                  const result = editShowMarkerFromUI(basis, { kind: 'add', marker: {
                     id: newPersonalContentId(),
                     timeMs,
                     name: `Marker ${markerNumber}`,
                     color: '#f59e0b',
-                  })
-                  if (next === basis) return false
-                  return tryUpdateShow(activeShow.id, next)
+                  } })
+                  if (result.status === 'refused') return false
+                  if (result.status === 'noop') return true
+                  return tryUpdateShow(activeShow.id, result.record)
                 }}
                 onMoveMarker={async (markerId, timeMs) => {
                   if (!timelineComposition) return false
                   const basis = { ...activeShow, composition: timelineComposition }
-                  const next = moveShowTimelineMarker(basis, markerId, timeMs)
-                  if (next === basis) return false
-                  return tryUpdateShow(activeShow.id, next)
+                  const result = editShowMarkerFromUI(basis, { kind: 'move', markerId, timeMs })
+                  if (result.status === 'refused') return false
+                  if (result.status === 'noop') return true
+                  return tryUpdateShow(activeShow.id, result.record)
                 }}
                 onUpdateMarker={async (markerId, patch) => {
                   if (!timelineComposition) return false
                   const basis = { ...activeShow, composition: timelineComposition }
-                  const next = updateShowTimelineMarker(basis, markerId, patch)
-                  if (next === basis) return false
-                  return tryUpdateShow(activeShow.id, next)
+                  const result = editShowMarkerFromUI(basis, { kind: 'update', markerId, patch })
+                  if (result.status === 'refused') return false
+                  if (result.status === 'noop') return true
+                  return tryUpdateShow(activeShow.id, result.record)
                 }}
                 onRemoveMarker={async (markerId) => {
                   if (!timelineComposition) return false
                   const basis = { ...activeShow, composition: timelineComposition }
-                  const next = removeShowTimelineMarker(basis, markerId)
-                  if (next === basis) return false
-                  return tryUpdateShow(activeShow.id, next)
+                  const result = editShowMarkerFromUI(basis, { kind: 'remove', markerId })
+                  if (result.status === 'refused') return false
+                  if (result.status === 'noop') return true
+                  return tryUpdateShow(activeShow.id, result.record)
                 }}
                 onSetShowEnd={async (durationMs) => {
                   if (!timelineComposition) return false

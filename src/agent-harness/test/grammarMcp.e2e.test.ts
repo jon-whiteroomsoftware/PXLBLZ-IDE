@@ -47,6 +47,29 @@ describe('grammar tools over MCP (#17)', () => {
     )
   })
 
+  it('exposes exact marker schemas and preserves export and history after no-op and refused requests', async () => {
+    const tools = await client.listTools()
+    for (const name of ['add_marker', 'move_marker', 'update_marker']) {
+      const schema = tools.tools.find(tool => tool.name === name)!.inputSchema as { properties: Record<string, { type: string; maximum: number }> }
+      expect(schema.properties.at_ms.type).toBe('integer')
+      expect(schema.properties.at_ms.maximum).toBe(Number.MAX_SAFE_INTEGER)
+    }
+    const { document } = openGrammarFixture()
+    document.show.composition!.markers = [{ id: 'm', timeMs: 10, name: 'Existing' }]
+    const { payload: opened } = await callJson('open_show', { show: document.show })
+    const session_id = opened.sessionId
+    const before = await callJson('export_show', { session_id })
+    const noop = await callJson('move_marker', { session_id, marker_id: 'm', at_ms: 10 })
+    expect(noop.isError).toBe(false)
+    expect(noop.payload.changes).toEqual([])
+    for (const args of [{ at_ms: -1 }, { at_ms: 0.5 }, { at_ms: Number.MAX_SAFE_INTEGER + 1 }, { name: null }, {}]) {
+      expect((await client.callTool({ name: 'update_marker', arguments: { session_id, marker_id: 'm', ...args } })).isError).toBe(true)
+    }
+    expect((await callJson('remove_marker', { session_id, marker_id: 'absent' })).isError).toBe(true)
+    expect(await callJson('export_show', { session_id })).toEqual(before)
+    expect((await callJson('undo', { session_id })).isError).toBe(true)
+  })
+
   it("carries the owner's example end to end through the protocol", async () => {
     const fixture = openGrammarFixture({ overlay: true })
     const { payload: opened, isError: openError } = await callJson('open_show', {

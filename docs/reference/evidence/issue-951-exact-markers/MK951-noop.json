@@ -1,0 +1,69 @@
+{
+  "requestId": "req-mttng9xl-88j0o7",
+  "showId": "markers-951-mttng674",
+  "capturedUpdatedAt": 1788931207057,
+  "submittedAt": 1788931207498,
+  "responseAt": 1788931207514,
+  "firstEventAt": 1788931207514,
+  "doneAt": 1788931210020,
+  "applyStartedAt": null,
+  "applyEndedAt": null,
+  "changed": false,
+  "applied": null,
+  "error": null,
+  "events": [
+    {
+      "kind": "accepted",
+      "name": null,
+      "at": 1788931207514
+    },
+    {
+      "kind": "tool",
+      "name": "move_marker",
+      "at": 1788931210020
+    },
+    {
+      "kind": "tool",
+      "name": "update_marker",
+      "at": 1788931210020
+    },
+    {
+      "kind": "validation",
+      "name": null,
+      "at": 1788931210020
+    },
+    {
+      "kind": "done",
+      "name": null,
+      "at": 1788931210020
+    }
+  ],
+  "bridgeTiming": {
+    "acceptedAt": 1788931207499,
+    "delayMs": 2500,
+    "agentStartedAt": 1788931210008,
+    "agentEndedAt": 1788931210019,
+    "exportedAt": 1788931210020,
+    "toolCalls": [
+      {
+        "name": "move_marker",
+        "at": 1788931210008,
+        "ms": 4
+      },
+      {
+        "name": "update_marker",
+        "at": 1788931210012,
+        "ms": 1
+      }
+    ],
+    "validation": {
+      "at": 1788931210013,
+      "ms": 6,
+      "ok": true
+    }
+  },
+  "outcome": {
+    "status": "completed",
+    "completion": "nothing-applied"
+  }
+}

@@ -1,35 +1,18 @@
 // Provenance: pxlblz-v3 src/grammar/operations/timeline.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
 // Timeline operation family: insert time, Show End, and markers. Insert time
-// is planner-backed; the marker operations pre-check unknown ids. All times
+// is planner-backed; marker operations use the canonical exact owner. All times
 // are global timeline milliseconds.
 import { z } from 'zod'
 import {
-  addShowTimelineMarker,
   insertShowTime,
-  moveShowTimelineMarker,
   planShowTimeInsertion,
-  removeShowTimelineMarker,
   setShowEndMs,
   showTimelineContentEndMs,
-  updateShowTimelineMarker,
 } from '@/engine/showTimelineAuthoring'
 import { showLoopDurationMs } from '@/engine/showModel'
 import type { ShowGrammarOperation } from '../registry.js'
-import type { GrammarIssue, ShowGrammarDocument } from '../types.js'
-import { compositionOf, idFactory, planRefusal, refuse, replacedShow } from '../support.js'
-
-function unknownMarker(document: ShowGrammarDocument, markerId: string): GrammarIssue {
-  const markers = compositionOf(document).markers ?? []
-  return {
-    code: 'unknown-marker',
-    message:
-      markers.length === 0
-        ? `No markers exist yet; add one with add_marker.`
-        : `No marker has id "${markerId}". Known markers: ${
-            markers.map((marker) => `${marker.id} (${marker.name ?? 'unnamed'} at ${marker.timeMs} ms)`).join('; ')}.`,
-    candidates: markers.map((marker) => marker.id),
-  }
-}
+import { idFactory, planRefusal, refuse, replacedShow } from '../support.js'
+import { canonicalMarkerOperations } from './markerAdapter.js'
 
 const insertTime: ShowGrammarOperation = {
   name: 'insert_time',
@@ -124,157 +107,8 @@ const setShowEnd: ShowGrammarOperation = {
   },
 }
 
-const addMarker: ShowGrammarOperation = {
-  name: 'add_marker',
-  description:
-    'Add a named marker at a global time on the timeline. Markers are navigation aids; they do not ' +
-    'affect playback.',
-  mutates: ['/composition/markers'],
-  inputShape: {
-    at_ms: z.number().describe('Global timeline time in milliseconds'),
-    name: z.string().optional().describe('Marker label'),
-    color: z.string().optional().describe('Marker color (CSS color string)'),
-  },
-  apply(document, args) {
-    const atMs = args.at_ms as number
-    if (!Number.isFinite(atMs) || atMs < 0) {
-      return refuse({ code: 'invalid-argument', message: 'at_ms must be a non-negative time in milliseconds.' })
-    }
-    const marker = {
-      id: idFactory(document)('marker'),
-      timeMs: atMs,
-      ...(args.name !== undefined ? { name: args.name as string } : {}),
-      ...(args.color !== undefined ? { color: args.color as string } : {}),
-    }
-    const result = addShowTimelineMarker(document.show, marker)
-    if (result === document.show) {
-      return refuse({
-        code: 'engine-refused',
-        message: `The engine declined to add a marker at ${atMs} ms.`,
-      })
-    }
-    return {
-      ok: true,
-      document: replacedShow(document, result),
-      changes: [{
-        op: 'add_marker',
-        targetId: marker.id,
-        description: `Marker ${marker.id}${marker.name ? ` ("${marker.name}")` : ''} added at ${Math.round(atMs)} ms.`,
-      }],
-    }
-  },
-}
-
-const moveMarker: ShowGrammarOperation = {
-  name: 'move_marker',
-  description: 'Move one timeline marker to a new global time, given in milliseconds.',
-  mutates: ['/composition/markers/*/timeMs'],
-  inputShape: {
-    marker_id: z.string().describe('Marker id'),
-    at_ms: z.number().describe('New global timeline time in milliseconds'),
-  },
-  apply(document, args) {
-    const markerId = args.marker_id as string
-    if (!(compositionOf(document).markers ?? []).some((marker) => marker.id === markerId)) {
-      return refuse(unknownMarker(document, markerId))
-    }
-    const result = moveShowTimelineMarker(document.show, markerId, args.at_ms as number)
-    if (result === document.show) {
-      return refuse({
-        code: 'engine-refused',
-        message: `The engine declined to move marker ${markerId} to ${args.at_ms} ms.`,
-      })
-    }
-    return {
-      ok: true,
-      document: replacedShow(document, result),
-      changes: [{
-        op: 'move_marker',
-        targetId: markerId,
-        description: `Marker ${markerId} moved to ${Math.round(args.at_ms as number)} ms.`,
-      }],
-    }
-  },
-}
-
-const updateMarker: ShowGrammarOperation = {
-  name: 'update_marker',
-  description: 'Change one marker’s name, color, or time. Give at least one field.',
-  mutates: ['/composition/markers/*'],
-  inputShape: {
-    marker_id: z.string().describe('Marker id'),
-    name: z.string().optional(),
-    color: z.string().optional(),
-    at_ms: z.number().optional().describe('New global timeline time in milliseconds'),
-  },
-  apply(document, args) {
-    const markerId = args.marker_id as string
-    if (!(compositionOf(document).markers ?? []).some((marker) => marker.id === markerId)) {
-      return refuse(unknownMarker(document, markerId))
-    }
-    const patch: Record<string, unknown> = {}
-    if (args.name !== undefined) patch.name = args.name
-    if (args.color !== undefined) patch.color = args.color
-    if (args.at_ms !== undefined) patch.timeMs = args.at_ms
-    if (Object.keys(patch).length === 0) {
-      return refuse({ code: 'invalid-argument', message: 'Give at least one of name, color, or at_ms.' })
-    }
-    const result = updateShowTimelineMarker(document.show, markerId, patch)
-    if (result === document.show) {
-      return refuse({
-        code: 'engine-refused',
-        message: `The engine declined to update marker ${markerId}.`,
-      })
-    }
-    return {
-      ok: true,
-      document: replacedShow(document, result),
-      changes: [{
-        op: 'update_marker',
-        targetId: markerId,
-        description: `Marker ${markerId} updated: ${
-          Object.entries(patch).map(([key, value]) => `${key} ${JSON.stringify(value)}`).join(', ')}.`,
-      }],
-    }
-  },
-}
-
-const removeMarker: ShowGrammarOperation = {
-  name: 'remove_marker',
-  description: 'Remove one timeline marker by its id; the timeline itself is unaffected.',
-  mutates: ['/composition/markers'],
-  inputShape: {
-    marker_id: z.string().describe('Marker id'),
-  },
-  apply(document, args) {
-    const markerId = args.marker_id as string
-    if (!(compositionOf(document).markers ?? []).some((marker) => marker.id === markerId)) {
-      return refuse(unknownMarker(document, markerId))
-    }
-    const result = removeShowTimelineMarker(document.show, markerId)
-    if (result === document.show) {
-      return refuse({
-        code: 'engine-refused',
-        message: `The engine declined to remove marker ${markerId}.`,
-      })
-    }
-    return {
-      ok: true,
-      document: replacedShow(document, result),
-      changes: [{
-        op: 'remove_marker',
-        targetId: markerId,
-        description: `Marker ${markerId} removed.`,
-      }],
-    }
-  },
-}
-
 export const TIMELINE_OPERATIONS: ShowGrammarOperation[] = [
   insertTime,
   setShowEnd,
-  addMarker,
-  moveMarker,
-  updateMarker,
-  removeMarker,
+  ...canonicalMarkerOperations(),
 ]

@@ -1,0 +1,30 @@
+{
+  "sourceSha256": "5d333002169d68709e3e3d31351edf78d461a9e20578c28d603e4b22b7e69bac",
+  "restored": true,
+  "faults": [
+    {
+      "fault": "exact-time",
+      "exitCode": 1,
+      "detected": true,
+      "surface": "complete marker records, exact expected target values, typed refusal and no-op outcomes"
+    },
+    {
+      "fault": "no-op",
+      "exitCode": 1,
+      "detected": true,
+      "surface": "complete marker records, exact expected target values, typed refusal and no-op outcomes"
+    },
+    {
+      "fault": "missing-target",
+      "exitCode": 1,
+      "detected": true,
+      "surface": "complete marker records, exact expected target values, typed refusal and no-op outcomes"
+    },
+    {
+      "fault": "preservation",
+      "exitCode": 1,
+      "detected": true,
+      "surface": "complete marker records, exact expected target values, typed refusal and no-op outcomes"
+    }
+  ]
+}

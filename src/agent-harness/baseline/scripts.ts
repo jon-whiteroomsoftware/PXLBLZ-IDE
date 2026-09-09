@@ -116,6 +116,37 @@ export const BASELINE_UTTERANCES: BaselineUtterance[] = [
       { say: 'The connected Clip cannot change Layer without an explicit disconnect.', intent: 'refuse' },
     ],
   },
+  {
+    utterance: 'add move and update the marker',
+    intent: '#951: marker batch adopts once.',
+    script: [
+      { tool: 'add_marker', args: { at_ms: 1000, name: 'New', color: '#f59e0b' } },
+      { tool: 'move_marker', args: { marker_id: 'marker-2', at_ms: 70000 } },
+      { tool: 'update_marker', args: { marker_id: 'marker-2', at_ms: 9000, name: 'Final', color: '#38bdf8', finish_turn_reply: { intent: 'apply', reply: 'Added, moved and updated the marker.' } } },
+    ],
+  },
+  {
+    utterance: 'keep the final marker unchanged',
+    intent: '#951: wholly no-op marker batch does not adopt.',
+    script: [
+      { tool: 'move_marker', args: { marker_id: 'marker-2', at_ms: 9000 } },
+      { tool: 'update_marker', args: { marker_id: 'marker-2', name: 'Final', color: '#38bdf8', finish_turn_reply: { intent: 'apply', reply: 'The marker is already correct.' } } },
+    ],
+  },
+  {
+    utterance: 'remove the missing marker',
+    intent: '#951: missing removal refuses.',
+    script: [
+      { tool: 'remove_marker', args: { marker_id: 'absent' } },
+      { say: 'That marker does not exist.', intent: 'refuse' },
+    ],
+  },
+  {
+    utterance: 'remove the final marker',
+    intent: '#951: removal preserves all other content.',
+    script: [{ tool: 'remove_marker', args: { marker_id: 'marker-2', finish_turn_reply: { intent: 'apply', reply: 'Removed the marker.' } } }],
+  },
+
 ]
 
 /** The script for an utterance the scripted bridge knows, or null. */

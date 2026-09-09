@@ -1,3 +1,4 @@
+import { editShowMarkerFromUI, type ShowMarkerRequest } from './showExactTimelineMarker'
 import { normalizeShowComposition, validateShowComposition } from './showCompositionModel'
 import { multiSegmentLogicalClips, multiSegmentLogicalPlacementIds } from './showClipInvariant'
 import { normalizePersistedShowEasing } from './showEasing'
@@ -230,53 +231,24 @@ export function setShowEndMs(show: ShowRecord, requestedDurationMs: number): Sho
 }
 
 export function addShowTimelineMarker(show: ShowRecord, marker: ShowTimelineMarker): ShowRecord {
-  if (!show.composition || !marker.id || !Number.isFinite(marker.timeMs)) return show
-  if ((show.composition.markers ?? []).some((candidate) => candidate.id === marker.id)) return show
-  return withMarkers(show, [
-    ...(show.composition.markers ?? []),
-    { ...marker, timeMs: Math.max(0, Math.round(marker.timeMs)) },
-  ])
+  return manualMarkerRecord(show, { kind: 'add', marker })
 }
 
 export function moveShowTimelineMarker(show: ShowRecord, markerId: string, timeMs: number): ShowRecord {
-  if (!show.composition || !Number.isFinite(timeMs)) return show
-  const markers = show.composition.markers ?? []
-  if (!markers.some((marker) => marker.id === markerId)) return show
-  return withMarkers(show, markers.map((marker) => marker.id === markerId
-    ? { ...marker, timeMs: Math.max(0, Math.round(timeMs)) }
-    : marker))
+  return manualMarkerRecord(show, { kind: 'move', markerId, timeMs })
 }
 
-export function updateShowTimelineMarker(
-  show: ShowRecord,
-  markerId: string,
-  patch: Partial<Omit<ShowTimelineMarker, 'id'>>,
-): ShowRecord {
-  if (!show.composition) return show
-  const markers = show.composition.markers ?? []
-  const marker = markers.find((candidate) => candidate.id === markerId)
-  if (!marker || (patch.timeMs !== undefined && !Number.isFinite(patch.timeMs))) return show
-  return withMarkers(show, markers.map((candidate) => candidate.id === markerId
-    ? {
-        ...candidate,
-        ...patch,
-        ...(patch.timeMs !== undefined ? { timeMs: Math.max(0, Math.round(patch.timeMs)) } : {}),
-      }
-    : candidate))
+export function updateShowTimelineMarker(show: ShowRecord, markerId: string, patch: Partial<Omit<ShowTimelineMarker, 'id'>>): ShowRecord {
+  return manualMarkerRecord(show, { kind: 'update', markerId, patch })
 }
 
 export function removeShowTimelineMarker(show: ShowRecord, markerId: string): ShowRecord {
-  if (!show.composition?.markers?.some((marker) => marker.id === markerId)) return show
-  return withMarkers(show, show.composition.markers.filter((marker) => marker.id !== markerId))
+  return manualMarkerRecord(show, { kind: 'remove', markerId })
 }
 
-function withMarkers(show: ShowRecord, markers: ShowTimelineMarker[]): ShowRecord {
-  const next: ShowRecord = {
-    ...show,
-    composition: { ...show.composition!, markers },
-    updatedAt: Math.max(Date.now(), show.updatedAt + 1),
-  }
-  return { ...next, composition: normalizeShowComposition(next, next.composition!) }
+function manualMarkerRecord(show: ShowRecord, request: ShowMarkerRequest): ShowRecord {
+  const result = editShowMarkerFromUI(show, request)
+  return result.status === 'refused' ? show : result.record
 }
 
 function insertIntoPlacements<T extends ShowMainPlacement | ShowOverlayPlacement>(

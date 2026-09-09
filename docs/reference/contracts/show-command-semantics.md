@@ -15,7 +15,7 @@ covers the registry, not every direct engine mutation or editor gesture.
   help the caller recover. Descriptor schemas own invocation shape; the
   [generated coverage report](../show-command-coverage.md) owns the inventory.
 - An unchanged engine identity result alone is a typed refusal, not success.
-  `resize_clip` and `move_clip` separately validate an already-satisfied request and return
+  `resize_clip`, `move_clip`, `move_marker` and `update_marker` separately validate an already-satisfied request and return
   the original record with zero changes and no timestamp. Some
   commands also explicitly refuse no change, such as renaming to the current
   name. Such a step aborts its containing batch; replay is not guaranteed to
@@ -57,6 +57,39 @@ and failure without partial mutation.
 [Command tests](../../../src/engine/showCommands/commands.test.ts) exercise
 individual outcomes, including retained Clip target ids for move and resize.
 These are executable examples, not exhaustive proof over every possible Show.
+
+## Exact timeline markers
+
+`add_marker`, `move_marker`, `update_marker` and `remove_marker` share
+[one marker owner](../../../src/engine/showExactTimelineMarker.ts) with the
+manual callbacks and legacy timeline helper entrypoints. Structured `at_ms`
+values are nonnegative safe integers; fractional, nonfinite, negative and unsafe
+values refuse before any rounding or clamping. Times beyond Show End remain
+supported. Marker edits preserve every unrelated authored record and reference,
+including composition ordering. Only the marker collection is sorted by time
+then id; removing its final member omits the collection.
+
+Missing targets, duplicate marker identities and empty structured updates
+refuse. A valid same-value move or update returns the original record and zero
+changes, without a timestamp, adoption, history entry or save. Input and marker
+identity validation precede that result. Name and color remain optional strings;
+no nullable public input or new color restriction is introduced.
+
+Manual controls retain their existing time conversion and rounding, generated
+names and colors, name trimming, and explicit undefined name clearing. The
+manual adapter converts time before exact evaluation; the editor skips saving
+successful no-ops. Marker edits do not normalize the whole composition: that
+would change unrelated authored ordering. Legacy marker helpers forward to the
+shared owner rather than retaining another mutation implementation.
+
+The [diagnostic adapter](../../../src/agent-harness/grammar/operations/markerAdapter.ts)
+derives schemas from the canonical descriptors and retains diagnostic ID
+minting. Existing whole-Show admission and final authoring validation remain
+responsible for the candidate; markers acquire no narrow concurrency authority.
+[Engine tests](../../../src/engine/showExactTimelineMarker.test.ts),
+[adapter tests](../../../src/agent-harness/test/canonicalMarkers.test.ts) and
+[the evidence packet](../evidence/issue-951-exact-markers/README.md) record
+preservation, protocol, history and browser qualification.
 
 ## Internal exact Clip move
 
