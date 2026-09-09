@@ -1586,3 +1586,32 @@ it('applies each Effect edit to the logical Clip across Scenes without changing 
     expect(result.record.composition!.patternInstances).toEqual(original.composition!.patternInstances)
   }
 })
+
+it.each(['clip-a', 'clip-ov'])('refuses duplication of imported legacy Trails without throwing or changing %s', async clipId => {
+  const show = showOverlayLayerFixture()
+  const zone = show.composition!.scenes[0].zones[0]
+  const placement = clipId === 'clip-a' ? zone.main[0] : zone.overlays[0].placements[0]
+  // The file importer retains legacy Effects even though today's Clip toolkit
+  // excludes Trails. This raw persisted form must remain a typed refusal.
+  placement.effects = [
+    { id: 'legacy-trails', kind: 'trails', decay: 0.8 } as unknown as NonNullable<typeof placement.effects>[number],
+    { id: 'brightness', kind: 'brightness', brightness: 0.4 },
+  ]
+  const imported = await reopen(show)
+  const importedZone = imported.composition!.scenes[0].zones[0]
+  const importedPlacement = clipId === 'clip-a' ? importedZone.main[0] : importedZone.overlays[0].placements[0]
+  expect(importedPlacement.effects).toStrictEqual(placement.effects)
+  expect(validateShowComposition(imported, imported.composition!)).toEqual([])
+  const before = structuredClone(imported)
+  const args = { clip_id: clipId, effect_id: 'legacy-trails' }
+  const canonical = applyShowCommand(imported, 'duplicate_clip_effect', args)
+  expect(canonical).toMatchObject({ ok: false, issues: [{ code: 'engine-refused' }] })
+  expect(imported).toStrictEqual(before)
+  // Ordinary diagnostic opening already refuses this legacy form at its
+  // stricter schema boundary; no post-validation document is fabricated.
+  const opened = openShowDocument(imported)
+  expect(opened.ok).toBe(false)
+  if (opened.ok) throw new Error('Legacy Trails unexpectedly passed diagnostic schema')
+  expect(opened.issues.some(issue => issue.code === 'open-failed' && issue.message.startsWith('[schema]'))).toBe(true)
+  expect(imported).toStrictEqual(before)
+})

@@ -61,7 +61,9 @@ function applyEffect(record: ShowRecord, command: string, input: Record<string, 
     next = effects.map(effect => effect.id === target!.id ? patched.effect : effect)
   } else if (command === 'duplicate_clip_effect') {
     next = duplicateShowClipEffect(effects, target!.id)
-    targetId = next.find(effect => !effects.some(old => old.id === effect.id))!.id
+    const copy = next.find(effect => !effects.some(old => old.id === effect.id))
+    if (!copy) return refuseShowCommand({ code: 'engine-refused', message: 'The Clip Effect owner could not duplicate this Effect.' })
+    targetId = copy.id
   } else if (command === 'move_clip_effect') {
     if (input.direction !== undefined) {
       if (input.edge !== undefined) return refuseShowCommand({ code: 'invalid-argument', message: 'edge requires target_effect_id.' })
