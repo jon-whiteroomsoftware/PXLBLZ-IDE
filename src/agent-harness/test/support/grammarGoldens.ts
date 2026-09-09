@@ -204,6 +204,22 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(right.clipId).toBe(changes[0].details?.rightClipId)
     expect(right.endMs).toBe(45_000)
 
+    const connected = withLayerTransition()
+    const beforeTransition = (connected.document.show.composition as ShowCompositionV1).transitions![0]
+    const splitConnected = applyOk(connected.document, 'split_clip', {
+      clip_id: connected.firstClipId,
+      at_ms: 5_000,
+    })
+    const rightClipId = splitConnected.changes[0].details?.rightClipId
+    expect((splitConnected.document.show.composition as ShowCompositionV1).transitions).toEqual([
+      { ...beforeTransition, fromPlacementId: rightClipId },
+    ])
+    expect(splitConnected.changes[0].details?.transitionChanges).toEqual([{
+      transitionId: connected.transitionId,
+      fromPlacementId: rightClipId,
+      toPlacementId: connected.secondClipId,
+    }])
+
     // Splitting a clip with a property track keeps a track on each half.
     const tracked = withBrightnessTrack()
     const trackedClip = clipAt(tracked.document, 0)

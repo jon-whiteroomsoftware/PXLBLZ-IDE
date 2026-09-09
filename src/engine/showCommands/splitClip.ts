@@ -14,10 +14,10 @@ export function splitClipCommandOutcome(record: ShowRecord, input: Record<string
   const { clip, owner } = found.context
   const globalTimeMs = input.at_ms as number
   const plan = planShowClipSplitAtGlobalTime(record, composition, { owner, globalTimeMs })
-  if (!plan.enabled) return planRefusal(plan, 'split_clip')
+  if (!plan.enabled) return planRefusal(plan, `split_clip Clip ${clip.id}`)
   const rightClipId = newId()
   const result = splitShowClipAtGlobalTime(record, composition, { owner, globalTimeMs, newPlacementId: rightClipId })
-  if (result === composition) return engineIdentityRefusal('split_clip', 'The rounded split point may sit on a boundary; check owners and fresh identities.')
+  if (result === composition) return engineIdentityRefusal(`split_clip Clip ${clip.id}`, 'The rounded split point may sit on a boundary; check owners and fresh identities.')
   const transitionChanges = (result.transitions ?? []).flatMap(transition => {
     const before = composition.transitions?.find(item => item.id === transition.id)
     return before && (before.fromPlacementId !== transition.fromPlacementId || before.toPlacementId !== transition.toPlacementId)

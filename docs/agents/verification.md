@@ -123,6 +123,12 @@ concurrently, but final review and landing form a serialized admission queue:
 
 A repair or rebase changes the exact tip and requires fresh full evidence.
 Runtime, configuration, command, and package changes can also invalidate records.
+For Show command convergence, run `npm run test:show-command-convergence`
+before source freeze. It selects the canonical command directory (including
+registry, goldens and touches), diagnostic grammar breadth/structure/registry,
+all `canonical*` adapter suites, and the grammar MCP suite. This cross-catalog
+check supplements operation-specific checks and leaves final suites outstanding.
+
 During repairs, use focused tests to settle the changed behavior and keep the
 full required suites outstanding. A focused pass, an e2e spec change, or an
 `X-E2E:` trailer does not constitute full-suite evidence. Resume already known
