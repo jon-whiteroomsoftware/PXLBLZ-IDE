@@ -19,9 +19,8 @@ add→move→update produced one PATCH; the downloaded Show reopened through
 `parseShowFileBundle` to the complete saved record. A wholly no-op batch and
 missing-marker removal produced no writes. Removal preserved other content;
 Undo restored removal, then the original batch in one step each. Synthetic
-records and observations are attached in [MK951.json](MK951.json),
-[export](MK951-export.json), [no-op](MK951-noop.json), and
-[refusal](MK951-refusal.json). The authenticated browser boundary reported no
+records and observations are asserted by the
+[MK951 browser case](../../../../e2e/agent-baseline.auth.spec.ts). The authenticated browser boundary reported no
 unexpected console or runtime errors. A first run lost its overlay after export
 while generated documentation refreshed; the unchanged-source rerun passed.
 
@@ -47,3 +46,11 @@ ownership change adds no domain term or new visible UI. The specialized command
 contract and generated inventory carry the exact input and no-op behavior.
 Whole-Show admission, paid inference, Controllers, hosted services, Insert Time
 and Show End semantics remain outside this slice.
+
+## Durable evidence after #994
+
+Generated record dumps, exported fixtures and mutation reports have been pruned.
+The committed [browser test](../../../../e2e/agent-baseline.auth.spec.ts),
+case `MK951: command admission saves once, reopens, undoes, refuses stale and deduplicates`,
+owns the current complete-record, export and Undo regression assertions.
+Retained captures and provenance describe the historical inspected runs.

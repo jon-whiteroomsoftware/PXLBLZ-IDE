@@ -1,7 +1,7 @@
 # Logical Clip removal
 
 The shared removal owner deletes a complete logical Clip and only its newly
-orphaned dependencies. The [importable fixture](951-remove.pxlshow) contains
+orphaned dependencies. The [RC951 browser case](../../../../e2e/agent-baseline.auth.spec.ts) contains
 ordinary overlay `clip-ov`, connected main `clip-b`, shared-instance survivors,
 a mixed Group and an unrelated orphan instance with a track.
 
@@ -26,7 +26,7 @@ The committed-source `RC951` scripted browser sequence passed at
 harness setup). A no-paid-model bridge turn produced one save/adoption. The
 actual downloaded `.pxlshow` reopened to the complete visible and durable Show;
 one Undo restored its complete preimage with one additional save and no earlier
-history. [Records](RC951.json), [reopened export](RC951-export.json) and
+history. [RC951 browser case](../../../../e2e/agent-baseline.auth.spec.ts) and
 [inspected capture](RC951-result.png) retain the synthetic evidence.
 
 The fixture intentionally contains the unrelated pre-existing `orphan-track`
@@ -76,6 +76,14 @@ killed 78/79. The remaining fault disabled manual cast-proof invalidation while
 canonical `withComposition` masked it; the existing stamped removal test now
 also checks actual manual-owner composition parity. The final run killed all
 79 faults in 7.2 seconds, with no survivors, exclusions, errors or timeouts.
-The original reports are preserved as [initial](mutation-before.json.gz),
-[wired suite](mutation-wired.json.gz), and [qualified](mutation-qualified.json.gz)
-compressed JSON. No mutant was classified away and no product repair was needed.
+The historical report totals above summarize those three runs; the generated
+mutation reports were pruned in #994. No mutant was classified away and no
+product repair was needed.
+
+## Durable evidence after #994
+
+Generated record dumps, exported fixtures and mutation reports have been pruned.
+The committed [browser test](../../../../e2e/agent-baseline.auth.spec.ts),
+case `RC951: command admission saves once, reopens, undoes, refuses stale and deduplicates`,
+owns the current complete-record, export and Undo regression assertions.
+Retained captures and provenance describe the historical inspected runs.

@@ -23,10 +23,10 @@ and the diagnostic conversation reports saved application followed by no change.
 
 | Case | Consumer result | Evidence |
 | --- | --- | --- |
-| Connected move | Exactly one PATCH; complete visible and durable records match; one Undo restores the complete input | [record](M951.json), [capture](M951-result.png) |
-| Export | The actual downloaded Show file reopens through the Show importer and equals the visible record | [reopened export](M951-export.json) |
-| Already satisfied | The retained valid target returns no candidate, no save and no extra Undo entry | [outcome](M951-noop.json) |
-| Incompatible destination | Moving connected B to overlay zero refuses; the complete visible/durable state and write count remain unchanged | [outcome](M951-refusal.json) |
+| Connected move | Exactly one PATCH; complete visible and durable records match; one Undo restores the complete input | [M951 browser case](../../../../e2e/agent-baseline.auth.spec.ts), [capture](M951-result.png) |
+| Export | The actual downloaded Show file reopens through the Show importer and equals the visible record | [M951 browser case](../../../../e2e/agent-baseline.auth.spec.ts) |
+| Already satisfied | The retained valid target returns no candidate, no save and no extra Undo entry | [M951 browser case](../../../../e2e/agent-baseline.auth.spec.ts) |
+| Incompatible destination | Moving connected B to overlay zero refuses; the complete visible/durable state and write count remain unchanged | [M951 browser case](../../../../e2e/agent-baseline.auth.spec.ts) |
 
 The refreshed MR regression also covers accepted move-then-resize, refusal,
 incomplete completion, active-input cancellation, manual commit and pending
@@ -65,7 +65,7 @@ review and landing belong to the coordinator.
 ## Coordinator in-app browser check
 
 At commit `6128f08d2f8fff63b65e91b77e3e35aae86d33f3`, the coordinator imported
-the JSON form of the committed `M951-export.json`, saved as
+the recorded JSON export (pruned in #994), saved as
 `/tmp/951-reopened-output.pxlshow`, through **Add show → Import Show file**,
 the actual file chooser and import confirmation. These were reserialized
 recorded export data, not the original browser download bytes. The import
@@ -83,3 +83,11 @@ canonical scripted-command proof above. The imported fixture retains its existin
 Portable 2D compatibility warning with the 1D reference map; this check makes no
 Controller or device-export claim. [Capture provenance](IAB-provenance.json)
 records the inspected source and route.
+
+## Durable evidence after #994
+
+Generated record dumps, exported fixtures and mutation reports have been pruned.
+The committed [browser test](../../../../e2e/agent-baseline.auth.spec.ts),
+case `M951: command admission saves once, reopens, undoes, refuses stale and deduplicates`,
+owns the current complete-record, export and Undo regression assertions.
+Retained captures and provenance describe the historical inspected runs.

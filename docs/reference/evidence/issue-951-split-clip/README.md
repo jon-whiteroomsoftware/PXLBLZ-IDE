@@ -2,7 +2,7 @@
 
 Source commit `543605e779256f07201d94cc2c3678731b09e1e8` shares the existing
 manual split owner with canonical and descriptor-derived diagnostic commands.
-The [importable synthetic fixture](951-split.pxlshow) contains Main `clip-b`
+The [SC951 browser case](../../../../e2e/agent-baseline.auth.spec.ts) contains Main `clip-b`
 from 12–36 seconds across a Cut at 30 seconds, incoming/outgoing Transitions,
 placement and shared instance animation, ordinary overlay `clip-ov` from 2–8
 seconds, and an unrelated mixed Group at 42 seconds.
@@ -22,7 +22,7 @@ the subsequently added explicit split MCP schema/export/Undo/Redo case and
 mutation inclusion assertion passed their 27-test selection. Source typecheck,
 lint and normal commit hooks passed (187 focused hook tests).
 
-[Mutation qualification](mutation-qualified.json.gz) killed all 79 catalogued
+The mutation qualification run killed all 79 catalogued
 faults with the new owner suite explicitly included: no survivors, exclusions,
 errors or timeouts. [Four targeted faults](faults.json) were also killed:
 whole-composition normalization, lost outgoing endpoint, lost fractional rounding
@@ -48,7 +48,7 @@ A captured split then refused with `revision-conflict` after a manual Layer
 addition, preserving that complete visible/durable edit. Delivering one fresh
 split twice made one save; one Undo restored the full manual preimage. The five
 PATCHes correspond exactly to split, Undo, manual Layer, fresh split and Undo.
-[Records](SC951.json), [reopened download](SC951-export.json) and the
+[SC951 browser case](../../../../e2e/agent-baseline.auth.spec.ts) and the
 [inspected route](SC951-result.png) preserve these observations.
 
 Coordinator in-app proof used the shared issue runtime at 5178 and a separate
@@ -71,8 +71,9 @@ The additional `SC951-overlay` actual-UI test passed (2.9 seconds; 6.7 seconds
 with setup) on the same frozen product source. It performs Main split/Undo,
 selects overlay at zero before seeking to five, asserts the selected Clip and
 owner-specific toolbar title, then checks the literal full visible/durable
-record and one Undo. All four [PATCH responses](SC951-overlay-responses.json)
-were 200; [complete records](SC951-overlay.json) retain the preimage and result.
+record and one Undo. All four PATCH responses were 200; the
+[SC951-overlay browser case](../../../../e2e/agent-baseline.auth.spec.ts)
+asserts the preimage and result.
 Its first setup probe left keyboard focus on a control; the second tried the
 Clip center beneath the playhead hit-target. The final probe selects before
 seeking, matching the inspected manual interaction; no force click or product
@@ -118,3 +119,11 @@ It is reused for the unchanged accepted/save/export/Undo/stale/duplicate flow;
 no browser capture is claimed at the repair hash. Existing mutation evidence
 also remains tied to its original source. The coordinator owns replacement
 committed-tip final suites and review; no review preceded this correction.
+
+## Durable evidence after #994
+
+Generated record dumps, exported fixtures and mutation reports have been pruned.
+The committed [browser test](../../../../e2e/agent-baseline.auth.spec.ts),
+case `SC951: command admission saves once, reopens, undoes, refuses stale and deduplicates`,
+owns the current complete-record, export and Undo regression assertions.
+Retained captures and provenance describe the historical inspected runs.
