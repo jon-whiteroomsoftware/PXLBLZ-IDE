@@ -12,7 +12,7 @@ import {
 } from './show-authoring-mutation'
 
 const repoRoot = process.cwd()
-const reportDirectory = resolve(repoRoot, 'reports/mutation')
+const reportDirectory = resolve(repoRoot, '.wrsp/mutation')
 const reportPath = resolve(reportDirectory, 'show-authoring.json')
 const configPath = resolve(reportDirectory, 'show-authoring.config.json')
 const classificationsPath = resolve(repoRoot, 'scripts/show-authoring-mutation-classifications.json')

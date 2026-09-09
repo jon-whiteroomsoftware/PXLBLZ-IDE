@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest'
+import { showOverlayLayerFixture } from '../../test/showOverlayLayerFixture'
 import { showCommandFixture } from '../../test/showCommandFixture'
 import { addShowOverlayLayerAcrossTimeline } from '../showTimelineClipAuthoring'
 import { validateShowComposition } from '../showCompositionModel'
@@ -88,10 +89,13 @@ it('refuses empty, invalid and missing Scene owners without mutation', () => {
 })
 
 it('preserves accepted sparse Group Layer identities before inserting an empty topmost Layer', async () => {
-  const { readFileSync } = await import('node:fs')
   const { parseShowFileBundle } = await import('../showFileBundle')
   const { materializeShowGroupOccurrences } = await import('../showGroupModel')
-  const { show } = await parseShowFileBundle(readFileSync('docs/reference/evidence/issue-951-overlay-layer/951-sparse-group.pxlshow'))
+  const recreated = showOverlayLayerFixture()
+  recreated.composition!.scenes[1].zones[0].overlays = []
+  const { buildShowFileBundle, serializeShowFileBundle } = await import('../showFileBundle')
+  const { bundle } = buildShowFileBundle(recreated, { patterns: [], maps: [] }, { appVersion: '951', exportedAt: '2026-09-09T00:00:00Z' })
+  const { show } = await parseShowFileBundle(await serializeShowFileBundle(bundle))
   const before = structuredClone(show)
   const composition = show.composition!
   const result = addShowOverlayLayerAcrossTimeline(show, composition, { zoneId: 'zone-1', layers: [

@@ -82,12 +82,12 @@ successful no-ops. Marker edits do not normalize the whole composition: that
 would change unrelated authored ordering. Legacy marker helpers forward to the
 shared owner rather than retaining another mutation implementation.
 
-The [diagnostic adapter](../../../src/agent-harness/grammar/operations/markerAdapter.ts)
+The [diagnostic adapter](../../../src/agent-harness/grammar/operations/descriptorAdapter.ts)
 derives schemas from the canonical descriptors and retains diagnostic ID
 minting. Existing whole-Show admission and final authoring validation remain
 responsible for the candidate; markers acquire no narrow concurrency authority.
 [Engine tests](../../../src/engine/showExactTimelineMarker.test.ts),
-[adapter tests](../../../src/agent-harness/test/canonicalMarkers.test.ts) and
+[adapter tests](../../../src/agent-harness/test/commandParity.test.ts) and
 [the evidence packet](../evidence/issue-951-exact-markers/README.md) record
 preservation, protocol, history and browser qualification.
 
@@ -127,7 +127,7 @@ qualified private pair transaction below retains its scoped overlap capability.
 
 [Exact move owner](../../../src/engine/showExactClipMove.ts),
 [owner fixtures](../../../src/engine/showExactClipMove.test.ts),
-[adapter fixtures](../../../src/agent-harness/test/canonicalMove.test.ts) and the
+[adapter fixtures](../../../src/agent-harness/test/commandParity.test.ts) and the
 real editor `M951` sequence in
 [the browser baseline](../../../e2e/agent-baseline.auth.spec.ts) cover these forms.
 The diagnostic schema derives from the canonical descriptor and retains no
@@ -290,7 +290,7 @@ Layer insertion invalidates a pending whole-Show request, so an old overlay
 index cannot silently retarget after insertion. No narrow admission is granted.
 
 [Focused fixtures](../../../src/engine/showCommands/overlayLayer.test.ts),
-[adapter parity](../../../src/agent-harness/test/canonicalOverlayLayer.test.ts)
+[adapter parity](../../../src/agent-harness/test/commandParity.test.ts)
 and [consumer evidence](../evidence/issue-951-overlay-layer/README.md) qualify
 this boundary. Layer removal/reorder, Group creation and add_clip migration
 remain outside this slice.
@@ -346,7 +346,7 @@ schema and outcome from the canonical descriptor, while retaining its local
 fresh-ID policy.
 
 [Owner tests](../../../src/engine/showCommands/splitClip.test.ts),
-[adapter/export tests](../../../src/agent-harness/test/canonicalSplitClip.test.ts)
+[adapter/export tests](../../../src/agent-harness/test/commandParity.test.ts)
 and [MCP tests](../../../src/agent-harness/test/grammarMcp.e2e.test.ts) qualify
 complete records, refusal, parity, split-then-edit/move and export/Undo/Redo.
 
@@ -378,7 +378,38 @@ drag uses the same bounded copy primitive with an explicit destination; it is a
 separate duplicate-and-move composition, not tail equivalence. Store/file
 normalization and whole-Show admission retain their existing ownership.
 [Owner tests](../../../src/engine/showCommands/duplicateClip.test.ts) and
-[adapter/import tests](../../../src/agent-harness/test/canonicalDuplicateClip.test.ts)
+[adapter/import tests](../../../src/agent-harness/test/commandParity.test.ts)
 cover full records, linkage, refusal and copy-then-edit/move. The `DC951` browser
 case covers one adoption/save, actual export/import, Undo and stale/duplicate
 response handling; it does not qualify paid inference or new concurrency scope.
+
+## Descriptor adapters and parity
+
+The [descriptor adapter](../../../src/agent-harness/grammar/operations/descriptorAdapter.ts) derives diagnostic fields, validation, descriptions, touches and outcome translation. Family registration retains existing identity factories; the private move wrapper and historical diagnostic resize spelling keep their existing scope.
+
+Normalization belongs at the store/file boundary. Command owners preserve
+unrelated authored fields and order rather than normalizing the whole composition.
+Existing delegated helpers `replaceLogicalClipGlobalSpan`, `moveShowClip` and
+`resizeShowClipAtGlobalTime` in `showTimelineClipAuthoring.ts` still normalize
+composition output; they are retained behavior, not an unqualified claim that all
+owners obey this boundary today. Split's `restoreOrder` remains in place. Any
+owner change needed to remove these residuals requires an explicit decision.
+
+The [golden-run oracle](../../../src/engine/showCommands/commands.test.ts)
+checks existing id-bearing entities independently of nested entities and excludes
+the Show envelope. Unnamed entity-owned fields and relative sibling order must
+remain equal. Permissions come from request/receipt identities and explicit
+preimage ownership: logical Clip segments, their placement/sole-instance tracks,
+attached Transitions, affected timeline positions and layout occurrence members.
+Deleting a permitted parent permits disappearance of its nested references.
+Observed diffs and descriptor touch patterns never grant identity permissions.
+Focused fault cases qualify unrelated values, nested keyframes, deletion,
+undefined-field materialization and ordering, including a child insertion that
+must not authorize changing its parent track's target.
+
+The [shared parity rows](../../../src/agent-harness/test/commandParity.test.ts)
+compare complete canonical, diagnostic and existing manual-owner results before
+normalization, preserve raw inputs, and reopen exported Shows. Stable importer
+inputs account for legacy entry defaults and implicit Cuts; owner parity is
+checked separately on the original authored fixtures. Refusal partitions and
+private service/transaction sequences remain in the same test file.

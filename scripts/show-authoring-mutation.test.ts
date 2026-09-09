@@ -175,7 +175,7 @@ describe('Show authoring mutation qualification (#597)', () => {
       allowEmpty: false,
       reporters: ['clear-text', 'json'],
       jsonReporter: {
-        fileName: 'reports/mutation/show-authoring.json',
+        fileName: '.wrsp/mutation/show-authoring.json',
       },
       thresholds: {
         high: 100,
@@ -197,6 +197,9 @@ describe('Show authoring mutation qualification (#597)', () => {
       'src/engine/showCompositionModel.test.ts',
       'src/engine/showCommands/removeClip.test.ts',
       'src/engine/showCommands/splitClip.test.ts',
+      'src/engine/showCommands/duplicateClip.test.ts',
+      'src/engine/showCommands/commands.test.ts',
+      'src/agent-harness/test/commandParity.test.ts',
       'src/engine/showClipInspectorModel.test.ts',
       'src/engine/showLayerTransitionAuthoring.test.ts',
     ]))

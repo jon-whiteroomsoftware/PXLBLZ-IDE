@@ -12,7 +12,8 @@ import {
 import { showLoopDurationMs } from '@/engine/showModel'
 import type { ShowGrammarOperation } from '../registry.js'
 import { idFactory, planRefusal, refuse, replacedShow } from '../support.js'
-import { canonicalMarkerOperations } from './markerAdapter.js'
+import { descriptorOperation } from './descriptorAdapter.js'
+import { SHOW_MARKER_COMMANDS, markerCommandOutcome } from '@/engine/showCommands/timeline'
 
 const insertTime: ShowGrammarOperation = {
   name: 'insert_time',
@@ -110,5 +111,5 @@ const setShowEnd: ShowGrammarOperation = {
 export const TIMELINE_OPERATIONS: ShowGrammarOperation[] = [
   insertTime,
   setShowEnd,
-  ...canonicalMarkerOperations(),
+  ...SHOW_MARKER_COMMANDS.map(descriptor => descriptorOperation(descriptor, (document, args) => markerCommandOutcome(document.show, descriptor.name, args, () => idFactory(document)('marker')))),
 ]

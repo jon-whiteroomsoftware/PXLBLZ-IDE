@@ -16,6 +16,7 @@ import { projectShowSummary } from '../showSummaryProjection'
 import { insertShowLayerTransition } from '../showLayerTransitionAuthoring'
 import { projectShowLayoutIntervals } from '../showLayoutIntervals'
 import { SHOW_COMMANDS, applyShowCommand, type ShowCommandChange } from './registry'
+import { isDeepStrictEqual } from 'node:util'
 
 // Golden accepted case and refusal partitions per registry entry, plus the
 // touch-path faithfulness sweep: every golden's actual changed paths must
@@ -24,6 +25,8 @@ import { SHOW_COMMANDS, applyShowCommand, type ShowCommandChange } from './regis
 
 interface AppliedRecord {
   command: string
+  input: Record<string, unknown>
+  changes: ShowCommandChange[]
   before: ShowRecord
   after: ShowRecord
 }
@@ -38,7 +41,7 @@ function applyOk(
   expect(outcome.ok, `${command} refused: ${JSON.stringify(!outcome.ok && outcome.issues)}`).toBe(true)
   if (!outcome.ok) throw new Error('unreachable')
   expect(outcome.record).not.toBe(record)
-  APPLIED.push({ command, before: record, after: outcome.record })
+  APPLIED.push({ command, input, changes: outcome.changes, before: record, after: outcome.record })
   return outcome
 }
 
@@ -661,7 +664,7 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
           value,
         })
         if (outcome.ok) {
-          APPLIED.push({ command: 'update_boundary_transition_parameter', before: swept, after: outcome.record })
+          APPLIED.push({ command: 'update_boundary_transition_parameter', input: { transition_id: 'transition-scene-1', parameter, value }, changes: outcome.changes, before: swept, after: outcome.record })
           swept = outcome.record
           const stored = swept.transitions?.find((candidate) => candidate.id === 'transition-scene-1') as
             | Record<string, unknown>
@@ -1403,4 +1406,187 @@ describe('Show command touch-path faithfulness (#885)', () => {
     }
     expect(violations).toEqual([])
   })
+})
+
+// Entity-owned fields exclude nested entities; their membership and order are
+// checked independently. Scene/Zone references stabilize paths without granting
+// permission to change the referenced entity. The Show envelope is not an entity.
+type EntityObject = Record<string, unknown>
+const entityCollections = new Set(['scenes', 'zones', 'main', 'overlays', 'placements', 'patternInstances', 'propertyTracks', 'keyframes', 'markers', 'transitions', 'effects', 'cells', 'routingLayouts', 'groupDefinitions', 'groupOccurrences', 'outputEffects'])
+function isObject(value: unknown): value is EntityObject { return !!value && typeof value === 'object' && !Array.isArray(value) }
+function entityInventory(record: ShowRecord) {
+  const entities = new Map<string, { id: string; own: unknown }>()
+  const orders = new Map<string, string[]>()
+  function own(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(item => own(item))
+    if (!isObject(value)) return value
+    return Object.fromEntries(Object.entries(value).flatMap(([name, child]) => {
+      if (isObject(child) && typeof child.id === 'string') return [[name, { id: child.id }]]
+      if (Array.isArray(child) && entityCollections.has(name) && child.every(item => isObject(item) && typeof item.id === 'string')) return []
+      return [[name, own(child)]]
+    }))
+  }
+  function visit(value: unknown, path: string) {
+    if (Array.isArray(value)) {
+      const ids = value.flatMap(item => isObject(item) && typeof item.id === 'string' ? [item.id] : [])
+      if (ids.length) orders.set(path, ids)
+      value.forEach((item, index) => {
+        const identity = isObject(item) ? item.id ?? item.sceneId ?? item.zoneId ?? index : index
+        visit(item, `${path}/${identity}`)
+      })
+    } else if (isObject(value)) {
+      if (path && typeof value.id === 'string') entities.set(path, { id: value.id, own: own(value) })
+      for (const [key, child] of Object.entries(value)) visit(child, `${path}/${key}`)
+    }
+  }
+  visit(record, '')
+  return { entities, orders }
+}
+
+/** Semantic permission comes from request identities, receipts and the preimage,
+ * never from observed differences or broad descriptor touch paths. */
+function permittedEntityIds({ command, input, changes, before }: AppliedRecord): Set<string> {
+  const ids = new Set<string>()
+  const add = (value: unknown) => { if (typeof value === 'string') ids.add(value) }
+  for (const key of ['clip_id', 'marker_id', 'effect_id', 'keyframe_id', 'transition_id']) add(input[key])
+  for (const change of changes) {
+    add(change.targetId)
+    for (const key of ['leftClipId', 'rightClipId', 'newInstanceId', 'instanceId', 'intervalId']) add(change.details?.[key])
+    for (const key of ['movedClipIds', 'changedClipIds']) for (const id of (change.details?.[key] as string[] | undefined) ?? []) add(id)
+    for (const item of (change.details?.transitionChanges as { transitionId: string }[] | undefined) ?? []) add(item.transitionId)
+  }
+  const composition = before.composition!
+  const placements = composition.scenes.flatMap(scene => scene.zones.flatMap(zone => [
+    ...zone.main.map(placement => ({ placement, sceneId: scene.sceneId })),
+    ...zone.overlays.flatMap(layer => layer.placements.map(placement => ({ placement, sceneId: scene.sceneId }))),
+  ]))
+  const clipRoots = new Set<string>()
+  if (['move_clip', 'resize_clip', 'split_clip', 'remove_clip', 'make_clip_pattern_independent', 'rejoin_clip_pattern_instance'].includes(command)) {
+    if (typeof input.clip_id === 'string') clipRoots.add(input.clip_id)
+    for (const id of ids) if (placements.some(({ placement }) => (placement.logicalClipId ?? placement.id) === id)) clipRoots.add(id)
+  }
+  if (['insert_layer_transition', 'resize_layer_transition', 'reset_layer_transition_to_cut'].includes(command)) {
+    const target = composition.transitions?.find(item => item.id === input.transition_id)
+    const start = command === 'insert_layer_transition' ? input.to_clip_id : target?.toPlacementId
+    if (typeof start === 'string') clipRoots.add(start)
+    let count = -1
+    while (count !== clipRoots.size) {
+      count = clipRoots.size
+      for (const transition of composition.transitions ?? []) if (clipRoots.has(transition.fromPlacementId)) clipRoots.add(transition.toPlacementId)
+    }
+  }
+  const selected = placements.filter(({ placement }) => clipRoots.has(placement.logicalClipId ?? placement.id))
+  const affectedInstances = new Set<string>()
+  for (const { placement } of selected) {
+    add(placement.id)
+    const soleUser = placements.every(other => other.placement.instanceId !== placement.instanceId || clipRoots.has(other.placement.logicalClipId ?? other.placement.id))
+    if (soleUser && ['remove_clip', 'rejoin_clip_pattern_instance', 'move_clip', 'resize_clip', 'insert_layer_transition', 'resize_layer_transition', 'reset_layer_transition_to_cut'].includes(command)) affectedInstances.add(placement.instanceId)
+  }
+  if (['remove_clip', 'rejoin_clip_pattern_instance'].includes(command)) for (const id of affectedInstances) add(id)
+  for (const transition of composition.transitions ?? []) {
+    if (selected.some(({ placement }) => placement.id === transition.fromPlacementId || placement.id === transition.toPlacementId)) add(transition.id)
+  }
+  for (const scene of composition.scenes) for (const track of scene.propertyTracks ?? []) {
+    const target = track.target
+    const placementOwned = 'placementId' in target && selected.some(({ placement }) => placement.id === target.placementId)
+    const instanceOwned = 'instanceId' in track.target && affectedInstances.has(track.target.instanceId)
+    if (placementOwned || instanceOwned || (command === 'delete_property_track' && track.id === input.track_id)) {
+      add(track.id)
+      for (const keyframe of track.keyframes) add(keyframe.id)
+    }
+  }
+  // Boundary canonicalization is part of the existing Layer-transition owner.
+  if (['insert_layer_transition', 'resize_layer_transition', 'reset_layer_transition_to_cut'].includes(command)) {
+    for (const transition of before.transitions) if (selected.some(item => item.sceneId === transition.afterSceneId)) add(transition.id)
+  }
+  if (command === 'set_show_end' || (command === 'add_clip' && input.extend_show)) add(before.scenes[before.scenes.length - 1]?.id)
+  if (command === 'insert_time') {
+    const atMs = input.at_ms as number
+    const ranges = projectShowSummary(before, composition).scenes
+    for (const range of ranges) {
+      if (range.startMs <= atMs && range.endMs >= atMs) add(range.sceneId)
+      for (const item of placements.filter(item => item.sceneId === range.sceneId)) if (range.startMs + item.placement.startMs + item.placement.durationMs > atMs) add(item.placement.id)
+      for (const track of composition.scenes.find(scene => scene.sceneId === range.sceneId)?.propertyTracks ?? []) {
+        if (track.keyframes.some(frame => range.startMs + frame.timeMs >= atMs)) { add(track.id); for (const frame of track.keyframes) add(frame.id) }
+      }
+    }
+    for (const marker of composition.markers ?? []) if (marker.timeMs >= atMs) add(marker.id)
+  }
+  // Layout occurrences own the Scenes/cells they split, remap or duplicate.
+  if (['add_layout_interval', 'duplicate_layout_interval', 'make_layout_interval_unique'].includes(command)) {
+    const intervals = projectShowLayoutIntervals(before)
+    const interval = intervals.find(item => item.id === input.interval_id)
+    const atMs = command === 'add_layout_interval' ? (input.at_ms as number | undefined) ?? showLoopDurationMs(before) : interval?.startMs
+    const ownedScenes = new Set(command === 'make_layout_interval_unique' ? interval?.sceneIds : [])
+    for (const range of projectShowSummary(before, composition).scenes) {
+      if (ownedScenes.has(range.sceneId) || (atMs !== undefined && range.startMs <= atMs && range.endMs >= atMs)) {
+        add(range.sceneId)
+        for (const cell of before.cells) if (cell.sceneId === range.sceneId) add(cell.id)
+        for (const item of placements) if (item.sceneId === range.sceneId) add(item.placement.id)
+        if (command === 'make_layout_interval_unique') {
+          for (const zone of composition.scenes.find(scene => scene.sceneId === range.sceneId)?.zones ?? []) for (const layer of zone.overlays) add(layer.id)
+        }
+        if (command === 'add_layout_interval') for (const transition of before.transitions) if (transition.afterSceneId === range.sceneId) add(transition.id)
+      }
+    }
+    if (command === 'make_layout_interval_unique' && interval) {
+      const prior = intervals[intervals.indexOf(interval) - 1]
+      for (const transition of before.transitions) if (transition.kind === 'routing' && transition.afterSceneId === prior?.sceneIds[prior.sceneIds.length - 1]) add(transition.id)
+    }
+    if (command === 'add_layout_interval') add(input.layout_id)
+  }
+  return ids
+}
+
+function untouchedEntityViolations(run: AppliedRecord): string[] {
+  const permitted = permittedEntityIds(run)
+  const before = entityInventory(run.before)
+  const after = entityInventory(run.after)
+  const violations: string[] = []
+  const deletedPermittedAncestor = (path: string) => [...before.entities].some(([ancestor, entity]) => path.startsWith(`${ancestor}/`) && permitted.has(entity.id) && !after.entities.has(ancestor))
+  for (const [path, entity] of before.entities) {
+    if (permitted.has(entity.id)) continue
+    const next = after.entities.get(path)
+    if (!next && deletedPermittedAncestor(path)) continue
+    if (!next || !isDeepStrictEqual(next.own, entity.own)) violations.push(`${run.command}: unnamed entity ${path} changed`)
+  }
+  for (const [path, order] of before.orders) {
+    if (deletedPermittedAncestor(path)) continue
+    const unnamed = order.filter(id => !permitted.has(id))
+    const next = (after.orders.get(path) ?? []).filter(id => unnamed.includes(id))
+    if (JSON.stringify(unnamed) !== JSON.stringify(next)) violations.push(`${run.command}: unnamed order ${path} changed`)
+  }
+  return violations
+}
+
+describe('Show command untouched entities', () => {
+  it('every golden preserves unnamed entity fields and sibling order', () => {
+    APPLIED.length = 0
+    for (const run of Object.values(GOLDEN_RUNS)) run()
+    expect(APPLIED.flatMap(untouchedEntityViolations)).toEqual([])
+  })
+})
+
+it.each(['entity field', 'nested keyframe', 'sibling order', 'missing entity', 'explicit undefined', 'owned reference array'] as const)('untouched oracle detects an unrelated %s fault', fault => {
+  const before = trackedCommandFixture()
+  const after = structuredClone(before)
+  const composition = after.composition!
+  if (fault === 'owned reference array') after.routingLayouts[0].zones[0].zoneId = 'corrupted-zone'
+  if (fault === 'entity field') composition.patternInstances[0].patternName = 'Corrupted'
+  if (fault === 'nested keyframe') composition.scenes[0].propertyTracks![0].keyframes[0].value = 999
+  if (fault === 'sibling order') composition.scenes[0].zones[0].main.reverse()
+  if (fault === 'missing entity') composition.scenes[0].zones[0].main.pop()
+  if (fault === 'explicit undefined') Object.assign(composition.scenes[0].zones[0].main[0], { logicalClipId: undefined })
+  const run: AppliedRecord = { command: 'update_marker', input: { marker_id: 'marker-1', name: 'Changed' }, changes: [{ command: 'update_marker', targetId: 'marker-1', description: 'Marker changed' }], before, after }
+  expect(untouchedEntityViolations(run).length).toBeGreaterThan(0)
+})
+
+it('untouched oracle separates a keyframe insertion from its unchanged parent track', () => {
+  const before = trackedCommandFixture()
+  const after = structuredClone(before)
+  const track = after.composition!.scenes[0].propertyTracks![0]
+  track.keyframes.push({ ...track.keyframes[0], id: 'new-keyframe', timeMs: 19000 })
+  expect(untouchedEntityViolations({ command: 'add_keyframe', input: { track_id: track.id, time_ms: 19000 }, changes: [{ command: 'add_keyframe', targetId: 'new-keyframe', description: 'Added' }], before, after })).toEqual([])
+  track.target = { kind: 'placement-view', placementId: 'clip-a', property: 'brightness' }
+  expect(untouchedEntityViolations({ command: 'add_keyframe', input: { track_id: track.id, time_ms: 19000 }, changes: [{ command: 'add_keyframe', targetId: 'new-keyframe', description: 'Added' }], before, after }).length).toBeGreaterThan(0)
 })

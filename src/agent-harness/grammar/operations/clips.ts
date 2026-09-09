@@ -41,12 +41,11 @@ import {
   type ClipContext,
   controlExportIssue,
 } from '../support.js'
-import { canonicalResizeOperation } from './resizeAdapter.js'
-import { canonicalMoveOperation } from './moveAdapter.js'
-import { canonicalRemoveClipOperation } from './removeClipAdapter.js'
-import { canonicalOverlayLayerOperation } from './overlayLayerAdapter.js'
-import { canonicalSplitClipOperation } from './splitClipAdapter.js'
-import { canonicalDuplicateClipOperation } from './duplicateClipAdapter.js'
+import { descriptorOperation } from './descriptorAdapter.js'
+import { SHOW_COMMANDS } from '@/engine/showCommands/registry'
+import { overlayLayerCommandOutcome } from '@/engine/showCommands/overlayLayer'
+import { splitClipCommandOutcome } from '@/engine/showCommands/splitClip'
+import { duplicateClipCommandOutcome } from '@/engine/showCommands/duplicateClip'
 
 function unknownZone(document: ShowGrammarDocument, zoneId: string): GrammarIssue {
   return {
@@ -84,7 +83,7 @@ function overlapConflict(
   return conflict ? { clip: conflict.clip, zoneName: conflict.zoneName } : null
 }
 
-const resizeClip: ShowGrammarOperation = canonicalResizeOperation()
+const resizeClip: ShowGrammarOperation = descriptorOperation(SHOW_COMMANDS.find(command => command.name === 'resize_clip')!)
 
 const addClip: ShowGrammarOperation = {
   name: 'add_clip',
@@ -202,7 +201,7 @@ const addClip: ShowGrammarOperation = {
   },
 }
 
-const canonicalMove = canonicalMoveOperation()
+const canonicalMove = descriptorOperation(SHOW_COMMANDS.find(command => command.name === 'move_clip')!)
 const moveClip: ShowGrammarOperation = {
   ...canonicalMove,
   apply(document, args, privateMove) {
@@ -287,11 +286,14 @@ const moveClip: ShowGrammarOperation = {
   },
 }
 
-const splitClip: ShowGrammarOperation = canonicalSplitClipOperation()
+const splitClip: ShowGrammarOperation = descriptorOperation(SHOW_COMMANDS.find(command => command.name === 'split_clip')!, (document, args) => {
+  const newId = idFactory(document)
+  return splitClipCommandOutcome(document.show, args, () => newId('clip'))
+})
 
-const duplicateClip: ShowGrammarOperation = canonicalDuplicateClipOperation()
+const duplicateClip: ShowGrammarOperation = descriptorOperation(SHOW_COMMANDS.find(command => command.name === 'duplicate_clip')!, (document, args) => duplicateClipCommandOutcome(document.show, args, idFactory(document)))
 
-const removeClip: ShowGrammarOperation = canonicalRemoveClipOperation()
+const removeClip: ShowGrammarOperation = descriptorOperation(SHOW_COMMANDS.find(command => command.name === 'remove_clip')!)
 
 const makeClipPatternIndependent: ShowGrammarOperation = {
   name: 'make_clip_pattern_independent',
@@ -596,7 +598,10 @@ const setClipEvaluation: ShowGrammarOperation = {
   },
 }
 
-const addOverlayLayer = canonicalOverlayLayerOperation()
+const addOverlayLayer = descriptorOperation(SHOW_COMMANDS.find(command => command.name === 'add_overlay_layer')!, (document, args) => {
+  const newId = idFactory(document)
+  return overlayLayerCommandOutcome(document.show, args, () => newId('layer'))
+})
 
 export const CLIP_OPERATIONS: ShowGrammarOperation[] = [
   addClip,

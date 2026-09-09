@@ -1624,151 +1624,244 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     }
   })
 
-  test('M951: canonical move preserves a connected chain through save export no-op refusal and Undo', async ({ page }) => {
-    test.setTimeout(90000)
-    await page.setViewportSize({ width: 1440, height: 900 })
-    const record = resizeBoundaryShow(`move-951-${Date.now().toString(36)}`)
-    const zone = record.composition!.scenes[0].zones[0]
-    zone.main[0].durationMs = 2000
-    zone.main[1].startMs = 3000
-    zone.overlays = [{ id: 'move-overlay', name: 'Destination', placements: [] }]
-    record.composition!.transitions = [{ id: 'move-ab', fromPlacementId: 'resize-a', toPlacementId: 'resize-b', kind: 'crossfade', durationMs: 1000, easing: { curve: 'sine', direction: 'in-out' }, crossfadePolicy: 'live-live' }]
-    expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
-    await page.goto(`studio/shows/${record.id}?agent=1`)
-    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
-    await expect.poll(() => page.evaluate(async () => {
-      const load = (path: string) => import(path)
-      const { useEntityOrganizationStore } = await load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')
-      return useEntityOrganizationStore.getState().loaded.libraries
-    })).toBe(true)
-    await injectOverlay(page, bridge.url)
-    const before = await visibleRecord(page)
-    const writes = watchShowWrites(page)
-    const id = await submitUtterance(page, 'move the connected second Clip five seconds later then two seconds earlier')
-    const done = await waitForDone(page, id)
-    expect(done.applied, JSON.stringify(done)).toBe(true)
-    await waitForDurable(page, record.id, show => firstMain(show)?.startMs === 3000)
-    const after = await visibleRecord(page)
-    const expected = structuredClone(before!)
-    expected.composition!.scenes[0].zones[0].main[0].startMs = 3000
-    expected.composition!.scenes[0].zones[0].main[1].startMs = 6000
-    expect(after).toEqual({ ...expected, updatedAt: after!.updatedAt })
-    expect(await durableShow(page, record.id)).toEqual(after)
-    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
-    await page.keyboard.press('Escape')
-    await page.getByRole('button', { name: 'Show actions' }).click()
-    const download = page.waitForEvent('download')
-    await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
-    const file = await download
-    const reopened = await page.evaluate(async bytes => {
-      const load = (path: string) => import(path)
-      const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
-      return parseShowFileBundle(new Uint8Array(bytes))
-    }, [...readFileSync((await file.path())!)])
-    expect(reopened.show).toEqual(after)
-    saveRecord('M951-export', reopened)
-    for (const utterance of ['keep the connected second Clip at six seconds', 'move the connected second Clip to overlay zero']) {
-      const outcome = await waitForDone(page, await submitUtterance(page, utterance))
-      expect(outcome.changed, JSON.stringify(outcome)).toBe(false)
-      expect(await visibleRecord(page)).toEqual(after)
+  const admissionCases: Array<{
+    id: string
+    command: string
+    args: Record<string, unknown>
+    utterance: string
+    fixture: () => ShowRecord
+    expectedFacts: (before: ShowRecord) => ShowRecord
+    unchangedUtterances?: string[]
+    staleCommand?: { command: string; args: Record<string, unknown> }
+  }> = [
+    {
+      id: 'M951',
+      command: 'move_clip',
+      args: { clip_id: 'resize-b', start_ms: 6000 },
+      utterance: 'move the connected second Clip five seconds later then two seconds earlier',
+      fixture: () => {
+        const record = resizeBoundaryShow(`move-951-${Date.now().toString(36)}`)
+        const zone = record.composition!.scenes[0].zones[0]
+        zone.main[0].durationMs = 2000
+        zone.main[1].startMs = 3000
+        zone.overlays = [{ id: 'move-overlay', name: 'Destination', placements: [] }]
+        record.composition!.transitions = [{ id: 'move-ab', fromPlacementId: 'resize-a', toPlacementId: 'resize-b', kind: 'crossfade', durationMs: 1000, easing: { curve: 'sine', direction: 'in-out' }, crossfadePolicy: 'live-live' }]
+        return record
+      },
+      expectedFacts: (before: ShowRecord) => {
+        const expected = structuredClone(before)
+        expected.composition!.scenes[0].zones[0].main[0].startMs = 3000
+        expected.composition!.scenes[0].zones[0].main[1].startMs = 6000
+        return expected
+      },
+      unchangedUtterances: ['keep the connected second Clip at six seconds', 'move the connected second Clip to overlay zero']
+    },
+    {
+      id: 'RC951',
+      command: 'remove_clip',
+      args: { clip_id: 'clip-b' },
+      utterance: 'remove the connected target Clip',
+      fixture: () => {
+        const record = showRemoveClipFixture()
+        record.id = `remove-951-${Date.now().toString(36)}`
+        return record
+      },
+      expectedFacts: (before: ShowRecord) => {
+        const expected = structuredClone(before)
+        expected.composition!.scenes[0].zones[0].main.splice(1, 1)
+        expected.composition!.patternInstances.splice(1, 1)
+        expected.composition!.scenes[0].propertyTracks = [expected.composition!.scenes[0].propertyTracks![1]]
+        expected.composition!.transitions = []
+        delete expected.composition!.executionModel
+        return expected
+      }
+    },
+    {
+      id: 'SC951',
+      command: 'split_clip',
+      args: { clip_id: 'clip-b', at_ms: 16000 },
+      utterance: 'split the connected target Clip at sixteen seconds',
+      fixture: () => {
+        const record = showSplitClipFixture()
+        record.id = `split-951-${Date.now().toString(36)}`
+        return record
+      },
+      expectedFacts: (before: ShowRecord) => {
+        const expected = structuredClone(before)
+        expected.composition!.scenes[0].zones[0].main[1].durationMs = 4000
+        expected.composition!.scenes[0].zones[0].main.push({ id: 'clip-1', instanceId: 'instance-b', startMs: 16000, durationMs: 14000, view: { mirror: false, phase: 0, brightness: 1 } })
+        expected.composition!.scenes[1].zones[0].main[0] = { id: 'clip-1--span-scene-2', logicalClipId: 'clip-1', instanceId: 'instance-b', startMs: 0, durationMs: 6000, view: { mirror: false, phase: 0, brightness: 1 } }
+        expected.composition!.scenes[0].propertyTracks!.splice(1, 0, {
+          id: 'track-b-clip-1', target: { kind: 'placement-view', placementId: 'clip-1', property: 'brightness' },
+          keyframes: [{ id: 'kf-1-clip-1', timeMs: 12000, value: 1, easing: { curve: 'linear' } }, { id: 'kf-2-clip-1', timeMs: 19000, value: 0.2, easing: { curve: 'linear' } }],
+        })
+        expected.composition!.scenes[1].propertyTracks![0].target = { kind: 'placement-view', placementId: 'clip-1--span-scene-2', property: 'brightness' }
+        expected.composition!.transitions![1].fromPlacementId = 'clip-1--span-scene-2'
+        return expected
+      }
+    },
+    {
+      id: 'DC951',
+      command: 'duplicate_clip',
+      args: { clip_id: 'clip-ov' },
+      utterance: 'duplicate the overlay Clip independently',
+      fixture: () => {
+        const record = showSplitClipFixture()
+        record.id = `duplicate-951-${Date.now().toString(36)}`
+        return record
+      },
+      expectedFacts: (before: ShowRecord) => {
+        const expected = structuredClone(before)
+        expected.composition!.patternInstances.unshift({ ...structuredClone(before.composition!.patternInstances.find(instance => instance.id === 'instance-ov')!), id: 'instance-1' })
+        expected.composition!.scenes[0].zones[0].overlays[0].placements.push({ id: 'clip-1', instanceId: 'instance-1', startMs: 8000, durationMs: 6000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } })
+        return expected
+      }
+    },
+    {
+      id: 'L951',
+      command: 'add_overlay_layer',
+      args: { zone_id: 'zone-1' },
+      utterance: 'add a topmost overlay Layer',
+      fixture: () => {
+        const record = showOverlayLayerFixture()
+        record.composition!.scenes[1].zones[0].overlays = []
+        record.id = `layer-951-${Date.now().toString(36)}`
+        return record
+      },
+      expectedFacts: (before: ShowRecord) => {
+        const expected = structuredClone(before)
+        expected.composition!.scenes[1].zones[0].overlays = [{ id: 'scene-2:zone-1:group-layer:1', name: 'Layer 1', placements: [] }]
+        expected.composition!.scenes[0].zones[0].overlays.unshift({ id: 'layer-1', name: 'Layer 3', placements: [] })
+        expected.composition!.scenes[1].zones[0].overlays.unshift({ id: 'layer-2', name: 'Layer 3', placements: [] })
+        return expected
+      },
+      staleCommand: { command: 'add_clip', args: { zone_id: 'zone-1', overlay_layer_index: 0, start_ms: 0, duration_ms: 1000, pattern_kind: 'stock', pattern_id: 'CometLoom' } }
+    },
+    {
+      id: 'MK951',
+      command: 'add_marker',
+      args: { at_ms: 9000, name: 'Final', color: '#38bdf8' },
+      utterance: 'add move and update the marker',
+      fixture: () => {
+        const record = resizeBoundaryShow(`markers-951-${Date.now().toString(36)}`)
+        record.composition!.markers = [{ id: 'marker-1', timeMs: 4000, name: 'Existing', color: '#ff8800' }]
+        return record
+      },
+      expectedFacts: (before: ShowRecord) => {
+        const expected = structuredClone(before)
+        expected.composition!.markers!.push({ id: 'marker-2', timeMs: 9000, name: 'Final', color: '#38bdf8' })
+        return expected
+      },
+      unchangedUtterances: ['keep the final marker unchanged', 'remove the missing marker']
+    }
+  ]
+
+  // The table owns operation facts; this sequence owns the live admission contract.
+  for (const admission of admissionCases) {
+    test(`${admission.id}: command admission saves once, reopens, undoes, refuses stale and deduplicates`, async ({ page }) => {
+      test.setTimeout(90000)
+      await page.setViewportSize({ width: 1440, height: 900 })
+      const record = admission.fixture()
+      expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+      await page.goto(`studio/shows/${record.id}?agent=1`)
+      await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+      await expect.poll(() => page.evaluate(async () => {
+        const load = (path: string) => import(path)
+        return (await load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')).useEntityOrganizationStore.getState().loaded.libraries
+      })).toBe(true)
+      await injectOverlay(page, bridge.url)
+      const before = (await visibleRecord(page)) as unknown as ShowRecord
+      const writes = watchShowWrites(page)
+      const successfulSaves = () => writes.filter(write => write.method === 'PATCH' && write.status === 200).length
+      const done = await waitForDone(page, await submitUtterance(page, admission.utterance))
+      expect(done.applied, JSON.stringify(done)).toBe(true)
+      await expect.poll(successfulSaves).toBe(1)
+      const after = (await visibleRecord(page)) as unknown as ShowRecord
+      expect(after).toEqual({ ...admission.expectedFacts(before), updatedAt: after.updatedAt })
       expect(await durableShow(page, record.id)).toEqual(after)
       expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
-      saveRecord(utterance.startsWith('keep') ? 'M951-noop' : 'M951-refusal', outcome)
-    }
-    await page.screenshot({ path: join(REPORT_DIR, 'M951-result.png'), fullPage: true })
-    await page.getByRole('button', { name: 'Undo Show edit' }).click()
-    await waitForDurable(page, record.id, show => firstMain(show)?.startMs === 0)
-    const undone = await visibleRecord(page)
-    expect(undone).toEqual({ ...before, updatedAt: undone!.updatedAt })
-    expect(await durableShow(page, record.id)).toEqual(undone)
-    await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
-    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(2)
-    saveRecord('M951', { before, after, undone, done, writes, observations: await readObservations(page) })
-  })
+      await page.keyboard.press('Escape')
+      await page.getByRole('button', { name: 'Show actions' }).click()
+      const download = page.waitForEvent('download')
+      await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
+      const file = await download
+      const reopened = await page.evaluate(async bytes => {
+        const load = (path: string) => import(path)
+        return (await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')).parseShowFileBundle(new Uint8Array(bytes))
+      }, [...readFileSync((await file.path())!)])
+      expect(reopened.show).toEqual(after)
+      saveRecord(`${admission.id}-export`, reopened)
+      for (const utterance of admission.unchangedUtterances ?? []) {
+        const outcome = await waitForDone(page, await submitUtterance(page, utterance))
+        expect(outcome.changed, JSON.stringify(outcome)).toBe(false)
+        expect(await visibleRecord(page)).toEqual(after)
+        expect(await durableShow(page, record.id)).toEqual(after)
+        expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+        saveRecord(`${admission.id}-${utterance.startsWith('keep') ? 'noop' : 'refusal'}`, outcome)
+      }
+      await page.screenshot({ path: join(REPORT_DIR, `${admission.id}-result.png`), fullPage: true })
+      let saveCount = 1
+      if (admission.id === 'MK951') {
+        const removal = await waitForDone(page, await submitUtterance(page, 'remove the final marker'))
+        expect(removal.applied).toBe(true)
+        await expect.poll(successfulSaves).toBe(++saveCount)
+        const removed = (await visibleRecord(page))!
+        expect(removed).toEqual({ ...before, updatedAt: removed.updatedAt })
+        expect(await durableShow(page, record.id)).toEqual(removed)
+        await page.getByRole('button', { name: 'Undo Show edit' }).click()
+        await expect.poll(() => visibleRecord(page)).toEqual({ ...after, updatedAt: expect.any(Number) })
+        await expect.poll(successfulSaves).toBe(++saveCount)
+        saveRecord('MK951-removal', { removal, removed })
+      }
+      await page.getByRole('button', { name: 'Undo Show edit' }).click()
+      await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
+      await expect.poll(successfulSaves).toBe(++saveCount)
+      expect(await durableShow(page, record.id)).toEqual(await visibleRecord(page))
+      await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+      // Capture before the real manual Add menu changes the Show revision.
+      await page.evaluate(async ({ id, command, args }) => {
+        const load = (path: string) => import(path)
+        const { applyShowCommand } = await load('/PXLBLZ-IDE/src/engine/showCommands/registry.ts')
+        const win = window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecord } }; __admissionPending?: unknown }
+        const captured = win.__pxlblzEditor.beginRequest(`${id}-stale`, command, [])
+        const outcome = applyShowCommand(captured.show, command, args)
+        if (!outcome.ok) throw new Error(JSON.stringify(outcome))
+        win.__admissionPending = { captured, candidate: outcome.record }
+      }, { id: admission.id, ...(admission.staleCommand ?? { command: admission.command, args: admission.args }) })
+      await page.getByRole('button', { name: 'Add to Show', exact: true }).click()
+      await page.getByRole('menuitem', { name: /^Layer(?: in |$)/ }).first().click()
+      await expect.poll(successfulSaves).toBe(++saveCount)
+      const manual = await visibleRecord(page)
+      const stale = await page.evaluate(async () => {
+        const win = window as unknown as { __pxlblzEditor: { applyShow: (show: unknown, request: unknown) => Promise<unknown> }; __admissionPending: { candidate: unknown; captured: { request: unknown } } }
+        return win.__pxlblzEditor.applyShow(win.__admissionPending.candidate, win.__admissionPending.captured.request)
+      })
+      expect(stale).toMatchObject({ status: 'refused', reason: 'revision-conflict' })
+      expect(await visibleRecord(page)).toEqual(manual)
+      expect(await durableShow(page, record.id)).toEqual(manual)
+      expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(saveCount)
+      const duplicate = await page.evaluate(async ({ id, command, args }) => {
+        const load = (path: string) => import(path)
+        const { applyShowCommand } = await load('/PXLBLZ-IDE/src/engine/showCommands/registry.ts')
+        const api = (window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecord }; applyShow: (show: unknown, request: unknown) => Promise<unknown> } }).__pxlblzEditor
+        const captured = api.beginRequest(`${id}-duplicate`, command, [])
+        const outcome = applyShowCommand(captured.show, command, args)
+        if (!outcome.ok) throw new Error(JSON.stringify(outcome))
+        return { first: await api.applyShow(outcome.record, captured.request), second: await api.applyShow(outcome.record, captured.request) }
+      }, { id: admission.id, command: admission.command, args: admission.args })
+      expect(duplicate.first).toMatchObject({ status: 'applied' })
+      expect(duplicate.second).toMatchObject({ status: 'applied' })
+      await expect.poll(successfulSaves).toBe(++saveCount)
+      expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(saveCount)
+      expect(await durableShow(page, record.id)).toEqual(await visibleRecord(page))
+      await page.getByRole('button', { name: 'Undo Show edit' }).click()
+      await expect.poll(() => visibleRecord(page)).toEqual({ ...manual, updatedAt: expect.any(Number) })
+      await expect.poll(successfulSaves).toBe(saveCount + 1)
+      expect(await durableShow(page, record.id)).toEqual(await visibleRecord(page))
+      saveRecord(admission.id, { before, after, done, manual, stale, duplicate, writes, observations: await readObservations(page) })
+    })
+  }
 
-  test('RC951: removal saves once, exports the full surviving Show, and Undo restores its preimage', async ({ page }) => {
-    test.setTimeout(90000)
-    await page.setViewportSize({ width: 1440, height: 900 })
-    const record = showRemoveClipFixture()
-    record.id = `remove-951-${Date.now().toString(36)}`
-    expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
-    await page.goto(`studio/shows/${record.id}?agent=1`)
-    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
-    await expect.poll(() => page.evaluate(async () => {
-      const load = (path: string) => import(path)
-      const { useEntityOrganizationStore } = await load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')
-      return useEntityOrganizationStore.getState().loaded.libraries
-    })).toBe(true)
-    await injectOverlay(page, bridge.url)
-    const before = await visibleRecord(page) as unknown as ShowRecord
-    const writes = watchShowWrites(page)
-    const done = await waitForDone(page, await submitUtterance(page, 'remove the connected target Clip'))
-    expect(done.applied, JSON.stringify(done)).toBe(true)
-    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(1)
-    const after = await visibleRecord(page) as unknown as ShowRecord
-    const expected = structuredClone(before)
-    expected.composition!.scenes[0].zones[0].main.splice(1, 1)
-    expected.composition!.patternInstances.splice(1, 1)
-    expected.composition!.scenes[0].propertyTracks = [expected.composition!.scenes[0].propertyTracks![1]]
-    expected.composition!.transitions = []
-    delete expected.composition!.executionModel
-    expect(after).toEqual({ ...expected, updatedAt: after.updatedAt })
-    expect(await durableShow(page, record.id)).toEqual(after)
-    await page.keyboard.press('Escape')
-    await page.getByRole('button', { name: 'Show actions' }).click()
-    const download = page.waitForEvent('download')
-    await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
-    const file = await download
-    const reopened = await page.evaluate(async bytes => {
-      const load = (path: string) => import(path)
-      const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
-      return parseShowFileBundle(new Uint8Array(bytes))
-    }, [...readFileSync((await file.path())!)])
-    expect(reopened.show).toEqual(after)
-    saveRecord('RC951-export', reopened)
-    await page.screenshot({ path: join(REPORT_DIR, 'RC951-result.png'), fullPage: true })
-    await page.getByRole('button', { name: 'Undo Show edit' }).click()
-    await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
-    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(2)
-    await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
-    // A removal captured before an independent manual edit is stale.
-    await page.evaluate(async () => {
-      const load = (path: string) => import(path)
-      const { applyShowCommand } = await load('/PXLBLZ-IDE/src/engine/showCommands/registry.ts')
-      const win = window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecord } }; __removePending?: unknown }
-      const captured = win.__pxlblzEditor.beginRequest('remove-stale', 'remove target Clip', [])
-      const outcome = applyShowCommand(captured.show, 'remove_clip', { clip_id: 'clip-b' })
-      if (!outcome.ok) throw new Error(JSON.stringify(outcome))
-      win.__removePending = { captured, candidate: outcome.record }
-    })
-    await page.getByRole('button', { name: 'Add to Show', exact: true }).click()
-    await page.getByRole('menuitem', { name: /^Layer in / }).first().click()
-    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(3)
-    const manual = await visibleRecord(page)
-    const stale = await page.evaluate(async () => {
-      const win = window as unknown as { __pxlblzEditor: { applyShow: (show: unknown, request: unknown) => Promise<unknown> }; __removePending: { candidate: unknown; captured: { request: unknown } } }
-      return win.__pxlblzEditor.applyShow(win.__removePending.candidate, win.__removePending.captured.request)
-    })
-    expect(stale).toMatchObject({ status: 'refused', reason: 'revision-conflict' })
-    expect(await visibleRecord(page)).toEqual(manual)
-    expect(await durableShow(page, record.id)).toEqual(manual)
-    const duplicate = await page.evaluate(async () => {
-      const load = (path: string) => import(path)
-      const { applyShowCommand } = await load('/PXLBLZ-IDE/src/engine/showCommands/registry.ts')
-      const api = (window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecord }; applyShow: (show: unknown, request: unknown) => Promise<unknown> } }).__pxlblzEditor
-      const captured = api.beginRequest('remove-duplicate', 'remove target Clip', [])
-      const outcome = applyShowCommand(captured.show, 'remove_clip', { clip_id: 'clip-b' })
-      if (!outcome.ok) throw new Error(JSON.stringify(outcome))
-      return { first: await api.applyShow(outcome.record, captured.request), second: await api.applyShow(outcome.record, captured.request) }
-    })
-    expect(duplicate.first).toMatchObject({ status: 'applied' })
-    expect(duplicate.second).toMatchObject({ status: 'applied' })
-    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(4)
-    await page.getByRole('button', { name: 'Undo Show edit' }).click()
-    await expect.poll(() => visibleRecord(page)).toEqual({ ...manual, updatedAt: expect.any(Number) })
-    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(5)
-    saveRecord('RC951', { before, after, done, manual, stale, duplicate, writes, observations: await readObservations(page) })
-  })
 
   test('SC951-overlay: manual overlay split persists after a Main split and Undo', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
@@ -1813,314 +1906,5 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
     await expect.poll(() => responses.length).toBe(4)
     saveRecord('SC951-overlay', { before, after, responses })
-  })
-
-  test('SC951: split saves once, exports the full surviving Show, and Undo restores its preimage', async ({ page }) => {
-    test.setTimeout(90000)
-    await page.setViewportSize({ width: 1440, height: 900 })
-    const record = showSplitClipFixture()
-    record.id = `split-951-${Date.now().toString(36)}`
-    expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
-    await page.goto(`studio/shows/${record.id}?agent=1`)
-    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
-    await expect.poll(() => page.evaluate(async () => {
-      const load = (path: string) => import(path)
-      const { useEntityOrganizationStore } = await load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')
-      return useEntityOrganizationStore.getState().loaded.libraries
-    })).toBe(true)
-    await injectOverlay(page, bridge.url)
-    const before = await visibleRecord(page) as unknown as ShowRecord
-    const writes = watchShowWrites(page)
-    const done = await waitForDone(page, await submitUtterance(page, 'split the connected target Clip at sixteen seconds'))
-    expect(done.applied, JSON.stringify(done)).toBe(true)
-    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(1)
-    const after = await visibleRecord(page) as unknown as ShowRecord
-    const expected = structuredClone(before)
-    expected.composition!.scenes[0].zones[0].main[1].durationMs = 4000
-    expected.composition!.scenes[0].zones[0].main.push({ id: 'clip-1', instanceId: 'instance-b', startMs: 16000, durationMs: 14000, view: { mirror: false, phase: 0, brightness: 1 } })
-    expected.composition!.scenes[1].zones[0].main[0] = { id: 'clip-1--span-scene-2', logicalClipId: 'clip-1', instanceId: 'instance-b', startMs: 0, durationMs: 6000, view: { mirror: false, phase: 0, brightness: 1 } }
-    expected.composition!.scenes[0].propertyTracks!.splice(1, 0, {
-      id: 'track-b-clip-1', target: { kind: 'placement-view', placementId: 'clip-1', property: 'brightness' },
-      keyframes: [{ id: 'kf-1-clip-1', timeMs: 12000, value: 1, easing: { curve: 'linear' } }, { id: 'kf-2-clip-1', timeMs: 19000, value: 0.2, easing: { curve: 'linear' } }],
-    })
-    expected.composition!.scenes[1].propertyTracks![0].target = { kind: 'placement-view', placementId: 'clip-1--span-scene-2', property: 'brightness' }
-    expected.composition!.transitions![1].fromPlacementId = 'clip-1--span-scene-2'
-    expect(after).toEqual({ ...expected, updatedAt: after.updatedAt })
-    expect(await durableShow(page, record.id)).toEqual(after)
-    await page.keyboard.press('Escape')
-    await page.getByRole('button', { name: 'Show actions' }).click()
-    const download = page.waitForEvent('download')
-    await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
-    const file = await download
-    const reopened = await page.evaluate(async bytes => {
-      const load = (path: string) => import(path)
-      const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
-      return parseShowFileBundle(new Uint8Array(bytes))
-    }, [...readFileSync((await file.path())!)])
-    expect(reopened.show).toEqual(after)
-    saveRecord('SC951-export', reopened)
-    await page.screenshot({ path: join(REPORT_DIR, 'SC951-result.png'), fullPage: true })
-    await page.getByRole('button', { name: 'Undo Show edit' }).click()
-    await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
-    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(2)
-    await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
-    // A split captured before an independent manual edit is stale.
-    await page.evaluate(async () => {
-      const load = (path: string) => import(path)
-      const { applyShowCommand } = await load('/PXLBLZ-IDE/src/engine/showCommands/registry.ts')
-      const win = window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecord } }; __splitPending?: unknown }
-      const captured = win.__pxlblzEditor.beginRequest('split-stale', 'split target Clip', [])
-      const outcome = applyShowCommand(captured.show, 'split_clip', { clip_id: 'clip-b', at_ms: 16000 })
-      if (!outcome.ok) throw new Error(JSON.stringify(outcome))
-      win.__splitPending = { captured, candidate: outcome.record }
-    })
-    await page.getByRole('button', { name: 'Add to Show', exact: true }).click()
-    await page.getByRole('menuitem', { name: /^Layer in / }).first().click()
-    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(3)
-    const manual = await visibleRecord(page)
-    const stale = await page.evaluate(async () => {
-      const win = window as unknown as { __pxlblzEditor: { applyShow: (show: unknown, request: unknown) => Promise<unknown> }; __splitPending: { candidate: unknown; captured: { request: unknown } } }
-      return win.__pxlblzEditor.applyShow(win.__splitPending.candidate, win.__splitPending.captured.request)
-    })
-    expect(stale).toMatchObject({ status: 'refused', reason: 'revision-conflict' })
-    expect(await visibleRecord(page)).toEqual(manual)
-    expect(await durableShow(page, record.id)).toEqual(manual)
-    const duplicate = await page.evaluate(async () => {
-      const load = (path: string) => import(path)
-      const { applyShowCommand } = await load('/PXLBLZ-IDE/src/engine/showCommands/registry.ts')
-      const api = (window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecord }; applyShow: (show: unknown, request: unknown) => Promise<unknown> } }).__pxlblzEditor
-      const captured = api.beginRequest('split-duplicate', 'split target Clip', [])
-      const outcome = applyShowCommand(captured.show, 'split_clip', { clip_id: 'clip-b', at_ms: 16000 })
-      if (!outcome.ok) throw new Error(JSON.stringify(outcome))
-      return { first: await api.applyShow(outcome.record, captured.request), second: await api.applyShow(outcome.record, captured.request) }
-    })
-    expect(duplicate.first).toMatchObject({ status: 'applied' })
-    expect(duplicate.second).toMatchObject({ status: 'applied' })
-    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(4)
-    await page.getByRole('button', { name: 'Undo Show edit' }).click()
-    await expect.poll(() => visibleRecord(page)).toEqual({ ...manual, updatedAt: expect.any(Number) })
-    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(5)
-    saveRecord('SC951', { before, after, done, manual, stale, duplicate, writes, observations: await readObservations(page) })
-  })
-
-  test('DC951: duplicate saves once, exports the full surviving Show, and Undo restores its preimage', async ({ page }) => {
-    test.setTimeout(90000)
-    await page.setViewportSize({ width: 1440, height: 900 })
-    const record = showSplitClipFixture()
-    record.id = `duplicate-951-${Date.now().toString(36)}`
-    expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
-    await page.goto(`studio/shows/${record.id}?agent=1`)
-    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
-    await expect.poll(() => page.evaluate(async () => {
-      const load = (path: string) => import(path)
-      const { useEntityOrganizationStore } = await load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')
-      return useEntityOrganizationStore.getState().loaded.libraries
-    })).toBe(true)
-    await injectOverlay(page, bridge.url)
-    const before = await visibleRecord(page) as unknown as ShowRecord
-    const writes = watchShowWrites(page)
-    const done = await waitForDone(page, await submitUtterance(page, 'duplicate the overlay Clip independently'))
-    expect(done.applied, JSON.stringify(done)).toBe(true)
-    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(1)
-    const after = await visibleRecord(page) as unknown as ShowRecord
-    const expected = structuredClone(before)
-    expected.composition!.patternInstances.unshift({ ...structuredClone(before.composition!.patternInstances.find(instance => instance.id === 'instance-ov')!), id: 'instance-1' })
-    expected.composition!.scenes[0].zones[0].overlays[0].placements.push({ id: 'clip-1', instanceId: 'instance-1', startMs: 8000, durationMs: 6000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } })
-    expect(after).toEqual({ ...expected, updatedAt: after.updatedAt })
-    expect(await durableShow(page, record.id)).toEqual(after)
-    await page.keyboard.press('Escape')
-    await page.getByRole('button', { name: 'Show actions' }).click()
-    const download = page.waitForEvent('download')
-    await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
-    const file = await download
-    const reopened = await page.evaluate(async bytes => {
-      const load = (path: string) => import(path)
-      const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
-      return parseShowFileBundle(new Uint8Array(bytes))
-    }, [...readFileSync((await file.path())!)])
-    expect(reopened.show).toEqual(after)
-    saveRecord('DC951-export', reopened)
-    await page.screenshot({ path: join(REPORT_DIR, 'DC951-result.png'), fullPage: true })
-    await page.getByRole('button', { name: 'Undo Show edit' }).click()
-    await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
-    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(2)
-    await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
-    // A duplicate captured before an independent manual edit is stale.
-    await page.evaluate(async () => {
-      const load = (path: string) => import(path)
-      const { applyShowCommand } = await load('/PXLBLZ-IDE/src/engine/showCommands/registry.ts')
-      const win = window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecord } }; __duplicatePending?: unknown }
-      const captured = win.__pxlblzEditor.beginRequest('duplicate-stale', 'duplicate target Clip', [])
-      const outcome = applyShowCommand(captured.show, 'duplicate_clip', { clip_id: 'clip-ov' })
-      if (!outcome.ok) throw new Error(JSON.stringify(outcome))
-      win.__duplicatePending = { captured, candidate: outcome.record }
-    })
-    await page.getByRole('button', { name: 'Add to Show', exact: true }).click()
-    await page.getByRole('menuitem', { name: /^Layer in / }).first().click()
-    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(3)
-    const manual = await visibleRecord(page)
-    const stale = await page.evaluate(async () => {
-      const win = window as unknown as { __pxlblzEditor: { applyShow: (show: unknown, request: unknown) => Promise<unknown> }; __duplicatePending: { candidate: unknown; captured: { request: unknown } } }
-      return win.__pxlblzEditor.applyShow(win.__duplicatePending.candidate, win.__duplicatePending.captured.request)
-    })
-    expect(stale).toMatchObject({ status: 'refused', reason: 'revision-conflict' })
-    expect(await visibleRecord(page)).toEqual(manual)
-    expect(await durableShow(page, record.id)).toEqual(manual)
-    const duplicate = await page.evaluate(async () => {
-      const load = (path: string) => import(path)
-      const { applyShowCommand } = await load('/PXLBLZ-IDE/src/engine/showCommands/registry.ts')
-      const api = (window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecord }; applyShow: (show: unknown, request: unknown) => Promise<unknown> } }).__pxlblzEditor
-      const captured = api.beginRequest('duplicate-delivery', 'duplicate target Clip', [])
-      const outcome = applyShowCommand(captured.show, 'duplicate_clip', { clip_id: 'clip-ov' })
-      if (!outcome.ok) throw new Error(JSON.stringify(outcome))
-      return { first: await api.applyShow(outcome.record, captured.request), second: await api.applyShow(outcome.record, captured.request) }
-    })
-    expect(duplicate.first).toMatchObject({ status: 'applied' })
-    expect(duplicate.second).toMatchObject({ status: 'applied' })
-    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(4)
-    await page.getByRole('button', { name: 'Undo Show edit' }).click()
-    await expect.poll(() => visibleRecord(page)).toEqual({ ...manual, updatedAt: expect.any(Number) })
-    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(5)
-    saveRecord('DC951', { before, after, done, manual, stale, duplicate, writes, observations: await readObservations(page) })
-  })
-
-  test('L951: Layer creation saves once, exports, undoes, deduplicates and refuses stale overlay indices', async ({ page }) => {
-    test.setTimeout(90000)
-    await page.setViewportSize({ width: 1440, height: 900 })
-    const record = showOverlayLayerFixture()
-    record.composition!.scenes[1].zones[0].overlays = []
-    record.id = `layer-951-${Date.now().toString(36)}`
-    expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
-    await page.goto(`studio/shows/${record.id}?agent=1`)
-    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
-    await expect.poll(() => page.evaluate(async () => {
-      const load = (path: string) => import(path)
-      const { useEntityOrganizationStore } = await load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')
-      return useEntityOrganizationStore.getState().loaded.libraries
-    })).toBe(true)
-    await injectOverlay(page, bridge.url)
-    const before = await visibleRecord(page) as unknown as ShowRecord
-    const writes = watchShowWrites(page)
-    const done = await waitForDone(page, await submitUtterance(page, 'add a topmost overlay Layer'))
-    expect(done.applied, JSON.stringify(done)).toBe(true)
-    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(1)
-    const after = await visibleRecord(page) as unknown as ShowRecord
-    const expected = structuredClone(before)
-    expected.composition!.scenes[1].zones[0].overlays = [{ id: 'scene-2:zone-1:group-layer:1', name: 'Layer 1', placements: [] }]
-    expected.composition!.scenes[0].zones[0].overlays.unshift({ id: 'layer-1', name: 'Layer 3', placements: [] })
-    expected.composition!.scenes[1].zones[0].overlays.unshift({ id: 'layer-2', name: 'Layer 3', placements: [] })
-    expect(after).toEqual({ ...expected, updatedAt: after.updatedAt })
-    expect(await durableShow(page, record.id)).toEqual(after)
-    await page.keyboard.press('Escape')
-    await page.getByRole('button', { name: 'Show actions' }).click()
-    const download = page.waitForEvent('download')
-    await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
-    const file = await download
-    const reopened = await page.evaluate(async bytes => {
-      const load = (path: string) => import(path)
-      const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
-      return parseShowFileBundle(new Uint8Array(bytes))
-    }, [...readFileSync((await file.path())!)])
-    expect(reopened.show).toEqual(after)
-    saveRecord('L951-export', reopened)
-    await page.getByRole('button', { name: 'Undo Show edit' }).click()
-    await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
-    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(2)
-    await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
-    // Capture a genuine old-index candidate, then use the existing manual Add menu.
-    await page.evaluate(async () => {
-      const load = (path: string) => import(path)
-      const { applyShowCommand } = await load('/PXLBLZ-IDE/src/engine/showCommands/registry.ts')
-      const win = window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecord } }; __layerPending?: unknown }
-      const captured = win.__pxlblzEditor.beginRequest('layer-stale', 'add Clip at overlay zero', [])
-      const result = applyShowCommand(captured.show, 'add_clip', { zone_id: 'zone-1', overlay_layer_index: 0, start_ms: 0, duration_ms: 1000, pattern_kind: 'stock', pattern_id: 'CometLoom' })
-      if (!result.ok) throw new Error(JSON.stringify(result))
-      win.__layerPending = { captured, candidate: result.record }
-    })
-    await page.getByRole('button', { name: 'Add to Show', exact: true }).click()
-    await page.getByRole('menuitem', { name: /^Layer in / }).click()
-    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(3)
-    const manual = await visibleRecord(page)
-    const stale = await page.evaluate(async () => {
-      const win = window as unknown as { __pxlblzEditor: { applyShow: (show: unknown, request: unknown) => Promise<unknown> }; __layerPending: { candidate: unknown; captured: { request: unknown } } }
-      return win.__pxlblzEditor.applyShow(win.__layerPending.candidate, win.__layerPending.captured.request)
-    })
-    expect(stale).toMatchObject({ status: 'refused', reason: 'revision-conflict' })
-    expect(await visibleRecord(page)).toEqual(manual)
-    const duplicate = await page.evaluate(async () => {
-      const load = (path: string) => import(path)
-      const { applyShowCommand } = await load('/PXLBLZ-IDE/src/engine/showCommands/registry.ts')
-      const api = (window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecord }; applyShow: (show: unknown, request: unknown) => Promise<unknown> } }).__pxlblzEditor
-      const captured = api.beginRequest('layer-duplicate', 'add Layer', [])
-      const outcome = applyShowCommand(captured.show, 'add_overlay_layer', { zone_id: 'zone-1' })
-      if (!outcome.ok) throw new Error(JSON.stringify(outcome))
-      const first = await api.applyShow(outcome.record, captured.request)
-      const second = await api.applyShow(outcome.record, captured.request)
-      return { first, second }
-    })
-    expect(duplicate.first).toMatchObject({ status: 'applied' })
-    expect(duplicate.second).toMatchObject({ status: 'applied' })
-    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(4)
-    await page.screenshot({ path: join(REPORT_DIR, 'L951-result.png'), fullPage: true })
-    saveRecord('L951', { before, after, manual, done, stale, duplicate, writes, observations: await readObservations(page) })
-  })
-
-  test('MK951: markers save once, export reopen, no-op refusal removal and Undo preserve the full Show', async ({ page }) => {
-    test.setTimeout(90000)
-    await page.setViewportSize({ width: 1440, height: 900 })
-    const record = resizeBoundaryShow(`markers-951-${Date.now().toString(36)}`)
-    record.composition!.markers = [{ id: 'marker-1', timeMs: 4000, name: 'Existing', color: '#ff8800' }]
-    expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
-    await page.goto(`studio/shows/${record.id}?agent=1`)
-    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
-    await expect.poll(() => page.evaluate(async () => {
-      const load = (path: string) => import(path)
-      const { useEntityOrganizationStore } = await load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')
-      return useEntityOrganizationStore.getState().loaded.libraries
-    })).toBe(true)
-    await injectOverlay(page, bridge.url)
-    const before = await visibleRecord(page)
-    const writes = watchShowWrites(page)
-    const done = await waitForDone(page, await submitUtterance(page, 'add move and update the marker'))
-    expect(done.applied, JSON.stringify(done)).toBe(true)
-    await waitForDurable(page, record.id, show => show.composition?.markers?.some(marker => marker.id === 'marker-2' && marker.name === 'Final') === true)
-    const after = await visibleRecord(page)
-    const expected = structuredClone(before!)
-    expected.composition!.markers!.push({ id: 'marker-2', timeMs: 9000, name: 'Final', color: '#38bdf8' })
-    expect(after).toEqual({ ...expected, updatedAt: after!.updatedAt })
-    expect(await durableShow(page, record.id)).toEqual(after)
-    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
-    await page.keyboard.press('Escape')
-    await page.getByRole('button', { name: 'Show actions' }).click()
-    const download = page.waitForEvent('download')
-    await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
-    const file = await download
-    const reopened = await page.evaluate(async bytes => {
-      const load = (path: string) => import(path)
-      const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
-      return parseShowFileBundle(new Uint8Array(bytes))
-    }, [...readFileSync((await file.path())!)])
-    expect(reopened.show).toEqual(after)
-    saveRecord('MK951-export', reopened)
-    for (const utterance of ['keep the final marker unchanged', 'remove the missing marker']) {
-      const outcome = await waitForDone(page, await submitUtterance(page, utterance))
-      expect(outcome.changed, JSON.stringify(outcome)).toBe(false)
-      expect(await visibleRecord(page)).toEqual(after)
-      expect(await durableShow(page, record.id)).toEqual(after)
-      expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
-      saveRecord(utterance.startsWith('keep') ? 'MK951-noop' : 'MK951-refusal', outcome)
-    }
-    await page.screenshot({ path: join(REPORT_DIR, 'MK951-result.png'), fullPage: true })
-    const removal = await waitForDone(page, await submitUtterance(page, 'remove the final marker'))
-    expect(removal.applied).toBe(true)
-    await waitForDurable(page, record.id, show => show.composition?.markers?.length === 1)
-    const removed = await visibleRecord(page)
-    expect(removed).toEqual({ ...before, updatedAt: removed!.updatedAt })
-    await page.getByRole('button', { name: 'Undo Show edit' }).click()
-    await expect.poll(() => visibleRecord(page)).toEqual({ ...after, updatedAt: expect.any(Number) })
-    await page.getByRole('button', { name: 'Undo Show edit' }).click()
-    await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
-    await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
-    saveRecord('MK951', { before, after, removed, done, removal, writes, observations: await readObservations(page) })
   })
 })

@@ -24,7 +24,8 @@ import {
 } from '../support.js'
 import { toolkitTransitionItem } from './junctions.js'
 import { showTransitionChangesForPresentation } from '@/engine/showTransitionAuthoring'
-import { canonicalResizeOperation } from './resizeAdapter.js'
+import { descriptorOperation } from './descriptorAdapter.js'
+import { SHOW_COMMANDS } from '@/engine/showCommands/registry'
 
 function findLayerTransition(
   document: ShowGrammarDocument,
@@ -212,7 +213,12 @@ const resetLayerTransitionToCut: ShowGrammarOperation = {
   },
 }
 
-const resizeConnectedClip: ShowGrammarOperation = canonicalResizeOperation('resize_connected_clip')
+const resizeDescriptor = SHOW_COMMANDS.find(command => command.name === 'resize_clip')!
+const resizeConnectedClip: ShowGrammarOperation = descriptorOperation({
+  ...resizeDescriptor,
+  name: 'resize_connected_clip',
+  description: `Historical diagnostic compatibility; use resize_clip. ${resizeDescriptor.description}`,
+})
 
 export const LAYER_TRANSITION_OPERATIONS: ShowGrammarOperation[] = [
   insertLayerTransition,

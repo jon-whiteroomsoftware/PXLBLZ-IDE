@@ -189,7 +189,8 @@ export function buildStrykerConfig(repoRoot: string) {
       'src/engine/showCommands/removeClip.test.ts',
       'src/engine/showCommands/splitClip.test.ts',
       'src/engine/showCommands/duplicateClip.test.ts',
-      'src/agent-harness/test/canonicalDuplicateClip.test.ts',
+      'src/agent-harness/test/commandParity.test.ts',
+      'src/engine/showCommands/commands.test.ts',
       'src/engine/showClipInspectorModel.test.ts',
       'src/engine/showLayerTransitionAuthoring.test.ts',
     ],
@@ -206,7 +207,7 @@ export function buildStrykerConfig(repoRoot: string) {
     cleanTempDir: 'always',
     reporters: ['clear-text', 'json'],
     jsonReporter: {
-      fileName: 'reports/mutation/show-authoring.json',
+      fileName: '.wrsp/mutation/show-authoring.json',
     },
     thresholds: {
       high: 100,

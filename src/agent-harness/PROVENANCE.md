@@ -414,3 +414,11 @@ transform. It permits only their mutual temporary overlap and strictly validates
 the raw final composition before completion or commit. Ordinary movement and
 generic patch semantics remain unchanged. The [command contract](../../docs/reference/contracts/show-command-semantics.md#private-two-clip-rearrangement)
 defines the finite domain; sequence PP exercises the real scripted browser path.
+
+### #951 descriptor adapter consolidation
+
+The per-operation adapters introduced by #950/#951 are now replaced by
+`grammar/operations/descriptorAdapter.ts`; family registration retains the same
+semantic owners and diagnostic identity factories. Their canonical adapter and
+bridge tests are consolidated in `test/commandParity.test.ts`. Earlier entries
+retain the names used at their recorded revisions.

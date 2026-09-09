@@ -919,11 +919,18 @@ map, and maintenance rule live in
 
 ## Show authoring mutation qualification
 
+Command-convergence candidate `Proof:` lines cite the runner receipt, review
+receipt, committed test rows and mutation summary counts. Screenshots are required
+only when changed paths trigger `wrsp-ui-proof.json`. Keep mutation reports in
+ignored `.wrsp/`; do not commit full-record JSON dumps, exported fixtures or
+compressed mutation reports under `docs/reference/evidence/`. Existing historical
+packets are retained or pruned through their separately scoped cleanup.
+
 `npm run test:mutation:show-authoring` checks whether the Show authoring suite
 rejects a small catalog of plausible faults. It is intentionally narrower than
 whole-file mutation: the command resolves named source fragments through the
 TypeScript syntax tree, runs the owning Vitest suites (including the shared
-removal contract suite) in an isolated Node project, and writes `reports/mutation/show-authoring.json`.
+removal contract suite) in an isolated Node project, and writes `.wrsp/mutation/show-authoring.json`.
 
 The catalog spans every critical operation family without turning mutation
 testing into a second full suite:
