@@ -1,0 +1,44 @@
+{
+  "invariants": [
+    "Whole logical Clip and attached placement tracks/Layer Transitions removed",
+    "Only instances newly orphaned by target removal and their tracks pruned; surviving shared users and unrelated orphan data preserved",
+    "Complete output validates without whole-composition normalization; input immutable",
+    "Missing, Group-child, malformed and last-Clip targets refuse",
+    "One adopted response gives one save/history entry"
+  ],
+  "partitions": [
+    "Main/overlay/multi-Scene",
+    "connected/unconnected",
+    "sole/shared instance user",
+    "unrelated Group/Group child",
+    "last/missing/malformed"
+  ],
+  "sequences": [
+    "remove then independent marker move",
+    "remove then duplicate removal refusal then Undo/Redo",
+    "scripted bridge remove then downloaded export/reopen then one Undo",
+    "Captured remove \u2192 manual Layer insertion \u2192 stale removal refuses with full visible/durable preservation",
+    "Fresh removal delivered twice \u2192 one save \u2192 one Undo restores complete manual preimage"
+  ],
+  "oracles": [
+    "Complete literal expected composition",
+    "validateShowComposition",
+    "manual/canonical/diagnostic full-record parity",
+    "real MCP export and Undo/Redo",
+    "actual Show-file exporter/importer",
+    "committed-source browser route, saves and observations",
+    "Coordinator IAB ordinary delete/Undo, connected confirm/Cancel/delete/Undo, preserved DOM ranges and Groups at4919"
+  ],
+  "faults": [
+    "one segment only",
+    "delete surviving shared dependency",
+    "retain orphan dependency",
+    "move neighbor"
+  ],
+  "residualGaps": [
+    "No paid inference, Controller or hosted service",
+    "Intentional preexisting orphan-track compiler diagnostic; no compile or preview claim",
+    "Inspector overlaps initial connected confirmation while open; existing Escape path exposes full dialog",
+    "Coordinator owns final suites and review"
+  ]
+}
