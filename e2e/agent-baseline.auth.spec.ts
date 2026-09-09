@@ -1903,6 +1903,87 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     saveRecord('SC951', { before, after, done, manual, stale, duplicate, writes, observations: await readObservations(page) })
   })
 
+  test('DC951: duplicate saves once, exports the full surviving Show, and Undo restores its preimage', async ({ page }) => {
+    test.setTimeout(90000)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    const record = showSplitClipFixture()
+    record.id = `duplicate-951-${Date.now().toString(36)}`
+    expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+    await page.goto(`studio/shows/${record.id}?agent=1`)
+    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+    await expect.poll(() => page.evaluate(async () => {
+      const load = (path: string) => import(path)
+      const { useEntityOrganizationStore } = await load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')
+      return useEntityOrganizationStore.getState().loaded.libraries
+    })).toBe(true)
+    await injectOverlay(page, bridge.url)
+    const before = await visibleRecord(page) as unknown as ShowRecord
+    const writes = watchShowWrites(page)
+    const done = await waitForDone(page, await submitUtterance(page, 'duplicate the overlay Clip independently'))
+    expect(done.applied, JSON.stringify(done)).toBe(true)
+    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(1)
+    const after = await visibleRecord(page) as unknown as ShowRecord
+    const expected = structuredClone(before)
+    expected.composition!.patternInstances.unshift({ ...structuredClone(before.composition!.patternInstances.find(instance => instance.id === 'instance-ov')!), id: 'instance-1' })
+    expected.composition!.scenes[0].zones[0].overlays[0].placements.push({ id: 'clip-1', instanceId: 'instance-1', startMs: 8000, durationMs: 6000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } })
+    expect(after).toEqual({ ...expected, updatedAt: after.updatedAt })
+    expect(await durableShow(page, record.id)).toEqual(after)
+    await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: 'Show actions' }).click()
+    const download = page.waitForEvent('download')
+    await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
+    const file = await download
+    const reopened = await page.evaluate(async bytes => {
+      const load = (path: string) => import(path)
+      const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
+      return parseShowFileBundle(new Uint8Array(bytes))
+    }, [...readFileSync((await file.path())!)])
+    expect(reopened.show).toEqual(after)
+    saveRecord('DC951-export', reopened)
+    await page.screenshot({ path: join(REPORT_DIR, 'DC951-result.png'), fullPage: true })
+    await page.getByRole('button', { name: 'Undo Show edit' }).click()
+    await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
+    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(2)
+    await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+    // A duplicate captured before an independent manual edit is stale.
+    await page.evaluate(async () => {
+      const load = (path: string) => import(path)
+      const { applyShowCommand } = await load('/PXLBLZ-IDE/src/engine/showCommands/registry.ts')
+      const win = window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecord } }; __duplicatePending?: unknown }
+      const captured = win.__pxlblzEditor.beginRequest('duplicate-stale', 'duplicate target Clip', [])
+      const outcome = applyShowCommand(captured.show, 'duplicate_clip', { clip_id: 'clip-ov' })
+      if (!outcome.ok) throw new Error(JSON.stringify(outcome))
+      win.__duplicatePending = { captured, candidate: outcome.record }
+    })
+    await page.getByRole('button', { name: 'Add to Show', exact: true }).click()
+    await page.getByRole('menuitem', { name: /^Layer in / }).first().click()
+    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(3)
+    const manual = await visibleRecord(page)
+    const stale = await page.evaluate(async () => {
+      const win = window as unknown as { __pxlblzEditor: { applyShow: (show: unknown, request: unknown) => Promise<unknown> }; __duplicatePending: { candidate: unknown; captured: { request: unknown } } }
+      return win.__pxlblzEditor.applyShow(win.__duplicatePending.candidate, win.__duplicatePending.captured.request)
+    })
+    expect(stale).toMatchObject({ status: 'refused', reason: 'revision-conflict' })
+    expect(await visibleRecord(page)).toEqual(manual)
+    expect(await durableShow(page, record.id)).toEqual(manual)
+    const duplicate = await page.evaluate(async () => {
+      const load = (path: string) => import(path)
+      const { applyShowCommand } = await load('/PXLBLZ-IDE/src/engine/showCommands/registry.ts')
+      const api = (window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecord }; applyShow: (show: unknown, request: unknown) => Promise<unknown> } }).__pxlblzEditor
+      const captured = api.beginRequest('duplicate-delivery', 'duplicate target Clip', [])
+      const outcome = applyShowCommand(captured.show, 'duplicate_clip', { clip_id: 'clip-ov' })
+      if (!outcome.ok) throw new Error(JSON.stringify(outcome))
+      return { first: await api.applyShow(outcome.record, captured.request), second: await api.applyShow(outcome.record, captured.request) }
+    })
+    expect(duplicate.first).toMatchObject({ status: 'applied' })
+    expect(duplicate.second).toMatchObject({ status: 'applied' })
+    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(4)
+    await page.getByRole('button', { name: 'Undo Show edit' }).click()
+    await expect.poll(() => visibleRecord(page)).toEqual({ ...manual, updatedAt: expect.any(Number) })
+    await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(5)
+    saveRecord('DC951', { before, after, done, manual, stale, duplicate, writes, observations: await readObservations(page) })
+  })
+
   test('L951: Layer creation saves once, exports, undoes, deduplicates and refuses stale overlay indices', async ({ page }) => {
     test.setTimeout(90000)
     await page.setViewportSize({ width: 1440, height: 900 })

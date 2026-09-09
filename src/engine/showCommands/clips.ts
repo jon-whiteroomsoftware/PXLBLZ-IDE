@@ -11,11 +11,8 @@ import { showCompositionClipCount } from '../showClipInvariant'
 import {
   addShowClipAtGlobalTime,
   addShowClipAtGlobalTimeExtendingShow,
-  duplicateLinkedShowClipAfter,
-  duplicateShowClipAfter,
   makeShowClipPatternIndependent,
   planShowClipAtGlobalTime,
-  planShowClipDuplicateAfter,
   planShowClipPatternRejoin,
   rejoinShowClipPatternInstance,
   type ShowTimelineClipMoveTarget,
@@ -33,6 +30,7 @@ import {
   planRefusal,
   resolveCommandClip,
 } from './support'
+import { createDuplicateClipCommand } from './duplicateClip'
 
 const addClip: ShowCommandDescriptor = {
   name: 'add_clip',
@@ -205,49 +203,7 @@ const resizeClip: ShowCommandDescriptor = {
 }
 
 
-const duplicateClip: ShowCommandDescriptor = {
-  name: 'duplicate_clip',
-  description:
-    'Duplicate a clip immediately after itself: independent by default (its own Pattern instance), or ' +
-    'linked (sharing the instance) with linked true. Refused when the tail is occupied or the copy ' +
-    'would cross a boundary the engine protects.',
-  touches: ['/composition/patternInstances', '/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/composition/executionModel', '/updatedAt'],
-  fields: {
-    clip_id: { kind: 'string', description: 'The clip to duplicate' },
-    linked: { kind: 'boolean', optional: true, description: 'Share the Pattern instance (default false)' },
-  },
-  apply(record, input) {
-    const resolved = commandComposition(record)
-    if (!resolved.ok) return resolved
-    const composition = resolved.composition
-    const found = resolveCommandClip(record, composition, input.clip_id as string)
-    if (!found.ok) return found
-    const { clip, owner } = found.context
-    const independent = !input.linked
-    const plan = planShowClipDuplicateAfter(record, composition, { owner, independent })
-    if (!plan.enabled) return planRefusal(plan, 'duplicate_clip')
-    const newPlacementId = newPersonalContentId()
-    const result = independent
-      ? duplicateShowClipAfter(record, composition, {
-          owner,
-          newPlacementId,
-          newInstanceId: newPersonalContentId(),
-        })
-      : duplicateLinkedShowClipAfter(record, composition, { owner, newPlacementId })
-    if (result === composition) return engineIdentityRefusal('duplicate_clip', 'The tail may be occupied.')
-    return {
-      ok: true,
-      record: withComposition(record, result),
-      changes: [{
-        command: 'duplicate_clip',
-        targetId: newPlacementId,
-        description:
-          `Clip ${clip.patternName} duplicated after itself${independent ? '' : ' (linked)'}.`,
-        details: { sourceClipId: clip.id },
-      }],
-    }
-  },
-}
+const duplicateClip: ShowCommandDescriptor = createDuplicateClipCommand()
 
 export const removeClipCommand: ShowCommandDescriptor = {
   name: 'remove_clip',

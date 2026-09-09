@@ -188,6 +188,8 @@ export function buildStrykerConfig(repoRoot: string) {
       'src/engine/showCompositionModel.test.ts',
       'src/engine/showCommands/removeClip.test.ts',
       'src/engine/showCommands/splitClip.test.ts',
+      'src/engine/showCommands/duplicateClip.test.ts',
+      'src/agent-harness/test/canonicalDuplicateClip.test.ts',
       'src/engine/showClipInspectorModel.test.ts',
       'src/engine/showLayerTransitionAuthoring.test.ts',
     ],

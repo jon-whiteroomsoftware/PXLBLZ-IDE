@@ -117,6 +117,11 @@ export const BASELINE_UTTERANCES: BaselineUtterance[] = [
     ],
   },
   {
+    utterance: 'duplicate the overlay Clip independently',
+    intent: '#951: independent duplicate preserves the complete Show and adopts once.',
+    script: [{ tool: 'duplicate_clip', args: { clip_id: 'clip-ov', finish_turn_reply: { intent: 'apply', reply: 'Duplicated the overlay Clip independently.' } } }],
+  },
+  {
     utterance: 'split the connected target Clip at sixteen seconds',
     intent: '#951: connected multi-Scene split preserves shared state and adopts once.',
     script: [{ tool: 'split_clip', args: { clip_id: 'clip-b', at_ms: 16000, finish_turn_reply: { intent: 'apply', reply: 'Split the target Clip at sixteen seconds.' } } }],

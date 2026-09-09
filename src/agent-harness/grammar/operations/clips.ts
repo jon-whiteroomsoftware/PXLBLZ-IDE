@@ -17,11 +17,8 @@ import {
 import {
   addShowClipAtGlobalTime,
   addShowClipAtGlobalTimeExtendingShow,
-  duplicateLinkedShowClipAfter,
-  duplicateShowClipAfter,
   makeShowClipPatternIndependent,
   planShowClipAtGlobalTime,
-  planShowClipDuplicateAfter,
   planShowClipPatternRejoin,
   projectShowClipPatternInstanceOwnership,
   rejoinShowClipPatternInstance,
@@ -49,6 +46,7 @@ import { canonicalMoveOperation } from './moveAdapter.js'
 import { canonicalRemoveClipOperation } from './removeClipAdapter.js'
 import { canonicalOverlayLayerOperation } from './overlayLayerAdapter.js'
 import { canonicalSplitClipOperation } from './splitClipAdapter.js'
+import { canonicalDuplicateClipOperation } from './duplicateClipAdapter.js'
 
 function unknownZone(document: ShowGrammarDocument, zoneId: string): GrammarIssue {
   return {
@@ -291,62 +289,7 @@ const moveClip: ShowGrammarOperation = {
 
 const splitClip: ShowGrammarOperation = canonicalSplitClipOperation()
 
-const duplicateClip: ShowGrammarOperation = {
-  name: 'duplicate_clip',
-  description:
-    'Duplicate one clip immediately after itself on the same Zone and layer. By default the duplicate is ' +
-    'independent (its own Pattern instance and state); with linked true it shares the original’s Pattern ' +
-    'instance, keeping visual identity. Refused when there is no free time after the clip.',
-  mutates: [
-    '/composition/patternInstances',
-    '/composition/scenes/*/zones/*',
-    '/composition/scenes/*/propertyTracks',
-  ],
-  inputShape: {
-    clip_id: z.string().describe('Clip id from the open_show listing'),
-    linked: z.boolean().optional()
-      .describe('Share the original’s Pattern instance (default false: independent duplicate)'),
-  },
-  apply(document, args) {
-    const resolved = resolveClip(document, args.clip_id as string)
-    if (!resolved.ok) return resolved
-    const { clip } = resolved.context
-    const composition = compositionOf(document)
-    const owner = ownerFor(clip)
-    const linked = Boolean(args.linked)
-    const plan = planShowClipDuplicateAfter(document.show, composition, { owner, independent: !linked })
-    if (!plan.enabled) {
-      return refuse(planRefusal(plan, `Cannot duplicate clip ${clip.id} (${clip.startMs}–${clip.endMs} ms)`))
-    }
-    const newId = idFactory(document)
-    const newPlacementId = newId('clip')
-    const result = linked
-      ? duplicateLinkedShowClipAfter(document.show, composition, { owner, newPlacementId })
-      : duplicateShowClipAfter(document.show, composition, {
-          owner,
-          newPlacementId,
-          newInstanceId: newId('instance'),
-        })
-    if (result === composition) {
-      return refuse({
-        code: 'engine-refused',
-        message: `The engine declined to duplicate clip ${clip.id}.`,
-      })
-    }
-    return {
-      ok: true,
-      document: composedShow(document, result),
-      changes: [{
-        op: 'duplicate_clip',
-        targetId: newPlacementId,
-        description:
-          `Clip ${clip.id} duplicated ${linked ? 'linked' : 'independently'} as clip ${newPlacementId} at ` +
-          `${clip.endMs}–${clip.endMs + clip.durationMs} ms.`,
-        details: { sourceClipId: clip.id, linked },
-      }],
-    }
-  },
-}
+const duplicateClip: ShowGrammarOperation = canonicalDuplicateClipOperation()
 
 const removeClip: ShowGrammarOperation = canonicalRemoveClipOperation()
 

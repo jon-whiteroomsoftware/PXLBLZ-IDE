@@ -349,3 +349,36 @@ fresh-ID policy.
 [adapter/export tests](../../../src/agent-harness/test/canonicalSplitClip.test.ts)
 and [MCP tests](../../../src/agent-harness/test/grammarMcp.e2e.test.ts) qualify
 complete records, refusal, parity, split-then-edit/move and export/Undo/Redo.
+
+
+## Logical Clip duplication (#951)
+
+`duplicate_clip(clip_id, linked?)` and manual **Clone** share the duplication
+owner in `showTimelineClipAuthoring`. The copy begins immediately after the
+source's complete logical span, with the same duration and Layer. Manual Clone
+and omitted/false linkage create an independent Pattern instance; true linkage
+shares the existing instance. Independent copies retain settings, clone supported
+instance animation and invalidate the cast-bound deterministic-loop proof.
+Linked copies retain the cast and proof. Supported placement animation is copied
+in either mode, with fresh derived track/keyframe identities and shifted local
+Scene time. Original curves remain unchanged.
+
+Free tails, internal Cuts and supported multi-Scene spans retain their existing
+semantics. Multi-Scene placement animation, and independent multi-Scene instance
+animation, remain unsupported. Occupied/protected/out-of-Show tails, full Scene
+Transition-gap crossings, Group children, invalid owners and identity collisions
+refuse atomically. Every accepted result validates without normalizing unrelated
+authored records. Existing Transition identities and parameters, Groups, ordering,
+explicit empty collections and surviving shared users remain unchanged; no
+attached Transition is copied.
+
+The diagnostic adapter derives its invocation schema and receipt from the
+canonical descriptor, while preserving diagnostic ID minting. Manual destination
+drag uses the same bounded copy primitive with an explicit destination; it is a
+separate duplicate-and-move composition, not tail equivalence. Store/file
+normalization and whole-Show admission retain their existing ownership.
+[Owner tests](../../../src/engine/showCommands/duplicateClip.test.ts) and
+[adapter/import tests](../../../src/agent-harness/test/canonicalDuplicateClip.test.ts)
+cover full records, linkage, refusal and copy-then-edit/move. The `DC951` browser
+case covers one adoption/save, actual export/import, Undo and stale/duplicate
+response handling; it does not qualify paid inference or new concurrency scope.

@@ -88,6 +88,29 @@ describe('grammar tools over MCP (#17)', () => {
     expect(await callJson('export_show', { session_id })).toEqual(before)
   })
 
+  it('publishes optional boolean linkage and preserves duplicate export/Undo/Redo over MCP', async () => {
+    const { showSplitClipFixture } = await import('@/test/showSplitClipFixture')
+    const schema = (await client.listTools()).tools.find(tool => tool.name === 'duplicate_clip')!.inputSchema
+    expect(Object.keys(schema.properties ?? {}).sort()).toEqual(['clip', 'clip_id', 'linked', 'session_id'])
+    expect(schema.properties?.linked).toMatchObject({ type: 'boolean' })
+    expect(schema.required).not.toContain('linked')
+    const { payload: opened, isError } = await callJson('open_show', { show: showSplitClipFixture() })
+    expect(isError).toBe(false)
+    const session_id = opened.sessionId
+    const before = await callJson('export_show', { session_id })
+    expect((await client.callTool({ name: 'duplicate_clip', arguments: { session_id, clip_id: 'clip-ov', linked: 'yes' } })).isError).toBe(true)
+    expect(await callJson('export_show', { session_id })).toEqual(before)
+    const result = await callJson('duplicate_clip', { session_id, clip_id: 'clip-ov' })
+    expect(result.isError).toBe(false)
+    expect(result.payload.changes[0]).toMatchObject({ targetId: 'clip-1', details: { sourceClipId: 'clip-ov', linked: false } })
+    const after = await callJson('export_show', { session_id })
+    expect(after).not.toEqual(before)
+    expect((await callJson('undo', { session_id })).isError).toBe(false)
+    expect(await callJson('export_show', { session_id })).toEqual(before)
+    expect((await callJson('redo', { session_id })).isError).toBe(false)
+    expect(await callJson('export_show', { session_id })).toEqual(after)
+  })
+
   it('publishes numeric split time and preserves complete export/Undo/Redo over MCP', async () => {
     const { showSplitClipFixture } = await import('@/test/showSplitClipFixture')
     const schema = (await client.listTools()).tools.find(tool => tool.name === 'split_clip')!.inputSchema
