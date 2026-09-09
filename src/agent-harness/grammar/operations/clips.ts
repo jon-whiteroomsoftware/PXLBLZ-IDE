@@ -23,10 +23,8 @@ import {
   planShowClipAtGlobalTime,
   planShowClipDuplicateAfter,
   planShowClipPatternRejoin,
-  planShowClipSplitAtGlobalTime,
   projectShowClipPatternInstanceOwnership,
   rejoinShowClipPatternInstance,
-  splitShowClipAtGlobalTime,
   type ShowClipAddTarget,
   type ShowTimelineClipMoveTarget,
 } from '@/engine/showTimelineClipAuthoring'
@@ -50,6 +48,7 @@ import { canonicalResizeOperation } from './resizeAdapter.js'
 import { canonicalMoveOperation } from './moveAdapter.js'
 import { canonicalRemoveClipOperation } from './removeClipAdapter.js'
 import { canonicalOverlayLayerOperation } from './overlayLayerAdapter.js'
+import { canonicalSplitClipOperation } from './splitClipAdapter.js'
 
 function unknownZone(document: ShowGrammarDocument, zoneId: string): GrammarIssue {
   return {
@@ -290,62 +289,7 @@ const moveClip: ShowGrammarOperation = {
   },
 }
 
-const splitClip: ShowGrammarOperation = {
-  name: 'split_clip',
-  description:
-    'Split one clip in two at a global time strictly inside it. The left part keeps the clip id; the ' +
-    'change list carries the new right-part clip id. Property tracks targeting the clip stay attached to ' +
-    'the correct halves. A clip spanning several internal Scenes splits as one clip.',
-  mutates: [
-    '/composition/scenes/*/zones/*',
-    '/composition/scenes/*/propertyTracks',
-  ],
-  inputShape: {
-    clip_id: z.string().describe('Clip id from the open_show listing'),
-    at_ms: z.number().describe('Global timeline split point, strictly inside the clip'),
-  },
-  apply(document, args) {
-    const resolved = resolveClip(document, args.clip_id as string)
-    if (!resolved.ok) return resolved
-    const { clip } = resolved.context
-    const composition = compositionOf(document)
-    const owner = ownerFor(clip)
-    const plan = planShowClipSplitAtGlobalTime(document.show, composition, {
-      owner,
-      globalTimeMs: args.at_ms as number,
-    })
-    if (!plan.enabled) {
-      return refuse(planRefusal(
-        plan,
-        `Cannot split clip ${clip.id} (${clip.startMs}–${clip.endMs} ms) at ${args.at_ms} ms`,
-      ))
-    }
-    const newPlacementId = idFactory(document)('clip')
-    const result = splitShowClipAtGlobalTime(document.show, composition, {
-      owner,
-      globalTimeMs: args.at_ms as number,
-      newPlacementId,
-    })
-    if (result === composition) {
-      return refuse({
-        code: 'engine-refused',
-        message: `The engine declined to split clip ${clip.id} at ${args.at_ms} ms.`,
-      })
-    }
-    return {
-      ok: true,
-      document: composedShow(document, result),
-      changes: [{
-        op: 'split_clip',
-        targetId: newPlacementId,
-        description:
-          `Clip ${clip.id} split at ${Math.round(args.at_ms as number)} ms; the right part is ` +
-          `clip ${newPlacementId}.`,
-        details: { leftClipId: clip.id, rightClipId: newPlacementId },
-      }],
-    }
-  },
-}
+const splitClip: ShowGrammarOperation = canonicalSplitClipOperation()
 
 const duplicateClip: ShowGrammarOperation = {
   name: 'duplicate_clip',

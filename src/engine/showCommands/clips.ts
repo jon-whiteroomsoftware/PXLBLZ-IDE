@@ -1,3 +1,4 @@
+import { createSplitClipCommand } from './splitClip'
 import { createOverlayLayerCommand } from './overlayLayer'
 // Clip command family: placement lifecycle on the unified timeline through
 // the existing pure authoring functions. Commands take global times and clip
@@ -16,9 +17,7 @@ import {
   planShowClipAtGlobalTime,
   planShowClipDuplicateAfter,
   planShowClipPatternRejoin,
-  planShowClipSplitAtGlobalTime,
   rejoinShowClipPatternInstance,
-  splitShowClipAtGlobalTime,
   type ShowTimelineClipMoveTarget,
 } from '../showTimelineClipAuthoring'
 import { resizeShowClipExactly, type ShowExactClipResizeRequest } from '../showExactClipResize'
@@ -205,47 +204,6 @@ const resizeClip: ShowCommandDescriptor = {
   },
 }
 
-const splitClip: ShowCommandDescriptor = {
-  name: 'split_clip',
-  description:
-    'Split a clip at a global time inside it. The left half keeps the clip id; the right half is a new ' +
-    'placement sharing the Pattern instance. Refused at the clip edges and inside a Transition.',
-  touches: ['/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/updatedAt'],
-  fields: {
-    clip_id: { kind: 'string', description: 'The clip to split' },
-    at_ms: { kind: 'number', description: 'Global split time; must fall inside the clip' },
-  },
-  apply(record, input) {
-    const resolved = commandComposition(record)
-    if (!resolved.ok) return resolved
-    const composition = resolved.composition
-    const found = resolveCommandClip(record, composition, input.clip_id as string)
-    if (!found.ok) return found
-    const { clip, owner } = found.context
-    const plan = planShowClipSplitAtGlobalTime(record, composition, {
-      owner,
-      globalTimeMs: input.at_ms as number,
-    })
-    if (!plan.enabled) return planRefusal(plan, 'split_clip')
-    const newPlacementId = newPersonalContentId()
-    const result = splitShowClipAtGlobalTime(record, composition, {
-      owner,
-      globalTimeMs: input.at_ms as number,
-      newPlacementId,
-    })
-    if (result === composition) return engineIdentityRefusal('split_clip', 'The split point may sit on a boundary.')
-    return {
-      ok: true,
-      record: withComposition(record, result),
-      changes: [{
-        command: 'split_clip',
-        targetId: clip.id,
-        description: `Clip ${clip.patternName} split at ${Math.round(input.at_ms as number)} ms.`,
-        details: { rightClipId: newPlacementId },
-      }],
-    }
-  },
-}
 
 const duplicateClip: ShowCommandDescriptor = {
   name: 'duplicate_clip',
@@ -418,7 +376,7 @@ export const SHOW_CLIP_COMMANDS: ShowCommandDescriptor[] = [
   addClip,
   moveClip,
   resizeClip,
-  splitClip,
+  createSplitClipCommand(),
   duplicateClip,
   removeClipCommand,
   makeClipPatternIndependent,

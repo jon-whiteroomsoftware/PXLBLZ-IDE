@@ -322,6 +322,7 @@ function retargetLogicalSplitPlacementTracks(
       return leftSide - rightSide || left.startMs - right.startMs || left.id.localeCompare(right.id)
     }).map((placement) => placement.id)
     const tracks = scene.propertyTracks ?? []
+    if (!tracks.some(track => 'placementId' in track.target && input.sourcePlacementIds.has(track.target.placementId))) continue
     const nextTracks: ShowPropertyAnimationTrack[] = []
     for (const track of tracks) {
       if (!('placementId' in track.target) || !input.sourcePlacementIds.has(track.target.placementId)) {
@@ -776,6 +777,14 @@ export function planShowClipSplitAtGlobalTime(
   if (!Number.isFinite(input.globalTimeMs)) {
     return { enabled: false, code: 'invalid-time', reason: 'Place the playhead inside the selected Clip.' }
   }
+  const zone = composition.scenes.find(scene => scene.sceneId === input.owner.sceneId)
+    ?.zones.find(item => item.zoneId === input.owner.zoneId)
+  const ownerLayerId = input.owner.kind === 'overlay' ? input.owner.layerId : undefined
+  const placements = input.owner.kind === 'main' ? zone?.main
+    : zone?.overlays.find(layer => layer.id === ownerLayerId)?.placements
+  if (!placements?.some(placement => placement.id === input.owner.placementId)) {
+    return { enabled: false, code: 'missing-owner', reason: 'The selected Clip no longer exists in its owner.' }
+  }
   const segments = logicalClipSegments(show, composition, input.owner)
   if (segments.length === 0) {
     return { enabled: false, code: 'missing-owner', reason: 'The selected Clip no longer exists.' }
@@ -802,6 +811,10 @@ export function splitShowClipAtGlobalTime(
   composition: ShowCompositionV1,
   input: { owner: ShowTimelineClipOwner; globalTimeMs: number; newPlacementId: string },
 ): ShowCompositionV1 {
+  if (validateShowComposition(show, composition).length > 0) return composition
+  if (!input.newPlacementId || composition.scenes.some(scene => scene.zones.some(zone =>
+    [...zone.main, ...zone.overlays.flatMap(layer => layer.placements)].some(placement =>
+      placement.id === input.newPlacementId || placement.logicalClipId === input.newPlacementId)))) return composition
   const globalTimeMs = Math.round(input.globalTimeMs)
   if (!planShowClipSplitAtGlobalTime(show, composition, { ...input, globalTimeMs }).enabled) return composition
   const segments = logicalClipSegments(show, composition, input.owner)
@@ -855,7 +868,7 @@ export function splitShowClipAtGlobalTime(
     })
     const rightEndPlacementId = rightSegments[rightSegments.length - 1]?.placement.id
     if (!rightEndPlacementId) return composition
-    draft.transitions = draft.transitions?.map((transition) => ({
+    if (draft.transitions) draft.transitions = draft.transitions.map((transition) => ({
       ...transition,
       ...(segmentIds.has(transition.fromPlacementId)
         ? { fromPlacementId: rightEndPlacementId }
@@ -864,8 +877,26 @@ export function splitShowClipAtGlobalTime(
         ? { toPlacementId: rootId }
         : {}),
     }))
+    // Reinsert the generated halves at the source's authored position. Other
+    // placements, Layers, Scenes and tracks retain their existing order.
+    for (const scene of draft.scenes) {
+      const originalScene = composition.scenes.find(item => item.sceneId === scene.sceneId)!
+      for (const zone of scene.zones) {
+        const originalZone = originalScene.zones.find(item => item.zoneId === zone.zoneId)!
+        const restoreOrder = <T extends ShowMainPlacement | ShowOverlayPlacement>(original: T[], generated: T[]): T[] => {
+          const replacements = generated.filter(item => placementLogicalClipId(item) === rootId || placementLogicalClipId(item) === input.newPlacementId)
+            .sort((a, b) => a.startMs - b.startMs)
+          for (const placement of replacements) if (placement.logicalClipId === undefined) delete placement.logicalClipId
+          return original.flatMap(item => segmentIds.has(item.id) ? replacements : [structuredClone(item)])
+        }
+        zone.main = restoreOrder(originalZone.main, zone.main)
+        for (const layer of zone.overlays) {
+          layer.placements = restoreOrder(originalZone.overlays.find(item => item.id === layer.id)!.placements, layer.placements)
+        }
+      }
+    }
     if (validateShowComposition(show, draft).length > 0) return composition
-    return normalizeShowComposition(show, draft)
+    return draft
   }
   const range = projectShowTimeline(show).scenes.find((scene) => scene.sceneId === input.owner.sceneId)
   if (!range) return composition

@@ -1,3 +1,4 @@
+import { showSplitClipFixture } from '../../test/showSplitClipFixture'
 import { describe, expect, it } from 'vitest'
 import {
   boundaryFreeInstanceTrackedFixture,
@@ -353,6 +354,8 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(leading.changes[0].details?.transitionChanges).toEqual([{ transitionId: 'resize-transition', previousDurationMs: 1000, durationMs: 1500 }])
   },
   split_clip: () => {
+    const connected = applyOk(showSplitClipFixture(), 'split_clip', { clip_id: 'clip-b', at_ms: 16000 })
+    expect(connected.changes[0].details?.transitionChanges).toEqual([{ transitionId: 'outgoing', fromPlacementId: `${connected.changes[0].details?.rightClipId}--span-scene-2`, toPlacementId: 'clip-c' }])
     const { record, changes } = applyOk(showCommandFixture(), 'split_clip', {
       clip_id: 'clip-a',
       at_ms: 4_000,

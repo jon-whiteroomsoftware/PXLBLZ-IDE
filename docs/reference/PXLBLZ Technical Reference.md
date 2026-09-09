@@ -882,6 +882,9 @@ records the experimental external-editor boundary and its present limits.
 Logical Clip removal shares one validated owner across ordinary manual deletion,
 connected confirmation and the diagnostic descriptor adapter; its dependency
 cleanup and preservation boundary is in the [removal contract](contracts/show-command-semantics.md#logical-clip-removal-951).
+Logical Clip splitting likewise shares its existing manual owner with the
+canonical and diagnostic command; copied curves, numeric rounding and endpoint
+references follow the [split contract](contracts/show-command-semantics.md#logical-clip-splitting-951).
 
 Adding a command requires a descriptor in its family module plus a golden
 accepted case and refusal partition. The faithfulness sweep fails entries

@@ -319,3 +319,33 @@ and whole-Show revision admission retain their existing owners.
 [Removal evidence](../evidence/issue-951-remove-clip/README.md) records complete
 output, dependency preservation, protocol and browser checks. Group deletion,
 other Clip commands and narrow candidate admission remain outside this slice.
+
+## Logical Clip splitting (#951)
+
+`split_clip(clip_id, at_ms)` and manual **Split at playhead** share
+`splitShowClipAtGlobalTime`. Global milliseconds retain `Math.round` execution:
+a fractional request must round inside one existing Scene segment. Exact Clip
+edges, exact internal Scene boundaries (including Cut), hidden Transition gaps,
+missing/malformed owners, Group children and fresh-ID collisions refuse without
+changing the input. This operation does not split Groups.
+
+The left logical Clip keeps its identity; a caller-local fresh ID identifies the
+right Clip. Both retain their original Pattern-instance linkage, settings and
+shared instance animation. Placement curves are copied with derived IDs onto
+the applicable halves, not cropped or resampled. Incoming Transitions remain on
+the left root; outgoing endpoints reference the final right segment. Transition
+IDs, duration, easing and other visual parameters remain unchanged.
+
+The split changes only the target placements, their placement tracks and attached
+Transition endpoint references. Unrelated Scene/Layer ordering, Groups, markers
+and other authored values survive without whole-composition normalization. The
+store and file importer retain their separate normalization boundaries. Receipts
+name both Clip IDs, the actual rounded split time and changed Transition endpoints;
+`touches` includes those endpoint writes. The diagnostic adapter derives its
+schema and outcome from the canonical descriptor, while retaining its local
+fresh-ID policy.
+
+[Owner tests](../../../src/engine/showCommands/splitClip.test.ts),
+[adapter/export tests](../../../src/agent-harness/test/canonicalSplitClip.test.ts)
+and [MCP tests](../../../src/agent-harness/test/grammarMcp.e2e.test.ts) qualify
+complete records, refusal, parity, split-then-edit/move and export/Undo/Redo.

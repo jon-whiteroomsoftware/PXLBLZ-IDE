@@ -88,6 +88,28 @@ describe('grammar tools over MCP (#17)', () => {
     expect(await callJson('export_show', { session_id })).toEqual(before)
   })
 
+  it('publishes numeric split time and preserves complete export/Undo/Redo over MCP', async () => {
+    const { showSplitClipFixture } = await import('@/test/showSplitClipFixture')
+    const schema = (await client.listTools()).tools.find(tool => tool.name === 'split_clip')!.inputSchema
+    expect(Object.keys(schema.properties ?? {}).sort()).toEqual(['at_ms', 'clip', 'clip_id', 'session_id'])
+    expect(schema.properties?.at_ms).toMatchObject({ type: 'number' })
+    const { payload: opened, isError } = await callJson('open_show', { show: showSplitClipFixture() })
+    expect(isError).toBe(false)
+    const session_id = opened.sessionId
+    const before = await callJson('export_show', { session_id })
+    expect((await callJson('split_clip', { session_id, clip_id: 'clip-b', at_ms: 30000 })).isError).toBe(true)
+    expect(await callJson('export_show', { session_id })).toEqual(before)
+    const split = await callJson('split_clip', { session_id, clip_id: 'clip-b', at_ms: 16000.4 })
+    expect(split.isError).toBe(false)
+    expect(split.payload.changes[0].details).toEqual({ leftClipId: 'clip-b', rightClipId: 'clip-1', atMs: 16000, transitionChanges: [{ transitionId: 'outgoing', fromPlacementId: 'clip-1--span-scene-2', toPlacementId: 'clip-c' }] })
+    const after = await callJson('export_show', { session_id })
+    expect(after).not.toEqual(before)
+    expect((await callJson('undo', { session_id })).isError).toBe(false)
+    expect(await callJson('export_show', { session_id })).toEqual(before)
+    expect((await callJson('redo', { session_id })).isError).toBe(false)
+    expect(await callJson('export_show', { session_id })).toEqual(after)
+  })
+
   it('publishes the shared removal schema and preserves complete export/Undo over MCP', async () => {
     const { showRemoveClipFixture } = await import('@/test/showRemoveClipFixture')
     const tools = await client.listTools()

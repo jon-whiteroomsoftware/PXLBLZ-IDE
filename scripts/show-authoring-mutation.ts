@@ -187,6 +187,7 @@ export function buildStrykerConfig(repoRoot: string) {
       'src/engine/showTimelineClipAuthoring.test.ts',
       'src/engine/showCompositionModel.test.ts',
       'src/engine/showCommands/removeClip.test.ts',
+      'src/engine/showCommands/splitClip.test.ts',
       'src/engine/showClipInspectorModel.test.ts',
       'src/engine/showLayerTransitionAuthoring.test.ts',
     ],

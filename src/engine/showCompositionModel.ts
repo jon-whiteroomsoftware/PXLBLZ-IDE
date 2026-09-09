@@ -695,7 +695,7 @@ export function splitShowOverlayPlacement(
   composition: ShowCompositionV1,
   input: ShowOverlayPlacementOwner & { atMs: number; newPlacementId: string },
 ): ShowCompositionV1 {
-  return commitValidEdit(show, composition, (draft) => {
+  return commitValidSplit(show, composition, (draft) => {
     const layer = findOverlayLayer(draft, input)
     const placement = layer?.placements.find((candidate) => candidate.id === input.placementId)
     if (!layer || !placement) return false
@@ -711,7 +711,7 @@ export function splitShowOverlayPlacement(
     right.startMs = input.atMs
     right.durationMs = endMs - input.atMs
     placement.durationMs = input.atMs - placement.startMs
-    layer.placements.push(right)
+    layer.placements.splice(layer.placements.indexOf(placement) + 1, 0, right)
     draft.transitions?.forEach((transition) => {
       if (transition.fromPlacementId === placement.id) transition.fromPlacementId = input.newPlacementId
     })
@@ -776,7 +776,7 @@ export function splitShowMainPlacement(
   composition: ShowCompositionV1,
   input: ShowMainPlacementOwner & { atMs: number; newPlacementId: string },
 ): ShowCompositionV1 {
-  return commitValidEdit(show, composition, (draft) => {
+  return commitValidSplit(show, composition, (draft) => {
     const zone = findZoneComposition(draft, input.sceneId, input.zoneId)
     const placement = zone?.main.find((candidate) => candidate.id === input.placementId)
     if (!zone || !placement) return false
@@ -788,7 +788,7 @@ export function splitShowMainPlacement(
     right.startMs = input.atMs
     right.durationMs = endMs - input.atMs
     placement.durationMs = input.atMs - placement.startMs
-    zone.main.push(right)
+    zone.main.splice(zone.main.indexOf(placement) + 1, 0, right)
     draft.transitions?.forEach((transition) => {
       if (transition.fromPlacementId === placement.id) transition.fromPlacementId = input.newPlacementId
     })
@@ -1030,6 +1030,17 @@ export function resolveShowMainPlacementStart(
   if (nearby !== undefined) return nearby
   if (legal(desired)) return desired
   return legalEdges.sort((a, b) => Math.abs(a - desired) - Math.abs(b - desired) || a - b)[0] ?? desired
+}
+
+function commitValidSplit(
+  show: Pick<ShowRecord, 'scenes' | 'zones'>,
+  composition: ShowCompositionV1,
+  mutate: (draft: ShowCompositionV1) => boolean,
+): ShowCompositionV1 {
+  if (validateShowComposition(show, composition).length > 0) return composition
+  const draft = cloneJson(composition)
+  if (!mutate(draft) || validateShowComposition(show, draft).length > 0) return composition
+  return draft
 }
 
 function commitValidEdit(

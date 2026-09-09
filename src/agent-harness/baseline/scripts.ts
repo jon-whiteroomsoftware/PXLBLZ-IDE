@@ -117,6 +117,11 @@ export const BASELINE_UTTERANCES: BaselineUtterance[] = [
     ],
   },
   {
+    utterance: 'split the connected target Clip at sixteen seconds',
+    intent: '#951: connected multi-Scene split preserves shared state and adopts once.',
+    script: [{ tool: 'split_clip', args: { clip_id: 'clip-b', at_ms: 16000, finish_turn_reply: { intent: 'apply', reply: 'Split the target Clip at sixteen seconds.' } } }],
+  },
+  {
     utterance: 'remove the connected target Clip',
     intent: '#951: complete logical removal and orphan cleanup adopt once.',
     script: [{ tool: 'remove_clip', args: { clip_id: 'clip-b', finish_turn_reply: { intent: 'apply', reply: 'Removed the target Clip and attached Transition.' } } }],
