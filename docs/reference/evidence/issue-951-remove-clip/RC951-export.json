@@ -1,7 +1,7 @@
 {
   "version": 1,
   "show": {
-    "id": "remove-951-mttzoh3i",
+    "id": "remove-951-mttztsj7",
     "name": "Remove Clip preservation",
     "scenes": [
       {
@@ -103,7 +103,7 @@
       "pixelCount": 60,
       "resolution": "fixed"
     },
-    "updatedAt": 1788951749806,
+    "updatedAt": 1788951997875,
     "composition": {
       "version": 1,
       "markers": [
@@ -369,7 +369,7 @@
   "maps": [],
   "provenance": {
     "appVersion": "1.0.0",
-    "exportedAt": "2026-09-09T11:02:30.121Z",
-    "originalShowId": "remove-951-mttzoh3i"
+    "exportedAt": "2026-09-09T11:06:38.192Z",
+    "originalShowId": "remove-951-mttztsj7"
   }
 }

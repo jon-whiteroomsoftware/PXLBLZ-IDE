@@ -22,7 +22,7 @@ lost shared instance, retained orphan, moved neighbor) were each killed by the
 owner assertions; the restored nine-case suite passed.
 
 The committed-source `RC951` scripted browser sequence passed at
-`4919cd37e96fb4074ee16bbf222b5b1a7985f8ff` (5.1 seconds; 10.6 seconds including
+`a4d7214065c37d0f671c9401e3f634bee3e4a2c8` (5.5 seconds; 9.3 seconds including
 harness setup). A no-paid-model bridge turn produced one save/adoption. The
 actual downloaded `.pxlshow` reopened to the complete visible and durable Show;
 one Undo restored its complete preimage with one additional save and no earlier
@@ -34,7 +34,8 @@ for `unrelated-orphan`. The compiler reports that unused instance as missing
 before and after deletion. This packet qualifies authoring preservation and
 export/reopen, not compilation, preview rendering or Controller delivery.
 
-Coordinator in-app proof on the same source commit used synthetic local-agent-08
+Coordinator in-app proof on product-source commit
+`4919cd37e96fb4074ee16bbf222b5b1a7985f8ff` used synthetic local-agent-08
 at managed runtime 5178. Ordinary overlay deletion removed `clip-ov`, retained
 the Transition and undid exactly. Connected `clip-b` deletion showed the existing
 confirmation; confirming removed the target and crossfade while both Group
@@ -48,9 +49,12 @@ The inspector overlapped the first confirmation when left open
 before Delete exposed the complete confirmation. This is an observed layout
 residual, not a layout change or repair in this slice.
 
-The coordinator owns authoritative final suites and cross-family review. The existing whole-Show
-stale-response and duplicate-delivery guards are unchanged; this sequence does
-not independently requalify them. No Controller or hosted service is used.
+The coordinator owns authoritative final suites and cross-family review. The expanded sequence also captured a removal candidate, inserted a Layer
+through the manual Add menu, and proved the old removal refused with
+`revision-conflict` while the complete manual record stayed visible and durable.
+A fresh removal delivered twice produced only one save; one Undo restored the
+full manual preimage. Five PATCHes account exactly for initial removal, Undo,
+manual Layer creation, fresh removal and its Undo. No Controller or hosted service is used.
 
 The command contract and Technical Reference pointer now identify shared
 removal ownership. The canonical inventory was regenerated; diagnostic inventory
