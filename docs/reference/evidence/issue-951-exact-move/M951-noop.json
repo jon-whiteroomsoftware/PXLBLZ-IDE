@@ -1,11 +1,11 @@
 {
-  "requestId": "req-mttlgyf3-96n800",
-  "showId": "move-951-mttlgvh2",
-  "capturedUpdatedAt": 1788927879506,
-  "submittedAt": 1788927880000,
-  "responseAt": 1788927880014,
-  "firstEventAt": 1788927880014,
-  "doneAt": 1788927882518,
+  "requestId": "req-mttm91wj-eh4qoq",
+  "showId": "move-951-mttm8ywv",
+  "capturedUpdatedAt": 1788929190392,
+  "submittedAt": 1788929190885,
+  "responseAt": 1788929190899,
+  "firstEventAt": 1788929190899,
+  "doneAt": 1788929193406,
   "applyStartedAt": null,
   "applyEndedAt": null,
   "changed": false,
@@ -15,40 +15,40 @@
     {
       "kind": "accepted",
       "name": null,
-      "at": 1788927880014
+      "at": 1788929190899
     },
     {
       "kind": "tool",
       "name": "move_clip",
-      "at": 1788927882518
+      "at": 1788929193406
     },
     {
       "kind": "validation",
       "name": null,
-      "at": 1788927882518
+      "at": 1788929193406
     },
     {
       "kind": "done",
       "name": null,
-      "at": 1788927882518
+      "at": 1788929193406
     }
   ],
   "bridgeTiming": {
-    "acceptedAt": 1788927880001,
+    "acceptedAt": 1788929190885,
     "delayMs": 2500,
-    "agentStartedAt": 1788927882508,
-    "agentEndedAt": 1788927882518,
-    "exportedAt": 1788927882518,
+    "agentStartedAt": 1788929193394,
+    "agentEndedAt": 1788929193405,
+    "exportedAt": 1788929193405,
     "toolCalls": [
       {
         "name": "move_clip",
-        "at": 1788927882508,
-        "ms": 1
+        "at": 1788929193394,
+        "ms": 5
       }
     ],
     "validation": {
-      "at": 1788927882510,
-      "ms": 7,
+      "at": 1788929193399,
+      "ms": 6,
       "ok": true
     }
   },

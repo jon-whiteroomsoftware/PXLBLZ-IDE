@@ -1,7 +1,7 @@
 # Exact Clip move proof
 
-Source: `696929711fb2fc491dbae230a285a97b93645d5a`. The committed-source browser
-run `2026-09-09T04-23-59-049Z` passed all three selected sequences with:
+Source: `421ec5eed6307862cfca40a42d3b7854dc2c7b56`. The committed-source browser
+run `2026-09-09T04-45-49-123Z` passed all three selected sequences with:
 
 ```bash
 npm run test:e2e:agent-baseline -- --grep 'M951:|MR:|PP:'
@@ -9,8 +9,8 @@ npm run test:e2e:agent-baseline -- --grep 'M951:|MR:|PP:'
 
 The repository Chromium runner used a synthetic authenticated user, isolated
 local D1, real editor route and scripted HTTP/NDJSON/MCP bridge. No paid model
-call was made. M951 passed in 9.9 seconds, MR in 24.5 seconds and PP in 11.4
-seconds; the complete run took 49.5 seconds. The coordinator also completed
+call was made. M951 passed in 10.0 seconds, MR in 25.0 seconds and PP in 11.6
+seconds; the complete run took 50.4 seconds. The coordinator also completed
 the in-app browser check below. This worker's separate browser discovery could
 not select that backend; that was not task-wide unavailability.
 
@@ -34,7 +34,17 @@ conflict. PP covers accepted private overlap swap, incomplete discard and stale
 delivery. Their complete record/export/Undo assertions passed unchanged at this
 source; raw run artifacts remain under the run directory above.
 
-Focused verification passed 179 tests across ten owner, registry, grammar,
+The repair reproduced both original grammar failures, then passed 196 tests
+across seven owner, registry, grammar, private-pair and MCP suites. Normal repair
+hooks passed lint, typecheck and 69 staged checks. Shared owner refusal facts
+restore occupied Clip identity/remedy and outside-timeline diagnosis, retaining
+a finite domain-refusal fallback. The diagnostic golden now proves a positive
+Scene crossing with retained Transition settings and retargeted endpoint. The
+fresh browser run above qualifies this repaired source; the supplementary IAB
+check below remains pinned to its original source.
+
+At original source `696929711fb2fc491dbae230a285a97b93645d5a`,
+focused verification passed 179 tests across ten owner, registry, grammar,
 private-pair, resize, bridge and MCP suites. Normal source hooks passed lint,
 typecheck and 117 staged checks. All seven historical exported fixture hashes
 remain unchanged; no baseline was regenerated. The existing Show-authoring

@@ -1,6 +1,6 @@
 {
   "before": {
-    "id": "move-951-mttlgvh2",
+    "id": "move-951-mttm8ywv",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -139,7 +139,7 @@
     }
   },
   "after": {
-    "id": "move-951-mttlgvh2",
+    "id": "move-951-mttm8ywv",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -203,7 +203,7 @@
         "resolution": "variable"
       }
     },
-    "updatedAt": 1788927879506,
+    "updatedAt": 1788929190392,
     "composition": {
       "version": 1,
       "patternInstances": [
@@ -278,7 +278,7 @@
     }
   },
   "undone": {
-    "id": "move-951-mttlgvh2",
+    "id": "move-951-mttm8ywv",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -342,7 +342,7 @@
         "resolution": "variable"
       }
     },
-    "updatedAt": 1788927885915,
+    "updatedAt": 1788929196816,
     "composition": {
       "version": 1,
       "patternInstances": [
@@ -417,15 +417,15 @@
     }
   },
   "done": {
-    "requestId": "req-mttlgw38-chs1v0",
-    "showId": "move-951-mttlgvh2",
+    "requestId": "req-mttm8zk8-hocha4",
+    "showId": "move-951-mttm8ywv",
     "capturedUpdatedAt": 1757000000000,
-    "submittedAt": 1788927876982,
-    "responseAt": 1788927876997,
-    "firstEventAt": 1788927876997,
-    "doneAt": 1788927879499,
-    "applyStartedAt": 1788927879499,
-    "applyEndedAt": 1788927879601,
+    "submittedAt": 1788929187851,
+    "responseAt": 1788929187865,
+    "firstEventAt": 1788929187866,
+    "doneAt": 1788929190384,
+    "applyStartedAt": 1788929190384,
+    "applyEndedAt": 1788929190511,
     "changed": true,
     "applied": true,
     "error": null,
@@ -433,55 +433,55 @@
       {
         "kind": "accepted",
         "name": null,
-        "at": 1788927876997
+        "at": 1788929187866
       },
       {
         "kind": "tool",
         "name": "move_clip",
-        "at": 1788927879499
+        "at": 1788929190384
       },
       {
         "kind": "tool",
         "name": "move_clip",
-        "at": 1788927879499
+        "at": 1788929190384
       },
       {
         "kind": "validation",
         "name": null,
-        "at": 1788927879499
+        "at": 1788929190384
       },
       {
         "kind": "validation",
         "name": null,
-        "at": 1788927879499
+        "at": 1788929190384
       },
       {
         "kind": "done",
         "name": null,
-        "at": 1788927879499
+        "at": 1788929190384
       }
     ],
     "bridgeTiming": {
-      "acceptedAt": 1788927876983,
+      "acceptedAt": 1788929187852,
       "delayMs": 2500,
-      "agentStartedAt": 1788927879492,
-      "agentEndedAt": 1788927879496,
-      "exportedAt": 1788927879499,
+      "agentStartedAt": 1788929190364,
+      "agentEndedAt": 1788929190376,
+      "exportedAt": 1788929190383,
       "toolCalls": [
         {
           "name": "move_clip",
-          "at": 1788927879492,
-          "ms": 2
+          "at": 1788929190364,
+          "ms": 4
         },
         {
           "name": "move_clip",
-          "at": 1788927879494,
-          "ms": 0
+          "at": 1788929190368,
+          "ms": 1
         }
       ],
       "validation": {
-        "at": 1788927879496,
-        "ms": 3,
+        "at": 1788929190376,
+        "ms": 7,
         "ok": true
       }
     },
@@ -493,10 +493,10 @@
   "writes": [
     {
       "method": "PATCH",
-      "url": "http://localhost:5205/api/shows/move-951-mttlgvh2",
-      "at": 1788927879534,
+      "url": "http://localhost:5205/api/shows/move-951-mttm8ywv",
+      "at": 1788929190423,
       "status": 200,
-      "updatedAt": 1788927879506,
+      "updatedAt": 1788929190392,
       "firstMainStartMs": 3000,
       "firstMain": {
         "durationMs": 2000,
@@ -507,10 +507,10 @@
     },
     {
       "method": "PATCH",
-      "url": "http://localhost:5205/api/shows/move-951-mttlgvh2",
-      "at": 1788927885942,
+      "url": "http://localhost:5205/api/shows/move-951-mttm8ywv",
+      "at": 1788929196846,
       "status": 200,
-      "updatedAt": 1788927885915,
+      "updatedAt": 1788929196816,
       "firstMainStartMs": 0,
       "firstMain": {
         "durationMs": 2000,
@@ -523,24 +523,24 @@
   "observations": [
     {
       "kind": "preview-published",
-      "showId": "move-951-mttlgvh2",
-      "at": 1788927876714,
+      "showId": "move-951-mttm8ywv",
+      "at": 1788929187573,
       "digest": "587ba6ad",
       "updatedAt": 1757000000000
     },
     {
       "kind": "preview-published",
-      "showId": "move-951-mttlgvh2",
-      "at": 1788927876718,
+      "showId": "move-951-mttm8ywv",
+      "at": 1788929187576,
       "digest": "587ba6ad",
       "updatedAt": 1757000000000
     },
     {
       "kind": "agent-apply",
       "phase": "admitted",
-      "showId": "move-951-mttlgvh2",
-      "requestId": "req-mttlgw38-chs1v0",
-      "at": 1788927879499,
+      "showId": "move-951-mttm8ywv",
+      "requestId": "req-mttm8zk8-hocha4",
+      "at": 1788929190384,
       "digest": "587ba6ad",
       "updatedAt": 1757000000000,
       "historyDepth": 0
@@ -548,36 +548,36 @@
     {
       "kind": "agent-apply",
       "phase": "adopted",
-      "showId": "move-951-mttlgvh2",
-      "requestId": "req-mttlgw38-chs1v0",
-      "at": 1788927879506,
+      "showId": "move-951-mttm8ywv",
+      "requestId": "req-mttm8zk8-hocha4",
+      "at": 1788929190393,
       "digest": "3bf62869",
-      "updatedAt": 1788927879506,
+      "updatedAt": 1788929190392,
       "historyDepth": 1
     },
     {
       "kind": "preview-published",
-      "showId": "move-951-mttlgvh2",
-      "at": 1788927879555,
+      "showId": "move-951-mttm8ywv",
+      "at": 1788929190445,
       "digest": "3bf62869",
-      "updatedAt": 1788927879506
+      "updatedAt": 1788929190392
     },
     {
       "kind": "agent-apply",
       "phase": "settled",
-      "showId": "move-951-mttlgvh2",
-      "requestId": "req-mttlgw38-chs1v0",
-      "at": 1788927879601,
+      "showId": "move-951-mttm8ywv",
+      "requestId": "req-mttm8zk8-hocha4",
+      "at": 1788929190511,
       "digest": "3bf62869",
-      "updatedAt": 1788927879506,
+      "updatedAt": 1788929190392,
       "historyDepth": 1
     },
     {
       "kind": "preview-published",
-      "showId": "move-951-mttlgvh2",
-      "at": 1788927885946,
+      "showId": "move-951-mttm8ywv",
+      "at": 1788929196851,
       "digest": "587ba6ad",
-      "updatedAt": 1788927885915
+      "updatedAt": 1788929196816
     }
   ]
 }

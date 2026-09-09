@@ -1,7 +1,7 @@
 {
   "version": 1,
   "show": {
-    "id": "move-951-mttlgvh2",
+    "id": "move-951-mttm8ywv",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -65,7 +65,7 @@
         "resolution": "variable"
       }
     },
-    "updatedAt": 1788927879506,
+    "updatedAt": 1788929190392,
     "composition": {
       "version": 1,
       "patternInstances": [
@@ -143,7 +143,7 @@
   "maps": [],
   "provenance": {
     "appVersion": "1.0.0",
-    "exportedAt": "2026-09-09T04:24:39.949Z",
-    "originalShowId": "move-951-mttlgvh2"
+    "exportedAt": "2026-09-09T04:46:30.835Z",
+    "originalShowId": "move-951-mttm8ywv"
   }
 }
