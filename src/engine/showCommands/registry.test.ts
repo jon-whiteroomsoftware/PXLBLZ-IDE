@@ -63,9 +63,24 @@ describe('Show command registry core (#885)', () => {
     const stamped = stampedCommandFixture()
     const moved = applyShowCommand(stamped, 'move_clip', { clip_id: 'clip-b', start_ms: 34_000 })
     expect(moved.ok && moved.record.composition?.executionModel).toBe('deterministic-loop')
-    const removed = applyShowCommand(stamped, 'remove_clip', { clip_id: 'clip-b' })
-    // remove_clip leaves the orphan instance in the cast, so the proof holds.
-    expect(removed.ok && removed.record.composition?.executionModel).toBe('deterministic-loop')
+    const before = structuredClone(stamped)
+    const removedSoleUser = applyShowCommand(stamped, 'remove_clip', { clip_id: 'clip-b' })
+    expect(removedSoleUser.ok).toBe(true)
+    if (!removedSoleUser.ok) throw new Error('Sole-user removal refused')
+    expect(removedSoleUser.record.composition?.patternInstances.map(instance => instance.id))
+      .toEqual(['instance-a', 'instance-ov'])
+    expect(removedSoleUser.record.composition?.scenes[0].zones[0].main.map(clip => clip.id))
+      .toEqual(['clip-a', 'clip-c'])
+    expect(removedSoleUser.record.composition?.executionModel).toBeUndefined()
+
+    const removedSharedUser = applyShowCommand(stamped, 'remove_clip', { clip_id: 'clip-a' })
+    expect(removedSharedUser.ok).toBe(true)
+    if (!removedSharedUser.ok) throw new Error('Shared-user removal refused')
+    expect(removedSharedUser.record.composition?.patternInstances).toEqual(stamped.composition!.patternInstances)
+    expect(removedSharedUser.record.composition?.scenes[0].zones[0].main)
+      .toEqual(stamped.composition!.scenes[0].zones[0].main.slice(1))
+    expect(removedSharedUser.record.composition?.executionModel).toBe('deterministic-loop')
+    expect(stamped).toEqual(before)
     const added = applyShowCommand(stamped, 'add_clip', {
       zone_id: 'zone-1',
       start_ms: 34_000,

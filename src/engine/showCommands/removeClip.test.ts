@@ -106,5 +106,11 @@ it.each(['clip-a', 'clip-b'])('invalidates the cast proof only when %s removes i
   show.composition!.executionModel = 'deterministic-loop'
   const outcome = applyShowCommand(show, 'remove_clip', { clip_id: clipId })
   expect(outcome.ok).toBe(true)
-  if (outcome.ok) expect(outcome.record.composition!.executionModel).toBe(clipId === 'clip-a' ? 'deterministic-loop' : undefined)
+  if (!outcome.ok) throw new Error('Removal refused')
+  const { deleteShowClipWithLayerTransitions } = await import('../showLayerTransitionAuthoring')
+  const manual = deleteShowClipWithLayerTransitions(show, show.composition!, {
+    kind: 'main', sceneId: 'scene-1', zoneId: 'zone-1', placementId: clipId,
+  })
+  expect(manual).toEqual(outcome.record.composition)
+  expect(manual.executionModel).toBe(clipId === 'clip-a' ? 'deterministic-loop' : undefined)
 })

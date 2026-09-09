@@ -61,3 +61,21 @@ removal ownership. The canonical inventory was regenerated; diagnostic inventory
 content is unchanged. CONTEXT and Feature Guide need no change: domain names and
 the existing confirmation workflow are unchanged. The active command census stays
 forward-looking until coordinator review and landing.
+
+
+Final-suite qualification exposed one obsolete registry assertion that removal
+retained orphan instances and therefore retained the cast proof. The corrected
+registry test preserves move/add controls and independently checks sole-user
+pruning versus surviving shared users, complete retained instances and immutable
+input. The focused registry, canonical goldens, removal, adapter and mutation
+configuration checks passed 92 tests. Product source remains unchanged.
+
+The catalogued mutation run initially killed 65/79 faults because its fixed
+selection omitted the new removal contract suite. Adding that existing suite
+killed 78/79. The remaining fault disabled manual cast-proof invalidation while
+canonical `withComposition` masked it; the existing stamped removal test now
+also checks actual manual-owner composition parity. The final run killed all
+79 faults in 7.2 seconds, with no survivors, exclusions, errors or timeouts.
+The original reports are preserved as [initial](mutation-before.json.gz),
+[wired suite](mutation-wired.json.gz), and [qualified](mutation-qualified.json.gz)
+compressed JSON. No mutant was classified away and no product repair was needed.

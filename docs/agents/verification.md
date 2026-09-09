@@ -916,8 +916,8 @@ map, and maintenance rule live in
 `npm run test:mutation:show-authoring` checks whether the Show authoring suite
 rejects a small catalog of plausible faults. It is intentionally narrower than
 whole-file mutation: the command resolves named source fragments through the
-TypeScript syntax tree, runs the five owning Vitest suites in an isolated Node
-project, and writes `reports/mutation/show-authoring.json`.
+TypeScript syntax tree, runs the owning Vitest suites (including the shared
+removal contract suite) in an isolated Node project, and writes `reports/mutation/show-authoring.json`.
 
 The catalog spans every critical operation family without turning mutation
 testing into a second full suite:
