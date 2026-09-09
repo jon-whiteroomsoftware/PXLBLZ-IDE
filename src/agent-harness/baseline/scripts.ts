@@ -117,6 +117,11 @@ export const BASELINE_UTTERANCES: BaselineUtterance[] = [
     ],
   },
   {
+    utterance: 'add a topmost overlay Layer',
+    intent: '#951: one fresh Layer in every Scene, adopted once.',
+    script: [{ tool: 'add_overlay_layer', args: { zone_id: 'zone-1', finish_turn_reply: { intent: 'apply', reply: 'Added a topmost Layer.' } } }],
+  },
+  {
     utterance: 'add move and update the marker',
     intent: '#951: marker batch adopts once.',
     script: [

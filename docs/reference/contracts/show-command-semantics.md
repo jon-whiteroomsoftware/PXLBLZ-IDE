@@ -261,3 +261,32 @@ without overlap permission before document preparation. Unresolved overlap
 cannot be normalized into success. The [candidate contract](agent-candidate-application.md#private-two-clip-rearrangement)
 owns delivery and the [consumer tests](../../../src/agent-harness/test/privateClipRearrangement.test.ts)
 cover complete records, history, refusal and private lifecycle behavior.
+
+## Overlay Layer creation (#951)
+
+`add_overlay_layer(zone_id)` inserts a fresh empty Layer at overlay index zero
+in every composition Scene. Its name is Layer N, where N is the target Zone's
+maximum existing overlay count plus one. Existing Layer IDs, memberships and
+all unrelated authored content keep their ordering and values. Group ordinal
+addressing is bottom-based, so prepending preserves its resolved Layer identity
+without rewriting Group definitions or occurrences.
+
+The existing `addShowOverlayLayerAcrossTimeline` helper is the sole mutation
+owner for the manual Add menu, canonical descriptor and descriptor-derived
+diagnostic adapter. Callers mint their own fresh per-Scene IDs: manual and
+canonical callers retain UUIDs, diagnostic callers retain deterministic IDs.
+The owner requires an exact one-to-one Scene mapping, nonempty unique fresh
+Layer IDs, existing Scene/Zone owners and a valid composition before mutation.
+Invalid mappings and collisions refuse atomically without a timestamp change.
+The operation does not normalize unrelated composition content.
+
+Each new invocation creates a Layer. Duplicate response delivery is governed
+by existing request admission, which prevents a second adoption/save. A manual
+Layer insertion invalidates a pending whole-Show request, so an old overlay
+index cannot silently retarget after insertion. No narrow admission is granted.
+
+[Focused fixtures](../../../src/engine/showCommands/overlayLayer.test.ts),
+[adapter parity](../../../src/agent-harness/test/canonicalOverlayLayer.test.ts)
+and [consumer evidence](../evidence/issue-951-overlay-layer/README.md) qualify
+this boundary. Layer removal/reorder, Group creation and add_clip migration
+remain outside this slice.

@@ -1038,8 +1038,10 @@ a Scene-boundary junction replaces it with a Cut and collapses its time.
 Composition validation enforces clean endpoints — an unrelated same-Zone Clip
 may span a Transition or stay out of it, never start or stop inside it.
 
-**Markers, Show End, Insert Time.** `showTimelineAuthoring.ts` owns Marker
-edits, non-destructive Show End changes, and Insert Time (extends the
+**Markers, Show End, Insert Time.** `showExactTimelineMarker.ts` owns shared
+Marker edits; legacy timeline helpers forward to it. The
+[command contract](contracts/show-command-semantics.md) defines that boundary.
+`showTimelineAuthoring.ts` owns non-destructive Show End changes and Insert Time (extends the
 containing scene, splits crossing placements, shifts later content, holds
 crossing animation; refuses inside Transitions and inside value-changing
 nonlinear segments rather than silently reshaping a curve). Markers never

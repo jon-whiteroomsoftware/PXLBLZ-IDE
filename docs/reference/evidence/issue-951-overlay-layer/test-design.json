@@ -1,0 +1,32 @@
+{
+  "invariants": [
+    "Every composition Scene receives a fresh empty Layer at overlay index zero with name Layer(max existing count + 1).",
+    "Existing Layer identities and memberships, unrelated authored order, tracks, Transitions, Groups and references survive verbatim; input is immutable and complete output validates.",
+    "Exact per-Scene mappings and fresh Layer IDs are required; invalid owners, compositions, duplicate mappings and collisions refuse atomically before stamping.",
+    "Manual, canonical and diagnostic callers share one mutation owner; diagnostic schema derives from canonical descriptor and caller ID policies remain local.",
+    "Fresh invocation creates again; duplicate response delivery adds no second Layer/save; manual insertion invalidates a pending prior-index request."
+  ],
+  "partitions": [
+    "Two Scenes, two Zones, unequal overlay counts, non-normalized marker order, tracked placements and mixed main/overlay Group.",
+    "Empty/missing composition and owner; incomplete, duplicate and mismatched mappings; empty, duplicate and colliding Layer IDs.",
+    "Deterministic parity and UUID creation; valid new invocation versus repeated immutable request identity."
+  ],
+  "sequences": [
+    "Add Layer then existing diagnostic add_clip at overlay zero.",
+    "Materialize mixed Group before and after insertion and compare resolved old Layer identity and membership.",
+    "Actual MCP discovery, refused unknown Zone with unchanged export, creation and Undo.",
+    "Real scripted editor creation, one PATCH, downloaded .pxlshow reopen, Undo; pending old-index request then manual Add Layer revision refusal; duplicate creation response delivery with one adoption/save.",
+    "Wrong-index, membership-loss and collision-admission faults are each detected by focused tests; restored source passes."
+  ],
+  "oracles": [
+    "Literal complete expected composition plus input equality and validateShowComposition.",
+    "Full canonical/diagnostic/manual result equality modulo independently assigned timestamps; actual published MCP schema and protocol response.",
+    "Visible editor record, durable API record, downloaded .pxlshow importer, PATCH counts, receipt reason and disabled Undo after restoration.",
+    "Coordinator manual in-app-browser inspection uses the committed importable rich fixture."
+  ],
+  "residualGaps": [
+    "Coordinator IAB proof and final committed-tip suites/native review remain pending at worker source freeze.",
+    "No paid inference, hosted service, Controller, new UI, Layer reorder/removal or add_clip migration.",
+    "Duplicate adoption has real browser behavioral coverage; targeted injected faults cover the three changed transformation risks."
+  ]
+}

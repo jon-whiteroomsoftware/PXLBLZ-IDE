@@ -19,7 +19,6 @@ import {
 import {
   addShowClipAtGlobalTime,
   addShowClipAtGlobalTimeExtendingShow,
-  addShowOverlayLayerAcrossTimeline,
   duplicateLinkedShowClipAfter,
   duplicateShowClipAfter,
   makeShowClipPatternIndependent,
@@ -51,6 +50,7 @@ import {
 } from '../support.js'
 import { canonicalResizeOperation } from './resizeAdapter.js'
 import { canonicalMoveOperation } from './moveAdapter.js'
+import { canonicalOverlayLayerOperation } from './overlayLayerAdapter.js'
 
 function unknownZone(document: ShowGrammarDocument, zoneId: string): GrammarIssue {
   return {
@@ -783,44 +783,7 @@ const setClipEvaluation: ShowGrammarOperation = {
   },
 }
 
-const addOverlayLayer: ShowGrammarOperation = {
-  name: 'add_overlay_layer',
-  description:
-    'Add a new topmost overlay layer to a Zone across the whole timeline (every Scene). The new layer is ' +
-    'overlay index 0; existing overlay layers shift down one index. Add clips to it with add_clip.',
-  mutates: ['/composition/scenes/*/zones/*/overlays'],
-  inputShape: {
-    zone_id: z.string().describe('Zone id from the open_show listing'),
-  },
-  apply(document, args) {
-    const zoneId = args.zone_id as string
-    if (!document.show.zones.some((zone) => zone.id === zoneId)) {
-      return refuse(unknownZone(document, zoneId))
-    }
-    const composition = compositionOf(document)
-    const newId = idFactory(document)
-    const layers = composition.scenes.map((scene) => ({ sceneId: scene.sceneId, layerId: newId('layer') }))
-    const result = addShowOverlayLayerAcrossTimeline(document.show, composition, { zoneId, layers })
-    if (result === composition) {
-      return refuse({
-        code: 'engine-refused',
-        message: `The engine declined to add an overlay layer to Zone ${zoneId}.`,
-      })
-    }
-    return {
-      ok: true,
-      document: composedShow(document, result),
-      changes: [{
-        op: 'add_overlay_layer',
-        targetId: layers[0]?.layerId ?? zoneId,
-        description:
-          `New topmost overlay layer added to Zone ${zoneId} across all ${layers.length} Scene(s); ` +
-          'it is overlay layer index 0.',
-        details: { layerIdsBySceneId: Object.fromEntries(layers.map((layer) => [layer.sceneId, layer.layerId])) },
-      }],
-    }
-  },
-}
+const addOverlayLayer = canonicalOverlayLayerOperation()
 
 export const CLIP_OPERATIONS: ShowGrammarOperation[] = [
   addClip,

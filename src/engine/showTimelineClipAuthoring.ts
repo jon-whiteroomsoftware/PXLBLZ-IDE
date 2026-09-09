@@ -413,8 +413,17 @@ export function addShowOverlayLayerAcrossTimeline(
   composition: ShowCompositionV1,
   input: { zoneId: string; layers: Array<{ sceneId: string; layerId: string }> },
 ): ShowCompositionV1 {
+  if (!show.zones.some(zone => zone.id === input.zoneId) || composition.scenes.length === 0
+    || input.layers.length !== composition.scenes.length
+    || validateShowComposition(show, composition).length > 0) return composition
   const layerBySceneId = new Map(input.layers.map((layer) => [layer.sceneId, layer.layerId]))
-  if (layerBySceneId.size !== composition.scenes.length) return composition
+  const freshIds = new Set(input.layers.map(layer => layer.layerId))
+  const existingIds = new Set(composition.scenes.flatMap(scene => scene.zones.flatMap(zone => zone.overlays.map(layer => layer.id))))
+  if (layerBySceneId.size !== composition.scenes.length || freshIds.size !== input.layers.length
+    || input.layers.some(layer => typeof layer.layerId !== 'string' || !layer.layerId.trim() || existingIds.has(layer.layerId))
+    || composition.scenes.some(scene => !layerBySceneId.has(scene.sceneId)
+      || !show.scenes.some(owner => owner.id === scene.sceneId)
+      || !scene.zones.some(zone => zone.zoneId === input.zoneId))) return composition
   const draft = structuredClone(composition)
   const layerNumber = draft.scenes.reduce((maximum, scene) => {
     const zone = scene.zones.find((candidate) => candidate.zoneId === input.zoneId)
@@ -427,7 +436,7 @@ export function addShowOverlayLayerAcrossTimeline(
     zone.overlays.unshift({ id: layerId, name: `Layer ${layerNumber}`, placements: [] })
   }
   if (validateShowComposition(show, draft).length > 0) return composition
-  return normalizeShowComposition(show, draft)
+  return draft
 }
 
 export function planShowMainClipAtGlobalTime(

@@ -70,6 +70,24 @@ describe('grammar tools over MCP (#17)', () => {
     expect((await callJson('undo', { session_id })).isError).toBe(true)
   })
 
+  it('publishes the canonical Layer schema and adds a Layer through actual MCP', async () => {
+    const tools = await client.listTools()
+    const schema = tools.tools.find(tool => tool.name === 'add_overlay_layer')!.inputSchema
+    expect(schema.properties?.zone_id).toMatchObject({ type: 'string' })
+    expect(schema.required).toContain('zone_id')
+    const { document } = openGrammarFixture()
+    const { payload: opened } = await callJson('open_show', { show: document.show })
+    const session_id = opened.sessionId
+    const before = await callJson('export_show', { session_id })
+    expect((await callJson('add_overlay_layer', { session_id, zone_id: 'absent' })).isError).toBe(true)
+    expect(await callJson('export_show', { session_id })).toEqual(before)
+    const added = await callJson('add_overlay_layer', { session_id, zone_id: 'z1' })
+    expect(added.isError).toBe(false)
+    expect(added.payload.changes[0].details.layerIdsBySceneId).toEqual({ s1: 'layer-1', s2: 'layer-2' })
+    expect((await callJson('undo', { session_id })).isError).toBe(false)
+    expect(await callJson('export_show', { session_id })).toEqual(before)
+  })
+
   it("carries the owner's example end to end through the protocol", async () => {
     const fixture = openGrammarFixture({ overlay: true })
     const { payload: opened, isError: openError } = await callJson('open_show', {

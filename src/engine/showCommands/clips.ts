@@ -1,3 +1,4 @@
+import { createOverlayLayerCommand } from './overlayLayer'
 // Clip command family: placement lifecycle on the unified timeline through
 // the existing pure authoring functions. Commands take global times and clip
 // ids; owners are resolved from the unified timeline projection, so the ids
@@ -416,6 +417,7 @@ const rejoinClipPatternInstance: ShowCommandDescriptor = {
 }
 
 export const SHOW_CLIP_COMMANDS: ShowCommandDescriptor[] = [
+  createOverlayLayerCommand(),
   addClip,
   moveClip,
   resizeClip,
