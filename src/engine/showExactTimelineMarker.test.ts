@@ -77,7 +77,12 @@ it('refuses invalid requests and missing or duplicate identities without touchin
 it('keeps manual rounding and explicit name clearing and pairs supported exact results', () => {
   const show = showCommandFixture()
   const rounded = editShowMarkerFromUI(show, { kind: 'move', markerId: 'marker-1', timeMs: 10.7 })
-  expect(rounded).toEqual(editShowMarkerExactly(show, { kind: 'move', markerId: 'marker-1', timeMs: 11 }))
+  const exact = editShowMarkerExactly(show, { kind: 'move', markerId: 'marker-1', timeMs: 11 })
+  expect(rounded.status).toBe('changed')
+  expect(exact.status).toBe('changed')
+  if (rounded.status === 'changed' && exact.status === 'changed') {
+    expect({ ...rounded.record, updatedAt: exact.record.updatedAt }).toEqual(exact.record)
+  }
   const cleared = editShowMarkerFromUI(show, { kind: 'update', markerId: 'marker-1', patch: { name: undefined } })
   expect(cleared.status).toBe('changed')
   if (cleared.status !== 'changed') throw new Error('refused')

@@ -1,11 +1,11 @@
 {
-  "requestId": "req-mttng9xl-88j0o7",
-  "showId": "markers-951-mttng674",
-  "capturedUpdatedAt": 1788931207057,
-  "submittedAt": 1788931207498,
-  "responseAt": 1788931207514,
-  "firstEventAt": 1788931207514,
-  "doneAt": 1788931210020,
+  "requestId": "req-mttnm0uj-9ucawy",
+  "showId": "markers-951-mttnlx0p",
+  "capturedUpdatedAt": 1788931475243,
+  "submittedAt": 1788931475660,
+  "responseAt": 1788931475673,
+  "firstEventAt": 1788931475673,
+  "doneAt": 1788931478187,
   "applyStartedAt": null,
   "applyEndedAt": null,
   "changed": false,
@@ -15,50 +15,50 @@
     {
       "kind": "accepted",
       "name": null,
-      "at": 1788931207514
+      "at": 1788931475673
     },
     {
       "kind": "tool",
       "name": "move_marker",
-      "at": 1788931210020
+      "at": 1788931478187
     },
     {
       "kind": "tool",
       "name": "update_marker",
-      "at": 1788931210020
+      "at": 1788931478187
     },
     {
       "kind": "validation",
       "name": null,
-      "at": 1788931210020
+      "at": 1788931478187
     },
     {
       "kind": "done",
       "name": null,
-      "at": 1788931210020
+      "at": 1788931478187
     }
   ],
   "bridgeTiming": {
-    "acceptedAt": 1788931207499,
+    "acceptedAt": 1788931475661,
     "delayMs": 2500,
-    "agentStartedAt": 1788931210008,
-    "agentEndedAt": 1788931210019,
-    "exportedAt": 1788931210020,
+    "agentStartedAt": 1788931478174,
+    "agentEndedAt": 1788931478186,
+    "exportedAt": 1788931478187,
     "toolCalls": [
       {
         "name": "move_marker",
-        "at": 1788931210008,
-        "ms": 4
+        "at": 1788931478174,
+        "ms": 1
       },
       {
         "name": "update_marker",
-        "at": 1788931210012,
+        "at": 1788931478175,
         "ms": 1
       }
     ],
     "validation": {
-      "at": 1788931210013,
-      "ms": 6,
+      "at": 1788931478176,
+      "ms": 10,
       "ok": true
     }
   },

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "951",
+  "route": "/PXLBLZ-IDE/studio/shows/aa214ed9-922e-422c-aae8-60ea749a3a6e",
+  "operation": "In-app browser: add Marker, trim its name, set 7.125 seconds, repeat time without another history step, clear name, delete and Undo; existing Clips and crossfade preserved.",
+  "captures": [
+    ".wrsp/ui-proof/951-markers-edited.png",
+    ".wrsp/ui-proof/951-markers-cleared.png"
+  ],
+  "capturedAtCommit": "d7892eb67031c8336f6933caf581f3451ec5f7bc"
+}

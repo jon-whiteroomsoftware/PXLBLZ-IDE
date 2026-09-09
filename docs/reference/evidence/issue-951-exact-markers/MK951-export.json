@@ -1,7 +1,7 @@
 {
   "version": 1,
   "show": {
-    "id": "markers-951-mttng674",
+    "id": "markers-951-mttnlx0p",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -65,7 +65,7 @@
         "resolution": "variable"
       }
     },
-    "updatedAt": 1788931207057,
+    "updatedAt": 1788931475243,
     "composition": {
       "version": 1,
       "markers": [
@@ -137,7 +137,7 @@
   "maps": [],
   "provenance": {
     "appVersion": "1.0.0",
-    "exportedAt": "2026-09-09T05:20:07.431Z",
-    "originalShowId": "markers-951-mttng674"
+    "exportedAt": "2026-09-09T05:24:35.592Z",
+    "originalShowId": "markers-951-mttnlx0p"
   }
 }

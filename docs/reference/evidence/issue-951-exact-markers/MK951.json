@@ -1,6 +1,6 @@
 {
   "before": {
-    "id": "markers-951-mttng674",
+    "id": "markers-951-mttnlx0p",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -127,7 +127,7 @@
     }
   },
   "after": {
-    "id": "markers-951-mttng674",
+    "id": "markers-951-mttnlx0p",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -191,7 +191,7 @@
         "resolution": "variable"
       }
     },
-    "updatedAt": 1788931207057,
+    "updatedAt": 1788931475243,
     "composition": {
       "version": 1,
       "markers": [
@@ -260,7 +260,7 @@
     }
   },
   "removed": {
-    "id": "markers-951-mttng674",
+    "id": "markers-951-mttnlx0p",
     "name": "Baseline personal Show",
     "scenes": [
       {
@@ -324,7 +324,7 @@
         "resolution": "variable"
       }
     },
-    "updatedAt": 1788931215986,
+    "updatedAt": 1788931484141,
     "composition": {
       "version": 1,
       "markers": [
@@ -387,15 +387,15 @@
     }
   },
   "done": {
-    "requestId": "req-mttng7kh-4fshib",
-    "showId": "markers-951-mttng674",
+    "requestId": "req-mttnlyhh-igpocn",
+    "showId": "markers-951-mttnlx0p",
     "capturedUpdatedAt": 1757000000000,
-    "submittedAt": 1788931204436,
-    "responseAt": 1788931204464,
-    "firstEventAt": 1788931204464,
-    "doneAt": 1788931207047,
-    "applyStartedAt": 1788931207047,
-    "applyEndedAt": 1788931207193,
+    "submittedAt": 1788931472600,
+    "responseAt": 1788931472624,
+    "firstEventAt": 1788931472625,
+    "doneAt": 1788931475235,
+    "applyStartedAt": 1788931475235,
+    "applyEndedAt": 1788931475321,
     "changed": true,
     "applied": true,
     "error": null,
@@ -403,65 +403,65 @@
       {
         "kind": "accepted",
         "name": null,
-        "at": 1788931204464
+        "at": 1788931472625
       },
       {
         "kind": "tool",
         "name": "add_marker",
-        "at": 1788931207047
+        "at": 1788931475235
       },
       {
         "kind": "tool",
         "name": "move_marker",
-        "at": 1788931207047
+        "at": 1788931475235
       },
       {
         "kind": "tool",
         "name": "update_marker",
-        "at": 1788931207047
+        "at": 1788931475235
       },
       {
         "kind": "validation",
         "name": null,
-        "at": 1788931207047
+        "at": 1788931475235
       },
       {
         "kind": "validation",
         "name": null,
-        "at": 1788931207047
+        "at": 1788931475235
       },
       {
         "kind": "done",
         "name": null,
-        "at": 1788931207047
+        "at": 1788931475235
       }
     ],
     "bridgeTiming": {
-      "acceptedAt": 1788931204439,
+      "acceptedAt": 1788931472603,
       "delayMs": 2500,
-      "agentStartedAt": 1788931207030,
-      "agentEndedAt": 1788931207040,
-      "exportedAt": 1788931207045,
+      "agentStartedAt": 1788931475217,
+      "agentEndedAt": 1788931475230,
+      "exportedAt": 1788931475234,
       "toolCalls": [
         {
           "name": "add_marker",
-          "at": 1788931207030,
-          "ms": 4
+          "at": 1788931475218,
+          "ms": 3
         },
         {
           "name": "move_marker",
-          "at": 1788931207034,
-          "ms": 1
+          "at": 1788931475221,
+          "ms": 0
         },
         {
           "name": "update_marker",
-          "at": 1788931207035,
-          "ms": 0
+          "at": 1788931475221,
+          "ms": 1
         }
       ],
       "validation": {
-        "at": 1788931207040,
-        "ms": 5,
+        "at": 1788931475230,
+        "ms": 4,
         "ok": true
       }
     },
@@ -471,15 +471,15 @@
     }
   },
   "removal": {
-    "requestId": "req-mttngeiv-yownm6",
-    "showId": "markers-951-mttng674",
-    "capturedUpdatedAt": 1788931207057,
-    "submittedAt": 1788931213449,
-    "responseAt": 1788931213463,
-    "firstEventAt": 1788931213464,
-    "doneAt": 1788931215980,
-    "applyStartedAt": 1788931215980,
-    "applyEndedAt": 1788931216136,
+    "requestId": "req-mttnm5fs-mozp6o",
+    "showId": "markers-951-mttnlx0p",
+    "capturedUpdatedAt": 1788931475243,
+    "submittedAt": 1788931481609,
+    "responseAt": 1788931481624,
+    "firstEventAt": 1788931481624,
+    "doneAt": 1788931484136,
+    "applyStartedAt": 1788931484136,
+    "applyEndedAt": 1788931484290,
     "changed": true,
     "applied": true,
     "error": null,
@@ -487,45 +487,45 @@
       {
         "kind": "accepted",
         "name": null,
-        "at": 1788931213464
+        "at": 1788931481624
       },
       {
         "kind": "tool",
         "name": "remove_marker",
-        "at": 1788931215980
+        "at": 1788931484136
       },
       {
         "kind": "validation",
         "name": null,
-        "at": 1788931215980
+        "at": 1788931484136
       },
       {
         "kind": "validation",
         "name": null,
-        "at": 1788931215980
+        "at": 1788931484136
       },
       {
         "kind": "done",
         "name": null,
-        "at": 1788931215980
+        "at": 1788931484136
       }
     ],
     "bridgeTiming": {
-      "acceptedAt": 1788931213450,
+      "acceptedAt": 1788931481610,
       "delayMs": 2500,
-      "agentStartedAt": 1788931215959,
-      "agentEndedAt": 1788931215970,
-      "exportedAt": 1788931215979,
+      "agentStartedAt": 1788931484121,
+      "agentEndedAt": 1788931484130,
+      "exportedAt": 1788931484135,
       "toolCalls": [
         {
           "name": "remove_marker",
-          "at": 1788931215960,
-          "ms": 4
+          "at": 1788931484121,
+          "ms": 2
         }
       ],
       "validation": {
-        "at": 1788931215970,
-        "ms": 8,
+        "at": 1788931484130,
+        "ms": 5,
         "ok": true
       }
     },
@@ -537,10 +537,10 @@
   "writes": [
     {
       "method": "PATCH",
-      "url": "http://localhost:5205/api/shows/markers-951-mttng674",
-      "at": 1788931207090,
+      "url": "http://localhost:5205/api/shows/markers-951-mttnlx0p",
+      "at": 1788931475270,
       "status": 200,
-      "updatedAt": 1788931207057,
+      "updatedAt": 1788931475243,
       "firstMainStartMs": 0,
       "firstMain": {
         "durationMs": 4000,
@@ -551,10 +551,10 @@
     },
     {
       "method": "PATCH",
-      "url": "http://localhost:5205/api/shows/markers-951-mttng674",
-      "at": 1788931216026,
+      "url": "http://localhost:5205/api/shows/markers-951-mttnlx0p",
+      "at": 1788931484181,
       "status": 200,
-      "updatedAt": 1788931215986,
+      "updatedAt": 1788931484141,
       "firstMainStartMs": 0,
       "firstMain": {
         "durationMs": 4000,
@@ -565,10 +565,10 @@
     },
     {
       "method": "PATCH",
-      "url": "http://localhost:5205/api/shows/markers-951-mttng674",
-      "at": 1788931216436,
+      "url": "http://localhost:5205/api/shows/markers-951-mttnlx0p",
+      "at": 1788931484596,
       "status": 200,
-      "updatedAt": 1788931216401,
+      "updatedAt": 1788931484560,
       "firstMainStartMs": 0,
       "firstMain": {
         "durationMs": 4000,
@@ -579,10 +579,10 @@
     },
     {
       "method": "PATCH",
-      "url": "http://localhost:5205/api/shows/markers-951-mttng674",
-      "at": 1788931216557,
+      "url": "http://localhost:5205/api/shows/markers-951-mttnlx0p",
+      "at": 1788931484721,
       "status": 200,
-      "updatedAt": 1788931216531,
+      "updatedAt": 1788931484691,
       "firstMainStartMs": 0,
       "firstMain": {
         "durationMs": 4000,
@@ -595,31 +595,31 @@
   "observations": [
     {
       "kind": "preview-published",
-      "showId": "markers-951-mttng674",
-      "at": 1788931203843,
+      "showId": "markers-951-mttnlx0p",
+      "at": 1788931471985,
       "digest": "cf27d45b",
       "updatedAt": 1757000000000
     },
     {
       "kind": "preview-published",
-      "showId": "markers-951-mttng674",
-      "at": 1788931203845,
+      "showId": "markers-951-mttnlx0p",
+      "at": 1788931471989,
       "digest": "cf27d45b",
       "updatedAt": 1757000000000
     },
     {
       "kind": "preview-published",
-      "showId": "markers-951-mttng674",
-      "at": 1788931204036,
+      "showId": "markers-951-mttnlx0p",
+      "at": 1788931472198,
       "digest": "cf27d45b",
       "updatedAt": 1757000000000
     },
     {
       "kind": "agent-apply",
       "phase": "admitted",
-      "showId": "markers-951-mttng674",
-      "requestId": "req-mttng7kh-4fshib",
-      "at": 1788931207047,
+      "showId": "markers-951-mttnlx0p",
+      "requestId": "req-mttnlyhh-igpocn",
+      "at": 1788931475235,
       "digest": "cf27d45b",
       "updatedAt": 1757000000000,
       "historyDepth": 0
@@ -627,80 +627,80 @@
     {
       "kind": "agent-apply",
       "phase": "adopted",
-      "showId": "markers-951-mttng674",
-      "requestId": "req-mttng7kh-4fshib",
-      "at": 1788931207057,
+      "showId": "markers-951-mttnlx0p",
+      "requestId": "req-mttnlyhh-igpocn",
+      "at": 1788931475243,
       "digest": "00dcaaed",
-      "updatedAt": 1788931207057,
+      "updatedAt": 1788931475243,
       "historyDepth": 1
     },
     {
       "kind": "preview-published",
-      "showId": "markers-951-mttng674",
-      "at": 1788931207097,
+      "showId": "markers-951-mttnlx0p",
+      "at": 1788931475275,
       "digest": "00dcaaed",
-      "updatedAt": 1788931207057
+      "updatedAt": 1788931475243
     },
     {
       "kind": "agent-apply",
       "phase": "settled",
-      "showId": "markers-951-mttng674",
-      "requestId": "req-mttng7kh-4fshib",
-      "at": 1788931207193,
+      "showId": "markers-951-mttnlx0p",
+      "requestId": "req-mttnlyhh-igpocn",
+      "at": 1788931475321,
       "digest": "00dcaaed",
-      "updatedAt": 1788931207057,
+      "updatedAt": 1788931475243,
       "historyDepth": 1
     },
     {
       "kind": "agent-apply",
       "phase": "admitted",
-      "showId": "markers-951-mttng674",
-      "requestId": "req-mttngeiv-yownm6",
-      "at": 1788931215980,
+      "showId": "markers-951-mttnlx0p",
+      "requestId": "req-mttnm5fs-mozp6o",
+      "at": 1788931484137,
       "digest": "00dcaaed",
-      "updatedAt": 1788931207057,
+      "updatedAt": 1788931475243,
       "historyDepth": 1
     },
     {
       "kind": "agent-apply",
       "phase": "adopted",
-      "showId": "markers-951-mttng674",
-      "requestId": "req-mttngeiv-yownm6",
-      "at": 1788931215986,
+      "showId": "markers-951-mttnlx0p",
+      "requestId": "req-mttnm5fs-mozp6o",
+      "at": 1788931484141,
       "digest": "cf27d45b",
-      "updatedAt": 1788931215986,
+      "updatedAt": 1788931484141,
       "historyDepth": 2
     },
     {
       "kind": "preview-published",
-      "showId": "markers-951-mttng674",
-      "at": 1788931216035,
+      "showId": "markers-951-mttnlx0p",
+      "at": 1788931484187,
       "digest": "cf27d45b",
-      "updatedAt": 1788931215986
+      "updatedAt": 1788931484141
     },
     {
       "kind": "agent-apply",
       "phase": "settled",
-      "showId": "markers-951-mttng674",
-      "requestId": "req-mttngeiv-yownm6",
-      "at": 1788931216136,
+      "showId": "markers-951-mttnlx0p",
+      "requestId": "req-mttnm5fs-mozp6o",
+      "at": 1788931484289,
       "digest": "cf27d45b",
-      "updatedAt": 1788931215986,
+      "updatedAt": 1788931484141,
       "historyDepth": 2
     },
     {
       "kind": "preview-published",
-      "showId": "markers-951-mttng674",
-      "at": 1788931216441,
+      "showId": "markers-951-mttnlx0p",
+      "at": 1788931484602,
       "digest": "00dcaaed",
-      "updatedAt": 1788931216401
+      "updatedAt": 1788931484560
     },
     {
       "kind": "preview-published",
-      "showId": "markers-951-mttng674",
-      "at": 1788931216562,
+      "showId": "markers-951-mttnlx0p",
+      "at": 1788931484727,
       "digest": "cf27d45b",
-      "updatedAt": 1788931216531
+      "updatedAt": 1788931484691
     }
   ]
 }

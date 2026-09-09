@@ -1,0 +1,30 @@
+{
+  "sourceCommit": "d7892eb67031c8336f6933caf581f3451ec5f7bc",
+  "browser": "Codex in-app browser",
+  "coordinator": "root gpt-6-astra/medium",
+  "runtime": "http://localhost:5178",
+  "route": "/PXLBLZ-IDE/studio/shows/aa214ed9-922e-422c-aae8-60ea749a3a6e",
+  "syntheticUser": "local-agent-08",
+  "operations": [
+    "Reload frozen source; Add Marker at playhead: Marker 1 at zero.",
+    "Enter name with surrounding spaces: trimmed to Chorus.",
+    "Enter 7.125 seconds: exact time retained.",
+    "Reenter same time; Undo goes to zero, proving no extra no-op history; Redo restores 7.125.",
+    "Select all and Backspace then Apply clears name; button becomes Marker at 7.125 and textbox is empty.",
+    "Delete removes marker; one Undo restores it."
+  ],
+  "preservation": "Two Clips remain at 15%/30% of 20 seconds, widths 10%; one crossfade remains.",
+  "consoleErrors": [],
+  "captures": [
+    "../../../../.wrsp/ui-proof/951-markers-edited.png",
+    "../../../../.wrsp/ui-proof/951-markers-cleared.png"
+  ],
+  "limits": [
+    "Native color input fill did not commit a change; no manual color claim. Golden and scripted tests cover color.",
+    "Existing reference-map compatibility warning unchanged; no Controller or rendered-preview correctness claim."
+  ],
+  "inspectedBy": [
+    "root",
+    "marker implementation worker"
+  ]
+}

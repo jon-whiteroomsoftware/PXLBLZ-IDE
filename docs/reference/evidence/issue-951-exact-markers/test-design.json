@@ -22,12 +22,13 @@
     "Literal expected target markers plus complete unrelated Show record equality and validateShowComposition.",
     "Canonical and diagnostic complete records paired with deterministic IDs; actual MCP schema and protocol rejection.",
     "Visible editor record, durable API record, downloaded .pxlshow importer, save count and Undo state.",
-    "Coordinator manual IAB interaction and committed capture pending."
+    "Coordinator IAB at d7892eb: real add, name trim, exact time, no-op Undo/Redo, explicit name clear, delete/Undo; inspected gate captures and empty console errors."
   ],
   "residualGaps": [
     "Whole-Show admission and final authoring validation remain authoritative; no narrow marker concurrency authority.",
     "No Insert Time/Show End migration, new UI, paid inference, Controller or hosted service work.",
     "Pure rich fixture covers census content preservation; scripted browser uses existing resize fixture with another marker.",
-    "Final committed-tip full suites and native review belong to coordinator."
+    "Final committed-tip full suites and native review belong to coordinator.",
+    "Native color fill did not commit in IAB; manual color gesture is not claimed, while golden and real scripted adapter tests prove color updates."
   ]
 }
