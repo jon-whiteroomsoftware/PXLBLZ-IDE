@@ -181,6 +181,9 @@ duration (null for a cache hit), cache outcome and Show digest. `input-event`
 records native event processing separately from the browser's event duration;
 its 16 ms reporting threshold means missing samples cannot be treated as zero.
 These are diagnostic timings, not hardware measurements or acceptance limits.
+Publication phases retain 200 entries independently of the 200 compile and 200
+input entries; reads return at most 600 entries in insertion order. Measurement
+floods cannot evict the adoption/settlement/publication correlation channel.
 
 Each sequence's JSON record holds the overlay request record, the bridge
 timing, the observation log, every non-GET `/api/shows` request with status,

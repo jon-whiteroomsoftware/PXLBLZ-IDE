@@ -70,12 +70,19 @@ export interface ObservationLog {
   read: () => readonly AgentObservation[]
 }
 
+// Each channel owns its budget: sparse adoption/publication phases retain the
+// original 200 slots independently of compile and native input measurements.
+// One array preserves insertion order, including equal or delayed timestamps.
 export function createObservationLog(capacity = 200): ObservationLog {
   const entries: AgentObservation[] = []
+  const channel = (entry: AgentObservation) => entry.kind === 'show-compile' || entry.kind === 'input-event' ? entry.kind : 'publication'
   return {
     record: (entry) => {
       entries.push(structuredClone(entry))
-      if (entries.length > capacity) entries.splice(0, entries.length - capacity)
+      const recordedChannel = channel(entry)
+      if (entries.filter(item => channel(item) === recordedChannel).length > capacity) {
+        entries.splice(entries.findIndex(item => channel(item) === recordedChannel), 1)
+      }
     },
     read: () => entries.map((entry) => structuredClone(entry)),
   }

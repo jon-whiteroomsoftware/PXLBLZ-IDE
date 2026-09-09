@@ -56,3 +56,30 @@ describe('createObservationLog', () => {
     expect(log.read()[0].at).toBe(1)
   })
 })
+
+it('retains correlated publication phases through compile and input floods with bounded ordered reads (#955)', () => {
+  const log = createObservationLog()
+  const phases: AgentObservation[] = [
+    { kind: 'agent-apply', phase: 'adopted', showId: 'show-a', requestId: 'request-a', digest: 'abc', at: 10 },
+    { kind: 'agent-apply', phase: 'settled', showId: 'show-a', requestId: 'request-a', digest: 'abc', at: 20 },
+    { kind: 'preview-published', showId: 'show-a', digest: 'abc', updatedAt: 1, at: 30 },
+  ]
+  phases.forEach(log.record)
+  const measurements: AgentObservation[] = []
+  for (let index = 0; index < 450; index += 1) {
+    // Equal timestamps still preserve insertion order across channels.
+    measurements.push({ kind: 'show-compile', showId: 'show-a', digest: 'abc', at: index, requestMs: 1, compilerMs: null, cacheHit: true, ok: true })
+    measurements.push({ kind: 'input-event', event: 'pointermove', at: index, processingMs: 1, durationMs: 16, reportingThresholdMs: 16 })
+  }
+  measurements.forEach(log.record)
+  const read = log.read()
+  expect(read).toEqual([...phases, ...measurements.slice(-400)])
+  const adopted = read.find(entry => entry.kind === 'agent-apply' && entry.requestId === 'request-a' && entry.phase === 'adopted')!
+  const settled = read.find(entry => entry.kind === 'agent-apply' && entry.requestId === 'request-a' && entry.phase === 'settled')!
+  const published = read.find(entry => entry.kind === 'preview-published' && entry.digest === 'abc')!
+  expect([settled.at - adopted.at, published.at - adopted.at]).toEqual([10, 20])
+  for (let index = 0; index < 450; index += 1) log.record({ ...phases[0], at: index })
+  expect(log.read()).toHaveLength(600)
+  expect(log.read().filter(entry => entry.kind === 'show-compile')).toHaveLength(200)
+  expect(log.read().filter(entry => entry.kind === 'input-event')).toHaveLength(200)
+})
