@@ -1,0 +1,34 @@
+{
+  "invariants": [
+    "Only one successfully executed canonical duration resize after normal private commit can create a retained binding; all additional mutation attempts count, including no-ops and malformed calls.",
+    "Retry retains original broad payload/reference/target identity with a new operation id and retryOf, captures fresh whole-Show guards, and never acquires qualified resize authority.",
+    "The complete candidate matches canonical exact execution on the fresh captured Show; only command-generated updatedAt is normalized.",
+    "No request starts without explicit activation; composer value, selection and appropriate focus survive, and Dismiss retains failure history.",
+    "Refusal, cancellation, retirement and malformed delivery preserve complete visible/durable records and history; one successful retry owns one save and Undo step."
+  ],
+  "partitions": [
+    "Ordinal resolution; changed order, selection and manual state; missing original target; unsupported start/end forms.",
+    "Single resize versus no-op, additional mutation, lifecycle, unknown call, malformed JSON, unknown argument, refusal and incomplete completion.",
+    "Revision conflict, interaction timeout, cancellation, saving, rollback, success, linked retry-of-retry, wrong envelope, malformed binding and stale candidate.",
+    "Pointer and keyboard actions, repeated activation, unrelated composer draft, Dismiss, desktop and narrow route."
+  ],
+  "sequences": [
+    "Original ordinal request/manual Clip move behind another Clip/revision conflict/selection change/explicit Retry/fresh canonical execution/save/export reopen/Undo preserving manual move.",
+    "Original failure/target deletion/Retry/refusal without substitute or write.",
+    "Original failure/composer draft/Dismiss/history retained with no request.",
+    "Retry registration/cancellation/late completion with no write; retirement and malformed-binding delivery/late valid delivery remain terminal.",
+    "Save rollback/retained binding/new retry/one eventual successful history entry."
+  ],
+  "oracles": [
+    "Actual diagnostic overlay requests, complete Show records and PATCH bodies, durable API readback, actual downloaded .pxlshow reopened through its importer, and Undo restoring preceding manual work.",
+    "Bridge executed binding and complete fresh candidate; editor receipts and complete store/history/provider state.",
+    "Real composer value/selection/focus, retained failure text, explicit request counts and truthful later dialogue.",
+    "Focused temporary faults: fresh ordinal resolution, old snapshot replay, automatic retry, composer consumption, and retry identity relaxation."
+  ],
+  "residualGaps": [
+    "Finite exact-duration diagnostic only; no general natural-language interpretation correctness or generic operation retry.",
+    "Broad retries remain whole-Show guarded; private temporary-overlap batches and final Agent panel remain separate.",
+    "No paid inference, production hosted service, hardware action, or cross-client concurrency qualification.",
+    "Existing diagnostic boundaries do not defend against arbitrary page JavaScript replacing browser APIs."
+  ]
+}

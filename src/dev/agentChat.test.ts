@@ -75,3 +75,55 @@ it.each(['idle', 'waiting'] as const)('leaves ordinary Escape ownership intact w
     } finally { portal.remove() }
   } finally { stop() }
 })
+
+it('offers explicit retry without consuming the composer and dismisses only actions', async () => {
+  const retry = vi.fn(() => ({ request: { operationId: 'retry', retryOf: 'op', payloadKey: JSON.stringify({ utterance: 'change', history: [] }) }, show: { id: 'show' }, context: {}, retryResize: { clipId: 'a', durationMs: 6000 } }))
+  Object.assign((window as unknown as { __pxlblzEditor: object }).__pxlblzEditor, { retryIntent: () => ({ clipId: 'a', durationMs: 6000 }), beginRetry: retry })
+  outcome = { status: 'cancelled' }
+  submit()
+  await vi.waitFor(() => expect(document.querySelector('[data-testid="agent-chat-retry"]')).not.toBeNull())
+  expect(fetch).toHaveBeenCalledTimes(1)
+  const input = document.querySelector<HTMLInputElement>('[data-testid="agent-chat-input"]')!
+  input.value = 'unrelated draft'
+  input.focus()
+  input.setSelectionRange(2, 7)
+  const button = document.querySelector<HTMLButtonElement>('[data-testid="agent-chat-retry"]')!
+  button.dispatchEvent(new Event('pointerdown', { bubbles: true, cancelable: true }))
+  button.click()
+  button.click()
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
+  expect(retry).toHaveBeenCalledTimes(1)
+  expect(input.value).toBe('unrelated draft')
+  expect(document.activeElement).toBe(input)
+  expect([input.selectionStart, input.selectionEnd]).toEqual([2, 7])
+  await vi.waitFor(() => expect(document.querySelector('[data-testid="agent-chat-dismiss"]')).not.toBeNull())
+  const failureText = document.querySelector('[data-request-id="op"]')?.textContent
+  document.querySelector<HTMLButtonElement>('[data-testid="agent-chat-dismiss"]')!.click()
+  expect(document.querySelector('[data-testid="agent-chat-retry"]')).toBeNull()
+  expect(document.querySelector('[data-request-id="op"]')?.textContent).toBe(failureText)
+  expect(fetch).toHaveBeenCalledTimes(2)
+  submit()
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(3))
+  const followup = JSON.parse(vi.mocked(fetch).mock.calls[2][1]!.body as string)
+  expect(followup.history).toContainEqual({ role: 'user', text: 'Retry exact duration 6000ms for original logical Clip a.' })
+  expect(followup.history.filter((entry: { role: string; text: string }) => entry.role === 'user' && entry.text === 'change')).toHaveLength(1)
+})
+
+it.each(['retry', 'dismiss'])('returns keyboard %s focus to the preserved composer', async action => {
+  Object.assign((window as unknown as { __pxlblzEditor: object }).__pxlblzEditor, {
+    retryIntent: () => ({ clipId: 'a', durationMs: 6000 }),
+    beginRetry: () => ({ request: { operationId: 'retry', retryOf: 'op', payloadKey: JSON.stringify({ utterance: 'change', history: [] }) }, show: { id: 'show' }, context: {}, retryResize: { clipId: 'a', durationMs: 6000 } }),
+  })
+  outcome = { status: 'cancelled' }
+  submit()
+  await vi.waitFor(() => expect(document.querySelector('[data-testid="agent-chat-retry"]')).not.toBeNull())
+  const input = document.querySelector<HTMLInputElement>('[data-testid="agent-chat-input"]')!
+  input.value = 'keep draft'
+  input.setSelectionRange(1, 4)
+  const button = document.querySelector<HTMLButtonElement>(`[data-testid="agent-chat-${action}"]`)!
+  button.focus()
+  button.click()
+  expect(document.activeElement).toBe(input)
+  expect(input.value).toBe('keep draft')
+  expect([input.selectionStart, input.selectionEnd]).toEqual([1, 4])
+})

@@ -78,6 +78,8 @@ export interface AgentTurnContext {
   editorContext: EditorContext
   tools: Array<{ name: string; description?: string; inputSchema: unknown }>
   callTool: (name: string, args: Record<string, unknown>) => Promise<{ payload: unknown; isError: boolean }>
+  /** Diagnostic eligibility only; never records argument bodies. */
+  onMalformedToolCall?: () => void
   /**
    * Stage typed completion in the same response as the operations.
    * Apply validates private work; the runner commits only after normal return.

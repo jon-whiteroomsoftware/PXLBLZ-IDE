@@ -1121,6 +1121,111 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     }
   })
 
+  test('B5: explicit stable resize retry preserves manual work and composer history', async ({ page }) => {
+    test.setTimeout(180000)
+    const wire = (show: PersistedShow | undefined) => Object.fromEntries(Object.entries({ ...show, targetControllerProfileId: (show as ShowRecord)?.targetControllerProfileId ?? null }).filter(([key]) => key !== 'id'))
+    for (const action of ['apply', 'narrow', 'deleted', 'dismiss', 'cancel'] as const) {
+      await page.setViewportSize({ width: action === 'narrow' || action === 'dismiss' ? 800 : 1440, height: 900 })
+      const record = resizeBoundaryShow(`retry-${action}-${Date.now().toString(36)}`)
+      expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+      await page.goto(`studio/shows/${record.id}?agent=1`)
+      await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+      await expect.poll(() => page.evaluate(async () => {
+        const load = (path: string) => import(path)
+        return (await load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')).useEntityOrganizationStore.getState().loaded.libraries
+      })).toBe(true)
+      await injectOverlay(page, bridge.url)
+      const before = await visibleRecord(page)
+      const completeWrites: unknown[] = []
+      const requests: Record<string, unknown>[] = []
+      const capture = (request: Request) => {
+        if (request.method() === 'PATCH' && request.url().endsWith(`/api/shows/${record.id}`)) completeWrites.push(request.postDataJSON())
+        if (request.method() === 'POST' && request.url() === `${bridge.url}/utterance`) requests.push(request.postDataJSON())
+      }
+      page.on('request', capture)
+      try {
+        const first = await submitUtterance(page, 'make the first Clip exactly eight seconds')
+        await waitForAccepted(page, first)
+        await page.locator('[data-show-selection-key="clip:resize-a"]').click()
+        const start = page.getByRole('textbox', { name: 'Start seconds exact time' })
+        await start.fill('12')
+        await start.press('Enter')
+        await page.keyboard.press('Escape')
+        const failed = await waitForDone(page, first)
+        expect(failed).toMatchObject({ applied: false, outcome: { status: 'refused', reason: 'revision-conflict' } })
+        await expect(page.getByTestId('agent-chat-retry')).toBeVisible()
+        await page.locator('[data-show-selection-key="clip:resize-b"]').click()
+        await page.keyboard.press('Escape')
+        if (action === 'deleted') {
+          await page.locator('[data-show-selection-key="clip:resize-a"]').click()
+          await page.getByRole('button', { name: 'Delete clip CometLoom' }).click()
+        }
+        const manual = await visibleRecord(page)
+        await expect.poll(() => durableShow(page, record.id)).toEqual(manual)
+        const writesBeforeRetry = completeWrites.length
+        const composer = page.getByTestId('agent-chat-input')
+        await composer.fill('Keep this unrelated draft')
+        await composer.press('Home')
+        await composer.press('ArrowRight')
+        await composer.press('Shift+ArrowRight')
+        const selection = await composer.evaluate(element => [(element as HTMLInputElement).selectionStart, (element as HTMLInputElement).selectionEnd])
+        expect(requests).toHaveLength(1)
+        await page.screenshot({ path: join(REPORT_DIR, `B5-${action}-ready.png`), fullPage: true })
+        if (action === 'dismiss') {
+          await page.getByTestId('agent-chat-dismiss').click()
+          await expect(page.getByTestId('agent-chat-retry')).toHaveCount(0)
+          await expect(page.getByTestId('agent-chat-log')).toContainText('revision-conflict')
+          expect(requests).toHaveLength(1)
+        } else {
+          await page.getByTestId('agent-chat-retry').click()
+          await expect.poll(() => requests.length).toBe(2)
+          const retryId = (await overlayRequests(page))[1].requestId
+          expect(retryId).not.toBe(first)
+          expect(requests[1]).toMatchObject({ retryResize: { clipId: 'resize-a', durationMs: 8000 }, utterance: requests[0].utterance, history: requests[0].history, context: requests[0].context })
+          expect(requests[1].show).toEqual(manual)
+          if (action === 'cancel') await page.evaluate(() => (window as unknown as { __pxlblzChat: { cancel: () => void } }).__pxlblzChat.cancel())
+          const done = await waitForDone(page, retryId)
+          const applied = action === 'apply' || action === 'narrow'
+          expect(done.applied).toBe(applied ? true : action === 'deleted' ? null : false)
+          if (applied) {
+            const after = await visibleRecord(page)
+            const expected = structuredClone(manual!)
+            expected.composition!.scenes[0].zones[0].main.find(clip => clip.id === 'resize-a')!.durationMs = 8000
+            expect(after).toEqual({ ...expected, updatedAt: after!.updatedAt })
+            await expect.poll(() => durableShow(page, record.id)).toEqual(after)
+            expect(completeWrites.slice(writesBeforeRetry)).toEqual([wire(after)])
+            await expect(composer).toHaveValue('Keep this unrelated draft')
+            await expect(composer).toBeFocused()
+            expect(await composer.evaluate(element => [(element as HTMLInputElement).selectionStart, (element as HTMLInputElement).selectionEnd])).toEqual(selection)
+            await page.screenshot({ path: join(REPORT_DIR, `B5-${action}-applied.png`), fullPage: true })
+            await page.getByRole('button', { name: 'Show actions' }).click()
+            const download = page.waitForEvent('download')
+            await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
+            const file = await download
+            const reopened = await page.evaluate(async bytes => {
+              const load = (path: string) => import(path)
+              return (await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')).parseShowFileBundle(new Uint8Array(bytes))
+            }, [...readFileSync((await file.path())!)])
+            expect(reopened.show).toEqual(after)
+            await page.getByRole('button', { name: 'Undo Show edit' }).click()
+            await expect.poll(async () => (await visibleRecord(page))?.composition?.scenes[0].zones[0].main.find(clip => clip.id === 'resize-a')?.durationMs).toBe(4000)
+            const undone = await visibleRecord(page)
+            expect(undone).toEqual({ ...manual, updatedAt: undone!.updatedAt })
+            await expect.poll(() => durableShow(page, record.id)).toEqual(undone)
+            saveRecord(`B5-${action}-export`, reopened)
+          } else {
+            expect(await visibleRecord(page)).toEqual(manual)
+            expect(await durableShow(page, record.id)).toEqual(manual)
+            expect(completeWrites.length).toBe(writesBeforeRetry)
+          }
+        }
+        await expect(composer).toHaveValue('Keep this unrelated draft')
+        await page.screenshot({ path: join(REPORT_DIR, `B5-${action}-result.png`), fullPage: true })
+        saveRecord(`B5-${action}`, { before, manual, after: await visibleRecord(page), durable: await durableShow(page, record.id), requests, completeWrites, outcomes: await overlayRequests(page) })
+      } finally { page.off('request', capture) }
+    }
+  })
+
   test('F: a multi-operation reply lands as one history entry and one save', async ({ page }) => {
     test.setTimeout(90_000)
     const writes = watchShowWrites(page)

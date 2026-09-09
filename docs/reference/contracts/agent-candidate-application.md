@@ -19,6 +19,45 @@ The adapter validates incoming structure against the Show schema with browser-sa
 
 The overlay displays private prose alongside the actual editor outcome and includes that outcome in subsequent session dialogue. A delivered candidate remains one busy submission while waiting for active input and while saving. Waiting displays a Cancel action; cancellation prevents later adoption. Completion does not move focus away from a manual field. Closing the overlay releases its transport and polling resources while already-adopted saves retain store ownership. The store owns save recovery in [Show state, history, and persistence](show-state-history-persistence.md). [Show command semantics](show-command-semantics.md) covers the V2 registry; canonical resize now delegates to it, while other diagnostic operations remain independently implemented.
 
+## Stable diagnostic resize retry
+
+An eligible failed activity offers an explicit exact-duration Retry and Dismiss.
+The service retains the logical Clip id and positive safe-integer duration from
+one successfully executed canonical `resize_clip`, after reference resolution.
+Only normal private committed completion qualifies. Additional mutation attempts,
+including no-ops, refused or unknown calls, lifecycle calls, malformed tool JSON,
+unknown arguments and a validation-repair run make the turn ineligible. Start/end
+variants and wholly no-change turns do not acquire a retry binding.
+
+The browser binds that command once alongside the original broad request identity.
+Revision conflict, interaction timeout, user cancellation and rolled-back saving
+may offer Retry after private completion. Pending, saving, successful, superseded,
+noncandidate and unsupported outcomes do not. Dismiss removes actions while
+retaining the historical failure. Typing and focusing another field do not dismiss
+actions. Pointer activation preserves existing focus; keyboard activation returns
+focus from a removed action to the composer without changing its draft or selection.
+
+Retry captures fresh Show state and metadata guards under a new operation id with
+`retryOf`, preserving the original payload, reference context and target identities.
+The fixed-intent proposal sees only the retained Clip id and duration. A new private
+session executes that exact command and validates its complete result. The browser
+compares the complete candidate with canonical execution on its captured snapshot,
+independent of object-key order; only the command-generated `updatedAt` clock is
+excluded because ordinary adoption assigns its own stamp. Valid-envelope malformed
+bindings or candidates terminally refuse; foreign envelopes cannot consume the
+original operation. Whole-Show revision admission remains conservative throughout.
+
+A moved or renamed Clip retains its identity; a missing Clip refuses without
+selecting another ordinal. Retry never replays the prior whole-record candidate,
+consumes an unrelated composer draft, or starts automatically. Later dialogue
+describes the exact resolved retry separately from the immutable original request.
+Linked retries retain that same meaning. Existing cancellation, retirement, save
+recovery and one-adoption history ownership remain authoritative.
+
+[Retry evidence](../evidence/issue-949-stable-retry/README.md) records the finite
+qualification. General natural-language retries and the final Agent panel are
+outside this diagnostic boundary.
+
 ## Bounded mixed batches
 
 A diagnostic turn may move B from 8000 to 16000 ms, then resize A at 0 ms

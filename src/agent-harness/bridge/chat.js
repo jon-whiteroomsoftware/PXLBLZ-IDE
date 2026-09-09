@@ -135,22 +135,53 @@
   const mintRequestId = () => `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
   let busy = false
-  form.onsubmit = async (event) => {
-    event.preventDefault()
-    if (busy || disposed || !editor.available()) return
-    const utterance = input.value.trim()
-    if (!utterance) return
-    const requestId = mintRequestId()
-    const captured = editor.beginRequest(requestId, utterance, history.slice(-12))
-    if (!captured) {
-      line('The editor refused to start this request.', '#fca5a5')
-      return
+  const offerRetry = captured => {
+    const intent = editor.retryIntent?.(captured.request)
+    if (!intent || disposed) return
+    const actions = document.createElement('div')
+    actions.style.cssText = 'display:flex;gap:8px;align-items:center'
+    const removeActions = () => {
+      const restoreFocus = actions.contains(document.activeElement)
+      const selection = [input.selectionStart, input.selectionEnd]
+      actions.remove()
+      if (restoreFocus) { input.focus(); input.setSelectionRange(...selection) }
     }
+    const retry = document.createElement('button')
+    retry.type = 'button'
+    retry.dataset.testid = 'agent-chat-retry'
+    retry.dataset.showDetailPointerPreserve = 'true'
+    retry.textContent = `Retry exact ${intent.durationMs / 1000}s duration`
+    retry.style.cssText = send.style.cssText
+    retry.onpointerdown = event => event.preventDefault()
+    let used = false
+    retry.onclick = () => {
+      if (used || busy || disposed || !editor.available()) return
+      used = true
+      const next = editor.beginRetry(mintRequestId(), captured.request)
+      removeActions()
+      if (!next) { line('The original resize can no longer be retried.', '#fca5a5'); return }
+      const original = JSON.parse(next.request.payloadKey)
+      void submitRequest(original.utterance, original.history, next, true)
+    }
+    const dismiss = document.createElement('button')
+    dismiss.type = 'button'
+    dismiss.dataset.testid = 'agent-chat-dismiss'
+    dismiss.dataset.showDetailPointerPreserve = 'true'
+    dismiss.textContent = 'Dismiss'
+    dismiss.style.cssText = send.style.cssText
+    dismiss.onpointerdown = event => event.preventDefault()
+    dismiss.onclick = () => { used = true; removeActions() }
+    actions.append(retry, dismiss)
+    log.appendChild(actions)
+    log.scrollTop = log.scrollHeight
+  }
+  const submitRequest = async (utterance, priorHistory, captured, retrying = false) => {
+    const requestId = captured.request.operationId
     activeRequest = captured.request
+    if (!retrying) input.value = ''
     const show = captured.show
     busy = true
     send.disabled = true
-    input.value = ''
     const record = {
       requestId,
       showId: show.id,
@@ -167,14 +198,14 @@
       events: [],
     }
     requests.push(record)
-    line(`You: ${utterance}`, '#a1a1aa')
+    line(retrying ? `You: Retry exact ${captured.retryResize.durationMs / 1000}s duration for the original Clip.` : `You: ${utterance}`, '#a1a1aa')
     const pending = line('…', '#67e8f9')
     pending.dataset.requestId = requestId
     try {
       const response = await fetch(`${BRIDGE}/utterance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requestId, show, utterance, history: history.slice(-12), context: editorFocusContext(captured.context) }),
+        body: JSON.stringify({ requestId, show, utterance, history: priorHistory, context: editorFocusContext(captured.context), ...(retrying ? { retryResize: captured.retryResize } : {}) }),
         signal: transport.signal,
       })
       record.responseAt = Date.now()
@@ -219,10 +250,10 @@
       record.doneAt = Date.now()
       record.changed = result.changed === true
       record.bridgeTiming = result.timing || null
-      history.push({ role: 'user', text: utterance })
+      history.push({ role: 'user', text: retrying ? `Retry exact duration ${captured.retryResize.durationMs}ms for original logical Clip ${captured.retryResize.clipId}.` : utterance })
       if (result.changed && result.show && result.privateOutcome?.kind === 'committed') {
         record.applyStartedAt = Date.now()
-        let outcome = editor.applyShow(result.show, captured.request)
+        let outcome = editor.applyShow(result.show, captured.request, result.retryResize)
         const describe = value => value.status === 'applied'
           ? ({ saving: 'Applied; saving…', saved: 'Applied and saved.', 'rolled-back': 'Save failed; the edit was rolled back.', superseded: 'Applied, then superseded by a newer edit.', draft: 'Applied to the in-memory stock draft.' })[value.settlement]
           : value.status === 'waiting' ? 'Waiting for active editing to finish…'
@@ -247,6 +278,7 @@
         }
         record.applyEndedAt = Date.now()
         history.push({ role: 'assistant', text: `${result.reply}\n${describe(outcome)}` })
+        offerRetry(captured)
       } else {
         record.outcome = publicOutcome(editor.complete(captured.request, ['asked', 'refused', 'nothing-applied', 'commit-refused', 'incomplete', 'service-refused'].includes(result.privateOutcome?.kind) ? result.privateOutcome.kind : 'incomplete'))
         pending.textContent = `Luna: ${result.reply}\nNo editor change (${result.privateOutcome?.kind || 'incomplete'}).`
@@ -271,6 +303,17 @@
       cancel.hidden = true
       activeRequest = null
     }
+  }
+
+  form.onsubmit = event => {
+    event.preventDefault()
+    if (busy || disposed || !editor.available()) return
+    const utterance = input.value.trim()
+    if (!utterance) return
+    const priorHistory = history.slice(-12)
+    const captured = editor.beginRequest(mintRequestId(), utterance, priorHistory)
+    if (!captured) { line('The editor refused to start this request.', '#fca5a5'); return }
+    void submitRequest(utterance, priorHistory, captured)
   }
 
   window.__pxlblzChat = {

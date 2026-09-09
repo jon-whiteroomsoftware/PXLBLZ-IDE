@@ -153,10 +153,11 @@ const FINISH_UNAVAILABLE: { ok: false; issues: GrammarIssue[] } = {
  * the issues and the loop continues. Provider formatting stays in the loops.
  */
 export async function runToolRound(
-  context: Pick<AgentTurnContext, 'callTool' | 'finishTurn'> & Partial<Pick<AgentTurnContext, 'sessionId'>>,
+  context: Pick<AgentTurnContext, 'callTool' | 'finishTurn' | 'onMalformedToolCall'> & Partial<Pick<AgentTurnContext, 'sessionId'>>,
   calls: RequestedCall[],
 ): Promise<RoundOutcome> {
   const outputs: RoundOutcome['outputs'] = []
+  if (calls.some(call => call.parseError)) context.onMalformedToolCall?.()
   const operations = calls.filter((call) => call.name !== 'finish_turn')
   const explicitFinishes = calls.filter((call) => call.name === 'finish_turn')
   let roundHadError = false
@@ -217,6 +218,7 @@ export interface DictationTurnInput {
   editorContext: EditorContext
   tools: AgentTurnContext['tools']
   callTool: AgentTurnContext['callTool']
+  onMalformedToolCall?: AgentTurnContext['onMalformedToolCall']
   /** The scripted solution, for the fake agent only. */
   script?: AgentTurnContext['script']
 }
@@ -294,7 +296,7 @@ export async function runDictationTurn(input: DictationTurnInput): Promise<Dicta
         utterance, history, sessionId, listing: input.listing,
         description: input.description, instructions: input.instructions,
         editorContext: input.editorContext, tools: input.tools,
-        callTool: input.callTool, finishTurn,
+        callTool: input.callTool, finishTurn, onMalformedToolCall: input.onMalformedToolCall,
         ...(attempt === 0 && input.script ? { script: input.script } : {}),
       })
     } catch (error) {

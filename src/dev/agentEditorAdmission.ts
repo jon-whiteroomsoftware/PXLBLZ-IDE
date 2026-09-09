@@ -13,6 +13,7 @@ import { LIBRARIES } from '@/pixelblaze/libs'
 import { recordAgentObservation, showRecordDigest, type AgentApplyPhase } from './agentObservation'
 import { captureAgentShowSnapshot } from './agentShowSnapshot'
 import { parseAgentResizeIntent, sameAgentResizeIntent, type AgentResizeIntent } from './agentResizeProtocol'
+import { applyShowCommand } from '@/engine/showCommands/registry'
 
 const structural = new Ajv({ allErrors: true, strict: false, strictNumbers: true }).compile(JSON.parse(schemaText))
 export const agentUrlEnabled = () => {
@@ -48,7 +49,7 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
   let retired = false
   const listeners = new Set<() => void>()
   const resizeEntries = new Map<string, { request: ShowEditRequest; intent: AgentResizeIntent }>()
-  const entries = new Map<string, { request: ShowEditRequest; show: ShowRecord; context: unknown; baseline: ReturnType<typeof captureShowAuthoringBaseline>; invalidated: boolean }>()
+  const entries = new Map<string, { request: ShowEditRequest; show: ShowRecord; context: unknown; baseline: ReturnType<typeof captureShowAuthoringBaseline>; invalidated: boolean; delivered?: boolean; retryResize?: AgentResizeIntent }>()
   let metadataStops: Array<() => void> = []
   const releaseMetadata = () => {
     if ([...entries.values()].some(entry => store().readShowEdit(sessionId, entry.request.operationId)?.status === 'pending')) return
@@ -138,6 +139,20 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
     if (retired) unbindFields()
     else stops.push(unbindFields)
   }
+  const retryEligible = (request: ShowEditRequest) => {
+    const value = store().readShowEdit(sessionId, request.operationId)
+    return value?.status === 'cancelled' || (value?.status === 'applied' && value.settlement === 'rolled-back')
+      || (value?.status === 'refused' && (value.reason === 'revision-conflict' || value.reason === 'interaction-timeout'))
+  }
+  const matchesResize = (show: ShowRecord, candidate: unknown, intent: AgentResizeIntent) => {
+    if (!structural(candidate)) return false
+    const expected = applyShowCommand(show, 'resize_clip', { clip_id: intent.clipId, duration_ms: intent.durationMs })
+    const canonical = (value: unknown) => JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item)
+      ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item)
+    // The command stamps its own clock; the store stamps adoption again. No
+    // authored field or document identity is omitted from this comparison.
+    return expected.ok && canonical({ ...candidate as ShowRecord, updatedAt: 0 }) === canonical({ ...expected.record, updatedAt: 0 })
+  }
   return {
     sessionId, available, close,
     onClose(listener: () => void) { if (retired) listener(); else listeners.add(listener); return () => { listeners.delete(listener) } },
@@ -177,11 +192,24 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
       watchMetadata()
       return structuredClone({ request: result.request, show, context })
     },
-    applyShow(candidate: unknown, request?: ShowEditRequest): ShowInputWaitReceipt {
+    applyShow(candidate: unknown, request?: ShowEditRequest, retryResize?: unknown): ShowInputWaitReceipt {
       if (!available()) return request ? { request, status: 'retired' } : invalid()
       if (!request || request.sessionId !== sessionId) return invalid(request)
       const entry = entries.get(request.operationId)
       if (!entry || JSON.stringify(request) !== JSON.stringify(entry.request)) return invalid(request)
+      const binding = parseAgentResizeIntent(retryResize)
+      if ((retryResize !== undefined && (!binding || !matchesResize(entry.show, candidate, binding)))
+        || (entry.retryResize && !sameAgentResizeIntent(entry.retryResize, retryResize))
+        || (request.retryOf && (!binding || !matchesResize(entry.show, candidate, binding)))) {
+        const result = store().invalidateShowEditCandidate(request)
+        observeOutcome(result)
+        releaseMetadata()
+        return result ?? invalid(request)
+      }
+      if (!entry.delivered) {
+        entry.delivered = true
+        if (binding && matchesResize(entry.show, candidate, binding)) entry.retryResize = binding
+      }
       const existing = store().readShowEditCandidate(sessionId, request.operationId)
       if (existing?.status === 'pending') observe(request, 'admitted')
       const result = store().deliverShowEditCandidate(request, candidate,
@@ -213,6 +241,28 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
       const result = entry && JSON.stringify(request) === JSON.stringify(entry.request) ? store().cancelShowEdit(sessionId, request.operationId) : undefined
       releaseMetadata()
       return result
+    },
+    beginRetry(operationId: string, original: ShowEditRequest) {
+      if (!available() || !original || typeof operationId !== 'string' || !operationId || operationId === original.operationId) return undefined
+      const entry = entries.get(original.operationId)
+      if (!entry?.retryResize || JSON.stringify(original) !== JSON.stringify(entry.request) || !retryEligible(original)) return undefined
+      const prior = entries.get(operationId)
+      const current = prior?.show ?? store().resolveEditableShow(showId)
+      if (!current) return undefined
+      const stageMap = [...STOCK_MAPS, ...useMapStore.getState().userMaps].find(map => map.id === current.stageMapId)
+      const show = prior?.show ?? captureAgentShowSnapshot(current, metadata().source, stageMap?.dim === 3 ? 3 : 2)
+      if (!show) return undefined
+      const { payloadKey, referenceContext, targets } = entry.request
+      const result = store().beginShowEdit(sessionId, { operationId, retryOf: original.operationId, payloadKey, referenceContext, targets })
+      if (result.status !== 'pending') return undefined
+      if (!prior) entries.set(operationId, { request: result.request, show, context: structuredClone(entry.context), baseline: captureShowAuthoringBaseline(show, metadata()), invalidated: false, retryResize: structuredClone(entry.retryResize) })
+      watchMetadata()
+      return structuredClone({ request: result.request, show, context: entry.context, retryResize: entry.retryResize })
+    },
+    retryIntent(request: ShowEditRequest) {
+      if (!request) return undefined
+      const entry = entries.get(request.operationId)
+      return available() && entry?.retryResize && JSON.stringify(request) === JSON.stringify(entry.request) && retryEligible(request) ? structuredClone(entry.retryResize) : undefined
     },
   }
 }

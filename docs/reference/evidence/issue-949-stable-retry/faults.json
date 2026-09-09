@@ -1,0 +1,32 @@
+[
+  {
+    "fault": "fresh-ordinal-resolution",
+    "test": "src/agent-harness/test/stableResizeRetry.test.ts",
+    "exitCode": 1,
+    "detected": true
+  },
+  {
+    "fault": "old-snapshot-replay",
+    "test": "src/dev/agentStableRetry.test.ts",
+    "exitCode": 1,
+    "detected": true
+  },
+  {
+    "fault": "automatic-retry",
+    "test": "src/dev/agentChat.test.ts",
+    "exitCode": 1,
+    "detected": true
+  },
+  {
+    "fault": "composer-consumption",
+    "test": "src/dev/agentChat.test.ts",
+    "exitCode": 1,
+    "detected": true
+  },
+  {
+    "fault": "retry-identity-relaxation",
+    "test": "src/dev/agentStableRetry.test.ts",
+    "exitCode": 1,
+    "detected": true
+  }
+]
