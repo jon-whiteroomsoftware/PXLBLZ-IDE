@@ -1621,4 +1621,65 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     }
   })
 
+  test('M951: canonical move preserves a connected chain through save export no-op refusal and Undo', async ({ page }) => {
+    test.setTimeout(90000)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    const record = resizeBoundaryShow(`move-951-${Date.now().toString(36)}`)
+    const zone = record.composition!.scenes[0].zones[0]
+    zone.main[0].durationMs = 2000
+    zone.main[1].startMs = 3000
+    zone.overlays = [{ id: 'move-overlay', name: 'Destination', placements: [] }]
+    record.composition!.transitions = [{ id: 'move-ab', fromPlacementId: 'resize-a', toPlacementId: 'resize-b', kind: 'crossfade', durationMs: 1000, easing: { curve: 'sine', direction: 'in-out' }, crossfadePolicy: 'live-live' }]
+    expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+    await page.goto(`studio/shows/${record.id}?agent=1`)
+    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+    await expect.poll(() => page.evaluate(async () => {
+      const load = (path: string) => import(path)
+      const { useEntityOrganizationStore } = await load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')
+      return useEntityOrganizationStore.getState().loaded.libraries
+    })).toBe(true)
+    await injectOverlay(page, bridge.url)
+    const before = await visibleRecord(page)
+    const writes = watchShowWrites(page)
+    const id = await submitUtterance(page, 'move the connected second Clip five seconds later then two seconds earlier')
+    const done = await waitForDone(page, id)
+    expect(done.applied, JSON.stringify(done)).toBe(true)
+    await waitForDurable(page, record.id, show => firstMain(show)?.startMs === 3000)
+    const after = await visibleRecord(page)
+    const expected = structuredClone(before!)
+    expected.composition!.scenes[0].zones[0].main[0].startMs = 3000
+    expected.composition!.scenes[0].zones[0].main[1].startMs = 6000
+    expect(after).toEqual({ ...expected, updatedAt: after!.updatedAt })
+    expect(await durableShow(page, record.id)).toEqual(after)
+    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+    await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: 'Show actions' }).click()
+    const download = page.waitForEvent('download')
+    await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
+    const file = await download
+    const reopened = await page.evaluate(async bytes => {
+      const load = (path: string) => import(path)
+      const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
+      return parseShowFileBundle(new Uint8Array(bytes))
+    }, [...readFileSync((await file.path())!)])
+    expect(reopened.show).toEqual(after)
+    saveRecord('M951-export', reopened)
+    for (const utterance of ['keep the connected second Clip at six seconds', 'move the connected second Clip to overlay zero']) {
+      const outcome = await waitForDone(page, await submitUtterance(page, utterance))
+      expect(outcome.changed, JSON.stringify(outcome)).toBe(false)
+      expect(await visibleRecord(page)).toEqual(after)
+      expect(await durableShow(page, record.id)).toEqual(after)
+      expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+      saveRecord(utterance.startsWith('keep') ? 'M951-noop' : 'M951-refusal', outcome)
+    }
+    await page.screenshot({ path: join(REPORT_DIR, 'M951-result.png'), fullPage: true })
+    await page.getByRole('button', { name: 'Undo Show edit' }).click()
+    await waitForDurable(page, record.id, show => firstMain(show)?.startMs === 0)
+    const undone = await visibleRecord(page)
+    expect(undone).toEqual({ ...before, updatedAt: undone!.updatedAt })
+    expect(await durableShow(page, record.id)).toEqual(undone)
+    await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(2)
+    saveRecord('M951', { before, after, undone, done, writes, observations: await readObservations(page) })
+  })
 })

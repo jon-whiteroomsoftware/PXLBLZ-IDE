@@ -15,7 +15,7 @@ covers the registry, not every direct engine mutation or editor gesture.
   help the caller recover. Descriptor schemas own invocation shape; the
   [generated coverage report](../show-command-coverage.md) owns the inventory.
 - An unchanged engine identity result alone is a typed refusal, not success.
-  `resize_clip` separately validates an already-satisfied request and returns
+  `resize_clip` and `move_clip` separately validate an already-satisfied request and return
   the original record with zero changes and no timestamp. Some
   commands also explicitly refuse no change, such as renaming to the current
   name. Such a step aborts its containing batch; replay is not guaranteed to
@@ -57,6 +57,45 @@ and failure without partial mutation.
 [Command tests](../../../src/engine/showCommands/commands.test.ts) exercise
 individual outcomes, including retained Clip target ids for move and resize.
 These are executable examples, not exhaustive proof over every possible Show.
+
+## Internal exact Clip move
+
+`move_clip(clip_id, start_ms, zone_id?, layer?)` moves the named logical Clip
+exactly in safe integer global milliseconds. The optional Layer is `main` or a
+nonnegative safe integer overlay index. Omitted destination fields retain the
+current Zone and Layer. Both the registry and diagnostic MCP schema expose this
+finite union; neither exposes `move_connected_clip` as a callable alias.
+
+The shared owner selects ordinary or Transition-connected movement. Plain Clips
+can change Zone and Layer and repartition across supported internal Scene Cuts.
+A connected chain moves rigidly on its existing Zone and Layer, retaining every
+logical Clip's duration, relative offset and Transition settings. Segment endpoint
+references may change when Scene repartitioning requires it. Placement animation
+and sole-user instance animation follow their existing engine ownership rules;
+shared instance animation retains shared ownership. Unrelated Clips never ripple.
+
+Invalid targets or times, occupied destinations, out-of-Show chains, Group-owned
+Clips and incompatible connected destinations refuse without a candidate. The
+owner validates the input before recognizing a no-op. Ordinary movement cannot
+detach a Transition or break a visual Scene-boundary junction. Normalized implicit
+Cut materialization is not visual loss. Explicit reset-to-Cut followed by move is
+an independently supported disconnect sequence.
+
+Existing manual drag behavior can detach a Clip when changing Layer and remove
+broken visual Scene-boundary Transitions. Those manual-only behaviors remain in
+the existing callbacks; this owner does not replace them. Supported ordinary
+moves are paired against the same manual engine. The diagnostic adapter uses
+whole-Show admission and the existing one-adoption history/save policy; move has
+no narrow current-state dependency admission in this slice. The separately
+qualified private pair transaction below retains its scoped overlap capability.
+
+[Exact move owner](../../../src/engine/showExactClipMove.ts),
+[owner fixtures](../../../src/engine/showExactClipMove.test.ts),
+[adapter fixtures](../../../src/agent-harness/test/canonicalMove.test.ts) and the
+real editor `M951` sequence in
+[the browser baseline](../../../e2e/agent-baseline.auth.spec.ts) cover these forms.
+The diagnostic schema derives from the canonical descriptor and retains no
+ordinary geometry implementation; its explicit private-pair path remains separate.
 
 ## Internal exact Clip resize
 

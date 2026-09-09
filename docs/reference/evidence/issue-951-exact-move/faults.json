@@ -1,0 +1,56 @@
+{
+  "sourceRestored": true,
+  "results": [
+    {
+      "fault": "plain-only",
+      "exitCode": 1,
+      "detected": true,
+      "failedCases": [
+        "preserves a Main chain in both directions",
+        "preserves a overlay chain in both directions",
+        "bounds the entire chain and leaves an unrelated neighbor unchanged"
+      ],
+      "assertionFailure": true
+    },
+    {
+      "fault": "shift-request",
+      "exitCode": 1,
+      "detected": true,
+      "failedCases": [
+        "moves the named Clip exactly and validates an already satisfied request without changes",
+        "preserves a Main chain in both directions",
+        "refuses visual boundary destruction but supports crossing an implicit Cut",
+        "moves owned animation across Scene and Zone, preserving sole-use instance ownership",
+        "moves owned animation across Scene and Zone, preserving shared instance ownership",
+        "bounds the entire chain and leaves an unrelated neighbor unchanged"
+      ],
+      "assertionFailure": true
+    },
+    {
+      "fault": "group-noop",
+      "exitCode": 1,
+      "detected": true,
+      "failedCases": [
+        "rejects Group targets before no-op and reports moves that change only Layer"
+      ],
+      "assertionFailure": true
+    },
+    {
+      "fault": "visual-loss",
+      "exitCode": 1,
+      "detected": true,
+      "failedCases": [
+        "refuses visual boundary destruction but supports crossing an implicit Cut"
+      ],
+      "assertionFailure": true
+    }
+  ],
+  "sourceSha256": "52ab3e0a03181bf57f25a4599dfeb6996d094cf8a971bcc109882c192ff7c5ef",
+  "standardShowAuthoring": {
+    "total": 57,
+    "killed": 57,
+    "surviving": 0,
+    "timeout": 0,
+    "error": 0
+  }
+}

@@ -679,42 +679,42 @@ and the diff reviewed.
 | `/scenes/*/durationMs` | set_show_end |
 | `/stageMapId` | set_output_contract |
 | `/targetControllerProfileId` | set_target_controller_profile |
-| `/transitions/*/addressPolicy` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/anchorX` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/anchorY` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/aspect` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/blockSize` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/centerX` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/centerY` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/clockwise` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/color` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/contentScale` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/cornerRadius` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/count` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/crescentOffset` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/crossWidth` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/crossfadePolicy` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/direction` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/dissolveVariant` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/durationMs` | set_boundary_transition, set_boundary_transition_timing, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/edgePolicy` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/feather` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/featherPolicy` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/kind` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/motionVariant` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/orientation` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/phase` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/polygonSides` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/revealMode` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/ringWidth` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/rotation` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/scale` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/seed` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/shape` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/softness` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/spin` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/spinDirection` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/starInner` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/starPoints` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/wipeMode` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
-| `/transitions/*/wipeVariant` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut, move_connected_clip |
+| `/transitions/*/addressPolicy` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/anchorX` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/anchorY` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/aspect` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/blockSize` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/centerX` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/centerY` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/clockwise` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/color` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/contentScale` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/cornerRadius` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/count` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/crescentOffset` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/crossWidth` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/crossfadePolicy` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/direction` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/dissolveVariant` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/durationMs` | set_boundary_transition, set_boundary_transition_timing, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/edgePolicy` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/feather` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/featherPolicy` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/kind` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/motionVariant` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/orientation` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/phase` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/polygonSides` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/revealMode` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/ringWidth` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/rotation` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/scale` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/seed` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/shape` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/softness` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/spin` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/spinDirection` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/starInner` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/starPoints` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/wipeMode` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/wipeVariant` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |

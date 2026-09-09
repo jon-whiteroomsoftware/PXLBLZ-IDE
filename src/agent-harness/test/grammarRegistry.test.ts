@@ -123,7 +123,6 @@ describe('grammar registry (#17)', () => {
       'make_layout_interval_unique',
       'move_clip',
       'move_clip_effect',
-      'move_connected_clip',
       'move_keyframe',
       'move_marker',
       'rejoin_clip_pattern_instance',

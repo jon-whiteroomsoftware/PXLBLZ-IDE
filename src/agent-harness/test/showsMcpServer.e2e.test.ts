@@ -24,6 +24,18 @@ describe('pxlblz-shows MCP server (#7)', () => {
     return { payload: JSON.parse(content[0].text), isError: result.isError === true }
   }
 
+  it('advertises the exact move Layer union and rejects malformed protocol arguments', async () => {
+    const tools = await client.listTools()
+    expect(tools.tools.some(tool => tool.name === 'move_connected_clip')).toBe(false)
+    const move = tools.tools.find(tool => tool.name === 'move_clip')!
+    expect(move.inputSchema.properties?.layer).toMatchObject({ anyOf: [{ type: 'string', const: 'main' }, { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER }] })
+    for (const layer of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1, '0', 'overlay']) {
+      const result = await client.callTool({ name: 'move_clip', arguments: { session_id: 'schema-only', clip_id: 'a', start_ms: 0, layer } })
+      expect(result.isError).toBe(true)
+      expect(JSON.stringify(result.content)).toContain('layer')
+    }
+  })
+
   it('exposes the evaluation, critique, measurement, catalogue, and grammar tools', async () => {
     const tools = await client.listTools()
     const names = tools.tools.map((tool) => tool.name).sort()
@@ -60,7 +72,6 @@ describe('pxlblz-shows MCP server (#7)', () => {
       'measure_show',
       'move_clip',
       'move_clip_effect',
-      'move_connected_clip',
       'move_keyframe',
       'move_marker',
       'open_show',

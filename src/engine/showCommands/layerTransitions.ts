@@ -6,12 +6,10 @@ import { newPersonalContentId } from '../personalContentMetadata'
 import type { ShowLayerTransition, ShowRecord } from '../personalContentRecords'
 import {
   insertShowLayerTransition,
-  moveShowConnectedClipAtGlobalTime,
   planShowLayerTransitionInsertion,
   resetShowLayerTransitionToCut,
   resizeShowLayerTransition,
 } from '../showLayerTransitionAuthoring'
-import type { ShowTimelineClipMoveTarget } from '../showTimelineClipAuthoring'
 import {
   commandComposition,
   refuseShowCommand,
@@ -201,58 +199,8 @@ const resetLayerTransitionToCut: ShowCommandDescriptor = {
   },
 }
 
-const moveConnectedClip: ShowCommandDescriptor = {
-  name: 'move_connected_clip',
-  description:
-    'Move a transition-connected clip, carrying its whole rigid chain (every clip joined to it by ' +
-    'layer transitions) to keep the transitions intact. Use move_clip for unconnected clips.',
-  touches: ['/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', ...VISUAL_TRANSITION_PARAMETER_TOUCHES, '/updatedAt'],
-  fields: {
-    clip_id: { kind: 'string', description: 'Any clip of the connected chain' },
-    start_ms: { kind: 'number', description: 'New global start time for that clip' },
-  },
-  apply(record, input) {
-    const resolved = commandComposition(record)
-    if (!resolved.ok) return resolved
-    const composition = resolved.composition
-    const found = resolveCommandClip(record, composition, input.clip_id as string)
-    if (!found.ok) return found
-    const { clip, owner } = found.context
-    // The connected-move engine compares the unified layer index for the
-    // same-layer (chain-preserving) path.
-    const target: ShowTimelineClipMoveTarget = clip.kind === 'main'
-      ? { kind: 'main', zoneId: clip.zoneId, globalStartMs: input.start_ms as number }
-      : {
-          kind: 'overlay',
-          zoneId: clip.zoneId,
-          layerIndex: clip.layerIndex,
-          globalStartMs: input.start_ms as number,
-        }
-    const result = moveShowConnectedClipAtGlobalTime(record, composition, { owner, target })
-    if (result === composition) {
-      return engineIdentityRefusal(
-        'move_connected_clip',
-        'The destination may be occupied or outside the Show.',
-      )
-    }
-    // Canonicalize every boundary junction the chain shift broke - the
-    // Show-level engine wrapper only checks junctions touching the selected
-    // clip, and any clip of the chain may sit on a Scene boundary.
-    return {
-      ok: true,
-      record: withComposition(canonicalizeBoundaryAfterShift(record, composition, result), result),
-      changes: [{
-        command: 'move_connected_clip',
-        targetId: clip.id,
-        description: `Clip ${clip.patternName} and its connected chain moved to ${Math.round(input.start_ms as number)} ms.`,
-      }],
-    }
-  },
-}
-
 export const SHOW_LAYER_TRANSITION_COMMANDS: ShowCommandDescriptor[] = [
   insertLayerTransition,
   resizeLayerTransition,
   resetLayerTransitionToCut,
-  moveConnectedClip,
 ]

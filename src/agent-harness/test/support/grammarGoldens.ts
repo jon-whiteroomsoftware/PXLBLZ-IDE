@@ -133,6 +133,14 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
       start_ms: 2_000,
     })
     expect(trackTimes(shifted, tracked.changes[0].targetId)).toEqual([3_000, 11_000])
+    const connectedBase = withLayerTransition()
+    const { document: connectedNext } = applyOk(connectedBase.document, 'move_clip', {
+      clip_id: connectedBase.firstClipId,
+      start_ms: 5_000,
+    })
+    expect(clipAt(connectedNext, 5_000).clipId).toBe(connectedBase.firstClipId)
+    expect(clipAt(connectedNext, 17_000).clipId).toBe(connectedBase.secondClipId)
+    expect((connectedNext.show.composition as ShowCompositionV1).transitions).toHaveLength(1)
   },
   resize_clip: () => {
     // Growing across the Scene boundary keeps one logical clip; shrinking
@@ -559,16 +567,6 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     expect((next.show.composition as ShowCompositionV1).transitions ?? []).toEqual([])
     expect(clipAt(next, 10_000).clipId).toBe(base.secondClipId)
-  },
-  move_connected_clip: () => {
-    const base = withLayerTransition()
-    const { document: next } = applyOk(base.document, 'move_connected_clip', {
-      clip_id: base.firstClipId,
-      start_ms: 5_000,
-    })
-    expect(clipAt(next, 5_000).clipId).toBe(base.firstClipId)
-    expect(clipAt(next, 17_000).clipId).toBe(base.secondClipId)
-    expect((next.show.composition as ShowCompositionV1).transitions).toHaveLength(1)
   },
   resize_connected_clip: () => {
     const base = withLayerTransition()

@@ -39,7 +39,7 @@ export type ShowCommandOutcome =
 
 /** Dependency-free input schema: enough for palettes and validation. */
 export interface ShowCommandField {
-  kind: 'string' | 'number' | 'integer' | 'boolean' | 'json'
+  kind: 'string' | 'number' | 'integer' | 'boolean' | 'json' | 'layer'
   description: string
   optional?: boolean
   /** For string fields limited to a closed set. */
@@ -109,6 +109,8 @@ function fieldTypeMatches(field: ShowCommandField, value: unknown): boolean {
       return typeof value === 'number' && (field.safeInteger ? Number.isSafeInteger(value) : Number.isInteger(value))
     case 'boolean':
       return typeof value === 'boolean'
+    case 'layer':
+      return value === 'main' || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0)
     case 'json':
       return true
   }

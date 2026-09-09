@@ -23,7 +23,6 @@ import {
   duplicateLinkedShowClipAfter,
   duplicateShowClipAfter,
   makeShowClipPatternIndependent,
-  moveShowClipAtGlobalTime,
   planShowClipAtGlobalTime,
   planShowClipDuplicateAfter,
   planShowClipPatternRejoin,
@@ -51,6 +50,7 @@ import {
   controlExportIssue,
 } from '../support.js'
 import { canonicalResizeOperation } from './resizeAdapter.js'
+import { canonicalMoveOperation } from './moveAdapter.js'
 
 function unknownZone(document: ShowGrammarDocument, zoneId: string): GrammarIssue {
   return {
@@ -206,26 +206,14 @@ const addClip: ShowGrammarOperation = {
   },
 }
 
+const canonicalMove = canonicalMoveOperation()
 const moveClip: ShowGrammarOperation = {
-  name: 'move_clip',
-  description:
-    'Move one clip to a new global start time, optionally to another Zone or layer (layer "main" or an ' +
-    'overlay layer index; default is the clip’s current layer). The clip keeps its duration; a clip ' +
-    'spanning several internal Scenes moves as one clip, and its property-track keyframes move with it. ' +
-    'Refused if the target span would overlap another clip on the target Zone and layer or run past the ' +
-    'end of the Show.',
-  mutates: [
-    '/composition/scenes/*/zones/*',
-    '/composition/scenes/*/propertyTracks',
-  ],
-  inputShape: {
-    clip_id: z.string().describe('Clip id from the open_show listing'),
-    start_ms: z.number().describe('New global timeline start in milliseconds'),
-    zone_id: z.string().optional().describe('Target Zone id (default: the clip’s current Zone)'),
-    layer: z.union([z.literal('main'), z.number().int().min(0)]).optional()
-      .describe('Target layer: "main" or an overlay layer index (default: the current layer)'),
-  },
+  ...canonicalMove,
   apply(document, args, privateMove) {
+    if (!privateMove?.active) {
+      const ordinary = canonicalMove.apply(document, args)
+      if (ordinary.ok || !privateMove) return ordinary
+    }
     const resolved = resolveClip(document, args.clip_id as string)
     if (!resolved.ok) return resolved
     const context = resolved.context
@@ -278,10 +266,9 @@ const moveClip: ShowGrammarOperation = {
     const target: ShowTimelineClipMoveTarget = kind === 'main'
       ? { kind: 'main', zoneId, globalStartMs: startMs }
       : { kind: 'overlay', zoneId, layerIndex, globalStartMs: startMs }
+    if (!privateMove.active && !conflict) return canonicalMove.apply(document, args)
     const composition = compositionOf(document)
-    const result = privateMove && (privateMove.active || conflict)
-      ? privateMove.move(ownerFor(clip), target, conflict ? ownerFor(conflict.clip) : undefined)
-      : moveShowClipAtGlobalTime(document.show, composition, { owner: ownerFor(clip), target })
+    const result = privateMove.move(ownerFor(clip), target, conflict ? ownerFor(conflict.clip) : undefined)
     if (!result || result === composition) {
       return refuse({
         code: 'engine-refused',

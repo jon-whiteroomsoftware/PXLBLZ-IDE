@@ -7,19 +7,16 @@ import { z } from 'zod'
 import type { ShowLayerTransition } from '@/engine/personalContentRecords'
 import {
   insertShowLayerTransition,
-  moveShowConnectedClipAtGlobalTime,
   planShowLayerTransitionInsertion,
   resetShowLayerTransitionToCut,
   resizeShowLayerTransition,
 } from '@/engine/showLayerTransitionAuthoring'
-import type { ShowTimelineClipMoveTarget } from '@/engine/showTimelineClipAuthoring'
 import type { ShowGrammarOperation } from '../registry.js'
 import type { ShowGrammarDocument } from '../types.js'
 import {
   composedShow,
   compositionOf,
   idFactory,
-  ownerFor,
   refuse,
   resolveClip,
   toEasing,
@@ -215,73 +212,11 @@ const resetLayerTransitionToCut: ShowGrammarOperation = {
   },
 }
 
-const moveConnectedClip: ShowGrammarOperation = {
-  name: 'move_connected_clip',
-  description:
-    'Move a clip together with everything transition-connected to it, as one rigid chain, to a new global ' +
-    'start time (optionally another Zone or layer). Use move_clip for a clip with no attached layer ' +
-    'Transitions.',
-  mutates: ['/composition/scenes/*/zones/*', '/composition/scenes/*/propertyTracks'],
-  inputShape: {
-    clip_id: z.string().describe('Clip id from the open_show listing'),
-    start_ms: z.number().describe('New global timeline start for this clip, in milliseconds'),
-    zone_id: z.string().optional().describe('Target Zone id (default: the clip’s current Zone)'),
-    layer: z.union([z.literal('main'), z.number().int().min(0)]).optional()
-      .describe('Target layer: "main" or an overlay layer index (default: the current layer)'),
-  },
-  apply(document, args) {
-    const resolved = resolveClip(document, args.clip_id as string)
-    if (!resolved.ok) return resolved
-    const { clip } = resolved.context
-    const zoneId = (args.zone_id as string | undefined) ?? clip.zoneId
-    const layerArg = args.layer as 'main' | number | undefined
-    const kind: 'main' | 'overlay' = layerArg === undefined
-      ? clip.kind
-      : layerArg === 'main' ? 'main' : 'overlay'
-    const layerIndex = layerArg === undefined
-      ? (clip.kind === 'overlay' ? clip.layerIndex : 0)
-      : layerArg === 'main' ? 0 : layerArg
-    const startMs = Math.round(args.start_ms as number)
-    const target: ShowTimelineClipMoveTarget = kind === 'main'
-      ? { kind: 'main', zoneId, globalStartMs: startMs }
-      : { kind: 'overlay', zoneId, layerIndex, globalStartMs: startMs }
-
-    const composition = compositionOf(document)
-    const result = moveShowConnectedClipAtGlobalTime(document.show, composition, {
-      owner: ownerFor(clip),
-      target,
-    })
-    if (result === composition) {
-      return refuse({
-        code: 'engine-refused',
-        message:
-          `The engine declined to move clip ${clip.id} and its connected chain to ${startMs} ms; the ` +
-          'target span may overlap other clips or leave the timeline.',
-        remedy: 'Check the clip listing for free space that fits the whole connected chain.',
-      })
-    }
-    return {
-      ok: true,
-      document: composedShow(document, result),
-      changes: [{
-        op: 'move_connected_clip',
-        targetId: clip.id,
-        description:
-          `Clip ${clip.id} and its transition-connected chain moved to start at ${startMs} ms on ` +
-          `Zone ${zoneId}.`,
-        before: { startMs: clip.startMs },
-        after: { startMs },
-      }],
-    }
-  },
-}
-
 const resizeConnectedClip: ShowGrammarOperation = canonicalResizeOperation('resize_connected_clip')
 
 export const LAYER_TRANSITION_OPERATIONS: ShowGrammarOperation[] = [
   insertLayerTransition,
   resizeLayerTransition,
   resetLayerTransitionToCut,
-  moveConnectedClip,
   resizeConnectedClip,
 ]

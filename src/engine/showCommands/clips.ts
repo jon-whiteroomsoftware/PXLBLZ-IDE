@@ -14,7 +14,6 @@ import {
   duplicateLinkedShowClipAfter,
   duplicateShowClipAfter,
   makeShowClipPatternIndependent,
-  moveShowClipAtGlobalTime,
   planShowClipAtGlobalTime,
   planShowClipDuplicateAfter,
   planShowClipPatternRejoin,
@@ -24,6 +23,7 @@ import {
   type ShowTimelineClipMoveTarget,
 } from '../showTimelineClipAuthoring'
 import { resizeShowClipExactly, type ShowExactClipResizeRequest } from '../showExactClipResize'
+import { moveShowClipExactly, type ShowExactClipMoveRequest } from '../showExactClipMove'
 import {
   commandComposition,
   refuseShowCommand,
@@ -31,22 +31,10 @@ import {
   type ShowCommandDescriptor,
 } from './registry'
 import {
-  describeCommandClip,
   engineIdentityRefusal,
   planRefusal,
   resolveCommandClip,
 } from './support'
-
-/** The overlays-array index the engine's target shape expects, from a unified clip. */
-function overlayLayerIndex(
-  record: Parameters<typeof resolveCommandClip>[0],
-  clip: { sceneId: string; zoneId: string; layerId: string | null },
-): number {
-  const zone = record.composition?.scenes
-    .find((scene) => scene.sceneId === clip.sceneId)?.zones
-    .find((candidate) => candidate.zoneId === clip.zoneId)
-  return zone?.overlays.findIndex((layer) => layer.id === clip.layerId) ?? -1
-}
 
 const addClip: ShowCommandDescriptor = {
   name: 'add_clip',
@@ -136,44 +124,37 @@ const addClip: ShowCommandDescriptor = {
 
 const moveClip: ShowCommandDescriptor = {
   name: 'move_clip',
-  description:
-    'Move a clip to a new global start time on its own layer. A clip connected to a layer transition ' +
-    'refuses here; transition-connected chains move through their own commands.',
-  touches: ['/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/updatedAt'],
+  description: 'Move a logical Clip to exact safe integer global milliseconds, optionally to another Zone or Layer. Supported Transition-connected chains move together on their existing Layer. Incompatible connected destinations, visual Transition removal, occupied destinations and moves outside the Show refuse atomically. A valid already-satisfied target makes no changes.',
+  touches: ['/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/composition/transitions', '/updatedAt'],
   fields: {
-    clip_id: { kind: 'string', description: 'The clip to move' },
-    start_ms: { kind: 'number', description: 'New global start time in milliseconds' },
+    clip_id: { kind: 'string', description: 'Logical Clip id from the timeline listing' },
+    start_ms: { kind: 'integer', safeInteger: true, description: 'Exact global start in milliseconds' },
+    zone_id: { kind: 'string', optional: true, description: 'Destination Zone id; default current Zone' },
+    layer: { kind: 'layer', optional: true, description: 'Destination Layer: main or a nonnegative overlay index; default current Layer' },
   },
   apply(record, input) {
     const resolved = commandComposition(record)
     if (!resolved.ok) return resolved
-    const composition = resolved.composition
-    const found = resolveCommandClip(record, composition, input.clip_id as string)
-    if (!found.ok) return found
-    const { clip, owner, zoneName } = found.context
-    const target: ShowTimelineClipMoveTarget = clip.kind === 'main'
-      ? { kind: 'main', zoneId: clip.zoneId, globalStartMs: input.start_ms as number }
-      : {
-          kind: 'overlay',
-          zoneId: clip.zoneId,
-          layerIndex: overlayLayerIndex(record, clip),
-          globalStartMs: input.start_ms as number,
-        }
-    const result = moveShowClipAtGlobalTime(record, composition, { owner, target })
-    if (result === composition) {
-      return engineIdentityRefusal(
-        'move_clip',
-        `${describeCommandClip(clip, zoneName)} did not move; the destination may be occupied, outside ` +
-        'the Show, or the clip may be connected to a layer transition.',
-      )
+    const result = moveShowClipExactly(record, resolved.composition, {
+      clipId: input.clip_id, globalStartMs: input.start_ms,
+      ...(input.zone_id !== undefined ? { zoneId: input.zone_id } : {}),
+      ...(input.layer !== undefined ? { layer: input.layer } : {}),
+    } as ShowExactClipMoveRequest)
+    if (result.status === 'refused' && result.code === 'missing-target') {
+      const missing = resolveCommandClip(record, resolved.composition, input.clip_id as string)
+      if (!missing.ok) return missing
     }
+    if (result.status === 'refused') return refuseShowCommand({
+      code: result.code === 'invalid-request' ? 'invalid-argument' : result.code === 'missing-target' ? 'unknown-clip' : result.code,
+      message: result.reason,
+      ...(result.reason.startsWith('Group-owned') ? { remedy: 'Move the Group through its supported Group operation.' } : {}),
+    })
+    if (result.status === 'noop') return { ok: true, record, changes: [] }
     return {
-      ok: true,
-      record: withComposition(record, result),
-      changes: [{
-        command: 'move_clip',
-        targetId: clip.id,
-        description: `Clip ${clip.patternName} moved to ${Math.round(input.start_ms as number)} ms.`,
+      ok: true, record: withComposition(record, result.composition),
+      changes: [{ command: 'move_clip', targetId: input.clip_id as string,
+        description: `Clip ${input.clip_id} moved to ${input.start_ms} ms.`,
+        details: { movedClipIds: result.movedClipIds },
       }],
     }
   },

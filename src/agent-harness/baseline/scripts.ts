@@ -95,6 +95,27 @@ export const BASELINE_UTTERANCES: BaselineUtterance[] = [
       { tool: 'add_marker', args: { at_ms: 10_000, name: 'Drop', finish_turn_reply: { intent: 'apply', reply: 'Added the Drop marker at ten seconds.' } } },
     ],
   },
+  {
+    utterance: 'move the connected second Clip five seconds later then two seconds earlier',
+    intent: '#951: exact canonical chain move in both directions.',
+    script: [
+      { tool: 'move_clip', args: { clip_id: 'resize-b', start_ms: 8000 } },
+      { tool: 'move_clip', args: { clip_id: 'resize-b', start_ms: 6000, finish_turn_reply: { intent: 'apply', reply: 'Moved the connected Clips three seconds later.' } } },
+    ],
+  },
+  {
+    utterance: 'keep the connected second Clip at six seconds',
+    intent: '#951: validated no-op produces no candidate.',
+    script: [{ tool: 'move_clip', args: { clip_id: 'resize-b', start_ms: 6000, finish_turn_reply: { intent: 'apply', reply: 'The Clip is already at six seconds.' } } }],
+  },
+  {
+    utterance: 'move the connected second Clip to overlay zero',
+    intent: '#951: incompatible connected destination refuses without detachment.',
+    script: [
+      { tool: 'move_clip', args: { clip_id: 'resize-b', start_ms: 6000, layer: 0 } },
+      { say: 'The connected Clip cannot change Layer without an explicit disconnect.', intent: 'refuse' },
+    ],
+  },
 ]
 
 /** The script for an utterance the scripted bridge knows, or null. */

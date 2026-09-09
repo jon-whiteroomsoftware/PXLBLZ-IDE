@@ -1,0 +1,40 @@
+{
+  "invariants": [
+    "Canonical move_clip validates safe integer global time and the finite optional Zone/Layer destination before accepting a no-op; Group-owned targets refuse.",
+    "Accepted moves retain the named logical Clip's exact start, duration and destination, every connected relative offset and Transition setting, owned track references, and unrelated content.",
+    "Ordinary move never detaches connected Transitions, destroys visual Scene boundaries, clamps, ripples or accepts occupied/outside-Show results; normalized implicit Cut materialization is supported.",
+    "Canonical ordinary success takes priority over inactive private-pair qualification; active retained pair behavior remains confined to its private closure.",
+    "Both callable catalogues expose one move_clip and no move_connected_clip alias; MCP publishes the finite Layer union.",
+    "One accepted scripted batch creates one complete save and history entry; no-op and refusal create neither; downloaded Show reopen and one Undo retain complete state."
+  ],
+  "partitions": [
+    "Plain and connected Main/overlay moves in both directions; pure Layer destination changes; Zone change, Main/overlay conversion and Scene repartitioning.",
+    "Connected destination refusal, visual Scene-boundary destruction versus implicit Cut crossing; Group-owned targets before no-op.",
+    "Placement-owned and sole-use instance tracks move across Scene/Zone; shared instance animation stays shared.",
+    "Missing targets and destinations, invalid/fractional/unsafe/nonfinite time, occupied and outside-Show chains, invalid source composition, valid no-op.",
+    "Layer fractional/negative/unsafe/numeric-string/unknown-string/null/object/boolean rejection across canonical and diagnostic validation; actual MCP advertised schema and protocol rejection.",
+    "Explicit transaction connected movement across former sibling positions; retained private overlap pairs and mixed move-resize sessions."
+  ],
+  "sequences": [
+    "Move a named connected Clip +5000 then -2000, compare complete composition and manual engine output, preserve unrelated neighbor.",
+    "Reset a Layer Transition to Cut explicitly, then move the disconnected Clip to overlay; ordinary connected destination alone refuses.",
+    "Move across Scene/Zone with owned animation, validate complete record and references, preserve original input.",
+    "Real scripted HTTP/NDJSON/MCP editor move batch, save once, download .pxlshow and reopen, submit no-op and refused detachment with no writes, Undo once.",
+    "Run existing private-pair and mixed move-resize regressions and the standard 57-mutant Show authoring qualification.",
+    "Inject plain-only selection, shifted requested time, omitted Group guard and omitted visual boundary guard separately; behavioral tests fail and source is restored."
+  ],
+  "oracles": [
+    "Complete composition equality, explicit projected placement timing and ownership, full composition validation, and input immutability.",
+    "Actual manual connected engine output paired with literal expected records; registry goldens cover Transition endpoint retargeting on Scene crossing.",
+    "Real MCP listTools schema and malformed argument responses; both registries refuse the retired connected spelling.",
+    "Real editor visible and durable records, exact write count, downloaded Show importer output, and one-step Undo.",
+    "Root coordinator owns committed-tip full suites, IAB interaction, native review and landing."
+  ],
+  "residualGaps": [
+    "Existing manual drag detachment and visual-boundary removal remain manual-only; manual callbacks are not wholesale migrated.",
+    "Canonical move still uses whole-Show admission; narrow current-state move dependency/retry admission and the other #951 families remain future slices.",
+    "Existing geometry and shared instance ownership policies remain authoritative; no new connected destination topology, Group move semantics or generic overlap permission.",
+    "No paid model calls, hosted Agent UI, Controller operations or production service changes.",
+    "Worker-local IAB discovery failed; coordinator IAB connection is available and owns interactive verification. Repository Playwright is automated real-editor evidence."
+  ]
+}

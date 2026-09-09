@@ -102,7 +102,7 @@ function boundaryPinnedChain(): { record: ShowRecord; transitionId: string } {
     duration_ms: 1_000,
   })
   // Chain (clip-b, clip-c): slide it so clip-c ends at the boundary...
-  const pinned = applyOk(inserted.record, 'move_connected_clip', { clip_id: 'clip-c', start_ms: 24_000 })
+  const pinned = applyOk(inserted.record, 'move_clip', { clip_id: 'clip-c', start_ms: 24_000 })
   // ...then add the far-side clip after the boundary crossfade window.
   const farSide = applyOk(pinned.record, 'add_clip', {
     zone_id: 'zone-1',
@@ -230,6 +230,28 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
       .find((scene) => scene.sceneId === 'scene-1')?.propertyTracks
       ?.find((track) => track.id === 'track-b')?.keyframes.map((keyframe) => keyframe.timeMs)
     expect(trackTimes).toEqual([13_000, 20_000])
+    const adjacent = applyOk(trackedCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 10_000 })
+    const inserted = applyOk(adjacent.record, 'insert_layer_transition', {
+      from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 1_000,
+    })
+    const movedChain = applyOk(inserted.record, 'move_clip', { clip_id: 'clip-a', start_ms: 2_000 })
+    expect(summaryClips(movedChain.record).find((clip) => clip.clipId === 'clip-a')?.startMs).toBe(2_000)
+    expect(summaryClips(movedChain.record).find((clip) => clip.clipId === 'clip-b')?.startMs).toBe(13_000)
+    expect(movedChain.record.composition?.transitions).toHaveLength(1)
+    const pinned = boundaryPinnedChain()
+    applyRefused(withAllTransitionFields(pinned.record), 'move_clip', { clip_id: 'clip-b', start_ms: 11_000 }, 'unsupported-topology')
+    const crossing = showCommandFixture()
+    crossing.transitions = []
+    const crossingComposition = crossing.composition!
+    const crossingZone = crossingComposition.scenes[0].zones[0]
+    crossingZone.main = [
+      { ...crossingZone.main[0], id: 'cross-a', startMs: 24_000, durationMs: 2_000 },
+      { ...crossingZone.main[0], id: 'cross-b', startMs: 27_000, durationMs: 2_000 },
+    ]
+    for (const scene of crossingComposition.scenes.slice(1)) for (const zone of scene.zones) zone.main = []
+    crossingComposition.transitions = [{ id: 'cross-ab', fromPlacementId: 'cross-a', toPlacementId: 'cross-b', kind: 'crossfade', durationMs: 1_000, easing: { curve: 'linear' }, crossfadePolicy: 'live-live' }]
+    const crossed = applyOk(crossing, 'move_clip', { clip_id: 'cross-a', start_ms: 29_000 })
+    expect(crossed.record.composition?.transitions?.[0]).toMatchObject({ id: 'cross-ab', fromPlacementId: 'cross-a--span-scene-2', toPlacementId: 'cross-b', durationMs: 1_000 })
   },
   resize_clip: () => {
     const { record } = applyOk(showCommandFixture(), 'resize_clip', {
@@ -886,31 +908,7 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     expect(contentUnique.record.zones.length).toBeGreaterThan(1)
   },
-  move_connected_clip: () => {
-    const adjacent = applyOk(trackedCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 10_000 })
-    const inserted = applyOk(adjacent.record, 'insert_layer_transition', {
-      from_clip_id: 'clip-a',
-      to_clip_id: 'clip-b',
-      duration_ms: 1_000,
-    })
-    const moved = applyOk(inserted.record, 'move_connected_clip', {
-      clip_id: 'clip-a',
-      start_ms: 2_000,
-    })
-    expect(summaryClips(moved.record).find((clip) => clip.clipId === 'clip-a')?.startMs).toBe(2_000)
-    expect(summaryClips(moved.record).find((clip) => clip.clipId === 'clip-b')?.startMs).toBe(13_000)
-    expect(moved.record.composition?.transitions).toHaveLength(1)
 
-    // Moving the chain off the Scene boundary canonicalizes the broken
-    // boundary transition to a Cut, whatever it carried, selecting any clip
-    // of the chain.
-    const pinned = boundaryPinnedChain()
-    const pulled = applyOk(withAllTransitionFields(pinned.record), 'move_connected_clip', {
-      clip_id: 'clip-b',
-      start_ms: 11_000,
-    })
-    expect(pulled.record.transitions?.some((candidate) => candidate.kind === 'crossfade')).toBe(false)
-  },
 }
 
 describe('Show command goldens (#885)', () => {
@@ -942,7 +940,7 @@ describe('Show command refusal partitions (#885)', () => {
   })
 
   it('move_clip refuses an occupied destination as an engine refusal', () => {
-    applyRefused(showCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 2_000 }, 'engine-refused')
+    applyRefused(showCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 2_000 }, 'domain-refusal')
   })
 
   it('split_clip refuses a point outside the clip', () => {
@@ -1124,20 +1122,13 @@ describe('Show command refusal partitions (#885)', () => {
     )
   })
 
-  it('move_connected_clip refuses a colliding chain move', () => {
+  it('move_clip refuses a colliding chain move', () => {
     const adjacent = applyOk(showCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 10_000 })
     const inserted = applyOk(adjacent.record, 'insert_layer_transition', {
-      from_clip_id: 'clip-a',
-      to_clip_id: 'clip-b',
-      duration_ms: 1_000,
+      from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 1_000,
     })
-    applyRefused(
-      inserted.record,
-      'move_connected_clip',
-      { clip_id: 'clip-a', start_ms: 5_000 },
-      'engine-refused',
-    )
-    applyRefused(inserted.record, 'move_connected_clip', { clip_id: 'nope', start_ms: 0 }, 'unknown-clip')
+    applyRefused(inserted.record, 'move_clip', { clip_id: 'clip-a', start_ms: 5_000 }, 'domain-refusal')
+    applyRefused(inserted.record, 'move_clip', { clip_id: 'nope', start_ms: 0 }, 'unknown-clip')
   })
 
   it('effect commands refuse unknown effects, unknown parameters, no-changes, and stage edges', () => {
@@ -1304,7 +1295,7 @@ describe('Show command refusal partitions (#885)', () => {
         }],
       },
     }
-    const issues = applyRefused(grouped, 'move_clip', { clip_id: 'occ-1:g-a', start_ms: 40_000 }, 'group')
+    const issues = applyRefused(grouped, 'move_clip', { clip_id: 'occ-1:g-a', start_ms: 40_000 }, 'unsupported-topology')
     expect(issues[0].remedy).toContain('Group')
   })
 })
