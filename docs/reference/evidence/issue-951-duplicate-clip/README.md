@@ -13,10 +13,12 @@ All browser evidence below uses `9addd4d4f3f3ecaaced6985442e47c067c93b88a`.
 The coordinator inspected the in-app browser first; DC951 then ran against the
 same committed source. [Provenance](provenance.json) records routes and identities.
 
-- **Main Clone:** [DC951 browser case](../../../../e2e/agent-baseline.auth.spec.ts), [result](main-result.jpg),
-  [Undo](main-undo.jpg). The selected 12–20 second Clip clones independently at
-  20–28 seconds with placement/instance animation. The incoming Transition and
-  unrelated geometry remain; one Undo restores the preimage and disables Undo.
+- **Main Clone:** historical [result](main-result.jpg), [Undo](main-undo.jpg)
+  and [provenance](provenance.json). In the 62-second Show, the selected
+  12–20 second Clip cloned independently at 20–28 seconds with placement/instance
+  animation. The incoming Transition and unrelated geometry remained; one Undo
+  restored the preimage and disabled Undo. No committed regression case covers
+  this exact manual specimen; DC951 exercises the overlay specimen below.
 - **Overlay Clone:** [DC951 browser case](../../../../e2e/agent-baseline.auth.spec.ts),
   [result](overlay-result.jpg), [Undo](overlay-undo.jpg). The 2–8 second Clip
   clones independently at 8–14 seconds in the 60-second Show. One Undo restores
