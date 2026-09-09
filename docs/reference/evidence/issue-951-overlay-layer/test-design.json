@@ -27,12 +27,13 @@
     "Visible editor record, durable API record, downloaded .pxlshow importer, PATCH counts, receipt reason and disabled Undo after restoration.",
     "Coordinator manual in-app-browser inspection uses the committed importable rich fixture.",
     "Sparse import acceptance plus complete composition validity and exact materialized Layer IDs/content; inspected actual IAB before/after JPEGs at source982e10d2, console errors empty.",
-    "Fresh sparse L951 at a77b98df: full expected shell+empty-top record, visible/durable/reopened export equality, Undo, stale revision refusal and duplicate one-save adoption."
+    "Fresh sparse L951 at a77b98df: full expected shell+empty-top record, visible/durable/reopened export equality, Undo, stale revision refusal and duplicate one-save adoption.",
+    "Fresh coordinator IAB at a77b98df: actual Add creates empty overlay0; Group retains timing and shifts to overlay1, main stays main; one Undo restores exact row/style state, inspected JPEGs and no console errors."
   ],
   "residualGaps": [
-    "Coordinator IAB inspection, final suites and native review remain pending; exact-source scripted sparse proof passed at a77b98dfba69f988a54773fb2b363545a66a1bcb. Historical sparse blocker evidence is retained separately.",
+    "Final committed-tip suites and native review remain coordinator work. Exact-source scripted and manually inspected IAB sparse proof passed at a77b98dfba69f988a54773fb2b363545a66a1bcb. Historical blocker evidence is retained separately.",
     "No paid inference, hosted service, Controller, new UI, Layer reorder/removal or add_clip migration.",
     "Duplicate adoption has real browser behavioral coverage; targeted injected faults cover the three changed transformation risks."
   ],
-  "status": "Approved sparse Group extension implemented; exact-source scripted consumer proof passed; coordinator IAB and final checks pending"
+  "status": "Approved sparse Group extension and committed-source scripted/IAB consumer proof complete; coordinator final suites and native review pending"
 }

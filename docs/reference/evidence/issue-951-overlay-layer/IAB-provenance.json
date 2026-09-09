@@ -1,0 +1,30 @@
+{
+  "sourceCommit": "a77b98dfba69f988a54773fb2b363545a66a1bcb",
+  "browser": "Codex in-app browser",
+  "runtime": "http://localhost:5178/PXLBLZ-IDE/",
+  "route": "/studio/shows/d2613f73-3814-41aa-ae83-e6416ae772a4",
+  "syntheticUser": "local-agent-08",
+  "inspection": "Coordinator reloaded committed source, performed manual Add > Layer in main, then one Undo; opened both JPEG files.",
+  "observations": {
+    "added": {
+      "topOverlayIndex": 0,
+      "topOverlayButtons": 0,
+      "groupOverlayIndex": 1,
+      "groupStartPercent": 53.2258,
+      "groupWidthPercent": 1.6129,
+      "mainKind": "main",
+      "mainRowIndex": 3
+    },
+    "undo": {
+      "groupOverlayIndex": 0,
+      "mainRowIndex": 2,
+      "restoredDomStyles": true
+    },
+    "consoleErrors": []
+  },
+  "captures": [
+    "951-layer-fixed-added.jpg",
+    "951-layer-fixed-undo.jpg"
+  ],
+  "scope": "Manual Add and Undo preservation at normal viewport; JSON scripted evidence supplies complete saved/exported record oracles. No TSX changed."
+}

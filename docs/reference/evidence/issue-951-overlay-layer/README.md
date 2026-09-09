@@ -1,7 +1,7 @@
 # Overlay Layer creation evidence (#951)
 
-The approved sparse Group repair is implemented; final IAB inspection, review
-and landing remain coordinator work. Layer creation now realizes target-Zone
+The approved sparse Group repair and consumer proof are complete; final suites,
+review and landing remain coordinator work. Layer creation now realizes target-Zone
 implicit shells through the Group materializer's shared shell owner before
 prepending the fresh empty Layer. It retains Group definitions and occurrences.
 
@@ -21,6 +21,15 @@ All 118 focused tests across six files passed; normal source-commit hooks passed
 lint, locator/coverage checks, typecheck and 68 staged tests. The deliberate
 [omit-shell fault](sparse-fault.json) failed the regression; source was restored
 before those checks. Coordinator final suites and native review remain pending.
+
+The coordinator's fresh IAB check at the same source commit also passed. Actual
+Add → Layer in main left the top overlay row empty, preserved the Group's
+53.2258% start and 1.6129% width while its overlay index changed from zero to
+one, and retained the main Group on main. One Undo restored the exact row
+indices and DOM styles; console errors were empty. The coordinator opened both
+[added](951-layer-fixed-added.jpg) and [Undo](951-layer-fixed-undo.jpg) JPEGs.
+[Provenance](IAB-provenance.json) records the route and observed values. No TSX
+changed, so these are ordinary consumer evidence rather than an invented UI gate.
 
 ## Historical blocker and decision
 
