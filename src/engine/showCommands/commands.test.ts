@@ -125,9 +125,9 @@ function effectsOf(record: ShowRecord, placementId: string) {
 }
 
 /** clip-a carrying one brightness Effect. */
-function withEffect(): { record: ShowRecord; effectId: string } {
+function withEffect(clipId = 'clip-a'): { record: ShowRecord; effectId: string } {
   const { record, changes } = applyOk(showCommandFixture(), 'add_clip_effect', {
-    clip_id: 'clip-a',
+    clip_id: clipId,
     kind: 'brightness',
     parameters: { brightness: 0.4 },
   })
@@ -769,45 +769,48 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     const overlay = applyOk(showCommandFixture(), 'add_clip_effect', { clip_id: 'clip-ov', kind: 'hue' })
     expect(effectsOf(overlay.record, 'clip-ov')).toHaveLength(1)
   },
-  update_clip_effect: () => {
-    const base = withEffect()
+  update_clip_effect: () => { for (const clipId of ['clip-a', 'clip-ov']) {
+    const base = withEffect(clipId)
     const { record } = applyOk(base.record, 'update_clip_effect', {
-      clip_id: 'clip-a',
+      clip_id: clipId,
       effect_id: base.effectId,
       parameter: 'brightness',
       value: 0.7,
     })
-    const effect = effectsOf(record, 'clip-a')[0]
+    const effect = effectsOf(record, clipId)[0]
     expect('brightness' in effect && effect.brightness).toBe(0.7)
-  },
-  duplicate_clip_effect: () => {
-    const base = withEffect()
+} },
+  duplicate_clip_effect: () => { for (const clipId of ['clip-a', 'clip-ov']) {
+    const base = withEffect(clipId)
     const { record, changes } = applyOk(base.record, 'duplicate_clip_effect', {
-      clip_id: 'clip-a',
+      clip_id: clipId,
       effect_id: base.effectId,
     })
-    expect(effectsOf(record, 'clip-a').map((effect) => effect.id))
+    expect(effectsOf(record, clipId).map((effect) => effect.id))
       .toEqual([base.effectId, changes[0].targetId])
-  },
-  move_clip_effect: () => {
-    const base = withEffect()
-    const withHue = applyOk(base.record, 'add_clip_effect', { clip_id: 'clip-a', kind: 'hue' })
+} },
+  move_clip_effect: () => { for (const clipId of ['clip-a', 'clip-ov']) {
+    const base = withEffect(clipId)
+    const withHue = applyOk(base.record, 'add_clip_effect', { clip_id: clipId, kind: 'hue' })
     const hueId = withHue.changes[0].targetId as string
     const { record } = applyOk(withHue.record, 'move_clip_effect', {
-      clip_id: 'clip-a',
+      clip_id: clipId,
       effect_id: hueId,
       direction: 'earlier',
     })
-    expect(effectsOf(record, 'clip-a').map((effect) => effect.id)).toEqual([hueId, base.effectId])
-  },
-  remove_clip_effect: () => {
-    const base = withEffect()
+    expect(effectsOf(record, clipId).map((effect) => effect.id)).toEqual([hueId, base.effectId])
+} },
+  remove_clip_effect: () => { for (const clipId of ['clip-a', 'clip-ov']) {
+    const seed = withEffect(clipId)
+    const base = { ...seed, record: structuredClone(seed.record) }
+    base.record.composition!.scenes[0].propertyTracks = [{ id: 'effect-track', target: { kind: 'placement-effect', placementId: clipId, effectId: base.effectId, effectKind: 'brightness', parameterId: 'brightness' }, keyframes: [{ id: 'effect-key', timeMs: 2000, value: 0.4, easing: { curve: 'linear' } }, { id: 'effect-key-end', timeMs: 3000, value: 0.6, easing: { curve: 'linear' } }] }]
     const { record } = applyOk(base.record, 'remove_clip_effect', {
-      clip_id: 'clip-a',
+      clip_id: clipId,
       effect_id: base.effectId,
     })
-    expect(effectsOf(record, 'clip-a')).toEqual([])
-  },
+    expect(effectsOf(record, clipId)).toEqual([])
+    expect(record.composition!.scenes[0].propertyTracks).toEqual([])
+} },
   add_property_track: () => {
     const { record, changes } = applyOk(showCommandFixture(), 'add_property_track', {
       target: { kind: 'placement-view', placementId: 'clip-a', property: 'brightness' },
@@ -1184,24 +1187,14 @@ describe('Show command refusal partitions (#885)', () => {
       { clip_id: 'clip-a', effect_id: base.effectId, parameter: 'sparkle', value: 1 },
       'unknown-parameter',
     )
-    applyRefused(
-      base.record,
-      'update_clip_effect',
-      { clip_id: 'clip-a', effect_id: base.effectId, parameter: 'brightness', value: 0.4 },
-      'no-change',
-    )
+    expect(applyShowCommand(base.record, 'update_clip_effect', { clip_id: 'clip-a', effect_id: base.effectId, parameter: 'brightness', value: 0.4 })).toEqual({ ok: true, record: base.record, changes: [] })
     applyRefused(
       showCommandFixture(),
       'add_clip_effect',
       { clip_id: 'clip-a', kind: 'brightness', parameters: { sparkle: 1 } },
       'unknown-parameter',
     )
-    applyRefused(
-      base.record,
-      'move_clip_effect',
-      { clip_id: 'clip-a', effect_id: base.effectId, direction: 'earlier' },
-      'no-change',
-    )
+    expect(applyShowCommand(base.record, 'move_clip_effect', { clip_id: 'clip-a', effect_id: base.effectId, direction: 'earlier' })).toEqual({ ok: true, record: base.record, changes: [] })
     applyRefused(base.record, 'remove_clip_effect', { clip_id: 'nope', effect_id: base.effectId }, 'unknown-clip')
   })
 
@@ -1501,6 +1494,16 @@ function permittedEntityIds({ command, input, changes, before }: AppliedRecord):
     if (placementOwned || instanceOwned || (command === 'delete_property_track' && track.id === input.track_id)) {
       add(track.id)
       for (const keyframe of track.keyframes) add(keyframe.id)
+    }
+  }
+  if (command === 'remove_clip_effect') {
+    const owned = placements.filter(({ placement }) => (placement.logicalClipId ?? placement.id) === input.clip_id)
+    for (const scene of composition.scenes) for (const track of scene.propertyTracks ?? []) {
+      const target = track.target
+      if (target.kind === 'placement-effect' && target.effectId === input.effect_id && owned.some(({ placement }) => placement.id === target.placementId)) {
+        add(track.id)
+        for (const key of track.keyframes) add(key.id)
+      }
     }
   }
   if (command === 'set_clip_control_target' && input.value === null) {

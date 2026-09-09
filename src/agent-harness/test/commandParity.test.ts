@@ -42,6 +42,7 @@ import { resizeBoundaryShow } from '../baseline/fixtures'
 import { createScriptedAgent, runUtterance } from '../bridge/service'
 import { runToolRound } from '../experiment/turn'
 import { createSessionStore } from '../grammar/session'
+import { duplicateShowClipEffect, moveShowClipEffectWithinStage, updateShowClipEffectParameter } from '@/engine/showEffectAuthoring'
 
 
 it('shares canonical input and domain refusals without mutation', () => {
@@ -606,6 +607,38 @@ const PARITY_ROWS: ParityRow[] = [
     manualOwner: show => updateShowBoundaryTransition(show, 'transition-scene-1', showBoundaryTransitionParameterChanges(show.transitions[0], { kind: 'transition', familyId: 'blend', variantId: 'crossfade', key: 'transition:blend:crossfade' } as ShowToolkitPresentationItem, 'easing', 'sine-in')!),
   },
   { command: 'set_boundary_layout', args: { transition_id: 'transition-scene-1', layout_id: 'layout-2' }, fixture: showBoundaryCommandFixture },
+  ...(['clip-a', 'clip-ov'] as const).flatMap(clipId => [
+    { command: 'add_clip_effect', args: { kind: 'opacity', parameters: { opacity: 0.6 } }, ids: ['translate', 'brightness', 'hue', 'opacity'] },
+    { command: 'update_clip_effect', args: { effect_id: 'brightness', parameter: 'brightness', value: 0.7 }, ids: ['translate', 'brightness', 'hue'] },
+    { command: 'duplicate_clip_effect', args: { effect_id: 'brightness' }, ids: ['translate', 'brightness', 'brightness-2', 'hue'] },
+    { command: 'move_clip_effect', args: { effect_id: 'hue', target_effect_id: 'brightness', edge: 'before' }, ids: ['translate', 'hue', 'brightness'] },
+    { command: 'remove_clip_effect', args: { effect_id: 'brightness' }, ids: ['translate', 'hue'] },
+  ].map(({ command, args, ids }): ParityRow => ({
+    command, args: { clip_id: clipId, ...args }, fixture: effectsFixture,
+    manualOwner: show => {
+      const zone = show.composition!.scenes[0].zones[0]
+      const effects = (clipId === 'clip-a' ? zone.main[0] : zone.overlays[0].placements[0]).effects!
+      const next = command === 'add_clip_effect' ? [...effects, { id: 'opacity', kind: 'opacity' as const, opacity: 0.6 }]
+        : command === 'update_clip_effect' ? effects.map(effect => effect.id === 'brightness' ? updateShowClipEffectParameter(effect, 'brightness', 0.7) : effect)
+        : command === 'duplicate_clip_effect' ? duplicateShowClipEffect(effects, 'brightness')
+        : command === 'move_clip_effect' ? moveShowClipEffectWithinStage(effects, 'hue', -1)
+        : effects.filter(effect => effect.id !== 'brightness')
+      const owner = clipId === 'clip-a'
+        ? { kind: 'scene-main' as const, sceneId: 'scene-1', zoneId: 'zone-1', placementId: clipId }
+        : { kind: 'scene-overlay' as const, sceneId: 'scene-1', zoneId: 'zone-1', layerId: 'overlay-1', placementId: clipId }
+      return updateShowClipInspector(show, owner, { effects: next }).composition
+    },
+    expectedFacts: (before, after) => {
+      const zone = after.composition!.scenes[0].zones[0]
+      const effects = (clipId === 'clip-a' ? zone.main[0] : zone.overlays[0].placements[0]).effects!
+      expect(effects.map(effect => effect.id)).toEqual(ids)
+      expect(after.composition!.patternInstances).toEqual(before.composition!.patternInstances)
+      if (command === 'update_clip_effect') expect(effects[1]).toEqual({ id: 'brightness', kind: 'brightness', brightness: 0.7 })
+      if (command === 'duplicate_clip_effect') expect(effects[2]).toEqual({ ...effects[1], id: 'brightness-2' })
+    },
+    refusals: [{ ...args, clip_id: 'missing' }, { ...args, clip_id: 'group-use:group-main' }, { ...args, clip_id: clipId, extra: true }],
+  }))),
+
   ...(['clip-a', 'clip-ov'] as const).flatMap(clipId => [
     { command: 'set_clip_view', args: { clip_id: clipId, mirror: true, phase: 0.25, brightness: 0.5 }, patch: { view: { mirror: true, phase: 0.25, brightness: 0.5 } } },
     { command: 'set_clip_time', args: { clip_id: clipId, time_scale: 0.5, time_offset_ms: 250 }, patch: { simulation: { timeScale: 0.5, timeOffsetMs: 250 } } },
@@ -1382,4 +1415,174 @@ it.each([
   expect(document).toStrictEqual(before)
   expect(applyShowGrammarOperation(document, 'add_property_track', args)).toStrictEqual(canonical)
   expect(document).toStrictEqual(before)
+})
+
+it('preserves raw Effect-owner surroundings for each command (#953 Effects)', () => {
+  for (const command of ['add_clip_effect', 'update_clip_effect', 'duplicate_clip_effect', 'move_clip_effect', 'remove_clip_effect']) {
+    const show = showOverlayLayerFixture()
+    show.composition!.scenes[1].propertyTracks = []
+    const placement = show.composition!.scenes[0].zones[0].main[0]
+    placement.effects = [{ id: 'first', kind: 'brightness', brightness: 0.4 }, { id: 'second', kind: 'hue', turns: 0.2 }]
+    const before = structuredClone(show)
+    const args = command === 'add_clip_effect' ? { clip_id: 'clip-a', kind: 'opacity' }
+      : command === 'update_clip_effect' ? { clip_id: 'clip-a', effect_id: 'first', parameter: 'brightness', value: 0.6 }
+      : command === 'move_clip_effect' ? { clip_id: 'clip-a', effect_id: 'first', direction: 'later' }
+      : { clip_id: 'clip-a', effect_id: 'first' }
+    const result = applyShowCommand(show, command, args)
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error(JSON.stringify(result))
+    expect(result.record.composition!.scenes[1]).toEqual(before.composition!.scenes[1])
+    expect(show).toEqual(before)
+  }
+})
+
+it('accepts valid Effect no-ops and refuses typed invalid parameters before normalization (#953 Effects)', () => {
+  const show = showOverlayLayerFixture()
+  show.composition!.scenes[0].zones[0].main[0].effects = [{ id: 'first', kind: 'brightness', brightness: 0.4 }]
+  for (const args of [{ clip_id: 'clip-a', effect_id: 'first', parameter: 'brightness', value: 0.4 }, { clip_id: 'clip-a', effect_id: 'first', direction: 'earlier' }]) {
+    const command = 'parameter' in args ? 'update_clip_effect' : 'move_clip_effect'
+    expect(applyShowCommand(show, command, args)).toEqual({ ok: true, record: show, changes: [] })
+  }
+  for (const value of ['bad', true, null, {}, NaN]) expect(applyShowCommand(show, 'update_clip_effect', { clip_id: 'clip-a', effect_id: 'first', parameter: 'brightness', value }).ok).toBe(false)
+  for (const parameters of [{ id: 'stolen' }, { kind: 'hue' }, { __unknown: 1 }]) expect(applyShowCommand(show, 'add_clip_effect', { clip_id: 'clip-a', kind: 'brightness', parameters }).ok).toBe(false)
+})
+
+function effectsFixture() {
+  const show = showOverlayLayerFixture()
+  const zone = show.composition!.scenes[0].zones[0]
+  for (const placement of [zone.main[0], zone.overlays[0].placements[0]]) placement.effects = [
+    { id: 'translate', kind: 'translate', x: 0.1, y: 0 },
+    { id: 'brightness', kind: 'brightness', brightness: 0.4 },
+    { id: 'hue', kind: 'hue', turns: 0.2 },
+  ]
+  return show
+}
+// Finite catalogue dependency pinned from showVisualToolkit/showEffects for F.
+const EFFECT_DOMAINS = [
+  ['opacity', { opacity: [0, 1] }], ['brightness', { brightness: [0, 2] }],
+  ['hue', { turns: [-8, 8] }], ['saturation', { saturation: [0, 2] }],
+  ['contrast', { contrast: [0, 4] }], ['invert', { amount: [0, 1] }],
+  ['threshold', { threshold: [0, 1], amount: [0, 1] }],
+  ['luma-key', { target: [0, 1], tolerance: [0, 1], softness: [0, 1] }],
+  ['chroma-key', { tolerance: [0, 1], softness: [0, 1] }],
+  ['posterize', { levels: [2, 32], amount: [0, 1] }],
+  ['vignette', { amount: [0, 1], radius: [0, 2], softness: [0, 1], centerX: [0, 1], centerY: [0, 1], aspect: [0.1, 10] }],
+  ['color-map', { amount: [0, 1], shadowR: [0, 1], shadowG: [0, 1], shadowB: [0, 1], highlightR: [0, 1], highlightG: [0, 1], highlightB: [0, 1] }],
+  ['translate', { translateX: [-2, 2], translateY: [-2, 2], x: [-2, 2], y: [-2, 2] }],
+  ['rotate', { turns: [-8, 8] }], ['scale', { scaleX: [0.01, 8], scaleY: [0.01, 8], x: [0.01, 8], y: [0.01, 8] }],
+  ['shear', { shearX: [-4, 4], shearY: [-4, 4], x: [-4, 4], y: [-4, 4] }],
+  ['ripple', { amount: [-0.5, 0.5], frequency: [1, 32], phase: [-8, 8], centerX: [0, 1], centerY: [0, 1] }],
+  ['swirl', { amount: [-4, 4], radius: [0.05, 2], centerX: [0, 1], centerY: [0, 1] }],
+  ['bulge', { amount: [-0.95, 2], radius: [0.05, 2], centerX: [0, 1], centerY: [0, 1] }],
+  ['pixelate', { amount: [0, 1], columns: [1, 128], rows: [1, 128] }],
+  ['kaleidoscope', { amount: [0, 1], segments: [2, 16], rotation: [-8, 8], centerX: [0, 1], centerY: [0, 1] }],
+  ['wrap', {}],
+] as const
+
+it.each(EFFECT_DOMAINS)('qualifies %s defaults and all finite numeric domains (#953 Effects)', (kind, domains) => {
+  const show = effectsFixture()
+  const original = structuredClone(show)
+  const added = applyShowCommand(show, 'add_clip_effect', { clip_id: 'clip-a', kind })
+  expect(added.ok).toBe(true)
+  if (!added.ok) throw new Error(JSON.stringify(added))
+  const effectId = added.changes[0].targetId
+  const document = openShowDocument(added.record)
+  if (!document.ok) throw new Error(JSON.stringify(document))
+  for (const [parameter, [min, max]] of Object.entries(domains)) {
+    for (const value of [min, max]) {
+      const args = { clip_id: 'clip-a', effect_id: effectId, parameter, value }
+      const canonical = applyShowCommand(added.record, 'update_clip_effect', args)
+      const diagnostic = applyShowGrammarOperation(document.document, 'update_clip_effect', args)
+      expect(canonical.ok).toBe(true)
+      expect(diagnostic.ok).toBe(true)
+      if (canonical.ok && diagnostic.ok) expect(diagnostic.document.show.composition).toEqual(canonical.record.composition)
+    }
+    for (const value of [min - 0.001, max + 0.001, NaN, Infinity, 'wrong', true, {}]) {
+      expect(applyShowCommand(added.record, 'update_clip_effect', { clip_id: 'clip-a', effect_id: effectId, parameter, value }).ok).toBe(false)
+      expect(applyShowCommand(show, 'add_clip_effect', { clip_id: 'clip-a', kind, parameters: { [parameter]: value } }).ok).toBe(false)
+    }
+  }
+  expect(show).toEqual(original)
+})
+
+it('preserves Effect color precision, rounds valid counts and refuses malformed colors (#953 Effects)', () => {
+  const show = effectsFixture()
+  const color = applyShowCommand(show, 'add_clip_effect', { clip_id: 'clip-a', kind: 'color-map', parameters: { shadowColor: '#ff0000', highlightB: 0.1234567 } })
+  expect(color.ok).toBe(true)
+  if (!color.ok) throw new Error(JSON.stringify(color))
+  expect(color.record.composition!.scenes[0].zones[0].main[0].effects!.slice(-1)[0]).toMatchObject({ shadowR: 1, shadowG: 0, shadowB: 0, highlightB: 0.1234567 })
+  const count = applyShowCommand(show, 'add_clip_effect', { clip_id: 'clip-a', kind: 'posterize', parameters: { levels: 3.6 } })
+  expect(count.ok).toBe(true)
+  if (count.ok) expect(count.record.composition!.scenes[0].zones[0].main[0].effects!.slice(-1)[0]).toMatchObject({ levels: 4 })
+  for (const kind of ['color-map', 'chroma-key']) for (const value of ['nonsense', 1, true, {}]) expect(applyShowCommand(show, 'add_clip_effect', { clip_id: 'clip-a', kind, parameters: { [kind === 'color-map' ? 'shadowColor' : 'color']: value } }).ok).toBe(false)
+})
+
+it('keeps Effect ordering, copy identity and referenced animation valid through sequences (#953 Effects)', async () => {
+  for (const clipId of ['clip-a', 'clip-ov']) {
+    const original = await reopen(effectsFixture())
+    const placementOf = (show: ShowRecord) => clipId === 'clip-a' ? show.composition!.scenes[0].zones[0].main[0] : show.composition!.scenes[0].zones[0].overlays[0].placements[0]
+    original.composition!.scenes[0].propertyTracks!.push({ id: 'effect-track', target: { kind: 'placement-effect', placementId: clipId, effectId: 'brightness', effectKind: 'brightness', parameterId: 'brightness' }, keyframes: [{ id: 'effect-key', timeMs: placementOf(original).startMs, value: 0.4, easing: { curve: 'linear' } }, { id: 'effect-key-end', timeMs: placementOf(original).startMs + 1000, value: 0.6, easing: { curve: 'linear' } }] })
+    const tracks = structuredClone(original.composition!.scenes[0].propertyTracks)
+    const run = (show: ShowRecord, command: string, args: Record<string, unknown>) => {
+      const result = applyShowCommand(show, command, { clip_id: clipId, ...args })
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error(JSON.stringify(result))
+      return result.record
+    }
+    const copy = run(original, 'duplicate_clip_effect', { effect_id: 'brightness' })
+    const edited = run(copy, 'update_clip_effect', { effect_id: 'brightness-2', parameter: 'brightness', value: 0.8 })
+    expect(placementOf(edited).effects!.find(effect => effect.id === 'brightness')).toEqual({ id: 'brightness', kind: 'brightness', brightness: 0.4 })
+    expect(edited.composition!.scenes[0].propertyTracks).toEqual(tracks)
+    for (const edge of ['before', 'after']) {
+      const moved = run(edited, 'move_clip_effect', { effect_id: 'hue', target_effect_id: 'brightness', edge })
+      expect(placementOf(moved).effects!.map(effect => effect.id)).toEqual(edge === 'before' ? ['translate', 'hue', 'brightness', 'brightness-2'] : ['translate', 'brightness', 'hue', 'brightness-2'])
+      expect(moved.composition!.scenes[0].propertyTracks).toEqual(tracks)
+    }
+    for (const effectId of ['translate', 'brightness', 'hue']) {
+      const removed = run(original, 'remove_clip_effect', { effect_id: effectId })
+      expect(placementOf(removed).effects!.map(effect => effect.id)).toEqual(['translate', 'brightness', 'hue'].filter(id => id !== effectId))
+      expect(removed.composition!.scenes[0].propertyTracks).toEqual(effectId === 'brightness' ? tracks!.filter(track => track.id !== 'effect-track') : tracks)
+      expect(validateShowComposition(removed, normalizeShowComposition(removed, removed.composition!))).toEqual([])
+      const { bundle: file } = buildShowFileBundle(removed, { patterns: [], maps: [] }, { appVersion: 'F953' })
+      const reopened = await parseShowFileBundle(await serializeShowFileBundle(file))
+      expect(placementOf(reopened.show).effects).toEqual(placementOf(removed).effects)
+    }
+    const before = structuredClone(original)
+    for (const args of [{ effect_id: 'brightness', target_effect_id: 'translate' }, { effect_id: 'missing', direction: 'earlier' }, { effect_id: 'brightness', direction: 'earlier', target_effect_id: 'hue' }, { effect_id: 'brightness', direction: 'later', edge: 'after' }]) expect(applyShowCommand(original, 'move_clip_effect', { clip_id: clipId, ...args }).ok).toBe(false)
+    const batch = runShowCommandTransaction(original, [{ name: 'update_clip_effect', input: { clip_id: clipId, effect_id: 'brightness', parameter: 'brightness', value: 0.5 } }, { name: 'move_clip_effect', input: { clip_id: clipId, effect_id: 'brightness', target_effect_id: 'translate' } }])
+    expect(batch.ok).toBe(false)
+    expect(original).toEqual(before)
+  }
+})
+
+it('applies each Effect edit to the logical Clip across Scenes without changing its timeline (#953 Effects)', () => {
+  const original = showSplitClipFixture()
+  for (const scene of original.composition!.scenes) for (const zone of scene.zones) for (const placement of zone.main) {
+    if ((placement.logicalClipId ?? placement.id) === 'clip-b') placement.effects = [
+      { id: 'brightness', kind: 'brightness', brightness: 0.4 }, { id: 'hue', kind: 'hue', turns: 0.2 },
+    ]
+  }
+  const document = openShowDocument(original)
+  if (!document.ok) throw new Error(JSON.stringify(document))
+  for (const [command, args, expectedIds] of [
+    ['add_clip_effect', { kind: 'opacity' }, ['brightness', 'hue', 'opacity']],
+    ['update_clip_effect', { effect_id: 'brightness', parameter: 'brightness', value: 0.7 }, ['brightness', 'hue']],
+    ['duplicate_clip_effect', { effect_id: 'brightness' }, ['brightness', 'brightness-2', 'hue']],
+    ['move_clip_effect', { effect_id: 'hue', direction: 'earlier' }, ['hue', 'brightness']],
+    ['remove_clip_effect', { effect_id: 'brightness' }, ['hue']],
+  ] as const) {
+    const input = { clip_id: 'clip-b', ...args }
+    const result = applyShowCommand(document.document.show, command, input)
+    const diagnostic = applyShowGrammarOperation(document.document, command, input)
+    expect(result.ok).toBe(true)
+    expect(diagnostic.ok).toBe(true)
+    if (!result.ok || !diagnostic.ok) throw new Error(JSON.stringify({ result, diagnostic }))
+    expect(diagnostic.document.show.composition).toEqual(result.record.composition)
+    const segments = result.record.composition!.scenes.flatMap(scene => scene.zones.flatMap(zone => zone.main)).filter(placement => (placement.logicalClipId ?? placement.id) === 'clip-b')
+    expect(segments).toHaveLength(2)
+    for (const placement of segments) expect(placement.effects!.map(effect => effect.id)).toEqual(expectedIds)
+    expect(result.record.composition!.transitions).toEqual(original.composition!.transitions)
+    expect(result.record.scenes).toEqual(original.scenes)
+    expect(result.record.composition!.patternInstances).toEqual(original.composition!.patternInstances)
+  }
 })

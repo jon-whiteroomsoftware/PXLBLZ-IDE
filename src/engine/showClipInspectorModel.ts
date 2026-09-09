@@ -539,10 +539,8 @@ function pruneRemovedEffectPropertyTracks(
           effect.id === target.effectId && effect.kind === target.effectKind
         ))
       })
-      return {
-        ...scene,
-        ...(propertyTracks?.length ? { propertyTracks } : { propertyTracks: undefined }),
-      }
+      if (propertyTracks?.length === scene.propertyTracks?.length) return scene
+      return { ...scene, propertyTracks }
     }),
   }
 }

@@ -203,12 +203,7 @@ describe('effect operations (#19)', () => {
     )
     expect(issues[0].message).toContain('stage')
 
-    applyRefused(
-      two,
-      'move_clip_effect',
-      { clip_id: clip.clipId, effect_id: first[0].targetId, direction: 'later' },
-      'no-change',
-    )
+    expect(applyShowGrammarOperation(two, 'move_clip_effect', { clip_id: clip.clipId, effect_id: first[0].targetId, direction: 'later' })).toEqual({ ok: true, document: two, changes: [] })
   })
 })
 

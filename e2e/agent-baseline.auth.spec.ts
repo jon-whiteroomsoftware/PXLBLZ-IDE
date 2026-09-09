@@ -1678,6 +1678,36 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     toolbarSplit?: { atMs: number; clipId: string | null; accepted: boolean }
   }> = [
     ...[
+      { id: 'AE953', command: 'add_clip_effect', args: { clip_id: 'clip-ov', kind: 'opacity', parameters: { opacity: 0.6 } }, utterance: 'add an opacity Effect to the overlay Clip' },
+      { id: 'UE953', command: 'update_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'brightness', parameter: 'brightness', value: 0.7 }, utterance: 'set the overlay brightness Effect to seven tenths' },
+      { id: 'DE953', command: 'duplicate_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'brightness' }, utterance: 'duplicate the overlay brightness Effect' },
+      { id: 'ME953', command: 'move_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'hue', target_effect_id: 'brightness', edge: 'before' }, utterance: 'move the overlay hue Effect before brightness' },
+      { id: 'RE953', command: 'remove_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'brightness' }, utterance: 'remove the overlay brightness Effect' },
+    ].map(row => ({
+      ...row,
+      fixture: () => {
+        const record = showOverlayLayerFixture()
+        record.id = `${row.id.toLowerCase()}-${Date.now().toString(36)}`
+        record.composition!.scenes[0].zones[0].overlays[0].placements[0].effects = [
+          { id: 'translate', kind: 'translate', x: 0.1, y: 0 },
+          { id: 'brightness', kind: 'brightness', brightness: 0.4 },
+          { id: 'hue', kind: 'hue', turns: 0.2 },
+        ]
+        return record
+      },
+      expectedFacts: (before: ShowRecord) => {
+        const expected = structuredClone(before)
+        const placement = expected.composition!.scenes[0].zones[0].overlays[0].placements[0]
+        const effects = placement.effects!
+        if (row.id === 'AE953') effects.push({ id: 'opacity', kind: 'opacity', opacity: 0.6 })
+        if (row.id === 'UE953') effects[1] = { id: 'brightness', kind: 'brightness', brightness: 0.7 }
+        if (row.id === 'DE953') effects.splice(2, 0, { id: 'brightness-2', kind: 'brightness', brightness: 0.4 })
+        if (row.id === 'ME953') placement.effects = [effects[0], effects[2], effects[1]]
+        if (row.id === 'RE953') effects.splice(1, 1)
+        return expected
+      },
+    })),
+    ...[
       { id: 'V953', command: 'set_clip_view', args: { clip_id: 'clip-ov', mirror: true, phase: 0.25, brightness: 0.5 }, utterance: 'dim and mirror the overlay Clip' },
       { id: 'C953', command: 'set_clip_control_target', args: { clip_id: 'clip-a', export_name: 'sliderSpeed', value: 0.75 }, utterance: 'set the first Clip speed control to three quarters' },
       { id: 'T953', command: 'set_clip_time', args: { clip_id: 'clip-a', time_scale: 0.5, time_offset_ms: 250 }, utterance: 'slow the first Clip shared instance to half speed' },

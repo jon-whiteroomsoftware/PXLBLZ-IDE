@@ -552,3 +552,25 @@ without sorting existing siblings. The shared parity and golden tables cover
 seven target kinds, raw preservation, manual owners and file reopen. Admission
 rows `APT953`, `AK953`, `UK953`, `DK953` and `DPT953` exercise the real bridge,
 save/reopen, Undo and stale/duplicate rejection.
+
+## Clip Effect commands (#953)
+
+The five Clip Effect descriptors and diagnostic operations use the same inspector
+and stack helpers. The finite 22-kind toolkit/schema is authoritative. Toolkit
+parameter IDs and already-supported persisted-field aliases remain accepted;
+unknown names and identity patches refuse. Structured numbers must be finite and
+within their declared parameter bounds. Valid integer-like counts retain existing
+rounding. Color strings retain the existing color parser/conversion; raw color-map
+RGB components remain precise numeric inputs rather than passing through display
+hex conversion. This is a finite compatibility mapping, not arbitrary patching.
+
+Update preserves Effect identity and stack order. Duplicate inserts a fresh
+identity immediately after its source without copying animation references.
+Move accepts exactly one step direction or same-stage relative target with an
+optional before/after edge; cross-stage targets refuse. Satisfied updates and
+stage-edge or already-satisfied moves return the unchanged record with no changes.
+Removal prunes matching Effect animation through the existing inspector owner;
+other Effect identities, tracks and explicitly empty unrelated collections remain
+authored. Shared parity rows cover Main and overlay stacks, all declared numeric
+domains, colors, copies, ordering and reopened animation references. The existing
+admission table contains AE953/UE953/DE953/ME953/RE953 for live consumer acceptance.

@@ -247,6 +247,14 @@ export const BASELINE_UTTERANCES: BaselineUtterance[] = [
     { utterance: 'freeze the first Clip shared instance at entry', tool: 'set_clip_evaluation', args: { clip_id: 'clip-a', policy: 'freeze-at-entry' } },
   ].map(({ utterance, tool, args }) => ({ utterance, intent: '#953: shared Clip property admission.', script: [{ tool, args: { ...args, finish_turn_reply: { intent: 'apply', reply: 'Updated the Clip properties.' } } }] })),
 
+  ...[
+      { id: 'AE953', tool: 'add_clip_effect', args: { clip_id: 'clip-ov', kind: 'opacity', parameters: { opacity: 0.6 } }, utterance: 'add an opacity Effect to the overlay Clip' },
+      { id: 'UE953', tool: 'update_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'brightness', parameter: 'brightness', value: 0.7 }, utterance: 'set the overlay brightness Effect to seven tenths' },
+      { id: 'DE953', tool: 'duplicate_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'brightness' }, utterance: 'duplicate the overlay brightness Effect' },
+      { id: 'ME953', tool: 'move_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'hue', target_effect_id: 'brightness', edge: 'before' }, utterance: 'move the overlay hue Effect before brightness' },
+      { id: 'RE953', tool: 'remove_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'brightness' }, utterance: 'remove the overlay brightness Effect' },
+  ].map(({ utterance, tool, args }) => ({ utterance, intent: '#953: shared Effect admission.', script: [{ tool, args: { ...args, finish_turn_reply: { intent: 'apply', reply: 'Updated the Effect stack.' } } }] })),
+
 ]
 
 /** The script for an utterance the scripted bridge knows, or null. */

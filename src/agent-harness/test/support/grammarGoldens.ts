@@ -763,7 +763,9 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
   },
   remove_clip_effect: () => {
     const { document, clip, effectId } = withEffect()
-    const { document: next } = applyOk(document, 'remove_clip_effect', {
+    const tracked = { ...document, show: structuredClone(document.show) }
+    tracked.show.composition!.scenes[0].propertyTracks = [{ id: 'effect-track', target: { kind: 'placement-effect', placementId: clip.startPlacementId, effectId, effectKind: 'brightness', parameterId: 'brightness' }, keyframes: [{ id: 'effect-key', timeMs: 2000, value: 0.4, easing: { curve: 'linear' } }, { id: 'effect-key-end', timeMs: 3000, value: 0.6, easing: { curve: 'linear' } }] }]
+    const { document: next } = applyOk(tracked, 'remove_clip_effect', {
       clip_id: clip.clipId,
       effect_id: effectId,
     })
