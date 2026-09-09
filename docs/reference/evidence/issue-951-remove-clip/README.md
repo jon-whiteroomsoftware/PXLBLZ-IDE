@@ -34,8 +34,21 @@ for `unrelated-orphan`. The compiler reports that unused instance as missing
 before and after deletion. This packet qualifies authoring preservation and
 export/reopen, not compilation, preview rendering or Controller delivery.
 
-The coordinator owns actual in-app ordinary and confirmed connected deletion
-proof, authoritative final suites and cross-family review. The existing whole-Show
+Coordinator in-app proof on the same source commit used synthetic local-agent-08
+at managed runtime 5178. Ordinary overlay deletion removed `clip-ov`, retained
+the Transition and undid exactly. Connected `clip-b` deletion showed the existing
+confirmation; confirming removed the target and crossfade while both Group
+buttons and `clip-ov`/`clip-a`/`clip-c` DOM ranges stayed unchanged. One Undo
+restored the target and crossfade and disabled Undo. Cancel preserved content;
+no browser errors were observed. The committed `.wrsp/ui-proof/951-remove-clip.json`
+package pins the coordinator's four inspected JPEG captures to that source.
+
+The inspector overlapped the first confirmation when left open
+([capture](inspector-overlap.jpg)); closing it with the existing Escape action
+before Delete exposed the complete confirmation. This is an observed layout
+residual, not a layout change or repair in this slice.
+
+The coordinator owns authoritative final suites and cross-family review. The existing whole-Show
 stale-response and duplicate-delivery guards are unchanged; this sequence does
 not independently requalify them. No Controller or hosted service is used.
 
