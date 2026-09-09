@@ -590,6 +590,16 @@ describe('shared Clip inspector owner model (#498)', () => {
     }
   })
 
+  it('refuses changed control targets without actual exported slider metadata (#953)', () => {
+    const show = fixture()
+    for (const names of [undefined, new Set<string>(), new Set(['sliderOther'])]) {
+      const result = updateShowClipInspector(show, overlayOwner(show), {
+        simulation: { controlTargets: { sliderSpeed: 0.9 } },
+      }, names)
+      expect(result).toBe(show)
+    }
+  })
+
   it('commits Pattern, controls, Effects, and local overlay fields through its owner adapter', () => {
     const show = fixture()
     const item = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
@@ -600,7 +610,7 @@ describe('shared Clip inspector owner model (#498)', () => {
       simulation: { controlTargets: { sliderSpeed: 0.9 } },
       effects: [effect],
       local: { startMs: 2_000, durationMs: 3_000, opacity: 0.4 },
-    })
+    }, new Set(['sliderSpeed']))
     expect(projectShowClipInspector(updated, overlayOwner(updated))).toMatchObject({
       patternName: 'Caustics',
       simulation: { controlTargets: { sliderSpeed: 0.9 } },

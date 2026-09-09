@@ -95,7 +95,7 @@ import {
 import { resolveShowZonePixelCount, validateInstallationCoverage } from '@/engine/showInstallationCoverage'
 import { updateShowPhysicalZoneSelection } from '@/engine/showSpatialSelection'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
-import { bundledPatternSliderNames, discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
+import { declaredPatternSliderNames, bundledPatternSliderNames, discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
 import {
   projectCompositionShowClipSummary,
   projectGlobalShowClipSummary,
@@ -108,7 +108,7 @@ import {
   type ShowClipSummarySection,
   type ShowClipTimelineGlyph,
 } from '@/engine/showClipSummary'
-import { resolveStockPatternId } from '@/pixelblaze/stock/patterns'
+import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import {
   projectShowClipInspector,
   updateShowClipInspector,
@@ -982,9 +982,11 @@ export function ShowEditor({
   const userPatterns = usePatternStore((state) => state.userPatterns)
   const userLibraries = useLibraryStore((state) => state.userLibraries)
   const compileLibrarySet = useMemo(() => compileLibraries(LIBRARIES, userLibraries), [userLibraries])
-  const exportedSliderNamesFor = useCallback((ref: ShowPatternRef) => (
-    bundledPatternSliderNames(sourceForShowPatternRef(ref, userPatterns), compileLibrarySet)
-  ), [compileLibrarySet, userPatterns])
+  const exportedSliderNamesFor = useCallback((ref: ShowPatternRef) => {
+    const source = ref.kind === 'stock' ? DEMOS[resolveStockPatternId(ref.id)] : userPatterns.find(pattern => pattern.id === ref.id)?.src
+    if (source === undefined) return new Set<string>()
+    try { return bundledPatternSliderNames(source, compileLibrarySet) } catch { return new Set<string>() }
+  }, [compileLibrarySet, userPatterns])
   const userMaps = useMapStore((state) => state.userMaps)
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)
   const activeIp = useControllerStore((state) => state.activeIp)
@@ -1734,13 +1736,17 @@ export function ShowEditor({
   const pendingConnectedTransitions = timelineComposition && compositionClipPendingDelete
     ? showLayerTransitionsConnectedToClip(timelineComposition, compositionClipPendingDelete.placementId)
     : []
+  const declaredSliderNamesFor = (ref: ShowPatternRef) => declaredPatternSliderNames(
+    ref.kind === 'stock' ? DEMOS[resolveStockPatternId(ref.id)] : userPatterns.find(pattern => pattern.id === ref.id)?.src,
+  )
   const commitClipInspectorPatch = (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => {
     if (!activeShow || !inspectorShow) return false
+    const controlPattern = patch.pattern?.ref ?? (patch.simulation?.controlTargets ? projectShowClipInspector(inspectorShow, owner)?.pattern : undefined)
     const next = updateShowClipInspector(
       inspectorShow,
       owner,
       patch,
-      patch.pattern ? exportedSliderNamesFor(patch.pattern.ref) : undefined,
+      controlPattern ? (patch.pattern ? exportedSliderNamesFor(controlPattern) : declaredSliderNamesFor(controlPattern)) : undefined,
     )
     return next !== inspectorShow ? Promise.resolve(updateShow(activeShow.id, next)) : false
   }
@@ -1757,11 +1763,12 @@ export function ShowEditor({
   }
   const previewClipInspectorPatch = (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => {
     if (!inspectorShow) return
+    const controlPattern = patch.pattern?.ref ?? (patch.simulation?.controlTargets ? projectShowClipInspector(inspectorShow, owner)?.pattern : undefined)
     const next = updateShowClipInspector(
       inspectorShow,
       owner,
       patch,
-      patch.pattern ? exportedSliderNamesFor(patch.pattern.ref) : undefined,
+      controlPattern ? (patch.pattern ? exportedSliderNamesFor(controlPattern) : declaredSliderNamesFor(controlPattern)) : undefined,
     )
     if (next !== inspectorShow) useShowPreviewOverrideStore.getState().preview(next)
   }

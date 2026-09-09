@@ -1,3 +1,4 @@
+import type { ShowUnifiedTimelineClipProjection } from '@/engine/showUnifiedTimelineProjection'
 // Provenance: pxlblz-v3 src/grammar/operations/clips.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
 // Clip operation family on the global-time layer: add, move, resize, split,
 // duplicate, remove, pattern-instance identity, per-clip settings, and
@@ -6,18 +7,12 @@
 // cases the engine refuses silently.
 import { z } from 'zod'
 import {
-  updateShowClipInspector,
-  type ShowClipInspectorOwner,
-  type ShowClipInspectorPatch,
-} from '@/engine/showClipInspectorModel'
-import {
   restartShowMainPlacement,
 } from '@/engine/showCompositionModel'
 import {
   type ShowTimelineClipMoveTarget,
 } from '@/engine/showTimelineClipAuthoring'
-import type { ShowUnifiedTimelineClipProjection } from '@/engine/showUnifiedTimelineProjection'
-import type { GrammarOperationResult, ShowGrammarOperation } from '../registry.js'
+import type { ShowGrammarOperation } from '../registry.js'
 import type { GrammarIssue, ShowGrammarDocument } from '../types.js'
 import {
   composedShow,
@@ -26,10 +21,8 @@ import {
   idFactory,
   ownerFor,
   refuse,
-  replacedShow,
   resolveClip,
   type ClipContext,
-  controlExportIssue,
 } from '../support.js'
 import { descriptorOperation } from './descriptorAdapter.js'
 import { SHOW_COMMANDS } from '@/engine/showCommands/registry'
@@ -37,6 +30,9 @@ import { overlayLayerCommandOutcome } from '@/engine/showCommands/overlayLayer'
 import { splitClipCommandOutcome } from '@/engine/showCommands/splitClip'
 import { duplicateClipCommandOutcome } from '@/engine/showCommands/duplicateClip'
 import { addClipCommandOutcome, independentClipCommandOutcome } from '@/engine/showCommands/clips'
+
+const clipPropertyOperations = ['set_clip_view', 'set_clip_control_target', 'set_clip_time', 'set_clip_evaluation']
+  .map(name => descriptorOperation(SHOW_COMMANDS.find(command => command.name === name)!))
 
 function unknownZone(document: ShowGrammarDocument, zoneId: string): GrammarIssue {
   return {
@@ -224,164 +220,6 @@ const restartClip: ShowGrammarOperation = {
   },
 }
 
-function inspectorOwnerFor(clip: ShowUnifiedTimelineClipProjection): ShowClipInspectorOwner {
-  return clip.kind === 'main'
-    ? { kind: 'scene-main', sceneId: clip.sceneId, zoneId: clip.zoneId, placementId: clip.startPlacementId }
-    : {
-        kind: 'scene-overlay',
-        sceneId: clip.sceneId,
-        zoneId: clip.zoneId,
-        layerId: clip.layerId ?? '',
-        placementId: clip.startPlacementId,
-      }
-}
-
-function applyInspectorPatch(
-  operationName: string,
-  document: ShowGrammarDocument,
-  clipId: string,
-  patch: ShowClipInspectorPatch,
-  describe: (clip: ShowUnifiedTimelineClipProjection) => string,
-): GrammarOperationResult {
-  const resolved = resolveClip(document, clipId)
-  if (!resolved.ok) return resolved
-  const { clip } = resolved.context
-  const result = updateShowClipInspector(document.show, inspectorOwnerFor(clip), patch)
-  if (result === document.show) {
-    return refuse({
-      code: 'engine-refused',
-      message: `The engine declined to update clip ${clip.id}. Check the values against the clip listing.`,
-    })
-  }
-  return {
-    ok: true,
-    document: replacedShow(document, result),
-    changes: [{ op: operationName, targetId: clip.id, description: describe(clip) }],
-  }
-}
-
-const setClipView: ShowGrammarOperation = {
-  name: 'set_clip_view',
-  description:
-    'Set a clip’s placement view values: mirror (reflect the Pattern domain), phase (0–1 domain offset), ' +
-    'or brightness (0–1 output scale, the main-layer way to dim a clip). Give at least one field.',
-  mutates: ['/composition/scenes/*/zones/*/main/*/view', '/composition/scenes/*/zones/*/overlays/*/placements/*/view'],
-  inputShape: {
-    clip_id: z.string().describe('Clip id from the open_show listing'),
-    mirror: z.boolean().optional(),
-    phase: z.number().optional().describe('Domain offset, 0–1'),
-    brightness: z.number().optional().describe('Output scale, 0–1'),
-  },
-  apply(document, args) {
-    const view: Record<string, unknown> = {}
-    if (args.mirror !== undefined) view.mirror = args.mirror
-    if (args.phase !== undefined) view.phase = args.phase
-    if (args.brightness !== undefined) view.brightness = args.brightness
-    if (Object.keys(view).length === 0) {
-      return refuse({ code: 'invalid-argument', message: 'Give at least one of mirror, phase, or brightness.' })
-    }
-    return applyInspectorPatch('set_clip_view', document, args.clip_id as string, { view }, (clip) =>
-      `Clip ${clip.id} view updated: ${
-        Object.entries(view).map(([key, value]) => `${key} ${JSON.stringify(value)}`).join(', ')}.`,
-    )
-  },
-}
-
-const setClipControlTarget: ShowGrammarOperation = {
-  name: 'set_clip_control_target',
-  description:
-    'Set (or clear, with value null) one of the Pattern’s exported slider-control targets on the clip’s ' +
-    'Pattern instance. Values are 0–1. Every clip sharing the instance is affected.',
-  mutates: ['/composition/patternInstances/*/controlTargets'],
-  inputShape: {
-    clip_id: z.string().describe('Clip id from the open_show listing'),
-    export_name: z.string().describe('The Pattern’s exported control function name'),
-    value: z.number().min(0).max(1).nullable().describe('Control target 0–1, or null to clear it'),
-  },
-  apply(document, args) {
-    const resolved = resolveClip(document, args.clip_id as string)
-    if (!resolved.ok) return resolved
-    const { clip } = resolved.context
-    const instance = compositionOf(document).patternInstances
-      .find((candidate) => candidate.id === clip.instanceId)
-    const merged: Record<string, number> = { ...(instance?.controlTargets ?? {}) }
-    const exportName = args.export_name as string
-    if (args.value !== null) {
-      const issue = controlExportIssue(document, clip.instanceId, exportName)
-      if (issue) return refuse(issue)
-    }
-    if (args.value === null) {
-      if (!(exportName in merged)) {
-        return refuse({
-          code: 'no-change',
-          message: `Instance ${clip.instanceId} has no control target "${exportName}" to clear.`,
-        })
-      }
-      delete merged[exportName]
-    } else {
-      merged[exportName] = args.value as number
-    }
-    return applyInspectorPatch(
-      'set_clip_control_target',
-      document,
-      args.clip_id as string,
-      { simulation: { controlTargets: merged } },
-      (target) =>
-        args.value === null
-          ? `Control target "${exportName}" cleared on clip ${target.id}'s instance.`
-          : `Control target "${exportName}" set to ${args.value} on clip ${target.id}'s instance.`,
-    )
-  },
-}
-
-const setClipTime: ShowGrammarOperation = {
-  name: 'set_clip_time',
-  description:
-    'Set the clip’s Pattern-instance time behavior: time_scale (animation speed multiplier) or ' +
-    'time_offset_ms (phase offset into the Pattern’s own time). Give at least one field. Every clip ' +
-    'sharing the instance is affected.',
-  mutates: ['/composition/patternInstances/*/time'],
-  inputShape: {
-    clip_id: z.string().describe('Clip id from the open_show listing'),
-    time_scale: z.number().optional().describe('Animation speed multiplier (1 is normal speed)'),
-    time_offset_ms: z.number().optional().describe('Offset into the Pattern’s own time, in milliseconds'),
-  },
-  apply(document, args) {
-    const simulation: Record<string, unknown> = {}
-    if (args.time_scale !== undefined) simulation.timeScale = args.time_scale
-    if (args.time_offset_ms !== undefined) simulation.timeOffsetMs = args.time_offset_ms
-    if (Object.keys(simulation).length === 0) {
-      return refuse({ code: 'invalid-argument', message: 'Give at least one of time_scale or time_offset_ms.' })
-    }
-    return applyInspectorPatch('set_clip_time', document, args.clip_id as string, { simulation }, (clip) =>
-      `Clip ${clip.id} instance time updated: ${
-        Object.entries(simulation).map(([key, value]) => `${key} ${JSON.stringify(value)}`).join(', ')}.`,
-    )
-  },
-}
-
-const setClipEvaluation: ShowGrammarOperation = {
-  name: 'set_clip_evaluation',
-  description:
-    'Set the clip’s Pattern evaluation policy: live (evaluate continuously), freeze-at-entry (hold one ' +
-    'complete entry frame), or rolling-refresh (refresh a quarter of pixels per frame). Every clip sharing ' +
-    'the instance is affected; use restart_clip for a fresh instance at entry.',
-  mutates: ['/composition/patternInstances/*/evaluationPolicy'],
-  inputShape: {
-    clip_id: z.string().describe('Clip id from the open_show listing'),
-    policy: z.enum(['live', 'freeze-at-entry', 'rolling-refresh']),
-  },
-  apply(document, args) {
-    return applyInspectorPatch(
-      'set_clip_evaluation',
-      document,
-      args.clip_id as string,
-      { evaluationPolicy: args.policy as 'live' | 'freeze-at-entry' | 'rolling-refresh' },
-      (clip) => `Clip ${clip.id} evaluation policy set to ${args.policy}.`,
-    )
-  },
-}
-
 const addOverlayLayer = descriptorOperation(SHOW_COMMANDS.find(command => command.name === 'add_overlay_layer')!, (document, args) => {
   const newId = idFactory(document)
   return overlayLayerCommandOutcome(document.show, args, () => newId('layer'))
@@ -397,9 +235,6 @@ export const CLIP_OPERATIONS: ShowGrammarOperation[] = [
   makeClipPatternIndependent,
   rejoinClipPatternInstance,
   restartClip,
-  setClipView,
-  setClipControlTarget,
-  setClipTime,
-  setClipEvaluation,
+  ...clipPropertyOperations,
   addOverlayLayer,
 ]

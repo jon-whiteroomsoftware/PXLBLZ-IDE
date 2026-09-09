@@ -487,3 +487,32 @@ Transition/Group refusal and Show End no-change refusal remain unchanged.
 The shared rows cover manual/canonical/diagnostic parity and identity collisions;
 `AC951`, `IC951`, `RJ951`, `IT951` and `SE951` in the existing admission table
 cover saved records, file reopen, Undo and stale/duplicate delivery.
+
+## Clip property commands (#953)
+
+`set_clip_view`, `set_clip_control_target`, `set_clip_time` and
+`set_clip_evaluation` delegate to the existing Clip inspector owner through the
+same descriptor adapter. View edits affect the logical Clip's placements;
+controls, time and evaluation affect its shared Pattern instance. Making the
+Pattern independent remains the explicit Clip-only preparation. These commands
+do not restart playback, move timeline positions or change Show duration.
+
+Structured requests refuse values outside phase/brightness/control target 0–1,
+time scale 0–4 and time offset 0–60000 ms, naming the supported range. Valid
+fractional millisecond offsets retain existing rounding and report the resulting
+integer offset. Omitted fields remain authored; already-satisfied requests return
+the original record with no changes. Clearing an absent target is a no-op.
+
+Control setting requires captured actual Pattern source declaring the slider,
+using the existing metadata parser. Missing source and unknown or removed sliders
+refuse, including otherwise-satisfied requests. The manual inspector and command
+share shallow changed-target validation; unchanged legacy targets remain intact.
+Existing captured/current authoring dependency validation remains authoritative,
+including its pre-existing missing-dependency policy. Metadata is execution
+context, never model-authored arguments. Clearing a target also removes its
+matching automation tracks through the existing owner.
+
+Shared goldens, raw untouched-field checks and canonical/diagnostic/manual parity
+cover this family with existing fixtures. `V953`, `C953`, `T953` and `E953` use
+the common live admission table for durable saves, actual file reopen, Undo,
+stale refusal and duplicate delivery.

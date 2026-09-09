@@ -2,6 +2,7 @@
   "leafDeclared": [
     "/composition/durationMs",
     "/composition/executionModel",
+    "/composition/patternInstances/*/evaluationPolicy",
     "/name",
     "/scenes/*/durationMs",
     "/stageMapId",
@@ -288,7 +289,6 @@
     "/composition/markers/*/name",
     "/composition/markers/*/timeMs",
     "/composition/patternInstances/*/controlTargets/*",
-    "/composition/patternInstances/*/evaluationPolicy",
     "/composition/patternInstances/*/pattern/id",
     "/composition/patternInstances/*/pattern/kind",
     "/composition/patternInstances/*/patternName",

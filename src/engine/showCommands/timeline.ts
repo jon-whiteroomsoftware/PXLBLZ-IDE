@@ -51,7 +51,7 @@ const insertTime: ShowCommandDescriptor = {
     at_ms: { kind: 'number', description: 'Global insertion point in milliseconds' },
     duration_ms: { kind: 'number', description: 'How much time to insert' },
   },
-  apply: insertTimeCommandOutcome,
+  apply: (record, input) => insertTimeCommandOutcome(record, input),
 }
 
 const setShowEnd: ShowCommandDescriptor = {

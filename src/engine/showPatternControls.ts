@@ -13,6 +13,12 @@ export interface AutomatablePatternControl {
   secondsPresentation?: ControlSecondsPresentation
 }
 
+/** Declared slider exports from exact source; dependency admission remains separate. */
+export function declaredPatternSliderNames(source: string | undefined): ReadonlySet<string> {
+  if (source === undefined) return new Set()
+  return new Set(inspectPatternMetadata(source).controls.filter(control => control.kind === 'slider').map(control => control.exportName))
+}
+
 export function bundledPatternSliderNames(
   source: string,
   libraries: Record<string, string>,

@@ -1,4 +1,7 @@
 import { showBoundaryCommandFixture, BOUNDARY_PARAMETER_CASES, withAllTransitionFields } from '@/test/showBoundaryCommandFixture'
+import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
+import { LIBRARIES } from '@/pixelblaze/libs'
+import type { ShowCommandContext } from './registry'
 import { showSplitClipFixture } from '../../test/showSplitClipFixture'
 import { describe, expect, it } from 'vitest'
 import {
@@ -32,13 +35,16 @@ interface AppliedRecord {
   after: ShowRecord
 }
 const APPLIED: AppliedRecord[] = []
+const propertyContext: ShowCommandContext = { source: ref => ref.kind === 'stock' ? DEMOS[resolveStockPatternId(ref.id)] : undefined, libraries: LIBRARIES }
+
 
 function applyOk(
   record: ShowRecord,
   command: string,
   input: Record<string, unknown> = {},
+  context?: ShowCommandContext,
 ): { record: ShowRecord; changes: ShowCommandChange[] } {
-  const outcome = applyShowCommand(record, command, input)
+  const outcome = applyShowCommand(record, command, input, context)
   expect(outcome.ok, `${command} refused: ${JSON.stringify(!outcome.ok && outcome.issues)}`).toBe(true)
   if (!outcome.ok) throw new Error('unreachable')
   expect(outcome.record).not.toBe(record)
@@ -153,6 +159,35 @@ function trackTimes(record: ShowRecord, trackId: string): number[] {
 }
 
 export const GOLDEN_RUNS: Record<string, () => void> = {
+  set_clip_view: () => {
+    for (const clip_id of ['clip-a', 'clip-ov']) {
+      const before = showOverlayLayerFixture()
+      const { record } = applyOk(before, 'set_clip_view', { clip_id, mirror: true, phase: 0.25, brightness: 0.5 })
+      const clips = record.composition!.scenes[0].zones[0]
+      expect((clip_id === 'clip-a' ? clips.main[0] : clips.overlays[0].placements[0]).view).toEqual({ mirror: true, phase: 0.25, brightness: 0.5 })
+      expect(record.composition!.patternInstances).toEqual(before.composition!.patternInstances)
+    }
+  },
+  set_clip_control_target: () => {
+    const before = showOverlayLayerFixture()
+    const set = applyOk(before, 'set_clip_control_target', { clip_id: 'clip-a', export_name: 'sliderSpeed', value: 0.5 }, propertyContext).record
+    expect(set.composition!.patternInstances[0].controlTargets).toEqual({ sliderSpeed: 0.5 })
+    const tracked = structuredClone(set)
+    tracked.composition!.scenes[0].propertyTracks!.push({ id: 'control-track', target: { kind: 'instance-control', instanceId: 'instance-a', exportName: 'sliderSpeed' }, keyframes: [{ id: 'control-key-1', timeMs: 0, value: 0.1, easing: { curve: 'linear' } }, { id: 'control-key-2', timeMs: 1000, value: 0.9, easing: { curve: 'linear' } }] })
+    const cleared = applyOk(tracked, 'set_clip_control_target', { clip_id: 'clip-a', export_name: 'sliderSpeed', value: null }, propertyContext).record
+    expect(cleared.composition!.patternInstances[0].controlTargets).toBeUndefined()
+    expect(cleared.composition!.scenes[0].propertyTracks!.some(track => track.id === 'control-track')).toBe(false)
+  },
+  set_clip_time: () => {
+    const before = showOverlayLayerFixture()
+    const { record } = applyOk(before, 'set_clip_time', { clip_id: 'clip-a', time_scale: 0.5, time_offset_ms: 200 })
+    expect(record.composition!.patternInstances[0].time).toEqual({ timeScale: 0.5, timeOffsetMs: 200 })
+    expect(record.composition!.scenes).toEqual(before.composition!.scenes)
+  },
+  set_clip_evaluation: () => {
+    const { record } = applyOk(showOverlayLayerFixture(), 'set_clip_evaluation', { clip_id: 'clip-a', policy: 'rolling-refresh' })
+    expect(record.composition!.patternInstances[0].evaluationPolicy).toBe('rolling-refresh')
+  },
   add_overlay_layer: () => {
     for (const sparse of [false, true]) {
       const before = showOverlayLayerFixture()
@@ -1466,6 +1501,15 @@ function permittedEntityIds({ command, input, changes, before }: AppliedRecord):
     if (placementOwned || instanceOwned || (command === 'delete_property_track' && track.id === input.track_id)) {
       add(track.id)
       for (const keyframe of track.keyframes) add(keyframe.id)
+    }
+  }
+  if (command === 'set_clip_control_target' && input.value === null) {
+    const instanceId = placements.find(item => item.placement.id === input.clip_id)?.placement.instanceId
+    for (const scene of composition.scenes) for (const track of scene.propertyTracks ?? []) {
+      if (track.target.kind === 'instance-control' && track.target.instanceId === instanceId && track.target.exportName === input.export_name) {
+        add(track.id)
+        for (const keyframe of track.keyframes) add(keyframe.id)
+      }
     }
   }
   // Boundary canonicalization is part of the existing Layer-transition owner.

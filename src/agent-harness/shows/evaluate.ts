@@ -283,6 +283,13 @@ export function validateShowDocument(
   return { valid: errors.length === 0, errors, warnings }
 }
 
+export function capturedShowCommandContext(inlinePatterns: InlinePattern[], options: ShowEvaluationOptions) {
+  return {
+    source: (ref: ShowPatternRef) => ref.kind === 'stock' ? stockPatternSource(ref.id) : inlinePatterns.find(pattern => pattern.id === ref.id)?.source,
+    libraries: { ...LIBRARIES, ...options.authoringLibraries },
+  }
+}
+
 export function validateAuthoringShowDocument(
   input: unknown,
   inlinePatterns: InlinePattern[] = [],
@@ -294,14 +301,10 @@ export function validateAuthoringShowDocument(
   const errors = validateShowStructure(parsed.document)
   if (errors.length) return { valid: false, errors, warnings: [] }
   return validateShowAuthoring(parsed.document as ShowRecord, {
-    source: ref => ref.kind === 'stock' ? stockPatternSource(ref.id) : inlinePatterns.find(pattern => pattern.id === ref.id)?.source,
-    baseline: baseline ? captureShowAuthoringBaseline(baseline.show, {
-      source: ref => ref.kind === 'stock' ? stockPatternSource(ref.id) : baseline.inlinePatterns.find(pattern => pattern.id === ref.id)?.source,
-      libraries: { ...LIBRARIES, ...baseline.options.authoringLibraries },
-    }) : undefined,
+    ...capturedShowCommandContext(inlinePatterns, options),
+    baseline: baseline ? captureShowAuthoringBaseline(baseline.show, capturedShowCommandContext(baseline.inlinePatterns, baseline.options)) : undefined,
     allowExistingMissing: options.allowUnresolvedUserPatterns,
     stageDimension: options.stageDimension,
-    libraries: { ...LIBRARIES, ...options.authoringLibraries },
   })
 }
 

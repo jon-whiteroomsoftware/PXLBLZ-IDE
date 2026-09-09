@@ -1,4 +1,5 @@
 import { validateShowEasing } from '@/engine/showEasing'
+import { capturedShowCommandContext } from '../../shows/evaluate'
 import { z, type ZodTypeAny } from 'zod'
 import { validateShowCommandInput, type ShowCommandDescriptor, type ShowCommandField, type ShowCommandOutcome } from '@/engine/showCommands/registry'
 import type { ShowGrammarOperation } from '../registry.js'
@@ -23,7 +24,7 @@ function fieldSchema(field: ShowCommandField): ZodTypeAny {
 /** One schema/result bridge; callers retain their existing local identity policy. */
 export function descriptorOperation(
   descriptor: ShowCommandDescriptor,
-  apply: (document: ShowGrammarDocument, args: Record<string, unknown>) => ShowCommandOutcome = (document, args) => descriptor.apply(document.show, args),
+  apply: (document: ShowGrammarDocument, args: Record<string, unknown>) => ShowCommandOutcome = (document, args) => descriptor.apply(document.show, args, capturedShowCommandContext(document.inlinePatterns, document.options)),
 ): ShowGrammarOperation {
   return {
     name: descriptor.name,

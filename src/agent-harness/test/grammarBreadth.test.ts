@@ -1,7 +1,7 @@
 // Provenance: pxlblz-v3 test/grammarBreadth.test.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
 import { describe, expect, it } from 'vitest'
 import { showLoopDurationMs } from '@/engine/showModel'
-import { SHOW_GRAMMAR_OPERATIONS } from '../grammar/registry.js'
+import { SHOW_GRAMMAR_OPERATIONS, applyShowGrammarOperation } from '../grammar/registry.js'
 import { openGrammarFixture } from './support/grammarFixture.js'
 import { GOLDEN_RUNS } from './support/grammarGoldens.js'
 import {
@@ -178,12 +178,8 @@ describe('grammar registry breadth (#18)', () => {
       const clip = clipAt(document, 0)
       applyRefused(document, 'set_clip_view', { clip_id: clip.clipId }, 'invalid-argument')
       applyRefused(document, 'set_clip_time', { clip_id: clip.clipId }, 'invalid-argument')
-      applyRefused(
-        document,
-        'set_clip_control_target',
-        { clip_id: clip.clipId, export_name: 'speed', value: null },
-        'no-change',
-      )
+      expect(applyShowGrammarOperation(document, 'set_clip_control_target', { clip_id: clip.clipId, export_name: 'speed', value: null }))
+        .toEqual({ ok: true, document, changes: [] })
     })
   })
 

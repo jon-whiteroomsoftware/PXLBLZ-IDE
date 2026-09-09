@@ -133,7 +133,7 @@ const insertLayerTransition: ShowCommandDescriptor = {
     variant: { kind: 'string', optional: true, description: 'Existing toolkit variant id' },
     easing: { kind: 'easing', optional: true, description: 'Preset or structured easing curve' },
   },
-  apply: insertLayerTransitionCommandOutcome,
+  apply: (record, input) => insertLayerTransitionCommandOutcome(record, input),
 }
 
 const resizeLayerTransition: ShowCommandDescriptor = {

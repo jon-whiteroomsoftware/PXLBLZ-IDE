@@ -1676,6 +1676,25 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     staleCommand?: { command: string; args: Record<string, unknown> }
     toolbarSplit?: { atMs: number; clipId: string | null; accepted: boolean }
   }> = [
+    ...[
+      { id: 'V953', command: 'set_clip_view', args: { clip_id: 'clip-ov', mirror: true, phase: 0.25, brightness: 0.5 }, utterance: 'dim and mirror the overlay Clip' },
+      { id: 'C953', command: 'set_clip_control_target', args: { clip_id: 'clip-a', export_name: 'sliderSpeed', value: 0.75 }, utterance: 'set the first Clip speed control to three quarters' },
+      { id: 'T953', command: 'set_clip_time', args: { clip_id: 'clip-a', time_scale: 0.5, time_offset_ms: 250 }, utterance: 'slow the first Clip shared instance to half speed' },
+      { id: 'E953', command: 'set_clip_evaluation', args: { clip_id: 'clip-a', policy: 'freeze-at-entry' }, utterance: 'freeze the first Clip shared instance at entry' },
+    ].map(row => ({
+      ...row,
+      fixture: () => { const record = showOverlayLayerFixture(); record.id = `${row.id.toLowerCase()}-${Date.now().toString(36)}`; return record },
+      expectedFacts: (before: ShowRecord) => {
+        const expected = structuredClone(before)
+        const composition = expected.composition!
+        if (row.id === 'V953') composition.scenes[0].zones[0].overlays[0].placements[0].view = { mirror: true, phase: 0.25, brightness: 0.5 }
+        if (row.id === 'C953') composition.patternInstances[0].controlTargets = { sliderSpeed: 0.75 }
+        if (row.id === 'T953') composition.patternInstances[0].time = { timeScale: 0.5, timeOffsetMs: 250 }
+        if (row.id === 'E953') composition.patternInstances[0].evaluationPolicy = 'freeze-at-entry'
+        return expected
+      },
+    })),
+
     {
       id: 'ILT952', command: 'insert_layer_transition', args: { from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 1500, easing: 'ease-in' },
       utterance: 'insert a fifteen hundred millisecond Layer crossfade with ease in',
@@ -2071,7 +2090,17 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         const { applyShowCommand } = await load('/PXLBLZ-IDE/src/engine/showCommands/registry.ts')
         const win = window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecord } }; __admissionPending?: unknown }
         const captured = win.__pxlblzEditor.beginRequest(`${id}-stale`, command, [])
-        const outcome = applyShowCommand(captured.show, command, args)
+        const { usePatternStore } = await load('/PXLBLZ-IDE/src/store/patternStore.ts')
+        const { useLibraryStore } = await load('/PXLBLZ-IDE/src/store/libraryStore.ts')
+        const { DEMOS, resolveStockPatternId } = await load('/PXLBLZ-IDE/src/pixelblaze/stock/patterns.ts')
+        const { LIBRARIES } = await load('/PXLBLZ-IDE/src/pixelblaze/libs.ts')
+        const patterns = structuredClone(usePatternStore.getState().userPatterns) as Array<{ id: string; src: string }>
+        const libraries = structuredClone(useLibraryStore.getState().userLibraries) as Array<{ name: string; src: string }>
+        const context = {
+          source: (ref: { kind: string; id: string }) => ref.kind === 'stock' ? DEMOS[resolveStockPatternId(ref.id)] : patterns.find(pattern => pattern.id === ref.id)?.src,
+          libraries: { ...LIBRARIES, ...Object.fromEntries(libraries.map(library => [library.name, library.src])) },
+        }
+        const outcome = applyShowCommand(captured.show, command, args, context)
         if (!outcome.ok) throw new Error(JSON.stringify(outcome))
         win.__admissionPending = { captured, candidate: outcome.record }
       }, { id: admission.id, ...(admission.staleCommand ?? { command: admission.command, args: admission.args }) })
@@ -2092,7 +2121,17 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         const { applyShowCommand } = await load('/PXLBLZ-IDE/src/engine/showCommands/registry.ts')
         const api = (window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecord }; applyShow: (show: unknown, request: unknown) => Promise<unknown> } }).__pxlblzEditor
         const captured = api.beginRequest(`${id}-duplicate`, command, [])
-        const outcome = applyShowCommand(captured.show, command, args)
+        const { usePatternStore } = await load('/PXLBLZ-IDE/src/store/patternStore.ts')
+        const { useLibraryStore } = await load('/PXLBLZ-IDE/src/store/libraryStore.ts')
+        const { DEMOS, resolveStockPatternId } = await load('/PXLBLZ-IDE/src/pixelblaze/stock/patterns.ts')
+        const { LIBRARIES } = await load('/PXLBLZ-IDE/src/pixelblaze/libs.ts')
+        const patterns = structuredClone(usePatternStore.getState().userPatterns) as Array<{ id: string; src: string }>
+        const libraries = structuredClone(useLibraryStore.getState().userLibraries) as Array<{ name: string; src: string }>
+        const context = {
+          source: (ref: { kind: string; id: string }) => ref.kind === 'stock' ? DEMOS[resolveStockPatternId(ref.id)] : patterns.find(pattern => pattern.id === ref.id)?.src,
+          libraries: { ...LIBRARIES, ...Object.fromEntries(libraries.map(library => [library.name, library.src])) },
+        }
+        const outcome = applyShowCommand(captured.show, command, args, context)
         if (!outcome.ok) throw new Error(JSON.stringify(outcome))
         return { first: await api.applyShow(outcome.record, captured.request), second: await api.applyShow(outcome.record, captured.request) }
       }, { id: admission.id, command: admission.command, args: admission.args })

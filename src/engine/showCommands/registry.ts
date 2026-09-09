@@ -13,7 +13,9 @@ import { validateShowEasing } from '../showEasing'
 // unchanged) is a refusal unless the command independently validates a no-op; commands
 // backed by a plan* function run the plan first and pass its user-legible
 // reason through.
+import type { ShowAuthoringContext } from '../showAuthoringValidation'
 import type { ShowCompositionV1, ShowRecord } from '../personalContentRecords'
+export type ShowCommandContext = Pick<ShowAuthoringContext, 'source' | 'libraries'>
 
 /** A typed reason a command was refused. A refusal is never silent. */
 export interface ShowCommandIssue {
@@ -61,7 +63,7 @@ export interface ShowCommandDescriptor {
   touches: string[]
   fields: Record<string, ShowCommandField>
   exactlyOne?: readonly string[]
-  apply: (record: ShowRecord, input: Record<string, unknown>) => ShowCommandOutcome
+  apply: (record: ShowRecord, input: Record<string, unknown>, context?: ShowCommandContext) => ShowCommandOutcome
 }
 
 export type ShowCommandRefusal = Extract<ShowCommandOutcome, { ok: false }>
@@ -186,6 +188,7 @@ export function applyShowCommand(
   record: ShowRecord,
   name: string,
   input: Record<string, unknown> = {},
+  context?: ShowCommandContext,
 ): ShowCommandOutcome {
   const descriptor = commandByName().get(name)
   if (!descriptor) {
@@ -197,7 +200,7 @@ export function applyShowCommand(
   }
   const issues = validateShowCommandInput(descriptor, input)
   if (issues.length > 0) return { ok: false, issues }
-  return descriptor.apply(record, input)
+  return descriptor.apply(record, input, context)
 }
 
 /**
@@ -209,13 +212,14 @@ export function applyShowCommand(
 export function runShowCommandTransaction(
   record: ShowRecord,
   commands: Array<{ name: string; input?: Record<string, unknown> }>,
+  context?: ShowCommandContext,
 ):
   | { ok: true; record: ShowRecord; changes: ShowCommandChange[] }
   | { ok: false; step: number; issues: ShowCommandIssue[] } {
   let current = record
   const changes: ShowCommandChange[] = []
   for (const [step, command] of commands.entries()) {
-    const outcome = applyShowCommand(current, command.name, command.input ?? {})
+    const outcome = applyShowCommand(current, command.name, command.input ?? {}, context)
     if (!outcome.ok) return { ok: false, step, issues: outcome.issues }
     current = outcome.record
     changes.push(...outcome.changes)

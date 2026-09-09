@@ -232,6 +232,13 @@ export const BASELINE_UTTERANCES: BaselineUtterance[] = [
     intent: '#951: Show End admits once.',
     script: [{ tool: 'set_show_end', args: { end_ms: 70000, finish_turn_reply: { intent: 'apply', reply: 'Set Show End to seventy seconds.' } } }],
   },
+  ...[
+    { utterance: 'dim and mirror the overlay Clip', tool: 'set_clip_view', args: { clip_id: 'clip-ov', mirror: true, phase: 0.25, brightness: 0.5 } },
+    { utterance: 'set the first Clip speed control to three quarters', tool: 'set_clip_control_target', args: { clip_id: 'clip-a', export_name: 'sliderSpeed', value: 0.75 } },
+    { utterance: 'slow the first Clip shared instance to half speed', tool: 'set_clip_time', args: { clip_id: 'clip-a', time_scale: 0.5, time_offset_ms: 250 } },
+    { utterance: 'freeze the first Clip shared instance at entry', tool: 'set_clip_evaluation', args: { clip_id: 'clip-a', policy: 'freeze-at-entry' } },
+  ].map(({ utterance, tool, args }) => ({ utterance, intent: '#953: shared Clip property admission.', script: [{ tool, args: { ...args, finish_turn_reply: { intent: 'apply', reply: 'Updated the Clip properties.' } } }] })),
+
 ]
 
 /** The script for an utterance the scripted bridge knows, or null. */

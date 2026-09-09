@@ -369,12 +369,17 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     expect(instanceOf(next, clip.clipId).controlTargets).toEqual({ sliderSpeed: 0.3 })
 
-    const { document: cleared } = applyOk(next, 'set_clip_control_target', {
+    const { document: automated, changes: trackChanges } = applyOk(next, 'add_property_track', {
+      clip_id: clip.clipId, target: 'control', control_export_name: 'sliderSpeed',
+      keyframes: [{ time_ms: 0, value: 0.3 }, { time_ms: 1000, value: 0.6 }],
+    })
+    const { document: cleared } = applyOk(automated, 'set_clip_control_target', {
       clip_id: clip.clipId,
       export_name: 'sliderSpeed',
       value: null,
     })
     expect(instanceOf(cleared, clip.clipId).controlTargets ?? {}).toEqual({})
+    expect(cleared.show.composition!.scenes.flatMap(scene => scene.propertyTracks ?? []).some(track => track.id === trackChanges[0].targetId)).toBe(false)
   },
   set_clip_time: () => {
     const document = fixture()

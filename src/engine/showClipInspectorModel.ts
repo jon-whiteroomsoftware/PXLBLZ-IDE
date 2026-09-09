@@ -183,6 +183,16 @@ export function updateShowClipInspector(
   patch: ShowClipInspectorPatch,
   exportedSliderNames: ReadonlySet<string> = new Set(),
 ): ShowRecord {
+  // A captured control patch may outlive its Pattern metadata. Only changed
+  // targets need a current exported slider; untouched legacy targets survive.
+  if (patch.simulation && Object.prototype.hasOwnProperty.call(patch.simulation, 'controlTargets')) {
+    const current = projectShowClipInspector(show, owner)
+    if (!current) return show
+    const before = current.simulation.controlTargets ?? {}
+    for (const [name, value] of Object.entries(patch.simulation.controlTargets ?? {})) {
+      if (value !== before[name] && !exportedSliderNames.has(name)) return show
+    }
+  }
   if (owner.kind === 'global') return updateGlobalClip(show, owner.cellId, patch, exportedSliderNames)
   const resolved = resolveCompositionOwner(show.composition, owner)
   if (!show.composition || !resolved) return show

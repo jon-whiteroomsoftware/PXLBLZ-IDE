@@ -1,3 +1,4 @@
+import { SHOW_CLIP_PROPERTY_COMMANDS } from './clipProperties'
 import { createSplitClipCommand } from './splitClip'
 import { createOverlayLayerCommand } from './overlayLayer'
 // Clip command family: placement lifecycle on the unified timeline through
@@ -118,7 +119,7 @@ const addClip: ShowCommandDescriptor = {
     overlay_layer_index: { kind: 'integer', optional: true, description: 'Overlay layer to target (0 = topmost); omit for main' },
     extend_show: { kind: 'boolean', optional: true, description: 'Grow the Show when adding at Show End' },
   },
-  apply: addClipCommandOutcome,
+  apply: (record, input) => addClipCommandOutcome(record, input),
 }
 
 const moveClip: ShowCommandDescriptor = {
@@ -288,7 +289,7 @@ const makeClipPatternIndependent: ShowCommandDescriptor = {
   fields: {
     clip_id: { kind: 'string', description: 'The clip to make independent' },
   },
-  apply: independentClipCommandOutcome,
+  apply: (record, input) => independentClipCommandOutcome(record, input),
 }
 
 const rejoinClipPatternInstance: ShowCommandDescriptor = {
@@ -333,6 +334,7 @@ const rejoinClipPatternInstance: ShowCommandDescriptor = {
 }
 
 export const SHOW_CLIP_COMMANDS: ShowCommandDescriptor[] = [
+  ...SHOW_CLIP_PROPERTY_COMMANDS,
   createOverlayLayerCommand(),
   addClip,
   moveClip,

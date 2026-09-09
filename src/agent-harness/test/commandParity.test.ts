@@ -5,6 +5,9 @@ import { updateShowBoundaryTransition } from '@/engine/showModel'
 import { showBoundaryTransitionParameterChanges, showTransitionChangesForPresentation } from '@/engine/showTransitionAuthoring'
 import type { ShowToolkitPresentationItem } from '@/engine/showVisualToolkitPresentation'
 import { showBoundaryCommandFixture, BOUNDARY_VARIANT_CASES } from '@/test/showBoundaryCommandFixture'
+import { capturedShowCommandContext } from '../shows/evaluate'
+import { declaredPatternSliderNames } from '@/engine/showPatternControls'
+import { projectShowClipInspector, updateShowClipInspector, type ShowClipInspectorPatch } from '@/engine/showClipInspectorModel'
 import { moveShowClipExactly } from '@/engine/showExactClipMove'
 import { resizeShowClipManually } from '@/engine/showManualClipResize'
 import { editShowMarkerFromUI } from '@/engine/showExactTimelineMarker'
@@ -567,6 +570,37 @@ const PARITY_ROWS: ParityRow[] = [
     manualOwner: show => updateShowBoundaryTransition(show, 'transition-scene-1', showBoundaryTransitionParameterChanges(show.transitions[0], { kind: 'transition', familyId: 'blend', variantId: 'crossfade', key: 'transition:blend:crossfade' } as ShowToolkitPresentationItem, 'easing', 'sine-in')!),
   },
   { command: 'set_boundary_layout', args: { transition_id: 'transition-scene-1', layout_id: 'layout-2' }, fixture: showBoundaryCommandFixture },
+  ...(['clip-a', 'clip-ov'] as const).flatMap(clipId => [
+    { command: 'set_clip_view', args: { clip_id: clipId, mirror: true, phase: 0.25, brightness: 0.5 }, patch: { view: { mirror: true, phase: 0.25, brightness: 0.5 } } },
+    { command: 'set_clip_time', args: { clip_id: clipId, time_scale: 0.5, time_offset_ms: 250 }, patch: { simulation: { timeScale: 0.5, timeOffsetMs: 250 } } },
+    { command: 'set_clip_evaluation', args: { clip_id: clipId, policy: 'freeze-at-entry' }, patch: { evaluationPolicy: 'freeze-at-entry' } },
+    { command: 'set_clip_control_target', args: { clip_id: clipId, export_name: 'sliderSpeed', value: 0.75 }, patch: { simulation: { controlTargets: { sliderSpeed: 0.75 } } } },
+  ].map(({ command, args, patch }): ParityRow => ({
+    command, args, fixture: showOverlayLayerFixture,
+    canonical: (show, input) => applyShowCommand(show, command, input, capturedShowCommandContext([], {})),
+    manualOwner: show => {
+      const owner = clipId === 'clip-a'
+        ? { kind: 'scene-main' as const, sceneId: 'scene-1', zoneId: 'zone-1', placementId: clipId }
+        : { kind: 'scene-overlay' as const, sceneId: 'scene-1', zoneId: 'zone-1', layerId: 'overlay-1', placementId: clipId }
+      const source = capturedShowCommandContext([], {}).source(projectShowClipInspector(show, owner)!.pattern)
+      return updateShowClipInspector(show, owner, patch as ShowClipInspectorPatch, declaredPatternSliderNames(source)).composition
+    },
+    expectedFacts: (before, after) => {
+      const instanceId = clipId === 'clip-a' ? 'instance-a' : 'instance-ov'
+      if (command === 'set_clip_view') {
+        const zone = after.composition!.scenes[0].zones[0]
+        expect((clipId === 'clip-a' ? zone.main[0] : zone.overlays[0].placements[0]).view).toEqual(patch.view)
+        expect(after.composition!.patternInstances).toEqual(before.composition!.patternInstances)
+      } else {
+        expect(after.composition!.scenes).toEqual(before.composition!.scenes)
+        const instance = after.composition!.patternInstances.find(item => item.id === instanceId)!
+        if (command === 'set_clip_time') expect(instance.time).toEqual({ timeScale: 0.5, timeOffsetMs: 250 })
+        if (command === 'set_clip_evaluation') expect(instance.evaluationPolicy).toBe('freeze-at-entry')
+        if (command === 'set_clip_control_target') expect(instance.controlTargets).toEqual({ sliderSpeed: 0.75 })
+      }
+    },
+    refusals: [{ ...args, clip_id: 'absent' }, { ...args, clip_id: 'group-use:group-main' }, { ...args, extra: true }],
+  }))),
 
   ...[false, true].flatMap(reverse => [false, true].map((extend): ParityRow => ({
     command: 'add_clip',
@@ -1052,4 +1086,101 @@ it('keeps a Layer sequence atomic, undoes once, and reopens the restored generat
   expect(artifacts[1].src).not.toBe(artifacts[0].src)
   expect(artifacts[2].src).toBe(artifacts[0].src)
   expect(artifacts[2].stamp).toMatchObject({ kind: 'show', id: source.id })
+})
+
+it('validates personal slider metadata before no-op and preserves captured Library policy (#953)', () => {
+  const show = showOverlayLayerFixture()
+  show.composition!.patternInstances[0].pattern = { kind: 'user', id: 'personal-953' }
+  const patterns = [{ id: 'personal-953', name: 'Personal', source: 'export function sliderSpeed(v) {} export function render(index) { Personal.paint(index) }' }]
+  const options = { allowUnresolvedUserPatterns: true, authoringLibraries: { Personal: 'export function paint(index) { rgb(1,0,0) }' } }
+  const opened = openShowDocument(show, patterns, options)
+  if (!opened.ok) throw new Error(JSON.stringify(opened))
+  const context = capturedShowCommandContext(opened.document.inlinePatterns, opened.document.options)
+  const args = { clip_id: 'clip-a', export_name: 'sliderSpeed', value: 0.5 }
+  const original = structuredClone(opened.document)
+  const result = applyShowCommand(show, 'set_clip_control_target', args, context)
+  expect(result.ok).toBe(true)
+  if (!result.ok) return
+  expect(result.record.composition!.patternInstances[0].controlTargets).toEqual({ sliderSpeed: 0.5 })
+  expect(applyShowCommand(result.record, 'set_clip_control_target', args, context)).toEqual({ ok: true, record: result.record, changes: [] })
+  for (const unavailable of [undefined, { source: () => undefined }, { source: () => 'export function render(index) { rgb(1,0,0) }' }]) {
+    expect(applyShowCommand(result.record, 'set_clip_control_target', args, unavailable).ok).toBe(false)
+  }
+  expect(applyShowCommand(show, 'set_clip_control_target', { ...args, export_name: 'removed' }, context).ok).toBe(false)
+  expect(applyShowCommand(show, 'set_clip_control_target', { ...args, export_name: 'absent', value: null })).toEqual({ ok: true, record: show, changes: [] })
+  expect(opened.document).toStrictEqual(original)
+})
+
+
+it.each([
+  { command: 'set_clip_view', args: { phase: -0.01 } },
+  { command: 'set_clip_view', args: { phase: 1.01 } },
+  { command: 'set_clip_view', args: { brightness: -0.01 } },
+  { command: 'set_clip_view', args: { brightness: 1.01 } },
+  { command: 'set_clip_time', args: { time_scale: -0.01 } },
+  { command: 'set_clip_time', args: { time_scale: 4.01 } },
+  { command: 'set_clip_time', args: { time_offset_ms: -0.01 } },
+  { command: 'set_clip_time', args: { time_offset_ms: 60000.01 } },
+  { command: 'set_clip_control_target', args: { export_name: 'sliderSpeed', value: -0.01 } },
+  { command: 'set_clip_control_target', args: { export_name: 'sliderSpeed', value: 1.01 } },
+])('$command refuses out-of-range $args before owner normalization (#953)', ({ command, args }) => {
+  const show = showOverlayLayerFixture()
+  const before = structuredClone(show)
+  const result = applyShowCommand(show, command, { clip_id: 'clip-a', ...args }, capturedShowCommandContext([], {}))
+  expect(result).toMatchObject({ ok: false, issues: [{ code: 'invalid-argument', message: expect.stringContaining('supported range') }] })
+  expect(show).toStrictEqual(before)
+})
+
+it('validates Clip property no-ops and rounds valid offsets without losing animation (#953)', () => {
+  const show = showOverlayLayerFixture()
+  for (const [command, args] of [
+    ['set_clip_view', { mirror: false, brightness: 1, phase: 0 }],
+    ['set_clip_time', { time_scale: 1, time_offset_ms: 0.1 }],
+    ['set_clip_evaluation', { policy: 'live' }],
+  ] as const) expect(applyShowCommand(show, command, { clip_id: 'clip-a', ...args })).toEqual({ ok: true, record: show, changes: [] })
+  const result = applyShowCommand(show, 'set_clip_time', { clip_id: 'clip-a', time_scale: 0, time_offset_ms: 59999.6 })
+  expect(result.ok).toBe(true)
+  if (!result.ok) return
+  expect(result.record.composition!.patternInstances[0].time).toEqual({ timeScale: 0, timeOffsetMs: 60000 })
+  expect(result.changes[0].details).toMatchObject({ timeOffsetMs: 60000 })
+  expect(result.record.composition!.scenes).toStrictEqual(show.composition!.scenes)
+  const refused = runShowCommandTransaction(show, [{ name: 'set_clip_time', input: { clip_id: 'clip-a', time_scale: 0.5 } }, { name: 'set_clip_view', input: { clip_id: 'absent', brightness: 0.5 } }])
+  expect(refused).toMatchObject({ ok: false, step: 1 })
+  expect(show.composition!.patternInstances[0].time.timeScale).toBe(1)
+})
+
+
+it.each(['live', 'freeze-at-entry', 'rolling-refresh'] as const)('retains the shared %s evaluation policy on a multi-Scene Clip (#953)', policy => {
+  const show = showSplitClipFixture()
+  const instance = show.composition!.patternInstances.find(item => item.id === 'instance-b')!
+  instance.evaluationPolicy = policy === 'live' ? 'freeze-at-entry' : 'live'
+  const before = structuredClone(show)
+  const result = applyShowCommand(show, 'set_clip_evaluation', { clip_id: 'clip-b', policy })
+  expect(result.ok).toBe(true)
+  if (!result.ok) return
+  expect(result.record.composition!.patternInstances.find(item => item.id === 'instance-b')!.evaluationPolicy).toBe(policy)
+  expect(result.record.composition!.scenes).toStrictEqual(show.composition!.scenes)
+  expect(show).toStrictEqual(before)
+})
+
+it('keeps Clip-local independence plus time atomic and preserves linked users (#953)', () => {
+  const show = showOverlayLayerFixture()
+  const before = structuredClone(show)
+  const result = runShowCommandTransaction(show, [
+    { name: 'make_clip_pattern_independent', input: { clip_id: 'clip-a' } },
+    { name: 'set_clip_time', input: { clip_id: 'clip-a', time_scale: 4 } },
+  ])
+  expect(result.ok).toBe(true)
+  if (!result.ok) return
+  const composition = result.record.composition!
+  expect(composition.patternInstances.find(item => item.id === 'instance-a')).toStrictEqual(show.composition!.patternInstances[0])
+  const ownId = composition.scenes[0].zones[0].main[0].instanceId
+  expect(ownId).not.toBe('instance-a')
+  expect(composition.patternInstances.find(item => item.id === ownId)!.time.timeScale).toBe(4)
+  const invalid = runShowCommandTransaction(show, [
+    { name: 'make_clip_pattern_independent', input: { clip_id: 'clip-a' } },
+    { name: 'set_clip_time', input: { clip_id: 'clip-a', time_scale: 4.1 } },
+  ])
+  expect(invalid).toMatchObject({ ok: false, step: 1 })
+  expect(show).toStrictEqual(before)
 })
