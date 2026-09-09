@@ -1361,3 +1361,25 @@ it('animation track → keyframe → Split is one private transaction and one Un
   expect(store.export(id)).toStrictEqual(before)
   expect(store.undo(id).ok).toBe(false)
 })
+
+it.each([
+  { label: 'typed placement Scene mismatch', args: { target: { kind: 'placement-view', placementId: 'clip-a', property: 'phase' }, scene_id: 'scene-2', initial_value: 0.5 }, code: 'invalid-argument' },
+  { label: 'shorthand Clip Scene mismatch', args: { target: 'view-phase', clip_id: 'clip-a', scene_id: 'scene-2', initial_value: 0.5 }, code: 'invalid-argument' },
+  { label: 'typed target with clip_id', args: { target: { kind: 'placement-view', placementId: 'clip-a', property: 'phase' }, clip_id: 'clip-a', initial_value: 0.5 }, code: 'invalid-argument' },
+  { label: 'typed target with control_export_name', args: { target: { kind: 'placement-view', placementId: 'clip-a', property: 'phase' }, control_export_name: 'sliderSpeed', initial_value: 0.5 }, code: 'invalid-argument' },
+  { label: 'malformed nested structured easing', args: { target: { kind: 'placement-view', placementId: 'clip-a', property: 'phase' }, keyframes: [{ time_ms: 0, value: 0.5, easing: { curve: 'quadratic', direction: 'sideways' } }, { time_ms: 1000, value: 0.5 }] }, code: 'invalid-argument' },
+  { label: 'duplicate time in one creation', args: { target: { kind: 'placement-view', placementId: 'clip-a', property: 'phase' }, keyframes: [{ time_ms: 1000, value: 0.2 }, { time_ms: 1000, value: 0.8 }] }, code: 'duplicate-keyframe-time' },
+])('animation creation refuses $label with precise diagnostics and raw preservation', ({ args, code }) => {
+  const opened = openShowDocument(showAnimationCommandFixture())
+  if (!opened.ok) throw new Error(JSON.stringify(opened))
+  const document = opened.document
+  document.show.composition!.patternInstances.reverse()
+  document.show.composition!.scenes[0].propertyTracks!.reverse()
+  document.show.composition!.markers![0].color = undefined
+  const before = structuredClone(document)
+  const canonical = applyShowCommand(document.show, 'add_property_track', args)
+  expect(canonical).toMatchObject({ ok: false, issues: [{ code }] })
+  expect(document).toStrictEqual(before)
+  expect(applyShowGrammarOperation(document, 'add_property_track', args)).toStrictEqual(canonical)
+  expect(document).toStrictEqual(before)
+})
