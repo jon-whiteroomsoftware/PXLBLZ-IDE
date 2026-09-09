@@ -27,7 +27,7 @@ describe('junction operations (#19)', () => {
     const document = fixture({ boundaryCrossfade: true })
     const issues = applyRefused(
       document,
-      'set_junction_transition',
+      'set_boundary_transition',
       { at_ms: 15_000, kind: 'wipe' },
       'unknown-junction',
     )
@@ -36,18 +36,18 @@ describe('junction operations (#19)', () => {
 
     applyRefused(
       document,
-      'set_junction_transition',
+      'set_boundary_transition',
       { after_clip_id: 'nope', kind: 'wipe' },
       'unknown-junction',
     )
-    applyRefused(document, 'set_junction_transition', { kind: 'wipe' }, 'invalid-argument')
+    applyRefused(document, 'set_boundary_transition', { kind: 'wipe' }, 'invalid-argument')
   })
 
   it('refuses boundary edits on a within-Scene junction, pointing at layer transitions', () => {
     const base = withConsecutiveClips()
     const issues = applyRefused(
       base.document,
-      'set_junction_transition',
+      'set_boundary_transition',
       { after_clip_id: base.firstClipId, kind: 'wipe' },
       'missing-target',
     )
@@ -58,7 +58,7 @@ describe('junction operations (#19)', () => {
     const document = fixture({ boundaryCrossfade: true })
     const issues = applyRefused(
       document,
-      'set_junction_transition',
+      'set_boundary_transition',
       { at_ms: 30_000, kind: 'wipe', variant: 'zigzag' },
       'invalid-argument',
     )
@@ -67,13 +67,13 @@ describe('junction operations (#19)', () => {
 
   it('refuses an unknown junction parameter naming the valid ones', () => {
     const document = fixture({ boundaryCrossfade: true })
-    const { document: asWipe } = applyOk(document, 'set_junction_transition', {
+    const { document: asWipe } = applyOk(document, 'set_boundary_transition', {
       at_ms: 30_000,
       kind: 'wipe',
     })
     const issues = applyRefused(
       asWipe,
-      'update_junction_parameter',
+      'update_boundary_transition_parameter',
       { at_ms: 30_000, parameter: 'nope', value: 1 },
       'unknown-parameter',
     )
@@ -84,7 +84,7 @@ describe('junction operations (#19)', () => {
     const document = fixture({ boundaryCrossfade: true })
     const issues = applyRefused(
       document,
-      'set_junction_layout',
+      'set_boundary_layout',
       { at_ms: 30_000, layout_id: 'nope' },
       'unknown-layout',
     )

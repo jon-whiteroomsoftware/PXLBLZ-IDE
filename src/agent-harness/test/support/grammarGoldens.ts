@@ -7,7 +7,7 @@ import { expect } from 'vitest'
 import type { ShowCompositionV1 } from '@/engine/personalContentRecords'
 import { showLoopDurationMs } from '@/engine/showModel'
 import { projectShowLayoutIntervals } from '@/engine/showLayoutIntervals'
-import type { ShowGrammarDocument } from '../../grammar/registry.js'
+import { applyShowGrammarOperation, type ShowGrammarDocument } from '../../grammar/registry.js'
 import {
   applyOk,
   clipAt,
@@ -20,6 +20,7 @@ import {
   withConsecutiveClips,
   withLayerTransition,
 } from './grammarHarness.js'
+import { showBoundaryCommandFixture, BOUNDARY_PARAMETER_CASES, BOUNDARY_VARIANT_CASES } from '@/test/showBoundaryCommandFixture'
 import { showOverlayLayerFixture } from '@/test/showOverlayLayerFixture'
 import { openShowDocument } from '../../grammar/openShow'
 
@@ -532,9 +533,9 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     const scene = (next.show.composition as ShowCompositionV1).scenes.find((candidate) => candidate.sceneId === 's1')
     expect(scene?.propertyTracks ?? []).toEqual([])
   },
-  set_junction_transition: () => {
+  set_boundary_transition: () => {
     const document = fixture({ boundaryCrossfade: true })
-    const { document: next } = applyOk(document, 'set_junction_transition', {
+    const { document: next } = applyOk(document, 'set_boundary_transition', {
       at_ms: 30_000,
       kind: 'wipe',
       duration_ms: 1_500,
@@ -542,11 +543,34 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     const transition = next.show.transitions?.find((candidate) => candidate.afterSceneId === 's1')
     expect(transition?.kind).toBe('wipe')
     expect(transition?.durationMs).toBe(1_500)
+    const all = openShowDocument(showBoundaryCommandFixture())
+    if (!all.ok) throw new Error('Boundary fixture')
+    for (const { kind, variant } of BOUNDARY_VARIANT_CASES) {
+      const base = structuredClone(all.document)
+      base.show.transitions[0].easing = { curve: 'sine', direction: 'in' }
+      const selected = applyOk(base, 'set_boundary_transition', { transition_id: 'transition-scene-1', kind, variant, duration_ms: 1500 }).document
+      applyOk(selected, 'set_boundary_transition', { transition_id: 'transition-scene-1', kind: 'cut' })
+    }
+    let swept = all.document
+    swept.show.transitions[0].propertyTransitions = { brightness: { durationMs: 500, easing: { curve: 'linear' }, fromByCellId: {} } }
+    for (const step of BOUNDARY_PARAMETER_CASES) {
+      swept = applyOk(swept, 'set_boundary_transition', { transition_id: 'transition-scene-1', kind: step.kind }).document
+      for (const [parameter, value] of step.sets) {
+        const args = { transition_id: 'transition-scene-1', parameter, value }
+        const parameterResult = applyShowGrammarOperation(swept, 'update_boundary_transition_parameter', args)
+        expect(parameterResult.ok).toBe(true)
+        if (!parameterResult.ok) throw new Error('Boundary parameter refused')
+        if (parameterResult.changes.length === 0) expect(parameterResult.document.show).toStrictEqual(swept.show)
+        else swept = applyOk(swept, 'update_boundary_transition_parameter', args).document
+        applyOk(swept, 'update_boundary_transition_parameter', { transition_id: 'transition-scene-1', parameter: 'durationMs', value: 0 })
+        applyOk(swept, 'set_boundary_transition', { transition_id: 'transition-scene-1', kind: 'cut' })
+      }
+    }
   },
-  set_junction_timing: () => {
+  set_boundary_transition_timing: () => {
     const document = fixture({ boundaryCrossfade: true })
     const first = clipAt(document, 0)
-    const { document: next } = applyOk(document, 'set_junction_timing', {
+    const { document: next } = applyOk(document, 'set_boundary_transition_timing', {
       after_clip_id: first.clipId,
       duration_ms: 2_500,
       easing: 'ease-in-out',
@@ -554,24 +578,49 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     const transition = next.show.transitions?.find((candidate) => candidate.afterSceneId === 's1')
     expect(transition?.durationMs).toBe(2_500)
     expect(transition?.easing).toEqual({ curve: 'quadratic', direction: 'in-out' })
+    const tracked = showBoundaryCommandFixture()
+    tracked.transitions[0].propertyTransitions = { brightness: { durationMs: 1500, easing: { curve: 'linear' }, fromByCellId: {} } }
+    const opened = openShowDocument(tracked)
+    if (!opened.ok) throw new Error('Boundary fixture')
+    applyOk(opened.document, 'set_boundary_transition_timing', { transition_id: 'transition-scene-1', duration_ms: 1000 })
   },
-  update_junction_parameter: () => {
+  update_boundary_transition_parameter: () => {
     const document = fixture({ boundaryCrossfade: true })
-    const { document: asWipe } = applyOk(document, 'set_junction_transition', {
+    const { document: asWipe } = applyOk(document, 'set_boundary_transition', {
       at_ms: 30_000,
       kind: 'wipe',
     })
-    const { document: next } = applyOk(asWipe, 'update_junction_parameter', {
+    const { document: next } = applyOk(asWipe, 'update_boundary_transition_parameter', {
       at_ms: 30_000,
       parameter: 'feather',
       value: 0.3,
     })
     const transition = next.show.transitions?.find((candidate) => candidate.afterSceneId === 's1')
     expect(transition && 'feather' in transition && transition.feather).toBe(0.3)
+    const opened = openShowDocument(showBoundaryCommandFixture())
+    if (!opened.ok) throw new Error('Boundary fixture')
+    for (const { kind, variant } of BOUNDARY_VARIANT_CASES) {
+      const selected = applyOk(opened.document, 'set_boundary_transition', { transition_id: 'transition-scene-1', kind, variant, duration_ms: 1500 }).document
+      applyOk(selected, 'update_boundary_transition_parameter', { transition_id: 'transition-scene-1', parameter: 'durationMs', value: 0 })
+    }
+    let swept = opened.document
+    for (const step of BOUNDARY_PARAMETER_CASES) {
+      swept = applyOk(swept, 'set_boundary_transition', { transition_id: 'transition-scene-1', kind: step.kind }).document
+      for (const [parameter, value] of step.sets) {
+        const args = { transition_id: 'transition-scene-1', parameter, value }
+        const result = applyShowGrammarOperation(swept, 'update_boundary_transition_parameter', args)
+        expect(result.ok).toBe(true)
+        if (!result.ok) throw new Error('Boundary parameter refused')
+        if (result.changes.length === 0) expect(result.document.show).toStrictEqual(swept.show)
+        else swept = applyOk(swept, 'update_boundary_transition_parameter', args).document
+        applyOk(swept, 'update_boundary_transition_parameter', { transition_id: 'transition-scene-1', parameter: 'durationMs', value: 0 })
+      }
+    }
+    applyOk(swept, 'update_boundary_transition_parameter', { transition_id: 'transition-scene-1', parameter: 'easing', value: 'sine-in' })
   },
-  set_junction_layout: () => {
+  set_boundary_layout: () => {
     const document = fixture({ boundaryCrossfade: true })
-    const { document: next } = applyOk(document, 'set_junction_layout', {
+    const { document: next } = applyOk(document, 'set_boundary_layout', {
       at_ms: 30_000,
       layout_id: 'l1',
     })

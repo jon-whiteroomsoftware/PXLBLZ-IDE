@@ -1,3 +1,7 @@
+import { updateShowBoundaryTransition } from '@/engine/showModel'
+import { showBoundaryTransitionParameterChanges, showTransitionChangesForPresentation } from '@/engine/showTransitionAuthoring'
+import type { ShowToolkitPresentationItem } from '@/engine/showVisualToolkitPresentation'
+import { showBoundaryCommandFixture, BOUNDARY_VARIANT_CASES } from '@/test/showBoundaryCommandFixture'
 import { moveShowClipExactly } from '@/engine/showExactClipMove'
 import { resizeShowClipManually } from '@/engine/showManualClipResize'
 import { editShowMarkerFromUI } from '@/engine/showExactTimelineMarker'
@@ -511,7 +515,7 @@ type ParityRow = {
   args: Record<string, unknown>
   fixture: () => ShowRecord
   canonical?: (show: ShowRecord, args: Record<string, unknown>) => ShowCommandOutcome
-  manualOwner?: (show: ShowRecord, args: Record<string, unknown>) => ShowRecord['composition']
+  manualOwner?: (show: ShowRecord, args: Record<string, unknown>) => ShowRecord | ShowRecord['composition']
   expectedFacts?: (before: ShowRecord, after: ShowRecord) => void
   followup?: (document: ShowGrammarDocument) => void
   refusals?: Record<string, unknown>[]
@@ -524,6 +528,21 @@ const clipOwner = (clipId: string) => clipId === 'clip-ov'
 // Shared seam: complete canonical/diagnostic/manual records, immutable input,
 // then the actual file importer. Rows retain their independent semantic facts.
 const PARITY_ROWS: ParityRow[] = [
+  ...BOUNDARY_VARIANT_CASES.map(({ kind, familyId, variant }): ParityRow => ({
+    command: 'set_boundary_transition', args: { transition_id: 'transition-scene-1', kind, variant, duration_ms: 1500 }, fixture: showBoundaryCommandFixture,
+    manualOwner: show => updateShowBoundaryTransition(show, 'transition-scene-1', { ...showTransitionChangesForPresentation({ kind: 'transition', familyId, variantId: variant, key: `transition:${familyId}:${variant}` } as ShowToolkitPresentationItem), durationMs: 1500 }),
+    expectedFacts: (before, after) => { expect(after.transitions[0]).toMatchObject({ id: 'transition-scene-1', afterSceneId: 'scene-1', kind, durationMs: 1500 }); expect(after.composition).toStrictEqual(before.composition) },
+  })),
+  {
+    command: 'set_boundary_transition_timing', args: { after_clip_id: 'clip-c', duration_ms: 1500, easing: 'ease-in' }, fixture: showBoundaryCommandFixture,
+    manualOwner: show => updateShowBoundaryTransition(show, 'transition-scene-1', { durationMs: 1500, easing: { curve: 'quadratic', direction: 'in' } }),
+  },
+  {
+    command: 'update_boundary_transition_parameter', args: { at_ms: 31000, parameter: 'easing', value: 'sine-in' }, fixture: showBoundaryCommandFixture,
+    manualOwner: show => updateShowBoundaryTransition(show, 'transition-scene-1', showBoundaryTransitionParameterChanges(show.transitions[0], { kind: 'transition', familyId: 'blend', variantId: 'crossfade', key: 'transition:blend:crossfade' } as ShowToolkitPresentationItem, 'easing', 'sine-in')!),
+  },
+  { command: 'set_boundary_layout', args: { transition_id: 'transition-scene-1', layout_id: 'layout-2' }, fixture: showBoundaryCommandFixture },
+
   ...[false, true].flatMap(reverse => [false, true].map((extend): ParityRow => ({
     command: 'add_clip',
     args: { zone_id: 'zone-1', start_ms: extend ? 62000.4 : 29000.4, duration_ms: 5000, overlay_layer_index: 0, pattern_kind: 'stock', pattern_id: 'CometLoom', extend_show: extend },
@@ -697,7 +716,11 @@ function assertParity(row: ParityRow, source: ShowRecord) {
   const expectedChanges = canonical.changes.map(({ command, ...change }) => ({ op: command, ...change }))
   expect(diagnostic.changes).toStrictEqual(expectedChanges)
   expect(JSON.parse(JSON.stringify(diagnostic.changes))).toStrictEqual(JSON.parse(JSON.stringify(expectedChanges)))
-  if (row.manualOwner) expect(row.manualOwner(document.show, row.args)).toStrictEqual(canonical.record.composition)
+  if (row.manualOwner) {
+    const manual = row.manualOwner(document.show, row.args)
+    if (manual && 'id' in manual) expect({ ...manual, updatedAt: canonical.record.updatedAt }).toStrictEqual(canonical.record)
+    else expect(manual).toStrictEqual(canonical.record.composition)
+  }
   row.expectedFacts?.(before.show, canonical.record)
   expect(document).toStrictEqual(before)
   for (const args of row.refusals ?? []) {
@@ -747,4 +770,153 @@ it.each([
   expect(typeof result.changes[0].targetId).toBe('string')
   expect(result.changes[0].targetId.length).toBeGreaterThan(0)
   expect(JSON.parse(JSON.stringify(result.changes))).toStrictEqual([{ op: command, ...expected }])
+})
+
+
+it('resolves Boundary selectors without merging Layer or cross-Zone junction identities', () => {
+  const show = showBoundaryCommandFixture()
+  const original = structuredClone(show)
+  const stable = applyShowCommand(show, 'set_boundary_transition_timing', { transition_id: 'transition-scene-1', duration_ms: 1500 })
+  expect(stable.ok).toBe(true)
+  for (const selector of [{ after_clip_id: 'clip-c' }, { at_ms: 31000 }]) {
+    const result = applyShowCommand(show, 'set_boundary_transition_timing', { ...selector, duration_ms: 1500 })
+    expect(result.ok, JSON.stringify(result)).toBe(true)
+    if (!stable.ok || !result.ok) throw new Error('Boundary selector')
+    expect({ ...result.record, updatedAt: stable.record.updatedAt }).toStrictEqual(stable.record)
+    expect(result.changes[0].targetId).toBe('transition-scene-1')
+  }
+  const ambiguous = structuredClone(show)
+  for (const scene of ambiguous.composition!.scenes) {
+    scene.zones[1].main = scene.zones[0].main.map(clip => ({ ...structuredClone(clip), id: `${clip.id}-other` }))
+  }
+  expect(applyShowCommand(ambiguous, 'set_boundary_transition_timing', { at_ms: 31000, duration_ms: 1500 })).toMatchObject({ ok: false, issues: [{ code: 'ambiguous-junction' }] })
+  expect(applyShowCommand(ambiguous, 'set_boundary_transition_timing', { transition_id: 'transition-scene-1', duration_ms: 1500 }).ok).toBe(true)
+  expect(applyShowCommand(show, 'set_boundary_transition_timing', { after_clip_id: 'clip-a', duration_ms: 1500 })).toMatchObject({ ok: false, issues: [{ code: 'missing-target' }] })
+  expect(applyShowCommand(show, 'set_boundary_transition_timing', { transition_id: 'transition-scene-1', at_ms: 31000, duration_ms: 1500 })).toMatchObject({ ok: false, issues: [{ code: 'invalid-argument' }] })
+  expect(show).toStrictEqual(original)
+})
+
+
+it('edits Boundary easing alone and jointly with duration without changing kind or unrelated parameters', () => {
+  const before = showBoundaryCommandFixture()
+  const eased = applyShowCommand(before, 'set_boundary_transition_timing', { after_clip_id: 'clip-c', easing: 'ease-in' })
+  expect(eased.ok, JSON.stringify(eased)).toBe(true)
+  if (!eased.ok) throw new Error('easing')
+  expect(eased.record.transitions![0]).toMatchObject({ id: 'transition-scene-1', kind: 'crossfade', durationMs: 2000, easing: { curve: 'quadratic', direction: 'in' } })
+  const noop = applyShowCommand(eased.record, 'set_boundary_transition_timing', { transition_id: 'transition-scene-1', easing: 'ease-in' })
+  expect(noop).toStrictEqual({ ok: true, record: eased.record, changes: [] })
+  const both = applyShowCommand(before, 'set_boundary_transition_timing', { at_ms: 31000, duration_ms: 1500.4, easing: { curve: 'sine', direction: 'out' } })
+  expect(both.ok).toBe(true)
+  if (!both.ok) throw new Error('both')
+  expect(both.record.transitions![0]).toMatchObject({ durationMs: 1500, easing: { curve: 'sine', direction: 'out' } })
+  for (const input of [{ easing: 'wrong' }, { easing: { curve: 'wrong' } }, { easing: null }, { duration_ms: -1 }, {}]) {
+    expect(applyShowCommand(before, 'set_boundary_transition_timing', { transition_id: 'transition-scene-1', ...input }).ok).toBe(false)
+  }
+})
+
+
+it('uses typed presentation conversion for Boundary parameters and validates before no-op', () => {
+  const before = showBoundaryCommandFixture()
+  const result = applyShowCommand(before, 'update_boundary_transition_parameter', { transition_id: 'transition-scene-1', parameter: 'easing', value: 'sine-in' })
+  expect(result.ok, JSON.stringify(result)).toBe(true)
+  if (!result.ok) throw new Error('parameter')
+  expect(result.record.transitions![0].easing).toStrictEqual({ curve: 'sine', direction: 'in' })
+  expect(applyShowCommand(result.record, 'update_boundary_transition_parameter', { transition_id: 'transition-scene-1', parameter: 'easing', value: 'sine-in' })).toStrictEqual({ ok: true, record: result.record, changes: [] })
+  for (const [parameter, value] of [['easing', 'invalid'], ['easing', 1], ['feather', true], ['unknown', 1]]) {
+    expect(applyShowCommand(before, 'update_boundary_transition_parameter', { transition_id: 'transition-scene-1', parameter, value }).ok).toBe(false)
+  }
+})
+
+
+it('sets, replaces and clears an agent-only Boundary Layout without rewriting visual state', () => {
+  const before = showBoundaryCommandFixture()
+  const original = structuredClone(before)
+  let record = before
+  for (const layout_id of ['layout-2', before.routingLayouts[0].id, null]) {
+    const result = applyShowCommand(record, 'set_boundary_layout', { after_clip_id: 'clip-c', layout_id })
+    expect(result.ok, JSON.stringify(result)).toBe(true)
+    if (!result.ok) throw new Error('layout')
+    expect(result.record.transitions.filter(transition => transition.kind !== 'routing')).toStrictEqual(before.transitions)
+    expect(result.record.routingLayouts).toStrictEqual(before.routingLayouts)
+    expect(result.record.transitions.find(transition => transition.kind === 'routing')?.layoutId ?? null).toBe(layout_id)
+    expect(applyShowCommand(result.record, 'set_boundary_layout', { transition_id: 'transition-scene-1', layout_id })).toStrictEqual({ ok: true, record: result.record, changes: [] })
+    record = result.record
+  }
+  expect(before).toStrictEqual(original)
+  expect(applyShowCommand(before, 'set_boundary_layout', { at_ms: 31000, layout_id: 'absent' })).toMatchObject({ ok: false, issues: [{ code: 'unknown-layout' }] })
+})
+
+it.each([
+  ['set_boundary_transition_timing', { duration_ms: 1500 }],
+  ['update_boundary_transition_parameter', { parameter: 'easing', value: 'sine-in' }],
+])('%s preserves unrelated raw entity fields', (command, args) => {
+  const before = showBoundaryCommandFixture()
+  before.cells[0].transform = undefined
+  const result = applyShowCommand(before, command as string, { transition_id: 'transition-scene-1', ...args as object })
+  expect(result.ok).toBe(true)
+  if (!result.ok) throw new Error('Boundary command')
+  expect(result.record.cells).toStrictEqual(before.cells)
+  expect(result.record.composition).toStrictEqual(before.composition)
+  expect(result.record.scenes).toStrictEqual(before.scenes)
+})
+
+it.each([
+  ['set_boundary_transition_timing', { duration_ms: 1500 }],
+  ['update_boundary_transition_parameter', { parameter: 'easing', value: 'linear' }],
+  ['set_boundary_layout', { layout_id: null }],
+])('%s preserves private batch atomicity beside a valid no-op', (command, args) => {
+  const store = createSessionStore()
+  const source = showBoundaryCommandFixture()
+  const original = structuredClone(source)
+  const opened = store.open(source)
+  if (!opened.ok) throw new Error('Boundary session')
+  const id = opened.sessionId
+  const before = store.export(id)
+  expect(store.begin(id, 'Boundary edit and no-op').ok).toBe(true)
+  expect(store.apply(id, 'set_boundary_transition_timing', { transition_id: 'transition-scene-1', duration_ms: 1500 }).ok).toBe(true)
+  expect(store.apply(id, command as string, { transition_id: 'transition-scene-1', ...args as object })).toMatchObject({ ok: true, changes: [] })
+  expect(store.export(id)).toStrictEqual(before)
+  expect(store.commit(id)).toMatchObject({ ok: true, changes: [{ op: 'set_boundary_transition_timing' }] })
+  const after = store.export(id)
+  if (!after.ok || !before.ok) throw new Error('Boundary export')
+  const expected = structuredClone(before.show)
+  expected.transitions[0].durationMs = 1500
+  expect(after.show).toStrictEqual({ ...expected, updatedAt: after.show.updatedAt })
+  expect(store.undo(id).ok).toBe(true)
+  expect(store.export(id)).toStrictEqual(before)
+  expect(store.undo(id).ok).toBe(false)
+  expect(store.redo(id).ok).toBe(true)
+  expect(store.export(id)).toStrictEqual(after)
+  expect(store.begin(id, 'Boundary refused batch').ok).toBe(true)
+  expect(store.apply(id, 'set_boundary_transition_timing', { transition_id: 'transition-scene-1', duration_ms: 1000 }).ok).toBe(true)
+  expect(store.apply(id, command as string, { transition_id: 'missing-boundary', ...args as object })).toMatchObject({ ok: false })
+  expect(store.rollback(id)).toMatchObject({ ok: true, discardedChanges: 1 })
+  expect(store.export(id)).toStrictEqual(after)
+  expect(source).toStrictEqual(original)
+})
+
+it('preserves same-kind Boundary settings unless a variant explicitly selects defaults', () => {
+  const before = showBoundaryCommandFixture()
+  before.transitions[0] = { id: 'transition-scene-1', afterSceneId: 'scene-1', kind: 'wipe', durationMs: 1500, easing: { curve: 'sine', direction: 'in' }, wipeVariant: 'linear', direction: 0.25, feather: 0.4, edgePolicy: 'blend' }
+  expect(applyShowCommand(before, 'set_boundary_transition', { transition_id: 'transition-scene-1', kind: 'wipe' })).toStrictEqual({ ok: true, record: before, changes: [] })
+  const retimed = applyShowCommand(before, 'set_boundary_transition', { transition_id: 'transition-scene-1', kind: 'wipe', duration_ms: 1200.4 })
+  expect(retimed.ok).toBe(true)
+  if (!retimed.ok) throw new Error('same-kind duration')
+  expect(retimed.record.transitions[0]).toStrictEqual({ ...before.transitions[0], durationMs: 1200 })
+  const reset = applyShowCommand(before, 'set_boundary_transition', { transition_id: 'transition-scene-1', kind: 'wipe', variant: 'linear' })
+  expect(reset.ok).toBe(true)
+  if (!reset.ok) throw new Error('explicit variant')
+  expect(reset.record.transitions[0]).toMatchObject({ kind: 'wipe', durationMs: 2000, easing: { curve: 'linear' }, wipeVariant: 'linear', direction: 0, feather: 0 })
+  expect(applyShowCommand(reset.record, 'set_boundary_transition', { transition_id: 'transition-scene-1', kind: 'wipe', variant: 'linear' })).toStrictEqual({ ok: true, record: reset.record, changes: [] })
+  expect(applyShowCommand(before, 'set_boundary_transition', { transition_id: 'transition-scene-1', kind: 'wipe', variant: 'missing' })).toMatchObject({ ok: false, issues: [{ code: 'invalid-argument' }] })
+})
+
+it('resets a Boundary to Cut without normalizing unrelated raw entities', () => {
+  const before = showBoundaryCommandFixture()
+  before.cells[0].transform = undefined
+  const result = applyShowCommand(before, 'set_boundary_transition', { transition_id: 'transition-scene-1', kind: 'cut' })
+  expect(result.ok).toBe(true)
+  if (!result.ok) throw new Error('Cut')
+  expect(result.record).toStrictEqual({ ...before, transitions: [{ id: 'transition-scene-1', afterSceneId: 'scene-1', kind: 'cut', durationMs: 0, easing: before.transitions[0].easing }], updatedAt: result.record.updatedAt })
+  expect(applyShowCommand(result.record, 'set_boundary_transition', { transition_id: 'transition-scene-1', kind: 'cut' })).toStrictEqual({ ok: true, record: result.record, changes: [] })
 })

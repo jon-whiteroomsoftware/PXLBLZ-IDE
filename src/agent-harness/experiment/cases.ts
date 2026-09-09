@@ -465,7 +465,7 @@ export const DICTATION_CASES: DictationCase[] = [
       ],
     },
     script: [
-      { tool: 'set_junction_transition', args: { at_ms: 30_000, kind: 'wipe', duration_ms: 2_000 } },
+      { tool: 'set_boundary_transition', args: { at_ms: 30_000, kind: 'wipe', duration_ms: 2_000 } },
       { say: 'The scene transition is now a 2 s wipe.', intent: 'apply' },
     ],
   },
@@ -480,7 +480,7 @@ export const DICTATION_CASES: DictationCase[] = [
       assertions: [{ kind: 'pointer-equals', pointer: '/transitions/0/durationMs', value: 3_000 }],
     },
     script: [
-      { tool: 'set_junction_timing', args: { at_ms: 30_000, duration_ms: 3_000, easing: 'ease-in-out' } },
+      { tool: 'set_boundary_transition_timing', args: { at_ms: 30_000, duration_ms: 3_000, easing: 'ease-in-out' } },
       { say: 'The scene transition now runs 3 s with ease-in-out.', intent: 'apply' },
     ],
   },
@@ -489,14 +489,14 @@ export const DICTATION_CASES: DictationCase[] = [
     family: 'junctions',
     referent: 'time',
     fixture: 'boundary-crossfade',
-    setup: [{ operation: 'set_junction_transition', args: { at_ms: 30_000, kind: 'wipe' } }],
+    setup: [{ operation: 'set_boundary_transition', args: { at_ms: 30_000, kind: 'wipe' } }],
     utterance: "Soften the wipe's edge — feather 0.4.",
     expect: {
       outcome: 'edit',
       assertions: [{ kind: 'pointer-equals', pointer: '/transitions/0/feather', value: 0.4 }],
     },
     script: [
-      { tool: 'update_junction_parameter', args: { at_ms: 30_000, parameter: 'feather', value: 0.4 } },
+      { tool: 'update_boundary_transition_parameter', args: { at_ms: 30_000, parameter: 'feather', value: 0.4 } },
       { say: "The wipe's feather is 0.4 now.", intent: 'apply' },
     ],
   },

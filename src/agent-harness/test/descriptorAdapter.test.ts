@@ -10,6 +10,7 @@ it.each<[ShowCommandField, unknown[], unknown[]]>([
   [{ kind: 'integer', description: 'integer' }, [1, 2 ** 54], [1.5, Infinity]],
   [{ kind: 'integer', safeInteger: true, description: 'safe' }, [Number.MAX_SAFE_INTEGER], [2 ** 54, 1.5]],
   [{ kind: 'boolean', description: 'flag' }, [true, false], [0, 'true']],
+  [{ kind: 'easing', description: 'curve' }, ['ease-in', { curve: 'sine', direction: 'out' }], ['wrong', { curve: 'wrong' }, { curve: 'steps', steps: Infinity }, null]],
   [{ kind: 'json', description: 'data' }, [{ a: 1 }, [], 1, 'a'], [null]],
   [{ kind: 'layer', description: 'Layer' }, ['main', 0, 3], [-1, 0.5, '0', 2 ** 54]],
   [{ kind: 'string', nullable: true, optional: true, description: 'optional' }, [undefined, null, 'a'], [1]],

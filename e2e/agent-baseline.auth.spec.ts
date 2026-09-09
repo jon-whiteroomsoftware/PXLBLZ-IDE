@@ -1,3 +1,4 @@
+import { showBoundaryCommandFixture } from '../src/test/showBoundaryCommandFixture'
 // Agent-editing baseline on the live editor (#945): known-outcome
 // reproductions, not product acceptance. Every sequence drives the real
 // Show editor route in Chromium, injects the real chat overlay served by a
@@ -1674,6 +1675,31 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     staleCommand?: { command: string; args: Record<string, unknown> }
     toolbarSplit?: { atMs: number; clipId: string | null; accepted: boolean }
   }> = [
+    {
+      id: 'BT952', command: 'set_boundary_transition', args: { transition_id: 'transition-scene-1', kind: 'fade-color', variant: 'through-color', duration_ms: 1500 },
+      utterance: 'make the Boundary fade through black over fifteen hundred milliseconds',
+      fixture: () => { const record = showBoundaryCommandFixture(); record.id = `boundary-kind-952-${Date.now().toString(36)}`; return record },
+      expectedFacts: before => { const expected = structuredClone(before); expected.transitions[0] = { id: 'transition-scene-1', afterSceneId: 'scene-1', kind: 'fade-color', durationMs: 1500, easing: { curve: 'linear' }, color: '#000000' }; return expected },
+    },
+    {
+      id: 'BTT952', command: 'set_boundary_transition_timing', args: { transition_id: 'transition-scene-1', duration_ms: 1500, easing: 'ease-in' },
+      utterance: 'set the Boundary to fifteen hundred milliseconds with ease in',
+      fixture: () => { const record = showBoundaryCommandFixture(); record.id = `boundary-timing-952-${Date.now().toString(36)}`; return record },
+      expectedFacts: before => { const expected = structuredClone(before); expected.transitions[0].durationMs = 1500; expected.transitions[0].easing = { curve: 'quadratic', direction: 'in' }; return expected },
+    },
+    {
+      id: 'BTP952', command: 'update_boundary_transition_parameter', args: { transition_id: 'transition-scene-1', parameter: 'easing', value: 'sine-in' },
+      utterance: 'set the Boundary easing parameter to sine in',
+      fixture: () => { const record = showBoundaryCommandFixture(); record.id = `boundary-parameter-952-${Date.now().toString(36)}`; return record },
+      expectedFacts: before => { const expected = structuredClone(before); expected.transitions[0].easing = { curve: 'sine', direction: 'in' }; return expected },
+    },
+    {
+      id: 'BL952', command: 'set_boundary_layout', args: { transition_id: 'transition-scene-1', layout_id: 'layout-2' },
+      utterance: 'switch to the second Layout at the Boundary',
+      fixture: () => { const record = showBoundaryCommandFixture(); record.id = `boundary-layout-952-${Date.now().toString(36)}`; return record },
+      expectedFacts: before => { const expected = structuredClone(before); expected.transitions.push({ id: 'routing-scene-1', afterSceneId: 'scene-1', kind: 'routing', durationMs: 0, easing: { curve: 'linear' }, layoutId: 'layout-2' }); return expected },
+    },
+
     {
       id: 'AC951',
       command: 'add_clip',

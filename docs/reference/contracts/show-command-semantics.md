@@ -383,6 +383,44 @@ cover full records, linkage, refusal and copy-then-edit/move. The `DC951` browse
 case covers one adoption/save, actual export/import, Undo and stale/duplicate
 response handling; it does not qualify paid inference or new concurrency scope.
 
+## Boundary command family (#952)
+
+`set_boundary_transition`, `set_boundary_transition_timing`,
+`update_boundary_transition_parameter` and `set_boundary_layout` share one
+resolver and the generic descriptor adapter. Each request supplies exactly one
+stable `transition_id`, `at_ms`, or `after_clip_id`. A stable ID addresses the
+shared Scene Boundary identity across Zones. Time or preceding-Clip references
+must resolve one projected junction; multiple Zone/Layer matches refuse instead
+of selecting the first. Within-Scene Layer junctions remain separate targets.
+
+A same-kind setter request preserves custom settings, including easing; an
+explicit `variant` selects the existing presentation defaults, with an optional
+rounded duration override. Direct kind changes retain the existing normalizer's
+kind defaults and authored crossfade policy. Cut resets visual parameters and
+property ramps while retaining Boundary identity and easing. A direct non-Cut
+kind request from Cut requires positive duration; an explicit variant can supply
+its duration default. Timing accepts duration, easing, or both; zero/negative
+durations refuse and easing can be a supported preset or validated structured
+curve. Parameter edits retain the finite persisted variant fields and typed
+presentation conversion, including duration, geometry, color and easing. Existing
+owner clamping remains in effect; no arbitrary property assignment is exposed.
+
+The three visual commands delegate to the existing Boundary owner. It now
+normalizes only the targeted transition, preserving unrelated raw entities and
+sibling order. `set_boundary_layout` is an agent-only exact routing-owner setter:
+set, replace, or clear a switch with an existing Layout ID or null. It preserves
+visual Boundary state and Layout definitions. Valid already-satisfied requests
+return the original record with no changes; invalid requests still refuse before
+no-op handling. Old diagnostic junction spellings have no duplicate definitions.
+
+[Shared parity cases](../../../src/agent-harness/test/commandParity.test.ts)
+cover every existing visual kind/variant, actual manual delegates, file reopen,
+selector ambiguity, raw preservation, and private no-op/refused transactions.
+The four `BT952`/`BTT952`/`BTP952`/`BL952`
+[admission rows](../../../e2e/agent-baseline.auth.spec.ts) cover the real scripted
+bridge, one adoption/save, full-record export/reopen, Undo and stale/duplicate
+responses. They qualify deterministic tool execution, not paid model inference.
+
 ## Descriptor adapters and parity
 
 The [descriptor adapter](../../../src/agent-harness/grammar/operations/descriptorAdapter.ts) derives diagnostic fields, validation, descriptions, touches and outcome translation. Family registration retains existing identity factories; the private move wrapper and historical diagnostic resize spelling keep their existing scope.

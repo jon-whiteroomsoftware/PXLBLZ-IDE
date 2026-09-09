@@ -26,6 +26,27 @@ export const BASELINE_FIXTURE_RESIZE: BaselineUtterance = {
 
 export const BASELINE_UTTERANCES: BaselineUtterance[] = [
   {
+    utterance: 'make the Boundary fade through black over fifteen hundred milliseconds',
+    intent: '#952: explicit Boundary variant adopts once.',
+    script: [{ tool: 'set_boundary_transition', args: { transition_id: 'transition-scene-1', kind: 'fade-color', variant: 'through-color', duration_ms: 1500, finish_turn_reply: { intent: 'apply', reply: 'Selected the Boundary fade.' } } }],
+  },
+  {
+    utterance: 'set the Boundary to fifteen hundred milliseconds with ease in',
+    intent: '#952: Boundary timing adopts once.',
+    script: [{ tool: 'set_boundary_transition_timing', args: { transition_id: 'transition-scene-1', duration_ms: 1500, easing: 'ease-in', finish_turn_reply: { intent: 'apply', reply: 'Updated Boundary timing.' } } }],
+  },
+  {
+    utterance: 'set the Boundary easing parameter to sine in',
+    intent: '#952: typed Boundary presentation parameter adopts once.',
+    script: [{ tool: 'update_boundary_transition_parameter', args: { transition_id: 'transition-scene-1', parameter: 'easing', value: 'sine-in', finish_turn_reply: { intent: 'apply', reply: 'Updated Boundary easing.' } } }],
+  },
+  {
+    utterance: 'switch to the second Layout at the Boundary',
+    intent: '#952: agent-only Boundary Layout setter adopts once.',
+    script: [{ tool: 'set_boundary_layout', args: { transition_id: 'transition-scene-1', layout_id: 'layout-2', finish_turn_reply: { intent: 'apply', reply: 'Changed the Boundary Layout.' } } }],
+  },
+
+  {
     utterance: 'swap the two plain Clips through a private overlap',
     intent: '#949: one retained pair overlaps privately, then resolves before one complete candidate.',
     script: [

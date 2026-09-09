@@ -1,3 +1,4 @@
+import { validateShowEasing } from '@/engine/showEasing'
 import { z, type ZodTypeAny } from 'zod'
 import { validateShowCommandInput, type ShowCommandDescriptor, type ShowCommandField, type ShowCommandOutcome } from '@/engine/showCommands/registry'
 import type { ShowGrammarOperation } from '../registry.js'
@@ -10,6 +11,7 @@ function fieldSchema(field: ShowCommandField): ZodTypeAny {
     case 'number': schema = z.number().finite(); break
     case 'integer': schema = field.safeInteger ? z.number().int().safe() : z.number().int(); break
     case 'boolean': schema = z.boolean(); break
+    case 'easing': schema = z.union([z.enum(['linear', 'ease-in', 'ease-out', 'ease-in-out']), z.record(z.unknown()).refine(value => validateShowEasing(value).valid)]); break
     case 'json': schema = z.unknown().refine(value => value !== null && value !== undefined); break
     case 'layer': schema = z.union([z.literal('main'), z.number().int().safe().min(0)]); break
   }

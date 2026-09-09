@@ -679,16 +679,16 @@ and the diff reviewed.
 | `/scenes/*/durationMs` | set_show_end |
 | `/stageMapId` | set_output_contract |
 | `/targetControllerProfileId` | set_target_controller_profile |
-| `/transitions/*/addressPolicy` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut |
-| `/transitions/*/anchorX` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut |
-| `/transitions/*/anchorY` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/addressPolicy` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/anchorX` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/anchorY` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/aspect` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/blockSize` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/centerX` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/centerY` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/clockwise` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/color` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
-| `/transitions/*/contentScale` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/contentScale` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/cornerRadius` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/count` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/crescentOffset` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
@@ -696,16 +696,16 @@ and the diff reviewed.
 | `/transitions/*/crossfadePolicy` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/direction` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/dissolveVariant` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
-| `/transitions/*/durationMs` | set_boundary_transition, set_boundary_transition_timing, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/durationMs` | set_boundary_transition, set_boundary_transition_timing, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/edgePolicy` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/feather` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/featherPolicy` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
-| `/transitions/*/kind` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/kind` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/motionVariant` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/orientation` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/phase` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/polygonSides` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
-| `/transitions/*/revealMode` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/revealMode` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/ringWidth` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/rotation` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/scale` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
@@ -713,7 +713,7 @@ and the diff reviewed.
 | `/transitions/*/shape` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/softness` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/spin` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
-| `/transitions/*/spinDirection` | set_boundary_transition, resize_layer_transition, reset_layer_transition_to_cut |
+| `/transitions/*/spinDirection` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/starInner` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/starPoints` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |
 | `/transitions/*/wipeMode` | set_boundary_transition, update_boundary_transition_parameter, resize_layer_transition, reset_layer_transition_to_cut |

@@ -1,3 +1,4 @@
+import { showBoundaryCommandFixture, BOUNDARY_PARAMETER_CASES, withAllTransitionFields } from '@/test/showBoundaryCommandFixture'
 import { showSplitClipFixture } from '../../test/showSplitClipFixture'
 import { describe, expect, it } from 'vitest'
 import {
@@ -78,27 +79,6 @@ function summaryClips(record: ShowRecord) {
  * a single removal golden exercises every declared leaf - kind-accurate
  * combinations are covered by the kind and parameter sweeps.
  */
-const ALL_TRANSITION_FIELDS: Record<string, unknown> = {
-  crossfadePolicy: 'snapshot-live', feather: 0.4, color: '#ff8800',
-  dissolveVariant: 'block', shape: 'star', motionVariant: 'push', featherPolicy: 'blend',
-  centerX: 0.4, centerY: 0.6, aspect: 1.2, rotation: 0.1, revealMode: 'grow-incoming',
-  anchorX: 0.3, anchorY: 0.7, contentScale: 1.1, spinDirection: 'clockwise',
-  addressPolicy: 'wrap', starPoints: 6, starInner: 0.4, wipeVariant: 'blinds',
-  wipeMode: 'center-in', orientation: 'vertical', count: 4, phase: 0.2, clockwise: false,
-  edgePolicy: 'blend', seed: 9, blockSize: 12, scale: 5, softness: 0.25, direction: 0.3,
-  ringWidth: 0.15, cornerRadius: 0.2, crossWidth: 0.3, crescentOffset: 0.4, polygonSides: 7,
-  spin: 0.5,
-  propertyTransitions: { brightness: { durationMs: 500, easing: { curve: 'linear' } } },
-}
-
-function withAllTransitionFields(record: ShowRecord): ShowRecord {
-  return {
-    ...record,
-    transitions: record.transitions?.map((candidate) => candidate.id === 'transition-scene-1'
-      ? { ...candidate, ...ALL_TRANSITION_FIELDS }
-      : candidate),
-  } as ShowRecord
-}
 
 function boundaryPinnedChain(): { record: ShowRecord; transitionId: string } {
   const adjacent = applyOk(showCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 14_000 })
@@ -521,6 +501,10 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(record.composition?.markers ?? []).toEqual([])
   },
   set_boundary_transition: () => {
+    const custom = showCommandFixture()
+    custom.transitions[0].easing = { curve: 'sine', direction: 'in' }
+    const explicit = applyOk(custom, 'set_boundary_transition', { transition_id: 'transition-scene-1', kind: 'wipe', variant: 'linear' })
+    expect(explicit.record.transitions[0].easing).toStrictEqual({ curve: 'linear' })
     const { record } = applyOk(showCommandFixture(), 'set_boundary_transition', {
       transition_id: 'transition-scene-1',
       kind: 'wipe',
@@ -628,6 +612,8 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(stored && 'propertyTransitions' in stored
       && (stored.propertyTransitions as { brightness?: { durationMs: number } }).brightness?.durationMs)
       .toBe(1_000)
+    const eased = applyOk(record, 'set_boundary_transition_timing', { transition_id: 'transition-scene-1', easing: 'ease-in' })
+    expect(eased.record.transitions[0].easing).toStrictEqual({ curve: 'quadratic', direction: 'in' })
   },
   update_boundary_transition_parameter: () => {
     const wipe = applyOk(showCommandFixture(), 'set_boundary_transition', {
@@ -643,14 +629,11 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(transition && 'feather' in transition && transition.feather).toBe(0.4)
 
     // A representative parameter per kind stores through the same command.
-    const sweep: Array<{ kind: string; sets: Array<[string, unknown]> }> = [
-      { kind: 'wipe', sets: [['direction', 0.25], ['wipeVariant', 'blinds'], ['count', 5], ['phase', 0.25], ['edgePolicy', 'blend'], ['orientation', 'vertical'], ['wipeVariant', 'split'], ['wipeMode', 'center-in'], ['wipeVariant', 'clock'], ['clockwise', false]] },
-      { kind: 'fade-color', sets: [['color', '#ff8800']] },
-      { kind: 'dither', sets: [['dissolveVariant', 'soft-threshold'], ['softness', 0.3], ['scale', 4], ['dissolveVariant', 'block'], ['seed', 7], ['blockSize', 12]] },
-      { kind: 'portal', sets: [['shape', 'ring'], ['shape', 'rounded-box'], ['shape', 'cross'], ['shape', 'crescent'], ['shape', 'polygon'], ['shape', 'diamond'], ['shape', 'star'], ['featherPolicy', 'blend']] },
-      { kind: 'motion', sets: [['motionVariant', 'push'], ['motionVariant', 'zoom-in']] },
-      { kind: 'crossfade', sets: [['crossfadePolicy', 'live-live']] },
-    ]
+    const reset = applyOk(withAllTransitionFields(showCommandFixture()), 'update_boundary_transition_parameter', { transition_id: 'transition-scene-1', parameter: 'durationMs', value: 0 })
+    expect(reset.record.transitions[0].kind).toBe('cut')
+    const sweep = BOUNDARY_PARAMETER_CASES
+    const eased = applyOk(showCommandFixture(), 'update_boundary_transition_parameter', { transition_id: 'transition-scene-1', parameter: 'easing', value: 'sine-in' })
+    expect(eased.record.transitions[0].easing).toStrictEqual({ curve: 'sine', direction: 'in' })
     let swept = showCommandFixture()
     for (const step of sweep) {
       swept = applyOk(swept, 'set_boundary_transition', {
@@ -673,6 +656,12 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
         }
       }
     }
+  },
+  set_boundary_layout: () => {
+    const changed = applyOk(showBoundaryCommandFixture(), 'set_boundary_layout', { after_clip_id: 'clip-c', layout_id: 'layout-2' })
+    expect(changed.record.transitions.find(item => item.kind === 'routing')?.layoutId).toBe('layout-2')
+    const cleared = applyOk(changed.record, 'set_boundary_layout', { transition_id: 'transition-scene-1', layout_id: null })
+    expect(cleared.record.transitions.some(item => item.kind === 'routing')).toBe(false)
   },
   insert_layer_transition: () => {
     const adjacent = applyOk(trackedCommandFixture(), 'move_clip', { clip_id: 'clip-b', start_ms: 10_000 })
@@ -1042,12 +1031,7 @@ describe('Show command refusal partitions (#885)', () => {
       { transition_id: 'transition-scene-1', duration_ms: 0 },
       'invalid-duration',
     )
-    applyRefused(
-      showCommandFixture(),
-      'set_boundary_transition_timing',
-      { transition_id: 'transition-scene-1', duration_ms: 2_000 },
-      'no-change',
-    )
+    { const before = showCommandFixture(); expect(applyShowCommand(before, 'set_boundary_transition_timing', { transition_id: 'transition-scene-1', duration_ms: 2_000 })).toStrictEqual({ ok: true, record: before, changes: [] }) }
     applyRefused(
       showCommandFixture(),
       'update_boundary_transition_parameter',
@@ -1096,20 +1080,10 @@ describe('Show command refusal partitions (#885)', () => {
     )
     // An applicable parameter already at the requested value is a no-change,
     // not an inapplicable parameter.
-    applyRefused(
-      showCommandFixture(),
-      'update_boundary_transition_parameter',
-      { transition_id: 'transition-scene-1', parameter: 'crossfadePolicy', value: 'snapshot-live' },
-      'no-change',
-    )
+    { const before = showCommandFixture(); expect(applyShowCommand(before, 'update_boundary_transition_parameter', { transition_id: 'transition-scene-1', parameter: 'crossfadePolicy', value: 'snapshot-live' })).toStrictEqual({ ok: true, record: before, changes: [] }) }
     // So is re-selecting the current kind, and a request normalization
     // clamps back to the current value.
-    applyRefused(
-      showCommandFixture(),
-      'set_boundary_transition',
-      { transition_id: 'transition-scene-1', kind: 'crossfade' },
-      'no-change',
-    )
+    { const before = showCommandFixture(); expect(applyShowCommand(before, 'set_boundary_transition', { transition_id: 'transition-scene-1', kind: 'crossfade' })).toStrictEqual({ ok: true, record: before, changes: [] }) }
     const wiped = applyOk(showCommandFixture(), 'set_boundary_transition', {
       transition_id: 'transition-scene-1',
       kind: 'wipe',
@@ -1119,12 +1093,7 @@ describe('Show command refusal partitions (#885)', () => {
       parameter: 'feather',
       value: 1,
     })
-    applyRefused(
-      feathered.record,
-      'update_boundary_transition_parameter',
-      { transition_id: 'transition-scene-1', parameter: 'feather', value: 2 },
-      'no-change',
-    )
+    { const before = feathered.record; expect(applyShowCommand(before, 'update_boundary_transition_parameter', { transition_id: 'transition-scene-1', parameter: 'feather', value: 2 })).toStrictEqual({ ok: true, record: before, changes: [] }) }
   })
 
   it('layer transition commands refuse unknown ids, non-touching clips, and excessive durations', () => {
@@ -1454,6 +1423,10 @@ function permittedEntityIds({ command, input, changes, before }: AppliedRecord):
     for (const key of ['leftClipId', 'rightClipId', 'newInstanceId', 'instanceId', 'intervalId']) add(change.details?.[key])
     for (const key of ['movedClipIds', 'changedClipIds']) for (const id of (change.details?.[key] as string[] | undefined) ?? []) add(id)
     for (const item of (change.details?.transitionChanges as { transitionId: string }[] | undefined) ?? []) add(item.transitionId)
+  }
+  if (command === 'set_boundary_layout') {
+    const afterSceneId = changes[0]?.details?.afterSceneId
+    for (const transition of before.transitions) if (transition.kind === 'routing' && transition.afterSceneId === afterSceneId) add(transition.id)
   }
   const composition = before.composition!
   const placements = composition.scenes.flatMap(scene => scene.zones.flatMap(zone => [

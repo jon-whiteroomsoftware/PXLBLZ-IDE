@@ -1,3 +1,4 @@
+import { validateShowEasing } from '../showEasing'
 // The Show command registry: one typed data table over the pure Show
 // mutations. Each entry carries a stable name, a one-paragraph description,
 // an input schema, the ShowRecord JSON-pointer patterns it may write, and an
@@ -41,7 +42,7 @@ export type ShowCommandOutcome =
 
 /** Dependency-free input schema: enough for palettes and validation. */
 export interface ShowCommandField {
-  kind: 'string' | 'number' | 'integer' | 'boolean' | 'json' | 'layer'
+  kind: 'string' | 'number' | 'integer' | 'boolean' | 'json' | 'layer' | 'easing'
   description: string
   optional?: boolean
   /** For string fields limited to a closed set. */
@@ -113,6 +114,8 @@ function fieldTypeMatches(field: ShowCommandField, value: unknown): boolean {
       return typeof value === 'boolean'
     case 'layer':
       return value === 'main' || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0)
+    case 'easing':
+      return typeof value === 'string' ? ['linear', 'ease-in', 'ease-out', 'ease-in-out'].includes(value) : validateShowEasing(value).valid
     case 'json':
       return true
   }

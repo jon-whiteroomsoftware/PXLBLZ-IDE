@@ -1758,23 +1758,13 @@ export function removeShowRoutingLayout(show: ShowRecord, layoutId: string): Sho
 }
 
 export function updateShowRoutingSwitch(show: ShowRecord, afterSceneId: string, layoutId: string | null): ShowRecord {
-  const normalized = normalizeShowTransitionState(normalizeShowRoutingState(show))
-  if (!normalized.scenes.slice(0, -1).some((scene) => scene.id === afterSceneId)) return show
-  if (layoutId !== null && !normalized.routingLayouts.some((layout) => layout.id === layoutId)) return show
-  const transitions = (normalized.transitions ?? []).filter((transition) => (
-    transition.kind !== 'routing' || transition.afterSceneId !== afterSceneId
-  ))
-  if (layoutId !== null) {
-    transitions.push({
-      id: `routing-${afterSceneId}`,
-      afterSceneId,
-      kind: 'routing',
-      durationMs: 0,
-      easing: { curve: 'linear' },
-      layoutId,
-    })
-  }
-  return normalizeShowTransitionState({ ...normalized, transitions, updatedAt: Date.now() })
+  if (!show.scenes.slice(0, -1).some(scene => scene.id === afterSceneId)) return show
+  if (layoutId !== null && !show.routingLayouts.some(layout => layout.id === layoutId)) return show
+  const transitions = show.transitions.filter(transition => transition.kind !== 'routing' || transition.afterSceneId !== afterSceneId)
+  if (layoutId !== null) transitions.push({
+    id: `routing-${afterSceneId}`, afterSceneId, kind: 'routing', durationMs: 0, easing: { curve: 'linear' }, layoutId,
+  })
+  return { ...show, transitions, updatedAt: Date.now() }
 }
 
 export function updateShowTransition(
@@ -1847,33 +1837,27 @@ export function updateShowBoundaryTransition(
   transitionId: string,
   changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>,
 ): ShowRecord {
-  const normalized = normalizeShowTransitionState(show)
-  const current = normalized.transitions?.find((transition) => transition.id === transitionId)
+  const current = normalizeShowTransitionState(show).transitions.find(transition => transition.id === transitionId)
   if (!current) return show
   const next = normalizeBoundaryTransition({ ...current, ...changes, id: current.id, afterSceneId: current.afterSceneId })
-  return normalizeShowTransitionState({
-    ...normalized,
-    transitions: normalized.transitions?.map((transition) => transition.id === transitionId ? next : transition),
+  const exists = show.transitions.some(transition => transition.id === transitionId)
+  return {
+    ...show,
+    transitions: exists ? show.transitions.map(transition => transition.id === transitionId ? next : transition) : [...show.transitions, next],
     updatedAt: Date.now(),
-  })
+  }
 }
 
 export function removeShowBoundaryTransition(show: ShowRecord, transitionId: string): ShowRecord {
-  const normalized = normalizeShowTransitionState(show)
-  const current = normalized.transitions?.find((transition) => transition.id === transitionId)
+  const current = normalizeShowTransitionState(show).transitions.find(transition => transition.id === transitionId)
   if (!current) return show
+  const cut = { id: current.id, afterSceneId: current.afterSceneId, kind: 'cut' as const, durationMs: 0, easing: current.easing }
   const transitions = current.kind === 'routing'
-    ? normalized.transitions?.filter((transition) => transition.id !== transitionId)
-    : normalized.transitions?.map((transition) => transition.id === transitionId
-      ? {
-          id: transition.id,
-          afterSceneId: transition.afterSceneId,
-          kind: 'cut' as const,
-          durationMs: 0,
-          easing: transition.easing,
-        }
-      : transition)
-  return normalizeShowTransitionState({ ...normalized, transitions, updatedAt: Date.now() })
+    ? show.transitions.filter(transition => transition.id !== transitionId)
+    : show.transitions.some(transition => transition.id === transitionId)
+      ? show.transitions.map(transition => transition.id === transitionId ? cut : transition)
+      : [...show.transitions, cut]
+  return { ...show, transitions, updatedAt: Date.now() }
 }
 
 export function showRecordToCompileRecipe(
