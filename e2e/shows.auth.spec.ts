@@ -4,6 +4,7 @@ import type { Locator, Page } from '@playwright/test'
 import { readFile, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { squareWorkspaceShow } from './fixtures/showWorkspace'
+import { showRemoveClipFixture } from '../src/test/showRemoveClipFixture'
 
 test.describe('authenticated Show authoring', () => {
   test('confirms a lesson Pattern swap that removes a control animation (#828)', async ({ page }) => {
@@ -2787,6 +2788,53 @@ test.describe('authenticated Show authoring', () => {
     await expect.poll(async () => (await showStageCanvasStats(page)).maxChannel).toBeGreaterThan(0)
     await resizePaused()
   })
+
+  for (const width of [1440, 640]) {
+    test(`keeps connected-delete confirmation above the inspector at ${width}px (#993)`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      const record = showRemoveClipFixture()
+      record.id = `dialog-993-${width}-${Date.now().toString(36)}`
+      expect((await page.request.post('/api/shows', { data: record })).ok()).toBe(true)
+      await page.goto(`studio/shows/${record.id}`)
+      const clip = page.locator('[data-show-selection-key="clip:clip-b"]')
+      await clip.click()
+      const inspector = page.getByTestId('show-entity-detail-panel')
+      await expect(inspector).toBeVisible()
+      const priorOwner = await inspector.getAttribute('data-owner-key')
+      const priorContent = await inspector.textContent()
+      const before = (await listShows(page)).find(show => show.id === record.id)
+      await inspector.getByRole('button', { name: /^Delete clip / }).click()
+      const dialog = page.getByRole('alertdialog', { name: 'Remove connected Clip?' })
+      await expect(dialog).toBeVisible()
+      await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused()
+      await dialog.getByRole('button', { name: 'Cancel' }).click({ trial: true })
+      await dialog.getByRole('button', { name: 'Remove Clip and Transition' }).click({ trial: true })
+      expect(await dialog.evaluate((element) => {
+        const rect = element.getBoundingClientRect()
+        return {
+          withinViewport: rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight,
+          paintedPoints: [[rect.left + 12, rect.top + 12], [rect.right - 12, rect.bottom - 12], [rect.left + rect.width / 2, rect.top + rect.height / 2]]
+            .map(([x, y]) => element.contains(document.elementFromPoint(x, y))),
+        }
+      })).toEqual({ withinViewport: true, paintedPoints: [true, true, true] })
+      await page.keyboard.press('Tab')
+      await expect(dialog.getByRole('button', { name: 'Remove Clip and Transition' })).toBeFocused()
+      await page.keyboard.press('Shift+Tab')
+      await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused()
+      await page.keyboard.press('Enter')
+      await expect(dialog).toBeHidden()
+      await expect(inspector).toBeVisible()
+      await expect(inspector).toHaveAttribute('data-owner-key', priorOwner!)
+      expect(await inspector.textContent()).toBe(priorContent)
+      expect((await listShows(page)).find(show => show.id === record.id)).toEqual(before)
+      await inspector.getByRole('button', { name: /^Delete clip / }).click()
+      await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused()
+      await page.keyboard.press('Tab')
+      await page.keyboard.press('Enter')
+      await expect(dialog).toBeHidden()
+      await expect(clip).toHaveCount(0)
+    })
+  }
 })
 
 type PersistedShow = {
@@ -2941,18 +2989,6 @@ async function addEffect(page: Page, stack: Locator, query: string, label: strin
   await palette.getByRole('searchbox', { name: 'Search Effects' }).fill(query)
   await palette.getByRole('button', { name: `Add ${label} Effect` }).click()
   await expect(palette).toHaveCount(0)
-}
-
-// The rail toggle and map control render only after the Show editor loads,
-// which can lag a goto or reload under full-suite parallel load. The bare
-// count() checks below decide whether a step is needed; without first waiting
-// for whichever control currently applies, they race that render and silently
-// skip the step (#683).
-async function awaitZoneRailControls(page: Page): Promise<void> {
-  const openZones = page.getByRole('button', { name: 'Open Zones' })
-  const openMap = page.getByRole('button', { name: 'Open Zone Map' })
-  const zoneMap = page.getByRole('dialog', { name: 'Zone Map' })
-  await expect(openZones.or(openMap).or(zoneMap).first()).toBeVisible()
 }
 
 async function openZoneLayout(page: Page, layoutName: string): Promise<void> {

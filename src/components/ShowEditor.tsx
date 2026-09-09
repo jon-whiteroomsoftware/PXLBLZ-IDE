@@ -3205,7 +3205,7 @@ export function ShowEditor({
             />
           )}
           <AlertDialogRoot open={compositionClipPendingDelete !== null} onOpenChange={(open) => { if (!open) setCompositionClipPendingDelete(null) }}>
-            <AlertDialogContent>
+            <AlertDialogContent className="z-[90]">
               <AlertDialogTitle>Remove connected Clip?</AlertDialogTitle>
               <AlertDialogDescription>
                 Removing this Clip also removes {pendingConnectedTransitions.length === 1
