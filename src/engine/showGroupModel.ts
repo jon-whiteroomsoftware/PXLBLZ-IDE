@@ -523,6 +523,19 @@ export function materializeShowGroupOccurrences(composition: ShowCompositionV1):
   return draft
 }
 
+/** Realize only the target Zone's implicit Layer shells, retaining Group authorship. */
+export function materializeShowGroupLayerShells(composition: ShowCompositionV1, zoneId: string): ShowCompositionV1 {
+  const draft = cloneJson(composition)
+  const definitions = new Map((draft.groupDefinitions ?? []).map(definition => [definition.id, definition]))
+  for (const occurrence of draft.groupOccurrences ?? []) {
+    if (occurrence.zoneId !== zoneId) continue
+    const definition = definitions.get(occurrence.definitionId)
+    const zone = draft.scenes.find(scene => scene.sceneId === occurrence.sceneId)?.zones.find(zone => zone.zoneId === zoneId)
+    if (definition && zone) ensureGroupOverlayLayers(zone, definition, occurrence)
+  }
+  return draft
+}
+
 /** Runtime Pattern identities are occurrence-local even when choreography is linked. */
 export function projectShowGroupRuntimePatternInstances(
   composition: ShowCompositionV1,
@@ -555,8 +568,7 @@ function materializeOccurrence(
     }
   }
 
-  const maximumLayer = Math.max(0, ...definition.placements.map((placement) => occurrence.baseLayer + placement.layerOffset))
-  ensureOverlayCount(zone, maximumLayer, occurrence)
+  ensureGroupOverlayLayers(zone, definition, occurrence)
   for (const child of definition.placements) {
     const absoluteLayer = occurrence.baseLayer + child.layerOffset
     const placement = materializedPlacement(child, occurrence, placementId(child.id), instanceId(child.instanceId))
@@ -636,6 +648,11 @@ function translatedTrackValue(
     if (track.target.property === 'y') return value + occurrence.translationY
   }
   return value
+}
+
+function ensureGroupOverlayLayers(zone: ShowZoneComposition, definition: ShowGroupDefinition, occurrence: ShowGroupOccurrence): void {
+  const maximumLayer = Math.max(0, ...definition.placements.map(placement => occurrence.baseLayer + placement.layerOffset))
+  ensureOverlayCount(zone, maximumLayer, occurrence)
 }
 
 function ensureOverlayCount(

@@ -86,3 +86,74 @@ it('refuses empty, invalid and missing Scene owners without mutation', () => {
     expect(show).toEqual(before)
   }
 })
+
+it('preserves accepted sparse Group Layer identities before inserting an empty topmost Layer', async () => {
+  const { readFileSync } = await import('node:fs')
+  const { parseShowFileBundle } = await import('../showFileBundle')
+  const { materializeShowGroupOccurrences } = await import('../showGroupModel')
+  const { show } = await parseShowFileBundle(readFileSync('docs/reference/evidence/issue-951-overlay-layer/951-sparse-group.pxlshow'))
+  const before = structuredClone(show)
+  const composition = show.composition!
+  const result = addShowOverlayLayerAcrossTimeline(show, composition, { zoneId: 'zone-1', layers: [
+    { sceneId: 'scene-1', layerId: 'new-1' }, { sceneId: 'scene-2', layerId: 'new-2' },
+  ] })
+  const expected = structuredClone(composition)
+  expected.scenes[1].zones[0].overlays = [{ id: 'scene-2:zone-1:group-layer:1', name: 'Layer 1', placements: [] }]
+  expected.scenes[0].zones[0].overlays.unshift({ id: 'new-1', name: 'Layer 3', placements: [] })
+  expected.scenes[1].zones[0].overlays.unshift({ id: 'new-2', name: 'Layer 3', placements: [] })
+  expect(result).toEqual(expected)
+  expect(show).toEqual(before)
+  expect(validateShowComposition(show, result)).toEqual([])
+  const materialized = materializeShowGroupOccurrences(result)
+  expect(materialized.scenes[1].zones[0].overlays[0].placements).toEqual([])
+  expect(materialized.scenes[1].zones[0].overlays.slice(1)).toEqual(materializeShowGroupOccurrences(composition).scenes[1].zones[0].overlays)
+})
+
+it('shares shell numbering across multiple Group occurrences, ordinals and Scenes without touching other Zones', async () => {
+  const { showOverlayLayerFixture } = await import('../../test/showOverlayLayerFixture')
+  const { materializeShowGroupOccurrences } = await import('../showGroupModel')
+  const show = showOverlayLayerFixture()
+  const composition = show.composition!
+  composition.scenes[1].zones[0].overlays = []
+  const occurrence = composition.groupOccurrences![0]
+  composition.groupOccurrences!.push(
+    { ...occurrence, id: 'high-first', sceneId: 'scene-1', startMs: 29_000, baseLayer: 2 },
+    { ...occurrence, id: 'high-second', startMs: 4000, baseLayer: 2 },
+    { ...occurrence, id: 'other-zone', zoneId: 'zone-2', startMs: 6000, baseLayer: 2 },
+  )
+  const before = structuredClone(show)
+  const prior = materializeShowGroupOccurrences(composition)
+  const result = addShowOverlayLayerAcrossTimeline(show, composition, { zoneId: 'zone-1', layers: [
+    { sceneId: 'scene-1', layerId: 'new-1' }, { sceneId: 'scene-2', layerId: 'new-2' },
+  ] })
+  expect(result).not.toBe(composition)
+  expect(validateShowComposition(show, result)).toEqual([])
+  expect(result.scenes[0].zones[0].overlays.map(layer => layer.id)).toEqual(['new-1', 'scene-1:zone-1:group-layer:3', 'overlay-1', 'bottom-scene-1'])
+  expect(result.scenes[1].zones[0].overlays.map(layer => layer.id)).toEqual(['new-2', 'scene-2:zone-1:group-layer:3', 'scene-2:zone-1:group-layer:2', 'scene-2:zone-1:group-layer:1'])
+  const after = materializeShowGroupOccurrences(result)
+  for (const index of [0, 1]) {
+    expect(result.scenes[index].zones[0].overlays[0]).toEqual({ id: `new-${index + 1}`, name: 'Layer 4', placements: [] })
+    expect(after.scenes[index].zones[0].overlays.slice(1)).toEqual(prior.scenes[index].zones[0].overlays)
+    expect(after.scenes[index].zones[0].overlays[0].placements).toEqual([])
+    expect(result.scenes[index].zones[1]).toEqual(composition.scenes[index].zones[1])
+  }
+  expect({ ...result, scenes: composition.scenes }).toEqual(composition)
+  expect(show).toEqual(before)
+})
+
+it('refuses implicit shell collisions with authored or newly supplied Layer IDs atomically', async () => {
+  const { showOverlayLayerFixture } = await import('../../test/showOverlayLayerFixture')
+  for (const collision of ['authored', 'fresh']) {
+    const show = showOverlayLayerFixture()
+    const composition = show.composition!
+    composition.scenes[1].zones[0].overlays = []
+    const implicitId = 'scene-2:zone-1:group-layer:1'
+    if (collision === 'authored') composition.scenes[0].zones[1].overlays[0].id = implicitId
+    const before = structuredClone(show)
+    expect(validateShowComposition(show, composition).length).toBe(collision === 'authored' ? 1 : 0)
+    expect(addShowOverlayLayerAcrossTimeline(show, composition, { zoneId: 'zone-1', layers: [
+      { sceneId: 'scene-1', layerId: 'new-1' }, { sceneId: 'scene-2', layerId: collision === 'fresh' ? implicitId : 'new-2' },
+    ] })).toBe(composition)
+    expect(show).toEqual(before)
+  }
+})

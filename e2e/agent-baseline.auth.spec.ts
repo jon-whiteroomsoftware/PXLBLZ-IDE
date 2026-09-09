@@ -1688,6 +1688,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     test.setTimeout(90000)
     await page.setViewportSize({ width: 1440, height: 900 })
     const record = showOverlayLayerFixture()
+    record.composition!.scenes[1].zones[0].overlays = []
     record.id = `layer-951-${Date.now().toString(36)}`
     expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
     await page.goto(`studio/shows/${record.id}?agent=1`)
@@ -1705,6 +1706,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(1)
     const after = await visibleRecord(page) as unknown as ShowRecord
     const expected = structuredClone(before)
+    expected.composition!.scenes[1].zones[0].overlays = [{ id: 'scene-2:zone-1:group-layer:1', name: 'Layer 1', placements: [] }]
     expected.composition!.scenes[0].zones[0].overlays.unshift({ id: 'layer-1', name: 'Layer 3', placements: [] })
     expected.composition!.scenes[1].zones[0].overlays.unshift({ id: 'layer-2', name: 'Layer 3', placements: [] })
     expect(after).toEqual({ ...expected, updatedAt: after.updatedAt })

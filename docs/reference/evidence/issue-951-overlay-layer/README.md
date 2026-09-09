@@ -1,8 +1,17 @@
 # Overlay Layer creation evidence (#951)
 
-**WIP — BLOCKED on sparse Group semantics.** This candidate is not complete or
-review-ready. The passing cases below do not establish preservation for every
-accepted composition.
+The approved sparse Group repair is implemented; final consumer proof, review
+and landing remain coordinator work. Layer creation now realizes target-Zone
+implicit shells through the Group materializer's shared shell owner before
+prepending the fresh empty Layer. It retains Group definitions and occurrences.
+
+The accepted sparse importer regression failed before the repair and now passes.
+Focused tests cover multiple occurrences, ordinals and Scenes, unchanged other
+Zones, collisions, complete input/output preservation, and sparse/nonsparse
+canonical, diagnostic and manual parity. The existing real-editor sequence now
+uses sparse input; its fresh proof is recorded below after source freeze.
+
+## Historical blocker and decision
 
 An accepted Show can contain a Group overlay ordinal without a corresponding
 authored Layer. The importer retains that sparse form. Before insertion,
@@ -23,12 +32,14 @@ and one Undo restored the prior Show. Console errors were empty. The coordinator
 opened and inspected both [before](951-sparse-before.jpg) and
 [after](951-sparse-after.jpg) JPEGs.
 
-The proposed decision is to preserve implicit Group Layers before creating a
-fresh empty topmost Layer. A bounded refusal would instead change currently
-accepted manual behavior. Neither policy has been implemented; Jon's decision
-is required before further product work, final proof, review or landing.
+Jon approved preserving implicit Group Layers before creating a fresh empty
+topmost Layer on 2026-09-09. The repair above implements that extension through
+shared Group semantics; these files retain the pre-repair evidence. A bounded
+refusal was considered but was not chosen.
 
-The existing manual Layer helper now owns canonical and diagnostic creation.
+## Initial slice evidence
+
+The existing manual Layer helper owns canonical and diagnostic creation.
 Complete-output tests first exposed unrelated Marker-order normalization drift
 and acceptance of duplicate Scene mappings; the repaired owner preserves order
 and refuses invalid mappings before mutation.

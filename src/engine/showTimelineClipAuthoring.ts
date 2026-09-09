@@ -15,7 +15,7 @@ import {
   splitShowOverlayPlacement,
   validateShowComposition,
 } from './showCompositionModel'
-import { materializeShowGroupOccurrences } from './showGroupModel'
+import { materializeShowGroupLayerShells, materializeShowGroupOccurrences } from './showGroupModel'
 import { projectShowTimeline, showLoopDurationMs } from './showModel'
 import { evaluateShowPropertyTrack } from './showPropertyAnimation'
 import { setShowEndMs } from './showTimelineAuthoring'
@@ -424,7 +424,7 @@ export function addShowOverlayLayerAcrossTimeline(
     || composition.scenes.some(scene => !layerBySceneId.has(scene.sceneId)
       || !show.scenes.some(owner => owner.id === scene.sceneId)
       || !scene.zones.some(zone => zone.zoneId === input.zoneId))) return composition
-  const draft = structuredClone(composition)
+  const draft = materializeShowGroupLayerShells(composition, input.zoneId)
   const layerNumber = draft.scenes.reduce((maximum, scene) => {
     const zone = scene.zones.find((candidate) => candidate.zoneId === input.zoneId)
     return Math.max(maximum, zone?.overlays.length ?? 0)

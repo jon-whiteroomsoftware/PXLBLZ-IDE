@@ -6,8 +6,10 @@ import { applyShowGrammarOperation } from '../grammar/registry'
 import { openShowDocument } from '../grammar/openShow'
 import { validateShowComposition } from '@/engine/showCompositionModel'
 
-it('pairs complete canonical, diagnostic and manual results with caller-local IDs, then adds at overlay zero', () => {
-  const opened = openShowDocument(showOverlayLayerFixture())
+it.each([false, true])('pairs complete canonical, diagnostic and manual results with sparse=%s, then adds at overlay zero', (sparse) => {
+  const show = showOverlayLayerFixture()
+  if (sparse) show.composition!.scenes[1].zones[0].overlays = []
+  const opened = openShowDocument(show)
   expect(opened.ok, JSON.stringify(opened)).toBe(true)
   if (!opened.ok) throw new Error('open failed')
   const document = opened.document

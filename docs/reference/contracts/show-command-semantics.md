@@ -266,10 +266,13 @@ cover complete records, history, refusal and private lifecycle behavior.
 
 `add_overlay_layer(zone_id)` inserts a fresh empty Layer at overlay index zero
 in every composition Scene. Its name is Layer N, where N is the target Zone's
-maximum existing overlay count plus one. Existing Layer IDs, memberships and
-all unrelated authored content keep their ordering and values. Group ordinal
-addressing is bottom-based, so prepending preserves its resolved Layer identity
-without rewriting Group definitions or occurrences.
+maximum realized overlay count plus one. Before insertion, the Group owner
+realizes any implicit Layer shells needed by target-Zone occurrences, using the
+same IDs, names and ordinal rules as Group materialization. Existing Layer IDs,
+memberships and all unrelated authored content keep their ordering and values.
+Group ordinal addressing is bottom-based, so inserting above those shells
+preserves resolved Layer identities without rewriting Group definitions or
+occurrences. Other Zones are not realized as a side effect.
 
 The existing `addShowOverlayLayerAcrossTimeline` helper is the sole mutation
 owner for the manual Add menu, canonical descriptor and descriptor-derived
@@ -277,7 +280,8 @@ diagnostic adapter. Callers mint their own fresh per-Scene IDs: manual and
 canonical callers retain UUIDs, diagnostic callers retain deterministic IDs.
 The owner requires an exact one-to-one Scene mapping, nonempty unique fresh
 Layer IDs, existing Scene/Zone owners and a valid composition before mutation.
-Invalid mappings and collisions refuse atomically without a timestamp change.
+Invalid mappings and collisions, including implicit shell identities, refuse
+atomically without a timestamp change.
 The operation does not normalize unrelated composition content.
 
 Each new invocation creates a Layer. Duplicate response delivery is governed

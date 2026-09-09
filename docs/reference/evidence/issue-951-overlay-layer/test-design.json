@@ -1,6 +1,6 @@
 {
   "invariants": [
-    "Every composition Scene receives a fresh empty Layer at overlay index zero with name Layer(max existing count + 1).",
+    "Realize only target-Zone implicit Group Layer shells through shared Group materialization semantics, then every composition Scene receives a fresh empty index-zero Layer named Layer(max realized count + 1).",
     "Existing Layer identities and memberships, unrelated authored order, tracks, Transitions, Groups and references survive verbatim; input is immutable and complete output validates.",
     "Exact per-Scene mappings and fresh Layer IDs are required; invalid owners, compositions, duplicate mappings and collisions refuse atomically before stamping.",
     "Manual, canonical and diagnostic callers share one mutation owner; diagnostic schema derives from canonical descriptor and caller ID policies remain local.",
@@ -10,7 +10,8 @@
     "Two Scenes, two Zones, unequal overlay counts, non-normalized marker order, tracked placements and mixed main/overlay Group.",
     "Empty/missing composition and owner; incomplete, duplicate and mismatched mappings; empty, duplicate and colliding Layer IDs.",
     "Deterministic parity and UUID creation; valid new invocation versus repeated immutable request identity.",
-    "Accepted sparse Group overlay ordinal with no authored Layer: importer preserves empty overlays; materialization creates implicit Layer identity."
+    "Accepted sparse Group overlay ordinal with no authored Layer: importer preserves empty overlays; materialization creates implicit Layer identity.",
+    "Multiple occurrences and increasing absolute ordinals in both Scenes; other-Zone sparse occurrences untouched; implicit-ID collision against authored and caller-generated IDs."
   ],
   "sequences": [
     "Add Layer then existing diagnostic add_clip at overlay zero.",
@@ -28,10 +29,9 @@
     "Sparse import acceptance plus complete composition validity and exact materialized Layer IDs/content; inspected actual IAB before/after JPEGs at source982e10d2, console errors empty."
   ],
   "residualGaps": [
-    "BLOCKER: sparse Group creation currently replaces implicit Layer identity with the newly minted Layer and puts Group content in the supposedly empty topmost Layer. Proposed preservation algorithm versus behavior-changing refusal awaits Jon; no policy implemented.",
-    "Coordinator IAB reproduces sparse blocker; final successful proof, committed-tip suites and native review are held pending the semantics decision.",
+    "Fresh committed IAB and scripted sparse proof, final suites and native review belong to final qualification; historical sparse blocker evidence is retained separately.",
     "No paid inference, hosted service, Controller, new UI, Layer reorder/removal or add_clip migration.",
     "Duplicate adoption has real browser behavioral coverage; targeted injected faults cover the three changed transformation risks."
   ],
-  "status": "WIP BLOCKED: accepted sparse Group Layer semantics require Jon decision; no completion or review-ready claim"
+  "status": "Approved sparse Group extension implemented; fresh committed consumer proof and coordinator final checks pending"
 }
