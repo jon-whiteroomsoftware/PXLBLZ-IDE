@@ -591,12 +591,26 @@ export class PixelblazeConnection {
     bytecode: Uint8Array,
     opts: { id: string; name?: string },
   ): Promise<void> {
+    const socket = this.ws
+    const assertConnection = () => {
+      if (!socket || this.ws !== socket || !this.isConnected) {
+        throw new Error('Controller connection changed during program activation')
+      }
+    }
+    assertConnection()
     this.pushByteCode(bytecode, opts)
     const deadline = this._now() + this.opts.activationTimeoutMs
     let activeProgramId: string | undefined
     do {
-      const config = await this.getConfig()
-      activeProgramId = config.activeProgramId
+      assertConnection()
+      // Activation needs the sequencer's fresh program identity, not the
+      // independent settings packet. Some firmware sends that identity while
+      // omitting brightness during bytecode startup (#999).
+      const active = await this.request('activeProgram', { getConfig: true }) as {
+        activeProgramId?: string
+      } | null
+      assertConnection()
+      activeProgramId = active?.activeProgramId
       if (activeProgramId === opts.id) return
       if (this._now() >= deadline) break
       await new Promise<void>((resolve) => {

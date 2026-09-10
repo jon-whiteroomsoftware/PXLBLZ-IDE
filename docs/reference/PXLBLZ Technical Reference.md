@@ -678,6 +678,19 @@ never enters Saved Patterns, bindings, labels, or push records. The provider
 caches a resident footprint only after confirmed activation and invalidates it
 on external switches, disconnects, and every new attempt.
 
+Bytecode activation queries `getConfig` after transmission but waits only for
+its sequencer `activeProgram` reply: success requires the expected program id
+and the same still-open connection before and after the read. A missing
+settings/brightness packet cannot veto that evidence. Full `getConfig` callers
+still require both packets. Wrong ids are polled within the existing activation
+window; missing sequencer replies retain the request timeout, and connection
+loss/replacement rejects confirmation. This is same-connection, post-query
+program-identity evidence under the firmware's ordered reply protocol, not a
+bytecode digest or a request-token guarantee: firmware replies carry no request
+ids. Cached pre-push observations and saved-file existence are never consulted.
+A failed activation leaves successful flash writes intact; it does not publish
+successful saved-delivery bookkeeping or claim a physical rollback.
+
 **Inventory and recovery.** The profile's context pane joins `listPrograms`
 with bindings, push records, and the personal and built-in Pattern/Show
 catalogs. Bound entries appear under Saved PXLBLZ Patterns and link to Studio;

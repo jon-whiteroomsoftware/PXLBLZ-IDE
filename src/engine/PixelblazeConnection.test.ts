@@ -745,6 +745,83 @@ describe('PixelblazeConnection', () => {
       expect(JSON.parse(socket.sent[0]).setCode.name).toBe('')
     })
 
+    it('confirms fresh activation without the unrelated brightness reply (#999)', async () => {
+      vi.useFakeTimers()
+      try {
+        const { conn, socket } = await connected({ requestTimeoutMs: 50 })
+        // A prior matching observation is not activation evidence for this push.
+        socket.simulateMessage({ activeProgram: { activeProgramId: 'TARGET_PROGRAM' } })
+        const outcome = vi.fn()
+        const activation = conn.pushByteCodeAndWait(new Uint8Array([1]), { id: 'TARGET_PROGRAM' })
+          .then(() => outcome('active'), (error: Error) => outcome(error.message))
+        await Promise.resolve()
+        expect(outcome).not.toHaveBeenCalled()
+        socket.simulateMessage({ activeProgram: { activeProgramId: 'TARGET_PROGRAM' } })
+        await vi.advanceTimersByTimeAsync(50)
+        await activation
+        expect(outcome).toHaveBeenCalledWith('active')
+        conn.close()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('keeps a concurrent full config read dependent on settings (#999)', async () => {
+      const { conn, socket } = await connected()
+      const fullConfig = conn.getConfig()
+      const configSettled = vi.fn()
+      void fullConfig.then(configSettled)
+      const activation = conn.pushByteCodeAndWait(new Uint8Array([1]), { id: 'TARGET_PROGRAM' })
+      // Replies fulfill each independently queued sequencer read in order.
+      socket.simulateMessage({ activeProgram: { activeProgramId: 'OLD_PROGRAM' } })
+      socket.simulateMessage({ activeProgram: { activeProgramId: 'TARGET_PROGRAM' } })
+      await activation
+      expect(configSettled).not.toHaveBeenCalled()
+      socket.simulateMessage({ brightness: 0.25 })
+      await expect(fullConfig).resolves.toMatchObject({ brightness: 0.25, activeProgramId: 'OLD_PROGRAM' })
+      conn.close()
+    })
+
+    it('rejects activation when the connection closes before its reply (#999)', async () => {
+      const { conn } = await connected()
+      const activation = conn.pushByteCodeAndWait(new Uint8Array([1]), { id: 'TARGET_PROGRAM' })
+      const rejection = expect(activation).rejects.toThrow('Pixelblaze connection closed')
+      conn.close()
+      await rejection
+    })
+
+    it('does not accept expected-program evidence from a replacement socket (#999)', async () => {
+      const { conn, getSocket } = makeConnection()
+      const opened = conn.connect()
+      getSocket().simulateOpen()
+      await opened
+      const original = getSocket()
+      const activation = conn.pushByteCodeAndWait(new Uint8Array([1]), { id: 'TARGET_PROGRAM' })
+      const rejection = expect(activation).rejects.toThrow('Controller connection changed during program activation')
+      const reopened = conn.connect()
+      getSocket().simulateOpen()
+      await reopened
+      getSocket().simulateMessage({ activeProgram: { activeProgramId: 'TARGET_PROGRAM' } })
+      await rejection
+      original.close()
+      conn.close()
+    })
+
+    it('times out without a sequencer reply even when brightness arrives (#999)', async () => {
+      vi.useFakeTimers()
+      try {
+        const { conn, socket } = await connected({ requestTimeoutMs: 50 })
+        const activation = conn.pushByteCodeAndWait(new Uint8Array([1]), { id: 'TARGET_PROGRAM' })
+        const rejection = expect(activation).rejects.toThrow('timed out waiting for "activeProgram"')
+        socket.simulateMessage({ brightness: 0.5 })
+        await vi.advanceTimersByTimeAsync(50)
+        await rejection
+        conn.close()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('can wait until getConfig reports the pushed program active', async () => {
       const { conn, socket } = await connected()
       let settled = false
