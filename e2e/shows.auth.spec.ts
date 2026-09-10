@@ -619,7 +619,10 @@ test.describe('authenticated Show authoring', () => {
     const stripInventory = page.getByTestId('show-source-outlet')
     await expect(stripInventory).toContainText('Pattern copies running')
     await expect(stripInventory).toContainText('Up to 3 at once')
-    await expect(stripInventory).toContainText('Busiest LED: 1 Pattern color calculation')
+    const copiesHelp = stripInventory.getByRole('button', { name: 'About Pattern copies running' })
+    await copiesHelp.focus()
+    await expect(page.getByRole('tooltip')).toContainText('Busiest LED: 1 Pattern color calculation')
+    await copiesHelp.press('Escape')
 
     await page.setViewportSize({ width: 390, height: 800 })
     const sourceMeter = page.getByRole('button', { name: /Show source inventory/ })
