@@ -1054,23 +1054,6 @@ export function ShowStagePreview({
         </div>
         <div data-testid="show-stage-controls" className="show-strip-controls rail-list-scroll">
           <div className="show-strip-sections" aria-label="Show stage">
-            <ShowStripSection label="Stage" summary={<>
-              <MapIcon size={10} aria-hidden /><span>{selectedStageMap?.name ?? 'Zone strips - generic'}</span><span className="panel-readout-dot">·</span><span>{stageIdentityRole}</span><span className="panel-readout-dot">·</span><span>{layout?.mapPoints.length ?? 0} px</span>
-            </>}>
-          <DeckGrid>
-            <DeckCell label="map"><span className="show-stage-map-name truncate text-zinc-200" title={selectedStageMap?.name ?? 'Zone strips - generic'}>{selectedStageMap?.name ?? 'Zone strips - generic'}</span></DeckCell>
-            <DeckCell label="pixels"><span className="show-stage-pixel-count tabular-nums text-zinc-400">{layout?.mapPoints.length ?? 0} px</span></DeckCell>
-            <DeckCell label="kind"><span className="text-zinc-400">{stageIdentityRole}</span></DeckCell>
-          </DeckGrid>
-            </ShowStripSection>
-        {(layout?.note || (layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0)) && (
-          <div className="mt-2 rounded border border-zinc-800 bg-zinc-950/60 p-2 text-[10px] leading-4 text-zinc-500">
-          {layout?.note && <div className="mt-1 text-amber-300">{layout.note}</div>}
-          {layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0 && (
-            <div className="mt-1">{layout.projection.unstagedPixelCount} stage pixels are not covered by a show zone.</div>
-          )}
-          </div>
-        )}
             <ShowStripPreviewSection />
             {showZoneInventory && <ShowStripSection label="Zones" summary={<>
               {compactCoverage && <span role="status" aria-label="Zone coverage" title={fullCoverage ?? undefined} className={installationCoverage?.valid ? 'text-emerald-500' : 'text-amber-300'}>{compactCoverage}</span>}
@@ -1106,6 +1089,23 @@ export function ShowStagePreview({
             />
 
             </ShowStripSection>}
+            <ShowStripSection label="Stage" summary={<>
+              <MapIcon size={10} aria-hidden /><span>{selectedStageMap?.name ?? 'Zone strips - generic'}</span><span className="panel-readout-dot">·</span><span>{stageIdentityRole}</span><span className="panel-readout-dot">·</span><span>{layout?.mapPoints.length ?? 0} px</span>
+            </>}>
+          <DeckGrid>
+            <DeckCell label="map"><span className="show-stage-map-name truncate text-zinc-200" title={selectedStageMap?.name ?? 'Zone strips - generic'}>{selectedStageMap?.name ?? 'Zone strips - generic'}</span></DeckCell>
+            <DeckCell label="pixels"><span className="show-stage-pixel-count tabular-nums text-zinc-400">{layout?.mapPoints.length ?? 0} px</span></DeckCell>
+            <DeckCell label="kind"><span className="text-zinc-400">{stageIdentityRole}</span></DeckCell>
+          </DeckGrid>
+            </ShowStripSection>
+        {(layout?.note || (layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0)) && (
+          <div className="mt-2 rounded border border-zinc-800 bg-zinc-950/60 p-2 text-[10px] leading-4 text-zinc-500">
+          {layout?.note && <div className="mt-1 text-amber-300">{layout.note}</div>}
+          {layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0 && (
+            <div className="mt-1">{layout.projection.unstagedPixelCount} stage pixels are not covered by a show zone.</div>
+          )}
+          </div>
+        )}
             <div ref={setSourceTarget} data-testid="show-source-outlet" />
           </div>
         </div>
