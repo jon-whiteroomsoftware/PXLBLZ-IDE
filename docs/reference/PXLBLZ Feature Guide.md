@@ -487,7 +487,8 @@ the strip height. At 980 px and below, the established Preview overlay remains.
 
 On desktop, the Source section beside the Stage reports delivered source size,
 memory words, and running Pattern copies. Expand it for the byte-level inventory.
-Warnings, blockers, and send results remain visible below the section. Where
+Warnings, blockers, and successful-send status remain visible below the section.
+Run/Save failures appear in the Controller popover. Where
 the desktop strip is absent, the compile bar remains under the timeline:
 hover its source figure to inspect the inventory, or select it to keep the
 inventory open until closed. Every Pattern row distinguishes three things in plain language:
