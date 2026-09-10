@@ -1182,7 +1182,9 @@ desktop over/under composition and delegates its measurements to
 aspect while enforcing the timeline and strip minimums, reserving a 30 px
 preview rail and at least 200 px of usable controls. Its
 horizontal divider moves by 10 px, or 50 px with Shift, and persists one Show
-timeline height only after explicit pointer or keyboard movement. Pointer gestures
+timeline height only after explicit pointer or keyboard movement. Once remembered,
+its unconstrained pixel height is refreshed on window resize so reloading at the
+new size preserves the split. Temporary size clamps are never saved as intent. Pointer gestures
 end on release, cancellation, capture loss, or window blur; batched moves
 accumulate from the gesture's last clamped height (#63). Without a
 remembered height, the initial split fits measured timeline content plus 12 px

@@ -104,9 +104,42 @@ describe('ShowWorkspace (#967)', () => {
     expect(screen.getByTestId('show-timeline-pane')).toHaveStyle({ height: '352px' })
     resizeWorkspace(1200, 400)
     expect(screen.getByTestId('show-timeline-pane')).toHaveStyle({ height: '175px' })
-    expect(window.localStorage.getItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY)).toBe('352')
+    expect(window.localStorage.getItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY)).toBe('175')
     resizeWorkspace(1200, 800)
     expect(screen.getByTestId('show-timeline-pane')).toHaveStyle({ height: '352px' })
+  })
+
+  it.each([false, true])('restores the visible remembered split after resize and remount (adjust at resized viewport: %s)', (adjustAfterResize) => {
+    window.localStorage.setItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY, '400')
+    const mount = () => render(<ShowWorkspace previewAspect={1} timeline={<div>timeline</div>} stage={<div>stage</div>} />)
+    const height = () => Number(screen.getByRole('separator').getAttribute('aria-valuenow'))
+    let view = mount()
+    resizeWorkspace(2000, 800)
+    resizeWorkspace(2000, 1200)
+    if (adjustAfterResize) fireEvent.keyDown(screen.getByRole('separator'), { key: 'ArrowUp' })
+    const beforeReload = height()
+    view.unmount()
+    view = mount()
+    resizeWorkspace(2000, 1200)
+    expect(height()).toBe(beforeReload)
+
+    // Width clamps must not overwrite the remembered, unconstrained split.
+    resizeWorkspace(390, 1200)
+    expect(screen.getByRole('separator')).toHaveAttribute('data-clamp', 'controls-min')
+    view.unmount()
+    view = mount()
+    resizeWorkspace(390, 1200)
+    resizeWorkspace(2000, 1200)
+    expect(height()).toBe(beforeReload)
+
+    // The same applies when a shorter viewport temporarily reaches a height limit.
+    resizeWorkspace(2000, 300)
+    expect(screen.getByRole('separator')).not.toHaveAttribute('data-clamp', 'none')
+    view.unmount()
+    mount()
+    resizeWorkspace(2000, 300)
+    resizeWorkspace(2000, 1200)
+    expect(Math.abs(height() - beforeReload)).toBeLessThanOrEqual(2)
   })
 
   it('marks a divider stopped by the preview-controls width clamp', () => {

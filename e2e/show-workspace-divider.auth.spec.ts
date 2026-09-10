@@ -91,7 +91,7 @@ test('does not restore the legacy source footer below the narrow breakpoint (#63
   await expect(page.getByRole('dialog', { name: 'Show source inventory' })).toHaveCount(0)
 })
 
-test('preserves the split ratio while resizing and restores it after a width clamp (#63)', async ({ page }, testInfo) => {
+test('preserves the split ratio through resizing, reload, and a width clamp (#63)', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1800, height: 1000 })
   await page.goto('studio/shows/stock-show-301-installation-mapping')
   const divider = page.getByRole('separator', { name: 'Resize timeline and Stage' })
@@ -102,15 +102,24 @@ test('preserves the split ratio while resizing and restores it after a width cla
     const strip = root.querySelector('[data-testid="show-stage-strip"]')!.getBoundingClientRect().height
     return timeline / (timeline + strip)
   })
-  const original = await ratio()
+  let original = await ratio()
   for (const size of [{ width: 1600, height: 900 }, { width: 1900, height: 1200 }, { width: 1800, height: 1000 }]) {
     await page.setViewportSize(size)
+    await expect(divider).toHaveAttribute('data-clamp', 'none')
+    await expect.poll(async () => Math.abs(await ratio() - original)).toBeLessThan(0.003)
+    if (size.width === 1900) {
+      await divider.press('Shift+ArrowUp')
+      original = await ratio()
+    }
+    await page.reload()
     await expect(divider).toHaveAttribute('data-clamp', 'none')
     await expect.poll(async () => Math.abs(await ratio() - original)).toBeLessThan(0.003)
     await testInfo.attach(`split-${size.width}x${size.height}`, { body: await page.screenshot(), contentType: 'image/png' })
   }
   await page.setViewportSize({ width: 640, height: 1000 })
   await expect(page.getByTestId('show-stage-strip')).toBeVisible()
+  await expect(divider).toHaveAttribute('data-clamp', 'controls-min')
+  await page.reload()
   await expect(divider).toHaveAttribute('data-clamp', 'controls-min')
   await expect(page.getByTestId('studio-entity-drawer')).toBeHidden()
   await testInfo.attach('split-640x1000', { body: await page.screenshot(), contentType: 'image/png' })

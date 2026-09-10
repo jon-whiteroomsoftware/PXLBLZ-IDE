@@ -6,6 +6,13 @@ export const SHOW_PREVIEW_RAIL_WIDTH = 30
 export const SHOW_TIMELINE_DEFAULT_SLACK = 12
 export const SHOW_TIMELINE_HEIGHT_STORAGE_KEY = 'pxlblz-show-workspace-timeline-height'
 
+/** Convert the intended (unclamped) split to pixels in the current workspace. */
+export function scaleShowTimelineHeight(height: number, workspaceHeight: number, referenceHeight = workspaceHeight): number {
+  const available = Math.max(1, Math.floor(workspaceHeight) - SHOW_WORKSPACE_DIVIDER_HEIGHT)
+  const referenceAvailable = Math.max(1, Math.floor(referenceHeight) - SHOW_WORKSPACE_DIVIDER_HEIGHT)
+  return Math.round(Math.round(height) * available / referenceAvailable)
+}
+
 export type ShowWorkspaceClamp = 'timeline-min' | 'controls-min' | 'strip-min' | null
 
 export interface ShowWorkspaceLayout {
@@ -39,8 +46,7 @@ export function resolveShowWorkspaceLayout({
   const desiredTimeline = desiredTimelineHeight === null
     ? Math.ceil(timelineContentHeight + SHOW_TIMELINE_DEFAULT_SLACK)
     : Math.round(desiredTimelineHeight)
-  const referenceAvailable = referenceHeight === undefined ? availableHeight : Math.max(1, Math.floor(referenceHeight) - SHOW_WORKSPACE_DIVIDER_HEIGHT)
-  const desiredStrip = availableHeight - Math.round(desiredTimeline * availableHeight / referenceAvailable)
+  const desiredStrip = availableHeight - scaleShowTimelineHeight(desiredTimeline, height, referenceHeight)
   const minimumTimeline = Math.max(1, Math.ceil(timelineMinimumHeight))
   const timelineBound = Math.max(1, availableHeight - minimumTimeline)
   const controlsBound = Math.max(1, Math.floor((workspaceWidth - SHOW_CONTROLS_MIN_WIDTH - SHOW_PREVIEW_RAIL_WIDTH) / aspect))

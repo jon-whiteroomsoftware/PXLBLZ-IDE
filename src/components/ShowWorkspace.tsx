@@ -6,6 +6,7 @@ import {
   SHOW_WORKSPACE_DIVIDER_HEIGHT,
   parseShowTimelineHeight,
   resolveShowWorkspaceLayout,
+  scaleShowTimelineHeight,
   serializeShowTimelineHeight,
 } from '@/engine/showWorkspaceLayout'
 import ShowSourceOutletContext from './ShowSourceOutlet'
@@ -60,12 +61,19 @@ export function ShowWorkspace({
     // Store the unclamped ratio against the first measured viewport for this mount.
     const referenceAvailable = Math.max(1, (size.referenceHeight ?? size.height) - SHOW_WORKSPACE_DIVIDER_HEIGHT)
     setDesiredTimelineHeightState(rounded * referenceAvailable / Math.max(1, size.height - SHOW_WORKSPACE_DIVIDER_HEIGHT))
+  }, [size.height, size.referenceHeight])
+
+  useEffect(() => {
+    if (desiredTimelineHeight === null || size.referenceHeight === undefined) return
+    // Keep the existing pixel preference current across resize and reload,
+    // without saving temporary clamps or turning automatic fitting into a preference.
+    const height = scaleShowTimelineHeight(desiredTimelineHeight, size.height, size.referenceHeight)
     try {
-      window.localStorage.setItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY, serializeShowTimelineHeight(rounded))
+      window.localStorage.setItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY, serializeShowTimelineHeight(height))
     } catch {
       // A blocked storage surface should not make the divider unusable.
     }
-  }, [size.height, size.referenceHeight])
+  }, [desiredTimelineHeight, size.height, size.referenceHeight])
 
   const moveDivider = useCallback((deltaY: number) => {
     const next = resolveShowWorkspaceLayout({
