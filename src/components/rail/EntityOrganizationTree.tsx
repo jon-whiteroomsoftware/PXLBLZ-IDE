@@ -46,9 +46,8 @@ import {
   studioEntityDrawerOwnedSurfaceProps,
 } from '@/components/studioEntityDrawerContext'
 
-// Shallow VS Code-style step (#787): chevrons and entity icons already carry
-// the hierarchy signal, so deep rows keep their width for names.
-const INDENT_PER_LEVEL = 8
+// The wider entity drawer gives nested folders room for a clearer hierarchy (#63).
+const INDENT_PER_LEVEL = 12
 
 export interface EntityOrganizationTreeItem {
   id: string

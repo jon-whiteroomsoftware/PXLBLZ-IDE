@@ -108,7 +108,7 @@ describe('EntityOrganizationTree', () => {
     expect(within(folder).getByText('1')).toHaveClass('relative', 'z-10', 'bg-inherit')
   })
 
-  it('steps nested rows by a shallow per-level indent so deep names keep their width (#787)', () => {
+  it('steps nested rows by 12px in the wider entity drawer (#63)', () => {
     const organization: EntityOrganizationV1 = {
       version: 1,
       nodes: [{
@@ -139,8 +139,8 @@ describe('EntityOrganizationTree', () => {
     )
 
     expect(screen.getByRole('treeitem', { name: /Outer/ })).toHaveStyle({ paddingLeft: '6px' })
-    expect(screen.getByRole('treeitem', { name: /Inner/ })).toHaveStyle({ paddingLeft: '14px' })
-    expect(screen.getByRole('treeitem', { name: /Deep Pattern/ })).toHaveStyle({ paddingLeft: '22px' })
+    expect(screen.getByRole('treeitem', { name: /Inner/ })).toHaveStyle({ paddingLeft: '18px' })
+    expect(screen.getByRole('treeitem', { name: /Deep Pattern/ })).toHaveStyle({ paddingLeft: '30px' })
   })
 
   it('discloses a recursive folder and persists its collapsed state', () => {
