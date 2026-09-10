@@ -520,15 +520,18 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
     await expect.poll(() => page.evaluate(async () => {
       const load = (path: string) => import(path)
-      const [{ usePatternStore }, { useLibraryStore }, { useMapStore }] = await Promise.all([load('/PXLBLZ-IDE/src/store/patternStore.ts'), load('/PXLBLZ-IDE/src/store/libraryStore.ts'), load('/PXLBLZ-IDE/src/store/mapStore.ts')])
-      return usePatternStore.getState().patternsLoaded && useLibraryStore.getState().librariesLoaded && useMapStore.getState().mapsLoaded
+      const [{ usePatternStore }, { useLibraryStore }, { useMapStore }, { useEntityOrganizationStore }] = await Promise.all([load('/PXLBLZ-IDE/src/store/patternStore.ts'), load('/PXLBLZ-IDE/src/store/libraryStore.ts'), load('/PXLBLZ-IDE/src/store/mapStore.ts'), load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')])
+      return usePatternStore.getState().patternsLoaded && useLibraryStore.getState().librariesLoaded && useMapStore.getState().mapsLoaded && useEntityOrganizationStore.getState().loaded.libraries
     })).toBe(true)
     await injectOverlay(page, bridge.url)
+    const responsePromise = page.waitForResponse(response => response.url() === `${bridge.url}/utterance`)
     const id = await submitUtterance(page, 'make the first Clip exactly eight seconds')
     await waitForAccepted(page, id)
     await page.getByRole('button', { name: 'Unpin the Agent drawer' }).click()
     await expect(page.getByTestId('agent-drawer-layout')).toHaveAttribute('data-drawer-mode', 'tucked')
     const done = await waitForDone(page, id)
+    const bridgeResponse = await responsePromise
+    saveRecord('D957-candidate', { request: bridgeResponse.request().postDataJSON(), response: await bridgeResponse.text(), outcome: done, visible: await visibleRecord(page) })
     expect(done.applied, JSON.stringify(done)).toBe(true)
     await expect(page.getByTestId('agent-unread-count')).toHaveText('1')
     const ring = page.locator('[data-agent-highlight="flash"], [data-agent-highlight="settled"]')
