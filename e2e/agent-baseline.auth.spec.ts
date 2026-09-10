@@ -524,10 +524,21 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       return usePatternStore.getState().patternsLoaded && useLibraryStore.getState().librariesLoaded && useMapStore.getState().mapsLoaded && useEntityOrganizationStore.getState().loaded.libraries
     })).toBe(true)
     await injectOverlay(page, bridge.url)
+    let releaseSave: () => void = () => {}
+    const pendingSave = new Promise<void>(resolve => { releaseSave = resolve })
+    page.once('close', releaseSave)
+    await page.route(new RegExp(`/api/shows/${showId}$`), async route => {
+      if (route.request().method() === 'PATCH') await pendingSave
+      await route.continue()
+    })
     const responsePromise = page.waitForResponse(response => response.url() === `${bridge.url}/utterance`)
     const id = await submitUtterance(page, 'make the first Clip exactly eight seconds')
     await waitForAccepted(page, id)
+    await expect(page.locator(`[data-request-id="${id}"]`)).toHaveAttribute('data-outcome', 'applied')
+    await expect(page.getByTestId('agent-chat-send')).toBeDisabled()
+    await page.screenshot({ path: join(REPORT_DIR, 'D957-applied-saving.png'), fullPage: true })
     await page.getByRole('button', { name: 'Unpin the Agent drawer' }).click()
+    releaseSave()
     await expect(page.getByTestId('agent-drawer-layout')).toHaveAttribute('data-drawer-mode', 'tucked')
     const done = await waitForDone(page, id)
     const bridgeResponse = await responsePromise
@@ -537,10 +548,12 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     const ring = page.locator('[data-agent-highlight="flash"], [data-agent-highlight="settled"]')
     await expect(ring).toHaveCount(1)
     expect(await ring.evaluate(element => getComputedStyle(element).outlineStyle)).toBe('double')
+    await page.screenshot({ path: join(REPORT_DIR, 'D957-saved-tucked.png'), fullPage: true })
     expect(firstMain(await durableShow(page, showId))?.durationMs).toBe(8000)
     await page.getByRole('button', { name: /^Open the Agent drawer/ }).click()
     await expect(page.getByTestId('agent-unread-count')).toHaveCount(0)
     await expect(page.locator(`[data-request-id="${id}"]`)).toContainText('saved')
+    await page.screenshot({ path: join(REPORT_DIR, 'D957-saved-open.png'), fullPage: true })
     await page.getByRole('button', { name: 'Pin the Agent drawer' }).click()
     const staleId = await submitUtterance(page, BATCH_UTTERANCE)
     await waitForAccepted(page, staleId)
@@ -551,6 +564,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     expect(stale.applied).toBe(false)
     expect(await durableShow(page, showId)).toEqual(manual)
     await expect(page.locator('[data-agent-highlight="refused"]')).toHaveCount(1)
+    await page.screenshot({ path: join(REPORT_DIR, 'D957-refused-tucked.png'), fullPage: true })
     await expect(page.getByTestId('agent-unread-count')).toHaveText('1')
     await page.getByRole('button', { name: 'Undo Show edit' }).click()
     await expect(page.locator('[data-agent-highlight="refused"]')).toHaveCount(0)
@@ -1297,6 +1311,11 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
             await expect(composer).toBeFocused()
             expect(await composer.evaluate(element => [(element as HTMLInputElement).selectionStart, (element as HTMLInputElement).selectionEnd])).toEqual(selection)
             await page.screenshot({ path: join(REPORT_DIR, `B5-${action}-applied.png`), fullPage: true })
+            if (action === 'narrow') {
+              await composer.press('Tab')
+              await page.keyboard.press('Escape')
+              await expect(agentEdge).toBeVisible()
+            }
             await page.getByRole('button', { name: 'Show actions' }).click()
             const download = page.waitForEvent('download')
             await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
