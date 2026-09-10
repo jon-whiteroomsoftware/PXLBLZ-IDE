@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "997",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
+  "operation": "Reached Run from the focused home link using two Tabs, Enter to open the Controller popover, then five Tabs: eight keystrokes at this capture commit. The d03527e0 baseline on the same stock 101 route and desktop layout took ten Tabs to its header Run. Enter on Run opened the visible compatible-surface warning; Escape subsequently cancelled with zero remaining dialogs. No send was invoked by cancellation. Chrome localhost:5178 with temporary helper, DOM layout and JPEG 1440x900. The existing signed-in account was preserved, not replaced with a synthetic session; only stock content was opened. Coordinator and packaging worker inspected the image. Console error list was empty after these paths.",
+  "captures": [
+    ".wrsp/ui-proof/997-candidate2-show-preflight.jpg"
+  ],
+  "capturedAtCommit": "85dcc858d08508dadf2eb6b898e3da8f1f758378"
+}

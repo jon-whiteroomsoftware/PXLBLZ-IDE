@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "997",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
+  "operation": "Saved Portable 101 Show from the Controller popover after warning confirmation. Readback at 2026-09-10T03:09:32.981Z found saved active pxbzhMJSJ8jSvxMkn; recovered source hash 1b22d0ad matches the show/stock-show-101-clips-cuts-blank-time stamp. Brightness 0.095481 and readback socket closed. Chrome localhost:5178 with temporary helper, DOM layout 1440x900. The existing signed-in account was preserved, not replaced with a synthetic session; only stock content was opened. Both coordinator and packaging worker visually inspected this image. Only the UI send actions wrote hardware; verification readbacks were read-only.",
+  "captures": [
+    ".wrsp/ui-proof/997-candidate2-show-save.jpg"
+  ],
+  "capturedAtCommit": "85dcc858d08508dadf2eb6b898e3da8f1f758378"
+}

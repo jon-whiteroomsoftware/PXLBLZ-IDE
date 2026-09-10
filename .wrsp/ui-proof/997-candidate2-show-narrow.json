@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "997",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
+  "operation": "Opened Portable 101 Show preflight at narrow layout; its compatible-surface warning, Cancel and Send anyway remain readable. Coordinator pressed Escape afterward and verified zero remaining dialogs; no send was invoked by that cancellation. Chrome localhost:5178 with temporary helper, DOM layout 390x844; JPEG dimensions 390x843. The existing signed-in account was preserved, not replaced with a synthetic session; only stock content was opened. Both coordinator and packaging worker visually inspected this image. Only the UI send actions wrote hardware; verification readbacks were read-only.",
+  "captures": [
+    ".wrsp/ui-proof/997-candidate2-show-narrow.jpg"
+  ],
+  "capturedAtCommit": "85dcc858d08508dadf2eb6b898e3da8f1f758378"
+}

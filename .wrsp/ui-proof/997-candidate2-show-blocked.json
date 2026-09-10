@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "997",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-301-installation-mapping",
+  "operation": "Opened Installation 301 preflight in the Controller popover. It visibly requires 1000 pixels versus 256 reported and expects its authored map Proscenium stage; Unsupported is disabled. The Show header has no Controller delivery row. Chrome localhost:5178 with temporary helper, DOM layout 1440x900. The existing signed-in account was preserved, not replaced with a synthetic session; only stock content was opened. Both coordinator and packaging worker visually inspected this image. Only the UI send actions wrote hardware; verification readbacks were read-only. The first dialog disappeared during asynchronous map arrival. After the map settled, the coordinator reopened preflight and explicitly cancelled; no send occurred, and readback retained the saved WavyBands active program. This does not claim uninterrupted cancellation of the first dialog.",
+  "captures": [
+    ".wrsp/ui-proof/997-candidate2-show-blocked.jpg"
+  ],
+  "capturedAtCommit": "85dcc858d08508dadf2eb6b898e3da8f1f758378"
+}
