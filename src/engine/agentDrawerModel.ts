@@ -119,8 +119,8 @@ export function transitionAgentDrawer(state: AgentDrawerState, event: AgentDrawe
   }
 }
 export function agentEdgeState(state: AgentDrawerState) {
-  const latest = [...state.stream].reverse().find(line => line.outcome)
-  const failed = latest?.outcome === 'not-applied' || latest?.outcome === 'rolled-back'
+  const latest = state.announcement?.outcome
+  const failed = latest === 'not-applied' || latest === 'rolled-back'
   if (state.pendingCall) return { label: 'ANSWER', dot: 'busy', ringing: true, failed }
   if (state.contactLost) return { label: 'AGENT', dot: 'dropped', ringing: false, failed }
   if (state.request) return { label: state.request.phase === 'waiting' ? 'WAITING' : 'WORKING', dot: state.request.phase === 'waiting' ? 'waiting' : 'busy', ringing: false, failed }
@@ -134,4 +134,16 @@ export function agentEdgeAccessibleName(state: AgentDrawerState): string {
         : state.armingUntil !== null ? 'waiting for an agent to connect'
           : state.connection ? `${state.connection.name} connected` : 'no agent connected'
   return `Open the Agent drawer; ${agentEdgeState(state).label.toLowerCase()}; ${status}; ${state.unread.length} unread outcomes`
+}
+
+
+/** Per-command ranges are not rebased through later edits. A single range is
+ * proven; multiple ranges cannot truthfully be collapsed into one final band.
+ * The full edit and its change descriptions remain available either way.
+ */
+export function agentInsertionBand(changes: AgentChange[]): AgentDrawerState['band'] {
+  const ranges = changes.flatMap(change => change.range ? [change.range] : [])
+  if (ranges.length !== 1) return null
+  const range = ranges[0]
+  return Number.isFinite(range.startMs) && Number.isFinite(range.endMs) && range.endMs >= range.startMs ? range : null
 }

@@ -115,3 +115,13 @@ describe('Studio entity drawer state machine (#966)', () => {
     expect(studioEntityDrawerMode(run(state, { type: 'close', reason: 'entity-chosen' }))).toBe('tucked')
   })
 })
+
+
+it('names the supplied drawer in open, close and pin announcements', () => {
+  const initial = createStudioEntityDrawerState('shows', { shows: false }, false)
+  const opened = transitionStudioEntityDrawer(initial, { type: 'open', source: 'keyboard' }, 'Agent drawer')
+  expect(opened.announce).toBe('Agent drawer open')
+  expect(transitionStudioEntityDrawer(opened.state, { type: 'close', reason: 'button' }, 'Agent drawer').announce).toBe('Agent drawer closed')
+  expect(transitionStudioEntityDrawer(initial, { type: 'set-pinned', pinned: true }, 'Agent drawer').announce).toBe('Agent drawer pinned')
+  expect(transitionStudioEntityDrawer(initial, { type: 'set-pinned', pinned: false }, 'Agent drawer').announce).toBe('Agent drawer unpinned')
+})

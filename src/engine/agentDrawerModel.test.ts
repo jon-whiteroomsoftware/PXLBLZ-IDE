@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createAgentDrawerState, transitionAgentDrawer } from './agentDrawerModel'
+import { agentEdgeState, agentInsertionBand, createAgentDrawerState, transitionAgentDrawer } from './agentDrawerModel'
 
 describe('agent drawer activity projection', () => {
   it('counts changed outcomes once per operation while tucked, then counts a later rollback after reading', () => {
@@ -71,4 +71,30 @@ it('keeps an unknown operation pending until a same-operation outcome is known',
   state = transitionAgentDrawer(state, { type: 'outcome', id: 'one', outcome: 'saved', changes: [{ targetId: 'a', description: 'Resized' }] })
   expect(state.request).toBeNull()
   expect(state.highlights).toEqual(['a'])
+})
+
+
+it('uses the most recently changed outcome for tucked failure styling', () => {
+  let state = transitionAgentDrawer(createAgentDrawerState(), { type: 'chooseBuiltin' })
+  state = transitionAgentDrawer(state, { type: 'beginEdit', id: 'old', intent: 'Old edit' })
+  state = transitionAgentDrawer(state, { type: 'outcome', id: 'old', outcome: 'applied' })
+  state = transitionAgentDrawer(state, { type: 'beginEdit', id: 'new', intent: 'New edit' })
+  state = transitionAgentDrawer(state, { type: 'outcome', id: 'new', outcome: 'saved' })
+  state = transitionAgentDrawer(state, { type: 'drawer', mode: 'open' })
+  state = transitionAgentDrawer(state, { type: 'drawer', mode: 'tucked' })
+  state = transitionAgentDrawer(state, { type: 'outcome', id: 'old', outcome: 'rolled-back' })
+  expect(state.unread).toEqual(['old'])
+  expect(agentEdgeState(state)).toMatchObject({ failed: true, dot: 'failed' })
+  state = transitionAgentDrawer(state, { type: 'outcome', id: 'new', outcome: 'saved' })
+  expect(agentEdgeState(state).failed).toBe(true)
+})
+
+it('draws only a single proven time range, never the hull or stale coordinates of multiple insertions', () => {
+  const change = (startMs: number) => ({ targetId: String(startMs), description: 'Inserted', range: { startMs, endMs: startMs + 1000 } })
+  expect(agentInsertionBand([change(5000)])).toEqual({ startMs: 5000, endMs: 6000 })
+  for (const starts of [[5000, 40000], [40000, 5000], [5000, 6000], [5000, 5000]]) {
+    expect(agentInsertionBand(starts.map(change))).toBeNull()
+  }
+  expect(agentInsertionBand([change(NaN)])).toBeNull()
+  expect(agentInsertionBand([])).toBeNull()
 })

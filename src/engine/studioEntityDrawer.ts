@@ -71,6 +71,7 @@ export function studioEntityDrawerTimerEligible(state: StudioEntityDrawerState):
 export function transitionStudioEntityDrawer(
   state: StudioEntityDrawerState,
   event: StudioEntityDrawerEvent,
+  label?: string,
 ): StudioEntityDrawerTransition {
   switch (event.type) {
     case 'set-place': {
@@ -84,7 +85,7 @@ export function transitionStudioEntityDrawer(
         busy: [],
       }
       if (!event.openAfterSelection || studioEntityDrawerIsPinned(next)) return { state: next }
-      return openDrawer(next, 'place-selection')
+      return openDrawer(next, 'place-selection', label)
     }
     case 'set-pin-preferences': {
       const next = { ...state, pinPreferences: event.pinPreferences }
@@ -108,12 +109,12 @@ export function transitionStudioEntityDrawer(
         busy: [],
         timerArmed: false,
       }
-      return { state: next, announce: `${placeLabel(state.place)} list ${event.pinned ? 'pinned' : 'unpinned'}` }
+      return { state: next, announce: `${label ?? `${placeLabel(state.place)} list`} ${event.pinned ? 'pinned' : 'unpinned'}` }
     }
     case 'open':
-      return openDrawer(state, event.source)
+      return openDrawer(state, event.source, label)
     case 'close':
-      return closeDrawer(state, event.reason)
+      return closeDrawer(state, event.reason, label)
     case 'pointer': {
       const next = { ...state, pointerInside: event.inside }
       return {
@@ -136,18 +137,19 @@ export function transitionStudioEntityDrawer(
       }
     }
     case 'timer-elapsed':
-      return state.timerArmed ? closeDrawer(state, 'timer') : { state }
+      return state.timerArmed ? closeDrawer(state, 'timer', label) : { state }
   }
 }
 
 function openDrawer(
   state: StudioEntityDrawerState,
   source: StudioEntityDrawerOpenSource,
+  label?: string,
 ): StudioEntityDrawerTransition {
   if (studioEntityDrawerIsPinned(state) || state.open) return { state }
   return {
     state: { ...state, open: true, openSource: source, timerArmed: false },
-    announce: `${placeLabel(state.place)} list open`,
+    announce: `${label ?? `${placeLabel(state.place)} list`} open`,
     ...(source === 'keyboard' ? { focus: 'list' as const } : {}),
   }
 }
@@ -155,6 +157,7 @@ function openDrawer(
 function closeDrawer(
   state: StudioEntityDrawerState,
   reason: StudioEntityDrawerCloseReason,
+  label?: string,
 ): StudioEntityDrawerTransition {
   if (studioEntityDrawerMode(state) !== 'open') return { state }
   if (state.busy.length > 0 && (reason === 'outside' || reason === 'timer' || reason === 'escape')) {
@@ -163,7 +166,7 @@ function closeDrawer(
   const restore = state.openSource === 'keyboard'
   return {
     state: closeWithoutEffects(state),
-    announce: `${placeLabel(state.place)} list closed`,
+    announce: `${label ?? `${placeLabel(state.place)} list`} closed`,
     ...(restore ? { focus: 'restore' as const } : {}),
   }
 }

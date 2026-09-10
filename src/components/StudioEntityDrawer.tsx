@@ -105,7 +105,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
       focusReturnRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
       keyboardRefocusAllowedRef.current = true
     }
-    const result = transitionStudioEntityDrawer(stateRef.current, event)
+    const result = transitionStudioEntityDrawer(stateRef.current, event, label)
     stateRef.current = result.state
     if (studioEntityDrawerMode(result.state) !== 'open') keyboardRefocusAllowedRef.current = false
     setState(result.state)
@@ -117,7 +117,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
       window.setTimeout(() => target?.focus(), 0)
     }
     return result
-  }, [cancelHoverOpen, onModeChange])
+  }, [cancelHoverOpen, onModeChange, label])
 
   useEffect(() => {
     cancelHoverOpen()

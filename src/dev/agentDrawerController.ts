@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { createAgentDrawerState, transitionAgentDrawer, type AgentChange, type AgentDrawerEvent, type AgentDrawerState, type AgentOutcome } from '@/engine/agentDrawerModel'
+import { agentInsertionBand, createAgentDrawerState, transitionAgentDrawer, type AgentChange, type AgentDrawerEvent, type AgentDrawerState, type AgentOutcome } from '@/engine/agentDrawerModel'
 import type { createAgentEditorAdmission } from './agentEditorAdmission'
 import type { ShowEditRequest } from '@/engine/showEditAdmission'
 import { useShowStore } from '@/store/showStore'
@@ -127,8 +127,7 @@ export function createAgentDrawerController(api: Admission, showId: string) {
       if (result.changed && result.show && result.privateOutcome?.kind === 'committed') {
         // Metadata comes from private registry execution, and grants no mutation capability.
         const changes = Array.isArray(result.changes) ? result.changes.filter(change => typeof change.targetId === 'string' && typeof change.description === 'string') : []
-        const ranges = changes.flatMap(change => change.range && Number.isFinite(change.range.startMs) && Number.isFinite(change.range.endMs) && change.range.endMs >= change.range.startMs ? [change.range] : [])
-        metadata.set(id, { changes, band: ranges.length ? { startMs: Math.min(...ranges.map(range => range.startMs)), endMs: Math.max(...ranges.map(range => range.endMs)) } : null })
+        metadata.set(id, { changes, band: agentInsertionBand(changes) })
         record.applyStartedAt = Date.now()
         adopting = true
         let receipt: Receipt

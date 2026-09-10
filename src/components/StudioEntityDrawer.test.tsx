@@ -401,5 +401,6 @@ it('mirrors an independently owned right drawer without claiming the list shortc
   expect(tab).toHaveAttribute('aria-expanded', 'false')
   fireEvent.click(tab)
   expect(onModeChange).toHaveBeenCalledWith('open')
+  expect(screen.getByText('Agent drawer open')).toBeInTheDocument()
   expect(useStudioEntityDrawerStore.getState().pinPreferences.shows).toBe(true)
 })

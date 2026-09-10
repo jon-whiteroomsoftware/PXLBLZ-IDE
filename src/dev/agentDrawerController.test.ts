@@ -84,3 +84,18 @@ it('does not paint an insertion band when live admission refuses a committed pri
   expect(useAgentDrawerStore.getState().state.highlights).toEqual([])
   expect(useAgentDrawerStore.getState().state.stream.some(line => line.text === 'Inserted.')).toBe(false)
 })
+
+it.each([[5000, 40000], [40000, 5000]])('adopts multiple insertions without painting an unproved final band: %j', async (first, second) => {
+  vi.mocked(fetch).mockImplementation(async (_url, options) => {
+    const { requestId } = JSON.parse(options!.body as string)
+    const changes = [first, second].map(startMs => ({ targetId: `at-${startMs}`, description: 'Time inserted.', range: { startMs, endMs: startMs + 1000 } }))
+    const body = JSON.stringify({ requestId, kind: 'done', changed: true, show: { id: 'show' }, privateOutcome: { kind: 'committed' }, reply: 'Inserted.', changes }) + '\n'
+    let sent = false
+    return { ok: true, body: { getReader: () => ({ read: async () => sent ? { done: true } : (sent = true, { done: false, value: new TextEncoder().encode(body) }) }) } } as Response
+  })
+  controller.dispatch({ type: 'draft', text: 'insert twice' }); controller.submit()
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.stream.some(line => line.outcome === 'saved')).toBe(true))
+  expect(applied).toHaveBeenCalledOnce()
+  expect(useAgentDrawerStore.getState().state.band).toBeNull()
+  expect(useAgentDrawerStore.getState().state.stream.find(line => line.outcome === 'saved')?.changes).toHaveLength(2)
+})

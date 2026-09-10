@@ -604,7 +604,11 @@ remain later candidates.
 The bridge's optional `changes` envelope comes from committed private registry
 execution. Each entry names a stable target, a human-readable change, and the
 registry's touched paths. Insertion ranges retain the exact successful change
-identity and the registry's rounded time coordinates; Show End ranges use its
+identity and the registry's rounded time coordinates. A turn with exactly one
+range may draw a time band. Multiple ranges retain their change descriptions but
+draw no band: per-command coordinates are not rebased through later insertions,
+and a min/max hull would falsely mark untouched time. This presentation limit
+does not restrict multi-command edits. Show End ranges use its
 before/after receipt. Private refusal and failed commands export no attribution.
 This envelope is presentation metadata, not an admission receipt. The controller
 checks stream request identity and joins metadata to that same immutable
