@@ -6,8 +6,6 @@ import { Preview } from '@/components/Preview'
 import { PreviewDeck } from '@/components/PreviewDeck'
 import { GALLERY_DETAIL_PIXEL_COUNT_CAP } from '@/engine/previewPixelCount'
 import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
-import { PatternDetailActionBar } from '@/components/PatternDetailActionBar'
-import { PatternPushFailureNotice } from '@/components/PatternPushFailureNotice'
 import { EmbeddingSelect, useEmbeddingSelectMeta } from '@/components/LayoutSelector'
 import { useRouterStore } from '@/store/routerStore'
 import { openDemoPattern } from '@/store/openPattern'
@@ -176,8 +174,6 @@ export function PatternDetailPage({
                 <Code2 data-icon="inline-start" />
                 Open in Studio
               </Button>
-              <PatternDetailActionBar />
-              <PatternPushFailureNotice compact />
             </div>
 
           </aside>

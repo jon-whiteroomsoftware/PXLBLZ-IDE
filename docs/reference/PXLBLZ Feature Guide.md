@@ -39,9 +39,10 @@ detail page (`/p/<slug>`) with a large live preview, the Pattern's own
 controls, and read-only source, displayed with the map and look its author
 intended.
 
-From a detail page you can go two directions: **Open in Studio** to read or
-clone the code, or **Run** and **Save** to put it straight onto a connected
-Controller.
+From a detail page, **Open in Studio** loads the Pattern to read or clone its
+code, or connect a Controller and use **Run** or **Save**. Public Gallery,
+detail, Docs, and API Reference pages have no Controller controls and start
+no Controller discovery or extension handshake.
 
 Two folders are intentionally quiet: **Test Patterns** (diagnostics) and
 **Luma Sources** (grayscale keying ingredients for Shows) are available in
@@ -108,8 +109,8 @@ the source of truth.
 
 Studio uses GitHub or Google sign-in; logins that share a verified email open
 the same workspace. Your content is stored in the cloud, not the browser.
-Signed out, the whole app is a demo: Gallery, docs, preview, and live
-Controllers all work, but nothing personal can be saved. If a save or delete
+Signed out, Gallery, docs, and public previews work without personal storage.
+Sign in to Studio to author and connect a Controller. If a save or delete
 ever fails to reach the workspace, Studio tells you where you did it instead
 of failing silently.
 
@@ -248,9 +249,11 @@ actions. Nothing crosses to hardware as a side effect.
 ## 9. Connecting a Controller
 
 Live access goes through the PXLBLZ Chrome extension, because an HTTPS page
-cannot open a Controller's LAN WebSocket on its own. Pick a discovered
-Controller or enter an IP from the top-right menu; several can stay
-connected with one active.
+cannot open a Controller's LAN WebSocket on its own. The Controller bar and
+**Connect** are Studio-only. Pick a discovered Controller or enter an IP from
+Studio's top-right menu; several can stay connected with one active. Visiting
+the Gallery or another public route hides the bar without disconnecting;
+returning to Studio shows the existing connection.
 
 The live panel shows what the device says right now: brightness, FPS, IP,
 pixel count, the running Pattern's controls and watched variables, and power

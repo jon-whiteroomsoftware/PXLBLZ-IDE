@@ -228,7 +228,7 @@ test('About and API reference are public deep-linkable workspaces', async ({ pag
 
   await page.goto('docs/about')
   await expect(page.getByTestId('docs-reader')).toContainText('I built the Pixelblaze tool I wanted for myself.')
-  await expect(page.getByRole('button', { name: 'Connect a Controller' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Connect a Controller' })).toHaveCount(0)
 
   await page.goto('reference/Anim')
   await expect(page.getByTestId('api-reference-reader')).toContainText('Anim.easeIn2(t)')
@@ -311,6 +311,29 @@ test('the Studio welcome gate remains reachable on a short phone', async ({ page
 test('unknown paths fail gracefully', async ({ page }) => {
   await page.goto('no-such-page')
   await expect(page.getByTestId('route-message')).toContainText('Nothing at this address')
+})
+
+test('public routes do not start Controller integration (#998)', async ({ page }) => {
+  await page.addInitScript(() => {
+    const messages: string[] = []
+    Object.assign(window, { controllerStartupMessages: messages })
+    window.addEventListener('message', (event) => {
+      const message = event.data
+      if (message?.dir === 'to-helper' && ['detect', 'discover', 'connect'].includes(message.type)) {
+        messages.push(message.type)
+      }
+    })
+  })
+  for (const path of ['gallery', 'p/iridescent-fibers', 's/quadrille', 'docs/about', 'reference/Anim']) {
+    await page.goto(path)
+    await expect(page.getByTestId('top-bar')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
+    await expect(page.getByTestId('controller-bar')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /Connect/ })).toHaveCount(0)
+    expect(await page.evaluate(() =>
+      (window as Window & { controllerStartupMessages: string[] }).controllerStartupMessages,
+    )).toEqual([])
+  }
 })
 
 test('Gallery animates the cards nearest the pointer and freezes the rest on posters (#888)', async ({ page }) => {

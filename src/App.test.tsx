@@ -1600,48 +1600,6 @@ describe('routing (#308)', () => {
     expect(screen.queryByTestId('left-pane')).not.toBeInTheDocument()
   })
 
-  it('keeps the global Controller surface visible on gallery, detail, studio, docs, and API routes (#323)', () => {
-    const routes = ['/gallery', '/p/iridescent-fibers', '/studio', '/docs/feature-guide', '/reference/Anim']
-
-    for (const path of routes) {
-      window.history.replaceState(null, '', path)
-      useRouterStore.setState(routerInitialState)
-      useDocsStore.setState(docsInitialState)
-      const view = render(<App />)
-      const topBar = screen.getByTestId('top-bar')
-
-      expect(within(topBar).getByTestId('controller-bar')).toBeInTheDocument()
-      expect(within(topBar).getByRole('button', { name: 'Connect a Controller' })).toBeInTheDocument()
-
-      view.unmount()
-    }
-  })
-
-  it('keeps the connected Controller pill visible while navigating browse routes (#323)', async () => {
-    window.history.replaceState(null, '', '/gallery')
-    useWorkspaceStore.setState({
-      personalWorkspaceAuthenticated: true,
-      personalWorkspaceResolved: true,
-    })
-    useControllerStore.setState({
-      extensionPresent: true,
-      activeIp: '10.0.0.5',
-      controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Desk', phase: 'live', mapDim: 2 } },
-    })
-    render(<App />)
-
-    expect(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Toggle Desk panel' })).toBeInTheDocument()
-
-    await userEvent.click(screen.getByRole('button', { name: /IridescentFibers/i }))
-    expect(window.location.pathname).toBe('/p/iridescent-fibers')
-    expect(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Toggle Desk panel' })).toBeInTheDocument()
-
-    await userEvent.click(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Studio' }))
-    expect(window.location.pathname).toBe('/studio')
-    expect(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Toggle Desk panel' })).toBeInTheDocument()
-    expect(useControllerStore.getState().activeIp).toBe('10.0.0.5')
-  })
-
   it('keeps controller connection state orthogonal to auth changes (#323)', async () => {
     window.history.replaceState(null, '', '/studio')
     useWorkspaceStore.setState({
@@ -1666,7 +1624,7 @@ describe('routing (#308)', () => {
 
     await waitFor(() => expect(window.location.pathname).toBe('/studio-welcome'))
     expect(useControllerStore.getState().activeIp).toBe('10.0.0.5')
-    expect(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Toggle Desk panel' })).toBeInTheDocument()
+    expect(screen.queryByTestId('controller-bar')).not.toBeInTheDocument()
   })
 
   it('clears the Gallery search from the inline clear button', async () => {
@@ -1883,15 +1841,6 @@ describe('routing (#308)', () => {
     expect(screen.queryByTestId('pattern-detail-minor-row')).not.toBeInTheDocument()
   })
 
-  it('opens the shared Controller connect flow from the detail action bar', async () => {
-    window.history.replaceState(null, '', '/p/iridescent-fibers')
-    render(<App />)
-    expect(screen.queryByRole('button', { name: /Run on Controller/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Save to Controller/i })).not.toBeInTheDocument()
-    await userEvent.click(within(screen.getByTestId('pattern-detail-page')).getByRole('button', { name: 'Connect' }))
-    expect(screen.getByTestId('controller-install-pitch')).toBeInTheDocument()
-  })
-
   it('shows the detail-page reset action when the demo has preview overrides', () => {
     window.history.replaceState(null, '', '/p/aurora-sphere')
     usePatternStore.setState({
@@ -1911,5 +1860,64 @@ describe('routing (#308)', () => {
     const minorRow = screen.getByTestId('pattern-detail-minor-row')
     expect(within(minorRow).getByRole('button', { name: 'Display' })).toBeInTheDocument()
     expect(within(minorRow).getByRole('button', { name: 'Reset preview' })).toHaveTextContent('Reset')
+  })
+
+  it('mounts the Controller surface only in Studio (#998)', () => {
+    const routes = ['/gallery', '/p/iridescent-fibers', '/studio', '/studio-welcome', '/docs/feature-guide', '/reference/Anim']
+    for (const path of routes) {
+      window.history.replaceState(null, '', path)
+      useRouterStore.setState(routerInitialState)
+      useDocsStore.setState(docsInitialState)
+      const view = render(<App />)
+      expect(screen.queryByTestId('controller-bar') !== null).toBe(path === '/studio')
+      if (path !== '/studio') {
+        expect(screen.queryByRole('button', { name: /Connect/ })).not.toBeInTheDocument()
+      }
+      view.unmount()
+    }
+  })
+
+  it('starts Controller detection and reconnect only on first Studio entry (#998)', async () => {
+    const detectExtension = vi.spyOn(useControllerStore.getState(), 'detectExtension').mockResolvedValue(false)
+    const autoConnect = vi.spyOn(useControllerStore.getState(), 'autoConnect').mockResolvedValue()
+    window.history.replaceState(null, '', '/gallery')
+    seedSignedInWorkspace()
+    render(<App />)
+    expect(detectExtension).not.toHaveBeenCalled()
+    expect(autoConnect).not.toHaveBeenCalled()
+    await userEvent.click(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Studio' }))
+    expect(detectExtension).toHaveBeenCalledTimes(1)
+    expect(autoConnect).toHaveBeenCalledTimes(1)
+    await userEvent.click(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Gallery' }))
+    await userEvent.click(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Studio' }))
+    expect(detectExtension).toHaveBeenCalledTimes(1)
+    expect(autoConnect).toHaveBeenCalledTimes(1)
+    detectExtension.mockRestore()
+    autoConnect.mockRestore()
+  })
+
+  it('preserves a live Controller while hiding its pill outside Studio (#998)', async () => {
+    window.history.replaceState(null, '', '/studio')
+    seedSignedInWorkspace()
+    const controllers = { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Desk', phase: 'live' as const, mapDim: 2 as const } }
+    useControllerStore.setState({ extensionPresent: true, activeIp: '10.0.0.5', controllers })
+    render(<App />)
+    expect(screen.getByRole('button', { name: 'Toggle Desk panel' })).toBeInTheDocument()
+    await userEvent.click(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Gallery' }))
+    expect(screen.queryByTestId('controller-bar')).not.toBeInTheDocument()
+    expect(useControllerStore.getState().controllers).toBe(controllers)
+    await userEvent.click(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Studio' }))
+    expect(screen.getByRole('button', { name: 'Toggle Desk panel' })).toBeInTheDocument()
+    expect(useControllerStore.getState().activeIp).toBe('10.0.0.5')
+    expect(useControllerStore.getState().controllers).toBe(controllers)
+  })
+
+  it('offers Open without Controller actions on the public detail page (#998)', () => {
+    window.history.replaceState(null, '', '/p/iridescent-fibers')
+    render(<App />)
+    expect(screen.queryByRole('button', { name: /Run on Controller/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Save to Controller/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Connect' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open in Studio' })).toBeInTheDocument()
   })
 })

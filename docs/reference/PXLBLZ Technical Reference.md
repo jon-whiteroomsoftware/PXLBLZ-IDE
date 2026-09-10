@@ -493,6 +493,13 @@ name before any profile state changes.
 
 ## 15. Identity, connection state, and live panel
 
+`App` mounts the Controller bar only on Studio routes and starts extension
+presence detection and remembered-IP reconnect once, on the first Studio entry.
+Startup reads the synchronized route so the router's initial Studio default
+cannot trigger a handshake on a fresh public load. Public routes mount no
+Controller discovery UI or Pattern delivery actions. Navigation hides the bar
+without disposing the connection store or its live providers.
+
 Connection state is keyed by IP; several Controllers may stay live with one
 active. Durable identity is the Pixelblaze device id (board type + MAC). A
 connection without a stable id is unclaimed but fully usable.

@@ -10,8 +10,8 @@ import { windowRelayTransport } from './engine/windowRelayTransport'
 // Controller gets its own extension-backed provider over a shared window relay
 // transport, so connections are fully isolated. Until the extension is installed
 // every provider stays no-extension, so the app behaves exactly as before — the
-// header's entry affordance shows the install pitch. App.tsx drives startup
-// extension detection + last-connected auto-reconnect from here.
+// header's entry affordance shows the install pitch. App.tsx starts extension detection
+// and last-connected auto-reconnect on the first Studio entry.
 const transport = windowRelayTransport()
 setControllerProviderFactory(() => new ExtensionControllerProvider({ transport }))
 

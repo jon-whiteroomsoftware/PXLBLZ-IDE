@@ -669,15 +669,19 @@ function StudioApp() {
     }
   }, [route, personalWorkspaceResolved, personalWorkspaceAuthenticated, navigate])
 
-  // On startup, probe extension presence (global) and, if a Controller IP was
-  // remembered from a previous session, reconnect only that one (#210). Silent on
-  // failure: a missing extension or unreachable Controller just stays disconnected.
+  // Start Controller integration only on the first Studio entry. Location sync
+  // runs earlier in this effect pass; read its current route rather than the
+  // initial render's default Studio route on a fresh public-page load.
+  // The store owns live connections, so leaving Studio only hides its UI.
+  const controllerStartupStarted = useRef(false)
   const autoConnectController = useControllerStore((s) => s.autoConnect)
   const detectExtension = useControllerStore((s) => s.detectExtension)
   useEffect(() => {
+    if (useRouterStore.getState().route.kind !== 'studio' || controllerStartupStarted.current) return
+    controllerStartupStarted.current = true
     void detectExtension()
     void autoConnectController()
-  }, [autoConnectController, detectExtension])
+  }, [route.kind, autoConnectController, detectExtension])
 
   // If source becomes empty without an authored edit while a non-empty Pattern
   // is active (for example after store hot reload), reopen its durable record.
@@ -1082,7 +1086,7 @@ function StudioApp() {
           />
         </span>
         <span className="ml-auto flex min-w-0 items-center gap-1 min-[430px]:gap-1.5 sm:gap-2.5">
-          <ControllerBar />
+          {studioRoute && <ControllerBar />}
           {browseRoute && (
             <Button
               size="sm"
