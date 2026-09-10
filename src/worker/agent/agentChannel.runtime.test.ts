@@ -12,7 +12,7 @@ interface RuntimeNamespace {
 let runtime: Miniflare
 let cookie: string
 beforeAll(async () => {
-  const bundle = await build({ entryPoints: ['src/worker/index.ts'], bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022' })
+  const bundle = await build({ entryPoints: ['src/worker/index.ts'], external: ['cloudflare:workers'], bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022' })
   runtime = new Miniflare(convertV4MiniflareOptions({ modules: true, script: bundle.outputFiles[0].text, compatibilityDate: '2026-06-30',
     bindings: { SESSION_SECRET: 'test-secret', AGENT_SERVICE_ENABLED: '1', AGENT_ACCOUNT_ALLOWLIST: 'account-a,account-b,account-c' },
     d1Databases: ['PXLBLZ_DB'], durableObjects: { AGENT_ACCOUNTS: { className: 'AgentAccount', useSQLite: true } },
@@ -120,7 +120,7 @@ it('allows only one simultaneous builtin or external claim through the shared ac
   expect(results.filter((result) => result.code === 'bound' || result.code === 'pending')).toHaveLength(1)
 })
 it('refuses service-disabled access through the real Worker before target work', async () => {
-  const bundle = await build({ entryPoints: ['src/worker/index.ts'], bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022' })
+  const bundle = await build({ entryPoints: ['src/worker/index.ts'], external: ['cloudflare:workers'], bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022' })
   const disabled = new Miniflare(convertV4MiniflareOptions({ modules: true, script: bundle.outputFiles[0].text, compatibilityDate: '2026-06-30', bindings: { SESSION_SECRET: 'test-secret' }, durableObjects: { AGENT_ACCOUNTS: { className: 'AgentAccount', useSQLite: true } } }))
   try {
     const response = await disabled.dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Origin: 'https://app.test', Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'register', sessionId: 'disabled', showId: 'show-a' }) })
@@ -153,7 +153,7 @@ it.each([
   { service: '0', allowlist: 'account-a', refusal: 'service_disabled' },
   { service: '1', allowlist: 'another-account', refusal: 'not_allowed' },
 ])('allows only local cleanup with service=$service and allowlist=$allowlist', async ({ service, allowlist, refusal }) => {
-  const bundle = await build({ entryPoints: ['src/worker/index.ts'], bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022' })
+  const bundle = await build({ entryPoints: ['src/worker/index.ts'], external: ['cloudflare:workers'], bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022' })
   const suspended = new Miniflare(convertV4MiniflareOptions({ modules: true, script: bundle.outputFiles[0].text, compatibilityDate: '2026-06-30', bindings: { SESSION_SECRET: 'test-secret', AGENT_SERVICE_ENABLED: service, AGENT_ACCOUNT_ALLOWLIST: allowlist }, durableObjects: { AGENT_ACCOUNTS: { className: 'AgentAccount', useSQLite: true } } }))
   try {
     // Seed the previously valid binding through the private owner. Its current

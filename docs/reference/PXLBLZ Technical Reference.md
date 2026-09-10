@@ -153,6 +153,10 @@ loop at one sample per second and stored as `show--<id>.json.gz`.
 nothing. OAuth intent and callback outcome events use only the provider,
 outcome, and coarse failure code, never account or profile data.
 
+The [agent OAuth and MCP discovery contract](contracts/agent-oauth-discovery.md)
+describes signed consent, resource-bound credentials, private authorization
+storage, and the current discovery-only external endpoint.
+
 The [agent account rendezvous](contracts/agent-rendezvous.md) coordinates one
 agent connection per account through a private Durable Object and an authenticated
 browser channel. Admission gating remains separate from capability-checked local

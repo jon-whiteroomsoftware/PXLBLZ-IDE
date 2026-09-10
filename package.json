@@ -195,6 +195,7 @@
     "zod": "^3.25.76"
   },
   "dependencies": {
+    "@cloudflare/workers-oauth-provider": "0.10.3",
     "@fontsource-variable/geist": "^5.2.9",
     "@fontsource/ibm-plex-mono": "^5.2.7",
     "@monaco-editor/react": "^4.7.0",

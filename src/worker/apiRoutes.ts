@@ -13,6 +13,7 @@ import type { D1DatabaseShowsLike } from '../cloudflare/shows'
 import type { D1DatabaseWritableLike } from '../cloudflare/users'
 import type { AgentAccessEnvironment } from '../cloudflare/agentAccess'
 import type { AgentAccountNamespace } from './agent/AgentAccount'
+import type { AgentOAuthSettings } from './agent/agentOAuthConfig'
 import * as agentChannel from './routes/agent/channel'
 import * as authCallback from './routes/auth/callback'
 import * as authDisconnect from './routes/auth/disconnect'
@@ -51,7 +52,8 @@ export type WorkerD1Database =
   & D1DatabaseControllerMetadataLike
   & D1ResourceProtectionDatabaseLike
 
-export interface WorkerEnv extends AgentAccessEnvironment {
+export interface WorkerEnv extends AgentAccessEnvironment, AgentOAuthSettings {
+  AGENT_OAUTH_AUTHORITY?: AgentAccountNamespace
   AGENT_ACCOUNTS?: AgentAccountNamespace
   SESSION_SECRET?: string
   GITHUB_CLIENT_ID?: string

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createSessionToken, sessionCookieName } from '../cloudflare/auth'
 import { PersonalStorageGuardError } from '../cloudflare/resourceProtection'
 import {
@@ -8,6 +8,9 @@ import {
 import { apiRoutes } from './apiRoutes'
 import worker, { handleApiRequest, type WorkerEnv } from './index'
 import type { WorkerRoute } from './router'
+
+// OAuth's native workerd import is exercised by the real-runtime suites.
+vi.mock('@cloudflare/workers-oauth-provider', () => ({ OAuthProvider: class {}, OAuthError: Error }))
 
 function envWithAssets(assets?: (request: Request) => Response): WorkerEnv {
   return {

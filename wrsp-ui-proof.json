@@ -1,6 +1,7 @@
 {
   "pathPatterns": [
     "^src/components/(?!.*\\.test\\.tsx?$).*\\.tsx$",
+    "^src/worker/agent/agentOAuthConsent\\.ts$",
     "^src/App\\.tsx$",
     "^src/.*\\.css$"
   ],

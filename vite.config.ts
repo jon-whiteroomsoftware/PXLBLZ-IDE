@@ -1,4 +1,5 @@
 import { loadEnv } from 'vite'
+import { agentDevBindings } from './scripts/agent-dev-bindings.js'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 // Vitest's defineConfig accepts the async config function and the `test`
@@ -208,6 +209,7 @@ export default defineConfig(async ({ command, mode, isPreview }): Promise<ViteUs
   const workerDevPlugins = workerDevMode
     ? [(await import('@cloudflare/vite-plugin')).cloudflare({
         configPath: 'wrangler.jsonc',
+        config: (config) => ({ vars: { ...config.vars, ...agentDevBindings(process.env) } }),
         persistState: persistStatePath ? { path: persistStatePath } : true,
       })]
     : []

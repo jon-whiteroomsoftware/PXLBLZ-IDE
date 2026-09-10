@@ -2,6 +2,7 @@
 // everything else falls through to the static-assets binding (which supplies
 // the SPA fallback). Unknown API paths answer worker-first with JSON.
 
+import { AGENT_OAUTH_PATHS, agentOAuthRoute } from './agent/agentOAuthRoutes'
 import { personalStorageGuardResponse } from '../cloudflare/resourceProtection'
 import { apiRoutes, type WorkerEnv } from './apiRoutes'
 import { resolveRoute, type WorkerRoute } from './router'
@@ -35,6 +36,7 @@ export async function handleApiRequest(
 const worker = {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     const { pathname } = new URL(request.url)
+    if ((AGENT_OAUTH_PATHS as readonly string[]).includes(pathname)) return agentOAuthRoute(request, env)
     if (pathname === '/api' || pathname.startsWith('/api/')) {
       return handleApiRequest(apiRoutes, request, env)
     }
@@ -44,4 +46,5 @@ const worker = {
 
 export default worker
 
+export { AgentOAuthAuthority } from './agent/AgentOAuthAuthority'
 export { AgentAccount } from './agent/AgentAccount'

@@ -15,7 +15,7 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api", "/api/*"]
+    "run_worker_first": ["/api", "/api/*", "/oauth/*", "/mcp", "/.well-known/oauth-*"]
   },
   "vars": {
     "VITE_BASE_PATH": "/",
@@ -27,8 +27,8 @@
   "routes": [
     { "pattern": "pxlblz-ide.whiteroomsoftware.com", "custom_domain": true }
   ],
-  "durable_objects": { "bindings": [{ "name": "AGENT_ACCOUNTS", "class_name": "AgentAccount" }] },
-  "migrations": [{ "tag": "agent-account-v1", "new_sqlite_classes": ["AgentAccount"] }],
+  "durable_objects": { "bindings": [{ "name": "AGENT_ACCOUNTS", "class_name": "AgentAccount" }, { "name": "AGENT_OAUTH_AUTHORITY", "class_name": "AgentOAuthAuthority" }] },
+  "migrations": [{ "tag": "agent-account-v1", "new_sqlite_classes": ["AgentAccount"] }, { "tag": "agent-oauth-v1", "new_sqlite_classes": ["AgentOAuthAuthority"] }],
   "d1_databases": [
     {
       "binding": "PXLBLZ_DB",
