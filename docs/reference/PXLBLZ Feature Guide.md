@@ -16,6 +16,11 @@ feature is for, where to find it, and where the deeper guides pick up.
 
 # Part 1 — Gallery, Studio, Docs
 
+The Gallery header's **Studio** action opens **Quadrille** in Shows with preview
+playback running, including after the Studio welcome/sign-in flow. It does not
+restore a previous Show. Explicit Pattern and Show links retain their targets;
+ordinary Show opening remains paused.
+
 ## 1. Gallery
 
 `/gallery` is the front door: the built-in Pattern catalogue, with the

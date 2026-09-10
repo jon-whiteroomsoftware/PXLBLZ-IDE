@@ -1742,3 +1742,10 @@ the held-out directory; issue #958 owns its first execution and scoring.
   (routing representation #400/#409/#410, coordinate remapping #406, seek
   replay #421, headless freeze #459, distortion review #456, arena and
   specialization results #512–#573, composition freeze #492)
+
+
+Gallery Studio entry (#63) routes to stock Quadrille and requests playback for
+that entry only. The Show editor defaults to paused for ordinary opening; its
+`autoPlay` prop accepts the transient entry request. Welcome completion and a
+successful OAuth return to the generic app entry use the same destination.
+No last-Show preference is persisted; explicit entity routes remain authoritative.

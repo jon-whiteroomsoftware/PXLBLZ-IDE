@@ -956,8 +956,8 @@ describe('routing (#308)', () => {
       personalWorkspaceResolved: true,
     })
     render(<App />)
-    expect(window.location.pathname).toBe('/studio')
-    expect(screen.getByTestId('editor-pane')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/studio/shows/stock-show-remix-quadrille')
+    expect(usePreviewStore.getState().isRunning).toBe(true)
   })
 
   describe('auth result notices (#701)', () => {
@@ -1580,9 +1580,28 @@ describe('routing (#308)', () => {
 
     await user.click(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Studio' }))
 
+    act(() => useRouterStore.getState().navigate({ kind: 'studio', entity: { kind: 'patterns', id: pattern.id } }))
     await waitFor(() => expect(screen.getByTestId('preview-unavailable')).toBeInTheDocument())
     expect(screen.getByTestId('preview-unavailable')).toHaveTextContent('Fix the source errors to restart it.')
     expect(useEditorStore.getState().source).toBe(brokenSource)
+  })
+
+  it('opens Quadrille running from the Gallery even when preview was paused (#63)', async () => {
+    window.history.replaceState(null, '', '/gallery')
+    seedSignedInWorkspace()
+    usePreviewStore.setState({ isRunning: false })
+    render(<App />)
+    await userEvent.click(screen.getByRole('button', { name: 'Studio' }))
+    await waitFor(() => expect(window.location.pathname).toBe('/studio/shows/stock-show-remix-quadrille'))
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+  })
+
+  it.each(['/studio', '/'])('opens Quadrille after the sign-in callback at %s (#63)', async (path) => {
+    window.history.replaceState(null, '', `${path}?auth=success&auth_provider=github`)
+    seedSignedInWorkspace()
+    render(<App />)
+    await waitFor(() => expect(window.location.pathname).toBe('/studio/shows/stock-show-remix-quadrille'))
+    expect(usePreviewStore.getState().isRunning).toBe(true)
   })
 
   it('sends signed-out Gallery visitors to the Studio welcome page without rendering Studio first', async () => {

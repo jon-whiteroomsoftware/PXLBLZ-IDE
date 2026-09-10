@@ -413,6 +413,13 @@ function StudioApp() {
     readAuthResultNotice(window.location.search),
   )
   const initialAuthResultRef = useRef(readAuthResultEvent(window.location.search))
+  const [galleryEntryPlayback, setGalleryEntryPlayback] = useState(false)
+  useEffect(() => {
+    if (!routesEqual(route, useRouterStore.getState().route)) return
+    // Navigation consumes this transient entry intent; it must not follow later Show links.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (route.kind !== 'studio' || route.entity?.kind !== 'shows' || route.entity.id !== 'stock-show-remix-quadrille') setGalleryEntryPlayback(false)
+  }, [route])
   useEffect(() => {
     const result = initialAuthResultRef.current
     if (result) {
@@ -538,6 +545,11 @@ function StudioApp() {
   useLayoutEffect(() => {
     const sync = () => useRouterStore.getState().syncFromLocation()
     sync()
+    const initialRoute = useRouterStore.getState().route
+    if (initialAuthResultRef.current?.outcome === 'success' && ((initialRoute.kind === 'studio' && initialRoute.entity === null) || initialRoute.kind === 'gallery')) {
+      setGalleryEntryPlayback(true)
+      useRouterStore.getState().navigate({ kind: 'studio', entity: { kind: 'shows', id: 'stock-show-remix-quadrille' } }, { replace: true })
+    }
     routeSyncedRef.current = true
     window.addEventListener('popstate', sync)
     window.addEventListener('hashchange', sync)
@@ -668,7 +680,10 @@ function StudioApp() {
 
   useEffect(() => {
     if (route.kind === 'studio-welcome' && personalWorkspaceResolved && personalWorkspaceAuthenticated) {
-      navigate({ kind: 'studio', entity: null }, { replace: true })
+      // Keep playback intent in the same transition as the asynchronous auth handoff.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setGalleryEntryPlayback(true)
+      navigate({ kind: 'studio', entity: { kind: 'shows', id: 'stock-show-remix-quadrille' } }, { replace: true })
     }
   }, [route, personalWorkspaceResolved, personalWorkspaceAuthenticated, navigate])
 
@@ -819,6 +834,7 @@ function StudioApp() {
   const activeShowEditor = activeShow ? (
     <ShowEditor
       showId={activeShow.id}
+      autoPlay={galleryEntryPlayback && activeShow.id === 'stock-show-remix-quadrille'}
       showOverride={routedStockShowOverride}
       builtInContext={routedStockShow ? {
         track: routedStockShow.track,
@@ -936,7 +952,8 @@ function StudioApp() {
       navigate({ kind: 'studio-welcome' })
       return
     }
-    navigate({ kind: 'studio', entity: null })
+    setGalleryEntryPlayback(true)
+    navigate({ kind: 'studio', entity: { kind: 'shows', id: 'stock-show-remix-quadrille' } })
   }
 
   const selectStudioPlace = useCallback((place: StudioPlaceId, openEntityList = false) => {

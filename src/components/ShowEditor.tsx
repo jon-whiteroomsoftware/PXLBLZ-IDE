@@ -908,6 +908,7 @@ function buildControllerCompatibilityContext(
 
 export function ShowEditor({
   showId,
+  autoPlay = false,
   showOverride,
   readOnly = false,
   builtInContext,
@@ -920,6 +921,7 @@ export function ShowEditor({
   onOpenStagePreview,
 }: {
   showId: string
+  autoPlay?: boolean
   showOverride?: ShowRecord
   readOnly?: boolean
   builtInContext?: {
@@ -939,8 +941,8 @@ export function ShowEditor({
   onOpenStagePreview?: (anchor: HTMLElement) => void
 }) {
   useLayoutEffect(() => {
-    usePreviewStore.getState().setRunning(false)
-  }, [showId])
+    usePreviewStore.getState().setRunning(autoPlay)
+  }, [showId, autoPlay])
 
   const savedShow = useShowStore((state) => state.shows.find((item) => item.id === showId))
   const stockShowDraft = useShowStore((state) => state.stockShowDrafts[showId])
