@@ -112,6 +112,7 @@ test('preserves the split ratio while resizing and restores it after a width cla
   await page.setViewportSize({ width: 640, height: 1000 })
   await expect(page.getByTestId('show-stage-strip')).toBeVisible()
   await expect(divider).toHaveAttribute('data-clamp', 'controls-min')
+  await expect(page.getByTestId('studio-entity-drawer')).toBeHidden()
   await testInfo.attach('split-640x1000', { body: await page.screenshot(), contentType: 'image/png' })
   await page.setViewportSize({ width: 1800, height: 1000 })
   await expect.poll(async () => Math.abs(await ratio() - original)).toBeLessThan(0.003)

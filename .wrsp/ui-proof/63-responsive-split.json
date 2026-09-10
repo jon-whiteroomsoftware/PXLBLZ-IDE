@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "63",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-301-installation-mapping",
+  "operation": "Repository Playwright authenticated fixture (playwright-worker-00, isolated suite runtime), after in-app verification: moved the divider with Shift+ArrowDown, resized 1800x1000 to 1600x900, 1900x1200 and back; asserted preserved timeline/strip ratio. Resized to 640x1000, asserted controls-min clamp and retained Stage, waited for the drawer to finish closing, captured, and restored the original ratio at 1800x1000. Captures exported from the passing test JSON reporter and visually inspected.",
+  "captures": [
+    ".wrsp/ui-proof/63-split-1600x900.png",
+    ".wrsp/ui-proof/63-split-1900x1200.png",
+    ".wrsp/ui-proof/63-split-1800x1000.png",
+    ".wrsp/ui-proof/63-split-640x1000.png"
+  ],
+  "capturedAtCommit": "d18ea281e02185fa1455b43b5738812e229e3021"
+}

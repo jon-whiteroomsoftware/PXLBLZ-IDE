@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "63",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-remix-quadrille",
+  "operation": "Codex in-app browser at managed port 5178, existing synthetic local-agent-08 session: reloaded the committed route, scrolled the Source code section into view and opened About LineDancer2D source. Inspected readable light text at the approved compact size.",
+  "captures": [
+    ".wrsp/ui-proof/63-narrow-tooltip.jpg"
+  ],
+  "capturedAtCommit": "d18ea281e02185fa1455b43b5738812e229e3021"
+}
