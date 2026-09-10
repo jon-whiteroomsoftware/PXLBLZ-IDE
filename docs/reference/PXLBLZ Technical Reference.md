@@ -1642,6 +1642,13 @@ movement and checks every collision; strict raw final validation precedes
 candidate delivery. The [command contract](contracts/show-command-semantics.md#private-two-clip-rearrangement)
 defines this finite exception and its ownership limits.
 
+The development-only editable Show route (`?agent=1`) presents diagnostic
+agent activity in a right-edge drawer shared with the entity drawer mechanics.
+Its pure presentation model projects owned admission/save receipts and committed
+registry attribution metadata; the existing admission and persistence owners
+remain authoritative. See the [diagnostic drawer contract](contracts/agent-candidate-application.md#diagnostic-agent-drawer-957).
+Production dispatch and real external-client connection remain separate work.
+
 `src/agent-harness/` is a diagnostic area, not product code: the local agent
 dictation bridge, Show grammar and MCP server, dictation corpus with its
 scripted fake agent, and evaluation tools transferred from the private V3

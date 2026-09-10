@@ -1,0 +1,20 @@
+:root { --color-agent: #c4b5fd; --color-agent-dim: rgba(196,181,253,.18); }
+.agent-button { border: 1px solid #3f3f46; border-radius: 4px; padding: 3px 8px; color: #d4d4d8; font-size: 11px; }
+.agent-button:hover { border-color: #71717a; }
+.agent-button:focus-visible { outline: 2px solid var(--color-agent); outline-offset: 2px; }
+.agent-button:disabled { opacity: .4; }
+.agent-primary { background: var(--color-agent); color: #18181b; border-color: var(--color-agent); }
+.agent-dot { width: 7px; height: 7px; flex-shrink: 0; border-radius: 50%; }
+.agent-dot-connected { background: var(--color-agent); }
+.agent-dot-busy, .agent-dot-waiting { background: #fcd34d; }
+.agent-dot-busy { animation: agent-pulse 1.1s ease-in-out infinite; }
+.agent-dot-failed { background: #fca5a5; }
+.agent-dot-dropped { border: 1px solid var(--color-agent); }
+.agent-ringing { box-shadow: 0 0 0 3px #fcd34d33; }
+[data-agent-highlight="flash"], [data-agent-highlight="settled"] { outline: 3px double var(--color-agent) !important; outline-offset: 1px; }
+[data-agent-highlight="refused"] { outline: 3px double #fca5a5 !important; outline-offset: 1px; }
+[data-agent-highlight="flash"] { animation: agent-flash 1.9s ease-out; }
+.agent-time-band { pointer-events: none; position: absolute; top: 0; bottom: 0; background: var(--color-agent-dim); border-inline: 3px double var(--color-agent); z-index: 30; }
+@keyframes agent-flash { from { box-shadow: 0 0 0 7px var(--color-agent-dim), 0 0 18px 4px var(--color-agent-dim); } to { box-shadow: none; } }
+@keyframes agent-pulse { 50% { opacity: .4; } }
+@media (prefers-reduced-motion: reduce) { .agent-dot-busy, [data-agent-highlight="flash"] { animation: none; } }

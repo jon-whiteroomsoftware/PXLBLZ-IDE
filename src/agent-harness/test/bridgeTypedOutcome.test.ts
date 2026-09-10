@@ -89,3 +89,19 @@ it('never exports an invalid final candidate after the one repair opportunity', 
   expect(result.show).toBeUndefined()
   expect(result.summaries).toEqual([])
 })
+
+it.each([
+  { duration: 1000.4, finish: 'apply', expected: { startMs: 30000, endMs: 31000 } },
+  { duration: -1000, finish: 'apply', expected: undefined },
+  { duration: 1000, finish: 'refuse', expected: undefined },
+])('exports insertion attribution only for committed registry work: $duration/$finish', async ({ duration, finish, expected }) => {
+  const result = await runUtterance({ name: 'insertion-attribution', run: async context => {
+    await runToolRound(context, [
+      { id: 'insert', name: 'insert_time', args: { session_id: context.sessionId, at_ms: 30000.4, duration_ms: duration } },
+      { id: 'finish', name: 'finish_turn', args: { intent: finish, reply: 'Done.' } },
+    ])
+    return { finalText: 'Done.' }
+  } }, { show: { ...dictationFixture('empty-second-scene') }, utterance: 'Insert time' })
+  expect(result.changes?.find(change => change.range)?.range).toEqual(expected)
+  if (!expected) expect(result.changes).toBeUndefined()
+})

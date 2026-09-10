@@ -1,0 +1,3 @@
+export function Composer({ draft, change, submit, busy }: { draft: string; change: (value: string) => void; submit: () => void; busy: boolean }) {
+  return <form className="flex gap-2 border-t border-seam px-3 py-3" onSubmit={event => { event.preventDefault(); submit() }}><input data-testid="agent-chat-input" aria-label="Message the Pixelblaze agent" placeholder="Ask for an edit…" className="min-w-0 flex-1 bg-transparent text-xs text-zinc-200 outline-none placeholder:text-zinc-600 focus-visible:ring-1 focus-visible:ring-agent" value={draft} onChange={event => change(event.target.value)} /><button type="submit" data-testid="agent-chat-send" disabled={busy || !draft.trim()} className="agent-button">Send</button></form>
+}

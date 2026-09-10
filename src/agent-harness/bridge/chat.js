@@ -14,6 +14,11 @@
 ;(() => {
   'use strict'
   if (window.__pxlblzChat) return
+  if (window.__pxlblzAgentDrawer) {
+    const source = document.currentScript?.src
+    if (source) { window.__pxlblzAgentDrawer.attachBridge(source.replace(/\/chat\.js.*$/, '')); window.__pxlblzChat = window.__pxlblzAgentDrawer }
+    return
+  }
   const editor = window.__pxlblzEditor
   if (!editor || !editor.available()) return
   const BRIDGE = (document.currentScript && document.currentScript.src.replace(/\/chat\.js.*$/, '')) || 'http://127.0.0.1:8791'

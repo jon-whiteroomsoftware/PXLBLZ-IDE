@@ -125,6 +125,7 @@ import {
 import { useStudioPlaceStore } from '@/store/studioPlaceStore'
 import { useStudioEntityDrawerStore } from '@/store/studioEntityDrawerStore'
 import { requestBufferReplacement } from '@/store/navigationPreflightStore'
+import { AgentDrawerWorkspace } from '@/components/agent/AgentDrawer'
 
 function Splitter({
   onDrag,
@@ -1259,6 +1260,7 @@ function StudioApp() {
           />
         )}
       >
+        <AgentDrawerWorkspace narrow={narrowShowWorkspace}>
         <div
           data-testid={studioEntityKind === 'shows' ? 'show-workspace' : undefined}
           className="contents"
@@ -1525,6 +1527,7 @@ function StudioApp() {
           </>
         )}
         </div>
+        </AgentDrawerWorkspace>
       </StudioEntityDrawer>
       )}
     </div>

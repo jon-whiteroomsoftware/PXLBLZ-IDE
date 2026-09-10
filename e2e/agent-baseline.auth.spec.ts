@@ -508,6 +508,52 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     await waitForDurable(page, showId, show => firstMain(show)?.brightness === 1)
   })
 
+  test('D957: tucked drawer reports owned application and stale refusal with double attribution', async ({ page }) => {
+    test.setTimeout(90_000)
+    const errors: string[] = []
+    page.on('pageerror', error => errors.push(error.message))
+    const record = resizeBoundaryShow(`drawer-957-${Date.now().toString(36)}`)
+    record.composition!.scenes[0].zones[0].main[1].startMs = 16000
+    expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+    const showId = record.id
+    await page.goto(`studio/shows/${showId}?agent=1`)
+    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+    await expect.poll(() => page.evaluate(async () => {
+      const load = (path: string) => import(path)
+      const [{ usePatternStore }, { useLibraryStore }, { useMapStore }] = await Promise.all([load('/PXLBLZ-IDE/src/store/patternStore.ts'), load('/PXLBLZ-IDE/src/store/libraryStore.ts'), load('/PXLBLZ-IDE/src/store/mapStore.ts')])
+      return usePatternStore.getState().patternsLoaded && useLibraryStore.getState().librariesLoaded && useMapStore.getState().mapsLoaded
+    })).toBe(true)
+    await injectOverlay(page, bridge.url)
+    const id = await submitUtterance(page, 'make the first Clip exactly eight seconds')
+    await waitForAccepted(page, id)
+    await page.getByRole('button', { name: 'Unpin the Agent drawer' }).click()
+    await expect(page.getByTestId('agent-drawer-layout')).toHaveAttribute('data-drawer-mode', 'tucked')
+    const done = await waitForDone(page, id)
+    expect(done.applied, JSON.stringify(done)).toBe(true)
+    await expect(page.getByTestId('agent-unread-count')).toHaveText('1')
+    const ring = page.locator('[data-agent-highlight="flash"], [data-agent-highlight="settled"]')
+    await expect(ring).toHaveCount(1)
+    expect(await ring.evaluate(element => getComputedStyle(element).outlineStyle)).toBe('double')
+    expect(firstMain(await durableShow(page, showId))?.durationMs).toBe(8000)
+    await page.getByRole('button', { name: /^Open the Agent drawer/ }).click()
+    await expect(page.getByTestId('agent-unread-count')).toHaveCount(0)
+    await expect(page.locator(`[data-request-id="${id}"]`)).toContainText('saved')
+    await page.getByRole('button', { name: 'Pin the Agent drawer' }).click()
+    const staleId = await submitUtterance(page, BATCH_UTTERANCE)
+    await waitForAccepted(page, staleId)
+    await page.getByRole('button', { name: 'Unpin the Agent drawer' }).click()
+    await setClipBrightness(page, 'CometLoom', '75')
+    const manual = await durableShow(page, showId)
+    const stale = await waitForDone(page, staleId)
+    expect(stale.applied).toBe(false)
+    expect(await durableShow(page, showId)).toEqual(manual)
+    await expect(page.locator('[data-agent-highlight="refused"]')).toHaveCount(1)
+    await expect(page.getByTestId('agent-unread-count')).toHaveText('1')
+    await page.getByRole('button', { name: 'Undo Show edit' }).click()
+    await expect(page.locator('[data-agent-highlight="refused"]')).toHaveCount(0)
+    expect(errors).toEqual([])
+  })
+
   test('A: a delayed reply refuses after a manual edit and preserves its durable record', async ({ page }) => {
     test.setTimeout(90_000)
     const writes = watchShowWrites(page)
@@ -1169,7 +1215,8 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
 
   test('B5: explicit stable resize retry preserves manual work and composer history', async ({ page }) => {
     test.setTimeout(180000)
-    const wire = (show: PersistedShow | undefined) => Object.fromEntries(Object.entries({ ...show, targetControllerProfileId: (show as ShowRecord)?.targetControllerProfileId ?? null }).filter(([key]) => key !== 'id'))
+    // The remote provider encodes a cleared optional outputEffects field as [].
+    const wire = (show: PersistedShow | undefined) => Object.fromEntries(Object.entries({ ...show, outputEffects: (show as ShowRecord)?.outputEffects ?? [], targetControllerProfileId: (show as ShowRecord)?.targetControllerProfileId ?? null }).filter(([key]) => key !== 'id'))
     for (const action of ['apply', 'narrow', 'deleted', 'dismiss', 'cancel'] as const) {
       await page.setViewportSize({ width: action === 'narrow' || action === 'dismiss' ? 800 : 1440, height: 900 })
       const record = resizeBoundaryShow(`retry-${action}-${Date.now().toString(36)}`)

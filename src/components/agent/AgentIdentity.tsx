@@ -1,0 +1,7 @@
+import { DisconnectGlyph } from '@/components/ControllerGlyphs'
+import type { AgentDrawerState } from '@/engine/agentDrawerModel'
+export function AgentIdentity({ state, disconnect, restore, cancel }: { state: AgentDrawerState; disconnect: () => void; restore: () => void; cancel: () => void }) {
+  if (!state.connection) return null
+  const status = state.contactLost ? 'contact lost' : state.request?.phase === 'waiting' ? 'waiting for you to finish' : state.request?.phase ?? 'connected'
+  return <div className="border-b border-seam px-4 py-4"><div className="flex items-center gap-2"><span aria-hidden className={`agent-dot ${state.contactLost ? 'agent-dot-dropped' : state.request ? 'agent-dot-busy' : 'agent-dot-connected'}`} /><strong className="min-w-0 flex-1 text-sm font-semibold text-zinc-200">{state.connection.name}</strong><button type="button" title="Disconnect" aria-label="Disconnect" onClick={disconnect} className="grid size-6 place-items-center rounded border border-zinc-700 text-zinc-400"><DisconnectGlyph size={14} /></button></div><p className="ml-4 mt-1 text-[11px] text-zinc-500">{status}</p>{(state.contactLost || state.request) && <div className="ml-4 mt-3 flex gap-2">{state.contactLost && <button type="button" className="agent-button" onClick={restore}>Restore contact</button>}{state.request && <button type="button" data-testid="agent-chat-cancel" data-show-detail-pointer-preserve="true" className="agent-button" onPointerDown={event => event.preventDefault()} onClick={cancel}>Cancel</button>}</div>}</div>
+}

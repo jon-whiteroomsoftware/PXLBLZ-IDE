@@ -1,8 +1,10 @@
 import {
+  Fragment,
   forwardRef,
   useCallback,
   useEffect,
   useRef,
+  useMemo,
   useState,
   type ReactNode,
 } from 'react'
@@ -15,6 +17,7 @@ import {
   type StudioEntityDrawerBusyKind,
   type StudioEntityDrawerEvent,
   type StudioEntityDrawerState,
+  type StudioEntityDrawerMode,
 } from '@/engine/studioEntityDrawer'
 import type { StudioEntityKind } from '@/engine/routes'
 import { studioPlaceDefinition } from '@/engine/studioPlaces'
@@ -24,7 +27,6 @@ import { StudioPlaceIcon } from '@/components/StudioPlaceControl'
 import {
   STUDIO_ENTITY_DRAWER_OWNER,
   StudioEntityDrawerContext,
-  studioEntityDrawerOwnedSurfaceProps,
 } from '@/components/studioEntityDrawerContext'
 
 const HOVER_OPEN_DELAY_MS = 300
@@ -38,6 +40,16 @@ export interface StudioEntityDrawerHandle {
 
 export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
   place: StudioEntityKind
+  enabled?: boolean
+  side?: 'left' | 'right'
+  label?: string
+  owner?: string
+  edgeContent?: ReactNode
+  edgeLabel?: string
+  pinPreference?: boolean
+  onPinPreferenceChange?: (pinned: boolean) => void
+  requestedMode?: StudioEntityDrawerMode
+  onModeChange?: (mode: StudioEntityDrawerMode) => void
   routeKey?: string
   narrow: boolean
   width: number
@@ -48,6 +60,16 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
   children: ReactNode
 }>(function StudioEntityDrawer({
   place,
+  enabled = true,
+  side = 'left',
+  label,
+  owner = STUDIO_ENTITY_DRAWER_OWNER,
+  edgeContent,
+  edgeLabel,
+  pinPreference,
+  onPinPreferenceChange,
+  requestedMode,
+  onModeChange,
   routeKey,
   narrow,
   width,
@@ -57,7 +79,8 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
   dismissOwnedBusy,
   children,
 }, ref) {
-  const pinPreferences = useStudioEntityDrawerStore((store) => store.pinPreferences)
+  const storedPinPreferences = useStudioEntityDrawerStore((store) => store.pinPreferences)
+  const pinPreferences = useMemo(() => pinPreference === undefined ? storedPinPreferences : { [place]: pinPreference }, [pinPreference, place, storedPinPreferences])
   const persistPinned = useStudioEntityDrawerStore((store) => store.setPinned)
   const [state, setState] = useState<StudioEntityDrawerState>(() => (
     createStudioEntityDrawerState(place, pinPreferences, narrow)
@@ -86,6 +109,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
     stateRef.current = result.state
     if (studioEntityDrawerMode(result.state) !== 'open') keyboardRefocusAllowedRef.current = false
     setState(result.state)
+    onModeChange?.(studioEntityDrawerMode(result.state))
     if (result.announce) setAnnouncement(result.announce)
     if (result.focus === 'restore') {
       const target = focusReturnRef.current
@@ -93,12 +117,21 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
       window.setTimeout(() => target?.focus(), 0)
     }
     return result
-  }, [cancelHoverOpen])
+  }, [cancelHoverOpen, onModeChange])
 
   useEffect(() => {
     cancelHoverOpen()
     return cancelHoverOpen
   }, [cancelHoverOpen, routeKey])
+
+  useEffect(() => {
+    if (!requestedMode || requestedMode === studioEntityDrawerMode(stateRef.current)) return
+    if (requestedMode === 'pinned') apply({ type: 'set-pinned', pinned: true })
+    else {
+      if (studioEntityDrawerIsPinned(stateRef.current)) apply({ type: 'set-pinned', pinned: false })
+      apply(requestedMode === 'open' ? { type: 'open', source: 'pointer' } : { type: 'close', reason: 'button' })
+    }
+  }, [apply, requestedMode])
 
   useEffect(() => {
     const pressed = () => { pointerPressedRef.current = true; cancelHoverOpen() }
@@ -136,7 +169,8 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
       const search = rail.querySelector<HTMLInputElement>('input[data-rail-search]')
       const selected = rail.querySelector<HTMLElement>('[role="treeitem"][aria-selected="true"]')
       const first = rail.querySelector<HTMLElement>('[role="treeitem"]')
-      ;(search ?? selected ?? first)?.focus()
+      const initial = rail.querySelector<HTMLElement>('[data-drawer-initial-focus]')
+      ;(initial ?? search ?? selected ?? first)?.focus()
     }
     const rail = drawerRef.current
     const observer = new MutationObserver(focusList)
@@ -171,10 +205,10 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
     if (
       active instanceof HTMLElement
       && active.matches('input, textarea, select, [contenteditable="true"]')
-      && active.closest(`[data-studio-drawer-owner="${STUDIO_ENTITY_DRAWER_OWNER}"]`)
+      && active.closest(`[data-studio-drawer-owner="${owner}"]`)
     ) next.add('field')
     document.querySelectorAll<HTMLElement>(
-      `[data-studio-drawer-owner="${STUDIO_ENTITY_DRAWER_OWNER}"][data-studio-drawer-busy="true"]`,
+      `[data-studio-drawer-owner="${owner}"][data-studio-drawer-busy="true"]`,
     ).forEach((surface) => {
       const kind = surface.dataset.studioDrawerBusyKind as StudioEntityDrawerBusyKind | undefined
       if (kind && BUSY_KINDS.includes(kind)) next.add(kind)
@@ -184,7 +218,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
       if (next.has(kind) !== activeNow) apply({ type: 'set-busy', kind, active: next.has(kind) })
     }
     return next
-  }, [apply])
+  }, [apply, owner])
 
   useEffect(() => {
     if (mode !== 'open') return
@@ -209,18 +243,18 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
     if (mode !== 'open') return
     const closeOutside = (event: PointerEvent) => {
       const target = event.target
-      if (target instanceof Element && target.closest(`[data-studio-drawer-owner="${STUDIO_ENTITY_DRAWER_OWNER}"]`)) return
+      if (target instanceof Element && target.closest(`[data-studio-drawer-owner="${owner}"]`)) return
       const busy = syncBusy()
       if (busy.size > 0) return
       apply({ type: 'close', reason: 'outside' })
     }
     window.addEventListener('pointerdown', closeOutside, true)
     return () => window.removeEventListener('pointerdown', closeOutside, true)
-  }, [apply, mode, syncBusy])
+  }, [apply, mode, owner, syncBusy])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      const shortcut = (event.metaKey || event.ctrlKey)
+      const shortcut = side === 'left' && (event.metaKey || event.ctrlKey)
         && event.shiftKey
         && !event.altKey
         && event.key.toLocaleLowerCase() === 'l'
@@ -249,7 +283,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [apply, dismissOwnedBusy, syncBusy])
+  }, [apply, dismissOwnedBusy, side, syncBusy])
 
   useEffect(() => {
     if (!ref) return
@@ -277,7 +311,8 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
     timerArmed: state.timerArmed,
     setPinned(nextPinned: boolean) {
       if (stateRef.current.narrow) return
-      persistPinned(stateRef.current.place, nextPinned)
+      if (onPinPreferenceChange) onPinPreferenceChange(nextPinned)
+      else persistPinned(stateRef.current.place, nextPinned)
       apply({ type: 'set-pinned', pinned: nextPinned })
     },
     close() { apply({ type: 'close', reason: 'button' }) },
@@ -287,16 +322,16 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
     <StudioEntityDrawerContext.Provider key="drawer" value={controls}>
       <aside
         ref={drawerRef}
-        aria-label={`${definition.label} list`}
+        aria-label={label ?? `${definition.label} list`}
         data-testid="studio-entity-drawer"
         data-drawer-mode={mode}
-        {...studioEntityDrawerOwnedSurfaceProps}
+        data-studio-drawer-owner={owner}
         onPointerEnter={() => apply({ type: 'pointer', inside: true })}
         onPointerLeave={() => apply({ type: 'pointer', inside: false })}
         className={mode === 'pinned'
           ? 'relative flex h-full shrink-0 flex-col'
-          : `absolute inset-y-0 left-0 z-[55] flex flex-col border-r bg-zinc-950 shadow-2xl motion-reduce:transition-none ${mode === 'open' ? 'visible translate-x-0 border-zinc-700 shadow-black/60 [transition:translate_225ms_ease-in-out,visibility_0s_linear_0s]' : 'invisible -translate-x-full border-seam shadow-transparent [transition:translate_225ms_ease-in-out,visibility_0s_linear_225ms]'}`}
-        style={{ width, maxWidth: mode === 'pinned' ? '34vw' : 'calc(100vw - 22px)' }}
+          : `absolute inset-y-0 ${side === 'right' ? 'right-0 border-l' : 'left-0 border-r'} z-[55] flex flex-col bg-zinc-950 shadow-2xl motion-reduce:transition-none ${mode === 'open' ? 'visible translate-x-0 border-zinc-700 shadow-black/60 [transition:translate_225ms_ease-in-out,visibility_0s_linear_0s]' : `invisible ${side === 'right' ? 'translate-x-full' : '-translate-x-full'} border-seam shadow-transparent [transition:translate_225ms_ease-in-out,visibility_0s_linear_225ms]`}`}
+        style={{ width, maxWidth: side === 'right' ? 'calc(100vw - 22px)' : mode === 'pinned' ? '34vw' : 'calc(100vw - 22px)' }}
       >
         {drawer}
       </aside>
@@ -304,24 +339,24 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
   )
 
   return (
-    <div className="relative flex min-h-0 flex-1" data-testid="studio-drawer-layout" data-drawer-mode={mode}>
-      {mode === 'pinned' ? (
+    <div className={`relative flex min-h-0 min-w-0 flex-1 ${side === 'right' ? 'flex-row-reverse' : ''}`} data-testid={side === 'right' ? 'agent-drawer-layout' : 'studio-drawer-layout'} data-drawer-mode={mode}>
+      {enabled && (mode === 'pinned' ? (
         <>
           {drawerPane}
           {divider}
         </>
       ) : (
         <>
-          <div key="tab" className="h-full w-[22px] shrink-0 border-r border-seam bg-zinc-950/35">
+          <div key="tab" className={`h-full w-[22px] shrink-0 ${side === 'right' ? 'border-l' : 'border-r'} border-seam bg-zinc-950/35`}>
             <button
               type="button"
-              data-testid="studio-drawer-edge-tab"
-              aria-label={`Open the ${definition.label} list`}
+              data-testid={side === 'right' ? 'agent-drawer-edge-tab' : 'studio-drawer-edge-tab'}
+              aria-label={edgeLabel ?? `Open the ${label ?? `${definition.label} list`}`}
               aria-expanded={mode === 'open'}
               tabIndex={mode === 'open' ? -1 : 0}
               data-studio-space-preview="true"
-              {...studioEntityDrawerOwnedSurfaceProps}
-              onPointerEnter={(event) => {
+              data-studio-drawer-owner={owner}
+                    onPointerEnter={(event) => {
                 apply({ type: 'pointer', inside: true })
                 if (event.pointerType === 'touch' || event.buttons > 0 || pointerPressedRef.current || nativeDragRef.current || mode !== 'tucked') return
                 hoverTimerRef.current = window.setTimeout(() => {
@@ -344,15 +379,15 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
               }}
               className={`flex h-full w-[22px] flex-col items-center gap-2 pt-2 text-zinc-500 transition-colors hover:bg-white/[0.03] hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-live/70 ${mode === 'open' ? 'pointer-events-none opacity-0' : ''}`}
             >
-              <StudioPlaceIcon place={state.place} size={14} />
+              {edgeContent ?? <><StudioPlaceIcon place={state.place} size={14} />
               <span className="font-mono text-[9px] uppercase tracking-[0.14em] [writing-mode:vertical-rl] rotate-180">{definition.label}</span>
-              <ChevronRight size={12} aria-hidden />
+              <ChevronRight size={12} aria-hidden /></>}
             </button>
           </div>
           {drawerPane}
         </>
-      )}
-      {children}
+      ))}
+      <Fragment key="workspace">{side === 'right' ? <div className="flex min-h-0 min-w-0 flex-1">{children}</div> : children}</Fragment>
       <span className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</span>
     </div>
   )

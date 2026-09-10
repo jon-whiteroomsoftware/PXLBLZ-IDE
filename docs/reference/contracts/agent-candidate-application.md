@@ -591,3 +591,38 @@ remain separate observations, not latency acceptance thresholds.
 
 [Preview and delivery publication](show-state-history-persistence.md#preview-and-delivery-publication)
 defines stale reconstruction and prepared Controller snapshot ownership.
+
+## Diagnostic Agent drawer (#957)
+
+The editable Show route's existing `?agent=1` development gate exposes a
+right-edge Agent drawer. Its session activity and timeline attribution project
+the existing admission and save outcomes. The drawer does not own Show edits,
+history, rollback, or persistence. The loopback diagnostic bridge attaches to
+this surface; production service dispatch and real external-client attachment
+remain later candidates.
+
+The bridge's optional `changes` envelope comes from committed private registry
+execution. Each entry names a stable target, a human-readable change, and the
+registry's touched paths. Insertion ranges retain the exact successful change
+identity and the registry's rounded time coordinates; Show End ranges use its
+before/after receipt. Private refusal and failed commands export no attribution.
+This envelope is presentation metadata, not an admission receipt. The controller
+checks stream request identity and joins metadata to that same immutable
+request's editor receipt before painting an applied outline or time band. A
+late live refusal never paints an applied band.
+
+Activity keeps private completion separate from live application and save.
+Tucked unread counts distinct operations whose outcomes change; progress and
+read activity do not count. Opening reads the current outcomes, and a later
+rollback can become unread again. Manual edits and Undo clear attribution.
+Contact recovery queries the same operation without replay; an unknown outcome
+keeps admission unavailable until that operation is resolved. A known save
+outcome survives missing contact or a missing subsequent lookup.
+
+The pure presentation model is `src/engine/agentDrawerModel.ts`; the development
+adapter is `src/dev/agentDrawerController.ts`. Focused tests cover unread
+transitions, unknown recovery, ownership checks, insertion metadata, late
+refusal, and narrow pin restoration. Browser baseline D957 covers real scripted
+adoption/save, the double outline, unread clearing, a conflicting manual edit,
+and Undo on the Show route. External connection controls are presentation
+states here, with no production attachment or cross-window recovery claim.

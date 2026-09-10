@@ -391,3 +391,15 @@ describe('Studio entity drawer hover (#981)', () => {
   })
 
 })
+
+it('mirrors an independently owned right drawer without claiming the list shortcut or pin preference', () => {
+  useStudioEntityDrawerStore.setState({ pinPreferences: { shows: true } })
+  const onModeChange = vi.fn()
+  render(<StudioEntityDrawer place="shows" side="right" label="Agent drawer" owner="agent" pinPreference={false} onModeChange={onModeChange} narrow={false} width={340} drawer={<button data-drawer-initial-focus>Choose agent</button>} divider={null} onPreviewSpace={vi.fn()}><main>Show</main></StudioEntityDrawer>)
+  const tab = screen.getByRole('button', { name: 'Open the Agent drawer' })
+  fireEvent.keyDown(document, { key: 'l', ctrlKey: true, shiftKey: true })
+  expect(tab).toHaveAttribute('aria-expanded', 'false')
+  fireEvent.click(tab)
+  expect(onModeChange).toHaveBeenCalledWith('open')
+  expect(useStudioEntityDrawerStore.getState().pinPreferences.shows).toBe(true)
+})

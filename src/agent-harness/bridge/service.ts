@@ -36,6 +36,9 @@ import { createSessionStore, type GrammarSessionStore } from '../grammar/session
 import { createShowsServer } from '../mcp/showsServer.js'
 import { runTargetedResizeTurn } from '../experiment/targetedResizeTurn.js'
 import { parseAgentResizeIntent, type AgentResizeIntent } from '../../dev/agentResizeProtocol.js'
+import { SHOW_COMMANDS } from '@/engine/showCommands/registry'
+import type { GrammarChange } from '../grammar/types.js'
+import type { AgentChange } from '@/engine/agentDrawerModel'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -76,6 +79,8 @@ export interface UtteranceResponse {
   reply: string
   changed: boolean
   summaries: string[]
+  /** Registry execution metadata, presentation only; not an editor receipt. */
+  changes?: AgentChange[]
   show?: unknown
   /** Executed canonical binding; absent for mixed, repaired or uncommitted work. */
   retryResize?: AgentResizeIntent
@@ -147,14 +152,14 @@ function timedAgent(
 function observedSessionStore(
   store: GrammarSessionStore,
   onValidation: (event: { at: number; ms: number; ok: boolean }) => void,
-  onApply: (operation: string, args: Record<string, unknown>, ok: boolean) => void,
+  onApply: (operation: string, args: Record<string, unknown>, result: ReturnType<GrammarSessionStore['apply']>) => void,
 ): GrammarSessionStore {
   return {
     ...store,
     apply: (sessionId, operation, args) => {
       const captured = structuredClone(args)
       const result = store.apply(sessionId, operation, args)
-      onApply(operation, captured, result.ok)
+      onApply(operation, captured, result)
       return result
     },
     validatePending: (sessionId) => {
@@ -205,6 +210,7 @@ export async function runUtterance(
     toolCalls: [],
   }
   const rawStore = createSessionStore({ authoringValidation: true })
+  const insertionRanges = new WeakMap<GrammarChange, { startMs: number; endMs: number }>()
   let executedResize: AgentResizeIntent | undefined
   let applyAttempts = 0
   let mutationCalls = 0
@@ -213,8 +219,15 @@ export async function runUtterance(
   const store = observedSessionStore(rawStore, (validation) => {
     timing.validation = validation
     onProgress({ kind: 'validation', ...(requestId ? { requestId } : {}), ...validation })
-  }, (operation, args, ok) => {
+  }, (operation, args, result) => {
+    const ok = result.ok
     applyAttempts += 1
+    if (operation === 'insert_time' && ok && typeof args.at_ms === 'number' && typeof args.duration_ms === 'number') {
+      // Retain the successful execution's exact change identity, including repeated
+      // insertions at the same point. Registry time coordinates are rounded.
+      const startMs = Math.round(args.at_ms)
+      for (const change of result.changes) insertionRanges.set(change, { startMs, endMs: startMs + Math.round(args.duration_ms) })
+    }
     if (operation === 'resize_clip' && ok && Object.keys(args).length === 2 && Object.prototype.hasOwnProperty.call(args, 'clip_id') && Object.prototype.hasOwnProperty.call(args, 'duration_ms')) {
       executedResize = parseAgentResizeIntent({ clipId: args.clip_id, durationMs: args.duration_ms })
     }
@@ -309,6 +322,14 @@ export async function runUtterance(
 
     const history = store.describeChanges(sessionId)
     const summaries = history.ok ? history.entries.map((entry) => entry.summary) : []
+    const drawerChanges: AgentChange[] = history.ok ? history.entries.flatMap(entry => entry.changes.map(change => {
+      const before = change.before as { durationMs?: number } | undefined
+      const after = change.after as { durationMs?: number } | undefined
+      const range = change.op === 'insert_time' ? insertionRanges.get(change)
+        : change.op === 'set_show_end' && typeof before?.durationMs === 'number' && typeof after?.durationMs === 'number'
+          ? { startMs: Math.min(before.durationMs, after.durationMs), endMs: Math.max(before.durationMs, after.durationMs) } : undefined
+      return { targetId: change.targetId, description: change.description, touches: [...(SHOW_COMMANDS.find(command => command.name === change.op)?.touches ?? [])], ...(range ? { range } : {}) }
+    })) : []
     const changed = disposition.kind === 'committed'
     const exported = changed ? store.export(sessionId) : null
     timing.exportedAt = Date.now()
@@ -317,6 +338,7 @@ export async function runUtterance(
       privateOutcome: disposition,
       changed,
       summaries,
+      ...(changed ? { changes: drawerChanges } : {}),
       ...(changed && exported?.ok ? { show: exported.show } : {}),
       ...(changed && exported?.ok && agentRuns === 1 && mutationCalls === 1 && applyAttempts === 1 && executedResize ? { retryResize: executedResize } : {}),
       timing,
@@ -361,7 +383,7 @@ export async function runRetryUtterance(
     const exported = store.export(id)
     if (!exported.ok) return refuse('The private retry could not be exported.')
     timing.exportedAt = Date.now()
-    return { privateOutcome: { kind: 'committed', summary: committed.summary }, reply: `Resize the original Clip to ${intent.durationMs / 1000}s.`, changed: true, summaries: [committed.summary], show: exported.show, retryResize: intent, timing }
+    return { privateOutcome: { kind: 'committed', summary: committed.summary }, reply: `Resize the original Clip to ${intent.durationMs / 1000}s.`, changed: true, summaries: [committed.summary], changes: committed.changes.map(change => ({ targetId: change.targetId, description: change.description })), show: exported.show, retryResize: intent, timing }
   } finally { store.close(id) }
 }
 

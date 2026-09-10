@@ -312,6 +312,7 @@ import {
 } from '@/engine/showLayoutIntervals'
 import { SaveFailureNotice } from '@/components/SaveFailureNotice'
 import { agentUrlEnabled, createAgentEditorAdmission, observeAgentLocation } from '@/dev/agentEditorAdmission'
+import { createAgentDrawerController, useAgentDrawerStore, type AgentDrawerController } from '@/dev/agentDrawerController'
 import ShowSourceOutletContext from '@/components/ShowSourceOutlet'
 import { ShowStripSection } from '@/components/ShowStripSection'
 import { useAnchoredOverlayPosition } from '@/components/useAnchoredOverlayPosition'
@@ -1057,12 +1058,16 @@ export function ShowEditor({
   // script the editor without a component handle.
   useLayoutEffect(() => {
     if (!import.meta.env.DEV || readOnly) return
-    const w = window as unknown as { __pxlblzEditor?: ReturnType<typeof createAgentEditorAdmission> }
+    const w = window as unknown as { __pxlblzEditor?: ReturnType<typeof createAgentEditorAdmission>; __pxlblzAgentDrawer?: AgentDrawerController; __pxlblzChat?: AgentDrawerController }
     const pathname = window.location.pathname
     let api: ReturnType<typeof createAgentEditorAdmission> | undefined
+    let drawerController: AgentDrawerController | undefined
     const sync = () => {
       if (!agentUrlEnabled() || window.location.pathname !== pathname) {
         api?.close()
+        drawerController?.dispose()
+        if (w.__pxlblzAgentDrawer === drawerController) delete w.__pxlblzAgentDrawer
+        if (w.__pxlblzChat === drawerController) delete w.__pxlblzChat
         if (w.__pxlblzEditor === api) delete w.__pxlblzEditor
         api = undefined
       } else if (!api) {
@@ -1075,12 +1080,17 @@ export function ShowEditor({
             ? useShowTransportStore.getState().positionMs : 0,
         }), fieldActivity.bind)
         w.__pxlblzEditor = api
+        drawerController = createAgentDrawerController(api, showId)
+        w.__pxlblzAgentDrawer = drawerController
       }
     }
     const stop = observeAgentLocation(sync)
     sync()
     return () => {
       api?.close()
+      drawerController?.dispose()
+      if (w.__pxlblzAgentDrawer === drawerController) delete w.__pxlblzAgentDrawer
+      if (w.__pxlblzChat === drawerController) delete w.__pxlblzChat
       stop()
       if (w.__pxlblzEditor === api) delete w.__pxlblzEditor
     }
@@ -3898,6 +3908,8 @@ function ShowTimelineWorkspace({
   }, [show, showEndPreviewMs, timelineComposition])
   const strip = projectShowStrip(displayShow)
   const timeline = projectShowTimeline(displayShow)
+  const agentDrawer = useAgentDrawerStore(state => state.state)
+  const agentController = useAgentDrawerStore(state => state.controller)
   const layoutIntervals = useMemo(() => projectShowLayoutIntervals(displayShow), [displayShow])
   const unifiedCompositionTimeline = useMemo(() => (
     timelineComposition
@@ -5237,6 +5249,7 @@ function ShowTimelineWorkspace({
         </div>
       )}
       <div className="relative isolate" data-show-timeline-overlay-host>
+        {agentController?.showId === show.id && agentDrawer.band && <div data-testid="agent-time-band" className="agent-time-band" style={{ left: `${(agentDrawer.band.startMs - viewport.startMs) / viewport.durationMs * 100}%`, width: `${Math.max(1, (agentDrawer.band.endMs - agentDrawer.band.startMs) / viewport.durationMs * 100)}%` }} />}
         <div
           ref={scrollRef}
           data-show-timeline-scroll-viewport
@@ -6014,12 +6027,14 @@ function ShowTimelineWorkspace({
                       aria-disabled={outsideIsolation || undefined}
                       data-show-timeline-focus
                       data-show-selection-key={clipSelectionKey}
+                      data-agent-highlight={agentController?.showId !== show.id ? undefined : agentDrawer.refusedTargets.includes(clip.id) ? 'refused' : agentDrawer.highlights.includes(clip.id) ? agentDrawer.highlightPhase : undefined}
                       data-show-composition-clip="true"
                       data-show-group-occurrence={group?.id}
                       draggable={!readOnly && !group}
                       onPointerEnter={() => useShowClipHoverStore.getState().setHoveredClip(clip.id)}
                       onPointerLeave={() => useShowClipHoverStore.getState().clearHoveredClip(clip.id)}
                       onPointerDown={(event) => {
+                        agentController?.dispatch({ type: 'touch', targetId: clip.id })
                         if (!event.shiftKey || event.button !== 0 || readOnly || group || movePointerCleanupRef.current || draggingCompositionClipRef.current) return
                         event.stopPropagation()
                         const pointerId = event.pointerId

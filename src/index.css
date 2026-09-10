@@ -18,6 +18,8 @@
        live readout values, slider accents, "good" badge, interactive hover.
        `structural` is the cool neutral for all section/group labels and tags. */
     --color-live: #fbbf24;
+    --color-agent: #c4b5fd;
+    --color-agent-dim: rgba(196,181,253,.18);
     --color-structural: #71717a;
     /* Health/traffic-light green for status dots (Controller connected, compile
        good). Deliberately NOT the amber `live` accent: a status signal is a
