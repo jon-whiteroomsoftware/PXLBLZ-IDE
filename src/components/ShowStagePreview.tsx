@@ -954,7 +954,7 @@ export function ShowStagePreview({
       data-testid="show-stage-preview"
       data-presentation={presentation}
       className={presentation === 'strip'
-        ? 'flex h-full min-h-0 overflow-hidden bg-zinc-950 font-mono text-xs text-zinc-400'
+        ? 'flex h-full min-h-0 flex-row-reverse overflow-hidden bg-zinc-950 font-mono text-xs text-zinc-400'
         : 'flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] bg-zinc-950 font-mono text-xs text-zinc-400'}
     >
       {import.meta.env.DEV && (

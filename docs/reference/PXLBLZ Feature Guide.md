@@ -450,12 +450,13 @@ normalized routing modes (Stripes, Grid, Checker, Rings, Pinwheel, Wave, or
 an animatable Split) that hold on any compatible surface.
 
 The **Stage** is the whole Show rendered over its output geometry and driven by
-Show transport. On desktop it fills the left side of a strip below the
-timeline. A narrow rail beside the canvas holds playback and the Zone-outline
+Show transport. On desktop it fills the bottom-right corner of a strip below
+the timeline. A narrow rail beside the canvas holds playback and the Zone-outline
 and selected-Clip-outline toggles. Zone guides follow the current Zone Layout.
 The selected Clip outline appears during that Clip's interval and shows its
 authored transformed content bounds. Both guides are session-only. The Preview heading keeps overall browser brightness available when folded or expanded, using the same compact slider and percentage as the Pattern and Controller panels. It adjusts browser rendering without changing authored Clip brightness or Controller output. Stage, Preview, Zones, and Source form one
-controls column beside the rail, capped at 480 px. Each header summarizes its
+left-aligned controls column on the bottom-left, capped at 480 px, with spare
+width left as a gap before the preview rail. Each header summarizes its
 folded section. Preview begins open; the other sections begin folded, and
 PXLBLZ remembers each section independently for Shows. Before a split is remembered, the timeline
 fits its content with a little slack and the Stage takes the remaining height,
