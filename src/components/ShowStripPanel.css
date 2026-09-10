@@ -5,7 +5,7 @@
 .show-strip-controls { flex: 1; min-width: 200px; overflow-y: auto; overflow-x: hidden; }
 .show-strip-sections { display: grid; grid-template-columns: minmax(0, 1fr); box-sizing: border-box; width: 100%; max-width: 480px; padding: 0 8px; font-size: 10.5px; }
 .show-strip-sections .panel-section { min-width: 0; }
-.show-strip-sections .panel-section-body [data-deck='grid'] { display: grid; grid-template-columns: 60px minmax(0, 1fr); align-items: center; column-gap: 6px; row-gap: 6px; }
+.show-strip-sections .panel-section-body [data-deck='grid'] { display: grid; grid-template-columns: 68px minmax(0, 1fr); align-items: center; column-gap: 6px; row-gap: 6px; }
 .show-strip-sections .panel-section-body [data-deck='cell'], .show-strip-sections .panel-section-body [data-deck='slider'] { display: grid; grid-template-columns: subgrid; grid-column: span 2; align-items: center; min-width: 0; white-space: nowrap; }
 .show-strip-sections .panel-section-body [data-deck='slider'] > div { display: flex; gap: 4px; min-width: 0; max-width: 238px; }
 .show-strip-sections .panel-section-body [data-deck='slider'] input { min-width: 24px; max-width: 200px; width: 100%; }
