@@ -39,7 +39,11 @@ Connect arms a registered window for 120 seconds. An external claim binds to
 that window atomically. Without an armed window, one incoming call occupies the
 slot for 30 seconds; every eligible registered window can observe it through
 polling. The first matching Answer binds atomically. Decline or expiry releases
-the pending call. Competing callers receive `occupied`. A built-in claim supplies
+the pending call. A new external call after arming has expired follows the same
+30-second knock path as any call with no armed window, regardless of whether
+an alarm or that request swept the expired arm. Expired pending-call inspection
+and Answer remain `no_live_editor`; neither recreates that call. Competing callers
+receive `occupied`. A built-in claim supplies
 its validated initiating window and claims that target in one transaction,
 without an arm/claim race.
 
@@ -103,6 +107,8 @@ were checked on 2026-09-10. Hosted provisioning and deployment remain unqualifie
 - [Rendezvous transitions](../../../src/engine/agentRendezvous.ts) and
   [tests](../../../src/engine/agentRendezvous.test.ts) qualify setup deadline
   boundaries, stale generations, contact preservation and bounded registrations.
+- [Alarm lifecycle tests](../../../src/worker/agent/AgentAccount.test.ts) check
+  renewed liveness and stale generations through the owner's response seam.
 - [Account owner](../../../src/worker/agent/AgentAccount.ts) serializes persistent
   state; [internal transport seam](../../../src/worker/agent/accountConnection.ts)
   shares eligibility between built-in and external callers.
@@ -111,7 +117,7 @@ were checked on 2026-09-10. Hosted provisioning and deployment remain unqualifie
 - [Runtime tests](../../../src/worker/agent/agentChannel.runtime.test.ts) bundle the
   actual Worker and run it with real local workerd, D1 and Durable Objects. They
   assert response-level authorization, simultaneous claims and Answers, account
-  throttling, and cleanup after opt-out/deletion. They make no inference calls.
+  throttling, and cleanup after opt-out/deletion, service disable and allowlist removal. They make no inference calls.
 
 OAuth/grant revocation, stock-draft qualification, client polling integration,
 live tool routing and admission/save proof remain under #963 and #957. The runtime

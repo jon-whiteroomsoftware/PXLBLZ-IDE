@@ -147,3 +147,35 @@ it('expires an incoming call on the real runtime clock without an automatic new 
   const expired = await stub.fetch('https://internal/inspect', { method: 'POST', body: JSON.stringify({ type: 'inspect', ...identity }) })
   expect(await expired.json()).toEqual({ code: 'no_live_editor' })
 }, 40_000)
+
+it.each([
+  { service: '0', allowlist: 'account-a', refusal: 'service_disabled' },
+  { service: '1', allowlist: 'another-account', refusal: 'not_allowed' },
+])('allows only local cleanup with service=$service and allowlist=$allowlist', async ({ service, allowlist, refusal }) => {
+  const bundle = await build({ entryPoints: ['src/worker/index.ts'], bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022' })
+  const suspended = new Miniflare(convertV4MiniflareOptions({ modules: true, script: bundle.outputFiles[0].text, compatibilityDate: '2026-06-30', bindings: { SESSION_SECRET: 'test-secret', AGENT_SERVICE_ENABLED: service, AGENT_ACCOUNT_ALLOWLIST: allowlist }, durableObjects: { AGENT_ACCOUNTS: { className: 'AgentAccount', useSQLite: true } } }))
+  try {
+    // Seed the previously valid binding through the private owner. Its current
+    // deployment policy now disables admission; persisted identity still exists.
+    const namespace = await suspended.getDurableObjectNamespace('AGENT_ACCOUNTS') as unknown as RuntimeNamespace
+    const stub = namespace.get(namespace.idFromName('account-a'))
+    const target = { registrationId: 'suspended-registration', sessionId: 'suspended-session', showId: 'suspended-show' }
+    const other = { registrationId: 'other-registration', sessionId: 'other-session', showId: 'other-show' }
+    const identity = { agentKind: 'builtin', agentId: 'suspended-agent', agentName: 'Suspended', callId: 'suspended-call', bindingId: 'suspended-binding' }
+    for (const window of [target, other]) await stub.fetch('https://internal/window', { method: 'POST', body: JSON.stringify({ type: 'register', ...window }) })
+    await stub.fetch('https://internal/claim', { method: 'POST', body: JSON.stringify({ type: 'claim', ...identity, window: target }) })
+    const request = (body: unknown, origin = 'https://app.test') => suspended.dispatchFetch('https://app.test/api/agent/channel', { method: 'POST', headers: { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    expect(await (await request({ type: 'heartbeat', ...target })).json()).toEqual({ code: refusal })
+    expect(await (await request({ type: 'disconnect', ...target, bindingId: identity.bindingId }, 'https://hostile.test')).json()).toEqual({ code: 'invalid_origin' })
+    expect(await (await request({ type: 'disconnect', ...other, bindingId: identity.bindingId })).json()).toEqual({ code: 'not_bound_here' })
+    expect(await (await request({ type: 'disconnect', ...target, bindingId: identity.bindingId })).json()).toEqual({ code: 'disconnected' })
+    expect(await (await stub.fetch('https://internal/inspect', { method: 'POST', body: JSON.stringify({ type: 'inspect', ...identity }) })).json()).toEqual({ code: 'no_live_editor' })
+    expect(await (await request({ type: 'leave', ...target })).json()).toEqual({ code: 'retired' })
+    expect(await (await stub.fetch('https://internal/window', { method: 'POST', body: JSON.stringify({ type: 'poll', ...target }) })).json()).toEqual({ code: 'retired' })
+  } finally { await suspended.dispose() }
+})
+it('requires JSON content type even for local cleanup', async () => {
+  const response = await runtime.dispatchFetch('https://app.test/api/agent/channel', { method: 'POST', headers: { Origin: 'https://app.test', Cookie: cookie, 'Content-Type': 'text/plain' }, body: JSON.stringify({ type: 'leave', registrationId: 'old', sessionId: 'old', showId: 'old' }) })
+  expect(response.status).toBe(400)
+  expect(await response.json()).toEqual({ code: 'invalid_request' })
+})

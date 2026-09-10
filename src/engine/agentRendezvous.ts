@@ -70,7 +70,6 @@ export function transitionRendezvous(previous: RendezvousState, command: Rendezv
       return result('bound')
     }
     if (command.window) return result('invalid_request')
-    if (previous.slot?.kind === 'armed' && !state.slot) return result('no_live_editor')
     if (!state.slot) {
       state.slot = { kind: 'pending', expiresAt: now + 30_000, agentKind: command.agentKind, agentId: command.agentId, agentName: command.agentName, callId: command.callId, bindingId: command.bindingId }
       return result('pending')

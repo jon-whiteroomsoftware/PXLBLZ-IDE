@@ -39,7 +39,7 @@ it('holds a call for any registered window, and the first Answer owns the slot',
 it.each([119_999, 120_000])('enforces the arming boundary at %i ms', (time) => {
   const armed = transitionRendezvous(registered(), { type: 'arm', ...windowA }, 0).state
   const claimed = transitionRendezvous(armed, { type: 'claim', ...agentA }, time)
-  expect(claimed.result.code).toBe(time < 120_000 ? 'bound' : 'no_live_editor')
+  expect(claimed.result.code).toBe(time < 120_000 ? 'bound' : 'pending')
 })
 
 it.each([29_999, 30_000])('enforces the incoming Answer boundary at %i ms', (time) => {
@@ -127,4 +127,15 @@ it('claims builtin work directly for its initiating window and excludes external
   expect(claimed.result.code).toBe('bound')
   expect(claimed.state.slot).toEqual({ ...builtin, kind: 'bound', registrationId: windowB.registrationId })
   expect(transitionRendezvous(claimed.state, { type: 'claim', ...agentA }, 3).result.code).toBe('occupied')
+})
+it('a new call after arming expiry has the same knock result before or after the alarm sweep', () => {
+  const armed = transitionRendezvous(registered(), { type: 'arm', ...windowA }, 0).state
+  const alarmFirst = transitionRendezvous(armed, { type: 'expire' }, 120_000).state
+  const direct = transitionRendezvous(armed, { type: 'claim', ...agentA }, 120_000)
+  const swept = transitionRendezvous(alarmFirst, { type: 'claim', ...agentA }, 120_000)
+  expect(direct.result.code).toBe('pending')
+  expect(direct).toEqual(swept)
+  const expiredCall = transitionRendezvous(direct.state, { type: 'expire' }, 150_000).state
+  expect(transitionRendezvous(expiredCall, { type: 'inspect', ...agentA }, 150_001).result.code).toBe('no_live_editor')
+  expect(transitionRendezvous(expiredCall, { type: 'answer', ...windowA, callId: agentA.callId }, 150_001).result.code).toBe('no_live_editor')
 })

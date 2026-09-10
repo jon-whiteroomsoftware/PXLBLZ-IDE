@@ -7,11 +7,10 @@ import type { WorkerEnv } from '../../apiRoutes'
 export async function onRequestPost({ request, env }: { request: Request; env: WorkerEnv }): Promise<Response> {
   const session = await readSessionFromRequest(request, env.SESSION_SECRET).catch(() => null)
   if (!session) return agentResponse({ code: 'unauthorized' }, 401)
-  const refusal = agentAccessRefusal(session.userId, env)
-  if (refusal) return agentResponse({ code: refusal }, refusal === 'not_allowed' ? 403 : 503)
   const url = new URL(request.url)
   if (request.headers.get('Origin') !== url.origin) return agentResponse({ code: 'invalid_origin' }, 403)
   if (!env.AGENT_ACCOUNTS) return agentResponse({ code: 'unavailable' }, 503)
+  if (request.headers.get('Content-Type')?.split(';', 1)[0].trim().toLowerCase() !== 'application/json') return agentResponse({ code: 'invalid_request' }, 400)
   // Stream bound; Content-Length alone is attacker-controlled.
   const reader = request.body?.getReader()
   if (!reader) return agentResponse({ code: 'invalid_request' }, 400)
@@ -43,7 +42,8 @@ export async function onRequestPost({ request, env }: { request: Request; env: W
     const { results } = await db.prepare('SELECT id FROM personal_shows WHERE user_id = ? AND id = ?').bind(session.userId, command.showId).all<{ id: string }>()
     if (!results.length) return agentResponse({ code: 'show_unavailable' }, 404)
   }
-  return env.AGENT_ACCOUNTS.get(env.AGENT_ACCOUNTS.idFromName(session.userId)!)!.fetch(new Request('https://agent-account.internal/window', { method: 'POST', body: JSON.stringify(command) }))
+  const accountId = env.AGENT_ACCOUNTS.idFromName(session.userId)
+  return env.AGENT_ACCOUNTS.get(accountId).fetch(new Request('https://agent-account.internal/window', { method: 'POST', body: JSON.stringify(command) }))
 }
 
 function parseWindowCommand(value: unknown): WindowCommand | null {
