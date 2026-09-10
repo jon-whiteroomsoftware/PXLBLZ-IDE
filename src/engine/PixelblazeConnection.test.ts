@@ -830,6 +830,19 @@ describe('PixelblazeConnection', () => {
       }
     })
 
+    it('accepts a matching reply received before its continuation reaches the deadline (#999)', async () => {
+      let now = 0
+      const { conn, socket } = await connected({ now: () => now, activationTimeoutMs: 20 })
+      const activation = conn.pushByteCodeAndWait(new Uint8Array([1]), { id: 'TARGET_PROGRAM' })
+      now = 19
+      socket.simulateMessage({ activeProgram: { activeProgramId: 'TARGET_PROGRAM' } })
+      // The query already resolved and cancelled its timer, but its awaiting
+      // continuation has not run yet.
+      now = 20
+      await expect(activation).resolves.toBeUndefined()
+      conn.close()
+    })
+
     it('bounds silent queries by the original overall deadline (#999)', async () => {
       vi.useFakeTimers()
       try {

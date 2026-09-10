@@ -621,8 +621,8 @@ export class PixelblazeConnection {
           lifetime.signal.throwIfAborted()
           assertConnection()
           activeProgramId = active?.activeProgramId
-          if (this._now() >= deadline) break
           if (activeProgramId === opts.id) return
+          if (this._now() >= deadline) break
         } catch (error) {
           lifetime.signal.throwIfAborted()
           assertConnection()
