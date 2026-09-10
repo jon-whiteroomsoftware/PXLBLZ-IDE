@@ -486,7 +486,8 @@ Show and Pattern previews. Their sliders release focus after pointer adjustment;
 Space plays or pauses, including when a slider has keyboard focus. Arrow keys
 still adjust a keyboard-focused slider. The controls
 retain at least 200 px beside the rail and scroll when expanded content exceeds
-the strip height. At 980 px and below, the established Preview overlay remains.
+the strip height. The lower strip stays visible at narrow widths. Growing or shrinking the window
+preserves the timeline/strip proportions within their size limits.
 
 ## 17. Cost, sending, and sharing
 

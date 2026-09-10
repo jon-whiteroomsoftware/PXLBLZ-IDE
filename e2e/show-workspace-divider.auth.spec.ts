@@ -81,3 +81,38 @@ test('warns only when timeline rows are clipped, not when decorative slack or a 
   await page.getByTestId('show-editor-scroll').evaluate((element) => { element.scrollTop = element.scrollHeight })
   await expect(divider).toHaveClass(/border-red-400/)
 })
+
+test('does not restore the legacy source footer below the narrow breakpoint (#63)', async ({ page }) => {
+  await page.setViewportSize({ width: 980, height: 900 })
+  await page.goto('studio/shows/stock-show-remix-quadrille')
+  await expect(page.getByRole('region', { name: 'Show timeline', exact: true })).toBeVisible()
+  await expect(page.getByTestId('show-compile-bar')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Show source inventory/ })).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: 'Show source inventory' })).toHaveCount(0)
+})
+
+test('preserves the split ratio while resizing and restores it after a width clamp (#63)', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1800, height: 1000 })
+  await page.goto('studio/shows/stock-show-301-installation-mapping')
+  const divider = page.getByRole('separator', { name: 'Resize timeline and Stage' })
+  await expect(divider).toBeVisible()
+  await divider.press('Shift+ArrowDown')
+  const ratio = () => page.getByTestId('show-over-under-workspace').evaluate((root) => {
+    const timeline = root.querySelector('[data-testid="show-timeline-pane"]')!.getBoundingClientRect().height
+    const strip = root.querySelector('[data-testid="show-stage-strip"]')!.getBoundingClientRect().height
+    return timeline / (timeline + strip)
+  })
+  const original = await ratio()
+  for (const size of [{ width: 1600, height: 900 }, { width: 1900, height: 1200 }, { width: 1800, height: 1000 }]) {
+    await page.setViewportSize(size)
+    await expect(divider).toHaveAttribute('data-clamp', 'none')
+    await expect.poll(async () => Math.abs(await ratio() - original)).toBeLessThan(0.003)
+    await testInfo.attach(`split-${size.width}x${size.height}`, { body: await page.screenshot(), contentType: 'image/png' })
+  }
+  await page.setViewportSize({ width: 640, height: 1000 })
+  await expect(page.getByTestId('show-stage-strip')).toBeVisible()
+  await expect(divider).toHaveAttribute('data-clamp', 'controls-min')
+  await testInfo.attach('split-640x1000', { body: await page.screenshot(), contentType: 'image/png' })
+  await page.setViewportSize({ width: 1800, height: 1000 })
+  await expect.poll(async () => Math.abs(await ratio() - original)).toBeLessThan(0.003)
+})

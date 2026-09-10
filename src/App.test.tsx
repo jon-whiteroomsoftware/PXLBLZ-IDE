@@ -578,44 +578,24 @@ describe('routing (#308)', () => {
     expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
   })
 
-  it('moves the Show Stage into an explicit narrow-workspace preview dialog (#588)', async () => {
-    const user = userEvent.setup()
-    vi.stubGlobal('innerWidth', 900)
-    const show = createDefaultShow('show-narrow-stage', 'Narrow Stage', 1000)
-    show.outputContract = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
-    setStudioLocation('/studio/shows/show-narrow-stage')
+  it('keeps the same Show preview mounted across the narrow breakpoint (#63)', () => {
+    vi.stubGlobal('innerWidth', 1200)
+    const show = createDefaultShow('show-resize-stage', 'Resize Stage', 1000)
+    setStudioLocation('/studio/shows/show-resize-stage')
     seedSignedInWorkspace()
     useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
-
     render(<App />)
-
-    expect(screen.queryByRole('dialog', { name: 'Show Stage preview' })).not.toBeInTheDocument()
-    expect(within(screen.getByTestId('preview-pane')).queryByLabelText('Show stage')).not.toBeInTheDocument()
-    const previewStage = screen.getByRole('button', { name: 'Preview Stage' })
-    await user.click(previewStage)
-
-    const dialog = screen.getByRole('dialog', { name: 'Show Stage preview' })
-    expect(within(dialog).getByLabelText('Show stage')).toBeInTheDocument()
-    expect(within(screen.getByTestId('preview-pane')).queryByLabelText('Show stage')).not.toBeInTheDocument()
-
-    vi.stubGlobal('innerWidth', 1200)
-    fireEvent(window, new Event('resize'))
-    expect(screen.queryByRole('dialog', { name: 'Show Stage preview' })).not.toBeInTheDocument()
-    expect(within(screen.getByTestId('show-stage-strip')).getByLabelText('Show stage')).toBeInTheDocument()
-
-    vi.stubGlobal('innerWidth', 900)
-    fireEvent(window, new Event('resize'))
-    await user.click(screen.getByRole('button', { name: 'Preview Stage' }))
-    const reopenedDialog = screen.getByRole('dialog', { name: 'Show Stage preview' })
-    const close = within(reopenedDialog).getByRole('button', { name: 'Close Stage preview' })
-    expect(close).toHaveFocus()
-    await user.click(close)
-    expect(screen.queryByRole('dialog', { name: 'Show Stage preview' })).not.toBeInTheDocument()
-    expect(within(screen.getByTestId('preview-pane')).queryByLabelText('Show stage')).not.toBeInTheDocument()
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Preview Stage' })).toHaveFocus())
+    const stage = within(screen.getByTestId('show-stage-strip')).getByLabelText('Show stage')
+    for (const width of [980, 900, 640, 1200]) {
+      vi.stubGlobal('innerWidth', width)
+      fireEvent(window, new Event('resize'))
+      expect(within(screen.getByTestId('show-stage-strip')).getByLabelText('Show stage')).toBe(stage)
+      expect(screen.queryByTestId('show-compile-bar')).not.toBeInTheDocument()
+      expect(screen.queryByRole('dialog', { name: 'Show Stage preview' })).not.toBeInTheDocument()
+    }
   })
 
-  it('advances narrow Show playback while the Stage preview is closed (#593)', async () => {
+  it('advances narrow Show playback through code view and resizing (#63)', async () => {
     const user = userEvent.setup()
     const callbacks = new Map<number, FrameRequestCallback>()
     let nextFrameId = 1
@@ -634,7 +614,7 @@ describe('routing (#308)', () => {
     render(<App />)
 
     expect(screen.queryByRole('dialog', { name: 'Show Stage preview' })).not.toBeInTheDocument()
-    expect(within(screen.getByTestId('preview-pane')).queryByLabelText('Show stage')).not.toBeInTheDocument()
+    expect(within(screen.getByTestId('show-stage-strip')).getByLabelText('Show stage')).toBeInTheDocument()
     act(() => usePreviewStore.getState().setRunning(true))
     await waitFor(() => expect(callbacks.size).toBeGreaterThan(0))
 
@@ -650,27 +630,6 @@ describe('routing (#308)', () => {
 
     expect(usePreviewStore.getState().isRunning).toBe(true)
     expect(useShowTransportStore.getState().positionMs).toBeGreaterThan(0)
-
-    await user.click(screen.getByRole('button', { name: 'Preview Stage' }))
-    const dialog = screen.getByRole('dialog', { name: 'Show Stage preview' })
-    // Mounting the Stage preview mid-Show reconstructs its replay runtime
-    // asynchronously, yielding between chunks via setTimeout(0); drain those
-    // turns inside act instead of letting the finish land in a later gap (#917).
-    await act(async () => {
-      for (let turn = 0; turn < 20; turn++) {
-        await new Promise((resolve) => setTimeout(resolve, 0))
-      }
-    })
-    act(() => usePreviewStore.getState().setRunning(true))
-    const positionBeforeClose = useShowTransportStore.getState().positionMs
-    callbacks.clear()
-    await user.click(within(dialog).getByRole('button', { name: 'Close Stage preview' }))
-    await waitFor(() => expect(callbacks.size).toBeGreaterThan(0))
-    runFrame(100)
-    runFrame(120)
-
-    expect(usePreviewStore.getState().isRunning).toBe(true)
-    expect(useShowTransportStore.getState().positionMs).toBeGreaterThan(positionBeforeClose)
 
     const positionBeforeCode = useShowTransportStore.getState().positionMs
     await user.click(screen.getByRole('button', { name: 'Show actions' }))
@@ -689,9 +648,7 @@ describe('routing (#308)', () => {
 
     expect(within(screen.getByTestId('show-stage-strip')).getByLabelText('Show stage')).toBeInTheDocument()
     expect(usePreviewStore.getState().isRunning).toBe(true)
-    // Widening remounts the Stage mid-Show, which reconstructs its replay
-    // runtime asynchronously; drain those setTimeout(0) turns inside act so
-    // the finish does not land outside act after the test body (#917).
+    // Drain any pending asynchronous replay work before the test unmounts.
     await act(async () => {
       for (let turn = 0; turn < 20; turn++) {
         await new Promise((resolve) => setTimeout(resolve, 0))
@@ -700,7 +657,7 @@ describe('routing (#308)', () => {
   })
 
   it.each([
-    ['narrow', 900, false],
+    ['narrow', 900, true],
     ['wide', 1200, true],
   ])('pauses inherited Pattern playback when navigating to a %s Show (#593)', async (_label, width, hasStage) => {
     vi.stubGlobal('innerWidth', width)
@@ -714,9 +671,7 @@ describe('routing (#308)', () => {
     await choosePlace('Shows')
     await waitFor(() => expect(screen.getByRole('region', { name: 'Show timeline' })).toBeInTheDocument())
 
-    expect(Boolean(width > 980
-      ? within(screen.getByTestId('show-stage-strip')).queryByLabelText('Show stage')
-      : within(screen.getByTestId('preview-pane')).queryByLabelText('Show stage'))).toBe(hasStage)
+    expect(Boolean(within(screen.getByTestId('show-stage-strip')).queryByLabelText('Show stage'))).toBe(hasStage)
     expect(usePreviewStore.getState().isRunning).toBe(false)
     expect(useShowTransportStore.getState().positionMs).toBe(0)
   })
@@ -780,7 +735,7 @@ describe('routing (#308)', () => {
     expect(within(workspace).getByText('Workspace owner')).toBeInTheDocument()
     expect(within(workspace).getByRole('region', { name: 'Show timeline' })).toBeInTheDocument()
     expect(within(workspace).getByLabelText('Show stage')).toBeInTheDocument()
-    expect(within(workspace).getByRole('button', { name: 'Preview Stage' })).toHaveClass('max-[980px]:inline-flex')
+    expect(within(workspace).queryByRole('button', { name: 'Preview Stage' })).not.toBeInTheDocument()
   })
 
   it('gives the Show editor sole ownership of the global Space shortcut (#588)', () => {

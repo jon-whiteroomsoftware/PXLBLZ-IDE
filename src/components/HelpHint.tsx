@@ -102,7 +102,7 @@ export function HelpHint({ label, children, width = 320 }: Props) {
               width,
               zIndex: 50,
             }}
-            className="bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl p-3 font-mono text-xs"
+            className="bg-zinc-900 text-zinc-200 border border-zinc-700 rounded-lg shadow-2xl p-3 font-mono text-xs"
           >
             {children}
           </div>,

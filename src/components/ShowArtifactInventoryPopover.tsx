@@ -258,9 +258,11 @@ export function ShowArtifactInventoryBody({ inventory, model, vmWords, renderers
                 <span className={`h-2 w-2 shrink-0 rounded-[2px] ${CATEGORY_COLOR[row.category]}`} aria-hidden />
                 <span className="min-w-0 truncate text-zinc-200" title={row.label}>{row.label}</span>
                 {pattern && <span className="shrink-0"><HelpHint label={`About ${row.label} source`}>
+                  <div className="text-[10.5px] leading-4">
                   <p className="font-semibold">{row.label}</p>
                   <p className="mt-1">{patternStructure(row)}</p>
                   <p className="mt-1">{patternCostEquation(row)}</p>
+                  </div>
                 </HelpHint></span>}
                 {!row.creatorEditable && row.category === 'runtime-scheduler' && (
                   <span className="shrink-0 rounded-sm bg-zinc-800 px-1.5 py-0.5 text-[8px] uppercase tracking-wider text-zinc-500">fixed</span>
@@ -312,7 +314,7 @@ function ResourceAxis({ label, value, detail, help, primary }: { label: string; 
     <div data-source-resource={label} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 py-1">
       <div className="flex min-w-0 items-center gap-1 text-[9px] uppercase tracking-wider text-zinc-400">
         <span className="truncate" title={label}>{label}</span>
-        {help && <span className="shrink-0 normal-case"><HelpHint label={`About ${label}`}>{help}</HelpHint></span>}
+        {help && <span className="shrink-0 normal-case"><HelpHint label={`About ${label}`}><div className="text-[10.5px] leading-4">{help}</div></HelpHint></span>}
       </div>
       <div data-source-resource-value className={`whitespace-nowrap text-right tabular-nums ${primary ? 'font-semibold text-zinc-100' : 'text-zinc-200'}`}>{value}</div>
       {detail && <div className="col-span-2 truncate text-[9px] text-zinc-500" title={detail}>{detail}</div>}

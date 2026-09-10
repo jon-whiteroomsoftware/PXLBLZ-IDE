@@ -1186,7 +1186,10 @@ timeline height only after explicit pointer or keyboard movement. Pointer gestur
 end on release, cancellation, capture loss, or window blur; batched moves
 accumulate from the gesture's last clamped height (#63). Without a
 remembered height, the timeline fits its measured content plus 12 px slack and
-the strip fills the remainder, recomputed on content and viewport changes.
+the strip fills the remainder. Window resizing preserves the split proportion
+relative to the first measured workspace height, subject to the timeline, strip,
+and controls limits; temporary clamps do not replace the intended split.
+Content changes still update automatic fitting.
 `ShowEditor` measures content independently of scroll position; a visible Live
 strip reserves 32 px in automatic fitting and the two-lane minimum. Remembered
 height takes precedence over content and survives temporary viewport clamps.
@@ -1214,8 +1217,8 @@ strip sections expand independently. Controls use one column capped at 480 px,
 with slider tracks capped at 200 px and the existing rail scrolling treatment.
 `ShowSourceOutlet` lets `ShowEditor` retain ownership of compilation and delivery
 state while rendering the Source code section into the desktop strip. Timeline
-measurements include the source footer only in the narrow layout, where that
-footer remains the inventory entry point. `ShowArtifactInventoryBody` supplies
+measurements exclude the retired source footer at every width; the lower strip
+and its Source code outlet remain mounted across viewport breakpoints. `ShowArtifactInventoryBody` supplies
 the same inventory content to both presentations.
 
 **Layout.** The top-bar place control owns the six Studio areas plus Docs and
@@ -1236,8 +1239,7 @@ Panes retain explicit minimums and remembered per-entity
 divider widths. Shows replace the desktop center/right split with the
 timeline-over-Stage workspace; Pattern and other Studio layouts retain their
 existing right panes. At 390 px the wordmark becomes its mark, Controller pills
-and secondary controls become icon-only, and the bar remains one row. At 980 px
-and below the Stage yields to a Preview overlay without creating a second runtime. Rail
+and secondary controls become icon-only, and the bar remains one row. The Stage remains in the lower strip at narrow widths, with one preview runtime. Rail
 typography follows `ui/ideMicrotype.ts`. The authenticated responsive and
 persistence smokes cover these surfaces; deep Show editing lives in the
 dedicated suite.

@@ -434,7 +434,6 @@ function StudioApp() {
   }, [])
   const [showHeaderActionsTarget, setShowHeaderActionsTarget] = useState<HTMLSpanElement | null>(null)
   const [showHeaderGuideTarget, setShowHeaderGuideTarget] = useState<HTMLSpanElement | null>(null)
-  const [showStageOverlayShowId, setShowStageOverlayShowId] = useState<string | null>(null)
   const [showStagePreviewAspect, setShowStagePreviewAspect] = useState(1)
   const [showTimelineMinimumHeight, setShowTimelineMinimumHeight] = useState(SHOW_TIMELINE_MIN_HEIGHT)
   const [showTimelineContentHeight, setShowTimelineContentHeight] = useState(SHOW_TIMELINE_MIN_HEIGHT)
@@ -445,19 +444,10 @@ function StudioApp() {
   }, [])
   const [studioViewportWidth, setStudioViewportWidth] = useState(() => window.innerWidth)
   const narrowShowWorkspace = studioViewportWidth <= 980
-  const showStageReturnFocusRef = useRef<HTMLElement | null>(null)
-  const closeShowStageOverlay = useCallback(() => {
-    setShowStageOverlayShowId(null)
-    const returnFocus = showStageReturnFocusRef.current
-    window.setTimeout(() => {
-      if (returnFocus?.isConnected) returnFocus.focus()
-    }, 0)
-  }, [])
   useEffect(() => {
     const handleResize = () => {
       const nextWidth = window.innerWidth
       setStudioViewportWidth(nextWidth)
-      if (nextWidth > 980) setShowStageOverlayShowId(null)
     }
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
@@ -846,14 +836,9 @@ function StudioApp() {
       } : undefined}
       headerGuideTarget={showHeaderGuideTarget}
       headerActionsTarget={showHeaderActionsTarget}
-      transportClockActive={narrowShowWorkspace && showStageOverlayShowId !== activeShow.id}
       protectDetailPanelTransport={!narrowShowWorkspace}
       onTimelineMinimumHeightChange={setShowTimelineMinimumHeight}
       onTimelineContentHeightChange={measureShowTimelineContent}
-      onOpenStagePreview={(anchor) => {
-        showStageReturnFocusRef.current = anchor
-        setShowStageOverlayShowId(activeShow.id)
-      }}
     />
   ) : null
 
@@ -1468,7 +1453,7 @@ function StudioApp() {
                   timelineContentHeight={showTimelineContentHeight}
                   timelineRequiredHeight={showTimelineRequiredHeight}
                   timeline={activeShowEditor}
-                  stage={narrowShowWorkspace ? null : (
+                  stage={(
                       <ShowStagePreview
                         showId={activeShow.id}
                         showOverride={routedStockShowOverride}
@@ -1507,24 +1492,20 @@ function StudioApp() {
             )}
           </div>
         </main>
-        {!controllerProfilesEmpty && (studioEntityKind !== 'shows' || narrowShowWorkspace) && (
+        {!controllerProfilesEmpty && studioEntityKind !== 'shows' && (
           <>
             <Splitter
               label="Resize preview pane"
               valueNow={rightWidth}
               valueMin={STUDIO_PREVIEW_MIN_WIDTH}
               onDrag={handleRightDrag}
-              className={studioEntityKind === 'shows'
-                ? 'studio-preview-splitter max-[980px]:hidden'
-                : 'studio-preview-splitter'}
+              className="studio-preview-splitter"
             />
             {/* The preview is an output/instrument surface (#150): no header strip — the
                 canvas sits flush at the top and all controls live in the deck below it. */}
             <aside
               data-testid="preview-pane"
-              className={studioEntityKind === 'shows'
-                ? 'studio-preview-pane flex min-h-0 shrink-0 flex-col max-[980px]:hidden'
-                : 'studio-preview-pane flex min-h-0 shrink-0 flex-col'}
+              className="studio-preview-pane flex min-h-0 shrink-0 flex-col"
               style={{ width: rightWidth, minWidth: STUDIO_PREVIEW_MIN_WIDTH }}
             >
           {editorFlavor === 'mixin' ? (
@@ -1537,19 +1518,6 @@ function StudioApp() {
             activeControllerProfile
               ? <ControllerSavedProgramsPane profile={activeControllerProfile} />
               : <EmptyContextPane label="Controller" />
-          ) : studioEntityKind === 'shows' ? (
-            showCreation
-              ? <EmptyContextPane label="Output contract setup" />
-              : activeShow
-                ? narrowShowWorkspace
-                  ? <EmptyContextPane label={showStageOverlayShowId === activeShow.id ? 'Stage preview open' : 'Stage preview available'} />
-                  : (
-                      <ShowStagePreview
-                        showId={activeShow.id}
-                        showOverride={routedStockShowOverride}
-                      />
-                    )
-                : <EmptyContextPane label="Shows" />
           ) : (
             <Preview />
           )}
@@ -1558,60 +1526,6 @@ function StudioApp() {
         )}
         </div>
       </StudioEntityDrawer>
-      )}
-      {narrowShowWorkspace && showStageOverlayShowId === activeShow?.id && activeShow && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Show Stage preview"
-          className="fixed inset-0 z-[90] flex bg-black/70 p-3 backdrop-blur-sm min-[981px]:hidden"
-          onPointerDown={closeShowStageOverlay}
-        >
-          <section
-            className="m-auto flex h-[min(760px,calc(100vh-24px))] w-[min(680px,calc(100vw-24px))] min-h-0 flex-col overflow-hidden border border-zinc-700 bg-zinc-950 shadow-2xl"
-            onPointerDown={(event) => event.stopPropagation()}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.preventDefault()
-                event.stopPropagation()
-                closeShowStageOverlay()
-                return
-              }
-              if (event.key !== 'Tab') return
-              const focusable = [...event.currentTarget.querySelectorAll<HTMLElement>(
-                'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-              )]
-              if (focusable.length === 0) return
-              const first = focusable[0]
-              const last = focusable[focusable.length - 1]
-              if (event.shiftKey && document.activeElement === first) {
-                event.preventDefault()
-                last.focus()
-              } else if (!event.shiftKey && document.activeElement === last) {
-                event.preventDefault()
-                first.focus()
-              }
-            }}
-          >
-            <header className="flex h-9 shrink-0 items-center justify-between border-b border-zinc-800 px-3">
-              <h2 className="font-mono text-xs font-semibold uppercase tracking-wide text-zinc-300">Stage preview</h2>
-              <Button
-                size="icon-xs"
-                variant="ghost"
-                autoFocus
-                aria-label="Close Stage preview"
-                title="Close Stage preview"
-                className="text-zinc-400 hover:text-zinc-100"
-                onClick={closeShowStageOverlay}
-              >
-                <X {...controlIcon} aria-hidden />
-              </Button>
-            </header>
-            <div className="min-h-0 flex-1">
-              <ShowStagePreview showId={activeShow.id} showOverride={routedStockShowOverride} />
-            </div>
-          </section>
-        </div>
       )}
     </div>
   )

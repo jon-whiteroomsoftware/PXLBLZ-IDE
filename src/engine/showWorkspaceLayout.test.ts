@@ -23,6 +23,19 @@ describe('Show workspace over/under layout (#967)', () => {
     }
   })
 
+  it('preserves the split proportion through shrink, growth and a temporary clamp (#63)', () => {
+    const input = { width: 1600, height: 800, referenceHeight: 800, desiredTimelineHeight: 400, previewAspect: 1 }
+    const baseline = resolveShowWorkspaceLayout(input)
+    for (const height of [700, 1000, 800]) {
+      const next = resolveShowWorkspaceLayout({ ...input, height })
+      expect(next.timelineHeight / (height - 6)).toBeCloseTo(baseline.timelineHeight / 794, 2)
+    }
+    const narrow = resolveShowWorkspaceLayout({ ...input, width: 390 })
+    expect(narrow.clamp).toBe('controls-min')
+    expect(narrow.controlsWidth).toBeGreaterThanOrEqual(200)
+    expect(resolveShowWorkspaceLayout(input)).toEqual(baseline)
+  })
+
   it('turns the remembered timeline height into an aspect-true strip', () => {
     expect(resolveShowWorkspaceLayout({
       width: 900,

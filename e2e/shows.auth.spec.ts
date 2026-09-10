@@ -374,19 +374,16 @@ test.describe('authenticated Show authoring', () => {
       .toHaveAttribute('aria-valuenow', String(draggedValue))
   })
 
-  test('keeps the established Show Preview overlay below the workspace breakpoint (#588, #967)', async ({ page }) => {
-    await page.setViewportSize({ width: 900, height: 800 })
+  test('keeps the Show strip across the workspace breakpoint (#63)', async ({ page }) => {
+    await page.setViewportSize({ width: 1200, height: 800 })
     await page.goto('studio/shows/stock-show-remix-overture')
-
-    await expect(page.getByTestId('show-stage-strip')).toHaveCount(0)
-    await expect(page.getByRole('separator', { name: 'Resize timeline and Stage' })).toHaveCount(0)
-    await page.getByRole('button', { name: 'Preview Stage' }).click()
-    const overlay = page.getByRole('dialog', { name: 'Show Stage preview' })
-    await expect(overlay).toBeVisible()
-    await expect(overlay.getByLabel('Show stage')).toBeVisible()
-    await overlay.getByRole('button', { name: 'Close Stage preview' }).click()
-    await expect(overlay).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Preview Stage' })).toBeFocused()
+    for (const width of [980, 900, 640, 1200]) {
+      await page.setViewportSize({ width, height: 800 })
+      await expect(page.getByTestId('show-stage-strip')).toBeVisible()
+      await expect(page.getByRole('separator', { name: 'Resize timeline and Stage' })).toBeVisible()
+      await expect(page.getByTestId('show-stage-preview')).toHaveCount(1)
+      await expect(page.getByTestId('show-compile-bar')).toHaveCount(0)
+    }
   })
 
   test('keeps the compact sparkline gutter and time-zero playhead crisp (#63)', async ({ page }) => {
@@ -625,21 +622,10 @@ test.describe('authenticated Show authoring', () => {
     await copiesHelp.press('Escape')
 
     await page.setViewportSize({ width: 390, height: 800 })
-    const sourceMeter = page.getByRole('button', { name: /Show source inventory/ })
-    await sourceMeter.hover()
-    const inventory = page.getByRole('dialog', { name: 'Show source inventory' })
-    await inventory.hover()
-    await page.waitForTimeout(200)
-    await expect(inventory).toBeVisible()
-    await expect(inventory.getByRole('button', { name: 'Close Show source inventory' })).toHaveCount(0)
-    await sourceMeter.click()
-    await expect(inventory.getByRole('button', { name: 'Close Show source inventory' })).toBeVisible()
-    const bounds = await inventory.boundingBox()
-    expect(bounds).not.toBeNull()
-    expect(bounds!.x).toBeGreaterThanOrEqual(0)
-    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390)
-    expect(bounds!.y).toBeGreaterThanOrEqual(0)
-    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(800)
+    await expect(page.getByTestId('show-source-outlet')).toContainText('Pattern copies running')
+    await expect(page.getByTestId('show-compile-bar')).toHaveCount(0)
+    await expect(page.getByRole('dialog', { name: 'Show source inventory' })).toHaveCount(0)
+
   })
 
   test('Show header preserves its title before compacting lower-priority controls (#836)', async ({ page }) => {
@@ -2729,8 +2715,12 @@ test.describe('authenticated Show authoring', () => {
     const fittedHeight = await pane.evaluate((element) => element.clientHeight)
     const initialStrip = await strip.evaluate((element) => element.clientHeight)
     await page.setViewportSize({ width: 1440, height: 1000 })
-    await expect.poll(() => pane.evaluate((element) => element.clientHeight)).toBe(fittedHeight)
-    await expect.poll(() => strip.evaluate((element) => element.clientHeight)).toBe(initialStrip + 100)
+    const initialRatio = fittedHeight / (fittedHeight + initialStrip)
+    await expect.poll(async () => {
+      const top = await pane.evaluate((element) => element.clientHeight)
+      const bottom = await strip.evaluate((element) => element.clientHeight)
+      return Math.abs(top / (top + bottom) - initialRatio)
+    }).toBeLessThan(0.003)
     await capture('square-6-resized')
 
     // Force overflow and measurement while scrolled; restoring the window must
@@ -2777,7 +2767,7 @@ test.describe('authenticated Show authoring', () => {
     await page.reload()
     await expect.poll(() => pane.evaluate((element) => element.clientHeight)).toBe(draggedHeight + 60)
     await page.setViewportSize({ width: 900, height: 800 })
-    await expect(splitter).toHaveCount(0)
+    await expect(splitter).toBeVisible()
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
     await capture('narrow')
     await page.setViewportSize({ width: 1440, height: 900 })
