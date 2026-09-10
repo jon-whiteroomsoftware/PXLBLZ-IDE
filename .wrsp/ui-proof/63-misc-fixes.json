@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "63",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-301-installation-mapping",
+  "operation": "In the in-app browser using synthetic local-agent-08, resized the timeline across its content boundary, checked the 17 px marker tail, expanded Preview and Stage to compare their 68 px labels, expanded compact Zones and exercised Solo/All, and opened Learn > 300 in the Shows list to inspect nesting. Captures show the committed controls, neutral divider over decorative slack, full marker tail, and nested list. Automated browser regressions separately cover release/capture loss during playback, clipping, zoom, collapsed lanes, automatic fitting and minimum-width keyboard behavior.",
+  "captures": [
+    ".wrsp/ui-proof/63-labels.jpg",
+    ".wrsp/ui-proof/63-zones.jpg",
+    ".wrsp/ui-proof/63-timeline.jpg",
+    ".wrsp/ui-proof/63-tree.jpg"
+  ],
+  "capturedAtCommit": "b2f2b6227ee767640c519ecd8af0587ec3be8f8e"
+}
