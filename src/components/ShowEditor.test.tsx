@@ -7614,12 +7614,14 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(within(screen.getByRole('button', { name: 'Save' })).getByText('Save')).toBeInTheDocument()
     // Once the rebuild settles the compile failure is a focusable gated reason
     // (#875): no title, aria-disabled, and the reason as accessible description.
-    await waitFor(() => expect(run).not.toHaveAttribute('title'))
-    expectDisabledReason(run, /.+/)
-    const reason = document.getElementById(run.getAttribute('aria-describedby')!)!.textContent ?? ''
-    expect(reason).not.toContain('Rebuilding Show')
-    expect(reason).not.toBe("Fix the pattern's errors before sending")
-    expect(reason).not.toBe('Earlier transport failure')
+    await waitFor(() => {
+      expect(run).not.toHaveAttribute('title')
+      expectDisabledReason(run, /.+/)
+      const reason = document.getElementById(run.getAttribute('aria-describedby')!)!.textContent ?? ''
+      expect(reason).not.toContain('Rebuilding Show')
+      expect(reason).not.toBe("Fix the pattern's errors before sending")
+      expect(reason).not.toBe('Earlier transport failure')
+    })
   })
 
   it('dismisses pending Controller delivery when navigating to another Show (#593)', async () => {
