@@ -92,3 +92,11 @@ it('returns keyboard focus from dismissed recovery controls to the preserved com
   expect([composer.selectionStart, composer.selectionEnd]).toEqual([2, 5])
   expect(composer).toHaveValue('Keep this draft')
 })
+
+it.each(['not-applied', 'cancelled'] as const)('does not show private change descriptions for %s', outcome => {
+  controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
+  controller.dispatch({ type: 'beginEdit', id: 'private', intent: 'Resize' })
+  controller.dispatch({ type: 'outcome', id: 'private', outcome, changes: [{ targetId: 'clip', description: 'Clip now runs eight seconds.' }] })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  expect(screen.queryByText('Clip now runs eight seconds.')).toBeNull()
+})

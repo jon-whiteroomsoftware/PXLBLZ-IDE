@@ -82,4 +82,5 @@ it('does not paint an insertion band when live admission refuses a committed pri
   await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.stream.some(line => line.outcome === 'not-applied')).toBe(true))
   expect(useAgentDrawerStore.getState().state.band).toBeNull()
   expect(useAgentDrawerStore.getState().state.highlights).toEqual([])
+  expect(useAgentDrawerStore.getState().state.stream.some(line => line.text === 'Inserted.')).toBe(false)
 })

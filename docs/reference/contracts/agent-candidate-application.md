@@ -615,6 +615,10 @@ Activity keeps private completion separate from live application and save.
 Tucked unread counts distinct operations whose outcomes change; progress and
 read activity do not count. Opening reads the current outcomes, and a later
 rollback can become unread again. Manual edits and Undo clear attribution.
+Time bands occupy the same grid columns as timeline content; zoom and pan
+preserve their time coordinates. The open right drawer overlay and its edge sit above
+non-modal Entity Detail panels so recovery remains reachable while a dirty
+field retains focus.
 Contact recovery queries the same operation without replay; an unknown outcome
 keeps admission unavailable until that operation is resolved. A known save
 outcome survives missing contact or a missing subsequent lookup.

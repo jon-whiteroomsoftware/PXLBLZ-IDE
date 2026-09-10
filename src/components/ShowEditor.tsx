@@ -5249,7 +5249,6 @@ function ShowTimelineWorkspace({
         </div>
       )}
       <div className="relative isolate" data-show-timeline-overlay-host>
-        {agentController?.showId === show.id && agentDrawer.band && <div data-testid="agent-time-band" className="agent-time-band" style={{ left: `${(agentDrawer.band.startMs - viewport.startMs) / viewport.durationMs * 100}%`, width: `${Math.max(1, (agentDrawer.band.endMs - agentDrawer.band.startMs) / viewport.durationMs * 100)}%` }} />}
         <div
           ref={scrollRef}
           data-show-timeline-scroll-viewport
@@ -5312,6 +5311,11 @@ function ShowTimelineWorkspace({
           className="pointer-events-none"
           style={{ gridRow: rows.length, gridColumn: '1 / -1' }}
         />
+        {agentController?.showId === show.id && agentDrawer.band && (
+          <div aria-hidden className="pointer-events-none relative z-30" style={{ gridColumn: '2 / -1', gridRow: '1 / -1' }}>
+            <div data-testid="agent-time-band" className="agent-time-band" style={{ left: `${agentDrawer.band.startMs / viewport.totalMs * 100}%`, width: `${(agentDrawer.band.endMs - agentDrawer.band.startMs) / viewport.totalMs * 100}%` }} />
+          </div>
+        )}
         {/*
           Timeline stacking contract inside this isolated canvas:
           z-10 Clips, z-15 per-layer junctions, z-20 layout masks,

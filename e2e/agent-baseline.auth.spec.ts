@@ -263,6 +263,8 @@ async function overlayRequests(page: Page): Promise<OverlayRequest[]> {
 /** Type the utterance into the overlay and press Send; returns the request id it minted. */
 async function submitUtterance(page: Page, utterance: string): Promise<string> {
   const before = (await overlayRequests(page)).length
+  const edge = page.getByRole('button', { name: /Open the Agent drawer/ })
+  if (await edge.count() && await edge.getAttribute('aria-expanded') === 'false') await edge.click()
   await page.getByTestId('agent-chat-input').fill(utterance)
   await page.getByTestId('agent-chat-send').click()
   await expect.poll(async () => (await overlayRequests(page)).length).toBe(before + 1)
@@ -536,7 +538,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     await waitForAccepted(page, id)
     await expect(page.locator(`[data-request-id="${id}"]`)).toHaveAttribute('data-outcome', 'applied')
     await expect(page.getByTestId('agent-chat-send')).toBeDisabled()
-    await page.screenshot({ path: join(REPORT_DIR, 'D957-applied-saving.png'), fullPage: true })
+    await page.screenshot({ path: join(REPORT_DIR, 'D957-applied-saving.png'), fullPage: false, animations: 'disabled' })
     await page.getByRole('button', { name: 'Unpin the Agent drawer' }).click()
     releaseSave()
     await expect(page.getByTestId('agent-drawer-layout')).toHaveAttribute('data-drawer-mode', 'tucked')
@@ -548,12 +550,12 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     const ring = page.locator('[data-agent-highlight="flash"], [data-agent-highlight="settled"]')
     await expect(ring).toHaveCount(1)
     expect(await ring.evaluate(element => getComputedStyle(element).outlineStyle)).toBe('double')
-    await page.screenshot({ path: join(REPORT_DIR, 'D957-saved-tucked.png'), fullPage: true })
+    await page.screenshot({ path: join(REPORT_DIR, 'D957-saved-tucked.png'), fullPage: false, animations: 'disabled' })
     expect(firstMain(await durableShow(page, showId))?.durationMs).toBe(8000)
     await page.getByRole('button', { name: /^Open the Agent drawer/ }).click()
     await expect(page.getByTestId('agent-unread-count')).toHaveCount(0)
     await expect(page.locator(`[data-request-id="${id}"]`)).toContainText('saved')
-    await page.screenshot({ path: join(REPORT_DIR, 'D957-saved-open.png'), fullPage: true })
+    await page.screenshot({ path: join(REPORT_DIR, 'D957-saved-open.png'), fullPage: false, animations: 'disabled' })
     await page.getByRole('button', { name: 'Pin the Agent drawer' }).click()
     const staleId = await submitUtterance(page, BATCH_UTTERANCE)
     await waitForAccepted(page, staleId)
@@ -564,7 +566,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     expect(stale.applied).toBe(false)
     expect(await durableShow(page, showId)).toEqual(manual)
     await expect(page.locator('[data-agent-highlight="refused"]')).toHaveCount(1)
-    await page.screenshot({ path: join(REPORT_DIR, 'D957-refused-tucked.png'), fullPage: true })
+    await page.screenshot({ path: join(REPORT_DIR, 'D957-refused-tucked.png'), fullPage: false, animations: 'disabled' })
     await expect(page.getByTestId('agent-unread-count')).toHaveText('1')
     await page.getByRole('button', { name: 'Undo Show edit' }).click()
     await expect(page.locator('[data-agent-highlight="refused"]')).toHaveCount(0)
@@ -761,7 +763,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       })
       expect(acquired).toBe(true)
       const id = await submitUtterance(page, 'make the first Clip exactly eight seconds')
-      await expect(page.getByTestId('agent-chat-log')).toContainText('Waiting for active editing')
+      await expect(page.getByTestId('agent-chat-log')).toContainText('waiting for you')
       await expect(page.getByTestId('agent-chat-cancel')).toBeVisible()
       expect(await visibleRecord(page)).toEqual(before)
       expect(writes).toHaveLength(0)
@@ -810,7 +812,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       if (action === 'focus-only') await duration.focus()
       else await duration.fill('7')
       if (action !== 'focus-only') {
-        await expect(page.getByTestId('agent-chat-log')).toContainText('Waiting for active editing')
+        await expect(page.getByTestId('agent-chat-log')).toContainText('waiting for you')
         await expect(duration).toBeFocused()
         await expect(duration).toHaveValue('7')
         expect(await visibleRecord(page)).toEqual(before)
@@ -824,6 +826,8 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         }
         else if (action === 'manual-commit') await duration.press('Enter')
         else {
+          const edge = page.getByRole('button', { name: /Open the Agent drawer/ })
+          if (await edge.count() && await edge.getAttribute('aria-expanded') === 'false') await edge.hover()
           await page.getByTestId('agent-chat-cancel').click()
           await expect(duration).toHaveValue('7')
           await expect(duration).toBeFocused()
@@ -865,6 +869,52 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     }
   })
 
+  test('FC957: narrow Cancel remains reachable across detail anchor positions', async ({ page }) => {
+    test.setTimeout(120000)
+    for (const width of [480, 800]) for (const anchor of ['left', 'right'] as const) {
+      await page.setViewportSize({ width, height: 600 })
+      const record = resizeBoundaryShow(`cancel-${width}-${anchor}-${Date.now().toString(36)}`)
+      if (anchor === 'right') {
+        record.composition!.scenes[0].zones[0].main[1].startMs = 8000
+        record.composition!.scenes[0].zones[0].main[1].durationMs = 12000
+      }
+      expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+      await page.goto(`studio/shows/${record.id}?agent=1`)
+      await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+      await expect.poll(() => page.evaluate(async () => {
+        const load = (path: string) => import(path)
+        const [{ usePatternStore }, { useLibraryStore }, { useMapStore }, { useEntityOrganizationStore }] = await Promise.all([load('/PXLBLZ-IDE/src/store/patternStore.ts'), load('/PXLBLZ-IDE/src/store/libraryStore.ts'), load('/PXLBLZ-IDE/src/store/mapStore.ts'), load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')])
+        return usePatternStore.getState().patternsLoaded && useLibraryStore.getState().librariesLoaded && useMapStore.getState().mapsLoaded && useEntityOrganizationStore.getState().loaded.libraries
+      })).toBe(true)
+      await injectOverlay(page, bridge.url)
+      const before = await visibleRecord(page)
+      const durableBefore = await durableShow(page, record.id)
+      const writes = watchShowWrites(page)
+      const id = await submitUtterance(page, 'make the first Clip exactly eight seconds')
+      await page.getByRole('button', { name: 'Agent menu' }).focus()
+      await page.keyboard.press('Escape')
+      await page.locator(`[data-show-selection-key="clip:${anchor === 'left' ? 'resize-a' : 'resize-b'}"]`).click()
+      const duration = page.getByRole('textbox', { name: 'Duration seconds exact time' })
+      await duration.fill('3')
+      await expect(page.getByTestId('agent-chat-log')).toContainText('waiting for you')
+      await page.getByRole('button', { name: /Open the Agent drawer/ }).hover()
+      const cancel = page.getByTestId('agent-chat-cancel')
+      await expect(cancel).toBeVisible()
+      await cancel.click({ trial: true })
+      const panel = (await page.getByRole('dialog', { name: 'Entity Detail Panel' }).boundingBox())!
+      const control = (await cancel.boundingBox())!
+      await cancel.click()
+      await expect(duration).toBeFocused()
+      await expect(duration).toHaveValue('3')
+      expect((await waitForDone(page, id)).applied).toBe(false)
+      expect(await visibleRecord(page)).toEqual(before)
+      expect(await durableShow(page, record.id)).toEqual(durableBefore)
+      expect(writes).toHaveLength(0)
+      saveRecord(`FC957-${width}-${anchor}`, { panel, control, cancelledWithoutWrite: true, focusAndDraftPreserved: true })
+      await page.screenshot({ path: join(REPORT_DIR, `FC957-${width}-${anchor}.png`), fullPage: false, animations: 'disabled' })
+    }
+  })
+
   test('GA: real timeline gestures wait and settle after cancellation or manual adoption', async ({ page }) => {
     test.setTimeout(150000)
     const pageErrors: string[] = []
@@ -877,18 +927,27 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
       await expect.poll(() => page.evaluate(async () => {
         const load = (path: string) => import(path)
-        const [p, l, m] = await Promise.all(['pattern', 'library', 'map'].map(name => load(`/PXLBLZ-IDE/src/store/${name}Store.ts`)))
-        return p.usePatternStore.getState().patternsLoaded && l.useLibraryStore.getState().librariesLoaded && m.useMapStore.getState().mapsLoaded
+        const [p, l, m, o] = await Promise.all(['pattern', 'library', 'map', 'entityOrganization'].map(name => load(`/PXLBLZ-IDE/src/store/${name}Store.ts`)))
+        return p.usePatternStore.getState().patternsLoaded && l.useLibraryStore.getState().librariesLoaded && m.useMapStore.getState().mapsLoaded && o.useEntityOrganizationStore.getState().loaded.libraries
       })).toBe(true)
       await injectOverlay(page, bridge.url)
       const before = await visibleRecord(page)
       const durableBefore = await durableShow(page, record.id)
       const writes = watchShowWrites(page)
+      page.on('response', response => {
+        if (response.url().includes('/utterance')) void response.text().then(body => saveRecord(`GA-${action}-candidate`, { request: response.request().postDataJSON(), body })).catch(() => {})
+      })
       const id = await submitUtterance(page, 'make the first Clip exactly eight seconds')
+      if (action === 'end-commit') {
+        await page.getByRole('button', { name: 'Agent menu', exact: true }).focus()
+        await page.keyboard.press('Escape')
+        await expect(page.getByRole('complementary', { name: 'Agent drawer' })).toBeHidden()
+      }
       const handle = action === 'end-commit'
         ? page.getByRole('button', { name: 'Show End at 20 seconds' })
         : page.getByRole('separator', { name: 'Resize CometLoom end' }).first()
       await handle.scrollIntoViewIfNeeded()
+      await handle.hover()
       const bounds = (await handle.boundingBox())!
       const clip = (await page.getByRole('button', { name: 'Select CometLoom', exact: true }).first().boundingBox())!
       const surface = (await page.getByLabel('Timeline Markers and Show End', { exact: true }).boundingBox())!
@@ -898,7 +957,11 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       await page.mouse.move(x, y)
       await page.mouse.down()
       await page.mouse.move(action === 'end-commit' ? x - surface.width / 10 : x + clip.width * 3 / 4, y, { steps: 3 })
-      await expect(page.getByTestId('agent-chat-log')).toContainText('Waiting for active editing')
+      try { await expect(page.getByTestId('agent-chat-log')).toContainText('waiting for you') }
+      catch (error) {
+        saveRecord(`GA-${action}-refusal`, { request: await overlayRequest(page, id), visible: await visibleRecord(page), durable: await durableShow(page, record.id) })
+        throw error
+      }
       expect(await visibleRecord(page)).toEqual(before)
       expect(await durableShow(page, record.id)).toEqual(durableBefore)
       expect(writes).toHaveLength(0)
@@ -1159,7 +1222,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         const duration = page.getByRole('textbox', { name: 'Duration seconds exact time' })
         await duration.fill('7')
         if (dirty) {
-          await expect(page.getByTestId('agent-chat-log')).toContainText('Waiting for active editing')
+          await expect(page.getByTestId('agent-chat-log')).toContainText('waiting for you')
           await expect(duration).toBeFocused()
           expect(await visibleRecord(page)).toEqual(before)
           expect(await durableShow(page, record.id)).toEqual(durableBefore)
@@ -1593,7 +1656,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         await page.mouse.down()
         await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2, { steps: 3 })
       } else await target.dispatchEvent('dragstart', { dataTransfer: transfer })
-      await expect(page.getByTestId('agent-chat-log')).toContainText('Waiting for active editing')
+      await expect(page.getByTestId('agent-chat-log')).toContainText('waiting for you')
       expect(await visibleRecord(page)).toEqual(before)
       expect(await durableShow(page, record.id)).toEqual(durableBefore)
       expect(writes).toHaveLength(0)
@@ -1709,7 +1772,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         if (action === 'clear-cancel') await surface.dispatchEvent('pointercancel', { pointerId: 1, bubbles: true })
         await page.mouse.up()
         await expect(page.getByText(action === 'clear-cancel' ? 'Indexes none' : 'Indexes 1', { exact: true })).toBeVisible()
-        await expect(page.getByTestId('agent-chat-log')).toContainText('Waiting for active editing')
+        await expect(page.getByTestId('agent-chat-log')).toContainText('waiting for you')
         expect(await visibleRecord(page)).toEqual(before)
         expect(await durableShow(page, record.id)).toEqual(durableBefore)
         expect(writes).toHaveLength(0)
@@ -2214,6 +2277,39 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       } else {
         done = await waitForDone(page, await submitUtterance(page, admission.utterance))
         expect(done.applied, JSON.stringify(done)).toBe(true)
+      }
+      if (admission.id === 'IT951') {
+        await page.getByRole('button', { name: 'Agent menu' }).focus()
+        await page.keyboard.press('Escape')
+        const band = page.getByTestId('agent-time-band')
+        await expect(band).toBeVisible()
+        const geometry = async () => page.evaluate(() => {
+          const band = document.querySelector<HTMLElement>('[data-testid="agent-time-band"]')!
+          const area = band.parentElement!.getBoundingClientRect()
+          const rect = band.getBoundingClientRect()
+          return { left: (rect.left - area.left) / area.width, width: rect.width / area.width, pixels: rect.width, x: rect.left }
+        })
+        const fitted = await geometry()
+        expect(fitted.left).toBeCloseTo(29 / 63, 3)
+        expect(fitted.width).toBeCloseTo(1 / 63, 3)
+        const scroll = page.getByTestId('show-timeline-scroll-region')
+        await scroll.hover()
+        await page.keyboard.down('Control')
+        await page.mouse.wheel(0, -100)
+        await page.keyboard.up('Control')
+        await expect.poll(async () => (await geometry()).pixels).toBeGreaterThan(fitted.pixels)
+        const zoomed = await geometry()
+        expect(zoomed.left).toBeCloseTo(29 / 63, 3)
+        expect(zoomed.width).toBeCloseTo(1 / 63, 3)
+        await page.keyboard.down('Shift')
+        await page.mouse.wheel(0, 150)
+        await page.keyboard.up('Shift')
+        await expect.poll(async () => (await geometry()).x).toBeLessThan(zoomed.x)
+        const panned = await geometry()
+        expect(panned.width).toBeCloseTo(zoomed.width, 3)
+        await expect(band).toBeVisible()
+        saveRecord('IT951-band-geometry', { fitted, zoomed, panned })
+        await page.screenshot({ path: join(REPORT_DIR, 'IT951-band-panned.png'), fullPage: false, animations: 'disabled' })
       }
       const accepted = admission.toolbarSplit?.accepted ?? true
       await expect.poll(successfulSaves).toBe(accepted ? 1 : 0)

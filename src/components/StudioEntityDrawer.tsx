@@ -330,7 +330,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
         onPointerLeave={() => apply({ type: 'pointer', inside: false })}
         className={mode === 'pinned'
           ? 'relative flex h-full shrink-0 flex-col'
-          : `absolute inset-y-0 ${side === 'right' ? 'right-0 border-l' : 'left-0 border-r'} z-[55] flex flex-col bg-zinc-950 shadow-2xl motion-reduce:transition-none ${mode === 'open' ? 'visible translate-x-0 border-zinc-700 shadow-black/60 [transition:translate_225ms_ease-in-out,visibility_0s_linear_0s]' : `invisible ${side === 'right' ? 'translate-x-full' : '-translate-x-full'} border-seam shadow-transparent [transition:translate_225ms_ease-in-out,visibility_0s_linear_225ms]`}`}
+          : `absolute inset-y-0 ${side === 'right' ? 'right-0 border-l z-[85]' : 'left-0 border-r z-[55]'} flex flex-col bg-zinc-950 shadow-2xl motion-reduce:transition-none ${mode === 'open' ? 'visible translate-x-0 border-zinc-700 shadow-black/60 [transition:translate_225ms_ease-in-out,visibility_0s_linear_0s]' : `invisible ${side === 'right' ? 'translate-x-full' : '-translate-x-full'} border-seam shadow-transparent [transition:translate_225ms_ease-in-out,visibility_0s_linear_225ms]`}`}
         style={{ width, maxWidth: side === 'right' ? 'calc(100vw - 22px)' : mode === 'pinned' ? '34vw' : 'calc(100vw - 22px)' }}
       >
         {drawer}
@@ -347,7 +347,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
         </>
       ) : (
         <>
-          <div key="tab" className={`h-full w-[22px] shrink-0 ${side === 'right' ? 'border-l' : 'border-r'} border-seam bg-zinc-950/35`}>
+          <div key="tab" className={`h-full w-[22px] shrink-0 ${side === 'right' ? 'relative z-[85] border-l' : 'border-r'} border-seam bg-zinc-950/35`}>
             <button
               type="button"
               data-testid={side === 'right' ? 'agent-drawer-edge-tab' : 'studio-drawer-edge-tab'}

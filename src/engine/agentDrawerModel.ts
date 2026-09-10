@@ -102,7 +102,7 @@ export function transitionAgentDrawer(state: AgentDrawerState, event: AgentDrawe
     case 'outcome': {
       const previous = state.stream.find(line => line.operationId === event.id)
       if (!previous || previous.outcome === event.outcome) return state
-      const changes = event.changes ?? previous.changes
+      const changes = ['applied', 'saved', 'draft'].includes(event.outcome) ? event.changes ?? previous.changes : previous.changes
       const attributed = state.highlightOperation === event.id
       const clears = attributed && ['rolled-back', 'superseded'].includes(event.outcome)
       return {

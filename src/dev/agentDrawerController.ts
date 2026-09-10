@@ -121,7 +121,8 @@ export function createAgentDrawerController(api: Admission, showId: string) {
       if (buffer.trim() || !result) throw new Error('The bridge stream ended without a complete result')
       if (!available()) return
       record.doneAt = Date.now(); record.changed = result.changed === true; record.bridgeTiming = result.timing
-      dispatch({ type: 'reply', text: result.reply })
+      // A private edit reply cannot claim live completion; the owned action carries its outcome.
+      if (!result.changed) dispatch({ type: 'reply', text: result.reply })
       history.push({ role: 'user', text: retry ? `Retry exact duration ${captured.retryResize!.durationMs}ms for original logical Clip ${captured.retryResize!.clipId}.` : utterance })
       if (result.changed && result.show && result.privateOutcome?.kind === 'committed') {
         // Metadata comes from private registry execution, and grants no mutation capability.
