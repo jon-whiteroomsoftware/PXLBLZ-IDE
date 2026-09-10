@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronUp, X } from 'lucide-react'
+import { HelpHint } from './HelpHint'
 import type {
   DeliveredShowSourceInventory,
   DeliveredShowSourceInventoryCategory,
@@ -49,9 +50,9 @@ function countLabel(count: number, singular: string, plural = `${singular}s`): s
 
 function patternStructure(row: ShowArtifactInventoryRow): string {
   return [
-    countLabel(row.logicalInstanceCount ?? 0, 'configured use'),
-    countLabel(row.physicalMachineCount ?? 0, 'copy in delivered code', 'copies in delivered code'),
-    countLabel(row.authoredReferenceCount ?? 0, 'timeline placement'),
+    countLabel(row.logicalInstanceCount ?? 0, 'use'),
+    countLabel(row.physicalMachineCount ?? 0, 'code copy', 'code copies'),
+    countLabel(row.authoredReferenceCount ?? 0, 'placement'),
   ].join(' · ')
 }
 
@@ -229,11 +230,7 @@ export function ShowArtifactInventoryBody({ inventory, model, vmWords, renderers
   const deliveredBytes = delivery?.totalBytes ?? inventory.totalBytes
   const transformBytes = Math.max(0, delivery?.transformBytes ?? 0)
   return <div className="show-source-inventory-body">
-      <p className="mt-1 text-[9px] leading-relaxed text-zinc-500">
-        Code this Show sends to one Pixelblaze, including Pattern copies and generated choreography.
-      </p>
-
-      <div className="mt-2 flex h-4 w-full overflow-hidden rounded-sm bg-zinc-900 ring-1 ring-zinc-700/70" aria-hidden>
+      <div className="flex h-4 w-full overflow-hidden rounded-sm bg-zinc-900 ring-1 ring-zinc-700/70" aria-hidden>
         {model.rows.map((row) => (
           <span
             key={row.id}
@@ -256,10 +253,15 @@ export function ShowArtifactInventoryBody({ inventory, model, vmWords, renderers
           const meta = rowMeta(row, structure.transitionCount)
           const pattern = row.category === 'pattern' && row.patternBreakdown
           return (
-            <div key={row.id} className={pattern ? 'py-2' : 'flex items-center gap-2 py-1.5'}>
+            <div key={row.id} className={pattern ? 'min-w-0 py-1.5' : 'flex min-w-0 items-center gap-2 py-1'}>
               <div className={pattern ? 'flex items-center gap-2' : 'contents'}>
                 <span className={`h-2 w-2 shrink-0 rounded-[2px] ${CATEGORY_COLOR[row.category]}`} aria-hidden />
-                <span className="truncate text-zinc-200">{row.label}</span>
+                <span className="min-w-0 truncate text-zinc-200" title={row.label}>{row.label}</span>
+                {pattern && <span className="shrink-0"><HelpHint label={`About ${row.label} source`}>
+                  <p className="font-semibold">{row.label}</p>
+                  <p className="mt-1">{patternStructure(row)}</p>
+                  <p className="mt-1">{patternCostEquation(row)}</p>
+                </HelpHint></span>}
                 {!row.creatorEditable && row.category === 'runtime-scheduler' && (
                   <span className="shrink-0 rounded-sm bg-zinc-800 px-1.5 py-0.5 text-[8px] uppercase tracking-wider text-zinc-500">fixed</span>
                 )}
@@ -267,9 +269,8 @@ export function ShowArtifactInventoryBody({ inventory, model, vmWords, renderers
                 <span className="ml-auto shrink-0 tabular-nums text-zinc-200">{formatBytes(row.bytes)}</span>
               </div>
               {pattern && (
-                <div className="ml-4 mt-1 min-w-0 text-[9px] leading-relaxed">
-                  <div className="text-zinc-500">{patternStructure(row)}</div>
-                  <div className="break-words tabular-nums text-zinc-300">{patternCostEquation(row)}</div>
+                <div className="ml-4 min-w-0 truncate text-[9px] leading-4 text-zinc-500" title={patternStructure(row)}>
+                  {patternStructure(row)}
                 </div>
               )}
             </div>
@@ -284,7 +285,7 @@ export function ShowArtifactInventoryBody({ inventory, model, vmWords, renderers
         )}
       </div>
 
-      <div className="mt-2 grid grid-cols-3 gap-px overflow-hidden rounded-sm bg-zinc-800 ring-1 ring-zinc-800">
+      <div className="mt-2 flex min-w-0 flex-col divide-y divide-zinc-800 border-y border-zinc-800">
         <ResourceAxis
           label={delivery ? 'Controller source' : 'Delivered source'}
           value={`${formatBytes(deliveredBytes)} / ${formatBytes(model.budgetBytes)}`}
@@ -294,24 +295,23 @@ export function ShowArtifactInventoryBody({ inventory, model, vmWords, renderers
         <ResourceAxis
           label="Pattern copies running"
           value={`Up to ${renderers.controller.worst} at once`}
-          detail={busiestLedWork(renderers.perPixel.steady, renderers.perPixel.worst)}
+          help={`${busiestLedWork(renderers.perPixel.steady, renderers.perPixel.worst)}. Busiest LED counts how many Pattern colors are calculated for one LED at the same moment. Effects modify those colors; they do not add another Pattern calculation.`}
         />
       </div>
 
-      <p className="mt-2 text-[9px] leading-relaxed text-zinc-500">
-        Busiest LED counts how many Pattern colors are calculated for one LED at the same moment.
-        Effects modify those colors; they do not add another Pattern calculation.
-      </p>
 
   </div>
 }
 
-function ResourceAxis({ label, value, detail }: { label: string; value: string; detail?: string }) {
+function ResourceAxis({ label, value, detail, help }: { label: string; value: string; detail?: string; help?: string }) {
   return (
-    <div className="bg-zinc-950 px-2.5 py-2">
-      <div className="text-[9px] uppercase tracking-wider text-zinc-400">{label}</div>
-      <div className="mt-1 tabular-nums text-zinc-200">{value}</div>
-      {detail && <div className="text-[9px] text-zinc-500">{detail}</div>}
+    <div data-source-resource={label} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 py-1.5">
+      <div className="flex min-w-0 items-center gap-1 text-[9px] uppercase tracking-wider text-zinc-400">
+        <span className="truncate" title={label}>{label}</span>
+        {help && <span className="shrink-0 normal-case"><HelpHint label={`About ${label}`}>{help}</HelpHint></span>}
+      </div>
+      <div data-source-resource-value className="whitespace-nowrap text-right tabular-nums text-zinc-200">{value}</div>
+      {detail && <div className="col-span-2 truncate text-[9px] text-zinc-500" title={detail}>{detail}</div>}
     </div>
   )
 }

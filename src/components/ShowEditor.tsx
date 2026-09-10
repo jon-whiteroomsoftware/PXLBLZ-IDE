@@ -10573,7 +10573,7 @@ function CompileBar({
       </div>
     )
     return outlet.enabled
-      ? outlet.target && createPortal(<ShowStripSection label="Source" summary={presentShowDiagnostic(compiled.error)}>{errorNotice}</ShowStripSection>, outlet.target)
+      ? outlet.target && createPortal(<ShowStripSection label="Source code" summary={presentShowDiagnostic(compiled.error)}>{errorNotice}</ShowStripSection>, outlet.target)
       : errorNotice
   }
   const summary = compiled.artifact?.summary
@@ -10599,7 +10599,7 @@ function CompileBar({
   }) : null
   if (outlet.enabled) return outlet.target && createPortal(
     <>
-    <ShowStripSection label="Source" summary={summary && <>
+    <ShowStripSection label="Source code" summary={summary && <>
       <span className="show-source-thermometer" aria-label={`${controllerDelivery ? 'Controller' : 'Show'} source ${formatBytes(deliveredBytes)} / ${formatBytes(summary.measuredDeviceBudgetBytes)} advisory.`}>
         <span className={sourcePressure?.sourceStatus === 'over' ? 'bg-red-500' : sourcePressure?.sourceStatus === 'warning' ? 'bg-amber-400' : 'bg-live'} style={{ width: `${Math.min(100, deliveredRatio * 100)}%` }} />
       </span>

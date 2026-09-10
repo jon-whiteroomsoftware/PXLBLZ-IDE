@@ -7944,7 +7944,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   })
 
   it('relocates identical inventory into Source while preserving the narrow footer (#968)', () => {
-    usePanelPreferencesStore.setState({ expanded: {} })
+    usePanelPreferencesStore.setState({ expanded: { 'show-strip:source': true } })
     const property = STOCK_SHOWS.find(candidate => candidate.id === 'stock-show-reference-property-animation')!
     const show = createPropertySlotQualificationShow()
     const narrow = render(<ShowEditor showId={property.id} showOverride={show} readOnly />)
@@ -7956,10 +7956,10 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     document.body.append(outlet)
     const desktop = render(<ShowSourceOutletContext.Provider value={{ enabled: true, target: outlet, setTarget: () => {} }}><ShowEditor showId={property.id} showOverride={show} readOnly /></ShowSourceOutletContext.Provider>)
     expect(screen.queryByTestId('show-compile-bar')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Source' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByLabelText(/^Show source .* advisory\.$/i)).toHaveAttribute('aria-label', oldGauge)
-    fireEvent.click(screen.getByRole('button', { name: 'Source' }))
+    expect(screen.getByRole('button', { name: 'Source code' })).toHaveAttribute('aria-expanded', 'true')
     expect(outlet.querySelector('.show-source-inventory-body')!.textContent).toBe(oldBody)
+    fireEvent.click(screen.getByRole('button', { name: 'Source code' }))
+    expect(screen.getByLabelText(/^Show source .* advisory\.$/i)).toHaveAttribute('aria-label', oldGauge)
     desktop.unmount()
     outlet.remove()
   })
@@ -7994,10 +7994,10 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(inventory).toHaveTextContent('PXLBLZ Show infrastructure')
     expect(inventory).toHaveTextContent('Effects and Transitions')
     expect(inventory).toHaveTextContent('CompassRose')
-    expect(inventory).toHaveTextContent('configured use')
-    expect(inventory).toHaveTextContent('copy in delivered code')
-    expect(inventory).toHaveTextContent('timeline placement')
-    expect(inventory).toHaveTextContent('generated for Show settings and placements')
+    expect(inventory).toHaveTextContent('use')
+    expect(inventory).toHaveTextContent(/code cop/)
+    expect(inventory).toHaveTextContent('placement')
+    expect(inventory).not.toHaveTextContent('generated for Show settings and placements')
     expect(inventory).not.toHaveTextContent('Ways to slim this Show')
     // Read-only chrome stays deleted: no subtitle, no machine summary, no
     // generated-program box, no trailing disclaimer (#63).
@@ -8061,7 +8061,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const inventory = screen.getByRole('dialog', { name: 'Show source inventory' })
     expect(inventory).toHaveTextContent('Pattern copies running')
     expect(inventory).toHaveTextContent('Up to 3 at once')
-    expect(inventory).toHaveTextContent('Busiest LED: 1 Pattern color calculation')
+    fireEvent.focus(screen.getByRole('button', { name: 'About Pattern copies running' }))
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Busiest LED: 1 Pattern color calculation')
   })
 
   it('surfaces actionable renderer pressure without tinting the source gauge (#63, #492, #499)', () => {

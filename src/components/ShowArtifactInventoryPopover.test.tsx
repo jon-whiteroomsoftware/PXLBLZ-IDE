@@ -83,12 +83,11 @@ describe('ShowArtifactInventoryPopover', () => {
     const focusedInventory = screen.getByRole('dialog', { name: 'Show source inventory' })
     expect(focusedInventory).toHaveTextContent('Pattern copies running')
     expect(focusedInventory).toHaveTextContent('Up to 4 at once')
-    expect(focusedInventory).toHaveTextContent('Busiest LED: 1 Pattern color calculation normally, up to 2 when visuals overlap')
-    expect(focusedInventory).toHaveTextContent(
-      'Busiest LED counts how many Pattern colors are calculated for one LED at the same moment. Effects modify those colors; they do not add another Pattern calculation.',
-    )
-    expect(focusedInventory).toHaveTextContent('2 configured uses · 2 copies in delivered code · 7 timeline placements')
-    expect(focusedInventory).toHaveTextContent('one compiled copy 40 B + 50 B across 1 additional compiled copy + 210 B generated for Show settings and placements = 300 B')
+    expect(focusedInventory).not.toHaveTextContent('Busiest LED counts')
+    expect(focusedInventory).toHaveTextContent('2 uses · 2 code copies · 7 placements')
+    expect(focusedInventory).not.toHaveTextContent('one compiled copy')
+    fireEvent.focus(screen.getByRole('button', { name: 'About Test Pattern source' }))
+    expect(screen.getByRole('tooltip')).toHaveTextContent('one compiled copy 40 B + 50 B across 1 additional compiled copy + 210 B generated for Show settings and placements = 300 B')
     expect(focusedInventory).not.toHaveTextContent('2 x 40 B')
     expect(focusedInventory).not.toHaveTextContent('Ways to slim this Show')
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
@@ -138,7 +137,8 @@ describe('ShowArtifactInventoryPopover', () => {
 
     const trigger = screen.getByRole('button', { name: /show source inventory/i })
     fireEvent.focus(trigger)
-    expect(screen.getByRole('dialog', { name: 'Show source inventory' })).toHaveTextContent(
+    fireEvent.focus(screen.getByRole('button', { name: 'About Test Pattern source' }))
+    expect(screen.getByRole('tooltip')).toHaveTextContent(
       'one compiled copy 40 B + 2 x 40 B for 2 additional compiled copies + 180 B generated for Show settings and placements = 300 B',
     )
   })

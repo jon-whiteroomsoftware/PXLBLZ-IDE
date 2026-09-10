@@ -1194,7 +1194,7 @@ The marker tail below the final row is 17 px, without a second bottom separator.
 Automatic fitting includes that decoration; red divider feedback uses the bottom
 of the actual rows, excluding tail, gap, and outer padding. Size limits alone
 do not turn the divider red (#63).
-Show controls follow Preview, Zones, Stage, Source. Expanded Zones use compact
+Show controls follow Preview, Zones, Stage, Source code. Expanded Zones use compact
 24 px rows with dividing rules and unboxed coverage text; the All action lives
 in the heading only while a Zone is soloed (#63). Preview and Stage fields
 share a 68 px label column with a 6 px gap before their values.
@@ -1213,7 +1213,7 @@ their existing ownership.
 strip sections expand independently. Controls use one column capped at 480 px,
 with slider tracks capped at 200 px and the existing rail scrolling treatment.
 `ShowSourceOutlet` lets `ShowEditor` retain ownership of compilation and delivery
-state while rendering the Source section into the desktop strip. Timeline
+state while rendering the Source code section into the desktop strip. Timeline
 measurements include the source footer only in the narrow layout, where that
 footer remains the inventory entry point. `ShowArtifactInventoryBody` supplies
 the same inventory content to both presentations.
@@ -1289,11 +1289,15 @@ renderers per pixel (the unvalidated side of the four-renderer release fixture).
 Blocked output stays previewable.
 
 **Source inventory.** The inventory explains the delivered source as a byte
-ledger, not as advice. Each Pattern row first shows its creator-facing
-structure: separately configured uses, copies present in the delivered code,
-and timeline placements. It then gives an additive equation from one compiled
-copy, any additional compiled copies, and source generated for Show settings
-and placements to the Pattern total. Equal measured copies may use `N x size`;
+ledger, not as advice. The Source code section starts with the thermometer;
+its renamed heading preserves the existing Source collapse preference. Each
+Pattern occupies two single lines: name and right-aligned total, then short
+use, code-copy, and placement counts. Names and count lines truncate rather
+than wrap. Hover/focus help preserves the full name, counts, and additive
+cost equation from one compiled copy, additional copies, and source generated
+for Show settings and placements to the Pattern total. Resource rows align
+the label and right-aligned value at the top, with short muted detail below;
+the busiest-LED explanation lives in hover/focus help instead of a footer. Equal measured copies may use `N x size`;
 unequal copies use their exact aggregate and never imply a uniform marginal
 cost.
 

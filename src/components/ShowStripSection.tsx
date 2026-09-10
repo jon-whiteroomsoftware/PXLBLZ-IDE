@@ -5,7 +5,8 @@ import { panelSectionKey } from '@/engine/previewPanel'
 import { showStripSectionDefault } from '@/engine/showStripPanel'
 
 export function useShowStripSection(label: string): [boolean, (value: boolean) => void] {
-  const key = panelSectionKey('show-strip', label)
+  // Keep the stored preference when the Source heading is renamed (#63).
+  const key = panelSectionKey('show-strip', label === 'Source code' ? 'Source' : label)
   const expanded = usePanelPreferencesStore(state => state.expanded[key] ?? showStripSectionDefault(label))
   const setExpanded = usePanelPreferencesStore(state => state.setExpanded)
   return [expanded, value => setExpanded(key, value)]
