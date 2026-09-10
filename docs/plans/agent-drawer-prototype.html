@@ -227,12 +227,12 @@ const AgentModel = (() => {
     clips:CLIPS(), history:[],
     highlights:[], band:null, refusedTarget:null, hlPhase:'none',
     stream:[], unread:0,      // one stream: {kind:'me'|'ai'|'think'|'act'|'sys', ...}
-    save:'saved', writes:0, opCounter:0, lastOutcome:null,
+    save:'saved', agentSave:null, writes:0, opCounter:0, lastOutcome:null,
   });
   const clone = s => JSON.parse(JSON.stringify(s));
   const name = s => s.connection ? s.connection.name : '—';
   const add = (s, item) => { s.stream.push({ ...item, id:'l'+(s.stream.length+1) }); };
-  const outcome = (s, line) => { if (s.drawer==='tucked' && line) { if (!line.unread) s.unread++; line.unread=true; } };
+  const outcome = (s, line) => { if (s.drawer==='tucked' && line?.kind==='act' && line.op) { if (!line.unread) s.unread++; line.unread=true; } };
   const EDITS = {
     tighten:{ intent:'Tighten the intro', lines:['Coronal Mass Ejection (50%) shortened to 9 s','Coronal Mass Ejection moved to 12 s'], apply(c){ const a=c.find(x=>x.id==='cme3'); a.e=14; const b=c.find(x=>x.id==='cme1'); b.s=12; b.e=24; return ['cme3','cme1']; } },
     balance:{ intent:'Balance the CometLoom sections', lines:['CometLoom shortened to 21 s','Coronal Mass Ejection extended to 28 s'], apply(c){ c.find(x=>x.id==='loom1').e=48; c.find(x=>x.id==='cme4').s=48; return ['loom1','cme4']; } },
@@ -240,6 +240,13 @@ const AgentModel = (() => {
     insert:{ intent:'Open up 4 seconds before the second section', lines:['4 s inserted at 30 s; 5 Clips shifted','Show end moved to 2:08'], band:[30,34], apply(c){ for(const x of c){ if(x.s>=30){x.s+=4;x.e+=4} else if(x.e>30){x.e+=4} } return []; } },
   };
   const lastAct = s => [...s.stream].reverse().find(l=>l.kind==='act');
+  function manualMove(R, clip){
+    const c=R.clips.find(x=>x.id===clip); if(!c) return R;
+    R.history.push({clips:clone(R.clips),label:'manual move',band:R.band});
+    const d=c.e-c.s; c.s+=2; c.e=c.s+d; R.revision++; R.save='saving';
+    R.highlights=[]; R.band=null; R.hlPhase='none'; R.refusedTarget=null;
+    return R;
+  }
 
   function reduce(s, a) {
     const R = clone(s);
@@ -260,7 +267,7 @@ const AgentModel = (() => {
       case 'disconnect':
       case 'forget': {
         if(!R.connection) return R;
-        const fe=R.stream.find(l=>l.op===R.request?.id);
+        const fe=R.request ? R.stream.find(l=>l.kind==='act' && l.op===R.request.id) : null;
         if(fe){fe.state='cancelled'; fe.lines=['Disconnected before application; nothing applied']; outcome(R,fe);}
         add(R,{kind:'sys',text:a.type==='forget'?'agent access forgotten':'disconnected'});
         R.connection=null; R.request=null; R.dropped=false; return R;
@@ -291,12 +298,30 @@ const AgentModel = (() => {
         const ids = ed.apply(R.clips);
         R.highlights = ids; R.band = ed.band||null; R.hlPhase='flash'; R.refusedTarget=null;
         R.revision++; R.request=null; R.save='saving'; R.lastOutcome='applied';
+        R.agentSave={op:fe.op,revision:R.revision,historyIndex:R.history.length-1};
         fe.state='applied'; fe.lines=ed.lines; fe.mcp2=`commit_edit → applied {rev:${R.revision}} · one history entry`; outcome(R,fe);
         return R;
       }
       case 'settle': if(R.hlPhase==='flash') R.hlPhase='settled'; return R;
-      case 'saved': { if(R.save!=='saving') return R; R.save='saved'; R.writes++; const fe=[...R.stream].reverse().find(l=>l.state==='applied'); if(fe) { fe.state='saved'; outcome(R,fe); } return R; }
-      case 'saveFailed': { if(R.save!=='saving') return R; R.save='failed'; const fe=[...R.stream].reverse().find(l=>l.state==='applied'); if(fe){ fe.state='failed'; fe.lines=['Save failed; the change was rolled back']; outcome(R,fe); } const h=R.history.pop(); if(h){ R.clips=h.clips; R.band=h.band; R.revision++; } R.highlights=[]; R.hlPhase='none'; R.lastOutcome='failed'; return R; }
+      case 'saved': {
+        if(R.save!=='saving') return R;
+        R.save='saved'; R.writes++;
+        const fe=R.agentSave ? R.stream.find(l=>l.kind==='act' && l.op===R.agentSave.op && l.state==='applied') : null;
+        if(fe){fe.state='saved';outcome(R,fe);} R.agentSave=null; return R;
+      }
+      case 'saveFailed': {
+        if(R.save!=='saving' || !R.agentSave) return R;
+        const pending=R.agentSave; R.agentSave=null;
+        const fe=R.stream.find(l=>l.kind==='act' && l.op===pending.op);
+        if(R.revision!==pending.revision || R.history.length!==pending.historyIndex+1){
+          if(fe){fe.state='superseded';fe.lines=['A later edit owns the visible and saved outcome'];outcome(R,fe);}
+          R.lastOutcome='superseded'; return R;
+        }
+        const h=R.history.pop(); R.clips=h.clips; R.band=h.band; R.revision++;
+        R.save='failed'; R.highlights=[]; R.hlPhase='none'; R.lastOutcome='failed';
+        if(fe){fe.state='failed';fe.lines=['Save failed; the change was rolled back'];outcome(R,fe);}
+        return R;
+      }
       case 'retry': {
         if(R.connection?.kind!=='builtin' || R.request || R.dropped) return R;
         const fe=[...R.stream].reverse().find(l=>(!a.op || l.op===a.op) && l.state==='failed' && !l.dismissed && !l.retryStarted);
@@ -312,14 +337,14 @@ const AgentModel = (() => {
       case 'dismiss': { const fe=[...R.stream].reverse().find(l=>(!a.op || l.op===a.op) && l.state==='failed' && !l.dismissed); if(fe) fe.dismissed=true; return R; }
       case 'gestureCancel': { R.gesture=null; if(R.request?.phase==='waiting') return reduce(R,{type:'commit'}); return R; }
       case 'gestureStart': R.gesture=a.clip; return R;
-      case 'gestureEnd': { if(!R.gesture) return R; const c=R.clips.find(x=>x.id===R.gesture); const d=c.e-c.s; c.s+=2; c.e=c.s+d; R.gesture=null; R.revision++; R.history.push({clips:null,label:'manual move'}); if (R.highlights.length){ R.highlights=[]; R.band=null; R.hlPhase='none'; const fe=lastAct(R); if(fe&&(fe.state==='saved'||fe.state==='applied')) fe.state='superseded'; } if (R.request?.phase==='waiting'){ return reduce(R,{type:'commit'}); } return R; }
-      case 'manualEdit': { const c=R.clips.find(x=>x.id===a.clip); const d=c.e-c.s; c.s+=2; c.e=c.s+d; R.revision++; R.history.push({clips:null,label:'manual move'}); R.highlights=R.highlights.filter(id=>id!==a.clip); if(!R.highlights.length){R.band=null;R.hlPhase='none'} R.refusedTarget=null; return R; }
-      case 'undo': { const h=R.history.pop(); if(!h) return R; if(h.clips){ R.clips=h.clips; R.band=h.band||null; } R.revision++; R.highlights=[]; R.hlPhase='none'; R.save='saving'; const fe=lastAct(R); if(fe&&h.label===fe.text&&(fe.state==='saved'||fe.state==='applied')) fe.state='superseded'; return R; }
+      case 'gestureEnd': { if(!R.gesture) return R; const clip=R.gesture; R.gesture=null; manualMove(R,clip); if(R.request?.phase==='waiting') return reduce(R,{type:'commit'}); return R; }
+      case 'manualEdit': return manualMove(R,a.clip);
+      case 'undo': { const h=R.history.pop(); if(!h) return R; R.clips=h.clips; R.band=null; R.revision++; R.highlights=[]; R.hlPhase='none'; R.save='saving'; const fe=lastAct(R); if(fe&&h.label===fe.text&&(fe.state==='saved'||fe.state==='applied')) fe.state='superseded'; return R; }
       case 'cancel': { if(!R.request) return R; const fe=R.stream.find(l=>l.op===R.request.id); if(fe) fe.state='cancelled'; R.request=null; R.stream=R.stream.filter(m=>m.kind!=='think'); return R; }
       case 'leave': R.connection=null; R.request=null; R.arming=false; R.knock=null; R.stream=[]; R.unread=0; R.drawer='tucked'; return R;
       case 'expireArm': R.arming=false; add(R,{kind:'sys',text:'Connection window expired. Choose Connect an MCP agent again.'}); return R;
       case 'expireKnock': R.knock=null; add(R,{kind:'sys',text:'Call expired; the agent was not connected.'}); return R;
-      case 'outcomeUnknown': { const fe=R.stream.find(l=>l.op===R.request?.id); if(fe){fe.state='unknown';fe.lines=['Outcome unavailable; inspect the Show. Do not replay this request.'];outcome(R,fe);} R.request=null; return R; }
+      case 'outcomeUnknown': { if(!R.request) return R; const fe=R.stream.find(l=>l.kind==='act' && l.op===R.request.id); if(fe){fe.state='unknown';fe.lines=['Outcome unavailable; inspect the Show. Do not replay this request.'];outcome(R,fe);} R.request=null; return R; }
     }
     return R;
   }
@@ -376,7 +401,7 @@ function edgeState(){
   if (S.dropped) return {dot:'drop', lbl:'Agent'};
   if (S.request?.phase==='waiting') return {dot:'wait', lbl:'Waiting'};
   if (S.request) return {dot:'busy', lbl:'Working'};
-  if (S.save==='failed') return {dot:'bad', lbl:'Agent'};
+  if (S.save==='failed' || S.lastOutcome==='refused') return {dot:'bad', lbl:'Agent'};
   return {dot:'on', lbl:'Agent'};
 }
 function renderEdge(){
@@ -498,6 +523,8 @@ const SCEN = [
     ['Choose the Pixelblaze agent',[{type:'drawer',mode:'open'},{type:'chooseBuiltin'}]],['Apply edit',[{type:'beginEdit',edit:'tighten'},{type:'commit'}]],['Save rolls back',{type:'saveFailed'}],['Dismiss actions; failure remains',{type:'dismiss'}]]},
   {n:'S11 · Contact lost while working', d:'Loss of contact preserves the active operation. If its outcome cannot be recovered, say unknown and do not replay.', steps:[
     ['Connect external agent',[{type:'drawer',mode:'open'},{type:'agentBinds'}]],['Begin edit',{type:'beginEdit',edit:'tighten'}],['Contact lost; operation retained',{type:'drop'}],['Contact restored; query same operation',{type:'reattach'}],['Outcome lookup unavailable; no replay',{type:'outcomeUnknown'}]]},
+  {n:'S12 · Save failure after a later manual edit', d:'A later manual edit owns the current record. Failure of the older agent save reports superseded and preserves the document and history.', steps:[
+    ['Connect the Pixelblaze agent',[{type:'drawer',mode:'open'},{type:'chooseBuiltin'}]],['Apply an agent edit; save is pending',[{type:'beginEdit',edit:'tighten'},{type:'commit'}]],['Move another Clip by hand',{type:'manualEdit',clip:'cme2'}],['The older agent save fails: superseded, manual work stays',{type:'saveFailed'}],['The current manual record saves',{type:'saved'}]]},
 ];
 let sc=null, step=0;
 function loadScen(i){ sc = i>=0 ? SCEN[i] : null; step=0; S=AgentModel.initial(); mcp=[]; render(); cap(); }

@@ -120,6 +120,8 @@ Browser proof captures tucked, empty, arming, call, working, waiting, applied/sa
 
 The Agent edge tab is keyboard reachable and exposes connection/status/unread meaning in its accessible name. The drawer is a labelled region, not a modal dialog; no focus trap is introduced. Terminal outcomes use polite live announcements, progress does not flood them. All icon buttons have accessible names. Overlay Escape/click-away tucks it while respecting existing editor/portal keyboard ownership; pinned state remains deliberate. Composer drafts and selection survive unrelated activity and retry/dismiss. New activity does not steal timeline focus or scroll the timeline. Reduced motion removes pulsing/glow motion while retaining stroke and text meaning.
 
+Prototype source checks are reproducible with `node scripts/check-agent-drawer-prototype.cjs`. They cover the scripted walkthroughs and targeted save-ownership, operation-identity, history and edge-state regressions; they do not replace browser or production qualification.
+
 ## Remaining qualification limits
 
 Runtime/route and per-client interoperability remain implementation evidence, not assumed support. The stale-binding lifetime and resource bounds must be concretely qualified under #956's existing engineering authority; the 120/30-second setup timers are already decided. Narrow layouts are resilience, not a new phone editor design. Cross-window recovery is explicitly deferred to #1002.
