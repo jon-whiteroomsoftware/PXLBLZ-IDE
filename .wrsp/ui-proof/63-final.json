@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "63",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-301-installation-mapping",
+  "operation": "In-app browser on managed candidate runtime port 5178, synthetic local-agent-08. Entered Studio from Gallery and observed Quadrille playing at 00:02.5; then opened Installation Mapping, inspected Source code totals, expanded Preview/Zones/Stage, and expanded Learn > 300 in the Shows list. Captures show the final entry, compact source summary, controls and nesting. Timeline clipping and drag-release behavior have dedicated browser regressions in the required Shows suite.",
+  "captures": [
+    ".wrsp/ui-proof/63-final-entry.jpg",
+    ".wrsp/ui-proof/63-final-source.jpg",
+    ".wrsp/ui-proof/63-final-controls.jpg",
+    ".wrsp/ui-proof/63-final-tree.jpg"
+  ],
+  "capturedAtCommit": "40e781e457edad8b7e6d883961345dff707df4a5"
+}
