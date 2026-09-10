@@ -248,7 +248,7 @@ export function ShowArtifactInventoryBody({ inventory, model, vmWords, renderers
         )}
       </div>
 
-      <div className="mt-2 divide-y divide-zinc-800/80 border-y border-zinc-800/80">
+      <div className="mt-2 divide-y divide-zinc-800/80 border-t border-zinc-800/80">
         {model.rows.map((row) => {
           const meta = rowMeta(row, structure.transitionCount)
           const pattern = row.category === 'pattern' && row.patternBreakdown
@@ -285,8 +285,11 @@ export function ShowArtifactInventoryBody({ inventory, model, vmWords, renderers
         )}
       </div>
 
-      <div className="mt-2 flex min-w-0 flex-col divide-y divide-zinc-800 border-y border-zinc-800">
+      <div className="mt-2 min-w-0 rounded-sm border border-zinc-700/70 bg-zinc-800/40 px-2">
+        <div className="pt-1.5 text-[9px] font-medium uppercase tracking-wider text-zinc-400">Output summary</div>
+        <div className="flex min-w-0 flex-col divide-y divide-zinc-700/60">
         <ResourceAxis
+          primary
           label={delivery ? 'Controller source' : 'Delivered source'}
           value={`${formatBytes(deliveredBytes)} / ${formatBytes(model.budgetBytes)}`}
           detail={`${formatPercent(deliveredBytes / model.budgetBytes)} advisory`}
@@ -297,20 +300,20 @@ export function ShowArtifactInventoryBody({ inventory, model, vmWords, renderers
           value={`Up to ${renderers.controller.worst} at once`}
           help={`${busiestLedWork(renderers.perPixel.steady, renderers.perPixel.worst)}. Busiest LED counts how many Pattern colors are calculated for one LED at the same moment. Effects modify those colors; they do not add another Pattern calculation.`}
         />
+        </div>
       </div>
-
 
   </div>
 }
 
-function ResourceAxis({ label, value, detail, help }: { label: string; value: string; detail?: string; help?: string }) {
+function ResourceAxis({ label, value, detail, help, primary }: { label: string; value: string; detail?: string; help?: string; primary?: boolean }) {
   return (
     <div data-source-resource={label} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 py-1.5">
       <div className="flex min-w-0 items-center gap-1 text-[9px] uppercase tracking-wider text-zinc-400">
         <span className="truncate" title={label}>{label}</span>
         {help && <span className="shrink-0 normal-case"><HelpHint label={`About ${label}`}>{help}</HelpHint></span>}
       </div>
-      <div data-source-resource-value className="whitespace-nowrap text-right tabular-nums text-zinc-200">{value}</div>
+      <div data-source-resource-value className={`whitespace-nowrap text-right tabular-nums ${primary ? 'font-semibold text-zinc-100' : 'text-zinc-200'}`}>{value}</div>
       {detail && <div className="col-span-2 truncate text-[9px] text-zinc-500" title={detail}>{detail}</div>}
     </div>
   )
