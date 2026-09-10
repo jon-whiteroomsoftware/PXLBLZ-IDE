@@ -248,12 +248,12 @@ export function ShowArtifactInventoryBody({ inventory, model, vmWords, renderers
         )}
       </div>
 
-      <div className="mt-2 divide-y divide-zinc-800/80 border-t border-zinc-800/80">
+      <div className="mt-1.5">
         {model.rows.map((row) => {
           const meta = rowMeta(row, structure.transitionCount)
           const pattern = row.category === 'pattern' && row.patternBreakdown
           return (
-            <div key={row.id} className={pattern ? 'min-w-0 py-1.5' : 'flex min-w-0 items-center gap-2 py-1'}>
+            <div key={row.id} className={pattern ? 'min-w-0 py-1' : 'flex min-w-0 items-center gap-2 py-[2.5px]'}>
               <div className={pattern ? 'flex items-center gap-2' : 'contents'}>
                 <span className={`h-2 w-2 shrink-0 rounded-[2px] ${CATEGORY_COLOR[row.category]}`} aria-hidden />
                 <span className="min-w-0 truncate text-zinc-200" title={row.label}>{row.label}</span>
@@ -277,7 +277,7 @@ export function ShowArtifactInventoryBody({ inventory, model, vmWords, renderers
           )
         })}
         {transformBytes > 0 && (
-          <div className="flex items-center gap-2 py-1.5">
+          <div className="flex items-center gap-2 py-1">
             <span className="h-2 w-2 shrink-0 rounded-[2px] bg-rose-400" aria-hidden />
             <span className="truncate text-zinc-200">Controller transforms</span>
             <span className="ml-auto shrink-0 tabular-nums text-zinc-200">+{formatBytes(transformBytes)}</span>
@@ -285,8 +285,9 @@ export function ShowArtifactInventoryBody({ inventory, model, vmWords, renderers
         )}
       </div>
 
-      <div className="mt-2 min-w-0 rounded-sm border border-zinc-700/70 bg-zinc-800/40 px-2">
-        <div className="pt-1.5 text-[9px] font-medium uppercase tracking-wider text-zinc-400">Output summary</div>
+      <div className="relative isolate mt-1.5 min-w-0">
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 -inset-x-1.5 -z-10 rounded-sm border border-zinc-700/70 bg-zinc-800/40" />
+        <div className="pt-1 text-[9px] font-medium uppercase tracking-wider text-zinc-400">Output summary</div>
         <div className="flex min-w-0 flex-col divide-y divide-zinc-700/60">
         <ResourceAxis
           primary
@@ -308,7 +309,7 @@ export function ShowArtifactInventoryBody({ inventory, model, vmWords, renderers
 
 function ResourceAxis({ label, value, detail, help, primary }: { label: string; value: string; detail?: string; help?: string; primary?: boolean }) {
   return (
-    <div data-source-resource={label} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 py-1.5">
+    <div data-source-resource={label} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 py-1">
       <div className="flex min-w-0 items-center gap-1 text-[9px] uppercase tracking-wider text-zinc-400">
         <span className="truncate" title={label}>{label}</span>
         {help && <span className="shrink-0 normal-case"><HelpHint label={`About ${label}`}>{help}</HelpHint></span>}

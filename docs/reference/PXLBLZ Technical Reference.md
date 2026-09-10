@@ -1297,7 +1297,9 @@ than wrap. Hover/focus help preserves the full name, counts, and additive
 cost equation from one compiled copy, additional copies, and source generated
 for Show settings and placements to the Pattern total. A compact shaded Output
 summary groups source, VM words, and running Pattern copies, with the source
-total emphasized to distinguish the result from its itemized costs. Resource rows align
+total emphasized to distinguish the result from its itemized costs. The itemized
+list uses compact spacing without divider strokes; summary labels and values
+share its outer text edges. Resource rows align
 the label and right-aligned value at the top, with short muted detail below;
 the busiest-LED explanation lives in hover/focus help instead of a footer. Equal measured copies may use `N x size`;
 unequal copies use their exact aggregate and never imply a uniform marginal
