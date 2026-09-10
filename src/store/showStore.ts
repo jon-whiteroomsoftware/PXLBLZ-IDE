@@ -18,7 +18,6 @@ import {
   removeShowRoutingLayout,
   removeShowZone,
   spanShowCellZones,
-  splitShowAtTime,
   removeShowBoundaryTransition,
   updateShowCellZoneMode,
   updateShowBoundaryTransition,
@@ -189,7 +188,6 @@ interface ShowState {
     changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>,
   ) => Promise<void>
   removeBoundaryTransition: (showId: string, transitionId: string) => Promise<void>
-  splitAtTime: (showId: string, atMs: number) => Promise<void>
   extendCell: (showId: string, cellId: string, sceneSpan: number) => Promise<void>
   spanCellZones: (showId: string, cellId: string, zoneSpan: number) => Promise<void>
   updateCellZoneMode: (showId: string, cellId: string, zoneMode: NonNullable<ShowCell['zoneMode']>) => Promise<void>
@@ -754,14 +752,6 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     const show = get().resolveEditableShow(showId)
     if (!show) return
     await updateShowQuietly(get().updateShow, showId, removeShowBoundaryTransition(show, transitionId))
-  },
-
-  splitAtTime: async (showId, atMs) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    const next = splitShowAtTime(show, atMs)
-    if (next === show) return
-    await updateShowQuietly(get().updateShow, showId, next)
   },
 
   extendCell: async (showId, cellId, sceneSpan) => {

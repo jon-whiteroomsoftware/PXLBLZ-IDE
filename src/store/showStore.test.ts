@@ -1,7 +1,7 @@
 import { showInitialState, useShowStore } from './showStore'
 import { mapInitialState, useMapStore } from './mapStore'
 import { STOCK_SHOWS, stockShowById } from '@/pixelblaze/stock/shows'
-import { createDefaultShow } from '@/engine/showModel'
+import { createDefaultShow, splitShowAtTime } from '@/engine/showModel'
 import { validateInstallationCoverage } from '@/engine/showInstallationCoverage'
 import { validateShowComposition } from '@/engine/showCompositionModel'
 import {
@@ -1157,7 +1157,10 @@ describe('showStore (#318)', () => {
     await useShowStore.getState().loadShows()
     expect(useShowStore.getState().shows[0].cells.every((cell) => cell.restartOnEntry === false)).toBe(true)
 
-    await useShowStore.getState().splitAtTime(legacy.id, 10_000)
+    await useShowStore.getState().updateShow(
+      legacy.id,
+      splitShowAtTime(useShowStore.getState().shows[0], 10_000),
+    )
     const destination = useShowStore.getState().shows[0].cells.find((cell) => cell.sceneId === 'scene-3')!
     expect(destination.restartOnEntry).toBe(false)
 
