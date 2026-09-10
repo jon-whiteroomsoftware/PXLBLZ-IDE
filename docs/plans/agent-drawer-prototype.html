@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent drawer prototype (#959)</title>
+<!--
+  PROTOTYPE, throwaway. Question: on the flipped Show workspace, do the agent drawer,
+  its edge tab, and the on-entity highlights communicate "an edit is coming / landed /
+  settled" for both the Pixelblaze agent and an external MCP agent, with the drawer
+  tucked as well as open? One pure state model (AgentModel) drives a faithful shell.
+  Decisions it draws from: #959 D1..D10 plus the knock (D3) and intent line (D10).
+  Agent colour: violet #c4b5fd (Jon, 2026-09-10); the double stroke carries the meaning beside the indigo automation track.
+  Pass 2 (2026-09-10): one stream instead of card+feed+transcript, entity-drawer header
+  and pin metrics, no payer language, MCP call names behind a toggle.
+-->
+<style>
+  :root{
+    --bg:#09090b; --panel:#141416; --seam:#2e2e34; --ink:#e4e4e7; --ink2:#a1a1aa; --ink3:#71717a; --ink4:#52525b; --z800:#27272a; --z700:#3f3f46; --z900:#18181b;
+    --live:#fbbf24; --ok:#4ade80; --bad:#f87171; --structural:#71717a;
+    --agent:#c4b5fd; --agent-dim:rgba(196,181,253,.18);
+    --mono:'IBM Plex Mono',ui-monospace,'Cascadia Code',Menlo,monospace; --sans:'Geist Variable',ui-sans-serif,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box} html,body{margin:0;background:#0b0b0d;color:var(--ink);font:12px/1.4 var(--sans)}
+  button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+  svg{display:block}
+
+  /* ── prototype chrome (deliberately not app styling) ── */
+  .proto{position:sticky;top:0;z-index:99;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:8px 14px;background:#1f1a0b;border-bottom:1px solid #6b5a1a;font:12px var(--mono);color:#f1e3b0}
+  .proto b{color:#fcd34d;letter-spacing:.08em;font-size:10px}
+  .proto select,.proto .tog button{font:inherit;background:#2a2410;color:#fde68a;border:1px solid #6b5a1a;border-radius:4px;padding:3px 8px}
+  .proto .tog button[aria-pressed=true]{background:#fbbf24;color:#1f1a0b;font-weight:600}
+  .proto .steps button{background:#fbbf24;color:#1f1a0b;font-weight:600;border-radius:4px;padding:4px 10px}
+  .proto .steps button.quiet{background:transparent;color:#fde68a;border:1px solid #6b5a1a}
+  .caption{padding:8px 14px;background:#16130a;border-bottom:1px solid #3d3416;color:#e7d9a8;font-size:12.5px;display:flex;gap:14px;align-items:baseline}
+  .caption .n{font:10px var(--mono);letter-spacing:.14em;color:#fcd34d;white-space:nowrap}
+  .caption p{margin:0}
+
+  /* ── app frame ── */
+  .frame{position:relative;height:760px;background:var(--bg);display:flex;flex-direction:column;overflow:hidden;font-family:var(--mono)}
+  .hdr{height:44px;display:flex;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid var(--seam);background:#0d0d0f}
+  .brand{font-weight:700;letter-spacing:.18em;color:#d4d4d8}.brand i{font-style:normal;color:var(--live)}
+  .area{display:flex;align-items:center;gap:8px;padding:5px 10px;border:1px solid #5a4a12;border-radius:6px;background:#1a1608;color:#fde68a;font-weight:600}
+  .hdr .r{margin-left:auto;display:flex;gap:8px}
+  .pill{padding:5px 10px;border:1px solid var(--z700);border-radius:6px;color:#d4d4d8}
+  .body{position:relative;flex:1;display:flex;min-height:0}
+  .edge{width:22px;display:flex;flex-direction:column;align-items:center;gap:8px;padding-top:10px;color:var(--ink3);border-right:1px solid var(--seam);background:#0d0d0f;font-size:9px;letter-spacing:.14em;text-transform:uppercase}
+  .edge span.v{writing-mode:vertical-rl;transform:rotate(180deg)}
+  .edge.right{border-right:0;border-left:1px solid var(--seam);cursor:pointer;position:relative}
+  .edge.right:hover{color:#d4d4d8;background:rgba(255,255,255,.03)}
+  .edge.gone{display:none}
+  .edge .dot{width:6px;height:6px;border-radius:50%;background:var(--ink4);margin-top:2px}
+  .edge .dot.on{background:var(--agent)} .edge .dot.busy{background:var(--live);animation:pulse 1.1s ease-in-out infinite} .edge .dot.bad{background:var(--bad)} .edge .dot.wait{background:var(--live)} .edge .dot.drop{background:transparent;border:1px solid var(--agent)}
+  .edge .badge{position:absolute;top:8px;left:50%;transform:translateX(-50%);min-width:14px;height:14px;padding:0 3px;border-radius:7px;background:var(--agent);color:#062a2f;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .edge .badge.bad{background:var(--bad);color:#2a0606}
+  .edge.ring{color:var(--live);animation:ring 1s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}} @keyframes ring{0%,100%{background:transparent}50%{background:rgba(251,191,36,.12)}}
+  .ws{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
+  .showhd{height:34px;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--seam);font-size:12px}
+  .showhd .name{font-weight:700;letter-spacing:.06em} .tag{font-size:9px;letter-spacing:.12em;padding:2px 6px;border:1px solid var(--z700);border-radius:4px;color:var(--ink2)}
+  .showhd .r{margin-left:auto;display:flex;gap:10px;align-items:center;color:var(--ink2)}
+  .chip{display:flex;align-items:center;gap:8px;padding:3px 8px;border-radius:5px;border:1px solid var(--agent-dim);background:rgba(103,232,249,.06);color:#c7f4fb;font-size:11px}
+  .chip.bad{border-color:rgba(248,113,113,.35);background:rgba(248,113,113,.07);color:#fecaca}
+  .chip.wait{border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.07);color:#fde68a}
+  .chip button{color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:4px;padding:1px 6px;font-size:10px}
+  .transport{height:40px;display:flex;align-items:center;gap:10px;padding:0 14px;color:var(--ink2);border-bottom:1px solid var(--seam)}
+  .transport .tc{color:#fff;font-weight:600}.transport .grow{flex:1}
+  .transport .tb{display:flex;gap:12px;color:var(--ink3)} .transport .tb .on{color:var(--live)}
+  .tl{position:relative;flex:1;min-height:0;overflow:hidden;padding-left:14px}
+  .ruler{height:22px;position:relative;border-bottom:1px solid var(--seam);color:var(--ink3);font-size:10px}
+  .ruler span{position:absolute;top:4px;transform:translateX(-50%)} .ruler i{position:absolute;top:14px;height:8px;border-left:1px solid var(--z700)}
+  .tracks{position:relative;height:calc(100% - 22px)}
+  .lane{position:relative;height:46px} .lane.main{height:52px;border-top:1px solid #1f1f23}
+  .clip{position:absolute;top:8px;height:34px;background:#0f1b26;border-left:2px solid #4b8bb8;border-radius:2px;padding:4px 8px;color:#e4e4e7;font-size:11.5px;white-space:nowrap;overflow:hidden;transition:left .35s ease,width .35s ease;cursor:grab}
+  .clip small{display:block;font-size:9.5px;color:var(--ink3);margin-top:1px}
+  /* stroke vocabulary: solid = your selection, dashed = you are moving it, double = an agent touched it */
+  .clip.sel{outline:1px solid var(--live);outline-offset:1px}
+  .clip.drag{outline:1px dashed var(--live);outline-offset:1px;background:#1a1f22}
+  .clip.ag{outline:3px double var(--agent);outline-offset:1px} .clip.ag.flash{animation:agflash 1.8s ease-out 1}
+  .clip.ag-bad{outline:3px double var(--bad);outline-offset:1px}
+  @keyframes agflash{0%{box-shadow:0 0 0 7px var(--agent-dim),0 0 18px 4px var(--agent-dim)}100%{box-shadow:none}}
+  .band{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(90deg,var(--agent-dim) 0 6px,transparent 6px 12px);border-left:3px double var(--agent);border-right:3px double var(--agent);opacity:.55}
+  .band.flash{animation:bandflash 1.8s ease-out 1} @keyframes bandflash{0%{opacity:1}}
+  .cut{position:absolute;top:0;bottom:0;border-left:1px solid var(--z700)} .cut b{position:absolute;top:2px;left:6px;font-size:10px;color:var(--ink3);font-weight:400;white-space:nowrap}
+  .playhead{position:absolute;top:0;bottom:0;border-left:1px solid var(--live);z-index:3} .playhead:before{content:'';position:absolute;top:-1px;left:-5px;border:5px solid transparent;border-top:7px solid var(--live)}
+  .marker{position:absolute;top:0;font-size:10px;color:#f59e0b} .marker:after{content:'';position:absolute;left:0;top:14px;height:9999px;border-left:1px dashed rgba(245,158,11,.35)}
+  .auto{position:absolute;bottom:2px;left:0;height:1px;background:#6366f1} .auto i{position:absolute;right:-3px;top:-2px;width:5px;height:5px;border-radius:50%;background:#6366f1}
+  .divider{height:1px;background:var(--seam)}
+  .bottom{height:246px;display:flex;background:#0e0e10}
+  .summ{width:520px;max-width:46%;padding:10px 14px;display:flex;flex-direction:column;gap:2px}
+  .srow{display:flex;align-items:center;gap:8px;height:30px;border-bottom:1px solid #1f1f23;font-size:11px;color:#d4d4d8}
+  .srow .k{color:var(--structural);letter-spacing:.12em;font-size:10.5px;width:76px}.srow .d{color:var(--ink4)}
+  .srow .bar{width:150px;height:6px;background:var(--z800);border-radius:3px;overflow:hidden}.srow .bar i{display:block;width:84%;height:100%;background:var(--live)}
+  .peak{color:var(--live);font-size:11px;margin-top:4px}
+  .prev{margin-left:auto;display:flex}
+  .rail{width:34px;display:flex;flex-direction:column;align-items:center;gap:10px;padding-top:12px;color:var(--ink3);border-left:1px solid var(--seam)}
+  .rail .p{color:var(--bad)}
+  .canvas{width:246px;height:246px;background:#050505;position:relative;overflow:hidden}
+  .canvas:before{content:'';position:absolute;inset:0;background:radial-gradient(38% 38% at 50% 58%,transparent 52%,rgba(253,224,71,.95) 58%,rgba(253,224,71,.35) 68%,transparent 78%);-webkit-mask:linear-gradient(200deg,transparent 30%,#000 45%);mask:linear-gradient(200deg,transparent 30%,#000 45%);filter:blur(4px)}
+
+  /* ── agent drawer: mirrors StudioEntityDrawer ── */
+  .drawer{position:absolute;top:0;bottom:0;right:0;width:340px;background:var(--bg);border-left:1px solid var(--z700);box-shadow:-24px 0 48px rgba(0,0,0,.6);display:flex;flex-direction:column;z-index:20;transform:translateX(0);transition:transform .225s ease-in-out,visibility 0s linear 0s}
+  .drawer.hidden{visibility:hidden;transform:translateX(100%);transition:transform .225s ease-in-out,visibility 0s linear .225s}
+  .drawer.pinned{position:static;box-shadow:none;border-left:1px solid var(--seam)}
+  .dh{height:40px;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 8px;border-bottom:1px solid var(--seam)}
+  .dh .t{padding-left:4px;font:10px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--structural)}
+  .dh .sp{flex:1}
+  .ha{position:relative;display:grid;place-items:center;width:26px;height:26px;border-radius:4px;border:1px solid var(--z700);background:var(--z900);color:var(--ink2)}
+  .ha:hover{color:var(--live)} .ha[aria-pressed=true]{border-color:rgba(251,191,36,.5);background:rgba(251,191,36,.1);color:var(--live)}
+  .menu{position:absolute;right:0;top:30px;z-index:5;min-width:190px;padding:4px;border:1px solid var(--z700);border-radius:5px;background:var(--z900);box-shadow:0 8px 24px rgba(0,0,0,.5);display:none;font-family:var(--sans)}
+  .menu.open{display:block}
+  .menu button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;padding:6px 8px;border-radius:3px;font-size:12px;color:var(--ink);text-align:left} .menu button:hover{background:var(--z800)} .menu button.bad{color:#fca5a5} .menu button i{font-style:normal;color:var(--ink3);font-size:10px}
+
+  /* who section: one lightweight header, no box */
+  .who{padding:12px 12px 10px;border-bottom:1px solid var(--seam);font-family:var(--sans)}
+  .who .name{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:#f4f4f5}
+  .who .dot{width:7px;height:7px;border-radius:50%;background:var(--agent);flex-shrink:0} .who .dot.busy{background:var(--live);animation:pulse 1.1s infinite} .who .dot.drop{border:1px solid var(--agent);background:transparent} .who .dot.off{background:var(--ink4)}
+  .who .st{margin-top:2px;padding-left:15px;font-size:11px;color:var(--ink3)} .who .st.w{color:var(--live)}
+  .who .act{margin-top:8px;padding-left:15px;display:flex;gap:6px}
+  .who .sp{flex:1}
+  .ib{display:inline-flex;width:24px;height:24px;align-items:center;justify-content:center;border-radius:4px;border:1px solid var(--z700);color:var(--ink2)} .ib:hover{border-color:#71717a;color:#e4e4e7}
+  .arm .cmd{display:flex;align-items:center;gap:6px} .arm .cmd code{flex:1;font:10.5px var(--mono);color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;user-select:all}
+  .cp{display:inline-flex;width:20px;height:20px;align-items:center;justify-content:center;border-radius:3px;color:var(--ink3);flex-shrink:0} .cp:hover{color:var(--live);background:rgba(255,255,255,.04)} .cp.done{color:var(--ok)}
+  .btn{padding:4px 9px;border:1px solid var(--z700);border-radius:4px;font-size:11px;color:var(--ink);background:transparent} .btn:hover{border-color:var(--ink3)} .btn.pri{background:var(--agent);color:#062a2f;border-color:var(--agent);font-weight:600} .btn.quiet{border-color:transparent;color:var(--ink3)}
+  /* empty state: two rows */
+  .choose{font-family:var(--sans)}
+  .choose button{display:block;width:100%;text-align:left;padding:10px 12px;border-bottom:1px solid #1f1f23}
+  .choose button:hover{background:rgba(255,255,255,.03)} .choose b{display:block;font-size:12.5px;font-weight:600;color:#f4f4f5} .choose span{display:block;font-size:11px;color:var(--ink3);margin-top:1px}
+  /* arming */
+  .arm{padding:12px;border-bottom:1px solid var(--seam);font-family:var(--sans);font-size:11.5px;color:var(--ink2);display:flex;flex-direction:column;gap:8px}
+  .arm .url{padding:6px 8px;background:#0e0e11;border:1px solid var(--z800);border-radius:4px;color:#c7f4fb;font:11px var(--mono);user-select:all}
+  .arm details{font-size:11px;color:var(--ink3)} .arm summary{cursor:pointer;color:var(--ink2);list-style:none;display:flex;gap:6px;align-items:center} .arm summary:before{content:'›';display:inline-block;transition:transform .15s} .arm details[open] summary:before{transform:rotate(90deg)}
+  .arm details div{margin:6px 0 0 14px;display:flex;flex-direction:column;gap:4px;font-family:var(--mono);font-size:10.5px;color:var(--ink2)} .arm details div b{font-weight:500;color:var(--ink3);font-family:var(--sans);margin-right:6px}
+  .arm p{margin:0}
+  /* knock */
+  .knock{padding:12px;border-bottom:1px solid var(--seam);border-left:2px solid var(--live);font-family:var(--sans);animation:knock 1.2s ease-in-out infinite}
+  @keyframes knock{50%{background:rgba(251,191,36,.06)}}
+  .knock .name{font-size:14px;font-weight:600;color:#f4f4f5} .knock .st{font-size:11px;color:var(--ink3);margin-top:2px} .knock .act{margin-top:8px;display:flex;gap:6px}
+  /* one stream */
+  .stream{flex:1;min-height:0;overflow:auto;padding:6px 12px 10px;display:flex;flex-direction:column;gap:4px;font-family:var(--sans)}
+  .stream .h{font:10px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--structural);padding:8px 0 2px}
+  .stream .empty{font-size:11px;color:var(--ink4)}
+  .line{display:flex;align-items:baseline;gap:8px;font-size:12px;color:var(--ink);padding:3px 0}
+  .line:before{content:'';width:5px;height:5px;border-radius:50%;background:var(--agent);flex-shrink:0;transform:translateY(-2px)}
+  .line.sys:before{background:var(--ink4)} .line.sys{color:var(--ink3);font-size:11.5px} .line.busy:before{background:var(--live);animation:pulse 1.1s infinite} .line.bad:before{background:var(--bad)} .line.done:before{background:var(--agent)} .line.muted{color:var(--ink3)}
+  .line .s{margin-left:auto;font:10px var(--mono);letter-spacing:.06em;color:var(--ink3);white-space:nowrap} .line .s.ok{color:var(--ok)} .line .s.bad{color:var(--bad)} .line .s.busy{color:var(--live)} .line .s.ag{color:var(--agent)}
+  .sub{padding:0 0 2px 13px;font-size:11px;color:var(--ink3)} .sub.bad{color:#fca5a5} .sub .btn{margin-top:4px;margin-right:4px;padding:2px 7px;font-size:10.5px}
+  .mcp{padding:0 0 3px 13px;font:10px var(--mono);color:#7c6fae}
+  .msg{max-width:88%;padding:6px 9px;border-radius:8px;background:var(--z900);color:var(--ink);font-size:12px;line-height:1.4;margin:2px 0} .msg.me{align-self:flex-end;background:#1e293b;border-bottom-right-radius:2px} .msg.ai{border-bottom-left-radius:2px} .msg.think{background:transparent;color:var(--ink3);font-style:italic;padding:2px 0}
+  .composer{flex-shrink:0;display:flex;gap:6px;padding:8px 12px 10px;border-top:1px solid var(--seam)} .composer input{flex:1;background:#0e0e11;border:1px solid var(--z700);border-radius:5px;padding:6px 8px;color:#fff;font:12px var(--sans)} .composer input::placeholder{color:var(--ink4)}
+
+  /* ── debug pane (outside the app; only with MCP calls on) ── */
+  .other{display:grid;grid-template-columns:1.2fr 1fr 1.2fr;gap:12px;padding:12px 14px 18px;background:#0b0b0d}
+  .pane{border:1px solid var(--z800);border-radius:6px;background:#0f0f11;min-height:150px;display:flex;flex-direction:column}
+  .pane h2{margin:0;padding:8px 10px;font:10px var(--mono);letter-spacing:.14em;color:#a1a1aa;border-bottom:1px solid var(--z800);text-transform:uppercase} .pane h2 small{margin-left:8px;letter-spacing:0;text-transform:none;color:#52525b}
+  .log{flex:1;padding:8px 10px;font:10.5px var(--mono);color:#a1a1aa;display:flex;flex-direction:column;gap:3px;overflow:auto;max-height:190px}
+  .log .c{color:#c7f4fb} .log .s{color:#71717a} .log .e{color:#fca5a5}
+  .ledger{margin:0;padding:8px 10px;display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font:10.5px var(--mono)} .ledger dt{color:#71717a}.ledger dd{margin:0;color:#e4e4e7}
+  .free{padding:8px 10px;display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start} .free .g{width:100%;font:9px var(--mono);letter-spacing:.14em;color:#71717a;margin-top:6px} .free button{padding:3px 7px;border:1px solid var(--z700);border-radius:4px;font:10.5px var(--mono);color:#d4d4d8} .free button:hover{border-color:#a1a1aa}
+</style>
+</head>
+<body>
+
+<div class="proto">
+  <b>PROTOTYPE · #959 AGENT DRAWER</b>
+  <label>Walkthrough <select id="scenario" aria-label="Walkthrough"></select></label>
+  <span class="steps"><button id="prev" class="quiet">Back</button><button id="next">Next</button><button id="reset" class="quiet">Reset</button></span>
+  <span class="tog">Drawer <button data-drawer="tucked">tucked</button><button data-drawer="open">open</button><button data-drawer="pinned">pinned</button></span>
+  <span class="tog">Agent colour <button data-col="cyan">cyan</button><button data-col="violet" aria-pressed="true">violet</button><button data-col="green">green</button></span>
+</div>
+<div class="caption"><span class="n" id="cap-n">FREE PLAY</span><p id="cap-p">Drive it with the buttons under the frame, or pick a walkthrough.</p></div>
+
+<div class="frame" id="frame">
+  <div class="hdr"><span class="brand">〰 PXL<i>B</i>LZ</span><span class="area">▦ Shows ▾</span>
+    <span class="r"><span class="pill">⏚ Connect</span><span class="pill">▣ Gallery</span><span class="pill">◉ jon-whiteroomsoftware ▾</span></span></div>
+  <div class="body">
+    <div class="edge"><span>▦</span><span class="v">Shows</span><span>›</span></div>
+    <div class="ws" id="ws">
+      <div class="showhd"><span>▦</span><span class="name">BITCHIN</span><span class="tag">PORTABLE</span>
+        <span class="r"><span id="hchip"></span><span>⚌ Properties</span><span>⋮</span></span></div>
+      <div class="transport"><span>▷</span><span>⏮</span><span class="tc" id="tc">00:00.0</span><span>/ 02:04.0</span><span class="grow"></span>
+        <span class="tb"><span>+ Add ▾</span><span>✂ Split</span><span>⧉ Clone</span><span>◈ Group</span><button id="undo" title="Undo">↶</button><span>↷</span><span class="on">◎</span><span>⚑</span><span class="on">⚑</span><span>▮▮▮▮ 100%</span></span></div>
+      <div class="tl" id="tl"></div>
+      <div class="divider"></div>
+      <div class="bottom">
+        <div class="summ">
+          <div class="srow"><span>›</span><span class="k">STAGE</span><span>▣ Square</span><span class="d">·</span><span>Reference map</span><span class="d">·</span><span>2000 px</span></div>
+          <div class="srow"><span>›</span><span class="k">PREVIEW</span><span>◊ 0.70</span><span class="d">·</span><span>⊙ 59%</span><span class="d">·</span><span>⧈ Precise</span><span class="d">·</span><span>◔ –</span><span style="margin-left:auto">☼ ━━━●━ 100%</span><span>?</span></div>
+          <div class="srow"><span>›</span><span class="k">ZONES</span><span class="d">·</span><span>● main</span></div>
+          <div class="srow"><span>›</span><span class="k">SOURCE</span><span class="bar"><i></i></span><span>56.2 KB / 66.8 KB</span><span class="d">·</span><span>VM 6,216/10,240 words</span></div>
+          <div class="peak">Peak: 4 Patterns per pixel.</div>
+        </div>
+        <div class="prev"><div class="rail"><span class="p">▷</span><span>▦</span><span>⛶</span></div><div class="canvas"></div></div>
+      </div>
+    </div>
+    <div class="drawer hidden" id="drawer" role="complementary" aria-label="Agent"></div>
+    <button class="edge right" id="edgetab" aria-label="Open the Agent drawer"><span class="dot" id="edgedot"></span><span class="v" id="edgelbl">Agent</span><span>‹</span></button>
+  </div>
+</div>
+
+<div class="other" id="other">
+  <div class="pane" id="mcppane"><h2>MCP calls <small>debug view; the drawer shows these only with "Show MCP calls" on</small></h2><div class="log" id="mcplog"></div></div>
+  <div class="pane"><h2>Ledger <small>document, history, persistence</small></h2><dl class="ledger" id="ledger"></dl></div>
+  <div class="pane"><h2>Free play <small>author, agent, service</small></h2><div class="free" id="free"></div></div>
+</div>
+
+<script>
+/* ═══════════════════════ AgentModel: pure state, no DOM ═══════════════════════ */
+const AgentModel = (() => {
+  const CLIPS = () => ([
+    {id:'har',  lane:0, name:'Har…',                 sub:'',                  s:0,  e:4},
+    {id:'cme1', lane:0, name:'Coronal Mass Ejection', sub:'defaults',          s:14, e:26},
+    {id:'cme2', lane:1, name:'Coronal Mass Ejection', sub:'defaults',          s:9,  e:21},
+    {id:'cme3', lane:2, name:'Coronal Mass Ejection', sub:'◉ 50%',             s:5,  e:20},
+    {id:'cme0', lane:3, name:'Coronal Mass Ejection', sub:'◷ .75–1x · ☼ 0% · ☑ 1×1x', s:0, e:16},
+    {id:'loom1',lane:3, name:'CometLoom',             sub:'defaults',          s:27, e:52},
+    {id:'cme4', lane:3, name:'Coronal Mass Ejection', sub:'defaults',          s:52, e:76},
+    {id:'loom2',lane:3, name:'CometLoom',             sub:'defaults',          s:78, e:124, xf:true},
+  ]);
+  const initial = () => ({
+    drawer:'tucked', chip:false, showMcp:false,
+    connection:null,          // {kind:'builtin'|'external', name}
+    arming:false, knock:null, dropped:false,
+    request:null,             // {id, phase, intent, edit}
+    gesture:null,
+    revision:1, plannedRevision:null,
+    clips:CLIPS(), history:[],
+    highlights:[], band:null, refusedTarget:null, hlPhase:'none',
+    stream:[], unread:0,      // one stream: {kind:'me'|'ai'|'think'|'act'|'sys', ...}
+    save:'saved', writes:0, opCounter:0, lastOutcome:null,
+  });
+  const clone = s => JSON.parse(JSON.stringify(s));
+  const name = s => s.connection ? s.connection.name : '—';
+  const add = (s, item) => { s.stream.push({ ...item, id:'l'+(s.stream.length+1) }); };
+  const outcome = (s, line) => { if (s.drawer==='tucked' && line) { if (!line.unread) s.unread++; line.unread=true; } };
+  const EDITS = {
+    tighten:{ intent:'Tighten the intro', lines:['Coronal Mass Ejection (50%) shortened to 9 s','Coronal Mass Ejection moved to 12 s'], apply(c){ const a=c.find(x=>x.id==='cme3'); a.e=14; const b=c.find(x=>x.id==='cme1'); b.s=12; b.e=24; return ['cme3','cme1']; } },
+    balance:{ intent:'Balance the CometLoom sections', lines:['CometLoom shortened to 21 s','Coronal Mass Ejection extended to 28 s'], apply(c){ c.find(x=>x.id==='loom1').e=48; c.find(x=>x.id==='cme4').s=48; return ['loom1','cme4']; } },
+    nudge:{ intent:'Lead the overlay in a little later', lines:['Coronal Mass Ejection moved to 11 s'], target:'cme2', apply(c){ const a=c.find(x=>x.id==='cme2'); const d=a.e-a.s; a.s=a.s+2; a.e=a.s+d; return ['cme2']; } },
+    insert:{ intent:'Open up 4 seconds before the second section', lines:['4 s inserted at 30 s; 5 Clips shifted','Show end moved to 2:08'], band:[30,34], apply(c){ for(const x of c){ if(x.s>=30){x.s+=4;x.e+=4} else if(x.e>30){x.e+=4} } return []; } },
+  };
+  const lastAct = s => [...s.stream].reverse().find(l=>l.kind==='act');
+
+  function reduce(s, a) {
+    const R = clone(s);
+    switch (a.type) {
+      case 'drawer': R.drawer = a.mode; if (a.mode!=='tucked') { R.unread = 0; R.stream.forEach(l=>l.unread=false); } return R;
+      case 'chip': R.chip = a.on; return R;
+      case 'mcp': R.showMcp = !R.showMcp; return R;
+
+      case 'chooseBuiltin': R.connection={kind:'builtin', name:'Pixelblaze agent'}; R.arming=false; R.dropped=false; if (R.drawer==='open') R.drawer='pinned'; return R;
+      case 'connectOwn': R.arming=true; R.dropped=false; return R;
+      case 'cancelArm': R.arming=false; return R;
+      case 'agentBinds': R.arming=false; R.knock=null; R.dropped=false; R.connection={kind:'external', name:a.client||'Claude Code'}; if (R.drawer==='open') R.drawer='pinned'; add(R,{kind:'sys', text:'connected', mcp:'get_connection → bound {show:"BITCHIN", window:this}'}); return R;
+      case 'knock': if (R.connection) return R; R.knock={client:a.client||'Claude Code'}; if (R.drawer==='tucked') R.drawer='open'; return R;
+      case 'approveKnock': return reduce(R,{type:'agentBinds', client:R.knock?.client});
+      case 'declineKnock': R.knock=null; return R;
+      case 'drop': if(!R.connection) return R; R.dropped=true; add(R,{kind:'sys', text:'contact lost; existing edit outcome retained', mcp:'transport lost; binding and operation identity retained; query get_outcome on recovery'}); return R;
+      case 'reattach': if(!R.dropped) return R; R.dropped=false; add(R,{kind:'sys', text:'contact restored; checking existing edit', mcp:'same binding; get_outcome for the existing operation; no replay'}); return R;
+      case 'disconnect':
+      case 'forget': {
+        if(!R.connection) return R;
+        const fe=R.stream.find(l=>l.op===R.request?.id);
+        if(fe){fe.state='cancelled'; fe.lines=['Disconnected before application; nothing applied']; outcome(R,fe);}
+        add(R,{kind:'sys',text:a.type==='forget'?'agent access forgotten':'disconnected'});
+        R.connection=null; R.request=null; R.dropped=false; return R;
+      }
+
+      case 'say': add(R,{kind:'me', text:a.text, mcp:`POST /agent {utterance:"${a.text}"}`}); return R;
+      case 'thinking': R.request={id:'op'+(++R.opCounter), phase:'thinking'}; add(R,{kind:'think', text:'thinking…'}); return R;
+      case 'reply': R.stream = R.stream.filter(m=>m.kind!=='think'); add(R,{kind:'ai', text:a.text}); return R;
+
+      case 'beginEdit': {
+        if(!R.connection) return R;
+        const ed = EDITS[a.edit];
+        R.request={id: R.request?.id || 'op'+(++R.opCounter), phase:'preparing', intent:ed.intent, edit:a.edit};
+        R.plannedRevision=R.revision;
+        add(R,{kind:'act', op:R.request.id, text:ed.intent, state:'preparing', lines:[], mcp:`begin_edit {intent:"${ed.intent}"} → ${R.request.id} · base rev ${R.revision}`});
+        return R;
+      }
+      case 'reading': if(!R.connection||R.request) return R; add(R,{kind:'sys', text:'reading the Show', mcp:'get_context · read_show'}); return R;
+      case 'commit': {
+        if(!R.request || (R.request.phase!=='preparing' && R.request.phase!=='waiting')) return R;
+        const ed = EDITS[R.request.edit]; const fe = R.stream.find(l=>l.op===R.request.id);
+        if (R.gesture){ R.request.phase='waiting'; fe.state='waiting'; fe.mcp2='commit_edit → waiting: author gesture in progress (≤5 s)'; return R; }
+        if (R.plannedRevision!==R.revision){
+          fe.state='refused'; fe.lines=[`Not applied: ${ed.target? 'that Clip moved' : 'the Show changed'} while it was working`]; fe.mcp2='commit_edit → refused {code:"stale-revision"}; replan';
+          R.refusedTarget = ed.target||null; R.request=null; R.lastOutcome='refused'; outcome(R,fe); return R;
+        }
+        R.history.push({clips:clone(R.clips), label:ed.intent, band:R.band});
+        const ids = ed.apply(R.clips);
+        R.highlights = ids; R.band = ed.band||null; R.hlPhase='flash'; R.refusedTarget=null;
+        R.revision++; R.request=null; R.save='saving'; R.lastOutcome='applied';
+        fe.state='applied'; fe.lines=ed.lines; fe.mcp2=`commit_edit → applied {rev:${R.revision}} · one history entry`; outcome(R,fe);
+        return R;
+      }
+      case 'settle': if(R.hlPhase==='flash') R.hlPhase='settled'; return R;
+      case 'saved': { if(R.save!=='saving') return R; R.save='saved'; R.writes++; const fe=[...R.stream].reverse().find(l=>l.state==='applied'); if(fe) { fe.state='saved'; outcome(R,fe); } return R; }
+      case 'saveFailed': { if(R.save!=='saving') return R; R.save='failed'; const fe=[...R.stream].reverse().find(l=>l.state==='applied'); if(fe){ fe.state='failed'; fe.lines=['Save failed; the change was rolled back']; outcome(R,fe); } const h=R.history.pop(); if(h){ R.clips=h.clips; R.band=h.band; R.revision++; } R.highlights=[]; R.hlPhase='none'; R.lastOutcome='failed'; return R; }
+      case 'retry': {
+        if(R.connection?.kind!=='builtin' || R.request || R.dropped) return R;
+        const fe=[...R.stream].reverse().find(l=>(!a.op || l.op===a.op) && l.state==='failed' && !l.dismissed && !l.retryStarted);
+        if(!fe) return R;
+        const edit=Object.keys(EDITS).find(k=>EDITS[k].intent===fe.text);
+        if(!edit) return R;
+        fe.retryStarted=true;
+        const next=reduce(R,{type:'beginEdit',edit});
+        next.request.retryOf=fe.op;
+        lastAct(next).retryOf=fe.op;
+        return next;
+      }
+      case 'dismiss': { const fe=[...R.stream].reverse().find(l=>(!a.op || l.op===a.op) && l.state==='failed' && !l.dismissed); if(fe) fe.dismissed=true; return R; }
+      case 'gestureCancel': { R.gesture=null; if(R.request?.phase==='waiting') return reduce(R,{type:'commit'}); return R; }
+      case 'gestureStart': R.gesture=a.clip; return R;
+      case 'gestureEnd': { if(!R.gesture) return R; const c=R.clips.find(x=>x.id===R.gesture); const d=c.e-c.s; c.s+=2; c.e=c.s+d; R.gesture=null; R.revision++; R.history.push({clips:null,label:'manual move'}); if (R.highlights.length){ R.highlights=[]; R.band=null; R.hlPhase='none'; const fe=lastAct(R); if(fe&&(fe.state==='saved'||fe.state==='applied')) fe.state='superseded'; } if (R.request?.phase==='waiting'){ return reduce(R,{type:'commit'}); } return R; }
+      case 'manualEdit': { const c=R.clips.find(x=>x.id===a.clip); const d=c.e-c.s; c.s+=2; c.e=c.s+d; R.revision++; R.history.push({clips:null,label:'manual move'}); R.highlights=R.highlights.filter(id=>id!==a.clip); if(!R.highlights.length){R.band=null;R.hlPhase='none'} R.refusedTarget=null; return R; }
+      case 'undo': { const h=R.history.pop(); if(!h) return R; if(h.clips){ R.clips=h.clips; R.band=h.band||null; } R.revision++; R.highlights=[]; R.hlPhase='none'; R.save='saving'; const fe=lastAct(R); if(fe&&h.label===fe.text&&(fe.state==='saved'||fe.state==='applied')) fe.state='superseded'; return R; }
+      case 'cancel': { if(!R.request) return R; const fe=R.stream.find(l=>l.op===R.request.id); if(fe) fe.state='cancelled'; R.request=null; R.stream=R.stream.filter(m=>m.kind!=='think'); return R; }
+      case 'leave': R.connection=null; R.request=null; R.arming=false; R.knock=null; R.stream=[]; R.unread=0; R.drawer='tucked'; return R;
+      case 'expireArm': R.arming=false; add(R,{kind:'sys',text:'Connection window expired. Choose Connect an MCP agent again.'}); return R;
+      case 'expireKnock': R.knock=null; add(R,{kind:'sys',text:'Call expired; the agent was not connected.'}); return R;
+      case 'outcomeUnknown': { const fe=R.stream.find(l=>l.op===R.request?.id); if(fe){fe.state='unknown';fe.lines=['Outcome unavailable; inspect the Show. Do not replay this request.'];outcome(R,fe);} R.request=null; return R; }
+    }
+    return R;
+  }
+  return { initial, reduce, EDITS, name };
+})();
+
+/* ═══════════════════════ shell ═══════════════════════ */
+const $ = id => document.getElementById(id);
+let S = AgentModel.initial();
+let mcp = []; let settleTimer=null;
+const LANES = ['Full surface · overlay 1','overlay 2','overlay 3','Full surface · main'];
+const TOTAL = 124;
+
+function dispatch(a){
+  S = AgentModel.reduce(S, a);
+  const last = S.stream.at(-1);
+  if (last?.mcp && a.type!=='commit') mcp.push({t:last.mcp, cls:'c'});
+  if (a.type==='commit'){ const l=[...S.stream].reverse().find(x=>x.mcp2); if(l) mcp.push({t:l.mcp2, cls:l.state==='refused'?'e':'c'}); }
+  if (a.type==='saved') mcp.push({t:'(server) get_outcome → "saved"', cls:'s'});
+  if (a.type==='saveFailed') mcp.push({t:'(server) get_outcome → "rolled-back"', cls:'e'});
+  if (a.type==='knock') mcp.push({t:'begin_edit with no armed window → held 30 s; IDE shows the call', cls:'s'});
+  if (a.type==='connectOwn') mcp.push({t:'IDE armed this window for 5:00', cls:'s'});
+  if (mcp.length>18) mcp.shift();
+  if (S.hlPhase==='flash'){ clearTimeout(settleTimer); settleTimer=setTimeout(()=>{ S=AgentModel.reduce(S,{type:'settle'}); render(); }, 1900); }
+  render();
+}
+
+function pct(t){ return (t/TOTAL*100).toFixed(3)+'%'; }
+function renderTimeline(){
+  const tl = $('tl');
+  let h = '<div class="ruler">';
+  for(let t=0;t<=120;t+=10){ h+=`<i style="left:${pct(t)}"></i><span style="left:${pct(t)}">${t<60?t+'s':'1:'+String(t-60).padStart(2,'0')}</span>`; }
+  h += '</div><div class="tracks">';
+  h += `<div class="cut" style="left:0"><b>Full surface · main</b></div><div class="cut" style="left:${pct(60)}"><b>⛓ Full surface · main</b></div>`;
+  if (S.band) h += `<div class="band ${S.hlPhase==='flash'?'flash':''}" style="left:${pct(S.band[0])};width:${pct(S.band[1]-S.band[0])}"></div>`;
+  h += `<div class="marker" style="left:${pct(30)}">⚑</div>`;
+  LANES.forEach((lbl,i)=>{
+    h += `<div class="lane ${i===3?'main':''}">`;
+    for(const c of S.clips.filter(x=>x.lane===i)){
+      const cls = ['clip', S.highlights.includes(c.id)?('ag '+(S.hlPhase==='flash'?'flash':'')):'', S.refusedTarget===c.id?'ag-bad':'', S.gesture===c.id?'drag':''].join(' ');
+      h += `<div class="${cls}" data-clip="${c.id}" style="left:${pct(c.s)};width:${pct(c.e-c.s)}" title="${c.name} ${c.s}–${c.e}s">${c.xf?'<span style="color:#a78bfa">◣ </span>':''}${c.name}${c.sub?`<small>${c.sub}</small>`:''}</div>`;
+    }
+    if(i===3) h += `<div class="auto" style="width:${pct(25)}"><i></i></div>`;
+    h += '</div>';
+  });
+  h += `<div class="playhead" style="left:0"></div></div>`;
+  tl.innerHTML = h;
+  tl.querySelectorAll('.clip').forEach(el=>el.addEventListener('click',e=>{ e.stopPropagation(); dispatch({type:'manualEdit',clip:el.dataset.clip}); }));
+}
+
+function edgeState(){
+  if (S.knock) return {dot:'busy', lbl:'Answer', ring:true};
+  if (!S.connection) return {dot:'', lbl:'Agent'};
+  if (S.dropped) return {dot:'drop', lbl:'Agent'};
+  if (S.request?.phase==='waiting') return {dot:'wait', lbl:'Waiting'};
+  if (S.request) return {dot:'busy', lbl:'Working'};
+  if (S.save==='failed') return {dot:'bad', lbl:'Agent'};
+  return {dot:'on', lbl:'Agent'};
+}
+function renderEdge(){
+  const e = edgeState(); const tab=$('edgetab');
+  $('edgedot').className = 'dot '+e.dot; $('edgelbl').textContent = e.lbl;
+  tab.classList.toggle('ring', !!e.ring);
+  tab.classList.toggle('gone', S.drawer!=='tucked');
+  tab.querySelector('.badge')?.remove();
+  if (S.drawer==='tucked' && S.unread>0){ const b=document.createElement('span'); b.className='badge'+(S.lastOutcome==='refused'||S.save==='failed'?' bad':''); b.textContent=S.unread; tab.appendChild(b); }
+}
+function renderChip(){
+  const el=$('hchip');
+  if(el){el.innerHTML='';el.style.display='none';}
+}
+
+const PIN = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>';
+const PIN_ON = PIN.replace('fill="none"','fill="currentColor"');
+const MORE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>';
+// ControllerGlyphs.DisconnectGlyph, 16-grid, as used by the Controller popover's Disconnect button
+const UNPLUG = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.25 0.9v3.4M9.75 0.9v3.4"/><path d="M4 4.3h8v0.5a4 4 0 0 1-8 0z"/><path d="M3 12.6h10"/></svg>';
+const COPY = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
+const CMD_CLAUDE = 'claude mcp add --transport http pxlblz https://pxlblz-ide.whiteroomsoftware.com/mcp';
+const CMD_CODEX = 'codex mcp add pxlblz --url https://pxlblz-ide.whiteroomsoftware.com/mcp';
+const stateWord = st => ({preparing:'working', waiting:'waiting for you', applied:'applied', saved:'saved', refused:'not applied', failed:'rolled back', superseded:'superseded', cancelled:'cancelled', unknown:'outcome unknown'}[st] ?? '');
+const stateCls = st => ({preparing:'busy', waiting:'busy', applied:'ag', saved:'ok', refused:'bad', failed:'bad'}[st] ?? '');
+
+function renderDrawer(){
+  const oldComposer=$('say');
+  const draft=oldComposer?.value || '';
+  const selection=oldComposer ? [oldComposer.selectionStart,oldComposer.selectionEnd] : null;
+  const composerFocused=oldComposer===document.activeElement;
+  const d=$('drawer'); const open=S.drawer!=='tucked';
+  d.className='drawer '+(S.drawer==='tucked'?'hidden':S.drawer==='pinned'?'pinned':'');
+  const c=S.connection;
+  // header: title, spacer, menu, pin (entity drawer metrics)
+  let h=`<div class="dh"><span class="t">Agent</span><span class="sp"></span>${c?`<span style="position:relative"><button class="ha" data-a="menu" aria-label="More" aria-haspopup="menu">${MORE}</button><div class="menu" id="menu" role="menu"><button data-a="mcp">Show MCP calls <i>${S.showMcp?'on':'off'}</i></button>${c.kind==='external'?'<button class="bad" data-a="forget">Forget this agent <i>ends its access</i></button>':''}</div></span>`:''}<button class="ha" data-a="pin" aria-pressed="${S.drawer==='pinned'}" aria-label="${S.drawer==='pinned'?'Unpin':'Pin'} the Agent drawer">${S.drawer==='pinned'?PIN_ON:PIN}</button></div>`;
+  // who / choose / arming / knock
+  if (S.knock) h+=`<div class="knock"><div class="name">${S.knock.client} is calling</div><div class="st">It wants to edit this Show from here.</div><div class="act"><button class="btn pri" data-a="approveKnock">Answer</button><button class="btn quiet" data-a="declineKnock">Not now</button></div></div>`;
+  else if (!c && !S.arming) h+=`<div class="choose"><button data-a="chooseBuiltin"><b>Use the Pixelblaze agent</b><span>Ask for edits here. It works on this Show with you.</span></button><button data-a="connectOwn"><b>Connect an MCP agent</b><span>Claude Code, Codex, or a Claude connector edits this Show from where you already talk to it.</span></button></div>`;
+  else if (S.arming) h+=`<div class="arm"><p>Point your agent at</p><div class="url">https://pxlblz-ide.whiteroomsoftware.com/mcp</div><details><summary>How to add an MCP server</summary><div><span class="cmd"><b>Claude Code</b><code>${CMD_CLAUDE}</code><button class="cp" data-copy="claude" aria-label="Copy the Claude Code command" title="Copy">${COPY}</button></span><span class="cmd"><b>Codex</b><code>${CMD_CODEX}</code><button class="cp" data-copy="codex" aria-label="Copy the Codex command" title="Copy">${COPY}</button></span><span><b>Claude</b>Settings › Connectors › Add › paste the URL</span></div></details><p>Then ask it to edit this Show. Once it connects you can close this drawer.</p><div><button class="btn" data-a="cancelArm">Cancel</button></div></div>`;
+  else { const st = S.dropped?'contact lost':S.request?.phase==='waiting'?'waiting for you to finish':S.request?.phase==='thinking'?'thinking':S.request?'working':'connected';
+    h+=`<div class="who"><div class="name"><span class="dot ${S.dropped?'drop':S.request?'busy':''}"></span>${c.name}<span class="sp"></span><button class="ib" data-a="disconnect" aria-label="Disconnect ${c.name}" title="Disconnect ${c.name}">${UNPLUG}</button></div><div class="st ${S.request?'w':''}">${st}</div>${S.dropped||S.request?`<div class="act">${S.dropped?'<button class="btn pri" data-a="reattach">Restore contact</button>':''}${S.request?'<button class="btn" data-a="cancel">Cancel</button>':''}</div>`:''}</div>`; }
+  // one stream
+  h+='<div class="stream" id="stream">';
+  if (c){ h+=`<div class="h">Activity</div>`; if(!S.stream.length) h+=`<div class="empty">Nothing yet.</div>`; }
+  for (const l of S.stream){
+    if (l.kind==='me') h+=`<div class="msg me">${l.text}</div>`;
+    else if (l.kind==='ai') h+=`<div class="msg ai">${l.text}</div>`;
+    else if (l.kind==='think') h+=`<div class="msg think">thinking…</div>`;
+    else if (l.kind==='sys') { h+=`<div class="line sys">${l.text}</div>`; if(S.showMcp&&l.mcp) h+=`<div class="mcp">${l.mcp}</div>`; }
+    else { const cls=l.state==='preparing'||l.state==='waiting'?'busy':l.state==='refused'||l.state==='failed'?'bad':l.state==='superseded'||l.state==='cancelled'?'muted':'done';
+      h+=`<div class="line ${cls}">${l.text}<span class="s ${stateCls(l.state)}">${stateWord(l.state)}</span></div>`;
+      if(S.showMcp&&l.mcp) h+=`<div class="mcp">${l.mcp}</div>`;
+      for(const x of (l.lines||[])) h+=`<div class="sub ${l.state==='refused'||l.state==='failed'?'bad':''}">${x}</div>`;
+      if(S.showMcp&&l.mcp2) h+=`<div class="mcp">${l.mcp2}</div>`;
+      if(l.state==='failed' && !l.dismissed && !l.retryStarted) h+=`<div class="sub">${c?.kind==='builtin'?`<button class="btn" data-a="retry" data-op="${l.op}">Retry</button>`:c?.kind==='external'?'Ask your agent to try again from current state. ':''}<button class="btn quiet" data-a="dismiss" data-op="${l.op}">Dismiss</button></div>`; }
+  }
+  h+='</div>';
+  if (c?.kind==='builtin') h+=`<div class="composer"><input id="say" placeholder="Ask for an edit…" aria-label="Message the Pixelblaze agent"><button class="btn" data-a="send">Send</button></div>`;
+  d.innerHTML=h;
+  const composer=$('say');
+  if(composer){composer.value=draft;if(composerFocused){composer.focus({preventScroll:true});if(selection)composer.setSelectionRange(...selection);}}
+}
+
+function renderOther(){
+  $('mcplog').innerHTML = mcp.map(m=>`<div class="${m.cls}">${m.t}</div>`).join('') || '<div class="s">nothing yet</div>';
+  $('ledger').innerHTML = [['document revision',S.revision],['history entries',S.history.length+(S.history.length?` (last: ${S.history.at(-1).label})`:'')],['persistence',S.save+(S.writes?` · ${S.writes} write${S.writes>1?'s':''}`:'')],['connection',S.connection?`${S.connection.name}${S.dropped?' · dropped':''}`:'none'],['request',S.request?`${S.request.id} · ${S.request.phase}${S.plannedRevision?` · base rev ${S.plannedRevision}`:''}`:'none'],['drawer',S.drawer+(S.unread?` · ${S.unread} unread`:'')],['highlights',S.highlights.length?`${S.highlights.join(', ')} · ${S.hlPhase}`:(S.band?'time band':'none')]].map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('');
+}
+const FREE = [
+  ['Author',[['Open drawer',{type:'drawer',mode:'open'}],['Close drawer',{type:'drawer',mode:'tucked'}],['Pin',{type:'drawer',mode:'pinned'}],['Use the Pixelblaze agent',{type:'chooseBuiltin'}],['Connect an MCP agent',{type:'connectOwn'}],['Drag a Clip (start)',{type:'gestureStart',clip:'cme2'}],['…drop it',{type:'gestureEnd'}],['Manual move (overlay 2)',{type:'manualEdit',clip:'cme2'}],['Undo',{type:'undo'}],['Leave the Show',{type:'leave'}]]],
+  ['Agent',[['Binds (Claude Code)',{type:'agentBinds',client:'Claude Code'}],['Calls with no window (knock)',{type:'knock',client:'Claude Code'}],['Reads the Show',{type:'reading'}],['begin: tighten intro',{type:'beginEdit',edit:'tighten'}],['begin: balance sections',{type:'beginEdit',edit:'balance'}],['begin: nudge overlay 2',{type:'beginEdit',edit:'nudge'}],['begin: insert 4 s',{type:'beginEdit',edit:'insert'}],['commit',{type:'commit'}],['Transport drops',{type:'drop'}]]],
+  ['Service',[['Save completes',{type:'saved'}],['Save fails',{type:'saveFailed'}]]],
+];
+function renderFree(){ if($('free').children.length) return; $('free').innerHTML = FREE.map(([g,items],gi)=>`<div class="g">${g}</div>${items.map((it,i)=>`<button data-free="${gi}:${i}">${it[0]}</button>`).join('')}`).join(''); }
+function render(){ renderTimeline(); renderEdge(); renderChip(); renderDrawer(); renderOther(); renderFree(); document.querySelectorAll('[data-drawer]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.drawer===S.drawer)); document.querySelectorAll('[data-chip]').forEach(b=>b.setAttribute('aria-pressed',(b.dataset.chip==='on')===S.chip)); $('mcppane').style.opacity = S.showMcp?1:.45; }
+
+/* ── wiring ── */
+document.addEventListener('click', e=>{
+  const btn = e.target.closest('[data-a]'); const a = btn?.dataset.a;
+  const menu = document.getElementById('menu'); if (menu && !e.target.closest('[data-a="menu"]') && !menu.contains(e.target)) menu.classList.remove('open');
+  const cp = e.target.closest('[data-copy]'); if (cp) { const text = cp.dataset.copy==='claude'?CMD_CLAUDE:CMD_CODEX; navigator.clipboard?.writeText(text).catch(()=>{}); cp.classList.add('done'); setTimeout(()=>cp.classList.remove('done'),1200); return; }
+  if(!a) { if (S.drawer==='open' && !e.target.closest('#drawer') && e.target.closest('#ws')) dispatch({type:'drawer',mode:'tucked'}); return; }
+  if (a==='menu') { menu?.classList.toggle('open'); return; }
+  if (a==='pin') dispatch({type:'drawer',mode:S.drawer==='pinned'?'open':'pinned'});
+  else if (a==='send') { const v=$('say').value.trim()||'Tighten the intro'; $('say').value=''; dispatch({type:'say',text:v}); setTimeout(()=>dispatch({type:'thinking'}),300); setTimeout(()=>{dispatch({type:'reply',text:'I’ll shorten the 50% overlay and start the second overlay two seconds later.'}); dispatch({type:'beginEdit',edit:'tighten'});},1600); setTimeout(()=>dispatch({type:'commit'}),3200); setTimeout(()=>dispatch({type:'saved'}),4600); }
+  else dispatch({type:a,op:btn?.dataset.op});
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape' && S.drawer==='open') dispatch({type:'drawer',mode:'tucked'}); });
+$('edgetab').addEventListener('click',e=>{ e.stopPropagation(); dispatch({type:'drawer',mode:'open'}); });
+$('undo').addEventListener('click',e=>{ e.stopPropagation(); dispatch({type:'undo'}); });
+document.querySelectorAll('[data-drawer]').forEach(b=>b.addEventListener('click',()=>dispatch({type:'drawer',mode:b.dataset.drawer})));
+document.querySelectorAll('[data-chip]').forEach(b=>b.addEventListener('click',()=>dispatch({type:'chip',on:b.dataset.chip==='on'})));
+document.querySelectorAll('[data-col]').forEach(b=>b.addEventListener('click',()=>{ const c={cyan:['#67e8f9','rgba(103,232,249,.16)'],violet:['#c4b5fd','rgba(196,181,253,.18)'],green:['#86efac','rgba(134,239,172,.16)']}[b.dataset.col]; document.documentElement.style.setProperty('--agent',c[0]); document.documentElement.style.setProperty('--agent-dim',c[1]); document.querySelectorAll('[data-col]').forEach(x=>x.setAttribute('aria-pressed',x===b)); }));
+$('free').addEventListener('click',e=>{ const k=e.target.closest('[data-free]')?.dataset.free; if(!k) return; const [g,i]=k.split(':'); dispatch(FREE[g][1][i][1]); });
+
+/* ── walkthroughs ── */
+const SCEN = [
+  {n:'S1 · Pixelblaze agent, first time', d:'Drawer tucked, nothing connected. Open it, choose the Pixelblaze agent, ask for an edit. Watch the edge tab, then the two Clips on the timeline.', steps:[
+    ['Open the Agent drawer',{type:'drawer',mode:'open'}],['Choose "Use the Pixelblaze agent" (drawer pins)',{type:'chooseBuiltin'}],['Type "tighten the intro" and send',{type:'say',text:'tighten the intro'}],['Agent thinks',{type:'thinking'}],['Agent replies and begins an edit',[{type:'reply',text:'I’ll shorten the 50% overlay and start the second overlay two seconds later.'},{type:'beginEdit',edit:'tighten'}]],['Edit commits: two Clips ring, one history entry',{type:'commit'}],['Save completes',{type:'saved'}],['Close the drawer: outlines stay until you touch them',{type:'drawer',mode:'tucked'}]]},
+  {n:'S2 · Claude Code, first time (IDE first)', d:'Point Claude Code at the server from the drawer, then close the drawer. Everything after that must be legible with the drawer tucked.', steps:[
+    ['Open the Agent drawer',{type:'drawer',mode:'open'}],['Choose "Connect an MCP agent"',{type:'connectOwn'}],['Claude Code signs in and connects (drawer pins)',{type:'agentBinds',client:'Claude Code'}],['Close the drawer and go back to the timeline',{type:'drawer',mode:'tucked'}],['Claude Code reads the Show',{type:'reading'}],['Claude Code begins an edit: edge tab goes amber',{type:'beginEdit',edit:'balance'}],['Commit: two Clips ring, badge on the edge tab',{type:'commit'}],['Save completes',{type:'saved'}],['Open the drawer to read the activity',{type:'drawer',mode:'open'}]]},
+  {n:'S3 · Agent first: the call', d:'Nothing is connected and the drawer is tucked. You talk to Claude Code first. Its call has no window to land in, so the drawer opens by itself with a call to answer.', steps:[
+    ['Claude Code calls',{type:'knock',client:'Claude Code'}],['Answer: connected to this Show in one click',{type:'approveKnock'}],['Close the drawer',{type:'drawer',mode:'tucked'}],['The held call proceeds: begin edit',{type:'beginEdit',edit:'tighten'}],['Commit',{type:'commit'}],['Save completes',{type:'saved'}]]},
+  {n:'S4 · Stale base: refused, then replanned', d:'Claude Code plans against revision 1. You move the very Clip it targeted. The commit is refused on the entity, the agent replans, and the second attempt lands.', steps:[
+    ['Claude Code is connected; drawer tucked',[{type:'agentBinds',client:'Claude Code'},{type:'drawer',mode:'tucked'}]],['Begin edit targeting overlay 2',{type:'beginEdit',edit:'nudge'}],['You move overlay 2 by hand (revision bumps)',{type:'manualEdit',clip:'cme2'}],['Commit arrives on a stale base: refused, double red ring',{type:'commit'}],['Claude Code replans: begin again',{type:'beginEdit',edit:'nudge'}],['Commit: applied at the new position',{type:'commit'}],['Save completes',{type:'saved'}]]},
+  {n:'S5 · Gesture cancelled: apply', d:'The edit waits while you drag. Cancelling the gesture leaves the revision unchanged, so admission can apply after its second check within five seconds.', steps:[
+    ['Claude Code connected; drawer tucked',[{type:'agentBinds',client:'Claude Code'},{type:'drawer',mode:'tucked'}]],['Begin edit: balance the sections',{type:'beginEdit',edit:'balance'}],['You start dragging overlay 2',{type:'gestureStart',clip:'cme2'}],['Commit arrives: waiting',{type:'commit'}],['You cancel the drag: unchanged state permits application',{type:'gestureCancel'}],['Save completes',{type:'saved'}]]},
+  {n:'S5b · Gesture committed: refuse', d:'Committing the manual drag changes the revision. The waiting whole-Show candidate is refused and manual work remains.', steps:[
+    ['Claude Code connected; drawer tucked',[{type:'agentBinds',client:'Claude Code'},{type:'drawer',mode:'tucked'}]],['Begin edit',{type:'beginEdit',edit:'balance'}],['Start manual drag',{type:'gestureStart',clip:'cme2'}],['Agent candidate waits',{type:'commit'}],['Commit the manual drag: candidate refuses',{type:'gestureEnd'}]]},
+  {n:'S6 · Save fails and rolls back', d:'An applied edit is not a saved edit (D6). The store rolls it back; the rings clear because the change is gone; the line offers Retry.', steps:[
+    ['Pixelblaze agent; drawer open',[{type:'drawer',mode:'open'},{type:'chooseBuiltin'}]],['Begin and commit',[{type:'beginEdit',edit:'tighten'},{type:'commit'}]],['Save fails: rolled back, rings clear',{type:'saveFailed'}],['Retry starts a fresh request; failure stays in history',{type:'retry'}],['Fresh candidate passes admission',{type:'commit'}],['Save completes',{type:'saved'}]]},
+  {n:'S7 · Timeline-wide edit', d:'Insert time touches many Clips. The highlight is a band at the insertion, not a ring on every Clip; shifted Clips simply move.', steps:[
+    ['Claude Code connected; drawer tucked',[{type:'agentBinds',client:'Claude Code'},{type:'drawer',mode:'tucked'}]],['Begin: insert 4 s at 30 s',{type:'beginEdit',edit:'insert'}],['Commit: band appears, Clips after 30 s shift',{type:'commit'}],['Save completes',{type:'saved'}],['Undo from the transport: band and shift go',{type:'undo'}]]},
+  {n:'S8 · Lost contact and recovery', d:'Transport loss preserves the binding and known edit outcome. Restore contact, query the existing operation without replay, then explicitly disconnect.', steps:[
+    ['Claude Code connected; drawer open',[{type:'drawer',mode:'open'},{type:'agentBinds',client:'Claude Code'}]],['Begin and apply an edit',[{type:'beginEdit',edit:'tighten'},{type:'commit'}]],['Contact is lost before save acknowledgement',{type:'drop'}],['Store confirms the save while contact is lost',{type:'saved'}],['Restore contact and read the existing outcome',{type:'reattach'}],['Disconnect',{type:'disconnect'}]]},
+  {n:'S9 · Setup expires', d:'Connect stays armed for 2 minutes. An incoming call waits 30 seconds. Expiry simulation buttons advance those deadlines; no edit is admitted.', steps:[
+    ['Open drawer and arm',[{type:'drawer',mode:'open'},{type:'connectOwn'}]],['Two minutes pass',{type:'expireArm'}],['An incoming agent calls',{type:'knock'}],['Thirty seconds pass without Answer',{type:'expireKnock'}]]},
+  {n:'S10 · Dismiss preserves the failure', d:'Dismiss removes recovery actions while retaining the rolled-back outcome and unrelated draft.', steps:[
+    ['Choose the Pixelblaze agent',[{type:'drawer',mode:'open'},{type:'chooseBuiltin'}]],['Apply edit',[{type:'beginEdit',edit:'tighten'},{type:'commit'}]],['Save rolls back',{type:'saveFailed'}],['Dismiss actions; failure remains',{type:'dismiss'}]]},
+  {n:'S11 · Contact lost while working', d:'Loss of contact preserves the active operation. If its outcome cannot be recovered, say unknown and do not replay.', steps:[
+    ['Connect external agent',[{type:'drawer',mode:'open'},{type:'agentBinds'}]],['Begin edit',{type:'beginEdit',edit:'tighten'}],['Contact lost; operation retained',{type:'drop'}],['Contact restored; query same operation',{type:'reattach'}],['Outcome lookup unavailable; no replay',{type:'outcomeUnknown'}]]},
+];
+let sc=null, step=0;
+function loadScen(i){ sc = i>=0 ? SCEN[i] : null; step=0; S=AgentModel.initial(); mcp=[]; render(); cap(); }
+function cap(){ if(!sc){ $('cap-n').textContent='FREE PLAY'; $('cap-p').textContent='Drive it with the buttons under the frame, or pick a walkthrough.'; return; } $('cap-n').textContent=`${sc.n} · ${Math.min(step,sc.steps.length)}/${sc.steps.length}`; $('cap-p').textContent = step===0 ? sc.d : `${sc.steps[step-1][0]}.${step<sc.steps.length?'  Next: '+sc.steps[step][0]:'  Done.'}`; }
+$('next').addEventListener('click',()=>{ if(!sc){ loadScen(0); $('scenario').value='0'; return; } if(step>=sc.steps.length) return; const a=sc.steps[step][1]; (Array.isArray(a)?a:[a]).forEach(x=>dispatch(x)); step++; cap(); });
+$('prev').addEventListener('click',()=>{ if(!sc) return; const to=Math.max(0,step-1); loadScen(SCEN.indexOf(sc)); for(let i=0;i<to;i++){ const a=sc.steps[i][1]; (Array.isArray(a)?a:[a]).forEach(x=>dispatch(x)); } step=to; cap(); });
+$('reset').addEventListener('click',()=>loadScen(sc?SCEN.indexOf(sc):-1));
+$('scenario').innerHTML = '<option value="-1">Free play</option>'+SCEN.map((s,i)=>`<option value="${i}">${s.n}</option>`).join('');
+$('scenario').addEventListener('change',e=>loadScen(+e.target.value));
+document.addEventListener('keydown',e=>{ if(e.target.matches('input,textarea')) return; if(e.key==='ArrowRight') $('next').click(); if(e.key==='ArrowLeft') $('prev').click(); });
+render(); cap();
+</script>
+</body>
+</html>

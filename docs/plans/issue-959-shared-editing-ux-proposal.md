@@ -1,5 +1,11 @@
 # Shared Show editing UX: behaviour proposal (#959)
 
+Historical proposal and review record. The accepted 2026-09-10
+[interaction design](shared-show-editing-ux-design.md) supersedes conflicting
+layout, payer-copy, retry, transport-loss and cross-window recovery provisions
+below. Cross-window Disconnect/Forget is deferred to #1002; this historical
+record does not impose it on v1.9.
+
 Status: v2, 2026-09-06. Drafted by Fable 5.1 from design conversations with
 Jon. v1 was reviewed by Astra Medium (`gpt-6-astra`, medium) on 2026-09-06
 with the verdict "proceed with the listed changes"; the disposition of its

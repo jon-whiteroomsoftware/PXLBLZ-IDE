@@ -200,7 +200,7 @@ Jon accepted #959's D1–D10 behaviour decisions on 2026-09-06. Manual editing c
 one agent connection, built-in or external, is bound to one window and Show. A second agent
 is refused; built-in and external agents are not simultaneously active. Leaving the Show,
 reload, tab closure, release, revocation or stale expiry ends the binding and retires unapplied
-requests. Release or revoke is available from another signed-in window. An HTTP stream ending
+requests. Disconnect and Forget are available in the bound window in v1. Cross-window recovery is deferred to #1002 and is not a v1.9 release gate. An HTTP stream ending
 alone is not cancellation or release. Reconnect requires an explicit Connect from the intended
 Show and never replays prior work.
 
@@ -214,12 +214,13 @@ inside the IDE. Opening the panel authorizes neither a connection nor inference 
 The behaviour proposal and detailed scenario design are attached from
 [#959](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/959), with a
 [durable artifact bundle](https://gist.github.com/jon-whiteroomsoftware/27fd62952969c2fa9973b469c05e8074).
-Their original right-column placement was rejected. Layout prerequisites
-#965/#966/#967/#968/#976/#977 are now closed, with the panel overhaul on local main.
-Final placement can proceed against that layout: a Show-header agent pill and pinned popover
-following the Controller precedent, with the existing HelpHint treatment. Detailed visual and
-interaction approval remains Jon's gate. Desktop is the product; narrow layouts need reachable
-controls and no focus trap, rather than a separate phone authoring experience.
+Jon accepted the right-edge agent drawer and review corrections on 2026-09-10.
+The [interaction design](shared-show-editing-ux-design.md) and primary
+[drawer prototype](agent-drawer-prototype.html) supersede the original right-column
+placement and later header-pill/popover proposal. Layout prerequisites
+#965/#966/#967/#968/#976/#977 are closed. Desktop is the product; narrow layouts
+need reachable controls and no focus trap. Product implementation and qualification
+remain separate from design approval.
 
 #946 owns admission and outcome-lifetime details; #947 owns the finite command census;
 #956 owns service, transport, grant/credential lifetimes and supported clients. Their discussions
@@ -1017,3 +1018,11 @@ behavior.
 - Accepted platform decisions: separation (`docs/adr/0001-separate-next-generation-platform.md`),
   appliance priority (`docs/adr/0002-appliance-first-target-priority.md`), and portability
   (`docs/adr/0003-pixelblaze-portability-not-compatibility.md`).
+
+## Accepted drawer review corrections (2026-09-10)
+
+The current UX contract is `shared-show-editing-ux-design.md` and its primary `agent-drawer-prototype.html`. A supported built-in Retry creates a fresh operation against current state with stable intent/targets and a link to the unchanged failed attempt. Dismiss removes actions only. External failures direct retry to the external client; the drawer never starts that inference. Unrelated composer drafts survive.
+
+Lost contact preserves the binding, operation identity and known save outcome; restoration queries the existing operation without replay. Confirmed binding retirement ends only unapplied work. Unknown receipts remain unknown. Gesture cancellation with unchanged state can permit application within the five-second wait; committing conflicting manual work causes refusal. Setup timers are 120 seconds armed and 30 seconds for an unanswered incoming call.
+
+Cross-window Disconnect/Forget is deferred to #1002 by Jon. V1 keeps local controls, single-slot refusal and bounded stale-binding expiry. The follow-up is not a release dependency.

@@ -45,6 +45,14 @@ These four choices and the spending ceiling are accepted. Engineering can choose
 bounded implementation mechanics; return to Jon for a
 change in behavior, cost boundary or storage scope.
 
+## Connection setup and recovery accepted 2026-09-10
+
+Arming lasts **120 seconds** after Connect an MCP agent. An incoming authenticated call waits **30 seconds** for Answer before returning the typed refusal. These setup timers do not bound an established editing session or model execution.
+
+Transport loss preserves logical binding and known operation/save outcomes. Restore contact queries the same operation; no automatic replay or new paid dispatch follows. Only confirmed binding retirement ends unapplied work; already-adopted saves continue normally. Missing session receipts remain unknown.
+
+V1 offers Disconnect and Forget only in the bound window. Cross-window Disconnect/Forget is deferred to #1002, outside v1.9 gates. Single-slot refusal and bounded stale-binding expiry remain. Storage/claim mechanics stay under the approved shared atomic owner; no second connection or takeover is introduced.
+
 ## Implementation constraints and evidence
 
 ### Eligibility and secrets
