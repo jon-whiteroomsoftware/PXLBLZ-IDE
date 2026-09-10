@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "998",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-remix-overture",
+  "operation": "Coordinator captured and inspected the Codex in-app browser at http://localhost:5179/PXLBLZ-IDE/studio/shows/stock-show-remix-overture, signed in as synthetic local-agent-08. Studio shows Connect a Controller. The runtime identity was verified against the captured code tip.",
+  "captures": [
+    ".wrsp/ui-proof/998-studio-controller.jpg"
+  ],
+  "capturedAtCommit": "f31ed70bbd759864d6bd79fa1fb627e906e0078f"
+}

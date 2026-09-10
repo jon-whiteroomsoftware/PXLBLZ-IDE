@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "998",
+  "route": "/PXLBLZ-IDE/gallery",
+  "operation": "Coordinator captured and inspected the Codex in-app browser at http://[::1]:5179/PXLBLZ-IDE/gallery, using the separate IPv6 cookie scope without modifying cookies. The public header shows Sign in and no Controller bar or Connect.",
+  "captures": [
+    ".wrsp/ui-proof/998-gallery-signed-out.jpg"
+  ],
+  "capturedAtCommit": "f31ed70bbd759864d6bd79fa1fb627e906e0078f"
+}

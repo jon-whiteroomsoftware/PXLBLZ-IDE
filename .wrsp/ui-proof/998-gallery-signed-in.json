@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "998",
+  "route": "/PXLBLZ-IDE/gallery",
+  "operation": "Coordinator captured and inspected the Codex in-app browser at http://localhost:5179/PXLBLZ-IDE/gallery, signed in as synthetic local-agent-08. The header shows the account and no Controller bar or Connect; Connect count was zero and error logs empty.",
+  "captures": [
+    ".wrsp/ui-proof/998-gallery-signed-in.jpg"
+  ],
+  "capturedAtCommit": "f31ed70bbd759864d6bd79fa1fb627e906e0078f"
+}
