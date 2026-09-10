@@ -18,7 +18,8 @@ beforeAll(async () => {
     d1Databases: ['PXLBLZ_DB'], durableObjects: { AGENT_ACCOUNTS: { className: 'AgentAccount', useSQLite: true } },
   }))
   const db = await runtime.getD1Database('PXLBLZ_DB')
-  await db.exec("CREATE TABLE personal_shows (user_id TEXT, id TEXT); INSERT INTO personal_shows VALUES ('account-a', 'show-a'), ('account-b', 'show-b'), ('account-c', 'show-c')")
+  await db.exec("CREATE TABLE personal_shows (user_id TEXT, id TEXT)")
+  await db.exec("INSERT INTO personal_shows VALUES ('account-a', 'show-a'), ('account-b', 'show-b'), ('account-c', 'show-c')")
   cookie = `pxlblz_session=${await createSessionToken({ userId: 'account-a', primaryProvider: 'github', primaryHandle: null, displayName: null, avatarUrl: null }, 'test-secret')}`
 }, 30_000)
 afterAll(async () => { await runtime?.dispose() })
