@@ -126,3 +126,12 @@ export function agentEdgeState(state: AgentDrawerState) {
   if (state.request) return { label: state.request.phase === 'waiting' ? 'WAITING' : 'WORKING', dot: state.request.phase === 'waiting' ? 'waiting' : 'busy', ringing: false, failed }
   return { label: 'AGENT', dot: failed ? 'failed' : state.connection ? 'connected' : 'none', ringing: false, failed }
 }
+
+export function agentEdgeAccessibleName(state: AgentDrawerState): string {
+  const status = state.contactLost ? 'contact lost'
+    : state.pendingCall ? `incoming call from ${state.pendingCall.name}`
+      : state.request ? state.request.phase === 'waiting' ? 'waiting for you' : state.request.phase
+        : state.armingUntil !== null ? 'waiting for an agent to connect'
+          : state.connection ? `${state.connection.name} connected` : 'no agent connected'
+  return `Open the Agent drawer; ${agentEdgeState(state).label.toLowerCase()}; ${status}; ${state.unread.length} unread outcomes`
+}

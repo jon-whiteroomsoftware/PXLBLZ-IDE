@@ -1246,6 +1246,8 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         await page.keyboard.press('Escape')
         const failed = await waitForDone(page, first)
         expect(failed).toMatchObject({ applied: false, outcome: { status: 'refused', reason: 'revision-conflict' } })
+        const agentEdge = page.getByRole('button', { name: /Open the Agent drawer/ })
+        if (await agentEdge.isVisible()) await agentEdge.click()
         await expect(page.getByTestId('agent-chat-retry')).toBeVisible()
         await page.locator('[data-show-selection-key="clip:resize-b"]').click()
         await page.keyboard.press('Escape')
@@ -1256,6 +1258,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         const manual = await visibleRecord(page)
         await expect.poll(() => durableShow(page, record.id)).toEqual(manual)
         const writesBeforeRetry = completeWrites.length
+        if (await agentEdge.isVisible()) await agentEdge.click()
         const composer = page.getByTestId('agent-chat-input')
         await composer.fill('Keep this unrelated draft')
         await composer.press('Home')

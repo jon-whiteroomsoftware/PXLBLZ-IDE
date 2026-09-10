@@ -20,7 +20,7 @@ it('keeps a mounted workspace and disables Send throughout applied/save-pending 
   act(() => { controller.dispatch({ type: 'outcome', id: 'a', outcome: 'saved' }); useAgentDrawerStore.setState({ busy: false }) })
   expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
   fireEvent.click(screen.getByRole('button', { name: 'Unpin the Agent drawer' }))
-  expect(screen.getByRole('button', { name: /Open the Agent drawer; agent; 0 unread/ })).toBeVisible()
+  expect(screen.getByRole('button', { name: /Open the Agent drawer; agent;.*0 unread/ })).toBeVisible()
   rerender(<AgentDrawerWorkspace narrow={true}><input aria-label="Manual field" /></AgentDrawerWorkspace>)
   expect(screen.getByRole('textbox', { name: 'Manual field' })).toBe(field)
 })
@@ -58,4 +58,37 @@ it('announces a later rollback even when a newer operation already has an outcom
     controller.dispatch({ type: 'outcome', id: 'old', outcome: 'rolled-back' })
   })
   expect(screen.getByRole('status')).toHaveTextContent('First resize: rolled back')
+})
+
+it('names connection loss on the tucked keyboard edge', () => {
+  controller.dispatch({ type: 'chooseBuiltin' })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  act(() => controller.dispatch({ type: 'drop' }))
+  expect(screen.getByRole('button', { name: /Open the Agent drawer;.*contact lost.*0 unread/ })).toBeVisible()
+})
+
+it('keeps Retry unavailable while another applied operation still owns the save', () => {
+  controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
+  controller.dispatch({ type: 'beginEdit', id: 'old', intent: 'First resize' })
+  controller.dispatch({ type: 'outcome', id: 'old', outcome: 'not-applied', retryable: true })
+  controller.dispatch({ type: 'beginEdit', id: 'new', intent: 'Second resize' })
+  controller.dispatch({ type: 'outcome', id: 'new', outcome: 'applied' })
+  useAgentDrawerStore.setState({ busy: true })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  expect(screen.getByRole('button', { name: 'Retry' })).toBeDisabled()
+})
+
+it('returns keyboard focus from dismissed recovery controls to the preserved composer selection', async () => {
+  controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
+  controller.dispatch({ type: 'draft', text: 'Keep this draft' })
+  controller.dispatch({ type: 'beginEdit', id: 'old', intent: 'Resize' })
+  controller.dispatch({ type: 'outcome', id: 'old', outcome: 'not-applied', retryable: true })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  const composer = screen.getByRole('textbox', { name: 'Message the Pixelblaze agent' }) as HTMLInputElement
+  composer.setSelectionRange(2, 5)
+  const dismiss = screen.getByRole('button', { name: 'Dismiss' }); dismiss.focus()
+  fireEvent.click(dismiss)
+  await vi.waitFor(() => expect(composer).toHaveFocus())
+  expect([composer.selectionStart, composer.selectionEnd]).toEqual([2, 5])
+  expect(composer).toHaveValue('Keep this draft')
 })
