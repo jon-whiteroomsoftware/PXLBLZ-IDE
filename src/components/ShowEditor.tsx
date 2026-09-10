@@ -935,7 +935,7 @@ export function ShowEditor({
   transportClockActive?: boolean
   protectDetailPanelTransport?: boolean
   onTimelineMinimumHeightChange?: (height: number) => void
-  onTimelineContentHeightChange?: (height: number) => void
+  onTimelineContentHeightChange?: (height: number, requiredHeight: number) => void
   onOpenStagePreview?: (anchor: HTMLElement) => void
 }) {
   useLayoutEffect(() => {
@@ -1585,10 +1585,13 @@ export function ShowEditor({
       }))
       // Automatic fitting includes the visible Live strip and all lanes. Undo scroll
       // translation rather than measuring the scroll viewport's assigned size.
-      onTimelineContentHeightChange?.(Math.ceil(
-        sectionRect.bottom - rootTop + scroll.scrollTop
-          + (Number.parseFloat(padding.paddingBottom) || 0) + footerHeight,
-      ))
+      const tail = timelineGrid.querySelector<HTMLElement>('[data-show-timeline-tail]')
+      const contentBottom = tail ? tail.getBoundingClientRect().top - rowGap : sectionRect.bottom
+      onTimelineContentHeightChange?.(
+        Math.ceil(sectionRect.bottom - rootTop + scroll.scrollTop
+          + (Number.parseFloat(padding.paddingBottom) || 0) + footerHeight),
+        Math.ceil(contentBottom - rootTop + scroll.scrollTop + footerHeight),
+      )
     }
 
     measure()
@@ -4563,7 +4566,7 @@ function ShowTimelineWorkspace({
       }, () => '44px'),
       ...(propertyLanesByZone.get(row.zoneId) ?? []).map(() => '18px'),
     ]),
-    '34px',
+    '17px',
   ]
   const timelineScale = viewport.totalMs / viewport.durationMs
   const timelineWidth = `calc(${timelineScale * 100}% + ${212 * (1 - timelineScale)}px)`
@@ -4781,7 +4784,7 @@ function ShowTimelineWorkspace({
   }
   return (
     <div
-      className="select-none border-b border-seam bg-[#060608] px-2 py-2.5 shadow-[inset_0_6px_14px_-8px_rgba(0,0,0,0.9),inset_0_-6px_14px_-10px_rgba(0,0,0,0.9)] [&_input]:select-text [&_textarea]:select-text"
+      className="select-none bg-[#060608] px-2 py-2.5 shadow-[inset_0_6px_14px_-8px_rgba(0,0,0,0.9),inset_0_-6px_14px_-10px_rgba(0,0,0,0.9)] [&_input]:select-text [&_textarea]:select-text"
       onClick={() => {
         onDismiss()
         setAddMenuOpen(false)
@@ -5288,6 +5291,12 @@ function ShowTimelineWorkspace({
             gridTemplateRows: rows.join(' '),
           }}
         >
+        <div
+          aria-hidden
+          data-show-timeline-tail
+          className="pointer-events-none"
+          style={{ gridRow: rows.length, gridColumn: '1 / -1' }}
+        />
         {/*
           Timeline stacking contract inside this isolated canvas:
           z-10 Clips, z-15 per-layer junctions, z-20 layout masks,

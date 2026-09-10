@@ -431,6 +431,11 @@ function StudioApp() {
   const [showStagePreviewAspect, setShowStagePreviewAspect] = useState(1)
   const [showTimelineMinimumHeight, setShowTimelineMinimumHeight] = useState(SHOW_TIMELINE_MIN_HEIGHT)
   const [showTimelineContentHeight, setShowTimelineContentHeight] = useState(SHOW_TIMELINE_MIN_HEIGHT)
+  const [showTimelineRequiredHeight, setShowTimelineRequiredHeight] = useState(SHOW_TIMELINE_MIN_HEIGHT)
+  const measureShowTimelineContent = useCallback((height: number, requiredHeight: number) => {
+    setShowTimelineContentHeight(height)
+    setShowTimelineRequiredHeight(requiredHeight)
+  }, [])
   const [studioViewportWidth, setStudioViewportWidth] = useState(() => window.innerWidth)
   const narrowShowWorkspace = studioViewportWidth <= 980
   const showStageReturnFocusRef = useRef<HTMLElement | null>(null)
@@ -828,7 +833,7 @@ function StudioApp() {
       transportClockActive={narrowShowWorkspace && showStageOverlayShowId !== activeShow.id}
       protectDetailPanelTransport={!narrowShowWorkspace}
       onTimelineMinimumHeightChange={setShowTimelineMinimumHeight}
-      onTimelineContentHeightChange={setShowTimelineContentHeight}
+      onTimelineContentHeightChange={measureShowTimelineContent}
       onOpenStagePreview={(anchor) => {
         showStageReturnFocusRef.current = anchor
         setShowStageOverlayShowId(activeShow.id)
@@ -1444,6 +1449,7 @@ function StudioApp() {
                   previewAspect={showStagePreviewAspect}
                   timelineMinimumHeight={showTimelineMinimumHeight}
                   timelineContentHeight={showTimelineContentHeight}
+                  timelineRequiredHeight={showTimelineRequiredHeight}
                   timeline={activeShowEditor}
                   stage={narrowShowWorkspace ? null : (
                       <ShowStagePreview

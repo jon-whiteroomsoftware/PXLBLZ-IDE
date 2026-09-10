@@ -150,7 +150,10 @@ test.describe('authenticated Show authoring', () => {
 
   test('clips the Show End diamond below the header when the timeline scrolls (#63)', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 })
-    await page.goto('studio/shows/stock-show-301-installation-mapping')
+    const show = squareWorkspaceShow(6)
+    const response = await page.context().request.post('/api/shows', { data: show })
+    expect(response.ok(), await response.text()).toBe(true)
+    await page.goto(`studio/shows/${show.id}`)
 
     const showEnd = page.getByRole('button', { name: /Show End at/ })
     const scrollPane = page.getByTestId('show-editor-scroll')

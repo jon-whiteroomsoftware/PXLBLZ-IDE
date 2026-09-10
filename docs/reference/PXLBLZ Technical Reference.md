@@ -1190,6 +1190,10 @@ the strip fills the remainder, recomputed on content and viewport changes.
 `ShowEditor` measures content independently of scroll position; a visible Live
 strip reserves 32 px in automatic fitting and the two-lane minimum. Remembered
 height takes precedence over content and survives temporary viewport clamps.
+The marker tail below the final row is 17 px, without a second bottom separator.
+Automatic fitting includes that decoration; red divider feedback uses the bottom
+of the actual rows, excluding tail, gap, and outer padding. Size limits alone
+do not turn the divider red (#63).
 The Lesson pill opens a portaled Reading card; its hover/pinned state is local
 to the current Show. The card's switch and the Live strip's hide button share
 the existing per-Show session visibility. The strip renders reference narration

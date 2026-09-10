@@ -33,3 +33,51 @@ test('ends divider dragging after release and capture loss while the Show plays 
   }
   await toolbar.getByRole('button', { name: 'Pause Show preview' }).click()
 })
+
+test('uses a short undecorated timeline tail (#63)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('studio/shows/stock-show-301-installation-mapping')
+  const grid = page.getByTestId('show-timeline-grid')
+  await expect(grid).toBeVisible()
+  expect(await grid.evaluate((element) => Number.parseFloat(getComputedStyle(element).gridTemplateRows.split(' ').at(-1)!))).toBe(17)
+  expect(await page.getByTestId('show-timeline-toolbar').evaluate((element) => getComputedStyle(element.parentElement!).borderBottomWidth)).toBe('0px')
+})
+
+test('warns only when timeline rows are clipped, not when decorative slack or a size limit is reached (#63)', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 1400 })
+  await page.goto('studio/shows/stock-show-301-installation-mapping')
+  const divider = page.getByRole('separator', { name: 'Resize timeline and Stage' })
+  const pane = page.getByTestId('show-timeline-pane')
+  await expect(divider).toBeVisible()
+  const clipped = () => pane.evaluate((element) => {
+    const lanes = [...element.querySelectorAll<HTMLElement>('[data-show-zone-id]')]
+    return Math.max(...lanes.map((lane) => lane.getBoundingClientRect().bottom)) - element.getBoundingClientRect().bottom > 1
+  })
+  for (let step = 0; step < 30; step++) await divider.press('Shift+ArrowUp')
+  await expect(divider).toHaveAttribute('data-clamp', 'controls-min')
+  expect(await clipped()).toBe(false)
+  await expect(divider).not.toHaveClass(/border-red-400/)
+
+  await page.setViewportSize({ width: 1280, height: 720 })
+  for (let step = 0; step < 10; step++) await divider.press('Shift+ArrowDown')
+  let sawClipping = false
+  for (let step = 0; step < 60; step++) {
+    await divider.press('ArrowUp')
+    const isClipped = await clipped()
+    if (isClipped) {
+      sawClipping = true
+      await expect(divider).toHaveClass(/border-red-400/)
+      break
+    } else {
+      await expect(divider).not.toHaveClass(/border-red-400/)
+    }
+    if (await divider.getAttribute('data-clamp') === 'timeline-min') break
+  }
+  expect(sawClipping).toBe(true)
+  await page.getByRole('button', { name: 'Collapse zone Columns', exact: true }).click()
+  await expect(divider).not.toHaveClass(/border-red-400/)
+  await page.getByRole('button', { name: 'Expand zone Columns', exact: true }).click()
+  await expect(divider).toHaveClass(/border-red-400/)
+  await page.getByTestId('show-editor-scroll').evaluate((element) => { element.scrollTop = element.scrollHeight })
+  await expect(divider).toHaveClass(/border-red-400/)
+})

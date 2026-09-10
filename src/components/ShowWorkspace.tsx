@@ -14,12 +14,14 @@ export function ShowWorkspace({
   previewAspect,
   timelineMinimumHeight = SHOW_TIMELINE_MIN_HEIGHT,
   timelineContentHeight,
+  timelineRequiredHeight = timelineContentHeight,
   timeline,
   stage,
 }: {
   previewAspect: number
   timelineMinimumHeight?: number
   timelineContentHeight?: number
+  timelineRequiredHeight?: number
   timeline: ReactNode
   stage: ReactNode | null
 }) {
@@ -89,6 +91,7 @@ export function ShowWorkspace({
     event.preventDefault()
   }
 
+  const timelineClipped = timelineRequiredHeight !== undefined && layout.timelineHeight < timelineRequiredHeight - 1
   const stageAvailable = stage !== null
 
   useEffect(() => {
@@ -130,7 +133,8 @@ export function ShowWorkspace({
           aria-valuemax={Math.max(1, size.height - SHOW_WORKSPACE_DIVIDER_HEIGHT - SHOW_STRIP_MIN_HEIGHT)}
           aria-valuenow={layout.timelineHeight}
           data-clamp={layout.clamp ?? 'none'}
-          className={`group relative h-[6px] shrink-0 cursor-row-resize touch-none select-none border-y transition-colors focus-visible:outline-none ${layout.clamp
+          data-overflow={timelineClipped ? 'true' : 'false'}
+          className={`group relative h-[6px] shrink-0 cursor-row-resize touch-none select-none border-y transition-colors focus-visible:outline-none ${timelineClipped
             ? 'border-red-400/45 bg-red-400/15'
             : 'border-seam bg-zinc-900 hover:border-amber-300/45 focus-visible:border-amber-300/60'}`}
           onPointerDown={beginDragging}
@@ -164,7 +168,7 @@ export function ShowWorkspace({
         >
           <span
             aria-hidden
-            className={`absolute left-1/2 top-1/2 h-0.5 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors ${layout.clamp
+            className={`absolute left-1/2 top-1/2 h-0.5 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors ${timelineClipped
               ? 'bg-red-400'
               : 'bg-zinc-600 group-hover:bg-amber-300 group-focus-visible:bg-amber-300'}`}
           />
