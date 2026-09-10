@@ -329,17 +329,20 @@ what the profile inserted, wrapped, or bound.
 
 ## 11. Run and Save
 
-The Studio Controller popover offers Run and Save for the visible Pattern or
-Show. Its subject names the content being sent. Shows use the same readiness
-checks and warning confirmation as their header actions; canceling a warning
-sends nothing.
+The Studio Controller popover is the Run and Save surface for the visible
+Pattern or Show. Its subject names the content being sent; entity headers keep
+authoring and export actions. Pattern renderer warnings can offer a recommended
+map; Show warnings explain target compatibility. Canceling a warning sends
+nothing. Keyboard users can Tab to the Controller pill, press Enter to open it,
+and reach Run and Save with readable reasons when gated. Escape cancels pending
+confirmation.
 
 **Run** compiles with the Controller's own compiler and loads transient
 bytecode; **Save** writes a durable Pattern and activates it. The two track
 dirty state independently — a clean Run does not pretend you saved — and
 failures surface as visible alerts with a reason.
 
-Both verbs act on the open Studio Pattern. **Switch** beside them acts on the
+Both verbs act on the open Studio Pattern or Show. **Switch** beside them acts on the
 Controller's saved inventory instead: it neither opens that Pattern in Studio
 nor changes the Run or Save dirty state.
 

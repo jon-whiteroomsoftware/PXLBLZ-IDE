@@ -563,9 +563,7 @@
     min-width: 0;
   }
 
-  .show-header-action-label,
-  .show-deployment-action-label,
-  .show-deployment-identity-copy {
+  .show-header-action-label {
     display: none;
   }
 
@@ -574,8 +572,7 @@
     gap: 4px;
   }
 
-  .show-header-actions button,
-  .show-header-actions [data-testid='controller-deployment-identity'] {
+  .show-header-actions button {
     padding-inline: 6px;
   }
 }

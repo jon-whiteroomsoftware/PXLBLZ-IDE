@@ -726,7 +726,8 @@ test('deletes an inactive managed Controller Pattern and re-arms Studio Save (#8
   const controllerPill = page.getByTestId('controller-pill')
   await expect(controllerPill).toHaveAttribute('data-phase', 'live')
 
-  const save = page.getByTestId('save-to-controller')
+  await controllerPill.click()
+  const save = page.getByTestId('controller-action-row').getByRole('button', { name: 'Save', exact: true })
   await expect(save).toBeEnabled()
   await save.click()
   await expect.poll(() => page.evaluate((targetId) => {
@@ -740,7 +741,6 @@ test('deletes an inactive managed Controller Pattern and re-arms Studio Save (#8
   }, programId)).toBe(true)
   await expect(save).toBeDisabled()
 
-  await controllerPill.click()
   await page.getByRole('link', { name: `Open ${profile.name} profile` }).click()
   await expect(page).toHaveURL(new RegExp(`/studio/controllers/${profile.id}$`))
   const managedTable = page.getByRole('table', { name: 'Saved PXLBLZ Patterns' })
@@ -806,7 +806,9 @@ test('deletes an inactive managed Controller Pattern and re-arms Studio Save (#8
 
   await page.goBack()
   await expect(page).toHaveURL(new RegExp(`/studio/patterns/${pattern.id}$`))
-  await expect(page.getByTestId('save-to-controller')).toBeEnabled()
+  await controllerPill.click()
+  await expect(save).toBeEnabled()
+  await expect(save).not.toHaveAttribute('aria-disabled', 'true')
 })
 
 test('keeps the Shows header inside the center editor pane (#758)', async ({ page }) => {
@@ -1279,7 +1281,6 @@ test('saved Pattern freshness follows the full profile through a real managed ov
   await page.getByTestId('controller-go').click()
   const controllerPill = page.getByTestId('controller-pill')
   await expect(controllerPill).toHaveAttribute('data-phase', 'live')
-  await controllerPill.click()
   await page.getByRole('link', { name: `Open ${profile.name} profile` }).click()
 
   await expect(page).toHaveURL(new RegExp(`/studio/controllers/${profile.id}$`))
@@ -1337,7 +1338,6 @@ test('saved Pattern freshness follows the full profile through a real managed ov
   const patternsBody = await patternsResponse.json() as { patterns?: Array<{ id: string; src: string }> }
   expect(patternsBody.patterns?.find((item) => item.id === pattern.id)?.src).toBe(editedSource)
 
-  await controllerPill.click()
   await page.getByRole('link', { name: `Open ${profile.name} profile` }).click()
   await expect(page.getByLabel(/^Push again:/)).toBeVisible()
   await expect(page.getByLabel(/^Current:/)).toHaveCount(0)

@@ -39,12 +39,13 @@ replacement, navigation and unmount before they can paint.
 
 ShowEditor retains a prepared delivery snapshot only while that editor is
 mounted and its compilation inputs remain current. Its layout-phase delivery
-publication exposes one volatile capability to the header and Controller
-popover; both invoke the same preparation, warning-dependent confirmation and
-delivery path. The popover requires a matching Show route identity. Publication
-cleanup is editor-instance-scoped, so an old editor cannot retire a newer
-owner. Failure feedback in the popover and retained header consumes the same
-artifact-scoped result; dismissing either clears that shared outcome. Run/Save
+publication exposes one volatile capability to the Controller popover, the sole
+Run/Save surface. The popover invokes the prepared, warning-dependent delivery
+path and requires a matching Show route identity. Publication cleanup is
+editor-instance-scoped, so an old editor cannot retire a newer owner. Closing
+the popover cancels pending confirmation. Its failure feedback consumes the
+artifact-scoped result and persists across reopening until dismissal or a later
+outcome. Personal Show-save failures remain in the editor. Run/Save
 checks that snapshot and the Controller session before delivery, including after asynchronous Save
 JPEG preparation. Unmount clears the snapshot, so a late JPEG cannot send.
 Generated-code downloads retain their explicitly captured export snapshot;

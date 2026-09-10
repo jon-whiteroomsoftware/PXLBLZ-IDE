@@ -351,6 +351,13 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
   const controllerFpsSourceIp = useControllerPanelStore((s) => s.fpsSourceIp)
   const activeIp = useControllerStore((s) => s.activeIp)
   const pushing = useControllerStore((s) => s.pushing)
+  const pushResult = useControllerStore((s) => s.pushResult)
+  const clearPushResult = useControllerStore((s) => s.clearPushResult)
+  useEffect(() => {
+    if (!pushResult) return
+    const timer = setTimeout(clearPushResult, 3500)
+    return () => clearTimeout(timer)
+  }, [pushResult, clearPushResult])
   const detectExtension = useControllerStore((s) => s.detectExtension)
   const discover = useControllerStore((s) => s.discover)
   const discovered = useControllerStore((s) => s.discovered)
@@ -666,7 +673,7 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
                 <div className="flex items-center justify-between">
                   <label className="text-zinc-400">Controllers on your network</label>
                   {/* Same refresh icon + amber spin as the editor-header push button
-                      (SendToController), just standalone here. Spins while a sweep is
+                      (ControllerActionRow), just standalone here. Spins while a sweep is
                       in flight or through the forced min-spin after a manual click. */}
                   <button
                     type="button"

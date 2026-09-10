@@ -96,7 +96,7 @@ function MapPushChoices({
 }
 
 // The map-editor "Send to Controller" action (H12, issue #204) — the map analogue of
-// SendToController. It writes the open custom map's baked coordinate array to the
+// ControllerActionRow. It writes the open custom map's baked coordinate array to the
 // Controller's single shared map slot, "configuring the installation, not the pattern."
 //
 // A thin shell over the pure `describeSendMap` gate and the store's map-push flow:

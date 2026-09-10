@@ -48,14 +48,10 @@ import { ShowTransitionXrayPictogram } from '@/components/ShowTransitionXrayPict
 import { ShowArtifactInventoryPopover, ShowArtifactInventoryBody } from '@/components/ShowArtifactInventoryPopover'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
-import { PatternDeploymentActions } from '@/components/PatternDeploymentActions'
 import { PatternCombobox, type PatternComboboxOption } from '@/components/PatternCombobox'
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 import { showRecordClipCount } from '@/engine/showClipInvariant'
-import { requestControllerEntryOpen } from '@/components/controllerEntryEvents'
-import { PatternPushChoices } from '@/components/PatternPushChoices'
-import { PushConfirmPopover } from '@/components/PushConfirmPopover'
-import { describeSendToController, isAlreadyPushed, type SendMode } from '@/engine/sendToController'
+import { isAlreadyPushed, type SendMode } from '@/engine/sendToController'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { prepareShowControllerArtifact } from '@/engine/showControllerArtifact'
 import {
@@ -1028,7 +1024,6 @@ export function ShowEditor({
   const [generatedSnapshot, setGeneratedSnapshot] = useState<ShowCompilationSnapshot | null>(null)
   const [showSendMode, setShowSendMode] = useState<SendMode>('run')
   const [pendingSendMode, setPendingSendMode] = useState<SendMode | null>(null)
-  const [sendSurface, setSendSurface] = useState<'header' | 'popover'>('header')
   const pendingDeliveryRef = useRef<ShowDeliverySnapshot | null>(null)
   const preparedDeliverySnapshotRef = useRef<ShowDeliverySnapshot | null>(null)
   const [preparingSave, setPreparingSave] = useState(false)
@@ -2061,22 +2056,6 @@ export function ShowEditor({
             : preparedDeliverySnapshot
               ? null
               : 'Show is not ready to send'
-  const runGate = deliveryBlocker
-    ? { enabled: false, reason: deliveryBlocker }
-    : describeSendToController({
-        status: controllerStatus,
-        compileStatus: preparedControllerArtifact.value ? 'good' : 'broken',
-        alreadyPushed: alreadySent('run'),
-      })
-  const saveGate = deliveryBlocker
-    ? { enabled: false, reason: deliveryBlocker }
-    : describeSendToController({
-        status: controllerStatus,
-        compileStatus: preparedControllerArtifact.value ? 'good' : 'broken',
-        alreadyPushed: alreadySent('save'),
-      })
-  const controllerName = activeController ? activeController.nickname || activeIp : null
-
   function deliveryInvalidationMessage(delivery: ShowDeliverySnapshot): string | null {
     const controllerState = useControllerStore.getState()
     const deliveryController = delivery.controllerIp
@@ -2144,8 +2123,7 @@ export function ShowEditor({
     }
   }
 
-  function requestShowSend(mode: SendMode, surface: 'header' | 'popover' = 'header') {
-    setSendSurface(surface)
+  function requestShowSend(mode: SendMode) {
     const delivery = preparedDeliverySnapshot
     if (!delivery) return
     setShowSendMode(mode)
@@ -2168,10 +2146,10 @@ export function ShowEditor({
     succeeded: !!showControllerPushResult?.ok,
     failure: showControllerPushResult && !showControllerPushResult.ok ? showControllerPushResult : null,
     dismissFailure: clearArtifactPushResult,
-    pending: sendSurface === 'popover' && pendingSendMode !== null && pendingDelivery !== null,
+    pending: pendingSendMode !== null && pendingDelivery !== null,
     warnings: pendingDelivery?.prepared.warnings ?? preparedControllerArtifact.value?.warnings ?? [],
     blocked: pendingDelivery?.prepared.blocked ?? preparedControllerArtifact.value?.blocked ?? true,
-    request: (mode) => requestShowSend(mode, 'popover'),
+    request: requestShowSend,
     confirm: async () => { if (pendingSendMode) await sendShow(pendingSendMode, pendingDelivery) },
     cancel: cancelShowSend,
   } : null)
@@ -2396,45 +2374,6 @@ export function ShowEditor({
         buildExport={buildDownloadExport}
         onExportShowFile={exportAuthoredShowFile}
       />
-      <PushConfirmPopover
-        open={sendSurface === 'header' && pendingSendMode !== null && pendingDelivery !== null}
-        onCancel={() => {
-          pendingDeliveryRef.current = null
-          setPendingSendMode(null)
-        }}
-        title="Send Show"
-        testId="show-preflight-dialog"
-        anchor={(
-          <PatternDeploymentActions
-            connected={controllerStatus.kind === 'connected'}
-            controllerName={controllerName}
-            runGate={runGate}
-            saveGate={saveGate}
-            activeMode={showSendMode}
-            preparing={!artifactCompilationReady}
-            pushing={controllerPushing || preparingSave}
-            pushResult={showControllerPushResult}
-            density="compact"
-            onConnect={requestControllerEntryOpen}
-            onRun={() => requestShowSend('run')}
-            onSave={() => requestShowSend('save')}
-          />
-        )}
-      >
-        <PatternPushChoices
-          warnings={pendingDelivery?.prepared.warnings ?? preparedControllerArtifact.value?.warnings ?? []}
-          blocked={pendingDelivery?.prepared.blocked ?? preparedControllerArtifact.value?.blocked ?? true}
-          remedy={null}
-          onCancel={() => {
-            pendingDeliveryRef.current = null
-            setPendingSendMode(null)
-          }}
-          confirmWithMap={async () => {}}
-          confirmOnly={async () => {
-            if (pendingSendMode) await sendShow(pendingSendMode, pendingDelivery)
-          }}
-        />
-      </PushConfirmPopover>
     </>
   )
   const pinnedDetailAnchor = pinnedDetail?.anchor ?? null
@@ -2508,15 +2447,6 @@ export function ShowEditor({
           message="Couldn't save this Show. The last edit was reverted."
           onRetry={() => void retryShowSaveFailure()}
           onDismiss={dismissShowSaveFailure}
-        />
-      )}
-      {showControllerPushResult && !showControllerPushResult.ok && (
-        <SaveFailureNotice
-          kind="action"
-          testId="show-push-failure"
-          message={`${showControllerPushResult.mode === 'save' ? 'Save' : 'Run'} failed: ${showControllerPushResult.message}`}
-          onDismiss={clearArtifactPushResult}
-          dismissLabel={`Dismiss ${showControllerPushResult.mode === 'save' ? 'Save' : 'Run'} failure`}
         />
       )}
       <div data-testid="show-editor-scroll" className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-auto">

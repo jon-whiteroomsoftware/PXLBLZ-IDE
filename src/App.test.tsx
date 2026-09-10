@@ -1921,3 +1921,13 @@ describe('routing (#308)', () => {
     expect(screen.getByRole('button', { name: 'Open in Studio' })).toBeInTheDocument()
   })
 })
+
+it('omits the Pattern entity-header Controller delivery row (#997)', async () => {
+  window.history.replaceState(null, '', '/studio/patterns/WavyBands')
+  useWorkspaceStore.setState({ personalWorkspaceAuthenticated: true, personalWorkspaceResolved: true })
+  render(<App />)
+  await waitFor(() => expect(usePatternStore.getState().activeDemoName).toBe('WavyBands'))
+  expect(screen.queryByTestId('controller-deployment-identity')).not.toBeInTheDocument()
+  expect(screen.queryByTestId('run-on-controller')).not.toBeInTheDocument()
+  expect(screen.queryByTestId('save-to-controller')).not.toBeInTheDocument()
+})

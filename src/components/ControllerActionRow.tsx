@@ -21,6 +21,7 @@ import { useShowControllerDeliveryStore } from '@/store/showControllerDeliverySt
 import { ControllerProgramSwitch } from './ControllerProgramSwitch'
 import { PushConfirmPopover } from './PushConfirmPopover'
 import { PatternPushChoices } from './PatternPushChoices'
+import { PatternPushFailureNotice } from './PatternPushFailureNotice'
 
 export function ControllerActionRow() {
   const provider = getControllerProvider()
@@ -48,6 +49,21 @@ export function ControllerActionRow() {
   ))
   const pushing = useControllerStore((state) => state.pushing)
   const pushResult = useControllerStore((state) => state.pushResult)
+  const preflight = useControllerStore((state) => state.preflight)
+  const patternMapRemedy = useControllerStore((state) => state.patternMapRemedy)
+  const patternPushBlocked = useControllerStore((state) => state.patternPushBlocked)
+  const cancelPush = useControllerStore((state) => state.cancelPush)
+  const confirmPatternPush = useControllerStore((state) => state.confirmPatternPush)
+  const confirmPatternPushWithMap = useControllerStore((state) => state.confirmPatternPushWithMap)
+  const patternWarnings = (preflight ?? []).filter((warning) => warning.kind.startsWith('pattern-'))
+  const patternRoute = route.kind === 'studio' && route.entity?.kind === 'patterns'
+  const patternRouteId = patternRoute ? route.entity?.id : null
+  useEffect(() => () => {
+    if (!patternRouteId) return
+    const state = useControllerStore.getState()
+    if (state.preflight?.some((warning) => warning.kind.startsWith('pattern-'))) state.cancelPush()
+  }, [patternRouteId])
+  const cancelPreflight = () => { if (showDelivery) showDelivery.cancel(); else if (patternWarnings.length) cancelPush() }
   const saveArmed = useControllerStore((state) => state.saveArmed)
   const setSaveArmed = useControllerStore((state) => state.setSaveArmed)
   const lastPushedSource = useControllerStore((state) => state.lastPushedSource)
@@ -152,10 +168,10 @@ export function ControllerActionRow() {
 
   return (
     <PushConfirmPopover
-      open={!!showDelivery?.pending}
-      onCancel={() => showDelivery?.cancel()}
-      title="Send Show"
-      testId="controller-show-preflight-dialog"
+      open={!!showDelivery?.pending || (patternRoute && patternWarnings.length > 0)}
+      onCancel={cancelPreflight}
+      title={showDelivery ? 'Send Show' : 'Send pattern'}
+      testId={showDelivery ? 'controller-show-preflight-dialog' : 'pattern-preflight-dialog'}
       className="w-full"
       anchor={(
         <div data-testid="controller-action-row" className="relative w-full border-b border-seam px-3 py-2">
@@ -203,6 +219,7 @@ export function ControllerActionRow() {
               controllerId={activeIp ?? ''}
             />
           </div>
+          {patternRoute && <PatternPushFailureNotice compact />}
           {showDelivery?.failure && (
             <SaveFailureNotice
               kind="action"
@@ -217,12 +234,12 @@ export function ControllerActionRow() {
       )}
     >
       <PatternPushChoices
-        warnings={showDelivery?.warnings ?? []}
-        blocked={showDelivery?.blocked ?? true}
-        remedy={null}
-        onCancel={() => showDelivery?.cancel()}
-        confirmWithMap={async () => {}}
-        confirmOnly={async () => { await showDelivery?.confirm() }}
+        warnings={showDelivery?.warnings ?? patternWarnings}
+        blocked={showDelivery?.blocked ?? patternPushBlocked}
+        remedy={showDelivery ? null : patternMapRemedy}
+        onCancel={cancelPreflight}
+        confirmWithMap={confirmPatternPushWithMap}
+        confirmOnly={showDelivery ? async () => { await showDelivery.confirm() } : confirmPatternPush}
       />
     </PushConfirmPopover>
   )

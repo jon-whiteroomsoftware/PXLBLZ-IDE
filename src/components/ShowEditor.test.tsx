@@ -1,3 +1,4 @@
+import { useLayoutEffect } from 'react'
 import { ControllerActionRow } from './ControllerActionRow'
 import { useRouterStore } from '@/store/routerStore'
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
@@ -7091,9 +7092,9 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const provider = new ConnectedControllerProvider()
     setControllerProvider(provider)
 
-    render(<ShowEditor showId={show.id} />)
+    render(<ShowDeliveryHarness showId={show.id} />)
 
-    await user.click(screen.getByRole('button', { name: 'Run on Bench PB' }))
+    await user.click(screen.getByRole('button', { name: 'Run' }))
     expect(pushGeneratedArtifact).toHaveBeenLastCalledWith(expect.objectContaining({
       artifactId: 'show:show-send',
       name: 'Opening Night',
@@ -7102,7 +7103,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       expectedControllerSession: { id: 'ctrl-live', address: '10.0.0.5', liveEpoch: 0 },
     }))
 
-    await user.click(screen.getByRole('button', { name: 'Save to Bench PB' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
     expect(pushGeneratedArtifact).toHaveBeenLastCalledWith(expect.objectContaining({
       artifactId: 'show:show-send',
       persist: true,
@@ -7192,15 +7193,15 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    render(<ShowEditor showId={show.id} />)
+    render(<ShowDeliveryHarness showId={show.id} />)
 
     expect(screen.getByText(/Output blocked: Peak: [5-9] Patterns per pixel \(limit 4\)\./)).toBeInTheDocument()
     expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(/Controller transforms \+[\d.]+ KB/)
     expect(screen.getByLabelText(/^Controller source .* advisory\.$/i)).toBeInTheDocument()
     const blockedReason = 'Peak: 6 Patterns per pixel (limit 4).'
     // The blocker is a focusable gated reason, not a mouse-only title (#875).
-    expectDisabledReason(screen.getByRole('button', { name: 'Run on Bench PB' }), blockedReason)
-    expectDisabledReason(screen.getByRole('button', { name: 'Save to Bench PB' }), blockedReason)
+    expectDisabledReason(screen.getByRole('button', { name: 'Run' }), blockedReason)
+    expectDisabledReason(screen.getByRole('button', { name: 'Save' }), blockedReason)
   })
 
   it('does not measure an unmatched Installation target profile against the live Controller (#849)', () => {
@@ -7275,26 +7276,20 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const provider = new ConnectedControllerProvider()
     setControllerProvider(provider)
 
-    render(<ShowEditor showId={show.id} />)
-    const run = screen.getByRole('button', { name: 'Run on Bench PB' })
-    const save = screen.getByRole('button', { name: 'Save to Bench PB' })
+    render(<ShowDeliveryHarness showId={show.id} />)
+    const run = screen.getByRole('button', { name: 'Run' })
+    const save = screen.getByRole('button', { name: 'Save' })
     act(() => {
       usePatternStore.setState({ userPatterns: [newPattern] })
     })
 
-    expect(run).toBeDisabled()
-    expect(run).toHaveAttribute('title', 'Rebuilding Show...')
-    expect(save).toBeDisabled()
-    expect(save).toHaveAttribute('title', 'Rebuilding Show...')
-    expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent('Bench PB')
-    expect(screen.getByTestId('controller-deployment-identity')).not.toHaveTextContent('Rebuilding Show...')
+    expectDisabledReason(run, 'Rebuilding Show...')
+    expectDisabledReason(save, 'Rebuilding Show...')
     expect(within(run).getByText('Run')).toBeInTheDocument()
     expect(within(save).getByText('Save')).toBeInTheDocument()
-    expect(run.querySelector('svg')).toHaveClass('animate-spin')
-    expect(save.querySelector('svg')).toHaveClass('animate-spin')
     expect(pushGeneratedArtifact).not.toHaveBeenCalled()
 
-    await waitFor(() => expect(run).toBeEnabled())
+    await waitFor(() => expect(run).not.toHaveAttribute('aria-disabled', 'true'))
     expect(save).toBeEnabled()
     await user.click(run)
 
@@ -7328,10 +7323,10 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const provider = new ConnectedControllerProvider()
     setControllerProvider(provider)
 
-    render(<ShowEditor showId={show.id} />)
-    await user.click(screen.getByRole('button', { name: 'Run on Bench PB' }))
+    render(<ShowDeliveryHarness showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Run' }))
 
-    expect(screen.getByTestId('show-preflight-dialog')).toBeInTheDocument()
+    expect(screen.getByTestId('controller-show-preflight-dialog')).toBeInTheDocument()
     expect(pushGeneratedArtifact).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'Send anyway' }))
     await waitFor(() => expect(pushGeneratedArtifact).toHaveBeenCalledWith(expect.objectContaining({
@@ -7377,19 +7372,18 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    render(<ShowEditor showId={show.id} />)
-    const run = screen.getByRole('button', { name: 'Run on Bench PB' })
+    render(<ShowDeliveryHarness showId={show.id} />)
+    const run = screen.getByRole('button', { name: 'Run' })
     await user.click(run)
-    expect(screen.getByTestId('show-preflight-dialog')).toBeInTheDocument()
+    expect(screen.getByTestId('controller-show-preflight-dialog')).toBeInTheDocument()
 
     act(() => usePatternStore.setState({ userPatterns: [newPattern] }))
 
-    expect(screen.queryByTestId('show-preflight-dialog')).not.toBeInTheDocument()
-    expect(run).toBeDisabled()
-    expect(run).toHaveAttribute('title', 'Rebuilding Show...')
+    expect(screen.queryByTestId('controller-show-preflight-dialog')).not.toBeInTheDocument()
+    expectDisabledReason(run, 'Rebuilding Show...')
     expect(pushGeneratedArtifact).not.toHaveBeenCalled()
 
-    await waitFor(() => expect(run).toBeEnabled())
+    await waitFor(() => expect(run).not.toHaveAttribute('aria-disabled', 'true'))
     await user.click(run)
     await user.click(screen.getByRole('button', { name: 'Send anyway' }))
 
@@ -7439,9 +7433,9 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     setControllerProvider(new ConnectedControllerProvider())
 
     try {
-      render(<ShowEditor showId={show.id} />)
-      await user.click(screen.getByRole('button', { name: 'Save to Bench PB' }))
-      expect(screen.getByTestId('show-preflight-dialog')).toBeInTheDocument()
+      render(<ShowDeliveryHarness showId={show.id} />)
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      expect(screen.getByTestId('controller-show-preflight-dialog')).toBeInTheDocument()
 
       const confirmedSave = user.click(screen.getByRole('button', { name: 'Send anyway' }))
       await waitFor(() => expect(previewJpeg).toHaveBeenCalledTimes(1))
@@ -7483,8 +7477,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     setControllerProvider(new ConnectedControllerProvider())
 
     try {
-      render(<ShowEditor showId={show.id} />)
-      await user.click(screen.getByRole('button', { name: 'Save to Bench PB' }))
+      render(<ShowDeliveryHarness showId={show.id} />)
+      await user.click(screen.getByRole('button', { name: 'Save' }))
       const confirmedSave = user.click(screen.getByRole('button', { name: 'Send anyway' }))
       await waitFor(() => expect(previewJpeg).toHaveBeenCalledTimes(1))
       act(() => useControllerStore.setState((state) => ({
@@ -7527,15 +7521,14 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(provider)
 
-    render(<ShowEditor showId={show.id} />)
-    await user.click(screen.getByRole('button', { name: 'Run on Bench PB' }))
-    expect(screen.getByTestId('show-preflight-dialog')).toBeInTheDocument()
+    render(<ShowDeliveryHarness showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Run' }))
+    expect(screen.getByTestId('controller-show-preflight-dialog')).toBeInTheDocument()
 
     act(() => provider.setStatus({ kind: 'extension-present' }))
 
-    expect(screen.queryByTestId('show-preflight-dialog')).not.toBeInTheDocument()
-    expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent('Not connected')
-    expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument()
+    expect(screen.queryByTestId('controller-show-preflight-dialog')).not.toBeInTheDocument()
+    expectDisabledReason(screen.getByRole('button', { name: 'Run' }), 'Show is not ready to send')
     expect(pushGeneratedArtifact).not.toHaveBeenCalled()
   })
 
@@ -7558,9 +7551,9 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(provider)
 
-    render(<ShowEditor showId={show.id} />)
-    await user.click(screen.getByRole('button', { name: 'Run on Bench PB' }))
-    expect(screen.getByTestId('show-preflight-dialog')).toBeInTheDocument()
+    render(<ShowDeliveryHarness showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Run' }))
+    expect(screen.getByTestId('controller-show-preflight-dialog')).toBeInTheDocument()
 
     const status = provider.getStatus()
     if (status.kind !== 'connected') throw new Error('Expected a connected Controller fixture')
@@ -7569,7 +7562,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       controller: { ...status.controller },
     }))
 
-    expect(screen.getByTestId('show-preflight-dialog')).toBeInTheDocument()
+    expect(screen.getByTestId('controller-show-preflight-dialog')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Send anyway' }))
     expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1)
   })
@@ -7611,14 +7604,13 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    render(<ShowEditor showId={show.id} />)
-    const run = screen.getByRole('button', { name: 'Run on Bench PB' })
+    render(<ShowDeliveryHarness showId={show.id} />)
+    const run = screen.getByRole('button', { name: 'Run' })
     act(() => usePatternStore.setState({ userPatterns: [brokenPattern] }))
 
-    expect(run).toBeDisabled()
-    expect(run).toHaveAttribute('title', 'Rebuilding Show...')
+    expectDisabledReason(run, 'Rebuilding Show...')
     expect(within(run).getByText('Run')).toBeInTheDocument()
-    expect(within(screen.getByRole('button', { name: 'Save to Bench PB' })).getByText('Save')).toBeInTheDocument()
+    expect(within(screen.getByRole('button', { name: 'Save' })).getByText('Save')).toBeInTheDocument()
     // Once the rebuild settles the compile failure is a focusable gated reason
     // (#875): no title, aria-disabled, and the reason as accessible description.
     await waitFor(() => expect(run).not.toHaveAttribute('title'))
@@ -7652,13 +7644,13 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    const view = render(<ShowEditor showId={firstShow.id} />)
-    await user.click(screen.getByRole('button', { name: 'Run on Bench PB' }))
-    expect(screen.getByTestId('show-preflight-dialog')).toBeInTheDocument()
+    const view = render(<ShowDeliveryHarness showId={firstShow.id} />)
+    await user.click(screen.getByRole('button', { name: 'Run' }))
+    expect(screen.getByTestId('controller-show-preflight-dialog')).toBeInTheDocument()
 
-    view.rerender(<ShowEditor showId={secondShow.id} />)
+    view.rerender(<ShowDeliveryHarness showId={secondShow.id} />)
 
-    expect(screen.queryByTestId('show-preflight-dialog')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('controller-show-preflight-dialog')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Send anyway' })).not.toBeInTheDocument()
     expect(pushGeneratedArtifact).not.toHaveBeenCalled()
   })
@@ -7684,13 +7676,13 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    render(<ShowEditor showId={show.id} />)
-    await user.click(screen.getByRole('button', { name: 'Run on Bench A' }))
-    expect(screen.getByTestId('show-preflight-dialog')).toBeInTheDocument()
+    render(<ShowDeliveryHarness showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Run' }))
+    expect(screen.getByTestId('controller-show-preflight-dialog')).toBeInTheDocument()
 
     act(() => useControllerStore.setState({ activeIp: '10.0.0.6' }))
 
-    expect(screen.queryByTestId('show-preflight-dialog')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('controller-show-preflight-dialog')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Send anyway' })).not.toBeInTheDocument()
     expect(pushGeneratedArtifact).not.toHaveBeenCalled()
   })
@@ -7801,10 +7793,10 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    render(<ShowEditor showId={show.id} />)
-    await user.click(screen.getByRole('button', { name: 'Run on Bench PB' }))
+    render(<ShowDeliveryHarness showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Run' }))
 
-    expect(screen.getByTestId('show-preflight-dialog')).toHaveTextContent(
+    expect(screen.getByTestId('controller-show-preflight-dialog')).toHaveTextContent(
       'This Installation Show requires 8 pixels; the Controller reports 7.',
     )
     expect(screen.queryByRole('button', { name: 'Send anyway' })).not.toBeInTheDocument()
@@ -7857,10 +7849,10 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    render(<ShowEditor showId={show.id} />)
-    await user.click(screen.getByRole('button', { name: 'Run on Bench PB' }))
+    render(<ShowDeliveryHarness showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Run' }))
 
-    const dialog = screen.getByTestId('show-preflight-dialog')
+    const dialog = screen.getByTestId('controller-show-preflight-dialog')
     expect(dialog).toHaveTextContent('This Installation Show expects its authored map')
     expect(dialog).not.toHaveTextContent('Wide 2:1')
     expect(screen.getByRole('button', { name: 'Send anyway' })).toBeInTheDocument()
@@ -7900,7 +7892,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       saveArmed: false,
     })
 
-    render(<ShowEditor showId={show.id} />)
+    render(<ShowDeliveryHarness showId={show.id} />)
 
     const alert = screen.getByRole('alert')
     expect(alert).toBeVisible()
@@ -7920,7 +7912,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       },
     })
 
-    render(<ShowEditor showId={show.id} />)
+    render(<ShowDeliveryHarness showId={show.id} />)
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
@@ -7939,7 +7931,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
         },
       })
 
-      render(<ShowEditor showId={show.id} />)
+      render(<ShowDeliveryHarness showId={show.id} />)
       act(() => vi.advanceTimersByTime(4_000))
 
       expect(screen.getByRole('alert')).toHaveTextContent('Run failed: activation timed out')
@@ -8747,8 +8739,8 @@ it.each([1, 2])('releases a below-threshold auxiliary Marker button %s without w
   window.history.replaceState(null, '', '/')
 })
 
-it.each((['Show', 'Library', 'map', 'profile', 'output', 'navigation', 'unmount', 'preview override', 'Controller reconnect', 'same Show remount'] as const).flatMap((dependency) => (['header', 'popover'] as const).map((surface) => ({ dependency, surface }))))(
-  'revalidates delayed $surface Save JPEG after $dependency changes (#955, #997)', async ({ dependency, surface }) => {
+it.each((['Show', 'Library', 'map', 'profile', 'output', 'navigation', 'unmount', 'preview override', 'Controller reconnect', 'same Show remount'] as const).map((dependency) => ({ dependency })))(
+  'revalidates delayed popover Save JPEG after $dependency changes (#955, #997)', async ({ dependency }) => {
     const user = userEvent.setup()
     let show = createDefaultShow('delayed-delivery-955', 'Delayed delivery', 1)
     show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.1)
@@ -8769,8 +8761,8 @@ it.each((['Show', 'Library', 'map', 'profile', 'output', 'navigation', 'unmount'
     const previewJpeg = vi.spyOn(previewThumbnailJpeg, 'buildPreviewJpeg').mockReturnValue(new Promise((resolve) => { resolvePreview = resolve }))
     try {
       useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'shows', id: show.id } } })
-      const view = render(<><ShowEditor showId={show.id} />{surface === 'popover' && <ControllerActionRow />}</>)
-      await user.click(surface === 'popover' ? within(screen.getByTestId('controller-action-row')).getByRole('button', { name: 'Save' }) : screen.getByRole('button', { name: 'Save to Bench PB' }))
+      const view = render(<ShowDeliveryHarness showId={show.id} />)
+      await user.click(within(screen.getByTestId('controller-action-row')).getByRole('button', { name: 'Save' }))
       const confirmedSave = user.click(screen.getByRole('button', { name: 'Send anyway' }))
       await waitFor(() => expect(previewJpeg).toHaveBeenCalledTimes(1))
       act(() => {
@@ -8784,7 +8776,7 @@ it.each((['Show', 'Library', 'map', 'profile', 'output', 'navigation', 'unmount'
           case 'output': useShowStore.setState({ shows: [{ ...show, outputContract: createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 120 }) }] }); break
           case 'navigation': changed.id = 'next-delivery-955'; useShowStore.setState({ shows: [show, changed] }); view.rerender(<ShowEditor showId={changed.id} />); break
           case 'unmount': view.unmount(); break
-          case 'same Show remount': view.rerender(<><ShowEditor key='replacement' showId={show.id} />{surface === 'popover' && <ControllerActionRow />}</>); break
+          case 'same Show remount': view.rerender(<ShowDeliveryHarness key='replacement' showId={show.id} />); break
           case 'Controller reconnect': useControllerStore.setState((state) => ({ controllers: { ...state.controllers, '10.0.0.5': { ...state.controllers['10.0.0.5'], liveEpoch: 1 } } })); break
           // A temporary Stage gesture is not an authored Controller artifact.
           case 'preview override': useShowPreviewOverrideStore.getState().preview(changed); break
@@ -8803,7 +8795,7 @@ it.each((['Show', 'Library', 'map', 'profile', 'output', 'navigation', 'unmount'
   },
 )
 
-it.each(['cancel', 'Escape', 'outside', 'close', 'header', 'run', 'save'] as const)(
+it.each(['cancel', 'Escape', 'outside', 'close', 'run', 'save'] as const)(
   'shares Show preflight from the Controller popover: %s (#997)', async (action) => {
     const user = userEvent.setup()
     let show = createDefaultShow('popover-997', 'Popover Show', 1)
@@ -8830,14 +8822,9 @@ it.each(['cancel', 'Escape', 'outside', 'close', 'header', 'run', 'save'] as con
         case 'Escape': await user.keyboard('{Escape}'); break
         case 'outside': fireEvent.mouseDown(document.body); break
         case 'close': view.rerender(<ShowEditor showId={show.id} />); break
-        case 'header': await user.click(screen.getByRole('button', { name: 'Run on Bench PB' })); break
         default: await user.click(screen.getByRole('button', { name: 'Send anyway' }))
       }
       expect(screen.queryByTestId('controller-show-preflight-dialog')).not.toBeInTheDocument()
-      if (action === 'header') {
-        expect(screen.getByTestId('show-preflight-dialog')).toBeInTheDocument()
-        await user.click(screen.getByRole('button', { name: 'Cancel' }))
-      }
       if (action === 'run' || action === 'save') {
         await waitFor(() => expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1))
         expect(pushGeneratedArtifact).toHaveBeenCalledWith(expect.objectContaining({
@@ -8871,8 +8858,8 @@ it('runs a warning-free Show directly from the popover and fails closed after ro
   expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1)
 })
 
-it.each((['run', 'save'] as const).flatMap((mode) => (['popover', 'header'] as const).map((dismissFrom) => ({ mode, dismissFrom }))))(
-  'shows $mode failure in the popover and dismisses both notices from $dismissFrom (#997)', async ({ mode, dismissFrom }) => {
+it.each(['run', 'save'] as const)(
+  'shows %s failure only in the popover and dismisses it (#997)', async (mode) => {
     const user = userEvent.setup()
     const show = createDefaultShow('failure-997', 'Failed delivery', 1)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
@@ -8891,9 +8878,8 @@ it.each((['run', 'save'] as const).flatMap((mode) => (['popover', 'header'] as c
       const popoverNotice = within(screen.getByTestId('controller-action-row')).getByRole('alert')
       expect(popoverNotice).toBeVisible()
       expect(popoverNotice).toHaveTextContent(`${label} failed: Failed to fetch`)
-      expect(screen.getByTestId('show-push-failure')).toHaveTextContent(`${label} failed: Failed to fetch`)
-      const dismissScope = dismissFrom === 'popover' ? popoverNotice : screen.getByTestId('show-push-failure')
-      await user.click(within(dismissScope).getByRole('button', { name: `Dismiss ${label} failure` }))
+      expect(screen.queryByTestId('show-push-failure')).not.toBeInTheDocument()
+      await user.click(within(popoverNotice).getByRole('button', { name: `Dismiss ${label} failure` }))
       expect(within(screen.getByTestId('controller-action-row')).queryByRole('alert')).not.toBeInTheDocument()
       expect(screen.queryByTestId('show-push-failure')).not.toBeInTheDocument()
       act(() => useControllerStore.getState().reportArtifactPushFailure({ ok: false, artifactId: 'show:another-show', mode, message: 'Unrelated failure' }))
@@ -8902,3 +8888,20 @@ it.each((['run', 'save'] as const).flatMap((mode) => (['popover', 'header'] as c
     } finally { jpeg.mockRestore() }
   },
 )
+
+it('omits the Show entity-header Controller delivery row (#997)', () => {
+  const show = createDefaultShow('header-retired-997', 'Header retired', 1)
+  useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+  render(<ShowEditor showId={show.id} />)
+  expect(screen.queryByTestId('controller-deployment-identity')).not.toBeInTheDocument()
+  expect(screen.queryByTestId('run-on-controller')).not.toBeInTheDocument()
+  expect(screen.queryByTestId('save-to-controller')).not.toBeInTheDocument()
+})
+
+// The delivery consumer is the Controller popover; the editor only publishes its prepared owner.
+function ShowDeliveryHarness({ showId }: { showId: string }) {
+  useLayoutEffect(() => {
+    useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'shows', id: showId } } })
+  }, [showId])
+  return <><ShowEditor showId={showId} /><ControllerActionRow /></>
+}

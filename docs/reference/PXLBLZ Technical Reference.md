@@ -648,9 +648,15 @@ design.
 The Controller popover resolves a Pattern or Show subject from the Studio
 route. A mounted ShowEditor publishes its committed delivery capability through
 `showControllerDeliveryStore`; it does not compile a second Show for the
-popover. Both Show entry points share prepared source, warning-dependent
-preflight, snapshot/session invalidation and `show:<id>` delivery tracking.
-Closing the invoking popover cancels pending Show confirmation.
+popover. The global Controller popover is the sole Pattern and Show Run/Save
+surface; entity headers retain authoring and export actions. Show delivery uses
+prepared source, warning-dependent preflight, snapshot/session invalidation and
+`show:<id>` tracking. Pattern preflight retains renderer warnings, firmware
+blocking, and the optional recommended-map remedy. Closing the popover cancels
+pending confirmation without sending; unrelated map preflight remains owned by
+its map surface. Transient success feedback clears after 3.5 seconds even when
+the popover is closed; artifact-scoped failure feedback survives reopening until
+dismissal or a subsequent outcome.
 
 Before every push the store waits for profile writes, compiles libraries,
 resolves the profile, derives one Controller delivery artifact from active

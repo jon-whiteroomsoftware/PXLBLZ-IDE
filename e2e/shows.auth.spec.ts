@@ -624,13 +624,13 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByTestId('controller-pill')).toHaveAttribute('data-phase', 'live')
 
     const header = page.locator('.show-pane-header')
+    await expect(header.getByTestId('controller-deployment-identity')).toHaveCount(0)
+    await expect(header.getByRole('button', { name: /^(Run|Save)( on| to)/ })).toHaveCount(0)
     const outputSummary = page.getByTitle('Show output summary')
     const guide = page.getByRole('button', { name: '301 Installation Mapping guide' })
     const commonActions = [
       page.getByRole('button', { name: 'Reset built-in Show' }),
       page.getByRole('button', { name: 'Show properties' }),
-      page.getByTestId('run-on-controller'),
-      page.getByTestId('save-to-controller'),
     ]
     const showActions = page.getByRole('button', { name: 'Show actions' })
 

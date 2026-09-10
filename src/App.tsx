@@ -24,7 +24,6 @@ import { StudioEntityDrawer, type StudioEntityDrawerHandle } from '@/components/
 import { studioEntityDrawerBusySurfaceProps } from '@/components/studioEntityDrawerContext'
 import { DocsWorkspace } from '@/components/DocsWorkspace'
 import { ApiReferenceWorkspace } from '@/components/ApiReferenceWorkspace'
-import { SendToController } from '@/components/SendToController'
 import { PatternActionsMenu } from '@/components/PatternActionsMenu'
 import { GalleryPage, SHOWS_DIRECTORY } from '@/components/GalleryPage'
 import { PatternDetailPage } from '@/components/PatternDetailPage'
@@ -118,7 +117,6 @@ import { NavigationSaveFailureNotice } from '@/components/NavigationSaveFailureN
 import { NavigationPreflightDialog } from '@/components/NavigationPreflightDialog'
 import { activeStuckSaveStatus } from '@/store/autosaveSync'
 import { SaveFailureNotice } from '@/components/SaveFailureNotice'
-import { PatternPushFailureNotice } from '@/components/PatternPushFailureNotice'
 import {
   studioOperationDismissLabel,
   studioOperationRetryLabel,
@@ -1402,7 +1400,6 @@ function StudioApp() {
             )}
             {/* Send to Controller works for any open pattern — user patterns and
                 read-only demos alike (a demo pushes without first forking). */}
-            {(activePatternId !== null || activeDemoName !== null) && <SendToController />}
               </>
             )}
             </PaneHeader>
@@ -1416,7 +1413,6 @@ function StudioApp() {
                 testId="studio-editor-operation-failure"
               />
             )}
-            {rightPaneKind === 'patterns' && <PatternPushFailureNotice />}
           </div>
           <div className="flex-1 overflow-hidden">
             {activeControllerProfileId !== null ? (
