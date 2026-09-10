@@ -1194,6 +1194,9 @@ The marker tail below the final row is 17 px, without a second bottom separator.
 Automatic fitting includes that decoration; red divider feedback uses the bottom
 of the actual rows, excluding tail, gap, and outer padding. Size limits alone
 do not turn the divider red (#63).
+Show controls follow Preview, Zones, Stage, Source. Expanded Zones use compact
+24 px rows with dividing rules and unboxed coverage text; the All action lives
+in the heading only while a Zone is soloed (#63).
 The Lesson pill opens a portaled Reading card; its hover/pinned state is local
 to the current Show. The card's switch and the Live strip's hide button share
 the existing per-Show session visibility. The strip renders reference narration

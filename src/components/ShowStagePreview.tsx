@@ -1058,26 +1058,24 @@ export function ShowStagePreview({
             {showZoneInventory && <ShowStripSection label="Zones" summary={<>
               {compactCoverage && <span role="status" aria-label="Zone coverage" title={fullCoverage ?? undefined} className={installationCoverage?.valid ? 'text-emerald-500' : 'text-amber-300'}>{compactCoverage}</span>}
               {layout?.projection.zones.map(zone => <span key={zone.id} className="inline-flex items-center gap-1"><span className="panel-readout-dot">·</span><span className="size-1.5 rounded-full" style={{ background: zone.color }} /><span>{zone.name}</span></span>)}
-            </>}>
-            <div className="flex h-6 items-center justify-end">
+            </>} actions={effectiveSoloZoneId && (
               <button
                 type="button"
                 aria-label="Show all zones"
-                disabled={!effectiveSoloZoneId}
                 onClick={() => setSoloZoneId(null)}
-                className="h-6 rounded px-2 text-[10px] uppercase tracking-wider text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 disabled:pointer-events-none disabled:invisible"
+                className="h-6 rounded px-2 text-[10px] uppercase tracking-wider text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
               >
                 All
               </button>
-            </div>
+            )}>
             {compactCoverage && (
               <div
                 role="status"
                 aria-label="Zone coverage"
                 title={fullCoverage ?? undefined}
-                className={`show-stage-zone-coverage mt-1 flex min-h-6 min-w-0 items-center rounded border px-2 py-1 text-[9px] leading-tight ${installationCoverage?.valid
-                  ? 'border-emerald-900/60 bg-emerald-950/15 text-emerald-500'
-                  : 'border-amber-800/60 bg-amber-950/20 text-amber-300'}`}
+                className={`show-stage-zone-coverage flex min-w-0 items-center py-1 text-[9px] leading-tight ${installationCoverage?.valid
+                  ? 'text-emerald-500'
+                  : 'text-amber-300'}`}
               >
                 {compactCoverage}
               </div>
@@ -1226,11 +1224,11 @@ function ZoneInventoryRows({
   onSoloZone: (zoneId: string | null) => void
 }) {
   return (
-    <div className="mt-1.5 space-y-1">
+    <div className="mt-1 divide-y divide-zinc-800">
       {layout?.projection.zones.map((zone) => {
         const active = zone.id === effectiveSoloZoneId
         return (
-          <div key={zone.id} className="grid h-9 grid-cols-[1fr_auto_auto] items-center gap-2 rounded border border-zinc-800 bg-zinc-950/55 px-2">
+          <div key={zone.id} className="grid h-6 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
             <div className="flex min-w-0 items-center gap-2">
               <span className="h-2 w-2 shrink-0 rounded-sm" style={{ backgroundColor: zone.color }} />
               <span className="truncate text-zinc-200" title={zone.name}>{zone.name}</span>
@@ -1248,7 +1246,7 @@ function ZoneInventoryRows({
               aria-label={active ? `Unsolo zone ${zone.name}` : `Solo zone ${zone.name}`}
               title={active ? `Unsolo ${zone.name}` : `Solo ${zone.name}`}
               onClick={() => onSoloZone(active ? null : zone.id)}
-              className={`grid h-7 w-7 place-items-center rounded transition-colors ${active
+              className={`grid h-6 w-6 place-items-center rounded transition-colors ${active
                 ? 'bg-live/10 text-live ring-1 ring-live/50'
                 : 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100'}`}
             >
