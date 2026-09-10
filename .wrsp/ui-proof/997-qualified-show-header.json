@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "997",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
+  "operation": "Captured the retained Show header with the Controller popover open; candidate 1 retains both entry surfaces.",
+  "captures": [
+    ".wrsp/ui-proof/997-qualified-show-header.jpg"
+  ],
+  "capturedAtCommit": "f9b09a5a36b21d88264386605fd9fb7e6bbf5398"
+}

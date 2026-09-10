@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "997",
+  "route": "/PXLBLZ-IDE/studio/patterns/WavyBands",
+  "operation": "Pattern Save completed; saved active program and recovered Pattern stamp matched. Map unavailable remains visible.",
+  "captures": [
+    ".wrsp/ui-proof/997-qualified-pattern-save.jpg"
+  ],
+  "capturedAtCommit": "f9b09a5a36b21d88264386605fd9fb7e6bbf5398"
+}

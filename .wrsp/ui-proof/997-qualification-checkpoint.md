@@ -1,5 +1,7 @@
 # #997 candidate 1: partial qualification checkpoint
 
+Historical checkpoint: later combined-stack qualification is recorded in [candidate 1 qualification](997-candidate1-qualification.md). The outcomes and capture hashes below describe the earlier attempt.
+
 Qualification is blocked. Three UI Show Save attempts failed; no further hardware retry is authorized in this checkpoint. Candidate 1 retains the entity-header rows. Neither full hardware parity nor complete UI proof is claimed.
 
 The coordinator drove the real UI with the temporary port-5180 helper and the Burner bag pb32 Controller (firmware 3.67, 256 pixels). These five images were captured at `fef55e6950a8f7ac5ca8410f57d1bd8e7e3ffda4`, opened and visually inspected before packaging. They show the actual preflight, Run state, shared failure messages and retained header. The signed-in account is visible in the supplied captures. Fresh Pattern-header and gated-Show-reason captures remain pending.

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "997",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-301-installation-mapping",
+  "operation": "Installation Show preflight displayed 1000 required versus 256 reported pixels and map fingerprint mismatch; Unsupported disabled. Coordinator cancelled without sending.",
+  "captures": [
+    ".wrsp/ui-proof/997-qualified-show-blocked.jpg"
+  ],
+  "capturedAtCommit": "f9b09a5a36b21d88264386605fd9fb7e6bbf5398"
+}
