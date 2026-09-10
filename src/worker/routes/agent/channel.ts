@@ -1,0 +1,61 @@
+import type { D1DatabaseShowsLike } from '../../../cloudflare/shows'
+import { readSessionFromRequest } from '../../../cloudflare/auth'
+import { agentAccessRefusal, agentResponse } from '../../../cloudflare/agentAccess'
+import type { WindowCommand } from '../../../engine/agentRendezvous'
+import type { WorkerEnv } from '../../apiRoutes'
+
+export async function onRequestPost({ request, env }: { request: Request; env: WorkerEnv }): Promise<Response> {
+  const session = await readSessionFromRequest(request, env.SESSION_SECRET).catch(() => null)
+  if (!session) return agentResponse({ code: 'unauthorized' }, 401)
+  const refusal = agentAccessRefusal(session.userId, env)
+  if (refusal) return agentResponse({ code: refusal }, refusal === 'not_allowed' ? 403 : 503)
+  const url = new URL(request.url)
+  if (request.headers.get('Origin') !== url.origin) return agentResponse({ code: 'invalid_origin' }, 403)
+  if (!env.AGENT_ACCOUNTS) return agentResponse({ code: 'unavailable' }, 503)
+  // Stream bound; Content-Length alone is attacker-controlled.
+  const reader = request.body?.getReader()
+  if (!reader) return agentResponse({ code: 'invalid_request' }, 400)
+  const chunks: Uint8Array[] = []
+  let size = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > 2048) { await reader.cancel(); return agentResponse({ code: 'request_too_large' }, 413) }
+    chunks.push(value)
+  }
+  const bytes = new Uint8Array(size)
+  let offset = 0
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength }
+  let payload: unknown
+  try { payload = JSON.parse(new TextDecoder().decode(bytes)) } catch { return agentResponse({ code: 'invalid_request' }, 400) }
+  const command = parseWindowCommand(payload)
+  if (!command) return agentResponse({ code: 'invalid_request' }, 400)
+  // Ending requires the original local capability, even after its Show or opt-in
+  // is gone. It neither admits work nor exposes another window's state.
+  const ending = command.type === 'leave' || command.type === 'disconnect'
+  if (!ending) {
+    const refusal = agentAccessRefusal(session.userId, env)
+    if (refusal) return agentResponse({ code: refusal }, refusal === 'not_allowed' ? 403 : 503)
+    if (url.searchParams.getAll('agent').length !== 1 || url.searchParams.get('agent') !== '1') return agentResponse({ code: 'opt_in_required' }, 403)
+    if (!env.PXLBLZ_DB) return agentResponse({ code: 'unavailable' }, 503)
+    const db: D1DatabaseShowsLike = env.PXLBLZ_DB
+    const { results } = await db.prepare('SELECT id FROM personal_shows WHERE user_id = ? AND id = ?').bind(session.userId, command.showId).all<{ id: string }>()
+    if (!results.length) return agentResponse({ code: 'show_unavailable' }, 404)
+  }
+  return env.AGENT_ACCOUNTS.get(env.AGENT_ACCOUNTS.idFromName(session.userId)!)!.fetch(new Request('https://agent-account.internal/window', { method: 'POST', body: JSON.stringify(command) }))
+}
+
+function parseWindowCommand(value: unknown): WindowCommand | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const body = value as Record<string, unknown>
+  const types = ['register', 'arm', 'poll', 'heartbeat', 'leave', 'answer', 'decline', 'disconnect']
+  if (typeof body.type !== 'string' || !types.includes(body.type)) return null
+  const keys = ['type', 'sessionId', 'showId']
+  if (body.type !== 'register') keys.push('registrationId')
+  if (body.type === 'answer' || body.type === 'decline') keys.push('callId')
+  if (body.type === 'disconnect') keys.push('bindingId')
+  if (Object.keys(body).length !== keys.length || !keys.every((key) => typeof body[key] === 'string' && (body[key] as string).length > 0 && (body[key] as string).length <= 128)) return null
+  if (!Object.keys(body).every((key) => keys.includes(key))) return null
+  return { ...body, ...(body.type === 'register' ? { registrationId: crypto.randomUUID() } : {}) } as WindowCommand
+}

@@ -153,6 +153,11 @@ loop at one sample per second and stored as `show--<id>.json.gz`.
 nothing. OAuth intent and callback outcome events use only the provider,
 outcome, and coarse failure code, never account or profile data.
 
+The [agent account rendezvous](contracts/agent-rendezvous.md) coordinates one
+agent connection per account through a private Durable Object and an authenticated
+browser channel. It stores connection metadata only; editor admission and saves
+remain browser-owned. OAuth and live MCP execution are not exposed by this foundation.
+
 ## 3. Personal content and persistence
 
 `personalContentProvider.ts` is the browser-side storage interface. The

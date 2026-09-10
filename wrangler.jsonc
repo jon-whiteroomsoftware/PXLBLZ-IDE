@@ -27,6 +27,8 @@
   "routes": [
     { "pattern": "pxlblz-ide.whiteroomsoftware.com", "custom_domain": true }
   ],
+  "durable_objects": { "bindings": [{ "name": "AGENT_ACCOUNTS", "class_name": "AgentAccount" }] },
+  "migrations": [{ "tag": "agent-account-v1", "new_sqlite_classes": ["AgentAccount"] }],
   "d1_databases": [
     {
       "binding": "PXLBLZ_DB",

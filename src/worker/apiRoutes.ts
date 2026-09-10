@@ -11,6 +11,9 @@ import type { D1ResourceProtectionDatabaseLike } from '../cloudflare/resourcePro
 import type { D1DatabaseSettingsLike } from '../cloudflare/settings'
 import type { D1DatabaseShowsLike } from '../cloudflare/shows'
 import type { D1DatabaseWritableLike } from '../cloudflare/users'
+import type { AgentAccessEnvironment } from '../cloudflare/agentAccess'
+import type { AgentAccountNamespace } from './agent/AgentAccount'
+import * as agentChannel from './routes/agent/channel'
 import * as authCallback from './routes/auth/callback'
 import * as authDisconnect from './routes/auth/disconnect'
 import * as authLogin from './routes/auth/login'
@@ -48,7 +51,8 @@ export type WorkerD1Database =
   & D1DatabaseControllerMetadataLike
   & D1ResourceProtectionDatabaseLike
 
-export interface WorkerEnv {
+export interface WorkerEnv extends AgentAccessEnvironment {
+  AGENT_ACCOUNTS?: AgentAccountNamespace
   SESSION_SECRET?: string
   GITHUB_CLIENT_ID?: string
   GITHUB_CLIENT_SECRET?: string
@@ -79,6 +83,7 @@ function route<const Path extends string>(
 }
 
 export const apiRoutes: readonly WorkerRoute<WorkerEnv>[] = [
+  route('/api/agent/channel', { POST: agentChannel.onRequestPost }),
   route('/api/me', { GET: me.onRequestGet }),
   route('/api/d1/health', { GET: d1Health.onRequestGet }),
   route('/api/auth/login', { GET: authLogin.onRequestGet }),

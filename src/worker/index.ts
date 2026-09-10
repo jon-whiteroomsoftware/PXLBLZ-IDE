@@ -43,3 +43,5 @@ const worker = {
 }
 
 export default worker
+
+export { AgentAccount } from './agent/AgentAccount'
