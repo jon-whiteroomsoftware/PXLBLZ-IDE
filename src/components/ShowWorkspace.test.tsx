@@ -22,6 +22,45 @@ function resizeWorkspace(width: number, height: number) {
 }
 
 describe('ShowWorkspace (#967)', () => {
+  it.each(['release', 'cancel', 'capture loss', 'window release', 'window blur', 'released buttons'])(
+    'stops resizing after %s, even at a size limit (#63)', (ending) => {
+      window.localStorage.setItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY, '416')
+      render(<ShowWorkspace previewAspect={1} timeline={<div>timeline</div>} stage={<div>stage</div>} />)
+      resizeWorkspace(900, 700)
+      const divider = screen.getByRole('separator')
+      const pointer = { pointerId: 7, button: 0, buttons: 1, clientY: 400 }
+      fireEvent.pointerDown(divider, pointer)
+      fireEvent.pointerMove(divider, { ...pointer, clientY: 0 })
+      expect(divider).toHaveAttribute('data-clamp', 'timeline-min')
+      if (ending === 'release') fireEvent.pointerUp(divider, { ...pointer, buttons: 0 })
+      if (ending === 'cancel') fireEvent.pointerCancel(divider, pointer)
+      if (ending === 'capture loss') fireEvent.lostPointerCapture(divider, pointer)
+      if (ending === 'window release') fireEvent.pointerUp(window, { ...pointer, buttons: 0 })
+      if (ending === 'window blur') fireEvent.blur(window)
+      if (ending === 'released buttons') fireEvent.pointerMove(divider, { ...pointer, buttons: 0, clientY: 100 })
+      const stopped = divider.getAttribute('aria-valuenow')
+      fireEvent.pointerMove(divider, { ...pointer, clientY: 120 })
+      expect(divider).toHaveAttribute('aria-valuenow', stopped)
+      // A fresh gesture works immediately and starts at the current split.
+      fireEvent.pointerDown(divider, { ...pointer, clientY: 120 })
+      fireEvent.pointerMove(divider, { ...pointer, clientY: 140 })
+      expect(Number(divider.getAttribute('aria-valuenow'))).toBe(Number(stopped) + 20)
+    },
+  )
+
+  it('retains every movement when pointer events arrive before a render (#63)', () => {
+    window.localStorage.setItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY, '416')
+    render(<ShowWorkspace previewAspect={1} timeline={<div>timeline</div>} stage={<div>stage</div>} />)
+    resizeWorkspace(900, 700)
+    const divider = screen.getByRole('separator')
+    fireEvent.pointerDown(divider, { pointerId: 7, button: 0, buttons: 1, clientY: 400 })
+    act(() => {
+      fireEvent.pointerMove(divider, { pointerId: 7, buttons: 1, clientY: 390 })
+      fireEvent.pointerMove(divider, { pointerId: 7, buttons: 1, clientY: 370 })
+    })
+    expect(divider).toHaveAttribute('aria-valuenow', '386')
+  })
+
   it('keeps automatic content fitting unremembered through resize and lane changes (#977)', () => {
     const view = render(<ShowWorkspace previewAspect={1} timelineContentHeight={290} timeline={<div>timeline</div>} stage={<div>stage</div>} />)
     resizeWorkspace(1200, 800)

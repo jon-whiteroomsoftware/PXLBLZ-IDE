@@ -24,7 +24,7 @@ export function ShowWorkspace({
   stage: ReactNode | null
 }) {
   const workspaceRef = useRef<HTMLDivElement>(null)
-  const dragRef = useRef<{ pointerId: number; y: number } | null>(null)
+  const dragRef = useRef<{ pointerId: number; y: number; height: number; target: HTMLDivElement } | null>(null)
   const [size, setSize] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }))
   const [desiredTimelineHeight, setDesiredTimelineHeightState] = useState<number | null>(() => {
     try {
@@ -73,13 +73,37 @@ export function ShowWorkspace({
     rememberTimelineHeight(next.timelineHeight)
   }, [layout.timelineHeight, previewAspect, rememberTimelineHeight, size, timelineMinimumHeight])
 
+  const endDragging = useCallback((pointerId?: number) => {
+    const drag = dragRef.current
+    if (!drag || (pointerId !== undefined && drag.pointerId !== pointerId)) return
+    dragRef.current = null
+    if (drag.target.hasPointerCapture?.(drag.pointerId)) {
+      drag.target.releasePointerCapture(drag.pointerId)
+    }
+  }, [])
+
   const beginDragging = (event: React.PointerEvent<HTMLDivElement>) => {
-    dragRef.current = { pointerId: event.pointerId, y: event.clientY }
+    if (event.button !== 0 || dragRef.current) return
+    dragRef.current = { pointerId: event.pointerId, y: event.clientY, height: layout.timelineHeight, target: event.currentTarget }
     event.currentTarget.setPointerCapture?.(event.pointerId)
     event.preventDefault()
   }
 
   const stageAvailable = stage !== null
+
+  useEffect(() => {
+    const finish = (event: PointerEvent) => endDragging(event.pointerId)
+    const blur = () => endDragging()
+    window.addEventListener('pointerup', finish, true)
+    window.addEventListener('pointercancel', finish, true)
+    window.addEventListener('blur', blur)
+    return () => {
+      endDragging()
+      window.removeEventListener('pointerup', finish, true)
+      window.removeEventListener('pointercancel', finish, true)
+      window.removeEventListener('blur', blur)
+    }
+  }, [endDragging, stageAvailable])
 
   const sourceContext = useMemo(() => ({
     enabled: stageAvailable,
@@ -106,22 +130,32 @@ export function ShowWorkspace({
           aria-valuemax={Math.max(1, size.height - SHOW_WORKSPACE_DIVIDER_HEIGHT - SHOW_STRIP_MIN_HEIGHT)}
           aria-valuenow={layout.timelineHeight}
           data-clamp={layout.clamp ?? 'none'}
-          className={`group relative h-[6px] shrink-0 cursor-row-resize select-none border-y transition-colors focus-visible:outline-none ${layout.clamp
+          className={`group relative h-[6px] shrink-0 cursor-row-resize touch-none select-none border-y transition-colors focus-visible:outline-none ${layout.clamp
             ? 'border-red-400/45 bg-red-400/15'
             : 'border-seam bg-zinc-900 hover:border-amber-300/45 focus-visible:border-amber-300/60'}`}
           onPointerDown={beginDragging}
           onPointerMove={(event) => {
             const drag = dragRef.current
             if (!drag || drag.pointerId !== event.pointerId) return
-            moveDivider(event.clientY - drag.y)
+            if ((event.buttons & 1) === 0) {
+              endDragging(event.pointerId)
+              return
+            }
+            // Pointer moves can batch before React renders. Accumulate against
+            // the gesture's last clamped height, not a stale rendered layout.
+            const next = resolveShowWorkspaceLayout({
+              ...size,
+              desiredTimelineHeight: drag.height + event.clientY - drag.y,
+              previewAspect,
+              timelineMinimumHeight,
+            })
+            drag.height = next.timelineHeight
             drag.y = event.clientY
+            rememberTimelineHeight(next.timelineHeight)
           }}
-          onPointerUp={(event) => {
-            if (dragRef.current?.pointerId !== event.pointerId) return
-            dragRef.current = null
-            event.currentTarget.releasePointerCapture?.(event.pointerId)
-          }}
-          onPointerCancel={() => { dragRef.current = null }}
+          onPointerUp={(event) => endDragging(event.pointerId)}
+          onPointerCancel={(event) => endDragging(event.pointerId)}
+          onLostPointerCapture={(event) => endDragging(event.pointerId)}
           onKeyDown={(event) => {
             if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
             event.preventDefault()
