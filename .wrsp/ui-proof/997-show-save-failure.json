@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "997",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-remix-quadrille",
+  "operation": "Confirmed Show Save from the Controller popover. The capture shows the same brightness-confirmation timeout in the popover and retained Show header; Save qualification failed.",
+  "captures": [
+    ".wrsp/ui-proof/997-show-save-failure.jpg"
+  ],
+  "capturedAtCommit": "fef55e6950a8f7ac5ca8410f57d1bd8e7e3ffda4"
+}

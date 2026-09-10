@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "997",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
+  "operation": "Captured the real Studio route after the coordinator ran the lightweight Show from the Controller popover. This is a Run-state capture, not Save qualification.",
+  "captures": [
+    ".wrsp/ui-proof/997-basic-show-run.jpg"
+  ],
+  "capturedAtCommit": "fef55e6950a8f7ac5ca8410f57d1bd8e7e3ffda4"
+}

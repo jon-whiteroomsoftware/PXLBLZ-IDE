@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "997",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
+  "operation": "Closed the Controller popover and captured the retained Show header after the failed Save. Candidate 1 intentionally retains the entity-header Controller row.",
+  "captures": [
+    ".wrsp/ui-proof/997-show-header.jpg"
+  ],
+  "capturedAtCommit": "fef55e6950a8f7ac5ca8410f57d1bd8e7e3ffda4"
+}
