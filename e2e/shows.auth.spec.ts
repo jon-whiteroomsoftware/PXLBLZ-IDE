@@ -148,6 +148,36 @@ test.describe('authenticated Show authoring', () => {
     await expect(finalClip).toBeVisible()
   })
 
+  test('clips the Show End diamond below the header when the timeline scrolls (#63)', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await page.goto('studio/shows/stock-show-301-installation-mapping')
+
+    const showEnd = page.getByRole('button', { name: /Show End at/ })
+    const scrollPane = page.getByTestId('show-editor-scroll')
+    const splitter = page.getByRole('separator', { name: 'Resize timeline and Stage' })
+    await expect(showEnd).toBeVisible()
+    for (let step = 0; step < 5; step += 1) await splitter.press('Shift+ArrowUp')
+    await scrollPane.evaluate((element) => { element.scrollTop = element.scrollHeight })
+
+    // The diamond's geometric center has crossed into the header. Its owning
+    // scroll clip must remove it from the painted/hit-tested stack there.
+    await expect.poll(async () => {
+      const marker = await showEnd.boundingBox()
+      const pane = await scrollPane.boundingBox()
+      return Boolean(marker && pane && marker.y + marker.height / 2 < pane.y)
+    }).toBe(true)
+    await expect.poll(async () => showEnd.evaluate((element) => {
+      const bounds = element.getBoundingClientRect()
+      return document.elementsFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
+        .some((hit) => hit === element || element.contains(hit))
+    })).toBe(false)
+
+    // Scrolling back restores a usable handle, including its details action.
+    await scrollPane.evaluate((element) => { element.scrollTop = 0 })
+    await showEnd.click()
+    await expect(page.getByRole('dialog', { name: 'Show End details' })).toBeVisible()
+  })
+
   test('hides the Show End diamond when timeline zoom moves its boundary offscreen (#63)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')

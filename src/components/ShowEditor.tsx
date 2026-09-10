@@ -5231,7 +5231,7 @@ function ShowTimelineWorkspace({
           </button>
         </div>
       )}
-      <div className="relative">
+      <div className="relative isolate" data-show-timeline-overlay-host>
         <div
           ref={scrollRef}
           data-show-timeline-scroll-viewport
@@ -7370,16 +7370,19 @@ function TimelineEndHandlePortal({
 }) {
   const [position, setPosition] = useState({ left: -100, top: -100, visible: false })
 
+  const overlayHost = anchor?.closest<HTMLElement>('[data-show-timeline-overlay-host]') ?? null
+
   useLayoutEffect(() => {
-    if (!anchor) return
+    if (!anchor || !overlayHost) return
     const viewport = anchor.closest<HTMLElement>('[data-show-timeline-scroll-viewport]')
     const updatePosition = () => {
       const rect = anchor.getBoundingClientRect()
+      const hostRect = overlayHost.getBoundingClientRect()
       const center = rect.left + rect.width / 2
       const viewportRect = viewport?.getBoundingClientRect()
       setPosition({
-        left: center,
-        top: rect.top,
+        left: center - hostRect.left,
+        top: rect.top - hostRect.top,
         visible: !viewportRect || (center >= viewportRect.left && center <= viewportRect.right),
       })
     }
@@ -7395,9 +7398,9 @@ function TimelineEndHandlePortal({
       window.removeEventListener('scroll', updatePosition, true)
       resizeObserver?.disconnect()
     }
-  }, [anchor, durationMs, layoutScale])
+  }, [anchor, overlayHost, durationMs, layoutScale])
 
-  if (!anchor || typeof document === 'undefined') return null
+  if (!anchor || !overlayHost) return null
   return createPortal(
     <button
       type="button"
@@ -7407,7 +7410,7 @@ function TimelineEndHandlePortal({
       aria-label={`Show End at ${formatSecondsValue(durationMs)} seconds`}
       title={`Show End · ${formatSecondsValue(durationMs)}s`}
       disabled={readOnly}
-      className={`fixed z-[45] h-4 w-4 -translate-x-1/2 -translate-y-1/2 touch-none text-red-400 disabled:cursor-default ${dragging && blocked ? 'cursor-not-allowed' : 'cursor-ew-resize'}`}
+      className={`absolute z-[45] h-4 w-4 -translate-x-1/2 -translate-y-1/2 touch-none text-red-400 disabled:cursor-default ${dragging && blocked ? 'cursor-not-allowed' : 'cursor-ew-resize'}`}
       style={{
         left: position.left,
         top: position.top,
@@ -7434,7 +7437,7 @@ function TimelineEndHandlePortal({
         </span>
       )}
     </button>,
-    document.body,
+    overlayHost,
   )
 }
 
