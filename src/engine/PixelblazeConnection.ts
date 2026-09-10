@@ -207,6 +207,8 @@ interface Pending {
   timeout: unknown
 }
 
+class RequestTimeoutError extends Error {}
+
 export class PixelblazeConnection {
   private readonly opts: Required<
     Pick<
@@ -443,8 +445,8 @@ export class PixelblazeConnection {
     if (!this.isConnected) {
       return Promise.reject(new Error('Cannot send: Pixelblaze connection is not open'))
     }
-    const brightnessP = this.enqueue('brightness')
-    const activeProgramP = this.enqueue('activeProgram')
+    const brightnessP = this.enqueue('brightness').promise
+    const activeProgramP = this.enqueue('activeProgram').promise
     this.sendJson({ getConfig: true })
     return Promise.all([brightnessP, activeProgramP]).then(([b, ap]) => {
       const active = (ap ?? {}) as {
@@ -598,30 +600,53 @@ export class PixelblazeConnection {
       }
     }
     assertConnection()
-    this.pushByteCode(bytecode, opts)
-    const deadline = this._now() + this.opts.activationTimeoutMs
-    let activeProgramId: string | undefined
-    do {
-      assertConnection()
-      // Activation needs the sequencer's fresh program identity, not the
-      // independent settings packet. Some firmware sends that identity while
-      // omitting brightness during bytecode startup (#999).
-      const active = await this.request('activeProgram', { getConfig: true }) as {
-        activeProgramId?: string
-      } | null
-      assertConnection()
-      activeProgramId = active?.activeProgramId
-      if (activeProgramId === opts.id) return
-      if (this._now() >= deadline) break
-      await new Promise<void>((resolve) => {
-        this._setTimeout(resolve, Math.max(1, this.opts.activationPollMs))
-      })
-    } while (this._now() <= deadline)
-
-    throw new Error(
-      `Controller program ${opts.id} did not activate within ${this.opts.activationTimeoutMs}ms`
-      + ` (active program: ${activeProgramId ?? 'unknown'})`,
-    )
+    const lifetime = new AbortController()
+    const invalidate = () => lifetime.abort(new Error('Controller connection changed during program activation'))
+    const removeOpen = this.on('open', invalidate)
+    const removeClose = this.on('close', () => lifetime.abort(new Error('Pixelblaze connection closed')))
+    try {
+      this.pushByteCode(bytecode, opts)
+      const deadline = this._now() + this.opts.activationTimeoutMs
+      let activeProgramId: string | undefined
+      while (this._now() < deadline) {
+        lifetime.signal.throwIfAborted()
+        assertConnection()
+        try {
+          // Settings and sequencer replies are independent. Post-Save queries
+          // can go unanswered; only this query's timeout is retryable.
+          const active = await this.request('activeProgram', { getConfig: true }, {
+            timeoutMs: Math.min(this.opts.requestTimeoutMs, deadline - this._now()),
+            signal: lifetime.signal,
+          }) as { activeProgramId?: string } | null
+          lifetime.signal.throwIfAborted()
+          assertConnection()
+          activeProgramId = active?.activeProgramId
+          if (this._now() >= deadline) break
+          if (activeProgramId === opts.id) return
+        } catch (error) {
+          lifetime.signal.throwIfAborted()
+          assertConnection()
+          if (!(error instanceof RequestTimeoutError)) throw error
+        }
+        const remaining = deadline - this._now()
+        if (remaining <= 0) break
+        await new Promise<void>((resolve, reject) => {
+          const abort = () => { this._clearTimeout(timer); reject(lifetime.signal.reason) }
+          const timer = this._setTimeout(() => {
+            lifetime.signal.removeEventListener('abort', abort)
+            resolve()
+          }, Math.min(remaining, Math.max(1, this.opts.activationPollMs)))
+          lifetime.signal.addEventListener('abort', abort, { once: true })
+        })
+      }
+      throw new Error(
+        `Controller program ${opts.id} did not activate within ${this.opts.activationTimeoutMs}ms`
+        + ` (active program: ${activeProgramId ?? 'unknown'})`,
+      )
+    } finally {
+      removeOpen()
+      removeClose()
+    }
   }
 
   /** Push a binary pixel-map blob to the device's single shared map slot (H12, issue
@@ -652,32 +677,55 @@ export class PixelblazeConnection {
   /** Queue a pending promise keyed by the response field that will fulfil it,
    *  without sending anything. Used both by `request` (one frame → one reply)
    *  and by `getConfig` (one frame → two replies on different keys). */
-  private enqueue(responseKey: string): Promise<unknown> {
-    return new Promise((resolve, reject) => {
-      const timeout = this._setTimeout(() => {
-        this.dequeue(responseKey)
-        reject(new Error(`Pixelblaze request timed out waiting for "${responseKey}"`))
-      }, this.opts.requestTimeoutMs)
-
+  private enqueue(
+    responseKey: string,
+    options: { timeoutMs?: number; signal?: AbortSignal } = {},
+  ): { promise: Promise<unknown>; cancel: (error: Error) => void } {
+    let cancel!: (error: Error) => void
+    const promise = new Promise((resolve, reject) => {
+      const cleanup = () => options.signal?.removeEventListener('abort', abort)
+      const entry: Pending = {
+        resolve: (value) => { cleanup(); resolve(value) },
+        reject: (error) => { cleanup(); reject(error) },
+        timeout: undefined,
+      }
+      // Per-query deadlines can differ: remove this entry, never a FIFO peer.
+      cancel = (error) => {
+        const queue = this.pending.get(responseKey)
+        const index = queue?.indexOf(entry) ?? -1
+        if (index < 0 || !queue) return
+        queue.splice(index, 1)
+        if (!queue.length) this.pending.delete(responseKey)
+        this._clearTimeout(entry.timeout)
+        entry.reject(error)
+      }
+      const abort = () => cancel(options.signal!.reason as Error)
       const queue = this.pending.get(responseKey) ?? []
-      queue.push({ resolve, reject, timeout })
+      queue.push(entry)
       this.pending.set(responseKey, queue)
+      entry.timeout = this._setTimeout(() => {
+        cancel(new RequestTimeoutError(`Pixelblaze request timed out waiting for "${responseKey}"`))
+      }, options.timeoutMs ?? this.opts.requestTimeoutMs)
+      options.signal?.addEventListener('abort', abort, { once: true })
+      if (options.signal?.aborted) abort()
     })
+    return { promise, cancel }
   }
 
   /** Send a frame and queue a pending promise keyed by its expected reply field. */
-  private request(responseKey: string, frame: object): Promise<unknown> {
-    const promise = this.enqueue(responseKey)
+  private request(
+    responseKey: string,
+    frame: object,
+    options: { timeoutMs?: number; signal?: AbortSignal } = {},
+  ): Promise<unknown> {
+    const pending = this.enqueue(responseKey, options)
     try {
+      options.signal?.throwIfAborted()
       this.sendJson(frame)
     } catch (err) {
-      const entry = this.dequeue(responseKey)
-      if (entry) {
-        this._clearTimeout(entry.timeout)
-        entry.reject(err as Error)
-      }
+      pending.cancel(err as Error)
     }
-    return promise
+    return pending.promise
   }
 
   private dequeue(responseKey: string): Pending | undefined {

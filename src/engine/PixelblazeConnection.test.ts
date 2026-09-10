@@ -801,22 +801,85 @@ describe('PixelblazeConnection', () => {
       const reopened = conn.connect()
       getSocket().simulateOpen()
       await reopened
-      getSocket().simulateMessage({ activeProgram: { activeProgramId: 'TARGET_PROGRAM' } })
+      // Replacement itself rejects; no incoming reply is needed.
       await rejection
+      getSocket().simulateMessage({ activeProgram: { activeProgramId: 'TARGET_PROGRAM' } })
       original.close()
       conn.close()
     })
 
-    it('times out without a sequencer reply even when brightness arrives (#999)', async () => {
+    it('retries a silent first query within the existing activation deadline (#999)', async () => {
       vi.useFakeTimers()
       try {
-        const { conn, socket } = await connected({ requestTimeoutMs: 50 })
+        const { conn, socket } = await connected({ requestTimeoutMs: 50, activationPollMs: 10, activationTimeoutMs: 150 })
+        const outcome = vi.fn()
         const activation = conn.pushByteCodeAndWait(new Uint8Array([1]), { id: 'TARGET_PROGRAM' })
-        const rejection = expect(activation).rejects.toThrow('timed out waiting for "activeProgram"')
-        socket.simulateMessage({ brightness: 0.5 })
-        await vi.advanceTimersByTimeAsync(50)
-        await rejection
+          .then(() => outcome('active'), (error: Error) => outcome(error.message))
+        await vi.advanceTimersByTimeAsync(60)
+        expect(outcome).not.toHaveBeenCalled()
+        expect(socket.sent.filter(frame => frame === '{"getConfig":true}')).toHaveLength(2)
+        socket.simulateMessage({ activeProgram: { activeProgramId: 'OLD_PROGRAM' } })
+        await vi.advanceTimersByTimeAsync(10)
+        expect(outcome).not.toHaveBeenCalled()
+        socket.simulateMessage({ activeProgram: { activeProgramId: 'TARGET_PROGRAM' } })
+        await activation
+        expect(outcome).toHaveBeenCalledWith('active')
         conn.close()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('bounds silent queries by the original overall deadline (#999)', async () => {
+      vi.useFakeTimers()
+      try {
+        const { conn, socket } = await connected({ requestTimeoutMs: 50, activationPollMs: 10, activationTimeoutMs: 85 })
+        const activation = conn.pushByteCodeAndWait(new Uint8Array([1]), { id: 'TARGET_PROGRAM' })
+        const rejection = expect(activation).rejects.toThrow('did not activate within 85ms (active program: unknown)')
+        socket.simulateMessage({ brightness: 0.5 })
+        await vi.advanceTimersByTimeAsync(85)
+        await rejection
+        expect(socket.sent.filter(frame => frame === '{"getConfig":true}')).toHaveLength(2)
+        conn.close()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not remove a longer concurrent config request at the activation deadline (#999)', async () => {
+      vi.useFakeTimers()
+      try {
+        const { conn, socket } = await connected({ requestTimeoutMs: 50, activationTimeoutMs: 20 })
+        const fullConfig = conn.getConfig()
+        const outcome = vi.fn()
+        const activation = conn.pushByteCodeAndWait(new Uint8Array([1]), { id: 'TARGET_PROGRAM' })
+          .catch((error: Error) => outcome(error.message))
+        await vi.advanceTimersByTimeAsync(20)
+        await activation
+        expect(outcome).toHaveBeenCalledWith(expect.stringContaining('did not activate within 20ms'))
+        socket.simulateMessage({ brightness: 0.5 })
+        socket.simulateMessage({ activeProgram: { activeProgramId: 'OTHER_PROGRAM' } })
+        await expect(fullConfig).resolves.toMatchObject({ brightness: 0.5, activeProgramId: 'OTHER_PROGRAM' })
+        conn.close()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('cancels between polls without issuing another query after close (#999)', async () => {
+      vi.useFakeTimers()
+      try {
+        const { conn, socket } = await connected({ activationPollMs: 10 })
+        const outcome = vi.fn()
+        const activation = conn.pushByteCodeAndWait(new Uint8Array([1]), { id: 'TARGET_PROGRAM' })
+          .catch((error: Error) => outcome(error.message))
+        socket.simulateMessage({ activeProgram: { activeProgramId: 'OTHER_PROGRAM' } })
+        await vi.advanceTimersByTimeAsync(1)
+        conn.close()
+        await activation
+        expect(outcome).toHaveBeenCalledWith('Pixelblaze connection closed')
+        await vi.advanceTimersByTimeAsync(20)
+        expect(socket.sent.filter(frame => frame === '{"getConfig":true}')).toHaveLength(1)
       } finally {
         vi.useRealTimers()
       }

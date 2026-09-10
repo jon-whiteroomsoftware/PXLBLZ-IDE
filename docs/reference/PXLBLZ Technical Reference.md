@@ -682,9 +682,13 @@ Bytecode activation queries `getConfig` after transmission but waits only for
 its sequencer `activeProgram` reply: success requires the expected program id
 and the same still-open connection before and after the read. A missing
 settings/brightness packet cannot veto that evidence. Full `getConfig` callers
-still require both packets. Wrong ids are polled within the existing activation
-window; missing sequencer replies retain the request timeout, and connection
-loss/replacement rejects confirmation. This is same-connection, post-query
+still require both packets. Wrong ids and individual sequencer-query timeouts
+are retried within the existing 15-second activation window. Each query wait and
+poll delay is capped by the remaining window; no reply by its end rejects.
+Only typed request timeouts are retryable. Connection loss/replacement cancels
+both a waiting query and an inter-query delay immediately. Cancelling a shorter
+activation request removes its own queue entry, preserving concurrent config
+reads with longer deadlines. This is same-connection, post-query
 program-identity evidence under the firmware's ordered reply protocol, not a
 bytecode digest or a request-token guarantee: firmware replies carry no request
 ids. Cached pre-push observations and saved-file existence are never consulted.
