@@ -470,14 +470,16 @@ Show transport. On desktop it fills the bottom-right corner of a strip below
 the timeline. A narrow rail beside the canvas holds playback and the Zone-outline
 and selected-Clip-outline toggles. Zone guides follow the current Zone Layout.
 The selected Clip outline appears during that Clip's interval and shows its
-authored transformed content bounds. Both guides are session-only. The Preview heading keeps overall browser brightness available when folded or expanded, using the same compact slider and percentage as the Pattern and Controller panels. It adjusts browser rendering without changing authored Clip brightness or Controller output. Stage, Preview, Zones, and Source form one
+authored transformed content bounds. Both guides are session-only. The Preview heading keeps overall browser brightness available when folded or expanded, using the same compact slider and percentage as the Pattern and Controller panels. It adjusts browser rendering without changing authored Clip brightness or Controller output. Preview, Zones, Stage, and Source code form one
 left-aligned controls column on the bottom-left, capped at 480 px, with spare
 width left as a gap before the preview rail. Each header summarizes its
 folded section. Preview begins open; the other sections begin folded, and
-PXLBLZ remembers each section independently for Shows. Before a split is remembered, the timeline
+PXLBLZ remembers each section independently for Shows. On entry without a remembered split, the timeline
 fits its content with a little slack and the Stage takes the remaining height,
-subject to the pane minimums. This default adjusts when lanes or window size
-change. Drag the horizontal divider to trade space
+subject to the pane minimums. Subsequent window resizing preserves that
+proportion, including before the divider has ever been dragged. This can leave
+extra timeline space when growing or require scrolling its rows when shrinking.
+Lane changes revise the initial content-based target until a split is remembered. Drag the horizontal divider to trade space
 between the timeline and Stage, or focus it and use **Up/Down**. PXLBLZ
 remembers the Show split; later lane changes preserve that position. While
 paused, the Stage redraws the frozen picture throughout resizing without
@@ -491,13 +493,13 @@ preserves the timeline/strip proportions within their size limits.
 
 ## 17. Cost, sending, and sharing
 
-On desktop, the Source section beside the Stage reports delivered source size,
+The Source code section beside the Stage reports delivered source size,
 memory words, and running Pattern copies. Expand it for the byte-level inventory.
 Warnings, blockers, and successful-send status remain visible below the section.
-Run/Save failures appear in the Controller popover. Where
-the desktop strip is absent, the compile bar remains under the timeline:
-hover its source figure to inspect the inventory, or select it to keep the
-inventory open until closed. Every Pattern row distinguishes three things in plain language:
+Run/Save failures appear in the Controller popover. The same Source code
+section remains in the lower strip at narrow widths; Studio does not render
+the old compile footer or source-inventory popup. Every Pattern row
+distinguishes three things in plain language:
 **configured uses** are separately configured versions of that Pattern in the
 Show, **copies in delivered code** are the copies the compiler kept in the
 generated Pixelblaze Pattern, and **timeline placements** are the Clips that

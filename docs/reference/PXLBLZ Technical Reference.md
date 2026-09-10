@@ -1185,11 +1185,15 @@ horizontal divider moves by 10 px, or 50 px with Shift, and persists one Show
 timeline height only after explicit pointer or keyboard movement. Pointer gestures
 end on release, cancellation, capture loss, or window blur; batched moves
 accumulate from the gesture's last clamped height (#63). Without a
-remembered height, the timeline fits its measured content plus 12 px slack and
-the strip fills the remainder. Window resizing preserves the split proportion
-relative to the first measured workspace height, subject to the timeline, strip,
-and controls limits; temporary clamps do not replace the intended split.
-Content changes still update automatic fitting.
+remembered height, the initial split fits measured timeline content plus 12 px
+slack and gives the strip the remainder. After that initial fit, window resizing
+preserves the split proportion whether or not the divider has ever been dragged.
+This replaces continuous content-fitting on resize (#63): shrinking may scroll
+timeline rows and growing may leave extra space below them. The existing
+two-lane timeline minimum, strip minimum, and controls-width limit still apply;
+the minimum does not require every lane to remain visible. Temporary clamps
+do not replace the intended split. While no height is remembered, lane changes
+revise the content-based target at the first measured workspace height.
 `ShowEditor` measures content independently of scroll position; a visible Live
 strip reserves 32 px in automatic fitting and the two-lane minimum. Remembered
 height takes precedence over content and survives temporary viewport clamps.

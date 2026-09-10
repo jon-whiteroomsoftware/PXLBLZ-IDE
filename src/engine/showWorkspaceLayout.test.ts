@@ -36,6 +36,23 @@ describe('Show workspace over/under layout (#967)', () => {
     expect(resolveShowWorkspaceLayout(input)).toEqual(baseline)
   })
 
+  it('preserves the initial content-fitted proportion before any divider movement (#63)', () => {
+    const input = { width: 1200, height: 900, referenceHeight: 900, desiredTimelineHeight: null, timelineContentHeight: 290, previewAspect: 1 }
+    const initial = resolveShowWorkspaceLayout(input)
+    expect(initial.timelineHeight).toBe(302)
+    for (const height of [500, 1200, 900]) {
+      const resized = resolveShowWorkspaceLayout({ ...input, height })
+      expect(resized.clamp).toBeNull()
+      expect(resized.timelineHeight / (height - 6)).toBeCloseTo(initial.timelineHeight / 894, 2)
+    }
+    // The existing minimum protects two lanes, not the entire content height.
+    // A smaller window may require scrolling even before the first drag.
+    const short = resolveShowWorkspaceLayout({ ...input, height: 300 })
+    expect(short.timelineHeight).toBe(SHOW_TIMELINE_MIN_HEIGHT)
+    expect(short.clamp).toBe('timeline-min')
+    expect(resolveShowWorkspaceLayout(input)).toEqual(initial)
+  })
+
   it('turns the remembered timeline height into an aspect-true strip', () => {
     expect(resolveShowWorkspaceLayout({
       width: 900,
