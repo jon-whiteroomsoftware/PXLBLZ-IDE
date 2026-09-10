@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "963",
+  "route": "/oauth/authorize?agent=1",
+  "operation": "Repo Playwright Chromium against managed isolated runtime5207 with its synthetic account: desktop1200x850 and narrow390x844, keyboard focus and no horizontal overflow; click Cancel and Allow, observe state-preserving redirects, exchange the authorization code and list zero MCP tools. Consent has no console/runtime errors. Two expected404responses came from the synthetic client callback with no hosted client UI; this is local protocol proof, not hosted client qualification. In-app browser unavailable after discovery and two selection attempts.",
+  "captures": [
+    ".wrsp/ui-proof/963-oauth-consent-desktop.png",
+    ".wrsp/ui-proof/963-oauth-consent-narrow.png"
+  ],
+  "capturedAtCommit": "8845b68c78b7ae80e0e7a361abf47424e09eeced"
+}
