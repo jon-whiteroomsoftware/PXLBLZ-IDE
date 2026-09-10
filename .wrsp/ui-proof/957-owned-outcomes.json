@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "957",
+  "route": "/PXLBLZ-IDE/studio/shows/drawer-957-mtw4x2lp?agent=1",
+  "operation": "D957 on the authenticated isolated runtime: real scripted bridge edit, held save with Send disabled, successful save and tucked unread outcome, then conflicting manual brightness edit refused with red double outline. Complete Show/durable results and Undo asserted; no paid call.",
+  "captures": [
+    ".wrsp/ui-proof/957-D957-applied-saving.png",
+    ".wrsp/ui-proof/957-D957-saved-tucked.png",
+    ".wrsp/ui-proof/957-D957-refused-tucked.png"
+  ],
+  "capturedAtCommit": "4d7f15efd4cc2f95ea519650fcadbde10dad1c1f"
+}
