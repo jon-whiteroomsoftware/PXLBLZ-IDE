@@ -728,7 +728,6 @@ test.describe('authenticated Show authoring', () => {
         titleActionsGap: titleBounds && actionsBounds ? actionsBounds.left - titleBounds.right : -1,
         guideActionsGap: guideBounds && actionsBounds ? actionsBounds.left - guideBounds.right : -1,
         actionsClientWidth: actions?.clientWidth ?? 0,
-        actionsScrollWidth: actions?.scrollWidth ?? 0,
       }
     })
 
@@ -737,9 +736,17 @@ test.describe('authenticated Show authoring', () => {
     expect(geometry.titleActionsGap).toBeGreaterThanOrEqual(0)
     expect(geometry.guideActionsGap).toBeGreaterThanOrEqual(0)
     expect(geometry.actionsClientWidth).toBeGreaterThan(0)
-    expect(geometry.actionsScrollWidth).toBeGreaterThan(geometry.actionsClientWidth)
+    // Removing the delivery row can make every action fit; scrolling is not
+    // itself the contract. Prove the remaining controls are visible and work.
+    const actionsMenu = page.getByRole('button', { name: 'Show actions' })
+    await expect(actionsMenu).toBeInViewport({ ratio: 1 })
+    await actionsMenu.click()
+    await expect(page.getByRole('menuitem', { name: 'View code' })).toBeVisible()
+    await page.keyboard.press('Escape')
 
-    await page.getByRole('button', { name: 'Show properties' }).click()
+    const properties = page.getByRole('button', { name: 'Show properties' })
+    await expect(properties).toBeInViewport({ ratio: 1 })
+    await properties.click()
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeVisible()
   })
 
