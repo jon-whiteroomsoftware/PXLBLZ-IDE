@@ -341,7 +341,7 @@ function dispatch(a){
   if (a.type==='saved') mcp.push({t:'(server) get_outcome → "saved"', cls:'s'});
   if (a.type==='saveFailed') mcp.push({t:'(server) get_outcome → "rolled-back"', cls:'e'});
   if (a.type==='knock') mcp.push({t:'begin_edit with no armed window → held 30 s; IDE shows the call', cls:'s'});
-  if (a.type==='connectOwn') mcp.push({t:'IDE armed this window for 5:00', cls:'s'});
+  if (a.type==='connectOwn') mcp.push({t:'IDE armed this window for 2:00 (120 seconds)', cls:'s'});
   if (mcp.length>18) mcp.shift();
   if (S.hlPhase==='flash'){ clearTimeout(settleTimer); settleTimer=setTimeout(()=>{ S=AgentModel.reduce(S,{type:'settle'}); render(); }, 1900); }
   render();
