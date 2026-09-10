@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "63",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-301-installation-mapping",
+  "operation": "Repository Playwright after in-app verification, synthetic playwright-worker-00 in isolated test runtime: adjusted the split, resized and reloaded at 1600x900, adjusted again after growth to 1900x1200 then reloaded, and returned to 1800x1000. Verified the intended DOM split ratio after every reload. Resized to 640x1000 controls-min clamp, reloaded and captured after the drawer closed, then restored 1800x1000 and verified the unclamped intended ratio. Screenshots exported from passing JSON-reporter attachments.",
+  "captures": [
+    ".wrsp/ui-proof/63-reload-split-1600x900.png",
+    ".wrsp/ui-proof/63-reload-split-640x1000.png"
+  ],
+  "capturedAtCommit": "7cebb7e70bd61ba22b7361a6a64257b70176900d"
+}

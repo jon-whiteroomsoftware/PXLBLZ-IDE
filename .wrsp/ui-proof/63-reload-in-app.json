@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "63",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-remix-quadrille",
+  "operation": "Codex in-app browser at managed port 5178, existing synthetic local-agent-08: reloaded committed UI, adjusted the visible divider with ArrowDown, noted aria-valuenow 430, navigated to reload the same Show, and verified 430 again. Inspected the resulting screenshot.",
+  "captures": [
+    ".wrsp/ui-proof/63-reload-in-app.jpg"
+  ],
+  "capturedAtCommit": "7cebb7e70bd61ba22b7361a6a64257b70176900d"
+}
