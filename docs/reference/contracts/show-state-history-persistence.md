@@ -43,8 +43,9 @@ publication exposes one volatile capability to the header and Controller
 popover; both invoke the same preparation, warning-dependent confirmation and
 delivery path. The popover requires a matching Show route identity. Publication
 cleanup is editor-instance-scoped, so an old editor cannot retire a newer
-owner. Run/Save checks that snapshot
-and the Controller session before delivery, including after asynchronous Save
+owner. Failure feedback in the popover and retained header consumes the same
+artifact-scoped result; dismissing either clears that shared outcome. Run/Save
+checks that snapshot and the Controller session before delivery, including after asynchronous Save
 JPEG preparation. Unmount clears the snapshot, so a late JPEG cannot send.
 Generated-code downloads retain their explicitly captured export snapshot;
 later edits do not silently replace the requested export.

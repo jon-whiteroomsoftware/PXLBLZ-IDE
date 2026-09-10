@@ -9,6 +9,8 @@ export interface ShowControllerDelivery {
   mode: SendMode
   pushing: boolean
   succeeded: boolean
+  failure: { mode: SendMode; message: string } | null
+  dismissFailure: () => void
   pending: boolean
   warnings: PreflightWarning[]
   blocked: boolean

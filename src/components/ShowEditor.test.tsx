@@ -8870,3 +8870,35 @@ it('runs a warning-free Show directly from the popover and fails closed after ro
   await user.click(run)
   expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1)
 })
+
+it.each((['run', 'save'] as const).flatMap((mode) => (['popover', 'header'] as const).map((dismissFrom) => ({ mode, dismissFrom }))))(
+  'shows $mode failure in the popover and dismisses both notices from $dismissFrom (#997)', async ({ mode, dismissFrom }) => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('failure-997', 'Failed delivery', 1)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'shows', id: show.id } } })
+    const pushGeneratedArtifact = vi.fn(async () => {
+      useControllerStore.getState().reportArtifactPushFailure({ ok: false, artifactId: `show:${show.id}`, mode, message: 'Failed to fetch' })
+    })
+    useControllerStore.setState({ controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Bench PB', phase: 'live', mapDim: 1, firmwareVersion: '3.67' } }, activeIp: '10.0.0.5', pushGeneratedArtifact })
+    setControllerProvider(new ConnectedControllerProvider())
+    const jpeg = vi.spyOn(previewThumbnailJpeg, 'buildPreviewJpeg').mockResolvedValue(new Uint8Array([1, 2, 3]))
+    try {
+      render(<><ShowEditor showId={show.id} /><ControllerActionRow /></>)
+      const label = mode === 'save' ? 'Save' : 'Run'
+      await user.click(within(screen.getByTestId('controller-action-row')).getByRole('button', { name: label }))
+      await waitFor(() => expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1))
+      const popoverNotice = within(screen.getByTestId('controller-action-row')).getByRole('alert')
+      expect(popoverNotice).toBeVisible()
+      expect(popoverNotice).toHaveTextContent(`${label} failed: Failed to fetch`)
+      expect(screen.getByTestId('show-push-failure')).toHaveTextContent(`${label} failed: Failed to fetch`)
+      const dismissScope = dismissFrom === 'popover' ? popoverNotice : screen.getByTestId('show-push-failure')
+      await user.click(within(dismissScope).getByRole('button', { name: `Dismiss ${label} failure` }))
+      expect(within(screen.getByTestId('controller-action-row')).queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('show-push-failure')).not.toBeInTheDocument()
+      act(() => useControllerStore.getState().reportArtifactPushFailure({ ok: false, artifactId: 'show:another-show', mode, message: 'Unrelated failure' }))
+      expect(within(screen.getByTestId('controller-action-row')).queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('show-push-failure')).not.toBeInTheDocument()
+    } finally { jpeg.mockRestore() }
+  },
+)

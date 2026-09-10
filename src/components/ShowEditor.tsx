@@ -2166,6 +2166,8 @@ export function ShowEditor({
     mode: showSendMode,
     pushing: controllerPushing || preparingSave,
     succeeded: !!showControllerPushResult?.ok,
+    failure: showControllerPushResult && !showControllerPushResult.ok ? showControllerPushResult : null,
+    dismissFailure: clearArtifactPushResult,
     pending: sendSurface === 'popover' && pendingSendMode !== null && pendingDelivery !== null,
     warnings: pendingDelivery?.prepared.warnings ?? preparedControllerArtifact.value?.warnings ?? [],
     blocked: pendingDelivery?.prepared.blocked ?? preparedControllerArtifact.value?.blocked ?? true,

@@ -1,3 +1,4 @@
+import { SaveFailureNotice } from './SaveFailureNotice'
 import { useEffect, useId, useSyncExternalStore } from 'react'
 import { Check, Play, RotateCw, Save } from 'lucide-react'
 import { controlIcon, transportIcon } from '@/components/iconScale'
@@ -202,6 +203,16 @@ export function ControllerActionRow() {
               controllerId={activeIp ?? ''}
             />
           </div>
+          {showDelivery?.failure && (
+            <SaveFailureNotice
+              kind="action"
+              compact
+              testId="controller-show-push-failure"
+              message={`${showDelivery.failure.mode === 'save' ? 'Save' : 'Run'} failed: ${showDelivery.failure.message}`}
+              onDismiss={showDelivery.dismissFailure}
+              dismissLabel={`Dismiss ${showDelivery.failure.mode === 'save' ? 'Save' : 'Run'} failure`}
+            />
+          )}
         </div>
       )}
     >

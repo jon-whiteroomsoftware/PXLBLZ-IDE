@@ -7,7 +7,7 @@ it('keeps the replacement editor capability when the old owner retires', async (
   const newRequest = vi.fn()
   const delivery: ShowControllerDelivery = {
     subject: { kind: 'show', id: 'same-show', name: 'Show', deliveryBlocker: null, runAlreadyPushed: false, saveAlreadyPushed: false },
-    mode: 'run', pushing: false, succeeded: false, pending: false, warnings: [], blocked: false,
+    mode: 'run', pushing: false, succeeded: false, failure: null, dismissFailure: () => {}, pending: false, warnings: [], blocked: false,
     request: oldRequest, confirm: async () => {}, cancel: () => {},
   }
   const store = useShowControllerDeliveryStore.getState()
