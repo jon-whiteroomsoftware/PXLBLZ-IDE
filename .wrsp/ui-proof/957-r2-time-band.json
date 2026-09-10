@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "957",
+  "route": "/PXLBLZ-IDE/studio/shows/insert-time-951-mtw5b766?agent=1",
+  "operation": "IT951 on the authenticated isolated runtime: inserted one second at 29 seconds through successful canonical registry execution. Verified the band at29/63 with width1/63, zoomed and horizontally panned without losing attribution, then exported/reopened/undid and checked stale/duplicate admission. No paid call.",
+  "captures": [
+    ".wrsp/ui-proof/957-r2-IT951-band-panned.png"
+  ],
+  "capturedAtCommit": "3fb220273b1db9ee461280bc912697a1a113707a"
+}

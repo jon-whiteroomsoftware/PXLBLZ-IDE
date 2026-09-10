@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "issue": "957",
+  "route": "/PXLBLZ-IDE/studio/shows/a845330b-8d30-4335-b124-940c2bf87045?agent=1",
+  "operation": "Managed issue runtime 5179, synthetic local-agent-11, repository Chromium fallback after unavailable in-app browser. Keyboard-opened the drawer, chose both agent kinds, restored pinning after narrowing, preserved the composer selection through Dismiss, and verified outside-click Add menu plus export. External connection, loss, unknown and rollback are explicit diagnostic presentation fixtures; no external connection or Show mutation is claimed.",
+  "captures": [
+    ".wrsp/ui-proof/957-r2-tucked.png",
+    ".wrsp/ui-proof/957-r2-empty-keyboard.png",
+    ".wrsp/ui-proof/957-r2-arming.png",
+    ".wrsp/ui-proof/957-r2-incoming-call.png",
+    ".wrsp/ui-proof/957-r2-external-working.png",
+    ".wrsp/ui-proof/957-r2-lost-contact.png",
+    ".wrsp/ui-proof/957-r2-unknown.png",
+    ".wrsp/ui-proof/957-r2-rolled-back.png",
+    ".wrsp/ui-proof/957-r2-narrow.png",
+    ".wrsp/ui-proof/957-r2-restored-pinned.png",
+    ".wrsp/ui-proof/957-r2-outside-menu.png"
+  ],
+  "capturedAtCommit": "3fb220273b1db9ee461280bc912697a1a113707a"
+}
