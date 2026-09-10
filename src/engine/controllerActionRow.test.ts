@@ -14,6 +14,54 @@ const studioPattern: Route = {
 }
 
 describe('describeControllerActionRow', () => {
+  it.each(['Rebuilding Show...', 'Compile error', 'Artifact blocked', 'Pressure exceeded', 'Preparation failed', 'Show is not ready to send'])(
+    'preserves the Show blocker: %s', (deliveryBlocker) => {
+      const view = describeControllerActionRow({
+        route: { kind: 'studio', entity: { kind: 'shows', id: 'show-1' } },
+        subject: { kind: 'show', id: 'show-1', name: 'Stage', deliveryBlocker, runAlreadyPushed: true, saveAlreadyPushed: true },
+        patternName: 'Retained', status: { kind: 'no-extension' }, compileStatus: 'broken',
+        runAlreadyPushed: false, saveAlreadyPushed: false, working: false, programsRead: true, programCount: 2,
+      })
+      expect(view.run).toEqual({ enabled: false, reason: deliveryBlocker })
+      expect(view.save).toEqual(view.run)
+    },
+  )
+
+  it.each([[true, false], [false, true], [true, true], [false, false]])('keeps Show Run %s and Save %s independent of retained Pattern state', (runAlreadyPushed, saveAlreadyPushed) => {
+    const view = describeControllerActionRow({
+      route: { kind: 'studio', entity: { kind: 'shows', id: 'show-1' } },
+      subject: { kind: 'show', id: 'show-1', name: 'Stage', deliveryBlocker: null, runAlreadyPushed, saveAlreadyPushed },
+      patternName: 'Retained', status: connected, compileStatus: 'broken',
+      runAlreadyPushed: !runAlreadyPushed, saveAlreadyPushed: !saveAlreadyPushed, working: false, programsRead: true, programCount: 2,
+    })
+    expect(view.run).toEqual(runAlreadyPushed ? { enabled: false, reason: 'No changes since the last send' } : { enabled: true })
+    expect(view.save).toEqual(saveAlreadyPushed ? { enabled: false, reason: 'No changes since the last send' } : { enabled: true })
+  })
+
+  it.each<Route>([{ kind: 'studio', entity: { kind: 'shows', id: 'other' } }, { kind: 'studio', entity: { kind: 'patterns', id: 'pattern-1' } }, { kind: 'gallery' }, { kind: 'studio', entity: null }])('refuses a prepared Show on a mismatched route: $kind', (route) => {
+    const view = describeControllerActionRow({
+      route, subject: { kind: 'show', id: 'show-1', name: 'Stage', deliveryBlocker: null, runAlreadyPushed: false, saveAlreadyPushed: false },
+      patternName: 'Retained', status: connected, compileStatus: 'good',
+      runAlreadyPushed: false, saveAlreadyPushed: false, working: false, programsRead: true, programCount: 2,
+    })
+    expect(view.subject).toBeNull()
+    expect(view.run).toEqual({ enabled: false, reason: 'Open a Pattern or Show to push it to this Controller' })
+    expect(view.save).toEqual(view.run)
+  })
+
+  it('uses the prepared Show gate instead of the retained Pattern', () => {
+    const view = describeControllerActionRow({
+      route: { kind: 'studio', entity: { kind: 'shows', id: 'show-1' } },
+      subject: { kind: 'show', id: 'show-1', name: 'Stage', deliveryBlocker: 'Rebuilding Show...', runAlreadyPushed: false, saveAlreadyPushed: false },
+      patternName: 'Stale Pattern', status: connected, compileStatus: 'good',
+      runAlreadyPushed: false, saveAlreadyPushed: false, working: false,
+      programsRead: true, programCount: 2,
+    })
+    expect(view.subject).toBe('Stage')
+    expect(view.run).toEqual({ enabled: false, reason: 'Rebuilding Show...' })
+    expect(view.save).toEqual(view.run)
+  })
+
   it('enables both verbs for a clean open Studio pattern and names their subject', () => {
     expect(describeControllerActionRow({
       route: studioPattern,
@@ -53,7 +101,7 @@ describe('describeControllerActionRow', () => {
     expect(view.subject).toBeNull()
     expect(view.run).toEqual({
       enabled: false,
-      reason: 'Open a pattern to push it to this Controller',
+      reason: 'Open a Pattern or Show to push it to this Controller',
     })
     expect(view.save).toEqual(view.run)
     expect(view.switch).toEqual({ enabled: true })

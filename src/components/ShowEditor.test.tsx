@@ -1,3 +1,5 @@
+import { ControllerActionRow } from './ControllerActionRow'
+import { useRouterStore } from '@/store/routerStore'
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
 import ShowSourceOutletContext from './ShowSourceOutlet'
 import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
@@ -8745,8 +8747,8 @@ it.each([1, 2])('releases a below-threshold auxiliary Marker button %s without w
   window.history.replaceState(null, '', '/')
 })
 
-it.each(['Show', 'Library', 'map', 'profile', 'output', 'navigation', 'unmount', 'preview override'] as const)(
-  'revalidates delayed Save JPEG after %s changes (#955)', async (dependency) => {
+it.each((['Show', 'Library', 'map', 'profile', 'output', 'navigation', 'unmount', 'preview override', 'Controller reconnect', 'same Show remount'] as const).flatMap((dependency) => (['header', 'popover'] as const).map((surface) => ({ dependency, surface }))))(
+  'revalidates delayed $surface Save JPEG after $dependency changes (#955, #997)', async ({ dependency, surface }) => {
     const user = userEvent.setup()
     let show = createDefaultShow('delayed-delivery-955', 'Delayed delivery', 1)
     show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.1)
@@ -8766,8 +8768,9 @@ it.each(['Show', 'Library', 'map', 'profile', 'output', 'navigation', 'unmount',
     let resolvePreview!: (image: Uint8Array) => void
     const previewJpeg = vi.spyOn(previewThumbnailJpeg, 'buildPreviewJpeg').mockReturnValue(new Promise((resolve) => { resolvePreview = resolve }))
     try {
-      const view = render(<ShowEditor showId={show.id} />)
-      await user.click(screen.getByRole('button', { name: 'Save to Bench PB' }))
+      useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'shows', id: show.id } } })
+      const view = render(<><ShowEditor showId={show.id} />{surface === 'popover' && <ControllerActionRow />}</>)
+      await user.click(surface === 'popover' ? within(screen.getByTestId('controller-action-row')).getByRole('button', { name: 'Save' }) : screen.getByRole('button', { name: 'Save to Bench PB' }))
       const confirmedSave = user.click(screen.getByRole('button', { name: 'Send anyway' }))
       await waitFor(() => expect(previewJpeg).toHaveBeenCalledTimes(1))
       act(() => {
@@ -8781,6 +8784,8 @@ it.each(['Show', 'Library', 'map', 'profile', 'output', 'navigation', 'unmount',
           case 'output': useShowStore.setState({ shows: [{ ...show, outputContract: createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 120 }) }] }); break
           case 'navigation': changed.id = 'next-delivery-955'; useShowStore.setState({ shows: [show, changed] }); view.rerender(<ShowEditor showId={changed.id} />); break
           case 'unmount': view.unmount(); break
+          case 'same Show remount': view.rerender(<><ShowEditor key='replacement' showId={show.id} />{surface === 'popover' && <ControllerActionRow />}</>); break
+          case 'Controller reconnect': useControllerStore.setState((state) => ({ controllers: { ...state.controllers, '10.0.0.5': { ...state.controllers['10.0.0.5'], liveEpoch: 1 } } })); break
           // A temporary Stage gesture is not an authored Controller artifact.
           case 'preview override': useShowPreviewOverrideStore.getState().preview(changed); break
         }
@@ -8792,8 +8797,76 @@ it.each(['Show', 'Library', 'map', 'profile', 'output', 'navigation', 'unmount',
         expect(pushGeneratedArtifact.mock.calls[0][0].source).toContain('0.25')
       } else {
         expect(pushGeneratedArtifact).not.toHaveBeenCalled()
-        expect(useControllerStore.getState().artifactPushResult).toMatchObject({ ok: false, message: 'Show changed before delivery; try again', mode: 'save' })
+        expect(useControllerStore.getState().artifactPushResult).toMatchObject({ ok: false, message: dependency === 'Controller reconnect' ? 'Controller session changed before Show delivery' : 'Show changed before delivery; try again', mode: 'save' })
       }
     } finally { previewJpeg.mockRestore() }
   },
 )
+
+it.each(['cancel', 'Escape', 'outside', 'close', 'header', 'run', 'save'] as const)(
+  'shares Show preflight from the Controller popover: %s (#997)', async (action) => {
+    const user = userEvent.setup()
+    let show = createDefaultShow('popover-997', 'Popover Show', 1)
+    show = updateShowTransition({ ...show, stageMapId: 'plane' }, show.scenes[0].id, 'portal', 2000, 0.1)
+    const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'shows', id: show.id } } })
+    useControllerStore.setState({
+      controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Bench PB', phase: 'live', mapDim: 1, firmwareVersion: '3.67' } },
+      activeIp: '10.0.0.5', pushGeneratedArtifact,
+    })
+    setControllerProvider(new ConnectedControllerProvider())
+    const jpeg = vi.spyOn(previewThumbnailJpeg, 'buildPreviewJpeg').mockResolvedValue(new Uint8Array([1, 2, 3]))
+    try {
+      const view = render(<><ShowEditor showId={show.id} /><ControllerActionRow /></>)
+      const row = within(screen.getByTestId('controller-action-row'))
+      expect(row.getByText('Popover Show')).toBeInTheDocument()
+      await user.click(row.getByRole('button', { name: action === 'save' ? 'Save' : 'Run' }))
+      expect(screen.getByTestId('controller-show-preflight-dialog')).toBeInTheDocument()
+      expect(screen.queryByTestId('show-preflight-dialog')).not.toBeInTheDocument()
+      expect(pushGeneratedArtifact).not.toHaveBeenCalled()
+      switch (action) {
+        case 'cancel': await user.click(screen.getByRole('button', { name: 'Cancel' })); break
+        case 'Escape': await user.keyboard('{Escape}'); break
+        case 'outside': fireEvent.mouseDown(document.body); break
+        case 'close': view.rerender(<ShowEditor showId={show.id} />); break
+        case 'header': await user.click(screen.getByRole('button', { name: 'Run on Bench PB' })); break
+        default: await user.click(screen.getByRole('button', { name: 'Send anyway' }))
+      }
+      expect(screen.queryByTestId('controller-show-preflight-dialog')).not.toBeInTheDocument()
+      if (action === 'header') {
+        expect(screen.getByTestId('show-preflight-dialog')).toBeInTheDocument()
+        await user.click(screen.getByRole('button', { name: 'Cancel' }))
+      }
+      if (action === 'run' || action === 'save') {
+        await waitFor(() => expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1))
+        expect(pushGeneratedArtifact).toHaveBeenCalledWith(expect.objectContaining({
+          artifactId: 'show:popover-997', name: 'Popover Show', persist: action === 'save',
+          source: expect.stringContaining('export function render(index, x)'),
+          artifactStamp: expect.objectContaining({ transforms: expect.arrayContaining(['renderer-adapter']) }),
+          expectedControllerSession: { id: 'ctrl-live', address: '10.0.0.5', liveEpoch: 0 },
+          previewImage: action === 'save' ? new Uint8Array([1, 2, 3]) : undefined,
+        }))
+      } else expect(pushGeneratedArtifact).not.toHaveBeenCalled()
+    } finally { jpeg.mockRestore() }
+  },
+)
+
+it('runs a warning-free Show directly from the popover and fails closed after route departure (#997)', async () => {
+  const user = userEvent.setup()
+  const show = createDefaultShow('direct-997', 'Direct Show', 1)
+  const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
+  useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+  useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'shows', id: show.id } } })
+  useControllerStore.setState({ controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Bench PB', phase: 'live', mapDim: 1, firmwareVersion: '3.67' } }, activeIp: '10.0.0.5', pushGeneratedArtifact })
+  setControllerProvider(new ConnectedControllerProvider())
+  render(<><ShowEditor showId={show.id} /><ControllerActionRow /></>)
+  const run = within(screen.getByTestId('controller-action-row')).getByRole('button', { name: 'Run' })
+  await user.click(run)
+  expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1)
+  expect(screen.queryByTestId('controller-show-preflight-dialog')).not.toBeInTheDocument()
+  act(() => useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'shows', id: 'other' } } }))
+  expectDisabledReason(run, 'Open a Pattern or Show to push it to this Controller')
+  await user.click(run)
+  expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1)
+})

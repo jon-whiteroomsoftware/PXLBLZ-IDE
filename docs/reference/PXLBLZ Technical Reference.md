@@ -645,6 +645,13 @@ design.
 
 ## 17. Pattern push, PBP storage, and Saved Patterns
 
+The Controller popover resolves a Pattern or Show subject from the Studio
+route. A mounted ShowEditor publishes its committed delivery capability through
+`showControllerDeliveryStore`; it does not compile a second Show for the
+popover. Both Show entry points share prepared source, warning-dependent
+preflight, snapshot/session invalidation and `show:<id>` delivery tracking.
+Closing the invoking popover cancels pending Show confirmation.
+
 Before every push the store waits for profile writes, compiles libraries,
 resolves the profile, derives one Controller delivery artifact from active
 profile passes plus any renderer adapter, checks firmware, and invokes the

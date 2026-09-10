@@ -1,3 +1,5 @@
+import { showDeliveryInvalidationMessage } from '@/engine/showControllerDelivery'
+import { useShowControllerDelivery } from './useShowControllerDelivery'
 import { editShowMarkerFromUI } from '../engine/showExactTimelineMarker'
 import { Fragment, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
@@ -51,7 +53,7 @@ import { PatternCombobox, type PatternComboboxOption } from '@/components/Patter
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 import { showRecordClipCount } from '@/engine/showClipInvariant'
 import { requestControllerEntryOpen } from '@/components/controllerEntryEvents'
-import { PatternPushChoices } from '@/components/SendToController'
+import { PatternPushChoices } from '@/components/PatternPushChoices'
 import { PushConfirmPopover } from '@/components/PushConfirmPopover'
 import { describeSendToController, isAlreadyPushed, type SendMode } from '@/engine/sendToController'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
@@ -1026,6 +1028,7 @@ export function ShowEditor({
   const [generatedSnapshot, setGeneratedSnapshot] = useState<ShowCompilationSnapshot | null>(null)
   const [showSendMode, setShowSendMode] = useState<SendMode>('run')
   const [pendingSendMode, setPendingSendMode] = useState<SendMode | null>(null)
+  const [sendSurface, setSendSurface] = useState<'header' | 'popover'>('header')
   const pendingDeliveryRef = useRef<ShowDeliverySnapshot | null>(null)
   const preparedDeliverySnapshotRef = useRef<ShowDeliverySnapshot | null>(null)
   const [preparingSave, setPreparingSave] = useState(false)
@@ -2018,6 +2021,159 @@ export function ShowEditor({
     })
   }
 
+  const pendingDelivery = (
+    pendingDeliveryRef.current?.show.id === showId
+    && pendingDeliveryRef.current.controllerIp === activeIp
+  )
+    ? pendingDeliveryRef.current
+    : null
+  const preparedSource = preparedControllerArtifact.value?.source ?? ''
+  const preparedProfileSignature = controllerProfileArtifactSignature(
+    activeControllerProfile,
+    showArtifactId,
+    { mapDim: activeControllerMapDim },
+  )
+  const alreadySent = (mode: SendMode) => isAlreadyPushed({
+    mode,
+    source: preparedSource,
+    lastRunSource: activeIp ? lastPushedSource[activeIp]?.[showArtifactId] : undefined,
+    lastSavedSource: activeIp ? lastSavedSource[activeIp]?.[showArtifactId] : undefined,
+    profileSignature: preparedProfileSignature,
+    lastRunProfileSignature: activeIp
+      ? lastPushedProfileSignature[activeIp]?.[showArtifactId]
+      : undefined,
+    lastSavedProfileSignature: activeIp
+      ? lastSavedProfileSignature[activeIp]?.[showArtifactId]
+      : undefined,
+    lastRunProgramId: activeIp ? lastRunProgramId[activeIp]?.[showArtifactId] : undefined,
+    activeProgramId,
+  })
+  const deliveryBlocker = !artifactCompilationReady
+    ? 'Rebuilding Show...'
+    : compiled.error
+      ? presentShowDiagnostic(compiled.error)
+      : compiled.artifactBlocker
+        ? presentShowDiagnostic(compiled.artifactBlocker)
+        : compilePressure?.status === 'blocked'
+          ? compilePressure.blocks.join(' ')
+          : preparedControllerArtifact.error
+            ? preparedControllerArtifact.error
+            : preparedDeliverySnapshot
+              ? null
+              : 'Show is not ready to send'
+  const runGate = deliveryBlocker
+    ? { enabled: false, reason: deliveryBlocker }
+    : describeSendToController({
+        status: controllerStatus,
+        compileStatus: preparedControllerArtifact.value ? 'good' : 'broken',
+        alreadyPushed: alreadySent('run'),
+      })
+  const saveGate = deliveryBlocker
+    ? { enabled: false, reason: deliveryBlocker }
+    : describeSendToController({
+        status: controllerStatus,
+        compileStatus: preparedControllerArtifact.value ? 'good' : 'broken',
+        alreadyPushed: alreadySent('save'),
+      })
+  const controllerName = activeController ? activeController.nickname || activeIp : null
+
+  function deliveryInvalidationMessage(delivery: ShowDeliverySnapshot): string | null {
+    const controllerState = useControllerStore.getState()
+    const deliveryController = delivery.controllerIp
+      ? controllerState.controllers[delivery.controllerIp]
+      : undefined
+    return showDeliveryInvalidationMessage({
+      controllerIp: delivery.controllerIp,
+      activeIp: controllerState.activeIp,
+      phase: deliveryController?.phase,
+      liveEpoch: deliveryController?.liveEpoch ?? 0,
+      expectedLiveEpoch: delivery.controllerSession.liveEpoch,
+      currentSnapshot: delivery === preparedDeliverySnapshotRef.current && delivery.show.id === showId,
+    })
+  }
+
+  function rejectInvalidDelivery(mode: SendMode, delivery: ShowDeliverySnapshot): boolean {
+    const message = deliveryInvalidationMessage(delivery)
+    if (!message) return false
+    reportArtifactPushFailure({
+      ok: false,
+      message,
+      artifactId: `show:${delivery.show.id}`,
+      mode,
+    })
+    return true
+  }
+
+  async function sendShow(mode: SendMode, delivery: ShowDeliverySnapshot | null) {
+    if (!delivery || rejectInvalidDelivery(mode, delivery)) {
+      pendingDeliveryRef.current = null
+      setPendingSendMode(null)
+      return
+    }
+    const prepared = delivery.prepared
+    const deliveryArtifactId = `show:${delivery.show.id}`
+    setPendingSendMode(null)
+    pendingDeliveryRef.current = null
+    setShowSendMode(mode)
+    setPreparingSave(mode === 'save')
+    try {
+      const previewImage = mode === 'save'
+        ? (await buildPreviewJpeg(delivery.artifact).catch(() => null)) ?? undefined
+        : undefined
+      if (rejectInvalidDelivery(mode, delivery)) return
+      trackEvent('send_to_controller', {
+        mode,
+        pattern_key: deliveryArtifactId,
+        controller_phase: activeController?.phase ?? controllerStatus.kind,
+      })
+      await pushGeneratedArtifact({
+        artifactId: deliveryArtifactId,
+        source: prepared.source,
+        name: delivery.show.name,
+        persist: mode === 'save',
+        compilePressure: {
+          budgetBytes: delivery.artifact.summary.measuredDeviceBudgetBytes,
+          worstInstantRenderersPerPixel: delivery.artifact.summary.worstInstantRenderersPerPixel,
+        },
+        artifactStamp: prepared.artifactStamp,
+        expectedControllerSession: delivery.controllerSession,
+        previewImage,
+      })
+    } finally {
+      setPreparingSave(false)
+    }
+  }
+
+  function requestShowSend(mode: SendMode, surface: 'header' | 'popover' = 'header') {
+    setSendSurface(surface)
+    const delivery = preparedDeliverySnapshot
+    if (!delivery) return
+    setShowSendMode(mode)
+    if (delivery.prepared.warnings.length > 0) {
+      pendingDeliveryRef.current = delivery
+      setPendingSendMode(mode)
+      return
+    }
+    void sendShow(mode, delivery)
+  }
+
+  const cancelShowSend = () => {
+    pendingDeliveryRef.current = null
+    setPendingSendMode(null)
+  }
+  useShowControllerDelivery(activeShow ? {
+    subject: { kind: 'show', id: showId, name: activeShow.name, deliveryBlocker, runAlreadyPushed: alreadySent('run'), saveAlreadyPushed: alreadySent('save') },
+    mode: showSendMode,
+    pushing: controllerPushing || preparingSave,
+    succeeded: !!showControllerPushResult?.ok,
+    pending: sendSurface === 'popover' && pendingSendMode !== null && pendingDelivery !== null,
+    warnings: pendingDelivery?.prepared.warnings ?? preparedControllerArtifact.value?.warnings ?? [],
+    blocked: pendingDelivery?.prepared.blocked ?? preparedControllerArtifact.value?.blocked ?? true,
+    request: (mode) => requestShowSend(mode, 'popover'),
+    confirm: async () => { if (pendingSendMode) await sendShow(pendingSendMode, pendingDelivery) },
+    cancel: cancelShowSend,
+  } : null)
+
   if (!activeShow) {
     return (
       <div className="flex h-full items-center justify-center bg-zinc-950/40 font-mono text-xs text-zinc-500">
@@ -2113,143 +2269,6 @@ export function ShowEditor({
         </div>
       </div>
     )
-  }
-
-  const pendingDelivery = (
-    pendingDeliveryRef.current?.show.id === showId
-    && pendingDeliveryRef.current.controllerIp === activeIp
-  )
-    ? pendingDeliveryRef.current
-    : null
-  const preparedSource = preparedControllerArtifact.value?.source ?? ''
-  const preparedProfileSignature = controllerProfileArtifactSignature(
-    activeControllerProfile,
-    showArtifactId,
-    { mapDim: activeControllerMapDim },
-  )
-  const alreadySent = (mode: SendMode) => isAlreadyPushed({
-    mode,
-    source: preparedSource,
-    lastRunSource: activeIp ? lastPushedSource[activeIp]?.[showArtifactId] : undefined,
-    lastSavedSource: activeIp ? lastSavedSource[activeIp]?.[showArtifactId] : undefined,
-    profileSignature: preparedProfileSignature,
-    lastRunProfileSignature: activeIp
-      ? lastPushedProfileSignature[activeIp]?.[showArtifactId]
-      : undefined,
-    lastSavedProfileSignature: activeIp
-      ? lastSavedProfileSignature[activeIp]?.[showArtifactId]
-      : undefined,
-    lastRunProgramId: activeIp ? lastRunProgramId[activeIp]?.[showArtifactId] : undefined,
-    activeProgramId,
-  })
-  const deliveryBlocker = !artifactCompilationReady
-    ? 'Rebuilding Show...'
-    : compiled.error
-      ? presentShowDiagnostic(compiled.error)
-      : compiled.artifactBlocker
-        ? presentShowDiagnostic(compiled.artifactBlocker)
-        : compilePressure?.status === 'blocked'
-          ? compilePressure.blocks.join(' ')
-          : preparedControllerArtifact.error
-            ? preparedControllerArtifact.error
-            : preparedDeliverySnapshot
-              ? null
-              : 'Show is not ready to send'
-  const runGate = deliveryBlocker
-    ? { enabled: false, reason: deliveryBlocker }
-    : describeSendToController({
-        status: controllerStatus,
-        compileStatus: preparedControllerArtifact.value ? 'good' : 'broken',
-        alreadyPushed: alreadySent('run'),
-      })
-  const saveGate = deliveryBlocker
-    ? { enabled: false, reason: deliveryBlocker }
-    : describeSendToController({
-        status: controllerStatus,
-        compileStatus: preparedControllerArtifact.value ? 'good' : 'broken',
-        alreadyPushed: alreadySent('save'),
-      })
-  const controllerName = activeController ? activeController.nickname || activeIp : null
-
-  function deliveryInvalidationMessage(delivery: ShowDeliverySnapshot): string | null {
-    const controllerState = useControllerStore.getState()
-    const deliveryController = delivery.controllerIp
-      ? controllerState.controllers[delivery.controllerIp]
-      : undefined
-    if (
-      delivery.controllerIp !== controllerState.activeIp
-      || deliveryController?.phase !== 'live'
-      || (deliveryController.liveEpoch ?? 0) !== delivery.controllerSession.liveEpoch
-    ) return 'Controller session changed before Show delivery'
-    if (
-      delivery !== preparedDeliverySnapshotRef.current
-      || delivery.show.id !== showId
-    ) return 'Show changed before delivery; try again'
-    return null
-  }
-
-  function rejectInvalidDelivery(mode: SendMode, delivery: ShowDeliverySnapshot): boolean {
-    const message = deliveryInvalidationMessage(delivery)
-    if (!message) return false
-    reportArtifactPushFailure({
-      ok: false,
-      message,
-      artifactId: `show:${delivery.show.id}`,
-      mode,
-    })
-    return true
-  }
-
-  async function sendShow(mode: SendMode, delivery: ShowDeliverySnapshot | null) {
-    if (!delivery || rejectInvalidDelivery(mode, delivery)) {
-      pendingDeliveryRef.current = null
-      setPendingSendMode(null)
-      return
-    }
-    const prepared = delivery.prepared
-    const deliveryArtifactId = `show:${delivery.show.id}`
-    setPendingSendMode(null)
-    pendingDeliveryRef.current = null
-    setShowSendMode(mode)
-    setPreparingSave(mode === 'save')
-    try {
-      const previewImage = mode === 'save'
-        ? (await buildPreviewJpeg(delivery.artifact).catch(() => null)) ?? undefined
-        : undefined
-      if (rejectInvalidDelivery(mode, delivery)) return
-      trackEvent('send_to_controller', {
-        mode,
-        pattern_key: deliveryArtifactId,
-        controller_phase: activeController?.phase ?? controllerStatus.kind,
-      })
-      await pushGeneratedArtifact({
-        artifactId: deliveryArtifactId,
-        source: prepared.source,
-        name: delivery.show.name,
-        persist: mode === 'save',
-        compilePressure: {
-          budgetBytes: delivery.artifact.summary.measuredDeviceBudgetBytes,
-          worstInstantRenderersPerPixel: delivery.artifact.summary.worstInstantRenderersPerPixel,
-        },
-        artifactStamp: prepared.artifactStamp,
-        expectedControllerSession: delivery.controllerSession,
-        previewImage,
-      })
-    } finally {
-      setPreparingSave(false)
-    }
-  }
-
-  function requestShowSend(mode: SendMode) {
-    const delivery = preparedDeliverySnapshot
-    if (!delivery) return
-    setShowSendMode(mode)
-    if (delivery.prepared.warnings.length > 0) {
-      pendingDeliveryRef.current = delivery
-      setPendingSendMode(mode)
-      return
-    }
-    void sendShow(mode, delivery)
   }
 
   const patternOptions = [
@@ -2376,7 +2395,7 @@ export function ShowEditor({
         onExportShowFile={exportAuthoredShowFile}
       />
       <PushConfirmPopover
-        open={pendingSendMode !== null && pendingDelivery !== null}
+        open={sendSurface === 'header' && pendingSendMode !== null && pendingDelivery !== null}
         onCancel={() => {
           pendingDeliveryRef.current = null
           setPendingSendMode(null)

@@ -329,6 +329,11 @@ what the profile inserted, wrapped, or bound.
 
 ## 11. Run and Save
 
+The Studio Controller popover offers Run and Save for the visible Pattern or
+Show. Its subject names the content being sent. Shows use the same readiness
+checks and warning confirmation as their header actions; canceling a warning
+sends nothing.
+
 **Run** compiles with the Controller's own compiler and loads transient
 bytecode; **Save** writes a durable Pattern and activates it. The two track
 dirty state independently — a clean Run does not pretend you saved — and

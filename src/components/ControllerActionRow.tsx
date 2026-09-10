@@ -1,4 +1,4 @@
-import { useId, useSyncExternalStore } from 'react'
+import { useEffect, useId, useSyncExternalStore } from 'react'
 import { Check, Play, RotateCw, Save } from 'lucide-react'
 import { controlIcon, transportIcon } from '@/components/iconScale'
 import { DisabledReasonTip } from '@/components/ui/disabled-reason'
@@ -16,7 +16,10 @@ import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { useEditorStore } from '@/store/editorStore'
 import { activePushKey, usePatternStore } from '@/store/patternStore'
 import { useRouterStore } from '@/store/routerStore'
+import { useShowControllerDeliveryStore } from '@/store/showControllerDeliveryStore'
 import { ControllerProgramSwitch } from './ControllerProgramSwitch'
+import { PushConfirmPopover } from './PushConfirmPopover'
+import { PatternPushChoices } from './PatternPushChoices'
 
 export function ControllerActionRow() {
   const provider = getControllerProvider()
@@ -25,6 +28,13 @@ export function ControllerActionRow() {
     () => provider.getStatus(),
   )
   const route = useRouterStore((state) => state.route)
+  const publishedShow = useShowControllerDeliveryStore((state) => state.delivery)
+  const showDelivery = route.kind === 'studio' && route.entity?.kind === 'shows'
+    && publishedShow?.subject.id === route.entity.id ? publishedShow : null
+  useEffect(() => () => {
+    const delivery = useShowControllerDeliveryStore.getState().delivery
+    if (delivery?.pending) delivery.cancel()
+  }, [])
   const compileStatus = useEditorStore((state) => state.compileStatus)
   const previewSource = useEditorStore((state) => state.previewSource)
   const patternId = usePatternStore(activePushKey)
@@ -77,8 +87,11 @@ export function ControllerActionRow() {
       activeProgramId,
     })
   )
-  const working = pushing || !!pushResult?.ok
+  const working = showDelivery
+    ? showDelivery.pushing || showDelivery.succeeded
+    : pushing || !!pushResult?.ok
   const view = describeControllerActionRow({
+    subject: showDelivery?.subject ?? (route.kind === 'studio' && route.entity?.kind === 'patterns' && route.entity.id && patternName ? { kind: 'pattern', id: route.entity.id, name: patternName, deliveryBlocker: null, runAlreadyPushed: alreadyPushed('run'), saveAlreadyPushed: alreadyPushed('save') } : null),
     route,
     patternName,
     status,
@@ -102,6 +115,11 @@ export function ControllerActionRow() {
   const saveGated = !view.save.enabled && !working
 
   const send = (mode: SendMode) => {
+    if (route.kind === 'studio' && route.entity?.kind === 'shows') {
+      const current = useShowControllerDeliveryStore.getState().delivery
+      if (current?.subject.id === route.entity.id) current.request(mode)
+      return
+    }
     setSaveArmed(mode === 'save')
     trackEvent('send_to_controller', {
       mode,
@@ -112,6 +130,11 @@ export function ControllerActionRow() {
   }
 
   const glyph = (mode: SendMode) => {
+    if (showDelivery) {
+      if (showDelivery.mode === mode && showDelivery.pushing) return <RotateCw {...controlIcon} className="animate-spin text-amber-400" aria-hidden />
+      if (showDelivery.mode === mode && showDelivery.succeeded) return <Check {...controlIcon} aria-hidden />
+      return mode === 'save' ? <Save {...controlIcon} aria-hidden /> : <Play {...transportIcon} aria-hidden />
+    }
     if (pushing && saveArmed === (mode === 'save')) {
       return <RotateCw {...controlIcon} className="animate-spin text-amber-400" aria-hidden />
     }
@@ -127,51 +150,69 @@ export function ControllerActionRow() {
     'inline-flex h-7 items-center gap-1.5 rounded-sm px-2 text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:cursor-not-allowed aria-disabled:opacity-30'
 
   return (
-    <div data-testid="controller-action-row" className="relative border-b border-seam px-3 py-2">
-      <div className="flex min-w-0 flex-wrap items-center gap-1">
-        <span className="relative inline-flex">
-          <button
-            type="button"
-            disabled={working}
-            aria-disabled={runGated || undefined}
-            aria-describedby={runGated ? runReasonId : undefined}
-            title={view.run.enabled ? describeSendAction('run', target).tooltip : working ? view.run.reason : undefined}
-            onClick={() => { if (!runGated) send('run') }}
-            className={`${actionClass} bg-zinc-800/80 text-zinc-300 hover:bg-zinc-700/80 hover:text-zinc-100 aria-disabled:hover:bg-zinc-800/80 aria-disabled:hover:text-zinc-300`}
-          >
-            {glyph('run')}
-            Run
-          </button>
-          {runGated && <DisabledReasonTip id={runReasonId}>{view.run.reason}</DisabledReasonTip>}
-        </span>
-        <span className="relative inline-flex">
-          <button
-            type="button"
-            disabled={working}
-            aria-disabled={saveGated || undefined}
-            aria-describedby={saveGated ? saveReasonId : undefined}
-            title={view.save.enabled ? describeSendAction('save', target).tooltip : working ? view.save.reason : undefined}
-            onClick={() => { if (!saveGated) send('save') }}
-            className={`${actionClass} bg-zinc-800/80 text-zinc-300 hover:bg-amber-500/10 hover:text-amber-300 aria-disabled:hover:bg-zinc-800/80 aria-disabled:hover:text-zinc-300`}
-          >
-            {glyph('save')}
-            Save
-          </button>
-          {saveGated && <DisabledReasonTip id={saveReasonId}>{view.save.reason}</DisabledReasonTip>}
-        </span>
-        <span
-          className="ml-1.5 min-w-16 flex-1 basis-20 truncate text-[10px] text-zinc-500"
-          title={view.subject ?? undefined}
-        >
-          {view.subject ?? '—'}
-        </span>
-        <ControllerProgramSwitch
-          gate={view.switch}
-          programs={programs}
-          actionClass={actionClass}
-          controllerId={activeIp ?? ''}
-        />
-      </div>
-    </div>
+    <PushConfirmPopover
+      open={!!showDelivery?.pending}
+      onCancel={() => showDelivery?.cancel()}
+      title="Send Show"
+      testId="controller-show-preflight-dialog"
+      className="w-full"
+      anchor={(
+        <div data-testid="controller-action-row" className="relative w-full border-b border-seam px-3 py-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-1">
+            <span className="relative inline-flex">
+              <button
+                type="button"
+                disabled={working}
+                aria-disabled={runGated || undefined}
+                aria-describedby={runGated ? runReasonId : undefined}
+                title={view.run.enabled ? describeSendAction('run', target).tooltip : working ? view.run.reason : undefined}
+                onClick={() => { if (!runGated) send('run') }}
+                className={`${actionClass} bg-zinc-800/80 text-zinc-300 hover:bg-zinc-700/80 hover:text-zinc-100 aria-disabled:hover:bg-zinc-800/80 aria-disabled:hover:text-zinc-300`}
+              >
+                {glyph('run')}
+                Run
+              </button>
+              {runGated && <DisabledReasonTip id={runReasonId}>{view.run.reason}</DisabledReasonTip>}
+            </span>
+            <span className="relative inline-flex">
+              <button
+                type="button"
+                disabled={working}
+                aria-disabled={saveGated || undefined}
+                aria-describedby={saveGated ? saveReasonId : undefined}
+                title={view.save.enabled ? describeSendAction('save', target).tooltip : working ? view.save.reason : undefined}
+                onClick={() => { if (!saveGated) send('save') }}
+                className={`${actionClass} bg-zinc-800/80 text-zinc-300 hover:bg-amber-500/10 hover:text-amber-300 aria-disabled:hover:bg-zinc-800/80 aria-disabled:hover:text-zinc-300`}
+              >
+                {glyph('save')}
+                Save
+              </button>
+              {saveGated && <DisabledReasonTip id={saveReasonId}>{view.save.reason}</DisabledReasonTip>}
+            </span>
+            <span
+              className="ml-1.5 min-w-16 flex-1 basis-20 truncate text-[10px] text-zinc-500"
+              title={view.subject ?? undefined}
+            >
+              {view.subject ?? '—'}
+            </span>
+            <ControllerProgramSwitch
+              gate={view.switch}
+              programs={programs}
+              actionClass={actionClass}
+              controllerId={activeIp ?? ''}
+            />
+          </div>
+        </div>
+      )}
+    >
+      <PatternPushChoices
+        warnings={showDelivery?.warnings ?? []}
+        blocked={showDelivery?.blocked ?? true}
+        remedy={null}
+        onCancel={() => showDelivery?.cancel()}
+        confirmWithMap={async () => {}}
+        confirmOnly={async () => { await showDelivery?.confirm() }}
+      />
+    </PushConfirmPopover>
   )
 }

@@ -38,7 +38,12 @@ The existing reconstruction generation retires old results on dependency
 replacement, navigation and unmount before they can paint.
 
 ShowEditor retains a prepared delivery snapshot only while that editor is
-mounted and its compilation inputs remain current. Run/Save checks that snapshot
+mounted and its compilation inputs remain current. Its layout-phase delivery
+publication exposes one volatile capability to the header and Controller
+popover; both invoke the same preparation, warning-dependent confirmation and
+delivery path. The popover requires a matching Show route identity. Publication
+cleanup is editor-instance-scoped, so an old editor cannot retire a newer
+owner. Run/Save checks that snapshot
 and the Controller session before delivery, including after asynchronous Save
 JPEG preparation. Unmount clears the snapshot, so a late JPEG cannot send.
 Generated-code downloads retain their explicitly captured export snapshot;

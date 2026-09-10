@@ -1238,10 +1238,10 @@ describe('ControllerBar', () => {
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
 
-    expectDisabledReason(screen.getByRole('button', { name: 'Run' }), 'Open a pattern to push it to this Controller')
-    expectDisabledReason(screen.getByRole('button', { name: 'Save' }), 'Open a pattern to push it to this Controller')
+    expectDisabledReason(screen.getByRole('button', { name: 'Run' }), 'Open a Pattern or Show to push it to this Controller')
+    expectDisabledReason(screen.getByRole('button', { name: 'Save' }), 'Open a Pattern or Show to push it to this Controller')
     expect(screen.getByTestId('controller-action-row')).toHaveTextContent('—')
-    expect(screen.queryByText('Open a pattern to push it to this Controller.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Open a Pattern or Show to push it to this Controller.')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open Desk profile' })).toBeEnabled()
     await settleControllerAsync()
   })
