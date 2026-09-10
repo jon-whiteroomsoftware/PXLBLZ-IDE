@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "issue": "996",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-remix-overture",
+  "operation": "The coordinator drove built-in Overture in the Codex in-app browser as synthetic local-agent-08, matched the existing timeline divider to 500px and collapsed the Stage summary, then inspected 1440px and 1180px widths with the entity drawer pinned and unpinned: summaries align left and the unchanged 558.28125x322 preview aligns right at the bottom of the 900px viewport. The coordinator also verified the strip hides at 979px with the timeline retained, captured 390px narrow resilience, and observed no console errors; Jon inspection remains pending.",
+  "captures": [
+    ".wrsp/ui-proof/996-1440-pinned.jpg",
+    ".wrsp/ui-proof/996-1180-pinned.jpg",
+    ".wrsp/ui-proof/996-1440-unpinned.jpg",
+    ".wrsp/ui-proof/996-1180-unpinned.jpg",
+    ".wrsp/ui-proof/996-390-narrow.jpg"
+  ],
+  "capturedAtCommit": "255add711fb5e404934ba66a690475831df78c8f"
+}
