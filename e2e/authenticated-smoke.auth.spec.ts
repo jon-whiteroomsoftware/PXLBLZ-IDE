@@ -1281,6 +1281,7 @@ test('saved Pattern freshness follows the full profile through a real managed ov
   await page.getByTestId('controller-go').click()
   const controllerPill = page.getByTestId('controller-pill')
   await expect(controllerPill).toHaveAttribute('data-phase', 'live')
+  await controllerPill.click()
   await page.getByRole('link', { name: `Open ${profile.name} profile` }).click()
 
   await expect(page).toHaveURL(new RegExp(`/studio/controllers/${profile.id}$`))
@@ -1338,6 +1339,7 @@ test('saved Pattern freshness follows the full profile through a real managed ov
   const patternsBody = await patternsResponse.json() as { patterns?: Array<{ id: string; src: string }> }
   expect(patternsBody.patterns?.find((item) => item.id === pattern.id)?.src).toBe(editedSource)
 
+  await controllerPill.click()
   await page.getByRole('link', { name: `Open ${profile.name} profile` }).click()
   await expect(page.getByLabel(/^Push again:/)).toBeVisible()
   await expect(page.getByLabel(/^Current:/)).toHaveCount(0)
