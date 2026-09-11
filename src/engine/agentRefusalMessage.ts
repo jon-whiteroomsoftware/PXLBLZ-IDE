@@ -1,6 +1,18 @@
 /** Closed user-facing vocabulary; unrecognized server details never reach copy. */
 export function agentRefusalMessage(code: string): string {
   switch (code) {
+    case 'revision-conflict': return 'The Show changed before this edit could be applied.'
+    case 'interaction-timeout': return 'Finish the current manual edit, then try again.'
+    case 'wrong-session': case 'wrong-show': case 'unknown-operation': case 'identity-mismatch':
+      return 'This edit no longer belongs to the open Show. Make a new request.'
+    case 'invalid-retry': return 'This edit can no longer be retried. Make a new request.'
+    case 'missing-show': return 'This Show is no longer available.'
+    case 'invalid-candidate': case 'no-candidate': case 'commit-refused': case 'refused': case 'service-refused':
+      return 'This edit could not be applied to the current Show.'
+    case 'service-failed': return 'The agent could not finish this edit. Nothing was applied.'
+    case 'asked': return 'The agent needs more information before editing.'
+    case 'incomplete': return 'The agent did not finish this edit. Nothing was applied.'
+    case 'nothing-applied': return 'Nothing was applied.'
     case 'service_disabled': case 'unavailable': case 'provider_unavailable': case 'halted':
       return 'The Pixelblaze agent is unavailable right now.'
     case 'not_allowed': return 'Agent editing is not enabled for this account.'
