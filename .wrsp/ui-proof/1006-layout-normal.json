@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "1006",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-301-installation-mapping",
+  "operation": "Reloaded normal Shows route at 1280x720 with remembered split; timeline bottom fade and no document scrolling. Captured with Codex in-app browser at issue runtime 5178 using existing synthetic local-agent-08 session.",
+  "captures": [
+    ".wrsp/ui-proof/1006-layout-normal.jpg"
+  ],
+  "capturedAtCommit": "55b403bd39c389f3b3fe81747dc5343e6a423e56"
+}

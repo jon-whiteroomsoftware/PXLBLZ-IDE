@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "1006",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-301-installation-mapping?agent=1",
+  "operation": "Resized Agent-enabled Shows to 640x800. Preview fits alongside controls and document extents equal viewport; no page scrollbars. Captured with Codex in-app browser at issue runtime 5178 using existing synthetic local-agent-08 session.",
+  "captures": [
+    ".wrsp/ui-proof/1006-layout-narrow.jpg"
+  ],
+  "capturedAtCommit": "55b403bd39c389f3b3fe81747dc5343e6a423e56"
+}
