@@ -1,6 +1,10 @@
+import { vi } from 'vitest'
 import { createSessionToken, sessionCookieName } from '../../../cloudflare/auth'
 import { createDefaultShow } from '../../../engine/showModel'
 import worker, { type WorkerEnv } from '../../index'
+
+// This Node suite exercises Shows routes; native OAuth runs in workerd suites.
+vi.mock('@cloudflare/workers-oauth-provider', () => ({ OAuthProvider: class {}, OAuthError: Error }))
 
 function workerEnv(database: unknown): WorkerEnv {
   return {
