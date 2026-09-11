@@ -71,7 +71,7 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
       try {
         const reply = await post({ type: 'receive', ...windowIdentity }, abort.signal)
         if (closed) return
-        // A control action invalidates already-held responses before local adoption.
+        // Synchronous local retirement invalidates already-held responses before adoption.
         if (version !== controlVersion) continue
         if (reply.connection) update(reply.connection)
         else if (reply.code === 'retired') { retire(); connection = { kind: 'refused', code: 'retired' }; emit({ type: 'connection', connection }); return }
@@ -97,16 +97,14 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
   })
   const control = async (type: string, extra: object = {}): Promise<PrivateEditResult> => {
     if (closed || !windowIdentity) return { code: 'unavailable' }
-    const version = ++controlVersion
     try {
-      const result = await post({ type, ...windowIdentity, ...extra }, abort.signal)
-      if (!closed && version === controlVersion) {
-        if (result.connection) update(result.connection)
-        else if (result.code === 'disarmed' || result.code === 'disconnected') update({ kind: 'idle' })
-      }
-      return result
-    } catch { if (!closed) contactLost(); return { code: 'unknown' } }
+      // The account wakes its held receive after every control transition.
+      // Independent HTTP replies are action results, not ordered snapshots:
+      // a delayed arm/disarm response must not retire a newer bound executor.
+      return await post({ type, ...windowIdentity, ...extra }, abort.signal)
+    } catch { return { code: 'unknown' } }
   }
+
   const close = () => {
     if (closed) return
     closed = true; ++controlVersion; retire(); abort.abort(); stopAdmission(); listeners.clear()
@@ -135,6 +133,7 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
     arm: () => control('arm'), cancelArm: () => control('disarm'),
     answer: callId => control('answer', { callId }), decline: callId => control('decline', { callId }),
     disconnect() {
+      ++controlVersion
       const ownedBinding = bindingId
       retire()
       update({ kind: 'idle' })

@@ -127,3 +127,21 @@ The private `resolveBuiltinConnection` seam resolves a surviving server-created
 builtin claim only from the exact authenticated registration/session/Show
 capability owning that slot. It refuses external slots and other windows or
 accounts. Browser JSON cannot invoke this resolver or select a trusted actor.
+
+## Browser response ordering
+
+After registration, the single receive loop owns connection snapshots. Arm,
+Disarm and Answer responses report action results only: independent HTTP
+responses can arrive out of order, so an older control snapshot must never
+retire a binding already observed by receive. The account owner wakes held
+receives after control transitions; later receives read current account state.
+Local Disconnect and editor close still retire the executor synchronously and
+invalidate already-held deliveries before network cleanup. A failed control
+request does not replace a healthy receive stream with an inferred connection
+state.
+
+`browserSessionOrdering.runtime.test.ts` delays actual workerd control responses
+until a newer bound receive has admitted a private operation. Arm and Disarm
+retain that binding without cancellation; Answer preserves the same executor.
+Same-binding outcome lookup and commit remain usable, with one capture and one
+application. These transport tests make no provider calls.
