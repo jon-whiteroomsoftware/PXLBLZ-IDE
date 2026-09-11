@@ -28,6 +28,7 @@ async function consent() {
   const html = await response.text()
   expect(response.status, html).toBe(200)
   expect(html).toContain('Show editing is not available')
+  expect(html).toContain('Signed in as <strong>github:123</strong>')
   return html.match(/name="nonce" value="([^"]+)"/)![1]
 }
 function answer(nonce: string, decision = 'allow', customCookie = cookie, origin = 'https://app.test') {
@@ -157,4 +158,14 @@ it('bounds outstanding consent and grant admissions per account without revoking
   expect((await answer(capped, 'deny', other)).status).toBe(303)
   // Refusal did not consume or revoke any independently admitted family.
   expect((await exchange({ grant_type: 'authorization_code', code: codes[0], code_verifier: verifier, redirect_uri: client.redirectUris[0] })).status).toBe(200)
+})
+it('shows only the signed account label and escapes hostile display text', async () => {
+  const displayName = 'Zoë </strong><img src=x onerror=alert(1)>'
+  const signed = `pxlblz_session=${await createSessionToken({ userId: 'github:123', primaryProvider: 'github', primaryHandle: null, displayName, avatarUrl: null }, 'test-secret')}`
+  const response = await runtime.dispatchFetch(await authURL(), { headers: { Cookie: signed, 'X-Agent-Account-Label': 'Forged account' } })
+  const html = await response.text()
+  expect(response.status).toBe(200)
+  expect(html).toContain('Zoë &lt;/strong&gt;&lt;img src=x onerror=alert(1)&gt;')
+  expect(html).not.toContain('<img')
+  expect(html).not.toContain('Forged account')
 })

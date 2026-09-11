@@ -28,7 +28,9 @@ Deployment configuration is closed by default:
   Dynamic registration, client metadata fetches, external token validation,
   implicit flow, plaintext PKCE, and token exchange are disabled.
 
-Authorization requires the existing signed account session and exact `agent=1`
+Consent visibly names the verified signed-in account and requesting client. The
+account label is server-overwritten display metadata, HTML-escaped, and never an
+authorization identity. Authorization requires the existing signed account session and exact `agent=1`
 opt-in. The client request must name its registered redirect, `code` response,
 S256 challenge, nonempty state, exact `/mcp` resource, and `agent:connect` scope.
 Consent creates a random, one-use, account-bound nonce with a five-minute TTL.

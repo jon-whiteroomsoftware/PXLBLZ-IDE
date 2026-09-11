@@ -45,6 +45,7 @@ export async function agentOAuthRoute(request: Request, env: WorkerEnv): Promise
     if (refusal) return agentResponse({ error: refusal }, refusal === 'not_allowed' ? 403 : 503)
     if (request.method === 'POST' && (origin !== config.origin || headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !== 'application/x-www-form-urlencoded')) return agentResponse({ error: 'invalid_request' }, 403)
     headers.set('X-Agent-Account', session.userId)
+    headers.set('X-Agent-Account-Label', encodeURIComponent(session.displayName || session.primaryHandle || session.userId))
   } else if (url.pathname === '/oauth/token') {
     if (request.method !== 'POST' || headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !== 'application/x-www-form-urlencoded') return agentResponse({ error: 'invalid_request' }, 405)
     const form = new URLSearchParams(new TextDecoder().decode(body))

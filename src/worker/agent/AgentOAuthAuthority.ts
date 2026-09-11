@@ -77,7 +77,7 @@ export class AgentOAuthAuthority {
             if ((await kv.list({ prefix: consentPrefix, limit: 4 })).keys.length >= 4) return agentResponse({ error: 'temporarily_unavailable' }, 429)
             const nonce = crypto.randomUUID()
             await kv.put(`${consentPrefix}${nonce}`, JSON.stringify({ accountId, request: auth, expiresAt: now + 300_000 } satisfies Consent), { expirationTtl: 300 })
-            return agentConsentPage(client.clientName, nonce, auth.redirectUri)
+            return agentConsentPage(client.clientName, nonce, auth.redirectUri, decodeURIComponent(req.headers.get('X-Agent-Account-Label') ?? accountId))
           }
           const form = await req.formData()
           if ([...form.keys()].length !== 2 || !['allow', 'deny'].includes(String(form.get('decision'))) || !/^[-a-f0-9]{36}$/.test(String(form.get('nonce')))) return agentResponse({ error: 'invalid_request' }, 400)
