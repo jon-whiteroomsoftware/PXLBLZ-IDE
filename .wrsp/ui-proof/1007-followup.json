@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1007",
+  "route": "/PXLBLZ-IDE/studio/shows/6fd0ff8c-9947-4a0c-8489-1be3b4353844?agent=1&capture",
+  "operation": "In the in-app browser on the committed correction, synthetic local-agent-09 submitted a live Luna rename and a no-edit clarification request. Inspected captures show one working row without confirmation, one saved rename with attached confirmation, and the completed no-edit question displayed on its own request row. Focused tests separately cover waiting, saving, supersession and refused receipts.",
+  "captures": [
+    ".wrsp/ui-proof/1007-followup-working.jpg",
+    ".wrsp/ui-proof/1007-followup-saved.jpg",
+    ".wrsp/ui-proof/1007-followup-question.jpg"
+  ],
+  "capturedAtCommit": "bcb427302a8c15093860c1b01a871ef8c713c36b"
+}
