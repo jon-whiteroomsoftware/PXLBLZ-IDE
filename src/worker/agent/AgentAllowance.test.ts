@@ -96,3 +96,12 @@ it('retains an overrun halt after restart and metadata expiry', async () => {
   now += 5 * 86_400_000; f.restart()
   expect((await f.send({ type: 'begin', owner: 'new' })).code).toBe('halted')
 })
+it('persists a provider contract halt only for the validated operation owner', async () => {
+  const f = fixture(), owner = 'a/b'
+  const { operationId } = await f.send({ type: 'begin', owner })
+  expect((await f.send({ type: 'halt', owner: 'other', operationId })).code).toBe('unknown')
+  expect((await f.send({ type: 'reserve', owner, operationId, round: 0 })).code).toBe('reserved')
+  expect((await f.send({ type: 'halt', owner, operationId })).code).toBe('halted')
+  f.restart()
+  expect((await f.send({ type: 'begin', owner: 'next' })).code).toBe('halted')
+})

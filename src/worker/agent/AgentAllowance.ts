@@ -47,6 +47,7 @@ export class AgentAllowance {
       }
       const op = typeof command.operationId === 'string' && Object.prototype.hasOwnProperty.call(state.operations, command.operationId) ? state.operations[command.operationId] : undefined
       if (!op || op.owner !== command.owner) return reply('unknown')
+      if (command.type === 'halt') { state.allowance.halted = true; return reply('halted') }
       if (command.type === 'finish') { op.finished = true; return reply('finished') }
       if (command.type === 'settle') {
         const prior = op.rounds[String(command.round)]
