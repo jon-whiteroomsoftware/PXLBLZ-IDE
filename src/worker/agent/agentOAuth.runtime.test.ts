@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import { build } from 'esbuild'
-import { chromium } from 'playwright'
+import { chromium } from '@playwright/test'
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 import { createSessionToken } from '../../cloudflare/auth'
 let runtime: Miniflare
