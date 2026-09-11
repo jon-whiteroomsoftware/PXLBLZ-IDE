@@ -12,7 +12,7 @@ OAuth/MCP service exists.
 | Audience | A server-configured allowlist of canonical authenticated app account IDs applies to built-in and external access; no invitation or admin UI initially. |
 | Visibility | Explicit URL opt-in, disabled by default, due before the first newly exposed agent capability. It is not a credential or authorization substitute. |
 | Built-in inference | Jon's existing OpenAI credential, held server-side; exact model `gpt-5.6-luna`, reasoning effort `high`; no model picker or silent model fallback. |
-| Cost | $10 per day total for the built-in testing service, shared across allowed accounts. Every provider dispatch and retry counts. External agents and unrelated API-key use are outside that accounting boundary. |
+| Cost | $10 per day total for the built-in testing service, shared across allowed accounts. Every provider dispatch reserves against the allowance. The supported local exact-resize Retry performs no provider inference. External agents and unrelated API-key use are outside that accounting boundary. |
 | Abuse protection | Simple request throttling in addition to authentication, allowlist and Show ownership/target grants. |
 | Outcomes | One atomic accepted edit and one Undo step; save settlement reported separately. Session-only edit receipts; unknown history never permits replay. |
 | Connection | One agent bound to one live window/Show, explicit Connect, no pairing code; departure/reload/release/revocation retires the binding. HTTP stream loss alone does not cancel a logical connection. |
@@ -131,12 +131,15 @@ current local eligibility checks. The accepted #959 binding/session model remain
 #949/#950 supply the qualified editor/command seam. The final #959 surface mock-up and its
 interaction proof remain separate. Nothing in this packet makes those dependent issues done.
 
-### Current diagnostic implementation
+### Historical diagnostic implementation
 
-B2 wires the existing DEV editable-Show bridge and manually injected overlay to exact
-URL gating, session-only transcripts, whole-Show admission and truthful save receipts.
-It does not implement hosted inference, OAuth/MCP, logging/accounting or final #959
-placement. The accepted Cloudflare direction still requires runtime qualification.
+B2 wired the DEV editable-Show bridge and manually injected overlay to exact
+URL gating, session-only transcripts, whole-Show admission and truthful save
+receipts. That checkpoint preceded hosted inference, OAuth/MCP, accounting and
+the final drawer placement. Current behavior is described in the
+[built-in service contract](../reference/contracts/agent-builtin-service.md) and
+[connection contract](../reference/contracts/agent-rendezvous.md). Live-provider
+and client qualification remain separate from implementation and local proof.
 
 ### Built-in implementation bounds (2026-09-10)
 

@@ -533,17 +533,38 @@ editing.
 
 ### Agent editing
 
-For enabled accounts, add `?agent=1` to an editable Show URL and open the
-right-edge Agent drawer. **Use the Pixelblaze agent** connects it to this Show;
-write an edit request in the composer. Activity distinguishes saved personal
-edits, changes applied only to a built-in Show's draft, and refused or cancelled
-work. Successful edits remain ordinary Undo history.
+For enabled accounts, add `?agent=1` (or `&agent=1` when the URL already has
+parameters) to an editable Show URL and open the right-edge Agent drawer.
+**Use the Pixelblaze agent** connects it to this Show; write an edit request in
+the composer. Personal Show edits save to your account; built-in Show edits
+remain session drafts. Successful edits use ordinary Undo history.
 
-A supported exact Clip resize can offer **Retry** against current state. Retry
-adds a new activity and keeps the earlier failure and any unsent composer draft.
-**Dismiss** hides the available actions. Leaving the Show or removing the URL
-opt-in retires pending private work; an already-applied personal save continues.
-Service availability and its shared daily allowance are controlled by the server.
+**Connect an MCP agent** makes this window ready for an external connection for
+two minutes. If an incoming call appears, choose **Answer** within 30 seconds or
+**Not now** to decline. Only one agent connection can use your account at a time;
+an occupied connection is refused rather than replaced. External conversations
+stay in the external client; connection setup depends on the client.
+
+Edits remain private until the editor accepts them. A conflicting manual change
+can prevent an agent result from applying. Activity distinguishes saved edits,
+changes applied to a draft, refused work and cancellation. Losing contact does
+not prove failure: known save outcomes remain visible, and **Restore contact**
+checks the existing operation without replaying it.
+
+A supported single exact Clip resize can offer **Retry** against current state.
+Retry creates a new activity, preserves the earlier failure and any unsent draft,
+and performs no new inference. For other failures, make a new request; ask an
+external agent to retry in its own client. **Dismiss** hides the available actions
+while retaining the entry. It does not undo the edit.
+
+**Disconnect** ends this window's connection. For an external connection, the
+drawer menu's **Forget this agent** also revokes that agent's authorization.
+Removing the URL opt-in or leaving
+the Show also retires pending private work; an already-applied personal save
+continues. Managing another window's connection is not available in this version.
+The built-in testing service has a $10 daily allowance shared across enabled
+accounts. Availability and the allowance are controlled by the server. See [Agent service limits](contracts/agent-builtin-service.md)
+and [connection lifecycle](contracts/agent-rendezvous.md) for the detailed rules.
 
 ## 18. Built-in Shows to learn from
 

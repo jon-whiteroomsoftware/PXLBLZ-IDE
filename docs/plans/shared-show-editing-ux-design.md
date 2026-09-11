@@ -106,6 +106,12 @@ These stable S1–S21 identifiers belong to the original qualification matrix. T
 
 ## Implementation handoff and proof
 
+The sequence below records the accepted implementation handoff. Current behavior
+is described in the [Agent service](../reference/contracts/agent-builtin-service.md)
+and [connection](../reference/contracts/agent-rendezvous.md) contracts. Client-version,
+live-provider and release qualification remain separate from implementation and
+local injected-provider proof.
+
 #957 candidate 1 introduces the pure drawer state model, shared right-edge drawer mechanics, thin agent components and timeline attribution, driven by the existing diagnostic bridge with no paid calls. #957 candidate 2 replaces that transport with the authenticated built-in service. #963 implements OAuth, `/mcp`, live-tab routing, single-slot binding, timers, held call, optional one-line `intent`, activity events and outcome lookup; it reuses the same drawer and admission owner.
 
 Production tool definitions derive from SHOW_COMMANDS through the shared descriptor adapter. Typical surface: `get_connection`, `list_commands`, `read_show`, `get_context`, `begin_edit`, allowlisted semantic commands, `commit_edit`, `get_outcome`, `cancel_edit`. Intent is display metadata, not a command or authorization grant. No diagnostic generic patch/grammar escape hatch is promoted.

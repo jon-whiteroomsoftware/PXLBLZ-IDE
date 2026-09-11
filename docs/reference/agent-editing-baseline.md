@@ -6,7 +6,13 @@ measures visible adoption, durable save, and preview publication with a scripted
 agent. The paid evidence measures Luna's intent reliability, provider-call time,
 call count, and tokens without a browser. The proposed combined thresholds add
 those separate measurements; they are not a direct live-model browser trace and
-remain unaccepted until #946.
+were proposed before the policy accepted in #946.
+
+This report preserves that historical checkpoint. Its gaps and proposed thresholds
+are not current product guarantees. Current behavior is described in the
+[Agent service contract](contracts/agent-builtin-service.md) and
+[connection contract](contracts/agent-rendezvous.md); live-provider and external-client
+qualification remain separate from these diagnostic measurements.
 
 The unpaid live-run preflight is pinned in
 [`evidence/issue-945-live-baseline/unpaid-preflight.md`](evidence/issue-945-live-baseline/unpaid-preflight.md).

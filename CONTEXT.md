@@ -450,6 +450,13 @@ A difference between preview output and real-hardware output. Two independent ki
 **Divergence harness**:
 A test rig that probes a real Pixelblaze (via `getVars` on a sentinel pixel index) to characterise a built-in's true output and compare it against the preview, quantifying divergence per built-in.
 
+**Agent connection**:
+An attachment between one live Show editor window and either the Pixelblaze agent or an external agent client. An account has one active connection slot. A **binding** identifies the accepted attachment; an **editor session** owns the window's live Show context and private work.
+
+**Agent operation**:
+One attempt with a stable identity. Its **private candidate** is a working copy that has not entered Show history. **Admission** checks the captured request against current editor state before applying that candidate once. An **outcome** records what is known about the attempt, including application and save settlement; losing contact is separate from the outcome. A supported Retry is a new operation linked to the earlier failure.
+_Avoid_: treating a connection loss as proof of failure, or a private candidate as an accepted edit. Accepted edits use ordinary Show history and persistence: personal Shows save to the account; built-in Shows remain session drafts. See [Agent candidate application](docs/reference/contracts/agent-candidate-application.md) and [Agent rendezvous](docs/reference/contracts/agent-rendezvous.md).
+
 ## Example dialogue
 
 **Dev:** When the user hits Download, do we ship the metadata too?

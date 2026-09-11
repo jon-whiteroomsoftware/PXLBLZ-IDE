@@ -1,6 +1,6 @@
 # PXLBLZ Privacy
 
-Last updated: September 5, 2026
+Last updated: September 10, 2026
 
 White Room Software operates the PXLBLZ web application. This policy explains
 what the web app stores, why it stores it, and how to request a copy or deletion
@@ -32,6 +32,19 @@ choose to connect, save and restore your workspace, and provide Controller and
 support features. An OAuth email address is used for authentication and account
 linking, not for marketing.
 
+## Agent editing
+
+When you use the Pixelblaze agent, PXLBLZ sends your request and the Show
+information needed for the operation to OpenAI. This can include authored Show
+content and source information returned by the editor's tools.
+
+An external agent client can request the editor information exposed by its
+connection and submit edits to the attached Show. That client's privacy policy
+also applies to information it receives. PXLBLZ stores authorization records
+needed to identify and revoke access, and service accounting records needed to
+enforce usage limits. A private working copy stays in the attached browser
+session; accepted personal edits use normal account storage.
+
 ## Cookies and analytics
 
 PXLBLZ uses short-lived cookies during OAuth sign-in and an HTTP-only session
@@ -53,8 +66,15 @@ PXLBLZ uses:
 
 - Cloudflare Workers and D1 to serve the app and store account
   and workspace data;
-- GitHub or Google for the login provider you select; and
-- Google Analytics for the coarse product analytics described above.
+- GitHub or Google for the login provider you select;
+- Google Analytics for the coarse product analytics described above; and
+- OpenAI for requests made through the Pixelblaze agent.
+
+OpenAI states that API data is not used to train its models unless the customer
+opts in. Its default abuse-monitoring logs may contain prompts and responses
+and are retained for up to 30 days, with exceptions for legal requirements or
+harm prevention. PXLBLZ sends requests with response storage disabled; this does
+not establish Zero Data Retention. See [OpenAI's API data controls](https://developers.openai.com/api/docs/guides/your-data).
 
 White Room Software does not sell your personal information.
 
