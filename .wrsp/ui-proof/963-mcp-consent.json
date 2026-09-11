@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "963",
+  "route": "/oauth/authorize?agent=1",
+  "operation": "Repository Playwright/Chromium on managed isolated5208, synthetic Local Agent11: verified account/client labels, keyboard focus, desktop1200x850 and narrow390x844 without horizontal overflow, actual Cancel redirect with access_denied. Synthetic callback UI alone is fulfilled locally; no grant or provider call in this refresh. In-app browser unavailable after discovery and two selection attempts.",
+  "captures": [
+    ".wrsp/ui-proof/963-mcp-consent-desktop.png",
+    ".wrsp/ui-proof/963-mcp-consent-narrow.png"
+  ],
+  "capturedAtCommit": "f03286b59972bc05c230ccf9aa6ca8cb13ca43e0"
+}

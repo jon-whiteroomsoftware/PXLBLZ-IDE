@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "963",
+  "route": "/PXLBLZ-IDE/studio/shows/mcp963-revoke-1789095441518?agent=1",
+  "operation": "Real OAuth/MCP/channel/editor/D1 on isolated5208 with fresh pre-provisioned Local Agent11; no provider injection or inference. Controlled real input-activity token holds adoption: local Forget and refresh-grant revocation cancel waiting work with zero history/save and unchanged durable Show; revocation after saved adoption preserves one history/save. Original browser retirement ACK observed, revoked bearer401, settled chooser visible. Own-window leave and retained refresh-token revocation clean up fixtures. See963-mcp-evidence.md for precise source/probe boundaries.",
+  "captures": [
+    ".wrsp/ui-proof/963-mcp-forget.png",
+    ".wrsp/ui-proof/963-mcp-revoke-waiting.png",
+    ".wrsp/ui-proof/963-mcp-revoke-saved.png"
+  ],
+  "capturedAtCommit": "f03286b59972bc05c230ccf9aa6ca8cb13ca43e0"
+}

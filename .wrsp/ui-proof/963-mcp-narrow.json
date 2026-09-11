@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "963",
+  "route": "/PXLBLZ-IDE/studio/shows/mcp963-adopted-revoke-1789095442968?agent=1",
+  "operation": "Read-only settled drawer opened by keyboard at800x900 and observed at390x900. Agent content is visible; document widths801/391 match the same editor with Agent opt-in omitted. Existing390 toolbar clipping is not qualified mobile-editor support. No OAuth or editing replay.",
+  "captures": [
+    ".wrsp/ui-proof/963-mcp-narrow-800.png",
+    ".wrsp/ui-proof/963-mcp-narrow-390.png"
+  ],
+  "capturedAtCommit": "f03286b59972bc05c230ccf9aa6ca8cb13ca43e0"
+}
