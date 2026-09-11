@@ -19,7 +19,7 @@ export function createDeliveryJournal(scope: DeliveryScope, limits: { operations
   const operations = new Map<string, Map<string, Entry>>()
   let retired = false
   return {
-    admit(delivery: AgentDelivery): DeliveryAdmission {
+    admit(delivery: AgentDelivery, cancelAfterSentDeliveryId?: string): DeliveryAdmission {
       if (retired || delivery.bindingId !== bindingId || delivery.sessionId !== sessionId) return { code: 'retired' }
       if (![delivery.operationId, delivery.deliveryId].every(id => /^[A-Za-z0-9_-]{1,128}$/.test(id))) return { code: 'invalid_payload' }
       let identity: string
@@ -36,7 +36,12 @@ export function createDeliveryJournal(scope: DeliveryScope, limits: { operations
       if (identityBytes + bytes > (limits.identityBytes ?? 4_194_304)) return { code: 'capacity' }
       if ((!operation && operations.size >= limits.operations) || (operation && operation.size >= limits.deliveries)) return { code: 'capacity' }
       if (!Number.isSafeInteger(delivery.sequence) || delivery.sequence !== (operation?.size ?? 0)) return { code: 'out_of_order' }
-      if (operation && [...operation.values()].some(entry => entry.pending)) return { code: 'busy' }
+      const pending = operation ? [...operation.entries()].filter(([, entry]) => entry.pending) : []
+      // Only the server relay can attest a prior delivery was sent. The browser
+      // uses ordinary serial admission and can still refuse a missing sequence.
+      const terminalCancel = pending.length === 1 && cancelAfterSentDeliveryId === pending[0][0]
+        && identity === '{"kind":"cancel_edit"}' && pending[0][1].identity !== identity
+      if (pending.length && !terminalCancel) return { code: 'busy' }
       const entries = operation ?? new Map<string, Entry>()
       identityBytes += bytes
       entries.set(delivery.deliveryId, { identity, sequence: delivery.sequence, pending: true })

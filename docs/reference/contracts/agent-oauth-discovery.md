@@ -1,10 +1,10 @@
-# Agent OAuth and MCP discovery
+# Agent OAuth and MCP
 
-This bounded #963 candidate authorizes a client and proves MCP discovery. It
-advertises no Show edit tools, claims no account attachment, and makes no paid
-inference call. [Agent rendezvous](agent-rendezvous.md) remains the sole account
-attachment owner for both agent kinds. Stock drafts remain `show_unavailable`
-at the browser channel until the next registration slice supports them.
+The #963 server authorizes external clients and routes the production canonical
+Show command catalogue through the same browser admission used by the built-in
+agent. [Agent rendezvous](agent-rendezvous.md) owns the sole account attachment.
+No diagnostic grammar, paid inference, remote provisioning or deployed-client
+qualification is implied by the local protocol proof.
 
 ## Public boundary
 
@@ -52,9 +52,28 @@ service origin and preregistered redirect origins; native clients may omit
 Origin. CORS responses never use a wildcard. Metadata advertises S256 and the
 resource authorization server derived from the exact configured token endpoint.
 
-The MCP SDK serves stateless JSON initialization and an empty `tools/list`.
-There is no GET event stream, DELETE session, replay store, edit dispatch, or
-account-slot claim. An initialized client is authorized, not attached to a Show.
+The MCP SDK serves stateless JSON initialization and stable `tools/list` metadata:
+`get_connection`, `list_commands`, `read_show`, `get_context`, `begin_edit`, all
+canonical `SHOW_COMMANDS`, `commit_edit`, `get_outcome` and `cancel_edit`. Listing
+metadata neither claims an account slot nor reads Show contents. There is no GET
+event stream, DELETE session, durable MCP session or tools-list notification.
+
+`get_connection` uses the validated grant/client identity to claim the account
+slot. An armed editor binds immediately; otherwise the call waits the full
+30-second Answer window outside authorization serialization. A supplied
+`call_id` only inspects that original call and never recreates an expired call.
+Every content or edit tool requires the current `binding_id`; mutations also
+require `operation_id`, `delivery_id` and increasing `sequence` (begin is zero).
+These caller identifiers are scoped by the validated account, grant and binding;
+they never authorize a window or select an actor. The server rechecks the original
+generation at dispatch and browser reply. The editor executes closed canonical
+arguments against its private immutable capture and adopts only through admission.
+
+MCP request bodies are bounded to66 KiB before SDK parsing, allowing a64 KiB
+normalized command plus its JSON-RPC envelope. OAuth forms remain16 KiB. No
+input or captured reference context is truncated to fit. Relay/read results are
+at most1 MiB; MCP encodes that result as both text and structured content, so its
+wire response may contain two copies plus protocol framing.
 
 ## Authority and persistence
 
@@ -76,7 +95,8 @@ consumption, refresh rotation and revocation, runs inside one Durable Object
 storage transaction. The adapter alone supplies no serialization. No held MCP
 request, network client discovery, or rendezvous wait enters that transaction.
 Provider background work fails explicitly rather than escaping its owner.
-The public Worker executes MCP discovery after token validation returns.
+The public Worker executes MCP routing only after token validation returns. A
+held attachment revalidates its grant after waiting.
 
 Canonical account IDs contain colons, while the provider's token format uses
 colon-delimited fields. `providerSubject` encodes the canonical account as
@@ -101,8 +121,16 @@ refresh token to recover a lost rotation response. Each successful refresh
 rotates again; older generations are refused. This is not strict single-use
 refresh. Reusing an already consumed valid authorization code revokes that
 grant, while a different grant remains valid. Revocation rejects the family's
-access and refresh credentials. In this discovery-only slice it does not claim
-to cancel browser work or release an attachment; that integration does not exist.
+access and refresh credentials. Actual provider grant deletion records the
+verified stored subject/grant and notifies its account owner after the auth
+transaction commits. A pending call ends; a bound editor enters retiring state,
+wakes its receive and refuses further dispatch/replies. The browser cancels
+unapplied work synchronously, then acknowledges retirement. Only that ACK confirms
+editing ended. OAuth revocation HTTP200 confirms credential revocation only;
+notification failure or an unreachable editor remains unconfirmed. Work adopted
+before acknowledgement retains its truthful save receipt. Local Forget first
+retires browser work, then revokes the exact attached external grant and ends
+that binding; another window cannot invoke it for the owner.
 
 ## Qualification and next seam
 
@@ -112,7 +140,7 @@ current/previous/older refresh generations, concurrent refresh recovery,
 revocation, and persisted validation/rotation across runtime disposal/restart.
 Production Worker tests prove signed/account-bound consent, Cancel, forged
 identity/redirect/resource/S256 refusals, failed exchanges without code
-consumption, metadata, initialization, empty tools, and eligibility changes
+consumption, metadata, initialization, the full canonical catalogue, and eligibility changes
 followed by successful revocation, concurrent nonce capacity and grant capacity
 without earlier-family revocation. A real Chromium form test uses a local
 workerd listener and a cross-origin client callback. Adapter tests prove TTL and deletion-safe
@@ -126,13 +154,21 @@ The local proof is HTTP loopback; hosted TLS and actual client interoperability
 remain #964 qualification, including registration compatibility beyond static
 clients.
 
-The next server slice must turn a freshly validated grant into an internal
-`accountConnection` identity, retain grant/client and binding generation checks
-per operation, support stock drafts, and route tools through actual browser
-admission. Show commands must derive from the production `SHOW_COMMANDS`
-descriptors. OAuth revocation/local Forget must then coordinate grant retirement
-with the applicable local binding and unapplied work. Cross-window Disconnect
-and Forget remain #1002. Nothing here claims #963 or #957 complete.
+Workerd routing proof covers authenticated attachment, receive/reply, a64 KB
+canonical payload, public oversize refusal, actual grant revocation and original
+window retirement ACK, plus local Forget and wrong-window refusal. Real admission
+tests cover waiting cancellation before manual release and the opposite race
+where adoption preceded retirement. All40 stock Show captures fit the read cap;
+a stock edit remains an in-memory draft with one history group and no personal save.
+The largest measured catalogue view was `stock-show-showcase-redline-installation`: 30,174 UTF-8 bytes for Show/context and458,346 bytes including retained capture/source
+metadata. These are representative supported fixtures, not a claim that arbitrary
+valid personal Shows fit. Oversized reads return `result_too_large`; oversized
+capture is refused before retaining a request, with no truncation.
+
+Final production browser proof follows the integrated #957 editor UI. Hosted TLS,
+actual Codex/Claude client interoperability and callback behavior remain #964.
+Cross-window Disconnect and Forget remain #1002. This contract does not itself
+close #963 or #957; issue proof records their final qualification.
 
 ## Primary sources
 

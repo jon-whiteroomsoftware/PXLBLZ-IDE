@@ -13,20 +13,19 @@ export function createAgentPrivateAdmissionOwner(admission: ReturnType<typeof cr
       // Reserve source/context and the Show before admission retains its snapshot.
       const estimate = new TextEncoder().encode(JSON.stringify({ show, context })).byteLength + metadata.retainedBytes
       if (estimate > remainingBytes || estimate > 1_048_576) return undefined
-      const captured = admission.beginRequest(operationId, intent, [])
+      const captured = admission.beginRequest(operationId, intent, [], Math.min(1_048_000, remainingBytes - metadata.retainedBytes))
       if (!captured) return undefined
       return { ...captured, ...metadata, retainedBytes: new TextEncoder().encode(JSON.stringify(captured)).byteLength + metadata.retainedBytes }
     },
     apply: (show, request, resize) => admission.applyShow(show, request, resize),
     retry(request, operationId, remainingBytes) {
-      // Reserve the maximum admitted snapshot before retaining another request.
       const metadata = admission.captureCommandContext()
-      if (!metadata || remainingBytes < 2_097_152 + metadata.retainedBytes) return undefined
-      const captured = admission.beginRetry(operationId, request)
+      if (!metadata || remainingBytes <= metadata.retainedBytes) return undefined
+      const captured = admission.beginRetry(operationId, request, Math.min(1_048_000, remainingBytes - metadata.retainedBytes))
       if (!captured) return undefined
       const result = applyShowCommand(captured.show, 'resize_clip', { clip_id: captured.retryResize.clipId, duration_ms: captured.retryResize.durationMs })
       const receipt = result.ok ? admission.applyShow(result.record, captured.request, captured.retryResize) : admission.complete(captured.request, 'refused')
-      return { request: captured.request, receipt, retainedBytes: 2_097_152 + metadata.retainedBytes }
+      return { request: captured.request, receipt, retainedBytes: new TextEncoder().encode(JSON.stringify(captured)).byteLength + metadata.retainedBytes }
     },
     complete: (request, completion) => admission.complete(request, completion),
     cancel: request => admission.cancel(request),

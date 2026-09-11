@@ -34,6 +34,10 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
   let retired = false
   let retainedCaptureBytes = 0
   let captureCapacityReached = false
+  let cacheStartedAt = Date.now()
+  const expireResults = () => {
+    if (Date.now() - cacheStartedAt >= 60_000) { journal.forgetResults(); cacheStartedAt = Date.now() }
+  }
   const outcome = (receipt: unknown): PrivateEditResult => receipt === undefined ? { code: 'unknown' } : { code: 'outcome', receipt }
   const finish = (operationId: string, operation: Operation) => {
     delete operation.private
@@ -95,6 +99,7 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
   }
   return {
     deliver(delivery: AgentDelivery): PrivateEditResult {
+      expireResults()
       const admission = journal.admit(delivery)
       if (admission.code === 'known') return admission.result as PrivateEditResult
       if (admission.code !== 'accepted') return admission
@@ -107,6 +112,7 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
       return journal.complete(delivery.operationId, delivery.deliveryId, result) ? result : { code: 'result_unavailable' }
     },
     retry(operationId: string, nextOperationId: string): PrivateEditResult {
+      expireResults()
       if (retired) return { code: 'retired' }
       if (captureCapacityReached) return { code: 'capacity' }
       if (active) return { code: 'busy' }

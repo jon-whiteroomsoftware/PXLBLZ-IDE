@@ -84,3 +84,20 @@ it('preserves the same private operation across contact loss without re-register
   expect(calls.filter(call => call.type === 'register')).toHaveLength(1)
   session.close()
 })
+it('returns a near-limit context unchanged and explicitly refuses oversized context and Show reads', async () => {
+  const { session, admission, deliver, calls } = setup()
+  await session.ready
+  vi.spyOn(admission, 'getEditorFocus').mockReturnValue({ text: 'x'.repeat(1_048_000) })
+  await deliver({ kind: 'get_context' }, 0)
+  const first = calls.filter(call => call.type === 'reply').slice(-1)[0]!.result as { code: string; context: { text: string } }
+  expect(first.code).toBe('read')
+  expect(first.context.text).toHaveLength(1_048_000)
+  vi.spyOn(admission, 'getEditorFocus').mockReturnValue({ text: 'x'.repeat(1_048_576) })
+  await deliver({ kind: 'get_context' }, 1)
+  expect(calls.filter(call => call.type === 'reply').slice(-1)[0]!.result).toEqual({ code: 'result_too_large' })
+  vi.spyOn(admission, 'getShow').mockReturnValue({ ...showCommandFixture(), name: 'x'.repeat(1_048_576) })
+  await deliver({ kind: 'read_show' }, 2)
+  expect(calls.filter(call => call.type === 'reply').slice(-1)[0]!.result).toEqual({ code: 'result_too_large' })
+  expect(admission.beginRequest).not.toHaveBeenCalled()
+  session.close()
+})

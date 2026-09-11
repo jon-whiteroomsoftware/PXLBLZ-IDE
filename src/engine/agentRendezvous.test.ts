@@ -148,3 +148,29 @@ it('resolves builtin identity only for its exact owning window', () => {
   const external = transitionRendezvous(transitionRendezvous(registered(), { type: 'arm', ...windowA }, 1).state, { type: 'claim', ...agentA }, 2).state
   expect(transitionRendezvous(external, { type: 'resolve-builtin', ...windowA }, 3).result.code).toBe('not_bound_here')
 })
+it('reuses only the validated external grant and never recreates an inspected expired call', () => {
+  const first = transitionRendezvous(registered(), { type: 'connect-external', ...agentA }, 0)
+  expect(first.result.code).toBe('pending')
+  const sameGrant = transitionRendezvous(first.state, { type: 'connect-external', ...agentA, callId: 'new-call', bindingId: 'new-binding' }, 1)
+  expect(sameGrant.state.slot).toEqual(first.state.slot)
+  const stranger = transitionRendezvous(first.state, { type: 'connect-external', ...agentA, agentId: 'other' }, 1)
+  expect(stranger.result.code).toBe('occupied')
+  const expired = transitionRendezvous(first.state, { type: 'resolve-external', agentId: agentA.agentId, callId: agentA.callId }, 30_000)
+  expect(expired.result.code).toBe('no_live_editor')
+  expect(expired.state.slot).toBeNull()
+  const fresh = transitionRendezvous(expired.state, { type: 'connect-external', ...agentA, callId: 'fresh', bindingId: 'fresh-binding' }, 30_001)
+  expect(fresh.result.code).toBe('pending')
+  expect(transitionRendezvous(fresh.state, { type: 'resolve-external', agentId: agentA.agentId, callId: agentA.callId }, 30_002).result.code).toBe('no_live_editor')
+})
+it('keeps revoked bound work retiring until the original browser acknowledges retirement', () => {
+  const armed = transitionRendezvous(registered(), { type: 'arm', ...windowA }, 0).state
+  const bound = transitionRendezvous(armed, { type: 'claim', ...agentA }, 1).state
+  const revoked = transitionRendezvous(bound, { type: 'retire-grant', agentId: agentA.agentId }, 2)
+  expect(revoked.result.code).toBe('retirement_unconfirmed')
+  expect(transitionRendezvous(revoked.state, { type: 'inspect', ...agentA }, 3).result.code).toBe('retirement_unconfirmed')
+  expect(transitionRendezvous(revoked.state, { type: 'retirement-ack', ...windowB, bindingId: agentA.bindingId }, 4).result.code).toBe('not_bound_here')
+  const acknowledged = transitionRendezvous(revoked.state, { type: 'retirement-ack', ...windowA, bindingId: agentA.bindingId }, 5)
+  expect(acknowledged.result.code).toBe('editing_ended')
+  expect(acknowledged.state.slot).toBeNull()
+  expect(transitionRendezvous(acknowledged.state, { type: 'inspect', ...agentA }, 6).result.code).toBe('no_live_editor')
+})

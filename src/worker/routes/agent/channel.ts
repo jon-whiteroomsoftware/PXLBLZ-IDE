@@ -2,6 +2,8 @@ import type { D1DatabaseShowsLike } from '../../../cloudflare/shows'
 import { readSessionFromRequest } from '../../../cloudflare/auth'
 import { agentAccessRefusal, agentResponse } from '../../../cloudflare/agentAccess'
 import type { AgentWindowChannelCommand } from '../../agent/AgentAccount'
+import { agentGrantAction } from '../../agent/agentGrant'
+import type { AgentClaim } from '../../../engine/agentRendezvous'
 import { isStockShowId } from '../../../pixelblaze/stock/showIds'
 import type { WorkerEnv } from '../../apiRoutes'
 
@@ -33,7 +35,7 @@ export async function onRequestPost({ request, env }: { request: Request; env: W
   if (!command || (command.type !== 'reply' && size > 2048)) return agentResponse({ code: 'invalid_request' }, 400)
   // Ending requires the original local capability, even after its Show or opt-in
   // is gone. It neither admits work nor exposes another window's state.
-  const ending = command.type === 'leave' || command.type === 'disconnect' || command.type === 'disarm'
+  const ending = command.type === 'leave' || command.type === 'disconnect' || command.type === 'disarm' || command.type === 'retirement-ack' || command.type === 'forget'
   if (!ending) {
     const refusal = agentAccessRefusal(session.userId, env)
     if (refusal) return agentResponse({ code: refusal }, refusal === 'not_allowed' ? 403 : 503)
@@ -46,18 +48,29 @@ export async function onRequestPost({ request, env }: { request: Request; env: W
     }
   }
   const accountId = env.AGENT_ACCOUNTS.idFromName(session.userId)
-  return env.AGENT_ACCOUNTS.get(accountId).fetch(new Request('https://agent-account.internal/window', { method: 'POST', body: JSON.stringify(command) }))
+  const stub = env.AGENT_ACCOUNTS.get(accountId)
+  if (command.type === 'forget') {
+    const owned = await stub.fetch(new Request('https://agent-account.internal/window', { method: 'POST', body: JSON.stringify({ ...command, type: 'resolve-forget' }) }))
+    const current = await owned.json() as { code: string; claim?: AgentClaim }
+    if (current.code !== 'bound' || current.claim?.agentKind !== 'external') return agentResponse({ code: 'not_bound_here' }, 409)
+    const revoked = await agentGrantAction(env, session.userId, current.claim.agentId, 'revoke')
+    if (revoked.code !== 'credentials_revoked') return agentResponse({ code: 'retirement_unconfirmed' }, 503)
+    const ended = await stub.fetch(new Request('https://agent-account.internal/window', { method: 'POST', body: JSON.stringify({ ...command, type: 'disconnect' }) }))
+    const result = await ended.json() as { code: string }
+    return agentResponse({ code: result.code === 'disconnected' ? 'forgotten' : 'retirement_unconfirmed' })
+  }
+  return stub.fetch(new Request('https://agent-account.internal/window', { method: 'POST', body: JSON.stringify(command) }))
 }
 
 function parseWindowCommand(value: unknown): AgentWindowChannelCommand | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const body = value as Record<string, unknown>
-  const types = ['register', 'arm', 'poll', 'heartbeat', 'leave', 'answer', 'decline', 'disconnect', 'disarm', 'receive', 'reply']
+  const types = ['register', 'arm', 'poll', 'heartbeat', 'leave', 'answer', 'decline', 'disconnect', 'disarm', 'receive', 'reply', 'retirement-ack', 'forget']
   if (typeof body.type !== 'string' || !types.includes(body.type)) return null
   const keys = ['type', 'sessionId', 'showId']
   if (body.type !== 'register') keys.push('registrationId')
   if (body.type === 'answer' || body.type === 'decline') keys.push('callId')
-  if (body.type === 'disconnect') keys.push('bindingId')
+  if (body.type === 'disconnect' || body.type === 'retirement-ack' || body.type === 'forget') keys.push('bindingId')
   if (body.type === 'receive' && body.lastSeenConnection !== undefined) {
     if (typeof body.lastSeenConnection !== 'string' || body.lastSeenConnection.length > 1024) return null
     keys.push('lastSeenConnection')

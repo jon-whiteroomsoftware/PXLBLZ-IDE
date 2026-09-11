@@ -63,3 +63,18 @@ describe('browser private edit executor', () => {
     expect(owner.apply).not.toHaveBeenCalled()
   })
 })
+it('expires cached results without permitting an old delivery to execute again', () => {
+  vi.useFakeTimers()
+  try {
+    const show = showCommandFixture()
+    const request: ShowEditRequest = { operationId: 'binding:op', sessionId: 'session', showId: show.id, baseRevision: 0, payloadKey: '', referenceContext: '{}', targets: [show.id] }
+    const owner: PrivateEditOwner = { capture: vi.fn(() => ({ request, show, context: {}, commandContext: { source: () => undefined }, retainedBytes: 1000 })), apply: vi.fn(), cancel: vi.fn(), complete: vi.fn(), outcome: () => ({ status: 'pending' }) }
+    const executor = createAgentPrivateExecutor({ bindingId: 'binding', sessionId: 'session' }, owner)
+    const delivery = { bindingId: 'binding', sessionId: 'session', operationId: 'op', deliveryId: 'd', sequence: 0, payload: { kind: 'begin_edit' } }
+    expect(executor.deliver(delivery).code).toBe('begun')
+    vi.advanceTimersByTime(60_000)
+    expect(executor.deliver(delivery).code).toBe('unknown')
+    expect(owner.capture).toHaveBeenCalledTimes(1)
+    expect(executor.getOutcome('op')).toMatchObject({ receipt: { status: 'pending' } })
+  } finally { vi.useRealTimers() }
+})

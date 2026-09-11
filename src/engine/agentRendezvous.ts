@@ -18,7 +18,7 @@ export interface AgentClaim {
 export type RendezvousSlot =
   | { kind: 'armed'; registrationId: string; expiresAt: number }
   | ({ kind: 'pending'; expiresAt: number } & AgentClaim)
-  | ({ kind: 'bound'; registrationId: string } & AgentClaim)
+  | ({ kind: 'bound'; registrationId: string; retiring?: true } & AgentClaim)
 export interface RendezvousState {
   registrations: EditorRegistration[]
   slot: RendezvousSlot | null
@@ -27,11 +27,15 @@ export type WindowIdentity = Pick<EditorRegistration, 'registrationId' | 'sessio
 export type WindowCommand =
   | ({ type: 'register' | 'arm' | 'poll' | 'heartbeat' | 'leave' | 'disarm' } & WindowIdentity)
   | ({ type: 'answer' | 'decline'; callId: string } & WindowIdentity)
-  | ({ type: 'disconnect'; bindingId: string } & WindowIdentity)
+  | ({ type: 'disconnect' | 'retirement-ack'; bindingId: string } & WindowIdentity)
 export type RendezvousCommand = WindowCommand
   | ({ type: 'claim'; window?: WindowIdentity } & AgentClaim)
   | ({ type: 'inspect' } & AgentClaim)
+  | ({ type: 'connect-external' } & AgentClaim)
+  | { type: 'resolve-external'; agentId: string; callId?: string }
   | ({ type: 'resolve-builtin' } & WindowIdentity)
+  | ({ type: 'resolve-forget'; bindingId: string } & WindowIdentity)
+  | { type: 'retire-grant'; agentId: string }
   | { type: 'expire' }
 export interface RendezvousResult { code: string; contact?: 'live' | 'lost' }
 export function emptyRendezvous(): RendezvousState { return { registrations: [], slot: null } }
@@ -50,10 +54,27 @@ export function transitionRendezvous(previous: RendezvousState, command: Rendezv
   const state = expireRendezvous(previous, now)
   const result = (code: string, contact?: 'live' | 'lost') => ({ state, result: { code, ...(contact ? { contact } : {}) } })
   if (command.type === 'expire') return result('expired')
+  if (command.type === 'retire-grant') {
+    const slot = state.slot
+    if (!slot || slot.kind === 'armed' || slot.agentKind !== 'external' || slot.agentId !== command.agentId) return result('editing_ended')
+    if (slot.kind === 'pending') { state.slot = null; return result('editing_ended') }
+    slot.retiring = true
+    return result('retirement_unconfirmed')
+  }
+  if (command.type === 'connect-external' || command.type === 'resolve-external') {
+    const slot = state.slot
+    if (slot && (slot.kind === 'pending' || slot.kind === 'bound') && slot.agentKind === 'external' && slot.agentId === command.agentId) {
+      if (command.type === 'resolve-external' && command.callId !== undefined && command.callId !== slot.callId) return result('no_live_editor')
+      return result(slot.kind === 'bound' && slot.retiring ? 'retirement_unconfirmed' : slot.kind)
+    }
+    if (command.type === 'resolve-external') return result('no_live_editor')
+    if (command.agentKind !== 'external') return result('invalid_request')
+    return transitionRendezvous(state, { ...command, type: 'claim' }, now)
+  }
   if (command.type === 'inspect') {
     const slot = state.slot
     if (!slot || slot.kind === 'armed' || slot.agentId !== command.agentId || slot.agentKind !== command.agentKind || slot.callId !== command.callId || slot.bindingId !== command.bindingId) return result('no_live_editor')
-    return result(slot.kind)
+    return result(slot.kind === 'bound' && slot.retiring ? 'retirement_unconfirmed' : slot.kind)
   }
   if (command.type === 'register') {
     if (state.registrations.some((item) => item.sessionId === command.sessionId || item.registrationId === command.registrationId)) return result('already_registered')
@@ -81,6 +102,7 @@ export function transitionRendezvous(previous: RendezvousState, command: Rendezv
   }
   const registration = state.registrations.find((item) => item.registrationId === command.registrationId && item.sessionId === command.sessionId && item.showId === command.showId)
   if (!registration) return result('retired')
+  if (command.type === 'resolve-forget') return result(state.slot?.kind === 'bound' && state.slot.registrationId === registration.registrationId && state.slot.agentKind === 'external' && state.slot.bindingId === command.bindingId ? 'bound' : 'not_bound_here')
   if (command.type === 'resolve-builtin') return result(state.slot?.kind === 'bound' && state.slot.registrationId === registration.registrationId && state.slot.agentKind === 'builtin' ? 'bound' : 'not_bound_here')
   if (command.type === 'disarm') {
     if (state.slot?.kind !== 'armed' || state.slot.registrationId !== registration.registrationId) return result('not_armed_here')
@@ -97,11 +119,12 @@ export function transitionRendezvous(previous: RendezvousState, command: Rendezv
     if (state.slot?.kind !== 'pending' && state.slot?.registrationId === registration.registrationId) state.slot = null
     return result('retired')
   }
-  if (command.type === 'disconnect') {
+  if (command.type === 'disconnect' || command.type === 'retirement-ack') {
     if (state.slot?.kind !== 'bound' || state.slot.registrationId !== registration.registrationId) return result('not_bound_here')
     if (state.slot.bindingId !== command.bindingId) return result('retired')
+    if (command.type === 'retirement-ack' && !state.slot.retiring) return result('not_retiring')
     state.slot = null
-    return result('disconnected')
+    return result(command.type === 'retirement-ack' ? 'editing_ended' : 'disconnected')
   }
   if (command.type === 'answer' || command.type === 'decline') {
     if (state.slot?.kind === 'bound' || state.slot?.kind === 'armed') return result('occupied')
@@ -125,5 +148,6 @@ export function windowRendezvousView(state: RendezvousState, registrationId: str
   if (slot.kind === 'pending') return { kind: 'pending' as const, callId: slot.callId, agentKind: slot.agentKind, agentName: slot.agentName, expiresAt: slot.expiresAt }
   if (slot.registrationId !== registrationId) return { kind: 'occupied' as const, ...(slot.kind === 'bound' ? { agentName: slot.agentName } : {}) }
   if (slot.kind === 'armed') return { kind: 'armed' as const, expiresAt: slot.expiresAt }
+  if (slot.retiring) return { kind: 'retiring' as const, bindingId: slot.bindingId, agentName: slot.agentName }
   return { kind: 'bound' as const, bindingId: slot.bindingId, agentKind: slot.agentKind, agentName: slot.agentName }
 }

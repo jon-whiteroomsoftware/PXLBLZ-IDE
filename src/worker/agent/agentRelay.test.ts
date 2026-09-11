@@ -53,3 +53,48 @@ it('bounds waiting callers while retaining room for a non-mutating outcome query
   relay.end()
   await Promise.all(waiting)
 })
+it('a surviving terminal receipt releases lost-reply queue capacity without replaying the delivery', async () => {
+  const relay = new AgentRelay(scope, () => {})
+  const pending = relay.dispatch(delivery())
+  relay.take()
+  await vi.advanceTimersByTimeAsync(25_000)
+  expect(await pending).toEqual({ code: 'pending', operationId: 'op' })
+  const query = relay.query({ kind: 'get_outcome', operationId: 'op' })
+  const [message] = relay.take()
+  relay.reply(message, { code: 'outcome', receipt: { status: 'applied', settlement: 'saved' } })
+  expect(await query).toMatchObject({ receipt: { status: 'applied' } })
+  expect(await relay.dispatch(delivery())).toEqual({ code: 'result_unavailable' })
+  expect(relay.take()).toEqual([])
+})
+it.each([false, true])('allows only terminal cancel behind a sent command, with honest missing-browser-delivery outcome (%s)', async received => {
+  const { createAgentPrivateExecutor } = await import('../../engine/agentPrivateExecutor')
+  const { showCommandFixture } = await import('../../test/showCommandFixture')
+  const show = showCommandFixture()
+  const request = { operationId: 'binding:op', sessionId: scope.sessionId, showId: show.id, baseRevision: 0, payloadKey: '', referenceContext: '{}', targets: [show.id] }
+  const cancel = vi.fn(() => ({ status: 'cancelled', request }))
+  const browser = createAgentPrivateExecutor(scope, { capture: () => ({ request, show, context: {}, commandContext: { source: () => undefined }, retainedBytes: 1000 }), apply: vi.fn(), complete: vi.fn(), cancel, outcome: vi.fn() })
+  const relay = new AgentRelay(scope, () => {})
+  const original = relay.dispatch(delivery())
+  // Before transmission, even terminal cancellation cannot bypass ordering.
+  expect(await relay.dispatch(delivery(1, { kind: 'cancel_edit' }))).toEqual({ code: 'busy' })
+  const [first] = relay.take()
+  const priorResult = received ? browser.deliver(first) : undefined
+  const cancelling = relay.dispatch(delivery(1, { kind: 'cancel_edit' }))
+  const [terminal] = relay.take()
+  expect(terminal).toBeDefined()
+  const result = browser.deliver(terminal)
+  relay.reply(terminal, result)
+  expect(await cancelling).toMatchObject(received ? { code: 'outcome', receipt: { status: 'cancelled' } } : { code: 'out_of_order' })
+  expect(cancel).toHaveBeenCalledTimes(received ? 1 : 0)
+  expect(await relay.dispatch(delivery(1, { kind: 'cancel_edit' }))).toEqual(result)
+  expect(await relay.dispatch(delivery(1, { kind: 'commit_edit' }))).toEqual({ code: 'identity_conflict' })
+  if (received) {
+    expect(await original).toEqual({ code: 'result_unavailable' })
+    expect(relay.reply(first, priorResult!)).toBe(false)
+  } else {
+    await vi.advanceTimersByTimeAsync(25_000)
+    expect(await original).toEqual({ code: 'pending', operationId: 'op' })
+  }
+  expect(relay.take()).toEqual([])
+  relay.end(); browser.retire()
+})

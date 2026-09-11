@@ -11,27 +11,30 @@ ownership of edit admission, operation receipts, history and saves.
 `POST /api/agent/channel?agent=1` accepts the existing signed session cookie,
 same-origin JSON, and exactly one enabling query parameter. Registration, arming,
 Answer and status require `AGENT_SERVICE_ENABLED=1`, membership in the
-comma-separated `AGENT_ACCOUNT_ALLOWLIST`, and an owned personal Show. The
+comma-separated `AGENT_ACCOUNT_ALLOWLIST`, and an owned personal Show or exact stock catalogue Show ID. The
 allowlist uses canonical session account IDs, including the existing linked-login
-resolution. Missing service configuration disables access. Stock drafts currently
-receive `show_unavailable`.
+resolution. Missing service configuration disables access. Stock registration uses
+a transport-neutral exact-ID manifest tested against the real catalogue; arbitrary
+`stock-show-*` prefixes are not admitted. Stock drafts never create D1 records.
 
 The browser schema is closed: `register` takes `sessionId` and `showId`; other
 commands also require `registrationId`. `answer` and `decline` additionally carry
-`callId`; `disconnect` carries `bindingId`. `poll`, `heartbeat`, `arm` and `leave`
-complete the channel. Unknown fields and agent/account/role claims are refused.
-Bodies are bounded to 2 KiB and identity strings to 128 characters. Capabilities
+`callId`; `disconnect`, `forget` and `retirement-ack` carry `bindingId`.
+`poll`, `heartbeat`, `arm`, `disarm`, `receive`, `reply` and `leave` complete
+the channel. Replies additionally carry operation/delivery IDs and their result. Unknown fields and agent/account/role claims are refused.
+Control bodies are bounded to2 KiB; replies permit1 MiB of result plus2 KiB
+of envelope. Identity strings are bounded to128 characters. Capabilities
 remain in the live tab; callers must not persist them as a second workspace.
 
 The internal `accountConnection` seam accepts credential-validated account and
-agent identity. Both future transports must validate credentials, resource,
+agent identity. Both transports validate credentials, resource,
 grant and scope before entering it. An external client cannot reach this seam
 with a cookie or tool payload. The private Durable Object binding is the only
 route to its `claim` and `inspect` commands; it is not a public HTTP endpoint.
 Private bound responses include the exact registration/session/Show target for
 routing. Transports must not relay these internal capabilities to MCP clients.
-There is no OAuth authorization server or `/mcp` execution endpoint in this
-foundation.
+The [OAuth/MCP boundary](agent-oauth-discovery.md) validates external credentials
+before using this same owner; the built-in service resolves its initiating window.
 
 ## Slot and lifetime
 
@@ -50,8 +53,9 @@ without an arm/claim race.
 A trusted caller uses `inspect` with its original identity, call and binding IDs
 to resolve the pending call or surviving binding. Inspection never claims,
 retries or replays an operation. An expired, declined or mismatched call returns
-`no_live_editor`. The later transport owns holding its HTTP request while a call
-is pending and presenting Connect guidance.
+`no_live_editor`. The account owner holds external connection requests outside its storage
+transaction for the full30-second call window. At most eight connection waits
+are outstanding. A25-second relay wait never shortens that setup deadline.
 
 Heartbeat renews registration liveness. After 45 seconds without heartbeat,
 contact is lost while the logical binding remains. At 300 seconds the
@@ -75,8 +79,10 @@ account, origin and capability checks but permit cleanup after URL opt-out,
 allowlist removal, service disable, Show deletion or request throttling. Cleanup
 responses disclose no connection metadata. Sign-out must request leave before
 losing its cookie; an unreachable tab is eventually retired by stale expiry.
-Another window cannot disconnect the owner. Forget is unavailable until grant
-revocation exists.
+Another window cannot disconnect the owner. Forget resolves the exact owning
+external binding, revokes its grant and ends that binding; a failed revocation
+returns `retirement_unconfirmed`, never success from disconnect alone. `disarm`
+clears only the armed slot belonging to its exact window.
 
 ## Storage and failure ownership
 
@@ -91,8 +97,31 @@ candidates, conversation bodies and operation receipts never enter this store.
 The [candidate application](agent-candidate-application.md) and
 [history/persistence](show-state-history-persistence.md) owners continue to retire
 unapplied work, preserve adopted save settlement and answer session-only outcome
-queries. This foundation does not deliver editor commands or itself prove those
-cross-layer obligations.
+queries. The volatile relay delivers canonical commands to the production browser session,
+which delegates to those owners. Grant revocation marks a bound generation
+retiring and wakes receive immediately. Browser retirement acknowledgement ends
+that slot; OAuth credential revocation alone is not an editing-cancellation ACK.
+
+The relay queues at most seven mutation jobs, reserving one additional slot for
+read/outcome queries. Responses wait at most25 seconds and return pending rather
+than cancel or replay. Browser requests have a35-second transport bound and
+independent15-second liveness heartbeats. Operation identities are retained until
+the binding retires: at most256 operations and256 deliveries per operation,
+with a4 MiB aggregate encoded identity budget. Capacity refuses new identities;
+it never evicts a tombstone into an executable state. Changed identity reuse is
+refused. Server/browser cached results are each bounded to4 MiB aggregate and
+1 MiB per result, with60-second cache eligibility. Cached-byte expiry leaves
+tombstones and admission receipts intact. Admission capture reserves a16 MiB
+aggregate encoded snapshot/source budget before retaining each new request.
+No document, command, result or outcome is written to Durable Object storage.
+
+Disconnect/close retire local private work synchronously before network cleanup.
+A failed transport preserves the logical binding and known browser receipt;
+receive resumes without re-registering or replaying delivered work. A query uses
+the surviving receipt or returns unknown. A terminal browser receipt releases
+lost-reply transport jobs while retaining unavailable-result tombstones. After commit consumes the private
+copy, cancel still targets its retained admission request: waiting work cancels,
+and an adopted save remains owned by the store.
 
 Cloudflare documents transactional, strongly consistent per-object storage and
 recommends SQLite-backed namespaces. The implementation uses its key-value
@@ -113,20 +142,29 @@ were checked on 2026-09-10. Hosted provisioning and deployment remain unqualifie
   state; [internal transport seam](../../../src/worker/agent/accountConnection.ts)
   shares eligibility between built-in and external callers.
 - [Browser route](../../../src/worker/routes/agent/channel.ts) validates cookie,
-  origin, exact schema, opt-in and personal-Show ownership.
+  origin, exact schema, opt-in and personal/exact-stock Show ownership.
 - [Runtime tests](../../../src/worker/agent/agentChannel.runtime.test.ts) bundle the
   actual Worker and run it with real local workerd, D1 and Durable Objects. They
   assert response-level authorization, simultaneous claims and Answers, account
   throttling, and cleanup after opt-out/deletion, service disable and allowlist removal. They make no inference calls.
 
-OAuth/grant revocation, stock-draft qualification, client polling integration,
-live tool routing and admission/save proof remain under #963 and #957. The runtime
-suite qualifies this server foundation; it is not supported-client MCP proof.
+Focused relay/OAuth workerd tests cover live tool routing, grant retirement and
+local Forget. Browser admission tests cover stock drafts, waiting cancellation,
+retirement ordering and adopted save preservation. Final integrated browser proof
+remains recorded in #963/#957; supported external-client qualification is #964.
 
 The private `resolveBuiltinConnection` seam resolves a surviving server-created
 builtin claim only from the exact authenticated registration/session/Show
 capability owning that slot. It refuses external slots and other windows or
 accounts. Browser JSON cannot invoke this resolver or select a trusted actor.
+
+The sole ordering exception is terminal `cancel_edit` behind exactly one already-
+sent pending command. It retains the original operation, next sequence and
+immutable delivery identity. The browser still validates ordinary sequence: if
+the prior delivery never arrived, cancellation returns a gap refusal/unknown,
+not success, and no earlier work is replayed to fill it. A confirmed cancellation
+retires the old transport reply; a late reply cannot reopen work. No other
+command can bypass a pending acknowledgement.
 
 ## Browser response ordering
 

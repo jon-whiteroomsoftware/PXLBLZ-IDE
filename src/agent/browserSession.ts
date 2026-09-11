@@ -27,12 +27,21 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
   let retiredBinding: string | undefined
   let controlVersion = 0
   let stopAdmission = () => {}
+  let heartbeat: ReturnType<typeof setInterval> | undefined
+  let heartbeatInFlight = false
   const listeners = new Set<(event: AgentBrowserSessionEvent) => void>()
   const abort = new AbortController()
   const emit = (event: AgentBrowserSessionEvent) => { for (const listener of listeners) listener(event) }
   const post = async (body: object, signal?: AbortSignal): Promise<ChannelReply> => {
-    const response = await fetcher('/api/agent/channel?agent=1', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal })
-    return await response.json() as ChannelReply
+    const requestAbort = new AbortController()
+    const cancel = () => { clearTimeout(timer); requestAbort.abort() }
+    const timer = setTimeout(cancel, 35_000)
+    signal?.addEventListener('abort', cancel, { once: true })
+    if (signal?.aborted) cancel()
+    try {
+      const response = await fetcher('/api/agent/channel?agent=1', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: requestAbort.signal })
+      return await response.json() as ChannelReply
+    } finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel) }
   }
   const retire = () => { executor?.retire(); executor = undefined; if (bindingId) retiredBinding = bindingId; bindingId = undefined }
   const update = (next: AgentWindowConnection) => {
@@ -74,7 +83,16 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
         if (closed) return
         // Synchronous local retirement invalidates already-held responses before adoption.
         if (version !== controlVersion) continue
-        if (reply.connection) { lastSeenConnection = JSON.stringify(reply.connection); update(reply.connection) }
+        if (reply.connection) {
+          lastSeenConnection = JSON.stringify(reply.connection)
+          update(reply.connection)
+          if (reply.connection.kind === 'retiring') {
+            // update retired local waiting work synchronously. Only this ACK
+            // confirms the editing end; OAuth revocation itself cannot do so.
+            const acknowledged = await post({ type: 'retirement-ack', ...windowIdentity, bindingId: reply.connection.bindingId }, abort.signal)
+            if (!closed && acknowledged.code === 'editing_ended') update({ kind: 'idle' })
+          }
+        }
         else if (reply.code === 'retired') { retire(); connection = { kind: 'refused', code: 'retired' }; emit({ type: 'connection', connection }); return }
         else if (reply.code !== 'superseded') { contactLost(); await pause() }
         for (const delivery of reply.deliveries ?? []) {
@@ -108,7 +126,7 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
 
   const close = () => {
     if (closed) return
-    closed = true; ++controlVersion; retire(); abort.abort(); stopAdmission(); listeners.clear()
+    closed = true; if (heartbeat !== undefined) clearInterval(heartbeat); ++controlVersion; retire(); abort.abort(); stopAdmission(); listeners.clear()
     if (windowIdentity) void post({ type: 'leave', ...windowIdentity }).catch(() => {})
   }
   const ready = (async () => {
@@ -123,6 +141,12 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
       if (closed) { void post({ type: 'leave', ...identity }).catch(() => {}); return undefined }
       windowIdentity = identity
       if (result.connection) { lastSeenConnection = JSON.stringify(result.connection); update(result.connection) }
+      heartbeat = setInterval(async () => {
+        if (closed || heartbeatInFlight || !windowIdentity) return
+        heartbeatInFlight = true
+        try { await post({ type: 'heartbeat', ...windowIdentity }, abort.signal) } catch { if (!closed) contactLost() }
+        finally { heartbeatInFlight = false }
+      }, 15_000)
       void receive()
       return { ...identity }
     } catch { if (!closed) contactLost(); return undefined }
@@ -140,7 +164,12 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
       update({ kind: 'idle' })
       return ownedBinding ? control('disconnect', { bindingId: ownedBinding }) : Promise.resolve({ code: 'not_bound_here' })
     },
-    forget: async () => ({ code: 'unsupported' }),
+    forget() {
+      if (lastConnection.kind !== 'bound' || lastConnection.agentKind !== 'external' || !bindingId) return Promise.resolve({ code: 'unsupported' })
+      const ownedBinding = bindingId
+      retire()
+      return control('forget', { bindingId: ownedBinding })
+    },
     getOutcome: operationId => executor?.getOutcome(operationId) ?? { code: 'unknown' },
     retry: async operationId => executor?.retry(operationId, crypto.randomUUID()) ?? { code: 'not_qualified' },
     close,

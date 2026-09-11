@@ -1,6 +1,6 @@
 # Agent MCP routing slice (#963)
 
-This approved next slice connects validated external OAuth identity to the existing account rendezvous and one browser-owned private Show executor. The builtin service (#957) consumes the same executor and account owner. OAuth discovery remains a separate candidate; this plan does not claim implementation or client qualification (#964).
+This approved next slice connects validated external OAuth identity to the existing account rendezvous and one browser-owned private Show executor. The builtin service (#957) consumes the same executor and account owner. OAuth authorization is landed; this slice adds routing. Focused implementation evidence is recorded in the as-built contracts; integrated browser proof and client qualification (#964) remain separate.
 
 ## Ownership and admission
 
@@ -18,9 +18,9 @@ Capacity refuses new work instead of evicting an identity into availability. Ret
 
 Local Disconnect and authenticated local Forget retire unapplied work; adopted saves remain owned by the existing store and settle independently. Contact loss preserves logical binding and known browser receipts. Cross-window controls remain outside this slice (#1002).
 
-## Proposed engineering caps to qualify in focused tests
+## Engineering caps
 
-These are resource policies, distinct from the accepted 120-second arming and 30-second incoming-call deadlines. Before source implementation, confirm each cap at its consumer boundary:
+These are resource policies, distinct from the accepted 120-second arming and 30-second incoming-call deadlines. Focused tests qualify each cap at its consumer boundary:
 
 - One private edit in progress per binding and 16 MiB aggregate retained capture budget (Show, reference context and captured source metadata), up to 256 admitted operation identities per editor session; capacity refusal requires a new session rather than identity eviction.
 - At most 256 command deliveries per operation and 4 MiB total retained normalized payload identity per session (capacity refusal, never eviction), with monotonically increasing sequence and immutable payload identity.
@@ -56,9 +56,10 @@ The account relay delivers each accepted identity once, accepts replies only
 from the original registration/session/Show/binding, and wakes held callers on
 retirement. Read queries reserve one queue slot independently of mutation
 identity capacity. Canonical single-resize Retry uses existing fresh admission
-and retains its original failed receipt. Forget remains explicitly unsupported
-at this intermediate checkpoint; OAuth retirement acknowledgement and full MCP
-routing remain required before this candidate is frozen for review.
+and retains its original failed receipt. The subsequent server integration adds
+actual OAuth grant revocation for Forget, browser retirement acknowledgement and
+full canonical MCP routing. Final browser qualification follows the integrated
+#957 production editor rather than the earlier diagnostic surface.
 
 Focused proof includes real workerd authenticated register/claim/receive/reply,
 old-session reply refusal, disconnect of a held dispatch, exact stock catalogue

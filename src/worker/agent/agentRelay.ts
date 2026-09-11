@@ -19,7 +19,8 @@ export class AgentRelay {
   constructor(readonly scope: AgentRelayScope, private readonly notify: () => void) { this.journal = createDeliveryJournal(scope) }
   async dispatch(input: AgentDeliveryInput): Promise<PrivateEditResult> {
     const message = { ...input, ...this.scope }
-    const admission = this.journal.admit(message)
+    const sent = [...this.jobs.values()].find(job => !job.query && job.sent && job.message.operationId === input.operationId)
+    const admission = this.journal.admit(message, sent?.message.deliveryId)
     if (admission.code === 'known') return admission.result as PrivateEditResult
     if (admission.code !== 'accepted' && admission.code !== 'pending') return admission
     let job = this.jobs.get(this.key(message))
@@ -59,9 +60,23 @@ export class AgentRelay {
     let bounded: PrivateEditResult
     try { bounded = new TextEncoder().encode(JSON.stringify(result)).byteLength <= 1_048_576 ? structuredClone(result) : { code: 'result_too_large' } } catch { bounded = { code: 'result_unavailable' } }
     if (!job.query && !this.journal.complete(message.operationId, message.deliveryId, bounded)) bounded = { code: 'result_unavailable' }
+    const query = job.message.payload as AgentEditorQuery | { kind: 'cancel_edit' }
+    const receipt = bounded.receipt as { status?: string } | undefined
+    const operationId = job.query && query.kind === 'get_outcome' ? query.operationId : !job.query && query.kind === 'cancel_edit' ? job.message.operationId : undefined
+    const recovered = operationId !== undefined && bounded.code === 'outcome'
+      && receipt && ['applied', 'refused', 'cancelled', 'completed', 'retired'].includes(receipt.status ?? '')
+    if (recovered) {
+      for (const [key, pending] of this.jobs) if (pending !== job && !pending.query && pending.message.operationId === operationId) {
+        // A terminal browser receipt can release a lost transport reply, but
+        // cannot reconstruct that reply or authorize execution again.
+        this.journal.complete(pending.message.operationId, pending.message.deliveryId, { code: 'result_unavailable' })
+        for (const resolve of pending.waiters) resolve({ code: 'result_unavailable' })
+        this.jobs.delete(key)
+      }
+    }
     for (const resolve of job.waiters) resolve(bounded)
     this.jobs.delete(this.key(message))
-    if (!job.query && this.cacheTimer === undefined) this.cacheTimer = setTimeout(() => { this.journal.forgetResults(); this.cacheTimer = undefined }, 60_000)
+    if ((!job.query || recovered) && this.cacheTimer === undefined) this.cacheTimer = setTimeout(() => { this.journal.forgetResults(); this.cacheTimer = undefined }, 60_000)
     return true
   }
   end() {
@@ -84,7 +99,7 @@ export class AgentRelay {
         resolve(structuredClone(result))
       }
       const timer = setTimeout(() => {
-        finish({ code: 'pending', operationId: job.message.operationId })
+        finish(job.query ? { code: 'unknown' } : { code: 'pending', operationId: job.message.operationId })
         if (job.query) this.jobs.delete(this.key(job.message))
       }, 25_000)
       job.waiters.add(finish)

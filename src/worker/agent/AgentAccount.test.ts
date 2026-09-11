@@ -35,3 +35,34 @@ it('an old alarm observes renewed liveness and only retires the current expired 
   expect(await send({ type: 'leave', ...target })).toEqual({ code: 'retired' })
   expect(await send({ type: 'inspect', ...agent, bindingId: 'new-binding' })).toMatchObject({ code: 'bound', binding: { sessionId: 'new-session' } })
 })
+it('holds a new external call for the full30 seconds and never recreates its expired identity', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(0)
+  const values = new Map<string, unknown>()
+  const storage: ConstructorParameters<typeof AgentAccount>[0]['storage'] = {
+    async get<T>(key: string) { return structuredClone(values.get(key)) as T | undefined },
+    async put<T>(key: string, value: T) { values.set(key, structuredClone(value)) },
+    async delete(key: string) { return values.delete(key) },
+    async setAlarm() {}, async deleteAlarm() {}, async transaction(callback) { return callback(storage) },
+  }
+  const owner = new AgentAccount({ storage })
+  const send = async (body: object) => (await owner.fetch(new Request('https://internal', { method: 'POST', body: JSON.stringify(body) }))).json()
+  const window = { registrationId: 'r', sessionId: 's', showId: 'show' }
+  const identity = { agentKind: 'external', agentId: 'grant', agentName: 'Client', callId: 'call', bindingId: 'binding' }
+  try {
+    await send({ type: 'register', ...window })
+    let finished = false
+    const call = send({ type: 'connect-external', ...identity }).then(result => { finished = true; return result })
+    await vi.advanceTimersByTimeAsync(25_000)
+    expect(finished).toBe(false)
+    await vi.advanceTimersByTimeAsync(4999)
+    expect(finished).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(await call).toEqual({ code: 'no_live_editor' })
+    expect(await send({ type: 'resolve-external', agentId: 'grant', callId: 'call' })).toEqual({ code: 'no_live_editor' })
+    const fresh = send({ type: 'connect-external', ...identity, callId: 'fresh', bindingId: 'fresh-binding' })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(await send({ type: 'answer', ...window, callId: 'call' })).toMatchObject({ code: 'no_live_editor' })
+    await send({ type: 'answer', ...window, callId: 'fresh' })
+    expect(await fresh).toMatchObject({ code: 'bound', claim: { callId: 'fresh', bindingId: 'fresh-binding' } })
+  } finally { vi.useRealTimers() }
+})

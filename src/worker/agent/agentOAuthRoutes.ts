@@ -2,7 +2,8 @@ import { readSessionFromRequest } from '../../cloudflare/auth'
 import { agentAccessRefusal, agentResponse } from '../../cloudflare/agentAccess'
 import type { WorkerEnv } from '../apiRoutes'
 import { agentOAuthConfig } from './agentOAuthConfig'
-import { agentMcpDiscovery } from './agentMcpDiscovery'
+import { agentMcpRouting } from './agentMcpRouting'
+import type { ValidatedAgentGrant } from './AgentOAuthAuthority'
 
 export const AGENT_OAUTH_PATHS = ['/oauth/authorize', '/oauth/token', '/mcp', '/.well-known/oauth-authorization-server', '/.well-known/oauth-protected-resource', '/.well-known/oauth-protected-resource/mcp'] as const
 export async function agentOAuthRoute(request: Request, env: WorkerEnv): Promise<Response> {
@@ -28,7 +29,7 @@ export async function agentOAuthRoute(request: Request, env: WorkerEnv): Promise
       const { value, done } = await reader.read()
       if (done) break
       size += value.byteLength
-      if (size > 16_384) { await reader.cancel(); return agentResponse({ error: 'invalid_request' }, 413) }
+      if (size > (url.pathname === '/mcp' ? 67_584 : 16_384)) { await reader.cancel(); return agentResponse({ error: 'invalid_request' }, 413) }
       chunks.push(value)
     }
     body = new Uint8Array(size)
@@ -63,10 +64,8 @@ export async function agentOAuthRoute(request: Request, env: WorkerEnv): Promise
   const stub = env.AGENT_OAUTH_AUTHORITY.get(env.AGENT_OAUTH_AUTHORITY.idFromName(config.origin))
   let response = await stub.fetch(new Request(forwardedURL, { redirect: 'manual', method: request.method, headers, ...(body ? { body } : {}) }))
   if (url.pathname === '/mcp' && response.ok) {
-    // Validated account/client/grant data remains private. Discovery has no
-    // routing yet; later admission must revalidate this identity per operation.
-    await response.arrayBuffer()
-    response = await agentMcpDiscovery(new Request(url, { method: request.method, headers, ...(body ? { body } : {}) }))
+    const grant = await response.json() as ValidatedAgentGrant
+    response = await agentMcpRouting(new Request(url, { method: request.method, headers, ...(body ? { body } : {}) }), env, grant)
   }
   const result = new Response(response.body, response)
   result.headers.set('Cache-Control', 'no-store')

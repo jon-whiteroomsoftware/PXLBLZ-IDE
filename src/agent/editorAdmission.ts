@@ -41,8 +41,8 @@ export function observeAgentLocation(listener: () => void): () => void {
   }
 }
 
-/** Broad full-Show context is deliberately NOT qualified for C1. No
- * exposed callback or client-supplied validator can bypass this boundary. */
+/** Shared immutable Show admission. No transport callback or caller-supplied
+ * validator can bypass the editor revision, metadata, input-wait or save owner. */
 export function createAgentEditorAdmission(showId: string, getContext: () => unknown, bindFieldActivity?: (acquire: () => () => void) => () => void, onObservation?: AgentAdmissionObserver) {
   const store = () => useShowStore.getState()
   const pathname = window.location.pathname
@@ -190,7 +190,7 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
       observeOutcome(result)
       return result
     },
-    beginRequest(operationId: string, utterance: string, history: unknown) {
+    beginRequest(operationId: string, utterance: string, history: unknown, maxCaptureBytes = Infinity) {
       if (!available() || typeof operationId !== 'string' || !operationId || typeof utterance !== 'string') return undefined
       const prior = entries.get(operationId)
       const current = prior?.show ?? structuredClone(store().resolveEditableShow(showId))
@@ -199,7 +199,9 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
       const show = prior?.show ?? captureAgentShowSnapshot(current, metadata().source, stageMap?.dim === 3 ? 3 : 2)
       if (!show) return undefined
       const context = prior?.context ?? structuredClone(getContext())
-      const result = store().beginShowEdit(sessionId, { operationId, payloadKey: JSON.stringify({ utterance, history }), referenceContext: JSON.stringify(context), targets: [showId] })
+      const identity = { operationId, payloadKey: JSON.stringify({ utterance, history }), referenceContext: JSON.stringify(context), targets: [showId] }
+      if (new TextEncoder().encode(JSON.stringify({ show, context, request: { ...identity, sessionId, showId, baseRevision: Number.MAX_SAFE_INTEGER } })).byteLength > maxCaptureBytes) return undefined
+      const result = store().beginShowEdit(sessionId, identity)
       if (result.status !== 'pending') return undefined
       if (!prior) entries.set(operationId, { request: result.request, show, context, baseline: captureShowAuthoringBaseline(show, metadata()), invalidated: false })
       watchMetadata()
@@ -255,7 +257,7 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
       releaseMetadata()
       return result
     },
-    beginRetry(operationId: string, original: ShowEditRequest) {
+    beginRetry(operationId: string, original: ShowEditRequest, maxCaptureBytes = Infinity) {
       if (!available() || !original || typeof operationId !== 'string' || !operationId || operationId === original.operationId) return undefined
       const entry = entries.get(original.operationId)
       if (!entry?.retryResize || JSON.stringify(original) !== JSON.stringify(entry.request) || !retryEligible(original)) return undefined
@@ -266,7 +268,9 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
       const show = prior?.show ?? captureAgentShowSnapshot(current, metadata().source, stageMap?.dim === 3 ? 3 : 2)
       if (!show) return undefined
       const { payloadKey, referenceContext, targets } = entry.request
-      const result = store().beginShowEdit(sessionId, { operationId, retryOf: original.operationId, payloadKey, referenceContext, targets })
+      const identity = { operationId, retryOf: original.operationId, payloadKey, referenceContext, targets }
+      if (new TextEncoder().encode(JSON.stringify({ show, context: entry.context, retryResize: entry.retryResize, request: { ...identity, sessionId, showId, baseRevision: Number.MAX_SAFE_INTEGER } })).byteLength > maxCaptureBytes) return undefined
+      const result = store().beginShowEdit(sessionId, identity)
       if (result.status !== 'pending') return undefined
       if (!prior) entries.set(operationId, { request: result.request, show, context: structuredClone(entry.context), baseline: captureShowAuthoringBaseline(show, metadata()), invalidated: false, retryResize: structuredClone(entry.retryResize) })
       watchMetadata()

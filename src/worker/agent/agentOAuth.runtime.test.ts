@@ -1,3 +1,5 @@
+import { STOCK_SHOW_IDS } from '../../pixelblaze/stock/showIds'
+import { SHOW_COMMANDS } from '../../engine/showCommands/registry'
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import { build } from 'esbuild'
 import { chromium } from '@playwright/test'
@@ -9,7 +11,7 @@ let script: string
 const client = { clientId: 'test-client', clientName: 'Test Agent', redirectUris: ['https://client.test/callback'] }
 const bindings = { SESSION_SECRET: 'test-secret', AGENT_SERVICE_ENABLED: '1', AGENT_ACCOUNT_ALLOWLIST: 'github:123,github:456', AGENT_OAUTH_ORIGIN: 'https://app.test', AGENT_OAUTH_CLIENTS: JSON.stringify([{ clientId: 'test-client', clientName: 'Test Agent', redirectUris: ['https://client.test/callback'] }]) }
 function runtimeOptions(patch: Record<string, string> = {}) {
-  return convertV4MiniflareOptions({ modules: true, script, compatibilityDate: '2026-06-30', bindings: { ...bindings, ...patch }, durableObjects: { AGENT_OAUTH_AUTHORITY: { className: 'AgentOAuthAuthority', useSQLite: true } } })
+  return convertV4MiniflareOptions({ modules: true, script, compatibilityDate: '2026-06-30', bindings: { ...bindings, ...patch }, durableObjects: { AGENT_ACCOUNTS: { className: 'AgentAccount', useSQLite: true }, AGENT_OAUTH_AUTHORITY: { className: 'AgentOAuthAuthority', useSQLite: true } } })
 }
 beforeAll(async () => {
   const bundle = await build({ entryPoints: ['src/worker/index.ts'], external: ['cloudflare:workers'], bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022' })
@@ -27,7 +29,7 @@ async function consent() {
   const response = await runtime.dispatchFetch(await authURL(), { headers: { Cookie: cookie } })
   const html = await response.text()
   expect(response.status, html).toBe(200)
-  expect(html).toContain('Show editing is not available')
+  expect(html).toContain('the client can read its Show and submit edits')
   expect(html).toContain('Signed in as <strong>github:123</strong>')
   return html.match(/name="nonce" value="([^"]+)"/)![1]
 }
@@ -65,7 +67,7 @@ it('binds one-use consent to the authenticated account and permits cancel withou
   expect(new URL(cancelled.headers.get('Location')!).searchParams.get('error')).toBe('access_denied')
   expect((await answer(nonce)).status).toBe(400)
 })
-it('discovers OAuth and MCP through the actual Worker while advertising no edit tools', async () => {
+it('discovers OAuth and MCP through the actual Worker with the finite canonical catalogue before attachment', async () => {
   const challenge = await runtime.dispatchFetch('https://app.test/mcp')
   expect(challenge.status).toBe(401)
   expect(challenge.headers.get('WWW-Authenticate')).toContain('/.well-known/oauth-protected-resource/mcp')
@@ -82,7 +84,8 @@ it('discovers OAuth and MCP through the actual Worker while advertising no edit 
   expect(initialize.status).toBe(200)
   expect(await initialize.json()).toMatchObject({ result: { capabilities: { tools: {} } } })
   const listing = await rpc('tools/list')
-  expect(await listing.json()).toMatchObject({ result: { tools: [] } })
+  const tools = (await listing.json() as { result: { tools: { name: string }[] } }).result.tools
+  expect(tools.map(tool => tool.name).sort()).toEqual(['get_connection', 'list_commands', 'read_show', 'get_context', 'begin_edit', 'commit_edit', 'get_outcome', 'cancel_edit', ...SHOW_COMMANDS.map(command => command.name)].sort())
   expect((await runtime.dispatchFetch(`https://app.test/mcp?access_token=${tokens.access_token}`)).status).toBe(401)
   expect((await runtime.dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}`, Origin: 'https://hostile.test' } })).status).toBe(403)
   expect((await exchange({ token: tokens.refresh_token })).status).toBe(200)
@@ -168,4 +171,72 @@ it('shows only the signed account label and escapes hostile display text', async
   expect(html).toContain('Zoë &lt;/strong&gt;&lt;img src=x onerror=alert(1)&gt;')
   expect(html).not.toContain('<img')
   expect(html).not.toContain('Forged account')
+})
+it('routes authenticated canonical MCP calls and confirms editing retirement only after the original browser ACK', async () => {
+  const tokens = await authorized()
+  const showId = STOCK_SHOW_IDS[0]
+  const channel = async (body: object) => runtime.dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Cookie: cookie, Origin: 'https://app.test', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const rpc = (name: string, args: object = {}) => runtime.dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) })
+  const registration = await (await channel({ type: 'register', sessionId: 'mcp-live', showId })).json() as { registrationId: string }
+  const own = { registrationId: registration.registrationId, sessionId: 'mcp-live', showId }
+  await channel({ type: 'arm', ...own })
+  const connected = await (await rpc('get_connection')).json() as { result: { structuredContent: { code: string; binding_id: string } } }
+  expect(connected.result.structuredContent.code).toBe('bound')
+  const bindingId = connected.result.structuredContent.binding_id
+  const identity = { binding_id: bindingId, operation_id: 'operation' }
+  expect(await (await rpc('read_show', { binding_id: 'old-binding' })).json()).toMatchObject({ result: { structuredContent: { code: 'no_live_editor' } } })
+  expect(await (await rpc('begin_edit', { ...identity, delivery_id: 'forged', sequence: 0, accountId: 'github:456' })).json()).toMatchObject({ result: { isError: true } })
+  const begin = rpc('begin_edit', { ...identity, delivery_id: 'begin', sequence: 0, intent: 'Rename' })
+  const received = await (await channel({ type: 'receive', ...own })).json() as { deliveries: { operationId: string; deliveryId: string; payload: unknown }[] }
+  expect(received.deliveries).toEqual([expect.objectContaining({ operationId: 'operation', deliveryId: 'begin', payload: { kind: 'begin_edit', intent: 'Rename' } })])
+  await channel({ type: 'reply', ...own, bindingId, operationId: 'operation', deliveryId: 'begin', result: { code: 'begun' } })
+  expect(await (await begin).json()).toMatchObject({ result: { structuredContent: { code: 'begun' } } })
+  expect(await (await rpc('begin_edit', { ...identity, delivery_id: 'begin', sequence: 0, intent: 'Rename' })).json()).toMatchObject({ result: { structuredContent: { code: 'begun' } } })
+  expect(await (await rpc('begin_edit', { ...identity, delivery_id: 'begin', sequence: 0, intent: 'Changed intent' })).json()).toMatchObject({ result: { structuredContent: { code: 'identity_conflict' } } })
+  // This canonical rename exceeds the old16KiB OAuth body limit but is below
+  // the64KiB normalized command cap. The relay must preserve it byte-for-byte.
+  const name = 'x'.repeat(64_000)
+  const rename = rpc('rename_show', { ...identity, delivery_id: 'rename', sequence: 1, name })
+  const large = await (await channel({ type: 'receive', ...own })).json() as { deliveries: { payload: unknown }[] }
+  expect(large.deliveries[0].payload).toEqual({ kind: 'command', name: 'rename_show', arguments: { name } })
+  await channel({ type: 'reply', ...own, bindingId, operationId: 'operation', deliveryId: 'rename', result: { code: 'changed' } })
+  expect(await (await rename).json()).toMatchObject({ result: { structuredContent: { code: 'changed' } } })
+  const oversized = await runtime.dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, 'Content-Type': 'application/json' }, body: ' '.repeat(67_585) })
+  expect(oversized.status).toBe(413)
+  expect(await oversized.json()).toEqual({ error: 'invalid_request' })
+  const committing = rpc('commit_edit', { ...identity, delivery_id: 'commit', sequence: 2 })
+  expect(await (await channel({ type: 'receive', ...own })).json()).toMatchObject({ deliveries: [{ deliveryId: 'commit' }] })
+  // The browser executed the commit but its waiting acknowledgement was lost.
+  const cancelling = rpc('cancel_edit', { ...identity, delivery_id: 'cancel', sequence: 3 })
+  expect(await (await channel({ type: 'receive', ...own })).json()).toMatchObject({ deliveries: [{ deliveryId: 'cancel' }] })
+  await channel({ type: 'reply', ...own, bindingId, operationId: 'operation', deliveryId: 'cancel', result: { code: 'outcome', receipt: { status: 'cancelled' } } })
+  expect(await (await cancelling).json()).toMatchObject({ result: { structuredContent: { receipt: { status: 'cancelled' } } } })
+  expect(await (await committing).json()).toMatchObject({ result: { structuredContent: { code: 'result_unavailable' } } })
+  expect(await (await channel({ type: 'reply', ...own, bindingId, operationId: 'operation', deliveryId: 'commit', result: { code: 'outcome', receipt: { status: 'waiting' } } })).json()).toEqual({ code: 'unknown' })
+  const waiting = channel({ type: 'receive', ...own })
+  expect((await exchange({ token: tokens.refresh_token })).status).toBe(200)
+  expect(await (await waiting).json()).toMatchObject({ connection: { kind: 'retiring', bindingId }, deliveries: [] })
+  // OAuth200 revoked credentials; the account still awaits local retirement.
+  expect(await (await channel({ type: 'poll', ...own })).json()).toMatchObject({ connection: { kind: 'retiring' } })
+  expect(await (await channel({ type: 'retirement-ack', ...own, sessionId: 'old', bindingId })).json()).toEqual({ code: 'retired' })
+  expect(await (await channel({ type: 'retirement-ack', ...own, bindingId })).json()).toEqual({ code: 'editing_ended' })
+  expect(await (await channel({ type: 'poll', ...own })).json()).toMatchObject({ connection: { kind: 'idle' } })
+  expect((await rpc('get_outcome', { ...identity })).status).toBe(401)
+  await channel({ type: 'leave', ...own })
+}, 10_000)
+it('local Forget revokes only the grant attached to the exact owning window', async () => {
+  const tokens = await authorized()
+  const showId = STOCK_SHOW_IDS[0]
+  const channel = (body: object) => runtime.dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Cookie: cookie, Origin: 'https://app.test', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const registration = await (await channel({ type: 'register', sessionId: 'forget', showId })).json() as { registrationId: string }
+  const own = { registrationId: registration.registrationId, sessionId: 'forget', showId }
+  await channel({ type: 'arm', ...own })
+  const connected = await runtime.dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_connection', arguments: {} } }) })
+  const bindingId = (await connected.json() as { result: { structuredContent: { binding_id: string } } }).result.structuredContent.binding_id
+  expect(await (await channel({ type: 'forget', ...own, sessionId: 'another-window', bindingId })).json()).toEqual({ code: 'not_bound_here' })
+  expect((await runtime.dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}` } })).status).toBe(405)
+  expect(await (await channel({ type: 'forget', ...own, bindingId })).json()).toEqual({ code: 'forgotten' })
+  expect((await runtime.dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}` } })).status).toBe(401)
+  expect(await (await channel({ type: 'poll', ...own })).json()).toMatchObject({ connection: { kind: 'idle' } })
+  await channel({ type: 'leave', ...own })
 })
