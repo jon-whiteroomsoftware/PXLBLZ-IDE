@@ -1,4 +1,5 @@
-import { create } from 'zustand'
+import { useAgentDrawerStore } from '@/agent/drawerStore'
+export { useAgentDrawerStore } from '@/agent/drawerStore'
 import { agentInsertionBand, createAgentDrawerState, transitionAgentDrawer, type AgentChange, type AgentDrawerEvent, type AgentDrawerState, type AgentOutcome } from '@/engine/agentDrawerModel'
 import type { createAgentEditorAdmission } from './agentEditorAdmission'
 import type { ShowEditRequest } from '@/engine/showEditAdmission'
@@ -24,9 +25,13 @@ interface DiagnosticRecord {
   applyEndedAt: number | null
   bridgeTiming?: unknown
 }
-interface DrawerStore { busy: boolean; state: AgentDrawerState; controller: AgentDrawerController | null }
-export const useAgentDrawerStore = create<DrawerStore>(() => ({ state: createAgentDrawerState(), controller: null, busy: false }))
 export type AgentDrawerController = ReturnType<typeof createAgentDrawerController>
+
+export function diagnosticBridgeOrigin(url: string): string {
+  const parsed = new URL(url)
+  if (parsed.protocol !== 'http:' || !['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname)) throw new Error('Diagnostic bridge must be loopback HTTP')
+  return parsed.origin
+}
 
 export function createAgentDrawerController(api: Admission, showId: string) {
   let state = createAgentDrawerState()
@@ -159,9 +164,7 @@ export function createAgentDrawerController(api: Admission, showId: string) {
     dispatch,
     attachBridge(url: string) {
       if (!available()) return
-      const parsed = new URL(url)
-      if (parsed.protocol !== 'http:' || !['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname)) throw new Error('Diagnostic bridge must be loopback HTTP')
-      bridgeUrl = parsed.origin
+      bridgeUrl = diagnosticBridgeOrigin(url)
       dispatch({ type: 'drawer', mode: 'open' }); dispatch({ type: 'chooseBuiltin' })
     },
     submit() {

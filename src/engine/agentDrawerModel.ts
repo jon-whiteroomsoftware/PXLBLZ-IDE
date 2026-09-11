@@ -36,6 +36,7 @@ export interface AgentDrawerState {
   announcement?: { text: string; outcome: AgentOutcome }
 }
 export type AgentDrawerEvent =
+  | ({ type: 'connection' } & Pick<AgentDrawerState, 'connection' | 'armingUntil' | 'pendingCall' | 'contactLost'>)
   | { type: 'pin'; pinned: boolean }
   | { type: 'drawer'; mode: AgentDrawerMode }
   | { type: 'chooseBuiltin' | 'cancelArm' | 'declineKnock' | 'approveKnock' | 'drop' | 'reattach' | 'disconnect' | 'forget' | 'reading' | 'settle' | 'manualEdit' | 'undo' | 'leave' | 'toggleMcp' }
@@ -63,6 +64,10 @@ function connected(state: AgentDrawerState, kind: 'builtin' | 'external', name: 
 }
 export function transitionAgentDrawer(state: AgentDrawerState, event: AgentDrawerEvent): AgentDrawerState {
   switch (event.type) {
+    case 'connection': {
+      const next = event.connection && !state.connection ? connected(state, event.connection.kind, event.connection.name) : state
+      return { ...next, connection: event.connection, armingUntil: event.armingUntil, pendingCall: event.pendingCall, contactLost: event.contactLost }
+    }
     case 'pin': return { ...state, pinPreference: event.pinned, drawer: event.pinned ? 'pinned' : 'tucked', unread: event.pinned ? [] : state.unread }
     case 'drawer': return { ...state, drawer: event.mode, unread: event.mode === 'tucked' ? state.unread : [] }
     case 'chooseBuiltin': return connected(state, 'builtin', 'Pixelblaze agent')
