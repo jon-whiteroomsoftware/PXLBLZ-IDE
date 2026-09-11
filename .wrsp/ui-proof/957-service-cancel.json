@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "957",
+  "route": "/PXLBLZ-IDE/studio/shows/service957-cancel-1789091690605?agent=1",
+  "operation": "Cancel during an injected held provider response leaves geometry and persisted Show unchanged with zero agent PATCH. Agent endpoints use synthetic test auth/injected no-paid provider; editor persistence is the actual managed API.",
+  "captures": [
+    ".wrsp/ui-proof/957-service-cancel.png"
+  ],
+  "capturedAtCommit": "6a5e037194d33873c867a410ac768900b170d424"
+}

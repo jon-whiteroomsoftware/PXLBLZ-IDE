@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "957",
+  "route": "/PXLBLZ-IDE/studio/shows/service957-1789091684969?agent=1",
+  "operation": "Injected provider through actual account relay edits a real managed personal Show; one history entry, one PATCH, saved outcome and reopened name equality. Agent endpoints use synthetic test auth/injected no-paid provider; editor persistence is the actual managed API.",
+  "captures": [
+    ".wrsp/ui-proof/957-service-personal.png"
+  ],
+  "capturedAtCommit": "6a5e037194d33873c867a410ac768900b170d424"
+}

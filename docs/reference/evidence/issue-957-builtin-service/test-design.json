@@ -1,0 +1,33 @@
+{
+  "invariants": [
+    "Only an authenticated eligible account's server-resolved current window/binding can dispatch; browser assertions are not authorization.",
+    "A single atomic global UTC-day allowance reserves before every provider call; ambiguous usage/cancellation retains reservation, expired identities never resurrect, settlement is idempotent on the original day, and overrun persistently halts.",
+    "Canonical commands remain private until one existing admission succeeds; manual revision changes and session retirement prevent adoption, while adopted saves continue under store ownership.",
+    "Qualified exact-resize Retry creates a new operation and activity linked to the preserved failure, captures current state, preserves composer draft, and adds exactly one history/save without new inference.",
+    "Drawer copy and attribution project typed owned receipts; known outcomes survive lost configuration/contact and raw unknown transport codes are never rendered."
+  ],
+  "partitions": [
+    "Signed out/eligible/disallowed/disabled; personal owned/wrong owner/exact stock/invented stock; current/stale window and duplicate operation activation.",
+    "Simultaneous account reservations at the shared limit, UTC rollover, old-day settlement, valid/absent/malformed usage, cancellation after dispatch, expiry/pruning, overrun/restart.",
+    "Personal saved versus stock draft; private success versus manual stale refusal/cancel/opt-out; saving after departure; supported single resize Retry versus unsupported retry.",
+    "Connected/contact-lost/known local outcome; desktop pinned and narrow; known refusal categories versus unknown code."
+  ],
+  "sequences": [
+    "Connect through actual account relay, run injected canonical rename, adopt once, save personal Show once and reopen; repeat stock editing with zero personal writes.",
+    "Run a private single resize, commit a manual Marker, refuse stale candidate, then Retry with fresh state: preserve old failure/draft, new identity/retryOf, exact geometry and one new history/save.",
+    "Hold injected provider after private command, cancel or remove opt-in, release response, observe completed request and unchanged authoritative managed Show with zero agent PATCH.",
+    "Reserve concurrently around $10, settle known usage once, retain unknown usage, roll UTC day, expire old identity and prove duplicate cannot dispatch again."
+  ],
+  "oracles": [
+    "Actual managed personal Show PATCH count and reopened records; exact composition geometry and history deltas; visible terminal activity and retained composer draft.",
+    "Actual workerd account/allowance/relay with synthetic test auth and injected provider; typed browser admission receipts and persisted accounting state.",
+    "Unintercepted candidate Worker route returns401 signed out and503 service_disabled with current local configuration; no real provider key is assumed.",
+    "Fresh committed desktop/narrow screenshots and native UI-proof manifests; focused production lifecycle and finite copy tests."
+  ],
+  "residualGaps": [
+    "No paid inference, real provider response identity/billing qualification, deployment, or configured live local provider credential. Exact model/usage contract fails closed.",
+    "Browser agent endpoints are intercepted into an isolated actual Worker with synthetic auth/injected provider; editor persistence remains real managed API. This does not qualify real external MCP clients.",
+    "Cross-window Disconnect/Forget remains deferred #1002; full external MCP routing/retirement follows in #963. Multiple insertion bands remain conservatively omitted.",
+    "Root owns final all-four committed-tip suites, exact-range native review and landing."
+  ]
+}

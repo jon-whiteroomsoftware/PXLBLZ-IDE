@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "957",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-100-getting-around?agent=1",
+  "operation": "Injected provider edits the exact stock Show draft through actual admission; one history entry and zero personal PATCH, visible applied-to-draft outcome. Agent endpoints use synthetic test auth/injected no-paid provider; editor persistence is the actual managed API.",
+  "captures": [
+    ".wrsp/ui-proof/957-service-stock.png"
+  ],
+  "capturedAtCommit": "6a5e037194d33873c867a410ac768900b170d424"
+}

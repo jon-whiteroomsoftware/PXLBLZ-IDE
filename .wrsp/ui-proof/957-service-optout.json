@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "957",
+  "route": "/PXLBLZ-IDE/studio/shows/service957-optout-1789091872021",
+  "operation": "Removing agent opt-in retires the session; completed run response, unchanged authoritative persisted Show and zero agent PATCH; Agent region and edge absent. Agent endpoints use synthetic test auth/injected no-paid provider; editor persistence is the actual managed API.",
+  "captures": [
+    ".wrsp/ui-proof/957-service-optout.png"
+  ],
+  "capturedAtCommit": "6a5e037194d33873c867a410ac768900b170d424"
+}

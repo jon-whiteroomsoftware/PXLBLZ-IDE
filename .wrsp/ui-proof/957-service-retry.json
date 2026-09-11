@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "957",
+  "route": "/PXLBLZ-IDE/studio/shows/service957-retry-1789091870330?agent=1",
+  "operation": "A manual Marker makes the private exact resize stale; Retry creates a new linked activity and saves exact9000ms once, preserving original failure and composer draft. Narrow drawer opens by keyboard. Agent endpoints use synthetic test auth/injected no-paid provider; editor persistence is the actual managed API.",
+  "captures": [
+    ".wrsp/ui-proof/957-service-retry.png",
+    ".wrsp/ui-proof/957-service-narrow.png",
+    ".wrsp/ui-proof/957-service-narrow-open.png"
+  ],
+  "capturedAtCommit": "6a5e037194d33873c867a410ac768900b170d424"
+}
