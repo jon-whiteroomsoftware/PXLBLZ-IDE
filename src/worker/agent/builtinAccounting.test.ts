@@ -31,15 +31,15 @@ it('settles official-shaped usage so small successful calls do not each consume 
   }
   expect(calls).toBe(25)
 })
-it('retains every unknown-usage reservation and refuses before the nineteenth provider call', async () => {
+it('retains every unknown-usage reservation and refuses before the tenth provider call', async () => {
   const f = financialOwner(); let calls = 0
-  for (let i = 0; i < 19; i++) {
+  for (let i = 0; i < 10; i++) {
     const result = await dispatchBuiltinProvider({ apiKey: 'injected', allowance: f.namespace, providerFetch: async () => {
       calls++
       return Response.json({ model: 'gpt-5.6-luna', service_tier: 'default', status: 'completed', output: [], usage: null })
     } }, await f.begin(i))
-    expect(result.ok).toBe(i < 18)
-    if (i === 18) expect(result).toEqual({ ok: false, code: 'exhausted' })
+    expect(result.ok).toBe(i < 9)
+    if (i === 9) expect(result).toEqual({ ok: false, code: 'exhausted' })
   }
-  expect(calls).toBe(18)
+  expect(calls).toBe(9)
 })

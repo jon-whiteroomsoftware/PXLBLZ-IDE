@@ -22,8 +22,8 @@ it('pins the exact request and reserves before one provider request, then settle
   expect(f.order).toEqual(['reserve', 'provider', 'settle'])
   const [url, init] = f.deps.providerFetch.mock.calls[0] as unknown as [string, RequestInit]
   expect(url).toBe('https://api.openai.com/v1/responses')
-  expect(JSON.parse(init.body as string)).toMatchObject({ model: 'gpt-5.6-luna', reasoning: { effort: 'high' }, service_tier: 'default', truncation: 'disabled', store: false, max_output_tokens: 8192, parallel_tool_calls: false })
-  expect(f.commands[1]).toEqual({ type: 'settle', owner: request.owner, operationId: request.operationId, round: 0, usage })
+  expect(JSON.parse(init.body as string)).toMatchObject({ model: 'gpt-5.6-luna', reasoning: { effort: 'high' }, service_tier: 'priority', truncation: 'disabled', store: false, max_output_tokens: 8192, parallel_tool_calls: false })
+  expect(f.commands[1]).toEqual({ type: 'settle', owner: request.owner, operationId: request.operationId, round: 0, usage, serviceTier: 'default' })
 })
 it.each(['exhausted', 'duplicate', 'expired', 'halted', 'unknown'])('starts zero provider calls after %s admission', async code => {
   const f = fixture(code)
@@ -80,4 +80,18 @@ it('accepts SDK reasoning text but refuses malformed or unknown reasoning fields
     expect(await dispatchBuiltinProvider(g.deps, { ...request, input: [bad] })).toEqual({ ok: false, code: 'invalid_request' })
     expect(g.order).toEqual([])
   }
+})
+it.each(['priority', 'default'])('requests Fast mode and settles the actual %s tier', async serviceTier => {
+  const f = fixture()
+  f.deps.providerFetch.mockResolvedValue(Response.json({ model: 'gpt-5.6-luna', service_tier: serviceTier, status: 'completed', output: [], usage }))
+  expect((await dispatchBuiltinProvider(f.deps, request)).ok).toBe(true)
+  const [, init] = f.deps.providerFetch.mock.calls[0] as unknown as [string, RequestInit]
+  expect(JSON.parse(init.body as string).service_tier).toBe('priority')
+  expect(f.commands[1]).toMatchObject({ type: 'settle', serviceTier, usage })
+})
+it.each(['flex', 'fast', null])('halts without settling an unrecognized returned tier %s', async serviceTier => {
+  const f = fixture()
+  f.deps.providerFetch.mockResolvedValue(Response.json({ model: 'gpt-5.6-luna', service_tier: serviceTier, status: 'completed', output: [], usage }))
+  expect(await dispatchBuiltinProvider(f.deps, request)).toEqual({ ok: false, code: 'provider_contract' })
+  expect(f.commands.map(command => (command as { type: string }).type)).toEqual(['reserve', 'halt'])
 })

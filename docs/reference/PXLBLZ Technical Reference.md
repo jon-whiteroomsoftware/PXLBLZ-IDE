@@ -1656,7 +1656,7 @@ candidate delivery. The [command contract](contracts/show-command-semantics.md#p
 defines this finite exception and its ownership limits.
 
 The editable Show route (`?agent=1`) exposes the production Agent drawer.
-Authenticated built-in requests use the Worker service, shared account slot and
+Authenticated built-in requests use Luna Fast mode through the Worker service, shared account slot and
 browser private executor. The pure drawer model projects owned admission/save
 receipts and successful registry attribution; existing history and persistence
 owners remain authoritative. Each built-in operation owns one activity row from

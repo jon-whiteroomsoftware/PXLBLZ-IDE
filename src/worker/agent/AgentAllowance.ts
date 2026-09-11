@@ -26,7 +26,7 @@ const MAX_DAILY_DISPATCHES = 4096
 export class AgentAllowance {
   constructor(private readonly ctx: { storage: Storage }) {}
   async fetch(request: Request): Promise<Response> {
-    const command = await request.json() as { type: string; accountId?: string; owner?: string; operationId?: string; round?: number; usage?: unknown }
+    const command = await request.json() as { type: string; accountId?: string; owner?: string; operationId?: string; round?: number; usage?: unknown; serviceTier?: unknown }
     if (typeof command.owner !== 'string' || !command.owner || command.owner.length > 512) return agentResponse({ code: 'invalid_request' }, 400)
     return this.ctx.storage.transaction(async tx => {
       const now = Date.now(), today = new Date(now).toISOString().slice(0, 10)
@@ -56,7 +56,7 @@ export class AgentAllowance {
       if (command.type === 'settle') {
         const prior = op.rounds[String(command.round)]
         if (!prior) return reply('unknown')
-        const settled = settleAgentDispatch(state.allowance, prior.day, prior.id, command.usage)
+        const settled = settleAgentDispatch(state.allowance, prior.day, prior.id, command.usage, command.serviceTier)
         state.allowance = settled.state
         return reply(settled.result)
       }

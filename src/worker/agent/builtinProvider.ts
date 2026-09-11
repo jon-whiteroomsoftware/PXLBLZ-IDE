@@ -33,7 +33,7 @@ export async function dispatchBuiltinProvider(deps: Dependencies, request: Dispa
   const fail = (code: string): Result => ({ ok: false, code })
   if (!deps.apiKey) return fail('unavailable')
   if (!request.input.every(supportedInput) || !request.tools.every(supportedTool)) return fail('invalid_request')
-  const body = JSON.stringify({ model: AGENT_SERVICE_BOUNDS.model, reasoning: { effort: 'high' }, include: ['reasoning.encrypted_content'], service_tier: 'default', truncation: 'disabled', store: false, max_output_tokens: AGENT_SERVICE_BOUNDS.maxOutputTokens, parallel_tool_calls: false, input: request.input, tools: request.tools })
+  const body = JSON.stringify({ model: AGENT_SERVICE_BOUNDS.model, reasoning: { effort: 'high' }, include: ['reasoning.encrypted_content'], service_tier: AGENT_SERVICE_BOUNDS.serviceTier, truncation: 'disabled', store: false, max_output_tokens: AGENT_SERVICE_BOUNDS.maxOutputTokens, parallel_tool_calls: false, input: request.input, tools: request.tools })
   if (new TextEncoder().encode(body).byteLength > AGENT_SERVICE_BOUNDS.maxRequestBytes) return fail('request_limit')
   const owner = deps.allowance.get(deps.allowance.idFromName('builtin-global-v1'))
   const command = async (type: string, extra: Record<string, unknown> = {}) => {
@@ -63,11 +63,11 @@ export async function dispatchBuiltinProvider(deps: Dependencies, request: Dispa
     for (const chunk of chunks) { buffer.set(chunk, offset); offset += chunk.byteLength }
     const result: unknown = JSON.parse(new TextDecoder().decode(buffer))
     if (!record(result)) return fail('provider_unavailable')
-    if (result.model !== AGENT_SERVICE_BOUNDS.model || result.service_tier !== 'default') {
+    if (result.model !== AGENT_SERVICE_BOUNDS.model || (result.service_tier !== 'default' && result.service_tier !== 'priority')) {
       await command('halt')
       return fail('provider_contract')
     }
-    const settlement = await command('settle', { usage: result.usage })
+    const settlement = await command('settle', { usage: result.usage, serviceTier: result.service_tier })
     if (settlement === 'overrun' || settlement === 'halted') return fail('provider_contract')
     if (result.status !== 'completed' || !Array.isArray(result.output)) return fail('provider_incomplete')
     return { ok: true, output: result.output }

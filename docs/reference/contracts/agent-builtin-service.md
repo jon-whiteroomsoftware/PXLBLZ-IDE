@@ -39,7 +39,7 @@ a fresh user request; Dismiss changes activity presentation only.
 
 ## Dispatch and accounting bounds
 
-The transport pins `gpt-5.6-luna`, high reasoning, standard `service_tier: default`,
+The transport pins `gpt-5.6-luna`, high reasoning, Fast mode `service_tier: priority`,
 and `https://api.openai.com/v1/responses`. It permits no hosted billable tools,
 images, alternate endpoints, parallel function calls, or automatic provider
 retries. Each operation permits six rounds; each round caps output at 8,192
@@ -48,12 +48,15 @@ minute per account and one unfinished operation per binding bound admission.
 
 A single global Durable Object atomically reserves from a shared $10 UTC-day
 allowance before each dispatch. The conservative input ceiling is the full
-1,050,000-token context. Maximum reservation is $0.5397456 per round, including
+1,050,000-token context. Maximum reservation is $1.0794912 per round, including
 the long-context cache-write and output rates. Integer nanodollars avoid
 floating-point budget drift. Valid provider usage settles exactly once against
-the original accounting day; missing or malformed category data retains the
+the original accounting day at the returned priority or default tier; missing or
+malformed category data retains the
 whole reservation. Cancellation after possible dispatch does not refund unknown
-usage. An overrun halts dispatch persistently.
+usage. An overrun halts dispatch persistently. The documented default-tier downgrade
+is accepted at standard rates; unknown tiers halt dispatch. Reservations retain
+their original amount across pricing upgrades, including legacy standard entries.
 
 Server-issued operation identities have a 24-hour admission horizon. Expiry
 refuses new dispatch without cancelling already-started inference or adopted

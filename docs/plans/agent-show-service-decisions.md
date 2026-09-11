@@ -200,3 +200,23 @@ refuses remote requests and new dispatch; it does not turn a known local saved
 or saving outcome into an unknown failure. This adds no remote recovery exception.
 After editor departure, session receipts are intentionally unavailable, while an
 already adopted personal save remains owned by the store and persistence provider.
+
+
+## Local Fast-mode trial (#1008, 2026-09-11)
+
+Jon requested a local trial before commit or production promotion and accepted
+the result on 2026-09-11: editing worked and felt noticeably faster. The trial keeps
+Luna high reasoning and requests `service_tier: priority`. The
+[Fast-mode guide](https://developers.openai.com/api/docs/guides/fast-mode) says
+GPT-5.6 responses report `priority`, with documented downgrades reporting
+`default`. [Pricing](https://developers.openai.com/api/docs/pricing), checked
+2026-09-11, lists Luna priority rates per million tokens: short-context input
+$0.40, cached input $0.04, cache writes $0.50, output $2.40; long-context
+input $0.80, cached input $0.08, cache writes $1.00, output $3.60.
+
+The trial reserves $1.0794912 per dispatch, settles at the returned tier, and
+preserves original reservation amounts for pre-upgrade entries. The shared
+$10 UTC-day cap, six-round bound and lack of automatic retries remain unchanged.
+Live responses in the local trial reported `priority` and `completed`. The
+observed timing is descriptive; no controlled speedup factor is claimed.
+Temporary timing diagnostics were removed after acceptance.

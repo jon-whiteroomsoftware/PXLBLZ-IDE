@@ -569,7 +569,7 @@ drawer menu's **Forget this agent** also revokes that agent's authorization.
 Removing the URL opt-in or leaving
 the Show also retires pending private work; an already-applied personal save
 continues. Managing another window's connection is not available in this version.
-The built-in testing service has a $10 daily allowance shared across enabled
+The built-in testing service uses Luna Fast mode and has a $10 daily allowance shared across enabled
 accounts. Availability and the allowance are controlled by the server. See [Agent service limits](contracts/agent-builtin-service.md)
 and [connection lifecycle](contracts/agent-rendezvous.md) for the detailed rules.
 [Privacy](PXLBLZ Privacy.md) explains what the built-in service and external

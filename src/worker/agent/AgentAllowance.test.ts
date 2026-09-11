@@ -35,8 +35,8 @@ it('serializes starts for a binding and global reservations across accounts, inc
     const started = await f.send({ type: 'begin', owner })
     return f.send({ type: 'reserve', owner, operationId: started.operationId, round: 0 })
   }))
-  expect(attempts.filter(x => x.code === 'reserved')).toHaveLength(17)
-  expect(attempts.filter(x => x.code === 'exhausted')).toHaveLength(2)
+  expect(attempts.filter(x => x.code === 'reserved')).toHaveLength(8)
+  expect(attempts.filter(x => x.code === 'exhausted')).toHaveLength(11)
   const last = await f.send({ type: 'begin', owner: 'last' })
   expect((await f.send({ type: 'reserve', owner: 'last', operationId: last.operationId, round: 0 })).code).toBe('exhausted')
 })
@@ -72,7 +72,7 @@ it('keeps cancellation after possible dispatch charged and settles late usage on
   expect((await f.send({ type: 'finish', owner, operationId })).code).toBe('finished')
   for (const usage of [null, {}, { input_tokens: 1, output_tokens: 1 }]) expect((await f.send({ type: 'settle', owner, operationId, round: 0, usage })).code).toBe('unknown')
   now += 2000
-  const attempts = await Promise.all(Array.from({ length: 18 }, async (_, i) => {
+  const attempts = await Promise.all(Array.from({ length: 9 }, async (_, i) => {
     const nextOwner = `next-${i}`
     const op = await f.send({ type: 'begin', owner: nextOwner })
     return f.send({ type: 'reserve', owner: nextOwner, operationId: op.operationId, round: 0 })

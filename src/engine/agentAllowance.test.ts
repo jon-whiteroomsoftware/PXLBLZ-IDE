@@ -6,8 +6,8 @@ const usage = (input = 1000, output = 100) => ({ input_tokens: input, output_tok
 describe('shared built-in allowance', () => {
   it('reserves worst documented rates before each dispatch and refuses the first call beyond ten dollars', () => {
     let state = emptyAgentAllowance()
-    expect(AGENT_DISPATCH_RESERVATION_NANOUSD).toBe(539_745_600)
-    for (let i = 0; i < 18; i++) {
+    expect(AGENT_DISPATCH_RESERVATION_NANOUSD).toBe(1_079_491_200)
+    for (let i = 0; i < 9; i++) {
       const next = reserveAgentDispatch(state, day, `call-${i}`)
       expect(next.result).toBe('reserved'); state = next.state
     }
@@ -46,4 +46,17 @@ describe('shared built-in allowance', () => {
     expect(overrun.result).toBe('overrun'); expect(overrun.state.halted).toBe(true)
     expect(reserveAgentDispatch(overrun.state, '2026-09-11', 'two').result).toBe('halted')
   })
+})
+
+it('prices priority usage and keeps legacy reservations correct across the tier upgrade', () => {
+  expect(agentUsageCost(usage(), 'priority')).toBe(624_000)
+  expect(agentUsageCost(usage(272001), 'priority')).toBe(217_928_800)
+  expect(agentUsageCost(usage(), 'unexpected')).toBeNull()
+  const legacy = { halted: false, days: { [day]: { chargedNanoUsd: 539_745_600, dispatches: { old: {} } } } }
+  const settled = settleAgentDispatch(legacy, day, 'old', usage(), 'default')
+  expect(settled.state.days[day].chargedNanoUsd).toBe(312_000)
+  const fast = reserveAgentDispatch(emptyAgentAllowance(), day, 'new')
+  expect(fast.state.days[day].chargedNanoUsd).toBe(1_079_491_200)
+  expect(settleAgentDispatch(fast.state, day, 'new', usage(), 'priority').state.days[day].chargedNanoUsd).toBe(624_000)
+  expect(settleAgentDispatch(fast.state, day, 'new', usage(), 'default').state.days[day].chargedNanoUsd).toBe(312_000)
 })
