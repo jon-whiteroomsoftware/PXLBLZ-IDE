@@ -12,9 +12,12 @@ beforeAll(async () => {
   const bundle = await build({ stdin: { contents: `
     import { onRequestPost } from './src/worker/routes/agent/channel';
     export { AgentAccount } from './src/worker/agent/AgentAccount';
+    let revocations = 0;
     export default { async fetch(request, env) {
+      if (new URL(request.url).pathname === '/fixture-revocations') return Response.json({revocations});
       const command = await request.clone().json();
       const authority = { idFromName: x => x, get: () => ({ fetch: async () => {
+        revocations++;
         if (env.RACE === 'failure') throw Error('fixture authority unavailable');
         const owner = env.AGENT_ACCOUNTS.get(env.AGENT_ACCOUNTS.idFromName('end-account'));
         if (env.RACE === 'ack') await owner.fetch(new Request('https://internal', {method:'POST',body:JSON.stringify({type:'retire-grant',agentId:'grant'})}));
@@ -76,4 +79,19 @@ it('retains end-control identity after unknown transport without restoring the r
     expect(calls).toContainEqual(expect.objectContaining({type:'disconnect',bindingId:'binding'}))
     expect(admission.beginRequest).toHaveBeenCalledOnce();expect(admission.applyShow).not.toHaveBeenCalled()
   } finally {session.close()}
+})
+
+it('refuses a stale binding from its exact window without ending or revoking its new binding', async () => {
+  const f = await fixture('failure')
+  expect(await (await f.post({ type: 'disconnect', ...f.window, bindingId: f.identity.bindingId })).json()).toEqual({ code: 'disconnected' })
+  await f.post({ type: 'arm', ...f.window })
+  const current = { ...f.identity, agentId: 'new-grant', callId: 'new-call', bindingId: 'new-binding' }
+  expect(await f.internal({ type: 'claim', ...current })).toMatchObject({ code: 'bound' })
+
+  const refused = await f.post({ type: 'forget', ...f.window, bindingId: f.identity.bindingId })
+  expect(refused.status).toBe(409)
+  expect(await refused.json()).toEqual({ code: 'not_bound_here' })
+  expect(await f.internal({ type: 'inspect', ...current })).toMatchObject({ code: 'bound' })
+  expect(await (await f.post({ type: 'poll', ...f.window })).json()).toMatchObject({ connection: { kind: 'bound', bindingId: current.bindingId } })
+  expect(await (await f.runtime.dispatchFetch('https://app.test/fixture-revocations')).json()).toEqual({ revocations: 0 })
 })
