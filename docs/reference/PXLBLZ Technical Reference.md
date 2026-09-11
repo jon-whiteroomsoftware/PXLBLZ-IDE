@@ -925,7 +925,9 @@ invocation, refusal, identity, and batch obligations. The
 [Show state, history, and persistence contract](contracts/show-state-history-persistence.md)
 owns adoption and recovery; the
 [agent candidate application contract](contracts/agent-candidate-application.md)
-records the experimental external-editor boundary and its present limits.
+records the experimental external-editor boundary and its present limits. The shared
+production admission owner is `src/agent/editorAdmission.ts`; diagnostic
+callers retain a thin observation wrapper over the same session owner.
 Logical Clip removal shares one validated owner across ordinary manual deletion,
 connected confirmation and the diagnostic descriptor adapter; its dependency
 cleanup and preservation boundary is in the [removal contract](contracts/show-command-semantics.md#logical-clip-removal-951).

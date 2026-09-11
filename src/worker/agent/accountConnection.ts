@@ -25,3 +25,21 @@ export async function accountConnection(
     method: 'POST', body: JSON.stringify({ type: action, ...identity, ...(action === 'claim' && window ? { window } : {}) }),
   }))
 }
+
+
+/** Resolve a surviving builtin claim from its authenticated local window only. */
+export async function resolveBuiltinConnection(
+  env: AgentAccessEnvironment & { AGENT_ACCOUNTS?: AgentAccountNamespace },
+  accountId: string,
+  window: WindowIdentity,
+): Promise<AgentClaim | undefined> {
+  if (!accountId || agentAccessRefusal(accountId, env) || !env.AGENT_ACCOUNTS
+    || ![window.registrationId, window.sessionId, window.showId].every(value => typeof value === 'string' && value.length > 0 && value.length <= 128)) return undefined
+  const response = await env.AGENT_ACCOUNTS.get(env.AGENT_ACCOUNTS.idFromName(accountId)).fetch(new Request('https://agent-account.internal/connection', {
+    method: 'POST', body: JSON.stringify({ type: 'resolve-builtin', ...window }),
+  }))
+  const result = await response.json() as { code: string; binding?: AgentClaim }
+  if (!response.ok || result.code !== 'bound' || result.binding?.agentKind !== 'builtin') return undefined
+  const { agentKind, agentId, agentName, callId, bindingId } = result.binding
+  return { agentKind, agentId, agentName, callId, bindingId }
+}

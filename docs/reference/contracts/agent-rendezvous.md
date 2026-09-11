@@ -122,3 +122,8 @@ were checked on 2026-09-10. Hosted provisioning and deployment remain unqualifie
 OAuth/grant revocation, stock-draft qualification, client polling integration,
 live tool routing and admission/save proof remain under #963 and #957. The runtime
 suite qualifies this server foundation; it is not supported-client MCP proof.
+
+The private `resolveBuiltinConnection` seam resolves a surviving server-created
+builtin claim only from the exact authenticated registration/session/Show
+capability owning that slot. It refuses external slots and other windows or
+accounts. Browser JSON cannot invoke this resolver or select a trusted actor.

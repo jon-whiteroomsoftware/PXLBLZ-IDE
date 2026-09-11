@@ -139,3 +139,12 @@ it('a new call after arming expiry has the same knock result before or after the
   expect(transitionRendezvous(expiredCall, { type: 'inspect', ...agentA }, 150_001).result.code).toBe('no_live_editor')
   expect(transitionRendezvous(expiredCall, { type: 'answer', ...windowA, callId: agentA.callId }, 150_001).result.code).toBe('no_live_editor')
 })
+
+it('resolves builtin identity only for its exact owning window', () => {
+  const bound = transitionRendezvous(registered(), { type: 'claim', ...agentA, agentKind: 'builtin', window: windowA }, 1).state
+  expect(transitionRendezvous(bound, { type: 'resolve-builtin', ...windowA }, 2).result.code).toBe('bound')
+  expect(transitionRendezvous(bound, { type: 'resolve-builtin', ...windowB }, 2).result.code).toBe('not_bound_here')
+  expect(transitionRendezvous(bound, { type: 'resolve-builtin', ...windowA, sessionId: 'old' }, 2).result.code).toBe('retired')
+  const external = transitionRendezvous(transitionRendezvous(registered(), { type: 'arm', ...windowA }, 1).state, { type: 'claim', ...agentA }, 2).state
+  expect(transitionRendezvous(external, { type: 'resolve-builtin', ...windowA }, 3).result.code).toBe('not_bound_here')
+})

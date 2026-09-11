@@ -39,7 +39,7 @@ export class AgentAccount {
       const { state, result } = transitionRendezvous(stored.rendezvous, command, now)
       await storage.put('account', { rendezvous: state, throttle })
       await scheduleExpiry(storage, state, throttle.start + 60_000)
-      if (command.type === 'claim' || command.type === 'inspect') {
+      if (command.type === 'claim' || command.type === 'inspect' || command.type === 'resolve-builtin') {
         const slot = state.slot
         const target = slot?.kind === 'bound'
           ? state.registrations.find((item) => item.registrationId === slot.registrationId)

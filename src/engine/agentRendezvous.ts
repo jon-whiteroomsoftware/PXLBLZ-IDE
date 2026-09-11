@@ -31,6 +31,7 @@ export type WindowCommand =
 export type RendezvousCommand = WindowCommand
   | ({ type: 'claim'; window?: WindowIdentity } & AgentClaim)
   | ({ type: 'inspect' } & AgentClaim)
+  | ({ type: 'resolve-builtin' } & WindowIdentity)
   | { type: 'expire' }
 export interface RendezvousResult { code: string; contact?: 'live' | 'lost' }
 export function emptyRendezvous(): RendezvousState { return { registrations: [], slot: null } }
@@ -80,6 +81,7 @@ export function transitionRendezvous(previous: RendezvousState, command: Rendezv
   }
   const registration = state.registrations.find((item) => item.registrationId === command.registrationId && item.sessionId === command.sessionId && item.showId === command.showId)
   if (!registration) return result('retired')
+  if (command.type === 'resolve-builtin') return result(state.slot?.kind === 'bound' && state.slot.registrationId === registration.registrationId && state.slot.agentKind === 'builtin' ? 'bound' : 'not_bound_here')
   if (command.type === 'poll') return result('status', now - registration.lastSeenAt >= CONTACT_LOST_MS ? 'lost' : 'live')
   if (command.type === 'heartbeat') {
     registration.lastSeenAt = now

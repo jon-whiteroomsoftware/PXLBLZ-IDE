@@ -180,3 +180,19 @@ it('requires JSON content type even for local cleanup', async () => {
   expect(response.status).toBe(400)
   expect(await response.json()).toEqual({ code: 'invalid_request' })
 })
+
+it('resolves builtin identity privately for the original window, never a public role input', async () => {
+  const namespace = await runtime.getDurableObjectNamespace('AGENT_ACCOUNTS') as unknown as RuntimeNamespace
+  const stub = namespace.get(namespace.idFromName('resolver-only'))
+  const send = (body: unknown) => stub.fetch('https://agent-account.internal/connection', { method: 'POST', body: JSON.stringify(body) })
+  const window = { registrationId: 'resolver-window', sessionId: 'resolver-session', showId: 'resolver-show' }
+  const identity = { agentKind: 'builtin', agentId: 'builtin-service', agentName: 'Built-in', callId: 'resolver-call', bindingId: 'resolver-binding' }
+  await send({ type: 'register', ...window })
+  await send({ type: 'claim', ...identity, window })
+  expect(await (await send({ type: 'resolve-builtin', ...window })).json()).toMatchObject({ code: 'bound', binding: identity })
+  const wrong = await (await send({ type: 'resolve-builtin', ...window, sessionId: 'other' })).json()
+  expect(wrong).toEqual({ code: 'retired' })
+  const otherAccount = namespace.get(namespace.idFromName('resolver-other'))
+  expect(await (await otherAccount.fetch('https://agent-account.internal/connection', { method: 'POST', body: JSON.stringify({ type: 'resolve-builtin', ...window }) })).json()).toEqual({ code: 'retired' })
+  expect((await channel({ type: 'resolve-builtin', ...window })).status).toBe(400)
+})

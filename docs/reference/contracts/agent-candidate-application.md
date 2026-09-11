@@ -634,3 +634,21 @@ refusal, and narrow pin restoration. Browser baseline D957 covers real scripted
 adoption/save, the double outline, unread clearing, a conflicting manual edit,
 and Undo on the Show route. External connection controls are presentation
 states here, with no production attachment or cross-window recovery claim.
+
+## Shared production admission owner (#963)
+
+`src/agent/editorAdmission.ts` now owns the existing editor session, immutable
+request capture, metadata invalidation, candidate validation, input wait and
+save receipts. `src/dev/agentEditorAdmission.ts` is a compatibility wrapper
+that injects diagnostic observation; production callers import the owner
+directly. Snapshot and finite resize-identity helpers are pure engine modules.
+No second adoption owner or diagnostic grammar is introduced.
+
+`src/engine/agentPrivateExecutor.ts` keeps one private candidate per binding,
+serializes canonical command deliveries with session-scoped immutable identity,
+and delegates apply/complete/cancel/outcome to that admission. True command
+refusal discards the whole private candidate. Cached response loss preserves
+identity tombstones and uses the surviving admission receipt for outcome
+recovery, never automatic application replay. This internal checkpoint does
+not itself expose a live MCP edit path; its bounded transport integration is
+specified in `docs/plans/agent-mcp-routing-slice.md`.
