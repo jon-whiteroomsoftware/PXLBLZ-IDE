@@ -68,7 +68,7 @@ describe('ShowWorkspace (#967)', () => {
     resizeWorkspace(1200, 900)
     expect(screen.getByTestId('show-stage-strip')).toHaveStyle({ height: '554px' })
     view.rerender(<ShowWorkspace previewAspect={1} timelineContentHeight={470} timeline={<div>timeline</div>} stage={<div>stage</div>} />)
-    expect(screen.getByTestId('show-timeline-pane')).toHaveStyle({ height: '543px' })
+    expect(screen.getByTestId('show-timeline-pane')).toHaveStyle({ height: '447px' })
     expect(window.localStorage.getItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY)).toBeNull()
   })
 
@@ -123,9 +123,9 @@ describe('ShowWorkspace (#967)', () => {
     resizeWorkspace(2000, 1200)
     expect(height()).toBe(beforeReload)
 
-    // Width clamps must not overwrite the remembered, unconstrained split.
+    // Width changes no longer constrain the vertical split.
     resizeWorkspace(390, 1200)
-    expect(screen.getByRole('separator')).toHaveAttribute('data-clamp', 'controls-min')
+    expect(screen.getByRole('separator')).toHaveAttribute('data-clamp', 'none')
     view.unmount()
     view = mount()
     resizeWorkspace(390, 1200)
@@ -133,26 +133,24 @@ describe('ShowWorkspace (#967)', () => {
     expect(height()).toBe(beforeReload)
 
     // The same applies when a shorter viewport temporarily reaches a height limit.
-    resizeWorkspace(2000, 300)
+    resizeWorkspace(2000, 200)
     expect(screen.getByRole('separator')).not.toHaveAttribute('data-clamp', 'none')
     view.unmount()
     mount()
-    resizeWorkspace(2000, 300)
+    resizeWorkspace(2000, 200)
     resizeWorkspace(2000, 1200)
     expect(Math.abs(height() - beforeReload)).toBeLessThanOrEqual(2)
   })
 
-  it('marks a divider stopped by the preview-controls width clamp', () => {
+  it('lets a wide preview grow while its frame fits beside the controls', () => {
+    window.localStorage.setItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY, '300')
     render(<ShowWorkspace previewAspect={16 / 9} timeline={<div>timeline</div>} stage={<div>stage</div>} />)
     resizeWorkspace(900, 700)
-
-    const divider = screen.getByRole('separator', { name: 'Resize timeline and Stage' })
-    fireEvent.keyDown(divider, { key: 'ArrowUp', shiftKey: true })
-    fireEvent.keyDown(divider, { key: 'ArrowUp', shiftKey: true })
-    fireEvent.keyDown(divider, { key: 'ArrowUp', shiftKey: true })
-    expect(divider).toHaveAttribute('data-clamp', 'controls-min')
-    expect(screen.getByTestId('show-stage-strip')).toHaveStyle({ height: '376px' })
-    expect(window.localStorage.getItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY)).toBe('318')
+    const divider = screen.getByRole('separator')
+    for (let step = 0; step < 3; step++) fireEvent.keyDown(divider, { key: 'ArrowUp', shiftKey: true })
+    expect(divider).toHaveAttribute('data-clamp', 'none')
+    expect(screen.getByTestId('show-stage-strip')).toHaveStyle({ height: '544px' })
+    expect(window.localStorage.getItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY)).toBe('150')
   })
 
   it('uses the timeline chrome measurement as the keyboard clamp', () => {

@@ -1,5 +1,5 @@
 export const SHOW_WORKSPACE_DIVIDER_HEIGHT = 6
-export const SHOW_TIMELINE_MIN_HEIGHT = 164
+export const SHOW_TIMELINE_MIN_HEIGHT = 80
 export const SHOW_STRIP_MIN_HEIGHT = 140
 export const SHOW_CONTROLS_MIN_WIDTH = 200
 export const SHOW_PREVIEW_RAIL_WIDTH = 30
@@ -13,7 +13,7 @@ export function scaleShowTimelineHeight(height: number, workspaceHeight: number,
   return Math.round(Math.round(height) * available / referenceAvailable)
 }
 
-export type ShowWorkspaceClamp = 'timeline-min' | 'controls-min' | 'strip-min' | null
+export type ShowWorkspaceClamp = 'timeline-min' | 'strip-min' | null
 
 export interface ShowWorkspaceLayout {
   timelineHeight: number
@@ -43,14 +43,13 @@ export function resolveShowWorkspaceLayout({
   const workspaceWidth = Math.max(1, Math.floor(width))
   const availableHeight = Math.max(1, Math.floor(height) - SHOW_WORKSPACE_DIVIDER_HEIGHT)
   const aspect = Number.isFinite(previewAspect) && previewAspect > 0 ? previewAspect : 1
+  const referenceAvailable = Math.max(1, Math.floor(referenceHeight ?? height) - SHOW_WORKSPACE_DIVIDER_HEIGHT)
   const desiredTimeline = desiredTimelineHeight === null
-    ? Math.ceil(timelineContentHeight + SHOW_TIMELINE_DEFAULT_SLACK)
+    ? Math.min(Math.ceil(timelineContentHeight + SHOW_TIMELINE_DEFAULT_SLACK), Math.floor(referenceAvailable / 2))
     : Math.round(desiredTimelineHeight)
   const desiredStrip = availableHeight - scaleShowTimelineHeight(desiredTimeline, height, referenceHeight)
   const minimumTimeline = Math.max(1, Math.ceil(timelineMinimumHeight))
-  const timelineBound = Math.max(1, availableHeight - minimumTimeline)
-  const controlsBound = Math.max(1, Math.floor((workspaceWidth - SHOW_CONTROLS_MIN_WIDTH - SHOW_PREVIEW_RAIL_WIDTH) / aspect))
-  const upperStrip = Math.max(1, Math.min(timelineBound, controlsBound))
+  const upperStrip = Math.max(1, availableHeight - minimumTimeline)
   const lowerStrip = Math.min(SHOW_STRIP_MIN_HEIGHT, upperStrip)
 
   let stripHeight = desiredStrip
@@ -60,7 +59,7 @@ export function resolveShowWorkspaceLayout({
     clamp = 'strip-min'
   } else if (stripHeight >= upperStrip) {
     stripHeight = upperStrip
-    clamp = controlsBound <= timelineBound ? 'controls-min' : 'timeline-min'
+    clamp = 'timeline-min'
   }
 
   const timelineHeight = availableHeight - stripHeight
@@ -79,14 +78,14 @@ export function resolveShowWorkspaceLayout({
 
 export function measureShowTimelineMinimumHeight({
   editorTop,
-  secondLaneBottom,
+  toolbarBottom,
   fixedFooterHeight,
 }: {
   editorTop: number
-  secondLaneBottom: number
+  toolbarBottom: number
   fixedFooterHeight: number
 }): number {
-  return Math.max(1, Math.ceil(secondLaneBottom - editorTop + fixedFooterHeight))
+  return Math.max(1, Math.ceil(toolbarBottom - editorTop + fixedFooterHeight + 24))
 }
 
 export function serializeShowTimelineHeight(height: number): string {

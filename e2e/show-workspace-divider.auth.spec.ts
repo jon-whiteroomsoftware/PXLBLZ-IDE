@@ -1,5 +1,11 @@
 import { expect, test } from './fixtures/authenticated'
 
+// Layout tests exercise the opt-in UI with an unavailable Agent service.
+// Transport admission and execution are covered by the Agent suites.
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/agent/channel?agent=1', route => route.fulfill({ json: { code: 'service_disabled' } }))
+})
+
 test('ends divider dragging after release and capture loss while the Show plays (#63)', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('studio/shows/stock-show-301-installation-mapping')
@@ -43,45 +49,6 @@ test('uses a short undecorated timeline tail (#63)', async ({ page }) => {
   expect(await page.getByTestId('show-timeline-toolbar').evaluate((element) => getComputedStyle(element.parentElement!).borderBottomWidth)).toBe('0px')
 })
 
-test('warns only when timeline rows are clipped, not when decorative slack or a size limit is reached (#63)', async ({ page }) => {
-  await page.setViewportSize({ width: 1000, height: 1400 })
-  await page.goto('studio/shows/stock-show-301-installation-mapping')
-  const divider = page.getByRole('separator', { name: 'Resize timeline and Stage' })
-  const pane = page.getByTestId('show-timeline-pane')
-  await expect(divider).toBeVisible()
-  const clipped = () => pane.evaluate((element) => {
-    const lanes = [...element.querySelectorAll<HTMLElement>('[data-show-zone-id]')]
-    return Math.max(...lanes.map((lane) => lane.getBoundingClientRect().bottom)) - element.getBoundingClientRect().bottom > 1
-  })
-  for (let step = 0; step < 30; step++) await divider.press('Shift+ArrowUp')
-  await expect(divider).toHaveAttribute('data-clamp', 'controls-min')
-  expect(await clipped()).toBe(false)
-  await expect(divider).not.toHaveClass(/border-red-400/)
-
-  await page.setViewportSize({ width: 1280, height: 720 })
-  for (let step = 0; step < 10; step++) await divider.press('Shift+ArrowDown')
-  let sawClipping = false
-  for (let step = 0; step < 60; step++) {
-    await divider.press('ArrowUp')
-    const isClipped = await clipped()
-    if (isClipped) {
-      sawClipping = true
-      await expect(divider).toHaveClass(/border-red-400/)
-      break
-    } else {
-      await expect(divider).not.toHaveClass(/border-red-400/)
-    }
-    if (await divider.getAttribute('data-clamp') === 'timeline-min') break
-  }
-  expect(sawClipping).toBe(true)
-  await page.getByRole('button', { name: 'Collapse zone Columns', exact: true }).click()
-  await expect(divider).not.toHaveClass(/border-red-400/)
-  await page.getByRole('button', { name: 'Expand zone Columns', exact: true }).click()
-  await expect(divider).toHaveClass(/border-red-400/)
-  await page.getByTestId('show-editor-scroll').evaluate((element) => { element.scrollTop = element.scrollHeight })
-  await expect(divider).toHaveClass(/border-red-400/)
-})
-
 test('does not restore the legacy source footer below the narrow breakpoint (#63)', async ({ page }) => {
   await page.setViewportSize({ width: 980, height: 900 })
   await page.goto('studio/shows/stock-show-remix-quadrille')
@@ -91,7 +58,7 @@ test('does not restore the legacy source footer below the narrow breakpoint (#63
   await expect(page.getByRole('dialog', { name: 'Show source inventory' })).toHaveCount(0)
 })
 
-test('preserves the split ratio through resizing, reload, and a width clamp (#63)', async ({ page }, testInfo) => {
+test('preserves the split ratio through resizing, reload, and narrow width (#63)', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1800, height: 1000 })
   await page.goto('studio/shows/stock-show-301-installation-mapping')
   const divider = page.getByRole('separator', { name: 'Resize timeline and Stage' })
@@ -118,11 +85,84 @@ test('preserves the split ratio through resizing, reload, and a width clamp (#63
   }
   await page.setViewportSize({ width: 640, height: 1000 })
   await expect(page.getByTestId('show-stage-strip')).toBeVisible()
-  await expect(divider).toHaveAttribute('data-clamp', 'controls-min')
+  await expect(divider).toHaveAttribute('data-clamp', 'none')
   await page.reload()
-  await expect(divider).toHaveAttribute('data-clamp', 'controls-min')
+  await expect(divider).toHaveAttribute('data-clamp', 'none')
   await expect(page.getByTestId('studio-entity-drawer')).toBeHidden()
   await testInfo.attach('split-640x1000', { body: await page.screenshot(), contentType: 'image/png' })
   await page.setViewportSize({ width: 1800, height: 1000 })
   await expect.poll(async () => Math.abs(await ratio() - original)).toBeLessThan(0.003)
 })
+
+for (const agent of [false, true]) {
+  test(`fades remaining timeline content and permits a large preview with Agent ${agent} (#1006)`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await page.goto(`studio/shows/stock-show-301-installation-mapping${agent ? '?agent=1' : ''}`)
+    const divider = page.getByRole('separator', { name: 'Resize timeline and Stage' })
+    await expect(divider).toBeVisible()
+    const pane = page.getByTestId('show-timeline-pane')
+    const strip = page.getByTestId('show-stage-strip')
+    await expect.poll(async () => (await strip.boundingBox())!.height - (await pane.boundingBox())!.height).toBeGreaterThanOrEqual(0)
+    const bounds = (await divider.boundingBox())!
+    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + 3)
+    await page.mouse.down()
+    await page.mouse.move(bounds.x + bounds.width / 2, 40, { steps: 12 })
+    await page.mouse.up()
+    await expect(divider).toHaveAttribute('data-clamp', 'timeline-min')
+    expect(Number(await divider.getAttribute('aria-valuenow'))).toBeLessThan(180)
+    await expect.poll(async () => (await strip.boundingBox())!.height).toBeGreaterThan(650)
+    const fade = page.getByTestId('show-timeline-overflow-fade')
+    await expect(fade).toBeVisible()
+    await expect(divider).not.toHaveClass(/red-/)
+    await page.getByTestId('show-editor-scroll').evaluate((element) => { element.scrollTop = element.scrollHeight })
+    await expect(fade).toBeHidden()
+    await page.getByTestId('show-editor-scroll').evaluate((element) => { element.scrollTop = 0 })
+    await expect(fade).toBeVisible()
+    await divider.press('Shift+ArrowDown')
+    await expect.poll(async () => Number(await divider.getAttribute('aria-valuenow'))).toBeGreaterThan(150)
+  })
+}
+
+for (const agent of [false, true]) {
+  test(`contains Studio document scrolling with Agent ${agent ? 'enabled' : 'hidden'} (#1006)`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 })
+    for (const route of ['studio/shows/stock-show-301-installation-mapping', 'studio/patterns']) {
+      await page.goto(`${route}${agent ? '?agent=1' : ''}`)
+      await expect(page.getByTestId('studio-drawer-layout')).toBeVisible()
+      const edge = page.getByTestId('agent-drawer-edge-tab')
+      const hasAgentDrawer = agent && route.includes('/shows/')
+      if (hasAgentDrawer) await expect(edge).toBeVisible()
+      else await expect(edge).toHaveCount(0)
+      const overflow = () => page.evaluate(() => {
+        const root = document.documentElement
+        return [root.scrollWidth - root.clientWidth, root.scrollHeight - root.clientHeight]
+      })
+      await expect.poll(overflow).toEqual([0, 0])
+      if (hasAgentDrawer) {
+        await edge.click()
+        await expect(page.getByRole('complementary', { name: 'Agent drawer', exact: true })).toBeVisible()
+        await expect.poll(overflow).toEqual([0, 0])
+        await page.getByRole('button', { name: 'Agent menu', exact: true }).click()
+        await expect(page.getByRole('menuitemcheckbox', { name: 'Show MCP calls', exact: true })).toBeVisible()
+        await page.keyboard.press('Escape')
+        await page.getByRole('button', { name: 'Pin the Agent drawer', exact: true }).click()
+        await expect(page.getByTestId('agent-drawer-layout')).toHaveAttribute('data-drawer-mode', 'pinned')
+        await expect.poll(overflow).toEqual([0, 0])
+        await page.getByRole('button', { name: 'Unpin the Agent drawer', exact: true }).click()
+        await page.keyboard.press('Escape')
+        await expect(edge).toHaveAttribute('aria-expanded', 'false')
+        await expect.poll(overflow).toEqual([0, 0])
+      }
+      await page.setViewportSize({ width: 640, height: 800 })
+      await expect.poll(overflow).toEqual([0, 0])
+      const listEdge = page.getByTestId('studio-drawer-edge-tab')
+      await listEdge.click()
+      await expect(page.getByTestId('studio-drawer-layout')).toHaveAttribute('data-drawer-mode', 'open')
+      await expect.poll(overflow).toEqual([0, 0])
+      await page.keyboard.press('Escape')
+      await expect(listEdge).toHaveAttribute('aria-expanded', 'false')
+      await expect.poll(overflow).toEqual([0, 0])
+      await page.setViewportSize({ width: 1280, height: 720 })
+    }
+  })
+}

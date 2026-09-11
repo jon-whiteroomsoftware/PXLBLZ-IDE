@@ -474,14 +474,17 @@ authored transformed content bounds. Both guides are session-only. The Preview h
 left-aligned controls column on the bottom-left, capped at 480 px, with spare
 width left as a gap before the preview rail. Each header summarizes its
 folded section. Preview begins open; the other sections begin folded, and
-PXLBLZ remembers each section independently for Shows. On entry without a remembered split, the timeline
-fits its content with a little slack and the Stage takes the remaining height,
-subject to the pane minimums. Subsequent window resizing preserves that
-proportion, including before the divider has ever been dragged. This can leave
-extra timeline space when growing or require scrolling its rows when shrinking.
-Lane changes revise the initial content-based target until a split is remembered. Drag the horizontal divider to trade space
-between the timeline and Stage, or focus it and use **Up/Down**. PXLBLZ
-remembers the Show split; later lane changes preserve that position. While
+PXLBLZ remembers each section independently for Shows. A fresh layout gives the
+preview at least half the available workspace, or more when the timeline is short,
+within compact pane limits. Drag the horizontal divider to enlarge the preview,
+or focus it and use **Up/Down**. The timeline can shrink to its transport controls;
+its rows scroll inside the top pane. A subtle fade along the bottom edge indicates
+more content below and disappears when you reach the bottom.
+
+PXLBLZ remembers the chosen split. Later lane changes preserve it, and window
+resizing preserves its proportion within the pane height limits. A narrow window
+fits the Stage inside the available preview area without forcing the divider down.
+While
 paused, the Stage redraws the frozen picture throughout resizing without
 advancing Show time. Light size and Diffusion update while paused in both the
 Show and Pattern previews. Their sliders release focus after pointer adjustment;

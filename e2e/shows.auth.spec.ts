@@ -230,7 +230,7 @@ test.describe('authenticated Show authoring', () => {
     }).toBeLessThan(1)
   })
 
-  test('keeps the Stage aspect exact while the divider reaches both desktop clamps (#686, #967)', async ({ page }) => {
+  test('fits the Stage without distortion while the divider reaches both height limits (#1006)', async ({ page }) => {
     test.slow()
     await page.setViewportSize({ width: 1180, height: 1196 })
     await page.goto('studio/shows/stock-show-remix-overture')
@@ -240,10 +240,11 @@ test.describe('authenticated Show authoring', () => {
     const controls = page.getByTestId('show-stage-controls')
     const sections = page.locator('.show-strip-sections')
     const geometry = () => frame.evaluate((element) => {
-      const bounds = element.getBoundingClientRect()
+      const bounds = element.querySelector('canvas')!.getBoundingClientRect()
       const declaredAspect = Number.parseFloat((element as HTMLElement).style.aspectRatio)
       return {
-        aspectError: Math.abs(bounds.width / bounds.height - declaredAspect),
+        // The rendered canvas rounds dimensions to integer CSS pixels.
+        aspectError: Math.abs(bounds.width - bounds.height * declaredAspect),
         horizontalOverflow: element.scrollWidth - element.clientWidth,
       }
     })
@@ -273,14 +274,14 @@ test.describe('authenticated Show authoring', () => {
     await page.setViewportSize({ width: 1180, height: 1196 })
 
     for (let step = 0; step < 20; step += 1) await splitter.press('Shift+ArrowUp')
-    await expect(splitter).toHaveAttribute('data-clamp', 'controls-min')
+    await expect(splitter).toHaveAttribute('data-clamp', 'timeline-min')
     await expect.poll(async () => Math.round((await controls.boundingBox())?.width ?? 0)).toBeGreaterThanOrEqual(200)
     await expect.poll(async () => controls.evaluate((element) => (
       Array.from(element.querySelectorAll<HTMLElement>('*'))
         .filter((child) => !child.closest('[data-deck="section-summary"]') && child.scrollWidth > child.clientWidth + 1)
         .map((child) => child.textContent?.trim().slice(0, 40) ?? child.tagName)
     ))).toEqual([])
-    await expect.poll(async () => (await geometry()).aspectError).toBeLessThan(0.002)
+    await expect.poll(async () => (await geometry()).aspectError).toBeLessThanOrEqual(1)
     await expect.poll(async () => (await geometry()).horizontalOverflow).toBe(0)
 
     await page.setViewportSize({ width: 1950, height: 1196 })
@@ -289,7 +290,7 @@ test.describe('authenticated Show authoring', () => {
     await expect.poll(async () => sections.evaluate((element) => (
       getComputedStyle(element).gridTemplateColumns.split(' ').length
     ))).toBe(1)
-    await expect.poll(async () => (await geometry()).aspectError).toBeLessThan(0.002)
+    await expect.poll(async () => (await geometry()).aspectError).toBeLessThanOrEqual(1)
     await expect.poll(async () => (await geometry()).horizontalOverflow).toBe(0)
 
     await page.goto('studio/shows/stock-show-106-built-from-basics')
@@ -302,7 +303,7 @@ test.describe('authenticated Show authoring', () => {
     }).toBeLessThan(0.001)
   })
 
-  test('keeps transport, ruler, and two complete lanes above the divider at the high clamp (#967)', async ({ page }) => {
+  test('keeps compact transport above the divider while timeline rows scroll (#1006)', async ({ page }) => {
     await page.setViewportSize({ width: 2400, height: 1196 })
     await page.goto('studio/shows/stock-show-remix-overture')
 
@@ -320,20 +321,11 @@ test.describe('authenticated Show authoring', () => {
     await expect.poll(async () => page.getByTestId('show-timeline-pane').evaluate((pane) => {
       const scroll = pane.querySelector<HTMLElement>('[data-testid="show-editor-scroll"]')
       const toolbar = pane.querySelector<HTMLElement>('[data-testid="show-timeline-toolbar"]')
-      const ruler = pane.querySelector<HTMLElement>('[data-testid="show-timeline-ruler"]')
-      if (!scroll || !toolbar || !ruler) return Number.POSITIVE_INFINITY
-
-      const laneRects = Array.from(pane.querySelectorAll<HTMLElement>('[data-show-zone-id]'))
-        .map((element) => element.getBoundingClientRect())
-        .filter((rect) => rect.height > 0)
-        .sort((left, right) => left.top - right.top)
-        .filter((rect, index, rects) => index === 0 || Math.abs(rect.top - rects[index - 1].top) > 1)
-        .slice(0, 2)
-      if (laneRects.length < 2) return Number.POSITIVE_INFINITY
+      if (!scroll || !toolbar) return Number.POSITIVE_INFINITY
 
       const scrollRect = scroll.getBoundingClientRect()
       const visibleBottom = Math.min(scrollRect.bottom, pane.getBoundingClientRect().bottom)
-      const visibleRects = [toolbar.getBoundingClientRect(), ruler.getBoundingClientRect(), ...laneRects]
+      const visibleRects = [toolbar.getBoundingClientRect()]
       return Math.max(...visibleRects.map((rect) => Math.max(
         scrollRect.top - rect.top,
         rect.bottom - visibleBottom,
@@ -2672,7 +2664,7 @@ test.describe('authenticated Show authoring', () => {
     await waitForCurrentShow(page, (saved) => saved.composition?.groupDefinitions?.length === 1)
   })
 
-  test('fits square Show lanes by default and preserves manual sizing (#977)', async ({ page }) => {
+  test('fits short timelines, reserves preview space for tall timelines, and preserves manual sizing (#1006)', async ({ page }) => {
     test.slow()
     const capture = async (name: string) => {
       const output = process.env.PXLBLZ_CAPTURE_OUTPUT
@@ -2704,8 +2696,12 @@ test.describe('authenticated Show authoring', () => {
     for (const count of [3, 6]) {
       await page.goto(`studio/shows/workspace-square-${count}?capture`)
       await expect(splitter).toHaveAttribute('data-clamp', 'none')
-      await expect.poll(contentSlack).toBeGreaterThanOrEqual(11)
-      await expect.poll(contentSlack).toBeLessThanOrEqual(13)
+      if (count === 3) {
+        await expect.poll(contentSlack).toBeGreaterThanOrEqual(11)
+        await expect.poll(contentSlack).toBeLessThanOrEqual(13)
+      } else {
+        await expect.poll(async () => (await strip.boundingBox())!.height - (await pane.boundingBox())!.height).toBeGreaterThanOrEqual(0)
+      }
       await expect.poll(async () => page.getByTestId('show-stage-canvas-frame').evaluate((element) => {
         const rect = element.getBoundingClientRect()
         return Math.abs(rect.width - rect.height)
@@ -3292,7 +3288,7 @@ test('Show strip summaries retain controls, keyboard ownership and canvas at the
   await previewSection.click()
   const divider = page.getByRole('separator', { name: 'Resize timeline and Stage' })
   for (let step = 0; step < 30; step += 1) await divider.press('Shift+ArrowUp')
-  await expect(divider).toHaveAttribute('data-clamp', 'controls-min')
+  await expect(divider).toHaveAttribute('data-clamp', 'timeline-min')
   await expect.poll(async () => (await controls.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(200)
   await expect.poll(async () => (await controls.locator('.show-strip-sections').boundingBox())?.width ?? 999).toBeLessThanOrEqual(480)
   const sourceBody = page.getByTestId('show-source-outlet').locator('.show-source-inventory-body')

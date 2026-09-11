@@ -1191,33 +1191,31 @@ use authored transforms and appear only within the Clip's half-open time range,
 including materialized Group members. Guides remain sampled axis-aligned Zone
 bounds on 2D stages; aperture clipping, animated transforms, exact nonrectangular
 boundaries, and blended routing transitions are outside this diagnostic model.
-`ShowWorkspace` owns the
-desktop over/under composition and delegates its measurements to
-`showWorkspaceLayout.ts`. The pure layout keeps the preview at the Stage map's
-aspect while enforcing the timeline and strip minimums, reserving a 30 px
-preview rail and at least 200 px of usable controls. Its
-horizontal divider moves by 10 px, or 50 px with Shift, and persists one Show
-timeline height only after explicit pointer or keyboard movement. Once remembered,
-its unconstrained pixel height is refreshed on window resize so reloading at the
-new size preserves the split. Temporary size clamps are never saved as intent. Pointer gestures
-end on release, cancellation, capture loss, or window blur; batched moves
-accumulate from the gesture's last clamped height (#63). Without a
-remembered height, the initial split fits measured timeline content plus 12 px
-slack and gives the strip the remainder. After that initial fit, window resizing
-preserves the split proportion whether or not the divider has ever been dragged.
-This replaces continuous content-fitting on resize (#63): shrinking may scroll
-timeline rows and growing may leave extra space below them. The existing
-two-lane timeline minimum, strip minimum, and controls-width limit still apply;
-the minimum does not require every lane to remain visible. Temporary clamps
-do not replace the intended split. While no height is remembered, lane changes
-revise the content-based target at the first measured workspace height.
-`ShowEditor` measures content independently of scroll position; a visible Live
-strip reserves 32 px in automatic fitting and the two-lane minimum. Remembered
-height takes precedence over content and survives temporary viewport clamps.
-The marker tail below the final row is 17 px, without a second bottom separator.
-Automatic fitting includes that decoration; red divider feedback uses the bottom
-of the actual rows, excluding tail, gap, and outer padding. Size limits alone
-do not turn the divider red (#63).
+`ShowWorkspace` owns the over/under composition and delegates sizing to
+`showWorkspaceLayout.ts`. A fresh split fits short timeline content with 12 px
+slack, capped at half the available workspace so the preview starts with at
+least half the height when compact chrome fits. The timeline minimum reserves
+transport chrome and a small scrollable area; lane and animation-row heights do
+not constrain manual sizing. The preview strip retains its minimum height.
+Stage aspect and controls width constrain canvas fitting within the strip, not
+vertical divider movement. Controls retain 200 px beside the 30 px preview rail;
+a width-limited canvas can leave spare vertical space without distorting the Stage.
+
+The horizontal divider moves by 10 px, or 50 px with Shift, and remembers one
+Show timeline height after explicit pointer or keyboard movement. Window resizing
+preserves the intended proportion, including before the first drag. Remembered
+pixel heights refresh on observed resize so reload restores the same split;
+temporary height clamps never replace the intended proportion. Lane changes can
+revise the initial content-based target until a split is remembered. Measurements
+undo scroll translation so scrolling cannot change the target or chrome minimum.
+Pointer gestures end on release, cancellation, capture loss, or window blur;
+batched moves accumulate from the gesture's last clamped height.
+
+`ShowEditor` owns a pointer-transparent bottom-edge fade while its scroll viewport
+has content remaining below. Scroll and resize observations update the cue; it
+disappears at the bottom. The divider stays neutral, with amber hover/focus feedback.
+The marker tail below the final row remains 17 px, without a second separator.
+
 Show controls follow Preview, Zones, Stage, Source code. Expanded Zones use compact
 24 px rows with dividing rules and unboxed coverage text; the All action lives
 in the heading only while a Zone is soloed (#63). Preview and Stage fields
@@ -1256,6 +1254,12 @@ mouse-out close. The edge and panel share pointer ownership, so leaving during
 the opening slide starts the same 600 ms close delay and entering the panel
 cancels it. The overlay transitions CSS `translate` for 225 ms with matching
 ease-in-out curves in both directions; reduced motion removes the transition.
+Studio drawer containers clip translated drawer travel within the workspace,
+without becoming scroll containers themselves. Hidden announcements have explicit
+inset anchors so reversed flex layout cannot extend the document's scroll range.
+This applies with and without the Show-only Agent URL opt-in; content scrolling
+belongs to the panes.
+
 Panes retain explicit minimums and remembered per-entity
 divider widths. Shows replace the desktop center/right split with the
 timeline-over-Stage workspace; Pattern and other Studio layouts retain their

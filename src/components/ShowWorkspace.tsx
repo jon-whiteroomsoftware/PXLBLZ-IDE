@@ -145,9 +145,7 @@ export function ShowWorkspace({
           aria-valuenow={layout.timelineHeight}
           data-clamp={layout.clamp ?? 'none'}
           data-overflow={timelineClipped ? 'true' : 'false'}
-          className={`group relative h-[6px] shrink-0 cursor-row-resize touch-none select-none border-y transition-colors focus-visible:outline-none ${timelineClipped
-            ? 'border-red-400/45 bg-red-400/15'
-            : 'border-seam bg-zinc-900 hover:border-amber-300/45 focus-visible:border-amber-300/60'}`}
+          className="group relative h-[6px] shrink-0 cursor-row-resize touch-none select-none border-y border-seam bg-zinc-900 transition-colors hover:border-amber-300/45 focus-visible:border-amber-300/60 focus-visible:outline-none"
           onPointerDown={beginDragging}
           onPointerMove={(event) => {
             const drag = dragRef.current
@@ -180,9 +178,7 @@ export function ShowWorkspace({
         >
           <span
             aria-hidden
-            className={`absolute left-1/2 top-1/2 h-0.5 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors ${timelineClipped
-              ? 'bg-red-400'
-              : 'bg-zinc-600 group-hover:bg-amber-300 group-focus-visible:bg-amber-300'}`}
+            className="absolute left-1/2 top-1/2 h-0.5 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full bg-zinc-600 transition-colors group-hover:bg-amber-300 group-focus-visible:bg-amber-300"
           />
         </div>}
         {stageAvailable && <div

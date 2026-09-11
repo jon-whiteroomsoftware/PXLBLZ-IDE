@@ -339,7 +339,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
   )
 
   return (
-    <div className={`relative flex min-h-0 min-w-0 flex-1 ${side === 'right' ? 'flex-row-reverse' : ''}`} data-testid={side === 'right' ? 'agent-drawer-layout' : 'studio-drawer-layout'} data-drawer-mode={mode}>
+    <div className={`relative flex min-h-0 min-w-0 flex-1 overflow-clip ${side === 'right' ? 'flex-row-reverse' : ''}`} data-testid={side === 'right' ? 'agent-drawer-layout' : 'studio-drawer-layout'} data-drawer-mode={mode}>
       {enabled && (mode === 'pinned' ? (
         <>
           {drawerPane}
@@ -388,7 +388,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
         </>
       ))}
       <Fragment key="workspace">{side === 'right' ? <div className="flex min-h-0 min-w-0 flex-1">{children}</div> : children}</Fragment>
-      <span className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</span>
+      <span className="sr-only left-0 top-0" aria-live="polite" aria-atomic="true">{announcement}</span>
     </div>
   )
 })

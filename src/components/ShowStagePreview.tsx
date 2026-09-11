@@ -972,7 +972,7 @@ export function ShowStagePreview({
         className={presentation === 'strip'
           ? 'relative flex h-full shrink-0 items-center justify-center overflow-hidden border-r border-zinc-800 bg-black'
           : 'relative shrink-0 bg-black/70'}
-        style={presentation === 'strip' ? { aspectRatio: previewAspect } : undefined}
+        style={presentation === 'strip' ? { aspectRatio: previewAspect, maxWidth: 'max(1px, calc(100% - 230px))' } : undefined}
       >
         <div className="relative inline-block">
           <canvas ref={canvasRef} className="rounded-sm" />

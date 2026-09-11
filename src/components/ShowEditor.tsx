@@ -15,7 +15,7 @@ import { PercentageField as UiPercentageField, type PercentageFieldProps as UiPe
 import { DomainNumberField as UiDomainNumberField, type DomainNumberFieldProps as UiDomainNumberFieldProps } from '@/components/ui/domain-number-field'
 import { BoundedNumberField } from '@/components/ui/bounded-number-field'
 import { formatDomainNumber } from '@/engine/domainNumberPresentation'
-import { measureShowTimelineMinimumHeight, SHOW_TIMELINE_MIN_HEIGHT } from '@/engine/showWorkspaceLayout'
+import { measureShowTimelineMinimumHeight } from '@/engine/showWorkspaceLayout'
 import { resolveLinearNumberPresentation } from '@/engine/linearNumberPresentation'
 import { formatPercentageValue } from '@/engine/percentageValue'
 import { formatShowTime, showBoundaryClipIdentity } from '@/engine/showClipIdentity'
@@ -1071,6 +1071,7 @@ export function ShowEditor({
   })
   const timelineWorkspaceRef = useRef<HTMLElement>(null)
   const showEditorPaneRef = useRef<HTMLDivElement>(null)
+  const [timelineMoreBelow, setTimelineMoreBelow] = useState(false)
   const lastTimelineFocusRef = useRef<HTMLElement | null>(null)
   const closeDetailPanel = useCallback((restoreFocus = false) => {
     const previousAnchor = detailAnchor
@@ -1538,8 +1539,10 @@ export function ShowEditor({
   const manualResizeSourceRef = useRef({ activeShow, timelineComposition })
   manualResizeSourceRef.current = { activeShow, timelineComposition }
   useLayoutEffect(() => {
-    if (!onTimelineMinimumHeightChange && !onTimelineContentHeightChange) return
-
+    const updateOverflow = () => {
+      const scroll = showEditorPaneRef.current?.querySelector<HTMLElement>('[data-testid="show-editor-scroll"]')
+      setTimelineMoreBelow(Boolean(scroll && scroll.scrollHeight - scroll.clientHeight - scroll.scrollTop > 1))
+    }
     const measure = () => {
       const root = showEditorPaneRef.current
       const toolbar = root?.querySelector<HTMLElement>('[data-testid="show-timeline-toolbar"]')
@@ -1549,24 +1552,16 @@ export function ShowEditor({
       const section = timelineWorkspaceRef.current
       if (!root || !toolbar || !timelineGrid || !scroll || !section) return
 
-      const laneRects = Array.from(root.querySelectorAll<HTMLElement>('[data-show-zone-id]'))
-        .map((element) => element.getBoundingClientRect())
-        .filter((rect) => rect.height > 0)
-        .sort((left, right) => left.top - right.top)
-        .filter((rect, index, rects) => index === 0 || Math.abs(rect.top - rects[index - 1].top) > 1)
-      const firstLane = laneRects[0]
-
       const rootTop = root.getBoundingClientRect().top
       const sectionRect = section.getBoundingClientRect()
       const padding = window.getComputedStyle(section.parentElement!)
       const footerHeight = footer?.getBoundingClientRect().height ?? 0
       const rowGap = Number.parseFloat(window.getComputedStyle(timelineGrid).rowGap) || 0
-      const secondLaneBottom = laneRects[1]?.bottom ?? (firstLane ? firstLane.bottom + rowGap + firstLane.height : null)
-      // The Live strip contributes a constant 32 px when open; floating
-      // reading and chooser cards contribute no height. Preserve two full lanes.
-      onTimelineMinimumHeightChange?.(secondLaneBottom === null ? SHOW_TIMELINE_MIN_HEIGHT : measureShowTimelineMinimumHeight({
+      // Preserve transport chrome, not lane content. Expanded animation rows
+      // scroll rather than forcing the user's preview smaller (#1006).
+      onTimelineMinimumHeightChange?.(measureShowTimelineMinimumHeight({
         editorTop: rootTop,
-        secondLaneBottom: secondLaneBottom + scroll.scrollTop,
+        toolbarBottom: toolbar.getBoundingClientRect().bottom + scroll.scrollTop,
         fixedFooterHeight: footerHeight,
       }))
       // Automatic fitting includes the visible Live strip and all lanes. Undo scroll
@@ -1581,9 +1576,12 @@ export function ShowEditor({
     }
 
     measure()
+    updateOverflow()
     const frame = window.requestAnimationFrame(measure)
-    const observer = new ResizeObserver(measure)
+    const observer = new ResizeObserver(() => { measure(); updateOverflow() })
     const root = showEditorPaneRef.current
+    const scroll = root?.querySelector<HTMLElement>('[data-testid="show-editor-scroll"]')
+    scroll?.addEventListener('scroll', updateOverflow, { passive: true })
     if (root) {
       observer.observe(root)
       const measuredChildren = [
@@ -1599,6 +1597,7 @@ export function ShowEditor({
       }
     }
     return () => {
+      scroll?.removeEventListener('scroll', updateOverflow)
       window.cancelAnimationFrame(frame)
       observer.disconnect()
     }
@@ -2438,6 +2437,7 @@ export function ShowEditor({
           onDismiss={dismissShowSaveFailure}
         />
       )}
+      <div className="relative flex min-h-0 flex-1 flex-col">
       <div data-testid="show-editor-scroll" className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-auto">
         {builtInContext?.note && showNoteOpen && (
           <ShowLiveStrip
@@ -3190,6 +3190,12 @@ export function ShowEditor({
             </AlertDialogContent>
           </AlertDialogRoot>
         </div>
+      </div>
+      {timelineMoreBelow && <div
+        data-testid="show-timeline-overflow-fade"
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-b from-transparent to-zinc-950"
+      />}
       </div>
       <CompileBar
         compiled={compiled}
