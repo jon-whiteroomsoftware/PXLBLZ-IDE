@@ -7,6 +7,7 @@ interface Transaction {
 }
 interface Storage extends Transaction { transaction<T>(run: (tx: Transaction) => Promise<T>): Promise<T> }
 interface Operation {
+  accountId: string
   owner: string
   epoch: number
   finished: boolean
@@ -24,7 +25,7 @@ const MAX_DAILY_DISPATCHES = 4096
 export class AgentAllowance {
   constructor(private readonly ctx: { storage: Storage }) {}
   async fetch(request: Request): Promise<Response> {
-    const command = await request.json() as { type: string; owner?: string; operationId?: string; round?: number; usage?: unknown }
+    const command = await request.json() as { type: string; accountId?: string; owner?: string; operationId?: string; round?: number; usage?: unknown }
     if (typeof command.owner !== 'string' || !command.owner || command.owner.length > 512) return agentResponse({ code: 'invalid_request' }, 400)
     return this.ctx.storage.transaction(async tx => {
       const now = Date.now(), today = new Date(now).toISOString().slice(0, 10)
@@ -38,11 +39,13 @@ export class AgentAllowance {
         return agentResponse({ code, ...fields })
       }
       if (command.type === 'begin') {
+        if (typeof command.accountId !== 'string' || !command.accountId || command.accountId.length > 256) return reply('invalid_request')
         if (state.allowance.halted) return reply('halted')
         if (Object.values(state.operations).some(op => op.owner === command.owner && !op.finished && now < op.epoch + DAY_MS)) return reply('busy')
         if (Object.keys(state.operations).length >= MAX_OPERATIONS) return reply('capacity')
+        if (Object.values(state.operations).filter(op => op.accountId === command.accountId && now < op.epoch + 60_000).length >= AGENT_SERVICE_BOUNDS.startsPerMinute) return reply('throttled')
         const operationId = crypto.randomUUID()
-        state.operations[operationId] = { owner: command.owner!, epoch: now, finished: false, rounds: {} }
+        state.operations[operationId] = { accountId: command.accountId, owner: command.owner!, epoch: now, finished: false, rounds: {} }
         return reply('started', { operationId, admissionExpiresAt: now + DAY_MS })
       }
       const op = typeof command.operationId === 'string' && Object.prototype.hasOwnProperty.call(state.operations, command.operationId) ? state.operations[command.operationId] : undefined

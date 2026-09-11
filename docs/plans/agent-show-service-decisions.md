@@ -173,3 +173,13 @@ A persistent overrun halt survives ordinary metadata cleanup. Capacity limits
 (2,048 retained operations and 4,096 dispatches per day) refuse new work instead
 of evicting deduplication state. These stores contain accounting/identity metadata
 only, not Shows, command arguments, transcripts or editor receipts.
+
+The pinned `openai` 7.10.0 Responses `ResponseUsage` schema requires
+`input_tokens_details.cache_write_tokens`, `cached_tokens`, and
+`output_tokens_details.reasoning_tokens`; the representative transport fixture
+is checked against that SDK type. No missing category is silently treated as zero.
+The model page currently lists `gpt-5.6-luna` itself as the current snapshot;
+response identity must match it and the default tier exactly. Live response
+identity and usage compatibility remain qualification requirements: injected
+responses prove the control flow, not a paid provider session. An unexpected
+model/tier persists the same halt as an accounting overrun and retains spend.

@@ -16,7 +16,7 @@ function fixture() {
   let owner = new AgentAllowance({ storage })
   return {
     restart() { owner = new AgentAllowance({ storage }) },
-    async send(body: unknown): Promise<Record<string, unknown>> { return (await owner.fetch(new Request('https://allowance.internal', { method: 'POST', body: JSON.stringify(body) }))).json() },
+    async send(body: Record<string, unknown>): Promise<Record<string, unknown>> { body = { accountId: body.owner, ...body }; return (await owner.fetch(new Request('https://allowance.internal', { method: 'POST', body: JSON.stringify(body) }))).json() },
   }
 }
 afterEach(() => vi.restoreAllMocks())
@@ -104,4 +104,16 @@ it('persists a provider contract halt only for the validated operation owner', a
   expect((await f.send({ type: 'halt', owner, operationId })).code).toBe('halted')
   f.restart()
   expect((await f.send({ type: 'begin', owner: 'next' })).code).toBe('halted')
+})
+it('bounds account starts across different bindings with a rolling minute window', async () => {
+  let now = Date.parse('2026-09-10T12:00:00Z')
+  vi.spyOn(Date, 'now').mockImplementation(() => now)
+  const f = fixture()
+  for (let i = 0; i < 4; i++) expect((await f.send({ type: 'begin', owner: `same/b${i}`, accountId: 'same' })).code).toBe('started')
+  expect((await f.send({ type: 'begin', owner: 'same/b4', accountId: 'same' })).code).toBe('throttled')
+  expect((await f.send({ type: 'begin', owner: 'other/b', accountId: 'other' })).code).toBe('started')
+  now += 59_999; f.restart()
+  expect((await f.send({ type: 'begin', owner: 'same/b4', accountId: 'same' })).code).toBe('throttled')
+  now += 1
+  expect((await f.send({ type: 'begin', owner: 'same/b4', accountId: 'same' })).code).toBe('started')
 })
