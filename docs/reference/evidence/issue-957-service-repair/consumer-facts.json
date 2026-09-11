@@ -1,0 +1,1676 @@
+{
+  "outcomeLayers": {
+    "personal": {
+      "status": "applied",
+      "settlement": "saved",
+      "presentation": "saved"
+    },
+    "stock": {
+      "status": "applied",
+      "settlement": "draft",
+      "presentation": "draft"
+    },
+    "stale": {
+      "status": "refused",
+      "reason": "revision-conflict",
+      "presentation": "not-applied"
+    },
+    "cancel": {
+      "status": "cancelled",
+      "presentation": "cancelled"
+    }
+  },
+  "sourceCommit": "f84a5149f59a9e4849d69429f0eca3db06a7c836",
+  "boundary": "Managed candidate UI and real personal persistence; only /api/agent/* intercepted into actual Worker/channel/relay/allowance with synthetic auth and injected no-paid provider",
+  "observations": [
+    {
+      "kind": "personal",
+      "before": {
+        "show": {
+          "id": "service957-1789093697089",
+          "name": "Service proof initial",
+          "scenes": [
+            {
+              "id": "scene-1",
+              "name": "Scene 1",
+              "durationMs": 30000
+            },
+            {
+              "id": "scene-2",
+              "name": "Scene 2",
+              "durationMs": 30000
+            }
+          ],
+          "zones": [
+            {
+              "id": "zone-1",
+              "name": "main",
+              "nominalPixelCount": 60,
+              "color": "#38bdf8"
+            }
+          ],
+          "cells": [
+            {
+              "id": "cell-1",
+              "zoneId": "zone-1",
+              "sceneId": "scene-1",
+              "sceneSpan": 1,
+              "pattern": {
+                "kind": "stock",
+                "id": "TestPattern1D"
+              },
+              "patternName": "TestPattern1D",
+              "adaptations": {
+                "mirror": false,
+                "phase": 0,
+                "brightness": 1,
+                "timeScale": 1
+              },
+              "restartOnEntry": false
+            },
+            {
+              "id": "cell-2",
+              "zoneId": "zone-1",
+              "sceneId": "scene-2",
+              "sceneSpan": 1,
+              "pattern": {
+                "kind": "stock",
+                "id": "CometLoom"
+              },
+              "patternName": "CometLoom",
+              "adaptations": {
+                "mirror": false,
+                "phase": 0,
+                "brightness": 1,
+                "timeScale": 1
+              },
+              "restartOnEntry": false
+            }
+          ],
+          "routingLayouts": [
+            {
+              "id": "layout-1",
+              "name": "Default",
+              "zones": [
+                {
+                  "zoneId": "zone-1",
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 59
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "transitions": [
+            {
+              "id": "transition-scene-1",
+              "afterSceneId": "scene-1",
+              "kind": "crossfade",
+              "durationMs": 2000,
+              "easing": {
+                "curve": "linear"
+              },
+              "crossfadePolicy": "snapshot-live"
+            }
+          ],
+          "stageMapId": null,
+          "outputContract": {
+            "version": 1,
+            "kind": "installation",
+            "outputMapId": null,
+            "pixelCount": 60,
+            "resolution": "fixed"
+          },
+          "updatedAt": 1789093697184
+        },
+        "drawer": {
+          "drawer": "tucked",
+          "pinPreference": false,
+          "connection": null,
+          "armingUntil": null,
+          "pendingCall": null,
+          "contactLost": false,
+          "request": null,
+          "stream": [],
+          "unread": [],
+          "highlights": [],
+          "highlightPhase": "none",
+          "highlightOperation": null,
+          "refusedTargets": [],
+          "band": null,
+          "draft": "",
+          "showMcp": false
+        }
+      },
+      "after": {
+        "show": {
+          "id": "service957-1789093697089",
+          "name": "Service proof renamed",
+          "scenes": [
+            {
+              "id": "scene-1",
+              "name": "Scene 1",
+              "durationMs": 30000
+            },
+            {
+              "id": "scene-2",
+              "name": "Scene 2",
+              "durationMs": 30000
+            }
+          ],
+          "zones": [
+            {
+              "id": "zone-1",
+              "name": "main",
+              "nominalPixelCount": 60,
+              "color": "#38bdf8"
+            }
+          ],
+          "cells": [
+            {
+              "id": "cell-1",
+              "zoneId": "zone-1",
+              "sceneId": "scene-1",
+              "sceneSpan": 1,
+              "pattern": {
+                "kind": "stock",
+                "id": "TestPattern1D"
+              },
+              "patternName": "TestPattern1D",
+              "adaptations": {
+                "mirror": false,
+                "phase": 0,
+                "brightness": 1,
+                "timeScale": 1
+              },
+              "restartOnEntry": false
+            },
+            {
+              "id": "cell-2",
+              "zoneId": "zone-1",
+              "sceneId": "scene-2",
+              "sceneSpan": 1,
+              "pattern": {
+                "kind": "stock",
+                "id": "CometLoom"
+              },
+              "patternName": "CometLoom",
+              "adaptations": {
+                "mirror": false,
+                "phase": 0,
+                "brightness": 1,
+                "timeScale": 1
+              },
+              "restartOnEntry": false
+            }
+          ],
+          "routingLayouts": [
+            {
+              "id": "layout-1",
+              "name": "Default",
+              "zones": [
+                {
+                  "zoneId": "zone-1",
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 59
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "transitions": [
+            {
+              "id": "transition-scene-1",
+              "afterSceneId": "scene-1",
+              "kind": "crossfade",
+              "durationMs": 2000,
+              "easing": {
+                "curve": "linear"
+              },
+              "crossfadePolicy": "snapshot-live"
+            }
+          ],
+          "stageMapId": null,
+          "outputContract": {
+            "version": 1,
+            "kind": "installation",
+            "outputMapId": null,
+            "pixelCount": 60,
+            "resolution": "fixed"
+          },
+          "updatedAt": 1789093698321,
+          "composition": {
+            "version": 1,
+            "executionModel": "deterministic-loop",
+            "patternInstances": [
+              {
+                "id": "cell-1",
+                "pattern": {
+                  "kind": "stock",
+                  "id": "TestPattern1D"
+                },
+                "patternName": "TestPattern1D",
+                "time": {
+                  "timeScale": 1,
+                  "timeOffsetMs": 0
+                }
+              },
+              {
+                "id": "cell-2",
+                "pattern": {
+                  "kind": "stock",
+                  "id": "CometLoom"
+                },
+                "patternName": "CometLoom",
+                "time": {
+                  "timeScale": 1,
+                  "timeOffsetMs": 0
+                }
+              }
+            ],
+            "scenes": [
+              {
+                "sceneId": "scene-1",
+                "zones": [
+                  {
+                    "zoneId": "zone-1",
+                    "main": [
+                      {
+                        "id": "placement-cell-1-scene-1",
+                        "instanceId": "cell-1",
+                        "startMs": 0,
+                        "durationMs": 30000,
+                        "view": {
+                          "mirror": false,
+                          "phase": 0,
+                          "brightness": 1
+                        }
+                      }
+                    ],
+                    "overlays": []
+                  }
+                ]
+              },
+              {
+                "sceneId": "scene-2",
+                "zones": [
+                  {
+                    "zoneId": "zone-1",
+                    "main": [
+                      {
+                        "id": "placement-cell-2-scene-2",
+                        "instanceId": "cell-2",
+                        "startMs": 0,
+                        "durationMs": 30000,
+                        "view": {
+                          "mirror": false,
+                          "phase": 0,
+                          "brightness": 1
+                        }
+                      }
+                    ],
+                    "overlays": []
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "history": {
+          "past": [
+            {
+              "id": "service957-1789093697089",
+              "name": "Service proof initial",
+              "scenes": [
+                {
+                  "id": "scene-1",
+                  "name": "Scene 1",
+                  "durationMs": 30000
+                },
+                {
+                  "id": "scene-2",
+                  "name": "Scene 2",
+                  "durationMs": 30000
+                }
+              ],
+              "zones": [
+                {
+                  "id": "zone-1",
+                  "name": "main",
+                  "nominalPixelCount": 60,
+                  "color": "#38bdf8"
+                }
+              ],
+              "cells": [
+                {
+                  "id": "cell-1",
+                  "zoneId": "zone-1",
+                  "sceneId": "scene-1",
+                  "sceneSpan": 1,
+                  "pattern": {
+                    "kind": "stock",
+                    "id": "TestPattern1D"
+                  },
+                  "patternName": "TestPattern1D",
+                  "adaptations": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1,
+                    "timeScale": 1
+                  },
+                  "restartOnEntry": false
+                },
+                {
+                  "id": "cell-2",
+                  "zoneId": "zone-1",
+                  "sceneId": "scene-2",
+                  "sceneSpan": 1,
+                  "pattern": {
+                    "kind": "stock",
+                    "id": "CometLoom"
+                  },
+                  "patternName": "CometLoom",
+                  "adaptations": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1,
+                    "timeScale": 1
+                  },
+                  "restartOnEntry": false
+                }
+              ],
+              "routingLayouts": [
+                {
+                  "id": "layout-1",
+                  "name": "Default",
+                  "zones": [
+                    {
+                      "zoneId": "zone-1",
+                      "ranges": [
+                        {
+                          "start": 0,
+                          "end": 59
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "transitions": [
+                {
+                  "id": "transition-scene-1",
+                  "afterSceneId": "scene-1",
+                  "kind": "crossfade",
+                  "durationMs": 2000,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "crossfadePolicy": "snapshot-live"
+                }
+              ],
+              "stageMapId": null,
+              "outputContract": {
+                "version": 1,
+                "kind": "installation",
+                "outputMapId": null,
+                "pixelCount": 60,
+                "resolution": "fixed"
+              },
+              "updatedAt": 1789093697184
+            }
+          ],
+          "future": []
+        },
+        "drawer": {
+          "drawer": "pinned",
+          "pinPreference": true,
+          "connection": {
+            "kind": "builtin",
+            "name": "Pixelblaze agent"
+          },
+          "armingUntil": null,
+          "pendingCall": null,
+          "contactLost": false,
+          "request": null,
+          "stream": [
+            {
+              "id": "line-0",
+              "kind": "author",
+              "text": "Rename this Show to Service proof renamed"
+            },
+            {
+              "id": "op-0da3654b-ba1a-45d0-a0e2-18e093f62afd",
+              "operationId": "0da3654b-ba1a-45d0-a0e2-18e093f62afd",
+              "kind": "action",
+              "text": "Rename this Show to Service proof renamed",
+              "calls": [
+                "rename_show"
+              ],
+              "outcome": "saved",
+              "changes": [
+                {
+                  "targetId": "service957-1789093697089",
+                  "description": "Show renamed from \"Service proof initial\" to \"Service proof renamed\"."
+                }
+              ],
+              "retryable": false
+            },
+            {
+              "id": "line-2",
+              "kind": "reply",
+              "text": "Requested edit."
+            }
+          ],
+          "unread": [],
+          "highlights": [
+            "service957-1789093697089"
+          ],
+          "highlightPhase": "flash",
+          "highlightOperation": "0da3654b-ba1a-45d0-a0e2-18e093f62afd",
+          "refusedTargets": [],
+          "band": null,
+          "draft": "",
+          "showMcp": false,
+          "announcement": {
+            "text": "Rename this Show to Service proof renamed",
+            "outcome": "saved"
+          }
+        }
+      },
+      "historyBefore": 0,
+      "historyAfter": 1,
+      "historyDelta": 1,
+      "saves": 1,
+      "reopenedName": "Service proof renamed",
+      "reopenedEqual": true
+    },
+    {
+      "kind": "refused-run",
+      "before": {
+        "show": {
+          "id": "service957-1789093697089",
+          "name": "Service proof renamed",
+          "scenes": [
+            {
+              "id": "scene-1",
+              "name": "Scene 1",
+              "durationMs": 30000
+            },
+            {
+              "id": "scene-2",
+              "name": "Scene 2",
+              "durationMs": 30000
+            }
+          ],
+          "zones": [
+            {
+              "id": "zone-1",
+              "name": "main",
+              "nominalPixelCount": 60,
+              "color": "#38bdf8"
+            }
+          ],
+          "cells": [
+            {
+              "id": "cell-1",
+              "zoneId": "zone-1",
+              "sceneId": "scene-1",
+              "sceneSpan": 1,
+              "pattern": {
+                "kind": "stock",
+                "id": "TestPattern1D"
+              },
+              "patternName": "TestPattern1D",
+              "adaptations": {
+                "mirror": false,
+                "phase": 0,
+                "brightness": 1,
+                "timeScale": 1
+              },
+              "restartOnEntry": false
+            },
+            {
+              "id": "cell-2",
+              "zoneId": "zone-1",
+              "sceneId": "scene-2",
+              "sceneSpan": 1,
+              "pattern": {
+                "kind": "stock",
+                "id": "CometLoom"
+              },
+              "patternName": "CometLoom",
+              "adaptations": {
+                "mirror": false,
+                "phase": 0,
+                "brightness": 1,
+                "timeScale": 1
+              },
+              "restartOnEntry": false
+            }
+          ],
+          "routingLayouts": [
+            {
+              "id": "layout-1",
+              "name": "Default",
+              "zones": [
+                {
+                  "zoneId": "zone-1",
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 59
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "transitions": [
+            {
+              "id": "transition-scene-1",
+              "afterSceneId": "scene-1",
+              "kind": "crossfade",
+              "durationMs": 2000,
+              "easing": {
+                "curve": "linear"
+              },
+              "crossfadePolicy": "snapshot-live"
+            }
+          ],
+          "stageMapId": null,
+          "outputContract": {
+            "version": 1,
+            "kind": "installation",
+            "outputMapId": null,
+            "pixelCount": 60,
+            "resolution": "fixed"
+          },
+          "updatedAt": 1789093698321,
+          "composition": {
+            "version": 1,
+            "executionModel": "deterministic-loop",
+            "patternInstances": [
+              {
+                "id": "cell-1",
+                "pattern": {
+                  "kind": "stock",
+                  "id": "TestPattern1D"
+                },
+                "patternName": "TestPattern1D",
+                "time": {
+                  "timeScale": 1,
+                  "timeOffsetMs": 0
+                }
+              },
+              {
+                "id": "cell-2",
+                "pattern": {
+                  "kind": "stock",
+                  "id": "CometLoom"
+                },
+                "patternName": "CometLoom",
+                "time": {
+                  "timeScale": 1,
+                  "timeOffsetMs": 0
+                }
+              }
+            ],
+            "scenes": [
+              {
+                "sceneId": "scene-1",
+                "zones": [
+                  {
+                    "zoneId": "zone-1",
+                    "main": [
+                      {
+                        "id": "placement-cell-1-scene-1",
+                        "instanceId": "cell-1",
+                        "startMs": 0,
+                        "durationMs": 30000,
+                        "view": {
+                          "mirror": false,
+                          "phase": 0,
+                          "brightness": 1
+                        }
+                      }
+                    ],
+                    "overlays": []
+                  }
+                ]
+              },
+              {
+                "sceneId": "scene-2",
+                "zones": [
+                  {
+                    "zoneId": "zone-1",
+                    "main": [
+                      {
+                        "id": "placement-cell-2-scene-2",
+                        "instanceId": "cell-2",
+                        "startMs": 0,
+                        "durationMs": 30000,
+                        "view": {
+                          "mirror": false,
+                          "phase": 0,
+                          "brightness": 1
+                        }
+                      }
+                    ],
+                    "overlays": []
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "drawer": {
+          "drawer": "pinned",
+          "pinPreference": true,
+          "connection": {
+            "kind": "builtin",
+            "name": "Pixelblaze agent"
+          },
+          "armingUntil": null,
+          "pendingCall": null,
+          "contactLost": false,
+          "request": null,
+          "stream": [],
+          "unread": [],
+          "highlights": [],
+          "highlightPhase": "none",
+          "highlightOperation": null,
+          "refusedTargets": [],
+          "band": null,
+          "draft": "",
+          "showMcp": false
+        },
+        "busy": false
+      },
+      "after": {
+        "show": {
+          "id": "service957-1789093697089",
+          "name": "Service proof renamed",
+          "scenes": [
+            {
+              "id": "scene-1",
+              "name": "Scene 1",
+              "durationMs": 30000
+            },
+            {
+              "id": "scene-2",
+              "name": "Scene 2",
+              "durationMs": 30000
+            }
+          ],
+          "zones": [
+            {
+              "id": "zone-1",
+              "name": "main",
+              "nominalPixelCount": 60,
+              "color": "#38bdf8"
+            }
+          ],
+          "cells": [
+            {
+              "id": "cell-1",
+              "zoneId": "zone-1",
+              "sceneId": "scene-1",
+              "sceneSpan": 1,
+              "pattern": {
+                "kind": "stock",
+                "id": "TestPattern1D"
+              },
+              "patternName": "TestPattern1D",
+              "adaptations": {
+                "mirror": false,
+                "phase": 0,
+                "brightness": 1,
+                "timeScale": 1
+              },
+              "restartOnEntry": false
+            },
+            {
+              "id": "cell-2",
+              "zoneId": "zone-1",
+              "sceneId": "scene-2",
+              "sceneSpan": 1,
+              "pattern": {
+                "kind": "stock",
+                "id": "CometLoom"
+              },
+              "patternName": "CometLoom",
+              "adaptations": {
+                "mirror": false,
+                "phase": 0,
+                "brightness": 1,
+                "timeScale": 1
+              },
+              "restartOnEntry": false
+            }
+          ],
+          "routingLayouts": [
+            {
+              "id": "layout-1",
+              "name": "Default",
+              "zones": [
+                {
+                  "zoneId": "zone-1",
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 59
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "transitions": [
+            {
+              "id": "transition-scene-1",
+              "afterSceneId": "scene-1",
+              "kind": "crossfade",
+              "durationMs": 2000,
+              "easing": {
+                "curve": "linear"
+              },
+              "crossfadePolicy": "snapshot-live"
+            }
+          ],
+          "stageMapId": null,
+          "outputContract": {
+            "version": 1,
+            "kind": "installation",
+            "outputMapId": null,
+            "pixelCount": 60,
+            "resolution": "fixed"
+          },
+          "updatedAt": 1789093698321,
+          "composition": {
+            "version": 1,
+            "executionModel": "deterministic-loop",
+            "patternInstances": [
+              {
+                "id": "cell-1",
+                "pattern": {
+                  "kind": "stock",
+                  "id": "TestPattern1D"
+                },
+                "patternName": "TestPattern1D",
+                "time": {
+                  "timeScale": 1,
+                  "timeOffsetMs": 0
+                }
+              },
+              {
+                "id": "cell-2",
+                "pattern": {
+                  "kind": "stock",
+                  "id": "CometLoom"
+                },
+                "patternName": "CometLoom",
+                "time": {
+                  "timeScale": 1,
+                  "timeOffsetMs": 0
+                }
+              }
+            ],
+            "scenes": [
+              {
+                "sceneId": "scene-1",
+                "zones": [
+                  {
+                    "zoneId": "zone-1",
+                    "main": [
+                      {
+                        "id": "placement-cell-1-scene-1",
+                        "instanceId": "cell-1",
+                        "startMs": 0,
+                        "durationMs": 30000,
+                        "view": {
+                          "mirror": false,
+                          "phase": 0,
+                          "brightness": 1
+                        }
+                      }
+                    ],
+                    "overlays": []
+                  }
+                ]
+              },
+              {
+                "sceneId": "scene-2",
+                "zones": [
+                  {
+                    "zoneId": "zone-1",
+                    "main": [
+                      {
+                        "id": "placement-cell-2-scene-2",
+                        "instanceId": "cell-2",
+                        "startMs": 0,
+                        "durationMs": 30000,
+                        "view": {
+                          "mirror": false,
+                          "phase": 0,
+                          "brightness": 1
+                        }
+                      }
+                    ],
+                    "overlays": []
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "drawer": {
+          "drawer": "pinned",
+          "pinPreference": true,
+          "connection": {
+            "kind": "builtin",
+            "name": "Pixelblaze agent"
+          },
+          "armingUntil": null,
+          "pendingCall": null,
+          "contactLost": false,
+          "request": null,
+          "stream": [
+            {
+              "id": "line-0",
+              "kind": "author",
+              "text": "Keep this request after a refused start"
+            },
+            {
+              "id": "op-fd1bb427-4034-4ee5-8269-0ab1f115275f",
+              "operationId": "fd1bb427-4034-4ee5-8269-0ab1f115275f",
+              "kind": "action",
+              "text": "Keep this request after a refused start",
+              "outcome": "not-applied",
+              "reason": "The Pixelblaze agent is unavailable right now.",
+              "retryable": false
+            }
+          ],
+          "unread": [],
+          "highlights": [],
+          "highlightPhase": "none",
+          "highlightOperation": null,
+          "refusedTargets": [],
+          "band": null,
+          "draft": "Keep this request after a refused start",
+          "showMcp": false,
+          "announcement": {
+            "text": "Keep this request after a refused start",
+            "outcome": "not-applied"
+          }
+        },
+        "busy": false
+      },
+      "runResult": {
+        "code": "halted",
+        "dispatch": "not_attempted"
+      },
+      "historyDelta": 0,
+      "saves": 0,
+      "promptRestored": true,
+      "sendEnabled": true
+    }
+  ],
+  "requests": [
+    {
+      "body": {
+        "type": "register",
+        "sessionId": "e30b1416-964e-4522-bc5d-1704e626bce7",
+        "showId": "service957-1789093697089"
+      },
+      "status": 200,
+      "result": {
+        "code": "registered",
+        "registrationId": "0ec5774c-8610-499a-bc0d-ca7f02ca792d",
+        "connection": {
+          "kind": "idle"
+        }
+      }
+    },
+    {
+      "body": {
+        "type": "register",
+        "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+        "showId": "service957-1789093697089"
+      },
+      "status": 200,
+      "result": {
+        "code": "registered",
+        "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+        "connection": {
+          "kind": "idle"
+        }
+      }
+    },
+    {
+      "body": {
+        "type": "receive",
+        "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+        "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+        "showId": "service957-1789093697089"
+      },
+      "status": 200,
+      "result": {
+        "code": "status",
+        "contact": "live",
+        "connection": {
+          "kind": "bound",
+          "bindingId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2",
+          "agentKind": "builtin",
+          "agentName": "Pixelblaze agent"
+        },
+        "deliveries": []
+      }
+    },
+    {
+      "body": {
+        "action": "connect",
+        "window": {
+          "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+          "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+          "showId": "service957-1789093697089"
+        }
+      },
+      "status": 200,
+      "result": {
+        "code": "bound",
+        "bindingId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2"
+      }
+    },
+    {
+      "body": {
+        "action": "begin",
+        "window": {
+          "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+          "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+          "showId": "service957-1789093697089"
+        }
+      },
+      "status": 200,
+      "result": {
+        "code": "started",
+        "operationId": "0da3654b-ba1a-45d0-a0e2-18e093f62afd",
+        "admissionExpiresAt": 1789180098237
+      }
+    },
+    {
+      "body": {
+        "type": "receive",
+        "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+        "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+        "showId": "service957-1789093697089"
+      },
+      "status": 200,
+      "result": {
+        "code": "status",
+        "contact": "live",
+        "connection": {
+          "kind": "bound",
+          "bindingId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2",
+          "agentKind": "builtin",
+          "agentName": "Pixelblaze agent"
+        },
+        "deliveries": [
+          {
+            "operationId": "0da3654b-ba1a-45d0-a0e2-18e093f62afd",
+            "deliveryId": "builtin-0",
+            "sequence": 0,
+            "payload": {
+              "kind": "begin_edit",
+              "intent": "Rename this Show to Service proof renamed"
+            },
+            "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+            "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+            "showId": "service957-1789093697089",
+            "bindingId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2"
+          }
+        ]
+      }
+    },
+    {
+      "body": {
+        "type": "reply",
+        "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+        "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+        "showId": "service957-1789093697089",
+        "bindingId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2",
+        "operationId": "0da3654b-ba1a-45d0-a0e2-18e093f62afd",
+        "deliveryId": "builtin-0",
+        "result": {
+          "code": "begun",
+          "operationId": "0da3654b-ba1a-45d0-a0e2-18e093f62afd",
+          "baseRevision": 1,
+          "show": {
+            "id": "service957-1789093697089",
+            "name": "Service proof initial",
+            "scenes": [
+              {
+                "id": "scene-1",
+                "name": "Scene 1",
+                "durationMs": 30000
+              },
+              {
+                "id": "scene-2",
+                "name": "Scene 2",
+                "durationMs": 30000
+              }
+            ],
+            "zones": [
+              {
+                "id": "zone-1",
+                "name": "main",
+                "nominalPixelCount": 60,
+                "color": "#38bdf8"
+              }
+            ],
+            "cells": [
+              {
+                "id": "cell-1",
+                "zoneId": "zone-1",
+                "sceneId": "scene-1",
+                "sceneSpan": 1,
+                "pattern": {
+                  "kind": "stock",
+                  "id": "TestPattern1D"
+                },
+                "patternName": "TestPattern1D",
+                "adaptations": {
+                  "mirror": false,
+                  "phase": 0,
+                  "brightness": 1,
+                  "timeScale": 1
+                },
+                "restartOnEntry": false
+              },
+              {
+                "id": "cell-2",
+                "zoneId": "zone-1",
+                "sceneId": "scene-2",
+                "sceneSpan": 1,
+                "pattern": {
+                  "kind": "stock",
+                  "id": "CometLoom"
+                },
+                "patternName": "CometLoom",
+                "adaptations": {
+                  "mirror": false,
+                  "phase": 0,
+                  "brightness": 1,
+                  "timeScale": 1
+                },
+                "restartOnEntry": false
+              }
+            ],
+            "routingLayouts": [
+              {
+                "id": "layout-1",
+                "name": "Default",
+                "zones": [
+                  {
+                    "zoneId": "zone-1",
+                    "ranges": [
+                      {
+                        "start": 0,
+                        "end": 59
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "transitions": [
+              {
+                "id": "transition-scene-1",
+                "afterSceneId": "scene-1",
+                "kind": "crossfade",
+                "durationMs": 2000,
+                "easing": {
+                  "curve": "linear"
+                },
+                "crossfadePolicy": "snapshot-live"
+              }
+            ],
+            "stageMapId": null,
+            "outputContract": {
+              "version": 1,
+              "kind": "installation",
+              "outputMapId": null,
+              "pixelCount": 60,
+              "resolution": "fixed"
+            },
+            "updatedAt": 1789093697184,
+            "composition": {
+              "version": 1,
+              "patternInstances": [
+                {
+                  "id": "cell-1",
+                  "pattern": {
+                    "kind": "stock",
+                    "id": "TestPattern1D"
+                  },
+                  "patternName": "TestPattern1D",
+                  "time": {
+                    "timeScale": 1,
+                    "timeOffsetMs": 0
+                  }
+                },
+                {
+                  "id": "cell-2",
+                  "pattern": {
+                    "kind": "stock",
+                    "id": "CometLoom"
+                  },
+                  "patternName": "CometLoom",
+                  "time": {
+                    "timeScale": 1,
+                    "timeOffsetMs": 0
+                  }
+                }
+              ],
+              "scenes": [
+                {
+                  "sceneId": "scene-1",
+                  "zones": [
+                    {
+                      "zoneId": "zone-1",
+                      "main": [
+                        {
+                          "id": "placement-cell-1-scene-1",
+                          "instanceId": "cell-1",
+                          "startMs": 0,
+                          "durationMs": 30000,
+                          "view": {
+                            "mirror": false,
+                            "phase": 0,
+                            "brightness": 1
+                          }
+                        }
+                      ],
+                      "overlays": []
+                    }
+                  ]
+                },
+                {
+                  "sceneId": "scene-2",
+                  "zones": [
+                    {
+                      "zoneId": "zone-1",
+                      "main": [
+                        {
+                          "id": "placement-cell-2-scene-2",
+                          "instanceId": "cell-2",
+                          "startMs": 0,
+                          "durationMs": 30000,
+                          "view": {
+                            "mirror": false,
+                            "phase": 0,
+                            "brightness": 1
+                          }
+                        }
+                      ],
+                      "overlays": []
+                    }
+                  ]
+                }
+              ],
+              "executionModel": "deterministic-loop"
+            }
+          },
+          "context": {
+            "showId": "service957-1789093697089",
+            "selection": {
+              "kind": "show"
+            },
+            "viewport": null,
+            "hoveredClipId": null,
+            "playheadMs": 0
+          }
+        }
+      },
+      "status": 200,
+      "result": {
+        "code": "received"
+      }
+    },
+    {
+      "body": {
+        "type": "receive",
+        "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+        "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+        "showId": "service957-1789093697089"
+      },
+      "status": 200,
+      "result": {
+        "code": "status",
+        "contact": "live",
+        "connection": {
+          "kind": "bound",
+          "bindingId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2",
+          "agentKind": "builtin",
+          "agentName": "Pixelblaze agent"
+        },
+        "deliveries": [
+          {
+            "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+            "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+            "showId": "service957-1789093697089",
+            "bindingId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2",
+            "operationId": "query",
+            "deliveryId": "c9c0bd76-7b7a-46ea-be54-14f4365f4229",
+            "sequence": 0,
+            "payload": {
+              "kind": "get_outcome",
+              "operationId": "0da3654b-ba1a-45d0-a0e2-18e093f62afd"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "body": {
+        "type": "reply",
+        "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+        "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+        "showId": "service957-1789093697089",
+        "bindingId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2",
+        "operationId": "query",
+        "deliveryId": "c9c0bd76-7b7a-46ea-be54-14f4365f4229",
+        "result": {
+          "code": "outcome",
+          "receipt": {
+            "request": {
+              "operationId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2:0da3654b-ba1a-45d0-a0e2-18e093f62afd",
+              "payloadKey": "{\"utterance\":\"Rename this Show to Service proof renamed\",\"history\":[]}",
+              "referenceContext": "{\"showId\":\"service957-1789093697089\",\"selection\":{\"kind\":\"show\"},\"viewport\":null,\"hoveredClipId\":null,\"playheadMs\":0}",
+              "targets": [
+                "service957-1789093697089"
+              ],
+              "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+              "showId": "service957-1789093697089",
+              "baseRevision": 1
+            },
+            "status": "pending"
+          }
+        }
+      },
+      "status": 200,
+      "result": {
+        "code": "received"
+      }
+    },
+    {
+      "body": {
+        "type": "receive",
+        "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+        "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+        "showId": "service957-1789093697089"
+      },
+      "status": 200,
+      "result": {
+        "code": "status",
+        "contact": "live",
+        "connection": {
+          "kind": "bound",
+          "bindingId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2",
+          "agentKind": "builtin",
+          "agentName": "Pixelblaze agent"
+        },
+        "deliveries": [
+          {
+            "operationId": "0da3654b-ba1a-45d0-a0e2-18e093f62afd",
+            "deliveryId": "builtin-1",
+            "sequence": 1,
+            "payload": {
+              "kind": "command",
+              "name": "rename_show",
+              "arguments": {
+                "name": "Service proof renamed"
+              }
+            },
+            "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+            "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+            "showId": "service957-1789093697089",
+            "bindingId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2"
+          }
+        ]
+      }
+    },
+    {
+      "body": {
+        "type": "reply",
+        "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+        "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+        "showId": "service957-1789093697089",
+        "bindingId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2",
+        "operationId": "0da3654b-ba1a-45d0-a0e2-18e093f62afd",
+        "deliveryId": "builtin-1",
+        "result": {
+          "code": "changed",
+          "changes": [
+            {
+              "command": "rename_show",
+              "targetId": "service957-1789093697089",
+              "description": "Show renamed from \"Service proof initial\" to \"Service proof renamed\"."
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "result": {
+        "code": "received"
+      }
+    },
+    {
+      "body": {
+        "type": "receive",
+        "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+        "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+        "showId": "service957-1789093697089"
+      },
+      "status": 200,
+      "result": {
+        "code": "status",
+        "contact": "live",
+        "connection": {
+          "kind": "bound",
+          "bindingId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2",
+          "agentKind": "builtin",
+          "agentName": "Pixelblaze agent"
+        },
+        "deliveries": [
+          {
+            "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+            "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+            "showId": "service957-1789093697089",
+            "bindingId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2",
+            "operationId": "query",
+            "deliveryId": "45484a77-7505-4dcf-bd9c-858ca1b485b1",
+            "sequence": 0,
+            "payload": {
+              "kind": "get_outcome",
+              "operationId": "0da3654b-ba1a-45d0-a0e2-18e093f62afd"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "body": {
+        "type": "reply",
+        "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+        "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+        "showId": "service957-1789093697089",
+        "bindingId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2",
+        "operationId": "query",
+        "deliveryId": "45484a77-7505-4dcf-bd9c-858ca1b485b1",
+        "result": {
+          "code": "outcome",
+          "receipt": {
+            "request": {
+              "operationId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2:0da3654b-ba1a-45d0-a0e2-18e093f62afd",
+              "payloadKey": "{\"utterance\":\"Rename this Show to Service proof renamed\",\"history\":[]}",
+              "referenceContext": "{\"showId\":\"service957-1789093697089\",\"selection\":{\"kind\":\"show\"},\"viewport\":null,\"hoveredClipId\":null,\"playheadMs\":0}",
+              "targets": [
+                "service957-1789093697089"
+              ],
+              "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+              "showId": "service957-1789093697089",
+              "baseRevision": 1
+            },
+            "status": "pending"
+          }
+        }
+      },
+      "status": 200,
+      "result": {
+        "code": "received"
+      }
+    },
+    {
+      "body": {
+        "type": "receive",
+        "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+        "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+        "showId": "service957-1789093697089"
+      },
+      "status": 200,
+      "result": {
+        "code": "status",
+        "contact": "live",
+        "connection": {
+          "kind": "bound",
+          "bindingId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2",
+          "agentKind": "builtin",
+          "agentName": "Pixelblaze agent"
+        },
+        "deliveries": [
+          {
+            "operationId": "0da3654b-ba1a-45d0-a0e2-18e093f62afd",
+            "deliveryId": "builtin-2",
+            "sequence": 2,
+            "payload": {
+              "kind": "commit_edit"
+            },
+            "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+            "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+            "showId": "service957-1789093697089",
+            "bindingId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2"
+          }
+        ]
+      }
+    },
+    {
+      "body": {
+        "type": "reply",
+        "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+        "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+        "showId": "service957-1789093697089",
+        "bindingId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2",
+        "operationId": "0da3654b-ba1a-45d0-a0e2-18e093f62afd",
+        "deliveryId": "builtin-2",
+        "result": {
+          "code": "outcome",
+          "receipt": {
+            "request": {
+              "operationId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2:0da3654b-ba1a-45d0-a0e2-18e093f62afd",
+              "payloadKey": "{\"utterance\":\"Rename this Show to Service proof renamed\",\"history\":[]}",
+              "referenceContext": "{\"showId\":\"service957-1789093697089\",\"selection\":{\"kind\":\"show\"},\"viewport\":null,\"hoveredClipId\":null,\"playheadMs\":0}",
+              "targets": [
+                "service957-1789093697089"
+              ],
+              "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+              "showId": "service957-1789093697089",
+              "baseRevision": 1
+            },
+            "status": "applied",
+            "settlement": "saving"
+          },
+          "changes": [
+            {
+              "command": "rename_show",
+              "targetId": "service957-1789093697089",
+              "description": "Show renamed from \"Service proof initial\" to \"Service proof renamed\"."
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "result": {
+        "code": "received"
+      }
+    },
+    {
+      "body": {
+        "action": "run",
+        "operationId": "0da3654b-ba1a-45d0-a0e2-18e093f62afd",
+        "prompt": "Rename this Show to Service proof renamed",
+        "window": {
+          "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+          "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+          "showId": "service957-1789093697089"
+        }
+      },
+      "status": 200,
+      "result": {
+        "code": "outcome",
+        "receipt": {
+          "request": {
+            "operationId": "7d44a3d8-99d3-4f20-aada-9d3a2d784ca2:0da3654b-ba1a-45d0-a0e2-18e093f62afd",
+            "payloadKey": "{\"utterance\":\"Rename this Show to Service proof renamed\",\"history\":[]}",
+            "referenceContext": "{\"showId\":\"service957-1789093697089\",\"selection\":{\"kind\":\"show\"},\"viewport\":null,\"hoveredClipId\":null,\"playheadMs\":0}",
+            "targets": [
+              "service957-1789093697089"
+            ],
+            "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+            "showId": "service957-1789093697089",
+            "baseRevision": 1
+          },
+          "status": "applied",
+          "settlement": "saving"
+        },
+        "changes": [
+          {
+            "command": "rename_show",
+            "targetId": "service957-1789093697089",
+            "description": "Show renamed from \"Service proof initial\" to \"Service proof renamed\"."
+          }
+        ],
+        "message": "Requested edit."
+      }
+    },
+    {
+      "body": {
+        "type": "receive",
+        "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+        "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+        "showId": "service957-1789093697089"
+      },
+      "status": 409,
+      "result": {
+        "code": "retired",
+        "deliveries": []
+      }
+    },
+    {
+      "body": {
+        "type": "leave",
+        "registrationId": "f3f9a3ce-35dc-43e5-a010-075f9fcdec2e",
+        "sessionId": "8d8d5fe9-8aca-454c-9fd2-e88ad1b7d99f",
+        "showId": "service957-1789093697089"
+      },
+      "status": 200,
+      "result": {
+        "code": "retired"
+      }
+    },
+    {
+      "body": {
+        "type": "register",
+        "sessionId": "4ba84c11-414d-470d-8aac-8c6487ab90a6",
+        "showId": "service957-1789093697089"
+      },
+      "status": 200,
+      "result": {
+        "code": "registered",
+        "registrationId": "577dff86-cbfd-4dbc-a656-837aa1507d3d",
+        "connection": {
+          "kind": "idle"
+        }
+      }
+    },
+    {
+      "body": {
+        "type": "register",
+        "sessionId": "e60b980e-a513-4d03-a761-9a55d1830811",
+        "showId": "service957-1789093697089"
+      },
+      "status": 200,
+      "result": {
+        "code": "registered",
+        "registrationId": "bacf0ef3-29d5-42c6-87ac-fa31ab751eeb",
+        "connection": {
+          "kind": "idle"
+        }
+      }
+    },
+    {
+      "body": {
+        "type": "receive",
+        "registrationId": "bacf0ef3-29d5-42c6-87ac-fa31ab751eeb",
+        "sessionId": "e60b980e-a513-4d03-a761-9a55d1830811",
+        "showId": "service957-1789093697089"
+      },
+      "status": 200,
+      "result": {
+        "code": "status",
+        "contact": "live",
+        "connection": {
+          "kind": "bound",
+          "bindingId": "a1ca7d17-f59b-4383-bddb-eba208d57aa9",
+          "agentKind": "builtin",
+          "agentName": "Pixelblaze agent"
+        },
+        "deliveries": []
+      }
+    },
+    {
+      "body": {
+        "action": "connect",
+        "window": {
+          "registrationId": "bacf0ef3-29d5-42c6-87ac-fa31ab751eeb",
+          "sessionId": "e60b980e-a513-4d03-a761-9a55d1830811",
+          "showId": "service957-1789093697089"
+        }
+      },
+      "status": 200,
+      "result": {
+        "code": "bound",
+        "bindingId": "a1ca7d17-f59b-4383-bddb-eba208d57aa9"
+      }
+    },
+    {
+      "body": {
+        "action": "begin",
+        "window": {
+          "registrationId": "bacf0ef3-29d5-42c6-87ac-fa31ab751eeb",
+          "sessionId": "e60b980e-a513-4d03-a761-9a55d1830811",
+          "showId": "service957-1789093697089"
+        }
+      },
+      "status": 200,
+      "result": {
+        "code": "started",
+        "operationId": "fd1bb427-4034-4ee5-8269-0ab1f115275f",
+        "admissionExpiresAt": 1789180099923
+      }
+    },
+    {
+      "body": {
+        "action": "run",
+        "operationId": "fd1bb427-4034-4ee5-8269-0ab1f115275f",
+        "prompt": "Keep this request after a refused start",
+        "window": {
+          "registrationId": "bacf0ef3-29d5-42c6-87ac-fa31ab751eeb",
+          "sessionId": "e60b980e-a513-4d03-a761-9a55d1830811",
+          "showId": "service957-1789093697089"
+        }
+      },
+      "status": 200,
+      "result": {
+        "code": "halted",
+        "dispatch": "not_attempted"
+      }
+    }
+  ],
+  "errors": []
+}

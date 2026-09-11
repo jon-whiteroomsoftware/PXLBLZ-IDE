@@ -1,0 +1,24 @@
+{
+  "invariants": [
+    "Only receive owns post-registration connection snapshots; delayed control responses cannot retire a newer valid binding.",
+    "Only explicit current-invocation pre-dispatch evidence can terminate an original run without a local receipt; ambiguous transport states remain unknown.",
+    "Known local receipts win; late begin after proven refusal is cancelled; newer composer drafts survive."
+  ],
+  "partitions": [
+    "Delayed arm/disarm/Answer; newer bound with private request and same-binding delivery.",
+    "Halted/not_attempted versus duplicate/expired/pending/unknown; no local request versus known saved receipt; original prompt versus newer draft."
+  ],
+  "sequences": [
+    "Actual DO notification reports bound and begin succeeds before delayed control reply; retain binding, outcome and usable commit.",
+    "Successful begin then allowance halt before activate: show not-applied, restore prompt, enable Send, no Show/history/save change.",
+    "Connect and edit personal Show, save once, reopen equal."
+  ],
+  "oracles": [
+    "Actual workerd account state, cancellation count and same-binding delivery result.",
+    "Managed Show/history/PATCH count and reopened record; visible outcome and composer availability."
+  ],
+  "residualGaps": [
+    "Injected provider and synthetic agent authentication; no paid model/live client/deployment qualification.",
+    "Original broader browser evidence retained with original source identity; root final suites/review pending."
+  ]
+}

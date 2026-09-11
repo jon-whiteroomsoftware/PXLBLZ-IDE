@@ -1,0 +1,9 @@
+# #957 service repair proof
+
+Combined source `f84a5149f59a9e4849d69429f0eca3db06a7c836` passed the focused managed browser flow. Personal editing added one history entry and one PATCH, then reopened with the expected name. A successful begin followed by a private allowance halt returned `halted` / `dispatch: not_attempted`; the drawer showed not applied, restored the original prompt, enabled Send, and preserved the Show and history with zero PATCH requests. No page runtime errors were observed.
+
+Only agent endpoints were intercepted into actual Worker/account/relay/allowance code with synthetic auth and an injected provider. Editor persistence used the managed isolated API. This is no-paid local proof, not live provider or external-client qualification. `reproduce.mjs` retains its actual local worktree/runtime prerequisites. The isolated runtime must contain its session identity; human localhost identities require corresponding isolated users/identities records.
+
+`ordering-before.json` preserves the original actual-workerd failure on `525fdcd9c174d0710783ce9ff881277a5b9ded5c`: a delayed armed response replaced bound, cancelled the request, and left a live server binding unusable. The committed `browserSessionOrdering.runtime.test.ts` reproduces delayed arm/disarm/Answer responses against actual workerd and asserts newer bound state, zero cancellation, and usable same-binding delivery/commit. These three cases plus four existing browser-session tests passed. P2 focused verification passed 52 tests across seven files; its hooks passed 35 tests across four files.
+
+Earlier personal/stock/Retry/Cancel/opt-out and narrow evidence remains in `../issue-957-builtin-service/`, captured at its original source identity. It was not relabelled or repeated. Root owns final committed-tip suites, native review and landing.
