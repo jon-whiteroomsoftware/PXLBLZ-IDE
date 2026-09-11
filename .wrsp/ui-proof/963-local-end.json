@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "963",
+  "route": "/PXLBLZ-IDE/studio/shows/local-end-1789097966320",
+  "operation": "Repository Playwright/Chromium at 1440 and 800px: real waiting edit -> Forget with explicitly unavailable authority -> cancelled receipt, unchanged complete Show and durable record, zero history/save, free slot, chooser and actionable disconnected-not-forgotten message. Actual channel/AgentAccount run in workerd sidecar with synthetic trusted claim/authentication; managed UI and personal D1 are real. No OAuth or provider calls.",
+  "captures": [
+    ".wrsp/ui-proof/963-local-end-desktop.png",
+    ".wrsp/ui-proof/963-local-end-narrow.png"
+  ],
+  "capturedAtCommit": "a873e5b15ed158c2e3eac1f40e0de56b1071b4df"
+}
