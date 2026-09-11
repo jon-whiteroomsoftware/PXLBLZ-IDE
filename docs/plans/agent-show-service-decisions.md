@@ -137,3 +137,39 @@ B2 wires the existing DEV editable-Show bridge and manually injected overlay to 
 URL gating, session-only transcripts, whole-Show admission and truthful save receipts.
 It does not implement hosted inference, OAuth/MCP, logging/accounting or final #959
 placement. The accepted Cloudflare direction still requires runtime qualification.
+
+### Built-in implementation bounds (2026-09-10)
+
+The production candidate uses a 256 KiB serialized request ceiling, at most six
+provider rounds per user operation, 8,192 output tokens including reasoning per
+round, one active private operation per binding, and four starts per minute per
+account. Every dispatch uses exact `gpt-5.6-luna` / `high`, the global
+`https://api.openai.com/v1/responses` endpoint, `service_tier: default`,
+`truncation: disabled`, text and local function tools only. Hosted billable tools,
+regional/Fast uplifts and provider retries are absent.
+
+The [official standard pricing table](https://developers.openai.com/api/docs/pricing),
+fetched on 2026-09-10, lists Luna short-context input/cache-read/cache-write/output
+at $0.20/$0.02/$0.25/$1.20 per million tokens and long-context rates at
+$0.40/$0.04/$0.50/$1.80. The [model page](https://developers.openai.com/api/docs/models/gpt-5.6-luna)
+lists a 1,050,000-token context and 128,000 maximum output. Reservations use the
+entire context as the conservative input ceiling, rather than subtracting an
+output allowance or estimating tokens from bytes. At the highest applicable
+rates, each actual dispatch reserves $0.5397456: 1,050,000 input tokens at the
+long cache-write rate plus 8,192 output tokens at the long output rate. Arithmetic
+uses integer nanodollars. This is a conservative accounting bound, not an invoice
+claim; current implementation proof uses injected transport and makes no paid call.
+
+A single global Durable Object owns the $10 UTC-day allowance across accounts.
+Server-issued operation identities carry a 24-hour horizon for admitting new
+dispatches. Expiry refuses further dispatch; it does not cancel an already-started
+provider request, end a browser binding, or interfere with adopted saves. Explicit
+Retry obtains a new operation. Duplicate rounds never authorize another call.
+Operation tombstones remain for 48 hours and day accounting for three days;
+old identities refuse after cleanup, and late known usage settles only its
+original retained day. Missing, malformed or unavailable usage keeps its full
+reservation; cleanup never credits that reservation into a current day's budget.
+A persistent overrun halt survives ordinary metadata cleanup. Capacity limits
+(2,048 retained operations and 4,096 dispatches per day) refuse new work instead
+of evicting deduplication state. These stores contain accounting/identity metadata
+only, not Shows, command arguments, transcripts or editor receipts.
