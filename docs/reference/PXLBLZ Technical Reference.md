@@ -1648,19 +1648,21 @@ movement and checks every collision; strict raw final validation precedes
 candidate delivery. The [command contract](contracts/show-command-semantics.md#private-two-clip-rearrangement)
 defines this finite exception and its ownership limits.
 
-The development-only editable Show route (`?agent=1`) presents diagnostic
-agent activity in a right-edge drawer shared with the entity drawer mechanics.
-Its pure presentation model projects owned admission/save receipts and committed
-registry attribution metadata; the existing admission and persistence owners
-remain authoritative. See the [diagnostic drawer contract](contracts/agent-candidate-application.md#diagnostic-agent-drawer-957).
-Production dispatch and real external-client connection remain separate work.
+The editable Show route (`?agent=1`) exposes the production Agent drawer.
+Authenticated built-in requests use the Worker service, shared account slot and
+browser private executor. The pure drawer model projects owned admission/save
+receipts and successful registry attribution; existing history and persistence
+owners remain authoritative. The loopback diagnostic bridge remains DEV-only.
+See the [built-in service contract](contracts/agent-builtin-service.md) for
+configuration, bounded dispatch, allowance accounting, Retry, and recovery.
 
 `src/agent-harness/` is a diagnostic area, not product code: the local agent
 dictation bridge, Show grammar and MCP server, dictation corpus with its
 scripted fake agent, and evaluation tools transferred from the private V3
 repository for the #945 baseline (provenance in its `PROVENANCE.md`). It
-imports the live engine but nothing imports it from `src/main.tsx`, so no
-build carries the provider or MCP SDKs. Its `npm run agent:*` commands run
+imports the live engine but is not imported by `src/main.tsx`. The browser
+bundle excludes diagnostic provider and MCP SDKs; the production Worker uses
+its own provider/schema and authenticated agent modules. Its `npm run agent:*` commands run
 through a Vite module runner (`src/agent-harness/run.ts`) because the stock
 catalogue's `import.meta.glob` sources have no plain-Node form; its suites run
 in the ordinary Vitest `node` project, and known V3-versus-V2 oracle drift is

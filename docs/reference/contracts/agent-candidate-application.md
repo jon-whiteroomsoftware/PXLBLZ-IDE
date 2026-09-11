@@ -594,12 +594,12 @@ defines stale reconstruction and prepared Controller snapshot ownership.
 
 ## Diagnostic Agent drawer (#957)
 
-The editable Show route's existing `?agent=1` development gate exposes a
-right-edge Agent drawer. Its session activity and timeline attribution project
+The editable Show route's exact `?agent=1` gate exposes a right-edge Agent
+drawer in production and development. Its session activity and timeline attribution project
 the existing admission and save outcomes. The drawer does not own Show edits,
 history, rollback, or persistence. The loopback diagnostic bridge attaches to
-this surface; production service dispatch and real external-client attachment
-remain later candidates.
+this surface in development. Production built-in dispatch uses the shared
+channel and admission described in the [service contract](agent-builtin-service.md).
 
 The bridge's optional `changes` envelope comes from committed private registry
 execution. Each entry names a stable target, a human-readable change, and the
@@ -627,8 +627,9 @@ Contact recovery queries the same operation without replay; an unknown outcome
 keeps admission unavailable until that operation is resolved. A known save
 outcome survives missing contact or a missing subsequent lookup.
 
-The pure presentation model is `src/engine/agentDrawerModel.ts`; the development
-adapter is `src/dev/agentDrawerController.ts`. Focused tests cover unread
+The pure presentation model is `src/engine/agentDrawerModel.ts`; the production
+adapter is `src/agent/drawerController.ts`, with an optional development adapter
+in `src/dev/agentDrawerController.ts`. Focused tests cover unread
 transitions, unknown recovery, ownership checks, insertion metadata, late
 refusal, and narrow pin restoration. Browser baseline D957 covers real scripted
 adoption/save, the double outline, unread clearing, a conflicting manual edit,

@@ -531,6 +531,20 @@ bundles the Show, every personal Pattern it reaches, and any custom output
 map, so another PXLBLZ library can inspect it, import it, and continue
 editing.
 
+### Agent editing
+
+For enabled accounts, add `?agent=1` to an editable Show URL and open the
+right-edge Agent drawer. **Use the Pixelblaze agent** connects it to this Show;
+write an edit request in the composer. Activity distinguishes saved personal
+edits, changes applied only to a built-in Show's draft, and refused or cancelled
+work. Successful edits remain ordinary Undo history.
+
+A supported exact Clip resize can offer **Retry** against current state. Retry
+adds a new activity and keeps the earlier failure and any unsent composer draft.
+**Dismiss** hides the available actions. Leaving the Show or removing the URL
+opt-in retires pending private work; an already-applied personal save continues.
+Service availability and its shared daily allowance are controlled by the server.
+
 ## 18. Built-in Shows to learn from
 
 The Shows rail ships learning material beneath your own: **Learn** lessons
