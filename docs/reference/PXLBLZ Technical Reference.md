@@ -1659,7 +1659,11 @@ The editable Show route (`?agent=1`) exposes the production Agent drawer.
 Authenticated built-in requests use the Worker service, shared account slot and
 browser private executor. The pure drawer model projects owned admission/save
 receipts and successful registry attribution; existing history and persistence
-owners remain authoritative. The loopback diagnostic bridge remains DEV-only.
+owners remain authoritative. Each built-in operation owns one activity row from
+submission through settlement, with its reply attached to that row. Pending
+work and saving pulse the row dot; reduced-motion preferences disable animation.
+Response and continuation validation share the SDK reasoning-item schema,
+including optional reasoning content. The loopback diagnostic bridge remains DEV-only.
 See the [built-in service contract](contracts/agent-builtin-service.md) for
 configuration, bounded dispatch, allowance accounting, Retry, and recovery.
 

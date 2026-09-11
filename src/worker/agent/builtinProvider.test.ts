@@ -71,3 +71,13 @@ it('accepts only text and local-function continuation items, with encrypted reas
     expect(g.order).toEqual([])
   }
 })
+it('accepts SDK reasoning text but refuses malformed or unknown reasoning fields', async () => {
+  const reasoning = { type: 'reasoning', id: 'rs_1', summary: [], encrypted_content: 'opaque', content: [{ type: 'reasoning_text', text: 'test fixture' }] }
+  const f = fixture()
+  expect((await dispatchBuiltinProvider(f.deps, { ...request, input: [reasoning] })).ok).toBe(true)
+  for (const bad of [{ ...reasoning, content: [{ type: 'input_image', text: 'x' }] }, { ...reasoning, content: [{ type: 'reasoning_text', text: 42 }] }, { ...reasoning, extra: true }]) {
+    const g = fixture()
+    expect(await dispatchBuiltinProvider(g.deps, { ...request, input: [bad] })).toEqual({ ok: false, code: 'invalid_request' })
+    expect(g.order).toEqual([])
+  }
+})

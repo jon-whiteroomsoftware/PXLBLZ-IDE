@@ -12,6 +12,8 @@ export interface AgentLine {
   outcome?: AgentOutcome
   changes?: AgentChange[]
   reason?: string
+  reply?: string
+  replyOnRefusal?: boolean
   retryable?: boolean
   dismissed?: boolean
   calls?: string[]
@@ -44,6 +46,7 @@ export type AgentDrawerEvent =
   | { type: 'knock'; name: string; now: number }
   | { type: 'agentBinds'; name: string }
   | { type: 'draft' | 'say' | 'reply' | 'system'; text: string }
+  | { type: 'operationReply'; id: string; text: string; replyOnRefusal?: boolean }
   | { type: 'thinking'; id: string }
   | { type: 'beginEdit'; id: string; intent: string; retryOf?: string }
   | { type: 'waiting'; id: string }
@@ -89,6 +92,7 @@ export function transitionAgentDrawer(state: AgentDrawerState, event: AgentDrawe
     case 'draft': return { ...state, draft: event.text }
     case 'say': return append(state, 'author', event.text)
     case 'reply': return append(state, 'reply', event.text)
+    case 'operationReply': return { ...state, stream: state.stream.map(line => line.operationId === event.id ? { ...line, reply: event.text, replyOnRefusal: event.replyOnRefusal } : line) }
     case 'system': return append(state, 'system', event.text)
     case 'reading': return state.connection && !state.request ? append(state, 'system', 'reading the Show') : state
     case 'toggleMcp': return { ...state, showMcp: !state.showMcp }

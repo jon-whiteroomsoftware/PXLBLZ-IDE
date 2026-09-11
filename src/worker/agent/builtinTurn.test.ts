@@ -56,3 +56,22 @@ it('preserves private work when dispatch loses editor contact', async () => {
   expect(result).toEqual({ code: 'unknown' })
   expect(f.deliveries.map(x => x.kind)).toEqual(['begin_edit'])
 })
+it('carries SDK reasoning content through a complete provider-backed edit turn', async () => {
+  const { dispatchBuiltinProvider } = await import('./builtinProvider')
+  const reasoning = { type: 'reasoning', id: 'rs_test', summary: [], encrypted_content: 'opaque', content: [] }
+  const outputs = [[reasoning, call('rename_show', { name: 'New' })], [reasoning, call('finish_turn', { outcome: 'apply', message: 'Requested rename' })]]
+  const requests: Record<string, unknown>[] = []
+  const f = fixture([])
+  const result = await runBuiltinTurn({ deliver: f.deliver, dispatch: request => dispatchBuiltinProvider({
+    apiKey: 'test-only',
+    allowance: { idFromName: name => name, get: () => ({ fetch: async req => Response.json({ code: (await req.json() as { type: string }).type === 'reserve' ? 'reserved' : 'settled' }) }) },
+    providerFetch: async (_url, init) => {
+      requests.push(JSON.parse(init!.body as string))
+      return Response.json({ model: 'gpt-5.6-luna', service_tier: 'default', status: 'completed', output: outputs.shift(), usage: {} })
+    },
+  }, { ...request, owner: 'test', operationId: 'test' }) }, 'Rename')
+  expect(result).toMatchObject({ code: 'outcome', message: 'Requested rename' })
+  expect(f.deliveries.map(item => item.kind)).toEqual(['begin_edit', 'command', 'commit_edit'])
+  expect(requests).toHaveLength(2)
+  expect(requests[1].input).toEqual(expect.arrayContaining([reasoning]))
+})

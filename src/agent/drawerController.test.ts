@@ -181,3 +181,18 @@ it('an already-known local saved receipt wins over an invocation refusal marker'
   expect(f.api.cancel).not.toHaveBeenCalled()
   expect(useAgentDrawerStore.getState().state.draft).toBe('')
 })
+it('keeps one command entry from submission through its attached reply', async () => {
+  const f = fixture()
+  f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Built-in' } })
+  let finish!: (result: { code: string; message: string; dispatch: 'not_attempted' }) => void
+  f.builtin.mockImplementation(async body => body.action === 'begin' ? { code: 'started', operationId: 'one' } : new Promise(resolve => { finish = resolve }))
+  f.controller.dispatch({ type: 'draft', text: 'Resize the first Clip' })
+  f.controller.submit()
+  await vi.waitFor(() => expect(finish).toBeDefined())
+  expect(useAgentDrawerStore.getState().state.stream).toHaveLength(1)
+  expect(useAgentDrawerStore.getState().state.stream[0]).toMatchObject({ text: 'Resize the first Clip', phase: 'working' })
+  finish({ code: 'unavailable', dispatch: 'not_attempted', message: 'No edit was made.' })
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.stream[0].outcome).toBe('not-applied'))
+  expect(useAgentDrawerStore.getState().state.stream).toHaveLength(1)
+  expect(useAgentDrawerStore.getState().state.stream[0]).toMatchObject({ reply: 'No edit was made.', phase: undefined })
+})

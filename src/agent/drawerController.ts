@@ -136,11 +136,11 @@ export function createProductionDrawerController(api: Admission, showId: string,
           if (begun.code !== 'started' || typeof begun.operationId !== 'string') { emit({ type: 'system', text: agentRefusalMessage(begun.code) }); return }
           const id = begun.operationId
           operations.set(id, { changes: [] })
-          emit({ type: 'draft', text: '' }); emit({ type: 'say', text: prompt }); emit({ type: 'beginEdit', id, intent: prompt })
+          emit({ type: 'draft', text: '' }); emit({ type: 'beginEdit', id, intent: prompt })
           const result = await builtin({ action: 'run', operationId: id, prompt })
           if (disposed) return
           refresh()
-          if (typeof result.message === 'string') emit({ type: 'reply', text: result.message })
+          if (typeof result.message === 'string') emit({ type: 'operationReply', id, text: result.message, replyOnRefusal: (result.receipt as { status?: string } | undefined)?.status === 'completed' })
           if (!operations.get(id)?.request) {
             if (result.dispatch === 'not_attempted') {
               // This is the original run (never replayed). Install the barrier

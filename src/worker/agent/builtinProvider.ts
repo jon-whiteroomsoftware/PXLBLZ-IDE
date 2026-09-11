@@ -1,3 +1,4 @@
+import { reasoningSchema } from './builtinReasoning'
 import { AGENT_SERVICE_BOUNDS } from '../../engine/agentAllowance'
 import type { AgentAccountNamespace } from './AgentAccount'
 
@@ -20,7 +21,7 @@ function supportedInput(value: unknown): boolean {
   if (!record(value)) return false
   if (value.type === 'function_call') return only(value, ['type', 'call_id', 'name', 'arguments', 'id', 'status']) && ['call_id', 'name', 'arguments'].every(key => typeof value[key] === 'string') && (value.id === undefined || typeof value.id === 'string') && (value.status === undefined || ['in_progress', 'completed', 'incomplete'].includes(String(value.status)))
   if (value.type === 'function_call_output') return only(value, ['type', 'call_id', 'output']) && typeof value.call_id === 'string' && typeof value.output === 'string'
-  if (value.type === 'reasoning') return only(value, ['type', 'id', 'summary', 'encrypted_content', 'status']) && typeof value.id === 'string' && typeof value.encrypted_content === 'string' && Array.isArray(value.summary) && value.summary.every(item => record(item) && only(item, ['type', 'text']) && item.type === 'summary_text' && typeof item.text === 'string') && (value.status === undefined || ['in_progress', 'completed', 'incomplete'].includes(String(value.status)))
+  if (value.type === 'reasoning') return reasoningSchema.safeParse(value).success
   return only(value, ['role', 'content']) && ['user', 'developer', 'assistant'].includes(String(value.role)) && typeof value.content === 'string'
 }
 function supportedTool(value: unknown): boolean {

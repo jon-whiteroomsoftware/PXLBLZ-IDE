@@ -18,6 +18,12 @@ A remote eligibility refusal does not erase a known local outcome. Closing the
 Show, opting out, or disposing the editor synchronously retires the browser
 executor before best-effort network cleanup. Unknown contact never replays work.
 
+Reasoning response and continuation items use one shared validator. It accepts
+optional SDK `content` arrays of strict `reasoning_text` items, including the
+empty array observed in live Luna responses. Encrypted continuation state remains
+required; unknown fields and malformed content remain refused. Reasoning content
+is never displayed as an edit result or logged.
+
 The provider receives text and canonical local Show command schemas. Commands
 run against a session-only private candidate through the shared executor;
 `finish_turn` alone requests admission. Admission rechecks current Show revision,

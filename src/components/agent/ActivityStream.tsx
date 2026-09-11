@@ -1,7 +1,8 @@
 import type { AgentDrawerState, AgentLine } from '@/engine/agentDrawerModel'
-const words = { applied: 'applied', saved: 'saved', draft: 'applied to draft', 'not-applied': 'not applied', 'rolled-back': 'rolled back', superseded: 'superseded', cancelled: 'cancelled', unknown: 'outcome unknown' }
+const words = { applied: 'saving', saved: 'saved', draft: 'applied to draft', 'not-applied': 'not applied', 'rolled-back': 'rolled back', superseded: 'superseded', cancelled: 'cancelled', unknown: 'outcome unknown' }
 export function ActivityStream({ state, retry, dismiss, busy = false }: { state: AgentDrawerState; retry: (id: string) => void; dismiss: (id: string) => void; busy?: boolean }) {
   const failed = (line: AgentLine) => ['not-applied', 'rolled-back', 'cancelled'].includes(line.outcome ?? '')
+  const pending = (line: AgentLine) => !state.contactLost && ((!line.outcome && (line.phase === 'working' || line.phase === 'thinking')) || line.outcome === 'applied')
   const latestOutcome = state.announcement
   const recover = (button: HTMLButtonElement, action: () => void) => {
     const hadFocus = document.activeElement === button
@@ -18,9 +19,10 @@ export function ActivityStream({ state, retry, dismiss, busy = false }: { state:
     <h3 className="mb-3 text-[10px] tracking-widest text-zinc-500">ACTIVITY</h3>
     {state.stream.length === 0 && <p className="text-zinc-500">Nothing yet.</p>}
     {state.stream.map(line => <div key={line.id} data-testid="agent-chat-line" data-request-id={line.operationId} data-outcome={line.outcome} className={`agent-line my-3 ${failed(line) ? 'text-red-300' : line.kind === 'system' ? 'text-zinc-500' : line.kind === 'author' ? 'text-zinc-400' : 'text-zinc-200'}`}>
-      <div className="flex items-start gap-2"><span aria-hidden className={`mt-1.5 size-[5px] shrink-0 rounded-full ${failed(line) ? 'bg-red-300' : line.kind === 'system' ? 'bg-zinc-600' : 'bg-agent'}`} /><span className="min-w-0 flex-1 whitespace-pre-wrap break-words">{line.text}</span>
+      <div className="flex items-start gap-2"><span aria-hidden className={`agent-activity-dot mt-1.5 size-[5px] shrink-0 rounded-full ${pending(line) ? 'agent-activity-pending' : ''} ${failed(line) ? 'bg-red-300' : line.kind === 'system' ? 'bg-zinc-600' : 'bg-agent'}`} /><span className="min-w-0 flex-1 whitespace-pre-wrap break-words">{line.text}</span>
       {(line.outcome || line.phase) && <span className="shrink-0 text-[10px] text-current">{line.outcome ? words[line.outcome] : line.phase === 'waiting' ? 'waiting for you' : line.phase}</span>}</div>
-      {line.changes?.map((change, index) => <p key={index} className="ml-3 mt-1 text-[11px] text-zinc-500">{change.description}</p>)}
+      {!line.reply && line.changes?.map((change, index) => <p key={index} className="ml-3 mt-1 text-[11px] text-zinc-500">{change.description}</p>)}
+      {line.reply && ((!failed(line) && line.outcome !== 'unknown' && line.outcome !== 'superseded') || (line.outcome === 'not-applied' && line.replyOnRefusal)) && <p className="ml-3 mt-1 text-[11px] text-zinc-300">{line.reply}</p>}
       {line.reason && <p className="ml-3 mt-1 text-[11px]">{line.reason}</p>}
       {state.showMcp && line.calls?.map((call, index) => <p key={index} className="ml-3 mt-1 font-mono text-[10px] text-teal-300">{call}</p>)}
       {failed(line) && !line.dismissed && <div className="ml-3 mt-2 flex flex-wrap items-center gap-2 text-[11px]">
