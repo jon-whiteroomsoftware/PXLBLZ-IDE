@@ -6,7 +6,7 @@ import { accountConnection, resolveBuiltinConnection } from './accountConnection
 import { authorizeBuiltinRequest } from './builtinAccess'
 import { handleBuiltinCommand } from './builtinService'
 import { dispatchBuiltinProvider } from './builtinProvider'
-interface Result { code: string; [key: string]: unknown }
+import type { AgentBuiltinResult as Result } from '../../engine/agentBuiltinResult'
 export interface BuiltinEnvironment extends WorkerEnv { AGENT_ALLOWANCE?: AgentAccountNamespace; OPENAI_API_KEY?: string }
 export interface BuiltinRelay {
   deliver(env: WorkerEnv, accountId: string, identity: AgentClaim, envelope: { operationId: string; deliveryId: string; sequence: number; payload: Record<string, unknown> }): Promise<Result>
@@ -15,8 +15,8 @@ export interface BuiltinRelay {
 /** The fourth argument is test injection, never an HTTP or environment option. */
 export async function handleBuiltinHttp(request: Request, env: BuiltinEnvironment, relay: BuiltinRelay, providerFetch?: typeof fetch): Promise<Response> {
   const authorized = await authorizeBuiltinRequest(request, env)
-  if (authorized instanceof Response) return authorized
-  if (!env.AGENT_ACCOUNTS || !env.AGENT_ALLOWANCE || !env.OPENAI_API_KEY) return agentResponse({ code: 'unavailable' }, 503)
+  if (authorized instanceof Response) return agentResponse({ ...await authorized.json() as Result, dispatch: 'not_attempted' }, authorized.status)
+  if (!env.AGENT_ACCOUNTS || !env.AGENT_ALLOWANCE || !env.OPENAI_API_KEY) return agentResponse({ code: 'unavailable', ...(authorized.command.action === 'run' ? { dispatch: 'not_attempted' } : {}) }, 503)
   const { accountId, command } = authorized
   const allowance = env.AGENT_ALLOWANCE
   try {

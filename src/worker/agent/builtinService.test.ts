@@ -47,3 +47,16 @@ it('preserves an authoritative cancellation without another provider call or com
   expect(f.provider).not.toHaveBeenCalled()
   expect(f.deliver).toHaveBeenCalledOnce()
 })
+it('marks only proven pre-relay refusal of this invocation, never duplicate or uncertain activation', async () => {
+  const command = { action: 'run' as const, window, operationId: 'operation', prompt: 'Edit' }
+  const f = fixture(); f.resolve.mockResolvedValue(undefined)
+  expect(await handleBuiltinCommand('account', command, f)).toEqual({ code: 'no_live_editor', dispatch: 'not_attempted' })
+  f.resolve.mockResolvedValue(identity)
+  f.allowance.mockResolvedValue({ code: 'halted', operationId: 'operation' })
+  expect(await handleBuiltinCommand('account', command, f)).toMatchObject({ code: 'halted', dispatch: 'not_attempted' })
+  for (const code of ['duplicate', 'finished', 'expired', 'unknown', 'pending']) {
+    f.allowance.mockResolvedValue({ code, operationId: 'operation' })
+    expect(await handleBuiltinCommand('account', command, f)).not.toHaveProperty('dispatch')
+  }
+  expect(f.deliver).not.toHaveBeenCalled(); expect(f.provider).not.toHaveBeenCalled()
+})

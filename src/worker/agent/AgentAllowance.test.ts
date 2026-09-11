@@ -125,3 +125,13 @@ it('activates a server-issued operation only once before any private execution',
   f.restart()
   expect((await f.send({ type: 'activate', owner, operationId })).code).toBe('duplicate')
 })
+it('distinguishes never-activated halted admission from an earlier activation after restart', async () => {
+  const f = fixture()
+  const pending = await f.send({ type: 'begin', owner: 'pending' })
+  const active = await f.send({ type: 'begin', owner: 'active' })
+  expect((await f.send({ type: 'activate', owner: 'active', operationId: active.operationId })).code).toBe('activated')
+  await f.send({ type: 'halt', owner: 'active', operationId: active.operationId })
+  f.restart()
+  expect((await f.send({ type: 'activate', owner: 'pending', operationId: pending.operationId })).code).toBe('halted')
+  expect((await f.send({ type: 'activate', owner: 'active', operationId: active.operationId })).code).toBe('duplicate')
+})

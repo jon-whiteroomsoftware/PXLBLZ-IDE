@@ -3,7 +3,7 @@ import type { BuiltinCommand } from './builtinAccess'
 import { runBuiltinTurn } from './builtinTurn'
 import type { builtinTools } from './builtinTools'
 
-interface Result { code: string; [key: string]: unknown }
+import type { AgentBuiltinResult as Result } from '../../engine/agentBuiltinResult'
 interface Dependencies {
   resolve(window: WindowIdentity): Promise<AgentClaim | undefined>
   connect(window: WindowIdentity): Promise<Result>
@@ -18,13 +18,13 @@ interface Dependencies {
 export async function handleBuiltinCommand(accountId: string, command: BuiltinCommand, deps: Dependencies): Promise<Result> {
   const identity = await deps.resolve(command.window)
   if (command.action === 'connect') return identity ? { code: 'bound', bindingId: identity.bindingId } : deps.connect(command.window)
-  if (!identity) return { code: 'no_live_editor' }
+  if (!identity) return { code: 'no_live_editor', ...(command.action === 'run' ? { dispatch: 'not_attempted' as const } : {}) }
   const owner = JSON.stringify([accountId, identity.bindingId])
   if (command.action === 'begin') return deps.allowance({ type: 'begin', accountId, owner })
   if (command.action === 'outcome') return deps.query(identity, command.operationId)
   const operationId = command.operationId
   const activation = await deps.allowance({ type: 'activate', owner, operationId })
-  if (activation.code !== 'activated') return activation
+  if (activation.code !== 'activated') return activation.code === 'halted' ? { ...activation, dispatch: 'not_attempted' } : activation
   let sequence = 0
   let stopped: Result | undefined
   try {

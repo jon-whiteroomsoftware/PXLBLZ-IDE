@@ -31,3 +31,11 @@ it('refuses duplicate activation before relay or provider work', async () => {
   expect(await (await handleBuiltinHttp(f.request('run'), f.env as never, f.relay as never, f.providerFetch)).json()).toEqual({ code: 'duplicate' })
   expect(f.relay.deliver).not.toHaveBeenCalled(); expect(f.providerFetch).not.toHaveBeenCalled()
 })
+it('marks HTTP pre-dispatch refusal but never a failure after attempted relay dispatch', async () => {
+  const f = await fixture()
+  expect(await (await handleBuiltinHttp(f.request('run'), { ...f.env, OPENAI_API_KEY: undefined } as never, f.relay as never)).json()).toEqual({ code: 'unavailable', dispatch: 'not_attempted' })
+  expect(await (await handleBuiltinHttp(f.request('run'), { ...f.env, AGENT_SERVICE_ENABLED: '0' } as never, f.relay as never)).json()).toEqual({ code: 'service_disabled', dispatch: 'not_attempted' })
+  expect(f.relay.deliver).not.toHaveBeenCalled()
+  f.relay.deliver.mockRejectedValue(new Error('lost reply'))
+  expect(await (await handleBuiltinHttp(f.request('run'), f.env as never, f.relay as never)).json()).toEqual({ code: 'unavailable' })
+})

@@ -5,7 +5,7 @@ import type { createAgentEditorAdmission } from './editorAdmission'
 import { useAgentDrawerStore, type AgentDrawerControllerPort } from './drawerStore'
 import { useShowStore } from '@/store/showStore'
 
-interface Result { code: string; [key: string]: unknown }
+import type { AgentBuiltinResult as Result } from '@/engine/agentBuiltinResult'
 export type { AgentBrowserSessionEvent as DrawerChannelEvent, AgentBrowserSessionPort as DrawerChannelPort } from './channelPort'
 import type { AgentBrowserConnection as DrawerConnection, AgentBrowserSessionPort as DrawerChannelPort } from './channelPort'
 type Admission = ReturnType<typeof createAgentEditorAdmission>
@@ -18,6 +18,7 @@ export function createProductionDrawerController(api: Admission, showId: string,
   try { state = createAgentDrawerState(localStorage.getItem('pxlblz-agent-drawer-pinned') === 'true') } catch { /* Optional preference. */ }
   let disposed = false
   let running = false
+  let draftVersion = 0
   let connection = channel.getConnection()
   const operations = new Map<string, Operation>()
   const cancelled = new Set<string>()
@@ -113,6 +114,7 @@ export function createProductionDrawerController(api: Admission, showId: string,
     showId,
     dispatch(event) {
       if (disposed) return
+      if (event.type === 'draft') draftVersion++
       if (event.type === 'chooseBuiltin') { void action(() => builtin({ action: 'connect' })); return }
       if (event.type === 'connectOwn') { void action(() => channel.arm()); return }
       if (event.type === 'cancelArm') { void action(() => channel.cancelArm()); return }
@@ -125,6 +127,7 @@ export function createProductionDrawerController(api: Admission, showId: string,
     submit() {
       const prompt = state.draft.trim()
       if (!prompt || disposed || running || useAgentDrawerStore.getState().busy || state.request || state.contactLost || state.connection?.kind !== 'builtin' || !api.available()) return
+      const submittedDraftVersion = draftVersion
       running = true; updateBusy()
       void (async () => {
         try {
@@ -138,7 +141,15 @@ export function createProductionDrawerController(api: Admission, showId: string,
           if (disposed) return
           refresh()
           if (typeof result.message === 'string') emit({ type: 'reply', text: result.message })
-          if (!operations.get(id)?.request) emit({ type: 'outcome', id, outcome: 'unknown', reason: 'Outcome unavailable; restore contact to inspect this operation.' })
+          if (!operations.get(id)?.request) {
+            if (result.dispatch === 'not_attempted') {
+              // This is the original run (never replayed). Install the barrier
+              // before freeing the composer; a late begin must be cancelled.
+              cancelled.add(id)
+              emit({ type: 'outcome', id, outcome: 'not-applied', reason: agentRefusalMessage(result.code) })
+              if (draftVersion === submittedDraftVersion && !state.draft) emit({ type: 'draft', text: prompt })
+            } else emit({ type: 'outcome', id, outcome: 'unknown', reason: 'Outcome unavailable; restore contact to inspect this operation.' })
+          }
         } catch { emit({ type: 'drop' }) } finally { running = false; updateBusy() }
       })()
     },

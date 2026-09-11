@@ -61,3 +61,22 @@ Pricing and provider-schema evidence lives in
 transport tests do not qualify live provider response identity or billing. The
 exact model response identity remains fail-closed until a live authorized
 qualification; no paid call is part of the local proof.
+
+## Refusal before browser admission
+
+A built-in response may carry `dispatch: not_attempted` when that HTTP
+invocation was refused before any editor delivery. This describes the current
+invocation only; it does not prove that an earlier invocation of the operation
+never ran. Authentication/configuration refusal, missing binding before the run,
+and an allowance activation halted before relay dispatch use this marker.
+Duplicate, finished, expired, unknown activation, relay pending, and caught
+transport failures remain ambiguous and carry no such assertion.
+
+The drawer sends one original run after successful begin, without replay. Only
+for that original invocation, and only while no local admission request exists,
+it combines this marker with a synchronous late-begin cancellation barrier to
+show not-applied and release the composer. It restores the submitted prompt only
+when a newer draft has not replaced it. A known local receipt always wins over
+the marker; adopted saves retain their outcome. A delayed begin is cancelled
+before later commands can adopt it. Ambiguous outcomes remain queryable and do
+not release the request or imply permission to replay.

@@ -2,14 +2,19 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { createProductionDrawerController, type DrawerChannelEvent, type DrawerChannelPort } from './drawerController'
 import { useAgentDrawerStore } from './drawerStore'
-import type { createAgentEditorAdmission } from './editorAdmission'
+import { createAgentEditorAdmission } from './editorAdmission'
+import { createDefaultShow } from '@/engine/showModel'
+import { resetPersonalContentProvider, setPersonalContentProvider, type PersonalContentProvider } from '@/engine/personalContentProvider'
+import { createAgentPrivateExecutor } from '@/engine/agentPrivateExecutor'
+import { createAgentPrivateAdmissionOwner } from './privateAdmissionOwner'
+import { showInitialState, useShowStore } from '@/store/showStore'
 let stop: (() => void) | undefined
-afterEach(() => { stop?.(); vi.restoreAllMocks() })
-function fixture() {
+afterEach(() => { stop?.(); resetPersonalContentProvider(); vi.restoreAllMocks() })
+function fixture(admission?: ReturnType<typeof createAgentEditorAdmission>) {
   let listener: (event: DrawerChannelEvent) => void = () => {}
   let receipt: unknown
   const channel = { getConnection: () => ({ kind: 'idle' }), subscribe: (fn: typeof listener) => { listener = fn; return () => { listener = () => {} } }, getOutcome: () => receipt ? ({ code: 'outcome', receipt }) : ({ code: 'unknown' }), close: vi.fn(), arm: vi.fn(async () => ({ code: 'occupied' })), cancelArm: vi.fn(async () => ({ code: 'idle' })), answer: vi.fn(async () => ({ code: 'bound' })), decline: vi.fn(async () => ({ code: 'declined' })), disconnect: vi.fn(async () => ({ code: 'disconnected' })), forget: vi.fn(async () => ({ code: 'forgotten' })) } as unknown as DrawerChannelPort
-  const api = { available: () => true, onClose: () => () => {}, readOutcome: () => receipt, retryIntent: () => undefined, cancel: vi.fn() } as unknown as ReturnType<typeof createAgentEditorAdmission>
+  const api = admission ?? { available: () => true, onClose: () => () => {}, readOutcome: () => receipt, retryIntent: () => undefined, cancel: vi.fn() } as unknown as ReturnType<typeof createAgentEditorAdmission>
   const builtin = vi.fn(async (_body: Record<string, unknown>) => ({ code: 'occupied' } as Record<string, unknown> & { code: string }))
   const controller = createProductionDrawerController(api, 'show', channel, builtin)
   stop = controller.dispose
@@ -101,4 +106,78 @@ it('settles and preserves an owned local outcome when provider configuration bec
   f.controller.restoreContact()
   expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'op')?.outcome).toBe('saved')
   expect(f.builtin).not.toHaveBeenCalled()
+})
+
+it.each(['halted', 'no_live_editor'])('settles an original run refused before dispatch (%s) and preserves the draft', async code => {
+  const f = fixture()
+  f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Built-in' } })
+  f.builtin.mockImplementation(async body => body.action === 'begin' ? { code: 'started', operationId: 'op' } : { code, dispatch: 'not_attempted' })
+  f.controller.dispatch({ type: 'draft', text: 'Keep this request' }); f.controller.submit()
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().busy).toBe(false))
+  expect(useAgentDrawerStore.getState().state).toMatchObject({ request: null, draft: 'Keep this request' })
+  expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'op')).toMatchObject({ outcome: 'not-applied' })
+})
+it.each(['pending', 'unknown', 'duplicate', 'finished', 'expired'])('keeps %s run outcomes unresolved without replay', async code => {
+  const f = fixture()
+  f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Built-in' } })
+  f.builtin.mockImplementation(async body => body.action === 'begin' ? { code: 'started', operationId: 'op' } : { code })
+  f.controller.dispatch({ type: 'draft', text: 'Edit' }); f.controller.submit()
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().busy).toBe(false))
+  expect(useAgentDrawerStore.getState().state.request?.id).toBe('op')
+  expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'op')?.outcome).toBe('unknown')
+  f.controller.submit(); expect(f.builtin).toHaveBeenCalledTimes(2)
+})
+it('preserves a newer draft and cancels a late admission after original dispatch refusal', async () => {
+  const f = fixture(); let finish!: (result: { code: string; dispatch: string }) => void
+  f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Built-in' } })
+  f.builtin.mockImplementation(async body => body.action === 'begin' ? { code: 'started', operationId: 'op' } : new Promise(resolve => { finish = resolve }))
+  f.controller.dispatch({ type: 'draft', text: 'Original' }); f.controller.submit()
+  await vi.waitFor(() => expect(finish).toBeDefined())
+  f.controller.dispatch({ type: 'draft', text: 'New draft' }); finish({ code: 'no_live_editor', dispatch: 'not_attempted' })
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().busy).toBe(false))
+  expect(useAgentDrawerStore.getState().state.draft).toBe('New draft')
+  const request = { operationId: 'binding:op', sessionId: 'session', showId: 'show', baseRevision: 0, payloadKey: '{}', referenceContext: '{}', targets: [] }
+  vi.mocked(f.api.cancel).mockReturnValue({ request, status: 'cancelled' })
+  f.emit({ type: 'delivery', delivery: { registrationId: 'reg', sessionId: 'session', showId: 'show', bindingId: 'binding', operationId: 'op', deliveryId: 'begin', sequence: 0, payload: { kind: 'begin_edit' } }, result: { code: 'begun' }, request })
+  expect(f.api.cancel).toHaveBeenCalledWith(request)
+})
+it('the refusal barrier prevents a late real private candidate from entering history or saving', async () => {
+  window.history.replaceState(null, '', '/studio/shows/show?agent=1')
+  useShowStore.setState(showInitialState)
+  const show = createDefaultShow('show', 'Original'), writes = vi.fn(async () => {})
+  setPersonalContentProvider({ updateShow: writes, listShows: async () => [show] } as unknown as PersonalContentProvider)
+  await useShowStore.getState().loadShows()
+  const admission = createAgentEditorAdmission('show', () => ({}))
+  const f = fixture(admission)
+  stop = () => { f.controller.dispose(); admission.close() }
+  f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Built-in' } })
+  f.builtin.mockImplementation(async body => body.action === 'begin' ? { code: 'started', operationId: 'op' } : { code: 'halted', dispatch: 'not_attempted' })
+  f.controller.dispatch({ type: 'draft', text: 'Rename' }); f.controller.submit()
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().busy).toBe(false))
+  const scope = { bindingId: 'binding', sessionId: admission.sessionId }
+  const executor = createAgentPrivateExecutor(scope, createAgentPrivateAdmissionOwner(admission))
+  const delivery = { ...scope, registrationId: 'reg', showId: 'show', operationId: 'op', deliveryId: 'd0', sequence: 0, payload: { kind: 'begin_edit' } }
+  const result = executor.deliver(delivery)
+  expect(result.code).toBe('begun')
+  f.emit({ type: 'delivery', delivery, result, request: executor.getRequest('op') })
+  executor.deliver({ ...delivery, deliveryId: 'd1', sequence: 1, payload: { kind: 'command', name: 'rename_show', arguments: { name: 'Must not adopt' } } })
+  expect(executor.deliver({ ...delivery, deliveryId: 'd2', sequence: 2, payload: { kind: 'commit_edit' } })).toMatchObject({ receipt: { status: 'cancelled' } })
+  expect(useShowStore.getState().shows[0]).toEqual(show)
+  expect(useShowStore.getState().showHistories.show?.past ?? []).toHaveLength(0)
+  expect(writes).not.toHaveBeenCalled()
+})
+it('an already-known local saved receipt wins over an invocation refusal marker', async () => {
+  const f = fixture(); let finish!: (result: { code: string; dispatch: string }) => void
+  f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Built-in' } })
+  f.builtin.mockImplementation(async body => body.action === 'begin' ? { code: 'started', operationId: 'op' } : new Promise(resolve => { finish = resolve }))
+  f.controller.dispatch({ type: 'draft', text: 'Original' }); f.controller.submit()
+  await vi.waitFor(() => expect(finish).toBeDefined())
+  const request = { operationId: 'binding:op', sessionId: 'session', showId: 'show', baseRevision: 0, payloadKey: '{}', referenceContext: '{}', targets: [] }
+  f.setReceipt({ request, status: 'applied', settlement: 'saved' })
+  f.emit({ type: 'delivery', delivery: { registrationId: 'reg', sessionId: 'session', showId: 'show', bindingId: 'binding', operationId: 'op', deliveryId: 'begin', sequence: 0, payload: { kind: 'begin_edit' } }, result: { code: 'begun' }, request })
+  finish({ code: 'no_live_editor', dispatch: 'not_attempted' })
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().busy).toBe(false))
+  expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'op')?.outcome).toBe('saved')
+  expect(f.api.cancel).not.toHaveBeenCalled()
+  expect(useAgentDrawerStore.getState().state.draft).toBe('')
 })
