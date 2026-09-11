@@ -542,7 +542,8 @@ parameters) to an editable Show URL and open the right-edge Agent drawer.
 the composer. Personal Show edits save to your account; built-in Show edits
 remain session drafts. Successful edits use ordinary Undo history. Each submitted request stays in one
 activity entry: its dot pulses while working or saving, then settles beside the
-outcome. The confirmation or error appears below the original request. Reduced
+outcome. A success confirmation appears only after saving or draft application
+finishes; errors and clarification replies appear below the original request. Reduced
 motion preferences disable the pulse; status text remains visible.
 
 **Connect an MCP agent** makes this window ready for an external connection for

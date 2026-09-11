@@ -196,3 +196,19 @@ it('keeps one command entry from submission through its attached reply', async (
   expect(useAgentDrawerStore.getState().state.stream).toHaveLength(1)
   expect(useAgentDrawerStore.getState().state.stream[0]).toMatchObject({ reply: 'No edit was made.', phase: undefined })
 })
+it.each(['completed', 'refused'] as const)('classifies the attached reply from a %s receipt', async status => {
+  const f = fixture()
+  f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Built-in' } })
+  const request = { operationId: 'binding:question', sessionId: 'session', showId: 'show', baseRevision: 0, payloadKey: '{}', referenceContext: '{}', targets: [] }
+  f.builtin.mockImplementation(async body => {
+    if (body.action === 'begin') return { code: 'started', operationId: 'question' }
+    const receipt = { request, status, reason: 'No edit was made.' }
+    f.setReceipt(receipt)
+    f.emit({ type: 'delivery', delivery: { registrationId: 'reg', sessionId: 'session', showId: 'show', bindingId: 'binding', operationId: 'question', deliveryId: 'begin', sequence: 0, payload: { kind: 'begin_edit' } }, result: { code: 'begun' }, request })
+    return { code: 'outcome', receipt, message: 'Which Clip do you mean?' }
+  })
+  f.controller.dispatch({ type: 'draft', text: 'Change the Clip' }); f.controller.submit()
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().busy).toBe(false))
+  expect(useAgentDrawerStore.getState().state.stream).toHaveLength(1)
+  expect(useAgentDrawerStore.getState().state.stream[0]).toMatchObject({ outcome: 'not-applied', reply: 'Which Clip do you mean?', replyOnRefusal: status === 'completed' })
+})
