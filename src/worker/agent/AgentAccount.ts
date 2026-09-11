@@ -1,5 +1,7 @@
-import { emptyRendezvous, transitionRendezvous, windowRendezvousView, REGISTRATION_TTL_MS, type RendezvousCommand, type RendezvousState } from '../../engine/agentRendezvous'
+import { emptyRendezvous, transitionRendezvous, windowRendezvousView, REGISTRATION_TTL_MS, type RendezvousCommand, type RendezvousState, type WindowIdentity, type AgentClaim, type WindowCommand } from '../../engine/agentRendezvous'
 import { agentResponse } from '../../cloudflare/agentAccess'
+import { AgentRelay, type AgentDeliveryInput, type AgentEditorQuery, type AgentRelayMessage } from './agentRelay'
+import type { PrivateEditResult } from '../../engine/agentPrivateExecutor'
 
 interface StorageTransaction {
   get<T>(key: string): Promise<T | undefined>
@@ -20,39 +22,94 @@ export interface AgentAccountNamespace {
   get(id: unknown): { fetch(request: Request): Promise<Response> }
 }
 
+export type AgentWindowChannelCommand = WindowCommand
+  | ({ type: 'receive' } & WindowIdentity)
+  | ({ type: 'reply'; bindingId: string; operationId: string; deliveryId: string; result: PrivateEditResult } & WindowIdentity)
+type AccountCommand = RendezvousCommand | AgentWindowChannelCommand
+  | { type: 'relay-dispatch'; identity: AgentClaim; delivery: AgentDeliveryInput; accountId: string }
+  | { type: 'relay-query'; identity: AgentClaim; query: AgentEditorQuery; accountId: string }
+interface AccountBody { code: string; contact?: 'live' | 'lost'; registrationId?: string; binding?: AgentClaim & WindowIdentity; connection?: ReturnType<typeof windowRendezvousView> }
+interface AccountRead { body: AccountBody; status: number; state: RendezvousState }
+
 /** Private binding only. Never mount this fetch handler at a public Worker URL. */
 export class AgentAccount {
   private readonly storage: AccountStorage
+  private relay?: AgentRelay
+  private readonly waiting = new Map<string, (reason: 'changed' | 'timeout' | 'superseded') => void>()
   constructor(ctx: { storage: AccountStorage }) { this.storage = ctx.storage }
 
   async fetch(request: Request): Promise<Response> {
-    // The public route constructs the window command; the later OAuth transport
-    // must construct claim only after validating account, resource, grant and scope.
-    const command = await request.json() as RendezvousCommand
-    return this.storage.transaction(async (storage) => {
+    const command = await request.json() as AccountCommand
+    if (command.type === 'relay-dispatch' || command.type === 'relay-query') {
+      const read = await this.coordinate({ type: 'inspect', ...command.identity })
+      if (!read.body.binding || read.body.code !== 'bound' || !this.relay || this.relay.scope.bindingId !== read.body.binding.bindingId) return agentResponse({ code: read.body.code })
+      const relay = this.relay
+      return agentResponse(await (command.type === 'relay-dispatch' ? relay.dispatch(command.delivery) : relay.query(command.query)))
+    }
+    if (command.type === 'receive') {
+      const first = await this.coordinate({ ...command, type: 'heartbeat' })
+      if (first.status !== 200) return agentResponse(first.body, first.status)
+      let deliveries = this.take(first, command)
+      if (deliveries.length) return agentResponse({ ...first.body, deliveries })
+      const reason = await this.waitForChange(command.registrationId)
+      if (reason === 'superseded') return agentResponse({ code: 'superseded', deliveries: [] })
+      const read = await this.coordinate({ ...command, type: 'poll' })
+      deliveries = this.take(read, command)
+      return agentResponse({ ...read.body, deliveries }, read.status)
+    }
+    if (command.type === 'reply') {
+      const read = await this.coordinate({ ...command, type: 'poll' })
+      if (read.status !== 200 || read.body.connection?.kind !== 'bound' || read.body.connection.bindingId !== command.bindingId || !this.relay) return agentResponse({ code: 'retired' }, 409)
+      return agentResponse({ code: this.relay.reply(command, command.result) ? 'received' : 'unknown' })
+    }
+    const read = await this.coordinate(command)
+    return agentResponse(read.body, read.status)
+  }
+
+  private async coordinate(command: RendezvousCommand): Promise<AccountRead> {
+    const read = await this.storage.transaction(async (storage): Promise<AccountRead> => {
       const now = Date.now()
       const stored = await storage.get<StoredAccount>('account') ?? { rendezvous: emptyRendezvous(), throttle: { start: now, count: 0 } }
       const throttle = now >= stored.throttle.start + 60_000 ? { start: now, count: 0 } : stored.throttle
-      const ending = command.type === 'leave' || command.type === 'disconnect'
-      if (throttle.count >= 240 && !ending) return agentResponse({ code: 'throttled' }, 429)
+      const ending = command.type === 'leave' || command.type === 'disconnect' || command.type === 'disarm'
+      if (throttle.count >= 240 && !ending) return { body: { code: 'throttled' }, status: 429, state: stored.rendezvous }
       if (!ending) throttle.count += 1
       const { state, result } = transitionRendezvous(stored.rendezvous, command, now)
       await storage.put('account', { rendezvous: state, throttle })
       await scheduleExpiry(storage, state, throttle.start + 60_000)
+      const reply = (body: AccountBody, status = 200): AccountRead => ({ body, status, state })
       if (command.type === 'claim' || command.type === 'inspect' || command.type === 'resolve-builtin') {
         const slot = state.slot
-        const target = slot?.kind === 'bound'
-          ? state.registrations.find((item) => item.registrationId === slot.registrationId)
-          : undefined
-        return agentResponse({ ...result, ...(result.code === 'bound' && target ? {
-          binding: { ...slot, sessionId: target.sessionId, showId: target.showId },
-        } : {}) })
+        const target = slot?.kind === 'bound' ? state.registrations.find(item => item.registrationId === slot.registrationId) : undefined
+        return reply({ ...result, ...(result.code === 'bound' && target ? { binding: { ...slot as AgentClaim, registrationId: target.registrationId, sessionId: target.sessionId, showId: target.showId } } : {}) })
       }
-      if (command.type === 'expire') return agentResponse(result)
-      if (ending) return agentResponse(result)
-      // Invalid session capabilities reveal neither account occupancy nor names.
-      if (result.code === 'retired' || result.code === 'already_registered' || result.code === 'capacity') return agentResponse(result, 409)
-      return agentResponse({ ...result, ...(command.type === 'register' ? { registrationId: command.registrationId } : {}), connection: windowRendezvousView(state, command.registrationId) })
+      if (command.type === 'expire' || ending) return reply(result)
+      if (result.code === 'retired' || result.code === 'already_registered' || result.code === 'capacity') return reply(result, 409)
+      return reply({ ...result, ...(command.type === 'register' ? { registrationId: command.registrationId } : {}), connection: windowRendezvousView(state, command.registrationId) })
+    })
+    this.reconcile(read.state)
+    if (!['poll', 'heartbeat', 'inspect', 'resolve-builtin'].includes(command.type)) this.wake()
+    return read
+  }
+
+  private reconcile(state: RendezvousState) {
+    const slot = state.slot
+    const target = slot?.kind === 'bound' ? state.registrations.find(item => item.registrationId === slot.registrationId) : undefined
+    if (slot?.kind === 'bound' && target && this.relay?.scope.bindingId === slot.bindingId && this.relay.scope.registrationId === target.registrationId) return
+    this.relay?.end()
+    this.relay = slot?.kind === 'bound' && target ? new AgentRelay({ registrationId: target.registrationId, sessionId: target.sessionId, showId: target.showId, bindingId: slot.bindingId }, () => this.wake()) : undefined
+  }
+  private take(read: AccountRead, window: WindowIdentity): AgentRelayMessage[] {
+    if (read.status !== 200 || read.body.connection?.kind !== 'bound' || this.relay?.scope.registrationId !== window.registrationId || this.relay.scope.sessionId !== window.sessionId || this.relay.scope.showId !== window.showId || this.relay.scope.bindingId !== read.body.connection.bindingId) return []
+    return this.relay.take()
+  }
+  private wake() { for (const resolve of this.waiting.values()) resolve('changed') }
+  private waitForChange(key: string): Promise<'changed' | 'timeout' | 'superseded'> {
+    this.waiting.get(key)?.('superseded')
+    return new Promise(resolve => {
+      const finish = (reason: 'changed' | 'timeout' | 'superseded') => { clearTimeout(timer); if (this.waiting.get(key) === finish) this.waiting.delete(key); resolve(reason) }
+      const timer = setTimeout(() => finish('timeout'), 25_000)
+      this.waiting.set(key, finish)
     })
   }
 
@@ -70,6 +127,9 @@ export class AgentAccount {
         await scheduleExpiry(storage, state, Math.max(now + 1, stored.throttle.start + 60_000))
       }
     })
+    const current = await this.storage.get<StoredAccount>('account')
+    this.reconcile(current?.rendezvous ?? emptyRendezvous())
+    this.wake()
   }
 }
 

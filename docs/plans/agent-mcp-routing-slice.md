@@ -40,3 +40,28 @@ The schema owner is #957: `showCommandInputShape` and `showCommandFieldSchema` f
 OAuth credential revocation and confirmed browser editing retirement are distinct. Protocol revocation success proves credentials revoked; it does not assert distributed cancellation. The account owner marks the current generation retiring and wakes a held browser receive. The browser retires its executor and existing unapplied admission work, then acknowledges that generation. Only this acknowledgement confirms editing end. An unreachable browser leaves explicit retirement-unconfirmed/contact-loss state. No later adoption is allowed after confirmed editing end; an adoption that won the race before acknowledgement keeps its actual save outcome.
 
 Local Disconnect and Forget retire synchronously before their first network await. Remote-revocation tests must cover commit already in active-input wait, manual release before retirement acknowledgement (truthful adoption may win), and release after acknowledgement (no adoption). Neither the 15-second heartbeat nor OAuth protocol200 is a cancellation oracle. Grant checks and dispatch/reply generation validation remain required even with prompt held-receive wakeup.
+
+## Executable channel checkpoint
+
+The production `createAgentBrowserSession({ admission, showId })` owns one
+server-generated window registration, held receive loop and binding-scoped
+private executor. It exposes the committed `AgentBrowserSessionPort` to the
+separate drawer controller. Delivery events carry the local immutable request;
+that request is not an authority accepted from the server or an MCP caller.
+Contact loss preserves the executor and receipts. Disconnect and close retire
+private work synchronously before network cleanup, and a held old response
+cannot recreate that locally retired binding. The React owner closes admission.
+
+The account relay delivers each accepted identity once, accepts replies only
+from the original registration/session/Show/binding, and wakes held callers on
+retirement. Read queries reserve one queue slot independently of mutation
+identity capacity. Canonical single-resize Retry uses existing fresh admission
+and retains its original failed receipt. Forget remains explicitly unsupported
+at this intermediate checkpoint; OAuth retirement acknowledgement and full MCP
+routing remain required before this candidate is frozen for review.
+
+Focused proof includes real workerd authenticated register/claim/receive/reply,
+old-session reply refusal, disconnect of a held dispatch, exact stock catalogue
+identity registration and owning-window disarm. Browser-session unit proof covers
+contact loss without replay, request events, and synchronous local retirement;
+it is not real browser UI or external-client qualification.

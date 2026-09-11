@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { AgentResizeIntent } from './agentResizeProtocol'
 import { createDeliveryJournal, type AgentDelivery, type DeliveryScope } from './agentDeliveryJournal'
 import type { ShowRecord } from './personalContentRecords'
 import type { ShowEditCompletion, ShowEditRequest } from './showEditAdmission'
@@ -6,7 +7,8 @@ import { applyShowCommand, type ShowCommandChange, type ShowCommandContext } fro
 
 export interface PrivateEditOwner {
   capture(operationId: string, intent: string, remainingBytes: number): { request: ShowEditRequest; show: ShowRecord; context: unknown; commandContext: ShowCommandContext; retainedBytes: number } | undefined
-  apply(show: ShowRecord, request: ShowEditRequest): unknown
+  apply(show: ShowRecord, request: ShowEditRequest, resize?: AgentResizeIntent): unknown
+  retry?(request: ShowEditRequest, operationId: string, remainingBytes: number): { request: ShowEditRequest; receipt: unknown; retainedBytes: number } | undefined
   complete(request: ShowEditRequest, completion: ShowEditCompletion): unknown
   cancel(request: ShowEditRequest): unknown
   outcome(request: ShowEditRequest): unknown
@@ -21,7 +23,7 @@ const payloadSchema = z.discriminatedUnion('kind', [
 ])
 interface Operation {
   request: ShowEditRequest
-  private?: { show: ShowRecord; commandContext: ShowCommandContext; changes: ShowCommandChange[] }
+  private?: { show: ShowRecord; commandContext: ShowCommandContext; changes: ShowCommandChange[]; commandCount: number; resize?: AgentResizeIntent }
 }
 
 /** One browser-owned private candidate; the injected owner is existing admission. */
@@ -57,7 +59,7 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
         owner.complete(captured.request, 'service-refused')
         return { code: 'result_too_large' }
       }
-      operation.private = { show: captured.show, commandContext: captured.commandContext, changes: [] }
+      operation.private = { show: captured.show, commandContext: captured.commandContext, changes: [], commandCount: 0 }
       active = delivery.operationId
       return { code: 'begun', operationId: delivery.operationId, baseRevision: captured.request.baseRevision, show: structuredClone(captured.show), context: structuredClone(captured.context) }
     }
@@ -75,6 +77,9 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
         owner.complete(operation.request, 'service-refused')
         return { code: 'result_too_large' }
       }
+      operation.private.commandCount += 1
+      operation.private.resize = operation.private.commandCount === 1 && payload.name === 'resize_clip'
+        ? { clipId: payload.arguments.clip_id as string, durationMs: payload.arguments.duration_ms as number } : undefined
       operation.private.show = result.record
       operation.private.changes.push(...result.changes)
       return { code: result.changes.length ? 'changed' : 'noop', changes: structuredClone(result.changes) }
@@ -83,7 +88,7 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
     finish(delivery.operationId, operation)
     if (payload.kind === 'cancel_edit') return outcome(owner.cancel(operation.request))
     if (payload.kind === 'complete_edit') return outcome(owner.complete(operation.request, payload.completion))
-    return { ...outcome(owner.apply(candidate.show, operation.request)), changes: structuredClone(candidate.changes) }
+    return { ...outcome(owner.apply(candidate.show, operation.request, candidate.resize)), changes: structuredClone(candidate.changes) }
   }
   return {
     deliver(delivery: AgentDelivery): PrivateEditResult {
@@ -97,6 +102,31 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
         result = { code: 'unavailable' }
       }
       return journal.complete(delivery.operationId, delivery.deliveryId, result) ? result : { code: 'result_unavailable' }
+    },
+    retry(operationId: string, nextOperationId: string): PrivateEditResult {
+      if (retired) return { code: 'retired' }
+      if (captureCapacityReached) return { code: 'capacity' }
+      if (active) return { code: 'busy' }
+      const original = operations.get(operationId)
+      if (!original || !owner.retry) return { code: 'not_qualified' }
+      const delivery = { ...scope, operationId: nextOperationId, deliveryId: nextOperationId, sequence: 0, payload: { kind: 'local_retry', original: operationId } }
+      const admitted = journal.admit(delivery)
+      if (admitted.code === 'known') return admitted.result as PrivateEditResult
+      if (admitted.code !== 'accepted') return admitted
+      const retried = owner.retry(original.request, `${scope.bindingId}:${nextOperationId}`, 16_777_216 - retainedCaptureBytes)
+      const result: PrivateEditResult = retried
+        ? { ...outcome(retried.receipt), operationId: nextOperationId, request: retried.request, retryOf: original.request.operationId }
+        : { code: 'not_qualified' }
+      if (retried) {
+        retainedCaptureBytes += retried.retainedBytes
+        operations.set(nextOperationId, { request: retried.request })
+      }
+      journal.complete(nextOperationId, nextOperationId, result)
+      return result
+    },
+    getRequest(operationId: string): ShowEditRequest | undefined {
+      const request = operations.get(operationId)?.request
+      return request && structuredClone(request)
     },
     getOutcome(operationId: string): PrivateEditResult {
       if (retired) return { code: 'retired' }

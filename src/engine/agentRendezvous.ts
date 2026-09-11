@@ -25,7 +25,7 @@ export interface RendezvousState {
 }
 export type WindowIdentity = Pick<EditorRegistration, 'registrationId' | 'sessionId' | 'showId'>
 export type WindowCommand =
-  | ({ type: 'register' | 'arm' | 'poll' | 'heartbeat' | 'leave' } & WindowIdentity)
+  | ({ type: 'register' | 'arm' | 'poll' | 'heartbeat' | 'leave' | 'disarm' } & WindowIdentity)
   | ({ type: 'answer' | 'decline'; callId: string } & WindowIdentity)
   | ({ type: 'disconnect'; bindingId: string } & WindowIdentity)
 export type RendezvousCommand = WindowCommand
@@ -82,6 +82,11 @@ export function transitionRendezvous(previous: RendezvousState, command: Rendezv
   const registration = state.registrations.find((item) => item.registrationId === command.registrationId && item.sessionId === command.sessionId && item.showId === command.showId)
   if (!registration) return result('retired')
   if (command.type === 'resolve-builtin') return result(state.slot?.kind === 'bound' && state.slot.registrationId === registration.registrationId && state.slot.agentKind === 'builtin' ? 'bound' : 'not_bound_here')
+  if (command.type === 'disarm') {
+    if (state.slot?.kind !== 'armed' || state.slot.registrationId !== registration.registrationId) return result('not_armed_here')
+    state.slot = null
+    return result('disarmed')
+  }
   if (command.type === 'poll') return result('status', now - registration.lastSeenAt >= CONTACT_LOST_MS ? 'lost' : 'live')
   if (command.type === 'heartbeat') {
     registration.lastSeenAt = now
