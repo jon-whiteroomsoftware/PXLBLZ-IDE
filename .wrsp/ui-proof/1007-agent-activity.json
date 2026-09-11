@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1007",
+  "route": "/PXLBLZ-IDE/studio/shows/6fd0ff8c-9947-4a0c-8489-1be3b4353844?agent=1&capture",
+  "operation": "In the in-app browser, using a synthetic local-agent-09 copy of stock Quadrille, submitted two live Luna rename requests. Observed one row per command, computed agent-pulse animation while pending, saved outcomes and attached confirmations with no pending animation after settlement. Opened the drawer at 720px; panel width and scroll width were both 339px. No captured browser console errors. Captures show pending, saved and narrow states; focused tests cover later rollback and refusal.",
+  "captures": [
+    ".wrsp/ui-proof/1007-working.jpg",
+    ".wrsp/ui-proof/1007-saved.jpg",
+    ".wrsp/ui-proof/1007-narrow.jpg"
+  ],
+  "capturedAtCommit": "b26884a4ce5d97471d919da1de093fef67baae48"
+}
