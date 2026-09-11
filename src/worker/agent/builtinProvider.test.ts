@@ -57,3 +57,17 @@ it('halts on a returned model or service tier outside the priced contract', asyn
   expect(f.commands[f.commands.length - 1]).toMatchObject({ type: 'halt' })
   expect(f.commands.some(x => (x as { type: string }).type === 'settle')).toBe(false)
 })
+it('accepts only text and local-function continuation items, with encrypted reasoning state', async () => {
+  const f = fixture()
+  const continuation = [
+    { type: 'reasoning', id: 'rs_1', summary: [], encrypted_content: 'opaque' },
+    { type: 'function_call', call_id: 'call_1', name: 'resize_clip', arguments: '{}' },
+    { type: 'function_call_output', call_id: 'call_1', output: '{"code":"changed"}' },
+  ]
+  expect((await dispatchBuiltinProvider(f.deps, { ...request, input: continuation as never })).ok).toBe(true)
+  for (const bad of [{ ...continuation[0], summary: [{ type: 'image', url: 'x' }] }, { ...continuation[1], hosted: true }, { ...continuation[2], output: [{ type: 'input_image' }] }]) {
+    const g = fixture()
+    expect((await dispatchBuiltinProvider(g.deps, { ...request, input: [bad] as never })).ok).toBe(false)
+    expect(g.order).toEqual([])
+  }
+})

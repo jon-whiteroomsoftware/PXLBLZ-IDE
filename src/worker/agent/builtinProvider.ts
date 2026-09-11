@@ -18,6 +18,9 @@ const record = (value: unknown): value is Record<string, unknown> => !!value && 
 const only = (value: Record<string, unknown>, keys: string[]) => Object.keys(value).every(key => keys.includes(key))
 function supportedInput(value: unknown): boolean {
   if (!record(value)) return false
+  if (value.type === 'function_call') return only(value, ['type', 'call_id', 'name', 'arguments', 'id', 'status']) && ['call_id', 'name', 'arguments'].every(key => typeof value[key] === 'string') && (value.id === undefined || typeof value.id === 'string') && (value.status === undefined || ['in_progress', 'completed', 'incomplete'].includes(String(value.status)))
+  if (value.type === 'function_call_output') return only(value, ['type', 'call_id', 'output']) && typeof value.call_id === 'string' && typeof value.output === 'string'
+  if (value.type === 'reasoning') return only(value, ['type', 'id', 'summary', 'encrypted_content', 'status']) && typeof value.id === 'string' && typeof value.encrypted_content === 'string' && Array.isArray(value.summary) && value.summary.every(item => record(item) && only(item, ['type', 'text']) && item.type === 'summary_text' && typeof item.text === 'string') && (value.status === undefined || ['in_progress', 'completed', 'incomplete'].includes(String(value.status)))
   return only(value, ['role', 'content']) && ['user', 'developer', 'assistant'].includes(String(value.role)) && typeof value.content === 'string'
 }
 function supportedTool(value: unknown): boolean {
@@ -29,7 +32,7 @@ export async function dispatchBuiltinProvider(deps: Dependencies, request: Dispa
   const fail = (code: string): Result => ({ ok: false, code })
   if (!deps.apiKey) return fail('unavailable')
   if (!request.input.every(supportedInput) || !request.tools.every(supportedTool)) return fail('invalid_request')
-  const body = JSON.stringify({ model: AGENT_SERVICE_BOUNDS.model, reasoning: { effort: 'high' }, service_tier: 'default', truncation: 'disabled', store: false, max_output_tokens: AGENT_SERVICE_BOUNDS.maxOutputTokens, parallel_tool_calls: false, input: request.input, tools: request.tools })
+  const body = JSON.stringify({ model: AGENT_SERVICE_BOUNDS.model, reasoning: { effort: 'high' }, include: ['reasoning.encrypted_content'], service_tier: 'default', truncation: 'disabled', store: false, max_output_tokens: AGENT_SERVICE_BOUNDS.maxOutputTokens, parallel_tool_calls: false, input: request.input, tools: request.tools })
   if (new TextEncoder().encode(body).byteLength > AGENT_SERVICE_BOUNDS.maxRequestBytes) return fail('request_limit')
   const owner = deps.allowance.get(deps.allowance.idFromName('builtin-global-v1'))
   const command = async (type: string, extra: Record<string, unknown> = {}) => {
