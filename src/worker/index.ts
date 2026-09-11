@@ -48,3 +48,4 @@ export default worker
 
 export { AgentOAuthAuthority } from './agent/AgentOAuthAuthority'
 export { AgentAccount } from './agent/AgentAccount'
+export { AgentAllowance } from './agent/AgentAllowance'

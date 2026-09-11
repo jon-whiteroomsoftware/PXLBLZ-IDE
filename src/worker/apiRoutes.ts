@@ -15,6 +15,7 @@ import type { AgentAccessEnvironment } from '../cloudflare/agentAccess'
 import type { AgentAccountNamespace } from './agent/AgentAccount'
 import type { AgentOAuthSettings } from './agent/agentOAuthConfig'
 import * as agentChannel from './routes/agent/channel'
+import * as agentBuiltin from './routes/agent/builtin'
 import * as authCallback from './routes/auth/callback'
 import * as authDisconnect from './routes/auth/disconnect'
 import * as authLogin from './routes/auth/login'
@@ -55,6 +56,8 @@ export type WorkerD1Database =
 export interface WorkerEnv extends AgentAccessEnvironment, AgentOAuthSettings {
   AGENT_OAUTH_AUTHORITY?: AgentAccountNamespace
   AGENT_ACCOUNTS?: AgentAccountNamespace
+  AGENT_ALLOWANCE?: AgentAccountNamespace
+  OPENAI_API_KEY?: string
   SESSION_SECRET?: string
   GITHUB_CLIENT_ID?: string
   GITHUB_CLIENT_SECRET?: string
@@ -86,6 +89,7 @@ function route<const Path extends string>(
 
 export const apiRoutes: readonly WorkerRoute<WorkerEnv>[] = [
   route('/api/agent/channel', { POST: agentChannel.onRequestPost }),
+  route('/api/agent/builtin', { POST: agentBuiltin.onRequestPost }),
   route('/api/me', { GET: me.onRequestGet }),
   route('/api/d1/health', { GET: d1Health.onRequestGet }),
   route('/api/auth/login', { GET: authLogin.onRequestGet }),

@@ -311,8 +311,11 @@ import {
   type ShowLayoutInterval,
 } from '@/engine/showLayoutIntervals'
 import { SaveFailureNotice } from '@/components/SaveFailureNotice'
-import { agentUrlEnabled, createAgentEditorAdmission, observeAgentLocation } from '@/dev/agentEditorAdmission'
-import { createAgentDrawerController, useAgentDrawerStore, type AgentDrawerController } from '@/dev/agentDrawerController'
+import { createAgentEditorAdmission as createDiagnosticAgentAdmission } from '@/dev/agentEditorAdmission'
+import { installDiagnosticAgentSession } from '@/dev/installDiagnosticAgentSession'
+import { useAgentDrawerStore } from '@/agent/drawerStore'
+import { useAgentEditorLifecycle } from '@/agent/editorLifecycle'
+import { createAgentBrowserSession } from '@/agent/browserSession'
 import ShowSourceOutletContext from '@/components/ShowSourceOutlet'
 import { ShowStripSection } from '@/components/ShowStripSection'
 import { useAnchoredOverlayPosition } from '@/components/useAnchoredOverlayPosition'
@@ -1050,51 +1053,22 @@ export function ShowEditor({
   const detailShowIdRef = useRef<string | null>(null)
   const { scope: fieldActivity } = useMemo(() => ({ showId, scope: createFieldActivityScope() }), [showId])
 
-  // Dev-only local-tooling bridge on window, same species as the `?capture`
-  // automation API and `__pxlblzShow` capture hooks: expose the active Show
-  // record and the editor's focus (selection, hover, viewport, playhead) to
-  // local scripts, and apply a replacement record as one ordinary persisted
-  // update - one history snapshot, one undo step. Lets external dev tooling
-  // script the editor without a component handle.
-  useLayoutEffect(() => {
-    if (!import.meta.env.DEV || readOnly) return
-    const w = window as unknown as { __pxlblzEditor?: ReturnType<typeof createAgentEditorAdmission>; __pxlblzAgentDrawer?: AgentDrawerController; __pxlblzChat?: AgentDrawerController }
-    const pathname = window.location.pathname
-    let api: ReturnType<typeof createAgentEditorAdmission> | undefined
-    let drawerController: AgentDrawerController | undefined
-    const sync = () => {
-      if (!agentUrlEnabled() || window.location.pathname !== pathname) {
-        api?.close()
-        drawerController?.dispose()
-        if (w.__pxlblzAgentDrawer === drawerController) delete w.__pxlblzAgentDrawer
-        if (w.__pxlblzChat === drawerController) delete w.__pxlblzChat
-        if (w.__pxlblzEditor === api) delete w.__pxlblzEditor
-        api = undefined
-      } else if (!api) {
-        api = createAgentEditorAdmission(showId, () => ({
-          showId,
-          selection: useShowEditorViewStore.getState().selection,
-          viewport: useShowEditorViewStore.getState().viewport,
-          hoveredClipId: useShowClipHoverStore.getState().hoveredClipId,
-          playheadMs: useShowTransportStore.getState().showId === showId
-            ? useShowTransportStore.getState().positionMs : 0,
-        }), fieldActivity.bind)
-        w.__pxlblzEditor = api
-        drawerController = createAgentDrawerController(api, showId)
-        w.__pxlblzAgentDrawer = drawerController
-      }
-    }
-    const stop = observeAgentLocation(sync)
-    sync()
-    return () => {
-      api?.close()
-      drawerController?.dispose()
-      if (w.__pxlblzAgentDrawer === drawerController) delete w.__pxlblzAgentDrawer
-      if (w.__pxlblzChat === drawerController) delete w.__pxlblzChat
-      stop()
-      if (w.__pxlblzEditor === api) delete w.__pxlblzEditor
-    }
-  }, [readOnly, showId, fieldActivity])
+  // One production admission/channel lifetime; DEV tooling is an explicit transport switch.
+  const getAgentEditorContext = useCallback(() => ({
+    showId,
+    selection: useShowEditorViewStore.getState().selection,
+    viewport: useShowEditorViewStore.getState().viewport,
+    hoveredClipId: useShowClipHoverStore.getState().hoveredClipId,
+    playheadMs: useShowTransportStore.getState().showId === showId
+      ? useShowTransportStore.getState().positionMs : 0,
+  }), [showId])
+  useAgentEditorLifecycle({
+    showId, readOnly, getContext: getAgentEditorContext,
+    bindFieldActivity: fieldActivity.bind,
+    createChannel: createAgentBrowserSession,
+    createAdmission: import.meta.env.DEV ? createDiagnosticAgentAdmission : undefined,
+    diagnostic: import.meta.env.DEV ? installDiagnosticAgentSession : undefined,
+  })
   const timelineWorkspaceRef = useRef<HTMLElement>(null)
   const showEditorPaneRef = useRef<HTMLDivElement>(null)
   const lastTimelineFocusRef = useRef<HTMLElement | null>(null)

@@ -190,3 +190,10 @@ a new operation and `retryOf` on fresh state, retaining the original failure and
 composer draft. Multi-command plans, generated IDs and relative intent are not
 replayed. Other failures offer their truthful outcome and Dismiss; a fresh user
 request remains available. This does not reduce the canonical edit tool surface.
+
+Recovery in a surviving editor uses the channel's local outcome journal and the
+same admission/store receipts. Removing the service credential or eligibility
+refuses remote requests and new dispatch; it does not turn a known local saved
+or saving outcome into an unknown failure. This adds no remote recovery exception.
+After editor departure, session receipts are intentionally unavailable, while an
+already adopted personal save remains owned by the store and persistence provider.

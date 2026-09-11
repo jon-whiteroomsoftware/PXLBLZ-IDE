@@ -28,3 +28,13 @@ it('rejects caller account/agent claims, malformed operation identity and oversi
     expect(await authorizeBuiltinRequest(f.request(body), f.env as never)).toBeInstanceOf(Response)
   }
 })
+it('admits exact public stock identities without a personal row, but never a stock-like prefix', async () => {
+  const f = await fixture()
+  const { STOCK_SHOW_IDS } = await import('../../pixelblaze/stock/showIds')
+  const stock = { action: 'connect', window: { ...windowIdentity, showId: STOCK_SHOW_IDS[0] } }
+  expect(await authorizeBuiltinRequest(f.request(stock), { ...f.env, PXLBLZ_DB: undefined } as never)).toMatchObject({ accountId: 'account', command: stock })
+  f.all.mockResolvedValue({ results: [] })
+  const refused = await authorizeBuiltinRequest(f.request({ action: 'connect', window: { ...windowIdentity, showId: 'stock-show-invented' } }), f.env as never)
+  expect(refused).toBeInstanceOf(Response)
+  expect((refused as Response).status).toBe(404)
+})

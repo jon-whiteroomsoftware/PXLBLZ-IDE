@@ -61,3 +61,44 @@ it('attributes only successful owned changes once and keeps Send disabled while 
   f.controller.dispatch({ type: 'draft', text: 'Next request' }); f.controller.submit()
   expect(f.builtin).not.toHaveBeenCalled()
 })
+it('registers the returned qualified Retry operation and tracks saving without replacing failure or draft', async () => {
+  const f = fixture()
+  f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Built-in' } })
+  const original = { operationId: 'binding:old', sessionId: 'session', showId: 'show', baseRevision: 0, payloadKey: '{}', referenceContext: '{}', targets: ['clip'] }
+  const request = { ...original, operationId: 'binding:new', retryOf: original.operationId, baseRevision: 1 }
+  f.setReceipt({ request: original, status: 'pending' })
+  f.emit({ type: 'delivery', delivery: { registrationId: 'reg', sessionId: 'session', showId: 'show', bindingId: 'binding', operationId: 'old', deliveryId: 'begin', sequence: 0, payload: { kind: 'begin_edit', intent: 'Resize original Clip' } }, result: { code: 'begun' }, request: original })
+  f.setReceipt({ request: original, status: 'applied', settlement: 'rolled-back' })
+  f.emit({ type: 'delivery', delivery: { registrationId: 'reg', sessionId: 'session', showId: 'show', bindingId: 'binding', operationId: 'old', deliveryId: 'commit', sequence: 1, payload: { kind: 'commit_edit' } }, result: { code: 'outcome', receipt: { request: original, status: 'applied', settlement: 'rolled-back' } }, request: original })
+  vi.spyOn(f.api, 'retryIntent').mockReturnValue({ clipId: 'clip', durationMs: 1000 } as never)
+  f.channel.retry = vi.fn(async () => {
+    const receipt = { request, status: 'applied', settlement: 'saving' }
+    f.setReceipt(receipt)
+    return { code: 'outcome', operationId: 'new', request, retryOf: original.operationId, receipt }
+  })
+  f.controller.dispatch({ type: 'draft', text: 'Unrelated composer draft' })
+  f.controller.retry('old')
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'new')).toMatchObject({ retryOf: 'old', outcome: 'applied' }))
+  expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'old')).toMatchObject({ outcome: 'rolled-back' })
+  expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'old')?.dismissed).not.toBe(true)
+  expect(useAgentDrawerStore.getState().state.draft).toBe('Unrelated composer draft')
+  expect(useAgentDrawerStore.getState().busy).toBe(true)
+  f.setReceipt({ request, status: 'applied', settlement: 'saved' })
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'new')?.outcome).toBe('saved'))
+  expect(f.builtin).not.toHaveBeenCalled()
+})
+it('settles and preserves an owned local outcome when provider configuration becomes unavailable', async () => {
+  const f = fixture()
+  f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Built-in' } })
+  const request = { operationId: 'binding:op', sessionId: 'session', showId: 'show', baseRevision: 0, payloadKey: '{}', referenceContext: '{}', targets: ['clip'] }
+  f.setReceipt({ request, status: 'pending' })
+  f.emit({ type: 'delivery', delivery: { registrationId: 'reg', sessionId: 'session', showId: 'show', bindingId: 'binding', operationId: 'op', deliveryId: 'begin', sequence: 0, payload: { kind: 'begin_edit' } }, result: { code: 'begun' }, request })
+  f.setReceipt({ request, status: 'applied', settlement: 'saving' })
+  f.emit({ type: 'delivery', delivery: { registrationId: 'reg', sessionId: 'session', showId: 'show', bindingId: 'binding', operationId: 'op', deliveryId: 'commit', sequence: 1, payload: { kind: 'commit_edit' } }, result: { code: 'outcome', receipt: { request, status: 'applied', settlement: 'saving' } }, request })
+  f.builtin.mockResolvedValue({ code: 'unavailable' })
+  f.emit({ type: 'connection', connection: { kind: 'refused', code: 'service_disabled' } })
+  f.setReceipt({ request, status: 'applied', settlement: 'saved' })
+  f.controller.restoreContact()
+  expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'op')?.outcome).toBe('saved')
+  expect(f.builtin).not.toHaveBeenCalled()
+})

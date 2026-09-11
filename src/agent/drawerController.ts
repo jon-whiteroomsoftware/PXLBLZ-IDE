@@ -145,7 +145,17 @@ export function createProductionDrawerController(api: Admission, showId: string,
       const request = operations.get(id)?.request
       if (!request || !api.retryIntent(request) || disposed || running || useAgentDrawerStore.getState().busy || state.request || state.contactLost || state.connection?.kind !== 'builtin') return
       running = true; updateBusy()
-      void action(() => channel.retry(id)).finally(() => { running = false; refresh() })
+      void action(async () => {
+        const result = await channel.retry(id)
+        const next = result.request as ShowEditRequest | undefined
+        if (result.code === 'outcome' && typeof result.operationId === 'string' && next?.retryOf === request.operationId && next.sessionId === request.sessionId) {
+          const nextId = result.operationId
+          operations.set(nextId, { request: next, changes: [...(operations.get(id)?.changes ?? [])] })
+          emit({ type: 'beginEdit', id: nextId, intent: state.stream.find(line => line.operationId === id)?.text ?? 'Retry the original Clip resize', retryOf: id })
+          publish(nextId, result.receipt as Receipt)
+        }
+        return result
+      }).finally(() => { running = false; refresh() })
     },
     cancel() {
       const id = state.request?.id

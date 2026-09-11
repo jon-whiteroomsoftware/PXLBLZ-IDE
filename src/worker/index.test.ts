@@ -170,6 +170,7 @@ describe('api route table', () => {
       'PATCH /api/mixins/[id]',
       'PATCH /api/patterns/[id]',
       'PATCH /api/shows/[id]',
+      'POST /api/agent/builtin',
       'POST /api/agent/channel',
       'POST /api/auth/disconnect',
       'POST /api/auth/logout',
