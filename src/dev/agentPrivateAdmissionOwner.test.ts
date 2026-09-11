@@ -65,3 +65,18 @@ it('retries only a single resolved resize against fresh state while preserving i
   expect(useShowStore.getState().shows[0].name).toBe('Manual')
   expect(writes).toHaveBeenCalledTimes(3)
 })
+it.each([false, true])('cancel after commit reaches admission and preserves already-adopted saves (%s)', async adopted => {
+  const { admission, executor, send, writes } = await setup()
+  send(0, { kind: 'begin_edit' })
+  send(1, { kind: 'command', name: 'rename_show', arguments: { name: 'Agent' } })
+  const activity = adopted ? undefined : useShowStore.getState().acquireShowEditActivity(admission.sessionId, 'test', 'dirty-field')!
+  expect(send(2, { kind: 'commit_edit' })).toMatchObject({ receipt: { status: adopted ? 'applied' : 'waiting' } })
+  const cancelled = send(3, { kind: 'cancel_edit' })
+  expect(cancelled).toMatchObject({ receipt: { status: adopted ? 'applied' : 'cancelled' } })
+  expect(send(3, { kind: 'cancel_edit' })).toEqual(cancelled)
+  if (activity) useShowStore.getState().releaseShowEditActivity(activity)
+  if (adopted) await vi.waitFor(() => expect(executor.getOutcome('op')).toMatchObject({ receipt: { status: 'applied', settlement: 'saved' } }))
+  expect(useShowStore.getState().shows[0].name).toBe(adopted ? 'Agent' : 'Original')
+  expect(writes).toHaveBeenCalledTimes(adopted ? 1 : 0)
+  expect(useShowStore.getState().showHistories.test?.past.length ?? 0).toBe(adopted ? 1 : 0)
+})

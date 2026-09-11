@@ -64,6 +64,10 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
       return { code: 'begun', operationId: delivery.operationId, baseRevision: captured.request.baseRevision, show: structuredClone(captured.show), context: structuredClone(captured.context) }
     }
     if (!operation) return { code: 'unknown' }
+    if (payload.kind === 'cancel_edit') {
+      finish(delivery.operationId, operation)
+      return outcome(owner.cancel(operation.request))
+    }
     if (!operation.private) return { code: 'finished' }
     if (payload.kind === 'command') {
       const result = applyShowCommand(operation.private.show, payload.name, payload.arguments, operation.private.commandContext)
@@ -86,7 +90,6 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
     }
     const candidate = operation.private
     finish(delivery.operationId, operation)
-    if (payload.kind === 'cancel_edit') return outcome(owner.cancel(operation.request))
     if (payload.kind === 'complete_edit') return outcome(owner.complete(operation.request, payload.completion))
     return { ...outcome(owner.apply(candidate.show, operation.request, candidate.resize)), changes: structuredClone(candidate.changes) }
   }
