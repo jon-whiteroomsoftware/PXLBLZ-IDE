@@ -20,6 +20,7 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
   let windowIdentity: WindowIdentity | undefined
   let connection: AgentBrowserConnection = { kind: 'idle' }
   let lastConnection: AgentWindowConnection = { kind: 'idle' }
+  let lastSeenConnection: string | undefined
   let executor: ReturnType<typeof createAgentPrivateExecutor> | undefined
   let bindingId: string | undefined
   let closed = false
@@ -69,11 +70,11 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
     while (!closed && windowIdentity) {
       const version = controlVersion
       try {
-        const reply = await post({ type: 'receive', ...windowIdentity }, abort.signal)
+        const reply = await post({ type: 'receive', ...windowIdentity, ...(lastSeenConnection ? { lastSeenConnection } : {}) }, abort.signal)
         if (closed) return
         // Synchronous local retirement invalidates already-held responses before adoption.
         if (version !== controlVersion) continue
-        if (reply.connection) update(reply.connection)
+        if (reply.connection) { lastSeenConnection = JSON.stringify(reply.connection); update(reply.connection) }
         else if (reply.code === 'retired') { retire(); connection = { kind: 'refused', code: 'retired' }; emit({ type: 'connection', connection }); return }
         else if (reply.code !== 'superseded') { contactLost(); await pause() }
         for (const delivery of reply.deliveries ?? []) {
@@ -98,7 +99,7 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
   const control = async (type: string, extra: object = {}): Promise<PrivateEditResult> => {
     if (closed || !windowIdentity) return { code: 'unavailable' }
     try {
-      // The account wakes its held receive after every control transition.
+      // Receive compares its last observed view and wakes on later transitions.
       // Independent HTTP replies are action results, not ordered snapshots:
       // a delayed arm/disarm response must not retire a newer bound executor.
       return await post({ type, ...windowIdentity, ...extra }, abort.signal)
@@ -121,7 +122,7 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
       const identity = { registrationId: result.registrationId, sessionId: admission.sessionId, showId }
       if (closed) { void post({ type: 'leave', ...identity }).catch(() => {}); return undefined }
       windowIdentity = identity
-      if (result.connection) update(result.connection)
+      if (result.connection) { lastSeenConnection = JSON.stringify(result.connection); update(result.connection) }
       void receive()
       return { ...identity }
     } catch { if (!closed) contactLost(); return undefined }

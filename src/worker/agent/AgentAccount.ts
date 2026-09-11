@@ -23,7 +23,7 @@ export interface AgentAccountNamespace {
 }
 
 export type AgentWindowChannelCommand = WindowCommand
-  | ({ type: 'receive' } & WindowIdentity)
+  | ({ type: 'receive'; lastSeenConnection?: string } & WindowIdentity)
   | ({ type: 'reply'; bindingId: string; operationId: string; deliveryId: string; result: PrivateEditResult } & WindowIdentity)
 type AccountCommand = RendezvousCommand | AgentWindowChannelCommand
   | { type: 'relay-dispatch'; identity: AgentClaim; delivery: AgentDeliveryInput; accountId: string }
@@ -35,6 +35,7 @@ interface AccountRead { body: AccountBody; status: number; state: RendezvousStat
 export class AgentAccount {
   private readonly storage: AccountStorage
   private relay?: AgentRelay
+  private changeEpoch = {}
   private readonly waiting = new Map<string, (reason: 'changed' | 'timeout' | 'superseded') => void>()
   constructor(ctx: { storage: AccountStorage }) { this.storage = ctx.storage }
 
@@ -47,11 +48,12 @@ export class AgentAccount {
       return agentResponse(await (command.type === 'relay-dispatch' ? relay.dispatch(command.delivery) : relay.query(command.query)))
     }
     if (command.type === 'receive') {
+      const epoch = this.changeEpoch
       const first = await this.coordinate({ ...command, type: 'heartbeat' })
       if (first.status !== 200) return agentResponse(first.body, first.status)
       let deliveries = this.take(first, command)
-      if (deliveries.length) return agentResponse({ ...first.body, deliveries })
-      const reason = await this.waitForChange(command.registrationId)
+      if (deliveries.length || (command.lastSeenConnection !== undefined && command.lastSeenConnection !== JSON.stringify(first.body.connection))) return agentResponse({ ...first.body, deliveries })
+      const reason = await this.waitForChange(command.registrationId, epoch)
       if (reason === 'superseded') return agentResponse({ code: 'superseded', deliveries: [] })
       const read = await this.coordinate({ ...command, type: 'poll' })
       deliveries = this.take(read, command)
@@ -103,8 +105,11 @@ export class AgentAccount {
     if (read.status !== 200 || read.body.connection?.kind !== 'bound' || this.relay?.scope.registrationId !== window.registrationId || this.relay.scope.sessionId !== window.sessionId || this.relay.scope.showId !== window.showId || this.relay.scope.bindingId !== read.body.connection.bindingId) return []
     return this.relay.take()
   }
-  private wake() { for (const resolve of this.waiting.values()) resolve('changed') }
-  private waitForChange(key: string): Promise<'changed' | 'timeout' | 'superseded'> {
+  private wake() { this.changeEpoch = {}; for (const resolve of this.waiting.values()) resolve('changed') }
+  private waitForChange(key: string, epoch: object): Promise<'changed' | 'timeout' | 'superseded'> {
+    // A transition between the snapshot read and waiter registration is durable
+    // for this receive even when no waiter existed at the instant of wake.
+    if (epoch !== this.changeEpoch) return Promise.resolve('changed')
     this.waiting.get(key)?.('superseded')
     return new Promise(resolve => {
       const finish = (reason: 'changed' | 'timeout' | 'superseded') => { clearTimeout(timer); if (this.waiting.get(key) === finish) this.waiting.delete(key); resolve(reason) }

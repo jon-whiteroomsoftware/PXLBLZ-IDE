@@ -133,8 +133,13 @@ accounts. Browser JSON cannot invoke this resolver or select a trusted actor.
 After registration, the single receive loop owns connection snapshots. Arm,
 Disarm and Answer responses report action results only: independent HTTP
 responses can arrive out of order, so an older control snapshot must never
-retire a binding already observed by receive. The account owner wakes held
-receives after control transitions; later receives read current account state.
+retire a binding already observed by receive. Each receive carries the last
+server connection view observed by this browser. The account owner returns its
+current view immediately when it differs, including transitions with no held
+receive. A local wake epoch closes the snapshot-read to waiter-registration
+gap; unchanged views remain held until a transition, delivery, or timeout. The
+bounded comparison string is an observation hint, never authorization. Older
+callers omitting the hint retain the existing held-receive behavior.
 Local Disconnect and editor close still retire the executor synchronously and
 invalidate already-held deliveries before network cleanup. A failed control
 request does not replace a healthy receive stream with an inferred connection
@@ -145,3 +150,9 @@ until a newer bound receive has admitted a private operation. Arm and Disarm
 retain that binding without cancellation; Answer preserves the same executor.
 Same-binding outcome lookup and commit remain usable, with one capture and one
 application. These transport tests make no provider calls.
+
+The actual-workerd positive cases in `browserSessionOrdering.runtime.test.ts`
+withhold receives before server dispatch, perform arm/disarm/Answer, then assert
+the browser promptly observes armed/idle/bound respectively. The same file
+retains delayed-control preservation cases. Neither control completion nor
+connection observation replays an operation or changes retirement ownership.

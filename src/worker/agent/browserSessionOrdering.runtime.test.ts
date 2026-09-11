@@ -14,7 +14,7 @@ beforeAll(async () => {
 })
 afterAll(async () => { await Promise.all(runtimes.map(runtime => runtime.dispose())) })
 interface Namespace { idFromName(name: string): unknown; get(id: unknown): { fetch(url: string, init: RequestInit): Promise<Response> } }
-async function fixture() {
+async function fixture(pauseReceives = false) {
   const runtime = new Miniflare(convertV4MiniflareOptions({ modules: true, script, compatibilityDate: '2026-06-30', bindings: { SESSION_SECRET: 'ordering-test', AGENT_SERVICE_ENABLED: '1', AGENT_ACCOUNT_ALLOWLIST: 'ordering-account' }, durableObjects: { AGENT_ACCOUNTS: { className: 'AgentAccount', useSQLite: true } } }))
   runtimes.push(runtime)
   const cookie = `pxlblz_session=${await createSessionToken({ userId: 'ordering-account', primaryProvider: 'github', primaryHandle: null, displayName: null, avatarUrl: null }, 'ordering-test')}`
@@ -32,10 +32,11 @@ async function fixture() {
   let delayType: string | undefined
   let release: (() => void) | undefined
   let held: { code: string; connection?: { kind: string } } | undefined
+  let resumeReceive: (() => void) | undefined
   let receives = 0
   const session = createAgentBrowserSession({ admission: admission as unknown as ReturnType<typeof createAgentEditorAdmission>, showId: request.showId, fetch: async (_url, init) => {
     const body = JSON.parse(init?.body as string)
-    if (body.type === 'receive') receives++
+    if (body.type === 'receive') { receives++; if (pauseReceives) await new Promise<void>(resolve => { resumeReceive = resolve }) }
     const response = await runtime.dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Origin: 'https://app.test', 'Content-Type': 'application/json', Cookie: cookie }, body: JSON.stringify(body) })
     const result = await response.json() as { code: string; connection?: { kind: string } }
     if (body.type === delayType) { held = result; await new Promise<void>(resolve => { release = resolve }) }
@@ -56,7 +57,7 @@ async function fixture() {
     expect(await internal({ type: 'relay-dispatch', accountId: 'ordering-account', identity, delivery: { operationId: 'op', deliveryId: 'commit', sequence: 1, payload: { kind: 'commit_edit' } } })).toMatchObject({ code: 'outcome' })
     expect(admission.beginRequest).toHaveBeenCalledOnce(); expect(admission.applyShow).toHaveBeenCalledOnce()
   }
-  return { session, identity, internal, assertPreserved, delay(type: string) { delayType = type }, held: () => held, receives: () => receives }
+  return { session, identity, internal, assertPreserved, resumeReceive: () => resumeReceive?.(), delay(type: string) { delayType = type }, held: () => held, receives: () => receives }
 }
 it.each(['arm', 'disarm', 'answer'] as const)('a delayed %s result cannot supersede a newer authoritative bound receive', async kind => {
   const f = await fixture()
@@ -78,3 +79,27 @@ it.each(['arm', 'disarm', 'answer'] as const)('a delayed %s result cannot supers
     await f.assertPreserved(pending)
   } finally { f.session.close() }
 }, 15_000)
+
+it.each(['arm', 'disarm', 'answer'] as const)('observes %s promptly when its transition has no held receive', async kind => {
+  const f = await fixture(true)
+  try {
+    await vi.waitFor(() => expect(f.receives()).toBe(1))
+    if (kind === 'answer') {
+      expect(await f.internal({ type: 'claim', ...f.identity })).toMatchObject({ code: 'pending' })
+      f.resumeReceive()
+      await vi.waitFor(() => expect(f.session.getConnection()).toMatchObject({ kind: 'pending' }))
+      await vi.waitFor(() => expect(f.receives()).toBe(2))
+      expect(await f.session.answer('call')).toMatchObject({ code: 'bound' })
+    } else {
+      expect(await f.session.arm()).toMatchObject({ code: 'armed' })
+      if (kind === 'disarm') {
+        f.resumeReceive()
+        await vi.waitFor(() => expect(f.session.getConnection()).toMatchObject({ kind: 'armed' }))
+        await vi.waitFor(() => expect(f.receives()).toBe(2))
+        expect(await f.session.cancelArm()).toMatchObject({ code: 'disarmed' })
+      }
+    }
+    f.resumeReceive()
+    await vi.waitFor(() => expect(f.session.getConnection()).toMatchObject({ kind: kind === 'arm' ? 'armed' : kind === 'disarm' ? 'idle' : 'bound' }), { timeout: 1500 })
+  } finally { f.session.close(); f.resumeReceive() }
+}, 10_000)
