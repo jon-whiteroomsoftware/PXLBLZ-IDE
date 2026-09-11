@@ -1,3 +1,4 @@
+import { agentRefusalMessage } from '@/engine/agentRefusalMessage'
 import { agentInsertionBand, createAgentDrawerState, transitionAgentDrawer, type AgentChange, type AgentDrawerEvent, type AgentOutcome } from '@/engine/agentDrawerModel'
 import type { ShowEditRequest } from '@/engine/showEditAdmission'
 import type { createAgentEditorAdmission } from './editorAdmission'
@@ -60,7 +61,7 @@ export function createProductionDrawerController(api: Admission, showId: string,
   const syncConnection = (next: DrawerConnection) => {
     connection = next
     if (next.kind === 'contact-lost' || next.kind === 'retiring') { emit({ type: 'drop' }); return }
-    if (next.kind === 'refused') { emit({ type: 'system', text: `Connection refused: ${next.code}` }); return }
+    if (next.kind === 'refused') { emit({ type: 'system', text: agentRefusalMessage(next.code) }); return }
     if (next.kind === 'occupied') { emit({ type: 'system', text: 'Another editor window owns the account connection.' }); return }
     if (next.kind === 'idle' && state.connection) { refresh(); emit({ type: 'disconnect' }) }
     emit({ type: 'connection', connection: next.kind === 'bound' ? { kind: next.agentKind, name: next.agentName } : null, armingUntil: next.kind === 'armed' ? next.expiresAt : null, pendingCall: next.kind === 'pending' ? { name: next.agentName, expiresAt: next.expiresAt } : null, contactLost: false })
@@ -68,7 +69,7 @@ export function createProductionDrawerController(api: Admission, showId: string,
   const action = async (run: () => Promise<Result>) => {
     try {
       const result = await run()
-      if (!disposed && !['bound', 'armed', 'disarmed', 'declined', 'disconnected', 'forgotten', 'idle', 'status', 'retiring', 'outcome'].includes(result.code)) emit({ type: 'system', text: `Request refused: ${result.code}` })
+      if (!disposed && !['bound', 'armed', 'disarmed', 'declined', 'disconnected', 'forgotten', 'idle', 'status', 'retiring', 'outcome'].includes(result.code)) emit({ type: 'system', text: agentRefusalMessage(result.code) })
     } catch { emit({ type: 'drop' }) }
   }
   const stopChannel = channel.subscribe(event => {
@@ -129,7 +130,7 @@ export function createProductionDrawerController(api: Admission, showId: string,
         try {
           const begun = await builtin({ action: 'begin' })
           if (disposed) return
-          if (begun.code !== 'started' || typeof begun.operationId !== 'string') { emit({ type: 'system', text: `Request refused: ${begun.code}` }); return }
+          if (begun.code !== 'started' || typeof begun.operationId !== 'string') { emit({ type: 'system', text: agentRefusalMessage(begun.code) }); return }
           const id = begun.operationId
           operations.set(id, { changes: [] })
           emit({ type: 'draft', text: '' }); emit({ type: 'say', text: prompt }); emit({ type: 'beginEdit', id, intent: prompt })
