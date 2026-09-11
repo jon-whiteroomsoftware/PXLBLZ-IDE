@@ -565,6 +565,8 @@ continues. Managing another window's connection is not available in this version
 The built-in testing service has a $10 daily allowance shared across enabled
 accounts. Availability and the allowance are controlled by the server. See [Agent service limits](contracts/agent-builtin-service.md)
 and [connection lifecycle](contracts/agent-rendezvous.md) for the detailed rules.
+[Privacy](PXLBLZ Privacy.md) explains what the built-in service and external
+clients receive.
 
 ## 18. Built-in Shows to learn from
 

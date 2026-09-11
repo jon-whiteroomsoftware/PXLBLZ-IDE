@@ -1,6 +1,13 @@
 # Agent MCP routing slice (#963)
 
-This approved next slice connects validated external OAuth identity to the existing account rendezvous and one browser-owned private Show executor. The builtin service (#957) consumes the same executor and account owner. OAuth authorization is landed; this slice adds routing. Focused implementation evidence is recorded in the as-built contracts; integrated browser proof and client qualification (#964) remain separate.
+This document records the accepted routing design connecting validated external
+OAuth identity to the account rendezvous and browser-owned private Show executor.
+Current implementation and evidence are described in the
+[OAuth/MCP contract](../reference/contracts/agent-oauth-discovery.md) and
+[connection contract](../reference/contracts/agent-rendezvous.md). The built-in
+service consumes the same executor and account owner. Real-client qualification
+(#964) remains separate from the local protocol and browser evidence.
+
 
 ## Ownership and admission
 

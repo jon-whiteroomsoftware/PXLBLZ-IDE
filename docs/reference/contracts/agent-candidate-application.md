@@ -592,7 +592,7 @@ remain separate observations, not latency acceptance thresholds.
 [Preview and delivery publication](show-state-history-persistence.md#preview-and-delivery-publication)
 defines stale reconstruction and prepared Controller snapshot ownership.
 
-## Diagnostic Agent drawer (#957)
+## Agent drawer
 
 The editable Show route's exact `?agent=1` gate exposes a right-edge Agent
 drawer in production and development. Its session activity and timeline attribution project
@@ -633,8 +633,11 @@ in `src/dev/agentDrawerController.ts`. Focused tests cover unread
 transitions, unknown recovery, ownership checks, insertion metadata, late
 refusal, and narrow pin restoration. Browser baseline D957 covers real scripted
 adoption/save, the double outline, unread clearing, a conflicting manual edit,
-and Undo on the Show route. External connection controls are presentation
-states here, with no production attachment or cross-window recovery claim.
+and Undo on the Show route. Production external connections use the shared
+browser session and private executor through the authenticated account relay.
+The [OAuth/MCP contract](agent-oauth-discovery.md) describes transport identity
+and qualification. Cross-window connection management remains outside this
+version; the diagnostic adapter does not authorize production attachments.
 
 ## Shared production admission owner (#963)
 
