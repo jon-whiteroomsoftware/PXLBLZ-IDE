@@ -117,3 +117,11 @@ it('bounds account starts across different bindings with a rolling minute window
   now += 1
   expect((await f.send({ type: 'begin', owner: 'same/b4', accountId: 'same' })).code).toBe('started')
 })
+it('activates a server-issued operation only once before any private execution', async () => {
+  const f = fixture(), owner = 'a/b'
+  const { operationId } = await f.send({ type: 'begin', owner })
+  const results = await Promise.all([f.send({ type: 'activate', owner, operationId }), f.send({ type: 'activate', owner, operationId })])
+  expect(results.map(result => result.code).sort()).toEqual(['activated', 'duplicate'])
+  f.restart()
+  expect((await f.send({ type: 'activate', owner, operationId })).code).toBe('duplicate')
+})

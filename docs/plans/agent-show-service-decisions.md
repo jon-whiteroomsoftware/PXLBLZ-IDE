@@ -183,3 +183,10 @@ response identity must match it and the default tier exactly. Live response
 identity and usage compatibility remain qualification requirements: injected
 responses prove the control flow, not a paid provider session. An unexpected
 model/tier persists the same halt as an accounting overrun and retains spend.
+
+Production v1 keeps the existing finite Retry qualification: one successful
+canonical `resize_clip` with its resolved Clip ID and exact duration. Retry gets
+a new operation and `retryOf` on fresh state, retaining the original failure and
+composer draft. Multi-command plans, generated IDs and relative intent are not
+replayed. Other failures offer their truthful outcome and Dismiss; a fresh user
+request remains available. This does not reduce the canonical edit tool surface.

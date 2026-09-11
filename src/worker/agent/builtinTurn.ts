@@ -22,7 +22,10 @@ export async function runBuiltinTurn(deps: TurnDependencies, prompt: string): Pr
   try {
     for (let round = 0; round < AGENT_SERVICE_BOUNDS.maxRounds; round++) {
       const response = await deps.dispatch({ round, input: structuredClone(input), tools: builtinTools })
-      if (!response.ok) return { ...await complete('service-failed'), serviceCode: response.code }
+      if (!response.ok) {
+        if (response.code === 'contact_lost') return { code: 'unknown' }
+        return { ...await complete('service-failed'), serviceCode: response.code }
+      }
       const calls = response.output.filter(item => callSchema.safeParse(item).success)
       // Parallel tool calls are disabled. Unsupported output cannot silently be
       // dropped while an accompanying edit is adopted.

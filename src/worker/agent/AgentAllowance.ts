@@ -11,6 +11,7 @@ interface Operation {
   owner: string
   epoch: number
   finished: boolean
+  activated?: boolean
   rounds: Record<string, { day: string; id: string }>
 }
 interface Stored { allowance: AgentAllowanceState; operations: Record<string, Operation> }
@@ -58,6 +59,14 @@ export class AgentAllowance {
         const settled = settleAgentDispatch(state.allowance, prior.day, prior.id, command.usage)
         state.allowance = settled.state
         return reply(settled.result)
+      }
+      if (command.type === 'activate') {
+        if (now < op.epoch || now >= op.epoch + DAY_MS) return reply('expired')
+        if (op.finished) return reply('finished')
+        if (op.activated) return reply('duplicate')
+        if (state.allowance.halted) return reply('halted')
+        op.activated = true
+        return reply('activated')
       }
       if (command.type !== 'reserve') return reply('invalid_request')
       if (now < op.epoch || now >= op.epoch + DAY_MS) return reply('expired')

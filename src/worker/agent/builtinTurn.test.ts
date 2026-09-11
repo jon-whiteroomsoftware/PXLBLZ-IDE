@@ -50,3 +50,9 @@ it('bounds rounds and preserves unknown delivery outcomes without replay', async
   expect(await runBuiltinTurn(g, 'Edit')).toMatchObject({ code: 'unknown' })
   expect(g.deliver).toHaveBeenCalledTimes(2)
 })
+it('preserves private work when dispatch loses editor contact', async () => {
+  const f = fixture([])
+  const result = await runBuiltinTurn({ deliver: f.deliver, dispatch: async () => ({ ok: false, code: 'contact_lost' }) }, 'Edit')
+  expect(result).toEqual({ code: 'unknown' })
+  expect(f.deliveries.map(x => x.kind)).toEqual(['begin_edit'])
+})
