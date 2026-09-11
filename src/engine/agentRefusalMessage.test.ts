@@ -11,6 +11,7 @@ it.each([
   ['revision-conflict', 'The Show changed before this edit could be applied.'],
   ['interaction-timeout', 'Finish the current manual edit, then try again.'],
   ['service-failed', 'The agent could not finish this edit. Nothing was applied.'],
+  ['disconnected_not_forgotten', 'Disconnected, but this agent could not be forgotten. Reconnect it and try Forget again.'],
   ['unexpected_secret_code', 'Agent editing is unavailable right now.'],
 ])('explains %s without exposing transport codes', (code, expected) => {
   expect(agentRefusalMessage(code)).toBe(expected)

@@ -50,14 +50,16 @@ export async function onRequestPost({ request, env }: { request: Request; env: W
   const accountId = env.AGENT_ACCOUNTS.idFromName(session.userId)
   const stub = env.AGENT_ACCOUNTS.get(accountId)
   if (command.type === 'forget') {
-    const owned = await stub.fetch(new Request('https://agent-account.internal/window', { method: 'POST', body: JSON.stringify({ ...command, type: 'resolve-forget' }) }))
-    const current = await owned.json() as { code: string; claim?: AgentClaim }
-    if (current.code !== 'bound' || current.claim?.agentKind !== 'external') return agentResponse({ code: 'not_bound_here' }, 409)
+    let current: { code: string; claim?: AgentClaim }
+    try {
+      const owned = await stub.fetch(new Request('https://agent-account.internal/window', { method: 'POST', body: JSON.stringify({ ...command, type: 'disconnect-forget' }) }))
+      current = await owned.json() as typeof current
+    } catch { return agentResponse({ code: 'retirement_unconfirmed' }, 503) }
+    if (current.code !== 'disconnected' || current.claim?.agentKind !== 'external') return agentResponse({ code: 'not_bound_here' }, 409)
+    // The exact owner has ended editing. Credential revocation is a separate outcome;
+    // its callbacks cannot invalidate that already-committed confirmation.
     const revoked = await agentGrantAction(env, session.userId, current.claim.agentId, 'revoke')
-    if (revoked.code !== 'credentials_revoked') return agentResponse({ code: 'retirement_unconfirmed' }, 503)
-    const ended = await stub.fetch(new Request('https://agent-account.internal/window', { method: 'POST', body: JSON.stringify({ ...command, type: 'disconnect' }) }))
-    const result = await ended.json() as { code: string }
-    return agentResponse({ code: result.code === 'disconnected' ? 'forgotten' : 'retirement_unconfirmed' })
+    return agentResponse({ code: revoked.code === 'credentials_revoked' ? 'forgotten' : 'disconnected_not_forgotten' })
   }
   return stub.fetch(new Request('https://agent-account.internal/window', { method: 'POST', body: JSON.stringify(command) }))
 }

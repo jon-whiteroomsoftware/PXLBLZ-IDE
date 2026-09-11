@@ -102,18 +102,18 @@ export class AgentAccount {
       const now = Date.now()
       const stored = await storage.get<StoredAccount>('account') ?? { rendezvous: emptyRendezvous(), throttle: { start: now, count: 0 } }
       const throttle = now >= stored.throttle.start + 60_000 ? { start: now, count: 0 } : stored.throttle
-      const ending = command.type === 'leave' || command.type === 'disconnect' || command.type === 'disarm' || command.type === 'retirement-ack' || command.type === 'retire-grant' || command.type === 'resolve-forget'
+      const ending = command.type === 'leave' || command.type === 'disconnect' || command.type === 'disarm' || command.type === 'retirement-ack' || command.type === 'retire-grant' || command.type === 'disconnect-forget'
       if (throttle.count >= 240 && !ending) return { body: { code: 'throttled' }, status: 429, state: stored.rendezvous }
       if (!ending) throttle.count += 1
       const { state, result } = transitionRendezvous(stored.rendezvous, command, now)
       await storage.put('account', { rendezvous: state, throttle })
       await scheduleExpiry(storage, state, throttle.start + 60_000)
       const reply = (body: AccountBody, status = 200): AccountRead => ({ body, status, state })
-      if (command.type === 'claim' || command.type === 'inspect' || command.type === 'resolve-builtin' || command.type === 'connect-external' || command.type === 'resolve-external' || command.type === 'resolve-forget') {
+      if (command.type === 'claim' || command.type === 'inspect' || command.type === 'resolve-builtin' || command.type === 'connect-external' || command.type === 'resolve-external') {
         const slot = state.slot
         const target = slot?.kind === 'bound' && !slot.retiring ? state.registrations.find(item => item.registrationId === slot.registrationId) : undefined
         const body: AccountBody = { ...result }
-        if (['connect-external', 'resolve-external', 'resolve-forget'].includes(command.type)
+        if (['connect-external', 'resolve-external'].includes(command.type)
           && (result.code === 'bound' || result.code === 'pending') && slot && (slot.kind === 'bound' || slot.kind === 'pending')) {
           body.claim = { agentId: slot.agentId, agentName: slot.agentName, agentKind: slot.agentKind, callId: slot.callId, bindingId: slot.bindingId }
           if (slot.kind === 'pending') body.expiresAt = slot.expiresAt
@@ -126,7 +126,7 @@ export class AgentAccount {
       return reply({ ...result, ...(command.type === 'register' ? { registrationId: command.registrationId } : {}), connection: windowRendezvousView(state, command.registrationId) })
     })
     this.reconcile(read.state)
-    if (!['poll', 'heartbeat', 'inspect', 'resolve-builtin', 'resolve-external', 'resolve-forget'].includes(command.type)) this.wake()
+    if (!['poll', 'heartbeat', 'inspect', 'resolve-builtin', 'resolve-external'].includes(command.type)) this.wake()
     return read
   }
 

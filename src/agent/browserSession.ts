@@ -159,12 +159,13 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
     answer: callId => control('answer', { callId }), decline: callId => control('decline', { callId }),
     disconnect() {
       ++controlVersion
-      const ownedBinding = bindingId
+      const ownedBinding = bindingId ?? retiredBinding
       retire()
       update({ kind: 'idle' })
       return ownedBinding ? control('disconnect', { bindingId: ownedBinding }) : Promise.resolve({ code: 'not_bound_here' })
     },
     forget() {
+      ++controlVersion
       if (lastConnection.kind !== 'bound' || lastConnection.agentKind !== 'external' || !bindingId) return Promise.resolve({ code: 'unsupported' })
       const ownedBinding = bindingId
       retire()

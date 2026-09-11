@@ -34,10 +34,10 @@ export type RendezvousCommand = WindowCommand
   | ({ type: 'connect-external' } & AgentClaim)
   | { type: 'resolve-external'; agentId: string; callId?: string }
   | ({ type: 'resolve-builtin' } & WindowIdentity)
-  | ({ type: 'resolve-forget'; bindingId: string } & WindowIdentity)
+  | ({ type: 'disconnect-forget'; bindingId: string } & WindowIdentity)
   | { type: 'retire-grant'; agentId: string }
   | { type: 'expire' }
-export interface RendezvousResult { code: string; contact?: 'live' | 'lost' }
+export interface RendezvousResult { code: string; contact?: 'live' | 'lost'; claim?: AgentClaim }
 export function emptyRendezvous(): RendezvousState { return { registrations: [], slot: null } }
 
 export function expireRendezvous(previous: RendezvousState, now: number): RendezvousState {
@@ -102,7 +102,13 @@ export function transitionRendezvous(previous: RendezvousState, command: Rendezv
   }
   const registration = state.registrations.find((item) => item.registrationId === command.registrationId && item.sessionId === command.sessionId && item.showId === command.showId)
   if (!registration) return result('retired')
-  if (command.type === 'resolve-forget') return result(state.slot?.kind === 'bound' && state.slot.registrationId === registration.registrationId && state.slot.agentKind === 'external' && state.slot.bindingId === command.bindingId ? 'bound' : 'not_bound_here')
+  if (command.type === 'disconnect-forget') {
+    const slot = state.slot
+    if (slot?.kind !== 'bound' || slot.registrationId !== registration.registrationId || slot.agentKind !== 'external' || slot.bindingId !== command.bindingId) return result('not_bound_here')
+    const claim: AgentClaim = { agentId: slot.agentId, agentName: slot.agentName, agentKind: slot.agentKind, callId: slot.callId, bindingId: slot.bindingId }
+    state.slot = null
+    return { state, result: { code: 'disconnected', claim } }
+  }
   if (command.type === 'resolve-builtin') return result(state.slot?.kind === 'bound' && state.slot.registrationId === registration.registrationId && state.slot.agentKind === 'builtin' ? 'bound' : 'not_bound_here')
   if (command.type === 'disarm') {
     if (state.slot?.kind !== 'armed' || state.slot.registrationId !== registration.registrationId) return result('not_armed_here')

@@ -79,9 +79,17 @@ account, origin and capability checks but permit cleanup after URL opt-out,
 allowlist removal, service disable, Show deletion or request throttling. Cleanup
 responses disclose no connection metadata. Sign-out must request leave before
 losing its cookie; an unreachable tab is eventually retired by stale expiry.
-Another window cannot disconnect the owner. Forget resolves the exact owning
-external binding, revokes its grant and ends that binding; a failed revocation
-returns `retirement_unconfirmed`, never success from disconnect alone. `disarm`
+Another window cannot disconnect the owner. Local Forget synchronously retires
+browser work, then atomically ends its exact owning external binding and resolves
+the trusted grant identity inside the account owner. Grant revocation follows
+that committed end. `forgotten` confirms both; `disconnected_not_forgotten`
+confirms editing ended but not credential removal. The UI explains that the agent
+must reconnect before trying Forget again. No grant identity reaches the browser.
+A failed or unknown owner request remains `retirement_unconfirmed`; an absent or
+wrong binding is never inferred to have ended. Revocation callbacks racing an
+already-confirmed end cannot turn it into an unconfirmed result. The browser
+retains a retired binding identity only for subsequent local end controls after
+unknown transport, never to restore its executor or replay work. `disarm`
 clears only the armed slot belonging to its exact window.
 
 ## Storage and failure ownership

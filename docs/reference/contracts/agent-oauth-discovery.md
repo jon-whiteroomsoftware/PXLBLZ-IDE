@@ -129,8 +129,11 @@ unapplied work synchronously, then acknowledges retirement. Only that ACK confir
 editing ended. OAuth revocation HTTP200 confirms credential revocation only;
 notification failure or an unreachable editor remains unconfirmed. Work adopted
 before acknowledgement retains its truthful save receipt. Local Forget first
-retires browser work, then revokes the exact attached external grant and ends
-that binding; another window cannot invoke it for the owner.
+retires browser work, then atomically ends the exact attached external binding
+before attempting its grant removal. Failed grant removal reports editing ended
+but Forget unconfirmed; it cannot leave that slot occupied. Another window
+cannot invoke it for the owner. The account owner returns the grant only over
+the private server seam, and the public result never exposes it.
 
 ## Qualification and next seam
 

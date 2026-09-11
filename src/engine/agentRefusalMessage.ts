@@ -26,6 +26,7 @@ export function agentRefusalMessage(code: string): string {
     case 'show_unavailable': return 'This Show is no longer available for agent editing.'
     case 'opt_in_required': return 'Agent editing is no longer enabled in this window.'
     case 'expired': return 'This request has expired. Make a new request to continue.'
+    case 'disconnected_not_forgotten': return 'Disconnected, but this agent could not be forgotten. Reconnect it and try Forget again.'
     case 'capacity': return 'Agent editing is busy right now. Try again later.'
     case 'request_too_large': case 'request_limit': return 'This request is too large. Try a smaller edit.'
     default: return 'Agent editing is unavailable right now.'
