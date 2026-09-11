@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "989",
+  "route": "/PXLBLZ-IDE/docs/privacy",
+  "operation": "Rendered Agent data disclosure and verified primary provider link; 720px layout has no horizontal overflow.",
+  "captures": [
+    ".wrsp/ui-proof/989-privacy-agent.png",
+    ".wrsp/ui-proof/989-privacy-provider.png",
+    ".wrsp/ui-proof/989-privacy-narrow.png"
+  ],
+  "capturedAtCommit": "75a5e012d38bc719743bf52015f231fc825499b4"
+}

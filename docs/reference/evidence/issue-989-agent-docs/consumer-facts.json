@@ -1,0 +1,18 @@
+{
+  "sourceCommit": "75a5e012d38bc719743bf52015f231fc825499b4",
+  "base": "http://localhost:5209",
+  "featureGuide": {
+    "url": "http://localhost:5209/PXLBLZ-IDE/docs/feature-guide",
+    "heading": "Agent editing",
+    "privacyHref": "#/docs/privacy"
+  },
+  "privacy": {
+    "url": "http://localhost:5209/PXLBLZ-IDE/docs/privacy",
+    "providerHref": "https://developers.openai.com/api/docs/guides/your-data"
+  },
+  "narrow": {
+    "width": 720,
+    "horizontalOverflow": false
+  },
+  "pageRuntimeErrors": []
+}

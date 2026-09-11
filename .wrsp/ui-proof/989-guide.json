@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "989",
+  "route": "/PXLBLZ-IDE/docs/feature-guide",
+  "operation": "Rendered Agent instructions and keyboard activation of the in-app Privacy link.",
+  "captures": [
+    ".wrsp/ui-proof/989-feature-guide.png"
+  ],
+  "capturedAtCommit": "75a5e012d38bc719743bf52015f231fc825499b4"
+}

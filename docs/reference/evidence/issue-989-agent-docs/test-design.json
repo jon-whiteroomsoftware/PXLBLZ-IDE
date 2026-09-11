@@ -1,0 +1,23 @@
+{
+  "invariants": [
+    "Agent user instructions and glossary match final source without claiming live provider or real-client qualification.",
+    "Privacy distinguishes actual processing and default provider policy from unverified tenant retention.",
+    "Historical plans remain history; current contracts remain authoritative."
+  ],
+  "partitions": [
+    "Built-in/external connection, saved personal/session draft, Retry/new request, Dismiss/Undo, contact loss/retirement.",
+    "Guide/Privacy/catalogue engineering links; desktop/720px and keyboard navigation."
+  ],
+  "sequences": [
+    "Open actual FeatureGuide Agent section, activate Privacy by keyboard, inspect Agent processing and OpenAI disclosure, narrow viewport."
+  ],
+  "oracles": [
+    "Rendered actual candidate docs text and route, href to primary OpenAI source, no horizontal overflow or page runtime errors.",
+    "101 local relative links resolve;5 existing docs catalogue tests pass; final MCP source and actual local proof consulted."
+  ],
+  "residualGaps": [
+    "This is only Agent portion of989; wider release inventory/manual campaign remains open.",
+    "No paid/live-provider, real externalclient/hostedconnector, deployment or Controller qualification.",
+    "Root final suites/native review/landing pending; repository external links await publication."
+  ]
+}
