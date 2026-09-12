@@ -28,6 +28,32 @@ describe('agent drawer activity projection', () => {
     expect(state).toEqual(settled)
   })
 
+  it('keeps repeated waiting updates identity-stable and advances only active thinking on calls', () => {
+    let state = transitionAgentDrawer(createAgentDrawerState(), { type: 'chooseBuiltin' })
+    state = transitionAgentDrawer(state, { type: 'beginEdit', id: 'one', intent: 'Shorten the opening' })
+    state = transitionAgentDrawer(state, { type: 'thinking', id: 'one' })
+    state = transitionAgentDrawer(state, { type: 'call', id: 'one', name: 'resize_clip' })
+    expect(state.request?.phase).toBe('working')
+    expect(state.stream[0]).toMatchObject({ phase: 'working', calls: ['resize_clip'] })
+
+    state = transitionAgentDrawer(state, { type: 'waiting', id: 'one' })
+    const waiting = transitionAgentDrawer(state, { type: 'waiting', id: 'one' })
+    expect(waiting).toBe(state)
+    state = transitionAgentDrawer(waiting, { type: 'call', id: 'one', name: 'late_call' })
+    expect(state.request?.phase).toBe('waiting')
+    expect(state.stream[0]).toMatchObject({ phase: 'waiting', calls: ['resize_clip', 'late_call'] })
+
+    state = transitionAgentDrawer(state, { type: 'outcome', id: 'one', outcome: 'saved' })
+    state = transitionAgentDrawer(state, { type: 'call', id: 'one', name: 'settled_call' })
+    expect(state.request).toBeNull()
+    expect(state.stream[0]).toMatchObject({ outcome: 'saved', phase: undefined, calls: ['resize_clip', 'late_call', 'settled_call'] })
+
+    let requestOnly = transitionAgentDrawer(createAgentDrawerState(), { type: 'chooseBuiltin' })
+    requestOnly = transitionAgentDrawer(requestOnly, { type: 'thinking', id: 'orphan' })
+    requestOnly = transitionAgentDrawer(requestOnly, { type: 'waiting', id: 'orphan' })
+    expect(transitionAgentDrawer(requestOnly, { type: 'waiting', id: 'orphan' })).toBe(requestOnly)
+  })
+
   it('counts changed outcomes once per operation while tucked, then counts a later rollback after reading', () => {
     let state = transitionAgentDrawer(createAgentDrawerState(), { type: 'chooseBuiltin' })
     state = transitionAgentDrawer(state, { type: 'beginEdit', id: 'one', intent: 'Shorten the opening' })

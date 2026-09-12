@@ -175,6 +175,16 @@ it.each([true, false])('shows an inline draft qualifier with %s reply content an
   expect(screen.queryByTestId('agent-command-icon')).toBeNull()
 })
 
+it('shows a truthful generic saved result when recovery has no reply or recorded changes', () => {
+  controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
+  controller.dispatch({ type: 'beginEdit', id: 'one', intent: 'Recover the pending save' })
+  controller.dispatch({ type: 'outcome', id: 'one', outcome: 'unknown' })
+  controller.dispatch({ type: 'outcome', id: 'one', outcome: 'saved' })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  expect(screen.getByTestId('agent-response')).toHaveTextContent('Saved the edit.')
+  expect(screen.queryByTestId('agent-command-icon')).toBeNull()
+})
+
 it.each(['not-applied', 'rolled-back', 'cancelled', 'superseded', 'unknown'] as const)('uses the same gray final treatment without a command icon for %s', outcome => {
   controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
   controller.dispatch({ type: 'beginEdit', id: 'one', intent: 'Resize' })
@@ -227,6 +237,11 @@ it('always follows activity growth without moving input focus', () => {
   act(() => controller.dispatch({ type: 'beginEdit', id: 'one', intent: 'A request long enough to wrap over several lines in the narrow drawer' }))
   expect(log.scrollTop).toBe(480)
   expect(composer).toHaveFocus()
+  act(() => controller.dispatch({ type: 'waiting', id: 'one' }))
+  expect(log.scrollTop).toBe(480)
+  log.scrollTop = 80
+  act(() => controller.dispatch({ type: 'waiting', id: 'one' }))
+  expect(log.scrollTop).toBe(80)
   log.scrollTop = 80
   act(() => controller.dispatch({ type: 'operationReply', id: 'one', text: 'A growing multiline response\nwith another line' }))
   expect(log.scrollTop).toBe(480)

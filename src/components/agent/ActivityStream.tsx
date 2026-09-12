@@ -23,7 +23,7 @@ export function ActivityStream({ state, retry, dismiss, busy = false }: { state:
     if (showReply(line)) return line.outcome === 'draft' ? [line.reply!, 'Applied to draft.'] : [line.reply!]
     if (line.outcome === 'saved' || line.outcome === 'draft') {
       const messages = (line.changes ?? []).map(change => change.description)
-      return line.outcome === 'draft' ? [...messages, 'Applied to draft.'] : messages
+      return line.outcome === 'draft' ? [...messages, 'Applied to draft.'] : messages.length ? messages : ['Saved the edit.']
     }
     if (line.outcome === 'superseded' && line.changes?.length) {
       return [...line.changes.map(change => change.description), line.reason ?? 'Superseded by a newer save.']

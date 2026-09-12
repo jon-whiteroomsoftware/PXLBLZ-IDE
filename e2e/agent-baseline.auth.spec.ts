@@ -554,7 +554,8 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     expect(firstMain(await durableShow(page, showId))?.durationMs).toBe(8000)
     await page.getByRole('button', { name: /^Open the Agent drawer/ }).click()
     await expect(page.getByTestId('agent-unread-count')).toHaveCount(0)
-    await expect(page.locator(`[data-request-id="${id}"]`)).toContainText('saved')
+    await expect(page.locator(`[data-request-id="${id}"]`)).toHaveAttribute('data-outcome', 'saved')
+    await expect(page.locator(`[data-request-id="${id}"]`).getByTestId('agent-response')).toContainText('8 seconds')
     await page.screenshot({ path: join(REPORT_DIR, 'D957-saved-open.png'), fullPage: false, animations: 'disabled' })
     await page.getByRole('button', { name: 'Pin the Agent drawer' }).click()
     const staleId = await submitUtterance(page, BATCH_UTTERANCE)
@@ -763,7 +764,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       })
       expect(acquired).toBe(true)
       const id = await submitUtterance(page, 'make the first Clip exactly eight seconds')
-      await expect(page.getByTestId('agent-chat-log')).toContainText('waiting for you')
+      await expect(page.getByTestId('agent-chat-log')).toContainText('Waiting for you to finish')
       await expect(page.getByTestId('agent-chat-cancel')).toBeVisible()
       expect(await visibleRecord(page)).toEqual(before)
       expect(writes).toHaveLength(0)
@@ -812,7 +813,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       if (action === 'focus-only') await duration.focus()
       else await duration.fill('7')
       if (action !== 'focus-only') {
-        await expect(page.getByTestId('agent-chat-log')).toContainText('waiting for you')
+        await expect(page.getByTestId('agent-chat-log')).toContainText('Waiting for you to finish')
         await expect(duration).toBeFocused()
         await expect(duration).toHaveValue('7')
         expect(await visibleRecord(page)).toEqual(before)
@@ -896,7 +897,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       await page.locator(`[data-show-selection-key="clip:${anchor === 'left' ? 'resize-a' : 'resize-b'}"]`).click()
       const duration = page.getByRole('textbox', { name: 'Duration seconds exact time' })
       await duration.fill('3')
-      await expect(page.getByTestId('agent-chat-log')).toContainText('waiting for you')
+      await expect(page.getByTestId('agent-chat-log')).toContainText('Waiting for you to finish')
       await page.getByRole('button', { name: /Open the Agent drawer/ }).hover()
       const cancel = page.getByTestId('agent-chat-cancel')
       await expect(cancel).toBeVisible()
@@ -957,7 +958,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       await page.mouse.move(x, y)
       await page.mouse.down()
       await page.mouse.move(action === 'end-commit' ? x - surface.width / 10 : x + clip.width * 3 / 4, y, { steps: 3 })
-      try { await expect(page.getByTestId('agent-chat-log')).toContainText('waiting for you') }
+      try { await expect(page.getByTestId('agent-chat-log')).toContainText('Waiting for you to finish') }
       catch (error) {
         saveRecord(`GA-${action}-refusal`, { request: await overlayRequest(page, id), visible: await visibleRecord(page), durable: await durableShow(page, record.id) })
         throw error
@@ -1222,7 +1223,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         const duration = page.getByRole('textbox', { name: 'Duration seconds exact time' })
         await duration.fill('7')
         if (dirty) {
-          await expect(page.getByTestId('agent-chat-log')).toContainText('waiting for you')
+          await expect(page.getByTestId('agent-chat-log')).toContainText('Waiting for you to finish')
           await expect(duration).toBeFocused()
           expect(await visibleRecord(page)).toEqual(before)
           expect(await durableShow(page, record.id)).toEqual(durableBefore)
@@ -1656,7 +1657,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         await page.mouse.down()
         await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2, { steps: 3 })
       } else await target.dispatchEvent('dragstart', { dataTransfer: transfer })
-      await expect(page.getByTestId('agent-chat-log')).toContainText('waiting for you')
+      await expect(page.getByTestId('agent-chat-log')).toContainText('Waiting for you to finish')
       expect(await visibleRecord(page)).toEqual(before)
       expect(await durableShow(page, record.id)).toEqual(durableBefore)
       expect(writes).toHaveLength(0)
@@ -1772,7 +1773,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         if (action === 'clear-cancel') await surface.dispatchEvent('pointercancel', { pointerId: 1, bubbles: true })
         await page.mouse.up()
         await expect(page.getByText(action === 'clear-cancel' ? 'Indexes none' : 'Indexes 1', { exact: true })).toBeVisible()
-        await expect(page.getByTestId('agent-chat-log')).toContainText('waiting for you')
+        await expect(page.getByTestId('agent-chat-log')).toContainText('Waiting for you to finish')
         expect(await visibleRecord(page)).toEqual(before)
         expect(await durableShow(page, record.id)).toEqual(durableBefore)
         expect(writes).toHaveLength(0)

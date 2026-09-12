@@ -117,11 +117,23 @@ export function transitionAgentDrawer(state: AgentDrawerState, event: AgentDrawe
           : [...state.stream, { id: `op-${event.id}`, operationId: event.id, retryOf: event.retryOf, kind: 'action', text: event.intent, phase: 'working' }],
       }
     }
-    case 'waiting': return state.request?.id !== event.id ? state : { ...state, request: { id: event.id, phase: 'waiting' }, stream: state.stream.map(line => line.operationId === event.id ? { ...line, phase: 'waiting' } : line) }
-    case 'call': return {
-      ...state,
-      request: state.request?.id === event.id ? { id: event.id, phase: 'working' } : state.request,
-      stream: state.stream.map(line => line.operationId === event.id ? { ...line, phase: 'working', calls: [...(line.calls ?? []), event.name] } : line),
+    case 'waiting': {
+      if (state.request?.id !== event.id) return state
+      const line = state.stream.find(candidate => candidate.operationId === event.id)
+      if (state.request.phase === 'waiting' && (!line || line.phase === 'waiting')) return state
+      return { ...state, request: { id: event.id, phase: 'waiting' }, stream: state.stream.map(candidate => candidate === line ? { ...candidate, phase: 'waiting' } : candidate) }
+    }
+    case 'call': {
+      const resumesThinking = state.request?.id === event.id && state.request.phase === 'thinking'
+      return {
+        ...state,
+        request: resumesThinking ? { id: event.id, phase: 'working' } : state.request,
+        stream: state.stream.map(line => line.operationId === event.id ? {
+          ...line,
+          ...(resumesThinking && line.phase === 'thinking' ? { phase: 'working' as const } : {}),
+          calls: [...(line.calls ?? []), event.name],
+        } : line),
+      }
     }
     case 'dismiss': return { ...state, stream: state.stream.map(line => line.operationId === event.id ? { ...line, dismissed: true } : line) }
     case 'touch': return { ...state, highlights: state.highlights.filter(id => id !== event.targetId), refusedTargets: state.refusedTargets.filter(id => id !== event.targetId) }

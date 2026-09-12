@@ -172,7 +172,8 @@ describe('grammar tools over MCP (#17)', () => {
       duration_ms: 12_000,
     })
     expect(resizeError).toBe(false)
-    expect(resized.changes[0].description).toContain('12000 ms')
+    expect(resized.changes[0].description).toMatch(/to 12 seconds\.\n.+ · 12 seconds$/)
+    expect(resized.changes[0].details).toMatchObject({ durationMs: 12_000 })
 
     const { payload: tracked, isError: trackError } = await callJson('add_property_track', {
       session_id: sessionId,
@@ -295,7 +296,7 @@ describe('grammar tools over MCP (#17)', () => {
     })
     expect(commitError).toBe(false)
     expect(committed.label).toBe('protocol txn')
-    expect(committed.summary).toContain('12000 ms')
+    expect(committed.summary).toContain('to 12 seconds.')
 
     const { payload: described } = await callJson('describe_changes', { session_id: sessionId })
     expect(described.entries).toHaveLength(1)
