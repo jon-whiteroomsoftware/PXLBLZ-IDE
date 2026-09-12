@@ -12,7 +12,7 @@ import {
 import {
   type ShowTimelineClipMoveTarget,
 } from '@/engine/showTimelineClipAuthoring'
-import type { ShowGrammarOperation } from '../registry.js'
+import type { GrammarOperationResult, ShowGrammarOperation } from '../registry.js'
 import type { GrammarIssue, ShowGrammarDocument } from '../types.js'
 import {
   composedShow,
@@ -78,9 +78,11 @@ const canonicalMove = descriptorOperation(SHOW_COMMANDS.find(command => command.
 const moveClip: ShowGrammarOperation = {
   ...canonicalMove,
   apply(document, args, privateMove) {
+    let ordinaryRefusal: Extract<GrammarOperationResult, { ok: false }> | undefined
     if (!privateMove?.active) {
       const ordinary = canonicalMove.apply(document, args)
       if (ordinary.ok || !privateMove) return ordinary
+      ordinaryRefusal = ordinary
     }
     const resolved = resolveClip(document, args.clip_id as string)
     if (!resolved.ok) return resolved
@@ -108,7 +110,7 @@ const moveClip: ShowGrammarOperation = {
       })
     }
 
-    const startMs = args.start_ms as number
+    const startMs = (args.start_ms as number | undefined) ?? clip.startMs
     if (!Number.isFinite(startMs) || startMs < 0) {
       return refuse({ code: 'invalid-argument', message: 'start_ms must be a non-negative time in milliseconds.' })
     }
@@ -138,6 +140,7 @@ const moveClip: ShowGrammarOperation = {
     const composition = compositionOf(document)
     const result = privateMove.move(ownerFor(clip), target, conflict ? ownerFor(conflict.clip) : undefined)
     if (!result || result === composition) {
+      if (ordinaryRefusal) return ordinaryRefusal
       return refuse({
         code: 'engine-refused',
         message: `The engine declined to move clip ${clip.id} to ${startMs} ms on Zone ${zoneId}.`,

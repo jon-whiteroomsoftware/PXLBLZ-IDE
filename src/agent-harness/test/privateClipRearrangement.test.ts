@@ -171,6 +171,64 @@ it.each([-1, 0.5, 29999, 30000, Number.MAX_SAFE_INTEGER, Infinity])('refuses inv
   expect(store.commit(id).ok).toBe(true)
 })
 
+it.each(['layer', 'zone'] as const)('retains an occupied %s-only move refusal when start_ms is omitted in an open transaction', destination => {
+  const show = pairFixture()
+  const composition = show.composition!
+  const sourceZone = composition.scenes[0].zones[0]
+  const [source, blocker] = sourceZone.main
+  sourceZone.main = [source]
+  const args = destination === 'layer'
+    ? { clip_id: source.id, layer: 0 }
+    : { clip_id: source.id, zone_id: 'z2' }
+  if (destination === 'layer') {
+    sourceZone.overlays = [{ id: 'ov', name: 'Overlay', placements: [{ ...blocker, startMs: source.startMs, opacity: 1 }] }]
+  } else {
+    show.zones.push({ ...structuredClone(show.zones[0]), id: 'z2', name: 'Other' })
+    for (const [index, scene] of composition.scenes.entries()) {
+      scene.zones.push({
+        zoneId: 'z2',
+        main: index === 0 ? [{ ...blocker, startMs: source.startMs }] : [],
+        overlays: [],
+      })
+    }
+  }
+  const store = createSessionStore()
+  const opened = store.open(show)
+  if (!opened.ok) throw new Error(JSON.stringify(opened))
+  const before = store.export(opened.sessionId)
+  expect(store.begin(opened.sessionId).ok).toBe(true)
+
+  expect(store.apply(opened.sessionId, 'move_clip', args)).toMatchObject({
+    ok: false,
+    issues: [{ code: 'occupied' }],
+  })
+  expect(store.export(opened.sessionId)).toEqual(before)
+  expect(store.pending(opened.sessionId)).toMatchObject({ open: { changes: 0 } })
+})
+
+it.each([
+  ['Zone', { zone_id: 'z1' }],
+  ['Layer', { layer: 'main' }],
+] as const)('uses the current private-candidate Start for an omitted start_ms after the pair is active (%s)', (_destination, destination) => {
+  const { store, id } = sessionFor()
+  expect(store.apply(id, 'move_clip', { clip_id: 'a', start_ms: 8000 }).ok).toBe(true)
+  expect(store.apply(id, 'move_clip', { clip_id: 'a' })).toMatchObject({
+    ok: false,
+    issues: [{ code: 'invalid-argument' }],
+  })
+
+  const retained = store.apply(id, 'move_clip', { clip_id: 'a', ...destination })
+  expect(retained.ok).toBe(true)
+  if (!retained.ok) return
+  expect(retained.listing.clips.find(clip => clip.clipId === 'a')).toMatchObject({
+    startMs: 8000,
+    zoneId: 'z1',
+    layer: { kind: 'main', index: 0 },
+  })
+  expect(store.apply(id, 'move_clip', { clip_id: 'b', start_ms: 0 }).ok).toBe(true)
+  expect(store.commit(id).ok).toBe(true)
+})
+
 it.each([false, true])('rejects third-Clip collisions hidden by a nested pair, overlay=%s', overlay => {
   const show = pairFixture(overlay)
   const zone = show.composition!.scenes[0].zones[0]

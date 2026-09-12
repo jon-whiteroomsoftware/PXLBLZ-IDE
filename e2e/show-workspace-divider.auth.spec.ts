@@ -161,14 +161,23 @@ for (const agent of [false, true]) {
         name: route.includes('/shows/') ? 'Shows list' : 'Patterns list',
         exact: true,
       })
+      const listSearch = listDrawer.getByRole('textbox', {
+        name: route.includes('/shows/') ? 'Search shows' : 'Search patterns',
+        exact: true,
+      })
       // Narrow mode tucks the desktop-pinned list before its exit transition
-      // finishes. Wait for the overlay to leave the click target; otherwise
-      // the edge's intentional hover dwell can reopen it during actionability.
+      // finishes. Wait for the overlay to leave, then activate the edge through
+      // its keyboard contract so hover dwell cannot race the requested open.
       await expect(listLayout).toHaveAttribute('data-drawer-mode', 'tucked')
       await expect(listDrawer).toBeHidden()
-      await listEdge.click()
+      await listEdge.focus()
+      await listEdge.press('Enter')
       await expect(listLayout).toHaveAttribute('data-drawer-mode', 'open')
+      await expect(listSearch).toBeFocused()
       await expect.poll(overflow).toEqual([0, 0])
+      await listSearch.press('Escape')
+      await expect(listSearch).not.toBeFocused()
+      await expect(listLayout).toHaveAttribute('data-drawer-mode', 'open')
       await page.keyboard.press('Escape')
       await expect(listEdge).toHaveAttribute('aria-expanded', 'false')
       await expect.poll(overflow).toEqual([0, 0])
