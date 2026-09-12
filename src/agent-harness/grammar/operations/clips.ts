@@ -31,7 +31,7 @@ import { splitClipCommandOutcome } from '@/engine/showCommands/splitClip'
 import { duplicateClipCommandOutcome } from '@/engine/showCommands/duplicateClip'
 import { addClipCommandOutcome, independentClipCommandOutcome } from '@/engine/showCommands/clips'
 
-const clipPropertyOperations = ['set_clip_view', 'set_clip_control_target', 'set_clip_time', 'set_clip_evaluation']
+const clipPropertyOperations = ['set_clip_aperture', 'set_clip_opacity', 'set_clip_transform', 'set_clip_view', 'set_clip_control_target', 'set_clip_time', 'set_clip_evaluation']
   .map(name => descriptorOperation(SHOW_COMMANDS.find(command => command.name === name)!))
 
 function unknownZone(document: ShowGrammarDocument, zoneId: string): GrammarIssue {

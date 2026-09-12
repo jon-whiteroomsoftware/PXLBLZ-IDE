@@ -92,6 +92,14 @@ export interface ShowClipInspectorValue {
   }
 }
 
+export interface ShowClipInspectorSegment {
+  sceneId: string
+  placementId: string
+  opacity: number
+  transform: ShowClipTransform
+  viewport: ShowClipViewport
+}
+
 export interface ShowClipInspectorPatch {
   pattern?: { ref: ShowPatternRef; name: string }
   evaluationPolicy?: ShowClipEvaluationPolicy
@@ -175,6 +183,36 @@ export function projectShowClipInspector(
       opacity: placement.opacity ?? 1,
     },
   }
+}
+
+/** Every physical placement owned by one logical Clip inspector target. */
+export function projectShowClipInspectorSegments(
+  show: ShowRecord,
+  owner: ShowClipInspectorOwner,
+): ShowClipInspectorSegment[] {
+  if (owner.kind === 'global' || !show.composition) return []
+  const resolved = resolveCompositionOwner(show.composition, owner)
+  if (!resolved) return []
+  const logicalClipId = resolved.placement.logicalClipId ?? resolved.placement.id
+  const segments: ShowClipInspectorSegment[] = []
+  for (const scene of show.composition.scenes) {
+    for (const zone of scene.zones) {
+      for (const placement of [
+        ...zone.main,
+        ...zone.overlays.flatMap(layer => layer.placements),
+      ]) {
+        if ((placement.logicalClipId ?? placement.id) !== logicalClipId) continue
+        segments.push({
+          sceneId: scene.sceneId,
+          placementId: placement.id,
+          opacity: placement.opacity ?? 1,
+          transform: normalizeShowClipTransform(placement.transform),
+          viewport: normalizeShowClipViewport(placement.viewport),
+        })
+      }
+    }
+  }
+  return segments
 }
 
 export function updateShowClipInspector(

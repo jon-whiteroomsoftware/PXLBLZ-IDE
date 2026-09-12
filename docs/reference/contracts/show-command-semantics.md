@@ -491,7 +491,7 @@ The shared rows cover manual/canonical/diagnostic parity and identity collisions
 `AC951`, `IC951`, `RJ951`, `IT951` and `SE951` in the existing admission table
 cover saved records, file reopen, Undo and stale/duplicate delivery.
 
-## Clip property commands (#953)
+## Clip property commands (#953, #1011, #1017)
 
 `set_clip_view`, `set_clip_control_target`, `set_clip_time` and
 `set_clip_evaluation` delegate to the existing Clip inspector owner through the
@@ -499,6 +499,36 @@ same descriptor adapter. View edits affect the logical Clip's placements;
 controls, time and evaluation affect its shared Pattern instance. Making the
 Pattern independent remains the explicit Clip-only preparation. These commands
 do not restart playback, move timeline positions or change Show duration.
+
+`set_clip_aperture`, `set_clip_opacity` and `set_clip_transform` use that same
+placement owner for the static fields shown by the Clip inspector. A command
+targets every physical segment of one logical Clip. Omitted Aperture and
+Transform fields merge with each segment's own current value, so permitted
+per-segment differences survive. This exception is limited to opacity,
+Transform and Viewport/Aperture: a logical Clip with different Pattern
+ownership, Layer/Zone topology, View values, Effects, or presentation state
+still refuses before any field changes.
+
+Opacity accepts finite values from 0 through 1. Transform accepts normalized
+position from -4 through 4, rotation from -8 through 8 turns, and scale from
+0.01 through 8. Aperture accepts enabled state; normalized frame X/Y from -4
+through 4 and Width/Height from 0.01 through 8; all fourteen silhouettes; Hard,
+Soft or Dither edge; optional feather from 0.001 through 1; silhouette rotation
+from -1 through 1 turn; invert; and the bounded parameter owned by Ring,
+Rounded box, Cross, Star, Crescent or Regular polygon. A shape parameter is
+valid only when every affected segment's effective silhouette owns it. Changing
+shape drops obsolete shape-owned fields instead of retaining state that could
+later revive.
+
+Nullable Aperture overrides clear back to their automatic defaults. Disabling
+an Aperture retains its authored frame and style, and re-enabling restores them.
+Transform and Aperture remain independent: the fixed mask evaluates Zone
+coordinates while Content position, rotation and scale change the Pattern
+sample behind it. Main opacity fades toward black; overlay opacity remains the
+source-over weight against lower Layers. Existing property tracks are retained.
+Receipts report the changed physical placements, exact static before/after
+values, and any requested properties that currently have animation tracks.
+Validated no-ops preserve the original record and timestamp.
 
 Structured requests refuse values outside phase/brightness/control target 0–1,
 time scale 0–4 and time offset 0–60000 ms, naming the supported range. Valid
@@ -522,9 +552,12 @@ A successfully inspected Pattern with no sliders remains authoritative empty
 metadata and deliberately removes incompatible controls and their tracks.
 
 Shared goldens, raw untouched-field checks and canonical/diagnostic/manual parity
-cover this family with existing fixtures. `V953`, `C953`, `T953` and `E953` use
-the common live admission table for durable saves, actual file reopen, Undo,
-stale refusal and duplicate delivery.
+cover this family with existing fixtures. Static inspector commands additionally
+compile reopened, divergent logical segments and sample their independent mask,
+Transform and opacity output. `V953`, `C953`, `T953` and `E953` use the common
+live admission table for durable saves, actual file reopen, Undo, stale refusal
+and duplicate delivery; the static inspector batch uses the same private
+admission and one-history/one-save boundary.
 
 ## Scene property tracks and keyframes
 

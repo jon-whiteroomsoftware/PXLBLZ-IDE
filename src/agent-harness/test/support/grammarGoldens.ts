@@ -334,6 +334,67 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     const { document: next, changes } = applyOk(document, 'restart_clip', { clip_id: clip.clipId })
     expect(instanceOf(next, clip.clipId).id).toBe(changes[0].details?.newInstanceId)
   },
+  set_clip_aperture: () => {
+    const document = fixture({ overlay: true })
+    const main = clips(document).find((candidate) => candidate.layer.kind === 'main')!
+    const { document: framed } = applyOk(document, 'set_clip_aperture', {
+      clip_id: main.clipId,
+      enabled: true,
+      x: 0.1,
+      y: 0.2,
+      width: 0.7,
+      height: 0.6,
+      aperture: 'ellipse',
+      edge: 'hard',
+    })
+    const mainPlacement = framed.show.composition!.scenes[0].zones[0].main
+      .find((candidate) => candidate.id === main.startPlacementId)!
+    expect(mainPlacement.viewport).toMatchObject({ enabled: true, aperture: 'ellipse', edge: 'hard' })
+
+    const overlay = clips(framed).find((candidate) => candidate.layer.kind === 'overlay')!
+    const { document: overlayFramed } = applyOk(framed, 'set_clip_aperture', {
+      clip_id: overlay.clipId,
+      enabled: true,
+      aperture: 'ring',
+      ring_width: 0.4,
+    })
+    expect(overlayFramed.show.composition!.scenes[0].zones[0].overlays[0].placements[0].viewport)
+      .toMatchObject({ enabled: true, aperture: 'ring', ringWidth: 0.4 })
+  },
+  set_clip_opacity: () => {
+    const document = fixture({ overlay: true })
+    const main = clips(document).find((candidate) => candidate.layer.kind === 'main')!
+    const { document: faded } = applyOk(document, 'set_clip_opacity', { clip_id: main.clipId, opacity: 0.4 })
+    const mainPlacement = faded.show.composition!.scenes[0].zones[0].main
+      .find((candidate) => candidate.id === main.startPlacementId)!
+    expect(mainPlacement.opacity).toBe(0.4)
+
+    const overlay = clips(faded).find((candidate) => candidate.layer.kind === 'overlay')!
+    const { document: overlayFaded } = applyOk(faded, 'set_clip_opacity', { clip_id: overlay.clipId, opacity: 0.6 })
+    expect(overlayFaded.show.composition!.scenes[0].zones[0].overlays[0].placements[0].opacity).toBe(0.6)
+  },
+  set_clip_transform: () => {
+    const document = fixture({ overlay: true })
+    const main = clips(document).find((candidate) => candidate.layer.kind === 'main')!
+    const { document: placed } = applyOk(document, 'set_clip_transform', {
+      clip_id: main.clipId,
+      position_x: 0.25,
+      rotation: 0.125,
+      scale_x: 0.5,
+    })
+    const mainPlacement = placed.show.composition!.scenes[0].zones[0].main
+      .find((candidate) => candidate.id === main.startPlacementId)!
+    expect(mainPlacement.transform).toMatchObject({ positionX: 0.25, rotation: 0.125, scaleX: 0.5 })
+
+    const overlay = clips(placed).find((candidate) => candidate.layer.kind === 'overlay')!
+    const { document: overlayPlaced } = applyOk(placed, 'set_clip_transform', {
+      clip_id: overlay.clipId,
+      position_y: -0.25,
+      scale_y: 2,
+    })
+    expect(overlayPlaced.show.composition!.scenes[0].zones[0].overlays[0].placements[0].transform)
+      .toMatchObject({ positionY: -0.25, scaleY: 2 })
+  },
   set_clip_view: () => {
     const document = fixture()
     const clip = clipAt(document, 0)

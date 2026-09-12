@@ -645,6 +645,9 @@ const PARITY_ROWS: ParityRow[] = [
   }))),
 
   ...(['clip-a', 'clip-ov'] as const).flatMap(clipId => [
+    { command: 'set_clip_aperture', args: { clip_id: clipId, enabled: true, x: 0.25, aperture: 'ellipse', edge: 'dither' }, patch: { viewport: { enabled: true, x: 0.25, aperture: 'ellipse', edge: 'dither' } } },
+    { command: 'set_clip_opacity', args: { clip_id: clipId, opacity: 0.4 }, patch: { local: { opacity: 0.4 } } },
+    { command: 'set_clip_transform', args: { clip_id: clipId, position_x: 0.25, rotation: 0.25, scale_x: 0.5 }, patch: { transform: { positionX: 0.25, rotation: 0.25, scaleX: 0.5 } } },
     { command: 'set_clip_view', args: { clip_id: clipId, mirror: true, phase: 0.25, brightness: 0.5 }, patch: { view: { mirror: true, phase: 0.25, brightness: 0.5 } } },
     { command: 'set_clip_time', args: { clip_id: clipId, time_scale: 0.5, time_offset_ms: 250 }, patch: { simulation: { timeScale: 0.5, timeOffsetMs: 250 } } },
     { command: 'set_clip_evaluation', args: { clip_id: clipId, policy: 'freeze-at-entry' }, patch: { evaluationPolicy: 'freeze-at-entry' } },
@@ -661,9 +664,13 @@ const PARITY_ROWS: ParityRow[] = [
     },
     expectedFacts: (before, after) => {
       const instanceId = clipId === 'clip-a' ? 'instance-a' : 'instance-ov'
-      if (command === 'set_clip_view') {
+      if (command === 'set_clip_aperture' || command === 'set_clip_opacity' || command === 'set_clip_transform' || command === 'set_clip_view') {
         const zone = after.composition!.scenes[0].zones[0]
-        expect((clipId === 'clip-a' ? zone.main[0] : zone.overlays[0].placements[0]).view).toEqual(patch.view)
+        const placement = clipId === 'clip-a' ? zone.main[0] : zone.overlays[0].placements[0]
+        if (command === 'set_clip_aperture') expect(placement.viewport).toMatchObject(patch.viewport!)
+        if (command === 'set_clip_opacity') expect(placement.opacity).toEqual(patch.local?.opacity)
+        if (command === 'set_clip_transform') expect(placement.transform).toMatchObject(patch.transform!)
+        if (command === 'set_clip_view') expect(placement.view).toEqual(patch.view)
         expect(after.composition!.patternInstances).toEqual(before.composition!.patternInstances)
       } else {
         expect(after.composition!.scenes).toEqual(before.composition!.scenes)
@@ -675,6 +682,27 @@ const PARITY_ROWS: ParityRow[] = [
     },
     refusals: [{ ...args, clip_id: 'absent' }, { ...args, clip_id: 'group-use:group-main' }, { ...args, extra: true }],
   }))),
+
+  ...[
+    { command: 'set_clip_aperture', args: { clip_id: 'clip-b', enabled: true, x: 0.25, aperture: 'ellipse', edge: 'dither' }, patch: { viewport: { enabled: true, x: 0.25, aperture: 'ellipse', edge: 'dither' } } },
+    { command: 'set_clip_opacity', args: { clip_id: 'clip-b', opacity: 0.4 }, patch: { local: { opacity: 0.4 } } },
+    { command: 'set_clip_transform', args: { clip_id: 'clip-b', position_x: 0.25, rotation: 0.25, scale_x: 0.5 }, patch: { transform: { positionX: 0.25, rotation: 0.25, scaleX: 0.5 } } },
+  ].map(({ command, args, patch }): ParityRow => ({
+    command,
+    args,
+    fixture: showSplitClipFixture,
+    manualOwner: show => updateShowClipInspector(show, { kind: 'scene-main', sceneId: 'scene-1', zoneId: 'zone-1', placementId: 'clip-b' }, patch as ShowClipInspectorPatch).composition,
+    expectedFacts: (before, after) => {
+      const beforeSegments = before.composition!.scenes.map(scene => scene.zones[0].main.find(placement => (placement.logicalClipId ?? placement.id) === 'clip-b')!)
+      const afterSegments = after.composition!.scenes.map(scene => scene.zones[0].main.find(placement => (placement.logicalClipId ?? placement.id) === 'clip-b')!)
+      expect(afterSegments).toHaveLength(2)
+      for (let index = 0; index < afterSegments.length; index += 1) {
+        if (command === 'set_clip_aperture') expect(afterSegments[index].viewport).toMatchObject({ ...beforeSegments[index].viewport, ...patch.viewport })
+        if (command === 'set_clip_opacity') expect(afterSegments[index].opacity).toBe(0.4)
+        if (command === 'set_clip_transform') expect(afterSegments[index].transform).toMatchObject({ ...beforeSegments[index].transform, ...patch.transform })
+      }
+    },
+  })),
 
   ...[false, true].flatMap(reverse => [false, true].map((extend): ParityRow => ({
     command: 'add_clip',

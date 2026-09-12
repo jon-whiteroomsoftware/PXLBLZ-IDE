@@ -949,6 +949,9 @@ function placementPresentationSignature(
     logicalClipId: _logicalClipId,
     startMs: _startMs,
     durationMs: _durationMs,
+    opacity: _opacity,
+    transform: _transform,
+    viewport: _viewport,
     ...presentation
   } = normalizePlacementAppearance(placement)
   return canonicalJson(presentation)

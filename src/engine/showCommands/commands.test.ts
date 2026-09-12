@@ -21,6 +21,8 @@ import { showLoopDurationMs } from '../showModel'
 import { projectShowSummary } from '../showSummaryProjection'
 import { insertShowLayerTransition } from '../showLayerTransitionAuthoring'
 import { projectShowLayoutIntervals } from '../showLayoutIntervals'
+import { compactShowClipTransform, normalizeShowClipTransform } from '../showClipTransform'
+import { compactShowClipViewport, normalizeShowClipViewport } from '../showClipViewport'
 import { SHOW_COMMANDS, applyShowCommand, type ShowCommandChange } from './registry'
 import { formatShowCommandTimeRange } from './support'
 import { isDeepStrictEqual } from 'node:util'
@@ -170,6 +172,32 @@ function trackTimes(record: ShowRecord, trackId: string): number[] {
 }
 
 export const GOLDEN_RUNS: Record<string, () => void> = {
+  set_clip_aperture: () => {
+    for (const clip_id of ['clip-a', 'clip-ov']) {
+      const before = showOverlayLayerFixture()
+      const { record } = applyOk(before, 'set_clip_aperture', { clip_id, enabled: true, x: 0.25, aperture: 'ellipse', edge: 'dither' })
+      const zone = record.composition!.scenes[0].zones[0]
+      expect((clip_id === 'clip-a' ? zone.main[0] : zone.overlays[0].placements[0]).viewport)
+        .toEqual({ enabled: true, x: 0.25, y: 0, width: 1, height: 1, aperture: 'ellipse', edge: 'dither' })
+    }
+  },
+  set_clip_opacity: () => {
+    for (const clip_id of ['clip-a', 'clip-ov']) {
+      const before = showOverlayLayerFixture()
+      const { record } = applyOk(before, 'set_clip_opacity', { clip_id, opacity: 0.4 })
+      const zone = record.composition!.scenes[0].zones[0]
+      expect((clip_id === 'clip-a' ? zone.main[0] : zone.overlays[0].placements[0]).opacity).toBe(0.4)
+    }
+  },
+  set_clip_transform: () => {
+    for (const clip_id of ['clip-a', 'clip-ov']) {
+      const before = showOverlayLayerFixture()
+      const { record } = applyOk(before, 'set_clip_transform', { clip_id, position_x: 0.25, rotation: 0.25, scale_x: 0.5 })
+      const zone = record.composition!.scenes[0].zones[0]
+      expect((clip_id === 'clip-a' ? zone.main[0] : zone.overlays[0].placements[0]).transform)
+        .toEqual({ positionX: 0.25, positionY: 0, rotation: 0.25, scaleX: 0.5, scaleY: 1 })
+    }
+  },
   set_clip_view: () => {
     for (const clip_id of ['clip-a', 'clip-ov']) {
       const before = showOverlayLayerFixture()
@@ -1601,6 +1629,49 @@ function permittedEntityIds({ command, input, changes, before }: AppliedRecord):
 }
 
 function untouchedEntityViolations(run: AppliedRecord): string[] {
+  if (['set_clip_aperture', 'set_clip_opacity', 'set_clip_transform'].includes(run.command)) {
+    const expected = structuredClone(run.before)
+    expected.updatedAt = run.after.updatedAt
+    const logicalClipId = run.input.clip_id
+    if (typeof logicalClipId !== 'string') return [`${run.command}: missing logical Clip identity`]
+    for (const expectedScene of expected.composition?.scenes ?? []) {
+      const actualScene = run.after.composition?.scenes.find(scene => scene.sceneId === expectedScene.sceneId)
+      for (const expectedZone of expectedScene.zones) {
+        const actualZone = actualScene?.zones.find(zone => zone.zoneId === expectedZone.zoneId)
+        const pairs = [
+          ...expectedZone.main.map(placement => ({ expected: placement, actual: actualZone?.main.find(item => item.id === placement.id) })),
+          ...expectedZone.overlays.flatMap(layer => layer.placements.map(placement => ({
+            expected: placement,
+            actual: actualZone?.overlays.find(item => item.id === layer.id)?.placements.find(item => item.id === placement.id),
+          }))),
+        ]
+        for (const pair of pairs) {
+          if ((pair.expected.logicalClipId ?? pair.expected.id) !== logicalClipId || !pair.actual) continue
+          if (run.command === 'set_clip_aperture') {
+            const publicToStored = {
+              enabled: 'enabled', x: 'x', y: 'y', width: 'width', height: 'height', aperture: 'aperture', edge: 'edge', feather: 'feather', rotation: 'rotation', invert: 'invert',
+              ring_width: 'ringWidth', corner_radius: 'cornerRadius', cross_width: 'crossWidth', star_points: 'starPoints', star_inner: 'starInner', crescent_offset: 'crescentOffset', polygon_sides: 'polygonSides',
+            } as const
+            const patch = Object.fromEntries(Object.entries(publicToStored).flatMap(([publicName, storedName]) => {
+              if (run.input[publicName] === undefined) return []
+              const value = publicName === 'aperture' && run.input[publicName] === 'rectangle' ? undefined : run.input[publicName]
+              return [[storedName, value === null ? undefined : value]]
+            }))
+            pair.expected.viewport = compactShowClipViewport({ ...normalizeShowClipViewport(pair.expected.viewport), ...patch })
+          }
+          if (run.command === 'set_clip_opacity') pair.expected.opacity = run.input.opacity as number
+          if (run.command === 'set_clip_transform') {
+            const publicToStored = { position_x: 'positionX', position_y: 'positionY', rotation: 'rotation', scale_x: 'scaleX', scale_y: 'scaleY' } as const
+            const patch = Object.fromEntries(Object.entries(publicToStored).flatMap(([publicName, storedName]) => (
+              run.input[publicName] === undefined ? [] : [[storedName, run.input[publicName]]]
+            )))
+            pair.expected.transform = compactShowClipTransform({ ...normalizeShowClipTransform(pair.expected.transform), ...patch })
+          }
+        }
+      }
+    }
+    return isDeepStrictEqual(expected, run.after) ? [] : [`${run.command}: changed state outside its target physical segments`]
+  }
   const permitted = permittedEntityIds(run)
   const before = entityInventory(run.before)
   const after = entityInventory(run.after)
@@ -1627,6 +1698,21 @@ describe('Show command untouched entities', () => {
     for (const run of Object.values(GOLDEN_RUNS)) run()
     expect(APPLIED.flatMap(untouchedEntityViolations)).toEqual([])
   })
+})
+
+it.each([
+  ['set_clip_aperture', { enabled: true }, 'viewport sibling', (show: ShowRecord) => { show.composition!.scenes[0].zones[0].main[0].viewport!.width = 0.5 }],
+  ['set_clip_opacity', { opacity: 0.4 }, 'linked Clip', (show: ShowRecord) => { show.composition!.scenes[0].zones[0].main.find(placement => placement.id === 'clip-c')!.opacity = 0.4 }],
+  ['set_clip_transform', { position_x: 0.25 }, 'unrequested Transform field', (show: ShowRecord) => { show.composition!.scenes[0].zones[0].main[0].transform!.scaleY = 2 }],
+  ['set_clip_transform', { position_x: 0.25 }, 'Effect', (show: ShowRecord) => { show.composition!.scenes[0].zones[0].main[0].effects = [{ id: 'leak', kind: 'brightness', brightness: 0.5 }] }],
+] as const)('%s untouched oracle rejects a changed %s', (command, input, _fault, corrupt) => {
+  const before = showOverlayLayerFixture()
+  const outcome = applyShowCommand(before, command, { clip_id: 'clip-a', ...input })
+  expect(outcome.ok).toBe(true)
+  if (!outcome.ok) throw new Error('fixture command refused')
+  const after = structuredClone(outcome.record)
+  corrupt(after)
+  expect(untouchedEntityViolations({ command, input: { clip_id: 'clip-a', ...input }, changes: outcome.changes, before, after })).not.toEqual([])
 })
 
 it.each(['entity field', 'nested keyframe', 'sibling order', 'missing entity', 'explicit undefined', 'owned reference array'] as const)('untouched oracle detects an unrelated %s fault', fault => {

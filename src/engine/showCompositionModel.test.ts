@@ -209,6 +209,32 @@ describe('Show composition v1 Main schedule (#488)', () => {
     }))
   })
 
+  it('permits per-segment opacity, Transform and Aperture differences', () => {
+    const { show, composition } = fixture()
+    const root = composition.scenes[0].zones[0].main[0]
+    root.startMs = show.scenes[0].durationMs - 1_000
+    root.durationMs = 1_000
+    composition.scenes.push({
+      sceneId: show.scenes[1].id,
+      zones: [{
+        zoneId: 'zone-1',
+        main: [{
+          ...structuredClone(root),
+          id: `placement-a--span-${show.scenes[1].id}`,
+          logicalClipId: 'placement-a',
+          startMs: 0,
+          durationMs: 2_000,
+          opacity: 0.4,
+          transform: { positionX: 0.25, positionY: 0, rotation: 0.25, scaleX: 0.5, scaleY: 1 },
+          viewport: { enabled: true, x: 0.5, y: 0, width: 0.5, height: 1, aperture: 'ellipse' },
+        }],
+        overlays: [],
+      }],
+    })
+
+    expect(validateShowComposition(show, composition)).toEqual([])
+  })
+
   it('magnetically resolves horizontal moves and quantizes illegal overlaps', () => {
     const placement = { id: 'moving', instanceId: 'instance-a', startMs: 0, durationMs: 1_000, view: { mirror: false, phase: 0, brightness: 1 } }
     const occupied = [

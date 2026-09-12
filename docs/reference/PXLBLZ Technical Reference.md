@@ -937,6 +937,12 @@ cleanup and preservation boundary is in the [removal contract](contracts/show-co
 Logical Clip splitting likewise shares its existing manual owner with the
 canonical and diagnostic command; copied curves, numeric rounding and endpoint
 references follow the [split contract](contracts/show-command-semantics.md#logical-clip-splitting-951).
+Static Clip Aperture, opacity, and Content Transform commands also use the manual
+inspector owner. They merge omitted fields against each physical segment of a
+logical Clip, retain property tracks, and preserve only the explicitly supported
+per-segment presentation differences. The registry still refuses unrelated
+View, Effect, ownership, Zone, or Layer divergence. Reopened Show artifacts
+compile each segment's fixed Aperture and Content pose independently.
 
 Adding a command requires a descriptor in its family module plus a golden
 accepted case and refusal partition. The faithfulness sweep fails entries

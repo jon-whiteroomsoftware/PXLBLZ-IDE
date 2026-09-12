@@ -199,6 +199,7 @@ describe('Show authoring mutation qualification (#597)', () => {
       'src/engine/showCommands/splitClip.test.ts',
       'src/engine/showCommands/duplicateClip.test.ts',
       'src/engine/showCommands/commands.test.ts',
+      'src/engine/showCommands/clipProperties.test.ts',
       'src/agent-harness/test/commandParity.test.ts',
       'src/engine/showClipInspectorModel.test.ts',
       'src/engine/showLayerTransitionAuthoring.test.ts',

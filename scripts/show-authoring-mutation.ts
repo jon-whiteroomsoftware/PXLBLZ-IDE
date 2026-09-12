@@ -120,6 +120,24 @@ const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
     ].join('\n'),
   ),
   target(
+    'inspector',
+    'showCommands/clipProperties.ts',
+    'applyClipProperty',
+    'const after = compactShowClipViewport({ ...segment.viewport, ...viewport })',
+  ),
+  target(
+    'inspector',
+    'showCommands/clipProperties.ts',
+    'applyClipProperty',
+    '.filter(segment => segment.opacity !== opacity)',
+  ),
+  target(
+    'inspector',
+    'showCommands/clipProperties.ts',
+    'applyClipProperty',
+    'const after = { ...segment.transform, ...transform }',
+  ),
+  target(
     'transition',
     'showLayerTransitionAuthoring.ts',
     'insertShowLayerTransition',
@@ -191,6 +209,7 @@ export function buildStrykerConfig(repoRoot: string) {
       'src/engine/showCommands/duplicateClip.test.ts',
       'src/agent-harness/test/commandParity.test.ts',
       'src/engine/showCommands/commands.test.ts',
+      'src/engine/showCommands/clipProperties.test.ts',
       'src/engine/showClipInspectorModel.test.ts',
       'src/engine/showLayerTransitionAuthoring.test.ts',
     ],

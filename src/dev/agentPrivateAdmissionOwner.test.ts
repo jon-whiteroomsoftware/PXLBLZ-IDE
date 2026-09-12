@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { createDefaultShow } from '@/engine/showModel'
+import type { ShowRecord } from '@/engine/personalContentRecords'
 import { resetPersonalContentProvider, setPersonalContentProvider, type PersonalContentProvider } from '@/engine/personalContentProvider'
 import { createAgentPrivateExecutor } from '@/engine/agentPrivateExecutor'
 import { showInitialState, useShowStore } from '@/store/showStore'
@@ -9,10 +10,10 @@ import { createAgentPrivateAdmissionOwner } from '@/agent/privateAdmissionOwner'
 
 let close = () => {}
 afterEach(() => { close(); resetPersonalContentProvider() })
-async function setup() {
+async function setup(initialShow?: ShowRecord) {
   window.history.replaceState(null, '', '/studio/shows/test?agent=1')
   useShowStore.setState(showInitialState)
-  const show = createDefaultShow('test', 'Original')
+  const show = initialShow ? { ...structuredClone(initialShow), id: 'test' } : createDefaultShow('test', 'Original')
   const writes = vi.fn(async () => {})
   setPersonalContentProvider({ updateShow: writes, listShows: async () => [show] } as unknown as PersonalContentProvider)
   await useShowStore.getState().loadShows()
@@ -23,6 +24,62 @@ async function setup() {
   const send = (sequence: number, payload: unknown) => executor.deliver({ ...scope, operationId: 'op', deliveryId: `d${sequence}`, sequence, payload })
   return { admission, executor, send, writes }
 }
+
+it('applies a private static Clip inspector batch once with replay identity, one save, and one Undo unit', async () => {
+  const { showCommandFixture } = await import('@/test/showCommandFixture')
+  const { executor, send, writes } = await setup(showCommandFixture())
+  expect(send(0, { kind: 'begin_edit', intent: 'Frame and place clip-a' }).code).toBe('begun')
+  expect(send(1, {
+    kind: 'command', name: 'set_clip_aperture', arguments: {
+      clip_id: 'clip-a', enabled: true, x: 0.1, y: 0.2, width: 0.7, height: 0.6,
+      aperture: 'rectangle', edge: 'hard', rotation: 0.125,
+    },
+  })).toMatchObject({ code: 'changed' })
+  expect(send(2, {
+    kind: 'command', name: 'set_clip_aperture', arguments: {
+      clip_id: 'clip-a', aperture: 'ellipse', feather: 0.2,
+    },
+  })).toMatchObject({ code: 'changed' })
+  expect(send(3, { kind: 'command', name: 'set_clip_aperture', arguments: { clip_id: 'clip-a', enabled: false } }))
+    .toMatchObject({ code: 'changed' })
+  expect(send(4, { kind: 'command', name: 'set_clip_aperture', arguments: { clip_id: 'clip-a', enabled: true } }))
+    .toMatchObject({ code: 'changed' })
+  expect(send(5, { kind: 'command', name: 'set_clip_opacity', arguments: { clip_id: 'clip-a', opacity: 0.4 } }))
+    .toMatchObject({ code: 'changed' })
+  const fullTransform = {
+    kind: 'command', name: 'set_clip_transform', arguments: {
+      clip_id: 'clip-a', position_x: 0.25, position_y: -0.1, rotation: 0.25, scale_x: 0.5, scale_y: 1.5,
+    },
+  }
+  const fullReceipt = send(6, fullTransform)
+  expect(fullReceipt).toMatchObject({ code: 'changed' })
+  expect(send(7, { kind: 'command', name: 'set_clip_transform', arguments: { clip_id: 'clip-a', scale_y: 0.75 } }))
+    .toMatchObject({ code: 'changed' })
+  // A retransmitted delivery retains its original result even after a later
+  // command changed the same logical Clip.
+  expect(send(6, fullTransform)).toEqual(fullReceipt)
+  expect(useShowStore.getState().shows[0].composition!.scenes[0].zones[0].main[0]).not.toHaveProperty('viewport')
+  expect(writes).not.toHaveBeenCalled()
+
+  expect(send(8, { kind: 'commit_edit' })).toMatchObject({ code: 'outcome', receipt: { status: 'applied' } })
+  await vi.waitFor(() => expect(executor.getOutcome('op')).toMatchObject({ receipt: { status: 'applied', settlement: 'saved' } }))
+  const adopted = useShowStore.getState().shows[0].composition!.scenes[0].zones[0].main[0]
+  expect(adopted).toMatchObject({
+    opacity: 0.4,
+    transform: { positionX: 0.25, positionY: -0.1, rotation: 0.25, scaleX: 0.5, scaleY: 0.75 },
+    viewport: {
+      enabled: true, x: 0.1, y: 0.2, width: 0.7, height: 0.6,
+      aperture: 'ellipse', edge: 'hard', feather: 0.2, rotation: 0.125,
+    },
+  })
+  expect(useShowStore.getState().showHistories.test.past).toHaveLength(1)
+  expect(writes).toHaveBeenCalledTimes(1)
+
+  await useShowStore.getState().undoShow('test')
+  expect(useShowStore.getState().shows[0].composition!.scenes[0].zones[0].main[0]).not.toHaveProperty('viewport')
+  await useShowStore.getState().redoShow('test')
+  expect(useShowStore.getState().shows[0].composition!.scenes[0].zones[0].main[0]).toEqual(adopted)
+})
 it('captures real source metadata and keeps rename private until one history/save adoption', async () => {
   const { admission, executor, send, writes } = await setup()
   const metadata = admission.captureCommandContext()!
