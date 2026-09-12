@@ -571,14 +571,16 @@ const PARITY_ROWS: ParityRow[] = [
     args: { track_id: 'track-b', edits: [
       { operation: 'update', keyframe_id: 'kf-1', time_ms: 19000 },
       { operation: 'update', keyframe_id: 'kf-2', time_ms: 12000 },
-      { operation: 'add', time_ms: 15000, value: 0.5, easing: 'ease-out' },
+      { operation: 'add', time_ms: 14000, value: 0.5, easing: 'ease-out' },
+      { operation: 'add', time_ms: 16000, value: 0.7, easing: 'ease-in' },
     ] },
-    canonical: (show, args) => editPropertyKeyframesCommandOutcome(show, args, capturedShowCommandContext([], {}), () => 'kf-7'),
+    canonical: (show, args) => { let key = 6; return editPropertyKeyframesCommandOutcome(show, args, capturedShowCommandContext([], {}), () => `kf-${++key}`) },
     manualOwner: show => {
       const result = editShowPropertyKeyframes(show, show.composition!, 'scene-1', 'track-b', [
         { operation: 'update', keyframeId: 'kf-1', changes: { timeMs: 19000 } },
         { operation: 'update', keyframeId: 'kf-2', changes: { timeMs: 12000 } },
-        { operation: 'add', keyframe: { id: 'kf-7', timeMs: 15000, value: 0.5, easing: { curve: 'quadratic', direction: 'out' } } },
+        { operation: 'add', keyframe: { id: 'kf-7', timeMs: 14000, value: 0.5, easing: { curve: 'quadratic', direction: 'out' } } },
+        { operation: 'add', keyframe: { id: 'kf-8', timeMs: 16000, value: 0.7, easing: { curve: 'quadratic', direction: 'in' } } },
       ])
       return result.ok ? result.composition : show.composition!
     },

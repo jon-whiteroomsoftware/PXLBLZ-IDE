@@ -8,7 +8,10 @@ export const ANIMATION_OPERATIONS = SHOW_ANIMATION_COMMANDS.map(command => descr
   command.name === 'add_property_track'
     ? (document, args) => addPropertyTrackCommandOutcome(document.show, args, capturedShowCommandContext(document.inlinePatterns, document.options), idFactory(document))
     : command.name === 'edit_property_keyframes'
-      ? (document, args) => editPropertyKeyframesCommandOutcome(document.show, args, capturedShowCommandContext(document.inlinePatterns, document.options), () => idFactory(document)('kf'))
+      ? (document, args) => {
+          const next = idFactory(document)
+          return editPropertyKeyframesCommandOutcome(document.show, args, capturedShowCommandContext(document.inlinePatterns, document.options), () => next('kf'))
+        }
     : command.name === 'add_keyframe'
       ? (document, args) => addKeyframeCommandOutcome(document.show, args, () => idFactory(document)('kf'))
       : undefined))
