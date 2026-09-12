@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1018",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time?agent=1",
+  "operation": "Codex in-app browser drove the authenticated managed Show route as synthetic local-agent-12 (session set by an HTTP-only localhost Set-Cookie redirect with no token retained), verifying the unchanged header, menu and pin controls plus full-row pointer hit areas and yellow keyboard focus; the first capture records the actual chooser. Repository Playwright then drove the same route through the existing DEV handle's production-controller dispatch (synthetic events, not live-provider qualification), verifying visible pending, saved, draft and failed projections; bottom-follow without page or focus movement; transcript retention across disconnect, external and built-in states; narrow layout; reduced motion; and one uniform final-response color; two known POST /api/agent/channel?agent=1 403 not_allowed responses remained because the synthetic account was outside AGENT_ACCOUNT_ALLOWLIST, with no unrelated console or page errors.",
+  "captures": [
+    ".wrsp/ui-proof/1018-desktop-chooser.jpg",
+    ".wrsp/ui-proof/1018-desktop-thinking.png",
+    ".wrsp/ui-proof/1018-desktop-settled.png",
+    ".wrsp/ui-proof/1018-narrow-external.png"
+  ],
+  "capturedAtCommit": "5dbb3e683626eceb789c2d109df31750e253e547"
+}
