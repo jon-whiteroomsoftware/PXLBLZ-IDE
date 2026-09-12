@@ -96,13 +96,33 @@ export function transitionAgentDrawer(state: AgentDrawerState, event: AgentDrawe
     case 'system': return append(state, 'system', event.text)
     case 'reading': return state.connection && !state.request ? append(state, 'system', 'reading the Show') : state
     case 'toggleMcp': return { ...state, showMcp: !state.showMcp }
-    case 'thinking': return state.connection?.kind !== 'builtin' || (state.request && state.request.id !== event.id) ? state : { ...state, request: { id: event.id, phase: 'thinking' } }
+    case 'thinking': {
+      const previous = state.stream.find(line => line.operationId === event.id)
+      if (state.connection?.kind !== 'builtin' || (state.request && state.request.id !== event.id) || previous?.outcome) return state
+      return {
+        ...state,
+        request: { id: event.id, phase: 'thinking' },
+        stream: state.stream.map(line => line.operationId === event.id ? { ...line, phase: 'thinking' } : line),
+      }
+    }
     case 'beginEdit': {
-      if (!state.connection || state.stream.some(line => line.operationId === event.id) || (state.request && state.request.id !== event.id)) return state
-      return { ...state, request: { id: event.id, phase: 'working' }, stream: [...state.stream, { id: `op-${event.id}`, operationId: event.id, retryOf: event.retryOf, kind: 'action', text: event.intent, phase: 'working' }] }
+      if (!state.connection || (state.request && state.request.id !== event.id)) return state
+      const previous = state.stream.find(line => line.operationId === event.id)
+      if (previous && (!state.request || previous.outcome)) return state
+      return {
+        ...state,
+        request: { id: event.id, phase: 'working' },
+        stream: previous
+          ? state.stream.map(line => line === previous ? { ...line, phase: 'working' } : line)
+          : [...state.stream, { id: `op-${event.id}`, operationId: event.id, retryOf: event.retryOf, kind: 'action', text: event.intent, phase: 'working' }],
+      }
     }
     case 'waiting': return state.request?.id !== event.id ? state : { ...state, request: { id: event.id, phase: 'waiting' }, stream: state.stream.map(line => line.operationId === event.id ? { ...line, phase: 'waiting' } : line) }
-    case 'call': return { ...state, stream: state.stream.map(line => line.operationId === event.id ? { ...line, calls: [...(line.calls ?? []), event.name] } : line) }
+    case 'call': return {
+      ...state,
+      request: state.request?.id === event.id ? { id: event.id, phase: 'working' } : state.request,
+      stream: state.stream.map(line => line.operationId === event.id ? { ...line, phase: 'working', calls: [...(line.calls ?? []), event.name] } : line),
+    }
     case 'dismiss': return { ...state, stream: state.stream.map(line => line.operationId === event.id ? { ...line, dismissed: true } : line) }
     case 'touch': return { ...state, highlights: state.highlights.filter(id => id !== event.targetId), refusedTargets: state.refusedTargets.filter(id => id !== event.targetId) }
     case 'manualEdit': case 'undo': return { ...state, ...clearHighlights }

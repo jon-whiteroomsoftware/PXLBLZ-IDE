@@ -31,6 +31,8 @@ import {
   engineIdentityRefusal,
   planRefusal,
   resolveCommandClip,
+  formatShowCommandDuration,
+  formatShowCommandTimeRange,
 } from './support'
 import { createDuplicateClipCommand } from './duplicateClip'
 
@@ -194,12 +196,16 @@ const resizeClip: ShowCommandDescriptor = {
     const found = resolveCommandClip(record, result.composition, input.clip_id as string)
     if (!found.ok) return found
     const { clip } = found.context
+    const before = resolveCommandClip(record, resolved.composition, input.clip_id as string)
+    const verb = before.ok && clip.durationMs < before.context.clip.durationMs ? 'Shortened'
+      : before.ok && clip.durationMs > before.context.clip.durationMs ? 'Lengthened'
+        : 'Resized'
     return {
       ok: true,
       record: withComposition(record, result.composition),
       changes: [{
         command: 'resize_clip', targetId: clip.id,
-        description: `Clip ${clip.id} now runs ${clip.startMs}–${clip.endMs} ms (${clip.durationMs} ms).`,
+        description: `${verb} ${clip.patternName} to ${formatShowCommandDuration(clip.durationMs)}.\n${formatShowCommandTimeRange(clip.startMs, clip.endMs, clip.durationMs)}`,
         details: { startMs: clip.startMs, endMs: clip.endMs, durationMs: clip.durationMs, changedClipIds: result.changedClipIds, movedClipIds: result.movedClipIds, transitionChanges: result.transitionChanges },
       }],
     }

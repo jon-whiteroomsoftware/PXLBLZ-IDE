@@ -9,7 +9,7 @@ beforeEach(() => {
   controller = { dispatch: (event: AgentDrawerEvent) => { state = transitionAgentDrawer(state, event); useAgentDrawerStore.setState({ state }) }, retry: vi.fn(), submit: vi.fn(), disconnect: vi.fn(), restoreContact: vi.fn(), cancel: vi.fn() } as unknown as AgentDrawerController
   useAgentDrawerStore.setState({ controller, state, busy: false })
 })
-afterEach(() => useAgentDrawerStore.setState({ controller: null, state: createAgentDrawerState(), busy: false }))
+afterEach(() => act(() => useAgentDrawerStore.setState({ controller: null, state: createAgentDrawerState(), busy: false })))
 it('keeps a mounted workspace and disables Send throughout applied/save-pending ownership', () => {
   controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
   controller.dispatch({ type: 'draft', text: 'next edit' })
@@ -34,7 +34,7 @@ it('announces terminal outcomes without putting read/progress lines in a live re
   expect(screen.getByText('Ask your agent to try again from current state.')).toBeVisible()
   expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
-  expect(screen.getByText('rolled back')).toBeVisible()
+  expect(screen.getByTestId('agent-response')).toHaveTextContent('The save was rolled back.')
   expect(controller.retry).not.toHaveBeenCalled()
 })
 
@@ -100,25 +100,140 @@ it.each(['not-applied', 'cancelled'] as const)('does not show private change des
   render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
   expect(screen.queryByText('Clip now runs eight seconds.')).toBeNull()
 })
-it('updates one activity row from pulsing work to saved confirmation and later failure', () => {
+it('updates one activity row from work to saved confirmation and later failure', () => {
   controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
   render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
   act(() => controller.dispatch({ type: 'beginEdit', id: 'one', intent: 'Resize the first Clip' }))
   const line = screen.getByTestId('agent-chat-line')
-  expect(line.querySelector('.agent-activity-pending')).not.toBeNull()
+  expect(line).toHaveTextContent('Thinking')
   act(() => controller.dispatch({ type: 'outcome', id: 'one', outcome: 'applied' }))
-  expect(line.querySelector('.agent-activity-pending')).not.toBeNull()
+  expect(line).toHaveTextContent('Saving')
   act(() => {
     controller.dispatch({ type: 'operationReply', id: 'one', text: 'The Clip is now 10 seconds long.' })
     controller.dispatch({ type: 'outcome', id: 'one', outcome: 'saved' })
   })
   expect(screen.getAllByTestId('agent-chat-line')).toEqual([line])
-  expect(line.querySelector('.agent-activity-pending')).toBeNull()
+  expect(line).not.toHaveTextContent('Saving')
+  expect(line.querySelector('.agent-activity-dot')).toBeNull()
   expect(line).toHaveTextContent('The Clip is now 10 seconds long.')
   act(() => controller.dispatch({ type: 'outcome', id: 'one', outcome: 'rolled-back', reason: 'The save failed.' }))
   expect(line).not.toHaveTextContent('The Clip is now 10 seconds long.')
   expect(line).toHaveTextContent('The save failed.')
-  expect(line).toHaveClass('text-red-300')
+  expect(line).not.toHaveClass('text-red-300')
+  expect(screen.getByTestId('agent-response')).toHaveClass('text-zinc-400')
+})
+
+it('shows one provisional response at the request edge and advances it through work and saving', () => {
+  controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
+  controller.dispatch({ type: 'beginEdit', id: 'one', intent: 'Shorten the opening Clip' })
+  controller.dispatch({ type: 'thinking', id: 'one' })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  const line = screen.getByTestId('agent-chat-line')
+  expect(line).toHaveTextContent('Shorten the opening Clip')
+  expect(screen.getAllByText('Thinking')).toHaveLength(1)
+  expect(line.querySelector('.agent-activity-dot')).toBeNull()
+
+  act(() => controller.dispatch({ type: 'beginEdit', id: 'one', intent: 'Shorten the opening Clip' }))
+  expect(screen.getByText('Thinking')).toBeVisible()
+
+  act(() => controller.dispatch({ type: 'outcome', id: 'one', outcome: 'applied', changes: [{ targetId: 'clip', description: 'Shortened CometLoom to 29 seconds.\n1:34–2:03 · 29 seconds' }] }))
+  expect(screen.getByText('Saving')).toBeVisible()
+  act(() => controller.dispatch({ type: 'outcome', id: 'one', outcome: 'saved' }))
+  expect(screen.getByTestId('agent-command-icon')).toBeVisible()
+  expect(line).toHaveTextContent('Shortened CometLoom to 29 seconds. 1:34–2:03 · 29 seconds')
+})
+
+it('renders a direct thinking request once until its operation row arrives', () => {
+  controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
+  controller.dispatch({ type: 'thinking', id: 'one' })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  expect(screen.getAllByText('Thinking')).toHaveLength(1)
+  act(() => controller.dispatch({ type: 'beginEdit', id: 'one', intent: 'Edit the Show' }))
+  expect(screen.getAllByText('Thinking')).toHaveLength(1)
+  expect(screen.getAllByTestId('agent-chat-line')).toHaveLength(1)
+})
+
+it('keeps active external work on the same gentle Thinking response and freezes it on contact loss', () => {
+  controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'agentBinds', name: 'Claude Code' })
+  controller.dispatch({ type: 'beginEdit', id: 'one', intent: 'Resize' })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  expect(screen.getByTestId('agent-response')).toHaveTextContent('Thinking')
+  expect(screen.getByTestId('agent-response')).toHaveClass('agent-thinking')
+  act(() => controller.dispatch({ type: 'drop' }))
+  expect(screen.getByTestId('agent-response')).not.toHaveClass('agent-thinking')
+})
+
+it.each([true, false])('shows an inline draft qualifier with %s reply content and no landed-command icon', withReply => {
+  controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
+  controller.dispatch({ type: 'beginEdit', id: 'one', intent: 'Resize' })
+  if (withReply) controller.dispatch({ type: 'operationReply', id: 'one', text: 'I changed the draft.' })
+  controller.dispatch({ type: 'outcome', id: 'one', outcome: 'draft', changes: [{ targetId: 'clip', description: 'Shortened CometLoom.' }] })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  const response = screen.getByTestId('agent-response')
+  expect(response).toHaveTextContent(withReply ? 'I changed the draft.' : 'Shortened CometLoom.')
+  expect(response).toHaveTextContent('Applied to draft.')
+  expect(screen.queryByTestId('agent-command-icon')).toBeNull()
+})
+
+it.each(['not-applied', 'rolled-back', 'cancelled', 'superseded', 'unknown'] as const)('uses the same gray final treatment without a command icon for %s', outcome => {
+  controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
+  controller.dispatch({ type: 'beginEdit', id: 'one', intent: 'Resize' })
+  controller.dispatch({ type: 'outcome', id: 'one', outcome, reason: 'The edit did not land.' })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  expect(screen.getByTestId('agent-response')).toHaveClass('text-zinc-400')
+  expect(screen.queryByTestId('agent-command-icon')).toBeNull()
+  expect(screen.getByTestId('agent-chat-line')).not.toHaveClass('text-red-300')
+})
+
+it('keeps transcript order while connection choices and composers change', () => {
+  controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
+  controller.dispatch({ type: 'beginEdit', id: 'one', intent: 'First request' })
+  controller.dispatch({ type: 'outcome', id: 'one', outcome: 'draft', changes: [{ targetId: 'clip', description: 'First result' }] })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  expect(screen.getByTestId('agent-chat-input')).toBeVisible()
+
+  act(() => controller.dispatch({ type: 'disconnect' }))
+  expect(screen.getByRole('button', { name: /Use the Pixelblaze agent/ })).toBeVisible()
+  expect(screen.getByText('First request')).toBeVisible()
+  act(() => controller.dispatch({ type: 'agentBinds', name: 'Codex' }))
+  expect(screen.queryByTestId('agent-chat-input')).toBeNull()
+  expect(screen.getByText('First result')).toBeVisible()
+  act(() => { controller.dispatch({ type: 'disconnect' }); controller.dispatch({ type: 'chooseBuiltin' }) })
+  expect(screen.getByTestId('agent-chat-input')).toBeVisible()
+  expect(screen.getByText('First request')).toBeVisible()
+})
+
+it('makes each complete chooser region one pointer button with its icon and description', () => {
+  controller.dispatch({ type: 'drawer', mode: 'open' })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  const builtin = screen.getByRole('button', { name: /Use the Pixelblaze agent.*Ask for edits here/ })
+  const external = screen.getByRole('button', { name: /Connect an MCP agent.*Work from Claude Code/ })
+  expect(builtin).toHaveClass('cursor-pointer')
+  expect(external).toHaveClass('cursor-pointer')
+  expect(builtin.querySelector('svg')).not.toBeNull()
+  expect(external.querySelector('svg')).not.toBeNull()
+  fireEvent.click(builtin.querySelector('svg')!)
+  expect(useAgentDrawerStore.getState().state.connection?.kind).toBe('builtin')
+})
+
+it('always follows activity growth without moving input focus', () => {
+  controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  const log = screen.getByTestId('agent-chat-log')
+  Object.defineProperty(log, 'scrollHeight', { configurable: true, value: 480 })
+  log.scrollTop = 40
+  const composer = screen.getByTestId('agent-chat-input'); composer.focus()
+
+  act(() => controller.dispatch({ type: 'beginEdit', id: 'one', intent: 'A request long enough to wrap over several lines in the narrow drawer' }))
+  expect(log.scrollTop).toBe(480)
+  expect(composer).toHaveFocus()
+  log.scrollTop = 80
+  act(() => controller.dispatch({ type: 'operationReply', id: 'one', text: 'A growing multiline response\nwith another line' }))
+  expect(log.scrollTop).toBe(480)
+  log.scrollTop = 120
+  act(() => controller.dispatch({ type: 'outcome', id: 'one', outcome: 'draft' }))
+  expect(log.scrollTop).toBe(480)
+  expect(composer).toHaveFocus()
 })
 it('withholds success prose until settlement and restores change details after supersession', () => {
   controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
@@ -133,7 +248,8 @@ it('withholds success prose until settlement and restores change details after s
   expect(line).not.toHaveTextContent('Done resizing.')
   act(() => controller.dispatch({ type: 'outcome', id: 'pending', outcome: 'applied', changes: [{ targetId: 'clip', description: 'Clip duration changed.' }] }))
   expect(line).not.toHaveTextContent('Done resizing.')
-  expect(line).toHaveTextContent('Clip duration changed.')
+  expect(line).toHaveTextContent('Saving')
+  expect(line).not.toHaveTextContent('Clip duration changed.')
   act(() => controller.dispatch({ type: 'outcome', id: 'pending', outcome: 'saved' }))
   expect(line).toHaveTextContent('Done resizing.')
   expect(line).not.toHaveTextContent('Clip duration changed.')

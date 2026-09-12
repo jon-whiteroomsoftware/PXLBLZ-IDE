@@ -18,6 +18,30 @@ export interface CommandClipContext {
   siblings: Array<{ clip: ShowUnifiedTimelineClipProjection; zoneName: string }>
 }
 
+function secondsText(milliseconds: number): string {
+  return String(Math.round(milliseconds) / 1_000)
+}
+
+function clockText(milliseconds: number): string {
+  const rounded = Math.max(0, Math.round(milliseconds))
+  const minutes = Math.floor(rounded / 60_000)
+  const seconds = Math.floor((rounded % 60_000) / 1_000)
+  const fraction = rounded % 1_000
+  return `${minutes}:${String(seconds).padStart(2, '0')}${fraction ? `.${String(fraction).padStart(3, '0').replace(/0+$/, '')}` : ''}`
+}
+
+export function formatShowCommandDuration(milliseconds: number): string {
+  const seconds = secondsText(milliseconds)
+  return `${seconds} ${seconds === '1' ? 'second' : 'seconds'}`
+}
+
+export function formatShowCommandTimeRange(startMs: number, endMs: number, durationMs: number): string {
+  const range = Math.max(startMs, endMs) >= 60_000
+    ? `${clockText(startMs)}–${clockText(endMs)}`
+    : `${secondsText(startMs)}–${secondsText(endMs)} seconds`
+  return `${range} · ${formatShowCommandDuration(durationMs)}`
+}
+
 export function describeCommandClip(
   clip: ShowUnifiedTimelineClipProjection,
   zoneName: string,

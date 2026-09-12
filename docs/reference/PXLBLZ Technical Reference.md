@@ -1662,8 +1662,14 @@ receipts and successful registry attribution; existing history and persistence
 owners remain authoritative. Each built-in operation owns one activity row from
 submission through settlement, with its reply attached to that row. Success prose
 requires a saved or draft outcome; intentional no-edit completions retain their
-clarification or refusal reply. Hidden prose does not suppress recorded changes. Pending
-work and saving pulse the row dot; reduced-motion preferences disable animation.
+clarification or refusal reply. Hidden prose does not suppress recorded changes. The
+component projects request text and one left-aligned muted response: gently animated
+Thinking while active, Saving during adoption, a visible draft qualifier, or the
+settled outcome. Only a saved command with recorded changes has a terminal icon.
+Reduced-motion preferences disable the Thinking animation. The activity scroll owner
+follows every stream and request-phase update; it changes only the drawer log's
+`scrollTop`, so it does not move document scroll or focus. Connection transitions retain
+the same reducer-owned stream while swapping the chooser, identity, and built-in composer.
 Response and continuation validation share the SDK reasoning-item schema,
 including optional reasoning content. The loopback diagnostic bridge remains DEV-only.
 See the [built-in service contract](contracts/agent-builtin-service.md) for

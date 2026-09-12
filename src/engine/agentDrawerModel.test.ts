@@ -2,6 +2,32 @@ import { describe, expect, it } from 'vitest'
 import { agentEdgeState, agentInsertionBand, createAgentDrawerState, transitionAgentDrawer } from './agentDrawerModel'
 
 describe('agent drawer activity projection', () => {
+  it('projects one operation through thinking and working without duplicating its request', () => {
+    let state = transitionAgentDrawer(createAgentDrawerState(), { type: 'chooseBuiltin' })
+    state = transitionAgentDrawer(state, { type: 'beginEdit', id: 'one', intent: 'Shorten the opening' })
+    state = transitionAgentDrawer(state, { type: 'thinking', id: 'one' })
+    expect(state.request).toEqual({ id: 'one', phase: 'thinking' })
+    expect(state.stream).toEqual([
+      expect.objectContaining({ operationId: 'one', text: 'Shorten the opening', phase: 'thinking' }),
+    ])
+
+    state = transitionAgentDrawer(state, { type: 'beginEdit', id: 'one', intent: 'Shorten the opening' })
+    expect(state.request).toEqual({ id: 'one', phase: 'working' })
+    expect(state.stream).toEqual([
+      expect.objectContaining({ operationId: 'one', text: 'Shorten the opening', phase: 'working' }),
+    ])
+  })
+
+  it('does not revive a settled operation on late thinking or duplicate begin events', () => {
+    let state = transitionAgentDrawer(createAgentDrawerState(), { type: 'chooseBuiltin' })
+    state = transitionAgentDrawer(state, { type: 'beginEdit', id: 'one', intent: 'Shorten the opening' })
+    state = transitionAgentDrawer(state, { type: 'outcome', id: 'one', outcome: 'saved' })
+    const settled = state
+    state = transitionAgentDrawer(state, { type: 'thinking', id: 'one' })
+    state = transitionAgentDrawer(state, { type: 'beginEdit', id: 'one', intent: 'Late duplicate' })
+    expect(state).toEqual(settled)
+  })
+
   it('counts changed outcomes once per operation while tucked, then counts a later rollback after reading', () => {
     let state = transitionAgentDrawer(createAgentDrawerState(), { type: 'chooseBuiltin' })
     state = transitionAgentDrawer(state, { type: 'beginEdit', id: 'one', intent: 'Shorten the opening' })

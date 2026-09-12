@@ -22,6 +22,7 @@ import { projectShowSummary } from '../showSummaryProjection'
 import { insertShowLayerTransition } from '../showLayerTransitionAuthoring'
 import { projectShowLayoutIntervals } from '../showLayoutIntervals'
 import { SHOW_COMMANDS, applyShowCommand, type ShowCommandChange } from './registry'
+import { formatShowCommandTimeRange } from './support'
 import { isDeepStrictEqual } from 'node:util'
 
 // Golden accepted case and refusal partitions per registry entry, plus the
@@ -74,6 +75,14 @@ function summaryClips(record: ShowRecord) {
   return projectShowSummary(record, record.composition!).zones
     .flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
 }
+
+it.each([
+  [250, 750, 500, '0.25–0.75 seconds · 0.5 seconds'],
+  [59_500, 60_000, 500, '0:59.5–1:00 · 0.5 seconds'],
+  [94_000, 123_000, 29_000, '1:34–2:03 · 29 seconds'],
+] as const)('formats structured agent timing at %i–%i ms', (startMs, endMs, durationMs, expected) => {
+  expect(formatShowCommandTimeRange(startMs, endMs, durationMs)).toBe(expected)
+})
 
 /**
  * A transition-connected chain whose last clip ends exactly at the Scene
@@ -303,11 +312,17 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(crossed.record.composition?.transitions?.[0]).toMatchObject({ id: 'cross-ab', fromPlacementId: 'cross-a--span-scene-2', toPlacementId: 'cross-b', durationMs: 1_000 })
   },
   resize_clip: () => {
-    const { record } = applyOk(showCommandFixture(), 'resize_clip', {
+    const { record, changes } = applyOk(showCommandFixture(), 'resize_clip', {
       clip_id: 'clip-b',
       duration_ms: 9_000,
     })
     expect(summaryClips(record).find((clip) => clip.clipId === 'clip-b')?.durationMs).toBe(9_000)
+    expect(changes).toEqual([
+      expect.objectContaining({
+        targetId: 'clip-b',
+        description: 'Lengthened Rings to 9 seconds.\n12–21 seconds · 9 seconds',
+      }),
+    ])
 
     // Exact resize refuses a generous request instead of silently clamping.
     applyRefused(showCommandFixture(), 'resize_clip', { clip_id: 'clip-b', duration_ms: 20_000 }, 'no-space')

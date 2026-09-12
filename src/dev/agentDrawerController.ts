@@ -89,8 +89,8 @@ export function createAgentDrawerController(api: Admission, showId: string) {
     useAgentDrawerStore.setState({ busy: true })
     captures.set(captured.request.operationId, captured)
     const id = captured.request.operationId
-    dispatch({ type: 'say', text: retry ? `Retry the original Clip at ${captured.retryResize!.durationMs / 1000}s.` : utterance })
     dispatch({ type: 'beginEdit', id, intent: retry ? `Resize the original Clip to ${captured.retryResize!.durationMs / 1000}s` : utterance, retryOf: captured.request.retryOf })
+    dispatch({ type: 'thinking', id })
     const record: DiagnosticRecord = { requestId: id, showId, capturedUpdatedAt: captured.show.updatedAt, responseAt: null, firstEventAt: null, doneAt: null, applyStartedAt: null, applyEndedAt: null, submittedAt: Date.now(), events: [], error: null }
     records.push(record)
     transport = new AbortController()

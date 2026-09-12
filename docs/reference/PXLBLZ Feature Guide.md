@@ -541,10 +541,12 @@ parameters) to an editable Show URL and open the right-edge Agent drawer.
 **Use the Pixelblaze agent** connects it to this Show; write an edit request in
 the composer. Personal Show edits save to your account; built-in Show edits
 remain session drafts. Successful edits use ordinary Undo history. Each submitted request stays in one
-activity entry: its dot pulses while working or saving, then settles beside the
-outcome. A success confirmation appears only after saving or draft application
-finishes; errors and clarification replies appear below the original request. Reduced
-motion preferences disable the pulse; status text remains visible.
+activity entry. A quiet **Thinking** response appears below it while the agent works,
+then the same response becomes a saving, draft, success, or failure message. Saved
+commands use a terminal icon; other activity stays unmarked and uses one muted text
+treatment. Clip resize confirmations name the Pattern and show the new length and
+timeline range in seconds. Reduced motion preferences disable the Thinking animation;
+status text remains visible.
 
 **Connect an MCP agent** makes this window ready for an external connection for
 two minutes. If an incoming call appears, choose **Answer** within 30 seconds or
@@ -557,6 +559,10 @@ can prevent an agent result from applying. Activity distinguishes saved edits,
 changes applied to a draft, refused work and cancellation. Losing contact does
 not prove failure: known save outcomes remain visible, and **Restore contact**
 checks the existing operation without replaying it.
+
+The activity transcript remains visible while choosing, connecting, disconnecting,
+or switching between the built-in and MCP agents. New and changing activity always
+moves the activity pane to its latest entry without moving keyboard focus or the page.
 
 A supported single exact Clip resize can offer **Retry** against current state.
 Retry creates a new activity, preserves the earlier failure and any unsent draft,

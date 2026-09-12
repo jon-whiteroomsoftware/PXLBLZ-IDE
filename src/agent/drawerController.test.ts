@@ -190,7 +190,7 @@ it('keeps one command entry from submission through its attached reply', async (
   f.controller.submit()
   await vi.waitFor(() => expect(finish).toBeDefined())
   expect(useAgentDrawerStore.getState().state.stream).toHaveLength(1)
-  expect(useAgentDrawerStore.getState().state.stream[0]).toMatchObject({ text: 'Resize the first Clip', phase: 'working' })
+  expect(useAgentDrawerStore.getState().state.stream[0]).toMatchObject({ text: 'Resize the first Clip', phase: 'thinking' })
   finish({ code: 'unavailable', dispatch: 'not_attempted', message: 'No edit was made.' })
   await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.stream[0].outcome).toBe('not-applied'))
   expect(useAgentDrawerStore.getState().state.stream).toHaveLength(1)

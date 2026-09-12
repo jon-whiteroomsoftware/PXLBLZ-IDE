@@ -136,7 +136,7 @@ export function createProductionDrawerController(api: Admission, showId: string,
           if (begun.code !== 'started' || typeof begun.operationId !== 'string') { emit({ type: 'system', text: agentRefusalMessage(begun.code) }); return }
           const id = begun.operationId
           operations.set(id, { changes: [] })
-          emit({ type: 'draft', text: '' }); emit({ type: 'beginEdit', id, intent: prompt })
+          emit({ type: 'draft', text: '' }); emit({ type: 'beginEdit', id, intent: prompt }); emit({ type: 'thinking', id })
           const result = await builtin({ action: 'run', operationId: id, prompt })
           if (disposed) return
           refresh()
