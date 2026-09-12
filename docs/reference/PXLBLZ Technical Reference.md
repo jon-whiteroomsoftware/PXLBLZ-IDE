@@ -942,7 +942,10 @@ inspector owner. They merge omitted fields against each physical segment of a
 logical Clip, retain property tracks, and preserve only the explicitly supported
 per-segment presentation differences. The registry still refuses unrelated
 View, Effect, ownership, Zone, or Layer divergence. Reopened Show artifacts
-compile each segment's fixed Aperture and Content pose independently.
+compile each segment's fixed Aperture and Content pose independently. Structural
+Clip edits preserve those records through exact Scene-slice mapping; a move,
+resize or copy refuses when a Scene or Transition gap cannot represent every
+divergent source presentation without flattening it.
 
 Adding a command requires a descriptor in its family module plus a golden
 accepted case and refusal partition. The faithfulness sweep fails entries

@@ -87,6 +87,12 @@ const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
     'if (logicalSegments.length > 1 || targetSlices.length > 1) {',
   ),
   target(
+    'move',
+    'showTimelineClipAuthoring.ts',
+    'exactStaticPresentationBases',
+    'if (!extended) return null',
+  ),
+  target(
     'resize',
     'showTimelineClipAuthoring.ts',
     'resizeShowClipAtGlobalTime',
@@ -107,6 +113,15 @@ const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
     'showTimelineClipAuthoring.ts',
     'planShowClipDuplicateAfter',
     'const targetEndMs = targetStartMs + durationMs',
+  ),
+  target(
+    'duplicate',
+    'showTimelineClipAuthoring.ts',
+    'exactStaticPresentationBases',
+    [
+      'if (repartition.requireEverySourceAppearance',
+      '    && new Set(sourceSignatures).size !== selectedSignatures.size) return null',
+    ].join('\n'),
   ),
   target('delete', 'showCompositionModel.ts', 'deleteLogicalPlacement'),
   target(
@@ -203,6 +218,7 @@ export function buildStrykerConfig(repoRoot: string) {
     testFiles: [
       'src/engine/showAuthoringMatrix.test.ts',
       'src/engine/showTimelineClipAuthoring.test.ts',
+      'src/engine/showTimelineClipAppearanceRepartition.test.ts',
       'src/engine/showCompositionModel.test.ts',
       'src/engine/showCommands/removeClip.test.ts',
       'src/engine/showCommands/splitClip.test.ts',

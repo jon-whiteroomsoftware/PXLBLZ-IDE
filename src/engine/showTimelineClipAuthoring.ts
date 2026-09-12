@@ -134,6 +134,70 @@ function globalSpanSceneSlices(
   return firstGlobalStartMs === globalStartMs && lastGlobalEndMs === globalEndMs ? slices : []
 }
 
+type StaticPresentationRepartition = {
+  sources: LogicalClipSegment[]
+  offsetMs: number
+  allowSameSceneExtension?: boolean
+  requireEverySourceAppearance?: boolean
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(',')}}`
+  }
+  return JSON.stringify(value) ?? 'undefined'
+}
+
+function staticPresentationSignature(placement: ShowMainPlacement | ShowOverlayPlacement): string {
+  return canonicalJson({
+    ...('opacity' in placement ? { opacity: placement.opacity } : {}),
+    ...('transform' in placement ? { transform: placement.transform } : {}),
+    ...('viewport' in placement ? { viewport: placement.viewport } : {}),
+  })
+}
+
+function exactStaticPresentationBases(
+  show: ShowRecord,
+  slices: Array<{ sceneId: string; localStartMs: number; durationMs: number }>,
+  repartition: StaticPresentationRepartition,
+): Array<ShowMainPlacement | ShowOverlayPlacement> | null {
+  if (repartition.sources.length === 0) return null
+  const sourceSignatures = repartition.sources.map(source => staticPresentationSignature(source.placement))
+  if (new Set(sourceSignatures).size === 1) {
+    return slices.map(() => repartition.sources[0].placement)
+  }
+  const sceneStartById = new Map(projectShowTimeline(show).scenes.map(scene => [scene.sceneId, scene.startMs]))
+  const sourceIntervals = repartition.sources.map((source, index) => ({
+    source,
+    signature: sourceSignatures[index],
+    startMs: source.sceneStartMs + source.placement.startMs + repartition.offsetMs,
+    endMs: source.sceneStartMs + source.placement.startMs + source.placement.durationMs + repartition.offsetMs,
+  }))
+  const selectedSignatures = new Set<string>()
+  const bases: Array<ShowMainPlacement | ShowOverlayPlacement> = []
+  for (const slice of slices) {
+    const sceneStartMs = sceneStartById.get(slice.sceneId)
+    if (sceneStartMs === undefined) return null
+    const startMs = sceneStartMs + slice.localStartMs
+    const endMs = startMs + slice.durationMs
+    const exact = sourceIntervals.find(interval => interval.startMs <= startMs && interval.endMs >= endMs)
+    const extended = exact ?? (repartition.allowSameSceneExtension
+      ? sourceIntervals.find(interval => interval.source.sceneId === slice.sceneId
+        && interval.startMs <= endMs && interval.endMs >= startMs)
+      : undefined)
+    if (!extended) return null
+    selectedSignatures.add(extended.signature)
+    bases.push(extended.source.placement)
+  }
+  if (repartition.requireEverySourceAppearance
+    && new Set(sourceSignatures).size !== selectedSignatures.size) return null
+  return bases
+}
+
 function appendLogicalClipGlobalSpan(
   show: ShowRecord,
   composition: ShowCompositionV1,
@@ -143,17 +207,23 @@ function appendLogicalClipGlobalSpan(
     target: ShowClipAddTarget & { zoneId: string }
     globalStartMs: number
     durationMs: number
+    staticPresentation?: StaticPresentationRepartition
   },
 ): boolean {
   const slices = globalSpanSceneSlices(show, input.globalStartMs, input.durationMs)
   if (slices.length === 0) return false
+  const bases = input.staticPresentation
+    ? exactStaticPresentationBases(show, slices, input.staticPresentation)
+    : slices.map(() => input.base)
+  if (!bases) return false
   for (const [index, slice] of slices.entries()) {
     const scene = composition.scenes.find((candidate) => candidate.sceneId === slice.sceneId)
     const zone = scene?.zones.find((candidate) => candidate.zoneId === input.target.zoneId)
     if (!scene || !zone) return false
     const id = index === 0 ? input.rootId : `${input.rootId}--span-${slice.sceneId}`
+    const base = bases[index]
     const placement = {
-      ...structuredClone(input.base),
+      ...structuredClone(base),
       id,
       logicalClipId: input.rootId as string | undefined,
       startMs: Math.round(slice.localStartMs),
@@ -171,7 +241,7 @@ function appendLogicalClipGlobalSpan(
         || (existing.startMs === placement.startMs && existing.id.localeCompare(placement.id) > 0))
       layer.placements.splice(insertionIndex < 0 ? layer.placements.length : insertionIndex, 0, {
         ...placement,
-        opacity: 'opacity' in input.base && typeof input.base.opacity === 'number' ? input.base.opacity : 1,
+        opacity: 'opacity' in base && typeof base.opacity === 'number' ? base.opacity : 1,
       } as ShowOverlayPlacement)
     }
   }
@@ -363,8 +433,11 @@ function replaceLogicalClipGlobalSpan(
     target: ShowClipAddTarget & { zoneId: string }
     globalStartMs: number
     durationMs: number
+    staticPresentationMode: 'source-global' | 'relative'
+    allowSameSceneExtension?: boolean
   },
 ): ShowCompositionV1 {
+  if (validateShowComposition(show, composition).length > 0) return composition
   const segments = logicalClipSegments(show, composition, input.owner)
   const base = segments.find((segment) => segment.placement.id === input.owner.placementId)?.placement
     ?? segments[0]?.placement
@@ -398,6 +471,14 @@ function replaceLogicalClipGlobalSpan(
     target: input.target,
     globalStartMs: input.globalStartMs,
     durationMs: input.durationMs,
+    staticPresentation: {
+      sources: segments,
+      offsetMs: input.staticPresentationMode === 'relative'
+        ? input.globalStartMs - sourceRange.startMs
+        : 0,
+      allowSameSceneExtension: input.allowSameSceneExtension,
+      requireEverySourceAppearance: input.staticPresentationMode === 'relative',
+    },
   })) return composition
   if (
     showPatternInstanceUseCount(composition, base.instanceId) === 1
@@ -696,6 +777,7 @@ function moveShowClip(
         : { kind: 'overlay', zoneId: input.target.zoneId, layerIndex: input.target.layerIndex },
       globalStartMs: Math.round(input.target.globalStartMs),
       durationMs: logicalDurationMs,
+      staticPresentationMode: 'relative',
     })
   }
   const timeline = projectShowTimeline(show)
@@ -859,6 +941,7 @@ export function splitShowClipAtGlobalTime(
       target,
       globalStartMs: logicalRange.startMs,
       durationMs: globalTimeMs - logicalRange.startMs,
+      staticPresentation: { sources: segments, offsetMs: 0 },
     })) return composition
     if (!appendLogicalClipGlobalSpan(show, draft, {
       rootId: input.newPlacementId,
@@ -866,6 +949,7 @@ export function splitShowClipAtGlobalTime(
       target,
       globalStartMs: globalTimeMs,
       durationMs: logicalRange.endMs - globalTimeMs,
+      staticPresentation: { sources: segments, offsetMs: 0 },
     })) return composition
     if (!retargetLogicalSplitPlacementTracks(draft, {
       sourcePlacementIds: segmentIds,
@@ -1106,12 +1190,24 @@ export function duplicateShowClipAtGlobalTime(
     draft.patternInstances.push({ ...structuredClone(sourceInstance), id: input.newInstanceId })
     delete draft.executionModel
   }
+  const copySegments = logicalSegments.map(segment => ({
+    ...segment,
+    placement: {
+      ...structuredClone(segment.placement),
+      instanceId: input.newInstanceId ?? segment.placement.instanceId,
+    },
+  }))
   if (!appendLogicalClipGlobalSpan(show, draft, {
     rootId: input.newPlacementId,
     base: { ...structuredClone(base), instanceId: input.newInstanceId ?? base.instanceId },
     target: input.target,
     globalStartMs: targetStartMs,
     durationMs: logicalRange.endMs - logicalRange.startMs,
+    staticPresentation: {
+      sources: copySegments,
+      offsetMs: targetStartMs - logicalRange.startMs,
+      requireEverySourceAppearance: true,
+    },
   })) return composition
   // The supported animated form has one source and one destination Scene.
   // Retain the existing whole curves and their local-time shift, without
@@ -1364,6 +1460,8 @@ export function resizeShowClipAtGlobalTime(
         : { kind: 'overlay', zoneId: input.owner.zoneId, layerIndex: layerIndex! },
       globalStartMs: Math.round(input.globalStartMs),
       durationMs: Math.round(input.durationMs),
+      staticPresentationMode: 'source-global',
+      allowSameSceneExtension: true,
     })
   }
   const range = projectShowTimeline(show).scenes.find((scene) => scene.sceneId === input.owner.sceneId)

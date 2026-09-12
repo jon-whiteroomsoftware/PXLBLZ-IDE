@@ -6,6 +6,7 @@ import { buildShowFileBundle, parseShowFileBundle, serializeShowFileBundle } fro
 import { createDefaultShow } from '../showModel'
 import { createPortableShowOutputContract } from '../showOutputContract'
 import { compileShowForArtifact } from '../showPreviewArtifact'
+import { splitShowClipAtGlobalTime } from '../showTimelineClipAuthoring'
 import { applyShowCommand } from './registry'
 
 const patterns: PatternRecord[] = [
@@ -167,5 +168,40 @@ describe('compiled and reopened static Clip inspector commands (#1011, #1017)', 
     // receives the inverse-pose source coordinate above.
     const combinedPixel = await pixelAt(reopened, 0.75, 0.625, 30_100)
     ;[0.15, 0.3, 0.6].forEach((value, index) => expect(combinedPixel[index]).toBeCloseTo(value, 12))
+  })
+
+  it('reopens and compiles each divergent physical appearance after a partial setter and logical split', async () => {
+    const source = splitVisualShow()
+    const posed = applied(source, 'set_clip_transform', { position_y: 0.25, rotation: 0.25 })
+    const edged = applied(posed, 'set_clip_aperture', { edge: 'hard' })
+    const opacity = applied(edged, 'set_clip_opacity', { opacity: 0.6 })
+    const composition = splitShowClipAtGlobalTime(opacity, opacity.composition!, {
+      owner: { kind: 'main', sceneId: 'scene-1', zoneId: 'zone-1', placementId: 'clip-target' },
+      globalTimeMs: 15_000,
+      newPlacementId: 'right',
+    })
+    expect(composition).not.toBe(opacity.composition)
+
+    const reopened = await reopen({ ...opacity, composition })
+    expect(reopened.composition!.scenes[0].zones[0].main).toMatchObject([
+      {
+        id: 'clip-target',
+        transform: { positionX: 0, positionY: 0.25, rotation: 0.25, scaleX: 1, scaleY: 1 },
+        viewport: { enabled: true, x: 0, y: 0, width: 0.5, height: 1, edge: 'hard' },
+      },
+      {
+        id: 'right',
+        transform: { positionX: 0, positionY: 0.25, rotation: 0.25, scaleX: 1, scaleY: 1 },
+        viewport: { enabled: true, x: 0, y: 0, width: 0.5, height: 1, edge: 'hard' },
+      },
+    ])
+    expect(reopened.composition!.scenes[1].zones[0].main).toMatchObject([{
+      id: 'right--span-scene-2',
+      logicalClipId: 'right',
+      transform: { positionX: 0.25, positionY: 0.25, rotation: 0.25, scaleX: 0.5, scaleY: 1 },
+      viewport: { enabled: true, x: 0.5, y: 0, width: 0.5, height: 1, aperture: 'ellipse', edge: 'hard' },
+    }])
+    const compiledTail = await pixelAt(reopened, 0.75, 0.625, 30_100)
+    ;[0.15, 0.3, 0.6].forEach((value, index) => expect(compiledTail[index]).toBeCloseTo(value, 12))
   })
 })

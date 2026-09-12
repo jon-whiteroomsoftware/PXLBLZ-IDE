@@ -109,6 +109,12 @@ logical Clip's duration, relative offset and Transition settings. Segment endpoi
 references may change when Scene repartitioning requires it. Placement animation
 and sole-user instance animation follow their existing engine ownership rules;
 shared instance animation retains shared ownership. Unrelated Clips never ripple.
+Static opacity, Transform and Viewport/Aperture differences move by the same
+global offset as their source physical segments. The move is supported only when
+each destination Scene slice can retain one complete authored presentation and
+every distinct source presentation remains represented. A destination Scene that
+would merge two divergent pieces, or a destination Transition gap that would hide
+one, refuses atomically instead of selecting a replacement presentation.
 
 Invalid targets or times, occupied destinations, out-of-Show chains, Group-owned
 Clips and incompatible connected destinations refuse without a candidate. The
@@ -159,6 +165,11 @@ the result reports its previous and new duration. Segment endpoint references
 follow the logical Clip when Scene coverage changes. Group-owned Clips,
 Transition removal, and edits that would remove a visual Scene-boundary
 Transition refuse. The manual exceptions below do not broaden the agent operation.
+Resize retains each surviving physical segment's authored static opacity,
+Transform and Viewport/Aperture at its source-global Scene ownership. Trimming
+within a segment and extending that same segment inside its Scene retain its
+record. Growth into a new Scene is supported for a uniform presentation; a
+divergent logical Clip refuses when no source segment owns the new Scene.
 
 The registry `resize_clip` descriptor owns `clip_id`, exactly one safe-integer
 `duration_ms`/`end_ms`, and optional safe-integer `start_ms`. The diagnostic
@@ -338,6 +349,10 @@ shared instance animation. Placement curves are copied with derived IDs onto
 the applicable halves, not cropped or resampled. Incoming Transitions remain on
 the left root; outgoing endpoints reference the final right segment. Transition
 IDs, duration, easing and other visual parameters remain unchanged.
+Each split segment copies the source-global physical segment it intersects. A
+split inside one physical segment therefore gives both adjacent halves that
+segment's exact authored opacity, Transform and Viewport/Aperture, while physical
+segments on either side keep their own records.
 
 The split changes only the target placements, their placement tracks and attached
 Transition endpoint references. Unrelated Scene/Layer ordering, Groups, markers
@@ -374,6 +389,10 @@ refuse atomically. Every accepted result validates without normalizing unrelated
 authored records. Existing Transition identities and parameters, Groups, ordering,
 explicit empty collections and surviving shared users remain unchanged; no
 attached Transition is copied.
+For a divergent static presentation, each copied Scene slice must map by the
+copy's global offset to exactly one complete source physical segment, and every
+distinct source presentation must remain represented. Otherwise duplication
+refuses atomically; it never flattens the copy to its root segment.
 
 The diagnostic adapter derives its invocation schema and receipt from the
 canonical descriptor, while preserving diagnostic ID minting. Manual destination
@@ -508,6 +527,10 @@ per-segment differences survive. This exception is limited to opacity,
 Transform and Viewport/Aperture: a logical Clip with different Pattern
 ownership, Layer/Zone topology, View values, Effects, or presentation state
 still refuses before any field changes.
+Later split, resize, move and duplicate operations retain those independent
+records when the resulting Scene slices can represent them exactly. The
+structural operation refuses atomically when a destination Scene or Transition
+gap would require choosing or dropping one divergent presentation.
 
 Opacity accepts finite values from 0 through 1. Transform accepts normalized
 position from -4 through 4, rotation from -8 through 8 turns, and scale from

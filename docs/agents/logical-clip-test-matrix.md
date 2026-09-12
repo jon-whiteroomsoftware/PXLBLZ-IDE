@@ -37,6 +37,7 @@ product.
 | Relationship | Placement animation | `placement animation` matrix row and animated split regression |
 | Relationship | Instance animation | `instance animation` matrix row and partitioned-keyframe regressions |
 | Relationship | Nonlinear easing | Refused `nonlinear instance easing across Scenes` matrix row |
+| Relationship | Divergent static presentation | `showTimelineClipAppearanceRepartition.test.ts` covers exact Main/overlay preservation and unrepresentable Scene/gap refusal |
 
 ## Operation contract coverage
 
@@ -74,6 +75,7 @@ validation, projection, or reference integrity.
 | Move, then inspect | A Clip moved into another Scene remains addressable through its new inspector owner |
 | Duplicate, then delete | Removing the duplicate preserves the original Clip and its Pattern reference |
 | Move, resize, split, persist, reload | `showStore.test.ts` verifies the serialized multi-Scene result and unified projection |
+| Partial static setter, split, export, reload, compile | `clipProperties.compiler.test.ts` verifies each divergent physical appearance after structural authoring |
 
 ## Mutation-driven refinements
 
@@ -87,6 +89,7 @@ run exposed three missing distinctions that ordinary coverage did not:
 | Split plan | Exact Clip start and end remain disabled; only a strict interior time is splittable |
 | Inspector accepted no-op | An exact no-op Start may accompany an opacity change, and the placement change still commits |
 | Inspector refused edit | An invalid Start refuses the colocated opacity change even when Duration equals the current value |
+| Static presentation repartition | A destination Scene cannot merge two divergent pieces, and a destination gap cannot discard one |
 
 These are operation-level contracts, not mutation-runner fixtures. Keep the
 tests beside their owning engines and retain the mutation fragments only while

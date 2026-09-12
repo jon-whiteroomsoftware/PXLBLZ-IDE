@@ -937,10 +937,10 @@ testing into a second full suite:
 
 | Operation | Qualified fault boundary |
 | --- | --- |
-| Move | Dispatch between ordinary and multi-Scene logical Clip movement |
+| Move | Dispatch between ordinary and multi-Scene movement; every divergent static appearance maps to one complete visible destination slice |
 | Resize | Placement-animation keyframes retain their offset from the moved edge |
 | Split | The public plan uses strict interior Clip boundaries |
-| Duplicate | The immediate-after destination retains one complete source-Clip duration |
+| Duplicate | The immediate-after destination retains one complete source-Clip duration and every distinct copied static appearance |
 | Delete | The complete logical Clip, its tracks, and connected Transitions are removed together |
 | Inspector | Timing and colocated placement fields commit or refuse atomically |
 | Transition | Insert validation and resize-delta arithmetic preserve a valid composition |

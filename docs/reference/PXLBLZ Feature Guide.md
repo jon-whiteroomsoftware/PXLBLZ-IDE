@@ -567,7 +567,10 @@ moves the activity pane to its latest entry without moving keyboard focus or the
 Canonical agent edits can set a Clip's static opacity, Content Transform, and
 Aperture frame or silhouette. Partial edits retain omitted values on every part
 of a Clip that continues across Scenes, while shape-specific Aperture settings
-are removed when the silhouette changes.
+are removed when the silhouette changes. Later Clip moves, resizes, splits and
+copies keep those Scene-specific appearances when the destination can represent
+them exactly. An edit that would merge two different appearances into one Scene,
+or hide one in a Scene Transition, is refused instead of flattening the Clip.
 
 A supported single exact Clip resize can offer **Retry** against current state.
 Retry creates a new activity, preserves the earlier failure and any unsent draft,
