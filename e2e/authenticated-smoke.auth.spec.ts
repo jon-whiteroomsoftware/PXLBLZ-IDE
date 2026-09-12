@@ -158,6 +158,7 @@ test('the Studio entity drawer overlays without reflow and preserves Preview Spa
   await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
 
   const layout = page.getByTestId('studio-drawer-layout')
+  const drawer = page.getByTestId('studio-entity-drawer')
   await page.getByRole('button', { name: 'Unpin Shows list' }).click()
   await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
   const edgeTab = page.getByRole('button', { name: 'Open the Shows list' })
@@ -223,8 +224,12 @@ test('the Studio entity drawer overlays without reflow and preserves Preview Spa
   await page.keyboard.press('Escape')
   await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
 
+  // Escape updates the mode before the exit transition completes. Move the
+  // pointer off the edge so its deliberate hover-open dwell cannot race the
+  // next explicit click, then wait for the overlay to stop intercepting it.
+  await timelineToolbar.hover()
+  await expect(drawer).toBeHidden()
   await edgeTab.click()
-  const drawer = page.getByTestId('studio-entity-drawer')
   await drawer.hover()
   await timelineToolbar.hover()
   await expect(page.getByTestId('studio-drawer-close-progress')).toHaveCount(0)

@@ -155,9 +155,19 @@ for (const agent of [false, true]) {
       }
       await page.setViewportSize({ width: 640, height: 800 })
       await expect.poll(overflow).toEqual([0, 0])
+      const listLayout = page.getByTestId('studio-drawer-layout')
       const listEdge = page.getByTestId('studio-drawer-edge-tab')
+      const listDrawer = page.getByRole('complementary', {
+        name: route.includes('/shows/') ? 'Shows list' : 'Patterns list',
+        exact: true,
+      })
+      // Narrow mode tucks the desktop-pinned list before its exit transition
+      // finishes. Wait for the overlay to leave the click target; otherwise
+      // the edge's intentional hover dwell can reopen it during actionability.
+      await expect(listLayout).toHaveAttribute('data-drawer-mode', 'tucked')
+      await expect(listDrawer).toBeHidden()
       await listEdge.click()
-      await expect(page.getByTestId('studio-drawer-layout')).toHaveAttribute('data-drawer-mode', 'open')
+      await expect(listLayout).toHaveAttribute('data-drawer-mode', 'open')
       await expect.poll(overflow).toEqual([0, 0])
       await page.keyboard.press('Escape')
       await expect(listEdge).toHaveAttribute('aria-expanded', 'false')
