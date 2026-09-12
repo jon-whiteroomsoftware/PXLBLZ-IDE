@@ -96,11 +96,14 @@ preservation, protocol, history and browser qualification.
 
 ## Internal exact Clip move
 
-`move_clip(clip_id, start_ms, zone_id?, layer?)` moves the named logical Clip
-exactly in safe integer global milliseconds. The optional Layer is `main` or a
-nonnegative safe integer overlay index. Omitted destination fields retain the
-current Zone and Layer. Both the registry and diagnostic MCP schema expose this
-finite union; neither exposes `move_connected_clip` as a callable alias.
+`move_clip(clip_id, start_ms?, zone_id?, layer?)` moves the named logical Clip
+to an exact safe integer global millisecond, Zone, or Layer. Callers give at
+least one of the three destination fields. The optional Layer is `main` or a
+nonnegative safe integer overlay index. Every omitted field retains its current
+private-candidate value, including Start. Both the registry and diagnostic MCP
+schema expose this finite union; neither exposes `move_connected_clip` as a
+callable alias. A changed receipt reports the actual projected Zone, Layer,
+Start, End, and Duration after acceptance.
 
 The shared owner selects ordinary or Transition-connected movement. Plain Clips
 can change Zone and Layer and repartition across supported internal Scene Cuts.
@@ -306,8 +309,50 @@ index cannot silently retarget after insertion. No narrow admission is granted.
 [Focused fixtures](../../../src/engine/showCommands/overlayLayer.test.ts),
 [adapter parity](../../../src/agent-harness/test/commandParity.test.ts)
 and [consumer evidence](../evidence/issue-951-overlay-layer/README.md) qualify
-this boundary. Layer removal/reorder, Group creation and add_clip migration
-remain outside this slice.
+the creation boundary.
+
+## Overlay Layer addressing, reorder, and removal (#1012–#1014)
+
+Overlay Layer indices are zero-based and front-to-back: index zero is topmost;
+Main remains below every overlay. Repeated `add_overlay_layer` calls insert at
+zero and shift the earlier new Layer down. Its receipt states the accepted Zone
+and `layer: 0`.
+
+`add_clip` targets Main when both Layer fields are omitted. New callers use
+`layer`, whose value is `main` or a nonnegative safe integer overlay index;
+`overlay_layer_index` remains a compatibility spelling. Supplying both spellings
+refuses even when their values agree. Its changed receipt reports the accepted
+Zone, Layer, Start, End, Duration, and Pattern-instance identity, so clamping or
+Show extension cannot leave the caller reasoning from its request alone.
+
+`reorder_overlay_layer(zone_id, layer_index, target_index)` moves one complete
+explicit Layer across every Scene. `target_index` is the final index after
+removal and reinsertion. The operation preserves each Layer object, Clip,
+identity, setting, and reference. Its receipt identifies the selected Layer in
+each Scene and maps every old index to its new index. A validated same-index
+request succeeds without a timestamp change.
+
+`remove_overlay_layer(zone_id, layer_index)` removes exactly the requested
+explicit Layer across every Scene only when it is empty in all of them. A
+nonempty request refuses with `layer-not-empty` and the deduplicated logical Clip
+identities that must move or be removed first. Its receipt identifies the
+removed Layer in each Scene and maps the removed index to `null` while compacting
+surviving indices.
+
+Whole-Layer reorder and removal deliberately cover a finite topology. The Show
+must have at least one valid composition Scene; the target Zone must have an
+explicit row and the same explicit overlay count in every Scene; and no Group
+occurrence may use that Zone. Groups in other Zones are preserved. Sparse
+stacks and target-Zone Groups refuse atomically. Transactions resolve every
+numeric index against the preceding private candidate, while editor admission
+and request replay protection prevent an old or duplicate request from silently
+retargeting a shifted Layer.
+
+[Whole-Layer owner fixtures](../../../src/engine/showOverlayLayerAuthoring.test.ts)
+prove stack permutations, empty-only removal, compositing output, topology
+partitions, and preservation. [Command fixtures](../../../src/engine/showCommands/layers.test.ts)
+cover Layer-addressed Clip sequences, rollback, receipts, canonical/diagnostic
+parity, and `.pxlshow` reopen.
 
 ## Logical Clip removal (#951)
 

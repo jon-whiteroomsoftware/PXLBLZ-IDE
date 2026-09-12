@@ -15,7 +15,11 @@ export function overlayLayerCommandOutcome(record: ShowRecord, input: Record<str
   return { ok: true as const, record: withComposition(record, composition), changes: [{
     command: 'add_overlay_layer', targetId: layers[0].layerId,
     description: `New topmost overlay Layer added to Zone ${zoneId} across all ${layers.length} Scene(s); it is overlay layer index 0.`,
-    details: { layerIdsBySceneId: Object.fromEntries(layers.map(layer => [layer.sceneId, layer.layerId])) },
+    details: {
+      zoneId,
+      layer: 0,
+      layerIdsBySceneId: Object.fromEntries(layers.map(layer => [layer.sceneId, layer.layerId])),
+    },
   }] }
 }
 

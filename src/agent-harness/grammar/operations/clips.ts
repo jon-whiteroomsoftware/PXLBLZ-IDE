@@ -225,6 +225,9 @@ const addOverlayLayer = descriptorOperation(SHOW_COMMANDS.find(command => comman
   return overlayLayerCommandOutcome(document.show, args, () => newId('layer'))
 })
 
+const wholeOverlayLayerOperations = ['reorder_overlay_layer', 'remove_overlay_layer']
+  .map(name => descriptorOperation(SHOW_COMMANDS.find(command => command.name === name)!))
+
 export const CLIP_OPERATIONS: ShowGrammarOperation[] = [
   addClip,
   moveClip,
@@ -237,4 +240,5 @@ export const CLIP_OPERATIONS: ShowGrammarOperation[] = [
   restartClip,
   ...clipPropertyOperations,
   addOverlayLayer,
+  ...wholeOverlayLayerOperations,
 ]

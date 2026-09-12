@@ -75,6 +75,16 @@ describe('grammar tools over MCP (#17)', () => {
     const schema = tools.tools.find(tool => tool.name === 'add_overlay_layer')!.inputSchema
     expect(schema.properties?.zone_id).toMatchObject({ type: 'string' })
     expect(schema.required).toContain('zone_id')
+    const addClip = tools.tools.find(tool => tool.name === 'add_clip')!.inputSchema
+    expect(addClip.properties?.layer).toBeDefined()
+    expect(addClip.required).not.toContain('layer')
+    const moveClip = tools.tools.find(tool => tool.name === 'move_clip')!.inputSchema
+    expect(moveClip.required).not.toContain('start_ms')
+    for (const name of ['reorder_overlay_layer', 'remove_overlay_layer']) {
+      const layerSchema = tools.tools.find(tool => tool.name === name)!.inputSchema
+      expect(layerSchema.properties?.layer_index).toMatchObject({ type: 'integer', minimum: 0 })
+      expect(layerSchema.required).toContain('layer_index')
+    }
     const { document } = openGrammarFixture()
     const { payload: opened } = await callJson('open_show', { show: document.show })
     const session_id = opened.sessionId

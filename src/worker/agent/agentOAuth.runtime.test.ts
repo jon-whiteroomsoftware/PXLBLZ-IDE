@@ -84,8 +84,18 @@ it('discovers OAuth and MCP through the actual Worker with the finite canonical 
   expect(initialize.status).toBe(200)
   expect(await initialize.json()).toMatchObject({ result: { capabilities: { tools: {} } } })
   const listing = await rpc('tools/list')
-  const tools = (await listing.json() as { result: { tools: { name: string }[] } }).result.tools
+  const tools = (await listing.json() as { result: { tools: Array<{ name: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] } }> } }).result.tools
   expect(tools.map(tool => tool.name).sort()).toEqual(['get_connection', 'list_commands', 'read_show', 'get_context', 'begin_edit', 'commit_edit', 'get_outcome', 'cancel_edit', ...SHOW_COMMANDS.map(command => command.name)].sort())
+  const addClip = tools.find(tool => tool.name === 'add_clip')!.inputSchema
+  expect(addClip.properties).toMatchObject({ layer: {}, overlay_layer_index: {} })
+  expect(addClip.required).not.toContain('layer')
+  const moveClip = tools.find(tool => tool.name === 'move_clip')!.inputSchema
+  expect(moveClip.required).not.toContain('start_ms')
+  for (const name of ['reorder_overlay_layer', 'remove_overlay_layer']) {
+    const schema = tools.find(tool => tool.name === name)!.inputSchema
+    expect(schema.properties).toMatchObject({ layer_index: { type: 'integer', minimum: 0 } })
+    expect(schema.required).toContain('layer_index')
+  }
   expect((await runtime.dispatchFetch(`https://app.test/mcp?access_token=${tokens.access_token}`)).status).toBe(401)
   expect((await runtime.dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}`, Origin: 'https://hostile.test' } })).status).toBe(403)
   expect((await exchange({ token: tokens.refresh_token })).status).toBe(200)

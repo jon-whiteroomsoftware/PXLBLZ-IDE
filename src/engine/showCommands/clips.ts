@@ -37,15 +37,25 @@ import {
 import { createDuplicateClipCommand } from './duplicateClip'
 
 export function addClipCommandOutcome(record: ShowRecord, input: Record<string, unknown>, newId: (kind: 'instance' | 'clip') => string = () => newPersonalContentId()): ShowCommandOutcome {
+  if (input.layer !== undefined && input.overlay_layer_index !== undefined) {
+    return refuseShowCommand({
+      code: 'invalid-argument',
+      message: 'add_clip accepts layer or overlay_layer_index, not both. Prefer layer for new callers.',
+    })
+  }
   const resolved = commandComposition(record)
   if (!resolved.ok) return resolved
   const composition = resolved.composition
-  const target: ShowTimelineClipMoveTarget = input.overlay_layer_index === undefined
+  const layer = input.layer as 'main' | number | undefined
+  const overlayLayerIndex = layer === undefined
+    ? input.overlay_layer_index as number | undefined
+    : typeof layer === 'number' ? layer : undefined
+  const target: ShowTimelineClipMoveTarget = overlayLayerIndex === undefined
     ? { kind: 'main', zoneId: input.zone_id as string, globalStartMs: input.start_ms as number }
     : {
         kind: 'overlay',
         zoneId: input.zone_id as string,
-        layerIndex: input.overlay_layer_index as number,
+        layerIndex: overlayLayerIndex,
         globalStartMs: input.start_ms as number,
       }
   const location = {
@@ -61,6 +71,32 @@ export function addClipCommandOutcome(record: ShowRecord, input: Record<string, 
     time: { timeScale: 1, timeOffsetMs: 0 },
   }
   const placementId = newId('clip')
+  const accepted = (next: ShowRecord, extended: boolean): ShowCommandOutcome => {
+    const found = resolveCommandClip(next, next.composition!, placementId)
+    if (!found.ok) return engineIdentityRefusal('add_clip', 'The accepted placement could not be projected.')
+    const { clip } = found.context
+    const actualLayer = clip.kind === 'main' ? 'main' : clip.layerIndex
+    const clamped = !extended && clip.durationMs < location.defaultDurationMs
+    return {
+      ok: true,
+      record: next,
+      changes: [{
+        command: 'add_clip',
+        targetId: placementId,
+        description:
+          `Clip ${instance.patternName} added on ${clip.zoneId} ${clip.kind === 'main' ? 'Main' : `overlay Layer ${clip.layerIndex}`} ` +
+          `at ${clip.startMs} ms for ${clip.durationMs} ms${clamped ? ' (clamped to the free time)' : ''}${extended ? ', extending the Show' : ''}.`,
+        details: {
+          instanceId: instance.id,
+          zoneId: clip.zoneId,
+          layer: actualLayer,
+          startMs: clip.startMs,
+          endMs: clip.endMs,
+          durationMs: clip.durationMs,
+        },
+      }],
+    }
+  }
   if (input.extend_show) {
     const result = addShowClipAtGlobalTimeExtendingShow(record, composition, {
       ...location,
@@ -72,45 +108,23 @@ export function addClipCommandOutcome(record: ShowRecord, input: Record<string, 
       if (!plan.enabled) return planRefusal(plan, 'add_clip')
       return engineIdentityRefusal('add_clip', 'The extended placement did not fit.')
     }
-    return {
-      ok: true,
-      record: result,
-      changes: [{
-        command: 'add_clip',
-        targetId: placementId,
-        description:
-          `Clip ${instance.patternName} added on ${location.zoneId} at ${Math.round(location.globalTimeMs)} ms, extending the Show.`,
-        details: { instanceId: instance.id },
-      }],
-    }
+    return accepted(result, true)
   }
   const plan = planShowClipAtGlobalTime(record, composition, location)
   if (!plan.enabled) return planRefusal(plan, 'add_clip')
   const result = addShowClipAtGlobalTime(record, composition, { ...location, instance, placementId })
   if (result === composition) return engineIdentityRefusal('add_clip', 'Check the target layer.')
-  const clamped = plan.durationMs < ((input.duration_ms as number | undefined) ?? 5_000)
-  return {
-    ok: true,
-    record: withComposition(record, result),
-    changes: [{
-      command: 'add_clip',
-      targetId: placementId,
-      description:
-        `Clip ${instance.patternName} added on ${location.zoneId} at ${Math.round(location.globalTimeMs)} ms ` +
-        `for ${plan.durationMs} ms${clamped ? ' (clamped to the free time)' : ''}.`,
-      details: { instanceId: instance.id },
-    }],
-  }
+  return accepted(withComposition(record, result), false)
 }
 
 const addClip: ShowCommandDescriptor = {
   name: 'add_clip',
   description:
-    'Add a clip at a global time on a Zone\'s main layer (default) or one of its overlay layers ' +
-    '(overlay_layer_index, 0 = topmost). The duration clamps to the free time before the next clip; ' +
-    'with extend_show true, adding at Show End grows the Show to fit. Refused inside a Transition, on ' +
-    'occupied time, or outside the Show.',
+    'Add a Clip at a global time on a Zone\'s Main Layer by default, or choose layer: main or a ' +
+    'zero-based overlay index (0 = topmost). overlay_layer_index remains a compatibility spelling; ' +
+    'supplying both Layer fields refuses. The duration clamps to free time; extend_show can grow Show End.',
   touches: ['/composition/patternInstances', '/composition/scenes/*/zones', '/composition/durationMs', '/composition/executionModel', '/scenes', '/updatedAt'],
+  atMostOne: ['layer', 'overlay_layer_index'],
   fields: {
     zone_id: { kind: 'string', description: 'The Zone to place the clip on' },
     start_ms: { kind: 'number', description: 'Global start time in milliseconds' },
@@ -118,7 +132,8 @@ const addClip: ShowCommandDescriptor = {
     pattern_kind: { kind: 'string', enum: ['stock', 'user'], description: 'Where the Pattern lives' },
     pattern_id: { kind: 'string', description: 'The Pattern id' },
     pattern_name: { kind: 'string', optional: true, description: 'Display name (defaults to the id)' },
-    overlay_layer_index: { kind: 'integer', optional: true, description: 'Overlay layer to target (0 = topmost); omit for main' },
+    layer: { kind: 'layer', optional: true, description: 'Preferred destination Layer: main or a zero-based overlay index (0 = topmost)' },
+    overlay_layer_index: { kind: 'integer', safeInteger: true, minimum: 0, optional: true, description: 'Compatibility overlay index (0 = topmost); omit both Layer fields for Main' },
     extend_show: { kind: 'boolean', optional: true, description: 'Grow the Show when adding at Show End' },
   },
   apply: (record, input) => addClipCommandOutcome(record, input),
@@ -126,19 +141,28 @@ const addClip: ShowCommandDescriptor = {
 
 const moveClip: ShowCommandDescriptor = {
   name: 'move_clip',
-  description: 'Move a logical Clip to exact safe integer global milliseconds, optionally to another Zone or Layer. Supported Transition-connected chains move together on their existing Layer. Incompatible connected destinations, visual Transition removal, occupied destinations and moves outside the Show refuse atomically. A valid already-satisfied target makes no changes.',
+  description: 'Move a logical Clip to exact safe integer global milliseconds, another Zone or another Layer. Omitted start_ms preserves its current private-candidate start; give at least one destination or time field. Overlay indices are zero-based and 0 is topmost. Existing Transition, collision and topology restrictions remain atomic.',
   touches: ['/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/composition/transitions', '/updatedAt'],
+  atLeastOne: ['start_ms', 'zone_id', 'layer'],
   fields: {
     clip_id: { kind: 'string', description: 'Logical Clip id from the timeline listing' },
-    start_ms: { kind: 'integer', safeInteger: true, description: 'Exact global start in milliseconds' },
+    start_ms: { kind: 'integer', safeInteger: true, minimum: 0, optional: true, description: 'Exact global start in milliseconds; default current start' },
     zone_id: { kind: 'string', optional: true, description: 'Destination Zone id; default current Zone' },
     layer: { kind: 'layer', optional: true, description: 'Destination Layer: main or a nonnegative overlay index; default current Layer' },
   },
   apply(record, input) {
     const resolved = commandComposition(record)
     if (!resolved.ok) return resolved
+    const current = resolveCommandClip(record, resolved.composition, input.clip_id as string)
+    if (!current.ok) {
+      const issue = current.issues[0]
+      return issue?.code === 'group'
+        ? refuseShowCommand({ ...issue, code: 'unsupported-topology' })
+        : current
+    }
     const result = moveShowClipExactly(record, resolved.composition, {
-      clipId: input.clip_id, globalStartMs: input.start_ms,
+      clipId: input.clip_id,
+      globalStartMs: input.start_ms ?? current.context.clip.startMs,
       ...(input.zone_id !== undefined ? { zoneId: input.zone_id } : {}),
       ...(input.layer !== undefined ? { layer: input.layer } : {}),
     } as ShowExactClipMoveRequest)
@@ -153,11 +177,21 @@ const moveClip: ShowCommandDescriptor = {
       ...(result.reason.startsWith('Group-owned') ? { remedy: 'Move the Group through its supported Group operation.' } : {}),
     })
     if (result.status === 'noop') return { ok: true, record, changes: [] }
+    const found = resolveCommandClip(record, result.composition, input.clip_id as string)
+    if (!found.ok) return found
+    const { clip } = found.context
     return {
       ok: true, record: withComposition(record, result.composition),
-      changes: [{ command: 'move_clip', targetId: input.clip_id as string,
-        description: `Clip ${input.clip_id} moved to ${input.start_ms} ms.`,
-        details: { movedClipIds: result.movedClipIds },
+      changes: [{ command: 'move_clip', targetId: clip.id,
+        description: `Clip ${clip.id} moved to ${clip.startMs} ms on ${clip.zoneId} ${clip.kind === 'main' ? 'Main' : `overlay Layer ${clip.layerIndex}`}.`,
+        details: {
+          movedClipIds: result.movedClipIds,
+          zoneId: clip.zoneId,
+          layer: clip.kind === 'main' ? 'main' : clip.layerIndex,
+          startMs: clip.startMs,
+          endMs: clip.endMs,
+          durationMs: clip.durationMs,
+        },
       }],
     }
   },

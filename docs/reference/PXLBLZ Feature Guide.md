@@ -554,6 +554,13 @@ two minutes. If an incoming call appears, choose **Answer** within 30 seconds or
 an occupied connection is refused rather than replaced. External conversations
 stay in the external client; connection setup depends on the client.
 
+Connected agents can address Main or a numbered overlay Layer when adding and
+moving Clips. Overlay numbering starts at zero for the topmost Layer. They can
+also move a complete overlay Layer to a final front-to-back position, or remove
+one only after every Scene's corresponding Layer is empty. Layer changes in one
+request use the result of each preceding command, so a newly inserted Layer can
+be filled, reordered, and later referenced in the same edit.
+
 Edits remain private until the editor accepts them. A conflicting manual change
 can prevent an agent result from applying. Activity distinguishes saved edits,
 changes applied to a draft, refused work and cancellation. Losing contact does

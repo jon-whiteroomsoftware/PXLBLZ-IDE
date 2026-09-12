@@ -7,6 +7,7 @@ describe('canonical descriptor schema projection', () => {
   it.each([
     [{ kind: 'number' }, [0, 0.5], [NaN, Infinity, '1']],
     [{ kind: 'integer', safeInteger: true }, [0, 1], [0.5, Number.MAX_SAFE_INTEGER + 1]],
+    [{ kind: 'integer', safeInteger: true, minimum: 0 }, [0, 1], [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]],
     [{ kind: 'layer' }, ['main', 0, 2], [-1, 0.5, '0']],
     [{ kind: 'string', enum: ['a', 'b'] }, ['a', 'b'], ['', 'c']],
     [{ kind: 'boolean' }, [true, false], [0, 'true']],

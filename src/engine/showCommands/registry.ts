@@ -52,6 +52,7 @@ export interface ShowCommandField {
   /** May the value be null (distinct from omitted)? */
   nullable?: boolean
   safeInteger?: boolean
+  minimum?: number
 }
 
 export interface ShowCommandDescriptor {
@@ -63,6 +64,8 @@ export interface ShowCommandDescriptor {
   touches: string[]
   fields: Record<string, ShowCommandField>
   exactlyOne?: readonly string[]
+  atLeastOne?: readonly string[]
+  atMostOne?: readonly string[]
   apply: (record: ShowRecord, input: Record<string, unknown>, context?: ShowCommandContext) => ShowCommandOutcome
 }
 
@@ -111,7 +114,9 @@ function fieldTypeMatches(field: ShowCommandField, value: unknown): boolean {
     case 'number':
       return typeof value === 'number' && Number.isFinite(value)
     case 'integer':
-      return typeof value === 'number' && (field.safeInteger ? Number.isSafeInteger(value) : Number.isInteger(value))
+      return typeof value === 'number'
+        && (field.safeInteger ? Number.isSafeInteger(value) : Number.isInteger(value))
+        && (field.minimum === undefined || value >= field.minimum)
     case 'boolean':
       return typeof value === 'boolean'
     case 'layer':
@@ -130,6 +135,12 @@ export function validateShowCommandInput(
   const issues: ShowCommandIssue[] = []
   if (descriptor.exactlyOne && descriptor.exactlyOne.filter(name => input[name] !== undefined).length !== 1) {
     issues.push({ code: 'invalid-argument', message: `Give exactly one of ${descriptor.exactlyOne.join(' or ')}.` })
+  }
+  if (descriptor.atLeastOne && descriptor.atLeastOne.every(name => input[name] === undefined)) {
+    issues.push({ code: 'invalid-argument', message: `Give at least one of ${descriptor.atLeastOne.join(', ')}.` })
+  }
+  if (descriptor.atMostOne && descriptor.atMostOne.filter(name => input[name] !== undefined).length > 1) {
+    issues.push({ code: 'invalid-argument', message: `Give at most one of ${descriptor.atMostOne.join(' or ')}.` })
   }
   for (const [name, field] of Object.entries(descriptor.fields)) {
     const value = input[name]
@@ -168,11 +179,13 @@ import { SHOW_CLIP_COMMANDS } from './clips'
 import { SHOW_EFFECT_COMMANDS } from './effects'
 import { SHOW_JUNCTION_COMMANDS } from './junctions'
 import { SHOW_LAYER_TRANSITION_COMMANDS } from './layerTransitions'
+import { SHOW_OVERLAY_LAYER_COMMANDS } from './overlayLayers'
 import { SHOW_STRUCTURE_COMMANDS } from './structure'
 import { SHOW_TIMELINE_COMMANDS } from './timeline'
 
 export const SHOW_COMMANDS: ShowCommandDescriptor[] = [
   ...SHOW_CLIP_COMMANDS,
+  ...SHOW_OVERLAY_LAYER_COMMANDS,
   ...SHOW_TIMELINE_COMMANDS,
   ...SHOW_JUNCTION_COMMANDS,
   ...SHOW_LAYER_TRANSITION_COMMANDS,

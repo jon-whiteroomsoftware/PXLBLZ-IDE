@@ -40,7 +40,12 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     const result = await connect(call_id === undefined, call_id)
     return output({ code: result.code, ...(result.claim ? { call_id: result.claim.callId, binding_id: result.claim.bindingId } : {}), ...(result.binding ? { show_id: result.binding.showId } : {}) })
   })
-  server.registerTool('list_commands', { description: 'List canonical command metadata without attaching to an editor or reading Show contents.', inputSchema: z.object({}).strict() }, async () => output({ code: 'commands', commands: SHOW_COMMANDS.map(({ name, description, fields, exactlyOne }) => ({ name, description, fields, ...(exactlyOne ? { exactlyOne } : {}) })) }))
+  server.registerTool('list_commands', { description: 'List canonical command metadata without attaching to an editor or reading Show contents.', inputSchema: z.object({}).strict() }, async () => output({ code: 'commands', commands: SHOW_COMMANDS.map(({ name, description, fields, exactlyOne, atLeastOne, atMostOne }) => ({
+    name, description, fields,
+    ...(exactlyOne ? { exactlyOne } : {}),
+    ...(atLeastOne ? { atLeastOne } : {}),
+    ...(atMostOne ? { atMostOne } : {}),
+  })) }))
   for (const kind of ['read_show', 'get_context', 'get_outcome'] as const) {
     server.registerTool(kind, { description: kind === 'get_outcome' ? 'Read the surviving browser receipt for this binding and operation; unknown never permits replay.' : `Read ${kind === 'read_show' ? 'the full current Show' : 'the current editor focus/context'} from the bound editor.`, inputSchema: z.object({ ...binding, ...(kind === 'get_outcome' ? { operation_id: id } : {}) }).strict() }, async (args) => {
       const identity = await owned(args.binding_id)

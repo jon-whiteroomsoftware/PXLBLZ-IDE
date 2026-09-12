@@ -41,6 +41,7 @@ it('exposes a fresh canonical creation on every invocation and refuses missing c
   const result = applyShowCommand(show, 'add_overlay_layer', { zone_id: 'zone-1' })
   expect(result.ok).toBe(true)
   if (!result.ok) return
+  expect(result.changes[0].details).toMatchObject({ zoneId: 'zone-1', layer: 0 })
   const again = applyShowCommand(result.record, 'add_overlay_layer', { zone_id: 'zone-1' })
   expect(again.ok).toBe(true)
   if (again.ok) {

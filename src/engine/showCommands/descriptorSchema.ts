@@ -7,7 +7,12 @@ export function showCommandFieldSchema(field: ShowCommandField): ZodTypeAny {
   switch (field.kind) {
     case 'string': schema = field.enum ? z.enum(field.enum as [string, ...string[]]) : z.string(); break
     case 'number': schema = z.number().finite(); break
-    case 'integer': schema = field.safeInteger ? z.number().int().safe() : z.number().int(); break
+    case 'integer': {
+      let integerSchema = field.safeInteger ? z.number().int().safe() : z.number().int()
+      if (field.minimum !== undefined) integerSchema = integerSchema.min(field.minimum)
+      schema = integerSchema
+      break
+    }
     case 'boolean': schema = z.boolean(); break
     case 'easing': schema = z.union([z.enum(['linear', 'ease-in', 'ease-out', 'ease-in-out']), z.record(z.unknown()).refine(value => validateShowEasing(value).valid)]); break
     case 'json': schema = z.unknown().refine(value => value !== null && value !== undefined); break

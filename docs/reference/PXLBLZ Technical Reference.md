@@ -946,6 +946,14 @@ compile each segment's fixed Aperture and Content pose independently. Structural
 Clip edits preserve those records through exact Scene-slice mapping; a move,
 resize or copy refuses when a Scene or Transition gap cannot represent every
 divergent source presentation without flattening it.
+`add_clip` and `move_clip` share one Layer address (`main` or a nonnegative
+front-to-back overlay index) and report their accepted projected placement.
+`showOverlayLayerAuthoring.ts` owns whole-Layer reorder and empty-only removal
+across internal Scenes. It admits only valid, uniform explicit target-Zone
+stacks without a target-Zone Group occurrence, preserves whole Layer objects,
+and returns the per-Scene identities plus old-to-new index map needed for a
+truthful command receipt. The precise behavior and finite topology are in the
+[Layer command contract](contracts/show-command-semantics.md#overlay-layer-addressing-reorder-and-removal-10121014).
 
 Adding a command requires a descriptor in its family module plus a golden
 accepted case and refusal partition. The faithfulness sweep fails entries

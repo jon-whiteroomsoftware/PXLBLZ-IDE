@@ -15,6 +15,7 @@ import {
   trackedCommandFixture,
 } from '../../test/showCommandFixture'
 import { showOverlayLayerFixture } from '../../test/showOverlayLayerFixture'
+import { showLayerCommandFixture } from '../../test/showLayerCommandFixture'
 import { validateShowComposition } from '../showCompositionModel'
 import type { ShowRecord } from '../personalContentRecords'
 import { showLoopDurationMs } from '../showModel'
@@ -252,6 +253,26 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
       expect(before).toEqual(original)
       expect(validateShowComposition(record, record.composition!)).toEqual([])
     }
+  },
+  reorder_overlay_layer: () => {
+    const { record, changes } = applyOk(showLayerCommandFixture(), 'reorder_overlay_layer', {
+      zone_id: 'zone-1', layer_index: 2, target_index: 0,
+    })
+    expect(record.composition!.scenes.map(scene => scene.zones[0].overlays.map(layer => layer.id))).toEqual([
+      ['bottom-scene-1', 'top-scene-1', 'middle-scene-1'],
+      ['bottom-scene-2', 'top-scene-2', 'middle-scene-2'],
+    ])
+    expect(changes[0].details?.indexMap).toEqual({ 0: 1, 1: 2, 2: 0 })
+  },
+  remove_overlay_layer: () => {
+    const { record, changes } = applyOk(showLayerCommandFixture(), 'remove_overlay_layer', {
+      zone_id: 'zone-1', layer_index: 1,
+    })
+    expect(record.composition!.scenes.map(scene => scene.zones[0].overlays.map(layer => layer.id))).toEqual([
+      ['top-scene-1', 'bottom-scene-1'],
+      ['top-scene-2', 'bottom-scene-2'],
+    ])
+    expect(changes[0].details?.indexMap).toEqual({ 0: 0, 1: null, 2: 1 })
   },
   add_clip: () => {
     const { record, changes } = applyOk(showCommandFixture(), 'add_clip', {
@@ -1520,6 +1541,7 @@ function permittedEntityIds({ command, input, changes, before }: AppliedRecord):
     add(change.targetId)
     for (const key of ['leftClipId', 'rightClipId', 'newInstanceId', 'instanceId', 'intervalId']) add(change.details?.[key])
     for (const key of ['movedClipIds', 'changedClipIds']) for (const id of (change.details?.[key] as string[] | undefined) ?? []) add(id)
+    for (const id of Object.values((change.details?.layerIdsBySceneId as Record<string, string> | undefined) ?? {})) add(id)
     for (const item of (change.details?.transitionChanges as { transitionId: string }[] | undefined) ?? []) add(item.transitionId)
   }
   if (command === 'set_boundary_layout') {

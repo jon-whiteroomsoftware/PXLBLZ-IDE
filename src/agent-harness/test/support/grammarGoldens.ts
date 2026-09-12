@@ -23,6 +23,7 @@ import {
 } from './grammarHarness.js'
 import { showBoundaryCommandFixture, BOUNDARY_PARAMETER_CASES, BOUNDARY_VARIANT_CASES } from '@/test/showBoundaryCommandFixture'
 import { showOverlayLayerFixture } from '@/test/showOverlayLayerFixture'
+import { showLayerCommandFixture } from '@/test/showLayerCommandFixture'
 import { openShowDocument } from '../../grammar/openShow'
 
 function effectsOf(document: ShowGrammarDocument, startPlacementId: string) {
@@ -479,6 +480,32 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     const overlayClip = clips(withClip).find((candidate) => candidate.layer.kind === 'overlay')
     expect(overlayClip?.startMs).toBe(5_000)
+  },
+  reorder_overlay_layer: () => {
+    const opened = openShowDocument(showLayerCommandFixture())
+    if (!opened.ok) throw new Error('Layer command fixture')
+    const { document: next, changes } = applyOk(opened.document, 'reorder_overlay_layer', {
+      zone_id: 'zone-1', layer_index: 2, target_index: 0,
+    })
+    const composition = next.show.composition as ShowCompositionV1
+    expect(composition.scenes.map(scene => scene.zones[0].overlays.map(layer => layer.id))).toEqual([
+      ['bottom-scene-1', 'top-scene-1', 'middle-scene-1'],
+      ['bottom-scene-2', 'top-scene-2', 'middle-scene-2'],
+    ])
+    expect(changes[0].details?.indexMap).toEqual({ 0: 1, 1: 2, 2: 0 })
+  },
+  remove_overlay_layer: () => {
+    const opened = openShowDocument(showLayerCommandFixture())
+    if (!opened.ok) throw new Error('Layer command fixture')
+    const { document: next, changes } = applyOk(opened.document, 'remove_overlay_layer', {
+      zone_id: 'zone-1', layer_index: 1,
+    })
+    const composition = next.show.composition as ShowCompositionV1
+    expect(composition.scenes.map(scene => scene.zones[0].overlays.map(layer => layer.id))).toEqual([
+      ['top-scene-1', 'bottom-scene-1'],
+      ['top-scene-2', 'bottom-scene-2'],
+    ])
+    expect(changes[0].details?.indexMap).toEqual({ 0: 0, 1: null, 2: 1 })
   },
   insert_time: () => {
     const document = fixture({ emptySecondScene: true })
