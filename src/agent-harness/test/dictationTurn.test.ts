@@ -268,10 +268,10 @@ describe('one dictation turn (#34)', () => {
       scriptedTurns([[{ tool: 'resize_clip', args: { clip_id: clipId, duration_ms: 12_000 } }, { say: 'The clip is 12 s.', intent: 'apply' }]]),
       'Make the first clip twelve seconds long.',
     )
-    expect(result.disposition).toEqual({ kind: 'committed', summary: expect.stringContaining('12000 ms') })
+    expect(result.disposition).toEqual({ kind: 'committed', summary: 'Shortened CometLoom to 12 seconds.\n0–12 seconds · 12 seconds' })
     expect(result.finalText).toBe('The clip is 12 s.')
     expect(history(store, sessionId)).toEqual([
-      { index: 0, label: 'Make the first clip twelve seconds long.', summary: expect.any(String), changes: [expect.objectContaining({ op: 'resize_clip' })] },
+      { index: 0, label: 'Make the first clip twelve seconds long.', summary: 'Shortened CometLoom to 12 seconds.\n0–12 seconds · 12 seconds', changes: [expect.objectContaining({ op: 'resize_clip' })] },
     ])
     expect(store.pending(sessionId)).toEqual({ ok: true, open: null })
     expect(result.timings).toHaveLength(1)
@@ -389,7 +389,7 @@ describe('finish_turn ends the turn in the same response (#38)', () => {
       'Make the first clip twelve seconds long.',
     )
     expect(result.disposition.kind).toBe('committed')
-    expect(result.finalText).toContain('12000 ms')
+    expect(result.finalText).toBe('Shortened CometLoom to 12 seconds.\n0–12 seconds · 12 seconds')
   })
 
   it('treats a finish_turn reply with a question mark as an ask and discards the edits', async () => {

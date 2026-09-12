@@ -17,6 +17,10 @@ This section is the current implementation contract and supersedes conflicting e
 
 Required implementation proof: original failed entry plus a new retry identity; intervening manual change and unrelated composer draft preserved; Dismiss leaves outcome/document/history unchanged; external failure starts no IDE-side inference; lost contact before application and after application/before save acknowledgement; same-session lookup and unknown after session loss, with no duplicate adoption or paid dispatch; gesture cancellation, committed conflicting drag, and five-second expiry; 120-second arming and 30-second call expiry; occupied-slot refusal without cross-window controls. Browser assertions inspect visible activity plus complete Show/history/save results. Prototype simulations do not qualify real MCP clients or production persistence.
 
+## Activity label clarification (#1018) — 2026-09-12
+
+Superseding the older “never claims thinking” wording below, `Thinking` is the accepted generic in-progress label while a `begin_edit` operation is actively working, including external MCP work. It reports active work, not inference telemetry or visibility into an external agent's reasoning; actual external `thinking` events remain rejected, and the existing observed lifecycle, command and receipt events still own state transitions.
+
 ## Drawer and attribution
 
 **Surface.** The agent drawer: a right-edge mirror of the entity drawer (same 22 px edge tab with a vertical AGENT label, same tucked / open-overlay / pinned modes, hover-open, click-away and Escape tuck an overlay, pin persists). Width 340 px. Header row is the entity drawer's 40 px row: "AGENT" label, spacer, a ⋯ menu, the pin as a 26 px HeaderAction with the Lucide pin filling when pinned. No close button. The edge tab is hidden whenever the drawer is open or pinned. Choosing an agent pins the drawer if it was open; the author may tuck it afterwards.

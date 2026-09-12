@@ -68,7 +68,7 @@ describe('editing-session transactions (#20)', () => {
     if (!committed.ok) throw new Error(JSON.stringify(committed.issues))
     expect(committed.label).toBe('owner example')
     expect(committed.changes).toHaveLength(2)
-    expect(committed.summary).toContain('12000 ms')
+    expect(committed.summary).toContain('Shortened CometLoom to 12 seconds.\n0–12 seconds · 12 seconds')
     expect(committed.summary).toContain('track')
     expect(historyLength(store, sessionId)).toBe(1)
     expect(firstClipDuration(exported(store, sessionId))).toBe(12_000)
