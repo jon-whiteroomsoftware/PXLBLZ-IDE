@@ -452,6 +452,13 @@ diamond beside any animatable field creates or reopens its ramp, and the
 Clip's **Animations** overview is the one place to see and remove every
 track.
 
+Connected MCP agents can create two-key or multi-key tracks for opacity,
+brightness, phase, Transform, Viewport, Effect parameters, Pattern controls,
+and Pattern time scale. They can also revise a track atomically: moving or
+swapping keys, changing values or easing, and adding or deleting keys in one
+request. Times are Show-global at the command boundary even though saved tracks
+remain owned by one Scene.
+
 ## 16. Zones and routing
 
 A new Show starts as one full-output Zone with no extra chrome; the

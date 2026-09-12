@@ -117,6 +117,7 @@ describe('grammar registry (#17)', () => {
       'duplicate_clip',
       'duplicate_clip_effect',
       'duplicate_layout_interval',
+      'edit_property_keyframes',
       'insert_layer_transition',
       'insert_time',
       'make_clip_pattern_independent',

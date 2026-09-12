@@ -294,9 +294,8 @@ empty lanes. Clip Detail projects all tracks owned by the selected Clip through
 one **Animations overview** reached from the persistent `Animations — N`
 summary. It groups placement-owned and shared Pattern-instance targets, reports
 Show-global endpoint ranges, and navigates back to each target's owning field.
-The overview owns removal, keeps validator-identified orphan tracks visible and
-removable, and treats tracks with more than two keyframes as read-only without
-rewriting their stored points.
+The overview owns removal and keeps validator-identified orphan tracks and
+tracks with any supported key count visible without rewriting their stored points.
 _Avoid_: describing compiler Scene partitions as user-facing authoring objects;
 representing internal Scene boundaries as a second timeline hierarchy;
 silently dropping orphan tracks or coercing multi-keyframe tracks into

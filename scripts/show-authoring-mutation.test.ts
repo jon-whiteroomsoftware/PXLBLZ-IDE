@@ -148,6 +148,8 @@ describe('Show authoring mutation qualification (#597)', () => {
       'delete',
       'inspector',
       'transition',
+      'animation-track',
+      'animation-edit',
     ]))
     expect(scope.map(({ functionName }) => functionName)).toEqual(expect.arrayContaining([
       'moveShowClip',
@@ -158,6 +160,11 @@ describe('Show authoring mutation qualification (#597)', () => {
       'updateShowClipInspector',
       'insertShowLayerTransition',
       'resizeShowLayerTransition',
+      'resolveAnimationTarget',
+      'instanceOwnership',
+      'parseTrackKeyframes',
+      'parseKeyframeEdits',
+      'editShowPropertyKeyframes',
     ]))
     expect(scope.every(({ mutationRange }) => (
       /^src\/engine\/[^:*]+\.ts:\d+:\d+-\d+:\d+$/.test(mutationRange)

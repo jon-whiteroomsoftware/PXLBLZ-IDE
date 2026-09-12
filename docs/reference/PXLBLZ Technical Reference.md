@@ -960,6 +960,16 @@ accepted case and refusal partition. The faithfulness sweep fails entries
 whose goldens write outside declared `touches` or leave a declared pattern
 unexercised.
 
+Animation commands live in `showCommands/animation.ts`. `add_property_track`
+accepts all seven persisted target kinds plus Clip-relative shortcuts for
+opacity, view, Transform, Viewport, numeric Effect parameters, Pattern controls,
+and time scale. Its strict key array accepts two or more Show-global keys and
+retains normalized structured easing in the receipt. `edit_property_keyframes`
+resolves existing key IDs against one preimage and delegates one add/update/delete
+set to `editShowPropertyKeyframes`, which sorts and validates the final track once.
+This permits time swaps and delete/add replacement while preserving the two-key
+floor, Scene ownership, target identity, and dependency validation.
+
 The explicit internal authoring-validation policy accepts delivery-incomplete
 candidates while preserving typed structural and dependency checks. The diagnostic
 bridge selects that policy; standalone/default MCP sessions remain delivery-oriented.

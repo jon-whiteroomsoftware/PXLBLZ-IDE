@@ -4,6 +4,7 @@ import {
   addShowPropertyKeyframe,
   addShowPropertyTrack,
   deleteShowPropertyKeyframe,
+  editShowPropertyKeyframes,
   emitShowPropertyTrackExpression,
   evaluateShowPropertyTrack,
   moveShowPropertyKeyframe,
@@ -250,5 +251,36 @@ describe('Scene-local property animation (#490)', () => {
     expect(deleteShowPropertyKeyframe(moved, 'scene-1', 'track-a', 'key-middle').scenes[0].propertyTracks?.[0].keyframes)
       .toHaveLength(2)
     expect(composition.scenes[0].propertyTracks).toEqual([])
+  })
+
+  it('applies an atomic key set from one preimage and validates only the final track (#1016)', () => {
+    const { show, composition } = fixture()
+    const source = addShowPropertyTrack(show, composition, 'scene-1', track())
+    const swapped = editShowPropertyKeyframes(show, source, 'scene-1', 'track-a', [
+      { operation: 'update', keyframeId: 'key-a', changes: { timeMs: 1000 } },
+      { operation: 'update', keyframeId: 'key-b', changes: { timeMs: 0 } },
+      { operation: 'add', keyframe: { id: 'key-middle', timeMs: 500, value: 0.5, easing: { curve: 'linear' } } },
+    ])
+    expect(swapped.ok).toBe(true)
+    if (!swapped.ok) return
+    expect(swapped.changed).toBe(true)
+    expect(swapped.composition.scenes[0].propertyTracks![0].keyframes.map((key) => [key.id, key.timeMs]))
+      .toEqual([['key-b', 0], ['key-middle', 500], ['key-a', 1000]])
+    expect(source.scenes[0].propertyTracks![0].keyframes.map((key) => [key.id, key.timeMs]))
+      .toEqual([['key-a', 0], ['key-b', 1000]])
+
+    const noOp = editShowPropertyKeyframes(show, source, 'scene-1', 'track-a', [
+      { operation: 'update', keyframeId: 'key-a', changes: { value: 0, easing: { curve: 'linear' } } },
+    ])
+    expect(noOp).toEqual({ ok: true, composition: source, changed: false })
+    if (noOp.ok) expect(noOp.composition).toBe(source)
+
+    const invalid = editShowPropertyKeyframes(show, source, 'scene-1', 'track-a', [
+      { operation: 'delete', keyframeId: 'key-a' },
+    ])
+    expect(invalid.ok).toBe(false)
+    if (!invalid.ok) expect(invalid.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'too-few-keyframes' }),
+    ]))
   })
 })

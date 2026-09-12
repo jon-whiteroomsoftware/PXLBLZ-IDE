@@ -67,6 +67,8 @@ type ShowAuthoringOperation =
   | 'delete'
   | 'inspector'
   | 'transition'
+  | 'animation-track'
+  | 'animation-edit'
 
 interface MutationTarget {
   operation: ShowAuthoringOperation
@@ -164,6 +166,51 @@ const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
     'resizeShowLayerTransition',
     'const deltaMs = durationMs - transition.durationMs',
   ),
+  target(
+    'animation-track',
+    'showCommands/animation.ts',
+    'resolveAnimationTarget',
+    "case 'transform-position-x': target = { kind: 'placement-transform', placementId, property: 'positionX' }; break",
+  ),
+  target(
+    'animation-track',
+    'showCommands/animation.ts',
+    'instanceOwnership',
+    '.filter((placement) => placement.instanceId === instanceId)',
+  ),
+  target(
+    'animation-track',
+    'showCommands/animation.ts',
+    'parseTrackKeyframes',
+    'index > 0 && keyframe.timeMs === keyframes[index - 1].timeMs',
+  ),
+  target(
+    'animation-edit',
+    'showCommands/animation.ts',
+    'parseKeyframeEdits',
+    'value.length < 1 || value.length > 128',
+  ),
+  target(
+    'animation-edit',
+    'showCommands/animation.ts',
+    'parseKeyframeEdits',
+    'if (referenced.has(edit.keyframe_id)) {',
+  ),
+  target(
+    'animation-edit',
+    'showPropertyAnimation.ts',
+    'editShowPropertyKeyframes',
+    [
+      'const issues = validateShowPropertyTracks(show, draft)',
+      '  if (issues.length > 0) return { ok: false, issues }',
+    ].join('\n'),
+  ),
+  target(
+    'animation-edit',
+    'showPropertyAnimation.ts',
+    'editShowPropertyKeyframes',
+    'const changed = JSON.stringify(sourceTrack.keyframes) !== JSON.stringify(finalKeyframes)',
+  ),
 ]
 
 export function buildShowAuthoringMutationScope(repoRoot: string): ResolvedMutationTarget[] {
@@ -228,6 +275,7 @@ export function buildStrykerConfig(repoRoot: string) {
       'src/engine/showCommands/clipProperties.test.ts',
       'src/engine/showClipInspectorModel.test.ts',
       'src/engine/showLayerTransitionAuthoring.test.ts',
+      'src/engine/showCommands/animationExpansion.test.ts',
     ],
     vitest: {
       configFile: 'vitest.mutation.config.ts',

@@ -12,6 +12,7 @@ import type {
   ShowPropertyAnimationTrack,
   ShowRecord,
   ShowSceneComposition,
+  ShowStructuredEasing,
 } from './personalContentRecords'
 
 export type ShowPropertyAnimationValidationCode =
@@ -182,6 +183,93 @@ export function updateShowPropertyKeyframe(
     track.keyframes.sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
     return true
   })
+}
+
+export type ShowPropertyKeyframeBatchEdit =
+  | { operation: 'add'; keyframe: ShowPropertyAnimationKeyframe }
+  | {
+      operation: 'update'
+      keyframeId: string
+      changes: Partial<Pick<ShowPropertyAnimationKeyframe, 'timeMs' | 'value' | 'easing'>>
+    }
+  | { operation: 'delete'; keyframeId: string }
+
+export type EditShowPropertyKeyframesResult =
+  | { ok: true; composition: ShowCompositionV1; changed: boolean }
+  | { ok: false; issues: ShowPropertyAnimationValidationIssue[] }
+
+/**
+ * Apply a keyframe edit set against one immutable preimage and validate only
+ * its final state. This permits swaps and delete/add replacements that would
+ * be temporarily invalid if routed through the single-key owners.
+ */
+export function editShowPropertyKeyframes(
+  show: Pick<ShowRecord, 'scenes'>,
+  composition: ShowCompositionV1,
+  sceneId: string,
+  trackId: string,
+  edits: readonly ShowPropertyKeyframeBatchEdit[],
+): EditShowPropertyKeyframesResult {
+  const sourceTrack = findTrack(composition, sceneId, trackId)
+  if (!sourceTrack) {
+    return {
+      ok: false,
+      issues: [{
+        path: 'trackId',
+        code: 'missing-placement',
+        message: `Property track "${trackId}" does not exist in Scene "${sceneId}".`,
+      }],
+    }
+  }
+
+  const sourceById = new Map(sourceTrack.keyframes.map((keyframe) => [keyframe.id, keyframe]))
+  const referenced = new Set<string>()
+  for (const edit of edits) {
+    if (edit.operation === 'add') continue
+    if (!sourceById.has(edit.keyframeId)) {
+      return {
+        ok: false,
+        issues: [{
+          path: 'keyframeId',
+          code: 'duplicate-keyframe-id',
+          message: `Keyframe "${edit.keyframeId}" is not in track "${trackId}" at command entry.`,
+        }],
+      }
+    }
+    if (referenced.has(edit.keyframeId)) {
+      return {
+        ok: false,
+        issues: [{
+          path: 'keyframeId',
+          code: 'duplicate-keyframe-id',
+          message: `Keyframe "${edit.keyframeId}" is referenced more than once.`,
+        }],
+      }
+    }
+    referenced.add(edit.keyframeId)
+  }
+
+  let finalKeyframes = structuredClone(sourceTrack.keyframes)
+  for (const edit of edits) {
+    if (edit.operation === 'add') {
+      finalKeyframes.push(structuredClone(edit.keyframe))
+    } else if (edit.operation === 'update') {
+      const keyframe = finalKeyframes.find((candidate) => candidate.id === edit.keyframeId)!
+      Object.assign(keyframe, structuredClone(edit.changes))
+    } else {
+      finalKeyframes = finalKeyframes.filter((candidate) => candidate.id !== edit.keyframeId)
+    }
+  }
+  finalKeyframes.sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
+
+  const draft = structuredClone(composition)
+  const draftTrack = findTrack(draft, sceneId, trackId)!
+  draftTrack.keyframes = finalKeyframes
+  const issues = validateShowPropertyTracks(show, draft)
+  if (issues.length > 0) return { ok: false, issues }
+
+  const changed = JSON.stringify(sourceTrack.keyframes) !== JSON.stringify(finalKeyframes)
+  return { ok: true, composition: changed ? draft : composition, changed }
 }
 
 export function moveShowPropertyKeyframe(
@@ -366,7 +454,10 @@ export interface DescribedKeyframe {
   keyframeId: string
   timeMs: number
   value: number
+  /** Legacy summary retained for clients that only distinguish curve families. */
   easing: string
+  /** Complete normalized easing record for lossless MCP round trips. */
+  structuredEasing: ShowStructuredEasing
 }
 
 /** The state of one track after an edit: its keyframes at global times and
@@ -384,6 +475,7 @@ export function describeShowPropertyTrack(track: ShowPropertyAnimationTrack, sce
     timeMs: sceneStart + keyframe.timeMs,
     value: keyframe.value,
     easing: keyframe.easing.curve,
+    structuredEasing: structuredClone(keyframe.easing),
   }))
   const sampleLocalTimes: number[] = []
   sorted.forEach((keyframe, index) => {

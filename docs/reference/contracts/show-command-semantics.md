@@ -629,33 +629,66 @@ admission and one-history/one-save boundary.
 
 ## Scene property tracks and keyframes
 
-`add_property_track`, `add_keyframe`, `update_keyframe`, `delete_keyframe` and
-`delete_property_track` share their descriptors and existing pure animation
-owners with the diagnostic adapter. `move_keyframe` is retired; a time-only
-`update_keyframe` preserves the keyframe's value, easing and identity. A valid
-already-satisfied update returns no changes after owner validation.
+`add_property_track`, `edit_property_keyframes`, `add_keyframe`,
+`update_keyframe`, `delete_keyframe` and `delete_property_track` share their
+descriptors and pure animation owners with the diagnostic and production MCP
+adapters. `move_keyframe` is retired; a time-only `update_keyframe` preserves
+the keyframe's value, easing and identity. A valid already-satisfied update
+returns no changes after owner validation.
 
 Track targets retain all seven persisted kinds: instance time scale and control;
 placement opacity, view, transform, viewport and Effect parameter. Short target
-names resolve from a single-Scene Clip into that same union. Explicit `scene_id`
+names resolve `opacity`, view brightness/phase, each Transform and Viewport
+scalar, `effect`, `time-scale`, and `control` from a single-Scene ordinary Clip
+into that same union. Effect selectors must resolve the exact placed Effect and
+one numeric animatable parameter. Control selectors require both an existing
+authored control target and a slider in exact captured Pattern source; they never
+seed either. Selectors valid for one shortcut refuse on other shortcuts and on
+persisted targets. Group and multi-Scene Clips refuse. Explicit `scene_id`
 retains instance-target Scene choice; a placement target cannot name a different
-Scene. Control creation requires an authored control target and an exported
-slider in exact captured Pattern source, using the shared metadata context.
-The existing dependency admission policy still governs commit.
+Scene. The existing dependency admission policy still governs commit.
 
-Track creation accepts either a constant Scene-endpoint seed or at least two
-explicit global-time keys. Times convert once into Scene-local milliseconds;
-Scene endpoints are inclusive. Duplicate targets/times, malformed targets,
-invalid easing and out-of-range values refuse. Keyframe deletion retains the
-two-key minimum; deleting a track removes automation without changing its default.
-Receipts retain fresh string identities, global keyframes and evaluated samples.
+Track creation accepts exactly one constant Scene-endpoint seed or an array of
+at least two strict `{ time_ms, value, easing? }` entries. Times are checked in
+the owning Scene's Show-global range before rounding, convert once into
+Scene-local milliseconds, and sort once; Scene endpoints are inclusive and
+post-rounding collisions refuse. Easing accepts legacy presets or any structured
+curve admitted by `validateShowEasing`, then normalizes once. Values pass through
+the engine target constraint without clamping. Receipts retain fresh string
+identities, ownership target, ownership, global keys, legacy curve names, lossless
+`structuredEasing`, and evaluated samples. Instance receipts also identify the
+instance and affected logical Clips in that Scene.
+
+`edit_property_keyframes(track_id, edits)` accepts one to 128 strict entries.
+Adds require global time and value and may name easing; updates require an entry
+key ID and at least one of time, value, or easing; deletes accept only an entry
+key ID. Unknown or null fields refuse with the edit index. Update/delete IDs all
+resolve against the command-entry track and each may occur once; generated add
+IDs cannot be referenced inside the same request.
+
+The pure batch owner constructs one final key set from the preimage, then sorts
+and validates the candidate once. It therefore permits time swaps and
+delete/add replacement at one time without exposing a temporarily invalid
+track. The final track retains its ID, target, Scene and at least two distinct
+keys; orphan targets, invalid dependency metadata, times, values, easing, or
+collisions refuse the whole request. An equivalent normalized update-only set
+returns the original Show identity, zero changes, and no timestamp after domain
+validation. Any add/delete remains a change. One track-targeted receipt reports
+before/after counts, persisted target and ownership, ordered per-input results,
+generated IDs, normalized global values and easing, and deleted IDs.
+
+The single-key commands remain available. Keyframe deletion retains the two-key
+minimum; deleting a track removes automation without changing its default.
 
 Animation edits preserve raw optional fields and unrelated track order. Only
 changed keyframes are sorted; a new track takes its lexical insertion position
 without sorting existing siblings. The shared parity and golden tables cover
-seven target kinds, raw preservation, manual owners and file reopen. Admission
-rows `APT953`, `AK953`, `UK953`, `DK953` and `DPT953` exercise the real bridge,
-save/reopen, Undo and stale/duplicate rejection.
+seven target kinds, every shortcut, raw preservation, pure owners and actual
+Show-file reopen. Admission rows `APT953`, `AK953`, `UK953`, `DK953` and
+`DPT953` continue to exercise the single-key bridge surface; the multi-key
+production admission flow covers creation, atomic revision, one save/history
+entry, Undo/Redo, stale/duplicate rejection, reopened source, and compiled
+endpoint/interior behavior.
 
 ## Clip Effect commands (#953)
 

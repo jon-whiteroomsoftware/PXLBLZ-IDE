@@ -944,6 +944,8 @@ testing into a second full suite:
 | Delete | The complete logical Clip, its tracks, and connected Transitions are removed together |
 | Inspector | Timing and colocated placement fields commit or refuse atomically |
 | Transition | Insert validation and resize-delta arithmetic preserve a valid composition |
+| Animation track | Shortcut mapping, instance ownership, and post-rounding key-time uniqueness |
+| Animation edit | Batch limits, preimage reference uniqueness, final validation, and no-op identity |
 
 The wrapper fails closed when the runner cannot start, omits or malforms its
 JSON report, reports no mutants, leaves a result pending, times out or errors,

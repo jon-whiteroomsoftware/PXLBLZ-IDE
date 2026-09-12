@@ -17,8 +17,8 @@ import { describe, expect, it } from 'vitest'
 import type { ShowRecord } from '@/engine/personalContentRecords'
 import { applyShowCommand, runShowCommandTransaction, type ShowCommandOutcome } from '@/engine/showCommands/registry'
 import { insertLayerTransitionCommandOutcome } from '@/engine/showCommands/layerTransitions'
-import { addPropertyTrackCommandOutcome, addKeyframeCommandOutcome } from '@/engine/showCommands/animation'
-import { addShowPropertyTrack, addShowPropertyKeyframe, updateShowPropertyKeyframe, deleteShowPropertyKeyframe, deleteShowPropertyTrack } from '@/engine/showPropertyAnimation'
+import { addPropertyTrackCommandOutcome, addKeyframeCommandOutcome, editPropertyKeyframesCommandOutcome } from '@/engine/showCommands/animation'
+import { addShowPropertyTrack, addShowPropertyKeyframe, editShowPropertyKeyframes, updateShowPropertyKeyframe, deleteShowPropertyKeyframe, deleteShowPropertyTrack } from '@/engine/showPropertyAnimation'
 import { showAnimationCommandFixture } from '@/test/showAnimationCommandFixture'
 import type { ShowPropertyAnimationTarget } from '@/engine/personalContentRecords'
 import { markerCommandOutcome } from '@/engine/showCommands/timeline'
@@ -565,6 +565,23 @@ const PARITY_ROWS: ParityRow[] = [
     command: 'add_keyframe', fixture: showAnimationCommandFixture, args: { track_id: 'track-b', time_ms: 15000, value: 0.5, easing: 'ease-out' },
     canonical: (show, args) => addKeyframeCommandOutcome(show, args, () => 'kf-7'),
     manualOwner: show => addShowPropertyKeyframe(show, show.composition!, 'scene-1', 'track-b', { id: 'kf-7', timeMs: 15000, value: 0.5, easing: { curve: 'quadratic', direction: 'out' } }),
+  },
+  {
+    command: 'edit_property_keyframes', fixture: showAnimationCommandFixture,
+    args: { track_id: 'track-b', edits: [
+      { operation: 'update', keyframe_id: 'kf-1', time_ms: 19000 },
+      { operation: 'update', keyframe_id: 'kf-2', time_ms: 12000 },
+      { operation: 'add', time_ms: 15000, value: 0.5, easing: 'ease-out' },
+    ] },
+    canonical: (show, args) => editPropertyKeyframesCommandOutcome(show, args, capturedShowCommandContext([], {}), () => 'kf-7'),
+    manualOwner: show => {
+      const result = editShowPropertyKeyframes(show, show.composition!, 'scene-1', 'track-b', [
+        { operation: 'update', keyframeId: 'kf-1', changes: { timeMs: 19000 } },
+        { operation: 'update', keyframeId: 'kf-2', changes: { timeMs: 12000 } },
+        { operation: 'add', keyframe: { id: 'kf-7', timeMs: 15000, value: 0.5, easing: { curve: 'quadratic', direction: 'out' } } },
+      ])
+      return result.ok ? result.composition : show.composition!
+    },
   },
   {
     command: 'update_keyframe', fixture: showAnimationCommandFixture, args: { track_id: 'track-b', keyframe_id: 'kf-1', time_ms: 20000, value: 0.3, easing: 'ease-in-out' },
@@ -1377,6 +1394,7 @@ it('keeps Clip-local independence plus time atomic and preserves linked users (#
 it.each([
   ['add_property_track', { target: { kind: 'placement-view', placementId: 'clip-a', property: 'phase' }, keyframes: [{ time_ms: 0, value: 0 }, { time_ms: 10000, value: 1 }] }],
   ['add_keyframe', { track_id: 'track-b', time_ms: 15000, value: 0.5 }],
+  ['edit_property_keyframes', { track_id: 'track-b', edits: [{ operation: 'update', keyframe_id: 'kf-1', value: 0.5 }] }],
   ['update_keyframe', { track_id: 'track-b', keyframe_id: 'kf-1', value: 0.5 }],
   ['delete_keyframe', { track_id: 'track-b', keyframe_id: 'middle' }],
   ['delete_property_track', { track_id: 'track-b' }],
@@ -1432,7 +1450,7 @@ it('animation seeds a constant track through canonical Clip convenience argument
   const track = result.record.composition!.scenes[0].propertyTracks!.find(track => track.id === result.changes[0].targetId)!
   expect(track.target).toEqual({ kind: 'placement-view', placementId: 'clip-a', property: 'phase' })
   expect(track.keyframes.map(key => [key.timeMs, key.value, key.easing])).toEqual([[0, 0.3, { curve: 'linear' }], [30000, 0.3, { curve: 'linear' }]])
-  expect(result.changes[0].details).toEqual({ sceneId: 'scene-1', keyframeIds: track.keyframes.map(key => key.id), keyframes: [{ keyframeId: track.keyframes[0].id, timeMs: 0, value: 0.3, easing: 'linear' }, { keyframeId: track.keyframes[1].id, timeMs: 30000, value: 0.3, easing: 'linear' }], evaluated: [{ atMs: 0, value: 0.3 }, { atMs: 15000, value: 0.3 }, { atMs: 30000, value: 0.3 }] })
+  expect(result.changes[0].details).toEqual({ sceneId: 'scene-1', keyframeIds: track.keyframes.map(key => key.id), target: { kind: 'placement-view', placementId: 'clip-a', property: 'phase' }, ownership: 'placement', clipId: 'clip-a', keyframes: [{ keyframeId: track.keyframes[0].id, timeMs: 0, value: 0.3, easing: 'linear', structuredEasing: { curve: 'linear' } }, { keyframeId: track.keyframes[1].id, timeMs: 30000, value: 0.3, easing: 'linear', structuredEasing: { curve: 'linear' } }], evaluated: [{ atMs: 0, value: 0.3 }, { atMs: 15000, value: 0.3 }, { atMs: 30000, value: 0.3 }] })
 })
 
 it('animation uses explicit instance Scene ownership and converts global boundary times exactly once', () => {

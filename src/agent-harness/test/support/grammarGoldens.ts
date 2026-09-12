@@ -596,6 +596,23 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     expect(trackTimes(next, trackId)).toEqual([0, 5_000, 10_000])
   },
+  edit_property_keyframes: () => {
+    const { document, trackId, keyframeIds } = withBrightnessTrack()
+    const { document: next, changes } = applyOk(document, 'edit_property_keyframes', {
+      track_id: trackId,
+      edits: [
+        { operation: 'update', keyframe_id: keyframeIds[0], time_ms: 10_000 },
+        { operation: 'update', keyframe_id: keyframeIds[1], time_ms: 0 },
+        { operation: 'add', time_ms: 5_000, value: 0.6 },
+      ],
+    })
+    expect(trackTimes(next, trackId)).toEqual([0, 5_000, 10_000])
+    expect(changes[0].details?.results).toMatchObject([
+      { operation: 'update', keyframeId: keyframeIds[0] },
+      { operation: 'update', keyframeId: keyframeIds[1] },
+      { operation: 'add', keyframeId: expect.any(String) },
+    ])
+  },
   update_keyframe: () => {
     const { document, trackId, keyframeIds } = withBrightnessTrack()
     const { document: next } = applyOk(document, 'update_keyframe', {

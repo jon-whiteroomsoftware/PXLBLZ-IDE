@@ -911,6 +911,24 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     })
     expect(trackTimes(record, base.trackId)).toEqual([0, 5_000, 8_000])
   },
+  edit_property_keyframes: () => {
+    const base = withTrack()
+    const track = record0Track(base.record, base.trackId)
+    const { record, changes } = applyOk(base.record, 'edit_property_keyframes', {
+      track_id: base.trackId,
+      edits: [
+        { operation: 'update', keyframe_id: track.keyframes[0].id, time_ms: 8_000 },
+        { operation: 'update', keyframe_id: track.keyframes[1].id, time_ms: 0 },
+        { operation: 'add', time_ms: 5_000, value: 0.6 },
+      ],
+    })
+    expect(trackTimes(record, base.trackId)).toEqual([0, 5_000, 8_000])
+    expect(changes[0].details?.results).toMatchObject([
+      { inputIndex: 0, operation: 'update', keyframeId: track.keyframes[0].id },
+      { inputIndex: 1, operation: 'update', keyframeId: track.keyframes[1].id },
+      { inputIndex: 2, operation: 'add', keyframeId: expect.any(String) },
+    ])
+  },
   update_keyframe: () => {
     const base = withTrack()
     const track = record0Track(base.record, base.trackId)
@@ -1543,6 +1561,12 @@ function permittedEntityIds({ command, input, changes, before }: AppliedRecord):
     for (const key of ['movedClipIds', 'changedClipIds']) for (const id of (change.details?.[key] as string[] | undefined) ?? []) add(id)
     for (const id of Object.values((change.details?.layerIdsBySceneId as Record<string, string> | undefined) ?? {})) add(id)
     for (const item of (change.details?.transitionChanges as { transitionId: string }[] | undefined) ?? []) add(item.transitionId)
+    if (command === 'edit_property_keyframes') {
+      for (const item of (change.details?.results as Array<{ keyframeId?: string }> | undefined) ?? []) add(item.keyframeId)
+    }
+  }
+  if (command === 'edit_property_keyframes') {
+    for (const item of (input.edits as Array<{ keyframe_id?: string }> | undefined) ?? []) add(item.keyframe_id)
   }
   if (command === 'set_boundary_layout') {
     const afterSceneId = changes[0]?.details?.afterSceneId

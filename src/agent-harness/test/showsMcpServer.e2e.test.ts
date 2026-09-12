@@ -60,6 +60,7 @@ describe('pxlblz-shows MCP server (#7)', () => {
       'duplicate_clip',
       'duplicate_clip_effect',
       'duplicate_layout_interval',
+      'edit_property_keyframes',
       'evaluate_property_at',
       'export_show',
       'get_editor_context',
