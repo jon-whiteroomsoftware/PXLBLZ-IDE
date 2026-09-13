@@ -158,7 +158,7 @@ test('the Studio entity drawer overlays without reflow and preserves Preview Spa
   await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
 
   const layout = page.getByTestId('studio-drawer-layout')
-  const drawer = page.getByTestId('studio-entity-drawer')
+  const drawer = page.locator('[data-testid="studio-entity-drawer"][data-studio-drawer-owner="studio-entity-list"]')
   await page.getByRole('button', { name: 'Unpin Shows list' }).click()
   await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
   const edgeTab = page.getByRole('button', { name: 'Open the Shows list' })
@@ -1868,7 +1868,7 @@ test('hover opens the tucked Show list without focus or layout movement and igno
   await page.getByRole('button', { name: 'Unpin Shows list' }).click()
   const layout = page.getByTestId('studio-drawer-layout')
   const edge = page.getByTestId('studio-drawer-edge-tab')
-  const drawer = page.getByTestId('studio-entity-drawer')
+  const drawer = page.locator('[data-testid="studio-entity-drawer"][data-studio-drawer-owner="studio-entity-list"]')
   const timeline = page.getByRole('region', { name: 'Show timeline', exact: true })
   const geometry = await timeline.boundingBox()
   const transport = page.getByTestId('show-timeline-toolbar').getByRole('button', { name: 'Play Show preview' })
@@ -1940,10 +1940,9 @@ test.describe('entity drawer motion (#982)', () => {
     await page.goto('studio/shows/stock-show-100-getting-around')
     await page.getByRole('button', { name: 'Unpin Shows list' }).click()
     const edge = page.getByTestId('studio-drawer-edge-tab')
-    const drawer = page.getByTestId('studio-entity-drawer')
     const layout = page.getByTestId('studio-drawer-layout')
-    const startSampling = async () => page.evaluate(() => {
-      const element = document.querySelector<HTMLElement>('[data-testid="studio-entity-drawer"]')!
+    const drawer = page.locator('[data-testid="studio-entity-drawer"][data-studio-drawer-owner="studio-entity-list"]')
+    const startSampling = async () => drawer.evaluate((element) => {
       const samples: DrawerMotionSample[] = []
       let active = true
       const sample = () => {

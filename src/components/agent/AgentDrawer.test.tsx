@@ -271,6 +271,7 @@ it('keeps MCP setup untimed until Ready to connect and uses the approved generic
   const ready = screen.getByRole('button', { name: 'Ready to connect' })
   expect(ready).toHaveClass('agent-ready')
   fireEvent.click(ready)
+  act(() => controller.dispatch({ type: 'connection', connection: null, armingUntil: Date.now() + 120_000, pendingCall: null, contactLost: false }))
   expect(useAgentDrawerStore.getState().state.armingUntil).not.toBeNull()
   expect(screen.getByRole('button', { name: 'Cancel connection attempt' })).toBeVisible()
 })

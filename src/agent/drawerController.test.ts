@@ -31,6 +31,43 @@ it('does not optimistically bind or arm on refused account actions', async () =>
   expect(useAgentDrawerStore.getState().state.armingUntil).toBeNull()
   expect(useAgentDrawerStore.getState().state.setupNotice).toMatchObject({ title: 'Connected in another editor' })
 })
+it.each(['expired', 'missed', 'occupied'] as const)('clears a stale %s notice only after a new arm is accepted', async prior => {
+  const f = fixture()
+  if (prior === 'expired') {
+    f.emit({ type: 'connection', connection: { kind: 'armed', expiresAt: 1000 } })
+    f.controller.dispatch({ type: 'tick', now: 1000 })
+  } else if (prior === 'missed') {
+    f.emit({ type: 'connection', connection: { kind: 'pending', callId: 'call', agentKind: 'external', agentName: 'External agent', expiresAt: 1000 } })
+    f.controller.dispatch({ type: 'tick', now: 1000 })
+  } else {
+    f.emit({ type: 'connection', connection: { kind: 'occupied' } })
+  }
+  expect(useAgentDrawerStore.getState().state.setupNotice).not.toBeNull()
+  vi.mocked(f.channel.arm).mockResolvedValue({ code: 'armed' } as never)
+
+  f.controller.dispatch({ type: 'connectOwn', now: 2000 })
+
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.setupNotice).toBeNull())
+  expect(useAgentDrawerStore.getState().state.armingUntil).toBeNull()
+  f.emit({ type: 'connection', connection: { kind: 'armed', expiresAt: 122000 } })
+  expect(useAgentDrawerStore.getState().state.armingUntil).toBe(122000)
+})
+it('keeps the latest refusal notice when an older arm succeeds late', async () => {
+  const f = fixture()
+  let finishFirst!: (result: { code: 'armed' }) => void
+  vi.mocked(f.channel.arm)
+    .mockImplementationOnce(() => new Promise(resolve => { finishFirst = resolve }) as never)
+    .mockResolvedValueOnce({ code: 'occupied' } as never)
+
+  f.controller.dispatch({ type: 'connectOwn', now: 0 })
+  f.controller.dispatch({ type: 'connectOwn', now: 1 })
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.setupNotice).toMatchObject({ title: 'Connected in another editor' }))
+  finishFirst({ code: 'armed' })
+  await Promise.resolve()
+
+  expect(useAgentDrawerStore.getState().state.setupNotice).toMatchObject({ title: 'Connected in another editor' })
+  expect(useAgentDrawerStore.getState().state.armingUntil).toBeNull()
+})
 it('uses actual connection events and preserves an in-flight action during contact loss', () => {
   const f = fixture()
   f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Built-in' } })

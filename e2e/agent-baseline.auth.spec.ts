@@ -479,14 +479,20 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     writeFileSync(join(REPORT_DIR, 'bridge.log'), `${bridge.logLines.join('\n')}\n`)
   })
 
-  test('B2 gate: off injection, query retirement and same-URL rerenders preserve manual ownership', async ({ page }) => {
+  test('B2 gate: capability admission, query stability and route retirement preserve manual ownership', async ({ page }) => {
     test.setTimeout(90_000)
     const showId = await createPersonalShow(page)
+    await expect.poll(() => page.evaluate(() => (
+      window as unknown as { __pxlblzEditor?: { sessionId: string } }
+    ).__pxlblzEditor?.sessionId)).toBeTruthy()
+    const sessionId = await page.evaluate(() => (
+      window as unknown as { __pxlblzEditor: { sessionId: string } }
+    ).__pxlblzEditor.sessionId)
+    await expect(page.getByTestId('agent-chat-panel')).toHaveCount(1)
     for (const search of ['', '?agent', '?agent=0', '?agent=true', '?agent=1&agent=0']) {
       await page.evaluate(search => window.history.replaceState(null, '', window.location.pathname + search), search)
-      await page.addScriptTag({ url: `${bridge.url}/chat.js` })
-      await expect(page.getByTestId('agent-chat-panel')).toHaveCount(0)
-      expect(await page.evaluate(() => !!(window as unknown as { __pxlblzEditor?: unknown }).__pxlblzEditor)).toBe(false)
+      await expect(page.getByTestId('agent-chat-panel')).toHaveCount(1)
+      expect(await page.evaluate(() => (window as unknown as { __pxlblzEditor?: { sessionId: string } }).__pxlblzEditor?.sessionId)).toBe(sessionId)
     }
     await setClipBrightness(page, 'TestPattern1D', '75')
     await waitForDurable(page, showId, show => firstMain(show)?.brightness === 0.75)
@@ -500,10 +506,17 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       const same = win.__pxlblzEditor === original
       window.history.replaceState(null, '', window.location.pathname + '?capture&unrelated=kept')
       window.history.replaceState(null, '', window.location.pathname + '?capture&agent=1&unrelated=kept')
-      return { same, old: original.applyShow({ ...captured.show, name: 'Stale' }, captured.request), changed: win.__pxlblzEditor.sessionId !== original.sessionId }
+      const queryStable = win.__pxlblzEditor === original
+      const showPath = window.location.pathname
+      const patternsPath = showPath.replace(/\/shows\/[^/]+$/, '/patterns')
+      window.history.replaceState(null, '', `${patternsPath}?unrelated=kept`)
+      const inactiveAway = !win.__pxlblzEditor
+      const old = original.applyShow({ ...captured.show, name: 'Stale' }, captured.request)
+      window.history.replaceState(null, '', `${showPath}?capture&unrelated=kept`)
+      return { same, queryStable, inactiveAway, old, changed: win.__pxlblzEditor.sessionId !== original.sessionId }
     })
-    expect(result).toEqual({ same: true, old: { request: expect.any(Object), status: 'retired' }, changed: true })
-    await expect(page.getByTestId('agent-chat-panel')).toHaveCount(0)
+    expect(result).toEqual({ same: true, queryStable: true, inactiveAway: true, old: { request: expect.any(Object), status: 'retired' }, changed: true })
+    await expect(page.getByTestId('agent-chat-panel')).toHaveCount(1)
     expect(new URL(page.url()).searchParams.get('unrelated')).toBe('kept')
     expect((await durableShow(page, showId))?.name).toBe('Untitled Show')
     await page.getByRole('button', { name: 'Undo Show edit' }).click()

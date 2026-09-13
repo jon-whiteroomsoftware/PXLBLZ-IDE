@@ -50,6 +50,12 @@ receive `occupied`. A built-in claim supplies
 its validated initiating window and claims that target in one transaction,
 without an arm/claim race.
 
+The drawer keeps an expiry, missed-call or occupied notice while a new arm
+request is unresolved. Only an accepted `armed` control result clears that
+notice; the receive stream supplies the exact server deadline. A refusal keeps
+or replaces it with the current actionable failure, and an older arm result
+cannot erase the notice from a newer attempt or cancellation.
+
 A trusted caller uses `inspect` with its original identity, call and binding IDs
 to resolve the pending call or surviving binding. Inspection never claims,
 retries or replays an operation. An expired, declined or mismatched call returns

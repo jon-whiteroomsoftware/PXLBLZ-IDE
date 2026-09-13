@@ -45,6 +45,7 @@ export type AgentDrawerEvent =
   | { type: 'drawer'; mode: AgentDrawerMode }
   | { type: 'chooseBuiltin' | 'chooseExternal' | 'cancelArm' | 'declineKnock' | 'approveKnock' | 'drop' | 'reattach' | 'disconnect' | 'forget' | 'reading' | 'settle' | 'manualEdit' | 'undo' | 'leave' | 'toggleMcp' }
   | { type: 'connectOwn' | 'tick'; now: number }
+  | { type: 'armAccepted' }
   | { type: 'knock'; name: string; now: number }
   | { type: 'agentBinds'; name: string }
   | { type: 'draft' | 'say' | 'reply' | 'system'; text: string }
@@ -79,7 +80,8 @@ export function transitionAgentDrawer(state: AgentDrawerState, event: AgentDrawe
     case 'chooseBuiltin': return connected(state, 'builtin', 'Pixelblaze agent')
     case 'chooseExternal': return state.connection ? state : { ...state, setupOpen: true, setupNotice: null }
     case 'agentBinds': return connected(state, 'external', event.name)
-    case 'connectOwn': return state.connection ? state : { ...state, setupOpen: true, setupNotice: null, armingUntil: event.now + 120_000 }
+    case 'connectOwn': return state.connection ? state : { ...state, setupOpen: true }
+    case 'armAccepted': return state.connection ? state : { ...state, setupOpen: true, setupNotice: null }
     case 'cancelArm': return { ...state, armingUntil: null }
     case 'knock': return state.connection || state.pendingCall ? state : { ...state, setupOpen: true, setupNotice: null, pendingCall: { name: event.name, expiresAt: event.now + 30_000 }, drawer: state.drawer === 'tucked' ? 'open' : state.drawer, unread: [] }
     case 'approveKnock': return state.pendingCall ? connected(state, 'external', state.pendingCall.name) : state

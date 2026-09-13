@@ -19,6 +19,7 @@ export function createProductionDrawerController(api: Admission, showId: string,
   let disposed = false
   let running = false
   let draftVersion = 0
+  let armAttempt = 0
   let connection = channel.getConnection()
   const operations = new Map<string, Operation>()
   const cancelled = new Set<string>()
@@ -117,14 +118,18 @@ export function createProductionDrawerController(api: Admission, showId: string,
       if (event.type === 'draft') draftVersion++
       if (event.type === 'chooseBuiltin') { void action(() => builtin({ action: 'connect' })); return }
       if (event.type === 'connectOwn') {
+        const attempt = ++armAttempt
         void action(async () => {
           const result = await channel.arm()
-          if (result.code === 'occupied') emit({ type: 'setupFailed', title: 'Connected in another editor', detail: 'Disconnect in the editor that owns the connection, then try again. If that editor is unavailable, wait for its inactive connection to expire.' })
+          if (!disposed && attempt === armAttempt) {
+            if (result.code === 'armed') emit({ type: 'armAccepted' })
+            if (result.code === 'occupied') emit({ type: 'setupFailed', title: 'Connected in another editor', detail: 'Disconnect in the editor that owns the connection, then try again. If that editor is unavailable, wait for its inactive connection to expire.' })
+          }
           return result
         })
         return
       }
-      if (event.type === 'cancelArm') { void action(() => channel.cancelArm()); return }
+      if (event.type === 'cancelArm') { armAttempt++; void action(() => channel.cancelArm()); return }
       if (event.type === 'approveKnock' || event.type === 'declineKnock') {
         if (connection.kind === 'pending') { const callId = connection.callId; void action(() => event.type === 'approveKnock' ? channel.answer(callId) : channel.decline(callId)) }
         return
