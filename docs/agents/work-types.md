@@ -5,7 +5,9 @@ The reviewed source is commit `5d63864c62c2f4b2dd3710fda2424909ac801197`:
 [catalog version 1](https://github.com/jon-whiteroomsoftware/whiteroom-software-process/blob/5d63864c62c2f4b2dd3710fda2424909ac801197/src/work-types.ts),
 [contract](https://github.com/jon-whiteroomsoftware/whiteroom-software-process/blob/5d63864c62c2f4b2dd3710fda2424909ac801197/docs/reference/contracts/work-types.md),
 and [creation/grouping guide](https://github.com/jon-whiteroomsoftware/whiteroom-software-process/blob/5d63864c62c2f4b2dd3710fda2424909ac801197/docs/reference/work-types.md).
-This adopts guidance and GitHub templates; the vendored package stays unchanged.
+That adoption covered guidance and GitHub templates without changing the package.
+The executable catalog/CLI is included in the subsequent WRSP 0.10.0 adoption
+[#1022](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1022).
 
 ## Choose the work item's purpose
 

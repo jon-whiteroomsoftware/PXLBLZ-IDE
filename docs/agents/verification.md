@@ -24,6 +24,39 @@ the packet representation introduced there,
 [WRSP 0.5.1 review policy](#wrsp-051-review-policy-960) for reviewer routing,
 and [WRSP 0.5.0 consumer guards](#wrsp-050-consumer-guards-940) for guard history.
 
+## WRSP 0.10.0 adoption (#1022)
+
+This adoption updates the executable package from 0.9.0. Source release and
+consumer deployment are tracked in WRSP #59 and PXLBLZ #1022; Mini service
+versions remain a separate deployment concern.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 0.10.0, tag `v0.10.0` |
+| Source | `fe7b5cc760a908063a702272351d681126ef980d` |
+| Tarball | `vendor/whiteroom-software-process-0.10.0.tgz` |
+| SHA256 | `8fd1cb758cbd2865cb54554eef923fa8bd002cc8ef3ce7791df7ccace667b4f5` |
+
+The package adds the typed-work catalog/CLI and newer session/issue usage,
+runner and dashboard code. The #991 guidance adoption remains valid. Vendoring
+the package does not restart or redeploy Mini services, enable the default-off
+parallel trial, or retroactively classify untyped sessions.
+
+Default candidate review remains cross-family. When Jon explicitly authorizes
+one supported same-family reviewer for an exact candidate, supply the explicit
+`--reviewer-model` and `--reviewer-effort` pair together with `--allow-same-family`
+and a nonblank `--override-reason`. The native receipt records actual coverage
+and the exception; ordinary later review does not inherit it. Mixed-family
+candidates and deferred/completed UI proof do not support this exception.
+All proof, full-suite and publication gates remain independent. Historical native
+receipts retain their recorded authority; rewritten commits still need coverage.
+
+Shared global instructions and reviewed-main-workflow deploy from WRSP #59's
+reconciled packet, preserving #57/#58 text admission and attribution checks.
+Canonical instructions are not files inside the executable tarball. Existing
+consumer guard tests and final committed-tip runner records qualify this
+adoption; #1022 records actual results and production deployment proof.
+
 ## WRSP 0.9.0 adoption (#975)
 
 This release adds deferred code review with inspected visual proof and bounded
