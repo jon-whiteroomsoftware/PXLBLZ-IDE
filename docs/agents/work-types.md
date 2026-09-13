@@ -81,16 +81,20 @@ or attribution inference. For a justified correction, record the old/new type,
 reason, supported `effectiveAt` UTC time, and actual observation `capturedAt`.
 Do not rewrite capture history or treat capture time as when the work changed.
 
-## Setup and observed adoption evidence
+## Label setup
 
-Label setup uses the reviewed **WRSP source checkout**, not the consumer's
-vendored 0.9.0 package. From that checkout at the pinned commit:
+Use the installed WRSP CLI from this checkout:
 
-```sh
-node bin/work-types.mjs plan jon-whiteroomsoftware/PXLBLZ-IDE
-node bin/work-types.mjs apply jon-whiteroomsoftware/PXLBLZ-IDE
-node bin/work-types.mjs check jon-whiteroomsoftware/PXLBLZ-IDE
+```bash
+npx wrsp-work-types plan jon-whiteroomsoftware/PXLBLZ-IDE
+npx wrsp-work-types apply jon-whiteroomsoftware/PXLBLZ-IDE
+npx wrsp-work-types check jon-whiteroomsoftware/PXLBLZ-IDE
 ```
+
+## Initial adoption evidence
+
+The original #991 setup used the reviewed WRSP source checkout at the pinned
+commit above because the then-vendored 0.9.0 package did not include this CLI.
 
 On 2026-09-08 the coordinator observed 37 existing labels preserved with exact
 names, colors, and descriptions; setup added the five catalog labels, and

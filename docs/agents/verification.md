@@ -33,7 +33,7 @@ versions remain a separate deployment concern.
 | Field | Value |
 | --- | --- |
 | Release | `@whiteroom/software-process` 0.10.0, tag `v0.10.0` |
-| Source | `fe7b5cc760a908063a702272351d681126ef980d` |
+| Source | `49a20c40e011a8b58f59d5b8d5c23c76bc8193cf` |
 | Tarball | `vendor/whiteroom-software-process-0.10.0.tgz` |
 | SHA256 | `8fd1cb758cbd2865cb54554eef923fa8bd002cc8ef3ce7791df7ccace667b4f5` |
 
