@@ -2,10 +2,11 @@
   "version": 1,
   "issue": "1025",
   "route": "/PXLBLZ-IDE/studio/shows/stock-show-100-getting-around?agent=1&capture",
-  "operation": "In-app browser on isolated 5212: chooser to MCP setup, neutral Ready button, Back to built-in, 9px 30/30 status and Change agent. Separate repo Playwright controlled transport through actual Worker/channel/relay/DO: one synthetic provider dispatch, 30 to 29, clarification visible, no Dismiss. Desktop only: narrow capture failed when the hover drawer tucked and remains unresolved.",
+  "operation": "Fresh rebased real editor on isolated 5212. In-app MCP setup: neutral Ready button, Back to chooser. Controlled provider through actual Worker/channel/relay/DO: one synthetic dispatch, 30 to 29, clarification, no Dismiss at 1440px and 720px; narrow drawer has no horizontal overflow. Waited for responsive tuck transition before keyboard reopening and asserted open mode. No product changes needed for capture synchronization.",
   "captures": [
     ".wrsp/ui-proof/1025-mcp-setup.jpg",
-    ".wrsp/ui-proof/1025-message-count.png"
+    ".wrsp/ui-proof/1025-message-count.png",
+    ".wrsp/ui-proof/1025-message-count-narrow.png"
   ],
-  "capturedAtCommit": "200fdabed5fd48ab5f0660b44474078685e30cf0"
+  "capturedAtCommit": "ae7eb72ae9d5acfea840e45e93e9a1b73d9ebd76"
 }
