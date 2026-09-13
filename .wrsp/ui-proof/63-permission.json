@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "63",
+  "route": "/PXLBLZ-IDE/studio/controllers",
+  "operation": "Repo Playwright with synthetic delayed permission grant. The existing authorization hint remains visible after 3.2 seconds; approval at 4.5 seconds produces a live Grant Bench Controller and opens its panel. Zero main-document navigation requests prove no reload. Synthetic account and device data only. In-app browser was checked first and lacks the Controller helper. Native Chrome permission UI and extension distribution remain external boundaries.",
+  "captures": [".wrsp/ui-proof/63-permission-pending.png", ".wrsp/ui-proof/63-permission-connected.png"],
+  "capturedAtCommit": "131d635a"
+}
