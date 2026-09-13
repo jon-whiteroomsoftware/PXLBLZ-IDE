@@ -139,6 +139,92 @@ function exactGlobalSpanAvoidsTransition(show: ShowRecord, globalStartMs: number
     .reduce((total, slice) => total + slice.durationMs, 0) === durationMs
 }
 
+export type ShowClipOverlayLayerSpanResolution =
+  | {
+      status: 'accepted'
+      layerIdsBySceneId: Readonly<Record<string, string>>
+      candidates: readonly number[]
+    }
+  | {
+      status: 'refused'
+      code: 'unknown-layer' | 'group-owned-layer'
+      sceneIds: readonly string[]
+      candidates: readonly number[]
+      reason: string
+    }
+
+/**
+ * Resolve a projected overlay index to stable authored Layer identities in
+ * every Scene touched by an exact span. Group shells participate in projected
+ * numbering, but remain unavailable as direct Clip owners until materialized
+ * by their own authoring operation.
+ */
+export function resolveShowClipOverlayLayerSpan(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: {
+    zoneId: string
+    layerIndex: number
+    globalStartMs: number
+    durationMs: number
+  },
+): ShowClipOverlayLayerSpanResolution {
+  const endMs = input.globalStartMs + input.durationMs
+  const coveredSceneIds = projectShowTimeline(show).scenes.flatMap(scene => (
+    scene.endMs <= input.globalStartMs || scene.startMs >= endMs ? [] : [scene.sceneId]
+  ))
+  if (coveredSceneIds.length === 0) {
+    return { status: 'accepted', layerIdsBySceneId: {}, candidates: [] }
+  }
+  const materialized = materializeShowGroupLayerShells(composition, input.zoneId)
+  const scenes = coveredSceneIds.map(sceneId => {
+    const authoredZone = composition.scenes.find(scene => scene.sceneId === sceneId)?.zones
+      .find(zone => zone.zoneId === input.zoneId)
+    const materializedZone = materialized.scenes.find(scene => scene.sceneId === sceneId)?.zones
+      .find(zone => zone.zoneId === input.zoneId)
+    return { sceneId, authoredZone, materializedZone }
+  })
+  const maximumCandidateCount = Math.max(0, ...scenes.map(scene => scene.materializedZone?.overlays.length ?? 0))
+  const candidates = Array.from({ length: maximumCandidateCount }, (_, index) => index).filter(index => (
+    scenes.every(scene => {
+      const materializedLayer = scene.materializedZone?.overlays[index]
+      return materializedLayer !== undefined
+        && scene.authoredZone?.overlays.some(layer => layer.id === materializedLayer.id) === true
+    })
+  ))
+  const missing = scenes.filter(scene => scene.materializedZone?.overlays[input.layerIndex] === undefined)
+  if (missing.length > 0) {
+    return {
+      status: 'refused',
+      code: 'unknown-layer',
+      sceneIds: missing.map(scene => scene.sceneId),
+      candidates,
+      reason: `Zone ${input.zoneId} has no overlay Layer at index ${input.layerIndex} in covered Scene${missing.length === 1 ? '' : 's'} ${missing.map(scene => scene.sceneId).join(', ')}.`,
+    }
+  }
+  const groupOwned = scenes.filter(scene => {
+    const materializedLayer = scene.materializedZone!.overlays[input.layerIndex]
+    return !scene.authoredZone?.overlays.some(layer => layer.id === materializedLayer.id)
+  })
+  if (groupOwned.length > 0) {
+    return {
+      status: 'refused',
+      code: 'group-owned-layer',
+      sceneIds: groupOwned.map(scene => scene.sceneId),
+      candidates,
+      reason: `Overlay Layer ${input.layerIndex} is owned only by Group structure in covered Scene${groupOwned.length === 1 ? '' : 's'} ${groupOwned.map(scene => scene.sceneId).join(', ')}.`,
+    }
+  }
+  return {
+    status: 'accepted',
+    layerIdsBySceneId: Object.fromEntries(scenes.map(scene => [
+      scene.sceneId,
+      scene.materializedZone!.overlays[input.layerIndex].id,
+    ])),
+    candidates,
+  }
+}
+
 export interface ShowBulkClipArrangementRequest {
   inputIndex: number
   clipId: string
@@ -219,9 +305,31 @@ export function arrangeShowClipsFinalState(
     }
   }
   for (const item of [...items].sort((left, right) => left.request.clipId.localeCompare(right.request.clipId))) {
-    const target = item.request.layer === 'main'
-      ? { kind: 'main' as const, zoneId: item.request.zoneId }
-      : { kind: 'overlay' as const, zoneId: item.request.zoneId, layerIndex: item.request.layer }
+    let target: ShowClipAppendTarget
+    if (item.request.layer === 'main') target = { kind: 'main', zoneId: item.request.zoneId }
+    else {
+      const layer = resolveShowClipOverlayLayerSpan(show, composition, {
+        zoneId: item.request.zoneId,
+        layerIndex: item.request.layer,
+        globalStartMs: item.request.globalStartMs,
+        durationMs: item.request.durationMs,
+      })
+      if (layer.status === 'refused') {
+        return {
+          status: 'refused',
+          inputIndex: item.request.inputIndex,
+          field: 'layer',
+          code: layer.code === 'group-owned-layer' ? 'unsupported-topology' : layer.code,
+          reason: layer.reason,
+        }
+      }
+      target = {
+        kind: 'overlay',
+        zoneId: item.request.zoneId,
+        layerIndex: item.request.layer,
+        layerIdsBySceneId: layer.layerIdsBySceneId,
+      }
+    }
     if (!appendLogicalClipGlobalSpan(show, draft, {
       rootId: placementLogicalClipId(item.base),
       base: item.base,
@@ -295,7 +403,18 @@ export function createShowClipGlobalSpan(
   }
   const target = input.layer === 'main'
     ? { kind: 'main' as const, zoneId: input.zoneId }
-    : { kind: 'overlay' as const, zoneId: input.zoneId, layerIndex: input.layer }
+    : (() => {
+        const layer = resolveShowClipOverlayLayerSpan(show, composition, {
+          zoneId: input.zoneId,
+          layerIndex: input.layer,
+          globalStartMs: input.globalStartMs,
+          durationMs: input.durationMs,
+        })
+        return layer.status === 'accepted'
+          ? { kind: 'overlay' as const, zoneId: input.zoneId, layerIndex: input.layer, layerIdsBySceneId: layer.layerIdsBySceneId }
+          : null
+      })()
+  if (!target) return composition
   if (!appendLogicalClipGlobalSpan(show, draft, {
     rootId: input.placementId,
     base,
@@ -370,13 +489,22 @@ function exactStaticPresentationBases(
   return bases
 }
 
+type ShowClipAppendTarget =
+  | { kind: 'main'; zoneId: string }
+  | {
+      kind: 'overlay'
+      zoneId: string
+      layerIndex: number
+      layerIdsBySceneId?: Readonly<Record<string, string>>
+    }
+
 function appendLogicalClipGlobalSpan(
   show: ShowRecord,
   composition: ShowCompositionV1,
   input: {
     rootId: string
     base: ShowMainPlacement | ShowOverlayPlacement
-    target: ShowClipAddTarget & { zoneId: string }
+    target: ShowClipAppendTarget
     globalStartMs: number
     durationMs: number
     staticPresentation?: StaticPresentationRepartition
@@ -407,7 +535,10 @@ function appendLogicalClipGlobalSpan(
         || (existing.startMs === placement.startMs && existing.id.localeCompare(placement.id) > 0))
       zone.main.splice(insertionIndex < 0 ? zone.main.length : insertionIndex, 0, placement)
     } else {
-      const layer = zone.overlays[input.target.layerIndex]
+      const layerId = input.target.layerIdsBySceneId?.[slice.sceneId]
+      const layer = layerId
+        ? zone.overlays.find(candidate => candidate.id === layerId)
+        : zone.overlays[input.target.layerIndex]
       if (!layer) return false
       const insertionIndex = layer.placements.findIndex(existing => existing.startMs > placement.startMs
         || (existing.startMs === placement.startMs && existing.id.localeCompare(placement.id) > 0))

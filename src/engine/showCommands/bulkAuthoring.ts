@@ -18,11 +18,11 @@ import type {
   ShowRecord,
 } from '../personalContentRecords'
 import { declaredPatternSliderNames } from '../showPatternControls'
-import { projectShowTimeline } from '../showModel'
 import {
   addShowOverlayLayerAcrossTimeline,
   arrangeShowClipsFinalState,
   createShowClipGlobalSpan,
+  resolveShowClipOverlayLayerSpan,
 } from '../showTimelineClipAuthoring'
 import { projectShowUnifiedTimeline, type ShowUnifiedTimelineClipProjection } from '../showUnifiedTimelineProjection'
 import { buildShowToolkitPresentationCatalogue } from '../showVisualToolkitPresentation'
@@ -602,22 +602,18 @@ function layerReferenceIssues(
 ): ShowCommandIssue[] {
   if (layer === 'main' || typeof layer !== 'number' || !record.composition) return []
   if (!validExactInterval(startMs, durationMs)) return []
-  const endMs = startMs + (durationMs as number)
-  const sceneRanges = projectShowTimeline(record).scenes
-  const covered = sceneRanges.flatMap(range => {
-    if (range.endMs <= startMs || range.startMs >= endMs) return []
-    const scene = record.composition!.scenes.find(candidate => candidate.sceneId === range.sceneId)
-    const zone = scene?.zones.find(candidate => candidate.zoneId === zoneId)
-    return [{ sceneId: range.sceneId, overlayCount: zone?.overlays.length ?? 0 }]
+  const resolution = resolveShowClipOverlayLayerSpan(record, record.composition, {
+    zoneId,
+    layerIndex: layer,
+    globalStartMs: startMs,
+    durationMs: durationMs as number,
   })
-  const missing = covered.filter(scene => layer < 0 || layer >= scene.overlayCount)
-  if (missing.length === 0) return []
-  const sharedOverlayCount = covered.length ? Math.min(...covered.map(scene => scene.overlayCount)) : 0
+  if (resolution.status === 'accepted') return []
   return [{
-    code: 'unknown-layer',
+    code: resolution.code === 'group-owned-layer' ? 'unsupported-topology' : resolution.code,
     path,
-    message: `Zone ${zoneId} has no overlay Layer at index ${layer} in covered Scene${missing.length === 1 ? '' : 's'} ${missing.map(scene => scene.sceneId).join(', ')}.`,
-    candidates: Array.from({ length: sharedOverlayCount }, (_, index) => String(index)),
+    message: resolution.reason,
+    candidates: resolution.candidates.map(String),
   }]
 }
 
@@ -708,6 +704,11 @@ function updateClipsPreflight(record: ShowRecord, input: JsonObject, context?: S
     ...updates.flatMap(({ value, inputIndex }) => {
       const clip = clips.get(value.clip_id as string)
       if (!clip) return []
+      if (clip.groupOccurrenceId) return [{
+        code: 'group-owned',
+        path: `$.updates[${inputIndex}].clip_id`,
+        message: `Clip ${clip.id} is owned by Group occurrence ${clip.groupOccurrenceId}.`,
+      }]
       const zoneId = typeof value.zone_id === 'string' ? value.zone_id : clip.zoneId
       if (!record.zones.some(zone => zone.id === zoneId)) return [{ code: 'unknown-zone', path: `$.updates[${inputIndex}].zone_id`, message: `Zone ${zoneId} does not exist.`, candidates: record.zones.map(zone => zone.id) }]
       const layer = value.layer ?? (clip.kind === 'main' ? 'main' : clip.layerIndex)

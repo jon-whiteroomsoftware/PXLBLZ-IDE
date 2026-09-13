@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { boundaryFreeTrackedFixture, showCommandFixture, trackedCommandFixture } from '../../test/showCommandFixture'
+import { showOverlayLayerFixture } from '../../test/showOverlayLayerFixture'
 import type { ShowRecord } from '../personalContentRecords'
+import { projectShowUnifiedTimeline } from '../showUnifiedTimelineProjection'
 import { applyShowCommand, type ShowCommandContext } from './registry'
 
 const source = 'export function sliderSpeed(v) { speed = v }\nexport function sliderDensity(v) { density = v }\nexport function render(index) { hsv(0, 1, 1) }'
@@ -24,6 +26,28 @@ function withSecondZone(): ShowRecord {
   show.zones.push({ id: 'zone-2', name: 'Zone 2', nominalPixelCount: 60 })
   for (const scene of show.composition!.scenes) scene.zones.push({ zoneId: 'zone-2', main: [], overlays: [] })
   return show
+}
+
+function withImplicitGroupShell(): ShowRecord {
+  const show = showOverlayLayerFixture()
+  const composition = show.composition!
+  const zone = composition.scenes[0].zones.find(candidate => candidate.zoneId === 'zone-1')!
+  zone.overlays[1].placements = zone.overlays[0].placements
+  zone.overlays[0].placements = []
+  composition.groupOccurrences = [{
+    ...composition.groupOccurrences![0],
+    id: 'high-group',
+    sceneId: 'scene-1',
+    startMs: 29_000,
+    baseLayer: 2,
+  }]
+  return show
+}
+
+function projectedClip(record: ShowRecord, clipId: string) {
+  return projectShowUnifiedTimeline(record, record.composition!).zones
+    .flatMap(zone => zone.layers.flatMap(layer => layer.clips))
+    .find(clip => clip.id === clipId)
 }
 
 describe('bulk Clip/Layer authoring acceptance partitions', () => {
@@ -378,5 +402,76 @@ describe('bulk Clip/Layer authoring acceptance partitions', () => {
         expect.objectContaining({ code: 'unknown-layer', path: '$.updates[0].layer' }),
       ])
     }
+  })
+
+  it('uses materialized Layer identities around implicit Group shells without retargeting ordinary Clips', () => {
+    const propertyBasis = withImplicitGroupShell()
+    expect(projectedClip(propertyBasis, 'clip-ov')).toMatchObject({ layerId: 'bottom-scene-1', layerIndex: 2 })
+    const property = accepted(propertyBasis, 'update_clips', {
+      schema_version: 1,
+      updates: [{ clip_id: 'clip-ov', properties: { view: { brightness: 0.5 } } }],
+    })
+    expect(projectedClip(property.record, 'clip-ov')).toMatchObject({
+      layerId: 'bottom-scene-1',
+      layerIndex: 2,
+    })
+    expect(property.record.composition!.scenes[0].zones[0].overlays[1].placements[0].view.brightness).toBe(0.5)
+
+    const noopBasis = withImplicitGroupShell()
+    expect(accepted(noopBasis, 'update_clips', {
+      schema_version: 1,
+      updates: [{ clip_id: 'clip-ov', properties: { view: { brightness: 1 } } }],
+    })).toEqual({ ok: true, record: noopBasis, changes: [] })
+
+    const timeMoved = accepted(withImplicitGroupShell(), 'update_clips', {
+      schema_version: 1,
+      updates: [{ clip_id: 'clip-ov', start_ms: 10_000 }],
+    })
+    expect(projectedClip(timeMoved.record, 'clip-ov')).toMatchObject({
+      layerId: 'bottom-scene-1',
+      layerIndex: 2,
+      startMs: 10_000,
+    })
+
+    const moved = accepted(withImplicitGroupShell(), 'update_clips', {
+      schema_version: 1,
+      updates: [{ clip_id: 'clip-ov', layer: 1, start_ms: 10_000 }],
+    })
+    expect(projectedClip(moved.record, 'clip-ov')).toMatchObject({
+      layerId: 'overlay-1',
+      layerIndex: 1,
+      startMs: 10_000,
+    })
+
+    const created = accepted(withImplicitGroupShell(), 'create_clips', {
+      schema_version: 1,
+      clips: [{ zone_id: 'zone-1', layer: 2, start_ms: 10_000, duration_ms: 1_000, pattern: { kind: 'stock', id: 'Rings' } }],
+    })
+    const createdId = (created.changes[0].details!.results as Array<Record<string, string>>)[0].clipId
+    expect(projectedClip(created.record, createdId)).toMatchObject({
+      layerId: 'bottom-scene-1',
+      layerIndex: 2,
+      startMs: 10_000,
+    })
+  })
+
+  it('refuses implicit Group-only Layer destinations and Group-owned Clip updates by name', () => {
+    const show = withImplicitGroupShell()
+    expect(refused(show, 'create_clips', {
+      schema_version: 1,
+      clips: [{ zone_id: 'zone-1', layer: 0, start_ms: 10_000, duration_ms: 1_000, pattern: { kind: 'stock', id: 'Rings' } }],
+    })).toEqual([expect.objectContaining({ code: 'unsupported-topology', path: '$.clips[0].layer' })])
+    expect(refused(show, 'update_clips', {
+      schema_version: 1,
+      updates: [{ clip_id: 'clip-ov', layer: 0, start_ms: 10_000 }],
+    })).toEqual([expect.objectContaining({ code: 'unsupported-topology', path: '$.updates[0].layer' })])
+
+    const groupClip = projectShowUnifiedTimeline(show, show.composition!).zones
+      .flatMap(zone => zone.layers.flatMap(layer => layer.clips))
+      .find(clip => clip.groupOccurrenceId)!
+    expect(refused(show, 'update_clips', {
+      schema_version: 1,
+      updates: [{ clip_id: groupClip.id, properties: { opacity: 0.5 } }],
+    })).toEqual([expect.objectContaining({ code: 'group-owned', path: '$.updates[0].clip_id' })])
   })
 })

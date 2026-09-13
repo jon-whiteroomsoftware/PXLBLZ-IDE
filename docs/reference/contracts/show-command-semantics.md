@@ -60,6 +60,9 @@ This bounded exception permits ordinary Clip swaps, rotations, combined
 move/resize, and cross-Layer exchange without publishing or validating a
 temporary collision. Every target and destination Layer resolves against the
 same original snapshot, and payload order cannot choose the result.
+Projected overlay indices map to stable authored Layer IDs in every covered
+Scene. A Group-only implicit Layer shell is not a direct Clip owner and refuses
+as unsupported topology instead of retargeting an adjacent authored Layer.
 
 The operation remains all-or-nothing through caller adoption. Exact timing
 does not clamp, ripple, extend Show End, or cross a visual Transition window.

@@ -12,6 +12,7 @@
     "Single/multiple Clips; single/multiple Layers; one/multiple Zones; empty nested Layer versus empty top-level batch.",
     "Exact valid intervals, occupied destinations, out-of-Show/unsafe/fractional times, cross-Layer exchanges and multi-Scene logical Clips.",
     "Overlay Layer availability in every Scene covered by a requested span: present-only, absent-only and cross-Scene spans for both creation and movement.",
+    "Projected overlay indices above and below implicit Group shells: ordinary property/no-op/create/move ownership by stable Layer ID, implicit-shell destination refusal, and Group-owned Clip refusal.",
     "Placement-owned versus shared-instance settings; disjoint/identical/conflicting shared writes; direct and additional linked impact.",
     "Every supported property family; recursive partial updates; explicit clears; Effects IDs and animation ownership; neutral defaults/no-ops.",
     "Unknown nested fields, unsupported version, missing references, duplicate targets, independent errors and finite batch bounds.",

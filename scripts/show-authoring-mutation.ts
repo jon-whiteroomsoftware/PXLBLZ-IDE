@@ -86,6 +86,16 @@ const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
   target(
     'bulk',
     'showTimelineClipAuthoring.ts',
+    'appendLogicalClipGlobalSpan',
+    [
+      'const layer = layerId',
+      '        ? zone.overlays.find(candidate => candidate.id === layerId)',
+      '        : zone.overlays[input.target.layerIndex]',
+    ].join('\n'),
+  ),
+  target(
+    'bulk',
+    'showTimelineClipAuthoring.ts',
     'arrangeShowClipsFinalState',
     'if (issues.length > 0) {',
   ),
