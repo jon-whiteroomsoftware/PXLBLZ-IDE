@@ -1,0 +1,35 @@
+{
+  "invariants": [
+    "Every signed-in account may request and use external MCP from an ordinary editable Show URL, while built-in Pixelblaze agent access remains a separate server-enforced account allowlist with its existing quota and no client-side assertion can widen either capability.",
+    "OAuth authorization preserves the exact MCP resource, S256 PKCE, authorization-code replay, refresh rotation, grant ownership, account slot, admission, history, and save semantics for static, DCR, and CIMD clients.",
+    "CIMD metadata is fetched and validated outside the authorization transaction under strict public-network, redirect, time, size, cache, and expiry bounds; a protected request never substitutes stale metadata after expiry or metadata drift.",
+    "DCR admits only bounded compatible metadata and client authentication methods, rate-limits registration, caps live registrations, expires records, and preserves configured static grants without vendor or model identity policy.",
+    "OAuth sign-in continuation is opaque, HttpOnly, short-lived, one-use, same-origin, account-bound after callback, and cannot replay, switch accounts, or turn an unvalidated callback into a redirect.",
+    "Setup is untimed until Ready to connect; Ready creates exactly one 120-second arm, incoming Answer retains its 30-second limit, and expiry, cancellation, and occupied states never take over another session, infer an outcome, or replay inference."
+  ],
+  "partitions": [
+    "Signed out, signed-in external-capable, signed-in built-in-allowlisted, service-disabled, and stale browser capability projection; ordinary editable personal and stock Show URLs with and without the historical DEV diagnostic query.",
+    "Static client, valid CIMD URL, valid DCR client, expired or changed CIMD metadata, expired or evicted DCR registration, unsupported client authentication method, malformed metadata, private or redirecting metadata URL, and variable-port loopback redirect URI.",
+    "Initial authorization, sign-in continuation, consent allow/deny, account switch, replayed or expired continuation, invalid callback, invalid Origin, authorization-code replay, refresh rotation, grant revocation, and protected-resource metadata revalidation.",
+    "Untimed setup, armed, incoming, connected, cancelled, expired, occupied, lost contact, and recovered drawer states at desktop and narrow widths using pointer and keyboard input."
+  ],
+  "sequences": [
+    "Open an ordinary editable Show URL as a non-allowlisted signed-in account, open the drawer by keyboard, choose external MCP, copy the advertised endpoint, wait without arming, arm once, cancel, re-arm, expire, and confirm no built-in choice or inferred connection outcome appears.",
+    "Register one bounded DCR client and authorize one bounded CIMD client, complete S256 authorization against the exact MCP resource, exchange once, reject code replay, rotate refresh credentials, inspect/revoke the grant, and reject later protected use when client metadata has expired or changed.",
+    "Begin authorization signed out, follow the safe sign-in continuation, bind the returned nonce to the authenticated account, allow or deny consent, then retry the continuation after use, expiry, callback tampering, and account switching and verify each fails closed.",
+    "Connect an admitted external client, edit and save a personal Show once, reopen the saved record, then exercise cancellation, an occupied account slot, and late delivery to prove history/save ownership and no takeover or duplicate application."
+  ],
+  "oracles": [
+    "Worker route status, typed refusal codes, capability booleans from /api/me, absence of the built-in chooser for non-allowlisted users, and server-side allowlist checks at request, claim, delivery, and resolution boundaries.",
+    "Actual OAuth provider responses and durable records for registration, authorization, code exchange, refresh, inspection, revocation, metadata cache expiry, redirect URI matching, Origin validation, and replay rejection.",
+    "Exact personal Show history and reopened saved JSON, account slot state, rendezvous lifecycle receipts, zero extra provider dispatches, and zero duplicate or late candidate applications.",
+    "Fresh committed desktop and 390x844 browser captures plus DOM-visible exact copy, endpoint origin, keyboard focus, drawer bounds, and document overflow measurements.",
+    "Focused workerd/provider, Worker route, React component, lifecycle, runtime-script, lint, typecheck, build, and authenticated Playwright results; the coordinator-owned exact-tip WRSP suites and native cross-family review remain final gates."
+  ],
+  "residualGaps": [
+    "Local workerd and browser tests do not prove public HTTPS reachability, third-party redirect behavior, or interoperability with independently implemented MCP clients.",
+    "Onboarding qualification still requires one real CIMD client and one real DCR client from two independent client implementations through connect, consent, edit, save, reopen, occupied, cancellation, and expiry behavior on a reachable HTTPS candidate.",
+    "No production account, production consent grant, production DCR registration, remote deployment, or remote provider inference was created during implementation.",
+    "The provider contract intentionally omits DCR metadata update and delete and bounds registration lifetime to 90 days; CIMD availability remains dependent on the client's public metadata endpoint staying valid and responsive within the documented fetch budget."
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1009",
+  "route": "/PXLBLZ-IDE/studio/shows/agent-onboarding-1009",
+  "operation": "Repository Playwright drove the ordinary authenticated Show URL as its synthetic local user, opened external MCP onboarding with the keyboard, verified the actual runtime endpoint and exact setup copy, armed and cancelled the 120-second connection attempt, and checked desktop plus 390-pixel-wide layouts without overflow. The in-app browser was unavailable in this task, and this local browser proof does not qualify a real external MCP client.",
+  "captures": [
+    ".wrsp/ui-proof/1009-mcp-onboarding-desktop.png",
+    ".wrsp/ui-proof/1009-mcp-onboarding-narrow.png"
+  ],
+  "capturedAtCommit": "47abad8781560b6e8959e71ccc154766e2d740d9"
+}
