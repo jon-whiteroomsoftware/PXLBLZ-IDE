@@ -258,7 +258,9 @@ cannot open a Controller's LAN WebSocket on its own. The Controller bar and
 **Connect** are Studio-only. Pick a discovered Controller or enter an IP from
 Studio's top-right menu; several can stay connected with one active. Visiting
 the Gallery or another public route hides the bar without disconnecting;
-returning to Studio shows the existing connection.
+returning to Studio shows the existing connection. First-time access
+waits for approval in the helper, then connects without reloading the page. A
+declined or expired grant returns to the disconnected state so you can try again.
 
 The live panel shows what the device says right now: brightness, FPS, IP,
 pixel count, the running Pattern's controls and watched variables, and power

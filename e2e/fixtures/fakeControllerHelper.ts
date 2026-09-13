@@ -12,6 +12,8 @@ export interface FakeControllerHelperOptions {
   vars?: Record<string, number>
   sequencerMode?: number
   runSequencer?: boolean
+  /** Hold the first permission grant beyond the ordinary socket deadline. */
+  permissionDelayMs?: number
 }
 
 /** Installs a browser-side stand-in for the extension relay and a small slice of
@@ -92,8 +94,21 @@ export async function installFakeControllerHelper(
       }
       if (message.type === 'connect') {
         if (fixture.address && new URL(String(message.url)).hostname !== fixture.address) return
-        connections.add(String(message.connId))
-        emit({ type: 'open', connId: message.connId })
+        const connId = String(message.connId)
+        connections.add(connId)
+        const open = () => {
+          if (!connections.has(connId)) return
+          emit({ type: 'socket-connecting', connId })
+          emit({ type: 'open', connId })
+        }
+        if (fixture.permissionDelayMs) {
+          emit({ type: 'permission-needed', address: new URL(String(message.url)).hostname, connId })
+          setTimeout(open, fixture.permissionDelayMs)
+        } else open()
+        return
+      }
+      if (message.type === 'close') {
+        connections.delete(String(message.connId))
         return
       }
       if (message.type === 'get-wifi-status') {

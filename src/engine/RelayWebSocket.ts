@@ -158,15 +158,17 @@ export type RelayMessage =
       error?: string
     }
   // Per-IP JIT host permission (#229). The LAN reach is an optional
-  // permission granted per device IP from the helper's action popup. These two are
-  // address-keyed (not conn/req-keyed) because the grant is per IP, not per call:
+  // permission granted per device IP from the helper's action popup. Socket
+  // attempts also carry connId in helper 1.0.2; older helpers and HTTP calls
+  // remain address-keyed:
   //  - `permission-needed` — the helper found no grant for `address` and opened the
   //    grant popup; informational, lets the page hint "click the toolbar icon" in
   //    case the popup didn't auto-open.
   //  - `permission-denied` — the user declined (or the request failed/timed out);
   //    the page surfaces it instead of showing a silent connect failure.
-  | { source: typeof RELAY_SOURCE; dir: 'from-helper'; type: 'permission-needed'; address: string }
-  | { source: typeof RELAY_SOURCE; dir: 'from-helper'; type: 'permission-denied'; address: string }
+  | { source: typeof RELAY_SOURCE; dir: 'from-helper'; type: 'permission-needed'; address: string; connId?: string }
+  | { source: typeof RELAY_SOURCE; dir: 'from-helper'; type: 'permission-denied'; address: string; connId?: string }
+  | { source: typeof RELAY_SOURCE; dir: 'from-helper'; type: 'socket-connecting'; connId: string }
   | { source: typeof RELAY_SOURCE; dir: 'from-helper'; type: 'open'; connId: string }
   | {
       source: typeof RELAY_SOURCE
@@ -231,10 +233,15 @@ export class RelayWebSocket implements WebSocketLike {
   private readonly connId = `c${nextConnId++}`
   private readonly transport: RelayTransport
   private readonly unsubscribe: () => void
+  private timer: ReturnType<typeof setTimeout> | null = null
+  private permissionWaiting = false
+  private readonly address: string
 
-  constructor(url: string, transport: RelayTransport) {
+  constructor(url: string, transport: RelayTransport, private readonly connectTimeoutMs = 0) {
     this.transport = transport
+    this.address = new URL(url).hostname
     this.unsubscribe = transport.subscribe((msg) => this.handle(msg))
+    this.armConnectTimer(connectTimeoutMs)
     this.transport.post({ source: RELAY_SOURCE, dir: 'to-helper', type: 'connect', connId: this.connId, url })
   }
 
@@ -246,18 +253,54 @@ export class RelayWebSocket implements WebSocketLike {
 
   close(): void {
     if (this.readyState === CLOSED) return
+    this.clearConnectTimer()
     this.readyState = CLOSED
     this.transport.post({ source: RELAY_SOURCE, dir: 'to-helper', type: 'close', connId: this.connId })
     this.unsubscribe()
+    this.onclose?.({})
+  }
+
+  private clearConnectTimer(): void {
+    if (this.timer != null) {
+      clearTimeout(this.timer)
+      this.timer = null
+    }
+  }
+
+  private armConnectTimer(ms: number): void {
+    this.clearConnectTimer()
+    if (ms > 0) {
+      this.timer = setTimeout(() => {
+        this.onerror?.({ message: 'WebSocket open timed out' })
+        this.close()
+      }, ms)
+    }
   }
 
   private handle(msg: RelayMessage): void {
     if (msg.source !== RELAY_SOURCE || msg.dir !== 'from-helper') return
+    if (this.readyState === CLOSED) return
+    if (msg.type === 'permission-needed' && this.readyState === CONNECTING
+      && (msg.connId != null ? msg.connId === this.connId : msg.address === this.address)) {
+      if (!this.permissionWaiting) {
+        this.permissionWaiting = true
+        // The helper denies at 60s; allow delivery before our lost-helper fallback.
+        this.armConnectTimer(61000)
+      }
+      return
+    }
     if (!('connId' in msg) || msg.connId !== this.connId) return
 
     switch (msg.type) {
+      case 'socket-connecting':
+        if (this.readyState === CONNECTING && this.permissionWaiting) {
+          this.permissionWaiting = false
+          this.armConnectTimer(this.connectTimeoutMs)
+        }
+        break
       case 'open':
         if (this.readyState === CONNECTING) {
+          this.clearConnectTimer()
           this.readyState = OPEN
           this.onopen?.({})
         }
@@ -266,10 +309,12 @@ export class RelayWebSocket implements WebSocketLike {
         this.onmessage?.({ data: decodePayload(msg.payload) })
         break
       case 'error':
+        this.clearConnectTimer()
         this.onerror?.({ message: msg.message })
         break
       case 'close':
         if (this.readyState !== CLOSED) {
+          this.clearConnectTimer()
           this.readyState = CLOSED
           this.onclose?.({ code: msg.code })
           this.unsubscribe()

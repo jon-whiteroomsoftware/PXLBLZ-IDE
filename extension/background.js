@@ -51,6 +51,7 @@ function settleWaiter(waiter, granted) {
   if (i === -1) return
   pendingWaiters.splice(i, 1)
   clearTimeout(waiter.timer)
+  waiter.signal?.removeEventListener('abort', waiter.abort)
   waiter.resolve(granted)
 }
 
@@ -95,17 +96,20 @@ function hostOf(addressOrUrl) {
 // Open the popup (best-effort — openPopup can no-op on some Chrome versions, in
 // which case the page-side "permission-needed" hint tells the user to click the
 // toolbar icon) and wait for the grant or a decline.
-function requestGrantViaPopup(ip, origins) {
+function requestGrantViaPopup(ip, origins, signal) {
+  if (signal?.aborted) return Promise.resolve(false)
   return new Promise((resolve) => {
-    const waiter = { ip, origins, resolve }
+    const waiter = { ip, origins, resolve, signal }
+    waiter.abort = () => settleWaiter(waiter, false)
     pendingWaiters.push(waiter)
+    signal?.addEventListener('abort', waiter.abort, { once: true })
+    waiter.timer = setTimeout(() => settleWaiter(waiter, false), GRANT_TIMEOUT_MS)
     try {
       const opened = chrome.action.openPopup()
       if (opened && opened.catch) opened.catch(() => {})
     } catch {
       // openPopup unavailable; rely on the page hint + manual icon click.
     }
-    waiter.timer = setTimeout(() => settleWaiter(waiter, false), GRANT_TIMEOUT_MS)
   })
 }
 
@@ -113,8 +117,11 @@ chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== RELAY_SOURCE) return
   // Sockets owned by this page, keyed by connId.
   const sockets = new Map()
+  const pendingConnections = new Map()
+  const pageLifetime = new AbortController()
 
   const send = (msg) => {
+    if (pageLifetime.signal.aborted) return
     try {
       port.postMessage(msg)
     } catch {
@@ -127,15 +134,20 @@ chrome.runtime.onConnect.addListener((port) => {
   // "click the toolbar icon" if the popup didn't auto-open), opens the popup, and
   // waits; a decline returns false AND emits `permission-denied` so the page can
   // surface it instead of looking like a silent connect failure.
-  const ensureGate = async (addressOrUrl) => {
+  const ensureGate = async (addressOrUrl, signal = pageLifetime.signal, connId) => {
+    if (signal.aborted) return false
     const ip = hostOf(addressOrUrl)
     if (!ip) return true // unparseable — let the underlying call fail naturally
     const origins = [`http://${ip}/*`, `ws://${ip}/*`]
-    if (await chrome.permissions.contains({ origins })) return true
-    send({ source: RELAY_SOURCE, dir: 'from-helper', type: 'permission-needed', address: ip })
-    const granted = await requestGrantViaPopup(ip, origins)
+    const held = await chrome.permissions.contains({ origins })
+    if (signal.aborted) return false
+    if (held) return true
+    const correlation = connId == null ? {} : { connId }
+    send({ source: RELAY_SOURCE, dir: 'from-helper', type: 'permission-needed', address: ip, ...correlation })
+    const granted = await requestGrantViaPopup(ip, origins, signal)
+    if (signal.aborted) return false
     if (!granted) {
-      send({ source: RELAY_SOURCE, dir: 'from-helper', type: 'permission-denied', address: ip })
+      send({ source: RELAY_SOURCE, dir: 'from-helper', type: 'permission-denied', address: ip, ...correlation })
     }
     return granted
   }
@@ -327,13 +339,24 @@ chrome.runtime.onConnect.addListener((port) => {
     }
 
     if (msg.type === 'connect') {
-      if (!(await ensureGate(msg.url))) {
-        // Denied: report a normal-looking failure for this connId on top of the
-        // permission-denied feedback ensureGate already sent.
+      if (pageLifetime.signal.aborted || pendingConnections.has(msg.connId) || sockets.has(msg.connId)) return
+      const attempt = new AbortController()
+      pendingConnections.set(msg.connId, attempt)
+      let granted
+      try {
+        granted = await ensureGate(msg.url, attempt.signal, msg.connId)
+      } catch {
+        granted = false
+      } finally {
+        pendingConnections.delete(msg.connId)
+      }
+      if (attempt.signal.aborted || pageLifetime.signal.aborted) return
+      if (!granted) {
         send({ source: RELAY_SOURCE, dir: 'from-helper', type: 'error', connId: msg.connId, message: 'access not authorized' })
         send({ source: RELAY_SOURCE, dir: 'from-helper', type: 'close', connId: msg.connId })
         return
       }
+      send({ source: RELAY_SOURCE, dir: 'from-helper', type: 'socket-connecting', connId: msg.connId })
       let ws
       try {
         ws = new WebSocket(msg.url)
@@ -362,6 +385,7 @@ chrome.runtime.onConnect.addListener((port) => {
       return
     }
 
+    if (msg.type === 'close') pendingConnections.get(msg.connId)?.abort()
     const ws = sockets.get(msg.connId)
     if (!ws) return
 
@@ -382,6 +406,9 @@ chrome.runtime.onConnect.addListener((port) => {
   })
 
   port.onDisconnect.addListener(() => {
+    pageLifetime.abort()
+    for (const attempt of pendingConnections.values()) attempt.abort()
+    pendingConnections.clear()
     for (const ws of sockets.values()) {
       try {
         ws.close()

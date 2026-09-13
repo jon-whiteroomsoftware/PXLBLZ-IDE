@@ -367,7 +367,14 @@ export class PixelblazeConnection {
         if (timer != null) this._clearTimeout(timer)
         reject(new Error('WebSocket error before open'))
       }
-      ws.onclose = (ev) => this.handleClose(ev)
+      ws.onclose = (ev) => {
+        if (!settled) {
+          settled = true
+          if (timer != null) this._clearTimeout(timer)
+          reject(new Error('WebSocket closed before open'))
+        }
+        this.handleClose(ev)
+      }
     })
   }
 

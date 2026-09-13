@@ -489,6 +489,21 @@ successful empty scan separately from helper, timeout, or service failures so
 the Controller entry surface can distinguish device settings from an
 unreachable discovery path.
 
+First-time access waits for the helper's 60-second per-IP permission flow. The
+relay owns that deadline separately from the three-second socket-open deadline;
+helper 1.0.2 emits a connection-keyed `socket-connecting` after authorization to
+start the latter. Approval resumes the pending connection without reloading. A
+61-second relay fallback bounds a lost helper. Older helpers' address-only grant
+messages remain supported, using that fallback until `open` because they cannot
+report when authorization finishes. Denial and grant timeout still return the
+provider to idle with `ControllerPermissionDeniedError`.
+
+Helper 1.0.2 cancels pending connection permission work by connection and Port
+lifetime. Closing before authorization finishes cannot open a socket after a late
+grant. The protocol core rejects a pre-open close, so cancellation settles the
+caller's promise. The helper extension must be updated separately from the app;
+see `extension/README.md` for unpacked and Web Store adoption.
+
 The provider's saved-program control seam exposes `setActiveProgram(id,
 {save})` and `deleteProgram(id)`. The extension provider forwards them over the
 existing generic JSON relay, so neither operation requires an extension release.

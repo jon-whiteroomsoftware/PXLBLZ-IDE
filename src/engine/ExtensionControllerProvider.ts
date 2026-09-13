@@ -340,10 +340,10 @@ export class ExtensionControllerProvider implements ControllerProvider {
     this.setStatus({ kind: 'connecting', target })
     const conn = new PixelblazeConnection({
       host: target.address,
-      webSocketFactory: (url) => new RelayWebSocket(url, this.transport),
+      webSocketFactory: (url) => new RelayWebSocket(url, this.transport, this.connectTimeoutMs),
       pingIntervalMs: this.pingIntervalMs,
       requestTimeoutMs: this.requestTimeoutMs,
-      connectTimeoutMs: this.connectTimeoutMs,
+      connectTimeoutMs: 0, // the relay owns permission-aware socket deadlines
       livenessTimeoutMs: this.livenessTimeoutMs,
     })
     conn.on('close', () => this.onSocketClosed())

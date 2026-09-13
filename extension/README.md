@@ -79,6 +79,28 @@ resets the same way a decline does. The SW also emits an informational
 `permission-needed` the moment it opens the popup, and the page surfaces that as an
 immediate in-app "authorize via the helper" hint rather than waiting on the timeout.
 
+### Permission and socket deadlines (#63, helper 1.0.2)
+
+The relay allows the helper's 60-second permission window to finish before treating
+the attempt as a socket failure. Approval emits `socket-connecting` for that
+`connId`, starting a fresh three-second socket deadline; the same pending connection
+then becomes live without a page reload. A lost helper is bounded by a 61-second
+page-side fallback. Permission messages for socket attempts carry `connId`; HTTP
+permission messages remain address-keyed.
+
+A page close cancels its pending connection even before a real WebSocket exists.
+Disconnecting the page's Port cancels all its pending permission waiters and closes
+its sockets. A late permission grant cannot recreate canceled sockets, and canceling
+one page does not cancel another page's wait for the same Controller.
+
+The updated page also accepts older helpers' address-only permission messages, so
+delayed approval works before the extension updates. An older helper cannot signal
+the start of socket opening: that attempt uses the 61-second fallback instead of a
+fresh three-second deadline. Pending-socket cancellation requires helper 1.0.2.
+Reload an unpacked helper in `chrome://extensions` after updating its files; Web
+Store installations need the separately published helper update. Updating the app
+alone does not replace an installed extension.
+
 ## Install
 
 Normal users should install the published helper from the Chrome Web Store:

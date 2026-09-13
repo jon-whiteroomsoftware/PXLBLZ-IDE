@@ -163,3 +163,41 @@ describe('RelayWebSocket', () => {
     expect(onB).not.toHaveBeenCalled()
   })
 })
+
+
+describe('permission-aware relay deadline (#63)', () => {
+  it('bounds a lost helper despite repeated permission hints', async () => {
+    vi.useFakeTimers()
+    try {
+      const f = makeFakeTransport()
+      const ws = new RelayWebSocket('ws://192.0.2.10:81', f.transport, 3000)
+      const error = vi.fn()
+      ws.onerror = error
+      const hint: RelayMessage = { source: RELAY_SOURCE, dir: 'from-helper', type: 'permission-needed', address: '192.0.2.10' }
+      f.deliver(hint)
+      await vi.advanceTimersByTimeAsync(30000)
+      f.deliver(hint)
+      await vi.advanceTimersByTimeAsync(30999)
+      expect(error).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(error).toHaveBeenCalledOnce()
+      expect(ws.readyState).toBe(3)
+      expect(f.listenerCount()).toBe(0)
+      expect(f.posted[f.posted.length - 1]).toMatchObject({ type: 'close' })
+    } finally { vi.useRealTimers() }
+  })
+
+  it('does not extend another connection deadline for a correlated permission hint', async () => {
+    vi.useFakeTimers()
+    try {
+      const f = makeFakeTransport()
+      const ws = new RelayWebSocket('ws://192.0.2.10:81', f.transport, 3000)
+      const error = vi.fn()
+      ws.onerror = error
+      f.deliver({ source: RELAY_SOURCE, dir: 'from-helper', type: 'permission-needed', address: '192.0.2.10', connId: 'another-attempt' })
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(error).toHaveBeenCalledOnce()
+      expect(ws.readyState).toBe(3)
+    } finally { vi.useRealTimers() }
+  })
+})
