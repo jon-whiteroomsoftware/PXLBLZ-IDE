@@ -103,6 +103,68 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     expect(showLoopDurationMs(extended.document.show)).toBe(65_000)
     expect(clipAt(extended.document, 60_000).durationMs).toBe(5_000)
   },
+  create_clips: () => {
+    const document = fixture({ emptySecondScene: true })
+    const layered = applyOk(document, 'add_overlay_layer', { zone_id: 'z1' })
+    const { document: next, changes } = applyOk(layered.document, 'create_clips', {
+      schema_version: 1,
+      clips: [
+        { zone_id: 'z1', layer: 'main', start_ms: 30_000, duration_ms: 5_000, pattern: { kind: 'stock', id: 'TestPattern1D' } },
+        { zone_id: 'z1', layer: 0, start_ms: 5_000, duration_ms: 4_000, pattern: { kind: 'stock', id: 'CometLoom' } },
+      ],
+    })
+    expect(changes[0].details?.results).toHaveLength(2)
+    expect(clipAt(next, 30_000).patternName).toBe('TestPattern1D')
+    expect(clips(next).find(clip => clip.layer.kind === 'overlay' && clip.startMs === 5_000)?.durationMs).toBe(4_000)
+  },
+  create_layers: () => {
+    const document = fixture()
+    const { document: next, changes } = applyOk(document, 'create_layers', {
+      schema_version: 1,
+      layers: [{
+        zone_id: 'z1',
+        clips: [{ start_ms: 5_000, duration_ms: 4_000, pattern: { kind: 'stock', id: 'CometLoom' } }],
+      }],
+    })
+    expect(changes[0].details?.layers).toHaveLength(1)
+    expect(clips(next).find(clip => clip.layer.kind === 'overlay' && clip.startMs === 5_000)?.durationMs).toBe(4_000)
+  },
+  update_clips: () => {
+    const mainDocument = fixture()
+    const main = clipAt(mainDocument, 0)
+    const { document: mainUpdated } = applyOk(mainDocument, 'update_clips', {
+      schema_version: 1,
+      updates: [{ clip_id: main.clipId, properties: { view: { brightness: 0.5 } } }],
+    })
+    expect(mainUpdated.show.composition!.scenes[0].zones[0].main[0].view.brightness).toBe(0.5)
+
+    const overlayDocument = fixture({ overlay: true })
+    const overlay = clips(overlayDocument).find(clip => clip.layer.kind === 'overlay')!
+    const { document: overlayUpdated } = applyOk(overlayDocument, 'update_clips', {
+      schema_version: 1,
+      updates: [{ clip_id: overlay.clipId, properties: { opacity: 0.5 } }],
+    })
+    expect(overlayUpdated.show.composition!.scenes[0].zones[0].overlays[0].placements[0].opacity).toBe(0.5)
+
+    const controlDocument = fixture()
+    const controlled = applyOk(controlDocument, 'set_clip_control_target', {
+      clip_id: main.clipId,
+      export_name: 'sliderSpeed',
+      value: 0.3,
+    })
+    const tracked = applyOk(controlled.document, 'add_property_track', {
+      clip_id: main.clipId,
+      target: 'control',
+      control_export_name: 'sliderSpeed',
+      keyframes: [{ time_ms: 0, value: 0.3 }, { time_ms: 1_000, value: 0.6 }],
+    })
+    const { document: cleared } = applyOk(tracked.document, 'update_clips', {
+      schema_version: 1,
+      updates: [{ clip_id: main.clipId, properties: { controls: { sliderSpeed: null } } }],
+    })
+    expect(instanceOf(cleared, main.clipId).controlTargets ?? {}).toEqual({})
+    expect(cleared.show.composition!.scenes.flatMap(scene => scene.propertyTracks ?? [])).toEqual([])
+  },
   move_clip: () => {
     // Moving across a Scene boundary keeps one logical clip.
     const document = fixture({ emptySecondScene: true })

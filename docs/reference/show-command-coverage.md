@@ -668,7 +668,7 @@ and the diff reviewed.
 | Path | Commands |
 | --- | --- |
 | `/composition/durationMs` | add_clip, set_show_end |
-| `/composition/executionModel` | add_clip, duplicate_clip, remove_clip, make_clip_pattern_independent, rejoin_clip_pattern_instance |
+| `/composition/executionModel` | create_clips, create_layers, add_clip, duplicate_clip, remove_clip, make_clip_pattern_independent, rejoin_clip_pattern_instance |
 | `/composition/patternInstances/*/evaluationPolicy` | set_clip_evaluation |
 | `/composition/scenes/*/zones/*/main/*/opacity` | set_clip_opacity |
 | `/composition/scenes/*/zones/*/overlays/*/placements/*/opacity` | set_clip_opacity |

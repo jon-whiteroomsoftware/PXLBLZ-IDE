@@ -18,6 +18,7 @@ import type {
   ShowRecord,
 } from '../personalContentRecords'
 import { declaredPatternSliderNames } from '../showPatternControls'
+import { projectShowTimeline } from '../showModel'
 import {
   addShowOverlayLayerAcrossTimeline,
   arrangeShowClipsFinalState,
@@ -591,15 +592,32 @@ function controlReferenceIssues(
   }])
 }
 
-function layerReferenceIssues(record: ShowRecord, zoneId: string, layer: unknown, path: string): ShowCommandIssue[] {
+function layerReferenceIssues(
+  record: ShowRecord,
+  zoneId: string,
+  layer: unknown,
+  startMs: unknown,
+  durationMs: unknown,
+  path: string,
+): ShowCommandIssue[] {
   if (layer === 'main' || typeof layer !== 'number' || !record.composition) return []
-  const zone = projectShowUnifiedTimeline(record, record.composition).zones.find(candidate => candidate.id === zoneId)
-  const overlayCount = zone?.layers.filter(candidate => candidate.kind === 'overlay').length ?? 0
-  return layer >= 0 && layer < overlayCount ? [] : [{
+  if (!validExactInterval(startMs, durationMs)) return []
+  const endMs = startMs + (durationMs as number)
+  const sceneRanges = projectShowTimeline(record).scenes
+  const covered = sceneRanges.flatMap(range => {
+    if (range.endMs <= startMs || range.startMs >= endMs) return []
+    const scene = record.composition!.scenes.find(candidate => candidate.sceneId === range.sceneId)
+    const zone = scene?.zones.find(candidate => candidate.zoneId === zoneId)
+    return [{ sceneId: range.sceneId, overlayCount: zone?.overlays.length ?? 0 }]
+  })
+  const missing = covered.filter(scene => layer < 0 || layer >= scene.overlayCount)
+  if (missing.length === 0) return []
+  const sharedOverlayCount = covered.length ? Math.min(...covered.map(scene => scene.overlayCount)) : 0
+  return [{
     code: 'unknown-layer',
     path,
-    message: `Zone ${zoneId} has no overlay Layer at index ${layer}.`,
-    candidates: Array.from({ length: overlayCount }, (_, index) => String(index)),
+    message: `Zone ${zoneId} has no overlay Layer at index ${layer} in covered Scene${missing.length === 1 ? '' : 's'} ${missing.map(scene => scene.sceneId).join(', ')}.`,
+    candidates: Array.from({ length: sharedOverlayCount }, (_, index) => String(index)),
   }]
 }
 
@@ -619,7 +637,7 @@ function createClipsPreflight(record: ShowRecord, input: JsonObject, context?: S
     return [
       ...(pattern ? patternIssue(pattern, context, `$.clips[${inputIndex}].pattern`) : []),
       ...(zoneId !== null && !zoneExists ? [{ code: 'unknown-zone', path: `$.clips[${inputIndex}].zone_id`, message: `Zone ${zoneId} does not exist.`, candidates: record.zones.map(zone => zone.id) }] : []),
-      ...(zoneExists ? layerReferenceIssues(record, zoneId!, spec.layer, `$.clips[${inputIndex}].layer`) : []),
+      ...(zoneExists ? layerReferenceIssues(record, zoneId!, spec.layer, spec.start_ms, spec.duration_ms, `$.clips[${inputIndex}].layer`) : []),
       ...(duration !== null && validExactInterval(spec.start_ms, spec.duration_ms) && spec.start_ms + (spec.duration_ms as number) > duration
         ? [{ code: 'out-of-bounds', path: `$.clips[${inputIndex}].duration_ms`, message: `The exact Clip span must remain inside Show End ${duration} ms.` }]
         : []),
@@ -693,7 +711,9 @@ function updateClipsPreflight(record: ShowRecord, input: JsonObject, context?: S
       const zoneId = typeof value.zone_id === 'string' ? value.zone_id : clip.zoneId
       if (!record.zones.some(zone => zone.id === zoneId)) return [{ code: 'unknown-zone', path: `$.updates[${inputIndex}].zone_id`, message: `Zone ${zoneId} does not exist.`, candidates: record.zones.map(zone => zone.id) }]
       const layer = value.layer ?? (clip.kind === 'main' ? 'main' : clip.layerIndex)
-      return layerReferenceIssues(record, zoneId, layer, `$.updates[${inputIndex}].layer`)
+      const startMs = value.start_ms ?? clip.startMs
+      const durationMs = value.duration_ms ?? clip.durationMs
+      return layerReferenceIssues(record, zoneId, layer, startMs, durationMs, `$.updates[${inputIndex}].layer`)
     }),
     ...updates.flatMap(({ value, inputIndex }) => {
       const clip = clips.get(value.clip_id as string)

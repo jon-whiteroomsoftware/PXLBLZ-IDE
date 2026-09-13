@@ -350,4 +350,33 @@ describe('bulk Clip/Layer authoring acceptance partitions', () => {
       expect.objectContaining({ code: 'unknown-layer', path: '$.updates[1].layer' }),
     ]))
   })
+
+  it('requires an overlay Layer in every Scene covered by a created or moved Clip', () => {
+    const sparse = showCommandFixture()
+    const create = (start_ms: number, duration_ms: number) => applyShowCommand(sparse, 'create_clips', {
+      schema_version: 1,
+      clips: [{ zone_id: 'zone-1', layer: 0, start_ms, duration_ms, pattern: { kind: 'stock', id: 'Rings' } }],
+    }, context)
+    expect(create(8_000, 1_000).ok).toBe(true)
+    for (const [startMs, durationMs] of [[32_000, 1_000], [29_000, 4_000]]) {
+      const outcome = create(startMs, durationMs)
+      expect(outcome.ok).toBe(false)
+      if (!outcome.ok) expect(outcome.issues).toEqual([
+        expect.objectContaining({ code: 'unknown-layer', path: '$.clips[0].layer' }),
+      ])
+    }
+
+    const move = (start_ms: number, duration_ms: number) => applyShowCommand(sparse, 'update_clips', {
+      schema_version: 1,
+      updates: [{ clip_id: 'clip-ov', layer: 0, start_ms, duration_ms }],
+    }, context)
+    expect(move(8_000, 1_000).ok).toBe(true)
+    for (const [startMs, durationMs] of [[32_000, 1_000], [29_000, 4_000]]) {
+      const outcome = move(startMs, durationMs)
+      expect(outcome.ok).toBe(false)
+      if (!outcome.ok) expect(outcome.issues).toEqual([
+        expect.objectContaining({ code: 'unknown-layer', path: '$.updates[0].layer' }),
+      ])
+    }
+  })
 })

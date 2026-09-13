@@ -14,7 +14,7 @@ function setup() {
     captureCommandContext: () => ({ commandContext: { source: () => undefined }, retainedBytes: 1 }),
     beginRequest: vi.fn(() => ({ request, show: structuredClone(show), context: {} })),
     applyShow: vi.fn(() => ({ status: 'waiting', request })), cancel: vi.fn(() => ({ status: 'cancelled', request })),
-    complete: vi.fn(), readOutcome: vi.fn(() => ({ status: 'waiting', request })),
+    complete: vi.fn((_request: unknown, completion: string) => ({ status: 'completed', request, completion })), readOutcome: vi.fn(() => ({ status: 'waiting', request })),
   }
   const receives: Array<(value: Response) => void> = []
   const calls: Record<string, unknown>[] = []
@@ -40,7 +40,8 @@ describe('production browser channel session', () => {
     await deliver({ kind: 'begin_edit' }, 0)
     await deliver({ kind: 'commit_edit' }, 1)
     expect(admission.beginRequest).toHaveBeenCalledTimes(1)
-    expect(admission.applyShow).toHaveBeenCalledTimes(1)
+    expect(admission.complete).toHaveBeenCalledWith(expect.anything(), 'nothing-applied')
+    expect(admission.applyShow).not.toHaveBeenCalled()
     expect(events).toContainEqual(expect.objectContaining({ type: 'delivery', request: expect.objectContaining({ operationId: 'binding:op' }) }))
     expect(calls.filter(call => call.type === 'reply')).toHaveLength(2)
     expect(session.getOutcome('op').code).toBe('outcome')
@@ -80,7 +81,8 @@ it('preserves the same private operation across contact loss without re-register
   await vi.waitFor(() => expect(receives.length).toBe(1), { timeout: 2000 })
   await deliver({ kind: 'commit_edit' }, 1)
   expect(admission.beginRequest).toHaveBeenCalledTimes(1)
-  expect(admission.applyShow).toHaveBeenCalledTimes(1)
+  expect(admission.complete).toHaveBeenCalledWith(expect.anything(), 'nothing-applied')
+  expect(admission.applyShow).not.toHaveBeenCalled()
   expect(calls.filter(call => call.type === 'register')).toHaveLength(1)
   session.close()
 })

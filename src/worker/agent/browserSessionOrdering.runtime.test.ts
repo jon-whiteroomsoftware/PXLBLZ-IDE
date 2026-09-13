@@ -27,7 +27,8 @@ async function fixture(pauseReceives = false) {
     getShow: showCommandFixture, getEditorFocus: () => ({}), captureCommandContext: () => ({ commandContext: { source: () => undefined }, retainedBytes: 1 }),
     beginRequest: vi.fn(() => ({ request, show: showCommandFixture(), context: {} })),
     readOutcome: () => ({ request, status: 'pending' }), cancel: vi.fn(() => ({ request, status: 'cancelled' })),
-    applyShow: vi.fn(() => ({ request, status: 'applied', settlement: 'draft' })), complete: vi.fn(),
+    applyShow: vi.fn(() => ({ request, status: 'applied', settlement: 'draft' })),
+    complete: vi.fn((_request: unknown, completion: string) => ({ request, status: 'completed', completion })),
   }
   let delayType: string | undefined
   let release: (() => void) | undefined
@@ -55,7 +56,9 @@ async function fixture(pauseReceives = false) {
     expect(await internal({ type: 'inspect', ...identity })).toMatchObject({ code: 'bound' })
     expect(await internal({ type: 'relay-query', accountId: 'ordering-account', identity, query: { kind: 'get_outcome', operationId: 'op' } })).toMatchObject({ code: 'outcome', receipt: { status: 'pending' } })
     expect(await internal({ type: 'relay-dispatch', accountId: 'ordering-account', identity, delivery: { operationId: 'op', deliveryId: 'commit', sequence: 1, payload: { kind: 'commit_edit' } } })).toMatchObject({ code: 'outcome' })
-    expect(admission.beginRequest).toHaveBeenCalledOnce(); expect(admission.applyShow).toHaveBeenCalledOnce()
+    expect(admission.beginRequest).toHaveBeenCalledOnce()
+    expect(admission.complete).toHaveBeenCalledWith(request, 'nothing-applied')
+    expect(admission.applyShow).not.toHaveBeenCalled()
   }
   return { session, identity, internal, assertPreserved, resumeReceive: () => resumeReceive?.(), delay(type: string) { delayType = type }, held: () => held, receives: () => receives }
 }
