@@ -52,9 +52,10 @@ without an arm/claim race.
 
 The drawer keeps an expiry, missed-call or occupied notice while a new arm
 request is unresolved. Only an accepted `armed` control result clears that
-notice; the receive stream supplies the exact server deadline. A refusal keeps
-or replaces it with the current actionable failure, and an older arm result
-cannot erase the notice from a newer attempt or cancellation.
+notice; its connection view or the receive stream supplies the exact server
+deadline. A refusal keeps or replaces it with the current actionable failure,
+and an older arm result cannot erase the notice from a newer attempt or
+cancellation.
 An idle server snapshot arriving before the browser deadline tick still records
 No agent connected or Missed connection from the prior armed or pending state.
 Explicit Cancel or Not now clears that state before its control request, so the
@@ -102,12 +103,16 @@ retains a retired binding identity only for subsequent local end controls after
 unknown transport, never to restore its executor or replay work. `disarm`
 clears only the armed slot belonging to its exact window.
 
-The drawer's setup Back action disarms its own active attempt before returning
-to the chooser. Change agent ends the exact local binding, then returns to that
-chooser without revoking external OAuth authorization. Both preserve the drawer
-transcript and built-in draft. Change agent is disabled while an editor operation
-is active, saving, or has an unknown outcome; the explicit Cancel, Disconnect,
-and Forget recovery paths retain their existing ownership.
+The drawer's setup Back action invalidates its arm generation, sequences disarm
+after any already-sent arm, and returns to the chooser immediately. Armed
+snapshots remain suppressed through the first later non-armed observation. A
+new Ready attempt waits for that observation before arming, so delayed snapshots
+from the cancelled generation cannot reopen setup or fabricate expiry. Change
+agent ends the exact local binding, then returns to that chooser without revoking
+external OAuth authorization. Both preserve the drawer transcript and built-in
+draft. Change agent is disabled while an editor operation is active, saving, or
+has an unknown outcome; the explicit Cancel, Disconnect, and Forget recovery
+paths retain their existing ownership.
 
 ## Storage and failure ownership
 

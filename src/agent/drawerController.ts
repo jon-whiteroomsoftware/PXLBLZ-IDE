@@ -12,6 +12,10 @@ import type { AgentBrowserConnection as DrawerConnection, AgentBrowserSessionPor
 type Admission = ReturnType<typeof createAgentEditorAdmission>
 type Receipt = ReturnType<Admission['readOutcome']>
 interface Operation { request?: ShowEditRequest; changes: AgentChange[] }
+interface ArmIntent { generation: number; accepted: boolean; acceptedUntil: number | null; observedUntil: number | null }
+const ALLOWANCE_RESET_GRACE_MS = 50
+const ALLOWANCE_RESET_RETRY_MIN_MS = 1000
+const ALLOWANCE_RESET_RETRY_LIMIT = 4
 
 /** Thin session presentation. Channel/executor owns work; admission owns outcomes. */
 export function createProductionDrawerController(api: Admission, showId: string, channel: DrawerChannelPort, builtin: (command: Record<string, unknown>) => Promise<Result>, initialAllowance?: AgentMessageAllowance): AgentDrawerControllerPort {
@@ -23,9 +27,17 @@ export function createProductionDrawerController(api: Admission, showId: string,
   let running = false
   let draftVersion = 0
   let armAttempt = 0
+  let armIntent: ArmIntent | undefined
+  let armMayBeActive = false
+  let suppressArmSnapshots = false
+  let armBarrier: Promise<void> | undefined
+  const pendingArms = new Set<Promise<Result>>()
+  const armSettledWaiters = new Set<() => void>()
   let allowanceAttempt = 0
   let appliedAllowanceAttempt = 0
   let allowanceTimer: number | undefined
+  let allowanceResetAt = initialAllowance?.resetAt ?? null
+  let allowanceResetRetries = 0
   let connection = channel.getConnection()
   const operations = new Map<string, Operation>()
   const cancelled = new Set<string>()
@@ -40,9 +52,18 @@ export function createProductionDrawerController(api: Admission, showId: string,
   const scheduleAllowanceRefresh = () => {
     if (allowanceTimer !== undefined) window.clearTimeout(allowanceTimer)
     allowanceTimer = undefined
-    if (!tracksAllowance || state.allowance.resetAt === null || state.allowance.resetAt <= Date.now()) return
-    const delay = Math.min(state.allowance.resetAt - Date.now() + 50, 2_147_483_647)
-    allowanceTimer = window.setTimeout(() => { allowanceTimer = undefined; void refreshAllowance() }, delay)
+    if (!tracksAllowance || allowanceResetAt === null) return
+    const untilReset = allowanceResetAt - Date.now() + ALLOWANCE_RESET_GRACE_MS
+    const retry = untilReset <= 0
+    if (retry && allowanceResetRetries >= ALLOWANCE_RESET_RETRY_LIMIT) return
+    const delay = retry
+      ? ALLOWANCE_RESET_RETRY_MIN_MS * (2 ** allowanceResetRetries)
+      : Math.min(untilReset, 2_147_483_647)
+    allowanceTimer = window.setTimeout(() => {
+      allowanceTimer = undefined
+      if (retry) allowanceResetRetries++
+      void refreshAllowance()
+    }, delay)
   }
   const applyAllowance = (value: unknown, attempt: number) => {
     if (disposed || attempt < appliedAllowanceAttempt) return
@@ -55,6 +76,10 @@ export function createProductionDrawerController(api: Admission, showId: string,
     }
     const previous = state.allowance
     if (previous.resetAt !== null && (allowance.resetAt! < previous.resetAt || (allowance.resetAt === previous.resetAt && allowance.revision < previous.revision))) return
+    if (allowance.resetAt !== allowanceResetAt) {
+      allowanceResetAt = allowance.resetAt
+      allowanceResetRetries = 0
+    }
     appliedAllowanceAttempt = attempt
     emit({ type: 'allowance', allowance })
     scheduleAllowanceRefresh()
@@ -103,7 +128,27 @@ export function createProductionDrawerController(api: Admission, showId: string,
     }
     updateBusy()
   }
+  const resultArmingUntil = (result: Result) => {
+    const next = result.connection
+    return next && typeof next === 'object' && (next as { kind?: unknown }).kind === 'armed' && Number.isSafeInteger((next as { expiresAt?: unknown }).expiresAt)
+      ? (next as { expiresAt: number }).expiresAt
+      : null
+  }
   const syncConnection = (next: DrawerConnection) => {
+    if (next.kind === 'armed') {
+      armMayBeActive = true
+      if (suppressArmSnapshots) return
+      if (armIntent && !armIntent.accepted) { armIntent.observedUntil = Math.max(armIntent.observedUntil ?? 0, next.expiresAt); return }
+      if (armIntent?.acceptedUntil !== null && armIntent?.acceptedUntil !== undefined && next.expiresAt < armIntent.acceptedUntil) return
+    } else {
+      if (next.kind !== 'contact-lost') {
+        for (const settle of armSettledWaiters) settle()
+        armSettledWaiters.clear()
+      }
+      if (next.kind !== 'contact-lost') armMayBeActive = false
+      if (next.kind !== 'idle' || !suppressArmSnapshots) suppressArmSnapshots = false
+      if (next.kind === 'bound' || next.kind === 'pending') { armAttempt++; armIntent = undefined }
+    }
     connection = next
     if (next.kind === 'contact-lost' || next.kind === 'retiring') { emit({ type: 'drop' }); return }
     if (next.kind === 'refused') { emit({ type: 'system', text: agentRefusalMessage(next.code) }); return }
@@ -118,6 +163,33 @@ export function createProductionDrawerController(api: Admission, showId: string,
       const result = await run()
       if (!disposed && !['bound', 'armed', 'disarmed', 'declined', 'disconnected', 'forgotten', 'idle', 'status', 'retiring', 'outcome', 'occupied'].includes(result.code)) emit({ type: 'system', text: agentRefusalMessage(result.code) })
     } catch { emit({ type: 'drop' }) }
+  }
+  const abandonArm = (force: boolean) => {
+    const pending = [...pendingArms]
+    const shouldDisarm = force || pending.length > 0 || armMayBeActive || state.armingUntil !== null || connection.kind === 'armed'
+    armAttempt++
+    armIntent = undefined
+    if (!shouldDisarm) return
+    suppressArmSnapshots = true
+    const previous = armBarrier
+    let settle!: () => void
+    const settled = new Promise<void>(resolve => {
+      settle = () => { armSettledWaiters.delete(settle); resolve() }
+      armSettledWaiters.add(settle)
+    })
+    const cleanup = (async (): Promise<Result> => {
+      await previous
+      await Promise.allSettled(pending)
+      if (disposed) return { code: 'idle' }
+      const result = await channel.cancelArm()
+      if (['disarmed', 'not_armed_here', 'idle'].includes(result.code)) armMayBeActive = false
+      await settled
+      return result
+    })()
+    const barrier = cleanup.then(() => {}, () => {})
+    armBarrier = barrier
+    void barrier.then(() => { if (armBarrier === barrier) armBarrier = undefined })
+    void action(() => cleanup)
   }
   const stopChannel = channel.subscribe(event => {
     if (disposed) return
@@ -164,17 +236,37 @@ export function createProductionDrawerController(api: Admission, showId: string,
       if (event.type === 'chooseBuiltin') { void action(() => callBuiltin({ action: 'connect' })); return }
       if (event.type === 'connectOwn') {
         const attempt = ++armAttempt
+        const intent: ArmIntent = { generation: attempt, accepted: false, acceptedUntil: null, observedUntil: null }
+        armIntent = intent
+        const barrier = armBarrier
+        const arm = barrier
+          ? barrier.then(() => disposed || armIntent !== intent || attempt !== armAttempt ? { code: 'idle' } : channel.arm())
+          : channel.arm()
+        pendingArms.add(arm)
+        void arm.then(() => pendingArms.delete(arm), () => pendingArms.delete(arm))
         void action(async () => {
-          const result = await channel.arm()
-          if (!disposed && attempt === armAttempt) {
-            if (result.code === 'armed') emit({ type: 'armAccepted' })
-            if (result.code === 'occupied') emit({ type: 'setupFailed', title: 'Connected in another editor', detail: 'Disconnect in the editor that owns the connection, then try again. If that editor is unavailable, wait for its inactive connection to expire.' })
+          const result = await arm
+          if (result.code === 'armed') armMayBeActive = true
+          if (!disposed && attempt === armAttempt && armIntent === intent) {
+            if (result.code === 'armed') {
+              intent.accepted = true
+              intent.acceptedUntil = resultArmingUntil(result) ?? intent.observedUntil
+              suppressArmSnapshots = false
+              emit({ type: 'armAccepted' })
+              if (intent.acceptedUntil !== null) syncConnection({ kind: 'armed', expiresAt: intent.acceptedUntil })
+            } else {
+              armIntent = undefined
+              if (result.code === 'occupied') emit({ type: 'setupFailed', title: 'Connected in another editor', detail: 'Disconnect in the editor that owns the connection, then try again. If that editor is unavailable, wait for its inactive connection to expire.' })
+            }
           }
           return result
         })
         return
       }
-      if (event.type === 'cancelArm') { armAttempt++; emit(event); void action(() => channel.cancelArm()); return }
+      if (event.type === 'cancelArm') {
+        abandonArm(true); emit(event)
+        return
+      }
       if (event.type === 'approveKnock' || event.type === 'declineKnock') {
         if (connection.kind === 'pending') {
           const callId = connection.callId
@@ -242,10 +334,8 @@ export function createProductionDrawerController(api: Admission, showId: string,
     restoreContact() { refresh() },
     backToChooser() {
       if (state.connection || state.pendingCall || disposed) return
-      const armed = state.armingUntil !== null
-      armAttempt++
+      abandonArm(false)
       emit({ type: 'backToChooser' })
-      if (armed) void action(() => channel.cancelArm())
     },
     changeAgent() {
       if (disposed || running || useAgentDrawerStore.getState().busy || state.request || !state.connection) return
@@ -265,7 +355,7 @@ export function createProductionDrawerController(api: Admission, showId: string,
     },
     dispose() {
       if (disposed) return
-      disposed = true; window.clearInterval(timer); if (allowanceTimer !== undefined) window.clearTimeout(allowanceTimer); window.removeEventListener('focus', refreshAllowance); stopChannel(); stopRevisions(); channel.close(); operations.clear(); cancelled.clear(); seenDeliveries.clear()
+      disposed = true; for (const settle of armSettledWaiters) settle(); armSettledWaiters.clear(); window.clearInterval(timer); if (allowanceTimer !== undefined) window.clearTimeout(allowanceTimer); window.removeEventListener('focus', refreshAllowance); stopChannel(); stopRevisions(); channel.close(); operations.clear(); cancelled.clear(); seenDeliveries.clear()
       if (useAgentDrawerStore.getState().controller === controller) useAgentDrawerStore.setState({ controller: null, state: createAgentDrawerState(), busy: false })
     },
   }

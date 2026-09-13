@@ -4,6 +4,7 @@ import { agentInsertionBand, createAgentDrawerState, transitionAgentDrawer, type
 import type { createAgentEditorAdmission } from './agentEditorAdmission'
 import type { ShowEditRequest } from '@/engine/showEditAdmission'
 import { useShowStore } from '@/store/showStore'
+import { AGENT_DAILY_MESSAGE_LIMIT, type AgentMessageAllowance } from '@/engine/agentAllowance'
 
 type Admission = ReturnType<typeof createAgentEditorAdmission>
 type Captured = NonNullable<ReturnType<Admission['beginRequest']>> & { retryResize?: ReturnType<Admission['retryIntent']> }
@@ -27,6 +28,11 @@ interface DiagnosticRecord {
 }
 export type AgentDrawerController = ReturnType<typeof createAgentDrawerController>
 
+/** UI capability for the loopback scripted bridge; it never admits a paid provider dispatch. */
+function diagnosticNoPaidAllowance(): AgentMessageAllowance {
+  return { code: 'available', limit: AGENT_DAILY_MESSAGE_LIMIT, remaining: AGENT_DAILY_MESSAGE_LIMIT, resetAt: Date.now() + 86_400_000, revision: 0 }
+}
+
 export function diagnosticBridgeOrigin(url: string): string {
   const parsed = new URL(url)
   if (parsed.protocol !== 'http:' || !['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname)) throw new Error('Diagnostic bridge must be loopback HTTP')
@@ -34,8 +40,9 @@ export function diagnosticBridgeOrigin(url: string): string {
 }
 
 export function createAgentDrawerController(api: Admission, showId: string) {
-  let state = createAgentDrawerState()
-  try { state = createAgentDrawerState(localStorage.getItem('pxlblz-agent-drawer-pinned') === 'true') } catch { /* Session still works when preferences are unavailable. */ }
+  const allowance = diagnosticNoPaidAllowance()
+  let state = createAgentDrawerState(false, allowance)
+  try { state = createAgentDrawerState(localStorage.getItem('pxlblz-agent-drawer-pinned') === 'true', allowance) } catch { /* Session still works when preferences are unavailable. */ }
   let disposed = false
   let bridgeUrl: string | null = null
   let active: Captured | null = null

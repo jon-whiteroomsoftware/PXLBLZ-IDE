@@ -77,11 +77,14 @@ their own current UTC days.
 `/api/me` and built-in command responses return the account's authoritative
 limit, remaining messages, next UTC reset instant and allowance revision. The
 drawer refreshes from command responses, window focus and a timer at the
-server-provided reset. It does not derive entitlement from browser storage or
-poll the server continuously. Missing, malformed, failed or stale status cannot
-enable new inference. The personal daily limit, insufficient shared reservation,
-and persistent service halt remain distinct states. A halt does not promise
-recovery at midnight.
+server-provided reset. If the browser reaches that instant before the server's
+UTC day advances, the drawer keeps the last valid reset target and makes four
+bounded retries at 1, 2, 4 and 8 seconds. A later reset target or a successful
+focus refresh replaces that retry series. It does not derive entitlement from
+browser storage or poll the server continuously. Missing, malformed, failed or
+stale status cannot enable new inference. The personal daily limit, insufficient
+shared reservation, and persistent service halt remain distinct states. A halt
+does not promise recovery at midnight.
 
 Server-issued operation identities have a 24-hour admission horizon. Expiry
 refuses new dispatch without cancelling already-started inference or adopted

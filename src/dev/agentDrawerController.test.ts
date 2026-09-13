@@ -36,6 +36,12 @@ beforeEach(() => {
   }))
 })
 afterEach(() => { controller.dispose(); vi.unstubAllGlobals() })
+it('admits the no-paid diagnostic adapter with an explicit synthetic allowance', async () => {
+  expect(useAgentDrawerStore.getState().state.allowance).toMatchObject({ code: 'available', limit: 30, remaining: 30 })
+  controller.dispatch({ type: 'draft', text: 'shorten the opening' })
+  controller.submit()
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce())
+})
 it('shows registry attribution only after owned adoption and preserves manual focus', async () => {
   const field = document.createElement('input'); document.body.appendChild(field); field.focus()
   controller.dispatch({ type: 'draft', text: 'shorten the opening' })

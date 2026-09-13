@@ -69,6 +69,46 @@ it('refreshes the allowance once at the authoritative reset instant', async () =
   expect(f.builtin).toHaveBeenCalledWith({ action: 'status' })
   expect(useAgentDrawerStore.getState().state.allowance).toMatchObject({ code: 'available', remaining: 30, revision: 8 })
 })
+it('backs off after an early reset refresh until the server advances the UTC day', async () => {
+  vi.useFakeTimers()
+  const now = new Date('2026-09-13T23:59:59.000Z').getTime()
+  const resetAt = now + 1000
+  vi.setSystemTime(now)
+  const f = fixture(undefined, { ...availableAllowance(0, 7), code: 'daily_message_limit', resetAt })
+  f.builtin
+    .mockResolvedValueOnce({ code: 'status', allowance: { ...availableAllowance(0, 7), code: 'daily_message_limit', resetAt } })
+    .mockResolvedValueOnce({ code: 'status', allowance: { ...availableAllowance(30, 8), resetAt: resetAt + 86_400_000 } })
+
+  await vi.advanceTimersByTimeAsync(1050)
+  expect(f.builtin).toHaveBeenCalledTimes(1)
+  expect(useAgentDrawerStore.getState().state.allowance).toMatchObject({ code: 'daily_message_limit', remaining: 0, revision: 7 })
+
+  await vi.advanceTimersByTimeAsync(999)
+  expect(f.builtin).toHaveBeenCalledTimes(1)
+  await vi.advanceTimersByTimeAsync(1)
+  expect(f.builtin).toHaveBeenCalledTimes(2)
+  expect(useAgentDrawerStore.getState().state.allowance).toMatchObject({ code: 'available', remaining: 30, revision: 8 })
+})
+it('bounds failed reset retries and lets focus recovery replace their timer', async () => {
+  vi.useFakeTimers()
+  const now = new Date('2026-09-14T00:00:02.000Z').getTime()
+  const resetAt = now - 2000
+  vi.setSystemTime(now)
+  const f = fixture(undefined, { ...availableAllowance(0, 7), code: 'daily_message_limit', resetAt })
+  f.builtin.mockRejectedValue(new Error('offline'))
+
+  await vi.advanceTimersByTimeAsync(120_000)
+  expect(f.builtin).toHaveBeenCalledTimes(4)
+  expect(useAgentDrawerStore.getState().state.allowance.code).toBe('unavailable')
+  await vi.advanceTimersByTimeAsync(120_000)
+  expect(f.builtin).toHaveBeenCalledTimes(4)
+
+  f.builtin.mockResolvedValueOnce({ code: 'status', allowance: { ...availableAllowance(30, 8), resetAt: now + 86_400_000 } })
+  window.dispatchEvent(new Event('focus'))
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.allowance).toMatchObject({ code: 'available', remaining: 30, revision: 8 }))
+  await vi.advanceTimersByTimeAsync(60_000)
+  expect(f.builtin).toHaveBeenCalledTimes(5)
+})
 it.each([
   ['No agent connected', { kind: 'armed', expiresAt: Date.now() + 120_000 }],
   ['Missed connection', { kind: 'pending', callId: 'call', agentKind: 'external', agentName: 'External agent', expiresAt: Date.now() + 30_000 }],
@@ -110,6 +150,46 @@ it('backs out of setup and changes a connected agent without erasing draft or ac
   expect(f.channel.disconnect).toHaveBeenCalledOnce()
   expect(useAgentDrawerStore.getState().state.draft).toBe('Keep this draft')
   expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'saved')?.outcome).toBe('saved')
+})
+it('orders Back behind an in-flight arm and rejects its stale snapshots before a new attempt', async () => {
+  const f = fixture()
+  const firstUntil = Date.now() + 120_000
+  const secondUntil = firstUntil + 1000
+  let finishFirstArm!: (result: { code: 'armed'; connection: { kind: 'armed'; expiresAt: number } }) => void
+  let finishCancel!: (result: { code: 'disarmed' }) => void
+  let finishSecondArm!: (result: { code: 'armed'; connection: { kind: 'armed'; expiresAt: number } }) => void
+  vi.mocked(f.channel.arm)
+    .mockImplementationOnce(() => new Promise(resolve => { finishFirstArm = resolve }) as never)
+    .mockImplementationOnce(() => new Promise(resolve => { finishSecondArm = resolve }) as never)
+  vi.mocked(f.channel.cancelArm).mockImplementationOnce(() => new Promise(resolve => { finishCancel = resolve }) as never)
+
+  f.controller.dispatch({ type: 'chooseExternal' })
+  f.controller.dispatch({ type: 'connectOwn', now: 0 })
+  await vi.waitFor(() => expect(f.channel.arm).toHaveBeenCalledTimes(1))
+  f.controller.backToChooser()
+  f.emit({ type: 'connection', connection: { kind: 'armed', expiresAt: firstUntil } })
+  expect(useAgentDrawerStore.getState().state).toMatchObject({ setupOpen: false, armingUntil: null, setupNotice: null })
+
+  f.controller.dispatch({ type: 'chooseExternal' })
+  f.controller.dispatch({ type: 'connectOwn', now: 1 })
+  expect(f.channel.cancelArm).not.toHaveBeenCalled()
+  expect(f.channel.arm).toHaveBeenCalledTimes(1)
+
+  finishFirstArm({ code: 'armed', connection: { kind: 'armed', expiresAt: firstUntil } })
+  await vi.waitFor(() => expect(f.channel.cancelArm).toHaveBeenCalledOnce())
+  f.emit({ type: 'connection', connection: { kind: 'armed', expiresAt: firstUntil } })
+  expect(useAgentDrawerStore.getState().state.armingUntil).toBeNull()
+  finishCancel({ code: 'disarmed' })
+  expect(f.channel.arm).toHaveBeenCalledTimes(1)
+  f.emit({ type: 'connection', connection: { kind: 'idle' } })
+  f.emit({ type: 'connection', connection: { kind: 'armed', expiresAt: firstUntil } })
+  expect(useAgentDrawerStore.getState().state).toMatchObject({ setupOpen: true, armingUntil: null, setupNotice: null })
+  await vi.waitFor(() => expect(f.channel.arm).toHaveBeenCalledTimes(2))
+
+  finishSecondArm({ code: 'armed', connection: { kind: 'armed', expiresAt: secondUntil } })
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.armingUntil).toBe(secondUntil))
+  f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'external', agentName: 'External agent' } })
+  expect(useAgentDrawerStore.getState().state.connection).toMatchObject({ kind: 'external', name: 'External agent' })
 })
 it('does not optimistically bind or arm on refused account actions', async () => {
   const f = fixture()

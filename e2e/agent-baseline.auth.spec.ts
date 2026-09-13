@@ -1311,8 +1311,8 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     test.setTimeout(180000)
     // The remote provider encodes a cleared optional outputEffects field as [].
     const wire = (show: PersistedShow | undefined) => Object.fromEntries(Object.entries({ ...show, outputEffects: (show as ShowRecord)?.outputEffects ?? [], targetControllerProfileId: (show as ShowRecord)?.targetControllerProfileId ?? null }).filter(([key]) => key !== 'id'))
-    for (const action of ['apply', 'narrow', 'deleted', 'dismiss', 'cancel'] as const) {
-      await page.setViewportSize({ width: action === 'narrow' || action === 'dismiss' ? 800 : 1440, height: 900 })
+    for (const action of ['apply', 'narrow', 'deleted', 'preserve', 'cancel'] as const) {
+      await page.setViewportSize({ width: action === 'narrow' || action === 'preserve' ? 800 : 1440, height: 900 })
       const record = resizeBoundaryShow(`retry-${action}-${Date.now().toString(36)}`)
       expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
       await page.goto(`studio/shows/${record.id}?agent=1`)
@@ -1361,10 +1361,12 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         const selection = await composer.evaluate(element => [(element as HTMLInputElement).selectionStart, (element as HTMLInputElement).selectionEnd])
         expect(requests).toHaveLength(1)
         await page.screenshot({ path: join(REPORT_DIR, `B5-${action}-ready.png`), fullPage: true })
-        if (action === 'dismiss') {
-          await page.getByTestId('agent-chat-dismiss').click()
-          await expect(page.getByTestId('agent-chat-retry')).toHaveCount(0)
+        if (action === 'preserve') {
+          await expect(page.getByTestId('agent-chat-dismiss')).toHaveCount(0)
+          await expect(page.getByTestId('agent-chat-retry')).toBeVisible()
           await expect(page.getByTestId('agent-chat-log')).toContainText('revision-conflict')
+          await expect(composer).toHaveValue('Keep this unrelated draft')
+          expect(await composer.evaluate(element => [(element as HTMLInputElement).selectionStart, (element as HTMLInputElement).selectionEnd])).toEqual(selection)
           expect(requests).toHaveLength(1)
         } else {
           await page.getByTestId('agent-chat-retry').click()
