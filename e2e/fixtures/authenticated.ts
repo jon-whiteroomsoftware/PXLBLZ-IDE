@@ -1,7 +1,7 @@
 import { test as base, expect, type APIRequestContext, type Page } from '@playwright/test'
 import { createSessionToken, sessionCookieName } from '../../src/cloudflare/auth'
 import { readDevVarsFile } from '../../scripts/dev-runtime-auth'
-import { authenticatedPlaywrightUser } from '../../scripts/authenticated-playwright-user'
+import { authenticatedPlaywrightAccountIndex, authenticatedPlaywrightUser } from '../../scripts/authenticated-playwright-user'
 
 type AuthenticatedFixtures = {
   authenticatedBoundary: void
@@ -12,6 +12,8 @@ type AuthenticatedFixtures = {
   allowedBrowserErrors: RegExp[]
 }
 
+let accountSequence = 0
+
 export const test = base.extend<AuthenticatedFixtures>({
   allowedBrowserErrors: [[], { option: true }],
   storageState: async ({}, use, workerInfo) => {
@@ -19,7 +21,7 @@ export const test = base.extend<AuthenticatedFixtures>({
     const secret = process.env.SESSION_SECRET ?? readDevVarsFile(devVarsFile).SESSION_SECRET
     if (!secret) throw new Error(`SESSION_SECRET is required in ${devVarsFile} or the shell environment.`)
     const token = await createSessionToken(
-      authenticatedPlaywrightUser(workerInfo.parallelIndex),
+      authenticatedPlaywrightUser(authenticatedPlaywrightAccountIndex(workerInfo.parallelIndex, accountSequence++)),
       secret,
     )
     await use({
@@ -38,10 +40,12 @@ export const test = base.extend<AuthenticatedFixtures>({
   },
 
   authenticatedBoundary: [async ({ page, request, allowedBrowserErrors }, use) => {
+    // Each test receives a separate account. This pre-use cleanup also makes
+    // worker-restart account reuse deterministic without deleting an active
+    // page's Show underneath its save and Agent callbacks during teardown.
     await removeSyntheticContent(request)
     const errors = watchSeriousErrors(page)
     await use()
-    await removeSyntheticContent(request)
     const unexpected = errors.filter((error) => !allowedBrowserErrors.some((allowed) => allowed.test(error)))
     expect(unexpected, `Unexpected browser errors:\n${unexpected.join('\n')}`).toEqual([])
   }, { auto: true }],

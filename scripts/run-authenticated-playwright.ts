@@ -22,6 +22,11 @@ export function authenticatedPlaywrightEnvironment(
   basePath = '/PXLBLZ-IDE/',
 ): Record<string, string> {
   return {
+    // Hermetic browser suites exercise external MCP without production
+    // credentials. Static preregistration stays empty; DCR and CIMD remain
+    // available through the real Worker authority.
+    AGENT_SERVICE_ENABLED: '1',
+    AGENT_OAUTH_CLIENTS: '[]',
     PLAYWRIGHT_AUTH_SMOKE_VITE_PORT: String(assignment.uiPort),
     PLAYWRIGHT_STUDIO_URL: `http://localhost:${assignment.uiPort}${basePath}`,
     PXLBLZ_D1_PERSIST_TO: persistenceDirectory,

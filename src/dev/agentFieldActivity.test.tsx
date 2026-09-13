@@ -102,15 +102,16 @@ it('retires capacity overflow before returning an untracked diagnostic capabilit
   expect(writes).not.toHaveBeenCalled()
 })
 
-it('rebinds a surviving dirty draft after URL remove/restore without reviving old work', () => {
+it('rebinds a surviving dirty draft after capability revoke/restore without reviving old work', () => {
   const scope = createFieldActivityScope()
   render(fields(scope))
   api = createAgentEditorAdmission('test', () => ({}), scope.bind)
   fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'Manual' } })
   const old = deliver()
-  window.history.replaceState(null, '', '/studio/shows/test')
+  // The lifecycle closes its admission when the server capability disappears.
+  // Query removal no longer means revocation: ordinary Show URLs are enabled.
+  api.close()
   expect(api.available()).toBe(false)
-  window.history.replaceState(null, '', '/studio/shows/test?agent=1')
   expect(api.applyShow(old.candidate, old.captured.request).status).toBe('retired')
   api = createAgentEditorAdmission('test', () => ({}), scope.bind)
   expect(deliver().result.status).toBe('waiting')

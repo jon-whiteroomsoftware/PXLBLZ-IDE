@@ -5,31 +5,37 @@
     "CIMD metadata is fetched and validated outside the authorization transaction under strict public-network, redirect, time, size, cache, and expiry bounds; a protected request never substitutes stale metadata after expiry or metadata drift.",
     "DCR admits only bounded compatible metadata and client authentication methods, rate-limits registration, caps live registrations, expires records, and preserves configured static grants without vendor or model identity policy.",
     "OAuth sign-in continuation is opaque, HttpOnly, short-lived, one-use, same-origin, account-bound after callback, and cannot replay, switch accounts, or turn an unvalidated callback into a redirect.",
-    "Setup is untimed until Ready to connect; Ready creates exactly one 120-second arm, incoming Answer retains its 30-second limit, and expiry, cancellation, and occupied states never take over another session, infer an outcome, or replay inference."
+    "Setup is untimed until Ready to connect; Ready creates exactly one 120-second arm, incoming Answer retains its 30-second limit, and expiry, cancellation, and occupied states never take over another session, infer an outcome, or replay inference.",
+    "During a failure-free browser run, each worker assigns successive tests separate bounded synthetic accounts in an isolated D1 runtime, so one test cannot consume another test's eight-registration account quota; fixture cleanup never deletes an active page's Show."
   ],
   "partitions": [
     "Signed out, signed-in external-capable, signed-in built-in-allowlisted, service-disabled, and stale browser capability projection; ordinary editable personal and stock Show URLs with and without the historical DEV diagnostic query.",
     "Static client, valid CIMD URL, valid DCR client, expired or changed CIMD metadata, expired or evicted DCR registration, unsupported client authentication method, malformed metadata, private or redirecting metadata URL, and variable-port loopback redirect URI.",
     "Initial authorization, sign-in continuation, consent allow/deny, account switch, replayed or expired continuation, invalid callback, invalid Origin, authorization-code replay, refresh rotation, grant revocation, and protected-resource metadata revalidation.",
-    "Untimed setup, armed, incoming, connected, cancelled, expired, occupied, lost contact, and recovered drawer states at desktop and narrow widths using pointer and keyboard input."
+    "Untimed setup, armed, incoming, connected, cancelled, expired, occupied, lost contact, and recovered drawer states at desktop and narrow widths using pointer and keyboard input.",
+    "Hermetic browser service enabled with no static OAuth clients, ordinary and legacy-query Show URLs, up to 64 accounts in each of four worker partitions, worker-restart pre-use personal-content cleanup, and isolated-runtime final cleanup."
   ],
   "sequences": [
     "Open an ordinary editable Show URL as a non-allowlisted signed-in account, open the drawer by keyboard, choose external MCP, copy the advertised endpoint, wait without arming, arm once, cancel, re-arm, expire, and confirm no built-in choice or inferred connection outcome appears.",
     "Register one bounded DCR client and authorize one bounded CIMD client, complete S256 authorization against the exact MCP resource, exchange once, reject code replay, rotate refresh credentials, inspect/revoke the grant, and reject later protected use when client metadata has expired or changed.",
     "Begin authorization signed out, follow the safe sign-in continuation, bind the returned nonce to the authenticated account, allow or deny consent, then retry the continuation after use, expiry, callback tampering, and account switching and verify each fails closed.",
-    "Connect an admitted external client, edit and save a personal Show once, reopen the saved record, then exercise cancellation, an occupied account slot, and late delivery to prove history/save ownership and no takeover or duplicate application."
+    "Connect an admitted external client, edit and save a personal Show once, reopen the saved record, then exercise cancellation, an occupied account slot, and late delivery to prove history/save ownership and no takeover or duplicate application.",
+    "Run ordinary onboarding and legacy-query layout cases concurrently, rapidly reload an isolated layout case past eight React mounts under a mocked disabled transport, then run personal Show save/reload cases on distinct accounts without post-use deletion while their pages remain active."
   ],
   "oracles": [
     "Worker route status, typed refusal codes, capability booleans from /api/me, absence of the built-in chooser for non-allowlisted users, and server-side allowlist checks at request, claim, delivery, and resolution boundaries.",
     "Actual OAuth provider responses and durable records for registration, authorization, code exchange, refresh, inspection, revocation, metadata cache expiry, redirect URI matching, Origin validation, and replay rejection.",
     "Exact personal Show history and reopened saved JSON, account slot state, rendezvous lifecycle receipts, zero extra provider dispatches, and zero duplicate or late candidate applications.",
     "Fresh committed desktop and 390x844 browser captures plus DOM-visible exact copy, endpoint origin, keyboard focus, drawer bounds, and document overflow measurements.",
-    "Focused workerd/provider, Worker route, React component, lifecycle, runtime-script, lint, typecheck, build, and authenticated Playwright results; the coordinator-owned exact-tip WRSP suites and native cross-family review remain final gates."
+    "Focused workerd/provider, Worker route, React component, lifecycle, runtime-script, lint, typecheck, build, and authenticated Playwright results; the coordinator-owned exact-tip WRSP suites and native cross-family review remain final gates.",
+    "Corrective browser evidence includes 9/9 onboarding and layout cases, the split-only rapid reload, a real Show switch/reload with the original retired-response status contract, and 6/6 focused recovery cases after removing live-page fixture deletion and giving the long Portable desktop-and-narrow flow its slow-test budget."
   ],
   "residualGaps": [
     "Local workerd and browser tests do not prove public HTTPS reachability, third-party redirect behavior, or interoperability with independently implemented MCP clients.",
     "Onboarding qualification still requires one real CIMD client and one real DCR client from two independent client implementations through connect, consent, edit, save, reopen, occupied, cancellation, and expiry behavior on a reachable HTTPS candidate.",
     "No production account, production consent grant, production DCR registration, remote deployment, or remote provider inference was created during implementation.",
-    "The provider contract intentionally omits DCR metadata update and delete and bounds registration lifetime to 90 days; CIMD availability remains dependent on the client's public metadata endpoint staying valid and responsive within the documented fetch budget."
+    "The provider contract intentionally omits DCR metadata update and delete and bounds registration lifetime to 90 days; CIMD availability remains dependent on the client's public metadata endpoint staying valid and responsive within the documented fetch budget.",
+    "The last broad local Shows run before the final fixture correction recorded 90/96: four failures at live-page fixture cleanup, one long Portable timeout, and one loaded Alt-drag miss. Each partition passed after the bounded corrections, but the coordinator-owned exact-tip runner rerun remains the authoritative full-suite result.",
+    "A failed Playwright worker may restart at the same parallel index and reuse that bounded account partition. Pre-use cleanup resets its D1 personal content, while any stale Agent registration retains the production expiry contract; failures must be diagnosed before later cases are treated as independent evidence."
   ]
 }

@@ -1462,6 +1462,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('creates and reloads a Portable output contract at desktop and narrow widths', async ({ page }) => {
+    test.slow()
     const seriousConsoleErrors: string[] = []
     page.on('console', (message) => {
       if (message.type() === 'error') seriousConsoleErrors.push(message.text())

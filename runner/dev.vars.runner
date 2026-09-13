@@ -1,5 +1,5 @@
 # SESSION_SECRET signs cookies only for the synthetic Playwright identities
-# github:playwright-worker-00 through github:playwright-worker-03. The runner
+# github:playwright-worker-000 through github:playwright-worker-255. The runner
 # seeds those users into its job-private D1 database before each suite.
 SESSION_SECRET=wrsp-runner-synthetic-session-secret-not-for-production
 

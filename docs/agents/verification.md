@@ -425,6 +425,11 @@ Authenticated Playwright does not reuse the persistent development database.
 ports and D1 persistence through the managed runtime registry, seed before
 server startup, and release their state after the run. See
 [`dev-runtime.md`](dev-runtime.md) for the shared-versus-isolated contract.
+The harness enables the Agent service with no static OAuth clients and seeds
+64 test accounts per parallel worker. Each running worker assigns its tests
+successive accounts; pre-use personal-content cleanup handles account reuse
+after a worker restart, and isolated D1 teardown removes final synthetic data
+after browser pages have closed.
 
 ### Visual Effects Guide screenshots
 

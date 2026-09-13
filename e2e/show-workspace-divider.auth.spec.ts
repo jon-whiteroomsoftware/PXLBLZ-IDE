@@ -3,7 +3,7 @@ import { expect, test } from './fixtures/authenticated'
 // Layout tests exercise the opt-in UI with an unavailable Agent service.
 // Transport admission and execution are covered by the Agent suites.
 test.beforeEach(async ({ page }) => {
-  await page.route('**/api/agent/channel?agent=1', route => route.fulfill({ json: { code: 'service_disabled' } }))
+  await page.route(/\/api\/agent\/channel(?:\?.*)?$/, route => route.fulfill({ json: { code: 'service_disabled' } }))
 })
 
 test('ends divider dragging after release and capture loss while the Show plays (#63)', async ({ page }) => {
@@ -88,7 +88,7 @@ test('preserves the split ratio through resizing, reload, and narrow width (#63)
   await expect(divider).toHaveAttribute('data-clamp', 'none')
   await page.reload()
   await expect(divider).toHaveAttribute('data-clamp', 'none')
-  await expect(page.getByTestId('studio-entity-drawer')).toBeHidden()
+  await expect(page.getByRole('complementary', { name: 'Shows list', exact: true })).toBeHidden()
   await testInfo.attach('split-640x1000', { body: await page.screenshot(), contentType: 'image/png' })
   await page.setViewportSize({ width: 1800, height: 1000 })
   await expect.poll(async () => Math.abs(await ratio() - original)).toBeLessThan(0.003)
@@ -123,14 +123,14 @@ for (const agent of [false, true]) {
   })
 }
 
-for (const agent of [false, true]) {
-  test(`contains Studio document scrolling with Agent ${agent ? 'enabled' : 'hidden'} (#1006)`, async ({ page }) => {
+for (const legacyDiagnosticQuery of [false, true]) {
+  test(`contains Studio document scrolling ${legacyDiagnosticQuery ? 'with' : 'without'} the legacy Agent query (#1006, #1009)`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 })
     for (const route of ['studio/shows/stock-show-301-installation-mapping', 'studio/patterns']) {
-      await page.goto(`${route}${agent ? '?agent=1' : ''}`)
+      await page.goto(`${route}${legacyDiagnosticQuery ? '?agent=1' : ''}`)
       await expect(page.getByTestId('studio-drawer-layout')).toBeVisible()
       const edge = page.getByTestId('agent-drawer-edge-tab')
-      const hasAgentDrawer = agent && route.includes('/shows/')
+      const hasAgentDrawer = route.includes('/shows/')
       if (hasAgentDrawer) await expect(edge).toBeVisible()
       else await expect(edge).toHaveCount(0)
       const overflow = () => page.evaluate(() => {
