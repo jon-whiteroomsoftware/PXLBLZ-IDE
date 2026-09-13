@@ -3,3 +3,20 @@ enabled = true
 
 [plugins."browser@openai-bundled"]
 enabled = true
+
+[mcp_servers.pxlblz]
+enabled = true
+url = "https://pxlblz-ide.whiteroomsoftware.com/mcp"
+
+[mcp_servers.pxlblz.oauth]
+callback_port = 5317
+client_id = "codex-pxlblz"
+callback_url = "http://127.0.0.1:5317/callback/6JQjwXdqmMA6"
+
+[mcp_servers.pxlblz-local]
+url = "http://localhost:5174/mcp"
+
+[mcp_servers.pxlblz-local.oauth]
+callback_port = 5320
+client_id = "codex-pxlblz-local"
+callback_url = "http://127.0.0.1:5320/callback/pxlblz-local"
