@@ -571,6 +571,15 @@ one only after every Scene's corresponding Layer is empty. Layer changes in one
 request use the result of each preceding command, so a newly inserted Layer can
 be filled, reordered, and later referenced in the same edit.
 
+For collection authoring, `create_clips` creates several fully configured Clips,
+`create_layers` creates ordered overlay Layers with optional Clips, and
+`update_clips` patches properties or applies final-valid simultaneous swaps,
+resizes, and Layer moves. Each call is atomic and contributes one activity entry;
+shared Pattern-instance edits report every affected linked Clip. The
+[versioned Clip and Layer reference](agent-clip-layer-authoring.md) lists the
+complete property vocabulary, exact timing rules, clearing behavior, limits,
+and examples.
+
 Edits remain private until the editor accepts them. A conflicting manual change
 can prevent an agent result from applying. Activity distinguishes saved edits,
 changes applied to a draft, refused work and cancellation. Losing contact does

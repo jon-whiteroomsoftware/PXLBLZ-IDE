@@ -3,6 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { showCommandFixture } from '@/test/showCommandFixture'
 import { createShowsServer } from '../mcp/showsServer.js'
 
 // End-to-end over a real MCP client/server pair: registration, discovery,
@@ -52,6 +53,8 @@ describe('pxlblz-shows MCP server (#7)', () => {
       'close_session',
       'commit_edit',
       'compile_show',
+      'create_clips',
+      'create_layers',
       'critique_show',
       'delete_keyframe',
       'delete_property_track',
@@ -110,6 +113,7 @@ describe('pxlblz-shows MCP server (#7)', () => {
       'undo',
       'update_boundary_transition_parameter',
       'update_clip_effect',
+      'update_clips',
       'update_keyframe',
       'update_marker',
       'update_zone',
@@ -206,7 +210,12 @@ describe('pxlblz-shows MCP server (#7)', () => {
   it('serves the schema and data-model resources', async () => {
     const resources = await client.listResources()
     const uris = resources.resources.map((resource) => resource.uri).sort()
-    expect(uris).toEqual(['pxlblz://docs/show-data-model', 'pxlblz://schemas/show-record'])
+    expect(uris).toEqual([
+      'pxlblz://docs/clip-layer-authoring/v1',
+      'pxlblz://docs/show-data-model',
+      'pxlblz://schemas/clip-layer-authoring/v1',
+      'pxlblz://schemas/show-record',
+    ])
 
     const schema = await client.readResource({ uri: 'pxlblz://schemas/show-record' })
     const schemaDoc = JSON.parse((schema.contents[0] as { text: string }).text)
@@ -217,6 +226,42 @@ describe('pxlblz-shows MCP server (#7)', () => {
     for (const term of ['Scene', 'Zone Layout', 'Cell', 'Transition', 'output contract', 'Budgets']) {
       expect(text).toContain(term)
     }
+    const authoring = await client.readResource({ uri: 'pxlblz://docs/clip-layer-authoring/v1' })
+    expect((authoring.contents[0] as { text: string }).text).toContain('Effects replace the whole ordered stack')
+  })
+
+  it('executes bulk creation and shared-instance update through the diagnostic protocol adapter', async () => {
+    const fixture = showCommandFixture()
+    for (const instance of fixture.composition!.patternInstances) {
+      instance.pattern = { kind: 'stock', id: 'LineDancer2D' }
+      instance.patternName = 'Line Dancer 2D'
+    }
+    const opened = await callJson('open_show', { show: fixture })
+    expect(opened.isError, JSON.stringify(opened.payload)).toBe(false)
+    const sessionId = opened.payload.sessionId as string
+    const created = await callJson('create_clips', {
+      session_id: sessionId,
+      schema_version: 1,
+      clips: [{ zone_id: 'zone-1', layer: 'main', start_ms: 32_000, duration_ms: 1_000, pattern: { kind: 'stock', id: 'LineDancer2D' }, properties: { controls: { sliderSpeed: 0.4 } } }],
+    })
+    expect(created.isError).toBe(false)
+    expect(created.payload.changes).toHaveLength(1)
+    expect(created.payload.changes[0]).toMatchObject({ description: 'Created 1 Clip.', details: { results: [expect.objectContaining({ inputIndex: 0 })] } })
+
+    const updated = await callJson('update_clips', {
+      session_id: sessionId,
+      schema_version: 1,
+      updates: [
+        { clip_id: 'clip-a', properties: { time: { time_scale: 0.5 } } },
+        { clip_id: 'clip-c', properties: { time: { time_scale: 0.5 } } },
+      ],
+    })
+    expect(updated.isError).toBe(false)
+    expect(updated.payload.changes).toHaveLength(1)
+    expect(updated.payload.changes[0]).toMatchObject({
+      description: 'Updated speed on 2 Clips.',
+      details: { directClipIds: ['clip-a', 'clip-c'], linkedClipIds: [], changedPaths: ['time.time_scale'] },
+    })
   })
 
   it('validate_show passes a stock Show through the protocol', async () => {

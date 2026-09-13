@@ -80,6 +80,66 @@ it('applies a private static Clip inspector batch once with replay identity, one
   await useShowStore.getState().redoShow('test')
   expect(useShowStore.getState().shows[0].composition!.scenes[0].zones[0].main[0]).toEqual(adopted)
 })
+it('adopts bulk Layer creation and linked Clip updates as one save and one Undo/Redo unit', async () => {
+  const { showCommandFixture } = await import('@/test/showCommandFixture')
+  const { executor, send, writes } = await setup(showCommandFixture())
+  expect(send(0, { kind: 'begin_edit', intent: 'Add two Layers and slow the linked Clips' }).code).toBe('begun')
+  const created = send(1, {
+    kind: 'command', name: 'create_layers', arguments: {
+      schema_version: 1,
+      layers: [
+        { zone_id: 'zone-1', clips: [{ start_ms: 32_000, duration_ms: 2_000, pattern: { kind: 'stock', id: 'LineDancer2D' }, properties: { controls: { sliderSpeed: 0.4 } } }] },
+        { zone_id: 'zone-1', clips: [] },
+      ],
+    },
+  })
+  expect(created).toMatchObject({ code: 'changed', changes: [{ description: 'Created 2 Layers with 1 Clip.' }] })
+  expect((created.changes as unknown[])).toHaveLength(1)
+  const updated = send(2, {
+    kind: 'command', name: 'update_clips', arguments: {
+      schema_version: 1,
+      updates: [
+        { clip_id: 'clip-a', properties: { time: { time_scale: 0.5 } } },
+        { clip_id: 'clip-c', properties: { time: { time_scale: 0.5 } } },
+      ],
+    },
+  })
+  expect(updated).toMatchObject({ code: 'changed', changes: [{
+    description: 'Updated speed on 2 Clips.',
+    details: { directClipIds: ['clip-a', 'clip-c'], linkedClipIds: [], changedInstanceIds: ['instance-a'] },
+  }] })
+  expect((updated.changes as unknown[])).toHaveLength(1)
+  expect(writes).not.toHaveBeenCalled()
+
+  expect(send(3, { kind: 'commit_edit' })).toMatchObject({ code: 'outcome', receipt: { status: 'applied' } })
+  await vi.waitFor(() => expect(executor.getOutcome('op')).toMatchObject({ receipt: { status: 'applied', settlement: 'saved' } }))
+  const adopted = structuredClone(useShowStore.getState().shows[0])
+  expect(adopted.composition!.scenes.map(scene => scene.zones[0].overlays.length)).toEqual([3, 2])
+  expect(adopted.composition!.patternInstances.find(instance => instance.id === 'instance-a')!.time.timeScale).toBe(0.5)
+  expect(useShowStore.getState().showHistories.test.past).toHaveLength(1)
+  expect(writes).toHaveBeenCalledTimes(1)
+
+  await useShowStore.getState().undoShow('test')
+  expect(useShowStore.getState().shows[0].composition!.scenes.map(scene => scene.zones[0].overlays.length)).toEqual([1, 0])
+  expect(useShowStore.getState().shows[0].composition!.patternInstances.find(instance => instance.id === 'instance-a')!.time.timeScale).toBe(1)
+  await useShowStore.getState().redoShow('test')
+  expect(useShowStore.getState().shows[0]).toEqual({ ...adopted, updatedAt: useShowStore.getState().shows[0].updatedAt })
+})
+it('keeps a satisfied bulk patch adoption-free through private commit', async () => {
+  const { showCommandFixture } = await import('@/test/showCommandFixture')
+  const { executor, send, writes } = await setup(showCommandFixture())
+  expect(send(0, { kind: 'begin_edit', intent: 'Keep current brightness' }).code).toBe('begun')
+  expect(send(1, {
+    kind: 'command', name: 'update_clips', arguments: {
+      schema_version: 1,
+      updates: [{ clip_id: 'clip-a', properties: { view: { brightness: 1 } } }],
+    },
+  })).toEqual({ code: 'noop', changes: [] })
+  expect(send(2, { kind: 'commit_edit' })).toMatchObject({ code: 'outcome', receipt: { status: 'completed', completion: 'nothing-applied' } })
+  expect(executor.getOutcome('op')).toMatchObject({ receipt: { status: 'completed', completion: 'nothing-applied' } })
+  expect(useShowStore.getState().showHistories.test?.past.length ?? 0).toBe(0)
+  expect(writes).not.toHaveBeenCalled()
+})
 it('captures real source metadata and keeps rename private until one history/save adoption', async () => {
   const { admission, executor, send, writes } = await setup()
   const metadata = admission.captureCommandContext()!

@@ -134,6 +134,178 @@ function globalSpanSceneSlices(
   return firstGlobalStartMs === globalStartMs && lastGlobalEndMs === globalEndMs ? slices : []
 }
 
+function exactGlobalSpanAvoidsTransition(show: ShowRecord, globalStartMs: number, durationMs: number): boolean {
+  return globalSpanSceneSlices(show, globalStartMs, durationMs)
+    .reduce((total, slice) => total + slice.durationMs, 0) === durationMs
+}
+
+export interface ShowBulkClipArrangementRequest {
+  inputIndex: number
+  clipId: string
+  zoneId: string
+  layer: 'main' | number
+  globalStartMs: number
+  durationMs: number
+}
+
+export type ShowBulkClipArrangementResult =
+  | { status: 'accepted'; composition: ShowCompositionV1 }
+  | { status: 'refused'; inputIndex: number; field: 'start_ms' | 'duration_ms' | 'zone_id' | 'layer'; code: string; reason: string }
+
+/**
+ * Rebuild several existing logical Clips from one retained snapshot and only
+ * then validate the final arrangement. This is the atomic final-state seam
+ * for swaps and rotations; callers never expose the temporarily vacant draft.
+ */
+export function arrangeShowClipsFinalState(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  requests: readonly ShowBulkClipArrangementRequest[],
+): ShowBulkClipArrangementResult {
+  if (validateShowComposition(show, composition).length > 0) {
+    return { status: 'refused', inputIndex: 0, field: 'start_ms', code: 'invalid-composition', reason: 'The current Show composition is invalid.' }
+  }
+  const projection = projectShowUnifiedTimeline(show, composition)
+  for (const request of requests) {
+    if (request.globalStartMs < 0 || request.durationMs < 1
+      || request.globalStartMs + request.durationMs > projection.durationMs) {
+      return { status: 'refused', inputIndex: request.inputIndex, field: 'duration_ms', code: 'out-of-bounds', reason: `Clip ${request.clipId} must remain inside Show End ${projection.durationMs} ms.` }
+    }
+    if (!exactGlobalSpanAvoidsTransition(show, request.globalStartMs, request.durationMs)) {
+      return { status: 'refused', inputIndex: request.inputIndex, field: 'start_ms', code: 'transition-window', reason: `Clip ${request.clipId} cannot occupy a visual Transition window.` }
+    }
+  }
+  const retained = requests.map(request => {
+    const clip = projection.zones.flatMap(zone => zone.layers.flatMap(layer => layer.clips))
+      .find(candidate => candidate.id === request.clipId)
+    if (!clip) return null
+    const owner: ShowTimelineClipOwner = clip.kind === 'main'
+      ? { kind: 'main', sceneId: clip.sceneId, zoneId: clip.zoneId, placementId: clip.startPlacementId }
+      : { kind: 'overlay', sceneId: clip.sceneId, zoneId: clip.zoneId, layerId: clip.layerId!, placementId: clip.startPlacementId }
+    const segments = logicalClipSegments(show, composition, owner)
+    const base = segments.find(segment => segment.placement.id === clip.startPlacementId)?.placement ?? segments[0]?.placement
+    const range = globalLogicalClipRange(segments)
+    return base && range ? { request, clip, segments, base, range } : null
+  })
+  const missingIndex = retained.findIndex(item => item === null)
+  if (missingIndex >= 0) {
+    return { status: 'refused', inputIndex: requests[missingIndex].inputIndex, field: 'start_ms', code: 'unknown-clip', reason: `Clip ${requests[missingIndex].clipId} does not exist.` }
+  }
+  const items = retained as Array<NonNullable<(typeof retained)[number]>>
+  for (const item of items) {
+    if (item.clip.groupOccurrenceId) {
+      return { status: 'refused', inputIndex: item.request.inputIndex, field: 'start_ms', code: 'group-owned', reason: 'Group-owned Clips cannot be moved by the bulk Clip command.' }
+    }
+    const segmentIds = new Set(item.segments.map(segment => segment.placement.id))
+    if ((composition.transitions ?? []).some(transition => segmentIds.has(transition.fromPlacementId) || segmentIds.has(transition.toPlacementId))) {
+      return { status: 'refused', inputIndex: item.request.inputIndex, field: 'start_ms', code: 'transition-owned', reason: 'A Clip connected to a Transition cannot be rearranged by the bulk Clip command.' }
+    }
+    if (composition.scenes.some(scene => (scene.propertyTracks ?? []).some(track => 'placementId' in track.target && segmentIds.has(track.target.placementId)))) {
+      return { status: 'refused', inputIndex: item.request.inputIndex, field: 'start_ms', code: 'animated-placement', reason: 'A placement-animated Clip cannot be rearranged by the bulk Clip command.' }
+    }
+    const instanceUseCount = showPatternInstanceUseCount(composition, item.base.instanceId)
+    if (instanceUseCount === 1 && composition.scenes.some(scene => (scene.propertyTracks ?? []).some(track => (
+      'instanceId' in track.target && track.target.instanceId === item.base.instanceId
+    )))) {
+      return { status: 'refused', inputIndex: item.request.inputIndex, field: 'start_ms', code: 'animated-instance', reason: 'A solely owned, instance-animated Clip cannot be rearranged by the bulk Clip command.' }
+    }
+  }
+  const draft = structuredClone(composition)
+  const rootIds = new Set(items.map(item => placementLogicalClipId(item.base)))
+  for (const scene of draft.scenes) {
+    for (const zone of scene.zones) {
+      zone.main = zone.main.filter(placement => !rootIds.has(placementLogicalClipId(placement)))
+      for (const layer of zone.overlays) layer.placements = layer.placements.filter(placement => !rootIds.has(placementLogicalClipId(placement)))
+    }
+  }
+  for (const item of [...items].sort((left, right) => left.request.clipId.localeCompare(right.request.clipId))) {
+    const target = item.request.layer === 'main'
+      ? { kind: 'main' as const, zoneId: item.request.zoneId }
+      : { kind: 'overlay' as const, zoneId: item.request.zoneId, layerIndex: item.request.layer }
+    if (!appendLogicalClipGlobalSpan(show, draft, {
+      rootId: placementLogicalClipId(item.base),
+      base: item.base,
+      target,
+      globalStartMs: item.request.globalStartMs,
+      durationMs: item.request.durationMs,
+      staticPresentation: {
+        sources: item.segments,
+        offsetMs: item.request.globalStartMs - item.range.startMs,
+        allowSameSceneExtension: true,
+        requireEverySourceAppearance: true,
+      },
+    })) {
+      return { status: 'refused', inputIndex: item.request.inputIndex, field: 'start_ms', code: 'unrepresentable-span', reason: 'The requested exact global span or Layer is not representable.' }
+    }
+  }
+  const issues = validateShowComposition(show, draft)
+  if (issues.length > 0) {
+    const overlap = issues.find(issue => issue.code === 'overlap')
+    let overlapIds: string[] = []
+    if (overlap) {
+      for (const scene of draft.scenes) {
+        for (const zone of scene.zones) {
+          for (const placements of [zone.main, ...zone.overlays.map(layer => layer.placements)]) {
+            const ordered = [...placements].sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
+            const rightIndex = ordered.findIndex((placement, index) => index > 0 && ordered[index - 1].startMs + ordered[index - 1].durationMs > placement.startMs)
+            if (rightIndex > 0) overlapIds = [placementLogicalClipId(ordered[rightIndex - 1]), placementLogicalClipId(ordered[rightIndex])]
+          }
+        }
+      }
+    }
+    const failed = items.find(item => overlapIds.includes(item.request.clipId)) ?? items[0]
+    return {
+      status: 'refused',
+      inputIndex: failed.request.inputIndex,
+      field: overlap ? 'start_ms' : 'duration_ms',
+      code: overlap ? 'occupied' : issues[0].code,
+      reason: overlapIds.length
+        ? `Final Clips ${overlapIds.join(' and ')} overlap; no part of the bulk request was applied.`
+        : issues[0].message,
+    }
+  }
+  return { status: 'accepted', composition: draft }
+}
+
+/** Add one new ordinary logical Clip at an exact global span without clamping or Show extension. */
+export function createShowClipGlobalSpan(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: {
+    instance: ShowPatternInstance
+    placementId: string
+    zoneId: string
+    layer: 'main' | number
+    globalStartMs: number
+    durationMs: number
+  },
+): ShowCompositionV1 {
+  if (!Number.isSafeInteger(input.globalStartMs) || !Number.isSafeInteger(input.durationMs)
+    || input.globalStartMs < 0 || input.durationMs < 1
+    || composition.patternInstances.some(instance => instance.id === input.instance.id)) return composition
+  if (!exactGlobalSpanAvoidsTransition(show, input.globalStartMs, input.durationMs)) return composition
+  const draft = structuredClone(composition)
+  insertAuthoredPatternInstance(draft.patternInstances, structuredClone(input.instance))
+  const base: ShowMainPlacement = {
+    id: input.placementId,
+    instanceId: input.instance.id,
+    startMs: 0,
+    durationMs: input.durationMs,
+    view: { mirror: false, phase: 0, brightness: 1 },
+  }
+  const target = input.layer === 'main'
+    ? { kind: 'main' as const, zoneId: input.zoneId }
+    : { kind: 'overlay' as const, zoneId: input.zoneId, layerIndex: input.layer }
+  if (!appendLogicalClipGlobalSpan(show, draft, {
+    rootId: input.placementId,
+    base,
+    target,
+    globalStartMs: input.globalStartMs,
+    durationMs: input.durationMs,
+  })) return composition
+  return validateShowComposition(show, draft).length === 0 ? draft : composition
+}
+
 type StaticPresentationRepartition = {
   sources: LogicalClipSegment[]
   offsetMs: number

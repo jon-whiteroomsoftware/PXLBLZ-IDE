@@ -18,6 +18,13 @@ import { measureShowDocument } from '../telemetry/measure.js'
 import { OPERATING_RULES, type EditorContext, type ReferenceQuery } from '../grammar/read.js'
 import { SHOW_GRAMMAR_OPERATIONS } from '../grammar/registry.js'
 import { createSessionStore, type GrammarSessionStore } from '../grammar/session.js'
+import {
+  SHOW_AUTHORING_JSON_SCHEMA,
+  SHOW_AUTHORING_REFERENCE_MARKDOWN,
+  SHOW_AUTHORING_REFERENCE_URI,
+  SHOW_AUTHORING_SCHEMA_URI,
+  SHOW_AUTHORING_SERVER_INTRO,
+} from '@/engine/showCommands/bulkAuthoringReference'
 
 const showRecordSchemaPath = fileURLToPath(new URL('../../../schemas/show-record.schema.json', import.meta.url))
 const showDataModelPath = fileURLToPath(new URL('../reference/show-data-model.md', import.meta.url))
@@ -76,7 +83,7 @@ export interface ShowsServerOptions {
 export function createShowsServer(options: ShowsServerOptions = {}): McpServer {
   const server = new McpServer(
     { name: 'pxlblz-shows', version: '0.1.0' },
-    { instructions: OPERATING_RULES },
+    { instructions: `${OPERATING_RULES}\n\n${SHOW_AUTHORING_SERVER_INTRO}` },
   )
 
   server.registerTool(
@@ -621,6 +628,27 @@ export function createShowsServer(options: ShowsServerOptions = {}): McpServer {
     (uri) => ({
       contents: [{ uri: uri.href, mimeType: 'text/markdown', text: readFileSync(showDataModelPath, 'utf8') }],
     }),
+  )
+
+  server.registerResource(
+    'clip-layer-authoring-schema-v1',
+    SHOW_AUTHORING_SCHEMA_URI,
+    {
+      title: 'Clip and Layer authoring schema v1',
+      description: 'Generated JSON Schema for visible Clip/Layer bulk command inputs; not the persisted ShowRecord model.',
+      mimeType: 'application/schema+json',
+    },
+    uri => ({ contents: [{ uri: uri.href, mimeType: 'application/schema+json', text: JSON.stringify(SHOW_AUTHORING_JSON_SCHEMA, null, 2) }] }),
+  )
+  server.registerResource(
+    'clip-layer-authoring-reference-v1',
+    SHOW_AUTHORING_REFERENCE_URI,
+    {
+      title: 'Clip and Layer authoring reference v1',
+      description: 'Bulk authoring semantics and executable examples; distinct from persisted document resources.',
+      mimeType: 'text/markdown',
+    },
+    uri => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: SHOW_AUTHORING_REFERENCE_MARKDOWN }] }),
   )
 
   return server

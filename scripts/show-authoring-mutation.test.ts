@@ -141,6 +141,7 @@ describe('Show authoring mutation qualification (#597)', () => {
     const scope = buildShowAuthoringMutationScope(process.cwd())
 
     expect(new Set(scope.map(({ operation }) => operation))).toEqual(new Set([
+      'bulk',
       'move',
       'resize',
       'split',

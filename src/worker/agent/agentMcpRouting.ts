@@ -3,6 +3,13 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { z } from 'zod'
 import { SHOW_COMMANDS } from '../../engine/showCommands/registry'
 import { showCommandInputShape } from '../../engine/showCommands/descriptorSchema'
+import {
+  SHOW_AUTHORING_JSON_SCHEMA,
+  SHOW_AUTHORING_REFERENCE_MARKDOWN,
+  SHOW_AUTHORING_REFERENCE_URI,
+  SHOW_AUTHORING_SCHEMA_URI,
+  SHOW_AUTHORING_SERVER_INTRO,
+} from '../../engine/showCommands/bulkAuthoringReference'
 import type { AgentClaim, WindowIdentity } from '../../engine/agentRendezvous'
 import type { PrivateEditResult } from '../../engine/agentPrivateExecutor'
 import type { WorkerEnv } from '../apiRoutes'
@@ -31,7 +38,7 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     const result = await connect(false)
     return result.code === 'bound' && result.claim?.bindingId === bindingId ? result.claim : undefined
   }
-  const server = new McpServer({ name: 'PXLBLZ Agent', version: '0.2.0' }, { instructions: 'Call get_connection and Answer in the open Show editor. read_show/get_context read that editor. begin_edit captures one immutable private Show; canonical commands mutate only that candidate. commit_edit requests validation/adoption and may return waiting or saving. Query get_outcome for the authoritative receipt. Never replay a timed-out command; retain operation and delivery identities. New binding requires new operation IDs.' })
+  const server = new McpServer({ name: 'PXLBLZ Agent', version: '0.2.0' }, { instructions: `Call get_connection and Answer in the open Show editor. read_show/get_context read that editor. begin_edit captures one immutable private Show; canonical commands mutate only that candidate. commit_edit requests validation/adoption and may return waiting or saving. Query get_outcome for the authoritative receipt. Never replay a timed-out command; retain operation and delivery identities. New binding requires new operation IDs. ${SHOW_AUTHORING_SERVER_INTRO}` })
   const output = (result: PrivateEditResult) => ({ content: [{ type: 'text' as const, text: JSON.stringify(result) }], structuredContent: result })
   server.registerTool('get_connection', { description: 'Connect to the open editor, holding an incoming call for up to 30 seconds. With call_id, inspect only that original call; expired calls are never recreated.', inputSchema: z.object({ call_id: id.optional() }).strict() }, async ({ call_id }) => {
     const result = await connect(call_id === undefined, call_id)
@@ -64,6 +71,16 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
   for (const descriptor of SHOW_COMMANDS) registerMutation(descriptor.name, descriptor.description, showCommandInputShape(descriptor), args => ({ kind: 'command', name: descriptor.name, arguments: args }))
   registerMutation('commit_edit', 'Validate and request adoption of the entire private candidate once; waiting/saving are not completion.', {}, () => ({ kind: 'commit_edit' }))
   registerMutation('cancel_edit', 'Retire the private candidate; already-adopted saves retain their receipt.', {}, () => ({ kind: 'cancel_edit' }))
+  server.registerResource('clip-layer-authoring-schema-v1', SHOW_AUTHORING_SCHEMA_URI, {
+    title: 'Clip and Layer authoring schema v1',
+    description: 'Generated JSON Schema for visible Clip/Layer bulk command inputs. This is distinct from persisted ShowRecord JSON.',
+    mimeType: 'application/schema+json',
+  }, uri => ({ contents: [{ uri: uri.href, mimeType: 'application/schema+json', text: JSON.stringify(SHOW_AUTHORING_JSON_SCHEMA, null, 2) }] }))
+  server.registerResource('clip-layer-authoring-reference-v1', SHOW_AUTHORING_REFERENCE_URI, {
+    title: 'Clip and Layer authoring reference v1',
+    description: 'Global timing, patch/replace, shared-instance, atomicity, result, and executable example semantics.',
+    mimeType: 'text/markdown',
+  }, uri => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: SHOW_AUTHORING_REFERENCE_MARKDOWN }] }))
   server.server.registerCapabilities({ tools: { listChanged: false } })
   const transport = new WebStandardStreamableHTTPServerTransport({ enableJsonResponse: true })
   await server.connect(transport)

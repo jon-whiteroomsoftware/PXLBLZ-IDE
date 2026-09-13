@@ -21,6 +21,8 @@ export type ShowCommandContext = Pick<ShowAuthoringContext, 'source' | 'librarie
 export interface ShowCommandIssue {
   code: string
   message: string
+  /** JSONPath into the command input when the refusal belongs to one field. */
+  path?: string
   /** What the caller can do instead, where one exists. */
   remedy?: string
   /** Nearest known ids when an id failed to resolve. */
@@ -43,16 +45,30 @@ export type ShowCommandOutcome =
   | { ok: false; issues: ShowCommandIssue[] }
 
 /** Dependency-free input schema: enough for palettes and validation. */
-export interface ShowCommandField {
-  kind: 'string' | 'number' | 'integer' | 'boolean' | 'json' | 'layer' | 'easing'
+interface ShowCommandFieldBase {
   description: string
   optional?: boolean
-  /** For string fields limited to a closed set. */
-  enum?: readonly string[]
   /** May the value be null (distinct from omitted)? */
   nullable?: boolean
+  /** Domain-specific code when this field's primitive validation fails. */
+  issueCode?: string
+}
+
+export type ShowCommandField = ShowCommandFieldBase & (
+  | { kind: 'string'; enum?: readonly string[] }
+  | { kind: 'number'; minimum?: number; maximum?: number }
+  | { kind: 'integer'; safeInteger?: boolean; minimum?: number; maximum?: number }
+  | { kind: 'boolean' | 'json' | 'layer' | 'easing' }
+  | { kind: 'object'; properties: Record<string, ShowCommandField>; allowEmpty?: boolean }
+  | { kind: 'array'; items: ShowCommandField; minItems?: number; maxItems?: number }
+  | { kind: 'record'; values: ShowCommandField }
+  | { kind: 'union'; variants: readonly ShowCommandField[] }
+) & {
+  /** Legacy scalar aliases kept here for structural compatibility. */
   safeInteger?: boolean
   minimum?: number
+  maximum?: number
+  enum?: readonly string[]
 }
 
 export interface ShowCommandDescriptor {
@@ -66,6 +82,8 @@ export interface ShowCommandDescriptor {
   exactlyOne?: readonly string[]
   atLeastOne?: readonly string[]
   atMostOne?: readonly string[]
+  /** Independent semantic issues that can be collected alongside shape errors. */
+  preflight?: (record: ShowRecord, input: Record<string, unknown>, context?: ShowCommandContext) => ShowCommandIssue[]
   apply: (record: ShowRecord, input: Record<string, unknown>, context?: ShowCommandContext) => ShowCommandOutcome
 }
 
@@ -106,25 +124,78 @@ export function withComposition(record: ShowRecord, composition: ShowComposition
   return { ...record, composition: next, updatedAt: Math.max(Date.now(), record.updatedAt + 1) }
 }
 
-function fieldTypeMatches(field: ShowCommandField, value: unknown): boolean {
-  if (value === null) return field.nullable === true
+function validateField(field: ShowCommandField, value: unknown, path: string): ShowCommandIssue[] {
+  if (value === null) return field.nullable
+    ? []
+    : [{ code: 'invalid-argument', path, message: `${path} may not be null.` }]
+  const invalid = (expected: string): ShowCommandIssue[] => [{
+    code: field.issueCode ?? 'invalid-argument',
+    path,
+    message: `${path} must be ${expected}${field.nullable ? ' or null' : ''}.`,
+  }]
   switch (field.kind) {
     case 'string':
-      return typeof value === 'string' && (!field.enum || field.enum.includes(value))
+      return typeof value === 'string' && (!field.enum || field.enum.includes(value)) ? [] : invalid(field.enum ? `one of ${field.enum.join(', ')}` : 'a string')
     case 'number':
       return typeof value === 'number' && Number.isFinite(value)
+        && (field.minimum === undefined || value >= field.minimum)
+        && (field.maximum === undefined || value <= field.maximum) ? [] : invalid('a finite number in the supported range')
     case 'integer':
       return typeof value === 'number'
         && (field.safeInteger ? Number.isSafeInteger(value) : Number.isInteger(value))
         && (field.minimum === undefined || value >= field.minimum)
+        && (field.maximum === undefined || value <= field.maximum)
+        ? [] : invalid(field.safeInteger ? 'a safe integer in the supported range' : 'an integer in the supported range')
     case 'boolean':
-      return typeof value === 'boolean'
+      return typeof value === 'boolean' ? [] : invalid('a boolean')
     case 'layer':
-      return value === 'main' || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0)
+      return value === 'main' || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) ? [] : invalid('"main" or a zero-based Layer index')
     case 'easing':
-      return typeof value === 'string' ? ['linear', 'ease-in', 'ease-out', 'ease-in-out'].includes(value) : validateShowEasing(value).valid
+      return (typeof value === 'string' ? ['linear', 'ease-in', 'ease-out', 'ease-in-out'].includes(value) : validateShowEasing(value).valid) ? [] : invalid('a supported easing')
     case 'json':
-      return true
+      return []
+    case 'union': {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const discriminator = (value as Record<string, unknown>).kind
+        const variant = field.variants.find(candidate => (
+          candidate.kind === 'object'
+          && candidate.properties.kind?.kind === 'string'
+          && candidate.properties.kind.enum?.includes(discriminator as string)
+        ))
+        if (variant) return validateField(variant, value, path)
+      }
+      if (field.variants.some(variant => validateField(variant, value, path).length === 0)) return []
+      return invalid('one of the documented alternatives')
+    }
+    case 'array': {
+      if (!Array.isArray(value)) return invalid('an array')
+      if (field.minItems !== undefined && value.length < field.minItems) {
+        return [{ code: field.minItems === 1 ? 'empty-collection' : 'invalid-argument', path, message: `${path} requires at least ${field.minItems} item${field.minItems === 1 ? '' : 's'}.` }]
+      }
+      if (field.maxItems !== undefined && value.length > field.maxItems) {
+        return [{ code: 'batch-too-large', path, message: `${path} accepts at most ${field.maxItems} items.` }]
+      }
+      return value.flatMap((item, index) => validateField(field.items, item, `${path}[${index}]`))
+    }
+    case 'record': {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return invalid('an object')
+      return Object.entries(value).flatMap(([key, item]) => validateField(field.values, item, `${path}[${JSON.stringify(key)}]`))
+    }
+    case 'object': {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return invalid('an object')
+      const object = value as Record<string, unknown>
+      const issues: ShowCommandIssue[] = []
+      for (const [name, property] of Object.entries(field.properties)) {
+        if (object[name] === undefined) {
+          if (!property.optional) issues.push({ code: 'invalid-argument', path: `${path}.${name}`, message: `${path}.${name} is required (${property.description}).` })
+        } else issues.push(...validateField(property, object[name], `${path}.${name}`))
+      }
+      for (const name of Object.keys(object)) {
+        if (!Object.prototype.hasOwnProperty.call(field.properties, name)) issues.push({ code: 'unknown-field', path: `${path}.${name}`, message: `${path} has no field named "${name}".` })
+      }
+      if (!field.allowEmpty && Object.keys(object).length === 0) issues.push({ code: 'empty-patch', path, message: `${path} must contain at least one field.` })
+      return issues
+    }
   }
 }
 
@@ -153,14 +224,7 @@ export function validateShowCommandInput(
       }
       continue
     }
-    if (!fieldTypeMatches(field, value)) {
-      issues.push({
-        code: 'invalid-argument',
-        message:
-          `${descriptor.name}: field "${name}" must be ${field.enum ? `one of ${field.enum.join(', ')}` : field.kind}` +
-          `${field.nullable ? ' or null' : ''}.`,
-      })
-    }
+    issues.push(...validateField(field, value, `$.${name}`))
   }
   for (const name of Object.keys(input)) {
     if (!Object.prototype.hasOwnProperty.call(descriptor.fields, name)) {
@@ -182,8 +246,10 @@ import { SHOW_LAYER_TRANSITION_COMMANDS } from './layerTransitions'
 import { SHOW_OVERLAY_LAYER_COMMANDS } from './overlayLayers'
 import { SHOW_STRUCTURE_COMMANDS } from './structure'
 import { SHOW_TIMELINE_COMMANDS } from './timeline'
+import { SHOW_BULK_AUTHORING_COMMANDS } from './bulkAuthoring'
 
 export const SHOW_COMMANDS: ShowCommandDescriptor[] = [
+  ...SHOW_BULK_AUTHORING_COMMANDS,
   ...SHOW_CLIP_COMMANDS,
   ...SHOW_OVERLAY_LAYER_COMMANDS,
   ...SHOW_TIMELINE_COMMANDS,
@@ -211,7 +277,10 @@ export function applyShowCommand(
       candidates: SHOW_COMMANDS.map((command) => command.name),
     })
   }
-  const issues = validateShowCommandInput(descriptor, input)
+  const issues = [
+    ...validateShowCommandInput(descriptor, input),
+    ...(descriptor.preflight?.(record, input, context) ?? []),
+  ]
   if (issues.length > 0) return { ok: false, issues }
   return descriptor.apply(record, input, context)
 }

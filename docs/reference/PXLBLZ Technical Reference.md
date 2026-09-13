@@ -948,6 +948,14 @@ resize or copy refuses when a Scene or Transition gap cannot represent every
 divergent source presentation without flattening it.
 `add_clip` and `move_clip` share one Layer address (`main` or a nonnegative
 front-to-back overlay index) and report their accepted projected placement.
+The [versioned Clip and Layer authoring schema](agent-clip-layer-authoring.md)
+is the single recursive descriptor source for `create_clips`, `create_layers`,
+and `update_clips`; production MCP, built-in functions, diagnostic MCP, runtime
+validation, and published resources all derive their nested schemas from it.
+`showTimelineClipAuthoring.ts` owns the private final-state arrangement primitive
+that removes the named ordinary logical Clips, rebuilds them from the retained
+snapshot, and validates once. Existing sequential transactions do not acquire
+this temporary-collision exception.
 `showOverlayLayerAuthoring.ts` owns whole-Layer reorder and empty-only removal
 across internal Scenes. It admits only valid, uniform explicit target-Zone
 stacks without a target-Zone Group occurrence, preserves whole Layer objects,

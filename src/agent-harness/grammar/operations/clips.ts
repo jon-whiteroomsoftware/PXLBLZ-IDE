@@ -33,6 +33,8 @@ import { addClipCommandOutcome, independentClipCommandOutcome } from '@/engine/s
 
 const clipPropertyOperations = ['set_clip_aperture', 'set_clip_opacity', 'set_clip_transform', 'set_clip_view', 'set_clip_control_target', 'set_clip_time', 'set_clip_evaluation']
   .map(name => descriptorOperation(SHOW_COMMANDS.find(command => command.name === name)!))
+const bulkAuthoringOperations = ['create_clips', 'create_layers', 'update_clips']
+  .map(name => descriptorOperation(SHOW_COMMANDS.find(command => command.name === name)!))
 
 function unknownZone(document: ShowGrammarDocument, zoneId: string): GrammarIssue {
   return {
@@ -241,6 +243,7 @@ export const CLIP_OPERATIONS: ShowGrammarOperation[] = [
   makeClipPatternIndependent,
   rejoinClipPatternInstance,
   restartClip,
+  ...bulkAuthoringOperations,
   ...clipPropertyOperations,
   addOverlayLayer,
   ...wholeOverlayLayerOperations,

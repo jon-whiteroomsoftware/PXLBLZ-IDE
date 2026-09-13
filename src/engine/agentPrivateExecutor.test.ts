@@ -35,6 +35,48 @@ describe('browser private edit executor', () => {
     expect(owner.capture).toHaveBeenCalledTimes(1)
   })
 
+  it('preserves one aggregate bulk change and detailed shared-instance impact through adoption', () => {
+    const { owner, send, current } = setup()
+    expect(send(0, { kind: 'begin_edit', intent: 'Slow both linked Clips' }).code).toBe('begun')
+    const result = send(1, {
+      kind: 'command', name: 'update_clips', arguments: {
+        schema_version: 1,
+        updates: [
+          { clip_id: 'clip-a', properties: { time: { time_scale: 0.5 } } },
+          { clip_id: 'clip-c', properties: { time: { time_scale: 0.5 } } },
+        ],
+      },
+    })
+    expect(result).toMatchObject({
+      code: 'changed',
+      changes: [{
+        description: 'Updated speed on 2 Clips.',
+        details: { directClipIds: ['clip-a', 'clip-c'], linkedClipIds: [], changedPaths: ['time.time_scale'] },
+      }],
+    })
+    expect(owner.apply).not.toHaveBeenCalled()
+    expect(send(2, { kind: 'commit_edit' })).toMatchObject({ code: 'outcome' })
+    expect(current().composition!.patternInstances.find(instance => instance.id === 'instance-a')!.time.timeScale).toBe(0.5)
+    expect(owner.apply).toHaveBeenCalledTimes(1)
+  })
+
+  it('completes a command-only no-op without adopting or saving', () => {
+    const { owner, send } = setup()
+    expect(send(0, { kind: 'begin_edit', intent: 'Keep the existing brightness' }).code).toBe('begun')
+    expect(send(1, {
+      kind: 'command', name: 'update_clips', arguments: {
+        schema_version: 1,
+        updates: [{ clip_id: 'clip-a', properties: { view: { brightness: 1 } } }],
+      },
+    })).toEqual({ code: 'noop', changes: [] })
+    expect(send(2, { kind: 'commit_edit' })).toMatchObject({
+      code: 'outcome',
+      receipt: { status: 'completed', completion: 'nothing-applied' },
+    })
+    expect(owner.complete).toHaveBeenCalledWith(expect.anything(), 'nothing-applied')
+    expect(owner.apply).not.toHaveBeenCalled()
+  })
+
   it('a refused command discards preceding private changes atomically', () => {
     const { owner, send } = setup()
     send(0, begin); send(1, resize)

@@ -123,7 +123,7 @@ it('discovers OAuth and MCP through the actual Worker with the finite canonical 
   }
   const initialize = await rpc('initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } })
   expect(initialize.status).toBe(200)
-  expect(await initialize.json()).toMatchObject({ result: { capabilities: { tools: {} } } })
+  expect(await initialize.json()).toMatchObject({ result: { capabilities: { tools: {}, resources: {} }, instructions: expect.stringContaining('clip-layer-authoring/v1') } })
   const listing = await rpc('tools/list')
   const tools = (await listing.json() as { result: { tools: Array<{ name: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] } }> } }).result.tools
   expect(tools.map(tool => tool.name).sort()).toEqual(['get_connection', 'list_commands', 'read_show', 'get_context', 'begin_edit', 'commit_edit', 'get_outcome', 'cancel_edit', ...SHOW_COMMANDS.map(command => command.name)].sort())
@@ -137,6 +137,18 @@ it('discovers OAuth and MCP through the actual Worker with the finite canonical 
     expect(schema.properties).toMatchObject({ layer_index: { type: 'integer', minimum: 0 } })
     expect(schema.required).toContain('layer_index')
   }
+  const createClips = tools.find(tool => tool.name === 'create_clips')!.inputSchema
+  expect(createClips.properties).toMatchObject({
+    schema_version: { type: 'integer', minimum: 1, maximum: 1 },
+    clips: { type: 'array', minItems: 1, maxItems: 128, items: { type: 'object', additionalProperties: false } },
+  })
+  const resources = await rpc('resources/list')
+  expect(await resources.json()).toMatchObject({ result: { resources: expect.arrayContaining([
+    expect.objectContaining({ uri: 'pxlblz://schemas/clip-layer-authoring/v1' }),
+    expect.objectContaining({ uri: 'pxlblz://docs/clip-layer-authoring/v1' }),
+  ]) } })
+  const reference = await rpc('resources/read', { uri: 'pxlblz://docs/clip-layer-authoring/v1' })
+  expect(await reference.json()).toMatchObject({ result: { contents: [expect.objectContaining({ text: expect.stringContaining('create_layers') })] } })
   expect((await runtime.dispatchFetch(`https://app.test/mcp?access_token=${tokens.access_token}`)).status).toBe(401)
   expect((await runtime.dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}`, Origin: 'https://hostile.test' } })).status).toBe(403)
   expect((await exchange({ token: tokens.refresh_token })).status).toBe(200)

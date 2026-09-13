@@ -18,6 +18,10 @@ it('executes canonical commands privately and adopts only explicit apply complet
   expect(result).toMatchObject({ code: 'outcome', message: 'Requested rename' })
   expect(f.deliveries.map(x => x.kind)).toEqual(['begin_edit', 'command', 'commit_edit'])
   expect(f.dispatch).toHaveBeenCalledTimes(2)
+  const firstRequest = (f.dispatch.mock.calls as unknown as Array<[{ input: Array<{ role?: string; content?: string }> }]>)[0][0]
+  expect(firstRequest.input[0]).toMatchObject({
+    role: 'developer', content: expect.stringContaining('Clip and Layer authoring schema v1'),
+  })
 })
 it.each(['ask', 'refuse', 'incomplete'])('discards private work for explicit %s', async outcome => {
   const f = fixture([[call('finish_turn', { outcome, message: 'More information' })]])

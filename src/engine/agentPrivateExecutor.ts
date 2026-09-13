@@ -95,6 +95,7 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
     const candidate = operation.private
     finish(delivery.operationId, operation)
     if (payload.kind === 'complete_edit') return outcome(owner.complete(operation.request, payload.completion))
+    if (candidate.changes.length === 0) return outcome(owner.complete(operation.request, 'nothing-applied'))
     return { ...outcome(owner.apply(candidate.show, operation.request, candidate.resize)), changes: structuredClone(candidate.changes) }
   }
   return {

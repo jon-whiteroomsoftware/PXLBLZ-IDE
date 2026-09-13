@@ -173,6 +173,43 @@ function trackTimes(record: ShowRecord, trackId: string): number[] {
 }
 
 export const GOLDEN_RUNS: Record<string, () => void> = {
+  create_clips: () => {
+    const before = showOverlayLayerFixture()
+    before.composition!.executionModel = 'deterministic-loop'
+    const { record } = applyOk(before, 'create_clips', {
+      schema_version: 1,
+      clips: [
+        { zone_id: 'zone-1', layer: 'main', start_ms: 36_000, duration_ms: 1_000, pattern: { kind: 'stock', id: 'CometLoom' } },
+        { zone_id: 'zone-1', layer: 0, start_ms: 36_000, duration_ms: 1_000, pattern: { kind: 'stock', id: 'CometLoom' } },
+      ],
+    }, propertyContext)
+    expect(record.composition!.patternInstances).toHaveLength(showOverlayLayerFixture().composition!.patternInstances.length + 2)
+  },
+  create_layers: () => {
+    const { record } = applyOk(stampedCommandFixture(), 'create_layers', {
+      schema_version: 1,
+      layers: [{ zone_id: 'zone-1', clips: [{ start_ms: 32_000, duration_ms: 1_000, pattern: { kind: 'stock', id: 'CometLoom' } }] }],
+    }, propertyContext)
+    expect(record.composition!.scenes.every(scene => scene.zones[0].overlays.length > 0)).toBe(true)
+  },
+  update_clips: () => {
+    const before = showOverlayLayerFixture()
+    before.composition!.patternInstances.find(instance => instance.id === 'instance-a')!.controlTargets = { sliderSpeed: 0.8 }
+    before.composition!.scenes[0].propertyTracks = [{
+      id: 'bulk-control-track',
+      target: { kind: 'instance-control', instanceId: 'instance-a', exportName: 'sliderSpeed' },
+      keyframes: [{ id: 'bulk-control-kf', timeMs: 0, value: 0.8, easing: { curve: 'linear' } }],
+    }]
+    const { record } = applyOk(before, 'update_clips', {
+      schema_version: 1,
+      updates: [
+        { clip_id: 'clip-a', properties: { opacity: 0.7, controls: { sliderSpeed: null } } },
+        { clip_id: 'clip-ov', properties: { view: { brightness: 0.4 } } },
+      ],
+    }, propertyContext)
+    expect(record.composition!.patternInstances.find(instance => instance.id === 'instance-a')!.controlTargets).toBeUndefined()
+    expect(record.composition!.scenes[0].propertyTracks).toBeUndefined()
+  },
   set_clip_aperture: () => {
     for (const clip_id of ['clip-a', 'clip-ov']) {
       const before = showOverlayLayerFixture()
@@ -1558,8 +1595,21 @@ function permittedEntityIds({ command, input, changes, before }: AppliedRecord):
   for (const change of changes) {
     add(change.targetId)
     for (const key of ['leftClipId', 'rightClipId', 'newInstanceId', 'instanceId', 'intervalId']) add(change.details?.[key])
-    for (const key of ['movedClipIds', 'changedClipIds']) for (const id of (change.details?.[key] as string[] | undefined) ?? []) add(id)
+    for (const key of ['movedClipIds', 'changedClipIds', 'directClipIds', 'linkedClipIds', 'changedInstanceIds']) {
+      for (const id of (change.details?.[key] as string[] | undefined) ?? []) add(id)
+    }
     for (const id of Object.values((change.details?.layerIdsBySceneId as Record<string, string> | undefined) ?? {})) add(id)
+    for (const item of (change.details?.results as Array<{ clipId?: string; instanceId?: string }> | undefined) ?? []) {
+      add(item.clipId)
+      add(item.instanceId)
+    }
+    for (const layer of (change.details?.layers as Array<{
+      layerIdsBySceneId?: Record<string, string>
+      clipResults?: Array<{ clipId?: string; instanceId?: string }>
+    }> | undefined) ?? []) {
+      for (const id of Object.values(layer.layerIdsBySceneId ?? {})) add(id)
+      for (const item of layer.clipResults ?? []) { add(item.clipId); add(item.instanceId) }
+    }
     for (const item of (change.details?.transitionChanges as { transitionId: string }[] | undefined) ?? []) add(item.transitionId)
     if (command === 'edit_property_keyframes') {
       for (const item of (change.details?.results as Array<{ keyframeId?: string }> | undefined) ?? []) add(item.keyframeId)
@@ -1578,9 +1628,12 @@ function permittedEntityIds({ command, input, changes, before }: AppliedRecord):
     ...zone.overlays.flatMap(layer => layer.placements.map(placement => ({ placement, sceneId: scene.sceneId }))),
   ]))
   const clipRoots = new Set<string>()
-  if (['move_clip', 'resize_clip', 'split_clip', 'remove_clip', 'make_clip_pattern_independent', 'rejoin_clip_pattern_instance'].includes(command)) {
+  if (['move_clip', 'resize_clip', 'split_clip', 'remove_clip', 'make_clip_pattern_independent', 'rejoin_clip_pattern_instance', 'update_clips'].includes(command)) {
     if (typeof input.clip_id === 'string') clipRoots.add(input.clip_id)
-    for (const id of ids) if (placements.some(({ placement }) => (placement.logicalClipId ?? placement.id) === id)) clipRoots.add(id)
+    const directIds = command === 'update_clips'
+      ? new Set(changes.flatMap(change => (change.details?.directClipIds as string[] | undefined) ?? []))
+      : ids
+    for (const id of directIds) if (placements.some(({ placement }) => (placement.logicalClipId ?? placement.id) === id)) clipRoots.add(id)
   }
   if (['insert_layer_transition', 'resize_layer_transition', 'reset_layer_transition_to_cut'].includes(command)) {
     const target = composition.transitions?.find(item => item.id === input.transition_id)
@@ -1594,10 +1647,23 @@ function permittedEntityIds({ command, input, changes, before }: AppliedRecord):
   }
   const selected = placements.filter(({ placement }) => clipRoots.has(placement.logicalClipId ?? placement.id))
   const affectedInstances = new Set<string>()
+  if (command === 'update_clips') {
+    for (const change of changes) for (const id of (change.details?.changedInstanceIds as string[] | undefined) ?? []) affectedInstances.add(id)
+  }
   for (const { placement } of selected) {
     add(placement.id)
     const soleUser = placements.every(other => other.placement.instanceId !== placement.instanceId || clipRoots.has(other.placement.logicalClipId ?? other.placement.id))
     if (soleUser && ['remove_clip', 'rejoin_clip_pattern_instance', 'move_clip', 'resize_clip', 'insert_layer_transition', 'resize_layer_transition', 'reset_layer_transition_to_cut'].includes(command)) affectedInstances.add(placement.instanceId)
+  }
+  if (command === 'update_clips') {
+    for (const id of affectedInstances) add(id)
+    const clearsEffects = (input.updates as Array<{ clip_id?: string; properties?: { effects?: unknown[] } }> | undefined) ?? []
+    for (const update of clearsEffects) {
+      if (!Object.prototype.hasOwnProperty.call(update.properties ?? {}, 'effects')) continue
+      for (const { placement } of placements) if ((placement.logicalClipId ?? placement.id) === update.clip_id) {
+        for (const effect of placement.effects ?? []) add(effect.id)
+      }
+    }
   }
   if (['remove_clip', 'rejoin_clip_pattern_instance'].includes(command)) for (const id of affectedInstances) add(id)
   for (const transition of composition.transitions ?? []) {

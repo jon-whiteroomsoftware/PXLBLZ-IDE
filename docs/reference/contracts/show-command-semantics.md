@@ -50,6 +50,32 @@ revision comparison, concurrent merge, cancellation, or persistence guarantee.
 See [Show state, history, and persistence](show-state-history-persistence.md)
 for adoption and save behavior.
 
+### Bounded final-state bulk exception
+
+`create_clips`, `create_layers`, and `update_clips` use the versioned
+[Clip and Layer authoring vocabulary](../agent-clip-layer-authoring.md). Each
+command forms one private candidate and validates only its final arrangement;
+ordinary command transactions retain their sequential validation contract.
+This bounded exception permits ordinary Clip swaps, rotations, combined
+move/resize, and cross-Layer exchange without publishing or validating a
+temporary collision. Every target and destination Layer resolves against the
+same original snapshot, and payload order cannot choose the result.
+
+The operation remains all-or-nothing through caller adoption. Exact timing
+does not clamp, ripple, extend Show End, or cross a visual Transition window.
+Unsupported Group, connected Transition, segmented-presentation, and animation
+ownership topologies refuse explicitly. Property application uses existing
+inspector normalization and metadata admission; shared-instance leaf writes
+coalesce by canonical requested meaning and conflicts report every input path.
+The 128-item bound is part of the generated schema and refuses rather than
+truncating.
+
+One successful bulk command returns at most one aggregate change. Its details
+carry input mappings, direct and linked logical Clip IDs, final destination and
+timing, distinct changed paths, and per-input status. A valid full no-op returns
+the original record and no change, so callers create no activity, timestamp,
+history, adoption, or save entry.
+
 ## Ownership and evidence
 
 [Registry types and evaluation](../../../src/engine/showCommands/registry.ts)

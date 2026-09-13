@@ -69,6 +69,7 @@ type ShowAuthoringOperation =
   | 'transition'
   | 'animation-track'
   | 'animation-edit'
+  | 'bulk'
 
 interface MutationTarget {
   operation: ShowAuthoringOperation
@@ -82,6 +83,36 @@ export interface ResolvedMutationTarget extends MutationTarget {
 }
 
 const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
+  target(
+    'bulk',
+    'showTimelineClipAuthoring.ts',
+    'arrangeShowClipsFinalState',
+    'if (issues.length > 0) {',
+  ),
+  target(
+    'bulk',
+    'showCommands/bulkAuthoring.ts',
+    'updateClipsOutcome',
+    "if ('issues' in propertyResult) return { ok: false, issues: propertyResult.issues }",
+  ),
+  target(
+    'bulk',
+    'showCommands/bulkAuthoring.ts',
+    'propertyPatch',
+    "const prior = current.simulation.lightShutter || { rateHz: 8, duty: 0.5, phase: 0, clockBehavior: 'continue' as const }",
+  ),
+  target(
+    'bulk',
+    'showCommands/bulkAuthoring.ts',
+    'validateSharedConflicts',
+    'const exactConflict = a.path === b.path && canonical(a.value) !== canonical(b.value)',
+  ),
+  target(
+    'bulk',
+    'showCommands/bulkAuthoring.ts',
+    'updateClipsOutcome',
+    'const changedPaths = [...new Set(changedByInput.flat())].sort()',
+  ),
   target(
     'move',
     'showTimelineClipAuthoring.ts',
@@ -276,6 +307,8 @@ export function buildStrykerConfig(repoRoot: string) {
       'src/engine/showClipInspectorModel.test.ts',
       'src/engine/showLayerTransitionAuthoring.test.ts',
       'src/engine/showCommands/animationExpansion.test.ts',
+      'src/engine/showCommands/bulkAuthoring.test.ts',
+      'src/engine/showCommands/bulkAuthoring.partitions.test.ts',
     ],
     vitest: {
       configFile: 'vitest.mutation.config.ts',
