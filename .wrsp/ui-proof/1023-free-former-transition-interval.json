@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1023",
+  "route": "/PXLBLZ-IDE/studio/shows/boundary-delete-success-1023",
+  "operation": "Deleted both starter Clips, used Undo and Redo, then Cloned overlay-a into the freed former Transition interval. The timeline shows the Clone from 30000–60000 ms with no boundary junction and the Show remains 62000 ms long.",
+  "captures": [".wrsp/ui-proof/1023-free-former-transition-interval.png"],
+  "capturedAtCommit": "2595e76fe758b42f4939fdfb7c1fc25e5d4b2f92"
+}
