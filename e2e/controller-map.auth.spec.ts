@@ -77,7 +77,7 @@ test('a Controller with no map stays settled across panel polling, reopen, and T
   expect((await counts()).maps).toBe(1)
   await toggle.click()
   await page.getByRole('button', { name: 'Unpin Controllers list', exact: true }).click()
-  await page.setViewportSize({ width: 640, height: 900 })
+  await page.setViewportSize({ width: 900, height: 900 })
   await toggle.click()
   await expect(panel.getByText('No installed map', { exact: true })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('no-map-narrow.png') })
