@@ -94,7 +94,7 @@ test('deletes both starter Clips, exposes the former Transition time, and Clones
 })
 
 test('reports shared animation state through the existing Clip feedback without saving (#1023)', async ({ page }) => {
-  const show = boundaryClipDeletionFixture(`boundary-delete-shared-${Date.now().toString(36)}`)
+  const show = boundaryClipDeletionFixture('boundary-delete-shared-1023')
   show.composition!.scenes[1].zones[0].overlays[0].placements.push({
     ...boundaryDeletionPlacement('shared-later', 1_000, 1_000, 'instance-starter-a'),
     opacity: 1,
@@ -128,7 +128,7 @@ test('reports shared animation state through the existing Clip feedback without 
 })
 
 test('reports actual Trails state through the existing Clip feedback at narrow width without saving (#1023)', async ({ page }) => {
-  const show = boundaryClipDeletionFixture(`boundary-delete-trails-${Date.now().toString(36)}`)
+  const show = boundaryClipDeletionFixture('boundary-delete-trails-1023')
   show.outputEffects = [{ id: 'trails', kind: 'trails', retention: 0.8 }]
   const created = await page.context().request.post('/api/shows', { data: show })
   expect(created.ok(), await created.text()).toBe(true)
