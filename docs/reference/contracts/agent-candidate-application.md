@@ -594,8 +594,9 @@ defines stale reconstruction and prepared Controller snapshot ownership.
 
 ## Agent drawer
 
-The editable Show route's exact `?agent=1` gate exposes a right-edge Agent
-drawer in production and development. Its session activity and timeline attribution project
+An ordinary editable Show route exposes a right-edge Agent drawer after the
+signed-in capability response resolves; an unknown response exposes no built-in
+choice. Its session activity and timeline attribution project
 the existing admission and save outcomes. The drawer does not own Show edits,
 history, rollback, or persistence. The loopback diagnostic bridge attaches to
 this surface in development. Production built-in dispatch uses the shared

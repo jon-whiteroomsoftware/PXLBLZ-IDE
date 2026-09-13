@@ -10,6 +10,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "pxlblz-ide-worker",
   "compatibility_date": "2026-06-30",
+  "compatibility_flags": ["global_fetch_strictly_public"],
   "main": "src/worker/index.ts",
   "assets": {
     "directory": "./dist",

@@ -1284,8 +1284,8 @@ ease-in-out curves in both directions; reduced motion removes the transition.
 Studio drawer containers clip translated drawer travel within the workspace,
 without becoming scroll containers themselves. Hidden announcements have explicit
 inset anchors so reversed flex layout cannot extend the document's scroll range.
-This applies with and without the Show-only Agent URL opt-in; content scrolling
-belongs to the panes.
+This also applies when the capability-driven Show Agent drawer is present;
+content scrolling belongs to the panes.
 
 Panes retain explicit minimums and remembered per-entity
 divider widths. Shows replace the desktop center/right split with the
@@ -1682,8 +1682,11 @@ movement and checks every collision; strict raw final validation precedes
 candidate delivery. The [command contract](contracts/show-command-semantics.md#private-two-clip-rearrangement)
 defines this finite exception and its ownership limits.
 
-The editable Show route (`?agent=1`) exposes the production Agent drawer.
-Authenticated built-in requests use Luna Fast mode through the Worker service, shared account slot and
+An ordinary editable Show route exposes the production Agent drawer after the
+signed-in session resolves its effective agent capabilities. External MCP is
+available to every signed-in account while the service is enabled; the built-in
+choice appears only when the server reports its separate allowlist-backed
+capability. Authenticated built-in requests use Luna Fast mode through the Worker service, shared account slot and
 browser private executor. The pure drawer model projects owned admission/save
 receipts and successful registry attribution; existing history and persistence
 owners remain authoritative. Each built-in operation owns one activity row from

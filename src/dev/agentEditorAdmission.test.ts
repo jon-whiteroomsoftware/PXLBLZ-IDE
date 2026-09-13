@@ -22,10 +22,10 @@ async function setup() {
   stop = api.close
   return api
 }
-it.each(['', '?agent', '?agent=0', '?agent=true', '?agent=2'])('cannot register without exact opt-in %s', async query => {
+it.each(['', '?agent', '?agent=0', '?agent=true', '?agent=2', '?agent=1'])('admits an ordinary or legacy Show URL %s', async query => {
   const api = await setup()
   window.history.replaceState(null, '', '/studio/shows/test' + query)
-  expect(api.beginRequest('op', 'rename', [])).toBeUndefined()
+  expect(api.beginRequest('op', 'rename', [])).toBeDefined()
 })
 it('registers before inference and refuses edit-undo ABA without another history/save', async () => {
   const api = await setup()
@@ -49,13 +49,18 @@ it('adopts once, retains truthful settlement and rejects tokenless mutation', as
   expect(api.applyShow({ ...candidate, name: 'Bypass' }, undefined)).toMatchObject({ status: 'refused' })
   expect(state().shows[0].name).toBe('Agent')
 })
-it.each(['query ABA', 'navigation', 'close', 'source ABA'] as const)('retires or invalidates pending work on %s', async action => {
+it('preserves pending work across legacy query changes', async () => {
   const api = await setup()
   const captured = api.beginRequest('op', 'rename', [])!
-  if (action === 'query ABA') {
-    window.history.replaceState(null, '', '/studio/shows/test?agent=0')
-    window.history.replaceState(null, '', '/studio/shows/test?agent=1')
-  } else if (action === 'navigation') {
+  window.history.replaceState(null, '', '/studio/shows/test?agent=0')
+  window.history.replaceState(null, '', '/studio/shows/test?agent=1')
+  expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request)).toMatchObject({ status: 'applied' })
+  await vi.waitFor(() => expect(writes).toHaveBeenCalledOnce())
+})
+it.each(['navigation', 'close', 'source ABA'] as const)('retires or invalidates pending work on %s', async action => {
+  const api = await setup()
+  const captured = api.beginRequest('op', 'rename', [])!
+  if (action === 'navigation') {
     window.history.pushState(null, '', '/studio?agent=1')
     window.history.pushState(null, '', '/studio/shows/test?agent=1')
   } else if (action === 'close') api.close()

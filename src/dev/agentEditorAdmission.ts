@@ -1,6 +1,6 @@
 import { createAgentEditorAdmission as createAdmission } from '@/agent/editorAdmission'
 import { recordAgentObservation, showRecordDigest } from './agentObservation'
-export { agentUrlEnabled, observeAgentLocation } from '@/agent/editorAdmission'
+export { observeAgentLocation } from '@/agent/editorAdmission'
 
 /** Diagnostic compatibility only; production imports the shared owner directly. */
 export function createAgentEditorAdmission(...args: Parameters<typeof createAdmission>) {

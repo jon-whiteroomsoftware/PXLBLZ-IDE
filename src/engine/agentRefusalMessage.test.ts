@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 import { agentRefusalMessage } from './agentRefusalMessage'
 
 it.each([
-  ['service_disabled', 'The Pixelblaze agent is unavailable right now.'],
+  ['service_disabled', 'Agent connections are unavailable right now.'],
   ['not_allowed', 'Agent editing is not enabled for this account.'],
   ['unauthorized', 'Sign in to use agent editing.'],
   ['exhausted', 'The shared daily allowance has been used. Try again tomorrow.'],

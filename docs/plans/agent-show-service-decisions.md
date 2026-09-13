@@ -1,5 +1,12 @@
 # Agent Show service decisions (#956)
 
+> **Superseded in part by #1009 (2026-09-12):** ordinary signed-in editable
+> Show URLs now expose the capability-driven drawer without `?agent=1`.
+> External MCP is available to authenticated accounts while enabled; the
+> built-in Pixelblaze agent retains the allowlist and allowance described here.
+> The remaining connection, inference, accounting, and outcome decisions still
+> apply.
+
 The first service is for a small allowlisted testing audience. Reuse the existing app and
 OpenAI setup, keep the feature absent without explicit URL opt-in, and preserve manual Show
 editing throughout failures. Jon approved the complete policy package on 2026-09-08. It does not authorize deployment or claim a live

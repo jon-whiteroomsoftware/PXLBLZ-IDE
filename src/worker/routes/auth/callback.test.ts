@@ -1,5 +1,6 @@
 import { afterEach, vi } from 'vitest'
 import {
+  agentContinuationCookieName,
   createSessionToken,
   oauthModeCookieName,
   oauthProviderCookieName,
@@ -90,6 +91,36 @@ afterEach(() => {
 })
 
 describe('OAuth callback', () => {
+  it('resumes a validated MCP continuation after sign-in and retains it for one same-origin request', async () => {
+    stubGitHubProvider({ id: 123, login: 'octocat', name: 'The Octocat' }, [])
+    const response = await onRequestGet({
+      request: callbackRequest('github', { continuation: '00000000-0000-4000-8000-000000000000' }),
+      env: githubEnvironment(new MemoryAuthDatabase()),
+    })
+
+    expect(response.headers.get('Location')).toBe('https://pxlblz.example/oauth/authorize')
+    expect(response.headers.get('Set-Cookie')).not.toContain(`${agentContinuationCookieName}=;`)
+    await expect(responseSession(response)).resolves.toMatchObject({ userId: 'github:123' })
+  })
+
+  it('never resumes MCP continuation for link mode and clears it on cancellation', async () => {
+    const continuation = '00000000-0000-4000-8000-000000000000'
+    const cancelled = await onRequestGet({
+      request: new Request('https://pxlblz.example/api/auth/callback?error=access_denied', { headers: { Cookie: `${oauthProviderCookieName}=github; ${agentContinuationCookieName}=${continuation}` } }),
+      env: githubEnvironment(new MemoryAuthDatabase()),
+    })
+    expect(cancelled.headers.get('Location')).toContain('auth=error')
+    expect(cancelled.headers.get('Set-Cookie')).toContain(`${agentContinuationCookieName}=;`)
+
+    const linkSession = await createSessionToken({ userId: 'github:owner', primaryProvider: 'github', primaryHandle: null, displayName: null, avatarUrl: null }, 'session-secret')
+    stubGitHubProvider({ id: 123, login: 'octocat', name: 'The Octocat' }, [])
+    const linked = await onRequestGet({
+      request: callbackRequest('github', { mode: 'link', sessionToken: linkSession, continuation }),
+      env: githubEnvironment(new MemoryAuthDatabase()),
+    })
+    expect(linked.headers.get('Location')).toContain('/PXLBLZ-IDE/?auth=success')
+    expect(linked.headers.get('Set-Cookie')).toContain(`${agentContinuationCookieName}=;`)
+  })
   it('opens a durable session for a first-time GitHub identity without beta access', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
       const url = String(input)
@@ -468,6 +499,7 @@ function callbackRequest(
     mode?: 'link'
     sessionToken?: string
     returnedState?: string
+    continuation?: string
   } = {},
 ): Request {
   const cookies = [
@@ -476,6 +508,7 @@ function callbackRequest(
     `${oauthProviderCookieName}=${provider}`,
     options.mode ? `${oauthModeCookieName}=${options.mode}` : '',
     options.sessionToken ? `${sessionCookieName}=${encodeURIComponent(options.sessionToken)}` : '',
+    options.continuation ? `${agentContinuationCookieName}=${options.continuation}` : '',
   ].filter(Boolean).join('; ')
   return new Request(
     `https://pxlblz.example/api/auth/callback?code=provider-code&state=${options.returnedState ?? 'expected-state'}`,

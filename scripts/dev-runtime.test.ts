@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   ensureSharedDevVarsLink,
+  issueViteEnvironment,
   parseDevRuntimeArgs,
   probeService,
   runtimeBranchLabel,
@@ -45,6 +46,24 @@ describe('development runtime command', () => {
     expect(runtimeBranchLabel('', '02d8d9badfcc2fda2b4a96919db1375f9c23c0d6'))
       .toBe('detached@02d8d9badfcc')
     expect(runtimeBranchLabel('codex/issue-627', '02d8d9badfcc')).toBe('codex/issue-627')
+  })
+
+  it('gives each isolated Worker its own canonical OAuth origin', () => {
+    expect(issueViteEnvironment(
+      { uiPort: 5211 },
+      { kind: 'worker', persistState: '/tmp/issue-1009' },
+    )).toEqual({
+      VITE_PORT: '5211',
+      VITE_CF_PERSIST_STATE: '/tmp/issue-1009',
+      PXLBLZ_DEV_AGENT_OAUTH_ORIGIN: 'http://localhost:5211',
+    })
+    expect(issueViteEnvironment(
+      { uiPort: 5175 },
+      { kind: 'proxy', target: 'http://localhost:5174' },
+    )).toEqual({
+      VITE_PORT: '5175',
+      VITE_API_PROXY_TARGET: 'http://localhost:5174',
+    })
   })
 })
 

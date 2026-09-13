@@ -19,9 +19,13 @@ export interface AuthenticatedUser {
   identities: ConnectedIdentity[]
 }
 
+export type AgentCapabilities =
+  | { external: false; builtin: boolean }
+  | { external: true; builtin: boolean; endpoint: string }
+
 export type AuthSession =
   | { authenticated: false }
-  | { authenticated: true; user: AuthenticatedUser }
+  | { authenticated: true; user: AuthenticatedUser; agentCapabilities?: AgentCapabilities }
 
 export const authSessionTimeoutMs = 8_000
 

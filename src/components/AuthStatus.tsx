@@ -24,7 +24,7 @@ export function AuthStatus() {
       .then((next) => {
         if (!cancelled) {
           setSession(next)
-          setPersonalWorkspaceAuthenticated(next.authenticated)
+          setPersonalWorkspaceAuthenticated(next.authenticated, next.authenticated ? next.agentCapabilities ?? null : null)
         }
       })
       .catch(() => {

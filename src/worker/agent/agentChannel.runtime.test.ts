@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest'
 import { build } from 'esbuild'
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 import { createSessionToken } from '../../cloudflare/auth'
+import { STOCK_SHOW_IDS } from '../../pixelblaze/stock/showIds'
 
 // Miniflare 5 alpha's ReplaceWorkersTypes maps this namespace to Request under
 // the app's DOM types. Keep the consumed runtime interface explicit here.
@@ -19,7 +20,7 @@ beforeAll(async () => {
   }))
   const db = await runtime.getD1Database('PXLBLZ_DB')
   await db.exec("CREATE TABLE personal_shows (user_id TEXT, id TEXT)")
-  await db.exec("INSERT INTO personal_shows VALUES ('account-a', 'show-a'), ('account-b', 'show-b'), ('account-c', 'show-c')")
+  await db.exec("INSERT INTO personal_shows VALUES ('account-a', 'show-a'), ('account-b', 'show-b'), ('account-c', 'show-c'), ('unlisted', 'show-u')")
   cookie = `pxlblz_session=${await createSessionToken({ userId: 'account-a', primaryProvider: 'github', primaryHandle: null, displayName: null, avatarUrl: null }, 'test-secret')}`
 }, 30_000)
 afterAll(async () => { await runtime?.dispose() })
@@ -48,13 +49,13 @@ async function sessionCookie(userId: string) {
 async function requestAs(userId: string, body: unknown, query = '?agent=1', origin = 'https://app.test') {
   return runtime.dispatchFetch(`https://app.test/api/agent/channel${query}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin, Cookie: await sessionCookie(userId) }, body: JSON.stringify(body) })
 }
-it('rejects absent/duplicate opt-in, hostile origin, unlisted accounts and wrong-owner Shows before disclosure', async () => {
+it('accepts ordinary and legacy URLs for non-allowlisted accounts while preserving origin and Show ownership', async () => {
   const body = { type: 'register', sessionId: 'refused-session', showId: 'show-a' }
   for (const query of ['', '?agent=0', '?agent=1&agent=1']) {
-    expect(await (await requestAs('account-a', body, query)).json()).toEqual({ code: 'opt_in_required' })
+    expect(await (await requestAs('account-a', { ...body, sessionId: `session-${query}` }, query)).json()).toMatchObject({ code: 'registered' })
   }
   expect(await (await requestAs('account-a', body, '?agent=1', 'https://hostile.test')).json()).toEqual({ code: 'invalid_origin' })
-  expect(await (await requestAs('unlisted', body)).json()).toEqual({ code: 'not_allowed' })
+  expect(await (await requestAs('unlisted', { ...body, showId: 'show-u' })).json()).toMatchObject({ code: 'registered' })
   expect(await (await requestAs('account-b', body)).json()).toEqual({ code: 'show_unavailable' })
 })
 it('rejects cookie-backed external claims and forged actor/account fields', async () => {
@@ -98,7 +99,7 @@ it('bounds account channel traffic atomically', async () => {
   expect(responses.filter((response) => response.status === 409)).toHaveLength(240)
   expect(await responses.find((response) => response.status === 429)!.json()).toEqual({ code: 'throttled' })
 })
-it('can retire its own window after URL opt-out or Show deletion', async () => {
+it('can retire its own window after capability loss or Show deletion', async () => {
   const registration = await (await requestAs('account-a', { type: 'register', showId: 'show-a', sessionId: 'leaving' })).json() as { registrationId: string }
   const db = await runtime.getD1Database('PXLBLZ_DB')
   await db.prepare('DELETE FROM personal_shows WHERE user_id = ? AND id = ?').bind('account-a', 'show-a').run()
@@ -151,7 +152,7 @@ it('expires an incoming call on the real runtime clock without an automatic new 
 
 it.each([
   { service: '0', allowlist: 'account-a', refusal: 'service_disabled' },
-  { service: '1', allowlist: 'another-account', refusal: 'not_allowed' },
+  { service: '1', allowlist: 'another-account', refusal: 'status' },
 ])('allows only local cleanup with service=$service and allowlist=$allowlist', async ({ service, allowlist, refusal }) => {
   const bundle = await build({ entryPoints: ['src/worker/index.ts'], external: ['cloudflare:workers'], bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022' })
   const suspended = new Miniflare(convertV4MiniflareOptions({ modules: true, script: bundle.outputFiles[0].text, compatibilityDate: '2026-06-30', bindings: { SESSION_SECRET: 'test-secret', AGENT_SERVICE_ENABLED: service, AGENT_ACCOUNT_ALLOWLIST: allowlist }, durableObjects: { AGENT_ACCOUNTS: { className: 'AgentAccount', useSQLite: true } } }))
@@ -160,13 +161,13 @@ it.each([
     // deployment policy now disables admission; persisted identity still exists.
     const namespace = await suspended.getDurableObjectNamespace('AGENT_ACCOUNTS') as unknown as RuntimeNamespace
     const stub = namespace.get(namespace.idFromName('account-a'))
-    const target = { registrationId: 'suspended-registration', sessionId: 'suspended-session', showId: 'suspended-show' }
-    const other = { registrationId: 'other-registration', sessionId: 'other-session', showId: 'other-show' }
+    const target = { registrationId: 'suspended-registration', sessionId: 'suspended-session', showId: STOCK_SHOW_IDS[0] }
+    const other = { registrationId: 'other-registration', sessionId: 'other-session', showId: STOCK_SHOW_IDS[1] }
     const identity = { agentKind: 'builtin', agentId: 'suspended-agent', agentName: 'Suspended', callId: 'suspended-call', bindingId: 'suspended-binding' }
     for (const window of [target, other]) await stub.fetch('https://internal/window', { method: 'POST', body: JSON.stringify({ type: 'register', ...window }) })
     await stub.fetch('https://internal/claim', { method: 'POST', body: JSON.stringify({ type: 'claim', ...identity, window: target }) })
     const request = (body: unknown, origin = 'https://app.test') => suspended.dispatchFetch('https://app.test/api/agent/channel', { method: 'POST', headers: { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    expect(await (await request({ type: 'heartbeat', ...target })).json()).toEqual({ code: refusal })
+    expect(await (await request({ type: 'heartbeat', ...target })).json()).toMatchObject({ code: refusal })
     expect(await (await request({ type: 'disconnect', ...target, bindingId: identity.bindingId }, 'https://hostile.test')).json()).toEqual({ code: 'invalid_origin' })
     expect(await (await request({ type: 'disconnect', ...other, bindingId: identity.bindingId })).json()).toEqual({ code: 'not_bound_here' })
     expect(await (await request({ type: 'disconnect', ...target, bindingId: identity.bindingId })).json()).toEqual({ code: 'disconnected' })

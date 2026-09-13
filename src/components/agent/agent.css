@@ -3,6 +3,8 @@
 .agent-button:hover { border-color: #71717a; }
 .agent-button:focus-visible { outline: 2px solid var(--color-agent); outline-offset: 2px; }
 .agent-button:disabled { opacity: .4; }
+.agent-ready { border-color: #facc15; background: #facc15; color: #18181b; font-weight: 500; }
+.agent-ready:hover { border-color: #fde047; background: #fde047; }
 .agent-primary { background: var(--color-agent); color: #18181b; border-color: var(--color-agent); }
 .agent-choice-icon, .agent-icon-button { display: grid; width: 26px; height: 26px; flex-shrink: 0; place-items: center; border: 1px solid #3f3f46; border-radius: 4px; background: #18181b; color: #a1a1aa; }
 .group:hover .agent-choice-icon, .agent-icon-button:hover { color: #facc15; }

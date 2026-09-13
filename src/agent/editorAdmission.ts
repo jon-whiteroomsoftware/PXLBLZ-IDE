@@ -17,13 +17,8 @@ import { parseAgentResizeIntent, sameAgentResizeIntent, type AgentResizeIntent }
 import { applyShowCommand } from '@/engine/showCommands/registry'
 
 const structural = new Ajv({ allErrors: true, strict: false, strictNumbers: true }).compile(JSON.parse(schemaText))
-export const agentUrlEnabled = () => {
-  const values = new URLSearchParams(window.location.search).getAll('agent')
-  return values.length === 1 && values[0] === '1'
-}
-
 /** Observe actual URL changes synchronously, including remove/restore ABA. Does
- * not navigate or alter router preflight. Scoped to the opted-in editor session. */
+ * not navigate or alter router preflight. Scoped to the mounted editor route. */
 export function observeAgentLocation(listener: () => void): () => void {
   const push = window.history.pushState
   const replace = window.history.replaceState
@@ -94,7 +89,7 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
     listeners.clear()
   }
   const available = () => {
-    if (!agentUrlEnabled() || window.location.pathname !== pathname) close()
+    if (window.location.pathname !== pathname) close()
     return !retired
   }
   const invalidate = () => {

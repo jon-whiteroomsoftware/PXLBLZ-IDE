@@ -543,9 +543,9 @@ editing.
 
 ### Agent editing
 
-For enabled accounts, add `?agent=1` (or `&agent=1` when the URL already has
-parameters) to an editable Show URL and open the right-edge Agent drawer.
-**Use the Pixelblaze agent** connects it to this Show; write an edit request in
+Open an editable Show while signed in, then open the right-edge Agent drawer.
+When your account has the built-in capability, **Use the Pixelblaze agent**
+connects it to this Show; write an edit request in
 the composer. Personal Show edits save to your account; built-in Show edits
 remain session drafts. Successful edits use ordinary Undo history. Each submitted request stays in one
 activity entry. A quiet **Thinking** response appears below it while the agent works,
@@ -555,8 +555,11 @@ treatment. Clip resize confirmations name the Pattern and show the new length an
 timeline range in seconds. Reduced motion preferences disable the Thinking animation;
 status text remains visible.
 
-**Connect an MCP agent** makes this window ready for an external connection for
-two minutes. If an incoming call appears, choose **Answer** within 30 seconds or
+**Connect your agent with MCP** opens untimed setup with the canonical endpoint.
+Add it to any remote MCP client that supports OAuth and authorize the application
+in the browser. Setup does not make the Show connectable. Select **Ready to
+connect** when the client is ready; that makes this window available for two
+minutes. If an incoming call appears, choose **Answer** within 30 seconds or
 **Not now** to decline. Only one agent connection can use your account at a time;
 an occupied connection is refused rather than replaced. External conversations
 stay in the external client; connection setup depends on the client.
@@ -594,8 +597,8 @@ while retaining the entry. It does not undo the edit.
 
 **Disconnect** ends this window's connection. For an external connection, the
 drawer menu's **Forget this agent** also revokes that agent's authorization.
-Removing the URL opt-in or leaving
-the Show also retires pending private work; an already-applied personal save
+Losing the advertised capability or leaving the Show retires pending private
+work; an already-applied personal save
 continues. Managing another window's connection is not available in this version.
 The built-in testing service uses Luna Fast mode and has a $10 daily allowance shared across enabled
 accounts. Availability and the allowance are controlled by the server. See [Agent service limits](contracts/agent-builtin-service.md)

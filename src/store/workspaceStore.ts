@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { AgentCapabilities } from '@/engine/authSession'
 
 interface WorkspaceState {
   personalWorkspaceAuthenticated: boolean
@@ -8,7 +9,8 @@ interface WorkspaceState {
   personalWorkspaceResolved: boolean
   personalWorkspaceUnavailable: boolean
   personalWorkspaceProbeAttempt: number
-  setPersonalWorkspaceAuthenticated: (authenticated: boolean) => void
+  agentCapabilities: AgentCapabilities | null
+  setPersonalWorkspaceAuthenticated: (authenticated: boolean, agentCapabilities?: AgentCapabilities | null) => void
   setPersonalWorkspaceUnavailable: () => void
   retryPersonalWorkspaceAccess: () => void
 }
@@ -18,19 +20,22 @@ export const workspaceInitialState = {
   personalWorkspaceResolved: false,
   personalWorkspaceUnavailable: false,
   personalWorkspaceProbeAttempt: 0,
+  agentCapabilities: null,
 }
 
 export const useWorkspaceStore = create<WorkspaceState>()((set) => ({
   ...workspaceInitialState,
-  setPersonalWorkspaceAuthenticated: (authenticated) =>
+  setPersonalWorkspaceAuthenticated: (authenticated, agentCapabilities = null) =>
     set({
       personalWorkspaceAuthenticated: authenticated,
+      agentCapabilities: authenticated ? agentCapabilities : null,
       personalWorkspaceResolved: true,
       personalWorkspaceUnavailable: false,
     }),
   setPersonalWorkspaceUnavailable: () =>
     set({
       personalWorkspaceAuthenticated: false,
+      agentCapabilities: null,
       personalWorkspaceResolved: false,
       personalWorkspaceUnavailable: true,
     }),

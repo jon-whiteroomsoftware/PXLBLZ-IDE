@@ -8,12 +8,12 @@ ownership of edit admission, operation receipts, history and saves.
 
 ## Authentication and target ownership
 
-`POST /api/agent/channel?agent=1` accepts the existing signed session cookie,
-same-origin JSON, and exactly one enabling query parameter. Registration, arming,
-Answer and status require `AGENT_SERVICE_ENABLED=1`, membership in the
-comma-separated `AGENT_ACCOUNT_ALLOWLIST`, and an owned personal Show or exact stock catalogue Show ID. The
-allowlist uses canonical session account IDs, including the existing linked-login
-resolution. Missing service configuration disables access. Stock registration uses
+`POST /api/agent/channel` accepts the existing signed session cookie and
+same-origin JSON on ordinary editable Show URLs. Registration, arming, Answer
+and status require `AGENT_SERVICE_ENABLED=1` and an owned personal Show or exact
+stock catalogue Show ID. The built-in transport separately requires membership
+in `AGENT_ACCOUNT_ALLOWLIST` at its public request, claim, delivery, and
+resolution seams. Missing service configuration disables access. Stock registration uses
 a transport-neutral exact-ID manifest tested against the real catalogue; arbitrary
 `stock-show-*` prefixes are not admitted. Stock drafts never create D1 records.
 
@@ -75,7 +75,7 @@ claim success.
 
 `leave` retires the registration and its binding. `disconnect` ends only its
 matching local binding and keeps the registration. Both retain authenticated
-account, origin and capability checks but permit cleanup after URL opt-out,
+account, origin and capability checks but permit cleanup after capability loss,
 allowlist removal, service disable, Show deletion or request throttling. Cleanup
 responses disclose no connection metadata. Sign-out must request leave before
 losing its cookie; an unreachable tab is eventually retired by stale expiry.
@@ -150,11 +150,11 @@ were checked on 2026-09-10. Hosted provisioning and deployment remain unqualifie
   state; [internal transport seam](../../../src/worker/agent/accountConnection.ts)
   shares eligibility between built-in and external callers.
 - [Browser route](../../../src/worker/routes/agent/channel.ts) validates cookie,
-  origin, exact schema, opt-in and personal/exact-stock Show ownership.
+  origin, exact schema and personal/exact-stock Show ownership.
 - [Runtime tests](../../../src/worker/agent/agentChannel.runtime.test.ts) bundle the
   actual Worker and run it with real local workerd, D1 and Durable Objects. They
   assert response-level authorization, simultaneous claims and Answers, account
-  throttling, and cleanup after opt-out/deletion, service disable and allowlist removal. They make no inference calls.
+  throttling, and cleanup after capability loss/deletion, service disable and allowlist removal. They make no inference calls.
 
 Focused relay/OAuth workerd tests cover live tool routing, grant retirement and
 local Forget. Browser admission tests cover stock drafts, waiting cancellation,

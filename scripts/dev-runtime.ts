@@ -551,6 +551,23 @@ type ViteMode =
   | { kind: 'proxy'; target: string }
   | { kind: 'worker'; persistState: string }
 
+export function issueViteEnvironment(
+  assignment: Pick<RuntimeAssignment, 'uiPort'>,
+  mode: ViteMode,
+): NodeJS.ProcessEnv {
+  return {
+    VITE_PORT: String(assignment.uiPort),
+    ...(mode.kind === 'proxy'
+      ? { VITE_API_PROXY_TARGET: mode.target }
+      : {
+          VITE_CF_PERSIST_STATE: mode.persistState,
+          // The shared .dev.vars describes main. An isolated Worker is its own
+          // OAuth authority and must advertise the same origin that serves it.
+          PXLBLZ_DEV_AGENT_OAUTH_ORIGIN: `http://localhost:${assignment.uiPort}`,
+        }),
+  }
+}
+
 function startVite(
   worktree: string,
   assignment: RuntimeAssignment,
@@ -562,12 +579,7 @@ function startVite(
     [resolve(worktree, 'node_modules/vite/bin/vite.js')],
     worktree,
     join(runtimeDirectory, 'logs', `issue-${assignment.issue}-vite.log`),
-    {
-      VITE_PORT: String(assignment.uiPort),
-      ...(mode.kind === 'proxy'
-        ? { VITE_API_PROXY_TARGET: mode.target }
-        : { VITE_CF_PERSIST_STATE: mode.persistState }),
-    },
+    issueViteEnvironment(assignment, mode),
   )
 }
 

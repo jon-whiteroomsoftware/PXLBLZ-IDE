@@ -7,7 +7,6 @@ import type { AgentClaim, WindowIdentity } from '../../engine/agentRendezvous'
 import type { PrivateEditResult } from '../../engine/agentPrivateExecutor'
 import type { WorkerEnv } from '../apiRoutes'
 import type { ValidatedAgentGrant } from './AgentOAuthAuthority'
-import { agentOAuthConfig } from './agentOAuthConfig'
 import { agentGrantLive } from './agentGrant'
 import { dispatchAgentDelivery, queryAgentEditor } from './accountDelivery'
 
@@ -17,12 +16,10 @@ const operation = { ...binding, operation_id: id, delivery_id: id, sequence: z.n
 interface Connection { code: string; claim?: AgentClaim; binding?: WindowIdentity & AgentClaim; expiresAt?: number }
 export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: ValidatedAgentGrant): Promise<Response> {
   if (request.method !== 'POST') return new Response(null, { status: 405, headers: { Allow: 'POST' } })
-  const config = agentOAuthConfig(env)
-  const client = config?.clients.find(item => item.clientId === grant.clientId)
   const connect = async (create: boolean, callId?: string): Promise<Connection> => {
-    if (!client || !env.AGENT_ACCOUNTS || grant.expiresAt * 1000 <= Date.now()) return { code: 'unauthorized' }
+    if (!env.AGENT_ACCOUNTS || grant.expiresAt * 1000 <= Date.now()) return { code: 'unauthorized' }
     const command = create
-      ? { type: 'connect-external', agentKind: 'external', agentId: grant.grantId, agentName: client.clientName, callId: crypto.randomUUID(), bindingId: crypto.randomUUID() }
+      ? { type: 'connect-external', agentKind: 'external', agentId: grant.grantId, agentName: grant.clientName, callId: crypto.randomUUID(), bindingId: crypto.randomUUID() }
       : { type: 'resolve-external', agentId: grant.grantId, ...(callId ? { callId } : {}) }
     try {
       const response = await env.AGENT_ACCOUNTS.get(env.AGENT_ACCOUNTS.idFromName(grant.accountId)).fetch(new Request('https://agent-account.internal/external', { method: 'POST', body: JSON.stringify(command) }))
@@ -34,9 +31,9 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     const result = await connect(false)
     return result.code === 'bound' && result.claim?.bindingId === bindingId ? result.claim : undefined
   }
-  const server = new McpServer({ name: 'PXLBLZ Agent', version: '0.2.0' }, { instructions: 'Call get_connection and Answer in the opted-in Show editor. read_show/get_context read that editor. begin_edit captures one immutable private Show; canonical commands mutate only that candidate. commit_edit requests validation/adoption and may return waiting or saving. Query get_outcome for the authoritative receipt. Never replay a timed-out command; retain operation and delivery identities. New binding requires new operation IDs.' })
+  const server = new McpServer({ name: 'PXLBLZ Agent', version: '0.2.0' }, { instructions: 'Call get_connection and Answer in the open Show editor. read_show/get_context read that editor. begin_edit captures one immutable private Show; canonical commands mutate only that candidate. commit_edit requests validation/adoption and may return waiting or saving. Query get_outcome for the authoritative receipt. Never replay a timed-out command; retain operation and delivery identities. New binding requires new operation IDs.' })
   const output = (result: PrivateEditResult) => ({ content: [{ type: 'text' as const, text: JSON.stringify(result) }], structuredContent: result })
-  server.registerTool('get_connection', { description: 'Connect to your opted-in editor, holding an incoming call for up to 30 seconds. With call_id, inspect only that original call; expired calls are never recreated.', inputSchema: z.object({ call_id: id.optional() }).strict() }, async ({ call_id }) => {
+  server.registerTool('get_connection', { description: 'Connect to the open editor, holding an incoming call for up to 30 seconds. With call_id, inspect only that original call; expired calls are never recreated.', inputSchema: z.object({ call_id: id.optional() }).strict() }, async ({ call_id }) => {
     const result = await connect(call_id === undefined, call_id)
     return output({ code: result.code, ...(result.claim ? { call_id: result.claim.callId, binding_id: result.claim.bindingId } : {}), ...(result.binding ? { show_id: result.binding.showId } : {}) })
   })

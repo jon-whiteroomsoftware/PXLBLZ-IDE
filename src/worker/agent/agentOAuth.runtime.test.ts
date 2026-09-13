@@ -11,7 +11,7 @@ let script: string
 const client = { clientId: 'test-client', clientName: 'Test Agent', redirectUris: ['https://client.test/callback'] }
 const bindings = { SESSION_SECRET: 'test-secret', AGENT_SERVICE_ENABLED: '1', AGENT_ACCOUNT_ALLOWLIST: 'github:123,github:456', AGENT_OAUTH_ORIGIN: 'https://app.test', AGENT_OAUTH_CLIENTS: JSON.stringify([{ clientId: 'test-client', clientName: 'Test Agent', redirectUris: ['https://client.test/callback'] }]) }
 function runtimeOptions(patch: Record<string, string> = {}) {
-  return convertV4MiniflareOptions({ modules: true, script, compatibilityDate: '2026-06-30', bindings: { ...bindings, ...patch }, durableObjects: { AGENT_ACCOUNTS: { className: 'AgentAccount', useSQLite: true }, AGENT_OAUTH_AUTHORITY: { className: 'AgentOAuthAuthority', useSQLite: true } } })
+  return convertV4MiniflareOptions({ modules: true, script, compatibilityDate: '2026-06-30', compatibilityFlags: ['global_fetch_strictly_public'], bindings: { ...bindings, ...patch }, durableObjects: { AGENT_ACCOUNTS: { className: 'AgentAccount', useSQLite: true }, AGENT_OAUTH_AUTHORITY: { className: 'AgentOAuthAuthority', useSQLite: true } } })
 }
 beforeAll(async () => {
   const bundle = await build({ entryPoints: ['src/worker/index.ts'], external: ['cloudflare:workers'], bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022' })
@@ -29,12 +29,12 @@ async function consent() {
   const response = await runtime.dispatchFetch(await authURL(), { headers: { Cookie: cookie } })
   const html = await response.text()
   expect(response.status, html).toBe(200)
-  expect(html).toContain('the client can read its Show and submit edits')
+  expect(html).toContain('The application can read the Show and submit edits.')
   expect(html).toContain('Signed in as <strong>github:123</strong>')
   return html.match(/name="nonce" value="([^"]+)"/)![1]
 }
 function answer(nonce: string, decision = 'allow', customCookie = cookie, origin = 'https://app.test') {
-  return runtime.dispatchFetch('https://app.test/oauth/authorize?agent=1', { method: 'POST', headers: { Origin: origin, Cookie: customCookie, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ nonce, decision }).toString(), redirect: 'manual' })
+  return runtime.dispatchFetch('https://app.test/oauth/authorize', { method: 'POST', headers: { Origin: origin, Cookie: customCookie, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ nonce, decision }).toString(), redirect: 'manual' })
 }
 function exchange(fields: Record<string, string>) {
   return runtime.dispatchFetch('https://app.test/oauth/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: client.clientId, resource: 'https://app.test/mcp', ...fields }).toString() })
@@ -51,11 +51,45 @@ async function authorized() {
   return result
 }
 it('requires signed eligible consent with exact redirect/resource/S256 and refuses forged account identity', async () => {
-  expect((await runtime.dispatchFetch(await authURL())).status).toBe(401)
-  expect((await runtime.dispatchFetch(await authURL(), { headers: { 'X-Agent-Account': 'github:123' } })).status).toBe(401)
+  const signIn = await runtime.dispatchFetch(await authURL())
+  expect(signIn.status).toBe(200)
+  expect(await signIn.text()).toContain('Sign in to connect your agent')
+  const forged = await runtime.dispatchFetch(await authURL(), { headers: { 'X-Agent-Account': 'github:123' } })
+  expect(forged.status).toBe(200)
+  expect(await forged.text()).toContain('Sign in to connect your agent')
   for (const patch of [{ redirect_uri: 'https://hostile.test' }, { resource: 'https://hostile.test/mcp' }, { code_challenge_method: 'plain' }, { client_id: 'https://hostile.test/client.json' }, { scope: 'edit' }] as Record<string, string>[]) {
     expect((await runtime.dispatchFetch(await authURL(patch), { headers: { Cookie: cookie } })).status).toBe(400)
   }
+})
+
+it('resumes a signed-out authorization through one opaque, one-use account continuation', async () => {
+  const started = await runtime.dispatchFetch(await authURL())
+  const html = await started.text()
+  const continuation = html.match(/agent_continue=([-a-f0-9]{36})/)?.[1]
+  expect(continuation).toEqual(expect.any(String))
+  expect(html).not.toContain('redirect_uri')
+
+  const continuedCookie = `${cookie}; pxlblz_agent_continue=${continuation}`
+  const resumed = await runtime.dispatchFetch('https://app.test/oauth/authorize', { headers: { Cookie: continuedCookie } })
+  expect(resumed.status, await resumed.clone().text()).toBe(200)
+  expect(await resumed.text()).toContain('Allow this agent to connect?')
+  expect(resumed.headers.get('Set-Cookie')).toContain('pxlblz_agent_continue=;')
+
+  const replay = await runtime.dispatchFetch('https://app.test/oauth/authorize', { headers: { Cookie: continuedCookie } })
+  expect(replay.status).toBe(400)
+  expect(await replay.text()).toContain('Authorization expired')
+
+  const tampered = await runtime.dispatchFetch('https://app.test/oauth/authorize', { headers: { Cookie: `${cookie}; pxlblz_agent_continue=00000000-0000-4000-8000-000000000000` } })
+  expect(tampered.status).toBe(400)
+  expect(await tampered.text()).toContain('Authorization expired')
+})
+
+it('refuses signed-out authorization before storing continuation when the service is disabled', async () => {
+  await runtime.setOptions(runtimeOptions({ AGENT_SERVICE_ENABLED: '0' }))
+  const response = await runtime.dispatchFetch(await authURL())
+  expect(response.status).toBe(503)
+  expect(await response.text()).not.toContain('agent_continue=')
+  await runtime.setOptions(runtimeOptions())
 })
 it('binds one-use consent to the authenticated account and permits cancel without a grant', async () => {
   const nonce = await consent()
@@ -76,6 +110,13 @@ it('discovers OAuth and MCP through the actual Worker with the finite canonical 
   expect(crossOrigin.headers.get('Access-Control-Expose-Headers')).toContain('WWW-Authenticate')
   const metadata = await runtime.dispatchFetch('https://app.test/.well-known/oauth-protected-resource/mcp')
   expect(await metadata.json()).toMatchObject({ resource: 'https://app.test/mcp', authorization_servers: ['https://app.test'] })
+  const authorizationServer = await runtime.dispatchFetch('https://app.test/.well-known/oauth-authorization-server')
+  expect(await authorizationServer.json()).toMatchObject({
+    authorization_endpoint: 'https://app.test/oauth/authorize',
+    registration_endpoint: 'https://app.test/oauth/register',
+    client_id_metadata_document_supported: true,
+    code_challenge_methods_supported: ['S256'],
+  })
   const tokens = await authorized()
   async function rpc(method: string, params?: unknown) {
     return runtime.dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json', 'MCP-Protocol-Version': '2025-11-25' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params ? { params } : {}) }) })
@@ -101,6 +142,64 @@ it('discovers OAuth and MCP through the actual Worker with the finite canonical 
   expect((await exchange({ token: tokens.refresh_token })).status).toBe(200)
   expect((await rpc('tools/list')).status).toBe(401)
 })
+it('registers bounded public DCR clients without replacing static clients', async () => {
+  await runtime.setOptions(runtimeOptions({ AGENT_OAUTH_CLIENTS: '[]' }))
+  const registeredRedirect = 'http://127.0.0.1:3100/callback'
+  const requestedRedirect = 'http://127.0.0.1:3200/callback'
+  const dynamic = {
+    redirect_uris: [registeredRedirect],
+    client_name: 'Independent MCP client',
+    grant_types: ['authorization_code', 'refresh_token'],
+    response_types: ['code'],
+    token_endpoint_auth_method: 'none',
+  }
+  const registrations = []
+  for (let index = 0; index < 10; index++) {
+    const token_endpoint_auth_method = index === 1 ? 'client_secret_basic' : index === 2 ? 'client_secret_post' : 'none'
+    const response = await runtime.dispatchFetch('https://app.test/oauth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...dynamic, token_endpoint_auth_method, client_name: `${dynamic.client_name} ${index}` }) })
+    registrations.push(response)
+  }
+  expect(registrations.map(response => response.status), JSON.stringify(await Promise.all(registrations.map(response => response.clone().text())))).toEqual(Array(10).fill(201))
+  const registeredClients = await Promise.all(registrations.slice(0, 3).map(response => response.json())) as Array<{ client_id: string; client_secret?: string; redirect_uris: string[]; token_endpoint_auth_method: string }>
+  const registered = registeredClients[0]
+  expect(registered).toMatchObject({ redirect_uris: dynamic.redirect_uris, token_endpoint_auth_method: 'none' })
+  expect(registeredClients.map(value => value.token_endpoint_auth_method)).toEqual(['none', 'client_secret_basic', 'client_secret_post'])
+  expect(registeredClients.slice(1).every(value => typeof value.client_secret === 'string')).toBe(true)
+  const limited = await runtime.dispatchFetch('https://app.test/oauth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dynamic) })
+  expect(limited.status).toBe(429)
+
+  for (const clientInfo of registeredClients) {
+    const authorization = await runtime.dispatchFetch(await authURL({ client_id: clientInfo.client_id, redirect_uri: requestedRedirect }), { headers: { Cookie: cookie } })
+    expect(authorization.status, await authorization.clone().text()).toBe(200)
+    const nonce = (await authorization.text()).match(/name="nonce" value="([^"]+)"/)![1]
+    const allowed = await answer(nonce)
+    const redirect = new URL(allowed.headers.get('Location')!)
+    expect(redirect.origin).toBe('http://127.0.0.1:3200')
+    const fields = new URLSearchParams({ resource: 'https://app.test/mcp', grant_type: 'authorization_code', code: redirect.searchParams.get('code')!, code_verifier: verifier, redirect_uri: requestedRedirect })
+    const headers: Record<string, string> = { 'Content-Type': 'application/x-www-form-urlencoded' }
+    if (clientInfo.token_endpoint_auth_method === 'client_secret_basic') headers.Authorization = `Basic ${btoa(`${clientInfo.client_id}:${clientInfo.client_secret}`)}`
+    else {
+      fields.set('client_id', clientInfo.client_id)
+      if (clientInfo.token_endpoint_auth_method === 'client_secret_post') fields.set('client_secret', clientInfo.client_secret!)
+    }
+    const token = await runtime.dispatchFetch('https://app.test/oauth/token', { method: 'POST', headers, body: fields.toString() })
+    expect(token.status, await token.clone().text()).toBe(200)
+    if (clientInfo.token_endpoint_auth_method === 'none') {
+      const issued = await token.clone().json() as { access_token: string }
+      const initialize = (origin: string) => runtime.dispatchFetch('https://app.test/mcp', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${issued.access_token}`, Origin: origin, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json', 'MCP-Protocol-Version': '2025-11-25' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'loopback', version: '1' } } }),
+      })
+      expect((await initialize(new URL(requestedRedirect).origin)).status).toBe(200)
+      expect((await initialize('http://127.0.0.1:3300')).status).toBe(403)
+    }
+  }
+
+  // Reintroducing deployment-owned preregistration leaves the DCR records live.
+  await runtime.setOptions(runtimeOptions())
+  expect((await runtime.dispatchFetch(await authURL(), { headers: { Cookie: cookie } })).status).toBe(200)
+})
 it('refuses wrong resource, redirect and verifier without consuming the valid code', async () => {
   const response = await answer(await consent())
   const code = new URL(response.headers.get('Location')!).searchParams.get('code')!
@@ -108,17 +207,22 @@ it('refuses wrong resource, redirect and verifier without consuming the valid co
   for (const patch of [{ resource: 'https://other.test/mcp' }, { redirect_uri: 'https://client.test/other' }, { code_verifier: 'b'.repeat(43) }] as Record<string, string>[]) expect((await exchange({ ...fields, ...patch })).status).toBe(400)
   expect((await exchange(fields)).status).toBe(200)
 })
-it('rechecks deployment eligibility for access and refresh while preserving revocation', async () => {
-  for (const patch of [{ AGENT_SERVICE_ENABLED: '0' }, { AGENT_ACCOUNT_ALLOWLIST: 'github:456' }] as Record<string, string>[]) {
-    const tokens = await authorized()
-    await runtime.setOptions(runtimeOptions(patch))
-    const response = await runtime.dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}` } })
-    expect([403, 503]).toContain(response.status)
-    expect((await exchange({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token })).status).toBe(400)
-    expect((await exchange({ token: tokens.refresh_token })).status).toBe(200)
-    await runtime.setOptions(runtimeOptions())
-    expect((await runtime.dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}` } })).status).toBe(401)
-  }
+it('rechecks service availability while preserving revocation', async () => {
+  const tokens = await authorized()
+  await runtime.setOptions(runtimeOptions({ AGENT_SERVICE_ENABLED: '0' }))
+  const response = await runtime.dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}` } })
+  expect(response.status).toBe(503)
+  expect((await exchange({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token })).status).toBe(400)
+  expect((await exchange({ token: tokens.refresh_token })).status).toBe(200)
+  await runtime.setOptions(runtimeOptions())
+  expect((await runtime.dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}` } })).status).toBe(401)
+})
+
+it('keeps external grants usable when only built-in eligibility changes', async () => {
+  const tokens = await authorized()
+  await runtime.setOptions(runtimeOptions({ AGENT_ACCOUNT_ALLOWLIST: 'github:456' }))
+  expect((await exchange({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token })).status).toBe(200)
+  await runtime.setOptions(runtimeOptions())
 })
 
 it('submits native browser consent and follows a registered cross-origin callback', async () => {

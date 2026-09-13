@@ -25,9 +25,11 @@ it('does not optimistically bind or arm on refused account actions', async () =>
   f.controller.dispatch({ type: 'chooseBuiltin' })
   await vi.waitFor(() => expect(f.builtin).toHaveBeenCalledOnce())
   expect(useAgentDrawerStore.getState().state.connection).toBeNull()
+  f.controller.dispatch({ type: 'chooseExternal' })
   f.controller.dispatch({ type: 'connectOwn', now: 0 })
   await vi.waitFor(() => expect(f.channel.arm).toHaveBeenCalledOnce())
   expect(useAgentDrawerStore.getState().state.armingUntil).toBeNull()
+  expect(useAgentDrawerStore.getState().state.setupNotice).toMatchObject({ title: 'Connected in another editor' })
 })
 it('uses actual connection events and preserves an in-flight action during contact loss', () => {
   const f = fixture()

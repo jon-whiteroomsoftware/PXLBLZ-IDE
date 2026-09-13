@@ -1,5 +1,11 @@
 # Shared Show editing: accepted interaction design (#959)
 
+> **Superseded in part by #1009 (2026-09-12):** the implemented drawer is
+> capability-driven on ordinary signed-in Show URLs. External setup is untimed
+> until **Ready to connect**, and product copy is application-neutral. The
+> session activity, admission, history, save, and recovery rules below remain
+> applicable.
+
 Status: Jon accepted the drawer on 2026-09-10 and the coordinating Astra review corrections later that day. Fable authored the original design; Astra reviewed it directly, without a Fable self-review. This document specifies intended behavior, not shipped capability.
 
 The primary interactive artifact is [agent-drawer-prototype.html](agent-drawer-prototype.html). The older shared-show-editing prototype, proposal, diagrams and captures are historical design evidence; they do not override this document. #946 owns admission, #947 canonical commands, #956 service policy, #957 the shared drawer and built-in service, #963 external MCP, #964 client qualification and #958 release acceptance.

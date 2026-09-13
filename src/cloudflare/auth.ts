@@ -2,6 +2,7 @@ export const oauthStateCookieName = 'pxlblz_oauth_state'
 export const oauthVerifierCookieName = 'pxlblz_oauth_verifier'
 export const oauthProviderCookieName = 'pxlblz_oauth_provider'
 export const oauthModeCookieName = 'pxlblz_oauth_mode'
+export const agentContinuationCookieName = 'pxlblz_agent_continue'
 export const sessionCookieName = 'pxlblz_session'
 
 const encoder = new TextEncoder()

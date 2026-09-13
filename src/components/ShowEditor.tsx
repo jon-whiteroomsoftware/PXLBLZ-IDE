@@ -956,6 +956,7 @@ export function ShowEditor({
   const openShow = useShowStore((state) => state.openShow)
   const routerNavigate = useRouterStore((state) => state.navigate)
   const personalWorkspaceAuthenticated = useWorkspaceStore((state) => state.personalWorkspaceAuthenticated)
+  const agentCapabilities = useWorkspaceStore((state) => state.agentCapabilities)
   const [savingBuiltInCopy, setSavingBuiltInCopy] = useState(false)
   const persistShow = useShowStore((state) => state.updateShow)
   const showSaveFailure = useShowStore((state) => state.showSaveFailure)
@@ -1062,8 +1063,13 @@ export function ShowEditor({
     playheadMs: useShowTransportStore.getState().showId === showId
       ? useShowTransportStore.getState().positionMs : 0,
   }), [showId])
+  const legacyAgentDiagnosticEnabled = useCallback(() => new URL(window.location.href).searchParams.get('agent') === '1', [])
   useAgentEditorLifecycle({
-    showId, readOnly, getContext: getAgentEditorContext,
+    showId,
+    readOnly,
+    enabled: Boolean(agentCapabilities?.external || agentCapabilities?.builtin),
+    legacyDiagnosticEnabled: import.meta.env.DEV ? legacyAgentDiagnosticEnabled : undefined,
+    getContext: getAgentEditorContext,
     bindFieldActivity: fieldActivity.bind,
     createChannel: createAgentBrowserSession,
     createAdmission: import.meta.env.DEV ? createDiagnosticAgentAdmission : undefined,

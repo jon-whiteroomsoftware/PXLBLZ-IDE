@@ -3,13 +3,43 @@ import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 import { AgentDrawerWorkspace } from './AgentDrawer'
 import { useAgentDrawerStore, type AgentDrawerController } from '@/dev/agentDrawerController'
 import { createAgentDrawerState, transitionAgentDrawer, type AgentDrawerEvent } from '@/engine/agentDrawerModel'
+import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
 let controller: AgentDrawerController
 beforeEach(() => {
+  useWorkspaceStore.setState({ ...workspaceInitialState, agentCapabilities: { external: true, builtin: true, endpoint: 'https://app.test/mcp' } })
   let state = createAgentDrawerState()
   controller = { dispatch: (event: AgentDrawerEvent) => { state = transitionAgentDrawer(state, event); useAgentDrawerStore.setState({ state }) }, retry: vi.fn(), submit: vi.fn(), disconnect: vi.fn(), restoreContact: vi.fn(), cancel: vi.fn() } as unknown as AgentDrawerController
   useAgentDrawerStore.setState({ controller, state, busy: false })
 })
-afterEach(() => act(() => useAgentDrawerStore.setState({ controller: null, state: createAgentDrawerState(), busy: false })))
+afterEach(() => act(() => {
+  useAgentDrawerStore.setState({ controller: null, state: createAgentDrawerState(), busy: false })
+  useWorkspaceStore.setState(workspaceInitialState)
+}))
+
+it('renders only server-advertised choices and uses the advertised endpoint', () => {
+  controller.dispatch({ type: 'drawer', mode: 'open' })
+  useWorkspaceStore.setState({ agentCapabilities: { external: true, builtin: false, endpoint: 'https://isolated.test/mcp' } })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  expect(screen.queryByRole('button', { name: /Use the Pixelblaze agent/ })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: /Connect your agent with MCP/ }))
+  expect(screen.getByText('https://isolated.test/mcp')).toBeVisible()
+})
+it('returns to server-advertised choices if external access disappears during setup', () => {
+  controller.dispatch({ type: 'drawer', mode: 'open' })
+  controller.dispatch({ type: 'chooseExternal' })
+  useWorkspaceStore.setState({ agentCapabilities: { external: false, builtin: true } })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  expect(screen.queryByRole('heading', { name: 'Connect your agent with MCP' })).toBeNull()
+  expect(screen.queryByRole('button', { name: /Connect your agent with MCP/ })).toBeNull()
+  expect(screen.getByRole('button', { name: /Use the Pixelblaze agent/ })).toBeVisible()
+})
+it.each([null, { external: false, builtin: false }] as const)('hides the Agent surface when capabilities are %j', agentCapabilities => {
+  controller.dispatch({ type: 'drawer', mode: 'open' })
+  useWorkspaceStore.setState({ agentCapabilities })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  expect(screen.queryByRole('button', { name: /Agent drawer/ })).toBeNull()
+  expect(screen.queryByTestId('agent-chat-panel')).toBeNull()
+})
 it('keeps a mounted workspace and disables Send throughout applied/save-pending ownership', () => {
   controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
   controller.dispatch({ type: 'draft', text: 'next edit' })
@@ -213,17 +243,52 @@ it('keeps transcript order while connection choices and composers change', () =>
   expect(screen.getByText('First request')).toBeVisible()
 })
 
-it('makes each complete chooser region one pointer button with its icon and description', () => {
+it('makes each complete chooser region one pointer button with its icon', () => {
   controller.dispatch({ type: 'drawer', mode: 'open' })
   render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
   const builtin = screen.getByRole('button', { name: /Use the Pixelblaze agent.*Ask for edits here/ })
-  const external = screen.getByRole('button', { name: /Connect an MCP agent.*Work from Claude Code/ })
+  const external = screen.getByRole('button', { name: 'Connect your agent with MCP' })
   expect(builtin).toHaveClass('cursor-pointer')
   expect(external).toHaveClass('cursor-pointer')
   expect(builtin.querySelector('svg')).not.toBeNull()
   expect(external.querySelector('svg')).not.toBeNull()
   fireEvent.click(builtin.querySelector('svg')!)
   expect(useAgentDrawerStore.getState().state.connection?.kind).toBe('builtin')
+})
+
+it('keeps MCP setup untimed until Ready to connect and uses the approved generic copy', () => {
+  controller.dispatch({ type: 'drawer', mode: 'open' })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  fireEvent.click(screen.getByRole('button', { name: /Connect your agent with MCP/ }))
+
+  expect(screen.getByRole('heading', { name: 'Connect your agent with MCP' })).toBeVisible()
+  expect(screen.getByText('Start authorization in your agent application. In the browser, sign in to PXLBLZ and allow the connection.')).toBeVisible()
+  expect(screen.getByText('Click Ready to connect and tell your agent “Connect to my Show in PXLBLZ.”')).toBeVisible()
+  expect(useAgentDrawerStore.getState().state.armingUntil).toBeNull()
+  expect(screen.getByRole('button', { name: 'Copy endpoint' })).toBeVisible()
+  expect(screen.queryByText(/Claude|Codex/)).toBeNull()
+
+  const ready = screen.getByRole('button', { name: 'Ready to connect' })
+  expect(ready).toHaveClass('agent-ready')
+  fireEvent.click(ready)
+  expect(useAgentDrawerStore.getState().state.armingUntil).not.toBeNull()
+  expect(screen.getByRole('button', { name: 'Cancel connection attempt' })).toBeVisible()
+})
+
+it('reports endpoint copy success and failure without losing the selectable endpoint', async () => {
+  const writeText = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('denied'))
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+  controller.dispatch({ type: 'drawer', mode: 'open' })
+  controller.dispatch({ type: 'chooseExternal' })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+
+  fireEvent.click(screen.getByRole('button', { name: 'Copy endpoint' }))
+  expect(await screen.findByText('Endpoint copied')).toBeVisible()
+  expect(writeText).toHaveBeenLastCalledWith('https://app.test/mcp')
+
+  fireEvent.click(screen.getByRole('button', { name: 'Copy endpoint' }))
+  expect(await screen.findByText('Copy failed. Select the endpoint to copy it.')).toBeVisible()
+  expect(screen.getByText('https://app.test/mcp')).toHaveClass('select-all')
 })
 
 it('always follows activity growth without moving input focus', () => {

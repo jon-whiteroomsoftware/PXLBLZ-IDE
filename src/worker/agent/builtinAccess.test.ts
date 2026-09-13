@@ -15,10 +15,14 @@ it('returns only server-authenticated account identity and a parsed local window
   expect(await authorizeBuiltinRequest(f.request(), f.env as never)).toEqual({ accountId: 'account', command: { action: 'connect', window: windowIdentity } })
   expect(f.all).toHaveBeenCalledOnce()
 })
-it('refuses unauthenticated, wrong-origin, disabled, opted-out and non-owned Show requests', async () => {
+it('refuses unauthenticated, wrong-origin, disabled, non-allowlisted and non-owned Show requests without a URL opt-in', async () => {
   const f = await fixture()
-  for (const request of [f.request(undefined, { Cookie: '' }), f.request(undefined, { Origin: 'https://other.test' }), f.request(undefined, {}, 'https://app.test/api/agent/builtin')]) expect(await authorizeBuiltinRequest(request, f.env as never)).toBeInstanceOf(Response)
+  for (const request of [f.request(undefined, { Cookie: '' }), f.request(undefined, { Origin: 'https://other.test' })]) expect(await authorizeBuiltinRequest(request, f.env as never)).toBeInstanceOf(Response)
+  expect(await authorizeBuiltinRequest(f.request(undefined, {}, 'https://app.test/api/agent/builtin'), f.env as never)).toEqual({ accountId: 'account', command: { action: 'connect', window: windowIdentity } })
   expect(await authorizeBuiltinRequest(f.request(), { ...f.env, AGENT_SERVICE_ENABLED: '0' } as never)).toBeInstanceOf(Response)
+  const notAllowed = await authorizeBuiltinRequest(f.request(), { ...f.env, AGENT_ACCOUNT_ALLOWLIST: '' } as never)
+  expect(notAllowed).toBeInstanceOf(Response)
+  expect((notAllowed as Response).status).toBe(403)
   f.all.mockResolvedValue({ results: [] })
   expect(await authorizeBuiltinRequest(f.request(), f.env as never)).toBeInstanceOf(Response)
 })

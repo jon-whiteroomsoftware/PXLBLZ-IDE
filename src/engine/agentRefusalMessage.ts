@@ -14,7 +14,7 @@ export function agentRefusalMessage(code: string): string {
     case 'incomplete': return 'The agent did not finish this edit. Nothing was applied.'
     case 'nothing-applied': return 'Nothing was applied.'
     case 'service_disabled': case 'unavailable': case 'provider_unavailable': case 'halted':
-      return 'The Pixelblaze agent is unavailable right now.'
+      return 'Agent connections are unavailable right now.'
     case 'not_allowed': return 'Agent editing is not enabled for this account.'
     case 'unauthorized': return 'Sign in to use agent editing.'
     case 'exhausted': return 'The shared daily allowance has been used. Try again tomorrow.'
@@ -24,7 +24,6 @@ export function agentRefusalMessage(code: string): string {
     case 'no_live_editor': case 'retired': case 'connection_retired': case 'contact_lost':
       return 'This Show is no longer connected. Reconnect before making another request.'
     case 'show_unavailable': return 'This Show is no longer available for agent editing.'
-    case 'opt_in_required': return 'Agent editing is no longer enabled in this window.'
     case 'expired': return 'This request has expired. Make a new request to continue.'
     case 'disconnected_not_forgotten': return 'Disconnected, but this agent could not be forgotten. Reconnect it and try Forget again.'
     case 'capacity': return 'Agent editing is busy right now. Try again later.'

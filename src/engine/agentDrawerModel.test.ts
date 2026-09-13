@@ -90,20 +90,35 @@ it('preserves failure and draft through fresh retry, dismissal and contact loss'
 })
 
 it('keeps external read activity truthful and expires only setup at its deadline', () => {
-  let state = transitionAgentDrawer(createAgentDrawerState(), { type: 'connectOwn', now: 1000 })
+  let state = transitionAgentDrawer(createAgentDrawerState(), { type: 'chooseExternal' })
+  expect(state.setupOpen).toBe(true)
+  expect(state.armingUntil).toBeNull()
+  state = transitionAgentDrawer(state, { type: 'tick', now: 500000 })
+  expect(state.setupOpen).toBe(true)
+  expect(state.armingUntil).toBeNull()
+  state = transitionAgentDrawer(state, { type: 'connectOwn', now: 1000 })
   state = transitionAgentDrawer(state, { type: 'tick', now: 120999 })
   expect(state.armingUntil).toBe(121000)
   state = transitionAgentDrawer(state, { type: 'tick', now: 121000 })
   expect(state.armingUntil).toBeNull()
+  expect(state.setupOpen).toBe(true)
+  expect(state.setupNotice).toEqual({ title: 'No agent connected', detail: 'Select Ready to connect and ask your agent to try again. You do not need to authorize again if your authorization is still valid.' })
   state = transitionAgentDrawer(state, { type: 'knock', name: 'Claude Code', now: 200000 })
   state = transitionAgentDrawer(state, { type: 'tick', now: 230000 })
   expect(state.pendingCall).toBeNull()
+  expect(state.setupNotice).toEqual({ title: 'Missed connection', detail: 'Select Ready to connect, then ask your agent to connect again.' })
   state = transitionAgentDrawer(state, { type: 'agentBinds', name: 'Claude Code' })
   state = transitionAgentDrawer(state, { type: 'thinking', id: 'external' })
   expect(state.request).toBeNull()
   state = transitionAgentDrawer(state, { type: 'reading' })
   expect(state.unread).toEqual([])
   expect(state.stream[state.stream.length - 1]?.text).toBe('reading the Show')
+})
+
+it('keeps setup recoverable when another editor owns the connection slot', () => {
+  let state = transitionAgentDrawer(createAgentDrawerState(), { type: 'chooseExternal' })
+  state = transitionAgentDrawer(state, { type: 'setupFailed', title: 'Connected in another editor', detail: 'Disconnect in the editor that owns the connection, then try again. If that editor is unavailable, wait for its inactive connection to expire.' })
+  expect(state).toMatchObject({ setupOpen: true, armingUntil: null, connection: null, setupNotice: { title: 'Connected in another editor' } })
 })
 
 it.each(['manualEdit', 'undo', 'leave'] as const)('%s clears attribution without inventing settlement', type => {

@@ -1,6 +1,8 @@
 import {
+  agentContinuationCookieName,
   buildGoogleAuthorizeUrl,
   buildGitHubAuthorizeUrl,
+  clearCookie,
   isSecureRequest,
   oauthModeCookieName,
   oauthProviderCookieName,
@@ -42,6 +44,11 @@ export async function onRequestGet(context: WorkerRouteContext): Promise<Respons
     ? buildGoogleAuthorizeUrl({ clientId, redirectUri, state, codeChallenge })
     : buildGitHubAuthorizeUrl({ clientId, redirectUri, state, codeChallenge })
   const secure = isSecureRequest(context.request)
+  const continuations = requestUrl.searchParams.getAll('agent_continue')
+  const continuation = continuations.length === 1 ? continuations[0] : null
+  const continuationCookie = continuation && /^[-a-f0-9]{36}$/.test(continuation)
+    ? setCookie(agentContinuationCookieName, continuation, { maxAge: 600, secure })
+    : clearCookie(agentContinuationCookieName)
 
   return new Response(null, {
     status: 302,
@@ -51,6 +58,7 @@ export async function onRequestGet(context: WorkerRouteContext): Promise<Respons
       ['Set-Cookie', setCookie(oauthVerifierCookieName, verifier, { maxAge: 600, secure })],
       ['Set-Cookie', setCookie(oauthProviderCookieName, provider, { maxAge: 600, secure })],
       ['Set-Cookie', setCookie(oauthModeCookieName, mode, { maxAge: 600, secure })],
+      ['Set-Cookie', continuationCookie],
     ],
   })
 }

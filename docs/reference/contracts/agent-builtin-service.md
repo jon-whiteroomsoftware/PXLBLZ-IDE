@@ -1,8 +1,9 @@
 # Built-in Show editing service
 
-The editable Show route requires exact `?agent=1`. Its production drawer uses
-one `src/agent/editorAdmission.ts` owner and one browser channel session for the
-open Show. `POST /api/agent/builtin` authenticates the account, checks the
+An ordinary editable Show route uses one `src/agent/editorAdmission.ts` owner
+and one browser channel session for the open Show after signed-in capabilities
+resolve. The built-in choice appears only when `/api/me` reports it available.
+`POST /api/agent/builtin` independently authenticates the account, checks the
 service allowlist and owned personal Show or exact stock Show identity, then
 resolves the registered window through the account rendezvous owner. Browser
 JSON cannot supply an authoritative account or binding. The shared account
@@ -15,7 +16,7 @@ There is no browser credential field. Missing configuration refuses fresh work.
 An already-started operation's surviving browser receipt remains readable when
 service configuration or contact disappears; adopted saves remain store-owned.
 A remote eligibility refusal does not erase a known local outcome. Closing the
-Show, opting out, or disposing the editor synchronously retires the browser
+Show, losing the advertised capability, or disposing the editor synchronously retires the browser
 executor before best-effort network cleanup. Unknown contact never replays work.
 
 Reasoning response and continuation items use one shared validator. It accepts

@@ -1,4 +1,4 @@
-import { agentAccessRefusal, type AgentAccessEnvironment } from '../../cloudflare/agentAccess'
+import { agentBuiltinAccessRefusal, agentServiceRefusal, type AgentAccessEnvironment } from '../../cloudflare/agentAccess'
 import type { AgentClaim } from '../../engine/agentRendezvous'
 import type { PrivateEditResult } from '../../engine/agentPrivateExecutor'
 import type { AgentAccountNamespace } from './AgentAccount'
@@ -15,7 +15,7 @@ export async function queryAgentEditor(env: Environment, accountId: string, iden
 }
 async function send(env: Environment, accountId: string, identity: AgentClaim, command: { type: 'relay-dispatch'; delivery: AgentDeliveryInput } | { type: 'relay-query'; query: AgentEditorQuery }): Promise<PrivateEditResult> {
   if (!accountId || !['builtin', 'external'].includes(identity.agentKind) || ![identity.agentId, identity.agentName, identity.callId, identity.bindingId].every(value => typeof value === 'string' && value.length > 0 && value.length <= 128)) return { code: 'invalid_request' }
-  const refusal = agentAccessRefusal(accountId, env)
+  const refusal = identity.agentKind === 'builtin' ? agentBuiltinAccessRefusal(accountId, env) : agentServiceRefusal(env)
   if (refusal) return { code: refusal }
   if (!env.AGENT_ACCOUNTS) return { code: 'unavailable' }
   try {

@@ -23,6 +23,8 @@ export interface AgentDrawerState {
   pinPreference: boolean
   connection: { kind: 'builtin' | 'external'; name: string } | null
   armingUntil: number | null
+  setupOpen: boolean
+  setupNotice: { title: string; detail: string } | null
   pendingCall: { name: string; expiresAt: number } | null
   contactLost: boolean
   request: { id: string; phase: 'thinking' | 'working' | 'waiting' } | null
@@ -41,11 +43,12 @@ export type AgentDrawerEvent =
   | ({ type: 'connection' } & Pick<AgentDrawerState, 'connection' | 'armingUntil' | 'pendingCall' | 'contactLost'>)
   | { type: 'pin'; pinned: boolean }
   | { type: 'drawer'; mode: AgentDrawerMode }
-  | { type: 'chooseBuiltin' | 'cancelArm' | 'declineKnock' | 'approveKnock' | 'drop' | 'reattach' | 'disconnect' | 'forget' | 'reading' | 'settle' | 'manualEdit' | 'undo' | 'leave' | 'toggleMcp' }
+  | { type: 'chooseBuiltin' | 'chooseExternal' | 'cancelArm' | 'declineKnock' | 'approveKnock' | 'drop' | 'reattach' | 'disconnect' | 'forget' | 'reading' | 'settle' | 'manualEdit' | 'undo' | 'leave' | 'toggleMcp' }
   | { type: 'connectOwn' | 'tick'; now: number }
   | { type: 'knock'; name: string; now: number }
   | { type: 'agentBinds'; name: string }
   | { type: 'draft' | 'say' | 'reply' | 'system'; text: string }
+  | { type: 'setupFailed'; title: string; detail: string }
   | { type: 'operationReply'; id: string; text: string; replyOnRefusal?: boolean }
   | { type: 'thinking'; id: string }
   | { type: 'beginEdit'; id: string; intent: string; retryOf?: string }
@@ -55,7 +58,7 @@ export type AgentDrawerEvent =
   | { type: 'touch'; targetId: string }
   | { type: 'outcome'; id: string; outcome: AgentOutcome; changes?: AgentChange[]; reason?: string; retryable?: boolean; refusedTargets?: string[]; band?: AgentDrawerState['band'] }
 export function createAgentDrawerState(pinned = false): AgentDrawerState {
-  return { drawer: pinned ? 'pinned' : 'tucked', pinPreference: pinned, connection: null, armingUntil: null, pendingCall: null, contactLost: false, request: null, stream: [], unread: [], highlights: [], highlightPhase: 'none', highlightOperation: null, refusedTargets: [], band: null, draft: '', showMcp: false }
+  return { drawer: pinned ? 'pinned' : 'tucked', pinPreference: pinned, connection: null, armingUntil: null, setupOpen: false, setupNotice: null, pendingCall: null, contactLost: false, request: null, stream: [], unread: [], highlights: [], highlightPhase: 'none', highlightOperation: null, refusedTargets: [], band: null, draft: '', showMcp: false }
 }
 const clearHighlights = { highlights: [], highlightPhase: 'none' as const, highlightOperation: null, refusedTargets: [], band: null }
 function append(state: AgentDrawerState, kind: AgentLine['kind'], text: string): AgentDrawerState {
@@ -63,7 +66,7 @@ function append(state: AgentDrawerState, kind: AgentLine['kind'], text: string):
 }
 function connected(state: AgentDrawerState, kind: 'builtin' | 'external', name: string): AgentDrawerState {
   if (state.connection) return state
-  return { ...state, connection: { kind, name }, armingUntil: null, pendingCall: null, contactLost: false, drawer: state.drawer === 'open' ? 'pinned' : state.drawer, pinPreference: state.drawer === 'open' || state.pinPreference }
+  return { ...state, connection: { kind, name }, armingUntil: null, setupOpen: false, setupNotice: null, pendingCall: null, contactLost: false, drawer: state.drawer === 'open' ? 'pinned' : state.drawer, pinPreference: state.drawer === 'open' || state.pinPreference }
 }
 export function transitionAgentDrawer(state: AgentDrawerState, event: AgentDrawerEvent): AgentDrawerState {
   switch (event.type) {
@@ -74,21 +77,23 @@ export function transitionAgentDrawer(state: AgentDrawerState, event: AgentDrawe
     case 'pin': return { ...state, pinPreference: event.pinned, drawer: event.pinned ? 'pinned' : 'tucked', unread: event.pinned ? [] : state.unread }
     case 'drawer': return { ...state, drawer: event.mode, unread: event.mode === 'tucked' ? state.unread : [] }
     case 'chooseBuiltin': return connected(state, 'builtin', 'Pixelblaze agent')
+    case 'chooseExternal': return state.connection ? state : { ...state, setupOpen: true, setupNotice: null }
     case 'agentBinds': return connected(state, 'external', event.name)
-    case 'connectOwn': return state.connection ? state : { ...state, armingUntil: event.now + 120_000 }
+    case 'connectOwn': return state.connection ? state : { ...state, setupOpen: true, setupNotice: null, armingUntil: event.now + 120_000 }
     case 'cancelArm': return { ...state, armingUntil: null }
-    case 'knock': return state.connection || state.pendingCall ? state : { ...state, pendingCall: { name: event.name, expiresAt: event.now + 30_000 }, drawer: state.drawer === 'tucked' ? 'open' : state.drawer, unread: [] }
+    case 'knock': return state.connection || state.pendingCall ? state : { ...state, setupOpen: true, setupNotice: null, pendingCall: { name: event.name, expiresAt: event.now + 30_000 }, drawer: state.drawer === 'tucked' ? 'open' : state.drawer, unread: [] }
     case 'approveKnock': return state.pendingCall ? connected(state, 'external', state.pendingCall.name) : state
     case 'declineKnock': return { ...state, pendingCall: null }
+    case 'setupFailed': return state.connection ? state : { ...state, setupOpen: true, setupNotice: { title: event.title, detail: event.detail }, armingUntil: null, pendingCall: null }
     case 'tick': {
-      if (state.armingUntil !== null && event.now >= state.armingUntil) return append({ ...state, armingUntil: null }, 'system', 'Connection window expired. Choose Connect an MCP agent again.')
-      if (state.pendingCall && event.now >= state.pendingCall.expiresAt) return append({ ...state, pendingCall: null }, 'system', 'Call expired; the agent was not connected.')
+      if (state.armingUntil !== null && event.now >= state.armingUntil) return { ...state, armingUntil: null, setupOpen: true, setupNotice: { title: 'No agent connected', detail: 'Select Ready to connect and ask your agent to try again. You do not need to authorize again if your authorization is still valid.' } }
+      if (state.pendingCall && event.now >= state.pendingCall.expiresAt) return { ...state, pendingCall: null, setupOpen: true, setupNotice: { title: 'Missed connection', detail: 'Select Ready to connect, then ask your agent to connect again.' } }
       return state
     }
     case 'drop': return state.connection && !state.contactLost ? append({ ...state, contactLost: true }, 'system', 'contact lost') : state
     case 'reattach': return state.contactLost ? append({ ...state, contactLost: false }, 'system', 'contact restored') : state
     // The controller first publishes owned cancellation/settlement receipts.
-    case 'disconnect': case 'forget': return { ...state, connection: null, armingUntil: null, pendingCall: null, contactLost: false, request: null }
+    case 'disconnect': case 'forget': return { ...state, connection: null, armingUntil: null, setupOpen: false, setupNotice: null, pendingCall: null, contactLost: false, request: null }
     case 'draft': return { ...state, draft: event.text }
     case 'say': return append(state, 'author', event.text)
     case 'reply': return append(state, 'reply', event.text)

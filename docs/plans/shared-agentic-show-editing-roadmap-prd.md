@@ -1,5 +1,10 @@
 # Shared agentic Show editing: roadmap and product requirements
 
+> **Superseded in part by #1009 (2026-09-12):** the URL opt-in and shared
+> allowlist requirements in this roadmap no longer govern external onboarding.
+> Ordinary signed-in editable Show URLs use effective capabilities; external
+> MCP is open while enabled and the built-in service remains allowlisted.
+
 Status: accepted roadmap for the public V2 v1.9 release; reconciled with landed evidence and
 Jon's decisions on 2026-09-08. Epic #943 and its children carry implementation state.
 #945's diagnostic baseline and #948's single-client persistence recovery are implemented,

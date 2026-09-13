@@ -30,6 +30,7 @@ describe('authenticated Playwright runtime', () => {
       PLAYWRIGHT_STUDIO_URL: 'http://localhost:5200/PXLBLZ-IDE/',
       PXLBLZ_D1_PERSIST_TO: '/tmp/runtime/playwright-123',
       PXLBLZ_DEV_VARS_FILE: '/repo/main/.dev.vars',
+      PXLBLZ_DEV_AGENT_OAUTH_ORIGIN: 'http://localhost:5200',
     })
   })
 

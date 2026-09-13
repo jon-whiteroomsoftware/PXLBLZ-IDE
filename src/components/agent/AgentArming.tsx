@@ -1,14 +1,44 @@
-import { Copy } from 'lucide-react'
+import { Copy, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
-export function AgentArming({ cancel }: { cancel: () => void }) {
-  const url = 'https://pxlblz-ide.whiteroomsoftware.com/mcp'
+
+export function AgentArming({ armed, cancel, ready, endpoint, notice }: {
+  armed: boolean
+  cancel: () => void
+  ready: () => void
+  endpoint: string
+  notice: { title: string; detail: string } | null
+}) {
   const [copyStatus, setCopyStatus] = useState('')
-  return <div className="space-y-3 border-b border-seam px-4 py-4 text-[11px] leading-relaxed text-zinc-400">
-    <p>Point your agent at</p><div className="select-all break-all rounded bg-zinc-900 px-2 py-2 font-mono text-zinc-200">{url}</div>
-    <details><summary className="cursor-pointer">How to add an MCP server</summary><div className="mt-3 space-y-3">
-      {[['Claude Code', `claude mcp add --transport http pxlblz ${url}`], ['Codex', `codex mcp add pxlblz --url ${url}`]].map(([name, command]) => <div key={name}><b className="text-zinc-300">{name}</b><div className="mt-1 flex items-start gap-2"><code className="min-w-0 flex-1 break-all text-[10px]">{command}</code><button type="button" aria-label={`Copy the ${name} command`} className="agent-button" onClick={() => { void navigator.clipboard.writeText(command).then(() => setCopyStatus(`${name} command copied`), () => setCopyStatus('Copy failed; select the command to copy it.')) }}><Copy size={12} /></button></div></div>)}
-      <p><b className="text-zinc-300">Claude</b><br />Settings › Connectors › Add › paste the URL</p>
-    </div></details>
-    <p>Then ask it to edit this Show. Once it connects you can close this drawer.</p><button type="button" className="agent-button" onClick={cancel}>Cancel</button><p role="status">{copyStatus}</p>
+  const copyEndpoint = async () => {
+    try {
+      await navigator.clipboard.writeText(endpoint)
+      setCopyStatus('Endpoint copied')
+    } catch {
+      setCopyStatus('Copy failed. Select the endpoint to copy it.')
+    }
+  }
+
+  return <div className="shrink-0 border-b border-seam text-[11px] leading-relaxed text-zinc-400">
+    {notice && <div role="alert" className="flex gap-2 border-b border-red-400/25 bg-red-400/[.06] px-4 py-2.5">
+      <TriangleAlert aria-hidden size={13} className="mt-0.5 shrink-0 text-red-300" />
+      <div><strong className="block font-medium text-red-200">{notice.title}</strong><p>{notice.detail}</p></div>
+    </div>}
+    <div className="space-y-4 px-4 py-4">
+      <h2 className="text-sm font-semibold text-zinc-100">Connect your agent with MCP</h2>
+      <ol className="space-y-3">
+        <li><strong className="text-zinc-300">1. Add the endpoint</strong>
+          <div className="mt-1.5 flex items-center gap-2 rounded border border-zinc-800 bg-zinc-950 px-2 py-1.5">
+            <code className="min-w-0 flex-1 select-all break-all text-[10px] text-zinc-300">{endpoint}</code>
+            <button type="button" aria-label="Copy endpoint" title="Copy endpoint" className="agent-icon-button" onClick={copyEndpoint}><Copy size={12} /></button>
+          </div>
+          {copyStatus && <p role="status" className={`mt-1 text-[10px] ${copyStatus.startsWith('Copy failed') ? 'text-red-300' : 'text-amber-200'}`}>{copyStatus}</p>}
+        </li>
+        <li><strong className="text-zinc-300">2. Authorize access</strong><p className="mt-0.5 text-zinc-500">Start authorization in your agent application. In the browser, sign in to PXLBLZ and allow the connection.</p></li>
+        <li><strong className="text-zinc-300">3. Connect this Show</strong><p className="mt-0.5 text-zinc-500">Click Ready to connect and tell your agent “Connect to my Show in PXLBLZ.”</p></li>
+      </ol>
+      <button type="button" className={armed ? 'agent-button' : 'agent-button agent-ready'} onClick={armed ? cancel : ready}>{armed ? 'Cancel connection attempt' : 'Ready to connect'}</button>
+      {armed && <p className="text-amber-200">Waiting for your agent to connect. This attempt expires in two minutes.</p>}
+      <details className="border-t border-seam pt-3"><summary className="cursor-pointer text-zinc-400">About the connection</summary><p className="mt-2 text-zinc-500">Your Show stays open while the agent works. Disconnect ends editing; Forget this agent also removes its authorization.</p><p className="mt-2 text-zinc-500">If your application cannot connect, check that it supports remote MCP with OAuth. Use its connection error to identify what failed.</p></details>
+    </div>
   </div>
 }

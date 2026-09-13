@@ -1,4 +1,5 @@
 import {
+  agentContinuationCookieName,
   clearCookie,
   createSessionCookie,
   exchangeGoogleCode,
@@ -72,6 +73,20 @@ export async function onRequestGet(context: WorkerRouteContext): Promise<Respons
       ? await resolveGoogleUser(context, code, cookies[oauthVerifierCookieName], linkSession?.userId)
       : await resolveGitHubUser(context, code, cookies[oauthVerifierCookieName], linkSession?.userId)
     const sessionCookie = await createSessionCookie(user, context.env.SESSION_SECRET, { secure })
+    const continuation = mode === 'sign-in' && /^[-a-f0-9]{36}$/.test(cookies[agentContinuationCookieName] ?? '') ? cookies[agentContinuationCookieName] : null
+    if (continuation) {
+      return new Response(null, {
+        status: 302,
+        headers: [
+          ['Location', new URL('/oauth/authorize', context.request.url).toString()],
+          ['Set-Cookie', sessionCookie],
+          ['Set-Cookie', clearCookie(oauthStateCookieName)],
+          ['Set-Cookie', clearCookie(oauthVerifierCookieName)],
+          ['Set-Cookie', clearCookie(oauthProviderCookieName)],
+          ['Set-Cookie', clearCookie(oauthModeCookieName)],
+        ],
+      })
+    }
     redirectToApp.searchParams.set('auth', 'success')
     redirectToApp.searchParams.set('auth_provider', provider)
 
@@ -84,6 +99,7 @@ export async function onRequestGet(context: WorkerRouteContext): Promise<Respons
         ['Set-Cookie', clearCookie(oauthVerifierCookieName)],
         ['Set-Cookie', clearCookie(oauthProviderCookieName)],
         ['Set-Cookie', clearCookie(oauthModeCookieName)],
+        ['Set-Cookie', clearCookie(agentContinuationCookieName)],
       ],
     })
   } catch {
@@ -106,6 +122,7 @@ function redirectWithAuthResult(
       ['Set-Cookie', clearCookie(oauthVerifierCookieName)],
       ['Set-Cookie', clearCookie(oauthProviderCookieName)],
       ['Set-Cookie', clearCookie(oauthModeCookieName)],
+      ['Set-Cookie', clearCookie(agentContinuationCookieName)],
     ],
   })
 }

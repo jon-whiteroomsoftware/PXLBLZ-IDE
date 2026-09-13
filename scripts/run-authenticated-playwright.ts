@@ -26,6 +26,7 @@ export function authenticatedPlaywrightEnvironment(
     PLAYWRIGHT_STUDIO_URL: `http://localhost:${assignment.uiPort}${basePath}`,
     PXLBLZ_D1_PERSIST_TO: persistenceDirectory,
     PXLBLZ_DEV_VARS_FILE: devVarsFile,
+    PXLBLZ_DEV_AGENT_OAUTH_ORIGIN: `http://localhost:${assignment.uiPort}`,
   }
 }
 

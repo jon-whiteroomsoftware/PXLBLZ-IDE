@@ -1,6 +1,6 @@
 import type { D1DatabaseShowsLike } from '../../../cloudflare/shows'
 import { readSessionFromRequest } from '../../../cloudflare/auth'
-import { agentAccessRefusal, agentResponse } from '../../../cloudflare/agentAccess'
+import { agentServiceRefusal, agentResponse } from '../../../cloudflare/agentAccess'
 import type { AgentWindowChannelCommand } from '../../agent/AgentAccount'
 import { agentGrantAction } from '../../agent/agentGrant'
 import type { AgentClaim } from '../../../engine/agentRendezvous'
@@ -33,13 +33,12 @@ export async function onRequestPost({ request, env }: { request: Request; env: W
   try { payload = JSON.parse(new TextDecoder().decode(bytes)) } catch { return agentResponse({ code: 'invalid_request' }, 400) }
   const command = parseWindowCommand(payload)
   if (!command || (command.type !== 'reply' && size > 2048)) return agentResponse({ code: 'invalid_request' }, 400)
-  // Ending requires the original local capability, even after its Show or opt-in
+  // Ending requires the original local capability, even after its Show or service
   // is gone. It neither admits work nor exposes another window's state.
   const ending = command.type === 'leave' || command.type === 'disconnect' || command.type === 'disarm' || command.type === 'retirement-ack' || command.type === 'forget'
   if (!ending) {
-    const refusal = agentAccessRefusal(session.userId, env)
-    if (refusal) return agentResponse({ code: refusal }, refusal === 'not_allowed' ? 403 : 503)
-    if (url.searchParams.getAll('agent').length !== 1 || url.searchParams.get('agent') !== '1') return agentResponse({ code: 'opt_in_required' }, 403)
+    const refusal = agentServiceRefusal(env)
+    if (refusal) return agentResponse({ code: refusal }, 503)
     if (!isStockShowId(command.showId)) {
       if (!env.PXLBLZ_DB) return agentResponse({ code: 'unavailable' }, 503)
       const db: D1DatabaseShowsLike = env.PXLBLZ_DB

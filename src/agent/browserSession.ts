@@ -39,7 +39,7 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
     signal?.addEventListener('abort', cancel, { once: true })
     if (signal?.aborted) cancel()
     try {
-      const response = await fetcher('/api/agent/channel?agent=1', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: requestAbort.signal })
+      const response = await fetcher('/api/agent/channel', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: requestAbort.signal })
       return await response.json() as ChannelReply
     } finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel) }
   }

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { readSessionFromRequest } from '../../cloudflare/auth'
-import { agentAccessRefusal, agentResponse, type AgentAccessEnvironment } from '../../cloudflare/agentAccess'
+import { agentBuiltinAccessRefusal, agentResponse, type AgentAccessEnvironment } from '../../cloudflare/agentAccess'
 import type { D1DatabaseShowsLike } from '../../cloudflare/shows'
 import { isStockShowId } from '../../pixelblaze/stock/showIds'
 import { AGENT_SERVICE_BOUNDS } from '../../engine/agentAllowance'
@@ -23,9 +23,8 @@ export async function authorizeBuiltinRequest(request: Request, env: Environment
   if (!session) return agentResponse({ code: 'unauthorized' }, 401)
   const url = new URL(request.url)
   if (request.method !== 'POST' || request.headers.get('Origin') !== url.origin) return agentResponse({ code: 'invalid_origin' }, 403)
-  const refusal = agentAccessRefusal(session.userId, env)
+  const refusal = agentBuiltinAccessRefusal(session.userId, env)
   if (refusal) return agentResponse({ code: refusal }, refusal === 'not_allowed' ? 403 : 503)
-  if (url.searchParams.getAll('agent').length !== 1 || url.searchParams.get('agent') !== '1') return agentResponse({ code: 'opt_in_required' }, 403)
   if (request.headers.get('Content-Type')?.split(';', 1)[0].trim().toLowerCase() !== 'application/json') return agentResponse({ code: 'invalid_request' }, 400)
   const reader = request.body?.getReader()
   if (!reader) return agentResponse({ code: 'invalid_request' }, 400)

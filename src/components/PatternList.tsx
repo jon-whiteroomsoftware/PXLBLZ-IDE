@@ -470,7 +470,7 @@ export function PatternList({
       )
       if (cancelled) return
       setPersonalWorkspaceAuthenticated(session.authenticated)
-      setGlobalWorkspaceAuthenticated(session.authenticated)
+      setGlobalWorkspaceAuthenticated(session.authenticated, session.authenticated ? session.agentCapabilities ?? null : null)
       // Hydrate user maps before the first pattern opens so the layout selector is
       // populated from whichever personal provider won startup selection.
       await useMapStore.getState().loadMaps()

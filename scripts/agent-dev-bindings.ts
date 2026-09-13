@@ -3,7 +3,7 @@
  */
 export function agentDevBindings(environment: Record<string, string | undefined>): Record<string, string> {
   const bindings: Record<string, string> = {}
-  for (const name of ['AGENT_SERVICE_ENABLED', 'AGENT_ACCOUNT_ALLOWLIST', 'AGENT_OAUTH_ORIGIN', 'AGENT_OAUTH_CLIENTS']) {
+  for (const name of ['AGENT_SERVICE_ENABLED', 'AGENT_ACCOUNT_ALLOWLIST', 'AGENT_OAUTH_ORIGIN', 'AGENT_OAUTH_CLIENTS', 'PXLBLZ_DEV_AGENT_OAUTH_ORIGIN']) {
     if (environment[name] !== undefined) bindings[name] = environment[name]
   }
   return bindings

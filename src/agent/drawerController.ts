@@ -63,14 +63,14 @@ export function createProductionDrawerController(api: Admission, showId: string,
     connection = next
     if (next.kind === 'contact-lost' || next.kind === 'retiring') { emit({ type: 'drop' }); return }
     if (next.kind === 'refused') { emit({ type: 'system', text: agentRefusalMessage(next.code) }); return }
-    if (next.kind === 'occupied') { emit({ type: 'system', text: 'Another editor window owns the account connection.' }); return }
+    if (next.kind === 'occupied') { emit({ type: 'setupFailed', title: 'Connected in another editor', detail: 'Disconnect in the editor that owns the connection, then try again. If that editor is unavailable, wait for its inactive connection to expire.' }); return }
     if (next.kind === 'idle' && state.connection) { refresh(); emit({ type: 'disconnect' }) }
     emit({ type: 'connection', connection: next.kind === 'bound' ? { kind: next.agentKind, name: next.agentName } : null, armingUntil: next.kind === 'armed' ? next.expiresAt : null, pendingCall: next.kind === 'pending' ? { name: next.agentName, expiresAt: next.expiresAt } : null, contactLost: false })
   }
   const action = async (run: () => Promise<Result>) => {
     try {
       const result = await run()
-      if (!disposed && !['bound', 'armed', 'disarmed', 'declined', 'disconnected', 'forgotten', 'idle', 'status', 'retiring', 'outcome'].includes(result.code)) emit({ type: 'system', text: agentRefusalMessage(result.code) })
+      if (!disposed && !['bound', 'armed', 'disarmed', 'declined', 'disconnected', 'forgotten', 'idle', 'status', 'retiring', 'outcome', 'occupied'].includes(result.code)) emit({ type: 'system', text: agentRefusalMessage(result.code) })
     } catch { emit({ type: 'drop' }) }
   }
   const stopChannel = channel.subscribe(event => {
@@ -116,7 +116,14 @@ export function createProductionDrawerController(api: Admission, showId: string,
       if (disposed) return
       if (event.type === 'draft') draftVersion++
       if (event.type === 'chooseBuiltin') { void action(() => builtin({ action: 'connect' })); return }
-      if (event.type === 'connectOwn') { void action(() => channel.arm()); return }
+      if (event.type === 'connectOwn') {
+        void action(async () => {
+          const result = await channel.arm()
+          if (result.code === 'occupied') emit({ type: 'setupFailed', title: 'Connected in another editor', detail: 'Disconnect in the editor that owns the connection, then try again. If that editor is unavailable, wait for its inactive connection to expire.' })
+          return result
+        })
+        return
+      }
       if (event.type === 'cancelArm') { void action(() => channel.cancelArm()); return }
       if (event.type === 'approveKnock' || event.type === 'declineKnock') {
         if (connection.kind === 'pending') { const callId = connection.callId; void action(() => event.type === 'approveKnock' ? channel.answer(callId) : channel.decline(callId)) }
