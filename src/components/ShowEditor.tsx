@@ -176,7 +176,6 @@ import {
   type ShowClipAddTarget,
 } from '@/engine/showTimelineClipAuthoring'
 import {
-  deleteShowClipWithLayerTransitions,
   insertShowLayerTransition,
   moveShowConnectedClipAtGlobalTime,
   moveShowConnectedClipInShowAtGlobalTime,
@@ -187,6 +186,7 @@ import {
   resetShowLayerTransitionToCut,
   showLayerTransitionsConnectedToClip,
 } from '@/engine/showLayerTransitionAuthoring'
+import { deleteShowClipInShow, type ShowClipDeletionResult } from '@/engine/showClipDeletion'
 import {
   completeShowGroupSelection,
   createShowGroupFromSelection,
@@ -377,6 +377,59 @@ const ZONE_RAIL_MICRO_PX = 32
 type BlockedDeleteFeedback = {
   selectionKey: string
   token: number
+  label: string
+  status: string
+}
+
+type BlockedDeleteCopy = Pick<BlockedDeleteFeedback, 'label' | 'status'>
+type ShowClipDeletionRefusal = Extract<ShowClipDeletionResult, { status: 'refused' }>
+
+const LAST_CLIP_DELETE_FEEDBACK: BlockedDeleteCopy = {
+  label: 'Keep one Clip',
+  status: 'A Show must contain at least one Clip.',
+}
+
+function blockedDeleteCopyForRefusal(
+  show: ShowRecord,
+  refusal: ShowClipDeletionRefusal,
+): BlockedDeleteCopy {
+  if (refusal.reason === 'cross-boundary-shared-instance') {
+    return {
+      label: 'Cannot delete: shared animation state',
+      status: 'Cannot delete: shared animation state',
+    }
+  }
+  const blockedIds = new Set(refusal.details ?? [])
+  const trailsIsBlocking = refusal.reason === 'output-feedback-state'
+    && show.outputEffects?.some((effect) => (
+      effect.kind === 'trails' && (blockedIds.size === 0 || blockedIds.has(effect.id))
+    ))
+  if (trailsIsBlocking) {
+    return {
+      label: 'Cannot delete while Trails is enabled.',
+      status: 'Cannot delete while Trails is enabled.',
+    }
+  }
+  return {
+    label: 'Cannot delete this Clip.',
+    status: 'Cannot delete this Clip.',
+  }
+}
+
+function blockedDeleteSelectionKey(
+  composition: ShowCompositionV1,
+  owner: ShowTimelineClipOwner,
+): string {
+  for (const scene of composition.scenes) {
+    for (const zone of scene.zones) {
+      const direct = [
+        ...zone.main,
+        ...zone.overlays.flatMap((layer) => layer.placements),
+      ].find((placement) => placement.id === owner.placementId)
+      if (direct) return `clip:${direct.logicalClipId ?? direct.id}`
+    }
+  }
+  return `clip:${owner.placementId}`
 }
 
 function showSelectionKey(selection: ShowSelection): string {
@@ -1038,6 +1091,14 @@ export function ShowEditor({
   const [pendingPatternSlotSelection, setPendingPatternSlotSelection] = useState<PendingPatternSlotSelection | null>(null)
   const [blockedDeleteFeedback, setBlockedDeleteFeedback] = useState<BlockedDeleteFeedback | null>(null)
   const blockedDeleteFeedbackSequenceRef = useRef(0)
+  const reportBlockedDelete = useCallback((selectionKey: string, copy: BlockedDeleteCopy) => {
+    blockedDeleteFeedbackSequenceRef.current += 1
+    setBlockedDeleteFeedback({
+      selectionKey,
+      token: blockedDeleteFeedbackSequenceRef.current,
+      ...copy,
+    })
+  }, [])
   const [spatialZoneSelection, setSpatialZoneSelection] = useState<{ zoneId: string; layoutId: string } | null>(null)
   const [detailPanelOpen, setDetailPanelOpen] = useState(false)
   const [detailAnchor, setDetailAnchor] = useState<HTMLElement | null>(null)
@@ -1345,11 +1406,7 @@ export function ShowEditor({
       )
       if (!compositionOwner && !visibleCompositionOwner && !legacyClipExists) return false
       if (showRecordClipCount(activeShow) <= 1) {
-        blockedDeleteFeedbackSequenceRef.current += 1
-        setBlockedDeleteFeedback({
-          selectionKey: showSelectionKey(targetSelection),
-          token: blockedDeleteFeedbackSequenceRef.current,
-        })
+        reportBlockedDelete(showSelectionKey(targetSelection), LAST_CLIP_DELETE_FEEDBACK)
         return true
       }
       if (compositionOwner && activeShow.composition) {
@@ -1357,11 +1414,17 @@ export function ShowEditor({
           setCompositionClipPendingDelete(compositionOwner)
           return true
         }
-        const composition = deleteShowClipWithLayerTransitions(activeShow, activeShow.composition, compositionOwner)
-        if (composition === activeShow.composition) return false
+        const deletion = deleteShowClipInShow(activeShow, activeShow.composition, compositionOwner)
+        if (deletion.status !== 'applied') {
+          reportBlockedDelete(
+            blockedDeleteSelectionKey(activeShow.composition, compositionOwner),
+            blockedDeleteCopyForRefusal(activeShow, deletion),
+          )
+          return true
+        }
         closeDetailPanel()
         closePinnedDetailForSelection(targetSelection)
-        updateShowInBackground(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+        updateShowInBackground(activeShow.id, { ...deletion.record, updatedAt: Date.now() })
         return true
       }
       if (!legacyClipExists) return false
@@ -1388,7 +1451,7 @@ export function ShowEditor({
       return true
     }
     return false
-  }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, removeBoundaryTransition, removeClip, removeZone, setSelection, updateShowInBackground])
+  }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, removeBoundaryTransition, removeClip, removeZone, reportBlockedDelete, setSelection, updateShowInBackground])
   useEffect(() => {
     if (!blockedDeleteFeedback) return
     const timeout = window.setTimeout(() => setBlockedDeleteFeedback(null), 1100)
@@ -2482,7 +2545,7 @@ export function ShowEditor({
                 aria-live="polite"
                 className="sr-only"
               >
-                A Show must contain at least one Clip.
+                {blockedDeleteFeedback.status}
               </span>
             )}
             <ShowTimelineWorkspace
@@ -2946,15 +3009,23 @@ export function ShowEditor({
                       setCompositionClipPendingDelete(timelineOwner)
                       return
                     }
-                    const composition = timelineOwner
-                      ? deleteShowClipWithLayerTransitions(activeShow, timelineComposition, timelineOwner)
-                      : timelineComposition
-                    if (composition === timelineComposition) return
+                    const deletion = timelineOwner
+                      ? deleteShowClipInShow(activeShow, timelineComposition, timelineOwner)
+                      : null
+                    if (deletion?.status !== 'applied') {
+                      if (deletion && timelineOwner) {
+                        reportBlockedDelete(
+                          blockedDeleteSelectionKey(timelineComposition, timelineOwner),
+                          blockedDeleteCopyForRefusal(activeShow, deletion),
+                        )
+                      }
+                      return
+                    }
                     closeDetailPanel()
                     if (timelineOwner) {
                       closePinnedDetailForSelection({ kind: 'clip', clipId: timelineOwner.placementId })
                     }
-                    updateShowInBackground(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                    updateShowInBackground(activeShow.id, { ...deletion.record, updatedAt: Date.now() })
                   }}
                   onDuplicateGroup={(occurrenceId) => {
                     if (!activeShow.composition) return
@@ -3172,19 +3243,23 @@ export function ShowEditor({
                 <AlertDialogAction
                   onClick={() => {
                     if (compositionClipPendingDelete && timelineComposition) {
-                      const nextComposition = deleteShowClipWithLayerTransitions(
+                      const deletion = deleteShowClipInShow(
                         activeShow,
                         timelineComposition,
                         compositionClipPendingDelete,
                       )
-                      if (nextComposition !== timelineComposition) {
+                      if (deletion.status === 'applied') {
                         closeDetailPanel()
                         closePinnedDetailForSelection({ kind: 'clip', clipId: compositionClipPendingDelete.placementId })
                         updateShowInBackground(activeShow.id, {
-                          ...activeShow,
-                          composition: nextComposition,
+                          ...deletion.record,
                           updatedAt: Date.now(),
                         })
+                      } else {
+                        reportBlockedDelete(
+                          blockedDeleteSelectionKey(timelineComposition, compositionClipPendingDelete),
+                          blockedDeleteCopyForRefusal(activeShow, deletion),
+                        )
                       }
                     }
                     setCompositionClipPendingDelete(null)
@@ -6184,7 +6259,7 @@ function ShowTimelineWorkspace({
                           className="show-clip-delete-blocked pointer-events-none absolute -inset-[2px] z-30 flex items-center justify-center rounded-[7px]"
                         >
                           <span className="show-clip-delete-blocked-label rounded border border-red-300/70 bg-red-950/95 px-1.5 py-0.5 text-[9px] font-semibold uppercase leading-none tracking-[0.08em] text-red-100 shadow-sm">
-                            Keep one Clip
+                            {blockedDeleteFeedback.label}
                           </span>
                         </span>
                       )}

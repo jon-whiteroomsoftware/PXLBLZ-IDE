@@ -47,6 +47,7 @@ import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { createPropertySlotQualificationShow } from '@/engine/showPatternSlotTestFixture'
 import { showSplitClipFixture } from '@/test/showSplitClipFixture'
+import { boundaryClipDeletionFixture, boundaryDeletionPlacement } from '@/test/showBoundaryClipDeletionFixture'
 import { useShowEditorViewStore } from '@/store/showEditorViewStore'
 
 // The pressure/blocked compile-bar tests need a show decisively over the
@@ -4508,6 +4509,184 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     expect(screen.queryByRole('button', { name: 'Select Disposable Rings' })).not.toBeInTheDocument()
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+  })
+
+  it('adopts boundary repair with one save and restores the whole edit through Undo and Redo (#1023)', async () => {
+    const user = userEvent.setup()
+    const show = boundaryClipDeletionFixture('show-delete-boundary-ui')
+    const provider = memoryProvider([show])
+    const save = vi.spyOn(provider, 'updateShow')
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select starter-b' }))
+    fireEvent.keyDown(document, { key: 'Delete' })
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+    const repaired = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+    expect(repaired.transitions[0]).toMatchObject({ id: 'transition-scene-1', kind: 'cut', durationMs: 0 })
+    expect(repaired.scenes.map((scene) => scene.durationMs)).toEqual([30_000, 32_000])
+    expect(repaired.composition?.scenes[1].zones[0].main).toEqual([])
+    expect(repaired.composition?.markers).toEqual(show.composition?.markers)
+    expect(repaired.composition?.scenes[0].zones[0].overlays).toEqual(show.composition?.scenes[0].zones[0].overlays)
+    expect(useShowStore.getState().showHistories[show.id]?.past).toHaveLength(1)
+    expect(screen.queryByRole('status', { name: 'Clip deletion unavailable' })).not.toBeInTheDocument()
+    await expect(provider.listShows()).resolves.toEqual([repaired])
+
+    await act(async () => { await useShowStore.getState().undoShow(show.id) })
+    const undone = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+    expect(undone.transitions[0]).toEqual(show.transitions[0])
+    expect(undone.scenes.map((scene) => scene.durationMs)).toEqual([30_000, 30_000])
+    expect(undone.composition?.scenes[1].zones[0].main).toEqual(show.composition?.scenes[1].zones[0].main)
+    expect(undone.composition?.markers).toEqual(show.composition?.markers)
+
+    await act(async () => { await useShowStore.getState().redoShow(show.id) })
+    const redone = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+    expect({ ...redone, updatedAt: repaired.updatedAt }).toEqual(repaired)
+    expect(save).toHaveBeenCalledTimes(3)
+  })
+
+  it('anchors repeated keyboard shared-state refusals to the visible logical Clip (#1023)', async () => {
+    const show = boundaryClipDeletionFixture('show-delete-boundary-shared-ui')
+    const root = show.composition!.scenes[0].zones[0].main[0]
+    const continuation = show.composition!.scenes[1].zones[0].main[0]
+    continuation.id = 'starter-a--span-scene-2'
+    continuation.logicalClipId = root.id
+    continuation.instanceId = root.instanceId
+    show.composition!.scenes[1].zones[0].overlays[0].placements.push({
+      ...boundaryDeletionPlacement('shared-later', 1_000, 1_000, 'instance-overlay-a'),
+      opacity: 1,
+    })
+    expect(validateShowComposition(show, show.composition!)).toEqual([])
+    const before = structuredClone(show)
+    const provider = memoryProvider([show])
+    const save = vi.spyOn(provider, 'updateShow')
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    const visibleRoot = screen.getByRole('button', { name: 'Select starter-a' })
+    visibleRoot.focus()
+    act(() => {
+      useShowEditorViewStore.getState().setSelection({
+        kind: 'clip',
+        clipId: 'starter-a--span-scene-2',
+      })
+    })
+    fireEvent.keyDown(document, { key: 'Delete' })
+
+    const firstPulse = within(visibleRoot).getByTestId('show-clip-delete-blocked')
+    expect(within(visibleRoot).getByText('Cannot delete: shared animation state')).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Clip deletion unavailable' }))
+      .toHaveTextContent('Cannot delete: shared animation state')
+    expect(document.activeElement).toBe(visibleRoot)
+
+    fireEvent.keyDown(document, { key: 'Delete' })
+    const secondPulse = within(visibleRoot).getByTestId('show-clip-delete-blocked')
+    expect(secondPulse).not.toBe(firstPulse)
+    expect(document.activeElement).toBe(visibleRoot)
+    expect(useShowStore.getState().shows.find((candidate) => candidate.id === show.id)).toEqual(before)
+    expect(useShowStore.getState().showHistories[show.id]).toBeUndefined()
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  it('reports a Trails refusal from the Clip inspector without adoption (#1023)', async () => {
+    const user = userEvent.setup()
+    const show = boundaryClipDeletionFixture('show-delete-boundary-trails-inspector-ui')
+    show.outputEffects = [{ id: 'trails', kind: 'trails', retention: 0.8 }]
+    const before = structuredClone(show)
+    const provider = memoryProvider([show])
+    const save = vi.spyOn(provider, 'updateShow')
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select starter-b' }))
+    await user.click(screen.getByRole('button', { name: 'Delete clip starter-b' }))
+
+    expect(within(screen.getByRole('button', { name: 'Select starter-b' }))
+      .getByText('Cannot delete while Trails is enabled.')).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Clip deletion unavailable' }))
+      .toHaveTextContent('Cannot delete while Trails is enabled.')
+    expect(useShowStore.getState().shows.find((candidate) => candidate.id === show.id)).toEqual(before)
+    expect(useShowStore.getState().showHistories[show.id]).toBeUndefined()
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  it('uses plain feedback without internal IDs for another boundary refusal (#1023)', async () => {
+    const show = boundaryClipDeletionFixture('show-delete-boundary-entry-refusal-ui')
+    show.composition!.scenes[0].zones[0].main[0].instanceId = 'missing-pattern-instance'
+    const before = structuredClone(show)
+    const provider = memoryProvider([show])
+    const save = vi.spyOn(provider, 'updateShow')
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    const selectedClip = screen.getByRole('button', { name: 'Select starter-b' })
+    fireEvent.click(selectedClip)
+    selectedClip.focus()
+    fireEvent.keyDown(document, { key: 'Delete' })
+
+    expect(within(selectedClip).getByTestId('show-clip-delete-blocked'))
+      .toHaveTextContent('Cannot delete this Clip.')
+    expect(screen.getByRole('status', { name: 'Clip deletion unavailable' }))
+      .toHaveTextContent('Cannot delete this Clip.')
+    expect(document.activeElement).toBe(selectedClip)
+    expect(useShowStore.getState().shows.find((candidate) => candidate.id === show.id)).toEqual(before)
+    expect(useShowStore.getState().showHistories[show.id]).toBeUndefined()
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  it('reports a Trails refusal after confirmed connected deletion without adoption (#1023)', async () => {
+    const user = userEvent.setup()
+    const show = boundaryClipDeletionFixture('show-delete-boundary-trails-confirm-ui')
+    const destination = show.composition!.scenes[1].zones[0]
+    destination.main[0].durationMs = 10_000
+    show.composition!.patternInstances.push({
+      id: 'instance-connected-tail',
+      pattern: { kind: 'stock', id: 'CometLoom' },
+      patternName: 'connected-tail',
+      time: { timeScale: 1, timeOffsetMs: 0 },
+    })
+    destination.main.push(boundaryDeletionPlacement(
+      'connected-tail',
+      12_000,
+      18_000,
+      'instance-connected-tail',
+    ))
+    show.composition!.transitions = [{
+      id: 'layer-transition-to-tail',
+      fromPlacementId: 'starter-b',
+      toPlacementId: 'connected-tail',
+      kind: 'crossfade',
+      durationMs: 2_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    }]
+    show.outputEffects = [{ id: 'trails', kind: 'trails', retention: 0.8 }]
+    expect(validateShowComposition(show, show.composition!)).toEqual([])
+    const before = structuredClone(show)
+    const provider = memoryProvider([show])
+    const save = vi.spyOn(provider, 'updateShow')
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select starter-b' }))
+    await user.click(screen.getByRole('button', { name: 'Delete clip starter-b' }))
+    const confirmation = screen.getByRole('alertdialog', { name: 'Remove connected Clip?' })
+    await user.click(within(confirmation).getByRole('button', { name: 'Remove Clip and Transition' }))
+
+    expect(screen.queryByRole('alertdialog', { name: 'Remove connected Clip?' })).not.toBeInTheDocument()
+    expect(within(screen.getByRole('button', { name: 'Select starter-b' }))
+      .getByText('Cannot delete while Trails is enabled.')).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Clip deletion unavailable' }))
+      .toHaveTextContent('Cannot delete while Trails is enabled.')
+    expect(useShowStore.getState().shows.find((candidate) => candidate.id === show.id)).toEqual(before)
+    expect(useShowStore.getState().showHistories[show.id]).toBeUndefined()
+    expect(save).not.toHaveBeenCalled()
   })
 
   it('deletes a selected flat Show Clip from its projected timeline placement (#63)', async () => {

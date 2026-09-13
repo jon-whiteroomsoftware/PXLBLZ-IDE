@@ -230,7 +230,6 @@
   "/composition/groupOccurrences/*/baseLayer",
   "/composition/groupOccurrences/*/definitionId",
   "/composition/groupOccurrences/*/sceneId",
-  "/composition/groupOccurrences/*/startMs",
   "/composition/groupOccurrences/*/translationX",
   "/composition/groupOccurrences/*/translationY",
   "/composition/groupOccurrences/*/zoneId",

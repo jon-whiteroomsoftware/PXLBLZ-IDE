@@ -1,6 +1,8 @@
 import { expect, it } from 'vitest'
 import { trackedCommandFixture } from '../../test/showCommandFixture'
+import { boundaryClipDeletionFixture, boundaryDeletionPlacement } from '../../test/showBoundaryClipDeletionFixture'
 import { deleteShowMainPlacement, validateShowComposition } from '../showCompositionModel'
+import type { ShowRecord } from '../personalContentRecords'
 
 it('removes newly orphaned instance dependencies while preserving the complete surviving composition', () => {
   const show = trackedCommandFixture()
@@ -18,13 +20,15 @@ it('removes newly orphaned instance dependencies while preserving the complete s
 })
 
 it('pairs connected deletion with ordinary deletion without whole-composition normalization', async () => {
-  const { deleteShowClipWithLayerTransitions } = await import('../showLayerTransitionAuthoring')
+  const { deleteShowClipInShow } = await import('../showClipDeletion')
   const show = trackedCommandFixture()
   const composition = show.composition!
   composition.markers = [{ id: 'late', timeMs: 2000 }, { id: 'early', timeMs: 1000 }]
   const owner = { kind: 'main' as const, sceneId: 'scene-1', zoneId: 'zone-1', placementId: 'clip-b' }
   const expected = deleteShowMainPlacement(composition, owner)
-  expect(deleteShowClipWithLayerTransitions(show, composition, owner)).toEqual(expected)
+  const result = deleteShowClipInShow(show, composition, owner)
+  expect(result.status).toBe('applied')
+  if (result.status === 'applied') expect(result.record.composition).toEqual(expected)
 })
 
 it.each(['clip-a', 'clip-b', 'clip-ov'])('preserves unrelated Groups, orphan data and surviving shared users when removing %s', async clipId => {
@@ -96,8 +100,60 @@ it('refuses Group children, missing targets, malformed owners and the last logic
   const malformed = trackedCommandFixture()
   malformed.composition!.scenes[0].zones[0].main[0].instanceId = 'absent'
   const before = structuredClone(malformed)
-  expect(applyShowCommand(malformed, 'remove_clip', { clip_id: 'clip-b' })).toMatchObject({ ok: false, issues: [{ code: 'engine-refused' }] })
+  expect(applyShowCommand(malformed, 'remove_clip', { clip_id: 'clip-b' })).toMatchObject({ ok: false, issues: [{ code: 'delete-refused' }] })
   expect(malformed).toEqual(before)
+})
+
+it.each([
+  {
+    reason: 'cross-boundary-shared-instance',
+    relatedId: 'instance-starter-a',
+    message: 'Clip starter-b was not removed because the time-preserving boundary repair cannot move Pattern-instance state shared across that boundary. Boundary Transition transition-scene-1. Related IDs: instance-starter-a.',
+    remedy: 'Keep the Clip, or separate the listed Pattern instance across the Scene boundary before retrying.',
+    arrange(show: ShowRecord) {
+      show.composition!.scenes[1].zones[0].overlays[0].placements.push({
+        ...boundaryDeletionPlacement('shared-later', 1_000, 1_000, 'instance-starter-a'),
+        opacity: 1,
+      })
+    },
+  },
+  {
+    reason: 'output-feedback-state',
+    relatedId: 'trails',
+    message: 'Clip starter-b was not removed because the time-preserving boundary repair cannot preserve output-feedback history across that boundary. Boundary Transition transition-scene-1. Related IDs: trails.',
+    remedy: 'Keep the Clip, or remove the listed output-feedback state before retrying.',
+    arrange(show: ShowRecord) {
+      show.outputEffects = [{ id: 'trails', kind: 'trails', retention: 0.8 }]
+    },
+  },
+] as const)('reports precise $reason dependency refusal without adopting any command step', async ({ reason, relatedId, message, remedy, arrange }) => {
+  const { applyShowCommand, runShowCommandTransaction } = await import('./registry')
+  const show = boundaryClipDeletionFixture(`command-refusal-${reason}`)
+  arrange(show)
+  const before = structuredClone(show)
+
+  const outcome = applyShowCommand(show, 'remove_clip', { clip_id: 'starter-b' })
+
+  expect(outcome).toEqual({
+    ok: false,
+    issues: [{
+      code: reason,
+      path: '$.clip_id',
+      message,
+      remedy,
+    }],
+  })
+  if (outcome.ok) throw new Error('Dependency deletion unexpectedly succeeded')
+  expect(outcome.issues[0].message).toContain(relatedId)
+  expect(outcome.issues[0].message).not.toContain('keeps at least one clip')
+  expect(show).toEqual(before)
+
+  const transaction = runShowCommandTransaction(show, [
+    { name: 'rename_show', input: { name: 'Private candidate only' } },
+    { name: 'remove_clip', input: { clip_id: 'starter-b' } },
+  ])
+  expect(transaction).toEqual({ ok: false, step: 1, issues: outcome.issues })
+  expect(show).toEqual(before)
 })
 
 it.each(['clip-a', 'clip-b'])('invalidates the cast proof only when %s removes its instance', async clipId => {
@@ -107,10 +163,12 @@ it.each(['clip-a', 'clip-b'])('invalidates the cast proof only when %s removes i
   const outcome = applyShowCommand(show, 'remove_clip', { clip_id: clipId })
   expect(outcome.ok).toBe(true)
   if (!outcome.ok) throw new Error('Removal refused')
-  const { deleteShowClipWithLayerTransitions } = await import('../showLayerTransitionAuthoring')
-  const manual = deleteShowClipWithLayerTransitions(show, show.composition!, {
+  const { deleteShowClipInShow } = await import('../showClipDeletion')
+  const manual = deleteShowClipInShow(show, show.composition!, {
     kind: 'main', sceneId: 'scene-1', zoneId: 'zone-1', placementId: clipId,
   })
-  expect(manual).toEqual(outcome.record.composition)
-  expect(manual.executionModel).toBe(clipId === 'clip-a' ? 'deterministic-loop' : undefined)
+  expect(manual.status).toBe('applied')
+  if (manual.status !== 'applied') throw new Error(manual.reason)
+  expect(manual.record.composition).toEqual(outcome.record.composition)
+  expect(manual.record.composition?.executionModel).toBe(clipId === 'clip-a' ? 'deterministic-loop' : undefined)
 })

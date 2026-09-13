@@ -12,7 +12,7 @@ file drifts from the generator.
 | clips | 84 | 84 | 100% |
 | effects | 62 | 62 | 100% |
 | flat model (legacy) | 78 | 0 | 0% |
-| groups | 157 | 0 | 0% |
+| groups | 157 | 1 | 0.6% |
 | junctions | 184 | 184 | 100% |
 | layer transitions | 51 | 51 | 100% |
 | output effects | 2 | 2 | 100% |
@@ -273,7 +273,6 @@ session; frequent use of a path here is the signal to add a specific operation.
 - `/composition/groupOccurrences/*/baseLayer`
 - `/composition/groupOccurrences/*/definitionId`
 - `/composition/groupOccurrences/*/sceneId`
-- `/composition/groupOccurrences/*/startMs`
 - `/composition/groupOccurrences/*/translationX`
 - `/composition/groupOccurrences/*/translationY`
 - `/composition/groupOccurrences/*/zoneId`

@@ -19,6 +19,7 @@ import { showLayerCommandFixture } from '../../test/showLayerCommandFixture'
 import { validateShowComposition } from '../showCompositionModel'
 import type { ShowRecord } from '../personalContentRecords'
 import { showLoopDurationMs } from '../showModel'
+import { deleteShowClipInShow } from '../showClipDeletion'
 import { projectShowSummary } from '../showSummaryProjection'
 import { insertShowLayerTransition } from '../showLayerTransitionAuthoring'
 import { projectShowLayoutIntervals } from '../showLayoutIntervals'
@@ -551,6 +552,60 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     const connected = { ...adjacent.record, composition: withTransition }
     const removedConnected = applyOk(connected, 'remove_clip', { clip_id: 'clip-b' })
     expect(removedConnected.record.composition?.transitions ?? []).toEqual([])
+
+    // Deleting the final incoming boundary Clip repairs the newly unused
+    // Scene transition and shifts every destination-local schedule together.
+    const boundary = showCommandFixture()
+    const boundaryComposition = boundary.composition!
+    const outgoing = boundaryComposition.scenes[0].zones[0].main[0]
+    outgoing.startMs = 0
+    outgoing.durationMs = 30_000
+    boundaryComposition.scenes[0].zones[0].main = [outgoing]
+    const incoming = boundaryComposition.patternInstances.find((instance) => instance.id === 'instance-b')!
+    boundaryComposition.scenes[1].zones[0].main = [{
+      id: 'clip-b',
+      instanceId: incoming.id,
+      startMs: 0,
+      durationMs: 30_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    }]
+    boundaryComposition.groupDefinitions = [{
+      id: 'group-definition',
+      name: 'Destination group',
+      patternInstances: [{
+        id: 'group-instance',
+        pattern: { kind: 'stock', id: 'Rings' },
+        patternName: 'Group pattern',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      placements: [{
+        id: 'group-placement',
+        instanceId: 'group-instance',
+        layerOffset: 0,
+        startMs: 0,
+        durationMs: 1_000,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }],
+    }]
+    boundaryComposition.groupOccurrences = [{
+      id: 'group-occurrence',
+      definitionId: 'group-definition',
+      sceneId: 'scene-2',
+      zoneId: 'zone-1',
+      startMs: 1_000,
+      baseLayer: 1,
+      translationX: 0,
+      translationY: 0,
+    }]
+    expect(validateShowComposition(boundary, boundaryComposition)).toEqual([])
+    expect(deleteShowClipInShow(boundary, boundaryComposition, {
+      kind: 'main', sceneId: 'scene-2', zoneId: 'zone-1', placementId: 'clip-b',
+    })).toMatchObject({ status: 'applied' })
+    const repaired = applyOk(boundary, 'remove_clip', { clip_id: 'clip-b' })
+    expect(repaired.record.scenes[1].durationMs).toBe(32_000)
+    expect(repaired.record.transitions[0]).toMatchObject({ kind: 'cut', durationMs: 0 })
+    expect(repaired.record.composition?.groupOccurrences?.[0].startMs).toBe(3_000)
   },
   make_clip_pattern_independent: () => {
     const { record, changes } = applyOk(showCommandFixture(), 'make_clip_pattern_independent', {
@@ -1597,6 +1652,21 @@ function permittedEntityIds({ command, input, changes, before }: AppliedRecord):
     for (const key of ['leftClipId', 'rightClipId', 'newInstanceId', 'instanceId', 'intervalId']) add(change.details?.[key])
     for (const key of ['movedClipIds', 'changedClipIds', 'directClipIds', 'linkedClipIds', 'changedInstanceIds']) {
       for (const id of (change.details?.[key] as string[] | undefined) ?? []) add(id)
+    }
+    for (const repair of (change.details?.boundaryRepairs as Array<{
+      transitionId: string
+      destinationSceneId: string
+      shiftedPlacementIds: string[]
+      shiftedPropertyTrackIds: string[]
+      shiftedKeyframeIds: string[]
+      shiftedGroupOccurrenceIds: string[]
+    }> | undefined) ?? []) {
+      add(repair.transitionId)
+      add(repair.destinationSceneId)
+      for (const id of repair.shiftedPlacementIds) add(id)
+      for (const id of repair.shiftedPropertyTrackIds) add(id)
+      for (const id of repair.shiftedKeyframeIds) add(id)
+      for (const id of repair.shiftedGroupOccurrenceIds) add(id)
     }
     for (const id of Object.values((change.details?.layerIdsBySceneId as Record<string, string> | undefined) ?? {})) add(id)
     for (const item of (change.details?.results as Array<{ clipId?: string; instanceId?: string }> | undefined) ?? []) {

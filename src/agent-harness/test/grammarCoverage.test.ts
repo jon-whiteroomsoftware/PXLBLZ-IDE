@@ -103,9 +103,9 @@ describe('coverage over the real schema and registry (#22)', () => {
     expect(report.genericOnly).toEqual(genericOnlySnapshot)
   })
 
-  it('records the known gaps: groups and the flat model; Trails is covered (#27)', () => {
+  it('records the known gaps: Groups remain partial and the flat model remains generic; Trails is covered (#27)', () => {
     const families = Object.fromEntries(report.families.map((family) => [family.family, family]))
-    expect(families['groups'].specific).toBe(0)
+    expect(families['groups'].specific).toBe(1)
     expect(families['flat model (legacy)'].specific).toBe(0)
     for (const path of ['/cells/*/viewport/starPoints', '/cells/*/effects/*/amount', '/zones/*/icon', '/routingLayouts/*/name', '/routingLayouts/*/zones/*/ranges/*/start', '/routingLayouts/*/logical/kind']) {
       expect(report.rows.find(row => row.path === path)).toEqual({ path, classification: 'generic-only', operations: [] })

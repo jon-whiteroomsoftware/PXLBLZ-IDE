@@ -934,6 +934,23 @@ Hold) shared by Transitions, property animation, and Effect parameters. Legacy
 ease names map to their exact prior behavior; invalid structures normalize to
 Linear with field-addressed validator issues.
 
+`showClipDeletion.ts` owns direct logical Clip deletion across both the editor
+and command registry. After attached Layer-transition cleanup, it classifies
+only visual Scene boundaries touched by the original physical Clip segments
+against the complete post-delete Show. A boundary with surviving Layer,
+incoming-content, or property-transition use stays intact. An otherwise unused
+simple visual boundary is converted by
+`showBoundaryTransitionTimeRepair.ts`: the stable boundary becomes a Cut, its
+duration extends the destination hold, and destination-local placements,
+Scene-local keyframes, and Group occurrences shift by the same amount. This
+keeps unrelated global schedules, routing times, markers, and explicit Show End
+fixed while making the former transition interval authorable. Pattern-instance
+private time is not shifted. Cross-boundary shared instances, output feedback,
+ambiguous ownership, malformed timing, and other unproved forms refuse the
+compound edit without adopting any partial deletion. Import and hydration do
+not classify or rewrite pre-existing zero-junction boundary records; a known
+record can use the explicit stable-ID conversion after individual review.
+
 Pointer and composition-inspector duration commits share the exact resize owner
 through `showManualClipResize.ts`. Bounded pointer feedback uses the owner's
 reported capacity; release resolves the painted range against its captured source.

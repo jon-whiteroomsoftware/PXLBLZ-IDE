@@ -383,7 +383,7 @@ partitions, and preservation. [Command fixtures](../../../src/engine/showCommand
 cover Layer-addressed Clip sequences, rollback, receipts, canonical/diagnostic
 parity, and `.pxlshow` reopen.
 
-## Logical Clip removal (#951)
+## Logical Clip removal (#951, #1023)
 
 `remove_clip(clip_id)` removes every Scene segment of a direct logical Clip,
 its placement-owned tracks and attached Layer Transitions. Pattern instances
@@ -392,21 +392,48 @@ no surviving direct Clip uses the instance. Unrelated pre-existing orphan
 instances and tracks remain unchanged. Removing an instance forfeits the
 cast-bound deterministic-loop stamp; shared-instance removal retains it.
 
+The whole-Show owner also examines visual Scene boundaries touched by the
+deleted Clip's original physical segments. It retains a boundary when the
+post-delete Show still has a Layer junction, incoming destination content, or
+property-transition carrier anywhere across its Zones and Layers. When none of
+those dependencies remains, a supported positive-duration visual boundary is
+replaced by the same stable-id Cut while its duration becomes ordinary time in
+the destination Scene. Destination-local direct placements, Scene-local
+Property keyframes, and Group occurrences move forward by that duration;
+Pattern-instance private time does not. Existing global Clip ranges, markers,
+later Scene starts, routing events, and explicit Show End therefore stay fixed.
+
 Missing targets, Group children, malformed composition owners and removal of
-the last logical Clip refuse. Surviving identities, ranges, settings, Layer
-order, Groups and routing remain unchanged. The owner validates its complete
-result without normalizing unrelated authored content.
+the last logical Clip refuse. A compound boundary repair also refuses
+atomically when its finite preservation domain cannot cover a direct Pattern
+instance shared across the boundary, output feedback state, ambiguous ownership,
+or malformed timing. Surviving identities, ranges,
+settings, Layer order, Groups and routing remain unchanged. The owner validates
+its complete result without normalizing unrelated authored content. Refusal
+returns the exact original Show, so callers create no adoption, history, or
+save entry. Dependency refusals retain their precise engine reason as the
+command issue code and name the affected Boundary Transition and related IDs;
+the last-Clip refusal keeps its existing code and remedy.
 
 The canonical descriptor supplies the diagnostic invocation schema and touch
 inventory. Ordinary manual deletion and confirmed connected deletion call the
-same validated owner, `deleteShowClipWithLayerTransitions`, which delegates to
-the logical placement deletion in `showCompositionModel`. The existing connected
-confirmation remains the manual consent surface. Adoption, one-save history,
-and whole-Show revision admission retain their existing owners.
+same validated whole-Show owner, `deleteShowClipInShow`, which composes
+`deleteShowClipWithLayerTransitions` with boundary eligibility and the explicit
+time-preserving conversion. The existing connected confirmation remains the
+manual consent surface. Adoption, one-save history, and whole-Show revision
+admission retain their existing owners.
 
-[Removal evidence](../evidence/issue-951-remove-clip/README.md) records complete
-output, dependency preservation, protocol and browser checks. Group deletion,
-other Clip commands and narrow candidate admission remain outside this slice.
+The explicit conversion can repair a known affected saved boundary by stable
+Transition ID, but hydration, import, and save do not guess which historical
+zero-junction effects were unwanted. Automatic classification of those
+already-saved records remains outside this contract; there is no blanket
+legacy normalization.
+
+[Removal evidence](../evidence/issue-951-remove-clip/README.md) records the
+original logical-removal qualification. The #1023 engine, command, playback,
+component, export, and authenticated browser fixtures qualify the bounded
+boundary-time repair. Group deletion and other Clip commands remain outside
+this slice.
 
 ## Logical Clip splitting (#951)
 

@@ -446,6 +446,15 @@ variant previews it on the Stage before you commit, each exposes only its
 legal fields, and costs are explicit: a feathered reveal evaluates both
 Patterns only inside the band.
 
+Deleting a Clip also removes its attached Layer Transitions. If deleting Clip
+edges leaves a simple Scene Transition unused across the complete Show, PXLBLZ
+turns that boundary into a Cut and keeps its former duration as ordinary
+timeline space. Existing Clips, markers, later Scenes, routing events, and Show
+End stay at their original global times. Boundaries still used by another
+Layer, Zone, incoming Clip, or Property animation stay intact; coupled state
+that cannot be preserved refuses the deletion without creating an Undo or save
+entry.
+
 Property animation uses one model everywhere: the destination owns the
 value; the incoming boundary owns start, duration, and easing. Animation
 speed, brightness, opacity, Transform, exported sliders, and split position all

@@ -7,7 +7,7 @@ import { createOverlayLayerCommand } from './overlayLayer'
 // are the ids every projection (summary included) reports.
 import { newPersonalContentId } from '../personalContentMetadata'
 import type { ShowPatternInstance, ShowRecord } from '../personalContentRecords'
-import { deleteShowClipWithLayerTransitions } from '../showLayerTransitionAuthoring'
+import { deleteShowClipInShow, type ShowClipDeletionResult } from '../showClipDeletion'
 import { showCompositionClipCount } from '../showClipInvariant'
 import {
   addShowClipAtGlobalTime,
@@ -33,6 +33,7 @@ import {
   resolveCommandClip,
   formatShowCommandDuration,
   formatShowCommandTimeRange,
+  monotonicRecord,
 } from './support'
 import { createDuplicateClipCommand } from './duplicateClip'
 
@@ -249,12 +250,54 @@ const resizeClip: ShowCommandDescriptor = {
 
 const duplicateClip: ShowCommandDescriptor = createDuplicateClipCommand()
 
+type ShowClipDeletionRefusal = Extract<ShowClipDeletionResult, { status: 'refused' }>
+
+function removeClipRefusal(
+  clipId: string,
+  result: ShowClipDeletionRefusal,
+): ShowCommandOutcome {
+  const location = result.transitionId
+    ? ` Boundary Transition ${result.transitionId}.`
+    : ''
+  const related = result.details?.length
+    ? ` Related IDs: ${result.details.join(', ')}.`
+    : ''
+  const explanation = result.reason === 'cross-boundary-shared-instance'
+    ? 'the time-preserving boundary repair cannot move Pattern-instance state shared across that boundary'
+    : result.reason === 'output-feedback-state'
+      ? 'the time-preserving boundary repair cannot preserve output-feedback history across that boundary'
+      : `the compound deletion could not preserve the complete Show (${result.reason})`
+  const remedy = result.reason === 'cross-boundary-shared-instance'
+    ? 'Keep the Clip, or separate the listed Pattern instance across the Scene boundary before retrying.'
+    : result.reason === 'output-feedback-state'
+      ? 'Keep the Clip, or remove the listed output-feedback state before retrying.'
+      : result.details?.length
+        ? 'Keep the Clip and repair the listed boundary dependency or malformed Show owner before retrying.'
+        : 'Keep the Clip and repair the Show composition or boundary ownership before retrying.'
+  return refuseShowCommand({
+    code: result.reason,
+    path: '$.clip_id',
+    message: `Clip ${clipId} was not removed because ${explanation}.${location}${related}`,
+    remedy,
+  })
+}
+
 export const removeClipCommand: ShowCommandDescriptor = {
   name: 'remove_clip',
   description:
-    'Remove a clip (every Scene segment), its placement tracks and attached Layer Transitions, plus newly orphaned Pattern instances and their tracks. The last clip ' +
+    'Remove a clip (every Scene segment), its placement tracks and attached Layer Transitions, plus newly orphaned Pattern instances and their tracks. Supported unused visual Scene boundaries become time-preserving Cuts. The last clip ' +
     'of a Show refuses; a Show keeps at least one clip.',
-  touches: ['/composition/scenes/*/zones', '/composition/scenes/*/propertyTracks', '/composition/patternInstances', '/composition/executionModel', '/composition/transitions', '/updatedAt'],
+  touches: [
+    '/composition/scenes/*/zones',
+    '/composition/scenes/*/propertyTracks',
+    '/composition/patternInstances',
+    '/composition/executionModel',
+    '/composition/transitions',
+    '/composition/groupOccurrences/*/startMs',
+    '/scenes/*/durationMs',
+    '/transitions/*',
+    '/updatedAt',
+  ],
   fields: {
     clip_id: { kind: 'string', description: 'The clip to remove' },
   },
@@ -265,21 +308,29 @@ export const removeClipCommand: ShowCommandDescriptor = {
     const found = resolveCommandClip(record, composition, input.clip_id as string)
     if (!found.ok) return found
     const { clip, owner } = found.context
-    const result = deleteShowClipWithLayerTransitions(record, composition, owner)
-    if (result === composition) {
+    const result = deleteShowClipInShow(record, composition, owner)
+    if (result.status === 'refused') {
+      if (showCompositionClipCount(composition) > 1) {
+        return removeClipRefusal(clip.id, result)
+      }
       return refuseShowCommand({
-        code: showCompositionClipCount(composition) <= 1 ? 'last-clip' : 'engine-refused',
+        code: 'last-clip',
         message: `Clip ${clip.id} was not removed; a Show keeps at least one clip and valid composition owners.`,
         remedy: 'Add a replacement Clip before removing the last Clip; otherwise repair invalid composition owners.',
       })
     }
     return {
       ok: true,
-      record: withComposition(record, result),
+      record: monotonicRecord(record, result.record),
       changes: [{
         command: 'remove_clip',
         targetId: clip.id,
         description: `Clip ${clip.patternName} removed (${clip.startMs}–${clip.endMs} ms).`,
+        details: {
+          repairedTransitionIds: result.repairedTransitionIds,
+          boundaryRepairs: result.repairedBoundaries,
+          retainedTransitionIds: result.retainedBoundaries.map((boundary) => boundary.transitionId),
+        },
       }],
     }
   },
