@@ -1,0 +1,162 @@
+{
+  "capturedAtCommit": "1b4af601a0f6b7c736908033ceae44bbe3ee9d4f",
+  "runtime": "http://localhost:5212/PXLBLZ-IDE/",
+  "identity": "github:local-agent-15",
+  "show": {
+    "id": "23fec599-e87b-4daa-9d75-e3a603af2772",
+    "name": "Quadrille copy"
+  },
+  "externalMcp": {
+    "protocolVersion": "2025-11-25",
+    "server": {
+      "name": "PXLBLZ Agent",
+      "version": "0.2.0"
+    },
+    "toolCount": 62,
+    "bulkTools": [
+      "create_clips",
+      "create_layers",
+      "update_clips"
+    ],
+    "clipPropertyKeys": [
+      "aperture",
+      "blink",
+      "controls",
+      "effects",
+      "evaluation_policy",
+      "opacity",
+      "presentation",
+      "time",
+      "transform",
+      "view"
+    ],
+    "resources": [
+      "pxlblz://schemas/clip-layer-authoring/v1",
+      "pxlblz://docs/clip-layer-authoring/v1"
+    ]
+  },
+  "successfulOperation": {
+    "operationId": "issue1021-success",
+    "createLayersDescription": "Created 2 Layers with 2 Clips.",
+    "generatedClipIds": [
+      "a9f287a3-8c19-4d23-b57d-d769856d0341",
+      "60091c5d-cca4-44b2-b076-fda9855f602a"
+    ],
+    "updateDescription": "Updated 4 properties across 4 Clips; 8 linked Clips also affected.",
+    "directClipIds": [
+      "a9f287a3-8c19-4d23-b57d-d769856d0341",
+      "60091c5d-cca4-44b2-b076-fda9855f602a",
+      "bands-first-light",
+      "bands-four-mirrors-nw"
+    ],
+    "linkedClipIds": [
+      "bands-four-mirrors-ne",
+      "bands-four-mirrors-sw",
+      "bands-four-mirrors-se",
+      "bands-the-dancer-enters-se",
+      "bands-the-dancer-enters-nw",
+      "bands-lace-and-turns",
+      "bands-all-four-dance",
+      "bands-rejoined"
+    ],
+    "changedInstanceIds": [
+      "bands"
+    ],
+    "changedPaths": [
+      "opacity",
+      "start_ms",
+      "time.time_scale",
+      "view.brightness"
+    ],
+    "outcome": {
+      "status": "applied",
+      "settlement": "saved"
+    },
+    "durableReload": {
+      "lineDancerOpacity": 0.8,
+      "wavyBandsBrightness": 0.55,
+      "sharedBandsTimeScale": 0.72,
+      "preserved": true
+    }
+  },
+  "aggregateRefusal": {
+    "issues": [
+      {
+        "code": "unknown-clip",
+        "path": "$.updates[0].clip_id"
+      },
+      {
+        "code": "unknown-layer",
+        "path": "$.updates[1].layer"
+      },
+      {
+        "code": "unknown-control",
+        "path": "$.updates[1].properties.controls.sliderDoesNotExist"
+      }
+    ],
+    "beforeSha256": "d756f2e2e99eaa5aa1ce60370887829255aff8b94b65a70d09a061ffaf314224",
+    "afterSha256": "d756f2e2e99eaa5aa1ce60370887829255aff8b94b65a70d09a061ffaf314224",
+    "unchanged": true
+  },
+  "undoRedo": {
+    "description": "Updated opacity on 2 Clips.",
+    "beforeCanonicalSha256": "a5db9b960e8bafc97e1571d853dffc64797b7b79f0038447ec6ce24c3cd4f6d8",
+    "operationCanonicalSha256": "15d978a533aba155738e480d2839f92a6015bae0448cbe1a73aae635ab739135",
+    "afterUndoCanonicalSha256": "a5db9b960e8bafc97e1571d853dffc64797b7b79f0038447ec6ce24c3cd4f6d8",
+    "afterRedoCanonicalSha256": "15d978a533aba155738e480d2839f92a6015bae0448cbe1a73aae635ab739135"
+  },
+  "staleAdmission": {
+    "command": "update_clips",
+    "description": "Updated opacity on 2 Clips.",
+    "manualRevision": "Marker 1 at 0 seconds",
+    "status": "refused",
+    "reason": "revision-conflict",
+    "preservedOpacities": [
+      0.76,
+      0.61
+    ],
+    "rejectedOpacities": [
+      0.33,
+      0.44
+    ],
+    "onlyDurableDifference": "composition.markers[0]"
+  },
+  "export": {
+    "suggestedFilename": "quadrille-copy.pxlshow",
+    "bytes": 2620,
+    "sha256": "6bfa2781364824aabfbe49267f79d9ab2909a547f9626b542c22d5488f746533",
+    "reopenedEqualsVisible": true,
+    "showCanonicalSha256": "590c40c3986993ff5019919b125c59f7d0b21e0b08eacae2f11f3fcb77711679"
+  },
+  "saveRollback": {
+    "provenance": "repository Playwright browser against the managed authenticated runtime with one controlled Show PATCH abort",
+    "command": "update_clips",
+    "description": "Updated opacity on 2 Clips.",
+    "directClipIds": [
+      "60091c5d-cca4-44b2-b076-fda9855f602a",
+      "a9f287a3-8c19-4d23-b57d-d769856d0341"
+    ],
+    "changedPaths": [
+      "opacity"
+    ],
+    "initial": {
+      "status": "applied",
+      "settlement": "saving"
+    },
+    "final": {
+      "status": "applied",
+      "settlement": "rolled-back"
+    },
+    "blockedPatchWrites": 1,
+    "visibleRestored": true,
+    "durableUnchanged": true,
+    "reopenUnchanged": true,
+    "undoDisabledAfterRollback": true,
+    "restoredCanonicalSha256": "590c40c3986993ff5019919b125c59f7d0b21e0b08eacae2f11f3fcb77711679",
+    "unexpectedBrowserErrors": []
+  },
+  "controllerCompilation": {
+    "claimed": false,
+    "reason": "The proof fixture reaches 6 overlapping Patterns per pixel and its configured limit is 4."
+  }
+}

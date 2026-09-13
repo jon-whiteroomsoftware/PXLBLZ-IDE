@@ -1,0 +1,40 @@
+{
+  "invariants": [
+    "Bulk commands preserve the input Show and expose only a fully accepted candidate or typed refusal.",
+    "All requested timing changes resolve against the original snapshot; supported valid final arrangements are independent of update order.",
+    "Omitted authored fields and unrelated owners remain unchanged; nested settings patch by leaf while Effects replace as an ordered collection.",
+    "Shared instance edits preserve ownership, coalesce compatible writes, refuse conflicts, and report original-to-final impact without duplicate linked Clips.",
+    "Valid no-ops preserve record identity/timestamps and produce no adoption, save or history entry.",
+    "One reusable schema drives strict command input validation, production and diagnostic discovery, and authoring reference.",
+    "One accepted bulk operation has one concise activity summary with detailed machine-readable results; private success does not imply durable saving."
+  ],
+  "partitions": [
+    "Single/multiple Clips; single/multiple Layers; one/multiple Zones; empty nested Layer versus empty top-level batch.",
+    "Exact valid intervals, occupied destinations, out-of-Show/unsafe/fractional times, cross-Layer exchanges and multi-Scene logical Clips.",
+    "Placement-owned versus shared-instance settings; disjoint/identical/conflicting shared writes; direct and additional linked impact.",
+    "Every supported property family; recursive partial updates; explicit clears; Effects IDs and animation ownership; neutral defaults/no-ops.",
+    "Unknown nested fields, unsupported version, missing references, duplicate targets, independent errors and finite batch bounds.",
+    "Ordinary supported topology versus conservatively refused Group, Transition and affected animation timing changes.",
+    "Production external MCP, built-in tools and diagnostic adapters; live saved, stale, rolled-back and no-op outcomes."
+  ],
+  "sequences": [
+    "Create configured Layers/Clips, update several properties together, export/reopen and reload durable state.",
+    "Swap two occupied Clips, rotate three Clips and permute update input order; then attempt a final collision and compare the full preimage.",
+    "Patch a shared field through linked Clips with identical/disjoint writes, then conflicting writes, then repeat an already-satisfied request.",
+    "Replace/reorder Effects while retaining explicit IDs and reject orphaned animation ownership.",
+    "Adopt a bulk candidate, Undo once, Redo once; separately reject stale delivery and observe save rollback."
+  ],
+  "oracles": [
+    "Public command outcomes and whole original/final Show records, not helper implementation details.",
+    "Production authenticated MCP tool/resource discovery and actual structured command results.",
+    "Live editor timeline/inspector values and one activity summary; durable reload and one-step Undo/Redo.",
+    "Exported .pxlshow reopened through the real importer with authored values preserved.",
+    "Focused regression results plus authoritative exact-committed-tip required runner suites and inspected browser evidence."
+  ],
+  "residualGaps": [
+    "Whole-Show creation, Pattern replacement, animation authoring and Group-definition editing remain outside this bulk-command slice.",
+    "MCP clients choose whether server instructions/resources enter model context; self-describing tool schemas are the portable discovery contract.",
+    "Complex timing topologies explicitly refused by the documented finite bulk owner are not qualified as supported arrangements.",
+    "No physical Controller delivery or third-party model quality qualification is claimed."
+  ]
+}
