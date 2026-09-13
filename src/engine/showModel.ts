@@ -1,3 +1,4 @@
+import { sameControllerDeviceId } from './controllerIdentity'
 import type {
   MapRecord,
   ShowCell,
@@ -246,7 +247,7 @@ export function importedStageMapIdForController(
   const candidates = maps.filter((map) => {
     const metadata = map.importMetadata
     if (!metadata) return false
-    if (controller.deviceId && metadata.deviceId === controller.deviceId) return true
+    if (controller.deviceId && sameControllerDeviceId(metadata.deviceId, controller.deviceId)) return true
     if (controller.lastSeenIp && metadata.ip === controller.lastSeenIp) return true
     return metadata.controllerName === displayName
       || metadata.controllerName === controller.lastKnownDeviceName

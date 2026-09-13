@@ -30,6 +30,7 @@ import {
   type PatternBinding,
 } from '@/engine/controllerProfile'
 import { useControllerStore } from '@/store/controllerStore'
+import { canonicalControllerDeviceId, sameControllerDeviceId } from '@/engine/controllerIdentity'
 
 export type { ControllerProfile }
 
@@ -123,7 +124,7 @@ export function defaultControllerProfile(seed: {
   return {
     id: seed.id ?? newPersonalContentId(),
     name,
-    ...(seed.deviceId ? { deviceId: seed.deviceId } : {}),
+    ...(seed.deviceId ? { deviceId: canonicalControllerDeviceId(seed.deviceId) } : {}),
     ...(seed.deviceName ? { lastKnownDeviceName: seed.deviceName } : {}),
     ...(seed.ip ? { lastSeenIp: seed.ip } : {}),
     board: {
@@ -160,7 +161,7 @@ export function profileMatchesLive(
   live: Record<string, { deviceId?: string | null; phase: string }>,
 ): boolean {
   if (!profile.deviceId) return false
-  return Object.values(live).some((entry) => entry.phase === 'live' && entry.deviceId === profile.deviceId)
+  return Object.values(live).some((entry) => entry.phase === 'live' && sameControllerDeviceId(entry.deviceId, profile.deviceId))
 }
 
 function nextId(prefix: string, existing: Array<{ id: string }>): string {
@@ -314,7 +315,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
 
   removeProfile: async (id) => {
     const profile = get().profiles.find((item) => item.id === id)
-    if (profile?.deviceId) autoCreateSuppressedDeviceIds.add(profile.deviceId)
+    if (profile?.deviceId) autoCreateSuppressedDeviceIds.add(canonicalControllerDeviceId(profile.deviceId))
     await getPersonalContentProvider().deleteControllerProfile(id)
     profileSettleGeneration += 1
     lastDurableProfiles.delete(id)
@@ -324,42 +325,47 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
 
   ensureProfileForLiveController: async (target) => {
     if (target.phase !== 'live' || !target.deviceId) return null
-    if (autoCreateSuppressedDeviceIds.has(target.deviceId)) return null
+    const deviceId = canonicalControllerDeviceId(target.deviceId)
+    target = { ...target, deviceId }
+    if (autoCreateSuppressedDeviceIds.has(deviceId)) return null
 
-    const existing = findControllerProfileForDevice(get().profiles, target.deviceId)
-    if (existing) {
-      const installedMap = target.installedMap
-        ? toInstalledMapSnapshot(target.installedMap)
-        : undefined
-      const firmwareVersion = target.firmwareVersion
-      const board = withControllerFirmwareUpdateReport(existing.board, {
-        firmwareVersion,
-        state: target.firmwareUpdateState,
-        checkedAt: target.firmwareUpdateCheckedAt,
-        observedFirmwareVersion: target.firmwareUpdateObservedVersion,
-      })
-      const changes: Partial<Omit<ControllerProfile, 'id'>> = {
-        ...(target.nickname && (existing.lastKnownDeviceName !== target.nickname || existing.name !== target.nickname)
-          ? { name: target.nickname, lastKnownDeviceName: target.nickname }
-          : {}),
-        ...(existing.lastSeenIp !== target.ip ? { lastSeenIp: target.ip } : {}),
-        ...(board !== existing.board
-          ? { board }
-          : {}),
-        ...(installedMap && !sameInstalledMapSnapshot(existing.lastKnownInstalledMap, installedMap)
-          ? {
-              lastKnownInstalledMap: installedMap,
-              ...(installedMap.status === 'present'
-                ? { lastKnownMapDim: installedMap.dimension }
-                : {}),
-            }
-          : {}),
+    const selected = findControllerProfileForDevice(get().profiles, target.deviceId)
+    if (selected) {
+      const matches = get().profiles.filter((profile) => sameControllerDeviceId(profile.deviceId, deviceId))
+      for (const existing of matches) {
+        const installedMap = target.installedMap
+          ? toInstalledMapSnapshot(target.installedMap)
+          : undefined
+        const firmwareVersion = target.firmwareVersion
+        const board = withControllerFirmwareUpdateReport(existing.board, {
+          firmwareVersion,
+          state: target.firmwareUpdateState,
+          checkedAt: target.firmwareUpdateCheckedAt,
+          observedFirmwareVersion: target.firmwareUpdateObservedVersion,
+        })
+        const changes: Partial<Omit<ControllerProfile, 'id'>> = {
+          ...(target.nickname && (existing.lastKnownDeviceName !== target.nickname || existing.name !== target.nickname)
+            ? { name: target.nickname, lastKnownDeviceName: target.nickname }
+            : {}),
+          ...(existing.lastSeenIp !== target.ip ? { lastSeenIp: target.ip } : {}),
+          ...(board !== existing.board
+            ? { board }
+            : {}),
+          ...(installedMap && !sameInstalledMapSnapshot(existing.lastKnownInstalledMap, installedMap)
+            ? {
+                lastKnownInstalledMap: installedMap,
+                ...(installedMap.status === 'present'
+                  ? { lastKnownMapDim: installedMap.dimension }
+                  : {}),
+              }
+            : {}),
+        }
+        if (Object.keys(changes).length > 0) await get().updateProfile(existing.id, changes)
       }
-      if (Object.keys(changes).length > 0) await get().updateProfile(existing.id, changes)
-      return get().profiles.find((profile) => profile.id === existing.id) ?? existing
+      return get().profiles.find((profile) => profile.id === selected.id) ?? selected
     }
 
-    const pending = autoCreatePendingProfiles.get(target.deviceId)
+    const pending = autoCreatePendingProfiles.get(deviceId)
     if (pending) return pending
 
     const creation = (async () => {
@@ -391,12 +397,12 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       set((s) => ({ profiles: [profile, ...s.profiles], profilesLoaded: true }))
       return profile
     })()
-    autoCreatePendingProfiles.set(target.deviceId, creation)
+    autoCreatePendingProfiles.set(deviceId, creation)
     try {
       return await creation
     } finally {
-      if (autoCreatePendingProfiles.get(target.deviceId) === creation) {
-        autoCreatePendingProfiles.delete(target.deviceId)
+      if (autoCreatePendingProfiles.get(deviceId) === creation) {
+        autoCreatePendingProfiles.delete(deviceId)
       }
     }
   },
@@ -639,7 +645,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     const live = useControllerStore.getState()
     const active = live.activeIp ? live.controllers[live.activeIp] : undefined
     if (!profile || !active || active.phase !== 'live') return
-    if (profile.deviceId && active.deviceId !== profile.deviceId) return
+    if (profile.deviceId && !sameControllerDeviceId(active.deviceId, profile.deviceId)) return
     liveMetadataRefreshGeneration += 1
     const generation = liveMetadataRefreshGeneration
     const startWriteOp = profileWriteSeq
@@ -685,7 +691,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     const liveEntry = useControllerStore.getState().controllers[active.ip]
     const liveNow = liveEntry
       && liveEntry.phase === 'live'
-      && liveEntry.deviceId === active.deviceId
+      && (liveEntry.deviceId === active.deviceId || sameControllerDeviceId(liveEntry.deviceId, active.deviceId))
       && liveEntry.liveEpoch === active.liveEpoch
       ? liveEntry
       : undefined

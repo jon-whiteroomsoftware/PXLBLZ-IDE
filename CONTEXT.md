@@ -58,7 +58,7 @@ A built-in pattern's shareable page at `/p/<slug>`: large live preview driven by
 _Avoid_: implying personal patterns have public detail pages (a later step).
 
 **Device id**:
-The stable identifier of one physical Pixelblaze, `pixelblaze_<boardType>_<reversed-mac-bytes>` — read directly from the device on connect (WS `getConfig` boardType + HTTP `/wifistatus` MAC), with cloud discovery as fallback, matching the id ElectroMage's discovery service reports. The hardware key for **Controller profiles**; IP is transport only, device name is display only. A live connection without a recoverable id is **unclaimed** — fully usable, just not auto-persisted.
+The stable identifier of one physical Pixelblaze, `pixelblaze_<boardType>_<reversed-mac-bytes>` — read directly from the device on connect (WS `getConfig` boardType + HTTP `/wifistatus` MAC), with cloud discovery as fallback, matching the id ElectroMage's discovery service reports. The reversed-MAC suffix is canonicalized to 12 lowercase hex digits; legacy discovery IDs that omit leading zeroes compare as the same identity. The profile displays the decoded MAC in conventional colon-separated byte order. The hardware key for **Controller profiles**; IP is transport only, device name is display only. A live connection without a recoverable id is **unclaimed** — fully usable, just not auto-persisted.
 _Avoid_: keying anything durable on IP or name; treating chipId or MAC alone as the id.
 
 **Controller profile**:

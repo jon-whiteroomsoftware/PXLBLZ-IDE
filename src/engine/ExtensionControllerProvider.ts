@@ -38,6 +38,7 @@ import {
   type RelayTransport,
   type WifiStatusWire,
 } from './RelayWebSocket'
+import { canonicalControllerDeviceId } from './controllerIdentity'
 
 /** Reverse a colon/dash/plain MAC string into the byte order used by Pixelblaze
  *  cloud ids. Returns null for malformed input. */
@@ -277,7 +278,7 @@ export class ExtensionControllerProvider implements ControllerProvider {
           if (msg.ok && msg.controllers) {
             finish(
               msg.controllers.map((c) => ({
-                id: c.id,
+                id: canonicalControllerDeviceId(c.id),
                 address: c.localIp,
                 name: c.name || undefined,
                 version: c.version || undefined,
@@ -667,7 +668,7 @@ export class ExtensionControllerProvider implements ControllerProvider {
     target: ControllerTarget,
     conn: PixelblazeConnection,
   ): Promise<string | null> {
-    if (target.deviceId) return target.deviceId
+    if (target.deviceId) return canonicalControllerDeviceId(target.deviceId)
 
     try {
       const [config, wifi] = await Promise.all([

@@ -1,3 +1,4 @@
+import { canonicalControllerDeviceId, sameControllerDeviceId } from './controllerIdentity'
 import type { ControllerProfile } from './controllerProfile'
 import type { FirmwareUpdateState } from './firmwareUpdate'
 
@@ -18,7 +19,7 @@ export function findControllerProfileForDevice(
   if (!deviceId) return null
   let match: ControllerProfile | null = null
   for (const profile of profiles) {
-    if (profile.deviceId !== deviceId) continue
+    if (!sameControllerDeviceId(profile.deviceId, deviceId)) continue
     if (match === null || profile.updatedAt > match.updatedAt) match = profile
   }
   return match
@@ -33,7 +34,7 @@ export function controllerProfileCreateSeed(target: ControllerProfileJoinTarget)
 } {
   return {
     name: target.nickname ?? `Controller ${target.ip}`,
-    ...(target.deviceId ? { deviceId: target.deviceId } : {}),
+    ...(target.deviceId ? { deviceId: canonicalControllerDeviceId(target.deviceId) } : {}),
     ...(target.nickname ? { deviceName: target.nickname } : {}),
     ...(target.firmwareVersion ? { firmwareVersion: target.firmwareVersion } : {}),
     ip: target.ip,

@@ -1,3 +1,4 @@
+import { sameControllerDeviceId } from './controllerIdentity'
 import * as acorn from 'acorn'
 import {
   patternBindingOverridesHardwareBrightness,
@@ -213,7 +214,7 @@ export function findProfileForLiveController(
   live: LiveControllerIdentity,
 ): ControllerProfile | null {
   if (live.deviceId) {
-    const byDeviceId = profiles.find((profile) => profile.deviceId === live.deviceId)
+    const byDeviceId = profiles.find((profile) => sameControllerDeviceId(profile.deviceId, live.deviceId))
     if (byDeviceId) return byDeviceId
   }
   return profiles.find((profile) => profile.lastSeenIp === live.ip) ?? null

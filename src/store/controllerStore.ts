@@ -88,6 +88,7 @@ import {
   prepareControllerArtifactDelivery,
 } from '@/engine/controllerArtifactDelivery'
 import type { SendMode } from '@/engine/sendToController'
+import { canonicalControllerDeviceId, sameControllerDeviceId } from '@/engine/controllerIdentity'
 
 // Keyed connection orchestration for the live Controller surface (#210).
 //
@@ -476,7 +477,7 @@ function phaseFromStatus(status: ControllerStatus): Partial<ControllerEntry> | n
         ...(status.connectionGeneration != null
           ? { providerConnectionGeneration: status.connectionGeneration }
           : {}),
-        deviceId: status.controller.deviceId,
+        deviceId: status.controller.deviceId ? canonicalControllerDeviceId(status.controller.deviceId) : status.controller.deviceId,
         error: undefined,
         authorizationNeededIp: null,
         ...(status.controller.name ? { nickname: status.controller.name } : {}),
@@ -547,7 +548,7 @@ function normalizeControllerTarget(
     ip,
     connectTarget: {
       address: ip,
-      deviceId: target.id,
+      deviceId: canonicalControllerDeviceId(target.id),
       ...(target.name ? { name: target.name } : {}),
       ...(target.version ? { firmwareVersion: target.version } : {}),
     },
@@ -1016,7 +1017,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
             !profile?.deviceId
             || !entry
             || entry.phase !== 'live'
-            || entry.deviceId !== profile.deviceId
+            || !sameControllerDeviceId(entry.deviceId, profile.deviceId)
             || entry.liveEpoch == null
           ) {
             throw new Error('Connect this Controller before renaming it')
@@ -1040,7 +1041,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
             if (
               providers.get(ip) !== provider
               || current?.phase !== 'live'
-              || current.deviceId !== deviceId
+              || !sameControllerDeviceId(current.deviceId, deviceId)
               || current.liveEpoch !== liveEpoch
               || !statusMatchesConnectedController(expectedController, provider.getStatus())
             ) {
@@ -1052,7 +1053,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
             const currentProfile = useControllerProfileStore.getState().profiles.find(
               (candidate) => candidate.id === profileId,
             )
-            if (currentProfile?.deviceId !== deviceId) {
+            if (!sameControllerDeviceId(currentProfile?.deviceId, deviceId)) {
               throw new Error('Controller profile changed before the rename completed')
             }
           }

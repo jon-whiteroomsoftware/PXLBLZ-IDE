@@ -1545,6 +1545,8 @@ describe('ControllerProfilePage', () => {
 
     const { rerender } = render(<ControllerProfilePage profileId="ctrl-1" />)
     expect(screen.getByText('Offline')).toBeInTheDocument()
+    expect(screen.getByText('MAC')).toBeInTheDocument()
+    expect(screen.getByText('BC:0A:00:00:00:00')).toBeInTheDocument()
     expect(screen.getByTestId('controller-profile-status-dot')).toHaveClass('bg-zinc-700')
 
     act(() => useControllerStore.setState({
@@ -2974,7 +2976,7 @@ describe('ControllerProfilePage', () => {
       importMetadata: {
         kind: 'controller',
         controllerName: 'Burner bag',
-        deviceId: 'pixelblaze_pb32_abc',
+        deviceId: 'pixelblaze_pb32_000000000abc',
         ip: '192.168.8.224',
         mapHash: READBACK_HASH,
         pixelCount: 4,

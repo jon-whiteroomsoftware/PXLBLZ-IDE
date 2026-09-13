@@ -318,16 +318,16 @@ describe('ExtensionControllerProvider', () => {
     const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
     await p.connect({
       address: TARGET.address,
-      deviceId: 'pixelblaze_pb32_known',
+      deviceId: 'pixelblaze_pb32_aabbccdd02',
       name: 'Desk',
     })
     expect(p.getStatus()).toEqual({
       kind: 'connected',
       connectionGeneration: 1,
       controller: {
-        id: 'pixelblaze_pb32_known',
+        id: 'pixelblaze_pb32_00aabbccdd02',
         address: TARGET.address,
-        deviceId: 'pixelblaze_pb32_known',
+        deviceId: 'pixelblaze_pb32_00aabbccdd02',
         name: 'Desk',
       },
     })
@@ -583,14 +583,14 @@ describe('ExtensionControllerProvider', () => {
       const p = new ExtensionControllerProvider({ transport: d.transport })
       await expect(p.discover()).resolves.toEqual([
         {
-          id: 'pixelblaze_pb32_abc',
+          id: 'pixelblaze_pb32_000000000abc',
           address: '192.168.8.224',
           name: 'Burner bag',
           version: '3.67',
           boardType: 'pb32',
         },
         {
-          id: 'pixelblaze_pb32_def',
+          id: 'pixelblaze_pb32_000000000def',
           address: '192.168.8.99',
           name: undefined,
           version: undefined,

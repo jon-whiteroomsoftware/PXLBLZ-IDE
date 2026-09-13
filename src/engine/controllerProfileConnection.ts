@@ -1,3 +1,4 @@
+import { sameControllerDeviceId } from './controllerIdentity'
 import type { ControllerProfile } from './controllerProfile'
 import type { ControllerEntry } from '@/store/controllerStore'
 
@@ -7,7 +8,7 @@ export function controllerForProfile(
 ): ControllerEntry | null {
   const entries = Object.values(controllers)
   const byDeviceId = profile.deviceId
-    ? entries.filter((entry) => entry.deviceId === profile.deviceId)
+    ? entries.filter((entry) => sameControllerDeviceId(entry.deviceId, profile.deviceId))
     : []
   const byLastSeenIp =
     byDeviceId.length === 0 && profile.lastSeenIp

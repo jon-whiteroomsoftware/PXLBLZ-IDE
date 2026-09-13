@@ -37,7 +37,8 @@ test('authenticated Studio renames the live Controller from its header and rail'
   const headerName = `${originalName} Header`
   const railName = `${originalName} Rail`
   const controllerIp = '192.168.8.224'
-  const deviceId = 'pixelblaze_pb32_665544332211'
+  // Legacy discovery omits the leading zero byte; direct recovery preserves it.
+  const deviceId = 'pixelblaze_pb32_5544332211'
   const request = page.context().request
   const created = await request.post('/api/controllers', {
     data: {
@@ -62,16 +63,18 @@ test('authenticated Studio renames the live Controller from its header and rail'
       activeProgramId: 'RENAMEPROGRAM0001',
       deviceName: originalName,
       boardType: 'pb32',
-      mac: '11:22:33:44:55:66',
+      mac: '11:22:33:44:55:00',
       pixelCount: 64,
     })
     await page.goto(`studio/controllers/${id}`)
     await expect(page.getByRole('button', { name: `Rename controller ${originalName}` })).toHaveCount(0)
+    await expect(page.getByText('11:22:33:44:55:00', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Connect a Controller' }).click()
     await page.getByRole('textbox', { name: 'Controller IP address' }).fill(controllerIp)
     await page.getByTestId('controller-go').click()
     await expect(page.getByTestId('controller-pill')).toHaveAttribute('data-phase', 'live')
 
+    await expect(page.getByText('Connected', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: `Rename controller ${originalName}` }).click()
     await page.getByRole('textbox', { name: 'Controller name' }).fill(headerName)
     await page.getByRole('textbox', { name: 'Controller name' }).press('Enter')

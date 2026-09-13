@@ -1,3 +1,4 @@
+import { sameControllerDeviceId } from './controllerIdentity'
 import type { DiscoveredController } from './ControllerProvider'
 import type { MapDimension } from './sendToController'
 
@@ -15,7 +16,7 @@ export function isConnectedDiscoveryDuplicate(
   for (const entry of known) {
     if (entry.phase === 'error') continue
     if (entry.ip === candidate.address) return true
-    if (entry.deviceId && entry.deviceId === candidate.id) return true
+    if (entry.deviceId && sameControllerDeviceId(entry.deviceId, candidate.id)) return true
   }
   return false
 }

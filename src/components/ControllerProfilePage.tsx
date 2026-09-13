@@ -1,3 +1,4 @@
+import { controllerMacAddress } from '@/engine/controllerIdentity'
 import { useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import { NumberField as UiNumberField } from '@/components/ui/number-field'
@@ -425,6 +426,10 @@ function ProfileStatus({
         <span>
           <FieldLabel>IP</FieldLabel>{' '}
           <span className="font-mono text-zinc-300">{controller?.ip ?? formatMaybe(profile.lastSeenIp)}</span>
+        </span>
+        <span>
+          <FieldLabel>MAC</FieldLabel>{' '}
+          <span className="font-mono text-zinc-300">{formatMaybe(controllerMacAddress(profile.deviceId), 'Unknown')}</span>
         </span>
         <span>
           <FieldLabel>Pixels</FieldLabel>{' '}

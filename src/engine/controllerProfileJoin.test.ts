@@ -57,3 +57,10 @@ describe('controller profile join', () => {
     })
   })
 })
+
+it('reuses a legacy discovery identity for the same zero-prefixed MAC', () => {
+  const legacy = profile('existing', 'pixelblaze_pb32_aabbccdd02', 1)
+  expect(findControllerProfileForDevice([legacy], 'pixelblaze_pb32_00aabbccdd02')).toBe(legacy)
+  expect(controllerProfileCreateSeed({ ip: '192.168.8.193', deviceId: legacy.deviceId }).deviceId)
+    .toBe('pixelblaze_pb32_00aabbccdd02')
+})

@@ -296,7 +296,7 @@ disagrees with the device, so the panel calls out the mismatch with an amber
 ## 10. Controller profiles
 
 A profile is durable configuration for one physical Controller, keyed by its
-device id and editable even offline. It is where hardware knowledge lives:
+device id and editable even offline. The profile shows its MAC address alongside IP and firmware so identically named Controllers can be distinguished. It is where hardware knowledge lives:
 
 The profile name is not an offline alias. While the matched Controller is live,
 rename it from the center title or its rail action; PXLBLZ writes the physical

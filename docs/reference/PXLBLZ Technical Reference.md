@@ -516,6 +516,12 @@ without disposing the connection store or its live providers.
 Connection state is keyed by IP; several Controllers may stay live with one
 active. Durable identity is the Pixelblaze device id (board type + MAC). A
 connection without a stable id is unclaimed but fully usable.
+Recognized Pixelblaze IDs normalize their reversed-MAC suffix to 12 lowercase
+hex digits before comparison, so discovery IDs without leading zeroes match
+directly recovered IDs. Unknown ID formats remain opaque. Existing equivalent
+profiles retain their authored settings and receive the same live hardware
+facts; no identity match relies on the display name. The profile facts include
+the decoded MAC address, or Unknown when its ID cannot supply one.
 
 Controller rename is a live, device-authoritative transaction. The action
 requires a durable profile whose device id matches a live keyed entry, captures

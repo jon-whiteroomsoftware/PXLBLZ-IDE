@@ -1100,7 +1100,7 @@ describe('controllerProfileStore', () => {
     setPersonalContentProvider(provider)
     const target = {
       ip: '192.168.8.224',
-      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      deviceId: 'pixelblaze_pb32_aabbccdd02',
       nickname: 'Pixelblaze shelf',
       phase: 'live' as const,
       mapDim: 2 as const,
@@ -1108,7 +1108,7 @@ describe('controllerProfileStore', () => {
 
     const [background, explicit] = await Promise.all([
       useControllerProfileStore.getState().ensureProfileForLiveController(target),
-      useControllerProfileStore.getState().ensureProfileForLiveController(target),
+      useControllerProfileStore.getState().ensureProfileForLiveController({ ...target, deviceId: 'pixelblaze_pb32_00aabbccdd02' }),
     ])
 
     expect(background?.id).toBe(explicit?.id)
@@ -1990,4 +1990,49 @@ describe('stale reload snapshots (#810 review round 13)', () => {
     // The stale snapshot must not roll the settled write back.
     expect(useControllerProfileStore.getState().profiles[0].name).toBe('Renamed')
   })
+})
+
+it('reuses a legacy profile across canonical reconnects and retains its authored settings', async () => {
+  const legacy = {
+    ...defaultControllerProfile({ id: 'legacy', name: 'PBX Fresh 1' }),
+    deviceId: 'pixelblaze_pb32_aabbccdd02',
+    board: { kind: 'pixelblaze-v3-standard' as const, firmwareVersion: '3.51' },
+    keepPatternsUpToDate: true,
+  }
+  const provider = memoryProvider([legacy])
+  setPersonalContentProvider(provider)
+  await useControllerProfileStore.getState().loadProfiles()
+  const target = {
+    ip: '192.168.8.193', deviceId: 'pixelblaze_pb32_00aabbccdd02',
+    nickname: 'PBX Fresh 1', phase: 'live' as const, mapDim: null,
+    firmwareVersion: '3.67', firmwareUpdateState: 'current' as const,
+    firmwareUpdateCheckedAt: 10, firmwareUpdateObservedVersion: '3.67',
+  }
+  await useControllerProfileStore.getState().ensureProfileForLiveController(target)
+  await useControllerProfileStore.getState().ensureProfileForLiveController({ ...target, deviceId: legacy.deviceId })
+  const profiles = await provider.listControllerProfiles()
+  expect(profiles).toHaveLength(1)
+  expect(profiles[0]).toMatchObject({ id: 'legacy', keepPatternsUpToDate: true,
+    board: { firmwareVersion: '3.67', firmwareUpdate: { state: 'current' } } })
+  expect(profiles[0].globalTransforms).toEqual(legacy.globalTransforms)
+})
+
+it('refreshes hardware facts on existing equivalent profiles without merging authored intent', async () => {
+  const first = { ...defaultControllerProfile({ id: 'first', now: 1 }), deviceId: 'pixelblaze_pb32_aabbccdd02',
+    board: { kind: 'pixelblaze-v3-standard' as const, firmwareVersion: '3.51',
+      firmwareUpdate: { state: 'available' as const, checkedAt: 1, firmwareVersion: '3.51' } } }
+  const second = { ...defaultControllerProfile({ id: 'second', now: 2 }), deviceId: 'pixelblaze_pb32_00aabbccdd02', keepPatternsUpToDate: true }
+  const provider = memoryProvider([first, second])
+  setPersonalContentProvider(provider)
+  await useControllerProfileStore.getState().loadProfiles()
+  await useControllerProfileStore.getState().ensureProfileForLiveController({
+    ip: '192.168.8.193', deviceId: second.deviceId, phase: 'live', mapDim: null,
+    firmwareVersion: '3.67', firmwareUpdateState: 'current', firmwareUpdateCheckedAt: 10,
+    firmwareUpdateObservedVersion: '3.67',
+  })
+  const saved = await provider.listControllerProfiles()
+  expect(saved).toHaveLength(2)
+  for (const profile of saved) expect(profile.board).toMatchObject({ firmwareVersion: '3.67', firmwareUpdate: { state: 'current' } })
+  expect(saved.find(p => p.id === 'first')?.globalTransforms).toEqual(first.globalTransforms)
+  expect(saved.find(p => p.id === 'second')?.keepPatternsUpToDate).toBe(true)
 })
