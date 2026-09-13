@@ -1,10 +1,11 @@
 import type { createAgentEditorAdmission } from './editorAdmission'
 import type { AgentBrowserSessionPort } from './channelPort'
 import { createProductionDrawerController } from './drawerController'
+import type { AgentMessageAllowance } from '@/engine/agentAllowance'
 
 /** React owns the admission lifetime; the one channel owns executor retirement. */
-export function createProductionAgentSession(admission: ReturnType<typeof createAgentEditorAdmission>, showId: string, channel: AgentBrowserSessionPort, builtin: Parameters<typeof createProductionDrawerController>[3]) {
-  const controller = createProductionDrawerController(admission, showId, channel, builtin)
+export function createProductionAgentSession(admission: ReturnType<typeof createAgentEditorAdmission>, showId: string, channel: AgentBrowserSessionPort, builtin: Parameters<typeof createProductionDrawerController>[3], allowance?: AgentMessageAllowance) {
+  const controller = createProductionDrawerController(admission, showId, channel, builtin, allowance)
   let closed = false
   return {
     controller,

@@ -18,7 +18,7 @@ export async function accountConnection(
   if (!accountId || !['builtin', 'external'].includes(identity.agentKind)
     || ![identity.agentId, identity.agentName, identity.callId, identity.bindingId].every((value) => typeof value === 'string' && value.length > 0 && value.length <= 128)) return agentResponse({ code: 'invalid_request' }, 400)
   const refusal = identity.agentKind === 'builtin' ? agentBuiltinAccessRefusal(accountId, env) : agentServiceRefusal(env)
-  if (refusal) return agentResponse({ code: refusal }, refusal === 'not_allowed' ? 403 : 503)
+  if (refusal) return agentResponse({ code: refusal }, 503)
   if (!env.AGENT_ACCOUNTS) return agentResponse({ code: 'unavailable' }, 503)
   const id = env.AGENT_ACCOUNTS.idFromName(accountId)
   return env.AGENT_ACCOUNTS.get(id).fetch(new Request('https://agent-account.internal/connection', {

@@ -4,6 +4,7 @@ import type { ShowEditRequest } from '@/engine/showEditAdmission'
 import type { createAgentEditorAdmission } from './editorAdmission'
 import { useAgentDrawerStore, type AgentDrawerControllerPort } from './drawerStore'
 import { useShowStore } from '@/store/showStore'
+import { parseAgentMessageAllowance, unavailableAgentMessageAllowance, type AgentMessageAllowance } from '@/engine/agentAllowance'
 
 import type { AgentBuiltinResult as Result } from '@/engine/agentBuiltinResult'
 export type { AgentBrowserSessionEvent as DrawerChannelEvent, AgentBrowserSessionPort as DrawerChannelPort } from './channelPort'
@@ -13,13 +14,18 @@ type Receipt = ReturnType<Admission['readOutcome']>
 interface Operation { request?: ShowEditRequest; changes: AgentChange[] }
 
 /** Thin session presentation. Channel/executor owns work; admission owns outcomes. */
-export function createProductionDrawerController(api: Admission, showId: string, channel: DrawerChannelPort, builtin: (command: Record<string, unknown>) => Promise<Result>): AgentDrawerControllerPort {
-  let state = createAgentDrawerState()
-  try { state = createAgentDrawerState(localStorage.getItem('pxlblz-agent-drawer-pinned') === 'true') } catch { /* Optional preference. */ }
+export function createProductionDrawerController(api: Admission, showId: string, channel: DrawerChannelPort, builtin: (command: Record<string, unknown>) => Promise<Result>, initialAllowance?: AgentMessageAllowance): AgentDrawerControllerPort {
+  const tracksAllowance = initialAllowance !== undefined
+  let pinned = false
+  try { pinned = localStorage.getItem('pxlblz-agent-drawer-pinned') === 'true' } catch { /* Optional preference. */ }
+  let state = createAgentDrawerState(pinned, initialAllowance ?? unavailableAgentMessageAllowance())
   let disposed = false
   let running = false
   let draftVersion = 0
   let armAttempt = 0
+  let allowanceAttempt = 0
+  let appliedAllowanceAttempt = 0
+  let allowanceTimer: number | undefined
   let connection = channel.getConnection()
   const operations = new Map<string, Operation>()
   const cancelled = new Set<string>()
@@ -30,6 +36,43 @@ export function createProductionDrawerController(api: Admission, showId: string,
     if (next === state) return
     state = next
     useAgentDrawerStore.setState({ state })
+  }
+  const scheduleAllowanceRefresh = () => {
+    if (allowanceTimer !== undefined) window.clearTimeout(allowanceTimer)
+    allowanceTimer = undefined
+    if (!tracksAllowance || state.allowance.resetAt === null || state.allowance.resetAt <= Date.now()) return
+    const delay = Math.min(state.allowance.resetAt - Date.now() + 50, 2_147_483_647)
+    allowanceTimer = window.setTimeout(() => { allowanceTimer = undefined; void refreshAllowance() }, delay)
+  }
+  const applyAllowance = (value: unknown, attempt: number) => {
+    if (disposed || attempt < appliedAllowanceAttempt) return
+    const allowance = parseAgentMessageAllowance(value)
+    if (!allowance) {
+      appliedAllowanceAttempt = attempt
+      emit({ type: 'allowance', allowance: unavailableAgentMessageAllowance() })
+      scheduleAllowanceRefresh()
+      return
+    }
+    const previous = state.allowance
+    if (previous.resetAt !== null && (allowance.resetAt! < previous.resetAt || (allowance.resetAt === previous.resetAt && allowance.revision < previous.revision))) return
+    appliedAllowanceAttempt = attempt
+    emit({ type: 'allowance', allowance })
+    scheduleAllowanceRefresh()
+  }
+  const callBuiltin = async (command: Record<string, unknown>) => {
+    const attempt = ++allowanceAttempt
+    try {
+      const result = await builtin(command)
+      if (tracksAllowance) applyAllowance(result.allowance, attempt)
+      return result
+    } catch (error) {
+      if (tracksAllowance) applyAllowance(undefined, attempt)
+      throw error
+    }
+  }
+  const refreshAllowance = async () => {
+    if (!tracksAllowance || disposed) return
+    try { await callBuiltin({ action: 'status' }) } catch { /* Unavailable status is already fail-closed. */ }
   }
   const updateBusy = () => {
     if (disposed) return
@@ -66,6 +109,8 @@ export function createProductionDrawerController(api: Admission, showId: string,
     if (next.kind === 'refused') { emit({ type: 'system', text: agentRefusalMessage(next.code) }); return }
     if (next.kind === 'occupied') { emit({ type: 'setupFailed', title: 'Connected in another editor', detail: 'Disconnect in the editor that owns the connection, then try again. If that editor is unavailable, wait for its inactive connection to expire.' }); return }
     if (next.kind === 'idle' && state.connection) { refresh(); emit({ type: 'disconnect' }) }
+    else if (next.kind === 'idle' && state.pendingCall) emit({ type: 'setupFailed', title: 'Missed connection', detail: 'Select Ready to connect, then ask your agent to connect again.' })
+    else if (next.kind === 'idle' && state.armingUntil !== null) emit({ type: 'setupFailed', title: 'No agent connected', detail: 'Select Ready to connect and ask your agent to try again. You do not need to authorize again if your authorization is still valid.' })
     emit({ type: 'connection', connection: next.kind === 'bound' ? { kind: next.agentKind, name: next.agentName } : null, armingUntil: next.kind === 'armed' ? next.expiresAt : null, pendingCall: next.kind === 'pending' ? { name: next.agentName, expiresAt: next.expiresAt } : null, contactLost: false })
   }
   const action = async (run: () => Promise<Result>) => {
@@ -116,7 +161,7 @@ export function createProductionDrawerController(api: Admission, showId: string,
     dispatch(event) {
       if (disposed) return
       if (event.type === 'draft') draftVersion++
-      if (event.type === 'chooseBuiltin') { void action(() => builtin({ action: 'connect' })); return }
+      if (event.type === 'chooseBuiltin') { void action(() => callBuiltin({ action: 'connect' })); return }
       if (event.type === 'connectOwn') {
         const attempt = ++armAttempt
         void action(async () => {
@@ -129,27 +174,31 @@ export function createProductionDrawerController(api: Admission, showId: string,
         })
         return
       }
-      if (event.type === 'cancelArm') { armAttempt++; void action(() => channel.cancelArm()); return }
+      if (event.type === 'cancelArm') { armAttempt++; emit(event); void action(() => channel.cancelArm()); return }
       if (event.type === 'approveKnock' || event.type === 'declineKnock') {
-        if (connection.kind === 'pending') { const callId = connection.callId; void action(() => event.type === 'approveKnock' ? channel.answer(callId) : channel.decline(callId)) }
+        if (connection.kind === 'pending') {
+          const callId = connection.callId
+          if (event.type === 'declineKnock') emit(event)
+          void action(() => event.type === 'approveKnock' ? channel.answer(callId) : channel.decline(callId))
+        }
         return
       }
       emit(event)
     },
     submit() {
       const prompt = state.draft.trim()
-      if (!prompt || disposed || running || useAgentDrawerStore.getState().busy || state.request || state.contactLost || state.connection?.kind !== 'builtin' || !api.available()) return
+      if (!prompt || disposed || running || useAgentDrawerStore.getState().busy || state.request || state.contactLost || state.connection?.kind !== 'builtin' || state.allowance.code !== 'available' || !api.available()) return
       const submittedDraftVersion = draftVersion
       running = true; updateBusy()
       void (async () => {
         try {
-          const begun = await builtin({ action: 'begin' })
+          const begun = await callBuiltin({ action: 'begin' })
           if (disposed) return
           if (begun.code !== 'started' || typeof begun.operationId !== 'string') { emit({ type: 'system', text: agentRefusalMessage(begun.code) }); return }
           const id = begun.operationId
           operations.set(id, { changes: [] })
           emit({ type: 'draft', text: '' }); emit({ type: 'beginEdit', id, intent: prompt }); emit({ type: 'thinking', id })
-          const result = await builtin({ action: 'run', operationId: id, prompt })
+          const result = await callBuiltin({ action: 'run', operationId: id, prompt })
           if (disposed) return
           refresh()
           if (typeof result.message === 'string') emit({ type: 'operationReply', id, text: result.message, replyOnRefusal: (result.receipt as { status?: string } | undefined)?.status === 'completed' })
@@ -177,6 +226,7 @@ export function createProductionDrawerController(api: Admission, showId: string,
           operations.set(nextId, { request: next, changes: [...(operations.get(id)?.changes ?? [])] })
           emit({ type: 'beginEdit', id: nextId, intent: state.stream.find(line => line.operationId === id)?.text ?? 'Retry the original Clip resize', retryOf: id })
           publish(nextId, result.receipt as Receipt)
+          emit({ type: 'retryStarted', id })
         }
         return result
       }).finally(() => { running = false; refresh() })
@@ -190,15 +240,39 @@ export function createProductionDrawerController(api: Admission, showId: string,
       updateBusy()
     },
     restoreContact() { refresh() },
-    disconnect(forget = false) { void action(() => forget ? channel.forget() : channel.disconnect()); refresh() },
+    backToChooser() {
+      if (state.connection || state.pendingCall || disposed) return
+      const armed = state.armingUntil !== null
+      armAttempt++
+      emit({ type: 'backToChooser' })
+      if (armed) void action(() => channel.cancelArm())
+    },
+    changeAgent() {
+      if (disposed || running || useAgentDrawerStore.getState().busy || state.request || !state.connection) return
+      void action(async () => {
+        const result = await channel.disconnect()
+        if (result.code === 'disconnected') emit({ type: 'disconnect' })
+        return result
+      })
+    },
+    disconnect(forget = false) {
+      void action(async () => {
+        const result = await (forget ? channel.forget() : channel.disconnect())
+        if (result.code === (forget ? 'forgotten' : 'disconnected')) emit({ type: forget ? 'forget' : 'disconnect' })
+        return result
+      })
+      refresh()
+    },
     dispose() {
       if (disposed) return
-      disposed = true; window.clearInterval(timer); stopChannel(); stopRevisions(); channel.close(); operations.clear(); cancelled.clear(); seenDeliveries.clear()
+      disposed = true; window.clearInterval(timer); if (allowanceTimer !== undefined) window.clearTimeout(allowanceTimer); window.removeEventListener('focus', refreshAllowance); stopChannel(); stopRevisions(); channel.close(); operations.clear(); cancelled.clear(); seenDeliveries.clear()
       if (useAgentDrawerStore.getState().controller === controller) useAgentDrawerStore.setState({ controller: null, state: createAgentDrawerState(), busy: false })
     },
   }
   useAgentDrawerStore.setState({ controller, state, busy: false })
   syncConnection(connection)
+  window.addEventListener('focus', refreshAllowance)
+  scheduleAllowanceRefresh()
   api.onClose(controller.dispose)
   return controller
 }

@@ -182,7 +182,7 @@ export function createAgentDrawerController(api: Admission, showId: string) {
       if (!original) return
       const captured = api.beginRetry(mint(), original.request)
       if (!captured) return
-      dispatch({ type: 'dismiss', id })
+      dispatch({ type: 'retryStarted', id })
       void submitCaptured(JSON.parse(captured.request.payloadKey).utterance, captured, true)
     },
     cancel() {
@@ -190,6 +190,8 @@ export function createAgentDrawerController(api: Admission, showId: string) {
       if (captured && available()) publish(captured.request, api.cancel(captured.request))
     },
     restoreContact() { if (!available()) return; refresh(); dispatch({ type: 'reattach' }) },
+    backToChooser() { if (!state.connection && !state.pendingCall) dispatch({ type: 'backToChooser' }) },
+    changeAgent() { if (!active && !state.request) controller.disconnect() },
     disconnect(forget = false) { controller.cancel(); transport?.abort(); dispatch({ type: forget ? 'forget' : 'disconnect' }) },
     get requests() { return structuredClone(records) },
     dispose() {

@@ -1,13 +1,14 @@
 # Agent Show service decisions (#956)
 
-> **Superseded in part by #1009 (2026-09-12):** ordinary signed-in editable
+> **Superseded in part by #1009 (2026-09-12) and #1025 (2026-09-13):** ordinary signed-in editable
 > Show URLs now expose the capability-driven drawer without `?agent=1`.
-> External MCP is available to authenticated accounts while enabled; the
-> built-in Pixelblaze agent retains the allowlist and allowance described here.
+> External MCP and the built-in Pixelblaze agent are available to authenticated
+> accounts while enabled. The built-in service now uses the 30-message personal
+> allowance described in the #1025 amendment below instead of an account allowlist.
 > The remaining connection, inference, accounting, and outcome decisions still
 > apply.
 
-The first service is for a small allowlisted testing audience. Reuse the existing app and
+The original first-service decision targeted a small allowlisted testing audience. Reuse the existing app and
 OpenAI setup, keep the feature absent without explicit URL opt-in, and preserve manual Show
 editing throughout failures. Jon approved the complete policy package on 2026-09-08. It does not authorize deployment or claim a live
 OAuth/MCP service exists.
@@ -198,8 +199,19 @@ Production v1 keeps the existing finite Retry qualification: one successful
 canonical `resize_clip` with its resolved Clip ID and exact duration. Retry gets
 a new operation and `retryOf` on fresh state, retaining the original failure and
 composer draft. Multi-command plans, generated IDs and relative intent are not
-replayed. Other failures offer their truthful outcome and Dismiss; a fresh user
-request remains available. This does not reduce the canonical edit tool surface.
+replayed. Other failures retain their truthful outcome and permit a fresh user
+request; the production activity stream has no Dismiss action. This does not
+reduce the canonical edit tool surface.
+
+#1025 supersedes the launch allowlist and message-unit decision. Every signed-in
+account can use the built-in service while enabled. The allowance owner admits
+30 first provider dispatches per canonical account per UTC day, atomically with
+the existing shared financial reservation. Later rounds and qualified local
+Retry consume no additional personal unit. Pre-dispatch refusals consume none;
+post-dispatch failure, cancellation and no-edit completion retain the charge.
+The server returns the personal remainder, reset instant and distinct personal,
+shared-budget or persistent-halt state. This changes no OAuth grant or Show
+admission boundary.
 
 Recovery in a surviving editor uses the channel's local outcome journal and the
 same admission/store receipts. Removing the service credential or eligibility

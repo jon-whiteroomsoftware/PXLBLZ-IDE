@@ -1739,9 +1739,16 @@ defines this finite exception and its ownership limits.
 An ordinary editable Show route exposes the production Agent drawer after the
 signed-in session resolves its effective agent capabilities. External MCP is
 available to every signed-in account while the service is enabled; the built-in
-choice appears only when the server reports its separate allowlist-backed
-capability. Authenticated built-in requests use Luna Fast mode through the Worker service, shared account slot and
-browser private executor. The pure drawer model projects owned admission/save
+choice is also available to every signed-in account when its Worker bindings are
+configured. Authenticated built-in requests use Luna Fast mode through the Worker
+service, shared account slot, per-account 30-message UTC-day allowance, shared
+financial allowance, and browser private executor. The first admitted provider
+dispatch consumes one personal message atomically with the financial reservation;
+later rounds and qualified local Retry consume none. `/api/me` and command
+responses carry the authoritative remaining count, reset instant, state and
+revision. The drawer refreshes at focus and reset without server polling, and
+fails closed on missing, malformed or stale status. The pure drawer model
+projects owned admission/save
 receipts and successful registry attribution; existing history and persistence
 owners remain authoritative. Each built-in operation owns one activity row from
 submission through settlement, with its reply attached to that row. Success prose
@@ -1753,7 +1760,15 @@ settled outcome. Only a saved command with recorded changes has a terminal icon.
 Reduced-motion preferences disable the Thinking animation. The activity scroll owner
 follows every stream and request-phase update; it changes only the drawer log's
 `scrollTop`, so it does not move document scroll or focus. Connection transitions retain
-the same reducer-owned stream while swapping the chooser, identity, and built-in composer.
+the same reducer-owned stream while swapping the chooser, identity, and built-in
+composer. The composer adds only the 9px right-aligned allowance line and the
+distinct personal/shared/unavailable explanation when blocked. Setup Back and
+connected Change agent preserve activity and draft, and switching stays disabled
+through active, saving and unknown outcomes. Activity has no Dismiss action;
+qualified Retry remains available, executed commands use the darker muted gray,
+and agent communication keeps the existing lighter gray. Server-first idle
+preserves expired-arm and missed-call notices, while explicit Cancel or Not now
+clears its state before idle is projected.
 Response and continuation validation share the SDK reasoning-item schema,
 including optional reasoning content. The loopback diagnostic bridge remains DEV-only.
 See the [built-in service contract](contracts/agent-builtin-service.md) for

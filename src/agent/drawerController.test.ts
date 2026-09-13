@@ -8,18 +8,109 @@ import { resetPersonalContentProvider, setPersonalContentProvider, type Personal
 import { createAgentPrivateExecutor } from '@/engine/agentPrivateExecutor'
 import { createAgentPrivateAdmissionOwner } from './privateAdmissionOwner'
 import { showInitialState, useShowStore } from '@/store/showStore'
+import type { AgentMessageAllowance } from '@/engine/agentAllowance'
 let stop: (() => void) | undefined
-afterEach(() => { stop?.(); resetPersonalContentProvider(); vi.restoreAllMocks() })
-function fixture(admission?: ReturnType<typeof createAgentEditorAdmission>) {
+afterEach(() => { stop?.(); resetPersonalContentProvider(); vi.restoreAllMocks(); vi.useRealTimers() })
+const availableAllowance = (remaining = 30, revision = 1): AgentMessageAllowance => ({ code: 'available', limit: 30, remaining, resetAt: Date.now() + 86_400_000, revision })
+function fixture(admission?: ReturnType<typeof createAgentEditorAdmission>, initialAllowance = availableAllowance()) {
   let listener: (event: DrawerChannelEvent) => void = () => {}
   let receipt: unknown
   const channel = { getConnection: () => ({ kind: 'idle' }), subscribe: (fn: typeof listener) => { listener = fn; return () => { listener = () => {} } }, getOutcome: () => receipt ? ({ code: 'outcome', receipt }) : ({ code: 'unknown' }), close: vi.fn(), arm: vi.fn(async () => ({ code: 'occupied' })), cancelArm: vi.fn(async () => ({ code: 'idle' })), answer: vi.fn(async () => ({ code: 'bound' })), decline: vi.fn(async () => ({ code: 'declined' })), disconnect: vi.fn(async () => ({ code: 'disconnected' })), forget: vi.fn(async () => ({ code: 'forgotten' })) } as unknown as DrawerChannelPort
   const api = admission ?? { available: () => true, onClose: () => () => {}, readOutcome: () => receipt, retryIntent: () => undefined, cancel: vi.fn() } as unknown as ReturnType<typeof createAgentEditorAdmission>
   const builtin = vi.fn(async (_body: Record<string, unknown>) => ({ code: 'occupied' } as Record<string, unknown> & { code: string }))
-  const controller = createProductionDrawerController(api, 'show', channel, builtin)
+  const controller = createProductionDrawerController(api, 'show', channel, builtin, initialAllowance)
   stop = controller.dispose
   return { controller, channel, api, builtin, setReceipt: (value: unknown) => { receipt = value }, emit: (event: DrawerChannelEvent) => listener(event) }
 }
+it('refreshes authoritative allowance on focus and ignores older or lower-revision responses', async () => {
+  const resetAt = Date.now() + 86_400_000
+  const f = fixture(undefined, { ...availableAllowance(30, 1), resetAt })
+  let first!: (value: Record<string, unknown> & { code: string }) => void
+  let second!: (value: Record<string, unknown> & { code: string }) => void
+  f.builtin
+    .mockImplementationOnce(() => new Promise(resolve => { first = resolve }))
+    .mockImplementationOnce(() => new Promise(resolve => { second = resolve }))
+
+  window.dispatchEvent(new Event('focus'))
+  window.dispatchEvent(new Event('focus'))
+  second({ code: 'status', allowance: { code: 'available', limit: 30, remaining: 28, resetAt, revision: 3 } })
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.allowance.remaining).toBe(28))
+  first({ code: 'status', allowance: { code: 'available', limit: 30, remaining: 29, resetAt, revision: 2 } })
+  await Promise.resolve()
+
+  expect(useAgentDrawerStore.getState().state.allowance).toMatchObject({ remaining: 28, revision: 3 })
+  expect(f.builtin).toHaveBeenNthCalledWith(1, { action: 'status' })
+})
+it('fails closed on status loss without erasing the draft or settled activity', async () => {
+  const f = fixture()
+  f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Built-in' } })
+  f.controller.dispatch({ type: 'draft', text: 'Keep this request' })
+  f.controller.dispatch({ type: 'beginEdit', id: 'saved', intent: 'Earlier edit' })
+  f.controller.dispatch({ type: 'outcome', id: 'saved', outcome: 'saved' })
+  f.builtin.mockRejectedValueOnce(new Error('offline'))
+
+  window.dispatchEvent(new Event('focus'))
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.allowance.code).toBe('unavailable'))
+  f.controller.submit()
+
+  expect(useAgentDrawerStore.getState().state.draft).toBe('Keep this request')
+  expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'saved')?.outcome).toBe('saved')
+  expect(f.builtin).toHaveBeenCalledTimes(1)
+})
+it('refreshes the allowance once at the authoritative reset instant', async () => {
+  vi.useFakeTimers()
+  const now = new Date('2026-09-13T23:59:59.000Z').getTime()
+  vi.setSystemTime(now)
+  const f = fixture(undefined, { ...availableAllowance(0, 7), code: 'daily_message_limit', resetAt: now + 1000 })
+  f.builtin.mockResolvedValue({ code: 'status', allowance: { ...availableAllowance(30, 8), resetAt: now + 86_401_000 } })
+
+  await vi.advanceTimersByTimeAsync(1050)
+
+  expect(f.builtin).toHaveBeenCalledWith({ action: 'status' })
+  expect(useAgentDrawerStore.getState().state.allowance).toMatchObject({ code: 'available', remaining: 30, revision: 8 })
+})
+it.each([
+  ['No agent connected', { kind: 'armed', expiresAt: Date.now() + 120_000 }],
+  ['Missed connection', { kind: 'pending', callId: 'call', agentKind: 'external', agentName: 'External agent', expiresAt: Date.now() + 30_000 }],
+] as const)('preserves %s when server idle wins the browser expiry race', (title, connection) => {
+  const f = fixture()
+  f.emit({ type: 'connection', connection } as DrawerChannelEvent)
+  f.emit({ type: 'connection', connection: { kind: 'idle' } })
+  expect(useAgentDrawerStore.getState().state.setupNotice).toMatchObject({ title })
+})
+it('does not fabricate expiry after explicit arm cancellation or call decline', () => {
+  const f = fixture()
+  f.emit({ type: 'connection', connection: { kind: 'armed', expiresAt: Date.now() + 120_000 } })
+  f.controller.dispatch({ type: 'cancelArm' })
+  f.emit({ type: 'connection', connection: { kind: 'idle' } })
+  expect(useAgentDrawerStore.getState().state.setupNotice).toBeNull()
+
+  f.emit({ type: 'connection', connection: { kind: 'pending', callId: 'call', agentKind: 'external', agentName: 'External agent', expiresAt: Date.now() + 30_000 } })
+  f.controller.dispatch({ type: 'declineKnock' })
+  f.emit({ type: 'connection', connection: { kind: 'idle' } })
+  expect(useAgentDrawerStore.getState().state.setupNotice).toBeNull()
+})
+it('backs out of setup and changes a connected agent without erasing draft or activity', async () => {
+  const f = fixture()
+  f.controller.dispatch({ type: 'chooseExternal' })
+  f.controller.backToChooser()
+  expect(useAgentDrawerStore.getState().state.setupOpen).toBe(false)
+
+  f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Built-in' } })
+  f.controller.dispatch({ type: 'draft', text: 'Keep this draft' })
+  f.controller.dispatch({ type: 'beginEdit', id: 'saved', intent: 'Earlier edit' })
+  f.controller.dispatch({ type: 'outcome', id: 'saved', outcome: 'saved' })
+  let finishDisconnect!: (value: { code: 'disconnected' }) => void
+  vi.mocked(f.channel.disconnect).mockImplementationOnce(() => new Promise(resolve => { finishDisconnect = resolve }) as never)
+  f.controller.changeAgent()
+  expect(useAgentDrawerStore.getState().state.connection).toMatchObject({ kind: 'builtin' })
+  finishDisconnect({ code: 'disconnected' })
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.connection).toBeNull())
+
+  expect(f.channel.disconnect).toHaveBeenCalledOnce()
+  expect(useAgentDrawerStore.getState().state.draft).toBe('Keep this draft')
+  expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'saved')?.outcome).toBe('saved')
+})
 it('does not optimistically bind or arm on refused account actions', async () => {
   const f = fixture()
   f.controller.dispatch({ type: 'chooseBuiltin' })
@@ -124,7 +215,7 @@ it('registers the returned qualified Retry operation and tracks saving without r
   f.controller.retry('old')
   await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'new')).toMatchObject({ retryOf: 'old', outcome: 'applied' }))
   expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'old')).toMatchObject({ outcome: 'rolled-back' })
-  expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'old')?.dismissed).not.toBe(true)
+  expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'old')?.retryable).toBe(false)
   expect(useAgentDrawerStore.getState().state.draft).toBe('Unrelated composer draft')
   expect(useAgentDrawerStore.getState().busy).toBe(true)
   f.setReceipt({ request, status: 'applied', settlement: 'saved' })

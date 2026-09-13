@@ -1,3 +1,5 @@
+import { unavailableAgentMessageAllowance, type AgentMessageAllowance } from './agentAllowance'
+
 /** Session-only presentation of owned outcomes; never edits a Show or replays a candidate. */
 export type AgentDrawerMode = 'tucked' | 'open' | 'pinned'
 export type AgentOutcome = 'applied' | 'saved' | 'draft' | 'not-applied' | 'rolled-back' | 'superseded' | 'cancelled' | 'unknown'
@@ -15,7 +17,6 @@ export interface AgentLine {
   reply?: string
   replyOnRefusal?: boolean
   retryable?: boolean
-  dismissed?: boolean
   calls?: string[]
 }
 export interface AgentDrawerState {
@@ -37,29 +38,31 @@ export interface AgentDrawerState {
   band: { startMs: number; endMs: number } | null
   draft: string
   showMcp: boolean
+  allowance: AgentMessageAllowance
   announcement?: { text: string; outcome: AgentOutcome }
 }
 export type AgentDrawerEvent =
   | ({ type: 'connection' } & Pick<AgentDrawerState, 'connection' | 'armingUntil' | 'pendingCall' | 'contactLost'>)
   | { type: 'pin'; pinned: boolean }
   | { type: 'drawer'; mode: AgentDrawerMode }
-  | { type: 'chooseBuiltin' | 'chooseExternal' | 'cancelArm' | 'declineKnock' | 'approveKnock' | 'drop' | 'reattach' | 'disconnect' | 'forget' | 'reading' | 'settle' | 'manualEdit' | 'undo' | 'leave' | 'toggleMcp' }
+  | { type: 'chooseBuiltin' | 'chooseExternal' | 'backToChooser' | 'cancelArm' | 'declineKnock' | 'approveKnock' | 'drop' | 'reattach' | 'disconnect' | 'forget' | 'reading' | 'settle' | 'manualEdit' | 'undo' | 'leave' | 'toggleMcp' }
   | { type: 'connectOwn' | 'tick'; now: number }
   | { type: 'armAccepted' }
   | { type: 'knock'; name: string; now: number }
   | { type: 'agentBinds'; name: string }
   | { type: 'draft' | 'say' | 'reply' | 'system'; text: string }
   | { type: 'setupFailed'; title: string; detail: string }
+  | { type: 'allowance'; allowance: AgentMessageAllowance }
   | { type: 'operationReply'; id: string; text: string; replyOnRefusal?: boolean }
   | { type: 'thinking'; id: string }
   | { type: 'beginEdit'; id: string; intent: string; retryOf?: string }
   | { type: 'waiting'; id: string }
   | { type: 'call'; id: string; name: string }
-  | { type: 'dismiss'; id: string }
+  | { type: 'retryStarted'; id: string }
   | { type: 'touch'; targetId: string }
   | { type: 'outcome'; id: string; outcome: AgentOutcome; changes?: AgentChange[]; reason?: string; retryable?: boolean; refusedTargets?: string[]; band?: AgentDrawerState['band'] }
-export function createAgentDrawerState(pinned = false): AgentDrawerState {
-  return { drawer: pinned ? 'pinned' : 'tucked', pinPreference: pinned, connection: null, armingUntil: null, setupOpen: false, setupNotice: null, pendingCall: null, contactLost: false, request: null, stream: [], unread: [], highlights: [], highlightPhase: 'none', highlightOperation: null, refusedTargets: [], band: null, draft: '', showMcp: false }
+export function createAgentDrawerState(pinned = false, allowance: AgentMessageAllowance = unavailableAgentMessageAllowance()): AgentDrawerState {
+  return { drawer: pinned ? 'pinned' : 'tucked', pinPreference: pinned, connection: null, armingUntil: null, setupOpen: false, setupNotice: null, pendingCall: null, contactLost: false, request: null, stream: [], unread: [], highlights: [], highlightPhase: 'none', highlightOperation: null, refusedTargets: [], band: null, draft: '', showMcp: false, allowance }
 }
 const clearHighlights = { highlights: [], highlightPhase: 'none' as const, highlightOperation: null, refusedTargets: [], band: null }
 function append(state: AgentDrawerState, kind: AgentLine['kind'], text: string): AgentDrawerState {
@@ -79,6 +82,7 @@ export function transitionAgentDrawer(state: AgentDrawerState, event: AgentDrawe
     case 'drawer': return { ...state, drawer: event.mode, unread: event.mode === 'tucked' ? state.unread : [] }
     case 'chooseBuiltin': return connected(state, 'builtin', 'Pixelblaze agent')
     case 'chooseExternal': return state.connection ? state : { ...state, setupOpen: true, setupNotice: null }
+    case 'backToChooser': return state.connection ? state : { ...state, setupOpen: false, setupNotice: null, armingUntil: null, pendingCall: null }
     case 'agentBinds': return connected(state, 'external', event.name)
     case 'connectOwn': return state.connection ? state : { ...state, setupOpen: true }
     case 'armAccepted': return state.connection ? state : { ...state, setupOpen: true, setupNotice: null }
@@ -87,6 +91,7 @@ export function transitionAgentDrawer(state: AgentDrawerState, event: AgentDrawe
     case 'approveKnock': return state.pendingCall ? connected(state, 'external', state.pendingCall.name) : state
     case 'declineKnock': return { ...state, pendingCall: null }
     case 'setupFailed': return state.connection ? state : { ...state, setupOpen: true, setupNotice: { title: event.title, detail: event.detail }, armingUntil: null, pendingCall: null }
+    case 'allowance': return { ...state, allowance: event.allowance }
     case 'tick': {
       if (state.armingUntil !== null && event.now >= state.armingUntil) return { ...state, armingUntil: null, setupOpen: true, setupNotice: { title: 'No agent connected', detail: 'Select Ready to connect and ask your agent to try again. You do not need to authorize again if your authorization is still valid.' } }
       if (state.pendingCall && event.now >= state.pendingCall.expiresAt) return { ...state, pendingCall: null, setupOpen: true, setupNotice: { title: 'Missed connection', detail: 'Select Ready to connect, then ask your agent to connect again.' } }
@@ -142,7 +147,7 @@ export function transitionAgentDrawer(state: AgentDrawerState, event: AgentDrawe
         } : line),
       }
     }
-    case 'dismiss': return { ...state, stream: state.stream.map(line => line.operationId === event.id ? { ...line, dismissed: true } : line) }
+    case 'retryStarted': return { ...state, stream: state.stream.map(line => line.operationId === event.id ? { ...line, retryable: false } : line) }
     case 'touch': return { ...state, highlights: state.highlights.filter(id => id !== event.targetId), refusedTargets: state.refusedTargets.filter(id => id !== event.targetId) }
     case 'manualEdit': case 'undo': return { ...state, ...clearHighlights }
     case 'settle': return state.highlightPhase === 'flash' ? { ...state, highlightPhase: 'settled' } : state

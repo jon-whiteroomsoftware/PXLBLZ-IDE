@@ -17,9 +17,10 @@ Deployment configuration is closed by default:
 
 - `AGENT_SERVICE_ENABLED=1` admits external OAuth and MCP for every signed-in
   account. Authorization, access, and refresh recheck it. The separate built-in
-  service still rechecks `AGENT_ACCOUNT_ALLOWLIST` and its existing allowance;
-  changing that allowlist does not revoke external grants. Revocation remains
-  available after service disable.
+  service also admits every signed-in account, then enforces its per-account
+  message allowance and shared financial allowance at provider dispatch. These
+  limits do not revoke or consume external grants. Revocation remains available
+  after service disable.
 - `AGENT_OAUTH_ORIGIN` is an exact origin, HTTPS for a hosted service. Literal
   localhost, 127.0.0.1 and ::1 HTTP origins are allowed for local proof only.
   Public request origins must match this configured origin exactly.

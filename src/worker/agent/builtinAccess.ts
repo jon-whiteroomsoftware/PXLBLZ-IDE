@@ -9,6 +9,7 @@ const id = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/)
 const windowSchema = z.object({ registrationId: id, sessionId: id, showId: z.string().min(1).max(128) }).strict()
 const commandSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('connect'), window: windowSchema }).strict(),
+  z.object({ action: z.literal('status'), window: windowSchema }).strict(),
   z.object({ action: z.literal('begin'), window: windowSchema }).strict(),
   z.object({ action: z.literal('run'), window: windowSchema, operationId: id, prompt: z.string().min(1) }).strict(),
   z.object({ action: z.literal('outcome'), window: windowSchema, operationId: id }).strict(),
@@ -24,7 +25,7 @@ export async function authorizeBuiltinRequest(request: Request, env: Environment
   const url = new URL(request.url)
   if (request.method !== 'POST' || request.headers.get('Origin') !== url.origin) return agentResponse({ code: 'invalid_origin' }, 403)
   const refusal = agentBuiltinAccessRefusal(session.userId, env)
-  if (refusal) return agentResponse({ code: refusal }, refusal === 'not_allowed' ? 403 : 503)
+  if (refusal) return agentResponse({ code: refusal }, 503)
   if (request.headers.get('Content-Type')?.split(';', 1)[0].trim().toLowerCase() !== 'application/json') return agentResponse({ code: 'invalid_request' }, 400)
   const reader = request.body?.getReader()
   if (!reader) return agentResponse({ code: 'invalid_request' }, 400)

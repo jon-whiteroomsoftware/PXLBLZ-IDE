@@ -11,9 +11,9 @@ ownership of edit admission, operation receipts, history and saves.
 `POST /api/agent/channel` accepts the existing signed session cookie and
 same-origin JSON on ordinary editable Show URLs. Registration, arming, Answer
 and status require `AGENT_SERVICE_ENABLED=1` and an owned personal Show or exact
-stock catalogue Show ID. The built-in transport separately requires membership
-in `AGENT_ACCOUNT_ALLOWLIST` at its public request, claim, delivery, and
-resolution seams. Missing service configuration disables access. Stock registration uses
+stock catalogue Show ID. The built-in transport admits every authenticated
+account and applies its separate per-account message and shared financial
+allowances at provider dispatch. Missing service configuration disables access. Stock registration uses
 a transport-neutral exact-ID manifest tested against the real catalogue; arbitrary
 `stock-show-*` prefixes are not admitted. Stock drafts never create D1 records.
 
@@ -55,6 +55,10 @@ request is unresolved. Only an accepted `armed` control result clears that
 notice; the receive stream supplies the exact server deadline. A refusal keeps
 or replaces it with the current actionable failure, and an older arm result
 cannot erase the notice from a newer attempt or cancellation.
+An idle server snapshot arriving before the browser deadline tick still records
+No agent connected or Missed connection from the prior armed or pending state.
+Explicit Cancel or Not now clears that state before its control request, so the
+same idle snapshot does not fabricate an expiry notice.
 
 A trusted caller uses `inspect` with its original identity, call and binding IDs
 to resolve the pending call or surviving binding. Inspection never claims,
@@ -81,8 +85,8 @@ claim success.
 
 `leave` retires the registration and its binding. `disconnect` ends only its
 matching local binding and keeps the registration. Both retain authenticated
-account, origin and capability checks but permit cleanup after capability loss,
-allowlist removal, service disable, Show deletion or request throttling. Cleanup
+account, origin and capability checks but permit cleanup after capability or
+service configuration changes, Show deletion, or request throttling. Cleanup
 responses disclose no connection metadata. Sign-out must request leave before
 losing its cookie; an unreachable tab is eventually retired by stale expiry.
 Another window cannot disconnect the owner. Local Forget synchronously retires
@@ -97,6 +101,13 @@ already-confirmed end cannot turn it into an unconfirmed result. The browser
 retains a retired binding identity only for subsequent local end controls after
 unknown transport, never to restore its executor or replay work. `disarm`
 clears only the armed slot belonging to its exact window.
+
+The drawer's setup Back action disarms its own active attempt before returning
+to the chooser. Change agent ends the exact local binding, then returns to that
+chooser without revoking external OAuth authorization. Both preserve the drawer
+transcript and built-in draft. Change agent is disabled while an editor operation
+is active, saving, or has an unknown outcome; the explicit Cancel, Disconnect,
+and Forget recovery paths retain their existing ownership.
 
 ## Storage and failure ownership
 

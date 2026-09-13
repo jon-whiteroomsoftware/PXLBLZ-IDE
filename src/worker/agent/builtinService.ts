@@ -15,7 +15,7 @@ interface Dependencies {
 
 /** Called only after authenticated request validation. Transport bindings are
  * resolved privately by the account owner; no caller AgentClaim is accepted. */
-export async function handleBuiltinCommand(accountId: string, command: BuiltinCommand, deps: Dependencies): Promise<Result> {
+export async function handleBuiltinCommand(accountId: string, command: Exclude<BuiltinCommand, { action: 'status' }>, deps: Dependencies): Promise<Result> {
   const identity = await deps.resolve(command.window)
   if (command.action === 'connect') return identity ? { code: 'bound', bindingId: identity.bindingId } : deps.connect(command.window)
   if (!identity) return { code: 'no_live_editor', ...(command.action === 'run' ? { dispatch: 'not_attempted' as const } : {}) }

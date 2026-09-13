@@ -6,6 +6,7 @@ import { accountConnection, resolveBuiltinConnection } from './accountConnection
 import { authorizeBuiltinRequest } from './builtinAccess'
 import { handleBuiltinCommand } from './builtinService'
 import { dispatchBuiltinProvider } from './builtinProvider'
+import { readBuiltinMessageAllowance } from './builtinAllowance'
 import type { AgentBuiltinResult as Result } from '../../engine/agentBuiltinResult'
 export interface BuiltinEnvironment extends WorkerEnv { AGENT_ALLOWANCE?: AgentAccountNamespace; OPENAI_API_KEY?: string }
 export interface BuiltinRelay {
@@ -16,9 +17,10 @@ export interface BuiltinRelay {
 export async function handleBuiltinHttp(request: Request, env: BuiltinEnvironment, relay: BuiltinRelay, providerFetch?: typeof fetch): Promise<Response> {
   const authorized = await authorizeBuiltinRequest(request, env)
   if (authorized instanceof Response) return agentResponse({ ...await authorized.json() as Result, dispatch: 'not_attempted' }, authorized.status)
-  if (!env.AGENT_ACCOUNTS || !env.AGENT_ALLOWANCE || !env.OPENAI_API_KEY) return agentResponse({ code: 'unavailable', ...(authorized.command.action === 'run' ? { dispatch: 'not_attempted' } : {}) }, 503)
   const { accountId, command } = authorized
+  if (!env.AGENT_ACCOUNTS || !env.AGENT_ALLOWANCE || !env.OPENAI_API_KEY) return agentResponse({ code: 'unavailable', ...(command.action === 'run' ? { dispatch: 'not_attempted' } : {}) }, 503)
   const allowance = env.AGENT_ALLOWANCE
+  if (command.action === 'status') return agentResponse({ code: 'status', allowance: await readBuiltinMessageAllowance(allowance, accountId) })
   try {
     const result = await handleBuiltinCommand(accountId, command, {
       resolve: window => resolveBuiltinConnection(env, accountId, window),
@@ -36,6 +38,6 @@ export async function handleBuiltinHttp(request: Request, env: BuiltinEnvironmen
       query: (identity, operationId) => relay.query(env, accountId, identity, { kind: 'get_outcome', operationId }),
       provider: dispatch => dispatchBuiltinProvider({ allowance, apiKey: env.OPENAI_API_KEY, providerFetch }, dispatch),
     })
-    return agentResponse(result)
+    return agentResponse({ ...result, allowance: await readBuiltinMessageAllowance(allowance, accountId) })
   } catch { return agentResponse({ code: 'unavailable' }, 503) }
 }

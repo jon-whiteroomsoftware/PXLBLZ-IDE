@@ -9,6 +9,26 @@ export const AGENT_SERVICE_BOUNDS = Object.freeze({
   maxInputTokens: 1_050_000, maxOutputTokens: 8192, maxRounds: 6,
   startsPerMinute: 4, dailyNanoUsd: 10_000_000_000,
 })
+export const AGENT_DAILY_MESSAGE_LIMIT = 30
+export type AgentMessageAllowanceCode = 'available' | 'daily_message_limit' | 'daily_api_budget' | 'service_halted' | 'unavailable'
+export interface AgentMessageAllowance {
+  code: AgentMessageAllowanceCode
+  limit: number
+  remaining: number | null
+  resetAt: number | null
+  revision: number
+}
+export function unavailableAgentMessageAllowance(): AgentMessageAllowance {
+  return { code: 'unavailable', limit: AGENT_DAILY_MESSAGE_LIMIT, remaining: null, resetAt: null, revision: -1 }
+}
+export function parseAgentMessageAllowance(value: unknown): AgentMessageAllowance | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const status = value as Record<string, unknown>
+  if (!['available', 'daily_message_limit', 'daily_api_budget', 'service_halted'].includes(String(status.code))) return null
+  if (status.limit !== AGENT_DAILY_MESSAGE_LIMIT || !Number.isSafeInteger(status.remaining) || (status.remaining as number) < 0 || (status.remaining as number) > AGENT_DAILY_MESSAGE_LIMIT) return null
+  if (!Number.isSafeInteger(status.resetAt) || (status.resetAt as number) <= 0 || !Number.isSafeInteger(status.revision) || (status.revision as number) < 0) return null
+  return status as unknown as AgentMessageAllowance
+}
 const LEGACY_RESERVATION_NANOUSD = 539_745_600
 export const AGENT_DISPATCH_RESERVATION_NANOUSD = 1_050_000 * 1000 + 8192 * 3600
 interface DispatchCharge { reservedNanoUsd?: number; settledNanoUsd?: number }

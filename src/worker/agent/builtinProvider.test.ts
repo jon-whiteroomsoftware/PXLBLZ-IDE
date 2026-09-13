@@ -25,7 +25,7 @@ it('pins the exact request and reserves before one provider request, then settle
   expect(JSON.parse(init.body as string)).toMatchObject({ model: 'gpt-5.6-luna', reasoning: { effort: 'high' }, service_tier: 'priority', truncation: 'disabled', store: false, max_output_tokens: 8192, parallel_tool_calls: false })
   expect(f.commands[1]).toEqual({ type: 'settle', owner: request.owner, operationId: request.operationId, round: 0, usage, serviceTier: 'default' })
 })
-it.each(['exhausted', 'duplicate', 'expired', 'halted', 'unknown'])('starts zero provider calls after %s admission', async code => {
+it.each(['daily_message_limit', 'exhausted', 'duplicate', 'expired', 'halted', 'unknown'])('starts zero provider calls after %s admission', async code => {
   const f = fixture(code)
   expect(await dispatchBuiltinProvider(f.deps, request)).toEqual({ ok: false, code })
   expect(f.deps.providerFetch).not.toHaveBeenCalled()

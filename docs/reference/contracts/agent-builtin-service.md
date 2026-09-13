@@ -4,14 +4,16 @@ An ordinary editable Show route uses one `src/agent/editorAdmission.ts` owner
 and one browser channel session for the open Show after signed-in capabilities
 resolve. The built-in choice appears only when `/api/me` reports it available.
 `POST /api/agent/builtin` independently authenticates the account, checks the
-service allowlist and owned personal Show or exact stock Show identity, then
+service switch and owned personal Show or exact stock Show identity, then
 resolves the registered window through the account rendezvous owner. Browser
 JSON cannot supply an authoritative account or binding. The shared account
 slot refuses another connection; cross-window Disconnect/Forget remains outside
 v1 (#1002).
 
 The Worker requires protected `OPENAI_API_KEY`, `AGENT_SERVICE_ENABLED`,
-`AGENT_ACCOUNT_ALLOWLIST`, `AGENT_ACCOUNTS`, and `AGENT_ALLOWANCE` configuration.
+`AGENT_ACCOUNTS`, and `AGENT_ALLOWANCE` configuration. Every signed-in account
+is eligible when these bindings are available; the legacy
+`AGENT_ACCOUNT_ALLOWLIST` binding no longer participates in built-in admission.
 There is no browser credential field. Missing configuration refuses fresh work.
 An already-started operation's surviving browser receipt remains readable when
 service configuration or contact disappears; adopted saves remain store-owned.
@@ -35,8 +37,9 @@ those receipts rather than treating provider prose as proof of saving.
 Only the qualified single `resize_clip` exact-duration Retry is offered. It
 captures current state under a new operation linked by `retryOf`, preserves the
 original failed activity and composer draft, and uses the original stable Clip
-identity. It performs no new inference. Other failed requests offer Dismiss or
-a fresh user request; Dismiss changes activity presentation only.
+identity. It performs no new inference and consumes no message allowance. Other
+failed requests retain their truthful activity and permit a fresh user request.
+The built-in and external activity streams expose no Dismiss action.
 
 ## Dispatch and accounting bounds
 
@@ -59,10 +62,32 @@ usage. An overrun halts dispatch persistently. The documented default-tier downg
 is accepted at standard rates; unknown tiers halt dispatch. Reservations retain
 their original amount across pricing upgrades, including legacy standard entries.
 
+The same transaction admits at most 30 submitted built-in messages per
+canonical account and UTC day. The first admitted provider dispatch for an
+operation consumes one message; its later model/tool rounds consume none.
+Authentication, ownership, validation, busy, rolling-minute, personal-limit,
+shared-budget and other refusals before dispatch consume none. Once dispatch may
+have happened, provider failure, cancellation, clarification and no-edit
+completion keep the message charge. Operation and round identities make this
+at-most-once under duplicate delivery. The counter spans Shows, windows,
+reconnects and sign-in sessions. An operation first dispatched before midnight
+keeps that message on its original day while later financial rounds reserve on
+their own current UTC days.
+
+`/api/me` and built-in command responses return the account's authoritative
+limit, remaining messages, next UTC reset instant and allowance revision. The
+drawer refreshes from command responses, window focus and a timer at the
+server-provided reset. It does not derive entitlement from browser storage or
+poll the server continuously. Missing, malformed, failed or stale status cannot
+enable new inference. The personal daily limit, insufficient shared reservation,
+and persistent service halt remain distinct states. A halt does not promise
+recovery at midnight.
+
 Server-issued operation identities have a 24-hour admission horizon. Expiry
 refuses new dispatch without cancelling already-started inference or adopted
 saves. Bounded accounting records and tombstones cannot turn an expired duplicate
-into a new paid call. Explicit user Retry creates a new operation identity.
+into a new paid call. Qualified local Retry creates a new editor operation but
+does not invoke the provider or create another message charge.
 Durable accounting stores identifiers and spend metadata, not Show content,
 prompts, transcripts, or editor receipts.
 
@@ -79,6 +104,8 @@ invocation was refused before any editor delivery. This describes the current
 invocation only; it does not prove that an earlier invocation of the operation
 never ran. Authentication/configuration refusal, missing binding before the run,
 and an allowance activation halted before relay dispatch use this marker.
+Personal and shared allowance refusals also complete before provider transport
+and do not consume a personal message.
 Duplicate, finished, expired, unknown activation, relay pending, and caught
 transport failures remain ambiguous and carry no such assertion.
 

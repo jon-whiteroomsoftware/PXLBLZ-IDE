@@ -21,7 +21,7 @@ The overlay displays private prose alongside the actual editor outcome and inclu
 
 ## Stable diagnostic resize retry
 
-An eligible failed activity offers an explicit exact-duration Retry and Dismiss.
+An eligible failed activity offers an explicit exact-duration Retry.
 The service retains the logical Clip id and positive safe-integer duration from
 one successfully executed canonical `resize_clip`, after reference resolution.
 Only normal private committed completion qualifies. Additional mutation attempts,
@@ -32,10 +32,11 @@ variants and wholly no-change turns do not acquire a retry binding.
 The browser binds that command once alongside the original broad request identity.
 Revision conflict, interaction timeout, user cancellation and rolled-back saving
 may offer Retry after private completion. Pending, saving, successful, superseded,
-noncandidate and unsupported outcomes do not. Dismiss removes actions while
-retaining the historical failure. Typing and focusing another field do not dismiss
-actions. Pointer activation preserves existing focus; keyboard activation returns
-focus from a removed action to the composer without changing its draft or selection.
+noncandidate and unsupported outcomes do not. Starting Retry removes that action
+while retaining the historical failure. The production activity stream has no
+Dismiss action. Typing and focusing another field do not change Retry availability.
+Pointer activation preserves existing focus; keyboard activation returns focus
+from a removed Retry action to the composer without changing its draft or selection.
 
 Retry captures fresh Show state and metadata guards under a new operation id with
 `retryOf`, preserving the original payload, reference context and target identities.
@@ -627,6 +628,16 @@ field retains focus.
 Contact recovery queries the same operation without replay; an unknown outcome
 keeps admission unavailable until that operation is resolved. A known save
 outcome survives missing contact or a missing subsequent lookup.
+
+The built-in composer projects the account's server-owned 30-message UTC-day
+allowance as one muted 9px line above the existing input. Personal exhaustion,
+shared budget exhaustion and service unavailability keep distinct explanations,
+preserve the draft, and disable Send. External MCP remains available when the
+personal built-in allowance is exhausted. Setup Back and connected Change agent
+return to the chooser while preserving transcript and draft; switching is
+disabled through active, saving and unknown outcomes. Neither built-in nor
+external activity offers Dismiss. Executed command results retain the darker
+muted treatment while agent communication retains the existing lighter gray.
 
 The pure presentation model is `src/engine/agentDrawerModel.ts`; the production
 adapter is `src/agent/drawerController.ts`, with an optional development adapter

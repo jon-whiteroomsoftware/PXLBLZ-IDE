@@ -4,17 +4,79 @@ import { AgentDrawerWorkspace } from './AgentDrawer'
 import { useAgentDrawerStore, type AgentDrawerController } from '@/dev/agentDrawerController'
 import { createAgentDrawerState, transitionAgentDrawer, type AgentDrawerEvent } from '@/engine/agentDrawerModel'
 import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
+import type { AgentMessageAllowance } from '@/engine/agentAllowance'
 let controller: AgentDrawerController
+const available = (remaining = 30, resetAt = Date.now() + 4 * 60 * 60 * 1000): AgentMessageAllowance => ({ code: 'available', limit: 30, remaining, resetAt, revision: 1 })
 beforeEach(() => {
-  useWorkspaceStore.setState({ ...workspaceInitialState, agentCapabilities: { external: true, builtin: true, endpoint: 'https://app.test/mcp' } })
-  let state = createAgentDrawerState()
-  controller = { dispatch: (event: AgentDrawerEvent) => { state = transitionAgentDrawer(state, event); useAgentDrawerStore.setState({ state }) }, retry: vi.fn(), submit: vi.fn(), disconnect: vi.fn(), restoreContact: vi.fn(), cancel: vi.fn() } as unknown as AgentDrawerController
+  const allowance = available()
+  useWorkspaceStore.setState({ ...workspaceInitialState, agentCapabilities: { external: true, builtin: true, endpoint: 'https://app.test/mcp', allowance } })
+  let state = createAgentDrawerState(false, allowance)
+  controller = { dispatch: (event: AgentDrawerEvent) => { state = transitionAgentDrawer(state, event); useAgentDrawerStore.setState({ state }) }, retry: vi.fn(), submit: vi.fn(), disconnect: vi.fn(), changeAgent: vi.fn(), backToChooser: vi.fn(), restoreContact: vi.fn(), cancel: vi.fn() } as unknown as AgentDrawerController
   useAgentDrawerStore.setState({ controller, state, busy: false })
 })
 afterEach(() => act(() => {
   useAgentDrawerStore.setState({ controller: null, state: createAgentDrawerState(), busy: false })
   useWorkspaceStore.setState(workspaceInitialState)
+  vi.restoreAllMocks()
 }))
+
+it('shows the authoritative compact allowance and distinct blocking explanations without losing the draft', () => {
+  controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' }); controller.dispatch({ type: 'draft', text: 'Keep this request' })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  expect(screen.getByTestId('agent-allowance-status')).toHaveTextContent('30/30 messages left · resets in 4h')
+  expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
+
+  const resetAt = Date.now() + 4 * 60 * 60 * 1000
+  act(() => controller.dispatch({ type: 'allowance', allowance: { code: 'daily_message_limit', limit: 30, remaining: 0, resetAt, revision: 2 } }))
+  expect(screen.getByText('Daily message limit reached')).toBeVisible()
+  expect(screen.getByText(/Your 30 messages reset at/)).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+  expect(screen.getByTestId('agent-chat-input')).toHaveValue('Keep this request')
+
+  act(() => controller.dispatch({ type: 'allowance', allowance: { code: 'daily_api_budget', limit: 30, remaining: 12, resetAt, revision: 3 } }))
+  expect(screen.getByTestId('agent-allowance-status')).toHaveTextContent('12/30 messages left')
+  expect(screen.getByText('Daily API budget reached')).toBeVisible()
+  expect(screen.getByText(/The Pixelblaze agent is out of budget for today/)).toBeVisible()
+
+  act(() => controller.dispatch({ type: 'allowance', allowance: { code: 'service_halted', limit: 30, remaining: 12, resetAt, revision: 4 } }))
+  expect(screen.getByText('Pixelblaze agent unavailable')).toBeVisible()
+  expect(screen.getByText('Try again later.')).toBeVisible()
+})
+
+it('keeps navigation symmetric and disables Change agent while an outcome is active, unknown, or saving', () => {
+  controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseExternal' })
+  const { rerender } = render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+  expect(controller.backToChooser).toHaveBeenCalledOnce()
+
+  act(() => controller.dispatch({ type: 'agentBinds', name: 'Your MCP agent' }))
+  const change = screen.getByRole('button', { name: 'Change agent' })
+  expect(change).toBeEnabled()
+  fireEvent.click(change)
+  expect(controller.changeAgent).toHaveBeenCalledOnce()
+
+  act(() => controller.dispatch({ type: 'beginEdit', id: 'pending', intent: 'Edit the Show' }))
+  rerender(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  expect(screen.getByRole('button', { name: 'Change agent' })).toBeDisabled()
+  act(() => controller.dispatch({ type: 'outcome', id: 'pending', outcome: 'unknown' }))
+  expect(screen.getByRole('button', { name: 'Change agent' })).toBeDisabled()
+  act(() => controller.dispatch({ type: 'outcome', id: 'pending', outcome: 'saved' }))
+  expect(screen.getByRole('button', { name: 'Change agent' })).toBeEnabled()
+  act(() => {
+    controller.dispatch({ type: 'beginEdit', id: 'saving', intent: 'Save the Show' })
+    controller.dispatch({ type: 'outcome', id: 'saving', outcome: 'applied' })
+    useAgentDrawerStore.setState({ busy: true })
+  })
+  expect(screen.getByRole('button', { name: 'Change agent' })).toBeDisabled()
+})
+
+it('keeps external MCP available when the personal built-in allowance is exhausted', () => {
+  controller.dispatch({ type: 'drawer', mode: 'open' })
+  controller.dispatch({ type: 'allowance', allowance: { code: 'daily_message_limit', limit: 30, remaining: 0, resetAt: Date.now() + 4 * 60 * 60 * 1000, revision: 2 } })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  fireEvent.click(screen.getByRole('button', { name: 'Connect your agent with MCP' }))
+  expect(screen.getByRole('heading', { name: 'Connect your agent with MCP' })).toBeVisible()
+})
 
 it('renders only server-advertised choices and uses the advertised endpoint', () => {
   controller.dispatch({ type: 'drawer', mode: 'open' })
@@ -58,12 +120,12 @@ it('announces terminal outcomes without putting read/progress lines in a live re
   controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'agentBinds', name: 'Claude Code' })
   render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
   act(() => controller.dispatch({ type: 'reading' }))
-  expect(screen.getByRole('status')).toHaveTextContent('')
+  expect(screen.getByTestId('agent-activity-status')).toHaveTextContent('')
   act(() => { controller.dispatch({ type: 'beginEdit', id: 'a', intent: 'Resize' }); controller.dispatch({ type: 'outcome', id: 'a', outcome: 'rolled-back' }) })
-  expect(screen.getByRole('status')).toHaveTextContent('Resize: rolled back')
+  expect(screen.getByTestId('agent-activity-status')).toHaveTextContent('Resize: rolled back')
   expect(screen.getByText('Ask your agent to try again from current state.')).toBeVisible()
   expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+  expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
   expect(screen.getByTestId('agent-response')).toHaveTextContent('The save was rolled back.')
   expect(controller.retry).not.toHaveBeenCalled()
 })
@@ -87,7 +149,7 @@ it('announces a later rollback even when a newer operation already has an outcom
     controller.dispatch({ type: 'outcome', id: 'new', outcome: 'saved' })
     controller.dispatch({ type: 'outcome', id: 'old', outcome: 'rolled-back' })
   })
-  expect(screen.getByRole('status')).toHaveTextContent('First resize: rolled back')
+  expect(screen.getByTestId('agent-activity-status')).toHaveTextContent('First resize: rolled back')
 })
 
 it('names connection loss on the tucked keyboard edge', () => {
@@ -108,19 +170,29 @@ it('keeps Retry unavailable while another applied operation still owns the save'
   expect(screen.getByRole('button', { name: 'Retry' })).toBeDisabled()
 })
 
-it('returns keyboard focus from dismissed recovery controls to the preserved composer selection', async () => {
+it('keeps Retry and the composer draft while exposing no Dismiss control', () => {
   controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
   controller.dispatch({ type: 'draft', text: 'Keep this draft' })
   controller.dispatch({ type: 'beginEdit', id: 'old', intent: 'Resize' })
   controller.dispatch({ type: 'outcome', id: 'old', outcome: 'not-applied', retryable: true })
   render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
-  const composer = screen.getByRole('textbox', { name: 'Message the Pixelblaze agent' }) as HTMLInputElement
-  composer.setSelectionRange(2, 5)
-  const dismiss = screen.getByRole('button', { name: 'Dismiss' }); dismiss.focus()
-  fireEvent.click(dismiss)
-  await vi.waitFor(() => expect(composer).toHaveFocus())
-  expect([composer.selectionStart, composer.selectionEnd]).toEqual([2, 5])
-  expect(composer).toHaveValue('Keep this draft')
+  expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible()
+  expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
+  expect(screen.getByRole('textbox', { name: 'Message the Pixelblaze agent' })).toHaveValue('Keep this draft')
+})
+
+it('returns keyboard focus to the preserved composer when Retry removes its action', () => {
+  controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
+  controller.dispatch({ type: 'draft', text: 'Keep this draft' })
+  controller.dispatch({ type: 'beginEdit', id: 'old', intent: 'Resize' })
+  controller.dispatch({ type: 'outcome', id: 'old', outcome: 'not-applied', retryable: true })
+  vi.mocked(controller.retry).mockImplementation(id => controller.dispatch({ type: 'retryStarted', id }))
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  const retry = screen.getByRole('button', { name: 'Retry' })
+  retry.focus()
+  fireEvent.click(retry)
+  expect(screen.getByTestId('agent-chat-input')).toHaveFocus()
+  expect(screen.getByTestId('agent-chat-input')).toHaveValue('Keep this draft')
 })
 
 it.each(['not-applied', 'cancelled'] as const)('does not show private change descriptions for %s', outcome => {
@@ -170,6 +242,7 @@ it('shows one provisional response at the request edge and advances it through w
   expect(screen.getByText('Saving')).toBeVisible()
   act(() => controller.dispatch({ type: 'outcome', id: 'one', outcome: 'saved' }))
   expect(screen.getByTestId('agent-command-icon')).toBeVisible()
+  expect(screen.getByTestId('agent-response')).toHaveClass('text-zinc-500')
   expect(line).toHaveTextContent('Shortened CometLoom to 29 seconds. 1:34–2:03 · 29 seconds')
 })
 
@@ -246,7 +319,7 @@ it('keeps transcript order while connection choices and composers change', () =>
 it('makes each complete chooser region one pointer button with its icon', () => {
   controller.dispatch({ type: 'drawer', mode: 'open' })
   render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
-  const builtin = screen.getByRole('button', { name: /Use the Pixelblaze agent.*Ask for edits here/ })
+  const builtin = screen.getByRole('button', { name: 'Use the Pixelblaze agent' })
   const external = screen.getByRole('button', { name: 'Connect your agent with MCP' })
   expect(builtin).toHaveClass('cursor-pointer')
   expect(external).toHaveClass('cursor-pointer')
@@ -269,7 +342,8 @@ it('keeps MCP setup untimed until Ready to connect and uses the approved generic
   expect(screen.queryByText(/Claude|Codex/)).toBeNull()
 
   const ready = screen.getByRole('button', { name: 'Ready to connect' })
-  expect(ready).toHaveClass('agent-ready')
+  expect(ready).toHaveClass('agent-button')
+  expect(ready).not.toHaveClass('agent-ready')
   fireEvent.click(ready)
   act(() => controller.dispatch({ type: 'connection', connection: null, armingUntil: Date.now() + 120_000, pendingCall: null, contactLost: false }))
   expect(useAgentDrawerStore.getState().state.armingUntil).not.toBeNull()

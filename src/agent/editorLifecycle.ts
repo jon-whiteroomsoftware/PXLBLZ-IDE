@@ -3,12 +3,14 @@ import { createAgentEditorAdmission, observeAgentLocation } from './editorAdmiss
 import { createProductionAgentSession } from './editorSession'
 import { createBuiltinClient } from './builtinClient'
 import type { AgentBrowserSessionPort } from './channelPort'
+import type { AgentMessageAllowance } from '@/engine/agentAllowance'
 
 type Admission = ReturnType<typeof createAgentEditorAdmission>
 export interface AgentEditorLifecycleOptions {
   showId: string
   readOnly: boolean
   enabled: boolean
+  allowance?: AgentMessageAllowance
   /** DEV-only historical diagnostic gate; observed across same-route URL changes. */
   legacyDiagnosticEnabled?: () => boolean
   getContext: () => unknown
@@ -32,7 +34,7 @@ export function mountAgentEditorLifecycle(options: AgentEditorLifecycleOptions):
     if (session) return
     const admission = (options.createAdmission ?? createAgentEditorAdmission)(options.showId, options.getContext, options.bindFieldActivity)
     const channel = options.createChannel({ admission, showId: options.showId })
-    session = createProductionAgentSession(admission, options.showId, channel, createBuiltinClient(channel))
+    session = createProductionAgentSession(admission, options.showId, channel, createBuiltinClient(channel), options.allowance)
     clearDiagnostic = options.diagnostic?.(admission, session)
   }
   const stop = observeAgentLocation(sync)
@@ -40,6 +42,6 @@ export function mountAgentEditorLifecycle(options: AgentEditorLifecycleOptions):
   return () => { close(); stop() }
 }
 export function useAgentEditorLifecycle(options: AgentEditorLifecycleOptions): void {
-  const { showId, readOnly, enabled, legacyDiagnosticEnabled, getContext, bindFieldActivity, createChannel, createAdmission, diagnostic } = options
-  useLayoutEffect(() => mountAgentEditorLifecycle({ showId, readOnly, enabled, legacyDiagnosticEnabled, getContext, bindFieldActivity, createChannel, createAdmission, diagnostic }), [showId, readOnly, enabled, legacyDiagnosticEnabled, getContext, bindFieldActivity, createChannel, createAdmission, diagnostic])
+  const { showId, readOnly, enabled, allowance, legacyDiagnosticEnabled, getContext, bindFieldActivity, createChannel, createAdmission, diagnostic } = options
+  useLayoutEffect(() => mountAgentEditorLifecycle({ showId, readOnly, enabled, allowance, legacyDiagnosticEnabled, getContext, bindFieldActivity, createChannel, createAdmission, diagnostic }), [showId, readOnly, enabled, allowance, legacyDiagnosticEnabled, getContext, bindFieldActivity, createChannel, createAdmission, diagnostic])
 }

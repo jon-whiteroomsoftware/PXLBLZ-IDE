@@ -36,7 +36,7 @@ export function AgentArming({ armed, cancel, ready, endpoint, notice }: {
         <li><strong className="text-zinc-300">2. Authorize access</strong><p className="mt-0.5 text-zinc-500">Start authorization in your agent application. In the browser, sign in to PXLBLZ and allow the connection.</p></li>
         <li><strong className="text-zinc-300">3. Connect this Show</strong><p className="mt-0.5 text-zinc-500">Click Ready to connect and tell your agent “Connect to my Show in PXLBLZ.”</p></li>
       </ol>
-      <button type="button" className={armed ? 'agent-button' : 'agent-button agent-ready'} onClick={armed ? cancel : ready}>{armed ? 'Cancel connection attempt' : 'Ready to connect'}</button>
+      <button type="button" className="agent-button" onClick={armed ? cancel : ready}>{armed ? 'Cancel connection attempt' : 'Ready to connect'}</button>
       {armed && <p className="text-amber-200">Waiting for your agent to connect. This attempt expires in two minutes.</p>}
       <details className="border-t border-seam pt-3"><summary className="cursor-pointer text-zinc-400">About the connection</summary><p className="mt-2 text-zinc-500">Your Show stays open while the agent works. Disconnect ends editing; Forget this agent also removes its authorization.</p><p className="mt-2 text-zinc-500">If your application cannot connect, check that it supports remote MCP with OAuth. Use its connection error to identify what failed.</p></details>
     </div>

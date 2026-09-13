@@ -1129,6 +1129,7 @@ export function ShowEditor({
     showId,
     readOnly,
     enabled: Boolean(agentCapabilities?.external || agentCapabilities?.builtin),
+    allowance: agentCapabilities?.allowance,
     legacyDiagnosticEnabled: import.meta.env.DEV ? legacyAgentDiagnosticEnabled : undefined,
     getContext: getAgentEditorContext,
     bindFieldActivity: fieldActivity.bind,

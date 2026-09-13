@@ -555,8 +555,8 @@ editing.
 ### Agent editing
 
 Open an editable Show while signed in, then open the right-edge Agent drawer.
-When your account has the built-in capability, **Use the Pixelblaze agent**
-connects it to this Show; write an edit request in
+**Use the Pixelblaze agent** connects the built-in agent to this Show for every
+signed-in account; write an edit request in
 the composer. Personal Show edits save to your account; built-in Show edits
 remain session drafts. Successful edits use ordinary Undo history. Each submitted request stays in one
 activity entry. A quiet **Thinking** response appears below it while the agent works,
@@ -566,6 +566,14 @@ treatment. Clip resize confirmations name the Pattern and show the new length an
 timeline range in seconds. Reduced motion preferences disable the Thinking animation;
 status text remains visible.
 
+The composer shows the server-owned remaining count and relative reset above the
+input. The built-in agent admits 30 submitted messages per account per UTC day;
+one message is counted when its first provider dispatch is admitted. Internal
+rounds and qualified local Retry do not count again. Personal exhaustion, the
+shared daily API budget, and persistent service unavailability have separate
+explanations. Each keeps the draft and disables Send. The UTC reset instant is
+shown in local time.
+
 **Connect your agent with MCP** opens untimed setup with the canonical endpoint.
 Add it to any remote MCP client that supports OAuth and authorize the application
 in the browser. Setup does not make the Show connectable. Select **Ready to
@@ -573,7 +581,11 @@ connect** when the client is ready; that makes this window available for two
 minutes. If an incoming call appears, choose **Answer** within 30 seconds or
 **Not now** to decline. Only one agent connection can use your account at a time;
 an occupied connection is refused rather than replaced. External conversations
-stay in the external client; connection setup depends on the client.
+stay in the external client; connection setup depends on the client. **Back**
+returns from unconnected setup to the chooser. Once either agent is connected,
+**Change agent** disconnects this window and returns to the chooser without
+forgetting external authorization. Switching remains disabled until active,
+saving, or unknown work resolves.
 
 Connected agents can address Main or a numbered overlay Layer when adding and
 moving Clips. Overlay numbering starts at zero for the topmost Layer. They can
@@ -612,16 +624,17 @@ or hide one in a Scene Transition, is refused instead of flattening the Clip.
 A supported single exact Clip resize can offer **Retry** against current state.
 Retry creates a new activity, preserves the earlier failure and any unsent draft,
 and performs no new inference. For other failures, make a new request; ask an
-external agent to retry in its own client. **Dismiss** hides the available actions
-while retaining the entry. It does not undo the edit.
+external agent to retry in its own client. Failed activity remains visible; the
+built-in and external activity streams have no Dismiss action.
 
 **Disconnect** ends this window's connection. For an external connection, the
 drawer menu's **Forget this agent** also revokes that agent's authorization.
 Losing the advertised capability or leaving the Show retires pending private
 work; an already-applied personal save
 continues. Managing another window's connection is not available in this version.
-The built-in testing service uses Luna Fast mode and has a $10 daily allowance shared across enabled
-accounts. Availability and the allowance are controlled by the server. See [Agent service limits](contracts/agent-builtin-service.md)
+The built-in testing service uses Luna Fast mode, a 30-message personal daily
+allowance, and a $10 daily allowance shared across signed-in accounts. Availability
+and both allowances are controlled by the server. See [Agent service limits](contracts/agent-builtin-service.md)
 and [connection lifecycle](contracts/agent-rendezvous.md) for the detailed rules.
 [Privacy](PXLBLZ Privacy.md) explains what the built-in service and external
 clients receive.

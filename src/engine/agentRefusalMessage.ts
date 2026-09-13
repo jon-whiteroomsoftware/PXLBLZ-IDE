@@ -15,9 +15,9 @@ export function agentRefusalMessage(code: string): string {
     case 'nothing-applied': return 'Nothing was applied.'
     case 'service_disabled': case 'unavailable': case 'provider_unavailable': case 'halted':
       return 'Agent connections are unavailable right now.'
-    case 'not_allowed': return 'Agent editing is not enabled for this account.'
     case 'unauthorized': return 'Sign in to use agent editing.'
-    case 'exhausted': return 'The shared daily allowance has been used. Try again tomorrow.'
+    case 'daily_message_limit': return 'Your daily 30-message allowance has been used. Try again after the reset.'
+    case 'daily_api_budget': case 'exhausted': return 'The Pixelblaze agent is out of budget for today. Try again after the daily reset.'
     case 'rate_limited': case 'throttled': return 'Too many requests. Wait a minute before trying again.'
     case 'busy': return 'Another edit is still in progress. Wait for its outcome.'
     case 'occupied': return 'Another editor window owns the account connection.'

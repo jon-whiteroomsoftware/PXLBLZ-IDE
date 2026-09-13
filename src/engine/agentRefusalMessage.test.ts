@@ -3,9 +3,10 @@ import { agentRefusalMessage } from './agentRefusalMessage'
 
 it.each([
   ['service_disabled', 'Agent connections are unavailable right now.'],
-  ['not_allowed', 'Agent editing is not enabled for this account.'],
   ['unauthorized', 'Sign in to use agent editing.'],
-  ['exhausted', 'The shared daily allowance has been used. Try again tomorrow.'],
+  ['daily_message_limit', 'Your daily 30-message allowance has been used. Try again after the reset.'],
+  ['daily_api_budget', 'The Pixelblaze agent is out of budget for today. Try again after the daily reset.'],
+  ['exhausted', 'The Pixelblaze agent is out of budget for today. Try again after the daily reset.'],
   ['no_live_editor', 'This Show is no longer connected. Reconnect before making another request.'],
   ['busy', 'Another edit is still in progress. Wait for its outcome.'],
   ['revision-conflict', 'The Show changed before this edit could be applied.'],

@@ -71,7 +71,7 @@ describe('agent drawer activity projection', () => {
   })
 })
 
-it('preserves failure and draft through fresh retry, dismissal and contact loss', () => {
+it('preserves failure and draft through fresh retry and contact loss while retiring its Retry action', () => {
   let state = transitionAgentDrawer(createAgentDrawerState(), { type: 'chooseBuiltin' })
   state = transitionAgentDrawer(state, { type: 'draft', text: 'unrelated draft' })
   state = transitionAgentDrawer(state, { type: 'beginEdit', id: 'old', intent: 'Resize the original Clip' })
@@ -84,9 +84,9 @@ it('preserves failure and draft through fresh retry, dismissal and contact loss'
   expect(state.draft).toBe('unrelated draft')
   state = transitionAgentDrawer(state, { type: 'reattach' })
   expect(state.request?.id).toBe('new')
-  state = transitionAgentDrawer(state, { type: 'dismiss', id: 'old' })
+  state = transitionAgentDrawer(state, { type: 'retryStarted', id: 'old' })
   expect(state.stream[0].outcome).toBe('rolled-back')
-  expect(state.stream[0].dismissed).toBe(true)
+  expect(state.stream[0].retryable).toBe(false)
 })
 
 it('keeps external read activity truthful and expires only setup at its deadline', () => {

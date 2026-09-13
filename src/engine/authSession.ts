@@ -1,3 +1,5 @@
+import type { AgentMessageAllowance } from './agentAllowance'
+
 export type AuthProvider = 'github' | 'google'
 
 export interface ConnectedIdentity {
@@ -20,8 +22,8 @@ export interface AuthenticatedUser {
 }
 
 export type AgentCapabilities =
-  | { external: false; builtin: boolean }
-  | { external: true; builtin: boolean; endpoint: string }
+  | { external: false; builtin: boolean; allowance?: AgentMessageAllowance }
+  | { external: true; builtin: boolean; endpoint: string; allowance?: AgentMessageAllowance }
 
 export type AuthSession =
   | { authenticated: false }

@@ -7,6 +7,8 @@ export interface AgentDrawerControllerPort {
   retry(id: string): void
   cancel(): void
   restoreContact(): void
+  backToChooser(): void
+  changeAgent(): void
   disconnect(forget?: boolean): void
   dispose(): void
 }
