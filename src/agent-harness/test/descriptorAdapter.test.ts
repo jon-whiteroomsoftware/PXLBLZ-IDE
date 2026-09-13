@@ -1,7 +1,10 @@
 import { expect, it } from 'vitest'
 import { z } from 'zod'
 import type { ShowCommandDescriptor, ShowCommandField } from '@/engine/showCommands/registry'
+import { boundaryClipDeletionFixture, boundaryDeletionPlacement } from '@/test/showBoundaryClipDeletionFixture'
 import { descriptorOperation } from '../grammar/operations/descriptorAdapter'
+import { applyShowGrammarOperation } from '../grammar/registry'
+import type { GrammarIssue, ShowGrammarDocument } from '../grammar/types'
 
 it.each<[ShowCommandField, unknown[], unknown[]]>([
   [{ kind: 'string', description: 'text' }, ['a'], [1, null]],
@@ -32,4 +35,27 @@ it('retains exactly-one and unknown-field validation', () => {
   const operation = descriptorOperation({ name: 'test', description: 'test', touches: [], fields: { end: field, duration: field }, exactlyOne: ['end', 'duration'], apply: record => ({ ok: true, record, changes: [] }) })
   expect(operation.validateInput!({ end: 1 })).toEqual([])
   for (const args of [{}, { end: 1, duration: 2 }, { end: 1, extra: true }]) expect(operation.validateInput!(args)).not.toEqual([])
+})
+
+it('passes the actual remove_clip engine refusal through the diagnostic adapter', () => {
+  const show = boundaryClipDeletionFixture('diagnostic-remove-clip-refusal')
+  show.composition!.scenes[1].zones[0].overlays[0].placements.push({
+    ...boundaryDeletionPlacement('shared-later', 1_000, 1_000, 'instance-starter-a'),
+    opacity: 1,
+  })
+  const document: ShowGrammarDocument = { show, inlinePatterns: [], options: {} }
+  const before = structuredClone(document)
+
+  const outcome = applyShowGrammarOperation(document, 'remove_clip', { clip_id: 'starter-b' })
+
+  expect(outcome).toMatchObject({
+    ok: false,
+    issues: [{
+      code: 'cross-boundary-shared-instance' satisfies GrammarIssue['code'],
+      path: '$.clip_id',
+      message: expect.stringContaining('Pattern-instance state shared across that boundary'),
+      remedy: expect.stringContaining('separate the listed Pattern instance'),
+    }],
+  })
+  expect(document).toEqual(before)
 })

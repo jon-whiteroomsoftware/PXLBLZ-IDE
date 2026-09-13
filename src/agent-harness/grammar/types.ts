@@ -2,6 +2,7 @@
 // Shared types for the Show grammar operation registry (#17). Pure data — no
 // MCP or transport imports.
 import type { ShowRecord } from '@/engine/personalContentRecords'
+import type { ShowClipDeletionRefusalReason } from '@/engine/showClipDeletion'
 import type { InlinePattern, ShowEvaluationOptions } from '../shows/evaluate.js'
 
 /** A typed reason an operation was refused. A refusal is never silent. */
@@ -64,6 +65,7 @@ export interface GrammarIssue {
     | 'missing-composition'
     | 'unsupported-topology'
     | 'domain-refusal'
+    | ShowClipDeletionRefusalReason
   message: string
   /** What the agent can do instead, where one exists. */
   remedy?: string

@@ -40,7 +40,7 @@ async function expectFeedbackFitsClip(page: Page, clipId: string): Promise<void>
 }
 
 test('deletes both starter Clips, exposes the former Transition time, and Clones into it (#1023)', async ({ page }) => {
-  const show = boundaryClipDeletionFixture(`boundary-delete-${Date.now().toString(36)}`)
+  const show = boundaryClipDeletionFixture('boundary-delete-success-1023')
   const created = await page.context().request.post('/api/shows', { data: show })
   expect(created.ok(), await created.text()).toBe(true)
   const writes: string[] = []
@@ -73,8 +73,6 @@ test('deletes both starter Clips, exposes the former Transition time, and Clones
     .map((clip) => [clip.id, clip.startMs, clip.endMs]))
     .toEqual(['a', 'b', 'c', 'd'].map((suffix) => [`overlay-${suffix}`, 0, 30_000]))
 
-  await captureIssue1023(page, '1023-free-former-transition-interval.png')
-
   await page.getByRole('button', { name: 'Undo Show edit' }).click()
   await expect.poll(async () => (await savedShow(page, show.id)).transitions[0].kind).toBe('crossfade')
   expect((await savedShow(page, show.id)).composition?.scenes[1].zones[0].main)
@@ -90,6 +88,7 @@ test('deletes both starter Clips, exposes the former Transition time, and Clones
     (await savedShow(page, show.id)).composition!,
   ).zones.flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
     .some((clip) => clip.id !== 'overlay-a' && clip.layerIndex === 0 && clip.startMs === 30_000 && clip.endMs === 60_000)).toBe(true)
+  await captureIssue1023(page, '1023-free-former-transition-interval.png')
   expect(errors).toEqual([])
 })
 
