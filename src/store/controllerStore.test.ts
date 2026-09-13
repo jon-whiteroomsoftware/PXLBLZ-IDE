@@ -690,6 +690,74 @@ describe('controllerStore (keyed)', () => {
     })
   })
 
+  it('reuses a settled absent map for automatic readers but explicitly refreshes it', async () => {
+    await store().addController('10.0.0.5')
+    const provider = created.get('10.0.0.5')!
+    const read = vi.spyOn(provider, 'getPixelMapData').mockResolvedValue(null)
+    await store().refreshInstalledMap('10.0.0.5')
+    const absent = store().controllers['10.0.0.5'].installedMap
+    read.mockResolvedValue(encodeMapData([[0, 0], [1, 1]]))
+    await store().refreshInstalledMap('10.0.0.5', { reuseObserved: true })
+    expect(store().controllers['10.0.0.5'].installedMap).toBe(absent)
+    expect(read).toHaveBeenCalledTimes(1)
+    await store().refreshInstalledMap('10.0.0.5')
+    expect(read).toHaveBeenCalledTimes(2)
+    expect(store().controllers['10.0.0.5'].installedMap).toMatchObject({ status: 'present', dimension: 2 })
+  })
+
+  it('shares pending automatic reads and keeps failed reads settled until an explicit retry', async () => {
+    await store().addController('10.0.0.5')
+    const provider = created.get('10.0.0.5')!
+    const pending = deferred<Uint8Array | null>()
+    const reads = vi.spyOn(provider, 'getPixelMapData').mockReturnValue(pending.promise)
+    const fresh = store().refreshInstalledMap('10.0.0.5')
+    const joining = store().refreshInstalledMap('10.0.0.5', { reuseObserved: true })
+    await Promise.resolve()
+    expect(reads).toHaveBeenCalledTimes(1)
+    pending.reject(new Error('Network unavailable'))
+    await Promise.all([fresh, joining])
+    await store().refreshInstalledMap('10.0.0.5', { reuseObserved: true })
+    expect(reads).toHaveBeenCalledTimes(1)
+    expect(store().controllers['10.0.0.5'].installedMap).toEqual({ status: 'error', message: 'Network unavailable' })
+    reads.mockResolvedValue(null)
+    await store().refreshInstalledMap('10.0.0.5')
+    expect(reads).toHaveBeenCalledTimes(2)
+    expect(store().controllers['10.0.0.5'].installedMap).toMatchObject({ status: 'absent' })
+  })
+
+  it('rereads a reconnected device and ignores an older connection response', async () => {
+    await store().addController('10.0.0.5')
+    const provider = created.get('10.0.0.5')!
+    const oldRead = deferred<Uint8Array | null>()
+    const reads = vi.spyOn(provider, 'getPixelMapData').mockReturnValueOnce(oldRead.promise).mockResolvedValue(null)
+    const oldRefresh = store().refreshInstalledMap('10.0.0.5')
+    await Promise.resolve()
+    await provider.connect({ address: '10.0.0.5' })
+    await store().refreshInstalledMap('10.0.0.5', { reuseObserved: true })
+    const current = store().controllers['10.0.0.5'].installedMap
+    oldRead.resolve(encodeMapData([[0, 0], [1, 1]]))
+    await oldRefresh
+    expect(reads).toHaveBeenCalledTimes(2)
+    expect(current).toMatchObject({ status: 'absent' })
+    expect(store().controllers['10.0.0.5'].installedMap).toBe(current)
+  })
+
+  it('lets post-push verification supersede a pending ordinary map read', async () => {
+    await store().addController('10.0.0.5')
+    const provider = created.get('10.0.0.5')!
+    const oldRead = deferred<Uint8Array | null>()
+    const reads = vi.spyOn(provider, 'getPixelMapData').mockReturnValueOnce(oldRead.promise)
+      .mockResolvedValue(encodeMapData([[0, 0], [1, 1]]))
+    const oldRefresh = store().refreshInstalledMap('10.0.0.5')
+    await Promise.resolve()
+    await store().refreshInstalledMap('10.0.0.5', { expectedFingerprint: '9a0c9e7f', reuseObserved: true })
+    oldRead.resolve(null)
+    await oldRefresh
+    await store().refreshInstalledMap('10.0.0.5', { reuseObserved: true })
+    expect(reads).toHaveBeenCalledTimes(2)
+    expect(store().controllers['10.0.0.5'].installedMap).toMatchObject({ status: 'present', fingerprint: '9a0c9e7f' })
+  })
+
   it('retries a post-push read until the expected installed map becomes visible', async () => {
     await store().addController('10.0.0.5')
     const provider = created.get('10.0.0.5')!

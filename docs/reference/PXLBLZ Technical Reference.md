@@ -827,6 +827,14 @@ records first, then compares fingerprints of current stock and personal
 candidates baked at the observed count; zero or multiple matches produce
 Unknown map. Push history alone is never interpreted as the installed map.
 
+Automatic panel/profile reads share the pending or settled read for the current
+physical connection, including confirmed absence and read failures. Opening a
+surface or receiving telemetry does not restart that read. Explicit Refresh and
+post-push verification replace it; a new connection epoch cannot reuse an old
+read or accept its late response. The Controller bar refresh trigger follows the
+physical connection rather than a duplicate profile's mutable update timestamp,
+and its profile links exclude records in Trash.
+
 ---
 
 # Part 5 — Shows

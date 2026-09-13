@@ -1,3 +1,5 @@
+import { useEntityOrganizationStore, entityOrganizationInitialState } from '@/store/entityOrganizationStore'
+import { normalizeEntityOrganization, trashEntityOrganizationNode } from '@/engine/entityOrganization'
 import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
 import { render, screen, fireEvent, waitFor, act, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -57,6 +59,7 @@ class ConnectedProvider extends NullControllerProvider {
 }
 
 beforeEach(() => {
+  useEntityOrganizationStore.setState({ ...entityOrganizationInitialState, loaded: { ...entityOrganizationInitialState.loaded, controllers: true } })
   usePanelPreferencesStore.setState({ expanded: {} })
   __resetControllerProviders()
   resetPersonalContentProvider()
@@ -215,6 +218,55 @@ async function settleControllerAsync() {
 }
 
 describe('ControllerBar', () => {
+  it('retains no installed map across panel reopen and duplicate-profile timestamp changes', async () => {
+    const provider = new ConnectedProvider()
+    const reads = vi.spyOn(provider, 'getPixelMapData').mockImplementation(() =>
+      reads.mock.calls.length > 3 ? new Promise(() => {}) : Promise.resolve(null),
+    )
+    setControllerProvider(provider)
+    seedLiveController()
+    seedSignedInProfiles([
+      profile('kept', 'pixelblaze_pb32_3cd4ee549434', 2, 'Desk'),
+      profile('legacy', 'pixelblaze_pb32_3cd4ee549434', 1, 'Desk'),
+    ])
+    await useControllerStore.getState().refreshInstalledMap('10.0.0.5')
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    await settleControllerAsync()
+    expect(screen.getAllByText('No installed map').length).toBeGreaterThan(0)
+    expect(reads).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      await useControllerProfileStore.getState().updateProfile('legacy', { lastKnownPixelCount: 100 })
+      await useControllerPanelStore.getState().poll()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    await settleControllerAsync()
+    expect(screen.queryByText('Reading map...')).not.toBeInTheDocument()
+    expect(reads).toHaveBeenCalledTimes(1)
+  })
+
+  it('never links the live panel to a profile in Trash', async () => {
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    seedSignedInProfiles([
+      profile('kept', 'pixelblaze_pb32_3cd4ee549434', 1, 'Desk'),
+      profile('trashed', 'pixelblaze_pb32_3cd4ee549434', Date.now() + 100000, 'Desk'),
+    ])
+    const organization = trashEntityOrganizationNode(
+      normalizeEntityOrganization(undefined, ['kept', 'trashed']), 'entity:trashed',
+    )
+    useEntityOrganizationStore.setState({
+      organizations: { ...entityOrganizationInitialState.organizations, controllers: organization },
+    })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    expect(screen.getByRole('link', { name: 'Open Desk profile' })).toHaveAttribute(
+      'href', '/studio/controllers/kept',
+    )
+    await settleControllerAsync()
+  })
+
   it('offers the install pitch when no extension is present', () => {
     render(<ControllerBar />)
     fireEvent.click(screen.getByTestId('controller-entry-button'))

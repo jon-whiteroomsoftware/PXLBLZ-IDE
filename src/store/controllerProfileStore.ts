@@ -84,7 +84,7 @@ interface ControllerProfileState {
   /** Apply one pure Controller power-policy operation and persist its resulting
    * profile fields through the ordinary optimistic write path. */
   editPower: (profileId: string, edit: ControllerPowerEdit) => Promise<void>
-  refreshLiveMetadata: (profileId: string) => Promise<void>
+  refreshLiveMetadata: (profileId: string, options?: { reuseInstalledMap?: boolean }) => Promise<void>
 }
 
 export const controllerProfileInitialState = {
@@ -640,7 +640,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     })
   },
 
-  refreshLiveMetadata: async (profileId) => {
+  refreshLiveMetadata: async (profileId, options = {}) => {
     const profile = get().profiles.find((p) => p.id === profileId)
     const live = useControllerStore.getState()
     const active = live.activeIp ? live.controllers[live.activeIp] : undefined
@@ -653,7 +653,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     const provider = getControllerProvider()
     const [config] = await Promise.all([
       provider.getConfig().catch(() => null),
-      live.refreshInstalledMap(active.ip),
+      live.refreshInstalledMap(active.ip, { reuseObserved: options.reuseInstalledMap }),
     ])
     // Compare against the profile as it is *now*: profile writes are frequent
     // while a Controller is live (reconciliation, installed-map snapshots, other

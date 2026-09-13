@@ -908,8 +908,7 @@ describe('controllerProfileStore', () => {
     await Promise.resolve()
     pending[1]({ name: 'Cached', pixelCount: 256 })
     // B's name write is now in flight (held by the provider).
-    for (let i = 0; i < 5; i += 1) await Promise.resolve()
-    expect(holdNameWrite).not.toBeNull()
+    await vi.waitFor(() => expect(holdNameWrite).not.toBeNull())
     // A resolves while B's write is pending: it must not treat B's provisional
     // op as refresh ownership. (Profile writes queue per profile, so A's own
     // write settles only after B's is released.)

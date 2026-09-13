@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { CircleArrowUp, Cpu, ListMusic, Pause, Play, RotateCw, Shuffle } from 'lucide-react'
 import { controlIcon, iconProps, transportIcon } from '@/components/iconScale'
 import {
@@ -32,6 +32,8 @@ import { routePath } from '@/engine/routes'
 import { CONTROLLER_HELPER_STORE_URL } from '@/engine/controllerHelper'
 import { describeControllerSequencer } from '@/engine/controllerPanelView'
 import { DisabledReasonTip } from '@/components/ui/disabled-reason'
+import { useEntityOrganizationStore } from '@/store/entityOrganizationStore'
+import { collectTrashedEntityOrganizationIds } from '@/engine/entityOrganization'
 
 // The consolidated top-right Controller surface (#210). Supersedes the always-on
 // header IP input (ControllerConnect) and the standalone status dot
@@ -367,7 +369,14 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
   const removeController = useControllerStore((s) => s.removeController)
   const setActive = useControllerStore((s) => s.setActive)
   const setRendererPaused = useControllerStore((s) => s.setRendererPaused)
-  const controllerProfiles = useControllerProfileStore((s) => s.profiles)
+  const allControllerProfiles = useControllerProfileStore((s) => s.profiles)
+  const controllerOrganization = useEntityOrganizationStore((s) => s.organizations.controllers)
+  const controllerOrganizationLoaded = useEntityOrganizationStore((s) => s.loaded.controllers)
+  const controllerProfiles = useMemo(() => {
+    if (!controllerOrganizationLoaded) return []
+    const trashed = new Set(collectTrashedEntityOrganizationIds(controllerOrganization))
+    return allControllerProfiles.filter((profile) => !trashed.has(profile.id))
+  }, [allControllerProfiles, controllerOrganization, controllerOrganizationLoaded])
   const controllerProfilesLoaded = useControllerProfileStore((s) => s.profilesLoaded)
   const loadControllerProfiles = useControllerProfileStore((s) => s.loadProfiles)
   const createControllerProfile = useControllerProfileStore((s) => s.createProfile)
@@ -453,10 +462,12 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
     if (!entry || entry.phase !== 'live') return
     const profile = findControllerProfileForDevice(controllerProfiles, entry.deviceId)
     if (!profile) return
-    const key = `${profile.id}:${entry.deviceId ?? ''}:${entry.ip}:${entry.nickname ?? ''}`
+    // Metadata writes can change which duplicate profile is newest. They must
+    // not restart a read of this same physical connection (#1024).
+    const key = `${entry.deviceId ?? ''}:${entry.ip}:${entry.liveEpoch ?? ''}:${entry.nickname ?? ''}`
     if (refreshedProfileKeyRef.current === key) return
     refreshedProfileKeyRef.current = key
-    void refreshLiveMetadata(profile.id)
+    void refreshLiveMetadata(profile.id, { reuseInstalledMap: true })
   }, [
     controllerProfiles,
     controllerProfilesLoaded,
@@ -513,8 +524,13 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
     if (!useControllerProfileStore.getState().profilesLoaded) {
       await useControllerProfileStore.getState().loadProfiles()
     }
+    const organizationStore = useEntityOrganizationStore.getState()
+    if (!organizationStore.loaded.controllers) {
+      await organizationStore.loadOrganization('controllers', useControllerProfileStore.getState().profiles.map((profile) => profile.id))
+    }
+    const trashed = new Set(collectTrashedEntityOrganizationIds(useEntityOrganizationStore.getState().organizations.controllers))
     const existing = findControllerProfileForDevice(
-      useControllerProfileStore.getState().profiles,
+      useControllerProfileStore.getState().profiles.filter((profile) => !trashed.has(profile.id)),
       entry.deviceId,
     )
     if (existing) {
@@ -529,7 +545,7 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
       ? await ensureProfileForLiveController(entry)
       : null
     const created = ensured ?? await createControllerProfile(controllerProfileCreateSeed(entry))
-    openControllerProfile(created.id)
+    openControllerProfile(trashed.has(created.id) ? null : created.id)
   }
 
   const openDropdown = useCallback(() => {

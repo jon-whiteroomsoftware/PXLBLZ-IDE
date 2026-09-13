@@ -296,7 +296,7 @@ interface ControllerConnectionState {
    * the map read to telemetry polling. */
   refreshInstalledMap: (
     ip: string,
-    options?: { expectedFingerprint?: string },
+    options?: { expectedFingerprint?: string; reuseObserved?: boolean },
   ) => Promise<void>
   /** Send an acknowledged device-wide renderer command to exactly one Controller. */
   setRendererPaused: (ip: string, paused: boolean) => Promise<void>
@@ -449,6 +449,13 @@ const providers = new Map<string, ControllerProvider>()
 const unsubscribers = new Map<string, () => void>()
 const rendererCommandGenerations = new Map<string, number>()
 const installedMapReadGenerations = new Map<string, number>()
+// Automatic consumers reuse both pending and settled reads in this connection.
+// Explicit refresh and post-push reads replace the record, including failed reads.
+const installedMapReads = new Map<string, {
+  provider: ControllerProvider
+  liveEpoch: number | undefined
+  promise: Promise<void>
+}>()
 const firmwareUpdateCheckedAt = new Map<string, number>()
 const reconciliationTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const FIRMWARE_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000
@@ -703,41 +710,46 @@ export const useControllerStore = create<ControllerConnectionState>()(
 
         refreshInstalledMap: async (ip, options = {}) => {
           const provider = providers.get(ip) ?? (get().activeIp === ip ? getControllerProvider() : null)
-          if (!provider || !get().controllers[ip]) return
+          const entry = get().controllers[ip]
+          if (!provider || !entry) return
+          const prior = installedMapReads.get(ip)
+          if (options.reuseObserved && !options.expectedFingerprint
+            && prior?.provider === provider && prior.liveEpoch === entry.liveEpoch) {
+            return prior.promise
+          }
           const generation = (installedMapReadGenerations.get(ip) ?? 0) + 1
           installedMapReadGenerations.set(ip, generation)
-          patchController(ip, { installedMap: { status: 'loading' } })
-
-          let observation: LiveInstalledMapState = { status: 'error', message: 'Map unavailable' }
-          const attempts = options.expectedFingerprint ? 3 : 1
-          for (let attempt = 0; attempt < attempts; attempt++) {
-            try {
-              observation = inspectInstalledMapData(await provider.getPixelMapData())
-            } catch (error) {
-              observation = {
-                status: 'error',
-                message: error instanceof Error ? error.message : String(error),
+          // Start asynchronously so the shared promise exists before publishing loading.
+          const promise = Promise.resolve().then(async () => {
+            let observation: LiveInstalledMapState = { status: 'error', message: 'Map unavailable' }
+            const attempts = options.expectedFingerprint ? 3 : 1
+            for (let attempt = 0; attempt < attempts; attempt += 1) {
+              try {
+                observation = inspectInstalledMapData(await provider.getPixelMapData())
+              } catch (error) {
+                observation = {
+                  status: 'error',
+                  message: error instanceof Error ? error.message : String(error),
+                }
               }
+              const settled = !options.expectedFingerprint
+                || (observation.status === 'present' && observation.fingerprint === options.expectedFingerprint)
+              if (settled || attempt === attempts - 1) break
+              await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)))
             }
-            const settled = !options.expectedFingerprint
-              || (observation.status === 'present'
-                && observation.fingerprint === options.expectedFingerprint)
-            if (settled || attempt === attempts - 1) break
-            await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)))
-          }
-
-          if (
-            installedMapReadGenerations.get(ip) !== generation
-            || !get().controllers[ip]
-          ) return
-          patchController(ip, {
-            installedMap: observation,
-            ...(observation.status === 'present'
-              ? { mapDim: observation.dimension }
-              : observation.status === 'absent'
-                ? { mapDim: null }
-                : {}),
+            if (
+              installedMapReadGenerations.get(ip) !== generation
+              || !get().controllers[ip]
+              || get().controllers[ip].liveEpoch !== entry.liveEpoch
+            ) return
+            patchController(ip, {
+              installedMap: observation,
+              ...(observation.status === 'present' ? { mapDim: observation.dimension } : observation.status === 'absent' ? { mapDim: null } : {}),
+            })
           })
+          installedMapReads.set(ip, { provider, liveEpoch: entry.liveEpoch, promise })
+          patchController(ip, { installedMap: { status: 'loading' } })
+          return promise
         },
 
         addController: async (controllerTarget, seedNickname) => {
@@ -815,7 +827,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
           const nicknameBeforeBootstrap = get().controllers[target]?.nickname
           const [config] = await Promise.all([
             provider.getConfig().catch(() => null),
-            get().refreshInstalledMap(target),
+            get().refreshInstalledMap(target, { reuseObserved: true }),
           ])
           const liveDeviceId = get().controllers[target]?.deviceId ?? connectTarget.deviceId ?? null
           const currentNickname = get().controllers[target]?.nickname
@@ -906,6 +918,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
         },
 
         removeController: async (ip) => {
+          installedMapReads.delete(ip)
           installedMapReadGenerations.set(ip, (installedMapReadGenerations.get(ip) ?? 0) + 1)
           const provider = providers.get(ip)
           unsubscribers.get(ip)?.()
@@ -2052,6 +2065,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
 
 /** Test-only: drop all live providers + subscriptions (no persistence touch). */
 export function __resetControllerProviders(): void {
+  installedMapReads.clear()
   unsubscribers.forEach((u) => u())
   unsubscribers.clear()
   providers.clear()

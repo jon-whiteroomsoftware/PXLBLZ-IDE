@@ -40,7 +40,7 @@ describe('controllerProfileLiveStore', () => {
       'ctrl-1',
       key,
     )).toEqual([{ patternId: 'pat-line', name: 'Line Dancer' }])
-    expect(useControllerProfileStore.getState().refreshLiveMetadata).toHaveBeenCalledWith('ctrl-1')
+    expect(useControllerProfileStore.getState().refreshLiveMetadata).toHaveBeenCalledWith('ctrl-1', { reuseInstalledMap: true })
   })
 
   it('refreshes live metadata on every sync while reusing an identical bindings read', async () => {

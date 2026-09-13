@@ -168,6 +168,7 @@ export function ControllerPanel() {
     () => provider.getStatus(),
   )
   const connected = status.kind === 'connected'
+  const liveEpoch = controllerEntry?.liveEpoch
 
   const start = useControllerPanelStore((s) => s.start)
   const stop = useControllerPanelStore((s) => s.stop)
@@ -178,9 +179,9 @@ export function ControllerPanel() {
   useEffect(() => {
     if (!connected) return
     start(activeIp ?? undefined)
-    if (activeIp) void refreshInstalledMap(activeIp)
+    if (activeIp) void refreshInstalledMap(activeIp, { reuseObserved: true })
     return () => stop()
-  }, [connected, activeIp, refreshInstalledMap, start, stop])
+  }, [connected, activeIp, liveEpoch, refreshInstalledMap, start, stop])
 
   const brightness = useControllerPanelStore((s) => s.brightness)
   const activeProgramId = useControllerPanelStore((s) => s.activeProgramId)
