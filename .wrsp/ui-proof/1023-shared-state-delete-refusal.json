@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1023",
+  "route": "/PXLBLZ-IDE/studio/shows/boundary-delete-shared-1023",
+  "operation": "Selected starter-b and pressed Delete. The existing Clip pulse and aria-live status reported 'Cannot delete: shared animation state' while the Show remained unchanged.",
+  "captures": [".wrsp/ui-proof/1023-shared-state-delete-refusal.png"],
+  "capturedAtCommit": "717e5cfd91cb2c62ec51494dbab2c79e87d8f21a"
+}
