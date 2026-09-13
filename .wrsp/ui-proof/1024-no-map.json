@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "1024",
+  "route": "/PXLBLZ-IDE/studio/controllers/map-kept",
+  "operation": "Repo Playwright with synthetic helper: move legacy profile to Trash, connect a no-map Controller, keep panel open through three config polls, close/reopen, explicit Refresh, reload, and check the kept profile link. Both profile and panel show No installed map; automatic opens retain one read. 1440px desktop capture. The pre-existing compact-width sidebar overlap is outside this lifecycle repair. In-app browser was checked first but has no Controller helper.",
+  "captures": [
+    ".wrsp/ui-proof/1024-no-map-desktop.png"
+  ],
+  "capturedAtCommit": "4826f0e481a89b8a57488e96fb4e73005124eccb"
+}
