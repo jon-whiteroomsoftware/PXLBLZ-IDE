@@ -1,4 +1,5 @@
 import { showLayerTransitionCommandFixture } from '@/test/showLayerTransitionCommandFixture'
+import { boundaryClipDeletionFixture } from '@/test/showBoundaryClipDeletionFixture'
 // Provenance: pxlblz-v3 test/support/grammarGoldens.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
 // Golden accepted case per registry operation, shared by the breadth runner
 // (test/grammarBreadth.test.ts) and the touch-path faithfulness test. The
@@ -357,6 +358,45 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     const scene1Tracks = (removed.show.composition as ShowCompositionV1).scenes
       .find((candidate) => candidate.sceneId === 's1')?.propertyTracks ?? []
     expect(scene1Tracks).toEqual([])
+
+    // Removing the incoming boundary Clip preserves the Transition's time in
+    // Scene 2, including a delayed destination Group occurrence.
+    const boundaryShow = boundaryClipDeletionFixture('grammar-boundary-delete')
+    boundaryShow.composition!.groupDefinitions = [{
+      id: 'group-definition',
+      name: 'Delayed destination group',
+      patternInstances: [{
+        id: 'group-instance',
+        pattern: { kind: 'stock', id: 'CometLoom' },
+        patternName: 'CometLoom',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      placements: [{
+        id: 'group-placement',
+        instanceId: 'group-instance',
+        startMs: 0,
+        durationMs: 1_000,
+        layerOffset: 0,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }],
+    }]
+    boundaryShow.composition!.groupOccurrences = [{
+      id: 'group-occurrence',
+      definitionId: 'group-definition',
+      sceneId: 'scene-2',
+      zoneId: 'zone-1',
+      startMs: 1_000,
+      baseLayer: 1,
+      translationX: 0,
+      translationY: 0,
+    }]
+    const boundary = openShowDocument(boundaryShow)
+    if (!boundary.ok) throw new Error(`boundary fixture failed to open: ${JSON.stringify(boundary.issues)}`)
+    const repaired = applyOk(boundary.document, 'remove_clip', { clip_id: 'starter-b' })
+    expect(repaired.document.show.scenes[1].durationMs).toBe(32_000)
+    expect(repaired.document.show.transitions[0]).toMatchObject({ kind: 'cut', durationMs: 0 })
+    expect(repaired.document.show.composition!.groupOccurrences![0].startMs).toBe(3_000)
   },
   make_clip_pattern_independent: () => {
     const document = fixture({ emptySecondScene: true })

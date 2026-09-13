@@ -2,6 +2,7 @@
   "leafDeclared": [
     "/composition/durationMs",
     "/composition/executionModel",
+    "/composition/groupOccurrences/*/startMs",
     "/composition/patternInstances/*/evaluationPolicy",
     "/composition/scenes/*/zones/*/main/*/opacity",
     "/composition/scenes/*/zones/*/overlays/*/placements/*/opacity",
@@ -286,7 +287,6 @@
     "/composition/groupOccurrences/*/baseLayer",
     "/composition/groupOccurrences/*/definitionId",
     "/composition/groupOccurrences/*/sceneId",
-    "/composition/groupOccurrences/*/startMs",
     "/composition/groupOccurrences/*/translationX",
     "/composition/groupOccurrences/*/translationY",
     "/composition/groupOccurrences/*/zoneId",
