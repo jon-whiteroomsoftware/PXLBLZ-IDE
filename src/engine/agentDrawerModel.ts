@@ -23,9 +23,11 @@ export interface AgentDrawerState {
   drawer: AgentDrawerMode
   pinPreference: boolean
   connection: { kind: 'builtin' | 'external'; name: string } | null
+  externalBinding: { name: string; expectedBindingId: string; relation: 'same-show' | 'other-show'; showName?: string; movedFromHere: boolean } | null
+  movePending: boolean
   armingUntil: number | null
   setupOpen: boolean
-  setupNotice: { title: string; detail: string } | null
+  setupNotice: { cause: 'occupied' | 'other'; title: string; detail: string } | null
   pendingCall: { name: string; expiresAt: number } | null
   contactLost: boolean
   request: { id: string; phase: 'thinking' | 'working' | 'waiting' } | null
@@ -50,8 +52,10 @@ export type AgentDrawerEvent =
   | { type: 'armAccepted' }
   | { type: 'knock'; name: string; now: number }
   | { type: 'agentBinds'; name: string }
+  | { type: 'externalBinding'; binding: AgentDrawerState['externalBinding'] }
+  | { type: 'moveStart' | 'moveSettled' }
   | { type: 'draft' | 'say' | 'reply' | 'system'; text: string }
-  | { type: 'setupFailed'; title: string; detail: string }
+  | { type: 'setupFailed'; cause?: 'occupied' | 'other'; title: string; detail: string }
   | { type: 'allowance'; allowance: AgentMessageAllowance }
   | { type: 'operationReply'; id: string; text: string; replyOnRefusal?: boolean }
   | { type: 'thinking'; id: string }
@@ -62,7 +66,7 @@ export type AgentDrawerEvent =
   | { type: 'touch'; targetId: string }
   | { type: 'outcome'; id: string; outcome: AgentOutcome; changes?: AgentChange[]; reason?: string; retryable?: boolean; refusedTargets?: string[]; band?: AgentDrawerState['band'] }
 export function createAgentDrawerState(pinned = false, allowance: AgentMessageAllowance = unavailableAgentMessageAllowance()): AgentDrawerState {
-  return { drawer: pinned ? 'pinned' : 'tucked', pinPreference: pinned, connection: null, armingUntil: null, setupOpen: false, setupNotice: null, pendingCall: null, contactLost: false, request: null, stream: [], unread: [], highlights: [], highlightPhase: 'none', highlightOperation: null, refusedTargets: [], band: null, draft: '', showMcp: false, allowance }
+  return { drawer: pinned ? 'pinned' : 'tucked', pinPreference: pinned, connection: null, externalBinding: null, movePending: false, armingUntil: null, setupOpen: false, setupNotice: null, pendingCall: null, contactLost: false, request: null, stream: [], unread: [], highlights: [], highlightPhase: 'none', highlightOperation: null, refusedTargets: [], band: null, draft: '', showMcp: false, allowance }
 }
 const clearHighlights = { highlights: [], highlightPhase: 'none' as const, highlightOperation: null, refusedTargets: [], band: null }
 function append(state: AgentDrawerState, kind: AgentLine['kind'], text: string): AgentDrawerState {
@@ -70,13 +74,14 @@ function append(state: AgentDrawerState, kind: AgentLine['kind'], text: string):
 }
 function connected(state: AgentDrawerState, kind: 'builtin' | 'external', name: string): AgentDrawerState {
   if (state.connection) return state
-  return { ...state, connection: { kind, name }, armingUntil: null, setupOpen: false, setupNotice: null, pendingCall: null, contactLost: false, drawer: state.drawer === 'open' ? 'pinned' : state.drawer, pinPreference: state.drawer === 'open' || state.pinPreference }
+  return { ...state, connection: { kind, name }, externalBinding: null, movePending: false, armingUntil: null, setupOpen: false, setupNotice: null, pendingCall: null, contactLost: false, drawer: state.drawer === 'open' ? 'pinned' : state.drawer, pinPreference: state.drawer === 'open' || state.pinPreference }
 }
 export function transitionAgentDrawer(state: AgentDrawerState, event: AgentDrawerEvent): AgentDrawerState {
   switch (event.type) {
     case 'connection': {
       const next = event.connection && !state.connection ? connected(state, event.connection.kind, event.connection.name) : state
-      return { ...next, connection: event.connection, armingUntil: event.armingUntil, pendingCall: event.pendingCall, contactLost: event.contactLost }
+      const clearsOccupied = next.setupNotice?.cause === 'occupied'
+      return { ...next, connection: event.connection, externalBinding: null, movePending: false, armingUntil: event.armingUntil, pendingCall: event.pendingCall, contactLost: event.contactLost, ...(clearsOccupied ? { setupOpen: false, setupNotice: null } : {}) }
     }
     case 'pin': return { ...state, pinPreference: event.pinned, drawer: event.pinned ? 'pinned' : 'tucked', unread: event.pinned ? [] : state.unread }
     case 'drawer': return { ...state, drawer: event.mode, unread: event.mode === 'tucked' ? state.unread : [] }
@@ -84,23 +89,30 @@ export function transitionAgentDrawer(state: AgentDrawerState, event: AgentDrawe
     case 'chooseExternal': return state.connection ? state : { ...state, setupOpen: true, setupNotice: null }
     case 'backToChooser': return state.connection ? state : { ...state, setupOpen: false, setupNotice: null, armingUntil: null, pendingCall: null }
     case 'agentBinds': return connected(state, 'external', event.name)
+    case 'externalBinding': {
+      if (state.connection?.kind === 'builtin') return state
+      const unchanged = JSON.stringify(state.externalBinding) === JSON.stringify(event.binding)
+      return { ...state, connection: null, externalBinding: event.binding, movePending: unchanged ? state.movePending : false, armingUntil: null, pendingCall: null, contactLost: false, setupOpen: false, ...(state.setupNotice?.cause === 'occupied' ? { setupNotice: null } : {}) }
+    }
+    case 'moveStart': return !state.externalBinding || state.movePending ? state : { ...state, movePending: true }
+    case 'moveSettled': return state.movePending ? { ...state, movePending: false } : state
     case 'connectOwn': return state.connection ? state : { ...state, setupOpen: true }
     case 'armAccepted': return state.connection ? state : { ...state, setupOpen: true, setupNotice: null }
     case 'cancelArm': return { ...state, armingUntil: null }
     case 'knock': return state.connection || state.pendingCall ? state : { ...state, setupOpen: true, setupNotice: null, pendingCall: { name: event.name, expiresAt: event.now + 30_000 }, drawer: state.drawer === 'tucked' ? 'open' : state.drawer, unread: [] }
     case 'approveKnock': return state.pendingCall ? connected(state, 'external', state.pendingCall.name) : state
     case 'declineKnock': return { ...state, pendingCall: null }
-    case 'setupFailed': return state.connection ? state : { ...state, setupOpen: true, setupNotice: { title: event.title, detail: event.detail }, armingUntil: null, pendingCall: null }
+    case 'setupFailed': return state.connection ? state : { ...state, setupOpen: true, setupNotice: { cause: event.cause ?? 'other', title: event.title, detail: event.detail }, armingUntil: null, pendingCall: null }
     case 'allowance': return { ...state, allowance: event.allowance }
     case 'tick': {
-      if (state.armingUntil !== null && event.now >= state.armingUntil) return { ...state, armingUntil: null, setupOpen: true, setupNotice: { title: 'No agent connected', detail: 'Select Ready to connect and ask your agent to try again. You do not need to authorize again if your authorization is still valid.' } }
-      if (state.pendingCall && event.now >= state.pendingCall.expiresAt) return { ...state, pendingCall: null, setupOpen: true, setupNotice: { title: 'Missed connection', detail: 'Select Ready to connect, then ask your agent to connect again.' } }
+      if (state.armingUntil !== null && event.now >= state.armingUntil) return { ...state, armingUntil: null, setupOpen: true, setupNotice: { cause: 'other', title: 'No agent connected', detail: 'Select Ready to connect and ask your agent to try again. You do not need to authorize again if your authorization is still valid.' } }
+      if (state.pendingCall && event.now >= state.pendingCall.expiresAt) return { ...state, pendingCall: null, setupOpen: true, setupNotice: { cause: 'other', title: 'Missed connection', detail: 'Select Ready to connect, then ask your agent to connect again.' } }
       return state
     }
     case 'drop': return state.connection && !state.contactLost ? append({ ...state, contactLost: true }, 'system', 'contact lost') : state
     case 'reattach': return state.contactLost ? append({ ...state, contactLost: false }, 'system', 'contact restored') : state
     // The controller first publishes owned cancellation/settlement receipts.
-    case 'disconnect': case 'forget': return { ...state, connection: null, armingUntil: null, setupOpen: false, setupNotice: null, pendingCall: null, contactLost: false, request: null }
+    case 'disconnect': case 'forget': return { ...state, connection: null, externalBinding: null, movePending: false, armingUntil: null, setupOpen: false, setupNotice: null, pendingCall: null, contactLost: false, request: null }
     case 'draft': return { ...state, draft: event.text }
     case 'say': return append(state, 'author', event.text)
     case 'reply': return append(state, 'reply', event.text)

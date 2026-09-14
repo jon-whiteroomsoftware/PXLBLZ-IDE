@@ -580,12 +580,19 @@ in the browser. Setup does not make the Show connectable. Select **Ready to
 connect** when the client is ready; that makes this window available for two
 minutes. If an incoming call appears, choose **Answer** within 30 seconds or
 **Not now** to decline. Only one agent connection can use your account at a time;
-an occupied connection is refused rather than replaced. External conversations
+every editable Show displays an existing external connection. Select **Reconnect**
+to bring it to another editor for the same Show, or **Bring agent here** for a
+different Show. The click may replace a live editor connection; opening a Show
+never moves it automatically. The previous editor reports that the agent moved.
+External conversations
 stay in the external client; connection setup depends on the client. **Back**
 returns from unconnected setup to the chooser. Once either agent is connected,
 **Change agent** disconnects this window and returns to the chooser without
 forgetting external authorization. Switching remains disabled until active,
 saving, or unknown work resolves.
+
+A small green dot beside the owned agent name indicates the ordinary connected
+state. Contact loss and active work keep their existing text status instead.
 
 Connected agents can address Main or a numbered overlay Layer when adding and
 moving Clips. Overlay numbering starts at zero for the topmost Layer. They can
@@ -631,7 +638,8 @@ built-in and external activity streams have no Dismiss action.
 drawer menu's **Forget this agent** also revokes that agent's authorization.
 Losing the advertised capability or leaving the Show retires pending private
 work; an already-applied personal save
-continues. Managing another window's connection is not available in this version.
+continues. Disconnect and Forget still require the exact owning window; only the
+explicit external Reconnect/Bring action replaces another editor's binding.
 The built-in testing service uses Luna Fast mode, a 30-message personal daily
 allowance, and a $10 daily allowance shared across signed-in accounts. Availability
 and both allowances are controlled by the server. See [Agent service limits](contracts/agent-builtin-service.md)

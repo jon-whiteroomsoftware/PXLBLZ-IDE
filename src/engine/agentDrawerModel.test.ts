@@ -98,7 +98,7 @@ it('keeps external read activity truthful and expires only setup at its deadline
   expect(state.armingUntil).toBeNull()
   state = transitionAgentDrawer(state, { type: 'setupFailed', title: 'Try again', detail: 'The previous attempt ended.' })
   state = transitionAgentDrawer(state, { type: 'connectOwn', now: 1000 })
-  expect(state.setupNotice).toEqual({ title: 'Try again', detail: 'The previous attempt ended.' })
+  expect(state.setupNotice).toEqual({ cause: 'other', title: 'Try again', detail: 'The previous attempt ended.' })
   expect(state.armingUntil).toBeNull()
   state = transitionAgentDrawer(state, { type: 'armAccepted' })
   expect(state.setupNotice).toBeNull()
@@ -109,11 +109,11 @@ it('keeps external read activity truthful and expires only setup at its deadline
   state = transitionAgentDrawer(state, { type: 'tick', now: 121000 })
   expect(state.armingUntil).toBeNull()
   expect(state.setupOpen).toBe(true)
-  expect(state.setupNotice).toEqual({ title: 'No agent connected', detail: 'Select Ready to connect and ask your agent to try again. You do not need to authorize again if your authorization is still valid.' })
+  expect(state.setupNotice).toEqual({ cause: 'other', title: 'No agent connected', detail: 'Select Ready to connect and ask your agent to try again. You do not need to authorize again if your authorization is still valid.' })
   state = transitionAgentDrawer(state, { type: 'knock', name: 'Claude Code', now: 200000 })
   state = transitionAgentDrawer(state, { type: 'tick', now: 230000 })
   expect(state.pendingCall).toBeNull()
-  expect(state.setupNotice).toEqual({ title: 'Missed connection', detail: 'Select Ready to connect, then ask your agent to connect again.' })
+  expect(state.setupNotice).toEqual({ cause: 'other', title: 'Missed connection', detail: 'Select Ready to connect, then ask your agent to connect again.' })
   state = transitionAgentDrawer(state, { type: 'agentBinds', name: 'Claude Code' })
   state = transitionAgentDrawer(state, { type: 'thinking', id: 'external' })
   expect(state.request).toBeNull()
@@ -182,4 +182,38 @@ it('takes exact server connection deadlines and preserves work during contact lo
   expect(lost.contactLost).toBe(true)
   const armed = transitionAgentDrawer(createAgentDrawerState(), { type: 'connection', connection: null, armingUntil: 123456, pendingCall: null, contactLost: false })
   expect(armed.armingUntil).toBe(123456)
+})
+
+it('keeps external availability separate from owned connection and bounds move pending state', () => {
+  let state = transitionAgentDrawer(createAgentDrawerState(), { type: 'setupFailed', cause: 'occupied', title: 'Connected in another editor', detail: 'Old instruction' })
+  state = transitionAgentDrawer(state, { type: 'externalBinding', binding: { name: 'Claude Code', expectedBindingId: 'binding-a', relation: 'other-show', showName: 'Solar Tides', movedFromHere: true } })
+  expect(state).toMatchObject({
+    connection: null,
+    externalBinding: { name: 'Claude Code', expectedBindingId: 'binding-a', relation: 'other-show', showName: 'Solar Tides', movedFromHere: true },
+    setupOpen: false,
+    setupNotice: null,
+    movePending: false,
+  })
+  state = transitionAgentDrawer(state, { type: 'moveStart' })
+  expect(state.movePending).toBe(true)
+  state = transitionAgentDrawer(state, { type: 'externalBinding', binding: { name: 'Claude Code', expectedBindingId: 'binding-a', relation: 'other-show', showName: 'Solar Tides', movedFromHere: true } })
+  expect(state.movePending).toBe(true)
+  state = transitionAgentDrawer(state, { type: 'moveSettled' })
+  expect(state.movePending).toBe(false)
+  expect(state.connection).toBeNull()
+  state = transitionAgentDrawer(state, { type: 'connection', connection: { kind: 'external', name: 'Claude Code' }, armingUntil: null, pendingCall: null, contactLost: false })
+  expect(state.externalBinding).toBeNull()
+  expect(state.connection).toEqual({ kind: 'external', name: 'Claude Code' })
+})
+
+it('clears only occupied setup notices when authoritative availability changes', () => {
+  let occupied = transitionAgentDrawer(createAgentDrawerState(), { type: 'setupFailed', cause: 'occupied', title: 'Connected in another editor', detail: 'Old instruction' })
+  occupied = transitionAgentDrawer(occupied, { type: 'connection', connection: null, armingUntil: null, pendingCall: null, contactLost: false })
+  expect(occupied.setupNotice).toBeNull()
+  expect(occupied.setupOpen).toBe(false)
+
+  let unrelated = transitionAgentDrawer(createAgentDrawerState(), { type: 'setupFailed', cause: 'other', title: 'Service unavailable', detail: 'Try again later.' })
+  unrelated = transitionAgentDrawer(unrelated, { type: 'connection', connection: null, armingUntil: null, pendingCall: null, contactLost: false })
+  expect(unrelated.setupNotice).toEqual({ cause: 'other', title: 'Service unavailable', detail: 'Try again later.' })
+  expect(unrelated.setupOpen).toBe(true)
 })

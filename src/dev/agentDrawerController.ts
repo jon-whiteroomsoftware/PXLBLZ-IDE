@@ -199,6 +199,7 @@ export function createAgentDrawerController(api: Admission, showId: string) {
     restoreContact() { if (!available()) return; refresh(); dispatch({ type: 'reattach' }) },
     backToChooser() { if (!state.connection && !state.pendingCall) dispatch({ type: 'backToChooser' }) },
     changeAgent() { if (!active && !state.request) controller.disconnect() },
+    moveExternal() {},
     disconnect(forget = false) { controller.cancel(); transport?.abort(); dispatch({ type: forget ? 'forget' : 'disconnect' }) },
     get requests() { return structuredClone(records) },
     dispose() {

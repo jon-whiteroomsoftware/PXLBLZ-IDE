@@ -15,6 +15,9 @@
 .agent-choice-icon, .agent-icon-button { display: grid; width: 26px; height: 26px; flex-shrink: 0; place-items: center; border: 1px solid #3f3f46; border-radius: 4px; background: #18181b; color: #a1a1aa; }
 .group:hover .agent-choice-icon, .agent-icon-button:hover { color: #facc15; }
 .agent-icon-button:focus-visible { outline: 2px solid #facc15; outline-offset: 2px; }
+.agent-identity-connected { width: 7px; height: 7px; flex: none; border-radius: 999px; background: var(--color-ok); }
+.agent-move-notice { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(196,181,253,.25); background: rgba(196,181,253,.06); padding: 10px 16px; color: #d4d4d8; font-size: 11px; line-height: 1.5; }
+.agent-move-notice strong { font-weight: 500; }
 .agent-dot { width: 7px; height: 7px; flex-shrink: 0; border-radius: 50%; }
 .agent-dot-connected { background: var(--color-agent); }
 .agent-dot-busy, .agent-dot-waiting { background: #fcd34d; }

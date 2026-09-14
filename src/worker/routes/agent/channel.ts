@@ -1,11 +1,10 @@
-import type { D1DatabaseShowsLike } from '../../../cloudflare/shows'
 import { readSessionFromRequest } from '../../../cloudflare/auth'
 import { agentServiceRefusal, agentResponse } from '../../../cloudflare/agentAccess'
 import type { AgentWindowChannelCommand } from '../../agent/AgentAccount'
 import { agentGrantAction } from '../../agent/agentGrant'
 import type { AgentClaim } from '../../../engine/agentRendezvous'
-import { isStockShowId } from '../../../pixelblaze/stock/showIds'
 import type { WorkerEnv } from '../../apiRoutes'
+import { resolveAgentShowAccess } from '../../agent/agentShowAccess'
 
 export async function onRequestPost({ request, env }: { request: Request; env: WorkerEnv }): Promise<Response> {
   const session = await readSessionFromRequest(request, env.SESSION_SECRET).catch(() => null)
@@ -36,18 +35,38 @@ export async function onRequestPost({ request, env }: { request: Request; env: W
   // Ending requires the original local capability, even after its Show or service
   // is gone. It neither admits work nor exposes another window's state.
   const ending = command.type === 'leave' || command.type === 'disconnect' || command.type === 'disarm' || command.type === 'retirement-ack' || command.type === 'forget'
+  let showName: string | undefined
   if (!ending) {
     const refusal = agentServiceRefusal(env)
     if (refusal) return agentResponse({ code: refusal }, 503)
-    if (!isStockShowId(command.showId)) {
-      if (!env.PXLBLZ_DB) return agentResponse({ code: 'unavailable' }, 503)
-      const db: D1DatabaseShowsLike = env.PXLBLZ_DB
-      const { results } = await db.prepare('SELECT id FROM personal_shows WHERE user_id = ? AND id = ?').bind(session.userId, command.showId).all<{ id: string }>()
-      if (!results.length) return agentResponse({ code: 'show_unavailable' }, 404)
-    }
+    const access = await resolveAgentShowAccess(env, session.userId, command.showId)
+    if (!access.ok) return agentResponse({ code: access.code }, access.status)
+    showName = access.show.name
   }
   const accountId = env.AGENT_ACCOUNTS.idFromName(session.userId)
   const stub = env.AGENT_ACCOUNTS.get(accountId)
+  if (command.type === 'move-external') {
+    let inspected: { code: string; claim?: AgentClaim }
+    try {
+      const response = await stub.fetch(new Request('https://agent-account.internal/window', { method: 'POST', body: JSON.stringify({ ...command, type: 'inspect-external-move' }) }))
+      inspected = await response.json() as typeof inspected
+    } catch { return agentResponse({ code: 'unavailable' }, 503) }
+    if (inspected.code === 'bound_here') return agentResponse({ code: 'bound_here' })
+    if (inspected.code !== 'move_available' || inspected.claim?.agentKind !== 'external') return agentResponse({ code: inspected.code }, 409)
+    const grant = await agentGrantAction(env, session.userId, inspected.claim.agentId, 'inspect')
+    if (grant.code !== 'live') return agentResponse({ code: grant.code === 'unavailable' ? 'unavailable' : 'connection_changed' }, grant.code === 'unavailable' ? 503 : 409)
+    let replaced: { code: string }
+    try {
+      const response = await stub.fetch(new Request('https://agent-account.internal/window', { method: 'POST', body: JSON.stringify({
+        type: 'replace-external-binding',
+        target: { registrationId: command.registrationId, sessionId: command.sessionId, showId: command.showId },
+        expected: { agentId: inspected.claim.agentId, bindingId: command.expectedBindingId },
+        next: { callId: crypto.randomUUID(), bindingId: crypto.randomUUID() },
+      }) }))
+      replaced = await response.json() as typeof replaced
+    } catch { return agentResponse({ code: 'unavailable' }, 503) }
+    return agentResponse({ code: replaced.code }, replaced.code === 'moved' || replaced.code === 'bound_here' ? 200 : 409)
+  }
   if (command.type === 'forget') {
     let current: { code: string; claim?: AgentClaim }
     try {
@@ -60,18 +79,19 @@ export async function onRequestPost({ request, env }: { request: Request; env: W
     const revoked = await agentGrantAction(env, session.userId, current.claim.agentId, 'revoke')
     return agentResponse({ code: revoked.code === 'credentials_revoked' ? 'forgotten' : 'disconnected_not_forgotten' })
   }
-  return stub.fetch(new Request('https://agent-account.internal/window', { method: 'POST', body: JSON.stringify(command) }))
+  return stub.fetch(new Request('https://agent-account.internal/window', { method: 'POST', body: JSON.stringify(command.type === 'register' ? { ...command, ...(showName ? { showName } : {}) } : command) }))
 }
 
 function parseWindowCommand(value: unknown): AgentWindowChannelCommand | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const body = value as Record<string, unknown>
-  const types = ['register', 'arm', 'poll', 'heartbeat', 'leave', 'answer', 'decline', 'disconnect', 'disarm', 'receive', 'reply', 'retirement-ack', 'forget']
+  const types = ['register', 'arm', 'poll', 'heartbeat', 'leave', 'answer', 'decline', 'disconnect', 'disarm', 'receive', 'reply', 'retirement-ack', 'forget', 'move-external']
   if (typeof body.type !== 'string' || !types.includes(body.type)) return null
   const keys = ['type', 'sessionId', 'showId']
   if (body.type !== 'register') keys.push('registrationId')
   if (body.type === 'answer' || body.type === 'decline') keys.push('callId')
   if (body.type === 'disconnect' || body.type === 'retirement-ack' || body.type === 'forget') keys.push('bindingId')
+  if (body.type === 'move-external') keys.push('expectedBindingId')
   if (body.type === 'receive' && body.lastSeenConnection !== undefined) {
     if (typeof body.lastSeenConnection !== 'string' || body.lastSeenConnection.length > 1024) return null
     keys.push('lastSeenConnection')

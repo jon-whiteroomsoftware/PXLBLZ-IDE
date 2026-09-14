@@ -9,6 +9,7 @@ export interface AgentDrawerControllerPort {
   restoreContact(): void
   backToChooser(): void
   changeAgent(): void
+  moveExternal(): void
   disconnect(forget?: boolean): void
   dispose(): void
 }

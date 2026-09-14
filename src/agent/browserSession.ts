@@ -26,6 +26,8 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
   let closed = false
   let retiredBinding: string | undefined
   let controlVersion = 0
+  let moveGeneration = 0
+  let movedFromHere = false
   let stopAdmission = () => {}
   let heartbeat: ReturnType<typeof setInterval> | undefined
   let heartbeatInFlight = false
@@ -45,6 +47,11 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
   }
   const retire = () => { executor?.retire(); executor = undefined; if (bindingId) retiredBinding = bindingId; bindingId = undefined }
   const update = (next: AgentWindowConnection) => {
+    const changed = JSON.stringify(next) !== JSON.stringify(lastConnection)
+    if (changed) moveGeneration++
+    if (next.kind === 'external-bound') {
+      if (lastConnection.kind === 'bound' && lastConnection.agentKind === 'external' && lastConnection.bindingId !== next.bindingId) movedFromHere = true
+    } else if (next.kind === 'idle' || next.kind === 'bound') movedFromHere = false
     if (next.kind === 'bound' && next.bindingId === retiredBinding) return
     if (next.kind !== 'bound' || next.bindingId !== bindingId) {
       retire()
@@ -53,7 +60,8 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
         executor = createAgentPrivateExecutor({ bindingId, sessionId: admission.sessionId }, createAgentPrivateAdmissionOwner(admission))
       }
     }
-    lastConnection = next; connection = next
+    lastConnection = next
+    connection = next.kind === 'external-bound' ? { ...next, movedFromHere } : next
     emit({ type: 'connection', connection })
   }
   const contactLost = () => {
@@ -170,6 +178,11 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
       const ownedBinding = bindingId
       retire()
       return control('forget', { bindingId: ownedBinding })
+    },
+    async moveExternal(expectedBindingId) {
+      const generation = ++moveGeneration
+      const result = await control('move-external', { expectedBindingId })
+      return closed || generation !== moveGeneration ? { code: 'superseded' } : result
     },
     getOutcome: operationId => executor?.getOutcome(operationId) ?? { code: 'unknown' },
     retry: async operationId => executor?.retry(operationId, crypto.randomUUID()) ?? { code: 'not_qualified' },

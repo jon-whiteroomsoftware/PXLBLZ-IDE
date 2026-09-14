@@ -1,4 +1,4 @@
-import { emptyRendezvous, transitionRendezvous, windowRendezvousView, REGISTRATION_TTL_MS, type RendezvousCommand, type RendezvousState, type WindowIdentity, type AgentClaim, type WindowCommand } from '../../engine/agentRendezvous'
+import { emptyRendezvous, transitionRendezvous, windowRendezvousView, REGISTRATION_TTL_MS, type RendezvousCommand, type RendezvousState, type WindowIdentity, type AgentClaim, type WindowCommand, type EditorRegistration, type ExternalMoveNotice } from '../../engine/agentRendezvous'
 import { agentResponse } from '../../cloudflare/agentAccess'
 import { AgentRelay, type AgentDeliveryInput, type AgentEditorQuery, type AgentRelayMessage } from './agentRelay'
 import type { PrivateEditResult } from '../../engine/agentPrivateExecutor'
@@ -23,13 +23,14 @@ export interface AgentAccountNamespace {
 }
 
 export type AgentWindowChannelCommand = WindowCommand
+  | ({ type: 'move-external'; expectedBindingId: string } & WindowIdentity)
   | ({ type: 'forget'; bindingId: string } & WindowIdentity)
   | ({ type: 'receive'; lastSeenConnection?: string } & WindowIdentity)
   | ({ type: 'reply'; bindingId: string; operationId: string; deliveryId: string; result: PrivateEditResult } & WindowIdentity)
 type AccountCommand = RendezvousCommand | AgentWindowChannelCommand
   | { type: 'relay-dispatch'; identity: AgentClaim; delivery: AgentDeliveryInput; accountId: string }
   | { type: 'relay-query'; identity: AgentClaim; query: AgentEditorQuery; accountId: string }
-interface AccountBody { code: string; contact?: 'live' | 'lost'; registrationId?: string; binding?: AgentClaim & WindowIdentity; connection?: ReturnType<typeof windowRendezvousView>; claim?: AgentClaim; expiresAt?: number }
+interface AccountBody { code: string; contact?: 'live' | 'lost'; registrationId?: string; binding?: AgentClaim & WindowIdentity & Pick<EditorRegistration, 'showName'>; connection?: ReturnType<typeof windowRendezvousView>; claim?: AgentClaim; expiresAt?: number; moveNotice?: ExternalMoveNotice }
 interface AccountRead { body: AccountBody; status: number; state: RendezvousState }
 
 /** Private binding only. Never mount this fetch handler at a public Worker URL. */
@@ -82,7 +83,7 @@ export class AgentAccount {
       if (read.status !== 200 || read.body.connection?.kind !== 'bound' || read.body.connection.bindingId !== command.bindingId || !this.relay) return agentResponse({ code: 'retired' }, 409)
       return agentResponse({ code: this.relay.reply(command, command.result) ? 'received' : 'unknown' })
     }
-    if (command.type === 'forget') return agentResponse({ code: 'invalid_request' }, 400)
+    if (command.type === 'forget' || command.type === 'move-external') return agentResponse({ code: 'invalid_request' }, 400)
     const read = await this.coordinate(command)
     return agentResponse(read.body, read.status)
   }
@@ -109,24 +110,24 @@ export class AgentAccount {
       await storage.put('account', { rendezvous: state, throttle })
       await scheduleExpiry(storage, state, throttle.start + 60_000)
       const reply = (body: AccountBody, status = 200): AccountRead => ({ body, status, state })
-      if (command.type === 'claim' || command.type === 'inspect' || command.type === 'resolve-builtin' || command.type === 'connect-external' || command.type === 'resolve-external') {
+      if (command.type === 'claim' || command.type === 'inspect' || command.type === 'resolve-builtin' || command.type === 'connect-external' || command.type === 'resolve-external' || command.type === 'inspect-external-move' || command.type === 'replace-external-binding' || command.type === 'consume-external-move-notice') {
         const slot = state.slot
         const target = slot?.kind === 'bound' && !slot.retiring ? state.registrations.find(item => item.registrationId === slot.registrationId) : undefined
         const body: AccountBody = { ...result }
-        if (['connect-external', 'resolve-external'].includes(command.type)
-          && (result.code === 'bound' || result.code === 'pending') && slot && (slot.kind === 'bound' || slot.kind === 'pending')) {
+        if (['connect-external', 'resolve-external', 'consume-external-move-notice'].includes(command.type)
+          && (result.code === 'bound' || result.code === 'pending' || result.code === 'binding_moved') && slot && (slot.kind === 'bound' || slot.kind === 'pending')) {
           body.claim = { agentId: slot.agentId, agentName: slot.agentName, agentKind: slot.agentKind, callId: slot.callId, bindingId: slot.bindingId }
           if (slot.kind === 'pending') body.expiresAt = slot.expiresAt
         }
-        if (result.code === 'bound' && target) body.binding = { ...slot as AgentClaim, registrationId: target.registrationId, sessionId: target.sessionId, showId: target.showId }
+        if ((result.code === 'bound' || result.code === 'binding_moved') && target) body.binding = { ...slot as AgentClaim, registrationId: target.registrationId, sessionId: target.sessionId, showId: target.showId, ...(target.showName ? { showName: target.showName } : {}) }
         return reply(body)
       }
       if (command.type === 'expire' || ending) return reply(result)
       if (result.code === 'retired' || result.code === 'already_registered' || result.code === 'capacity') return reply(result, 409)
-      return reply({ ...result, ...(command.type === 'register' ? { registrationId: command.registrationId } : {}), connection: windowRendezvousView(state, command.registrationId) })
+      return reply({ ...result, ...(command.type === 'register' ? { registrationId: command.registrationId } : {}), connection: windowRendezvousView(state, command) })
     })
     this.reconcile(read.state)
-    if (!['poll', 'heartbeat', 'inspect', 'resolve-builtin', 'resolve-external'].includes(command.type)) this.wake()
+    if (!['poll', 'heartbeat', 'inspect', 'resolve-builtin', 'resolve-external', 'inspect-external-move', 'consume-external-move-notice'].includes(command.type)) this.wake()
     return read
   }
 

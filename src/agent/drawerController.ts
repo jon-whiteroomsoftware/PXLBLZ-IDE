@@ -39,6 +39,7 @@ export function createProductionDrawerController(api: Admission, showId: string,
   let allowanceResetAt = initialAllowance?.resetAt ?? null
   let allowanceResetRetries = 0
   let connection = channel.getConnection()
+  let moveAttempt = 0
   const operations = new Map<string, Operation>()
   const cancelled = new Set<string>()
   const seenDeliveries = new Set<string>()
@@ -135,6 +136,17 @@ export function createProductionDrawerController(api: Admission, showId: string,
       : null
   }
   const syncConnection = (next: DrawerConnection) => {
+    const connectionChanged = JSON.stringify(connection) !== JSON.stringify(next)
+    const externalView = next.kind === 'external-bound'
+      ? { name: next.agentName, expectedBindingId: next.bindingId, relation: next.relation, ...(next.showName ? { showName: next.showName } : {}), movedFromHere: next.movedFromHere }
+      : undefined
+    const authoritativeMoveChange = next.kind === 'external-bound'
+      ? JSON.stringify(state.externalBinding) !== JSON.stringify(externalView)
+      : next.kind !== 'contact-lost' && connectionChanged
+    if (authoritativeMoveChange) {
+      moveAttempt++
+      emit({ type: 'moveSettled' })
+    }
     if (next.kind === 'armed') {
       armMayBeActive = true
       if (suppressArmSnapshots) return
@@ -152,7 +164,8 @@ export function createProductionDrawerController(api: Admission, showId: string,
     connection = next
     if (next.kind === 'contact-lost' || next.kind === 'retiring') { emit({ type: 'drop' }); return }
     if (next.kind === 'refused') { emit({ type: 'system', text: agentRefusalMessage(next.code) }); return }
-    if (next.kind === 'occupied') { emit({ type: 'setupFailed', title: 'Connected in another editor', detail: 'Disconnect in the editor that owns the connection, then try again. If that editor is unavailable, wait for its inactive connection to expire.' }); return }
+    if (next.kind === 'external-bound') { emit({ type: 'externalBinding', binding: externalView! }); return }
+    if (next.kind === 'occupied') { emit({ type: 'setupFailed', cause: 'occupied', title: 'Connected in another editor', detail: 'Disconnect in the editor that owns the connection, then try again. If that editor is unavailable, wait for its inactive connection to expire.' }); return }
     if (next.kind === 'idle' && state.connection) { refresh(); emit({ type: 'disconnect' }) }
     else if (next.kind === 'idle' && state.pendingCall) emit({ type: 'setupFailed', title: 'Missed connection', detail: 'Select Ready to connect, then ask your agent to connect again.' })
     else if (next.kind === 'idle' && state.armingUntil !== null) emit({ type: 'setupFailed', title: 'No agent connected', detail: 'Select Ready to connect and ask your agent to try again. You do not need to authorize again if your authorization is still valid.' })
@@ -256,7 +269,7 @@ export function createProductionDrawerController(api: Admission, showId: string,
               if (intent.acceptedUntil !== null) syncConnection({ kind: 'armed', expiresAt: intent.acceptedUntil })
             } else {
               armIntent = undefined
-              if (result.code === 'occupied') emit({ type: 'setupFailed', title: 'Connected in another editor', detail: 'Disconnect in the editor that owns the connection, then try again. If that editor is unavailable, wait for its inactive connection to expire.' })
+              if (result.code === 'occupied') emit({ type: 'setupFailed', cause: 'occupied', title: 'Connected in another editor', detail: 'Disconnect in the editor that owns the connection, then try again. If that editor is unavailable, wait for its inactive connection to expire.' })
             }
           }
           return result
@@ -343,6 +356,21 @@ export function createProductionDrawerController(api: Admission, showId: string,
         const result = await channel.disconnect()
         if (result.code === 'disconnected') emit({ type: 'disconnect' })
         return result
+      })
+    },
+    moveExternal() {
+      const observed = state.externalBinding
+      if (!observed || state.movePending || disposed || running || useAgentDrawerStore.getState().busy || state.request) return
+      const attempt = ++moveAttempt
+      emit({ type: 'moveStart' })
+      void channel.moveExternal(observed.expectedBindingId).then(result => {
+        if (disposed || attempt !== moveAttempt) return
+        emit({ type: 'moveSettled' })
+        if (!['moved', 'bound_here', 'superseded'].includes(result.code)) emit({ type: 'system', text: agentRefusalMessage(result.code) })
+      }, () => {
+        if (disposed || attempt !== moveAttempt) return
+        emit({ type: 'moveSettled' })
+        emit({ type: 'system', text: agentRefusalMessage('unavailable') })
       })
     },
     disconnect(forget = false) {

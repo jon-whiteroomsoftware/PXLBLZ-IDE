@@ -20,6 +20,8 @@ a transport-neutral exact-ID manifest tested against the real catalogue; arbitra
 The browser schema is closed: `register` takes `sessionId` and `showId`; other
 commands also require `registrationId`. `answer` and `decline` additionally carry
 `callId`; `disconnect`, `forget` and `retirement-ack` carry `bindingId`.
+`move-external` carries the externally visible `expectedBindingId` observed by
+that window; it never carries agent, grant or source-window identity.
 `poll`, `heartbeat`, `arm`, `disarm`, `receive`, `reply` and `leave` complete
 the channel. Replies additionally carry operation/delivery IDs and their result. Unknown fields and agent/account/role claims are refused.
 Control bodies are bounded to2 KiB; replies permit1 MiB of result plus2 KiB
@@ -103,6 +105,40 @@ retains a retired binding identity only for subsequent local end controls after
 unknown transport, never to restore its executor or replay work. `disarm`
 clears only the armed slot belonging to its exact window.
 
+A different registered window may explicitly replace a live external binding.
+The ordinary connection view identifies the external client, whether its Show
+matches this window, a bounded registration-time Show-name snapshot when one is
+available, and the opaque current binding generation. It exposes no call,
+registration, session, grant or credential identity. A built-in, pending or
+retiring slot keeps the existing non-movable projection. Personal Show names
+come from the same-account D1 lookup; stock names come from a lightweight exact
+ID/name manifest qualified against the stock catalogue. Names authorize
+nothing, and an absent or invalid snapshot uses the generic other-Show wording.
+
+The move route validates the destination session and Show, privately inspects
+the exact observed source, confirms that source grant is still live, then asks
+the account owner to compare-and-replace the exact agent/binding pair. The owner
+serializes that final comparison. One competing request wins; stale discovery,
+repeated requests and lost-response retries return `connection_changed` without
+creating another generation. Success retains the agent identity but gives the
+destination registration a fresh call ID, binding ID and volatile relay. Old
+heartbeats, receive/reply traffic, leave, disconnect and operation envelopes
+cannot dispatch into or retire the destination generation. The system makes no
+new promise about settlement of work already in flight in the old envelope.
+
+Grant retirement remains the race owner. Retirement committed before the final
+replacement in the account owner prevents movement. If replacement reaches that
+owner first, including while an authority notification is still in flight, the
+later retirement marks the fresh binding retiring and follows the existing
+browser ACK path. There is no cross-object transaction.
+The old browser latches the local `Agent moved to another editor.` notice after
+receive observes loss of its owned external generation. The destination's receive
+snapshot alone creates its executor and owned connection; the move HTTP result
+is only a control result. Repeated unchanged receive views preserve an unresolved
+move intent, while a changed authoritative view supersedes it. Contact loss does
+not strand that intent: its eventual HTTP result still settles the pending UI,
+and a late result from an older intent cannot settle a newer one.
+
 The drawer's setup Back action invalidates its arm generation, sequences disarm
 after any already-sent arm, and returns to the chooser immediately. Armed
 snapshots remain suppressed through the first later non-armed observation. A
@@ -131,6 +167,9 @@ queries. The volatile relay delivers canonical commands to the production browse
 which delegates to those owners. Grant revocation marks a bound generation
 retiring and wakes receive immediately. Browser retirement acknowledgement ends
 that slot; OAuth credential revocation alone is not an editing-cancellation ACK.
+External replacement ends the old volatile relay and creates an empty relay for
+the fresh destination binding. A bounded move notice lives only on that current
+slot and disappears when the slot is replaced or retired.
 
 The relay queues at most seven mutation jobs, reserving one additional slot for
 read/outcome queries. Responses wait at most25 seconds and return pending rather
@@ -176,7 +215,8 @@ were checked on 2026-09-10. Hosted provisioning and deployment remain unqualifie
 - [Runtime tests](../../../src/worker/agent/agentChannel.runtime.test.ts) bundle the
   actual Worker and run it with real local workerd, D1 and Durable Objects. They
   assert response-level authorization, simultaneous claims and Answers, account
-  throttling, and cleanup after capability loss/deletion, service disable and allowlist removal. They make no inference calls.
+  throttling, external discovery/movement, and cleanup after capability
+  loss/deletion, service disable and allowlist removal. They make no inference calls.
 
 Focused relay/OAuth workerd tests cover live tool routing, grant retirement and
 local Forget. Browser admission tests cover stock drafts, waiting cancellation,

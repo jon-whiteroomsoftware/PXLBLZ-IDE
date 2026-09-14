@@ -4,7 +4,9 @@ import type { PrivateEditResult } from '@/engine/agentPrivateExecutor'
 import type { ShowEditRequest } from '@/engine/showEditAdmission'
 
 export type AgentWindowConnection = ReturnType<typeof windowRendezvousView>
-export type AgentBrowserConnection = AgentWindowConnection
+type ExternalBoundConnection = Extract<AgentWindowConnection, { kind: 'external-bound' }>
+export type AgentBrowserConnection = Exclude<AgentWindowConnection, ExternalBoundConnection>
+  | (ExternalBoundConnection & { movedFromHere: boolean })
   | { kind: 'retiring'; bindingId: string; agentName: string }
   | { kind: 'contact-lost'; previous: AgentWindowConnection }
   | { kind: 'refused'; code: string }
@@ -25,6 +27,7 @@ export interface AgentBrowserSessionPort {
   decline(callId: string): Promise<PrivateEditResult>
   disconnect(): Promise<PrivateEditResult>
   forget(): Promise<PrivateEditResult>
+  moveExternal(expectedBindingId: string): Promise<PrivateEditResult>
   getOutcome(operationId: string): PrivateEditResult
   /** Qualified single-resize retry only; creates a new operation, never inference. */
   retry(operationId: string): Promise<PrivateEditResult>

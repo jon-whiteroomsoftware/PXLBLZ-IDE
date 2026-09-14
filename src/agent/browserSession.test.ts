@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createAgentBrowserSession } from './browserSession'
 import type { createAgentEditorAdmission } from './editorAdmission'
+import type { AgentWindowConnection } from './channelPort'
 import { showCommandFixture } from '@/test/showCommandFixture'
 
 const windowIdentity = { registrationId: 'registration', sessionId: 'session', showId: 'show' }
-const bound = { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Assistant' }
-function setup() {
+const bound = { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Assistant' } as const
+function setup(initialConnection: AgentWindowConnection = bound, options: { delayMoves?: boolean } = {}) {
   const show = showCommandFixture()
   const request = { sessionId: 'session', showId: 'show', operationId: 'binding:op', baseRevision: 0, payloadKey: '', referenceContext: '{}', targets: ['show'] }
   const admission = {
@@ -17,11 +18,13 @@ function setup() {
     complete: vi.fn((_request: unknown, completion: string) => ({ status: 'completed', request, completion })), readOutcome: vi.fn(() => ({ status: 'waiting', request })),
   }
   const receives: Array<(value: Response) => void> = []
+  const moves: Array<(value: Response) => void> = []
   const calls: Record<string, unknown>[] = []
   const fetcher = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
     const body = JSON.parse(init?.body as string); calls.push(body)
-    if (body.type === 'register') return Response.json({ code: 'registered', registrationId: 'registration', connection: bound })
+    if (body.type === 'register') return Response.json({ code: 'registered', registrationId: 'registration', connection: initialConnection })
     if (body.type === 'receive') return new Promise<Response>(resolve => receives.push(resolve))
+    if (body.type === 'move-external' && options.delayMoves) return new Promise<Response>(resolve => moves.push(resolve))
     return Response.json({ code: body.type === 'reply' ? 'received' : 'disconnected' })
   })
   const session = createAgentBrowserSession({ admission: admission as unknown as ReturnType<typeof createAgentEditorAdmission>, showId: 'show', fetch: fetcher })
@@ -29,7 +32,7 @@ function setup() {
     receives.shift()!(Response.json({ code: 'live', connection: bound, deliveries: [{ ...windowIdentity, bindingId: 'binding', operationId: 'op', deliveryId: `d${sequence}`, sequence, payload, ...extra }] }))
     await vi.waitFor(() => expect(receives.length).toBe(1))
   }
-  return { admission, session, calls, receives, deliver }
+  return { admission, session, calls, receives, moves, deliver }
 }
 afterEach(() => vi.useRealTimers())
 describe('production browser channel session', () => {
@@ -101,5 +104,53 @@ it('returns a near-limit context unchanged and explicitly refuses oversized cont
   await deliver({ kind: 'read_show' }, 2)
   expect(calls.filter(call => call.type === 'reply').slice(-1)[0]!.result).toEqual({ code: 'result_too_large' })
   expect(admission.beginRequest).not.toHaveBeenCalled()
+  session.close()
+})
+
+it('sends movement as an intent without installing an owned connection from its result', async () => {
+  const available = { kind: 'external-bound', agentName: 'External', showId: 'other-show', showName: 'Other Show', relation: 'other-show', bindingId: 'observed-binding' } as const
+  const { session, calls } = setup(available)
+  await session.ready
+  expect(session.getConnection()).toEqual({ ...available, movedFromHere: false })
+  expect(await session.moveExternal('observed-binding')).toEqual({ code: 'disconnected' })
+  expect(calls).toContainEqual({ type: 'move-external', ...windowIdentity, expectedBindingId: 'observed-binding' })
+  expect(session.getConnection()).toEqual({ ...available, movedFromHere: false })
+  session.close()
+})
+
+it('supersedes an older move result after a newer receive and move intent', async () => {
+  const available = { kind: 'external-bound', agentName: 'External', showId: 'other-show', showName: 'Other Show', relation: 'other-show', bindingId: 'observed-binding' } as const
+  const { session, receives, moves } = setup(available, { delayMoves: true })
+  await session.ready
+  const first = session.moveExternal('observed-binding')
+  await vi.waitFor(() => expect(moves).toHaveLength(1))
+
+  const newer = { ...available, showId: 'newer-show', showName: 'Newer Show', bindingId: 'newer-binding' } as const
+  receives.shift()!(Response.json({ code: 'status', connection: newer, deliveries: [] }))
+  await vi.waitFor(() => expect(session.getConnection()).toEqual({ ...newer, movedFromHere: false }))
+  const second = session.moveExternal('newer-binding')
+  await vi.waitFor(() => expect(moves).toHaveLength(2))
+
+  moves.shift()!(Response.json({ code: 'connection_changed' }))
+  expect(await first).toEqual({ code: 'superseded' })
+  moves.shift()!(Response.json({ code: 'moved' }))
+  expect(await second).toEqual({ code: 'moved' })
+  session.close()
+})
+
+it('latches moved-from-here across later external owners and clears it on idle', async () => {
+  const owned = { kind: 'bound', bindingId: 'binding', agentKind: 'external', agentName: 'External' } as const
+  const { session, receives } = setup(owned)
+  await session.ready
+  const moved = { kind: 'external-bound', agentName: 'External', showId: 'other-show', showName: 'Other Show', relation: 'other-show', bindingId: 'binding-two' } as const
+  receives.shift()!(Response.json({ code: 'status', connection: moved, deliveries: [] }))
+  await vi.waitFor(() => expect(session.getConnection()).toEqual({ ...moved, movedFromHere: true }))
+  const movedAgain = { ...moved, showId: 'third-show', showName: 'Third Show', bindingId: 'binding-three' } as const
+  receives.shift()!(Response.json({ code: 'status', connection: movedAgain, deliveries: [] }))
+  await vi.waitFor(() => expect(session.getConnection()).toEqual({ ...movedAgain, movedFromHere: true }))
+  receives.shift()!(Response.json({ code: 'status', connection: { kind: 'idle' }, deliveries: [] }))
+  await vi.waitFor(() => expect(session.getConnection()).toEqual({ kind: 'idle' }))
+  receives.shift()!(Response.json({ code: 'status', connection: moved, deliveries: [] }))
+  await vi.waitFor(() => expect(session.getConnection()).toEqual({ ...moved, movedFromHere: false }))
   session.close()
 })

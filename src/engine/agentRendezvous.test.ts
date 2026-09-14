@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { emptyRendezvous, transitionRendezvous } from './agentRendezvous'
+import { emptyRendezvous, transitionRendezvous, windowRendezvousView } from './agentRendezvous'
 
 describe('account rendezvous', () => {
   it('arms one live registered window and binds only one agent', () => {
@@ -173,4 +173,127 @@ it('keeps revoked bound work retiring until the original browser acknowledges re
   expect(acknowledged.result.code).toBe('editing_ended')
   expect(acknowledged.state.slot).toBeNull()
   expect(transitionRendezvous(acknowledged.state, { type: 'inspect', ...agentA }, 6).result.code).toBe('no_live_editor')
+})
+
+it('projects an existing external binding without transferring ownership', () => {
+  const namedA = transitionRendezvous(emptyRendezvous(), { type: 'register', ...windowA, showName: 'First Show' }, 0).state
+  const sameShow = { registrationId: 'registration-a2', sessionId: 'session-a2', showId: 'show-a' }
+  const withA2 = transitionRendezvous(namedA, { type: 'register', ...sameShow, showName: 'First Show' }, 0).state
+  const withB = transitionRendezvous(withA2, { type: 'register', ...windowB, showName: 'Second Show' }, 0).state
+  const armed = transitionRendezvous(withB, { type: 'arm', ...windowA }, 1).state
+  const bound = transitionRendezvous(armed, { type: 'claim', ...agentA }, 2).state
+
+  expect(windowRendezvousView(bound, sameShow)).toEqual({
+    kind: 'external-bound', agentName: 'Agent A', showId: 'show-a', showName: 'First Show', relation: 'same-show', bindingId: 'binding-a',
+  })
+  expect(windowRendezvousView(bound, windowB)).toEqual({
+    kind: 'external-bound', agentName: 'Agent A', showId: 'show-a', showName: 'First Show', relation: 'other-show', bindingId: 'binding-a',
+  })
+  expect(bound.slot).toEqual({ kind: 'bound', registrationId: 'registration-a', ...agentA })
+
+  const builtin = transitionRendezvous(withB, { type: 'claim', ...agentA, agentKind: 'builtin', window: windowA }, 2).state
+  expect(windowRendezvousView(builtin, windowB)).toEqual({ kind: 'occupied' })
+})
+
+it('moves only the exact observed external generation and keeps old traffic isolated', () => {
+  const armed = transitionRendezvous(registered(), { type: 'arm', ...windowA }, 0).state
+  const bound = transitionRendezvous(armed, { type: 'claim', ...agentA }, 1).state
+  const inspected = transitionRendezvous(bound, { type: 'inspect-external-move', ...windowB, expectedBindingId: 'binding-a' }, 2)
+  expect(inspected.result).toMatchObject({ code: 'move_available', claim: agentA })
+  expect(inspected.state).toEqual(bound)
+
+  const moved = transitionRendezvous(inspected.state, {
+    type: 'replace-external-binding', target: windowB,
+    expected: { agentId: 'agent-a', bindingId: 'binding-a' },
+    next: { callId: 'call-b', bindingId: 'binding-b' },
+  }, 3)
+  expect(moved.result.code).toBe('moved')
+  expect(moved.state.slot).toEqual({
+    kind: 'bound', registrationId: 'registration-b', agentKind: 'external', agentId: 'agent-a', agentName: 'Agent A', callId: 'call-b', bindingId: 'binding-b',
+    moveNotice: { showId: 'show-b' },
+  })
+
+  for (const command of [
+    { type: 'heartbeat' as const, ...windowA },
+    { type: 'disconnect' as const, ...windowA, bindingId: 'binding-a' },
+    { type: 'leave' as const, ...windowA },
+  ]) {
+    const late = transitionRendezvous(moved.state, command, 4)
+    expect(late.state.slot).toEqual(moved.state.slot)
+  }
+  expect(transitionRendezvous(moved.state, { type: 'inspect-external-move', ...windowA, expectedBindingId: 'binding-a' }, 5).result.code).toBe('connection_changed')
+  expect(transitionRendezvous(moved.state, {
+    type: 'replace-external-binding', target: windowB,
+    expected: { agentId: 'agent-a', bindingId: 'binding-a' },
+    next: { callId: 'call-c', bindingId: 'binding-c' },
+  }, 5).result.code).toBe('connection_changed')
+})
+
+it('admits one competing move and rejects every stale replacement of its source generation', () => {
+  const windowC = { registrationId: 'registration-c', sessionId: 'session-c', showId: 'show-c' }
+  const state = transitionRendezvous(registered(), { type: 'register', ...windowC }, 0).state
+  const armed = transitionRendezvous(state, { type: 'arm', ...windowA }, 1).state
+  const bound = transitionRendezvous(armed, { type: 'claim', ...agentA }, 2).state
+  expect(transitionRendezvous(bound, { type: 'inspect-external-move', ...windowB, expectedBindingId: 'binding-a' }, 3).result.code).toBe('move_available')
+  expect(transitionRendezvous(bound, { type: 'inspect-external-move', ...windowC, expectedBindingId: 'binding-a' }, 3).result.code).toBe('move_available')
+
+  const winner = transitionRendezvous(bound, {
+    type: 'replace-external-binding', target: windowB,
+    expected: { agentId: 'agent-a', bindingId: 'binding-a' }, next: { callId: 'call-b', bindingId: 'binding-b' },
+  }, 4)
+  for (const target of [windowB, windowC]) {
+    const stale = transitionRendezvous(winner.state, {
+      type: 'replace-external-binding', target,
+      expected: { agentId: 'agent-a', bindingId: 'binding-a' }, next: { callId: 'ignored', bindingId: 'ignored' },
+    }, 5)
+    expect(stale.result.code).toBe('connection_changed')
+    expect(stale.state).toEqual(winner.state)
+  }
+})
+
+it('orders grant retirement against movement without reviving external work', () => {
+  const armed = transitionRendezvous(registered(), { type: 'arm', ...windowA }, 0).state
+  const bound = transitionRendezvous(armed, { type: 'claim', ...agentA }, 1).state
+
+  const retiredFirst = transitionRendezvous(bound, { type: 'retire-grant', agentId: 'agent-a' }, 2).state
+  expect(transitionRendezvous(retiredFirst, { type: 'inspect-external-move', ...windowB, expectedBindingId: 'binding-a' }, 3).result.code).toBe('move_unavailable')
+  expect(transitionRendezvous(retiredFirst, {
+    type: 'replace-external-binding', target: windowB,
+    expected: { agentId: 'agent-a', bindingId: 'binding-a' }, next: { callId: 'call-b', bindingId: 'binding-b' },
+  }, 3).result.code).toBe('connection_changed')
+
+  const movedFirst = transitionRendezvous(bound, {
+    type: 'replace-external-binding', target: windowB,
+    expected: { agentId: 'agent-a', bindingId: 'binding-a' }, next: { callId: 'call-b', bindingId: 'binding-b' },
+  }, 2).state
+  const retiredFresh = transitionRendezvous(movedFirst, { type: 'retire-grant', agentId: 'agent-a' }, 3)
+  expect(retiredFresh.result.code).toBe('retirement_unconfirmed')
+  expect(retiredFresh.state.slot).toMatchObject({ kind: 'bound', registrationId: 'registration-b', callId: 'call-b', bindingId: 'binding-b', retiring: true })
+})
+
+it('returns bound_here only for the exact current target and consumes the current move notice once', () => {
+  const armed = transitionRendezvous(registered(), { type: 'arm', ...windowA }, 0).state
+  const bound = transitionRendezvous(armed, { type: 'claim', ...agentA }, 1).state
+  const moved = transitionRendezvous(bound, {
+    type: 'replace-external-binding', target: windowB,
+    expected: { agentId: 'agent-a', bindingId: 'binding-a' },
+    next: { callId: 'call-b', bindingId: 'binding-b' },
+  }, 2).state
+  const already = transitionRendezvous(moved, { type: 'inspect-external-move', ...windowB, expectedBindingId: 'binding-b' }, 3)
+  expect(already.result.code).toBe('bound_here')
+  expect(already.state).toEqual(moved)
+
+  const consumed = transitionRendezvous(moved, { type: 'consume-external-move-notice', agentId: 'agent-a' }, 4)
+  expect(consumed.result).toMatchObject({ code: 'bound', claim: { bindingId: 'binding-b', callId: 'call-b' }, moveNotice: { showId: 'show-b' } })
+  expect(consumed.state.slot).not.toHaveProperty('moveNotice')
+  expect(transitionRendezvous(consumed.state, { type: 'consume-external-move-notice', agentId: 'agent-a' }, 5).result).not.toHaveProperty('moveNotice')
+})
+
+it('stores only bounded nonempty registration names', () => {
+  const blank = transitionRendezvous(emptyRendezvous(), { type: 'register', ...windowA, showName: '' }, 0).state
+  const long = transitionRendezvous(blank, { type: 'register', ...windowB, showName: 'x'.repeat(129) }, 0).state
+  expect(long.registrations).toEqual([
+    { ...windowA, lastSeenAt: 0 },
+    { ...windowB, lastSeenAt: 0 },
+  ])
 })

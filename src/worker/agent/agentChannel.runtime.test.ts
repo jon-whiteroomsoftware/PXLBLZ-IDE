@@ -15,12 +15,12 @@ let cookie: string
 beforeAll(async () => {
   const bundle = await build({ entryPoints: ['src/worker/index.ts'], external: ['cloudflare:workers'], bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022' })
   runtime = new Miniflare(convertV4MiniflareOptions({ modules: true, script: bundle.outputFiles[0].text, compatibilityDate: '2026-06-30',
-    bindings: { SESSION_SECRET: 'test-secret', AGENT_SERVICE_ENABLED: '1', AGENT_ACCOUNT_ALLOWLIST: 'account-a,account-b,account-c' },
+    bindings: { SESSION_SECRET: 'test-secret', AGENT_SERVICE_ENABLED: '1', AGENT_ACCOUNT_ALLOWLIST: 'account-a,account-b,account-c,account-move' },
     d1Databases: ['PXLBLZ_DB'], durableObjects: { AGENT_ACCOUNTS: { className: 'AgentAccount', useSQLite: true } },
   }))
   const db = await runtime.getD1Database('PXLBLZ_DB')
-  await db.exec("CREATE TABLE personal_shows (user_id TEXT, id TEXT)")
-  await db.exec("INSERT INTO personal_shows VALUES ('account-a', 'show-a'), ('account-b', 'show-b'), ('account-c', 'show-c'), ('unlisted', 'show-u')")
+  await db.exec("CREATE TABLE personal_shows (user_id TEXT, id TEXT, name TEXT)")
+  await db.exec("INSERT INTO personal_shows VALUES ('account-a', 'show-a', 'Show A'), ('account-b', 'show-b', 'Show B'), ('account-c', 'show-c', 'Show C'), ('unlisted', 'show-u', 'Show U'), ('account-move', 'move-a', 'First Move Show'), ('account-move', 'move-b', 'Second Move Show')")
   cookie = `pxlblz_session=${await createSessionToken({ userId: 'account-a', primaryProvider: 'github', primaryHandle: null, displayName: null, avatarUrl: null }, 'test-secret')}`
 }, 30_000)
 afterAll(async () => { await runtime?.dispose() })
@@ -196,4 +196,24 @@ it('resolves builtin identity privately for the original window, never a public 
   const otherAccount = namespace.get(namespace.idFromName('resolver-other'))
   expect(await (await otherAccount.fetch('https://agent-account.internal/connection', { method: 'POST', body: JSON.stringify({ type: 'resolve-builtin', ...window }) })).json()).toEqual({ code: 'retired' })
   expect((await channel({ type: 'resolve-builtin', ...window })).status).toBe(400)
+})
+
+it('projects safe external binding availability without transferring ownership or capabilities', async () => {
+  const first = await (await requestAs('account-move', { type: 'register', sessionId: 'move-first', showId: 'move-a' })).json() as { registrationId: string }
+  const same = await (await requestAs('account-move', { type: 'register', sessionId: 'move-same', showId: 'move-a' })).json() as { registrationId: string }
+  const other = await (await requestAs('account-move', { type: 'register', sessionId: 'move-other', showId: 'move-b' })).json() as { registrationId: string }
+  const firstWindow = { registrationId: first.registrationId, sessionId: 'move-first', showId: 'move-a' }
+  const namespace = await runtime.getDurableObjectNamespace('AGENT_ACCOUNTS') as unknown as RuntimeNamespace
+  const stub = namespace.get(namespace.idFromName('account-move'))
+  await requestAs('account-move', { type: 'arm', ...firstWindow })
+  await stub.fetch('https://internal/claim', { method: 'POST', body: JSON.stringify({ type: 'claim', agentKind: 'external', agentId: 'private-grant', agentName: 'Test Agent', callId: 'private-call', bindingId: 'opaque-binding' }) })
+
+  const sameView = await (await requestAs('account-move', { type: 'poll', registrationId: same.registrationId, sessionId: 'move-same', showId: 'move-a' })).json()
+  expect(sameView).toMatchObject({ connection: { kind: 'external-bound', agentName: 'Test Agent', showId: 'move-a', showName: 'First Move Show', relation: 'same-show', bindingId: 'opaque-binding' } })
+  const otherView = await (await requestAs('account-move', { type: 'poll', registrationId: other.registrationId, sessionId: 'move-other', showId: 'move-b' })).json() as { connection: Record<string, unknown> }
+  expect(otherView).toMatchObject({ connection: { kind: 'external-bound', agentName: 'Test Agent', showId: 'move-a', showName: 'First Move Show', relation: 'other-show', bindingId: 'opaque-binding' } })
+  expect(otherView.connection).not.toHaveProperty('agentId')
+  expect(otherView.connection).not.toHaveProperty('callId')
+  expect(otherView.connection).not.toHaveProperty('registrationId')
+  expect(otherView.connection).not.toHaveProperty('sessionId')
 })

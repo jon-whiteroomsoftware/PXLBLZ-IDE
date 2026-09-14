@@ -165,6 +165,12 @@ cleanup, so disabling access still permits retirement. It stores connection meta
 remain browser-owned. The volatile tab relay never persists Show contents or
 operation receipts. Revocation confirms editing end only after browser retirement
 acknowledgement; an earlier adopted save keeps its store-owned outcome.
+An authorized Show may explicitly move the current external grant from another
+registered editor using an observed binding-generation compare. The serialized
+replacement creates fresh call/binding identities and an empty destination relay;
+receive remains the owner of browser executor state. Stale tool envelopes report
+the new destination without dispatch, and the next actual MCP tool response asks
+the client to refresh its connection and Show context.
 
 ## 3. Personal content and persistence
 

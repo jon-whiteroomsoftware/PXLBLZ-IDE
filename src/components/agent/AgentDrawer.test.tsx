@@ -11,7 +11,7 @@ beforeEach(() => {
   const allowance = available()
   useWorkspaceStore.setState({ ...workspaceInitialState, agentCapabilities: { external: true, builtin: true, endpoint: 'https://app.test/mcp', allowance } })
   let state = createAgentDrawerState(false, allowance)
-  controller = { dispatch: (event: AgentDrawerEvent) => { state = transitionAgentDrawer(state, event); useAgentDrawerStore.setState({ state }) }, retry: vi.fn(), submit: vi.fn(), disconnect: vi.fn(), changeAgent: vi.fn(), backToChooser: vi.fn(), restoreContact: vi.fn(), cancel: vi.fn() } as unknown as AgentDrawerController
+  controller = { dispatch: (event: AgentDrawerEvent) => { state = transitionAgentDrawer(state, event); useAgentDrawerStore.setState({ state }) }, retry: vi.fn(), submit: vi.fn(), disconnect: vi.fn(), changeAgent: vi.fn(), moveExternal: vi.fn(), backToChooser: vi.fn(), restoreContact: vi.fn(), cancel: vi.fn() } as unknown as AgentDrawerController
   useAgentDrawerStore.setState({ controller, state, busy: false })
 })
 afterEach(() => act(() => {
@@ -76,6 +76,36 @@ it('keeps external MCP available when the personal built-in allowance is exhaust
   render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
   fireEvent.click(screen.getByRole('button', { name: 'Connect your agent with MCP' }))
   expect(screen.getByRole('heading', { name: 'Connect your agent with MCP' })).toBeVisible()
+})
+it('renders the approved external movement rows and moved-owner notice', () => {
+  controller.dispatch({ type: 'drawer', mode: 'open' })
+  controller.dispatch({ type: 'externalBinding', binding: { name: 'Claude Code', expectedBindingId: 'same', relation: 'same-show', movedFromHere: false } })
+  const { rerender } = render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  expect(screen.getByText('connected in another editor')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: 'Reconnect' }))
+  expect(controller.moveExternal).toHaveBeenCalledOnce()
+  expect(screen.getByRole('button', { name: /Use the Pixelblaze agent/ })).toBeVisible()
+  expect(screen.queryByRole('button', { name: /Connect your agent with MCP/ })).toBeNull()
+
+  act(() => controller.dispatch({ type: 'externalBinding', binding: { name: 'Claude Code', expectedBindingId: 'other', relation: 'other-show', showName: 'Solar Tides', movedFromHere: true } }))
+  rerender(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  expect(screen.getByText('connected to Solar Tides')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Bring agent here' })).toBeVisible()
+  expect(screen.getByText('Agent moved to another editor.')).toBeVisible()
+
+  act(() => controller.dispatch({ type: 'externalBinding', binding: { name: 'Claude Code', expectedBindingId: 'unknown', relation: 'other-show', movedFromHere: false } }))
+  expect(screen.getByText('connected to another Show')).toBeVisible()
+})
+
+it.each(['builtin', 'external'] as const)('shows a static connected dot beside an owned %s agent without the nominal subtitle', kind => {
+  controller.dispatch({ type: 'drawer', mode: 'open' })
+  controller.dispatch({ type: 'connection', connection: { kind, name: kind === 'builtin' ? 'Pixelblaze agent' : 'Claude Code' }, armingUntil: null, pendingCall: null, contactLost: false })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  expect(screen.getByRole('img', { name: 'Connected' })).toHaveClass('agent-identity-connected')
+  expect(screen.queryByText('connected')).toBeNull()
+  act(() => controller.dispatch({ type: 'drop' }))
+  expect(screen.queryByRole('img', { name: 'Connected' })).toBeNull()
+  expect(screen.getAllByText('contact lost')).not.toHaveLength(0)
 })
 
 it('renders only server-advertised choices and uses the advertised endpoint', () => {

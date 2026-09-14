@@ -30,8 +30,13 @@ import { getUserDoc } from '@/docs/catalog'
 import { DEMOS } from './patterns'
 import { SOURCE_STOCK_MAPS } from './maps/stockCatalogue'
 import { STOCK_SHOWS, stockShowById } from './shows'
+import { STOCK_SHOW_METADATA } from './showIds'
 
 describe('stock Show curriculum (#363)', () => {
+  it('keeps the lightweight Worker metadata exact with the stock catalogue', () => {
+    expect(STOCK_SHOW_METADATA).toEqual(STOCK_SHOWS.map(({ id, name }) => ({ id, name })))
+  })
+
   it('ships the stable Learn 100, Learn 200, Learn 300, and showcase catalogue', () => {
     expect(STOCK_SHOWS).toHaveLength(40)
     expect(new Set(STOCK_SHOWS.map((item) => item.id)).size).toBe(STOCK_SHOWS.length)

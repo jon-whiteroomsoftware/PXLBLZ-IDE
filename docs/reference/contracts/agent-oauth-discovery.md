@@ -99,6 +99,22 @@ they never authorize a window or select an actor. The server rechecks the origin
 generation at dispatch and browser reply. The editor executes closed canonical
 arguments against its private immutable capture and adopts only through admission.
 
+An explicit browser move keeps the validated grant while replacing its call and
+binding IDs. The next actual MCP tool handler resolves the current binding once,
+atomically consumes the current-slot move marker, and adds `connection_notice`
+with `binding_moved`, destination Show ID/name when available, and an instruction
+to call `get_connection` then refresh with `read_show` or `get_context`. This
+best-effort notice can be consumed by `get_connection`, `list_commands`, a read,
+or a mutation. Initialization, `tools/list`, and resources list/read neither
+resolve the slot nor consume it. No server push or client wake is added.
+
+Every tool carrying an old binding refuses before query or dispatch with a
+top-level `binding_moved`, current destination, and the same refresh instruction.
+That remains informative after the one-shot notice was consumed. A stale call-ID
+inspection behaves the same while the grant has a newer binding; without a
+current binding the established `no_live_editor` result remains. Concurrent or
+lost notice responses are not acknowledged or replayed.
+
 MCP request bodies are bounded to66 KiB before SDK parsing, allowing a64 KiB
 normalized command plus its JSON-RPC envelope. OAuth forms remain16 KiB. No
 input or captured reference context is truncated to fit. Relay/read results are

@@ -350,6 +350,90 @@ it('routes authenticated canonical MCP calls and confirms editing retirement onl
   expect((await rpc('get_outcome', { ...identity })).status).toBe(401)
   await channel({ type: 'leave', ...own })
 }, 10_000)
+it('moves one live external binding between authorized Show editors with fresh identities', async () => {
+  const tokens = await authorized()
+  const channel = (body: object) => runtime.dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Cookie: cookie, Origin: 'https://app.test', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const mcp = (method: string, params?: object) => runtime.dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json', 'MCP-Protocol-Version': '2025-11-25' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params ? { params } : {}) }) })
+  const rpc = (name: string, args: object = {}) => mcp('tools/call', { name, arguments: args })
+  const toolResult = async (response: { json(): Promise<unknown> }) => (await response.json() as { result: { structuredContent: Record<string, unknown> } }).result.structuredContent
+  const firstShowId = STOCK_SHOW_IDS[0]
+  const secondShowId = STOCK_SHOW_IDS[1]
+  const firstRegistration = await (await channel({ type: 'register', sessionId: 'move-first', showId: firstShowId })).json() as { registrationId: string }
+  const secondRegistration = await (await channel({ type: 'register', sessionId: 'move-second', showId: secondShowId })).json() as { registrationId: string }
+  const first = { registrationId: firstRegistration.registrationId, sessionId: 'move-first', showId: firstShowId }
+  const second = { registrationId: secondRegistration.registrationId, sessionId: 'move-second', showId: secondShowId }
+  const moveTo = async (target: { registrationId: string; sessionId: string; showId: string }, expectedBindingId: string) => {
+    expect(await (await channel({ type: 'poll', ...target })).json()).toMatchObject({ connection: { kind: 'external-bound', bindingId: expectedBindingId } })
+    expect(await (await channel({ type: 'move-external', ...target, expectedBindingId })).json()).toEqual({ code: 'moved' })
+    const view = await (await channel({ type: 'poll', ...target })).json() as { connection: { kind: string; bindingId: string } }
+    expect(view.connection).toMatchObject({ kind: 'bound' })
+    expect(view.connection.bindingId).not.toBe(expectedBindingId)
+    return view.connection.bindingId
+  }
+  await channel({ type: 'arm', ...first })
+  const connected = await toolResult(await rpc('get_connection'))
+  expect(connected).toMatchObject({ code: 'bound', show_id: firstShowId })
+  const oldBinding = connected.binding_id as string
+  const oldCall = connected.call_id as string
+
+  expect(await (await channel({ type: 'poll', ...second })).json()).toMatchObject({ connection: { kind: 'external-bound', relation: 'other-show', bindingId: oldBinding } })
+  expect(await (await channel({ type: 'move-external', ...second, expectedBindingId: 'stale-binding' })).json()).toEqual({ code: 'connection_changed' })
+  expect(await (await channel({ type: 'move-external', ...second, expectedBindingId: oldBinding })).json()).toEqual({ code: 'moved' })
+  const freshView = await (await channel({ type: 'poll', ...second })).json() as { connection: { kind: string; bindingId: string } }
+  expect(freshView.connection).toMatchObject({ kind: 'bound' })
+  expect(freshView.connection.bindingId).not.toBe(oldBinding)
+
+  for (const response of [
+    await mcp('initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } }),
+    await mcp('tools/list'),
+    await mcp('resources/list'),
+    await mcp('resources/read', { uri: 'pxlblz://docs/clip-layer-authoring/v1' }),
+  ]) expect(response.status).toBe(200)
+  const staleCall = await toolResult(await rpc('get_connection', { call_id: oldCall }))
+  expect(staleCall).toMatchObject({
+    code: 'binding_moved', show_id: secondShowId, instruction: 'Call get_connection, then read_show or get_context before starting a new edit.',
+    connection_notice: { code: 'binding_moved', show_id: secondShowId },
+  })
+  const staleRead = await toolResult(await rpc('read_show', { binding_id: oldBinding }))
+  expect(staleRead).toMatchObject({ code: 'binding_moved', show_id: secondShowId })
+  expect(staleRead).not.toHaveProperty('connection_notice')
+  const staleMutation = await toolResult(await rpc('begin_edit', { binding_id: oldBinding, operation_id: 'old-operation', delivery_id: 'old-delivery', sequence: 0 }))
+  expect(staleMutation).toMatchObject({ code: 'binding_moved', show_id: secondShowId })
+  expect(await (await channel({ type: 'receive', ...second, lastSeenConnection: 'force-current-snapshot' })).json()).toMatchObject({ connection: { kind: 'bound', bindingId: freshView.connection.bindingId }, deliveries: [] })
+  expect(await toolResult(await rpc('get_connection'))).toMatchObject({ code: 'bound', show_id: secondShowId, binding_id: freshView.connection.bindingId })
+
+  const freshRead = rpc('read_show', { binding_id: freshView.connection.bindingId })
+  const freshDelivery = await (await channel({ type: 'receive', ...second })).json() as { deliveries: Array<{ bindingId: string; operationId: string; deliveryId: string; payload: unknown }> }
+  expect(freshDelivery).toMatchObject({ deliveries: [{ bindingId: freshView.connection.bindingId, payload: { kind: 'read_show' } }] })
+  await channel({ type: 'reply', ...second, bindingId: freshView.connection.bindingId, operationId: freshDelivery.deliveries[0].operationId, deliveryId: freshDelivery.deliveries[0].deliveryId, result: { code: 'read', show: { id: secondShowId } } })
+  expect(await toolResult(await freshRead)).toMatchObject({ code: 'read', show: { id: secondShowId } })
+
+  const firstBinding = await moveTo(first, freshView.connection.bindingId)
+  const commands = await toolResult(await rpc('list_commands'))
+  expect(commands).toMatchObject({ code: 'commands', connection_notice: { code: 'binding_moved', show_id: firstShowId } })
+  expect(await toolResult(await rpc('list_commands'))).not.toHaveProperty('connection_notice')
+
+  const secondBinding = await moveTo(second, firstBinding)
+  const currentRead = rpc('read_show', { binding_id: secondBinding })
+  const currentDelivery = await (await channel({ type: 'receive', ...second })).json() as { deliveries: Array<{ operationId: string; deliveryId: string }> }
+  await channel({ type: 'reply', ...second, bindingId: secondBinding, operationId: currentDelivery.deliveries[0].operationId, deliveryId: currentDelivery.deliveries[0].deliveryId, result: { code: 'read', show: { id: secondShowId } } })
+  expect(await toolResult(await currentRead)).toMatchObject({ code: 'read', connection_notice: { code: 'binding_moved', show_id: secondShowId } })
+
+  const thirdBinding = await moveTo(first, secondBinding)
+  expect(await toolResult(await rpc('begin_edit', { binding_id: secondBinding, operation_id: 'stale-operation', delivery_id: 'stale-delivery', sequence: 0 }))).toMatchObject({
+    code: 'binding_moved', connection_notice: { code: 'binding_moved', show_id: firstShowId },
+  })
+  expect(await (await channel({ type: 'receive', ...first, lastSeenConnection: 'force-current-snapshot' })).json()).toMatchObject({ connection: { bindingId: thirdBinding }, deliveries: [] })
+
+  const fourthBinding = await moveTo(second, thirdBinding)
+  expect(await toolResult(await rpc('read_show', { binding_id: thirdBinding }))).toMatchObject({
+    code: 'binding_moved', connection_notice: { code: 'binding_moved', show_id: secondShowId },
+  })
+  expect(await (await channel({ type: 'receive', ...second, lastSeenConnection: 'force-current-snapshot' })).json()).toMatchObject({ connection: { bindingId: fourthBinding }, deliveries: [] })
+  expect(await (await channel({ type: 'leave', ...first })).json()).toEqual({ code: 'retired' })
+  await channel({ type: 'disconnect', ...second, bindingId: fourthBinding })
+  await channel({ type: 'leave', ...second })
+}, 10_000)
 it('local Forget revokes only the grant attached to the exact owning window', async () => {
   const tokens = await authorized()
   const showId = STOCK_SHOW_IDS[0]

@@ -15,7 +15,7 @@ const availableAllowance = (remaining = 30, revision = 1): AgentMessageAllowance
 function fixture(admission?: ReturnType<typeof createAgentEditorAdmission>, initialAllowance = availableAllowance()) {
   let listener: (event: DrawerChannelEvent) => void = () => {}
   let receipt: unknown
-  const channel = { getConnection: () => ({ kind: 'idle' }), subscribe: (fn: typeof listener) => { listener = fn; return () => { listener = () => {} } }, getOutcome: () => receipt ? ({ code: 'outcome', receipt }) : ({ code: 'unknown' }), close: vi.fn(), arm: vi.fn(async () => ({ code: 'occupied' })), cancelArm: vi.fn(async () => ({ code: 'idle' })), answer: vi.fn(async () => ({ code: 'bound' })), decline: vi.fn(async () => ({ code: 'declined' })), disconnect: vi.fn(async () => ({ code: 'disconnected' })), forget: vi.fn(async () => ({ code: 'forgotten' })) } as unknown as DrawerChannelPort
+  const channel = { getConnection: () => ({ kind: 'idle' }), subscribe: (fn: typeof listener) => { listener = fn; return () => { listener = () => {} } }, getOutcome: () => receipt ? ({ code: 'outcome', receipt }) : ({ code: 'unknown' }), close: vi.fn(), arm: vi.fn(async () => ({ code: 'occupied' })), cancelArm: vi.fn(async () => ({ code: 'idle' })), answer: vi.fn(async () => ({ code: 'bound' })), decline: vi.fn(async () => ({ code: 'declined' })), disconnect: vi.fn(async () => ({ code: 'disconnected' })), forget: vi.fn(async () => ({ code: 'forgotten' })), moveExternal: vi.fn(async () => ({ code: 'moved' })) } as unknown as DrawerChannelPort
   const api = admission ?? { available: () => true, onClose: () => () => {}, readOutcome: () => receipt, retryIntent: () => undefined, cancel: vi.fn() } as unknown as ReturnType<typeof createAgentEditorAdmission>
   const builtin = vi.fn(async (_body: Record<string, unknown>) => ({ code: 'occupied' } as Record<string, unknown> & { code: string }))
   const controller = createProductionDrawerController(api, 'show', channel, builtin, initialAllowance)
@@ -201,6 +201,53 @@ it('does not optimistically bind or arm on refused account actions', async () =>
   await vi.waitFor(() => expect(f.channel.arm).toHaveBeenCalledOnce())
   expect(useAgentDrawerStore.getState().state.armingUntil).toBeNull()
   expect(useAgentDrawerStore.getState().state.setupNotice).toMatchObject({ title: 'Connected in another editor' })
+})
+it('passes the exact observed external binding to movement and waits for receive to establish ownership', async () => {
+  const f = fixture()
+  let finish!: (value: { code: string }) => void
+  vi.mocked(f.channel.moveExternal).mockImplementationOnce(() => new Promise(resolve => { finish = resolve }) as never)
+  f.emit({ type: 'connection', connection: { kind: 'external-bound', agentName: 'External', showId: 'other', showName: 'Other Show', relation: 'other-show', bindingId: 'observed', movedFromHere: false } })
+
+  f.controller.moveExternal()
+  expect(f.channel.moveExternal).toHaveBeenCalledWith('observed')
+  expect(useAgentDrawerStore.getState().state).toMatchObject({ movePending: true, connection: null, externalBinding: { expectedBindingId: 'observed' } })
+  finish({ code: 'moved' })
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.movePending).toBe(false))
+  expect(useAgentDrawerStore.getState().state.connection).toBeNull()
+
+  f.emit({ type: 'connection', connection: { kind: 'bound', agentKind: 'external', agentName: 'External', bindingId: 'fresh' } })
+  expect(useAgentDrawerStore.getState().state).toMatchObject({ connection: { kind: 'external', name: 'External' }, externalBinding: null })
+})
+it('keeps a newer move pending when an earlier control result settles late', async () => {
+  const f = fixture()
+  let finishFirst!: (value: { code: string }) => void
+  let finishSecond!: (value: { code: string }) => void
+  vi.mocked(f.channel.moveExternal)
+    .mockImplementationOnce(() => new Promise(resolve => { finishFirst = resolve }) as never)
+    .mockImplementationOnce(() => new Promise(resolve => { finishSecond = resolve }) as never)
+  const first = { kind: 'external-bound', agentName: 'External', showId: 'first', relation: 'other-show', bindingId: 'first-binding', movedFromHere: false } as const
+  const second = { ...first, showId: 'second', bindingId: 'second-binding' } as const
+  f.emit({ type: 'connection', connection: first })
+  f.controller.moveExternal()
+  f.emit({ type: 'connection', connection: second })
+  f.controller.moveExternal()
+  finishFirst({ code: 'superseded' })
+  await Promise.resolve()
+  expect(useAgentDrawerStore.getState().state).toMatchObject({ movePending: true, externalBinding: { expectedBindingId: 'second-binding' } })
+  finishSecond({ code: 'moved' })
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.movePending).toBe(false))
+})
+it('settles a move result after contact loss without waiting for receive recovery', async () => {
+  const f = fixture()
+  let finish!: (value: { code: string }) => void
+  vi.mocked(f.channel.moveExternal).mockImplementationOnce(() => new Promise(resolve => { finish = resolve }) as never)
+  const available = { kind: 'external-bound', agentName: 'External', showId: 'other', relation: 'other-show', bindingId: 'observed', movedFromHere: false } as const
+  f.emit({ type: 'connection', connection: available })
+  f.controller.moveExternal()
+  f.emit({ type: 'connection', connection: { kind: 'contact-lost', previous: available } })
+  finish({ code: 'connection_changed' })
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.movePending).toBe(false))
+  expect(useAgentDrawerStore.getState().state.externalBinding).toMatchObject({ expectedBindingId: 'observed' })
 })
 it.each(['expired', 'missed', 'occupied'] as const)('clears a stale %s notice only after a new arm is accepted', async prior => {
   const f = fixture()

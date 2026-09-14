@@ -43,3 +43,48 @@ export const STOCK_SHOW_IDS = [
 ] as const
 const ids = new Set<string>(STOCK_SHOW_IDS)
 export const isStockShowId = (id: string): boolean => ids.has(id)
+/** Safe display metadata kept free of the stock Show compiler graph for Worker routes. */
+export const STOCK_SHOW_METADATA = [
+  { id: 'stock-show-100-getting-around', name: '100 Getting Around' },
+  { id: 'stock-show-101-clips-cuts-blank-time', name: '101 Clips, Cuts, and Blank Time' },
+  { id: 'stock-show-102-transitions-values', name: '102 Transitions and Values' },
+  { id: 'stock-show-103-clip-transform', name: '103 Clip Transform' },
+  { id: 'stock-show-104-effects-and-ordering', name: '104 Effects and Ordering' },
+  { id: 'stock-show-105-portable-zones', name: '105 Zones' },
+  { id: 'stock-show-106-built-from-basics', name: '106 Built from Basics' },
+  { id: 'stock-show-201-layers-property-animation', name: '201 Layers and Property Animation' },
+  { id: 'stock-show-202-content-clip-viewport', name: '202 Content and Clip Viewport' },
+  { id: 'stock-show-203-pattern-instance-lifecycle', name: '203 Pattern Instance Lifecycle' },
+  { id: 'stock-show-204-presentation-modes', name: '204 Presentation Modes' },
+  { id: 'stock-show-205-groups-linked-reuse', name: '205 Groups and Linked Reuse' },
+  { id: 'stock-show-206-changing-zone-layouts', name: '206 Changing Zone Layouts' },
+  { id: 'stock-show-207-aperture-shapes-edges', name: '207 Aperture Shapes and Edges' },
+  { id: 'stock-show-301-installation-mapping', name: '301 Installation Mapping' },
+  { id: 'stock-show-302-installation-composition', name: '302 Installation Composition' },
+  { id: 'stock-show-303-compile-simplify-deliver', name: '303 Compile, Simplify, and Deliver' },
+  { id: 'stock-show-showcase-transform-effects', name: 'Transform and Address Effects' },
+  { id: 'stock-show-showcase-distortion-effects', name: 'Distortion Effects' },
+  { id: 'stock-show-showcase-color-adjustment-effects', name: 'Color Adjustment Effects' },
+  { id: 'stock-show-showcase-compositing-key-effects', name: 'Compositing and Key Effects' },
+  { id: 'stock-show-showcase-luma-sources', name: 'Luma Sources' },
+  { id: 'stock-show-reference-blend-fade-transitions', name: 'Blend and Fade Transitions' },
+  { id: 'stock-show-reference-wipe-transitions', name: 'Wipes' },
+  { id: 'stock-show-reference-dissolve-transitions', name: 'Dissolves' },
+  { id: 'stock-show-reference-shape-reveal-transitions', name: 'Shape Reveals: Geometric' },
+  { id: 'stock-show-reference-shape-reveal-figures', name: 'Shape Reveals: Figures' },
+  { id: 'stock-show-reference-slide-transitions', name: 'Slide Transitions' },
+  { id: 'stock-show-reference-zoom-spin-transitions', name: 'Zoom and Spin Transitions' },
+  { id: 'stock-show-reference-property-animation', name: 'Property Animation' },
+  { id: 'stock-show-reference-easing', name: 'Easing' },
+  { id: 'stock-show-reference-aperture-shapes', name: 'Aperture Shapes: Geometric' },
+  { id: 'stock-show-reference-aperture-icons', name: 'Aperture Icons & Signature' },
+  { id: 'stock-show-showcase-zone-layouts-splits', name: 'Zone Layouts: Splits & Checker' },
+  { id: 'stock-show-showcase-zone-layouts-stripes-grid', name: 'Zone Layouts: Stripes & Grid' },
+  { id: 'stock-show-showcase-zone-layouts-radial', name: 'Zone Layouts: Radial' },
+  { id: 'stock-show-showcase-redline-installation', name: 'Redline Installation' },
+  { id: 'stock-show-remix-coronal-mass-ejection', name: 'Coronal Mass Ejection Remix' },
+  { id: 'stock-show-remix-quadrille', name: 'Quadrille' },
+  { id: 'stock-show-remix-overture', name: 'Overture Installation' },
+] as const
+const stockShowNames = new Map<string, string>(STOCK_SHOW_METADATA.map(({ id, name }) => [id, name]))
+export const stockShowName = (id: string): string | undefined => stockShowNames.get(id)

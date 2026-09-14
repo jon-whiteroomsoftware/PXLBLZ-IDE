@@ -66,3 +66,40 @@ it('holds a new external call for the full30 seconds and never recreates its exp
     expect(await fresh).toMatchObject({ code: 'bound', claim: { callId: 'fresh', bindingId: 'fresh-binding' } })
   } finally { vi.useRealTimers() }
 })
+
+it('serializes external movement and consumes its current-binding notice once', async () => {
+  const now = 0
+  vi.spyOn(Date, 'now').mockImplementation(() => now)
+  const values = new Map<string, unknown>()
+  const storage: ConstructorParameters<typeof AgentAccount>[0]['storage'] = {
+    async get<T>(key: string) { return structuredClone(values.get(key)) as T | undefined },
+    async put<T>(key: string, value: T) { values.set(key, structuredClone(value)) },
+    async delete(key: string) { return values.delete(key) },
+    async setAlarm() {}, async deleteAlarm() {}, async transaction(callback) { return callback(storage) },
+  }
+  const owner = new AgentAccount({ storage })
+  const send = async (body: object) => (await owner.fetch(new Request('https://internal', { method: 'POST', body: JSON.stringify(body) }))).json()
+  const first = { registrationId: 'first', sessionId: 'first-session', showId: 'show-a' }
+  const second = { registrationId: 'second', sessionId: 'second-session', showId: 'show-b' }
+  const agent = { agentKind: 'external', agentId: 'grant', agentName: 'Client', callId: 'old-call', bindingId: 'old-binding' }
+  await send({ type: 'register', ...first, showName: 'First' })
+  await send({ type: 'register', ...second, showName: 'Second' })
+  await send({ type: 'arm', ...first })
+  await send({ type: 'claim', ...agent })
+
+  expect(await send({ type: 'inspect-external-move', ...second, expectedBindingId: 'old-binding' })).toMatchObject({ code: 'move_available', claim: agent })
+  expect(await send({
+    type: 'replace-external-binding', target: second,
+    expected: { agentId: 'grant', bindingId: 'old-binding' },
+    next: { callId: 'new-call', bindingId: 'new-binding' },
+  })).toEqual({ code: 'moved' })
+  expect(await send({ type: 'resolve-external', agentId: 'grant', callId: 'old-call' })).toMatchObject({
+    code: 'binding_moved', claim: { callId: 'new-call', bindingId: 'new-binding' }, binding: { ...second, showName: 'Second' },
+  })
+  expect(await send({ type: 'consume-external-move-notice', agentId: 'grant' })).toMatchObject({
+    code: 'bound', claim: { callId: 'new-call', bindingId: 'new-binding' }, binding: { ...second, showName: 'Second' }, moveNotice: { showId: 'show-b', showName: 'Second' },
+  })
+  expect(await send({ type: 'consume-external-move-notice', agentId: 'grant' })).not.toHaveProperty('moveNotice')
+  expect(await send({ type: 'leave', ...first })).toEqual({ code: 'retired' })
+  expect(await send({ type: 'consume-external-move-notice', agentId: 'grant' })).toMatchObject({ code: 'bound', binding: second })
+})
