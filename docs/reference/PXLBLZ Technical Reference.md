@@ -1372,7 +1372,9 @@ contracts.
 compact static-routing recipe. Multi-zone and routing-switch Shows lower every
 Scene into a routed Scene sequence: each Scene maps every Zone to a member;
 the scheduler selects placements, applies boundary ramps, advances each unique
-member once per frame, and routes each pixel through the active domain.
+member once per frame, and routes each pixel through the active domain. One
+positive routed Scene compiles as a single hold segment with no Transition; an
+empty routed Scene sequence remains invalid.
 `showCompositionLowering.ts` unions Main and overlay boundaries into ordered
 routed stacks (Main back, overlays front-to-back) and preserves
 Continue/Restart identity across gaps. Newly materialized compositions persist

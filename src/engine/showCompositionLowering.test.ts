@@ -7,6 +7,12 @@ import type { ShowCompositionV1, ShowRecord } from './personalContentRecords'
 import { insertShowLayerTransition } from './showLayerTransitionAuthoring'
 import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
 import { stockShowById } from '../pixelblaze/stock/shows'
+import { DEMOS } from '../pixelblaze/stock/patterns'
+import { LIBRARIES } from '../pixelblaze/libs'
+import {
+  applyFourLayerShowEndCommandSequence,
+  fourLayerShowEndBaseFixture,
+} from '../test/showCommandFixture'
 
 const SOURCE_A = 'export function render(index) { rgb(1, 0, 0) }'
 const SOURCE_B = 'export function render(index) { rgb(0, 0, 1) }'
@@ -95,6 +101,47 @@ function lookup(show: ShowRecord) {
 }
 
 describe('Show composition compiler lowering (#488)', () => {
+  it('compiles the exact one-Scene four-Layer Show End command result (#1029)', () => {
+    const accepted = applyFourLayerShowEndCommandSequence(fourLayerShowEndBaseFixture())
+    const sourceLookup = {
+      byCellId: {},
+      byPatternInstanceId: Object.fromEntries(accepted.composition!.patternInstances.map(instance => [
+        instance.id,
+        instance.pattern.kind === 'stock' ? DEMOS[instance.pattern.id] : '',
+      ])),
+    }
+    const recipe = showRecordToCompileRecipe(accepted, sourceLookup)
+    const routedScene = recipe.routedSceneSequence?.scenes[0]
+
+    expect(recipe.loopDurationMs).toBe(30_000)
+    expect(recipe.routedSceneSequence?.scenes).toHaveLength(1)
+    expect(routedScene?.holdMs).toBe(30_000)
+    expect(routedScene?.placements).toHaveLength(4)
+    expect(routedScene?.propertyTracks).toHaveLength(8)
+
+    const artifact = compileShow(recipe, LIBRARIES)
+    expect(artifact.summary).toMatchObject({ clipCount: 4, transitionCount: 0 })
+
+    const mapPoints = Array.from({ length: 8 }, (_, y) => (
+      Array.from({ length: 8 }, (_, x) => ({
+        sample: [x / 7, y / 7] as [number, number],
+        pos: [x / 7, y / 7] as [number, number],
+      }))
+    )).flat()
+    const animated = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, { mapPoints, randomSeed: 1 })
+    const animatedMidpoint = animated.advanceTo(15_000, { stepMs: 250 })
+    expect(animatedMidpoint.pixels.flat().every(Number.isFinite)).toBe(true)
+    expect(animatedMidpoint.pixels.flat().some(channel => Math.abs(channel) > 1e-9)).toBe(true)
+    const wrapped = animated.advanceTo(30_000, { stepMs: 250 })
+    expect(wrapped.pixels.flat().every(Number.isFinite)).toBe(true)
+    expect(wrapped.pixels.flat().some(channel => Math.abs(channel) > 1e-9)).toBe(true)
+  })
+
   it('leaves flat Shows and their source lookup untouched', () => {
     const show = createDefaultShow('flat', 'Flat', 1)
     const sources = lookup(show)

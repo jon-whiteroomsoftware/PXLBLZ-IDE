@@ -3876,7 +3876,7 @@ function validateRecipe(recipe: ShowRecipe): void {
       layout.logical?.zoneNames ?? layout.zones.map((zone) => zone.name)
     )))
     if (!recipe.routingLayouts?.length) throw new Error('compileShow routed scene sequences require at least one routing layout.')
-    if (recipe.routedSceneSequence.scenes.length < 2) throw new Error('compileShow routed scene sequences require at least two scenes.')
+    if (recipe.routedSceneSequence.scenes.length < 1) throw new Error('compileShow routed scene sequences require at least one scene.')
     recipe.routedSceneSequence.scenes.forEach((scene, index) => {
       if (scene.holdMs <= 0) throw new Error('compileShow routed scene sequence holds must be positive.')
       const placedZoneOrders = new Set<string>()

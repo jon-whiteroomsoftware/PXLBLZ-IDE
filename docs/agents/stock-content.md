@@ -152,7 +152,8 @@ POST or PATCH `/api/shows` with a locally minted session cookie.
 
 Gotchas worth knowing before the first run:
 
-- `compileShow` rejects single-scene Shows; keep at least two Scenes.
+- A positive single-Scene routed Show compiles as one hold. Do not add a
+  padding Scene or artificial duration to make it compile.
 - One Pattern continuing across a Cut is one **held cell**, not two cells. Two
   cells means two restarted instances.
 - Property tracks are Scene-local, in Scene-relative milliseconds. Instance

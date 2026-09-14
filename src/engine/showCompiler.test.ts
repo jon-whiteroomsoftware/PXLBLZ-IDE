@@ -2560,6 +2560,52 @@ export function render2D(index, x, y) { rgb(${channel === 'r' ? 1 : 0}, ${channe
     expect(artifact.expandedCode).toContain('_fx_update()')
   })
 
+  it('renders and wraps a property-animated one-Scene routed Show (#1029)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [{
+        id: 'instance-a',
+        source: 'export function render2D(index, x, y) { rgb(x, y, 0) }',
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [{
+          holdMs: 1_000,
+          placements: [{ placementId: 'placement-a', zoneName: 'main', clipId: 'instance-a' }],
+          propertyTracks: [{
+            id: 'move-x',
+            target: { kind: 'placement-transform', placementId: 'placement-a', property: 'positionX' },
+            keyframes: [
+              { id: 'move-a', timeMs: 0, value: 0, easing: { curve: 'linear' } },
+              { id: 'move-b', timeMs: 1_000, value: 0.5, easing: { curve: 'linear' } },
+            ],
+          }],
+        }],
+      },
+      loopDurationMs: 1_000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(500)
+    handle.render2D(3, 1, 0.5)
+    expect(pixel()).toEqual([0.75, 1, 0])
+    handle.beforeRender(500)
+    handle.render2D(3, 1, 0.5)
+    expect(pixel()).toEqual([1, 1, 0])
+    expect(artifact.summary).toMatchObject({ transitionCount: 0 })
+  })
+
+  it('still rejects an empty routed Scene sequence (#1029)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    expect(() => compileShow({
+      clips: [{ id: 'instance-a', source: 'export function render(index) { rgb(1, 0, 0) }' }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [] },
+    }, {})).toThrow('compileShow routed scene sequences require at least one scene.')
+  })
+
   it('keeps full source-Scene curves truthful across a lowered hold offset (#490)', () => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
     const artifact = compileShow({
