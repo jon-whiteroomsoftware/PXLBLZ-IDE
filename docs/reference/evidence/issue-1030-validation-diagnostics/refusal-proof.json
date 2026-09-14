@@ -1,0 +1,298 @@
+{
+  "commit": {
+    "code": "outcome",
+    "receipt": {
+      "request": {
+        "operationId": "9103c2f1-d949-488d-9ed5-abb1685bb3f5:1030-diagnostic-refusal",
+        "showId": "1bc5ca32-d5f4-432d-bca3-128719ead1b7",
+        "baseRevision": 1
+      },
+      "status": "refused",
+      "reason": "invalid-candidate",
+      "diagnostic": {
+        "stage": "authoring",
+        "issues": [
+          {
+            "category": "structure",
+            "code": "invalid-scene-duration",
+            "message": "Scene duration must be a positive safe integer.",
+            "path": "[\"scene\",\"scene-3\",\"durationMs\"]"
+          }
+        ],
+        "truncated": false
+      }
+    },
+    "changes": [
+      {
+        "command": "add_layout_interval",
+        "targetId": "layout-occurrence-scene-3",
+        "description": "Layout layout-1 occurrence added at the end of the Show for 10000 ms.",
+        "details": {
+          "intervalId": "layout-occurrence-scene-3"
+        }
+      },
+      {
+        "command": "set_show_end",
+        "targetId": "show-end",
+        "before": {
+          "durationMs": 72000
+        },
+        "after": {
+          "durationMs": 62000
+        },
+        "description": "Show End is now 62000 ms."
+      }
+    ]
+  },
+  "outcome": {
+    "code": "outcome",
+    "receipt": {
+      "request": {
+        "operationId": "9103c2f1-d949-488d-9ed5-abb1685bb3f5:1030-diagnostic-refusal",
+        "showId": "1bc5ca32-d5f4-432d-bca3-128719ead1b7",
+        "baseRevision": 1
+      },
+      "status": "refused",
+      "reason": "invalid-candidate",
+      "diagnostic": {
+        "stage": "authoring",
+        "issues": [
+          {
+            "category": "structure",
+            "code": "invalid-scene-duration",
+            "message": "Scene duration must be a positive safe integer.",
+            "path": "[\"scene\",\"scene-3\",\"durationMs\"]"
+          }
+        ],
+        "truncated": false
+      }
+    }
+  },
+  "duplicateSameReceipt": true,
+  "liveShowUnchanged": true,
+  "providerRecordUnchanged": true,
+  "showBefore": {
+    "id": "1bc5ca32-d5f4-432d-bca3-128719ead1b7",
+    "name": "1030 Validation proof",
+    "scenes": [
+      {
+        "id": "scene-1",
+        "name": "Scene 1",
+        "durationMs": 30000
+      },
+      {
+        "id": "scene-2",
+        "name": "Scene 2",
+        "durationMs": 30000
+      }
+    ],
+    "zones": [
+      {
+        "id": "zone-1",
+        "name": "main",
+        "nominalPixelCount": 256,
+        "color": "#38bdf8"
+      }
+    ],
+    "cells": [
+      {
+        "id": "cell-1",
+        "zoneId": "zone-1",
+        "sceneId": "scene-1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "TestPattern1D"
+        },
+        "patternName": "TestPattern1D",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      },
+      {
+        "id": "cell-2",
+        "zoneId": "zone-1",
+        "sceneId": "scene-2",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "layout-1",
+        "name": "Default",
+        "zones": [
+          {
+            "zoneId": "zone-1",
+            "ranges": [
+              {
+                "start": 0,
+                "end": 255
+              }
+            ]
+          }
+        ],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "zone-1"
+          ]
+        }
+      }
+    ],
+    "transitions": [
+      {
+        "id": "transition-scene-1",
+        "afterSceneId": "scene-1",
+        "kind": "crossfade",
+        "durationMs": 2000,
+        "easing": {
+          "curve": "linear"
+        },
+        "crossfadePolicy": "snapshot-live"
+      }
+    ],
+    "stageMapId": "plane",
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "updatedAt": 1789410905976
+  },
+  "showAfter": {
+    "id": "1bc5ca32-d5f4-432d-bca3-128719ead1b7",
+    "name": "1030 Validation proof",
+    "scenes": [
+      {
+        "id": "scene-1",
+        "name": "Scene 1",
+        "durationMs": 30000
+      },
+      {
+        "id": "scene-2",
+        "name": "Scene 2",
+        "durationMs": 30000
+      }
+    ],
+    "zones": [
+      {
+        "id": "zone-1",
+        "name": "main",
+        "nominalPixelCount": 256,
+        "color": "#38bdf8"
+      }
+    ],
+    "cells": [
+      {
+        "id": "cell-1",
+        "zoneId": "zone-1",
+        "sceneId": "scene-1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "TestPattern1D"
+        },
+        "patternName": "TestPattern1D",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      },
+      {
+        "id": "cell-2",
+        "zoneId": "zone-1",
+        "sceneId": "scene-2",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "CometLoom"
+        },
+        "patternName": "CometLoom",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "layout-1",
+        "name": "Default",
+        "zones": [
+          {
+            "zoneId": "zone-1",
+            "ranges": [
+              {
+                "start": 0,
+                "end": 255
+              }
+            ]
+          }
+        ],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "zone-1"
+          ]
+        }
+      }
+    ],
+    "transitions": [
+      {
+        "id": "transition-scene-1",
+        "afterSceneId": "scene-1",
+        "kind": "crossfade",
+        "durationMs": 2000,
+        "easing": {
+          "curve": "linear"
+        },
+        "crossfadePolicy": "snapshot-live"
+      }
+    ],
+    "stageMapId": "plane",
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "updatedAt": 1789410905976
+  }
+}

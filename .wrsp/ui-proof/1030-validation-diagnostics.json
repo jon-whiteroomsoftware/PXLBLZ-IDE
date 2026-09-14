@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1030",
+  "route": "/PXLBLZ-IDE/studio/shows/1bc5ca32-d5f4-432d-bca3-128719ead1b7",
+  "operation": "Coordinator connected a synthetic OAuth MCP client to the real isolated browser through Answer at http://localhost:5212 on code commit 83d1397da84762aa9538007258f8071b5bb9c088. begin_edit, add_layout_interval at 10000 ms, set_show_end to 62000 ms, and commit_edit produced an authoring invalid-scene-duration refusal for scene-3/durationMs; get_outcome and duplicate commit returned the same receipt, read_show and the provider record were unchanged, Undo stayed disabled, and the existing activity reason was visible at 1280x720 and 390x844. A separate valid rename applied and saved without a diagnostic, matched the live provider record, survived reload, and passed one Undo plus keyboard Redo. The first control-harness comparison was corrected to allow the existing canonical composition projection performed by captureAgentShowSnapshot; read-only verification confirmed two Scenes, two Patterns, placement timing, no replay, and no console errors. The coordinator inspected all four JPEG captures and closed the browser tabs.",
+  "captures": [
+    ".wrsp/ui-proof/1030-refused-desktop.jpg",
+    ".wrsp/ui-proof/1030-refused-narrow.jpg",
+    ".wrsp/ui-proof/1030-saved-desktop.jpg",
+    ".wrsp/ui-proof/1030-reopened.jpg"
+  ],
+  "capturedAtCommit": "83d1397da84762aa9538007258f8071b5bb9c088"
+}
