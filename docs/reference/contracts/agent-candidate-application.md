@@ -15,7 +15,34 @@ remains outside this diagnostic slice. Already adopted saves follow ordinary sto
 
 The adapter validates incoming structure against the Show schema with browser-safe imports, then validates accepted authoring semantics with exact current Pattern/Library source metadata and the original missing-reference baseline. Pattern, Library and Map array replacements during pending work permanently invalidate that request, including change/restore. A malformed/newly missing reference or stale candidate refuses without history or persistence changes. The browser cannot supply a validator or use a legacy tokenless apply bypass.
 
+An enumerated schema, authoring, normalized-candidate or metadata-invalidation
+failure may add `diagnostic` only to the existing terminal `refused` /
+`invalid-candidate` receipt. Its stage and issues use a closed code catalogue;
+messages are fixed catalogue copy rather than validator prose. Paths may identify
+bounded authored owners and validator-owned properties. The formatter does not
+select rejected values, arbitrary additional-property keys, candidate source
+fields, exception text or stacks. Unexpected validator and broader admission
+failures use distinct nonspecific codes. A receipt retains at most eight issues, 64 UTF-8
+bytes per code, 256 per message or path, and 4,096 total serialized diagnostic
+bytes, with deterministic prefix retention and `truncated: true` when content is
+omitted or shortened. The session owner defensively copies and deeply freezes
+that bounded value. The 256-operation table therefore adds at most about 1 MiB
+of independent diagnostic retention until session retirement.
+
+Paths intentionally retain bounded authored owner IDs. No secret or content
+classifier is claimed for those IDs; the formatter never selects rejected
+candidate values, source fields, exception fields or arbitrary additional keys
+for a path.
+
 `applyShow` returns the store's typed receipt. A duplicate identical response reads its existing result; changed request or candidate identity refuses. One accepted candidate creates one ordinary history entry. `readOutcome` recovers a surviving session's result after acknowledgement loss; retired history is unavailable and never replayed. Applied receipts distinguish saving, saved, rolled-back, superseded and an in-memory stock draft. Private asked/refused/nothing-applied/commit-refused/incomplete/service-refused/service-failed outcomes terminate via a checked `completed` receipt without mutation; this is neither a validated authoring `noop` nor user cancellation. The same bounded operation table retains these terminal identities.
+
+Candidate clone or serialization failure before input-wait identity registration
+returns one ephemeral nonspecific refusal and leaves the legitimate pending
+operation available for its first valid delivery. It cannot create a terminal
+receipt for an unidentifiable foreign envelope. Once registered, validation
+refusal, waiting, duplicate delivery and outcome lookup all return the same
+terminal diagnostic receipt. Timeout remains authoritative at its existing
+deadline, and retirement clears the receipt and diagnostic together.
 
 The overlay displays private prose alongside the actual editor outcome and includes that outcome in subsequent session dialogue. A delivered candidate remains one busy submission while waiting for active input and while saving. Waiting displays a Cancel action; cancellation prevents later adoption. Completion does not move focus away from a manual field. Closing the overlay releases its transport and polling resources while already-adopted saves retain store ownership. The store owns save recovery in [Show state, history, and persistence](show-state-history-persistence.md). [Show command semantics](show-command-semantics.md) governs the shared registry. Migrated diagnostic operations derive their input schema and delegate execution through the shared descriptor adapter; families awaiting migration retain their existing owners. The private pair move path retains its separately qualified transaction capability. Canonical move uses whole-Show admission; it has no narrow resize-style dependency admission.
 
@@ -616,6 +643,13 @@ This envelope is presentation metadata, not an admission receipt. The controller
 checks stream request identity and joins metadata to that same immutable
 request's editor receipt before painting an applied outline or time band. A
 late live refusal never paints an applied band.
+
+Those `changes` describe successful commands against the private working copy;
+they do not prove editor adoption or saving. A refused receipt can therefore
+carry both proposed changes and a validation diagnostic while truthfully stating
+that none of the proposal reached the live Show. The activity row uses the first
+catalog-controlled diagnostic message in its existing reason line and falls back
+to the generic refusal copy for older or malformed receipts.
 
 Activity keeps private completion separate from live application and save.
 Tucked unread counts distinct operations whose outcomes change; progress and

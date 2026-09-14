@@ -1,4 +1,5 @@
 import { agentRefusalMessage } from '@/engine/agentRefusalMessage'
+import { showEditDiagnosticMessage } from '@/engine/showEditDiagnostic'
 import { agentInsertionBand, createAgentDrawerState, transitionAgentDrawer, type AgentChange, type AgentDrawerEvent, type AgentOutcome } from '@/engine/agentDrawerModel'
 import type { ShowEditRequest } from '@/engine/showEditAdmission'
 import type { createAgentEditorAdmission } from './editorAdmission'
@@ -116,7 +117,7 @@ export function createProductionDrawerController(api: Admission, showId: string,
     if (receipt.status === 'pending') return
     if (receipt.status === 'waiting') { emit({ type: 'waiting', id }); return }
     const outcome: AgentOutcome = receipt.status === 'applied' ? receipt.settlement === 'saving' ? 'applied' : receipt.settlement : receipt.status === 'cancelled' ? 'cancelled' : receipt.status === 'retired' ? 'unknown' : 'not-applied'
-    emit({ type: 'outcome', id, outcome, changes: operation.changes, band: agentInsertionBand(operation.changes), retryable: Boolean(api.retryIntent(receipt.request)), reason: receipt.status === 'refused' ? agentRefusalMessage(receipt.reason) : receipt.status === 'completed' ? agentRefusalMessage(receipt.completion) : undefined })
+    emit({ type: 'outcome', id, outcome, changes: operation.changes, band: agentInsertionBand(operation.changes), retryable: Boolean(api.retryIntent(receipt.request)), reason: receipt.status === 'refused' ? showEditDiagnosticMessage(receipt.diagnostic) ?? agentRefusalMessage(receipt.reason) : receipt.status === 'completed' ? agentRefusalMessage(receipt.completion) : undefined })
   }
   const refresh = () => {
     if (disposed || !api.available()) return

@@ -121,6 +121,13 @@ input or captured reference context is truncated to fit. Relay/read results are
 at most1 MiB; MCP encodes that result as both text and structured content, so its
 wire response may contain two copies plus protocol framing.
 
+The relay and MCP server carry an optional browser-owned validation diagnostic
+inside an `invalid-candidate` receipt without parsing or rebuilding it.
+`commit_edit` and later `get_outcome` therefore expose the same bounded terminal
+detail in both JSON text and structured content. The diagnostic's 4 KiB limit
+fits inside the existing 1 MiB relay result ceiling and creates no Worker
+persistence or independent lifetime.
+
 ## Authority and persistence
 
 `AgentOAuthAuthority` is a private SQLite Durable Object, named by configured

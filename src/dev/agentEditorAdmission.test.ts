@@ -83,6 +83,46 @@ it.each([null, {}, { scenes: [] }])('refuses malformed candidate %j before norma
   expect(snapshot()).toEqual(before)
   expect(writes).not.toHaveBeenCalled()
 })
+
+it('retains a raw schema diagnostic through the actual editor admission owner', async () => {
+  const api = await setup()
+  const captured = api.beginRequest('schema', 'remove name', [])!
+  const candidate = structuredClone(captured.show) as unknown as Record<string, unknown>
+  delete candidate.name
+  const before = snapshot()
+  const result = api.applyShow(candidate, captured.request)
+  expect(result).toMatchObject({
+    status: 'refused', reason: 'invalid-candidate',
+    diagnostic: { stage: 'raw-schema', issues: [{ category: 'schema', code: 'schema-required', path: '/name' }] },
+  })
+  expect(api.readOutcome(captured.request)).toBe(result)
+  expect(snapshot()).toEqual(before)
+  expect(writes).not.toHaveBeenCalled()
+})
+
+it('retains an actionable zero-duration Scene diagnostic without adopting any partial edit', async () => {
+  const api = await setup()
+  const captured = api.beginRequest('semantic', 'break duration', [])!
+  const candidate = structuredClone(captured.show)
+  candidate.scenes[0].durationMs = 0
+  const before = snapshot()
+  const result = api.applyShow(candidate, captured.request)
+  expect(result).toMatchObject({
+    status: 'refused', reason: 'invalid-candidate',
+    diagnostic: {
+      stage: 'authoring',
+      issues: [{
+        category: 'structure',
+        code: 'invalid-scene-duration',
+        message: 'Scene duration must be a positive safe integer.',
+        path: JSON.stringify(['scene', candidate.scenes[0].id, 'durationMs']),
+      }],
+    },
+  })
+  expect(api.readOutcome(captured.request)).toBe(result)
+  expect(snapshot()).toEqual(before)
+  expect(writes).not.toHaveBeenCalled()
+})
 it('completes noncandidate turns without authoring a noop and enforces the retained table cap', async () => {
   const api = await setup()
   for (let index = 0; index < 256; index++) {
@@ -139,7 +179,10 @@ it.each(['library', 'map'] as const)('rejects %s metadata change/restore without
     useMapStore.setState({ userMaps: original })
   }
   const before = snapshot()
-  expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request).status).toBe('refused')
+  expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request)).toMatchObject({
+    status: 'refused', reason: 'invalid-candidate',
+    diagnostic: { stage: 'metadata-invalidation', issues: [{ code: 'metadata-invalidated' }] },
+  })
   expect(snapshot()).toEqual(before)
   expect(writes).not.toHaveBeenCalled()
 })
@@ -249,7 +292,10 @@ it.each(['cancel', 'timeout', 'metadata', 'manual', 'close'] as const)('terminal
     else if (action === 'metadata') {
       const { usePatternStore } = await import('@/store/patternStore')
       usePatternStore.setState({ userPatterns: [...usePatternStore.getState().userPatterns] })
-      expect(api.readOutcome(captured.request)).toMatchObject({ status: 'refused' })
+      expect(api.readOutcome(captured.request)).toMatchObject({
+        status: 'refused', reason: 'invalid-candidate',
+        diagnostic: { stage: 'metadata-invalidation', issues: [{ code: 'metadata-invalidated' }] },
+      })
       expect(vi.getTimerCount()).toBe(0)
       const second = api.beginRequest('second', 'rename', [])!
       expect(api.applyShow({ ...second.show, name: 'Second' }, second.request).status).toBe('waiting')

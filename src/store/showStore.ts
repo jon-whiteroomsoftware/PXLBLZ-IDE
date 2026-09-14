@@ -66,6 +66,51 @@ import {
 } from '@/engine/showEditAdmission'
 import { createShowResizeAdmission, type ResolvedShowResizeIntent } from './showResizeAdmission'
 import { createShowInputWait, type ShowEditActivity, type ShowInputWaitReceipt } from '@/engine/showInputWait'
+import { isShowEditDiagnosticInput, retainShowEditDiagnostic, type ShowEditDiagnosticInput } from '@/engine/showEditDiagnostic'
+
+export type ShowEditValidationResult = boolean | {
+  readonly valid: boolean
+  readonly diagnostic?: ShowEditDiagnosticInput
+}
+
+type ParsedShowEditValidation =
+  | { readonly valid: true }
+  | { readonly valid: false; readonly diagnostic?: ShowEditDiagnosticInput }
+
+const admissionUnavailableDiagnostic = (): ShowEditDiagnosticInput => ({
+  stage: 'unexpected-admission-failure',
+  issues: [{ code: 'admission-unavailable' }],
+})
+
+const validatorUnavailableDiagnostic = (): ShowEditDiagnosticInput => ({
+  stage: 'unexpected-validator-failure',
+  issues: [{ code: 'validation-unavailable' }],
+})
+
+const ephemeralInvalidCandidate = (request: ShowEditRequest, diagnostic?: ShowEditDiagnosticInput): ShowEditReceipt => {
+  const retained = retainShowEditDiagnostic(diagnostic)
+  return { request, status: 'refused', reason: 'invalid-candidate', ...(retained ? { diagnostic: retained } : {}) }
+}
+
+function parseShowEditValidationResult(value: unknown): ParsedShowEditValidation {
+  try {
+    if (value === true) return { valid: true }
+    if (value === false) return { valid: false }
+    if (!value || typeof value !== 'object' || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype) {
+      return { valid: false, diagnostic: admissionUnavailableDiagnostic() }
+    }
+    const keys = Object.keys(value)
+    const result = value as { valid?: unknown; diagnostic?: unknown }
+    if (result.valid === true && keys.length === 1 && keys[0] === 'valid') return { valid: true }
+    if (result.valid === false && keys.length === 1 && keys[0] === 'valid') return { valid: false }
+    if (result.valid === false && keys.length === 2 && keys.includes('valid') && keys.includes('diagnostic') && isShowEditDiagnosticInput(result.diagnostic)) {
+      return { valid: false, diagnostic: result.diagnostic }
+    }
+  } catch {
+    return { valid: false, diagnostic: admissionUnavailableDiagnostic() }
+  }
+  return { valid: false, diagnostic: admissionUnavailableDiagnostic() }
+}
 
 const showPersistenceQueues = new Map<string, Promise<void>>()
 const showsPendingDeletion = new Set<string>()
@@ -110,7 +155,7 @@ interface ShowState {
   admitShowEdit: (
     request: ShowEditRequest,
     evaluate: (current: ShowRecord) => ShowRecord | null,
-    validate: (candidate: ShowRecord, current: ShowRecord) => boolean,
+    validate: (candidate: ShowRecord, current: ShowRecord) => ShowEditValidationResult,
   ) => ShowEditReceipt
   beginResolvedShowResize: (sessionId: string, intent: ResolvedShowResizeIntent) => ShowEditReceipt
   admitResolvedShowResize: (request: ShowEditRequest) => ShowInputWaitReceipt
@@ -206,8 +251,8 @@ interface ShowState {
   retryShowSaveFailure: () => Promise<void>
   acquireShowEditActivity: (sessionId: string, showId: string, kind: ShowEditActivity['kind']) => ShowEditActivity | undefined
   releaseShowEditActivity: (token: ShowEditActivity) => void
-  deliverShowEditCandidate: (request: ShowEditRequest, candidate: unknown, validate: (candidate: ShowRecord, current: ShowRecord) => boolean, validateRaw?: (candidate: unknown) => boolean) => ShowInputWaitReceipt
-  invalidateShowEditCandidate: (request: ShowEditRequest) => ShowEditReceipt | undefined
+  deliverShowEditCandidate: (request: ShowEditRequest, candidate: unknown, validate: (candidate: ShowRecord, current: ShowRecord) => ShowEditValidationResult, validateRaw?: (candidate: unknown) => ShowEditValidationResult) => ShowInputWaitReceipt
+  invalidateShowEditCandidate: (request: ShowEditRequest, diagnostic?: ShowEditDiagnosticInput) => ShowEditReceipt | undefined
   readShowEditCandidate: (sessionId: string, operationId: string) => ShowInputWaitReceipt | undefined
 }
 
@@ -370,7 +415,7 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
       capturedCandidate = structuredClone(candidate) as ShowRecord
       identity = JSON.stringify(capturedCandidate) ?? 'undefined'
     } catch {
-      return { request, status: 'refused', reason: 'invalid-candidate' }
+      return ephemeralInvalidCandidate(request, admissionUnavailableDiagnostic())
     }
     return inputWait.deliver(capturedRequest, identity, arrivedAt,
       timing => get().admitShowEdit(capturedRequest, () => capturedCandidate, (next, current) => {
@@ -381,20 +426,26 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
       () => {
         const checked = editSession!.check(capturedRequest, { sessionId: editSession!.sessionId, showId: editSession!.showId, revision: get().showRevisions[capturedRequest.showId] ?? 0 })
         if (checked.status !== 'pending') return checked
-        try {
-          if (!capturedCandidate || capturedCandidate.id !== request.showId || (validateRaw && !validateRaw(capturedCandidate))) return editSession!.refuse(request.operationId, 'invalid-candidate')!
-        } catch { return editSession!.refuse(request.operationId, 'invalid-candidate')! }
+        if (!capturedCandidate || capturedCandidate.id !== capturedRequest.showId) return editSession!.refuse(capturedRequest.operationId, 'invalid-candidate')!
+        if (validateRaw) {
+          let validation: unknown
+          try { validation = validateRaw(capturedCandidate) } catch {
+            return editSession!.refuse(capturedRequest.operationId, 'invalid-candidate', validatorUnavailableDiagnostic())!
+          }
+          const parsed = parseShowEditValidationResult(validation)
+          if (!parsed.valid) return editSession!.refuse(capturedRequest.operationId, 'invalid-candidate', parsed.diagnostic)!
+        }
         return checked
       })
   },
-  invalidateShowEditCandidate: request => {
+  invalidateShowEditCandidate: (request, diagnostic) => {
     const session = editSession
     if (!session || session.sessionId !== request.sessionId) return undefined
     if (resizeAdmission.owns(request.operationId)) return { request, status: 'refused', reason: 'invalid-candidate' }
     const checked = session.checkIdentity(request, session)
     if (checked !== session.read(request.operationId) || checked.status !== 'pending') return checked
     inputWait.release(request.operationId)
-    return session.refuse(request.operationId, 'invalid-candidate')
+    return session.refuse(request.operationId, 'invalid-candidate', diagnostic)
   },
   beginResolvedShowResize: (sessionId, intent) => resizeAdmission.begin(sessionId, intent),
   admitResolvedShowResize: request => resizeAdmission.admit(request),
@@ -446,12 +497,24 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
       const evaluated = evaluate(privateCurrent)
       if (!evaluated || evaluated === privateCurrent) return session.refuse(request.operationId, 'no-candidate')!
       candidate = normalizeShowRecord(reconcileShowExecutionModelOnCastReturn(current, forfeitShowExecutionModelOnCastChange(current, structuredClone(evaluated))))
-      if (candidate.id !== request.showId || validate(structuredClone(candidate), structuredClone(current)) !== true) {
-        return session.refuse(request.operationId, 'invalid-candidate')!
-      }
     } catch {
-      return session.refuse(request.operationId, 'invalid-candidate')!
+      return session.refuse(request.operationId, 'invalid-candidate', admissionUnavailableDiagnostic())!
     }
+    if (candidate.id !== request.showId) return session.refuse(request.operationId, 'invalid-candidate')!
+    let validationCandidate: ShowRecord
+    let validationCurrent: ShowRecord
+    try {
+      validationCandidate = structuredClone(candidate)
+      validationCurrent = structuredClone(current)
+    } catch {
+      return session.refuse(request.operationId, 'invalid-candidate', admissionUnavailableDiagnostic())!
+    }
+    let validation: unknown
+    try { validation = validate(validationCandidate, validationCurrent) } catch {
+      return session.refuse(request.operationId, 'invalid-candidate', validatorUnavailableDiagnostic())!
+    }
+    const parsed = parseShowEditValidationResult(validation)
+    if (!parsed.valid) return session.refuse(request.operationId, 'invalid-candidate', parsed.diagnostic)!
     // Recheck after trusted synchronous callbacks in case they reentered the store.
     if (editSession !== session) return { request, status: 'retired' }
     const rechecked = session.check(request, eligibility())

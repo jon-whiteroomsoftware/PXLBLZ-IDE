@@ -62,3 +62,31 @@ it('refuses a routing event without a Layout target', () => {
   show.transitions = [{ id: 'routing', afterSceneId: 's1', kind: 'routing', durationMs: 0, easing: { curve: 'linear' } }]
   expect(validateShowAuthoring(show, { source: ref => ref.kind === 'stock' ? stockPatternSource(ref.id) : undefined, libraries: LIBRARIES }).valid).toBe(false)
 })
+
+it('owns a stable Scene-duration diagnostic identity and owner path at the authoring source', () => {
+  const show = openGrammarFixture().document.show
+  show.scenes[1].durationMs = 0
+  const result = validateShowAuthoring(show, {
+    source: ref => ref.kind === 'stock' ? stockPatternSource(ref.id) : undefined,
+    libraries: LIBRARIES,
+  })
+  expect(result.errors).toContainEqual({
+    code: 'structure',
+    diagnosticCode: 'invalid-scene-duration',
+    message: `Scene "${show.scenes[1].id}" duration must be a positive safe integer.`,
+    path: JSON.stringify(['scene', show.scenes[1].id, 'durationMs']),
+  })
+})
+
+it('preserves the underlying composition issue code when assigning its authoring category', () => {
+  const show = openGrammarFixture().document.show
+  show.composition!.scenes.push(structuredClone(show.composition!.scenes[0]))
+  const result = validateShowAuthoring(show, {
+    source: ref => ref.kind === 'stock' ? stockPatternSource(ref.id) : undefined,
+    libraries: LIBRARIES,
+  })
+  expect(result.errors).toContainEqual(expect.objectContaining({
+    code: 'composition',
+    diagnosticCode: 'duplicate-id',
+  }))
+})

@@ -22,6 +22,26 @@ function fixture(admission?: ReturnType<typeof createAgentEditorAdmission>, init
   stop = controller.dispose
   return { controller, channel, api, builtin, setReceipt: (value: unknown) => { receipt = value }, emit: (event: DrawerChannelEvent) => listener(event) }
 }
+it('shows catalog-controlled validation detail in the existing refusal reason line', () => {
+  const f = fixture()
+  f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Built-in' } })
+  const request = { operationId: 'binding:op', sessionId: 'session', showId: 'show', baseRevision: 0, payloadKey: '{}', referenceContext: '{}', targets: ['scene-2'] }
+  f.setReceipt({ request, status: 'pending' })
+  f.emit({ type: 'delivery', delivery: { registrationId: 'reg', sessionId: 'session', showId: 'show', bindingId: 'binding', operationId: 'op', deliveryId: 'begin', sequence: 0, payload: { kind: 'begin_edit' } }, result: { code: 'begun' }, request })
+  const receipt = {
+    request, status: 'refused', reason: 'invalid-candidate',
+    diagnostic: {
+      stage: 'authoring', truncated: false,
+      issues: [{ category: 'structure', code: 'invalid-scene-duration', message: 'untrusted transported prose', path: '["scene","scene-2","durationMs"]' }],
+    },
+  }
+  f.setReceipt(receipt)
+  f.emit({ type: 'delivery', delivery: { registrationId: 'reg', sessionId: 'session', showId: 'show', bindingId: 'binding', operationId: 'op', deliveryId: 'commit', sequence: 1, payload: { kind: 'commit_edit' } }, result: { code: 'outcome', receipt }, request })
+  expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'op')).toMatchObject({
+    outcome: 'not-applied',
+    reason: 'Scene duration must be a positive safe integer.',
+  })
+})
 it('refreshes authoritative allowance on focus and ignores older or lower-revision responses', async () => {
   const resetAt = Date.now() + 86_400_000
   const f = fixture(undefined, { ...availableAllowance(30, 1), resetAt })

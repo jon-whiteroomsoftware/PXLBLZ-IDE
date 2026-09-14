@@ -1756,7 +1756,10 @@ revision. The drawer refreshes at focus and reset without server polling, and
 fails closed on missing, malformed or stale status. The pure drawer model
 projects owned admission/save
 receipts and successful registry attribution; existing history and persistence
-owners remain authoritative. Each built-in operation owns one activity row from
+owners remain authoritative. Invalid complete candidates retain bounded,
+catalog-controlled validation detail on the same browser receipt; the existing
+activity reason line shows its first safe message without treating private
+command changes as applied. Each built-in operation owns one activity row from
 submission through settlement, with its reply attached to that row. Success prose
 requires a saved or draft outcome; intentional no-edit completions retain their
 clarification or refusal reply. Hidden prose does not suppress recorded changes. The

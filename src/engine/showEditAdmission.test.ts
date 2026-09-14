@@ -57,6 +57,37 @@ it('refuses new work at capacity while retaining cancelled, refused and applied 
   expect(session.begin(input('three'), 9)).toMatchObject({ status: 'applied', settlement: 'draft' })
 })
 
+it('retains one immutable controlled diagnostic on the terminal invalid-candidate receipt', () => {
+  const session = createShowEditSession('s', 'show')
+  session.begin(input(), 1)
+  const supplied = {
+    stage: 'authoring',
+    issues: [{ code: 'invalid-scene-duration', path: '["scene","scene-2","durationMs"]' }],
+  } as const
+  const refused = session.refuse('op', 'invalid-candidate', supplied)
+  expect(refused).toEqual({
+    request: expect.objectContaining({ operationId: 'op' }),
+    status: 'refused',
+    reason: 'invalid-candidate',
+    diagnostic: {
+      stage: 'authoring',
+      issues: [{
+        category: 'structure',
+        code: 'invalid-scene-duration',
+        message: 'Scene duration must be a positive safe integer.',
+        path: '["scene","scene-2","durationMs"]',
+      }],
+      truncated: false,
+    },
+  })
+  expect(Object.isFrozen(refused!.diagnostic)).toBe(true)
+  expect(Object.isFrozen(refused!.diagnostic!.issues)).toBe(true)
+  expect(Object.isFrozen(refused!.diagnostic!.issues[0])).toBe(true)
+  ;(supplied.issues[0] as { path: string }).path = 'changed'
+  expect(session.refuse('op', 'invalid-candidate', { stage: 'authoring', issues: [{ code: 'structure-invalid' }] })).toBe(refused)
+  expect(refused!.diagnostic!.issues[0].path).toBe('["scene","scene-2","durationMs"]')
+})
+
 it('refuses wrong sessions, Shows and unknown ids without registering them', () => {
   const session = createShowEditSession('s', 'show')
   const original = session.begin(input(), 1)

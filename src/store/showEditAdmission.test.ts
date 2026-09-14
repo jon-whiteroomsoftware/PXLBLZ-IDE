@@ -376,3 +376,69 @@ it('refuses an unknown completion value without consuming the pending identity',
   expect(snapshot()).toEqual(before)
   expect(provider.updateShow).not.toHaveBeenCalled()
 })
+
+it('retains a rich final-validator refusal without changing Show, history, or provider', async () => {
+  const show = createDefaultShow('rich-final-refusal', 'Original')
+  const provider = providerFor(show)
+  await state().loadShows()
+  const session = state().beginShowEditSession(show.id)
+  const pending = state().beginShowEdit(session, intent())
+  const before = snapshot()
+  const result = state().admitShowEdit(pending.request, evaluate, (() => ({
+    valid: false,
+    diagnostic: { stage: 'normalized', issues: [{ code: 'invalid-scene-duration', path: '["scene","scene-2","durationMs"]' }] },
+  })) as never)
+  expect(result).toMatchObject({
+    status: 'refused', reason: 'invalid-candidate',
+    diagnostic: { stage: 'normalized', issues: [{ code: 'invalid-scene-duration' }] },
+  })
+  expect(state().readShowEdit(session, 'op')).toBe(result)
+  expect(snapshot()).toEqual(before)
+  expect(provider.updateShow).not.toHaveBeenCalled()
+})
+
+it.each([
+  ['validator', () => evaluate, () => (() => { throw new Error('credential=validator-secret') })],
+  ['admission', () => (() => { throw new Error('credential=evaluation-secret') }), () => validate],
+] as const)('uses a controlled nonspecific diagnostic for unexpected %s failure', async (kind, makeEvaluate, makeValidate) => {
+  const show = createDefaultShow(`unexpected-${kind}`, 'Original')
+  const provider = providerFor(show)
+  await state().loadShows()
+  const session = state().beginShowEditSession(show.id)
+  const pending = state().beginShowEdit(session, intent())
+  const before = snapshot()
+  const result = state().admitShowEdit(pending.request, makeEvaluate(), makeValidate())
+  expect(result).toMatchObject({
+    status: 'refused', reason: 'invalid-candidate',
+    diagnostic: {
+      stage: kind === 'validator' ? 'unexpected-validator-failure' : 'unexpected-admission-failure',
+      issues: [{ code: kind === 'validator' ? 'validation-unavailable' : 'admission-unavailable' }],
+    },
+  })
+  expect(JSON.stringify(result)).not.toContain('credential=')
+  expect(snapshot()).toEqual(before)
+  expect(provider.updateShow).not.toHaveBeenCalled()
+})
+
+it.each([
+  Promise.resolve(true),
+  1,
+  { valid: true, diagnostic: { stage: 'normalized', issues: [{ code: 'structure-invalid' }] } },
+  { valid: true, extra: true },
+  { valid: false, diagnostic: { stage: 'normalized', issues: [{ code: 'invented', message: 'secret' }] } },
+])('fails closed for an unsupported validator result without exposing it: %j', async value => {
+  const show = createDefaultShow(`unsupported-result-${Math.random()}`, 'Original')
+  const provider = providerFor(show)
+  await state().loadShows()
+  const session = state().beginShowEditSession(show.id)
+  const pending = state().beginShowEdit(session, intent())
+  const before = snapshot()
+  const result = state().admitShowEdit(pending.request, evaluate, (() => value) as never)
+  expect(result).toMatchObject({
+    status: 'refused', reason: 'invalid-candidate',
+    diagnostic: { stage: 'unexpected-admission-failure', issues: [{ code: 'admission-unavailable' }] },
+  })
+  expect(JSON.stringify(result)).not.toContain('secret')
+  expect(snapshot()).toEqual(before)
+  expect(provider.updateShow).not.toHaveBeenCalled()
+})

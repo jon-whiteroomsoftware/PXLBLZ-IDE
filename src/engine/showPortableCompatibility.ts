@@ -1,6 +1,7 @@
 import { inspectPatternMetadata } from './bundle'
 import type { ShowRecord } from './personalContentRecords'
 import { validateShowLogicalRouting } from './showLogicalRouting'
+import type { ShowEditDiagnosticCode } from './showEditDiagnostic'
 
 export interface PortablePatternSource {
   cellId: string
@@ -10,6 +11,8 @@ export interface PortablePatternSource {
 
 export interface PortableShowDiagnostic {
   category: 'capability' | 'structure' | 'metadata'
+  code: ShowEditDiagnosticCode
+  path?: string
   message: string
 }
 
@@ -29,28 +32,28 @@ export function validatePortableShowCompatibility(
   const issues: string[] = []
   const advisories: string[] = []
   const diagnostics: PortableShowDiagnostic[] = []
-  const add = (category: PortableShowDiagnostic['category'], message: string) => {
-    diagnostics.push({ category, message })
+  const add = (category: PortableShowDiagnostic['category'], code: ShowEditDiagnosticCode, message: string, path?: string) => {
+    diagnostics.push({ category, code, message, ...(path ? { path } : {}) })
     issues.push(message)
   }
 
   if (referenceMapDimension !== 2) {
-    add('capability', referenceMapDimension === 3
+    add('capability', 'portable-reference-map-unsupported', referenceMapDimension === 3
       ? 'The reference output is 3D; Portable currently supports only 2D mapped surfaces.'
-      : 'The reference output must be a 2D mapped surface.')
+      : 'The reference output must be a 2D mapped surface.', JSON.stringify(['stageMapId']))
   }
 
   const zoneIds = new Set(show.zones.map((zone) => zone.id))
   for (const layout of show.routingLayouts) {
     if (!layout.logical) {
-      add('capability', `Routing layout "${layout.name}" uses physical pixel ranges; Portable requires normalized position-based zones.`)
+      add('capability', 'portable-physical-routing-unsupported', `Routing layout "${layout.name}" uses physical pixel ranges; Portable requires normalized position-based zones.`, JSON.stringify(['layout', layout.id, 'logical']))
       continue
     }
     const logical = layout.logical
     if (logical.zoneIds.some((zoneId) => !zoneIds.has(zoneId))) {
-      add('structure', `Routing layout "${layout.name}" references a missing logical zone.`)
+      add('structure', 'portable-logical-zone-missing', `Routing layout "${layout.name}" references a missing logical zone.`, JSON.stringify(['layout', layout.id, 'logical']))
     }
-    for (const issue of validateShowLogicalRouting(logical)) add('structure', `Routing layout "${layout.name}": ${issue}`)
+    for (const issue of validateShowLogicalRouting(logical)) add('structure', 'portable-logical-routing-invalid', `Routing layout "${layout.name}": ${issue}`, JSON.stringify(['layout', layout.id, 'logical']))
   }
 
   const seenSources = new Set<string>()
@@ -61,16 +64,16 @@ export function validatePortableShowCompatibility(
     try {
       const renderFns = inspectPatternMetadata(entry.source).renderFns
       if (!renderFns.hasRender2D && !renderFns.hasRender) {
-        add('capability', renderFns.hasRender3D
+        add('capability', 'portable-renderer-unsupported', renderFns.hasRender3D
           ? `${entry.patternName} defines only render3D.`
-          : `${entry.patternName} defines no render2D or render entry point.`)
+          : `${entry.patternName} defines no render2D or render entry point.`, entry.cellId)
       } else if (!renderFns.hasRender2D && renderFns.hasRender) {
         advisories.push(
           `${entry.patternName} uses render; Portable adapts its normalized local position to a resolution-dependent index.`,
         )
       }
     } catch {
-      add('metadata', `${entry.patternName} cannot be inspected for Portable renderer compatibility.`)
+      add('metadata', 'portable-metadata-unavailable', `${entry.patternName} cannot be inspected for Portable renderer compatibility.`, entry.cellId)
     }
   }
 

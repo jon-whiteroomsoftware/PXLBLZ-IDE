@@ -117,6 +117,12 @@ per session, a conservative memory bound. A full table refuses new registrations
 instead of evicting ids. Retirement clears historical lookup; unknown or old
 requests never register themselves during delivery.
 
+An `invalid-candidate` refusal may retain one bounded, deeply frozen validation
+diagnostic in that same receipt. No other status or refusal reason owns the
+field. Duplicate delivery and outcome recovery read the stored value; they do
+not regenerate it. Diagnostic retention adds no candidate, transcript, history,
+adoption, save or replay owner, and retirement clears it with the operation.
+
 Noncandidate completion checks the live session, Show, operation and exact captured
 envelope, including its original base revision, but does not compare that revision
 with the current document. Manual edits, Undo and hydration cannot turn an answer

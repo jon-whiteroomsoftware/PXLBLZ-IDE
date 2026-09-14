@@ -65,7 +65,7 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     }
     return { result: { code: 'no_live_editor', ...notice(resolved) }, resolved }
   }
-  const server = new McpServer({ name: 'PXLBLZ Agent', version: '0.2.0' }, { instructions: `Call get_connection and Answer in the open Show editor. read_show/get_context read that editor. begin_edit captures one immutable private Show; canonical commands mutate only that candidate. commit_edit requests validation/adoption and may return waiting or saving. Query get_outcome for the authoritative receipt. Never replay a timed-out command; retain operation and delivery identities. New binding requires new operation IDs. ${SHOW_AUTHORING_SERVER_INTRO}` })
+  const server = new McpServer({ name: 'PXLBLZ Agent', version: '0.2.0' }, { instructions: `Call get_connection and Answer in the open Show editor. read_show/get_context read that editor. begin_edit captures one immutable private Show; canonical commands mutate only that candidate. Command changes describe the private proposal, not adopted or saved state. commit_edit requests validation/adoption and may return waiting or saving; an invalid-candidate receipt may include bounded validation detail. Query get_outcome for the authoritative receipt. Never replay a timed-out command; retain operation and delivery identities. New binding requires new operation IDs. ${SHOW_AUTHORING_SERVER_INTRO}` })
   const output = (result: PrivateEditResult) => ({ content: [{ type: 'text' as const, text: JSON.stringify(result) }], structuredContent: result })
   server.registerTool('get_connection', { description: 'Connect to the open editor, holding an incoming call for up to 30 seconds. With call_id, inspect only that original call; expired calls are never recreated.', inputSchema: z.object({ call_id: id.optional() }).strict() }, async ({ call_id }) => {
     const resolved = await current()
@@ -86,7 +86,7 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     })), ...notice(resolved) })
   })
   for (const kind of ['read_show', 'get_context', 'get_outcome'] as const) {
-    server.registerTool(kind, { description: kind === 'get_outcome' ? 'Read the surviving browser receipt for this binding and operation; unknown never permits replay.' : `Read ${kind === 'read_show' ? 'the full current Show' : 'the current editor focus/context'} from the bound editor.`, inputSchema: z.object({ ...binding, ...(kind === 'get_outcome' ? { operation_id: id } : {}) }).strict() }, async (args) => {
+    server.registerTool(kind, { description: kind === 'get_outcome' ? 'Read the surviving browser receipt, including bounded invalid-candidate validation detail when available, for this binding and operation; unknown never permits replay.' : `Read ${kind === 'read_show' ? 'the full current Show' : 'the current editor focus/context'} from the bound editor.`, inputSchema: z.object({ ...binding, ...(kind === 'get_outcome' ? { operation_id: id } : {}) }).strict() }, async (args) => {
       const ownership = await owned(args.binding_id)
       if (!ownership.identity) return output(ownership.result!)
       const query = kind === 'get_outcome' ? { kind, operationId: (args as { operation_id: string }).operation_id } : { kind }
@@ -104,7 +104,7 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
   }
   registerMutation('begin_edit', 'Capture a full immutable Show/context and begin one private operation (sequence 0).', { intent: z.string().max(240).refine(value => !/[\r\n]/.test(value)).optional() }, args => ({ kind: 'begin_edit', ...args }))
   for (const descriptor of SHOW_COMMANDS) registerMutation(descriptor.name, descriptor.description, showCommandInputShape(descriptor), args => ({ kind: 'command', name: descriptor.name, arguments: args }))
-  registerMutation('commit_edit', 'Validate and request adoption of the entire private candidate once; waiting/saving are not completion.', {}, () => ({ kind: 'commit_edit' }))
+  registerMutation('commit_edit', 'Validate and request adoption of the entire private candidate once; command changes describe only the private proposal, waiting/saving are not completion, and invalid-candidate may include bounded validation detail.', {}, () => ({ kind: 'commit_edit' }))
   registerMutation('cancel_edit', 'Retire the private candidate; already-adopted saves retain their receipt.', {}, () => ({ kind: 'cancel_edit' }))
   server.registerResource('clip-layer-authoring-schema-v1', SHOW_AUTHORING_SCHEMA_URI, {
     title: 'Clip and Layer authoring schema v1',

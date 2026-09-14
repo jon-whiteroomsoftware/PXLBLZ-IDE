@@ -91,6 +91,19 @@ it('does not paint an insertion band when live admission refuses a committed pri
   expect(useAgentDrawerStore.getState().state.stream.some(line => line.text === 'Inserted.')).toBe(false)
 })
 
+it('shows a retained validation diagnostic in the existing refusal reason line', async () => {
+  applied.mockImplementation(() => receipt = {
+    request, status: 'refused', reason: 'invalid-candidate',
+    diagnostic: {
+      stage: 'authoring', truncated: false,
+      issues: [{ category: 'structure', code: 'invalid-scene-duration', message: 'untrusted prose' }],
+    },
+  })
+  controller.dispatch({ type: 'draft', text: 'break duration' }); controller.submit()
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.stream.some(line => line.outcome === 'not-applied')).toBe(true))
+  expect(useAgentDrawerStore.getState().state.stream.find(line => line.outcome === 'not-applied')?.reason).toBe('Scene duration must be a positive safe integer.')
+})
+
 it.each([[5000, 40000], [40000, 5000]])('adopts multiple insertions without painting an unproved final band: %j', async (first, second) => {
   vi.mocked(fetch).mockImplementation(async (_url, options) => {
     const { requestId } = JSON.parse(options!.body as string)

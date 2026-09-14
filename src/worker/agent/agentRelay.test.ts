@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { AgentRelay } from './agentRelay'
+import { createShowEditSession } from '../../engine/showEditAdmission'
 const scope = { bindingId: 'binding', registrationId: 'registration', sessionId: 'session', showId: 'show' }
 const delivery = (sequence = 0, payload: unknown = { kind: 'begin_edit' }) => ({ operationId: 'op', deliveryId: `d${sequence}`, sequence, payload })
 beforeEach(() => vi.useFakeTimers())
@@ -15,6 +16,20 @@ it('delivers once, returns the browser result, and never requeues duplicate or c
   expect(await relay.dispatch(delivery())).toEqual({ code: 'begun' })
   expect(await relay.dispatch(delivery(0, { kind: 'cancel_edit' }))).toEqual({ code: 'identity_conflict' })
   expect(relay.take()).toEqual([])
+})
+it('carries an actual retained diagnostic receipt without rebuilding it', async () => {
+  const session = createShowEditSession('session', 'show')
+  const pendingReceipt = session.begin({ operationId: 'op', payloadKey: '', referenceContext: '{}', targets: ['show'] }, 0)
+  const receipt = session.refuse('op', 'invalid-candidate', {
+    stage: 'authoring', issues: [{ code: 'invalid-scene-duration', path: '["scene","scene-2","durationMs"]' }],
+  })!
+  const relay = new AgentRelay(scope, () => {})
+  const pending = relay.dispatch(delivery())
+  const [message] = relay.take()
+  expect(message.operationId).toBe(pendingReceipt.request.operationId)
+  expect(relay.reply(message, { code: 'outcome', receipt })).toBe(true)
+  expect(await pending).toEqual({ code: 'outcome', receipt })
+  expect(await relay.dispatch(delivery())).toEqual({ code: 'outcome', receipt })
 })
 it('a transport wait ending neither cancels nor replays the delivery', async () => {
   const relay = new AgentRelay(scope, () => {})

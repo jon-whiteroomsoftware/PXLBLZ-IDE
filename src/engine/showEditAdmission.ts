@@ -1,3 +1,5 @@
+import { retainShowEditDiagnostic, type ShowEditDiagnostic } from './showEditDiagnostic'
+
 /** Session-only deduplication. Full tables refuse new work; ids are never evicted. */
 export const DEFAULT_SHOW_EDIT_OPERATION_CAPACITY = 256
 
@@ -23,10 +25,11 @@ export type ShowEditRefusal = 'revision-conflict' | 'wrong-session' | 'wrong-sho
 export type ShowEditCompletion = 'asked' | 'refused' | 'nothing-applied' | 'commit-refused' | 'incomplete' | 'service-refused' | 'service-failed'
 
 export type ShowEditReceipt = { readonly request: ShowEditRequest } & (
-  | { readonly status: 'pending' | 'cancelled' | 'retired' | 'noop'; readonly reason?: never; readonly settlement?: never }
-  | { readonly status: 'completed'; readonly completion: ShowEditCompletion; readonly reason?: never; readonly settlement?: never }
-  | { readonly status: 'refused'; readonly reason: ShowEditRefusal; readonly settlement?: never }
-  | { readonly status: 'applied'; readonly settlement: ShowEditSettlement; readonly reason?: never }
+  | { readonly status: 'pending' | 'cancelled' | 'retired' | 'noop'; readonly reason?: never; readonly settlement?: never; readonly diagnostic?: never }
+  | { readonly status: 'completed'; readonly completion: ShowEditCompletion; readonly reason?: never; readonly settlement?: never; readonly diagnostic?: never }
+  | { readonly status: 'refused'; readonly reason: 'invalid-candidate'; readonly settlement?: never; readonly diagnostic?: ShowEditDiagnostic }
+  | { readonly status: 'refused'; readonly reason: Exclude<ShowEditRefusal, 'invalid-candidate'>; readonly settlement?: never; readonly diagnostic?: never }
+  | { readonly status: 'applied'; readonly settlement: ShowEditSettlement; readonly reason?: never; readonly diagnostic?: never }
 )
 
 export interface ShowEditIdentity {
@@ -53,10 +56,13 @@ export function createShowEditSession(
   if (!Number.isSafeInteger(capacity) || capacity < 1) throw new RangeError('Invalid operation capacity')
   const entries = new Map<string, ShowEditReceipt>()
   let retired = false
-  const receipt = (request: ShowEditRequest, status: Exclude<ShowEditReceipt['status'], 'applied' | 'completed'>, reason?: ShowEditRefusal): ShowEditReceipt =>
-    status === 'refused'
-      ? Object.freeze({ request, status, reason: reason! })
-      : Object.freeze({ request, status })
+  const receipt = (request: ShowEditRequest, status: Exclude<ShowEditReceipt['status'], 'applied' | 'completed'>, reason?: ShowEditRefusal, diagnostic?: unknown): ShowEditReceipt => {
+    if (status !== 'refused') return Object.freeze({ request, status })
+    if (!reason) throw new Error('Refused receipt requires a reason')
+    if (reason !== 'invalid-candidate') return Object.freeze({ request, status, reason })
+    const retained = retainShowEditDiagnostic(diagnostic)
+    return Object.freeze({ request, status, reason, ...(retained ? { diagnostic: retained } : {}) })
+  }
   const remember = (value: ShowEditReceipt): ShowEditReceipt => {
     entries.set(value.request.operationId, value)
     return value
@@ -103,9 +109,9 @@ export function createShowEditSession(
       if (request.baseRevision !== current.revision) return remember(receipt(existing.request, 'refused', 'revision-conflict'))
       return existing
     },
-    refuse(id: string, reason: ShowEditRefusal): ShowEditReceipt | undefined {
+    refuse(id: string, reason: ShowEditRefusal, diagnostic?: unknown): ShowEditReceipt | undefined {
       const existing = read(id)
-      return existing?.status === 'pending' ? remember(receipt(existing.request, 'refused', reason)) : existing
+      return existing?.status === 'pending' ? remember(receipt(existing.request, 'refused', reason, diagnostic)) : existing
     },
     complete(id: string, completion: ShowEditCompletion): ShowEditReceipt | undefined {
       const existing = read(id)

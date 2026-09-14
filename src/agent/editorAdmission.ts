@@ -1,4 +1,4 @@
-import Ajv from 'ajv'
+import Ajv, { type ErrorObject } from 'ajv'
 import schemaText from '../../schemas/show-record.schema.json?raw'
 import type { ShowRecord } from '@/engine/personalContentRecords'
 import type { ShowEditRequest, ShowEditReceipt, ShowEditCompletion } from '@/engine/showEditAdmission'
@@ -15,8 +15,57 @@ export type AgentAdmissionObserver = (request: ShowEditRequest, phase: AgentAppl
 import { captureAgentShowSnapshot } from '@/engine/agentShowSnapshot'
 import { parseAgentResizeIntent, sameAgentResizeIntent, type AgentResizeIntent } from '@/engine/agentResizeProtocol'
 import { applyShowCommand } from '@/engine/showCommands/registry'
+import { showEditDiagnosticInput, type ShowEditDiagnosticCode, type ShowEditDiagnosticInput } from '@/engine/showEditDiagnostic'
+import type { ShowEditValidationResult } from '@/store/showStore'
 
 const structural = new Ajv({ allErrors: true, strict: false, strictNumbers: true }).compile(JSON.parse(schemaText))
+
+const schemaCodes: Partial<Record<string, ShowEditDiagnosticCode>> = {
+  required: 'schema-required',
+  type: 'schema-type',
+  enum: 'schema-enum',
+  const: 'schema-const',
+  minimum: 'schema-minimum',
+  maximum: 'schema-maximum',
+  exclusiveMinimum: 'schema-exclusive-minimum',
+  exclusiveMaximum: 'schema-exclusive-maximum',
+  minLength: 'schema-min-length',
+  maxLength: 'schema-max-length',
+  pattern: 'schema-pattern',
+  format: 'schema-format',
+  additionalProperties: 'schema-additional-properties',
+  uniqueItems: 'schema-unique-items',
+  minItems: 'schema-min-items',
+  maxItems: 'schema-max-items',
+  oneOf: 'schema-one-of',
+  anyOf: 'schema-any-of',
+  allOf: 'schema-all-of',
+}
+
+function schemaErrorPath(error: ErrorObject): string | undefined {
+  let path = error.instancePath
+  if (error.keyword === 'required' && typeof error.params.missingProperty === 'string') {
+    path += `/${error.params.missingProperty.replace(/~/g, '~0').replace(/\//g, '~1')}`
+  }
+  return path || undefined
+}
+
+function rawSchemaDiagnostic(errors: ErrorObject[] | null | undefined): ShowEditDiagnosticInput {
+  return showEditDiagnosticInput('raw-schema', (errors?.length ? errors : [{ keyword: '', instancePath: '', params: {}, schemaPath: '' } as ErrorObject]).map(error => {
+    const path = schemaErrorPath(error)
+    return { code: schemaCodes[error.keyword] ?? 'schema-invalid', ...(path ? { path } : {}) }
+  }))
+}
+
+const authoringFallback: Record<'structure' | 'composition' | 'missing-reference' | 'metadata' | 'delivery', ShowEditDiagnosticCode> = {
+  structure: 'structure-invalid',
+  composition: 'composition-invalid',
+  'missing-reference': 'reference-unavailable',
+  metadata: 'metadata-unavailable',
+  delivery: 'delivery-invalid',
+}
+
+const metadataInvalidatedDiagnostic = (): ShowEditDiagnosticInput => showEditDiagnosticInput('metadata-invalidation', [{ code: 'metadata-invalidated' }])
 /** Observe actual URL changes synchronously, including remove/restore ABA. Does
  * not navigate or alter router preflight. Scoped to the mounted editor route. */
 export function observeAgentLocation(listener: () => void): () => void {
@@ -95,7 +144,9 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
   const invalidate = () => {
     for (const entry of entries.values()) if (store().readShowEdit(sessionId, entry.request.operationId)?.status === 'pending') {
       entry.invalidated = true
-      if (store().readShowEditCandidate(sessionId, entry.request.operationId)?.status === 'waiting') store().invalidateShowEditCandidate(entry.request)
+      if (store().readShowEditCandidate(sessionId, entry.request.operationId)?.status === 'waiting') {
+        store().invalidateShowEditCandidate(entry.request, metadataInvalidatedDiagnostic())
+      }
     }
     releaseMetadata()
   }
@@ -109,10 +160,20 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
       useMapStore.subscribe((a, b) => { if (a.userMaps !== b.userMaps) invalidate() }),
     ]
   }
-  const validate = (candidate: ShowRecord, entry: { show: ShowRecord; baseline: ReturnType<typeof captureShowAuthoringBaseline> }) => {
+  const validate = (candidate: ShowRecord, entry: { show: ShowRecord; baseline: ReturnType<typeof captureShowAuthoringBaseline> }, stage: 'authoring' | 'normalized'): ShowEditValidationResult => {
     const stageMap = [...STOCK_MAPS, ...useMapStore.getState().userMaps].find(map => map.id === candidate.stageMapId)
-    if (candidate.stageMapId && candidate.stageMapId !== entry.show.stageMapId && (!stageMap || (stageMap.dim !== 2 && stageMap.dim !== 3))) return false
-    return validateShowAuthoring(candidate, { ...metadata(), baseline: entry.baseline, allowExistingMissing: true, stageDimension: stageMap?.dim === 3 ? 3 : 2 }).valid
+    if (candidate.stageMapId && candidate.stageMapId !== entry.show.stageMapId && (!stageMap || (stageMap.dim !== 2 && stageMap.dim !== 3))) {
+      return { valid: false, diagnostic: showEditDiagnosticInput(stage, [{ code: 'map-metadata-unavailable', path: JSON.stringify(['stageMap', candidate.stageMapId]) }]) }
+    }
+    const result = validateShowAuthoring(candidate, { ...metadata(), baseline: entry.baseline, allowExistingMissing: true, stageDimension: stageMap?.dim === 3 ? 3 : 2 })
+    if (result.valid) return { valid: true }
+    return {
+      valid: false,
+      diagnostic: showEditDiagnosticInput(stage, result.errors.map(issue => ({
+        code: issue.diagnosticCode ?? authoringFallback[issue.code],
+        ...(issue.path ? { path: issue.path } : {}),
+      }))),
+    }
   }
   const invalid = (request?: ShowEditRequest): ShowEditReceipt => ({
     request: request ?? { operationId: '', payloadKey: '', referenceContext: '', targets: [], sessionId, showId, baseRevision: -1 },
@@ -223,8 +284,12 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
       const existing = store().readShowEditCandidate(sessionId, request.operationId)
       if (existing?.status === 'pending') observe(request, 'admitted')
       const result = store().deliverShowEditCandidate(request, candidate,
-        next => !entry.invalidated && validate(next, entry),
-        raw => !entry.invalidated && structural(raw) && validate(raw as ShowRecord, entry))
+        next => entry.invalidated ? { valid: false, diagnostic: metadataInvalidatedDiagnostic() } : validate(next, entry, 'normalized'),
+        raw => {
+          if (entry.invalidated) return { valid: false, diagnostic: metadataInvalidatedDiagnostic() }
+          if (!structural(raw)) return { valid: false, diagnostic: rawSchemaDiagnostic(structural.errors) }
+          return validate(raw as ShowRecord, entry, 'authoring')
+        })
       observeOutcome(result)
       releaseMetadata()
       return result

@@ -5,6 +5,7 @@ import type { createAgentEditorAdmission } from './agentEditorAdmission'
 import type { ShowEditRequest } from '@/engine/showEditAdmission'
 import { useShowStore } from '@/store/showStore'
 import { AGENT_DAILY_MESSAGE_LIMIT, type AgentMessageAllowance } from '@/engine/agentAllowance'
+import { showEditDiagnosticMessage } from '@/engine/showEditDiagnostic'
 
 type Admission = ReturnType<typeof createAgentEditorAdmission>
 type Captured = NonNullable<ReturnType<Admission['beginRequest']>> & { retryResize?: ReturnType<Admission['retryIntent']> }
@@ -75,7 +76,7 @@ export function createAgentDrawerController(api: Admission, showId: string) {
       : receipt.status === 'cancelled' ? 'cancelled'
       : receipt.status === 'retired' ? 'unknown' : 'not-applied'
     dispatch({ type: 'outcome', id: request.operationId, outcome, changes: details?.changes, band: details?.band,
-      reason: receipt.status === 'refused' ? receipt.reason : receipt.status === 'completed' ? receipt.completion : undefined,
+      reason: receipt.status === 'refused' ? showEditDiagnosticMessage(receipt.diagnostic) ?? receipt.reason : receipt.status === 'completed' ? receipt.completion : undefined,
       retryable: Boolean(api.retryIntent(request)),
       refusedTargets: receipt.status === 'refused' ? details?.changes.map(change => change.targetId) ?? [...request.targets] : [],
     })

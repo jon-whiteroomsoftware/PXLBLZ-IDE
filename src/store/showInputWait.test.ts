@@ -257,17 +257,51 @@ it('stock reset releases a pending timer while preserving active draft ownership
 
 it('final validation refusal and same-session cancellation discard the callback without writes', () => {
   const token = state().acquireShowEditActivity(session, request.showId, 'drag')!
-  const validator = vi.fn(() => false)
+  const validator = vi.fn(() => ({ valid: false as const, diagnostic: {
+    stage: 'normalized' as const,
+    issues: [{ code: 'invalid-scene-duration' as const, path: '["scene","scene-2","durationMs"]' }],
+  } }))
   const before = snapshot()
   state().deliverShowEditCandidate(request, candidate, validator)
   expect(validator).not.toHaveBeenCalled()
   state().releaseShowEditActivity(token)
-  expect(state().readShowEditCandidate(session, 'op')).toMatchObject({ reason: 'invalid-candidate' })
+  expect(state().readShowEditCandidate(session, 'op')).toMatchObject({
+    reason: 'invalid-candidate',
+    diagnostic: { stage: 'normalized', issues: [{ code: 'invalid-scene-duration' }] },
+  })
   expect(validator).toHaveBeenCalledTimes(1)
   expect(state().deliverShowEditCandidate(request, { ...candidate, name: 'Different' }, validate)).toMatchObject({ reason: 'identity-mismatch' })
   expect(snapshot()).toEqual(before)
   expect(writes).not.toHaveBeenCalled()
   expect(vi.getTimerCount()).toBe(0)
+})
+
+it('keeps an unserializable delivery ephemeral so a later legitimate first candidate can apply', async () => {
+  const before = snapshot()
+  const cyclic = { ...candidate, cycle: undefined as unknown }
+  cyclic.cycle = cyclic
+  const refused = state().deliverShowEditCandidate(request, cyclic, validate)
+  expect(refused).toMatchObject({
+    status: 'refused', reason: 'invalid-candidate',
+    diagnostic: { stage: 'unexpected-admission-failure', issues: [{ code: 'admission-unavailable' }] },
+  })
+  expect(state().readShowEditCandidate(session, 'op')).toMatchObject({ status: 'pending' })
+  expect(snapshot()).toEqual(before)
+  expect(state().deliverShowEditCandidate(request, candidate, validate)).toMatchObject({ status: 'applied' })
+  await vi.advanceTimersByTimeAsync(0)
+  expect(writes).toHaveBeenCalledOnce()
+})
+
+it('fails closed when a raw validator returns an unsupported Promise-like result', () => {
+  const before = snapshot()
+  const result = state().deliverShowEditCandidate(request, candidate, validate, (() => Promise.resolve(true)) as never)
+  expect(result).toMatchObject({
+    status: 'refused', reason: 'invalid-candidate',
+    diagnostic: { stage: 'unexpected-admission-failure', issues: [{ code: 'admission-unavailable' }] },
+  })
+  expect(state().readShowEditCandidate(session, 'op')).toBe(result)
+  expect(snapshot()).toEqual(before)
+  expect(writes).not.toHaveBeenCalled()
 })
 
 it('early timer wakeups cannot expire before the monotonic deadline', () => {
