@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "1028",
+  "route": "/PXLBLZ-IDE/studio/shows/91a6ee52-ee2d-48e8-b8f5-f364929ad475",
+  "operation": "Created a fresh Installation Show, deleted CometLoom with the keyboard, verified Undo and Redo, added Kishimisu at 35000 ms, moved it to 30000 ms, and reloaded. The timeline shows TestPattern1D contiguous with Kishimisu, no crossfade junction, and Show End at 62000 ms.",
+  "captures": [
+    ".wrsp/ui-proof/1028-fresh-show-replacement-at-former-transition.png"
+  ],
+  "capturedAtCommit": "7d965c188dc7f68918ddb2b306a8112482dcdfac"
+}
