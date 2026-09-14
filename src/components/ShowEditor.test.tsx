@@ -4689,17 +4689,20 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(save).not.toHaveBeenCalled()
   })
 
-  it('deletes a selected flat Show Clip from its projected timeline placement (#63)', async () => {
+  it('repairs a fresh Show boundary when deleting its second starter Clip from the keyboard (#1028)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-delete-flat-projection', 'Delete flat projection', 1000)
-    setPersonalContentProvider(memoryProvider([show]))
+    const before = structuredClone(show)
+    const provider = memoryProvider([show])
+    const save = vi.spyOn(provider, 'updateShow')
+    setPersonalContentProvider(provider)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
     render(<ShowEditor showId={show.id} />)
-    const selectedClip = screen.getByRole('button', { name: 'Select TestPattern1D' })
+    const selectedClip = screen.getByRole('button', { name: 'Select CometLoom' })
     expect(selectedClip).toHaveAttribute(
       'data-show-selection-key',
-      'clip:placement-cell-1-scene-1',
+      'clip:placement-cell-2-scene-2',
     )
 
     await user.click(selectedClip)
@@ -4707,9 +4710,129 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
     await waitFor(() => {
       const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
-      expect(saved?.cells.map((cell) => cell.id)).toEqual(['cell-2'])
+      expect(saved?.transitions[0]).toMatchObject({
+        id: 'transition-scene-1',
+        kind: 'cut',
+        durationMs: 0,
+      })
     })
-    expect(screen.queryByRole('button', { name: 'Select TestPattern1D' })).not.toBeInTheDocument()
+    const repaired = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+    expect(repaired.scenes.map((scene) => scene.durationMs)).toEqual([30_000, 32_000])
+    expect(showModel.showLoopDurationMs(repaired)).toBe(62_000)
+    expect(repaired.composition).toMatchObject({
+      scenes: [{
+        sceneId: 'scene-1',
+        zones: [{ main: [{
+          id: 'placement-cell-1-scene-1',
+          startMs: 0,
+          durationMs: 30_000,
+        }] }],
+      }, {
+        sceneId: 'scene-2',
+        zones: [{ main: [] }],
+      }],
+    })
+    expect(validateShowComposition(repaired, repaired.composition!)).toEqual([])
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(useShowStore.getState().showHistories[show.id]?.past).toHaveLength(1)
+    expect(show).toEqual(before)
+    await expect(provider.listShows()).resolves.toEqual([repaired])
+    expect(screen.queryByRole('button', { name: 'Select CometLoom' })).not.toBeInTheDocument()
+
+    await act(async () => { await useShowStore.getState().undoShow(show.id) })
+    const undone = useShowStore.getState().shows[0]
+    expect(undone.composition).toBeUndefined()
+    expect(undone.transitions).toEqual([show.transitions[0]])
+    await act(async () => { await useShowStore.getState().redoShow(show.id) })
+    expect(useShowStore.getState().shows[0]).toMatchObject({
+      composition: repaired.composition,
+      transitions: repaired.transitions,
+    })
+    expect(save).toHaveBeenCalledTimes(3)
+  })
+
+  it('retains the fresh Show boundary when deleting its first starter Clip (#1028)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-delete-flat-first-starter', 'Delete first starter', 1000)
+    const provider = memoryProvider([show])
+    const save = vi.spyOn(provider, 'updateShow')
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
+    await user.keyboard('{Delete}')
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+    const repaired = useShowStore.getState().shows[0]
+    expect(repaired.transitions[0]).toEqual(show.transitions[0])
+    expect(repaired.scenes.map((scene) => scene.durationMs)).toEqual([30_000, 30_000])
+    expect(showModel.showLoopDurationMs(repaired)).toBe(62_000)
+    expect(repaired.composition?.scenes[0].zones[0].main).toEqual([])
+    expect(repaired.composition?.scenes[1].zones[0].main).toEqual([
+      expect.objectContaining({
+        id: 'placement-cell-2-scene-2',
+        startMs: 0,
+        durationMs: 30_000,
+      }),
+    ])
+    expect(validateShowComposition(repaired, repaired.composition!)).toEqual([])
+  })
+
+  it('repairs a fresh Show boundary when removing its second starter Clip in the inspector (#1028)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-delete-flat-inspector', 'Delete flat inspector', 1000)
+    const provider = memoryProvider([show])
+    const save = vi.spyOn(provider, 'updateShow')
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select CometLoom' }))
+    await user.click(screen.getByRole('button', { name: 'Delete clip CometLoom' }))
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+    const repaired = useShowStore.getState().shows[0]
+    expect(repaired.transitions[0]).toMatchObject({ kind: 'cut', durationMs: 0 })
+    expect(repaired.scenes.map((scene) => scene.durationMs)).toEqual([30_000, 32_000])
+    expect(showModel.showLoopDurationMs(repaired)).toBe(62_000)
+    expect(repaired.composition?.scenes[1].zones[0].main).toEqual([])
+    expect(validateShowComposition(repaired, repaired.composition!)).toEqual([])
+  })
+
+  it('refuses flat Clip deletion when its projected source becomes unavailable (#1028)', async () => {
+    const show = createDefaultShow('show-delete-flat-missing-source', 'Delete flat missing source', 1000)
+    show.cells[1] = {
+      ...show.cells[1],
+      pattern: { kind: 'user', id: 'user-source-that-disappears' },
+    }
+    const before = structuredClone(show)
+    const provider = memoryProvider([show])
+    const save = vi.spyOn(provider, 'updateShow')
+    setPersonalContentProvider(provider)
+    usePatternStore.setState({
+      userPatterns: [{
+        id: 'user-source-that-disappears',
+        name: 'Temporary source',
+        src: 'export function render(index) { rgb(index, 0, 0) }',
+        controls: {},
+        updatedAt: 1,
+      }],
+      patternsLoaded: true,
+    })
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    const selectedClip = screen.getByRole('button', { name: 'Select CometLoom' })
+    fireEvent.click(selectedClip)
+    act(() => usePatternStore.setState({ userPatterns: [] }))
+    fireEvent.keyDown(document, { key: 'Delete' })
+
+    expect(screen.getByRole('status', { name: 'Clip deletion unavailable' }))
+      .toHaveTextContent('Cannot delete this Clip.')
+    expect(useShowStore.getState().shows[0]).toEqual(before)
+    expect(useShowStore.getState().showHistories[show.id]).toBeUndefined()
+    expect(save).not.toHaveBeenCalled()
   })
 
   it('disables deletion when the selected Clip is the Show’s final Clip', async () => {

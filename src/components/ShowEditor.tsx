@@ -389,6 +389,11 @@ const LAST_CLIP_DELETE_FEEDBACK: BlockedDeleteCopy = {
   status: 'A Show must contain at least one Clip.',
 }
 
+const UNAVAILABLE_CLIP_DELETE_FEEDBACK: BlockedDeleteCopy = {
+  label: 'Cannot delete this Clip.',
+  status: 'Cannot delete this Clip.',
+}
+
 function blockedDeleteCopyForRefusal(
   show: ShowRecord,
   refusal: ShowClipDeletionRefusal,
@@ -1017,7 +1022,6 @@ export function ShowEditor({
   const retryShowSaveFailure = useShowStore((state) => state.retryShowSaveFailure)
   const updateBoundaryTransition = useShowStore((state) => state.updateBoundaryTransition)
   const removeBoundaryTransition = useShowStore((state) => state.removeBoundaryTransition)
-  const removeClip = useShowStore((state) => state.removeClip)
   const updateCellAdaptations = useShowStore((state) => state.updateCellAdaptations)
   const updateCellControlTarget = useShowStore((state) => state.updateCellControlTarget)
   const updateCellRestartOnEntry = useShowStore((state) => state.updateCellRestartOnEntry)
@@ -1382,6 +1386,42 @@ export function ShowEditor({
     ? findProfileForLiveController(controllerProfiles, activeController) ?? undefined
     : targetProfile
 
+  const requestDeleteClip = useCallback((
+    targetSelection: Extract<ShowSelection, { kind: 'clip' }>,
+    composition: ShowCompositionV1 | null | undefined,
+    owner: ShowTimelineClipOwner | null,
+    connectedDeletionConfirmed = false,
+  ): boolean => {
+    if (!activeShow || readOnly) return false
+    if (showRecordClipCount(activeShow) <= 1) {
+      reportBlockedDelete(showSelectionKey(targetSelection), LAST_CLIP_DELETE_FEEDBACK)
+      return true
+    }
+    if (!composition || !owner) {
+      reportBlockedDelete(showSelectionKey(targetSelection), UNAVAILABLE_CLIP_DELETE_FEEDBACK)
+      return true
+    }
+    if (
+      !connectedDeletionConfirmed
+      && showLayerTransitionsConnectedToClip(composition, owner.placementId).length > 0
+    ) {
+      setCompositionClipPendingDelete(owner)
+      return true
+    }
+    const deletion = deleteShowClipInShow(activeShow, composition, owner)
+    if (deletion.status !== 'applied') {
+      reportBlockedDelete(
+        blockedDeleteSelectionKey(composition, owner),
+        blockedDeleteCopyForRefusal(activeShow, deletion),
+      )
+      return true
+    }
+    closeDetailPanel()
+    closePinnedDetailForSelection(targetSelection)
+    updateShowInBackground(activeShow.id, { ...deletion.record, updatedAt: Date.now() })
+    return true
+  }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, reportBlockedDelete, updateShowInBackground])
+
   const requestDeleteSelection = useCallback((
     targetSelection: ShowSelection,
     visibleComposition?: ShowCompositionV1 | null,
@@ -1405,34 +1445,14 @@ export function ShowEditor({
       const legacyClipExists = Boolean(
         legacyClipId && activeShow.cells.some((cell) => cell.id === legacyClipId),
       )
-      if (!compositionOwner && !visibleCompositionOwner && !legacyClipExists) return false
-      if (showRecordClipCount(activeShow) <= 1) {
-        reportBlockedDelete(showSelectionKey(targetSelection), LAST_CLIP_DELETE_FEEDBACK)
-        return true
+      if (!compositionOwner && !visibleCompositionOwner && !legacyClipExists) {
+        return requestDeleteClip(targetSelection, null, null)
       }
-      if (compositionOwner && activeShow.composition) {
-        if (showLayerTransitionsConnectedToClip(activeShow.composition, targetSelection.clipId).length > 0) {
-          setCompositionClipPendingDelete(compositionOwner)
-          return true
-        }
-        const deletion = deleteShowClipInShow(activeShow, activeShow.composition, compositionOwner)
-        if (deletion.status !== 'applied') {
-          reportBlockedDelete(
-            blockedDeleteSelectionKey(activeShow.composition, compositionOwner),
-            blockedDeleteCopyForRefusal(activeShow, deletion),
-          )
-          return true
-        }
-        closeDetailPanel()
-        closePinnedDetailForSelection(targetSelection)
-        updateShowInBackground(activeShow.id, { ...deletion.record, updatedAt: Date.now() })
-        return true
-      }
-      if (!legacyClipExists) return false
-      closeDetailPanel()
-      closePinnedDetailForSelection(targetSelection)
-      void removeClip(activeShow.id, legacyClipId!)
-      return true
+      return requestDeleteClip(
+        targetSelection,
+        activeShow.composition ?? visibleComposition,
+        compositionOwner ?? visibleCompositionOwner,
+      )
     }
     if (targetSelection.kind === 'group') {
       if (!activeShow.composition?.groupOccurrences?.some((occurrence) => occurrence.id === targetSelection.occurrenceId)) return false
@@ -1452,7 +1472,7 @@ export function ShowEditor({
       return true
     }
     return false
-  }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, removeBoundaryTransition, removeClip, removeZone, reportBlockedDelete, setSelection, updateShowInBackground])
+  }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, removeBoundaryTransition, removeZone, requestDeleteClip, setSelection, updateShowInBackground])
   useEffect(() => {
     if (!blockedDeleteFeedback) return
     const timeout = window.setTimeout(() => setBlockedDeleteFeedback(null), 1100)
@@ -1591,7 +1611,13 @@ export function ShowEditor({
     }
     try {
       const projection = projectFlatShowToCompositionV1WithCellOrigins(activeShow, {
-        byCellId: Object.fromEntries(activeShow.cells.map((cell) => [cell.id, sourceForShowCell(cell, userPatterns)])),
+        byCellId: Object.fromEntries(activeShow.cells.map((cell) => {
+          const source = cell.pattern.kind === 'user'
+            ? userPatterns.find((pattern) => pattern.id === cell.pattern.id)?.src
+            : DEMOS[resolveStockPatternId(cell.pattern.id)]
+          if (source === undefined) throw new Error(`Pattern source unavailable for Clip ${cell.id}.`)
+          return [cell.id, source]
+        })),
         stageDimension,
       })
       return {
@@ -2917,9 +2943,14 @@ export function ShowEditor({
                   )}
                   onPatternCommit={returnFocusToTimelineSelection}
                   onRemoveClip={(clip) => {
-                    closeDetailPanel()
-                    closePinnedDetailForSelection({ kind: 'clip', clipId: clip.id })
-                    void removeClip(activeShow.id, clip.id)
+                    const placementId = Object.entries(
+                      timelineProjection?.sourceCellIdByPlacementId ?? {},
+                    ).find(([, sourceCellId]) => sourceCellId === clip.id)?.[0] ?? clip.id
+                    requestDeleteClip(
+                      { kind: 'clip', clipId: placementId },
+                      timelineComposition,
+                      findTimelineClipOwner(timelineComposition, placementId),
+                    )
                   }}
                   onUpdateAdaptations={(cell, changes) => void updateCellAdaptations(activeShow.id, cell.id, changes)}
                   onUpdateClipInspector={commitClipInspectorPatch}
@@ -2990,43 +3021,13 @@ export function ShowEditor({
                   }}
                   onRemoveCompositionClip={(owner) => {
                     if (!timelineComposition) return
-                    const timelineOwner: ShowTimelineClipOwner | null = owner.kind === 'scene-main'
-                      ? {
-                          kind: 'main',
-                          sceneId: owner.sceneId,
-                          zoneId: owner.zoneId,
-                          placementId: owner.placementId,
-                        }
-                      : owner.kind === 'scene-overlay'
-                        ? {
-                            kind: 'overlay',
-                            sceneId: owner.sceneId,
-                            zoneId: owner.zoneId,
-                            layerId: owner.layerId,
-                            placementId: owner.placementId,
-                          }
-                        : null
-                    if (timelineOwner && showLayerTransitionsConnectedToClip(timelineComposition, timelineOwner.placementId).length > 0) {
-                      setCompositionClipPendingDelete(timelineOwner)
-                      return
-                    }
-                    const deletion = timelineOwner
-                      ? deleteShowClipInShow(activeShow, timelineComposition, timelineOwner)
-                      : null
-                    if (deletion?.status !== 'applied') {
-                      if (deletion && timelineOwner) {
-                        reportBlockedDelete(
-                          blockedDeleteSelectionKey(timelineComposition, timelineOwner),
-                          blockedDeleteCopyForRefusal(activeShow, deletion),
-                        )
-                      }
-                      return
-                    }
-                    closeDetailPanel()
-                    if (timelineOwner) {
-                      closePinnedDetailForSelection({ kind: 'clip', clipId: timelineOwner.placementId })
-                    }
-                    updateShowInBackground(activeShow.id, { ...deletion.record, updatedAt: Date.now() })
+                    const timelineOwner = showTimelineOwnerForInspector(owner)
+                    if (!timelineOwner) return
+                    requestDeleteClip(
+                      { kind: 'clip', clipId: timelineOwner.placementId },
+                      timelineComposition,
+                      timelineOwner,
+                    )
                   }}
                   onDuplicateGroup={(occurrenceId) => {
                     if (!activeShow.composition) return
@@ -3244,24 +3245,12 @@ export function ShowEditor({
                 <AlertDialogAction
                   onClick={() => {
                     if (compositionClipPendingDelete && timelineComposition) {
-                      const deletion = deleteShowClipInShow(
-                        activeShow,
+                      requestDeleteClip(
+                        { kind: 'clip', clipId: compositionClipPendingDelete.placementId },
                         timelineComposition,
                         compositionClipPendingDelete,
+                        true,
                       )
-                      if (deletion.status === 'applied') {
-                        closeDetailPanel()
-                        closePinnedDetailForSelection({ kind: 'clip', clipId: compositionClipPendingDelete.placementId })
-                        updateShowInBackground(activeShow.id, {
-                          ...deletion.record,
-                          updatedAt: Date.now(),
-                        })
-                      } else {
-                        reportBlockedDelete(
-                          blockedDeleteSelectionKey(timelineComposition, compositionClipPendingDelete),
-                          blockedDeleteCopyForRefusal(activeShow, deletion),
-                        )
-                      }
                     }
                     setCompositionClipPendingDelete(null)
                   }}

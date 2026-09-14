@@ -26,6 +26,19 @@ async function captureIssue1023(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: join(captureOutput, name), fullPage: true })
 }
 
+async function createInstallationShow(page: Page): Promise<string> {
+  const addShow = page.getByRole('button', { name: 'Add show' })
+  const openShows = page.getByRole('button', { name: 'Open the Shows list' })
+  await expect(addShow.or(openShows).first()).toBeVisible()
+  if (await openShows.isVisible()) await openShows.click()
+  await addShow.click()
+  await page.getByRole('button', { name: 'New show' }).click()
+  await page.getByRole('button', { name: 'Create Installation Show' }).click()
+  await page.getByRole('button', { name: 'Create Show' }).click()
+  await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+$/)
+  return new URL(page.url()).pathname.split('/').at(-1)!
+}
+
 async function expectFeedbackFitsClip(page: Page, clipId: string): Promise<void> {
   const clip = page.locator(`[data-show-selection-key="clip:${clipId}"]`)
   const feedback = clip.getByTestId('show-clip-delete-blocked')
@@ -38,6 +51,93 @@ async function expectFeedbackFitsClip(page: Page, clipId: string): Promise<void>
   expect(boxes[1]!.x + boxes[1]!.width).toBeLessThanOrEqual(boxes[0]!.x + boxes[0]!.width + 1)
   expect(boxes[1]!.y + boxes[1]!.height).toBeLessThanOrEqual(boxes[0]!.y + boxes[0]!.height + 1)
 }
+
+test('repairs a fresh Show deletion and lets a replacement move into the former Transition (#1028)', async ({ page }) => {
+  const errors: string[] = []
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()) })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('studio/shows')
+  const showId = await createInstallationShow(page)
+  const original = await savedShow(page, showId)
+  expect(original.composition).toBeUndefined()
+
+  const firstClip = page.getByRole('button', { name: 'Select TestPattern1D', exact: true })
+  const secondStarterClip = page.getByRole('button', { name: 'Select CometLoom', exact: true })
+  await secondStarterClip.click()
+  await page.keyboard.press('Delete')
+
+  await expect.poll(async () => (await savedShow(page, showId)).transitions[0]?.kind).toBe('cut')
+  let repaired = await savedShow(page, showId)
+  expect(repaired.transitions[0]).toMatchObject({ id: 'transition-scene-1', kind: 'cut', durationMs: 0 })
+  expect(repaired.scenes.map((scene) => scene.durationMs)).toEqual([30_000, 32_000])
+  expect(projectShowTimeline(repaired)).toMatchObject({ durationMs: 62_000, transitions: [] })
+  expect(repaired.composition?.scenes[0].zones[0].main).toEqual([
+    expect.objectContaining({ id: 'placement-cell-1-scene-1', startMs: 0, durationMs: 30_000 }),
+  ])
+  expect(repaired.composition?.scenes[1].zones[0].main).toEqual([])
+  await expect(secondStarterClip).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Edit crossfade Transition/ })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Undo Show edit' }).click()
+  await expect.poll(async () => (await savedShow(page, showId)).transitions[0]?.kind).toBe('crossfade')
+  await expect(secondStarterClip).toBeVisible()
+  await page.getByRole('button', { name: 'Redo Show edit' }).click()
+  await expect.poll(async () => (await savedShow(page, showId)).transitions[0]?.kind).toBe('cut')
+  await expect(secondStarterClip).toHaveCount(0)
+
+  const playhead = page.getByRole('slider', { name: 'Show playhead' })
+  await playhead.fill('35000')
+  await page.getByRole('button', { name: 'Add to Show' }).click()
+  await page.getByRole('menuitem', { name: 'Clip', exact: true }).click()
+  const addDialog = page.getByRole('dialog', { name: 'Add Clip at playhead' })
+  await addDialog.getByRole('combobox', { name: 'Pattern for new Clip' }).click()
+  await page.getByRole('option', { name: 'Kishimisu', exact: true }).click()
+
+  const replacement = page.getByRole('button', { name: 'Select Kishimisu', exact: true })
+  await expect(replacement).toBeVisible()
+  await page.keyboard.press('Escape')
+  const [firstBounds, replacementBounds] = await Promise.all([
+    firstClip.boundingBox(),
+    replacement.boundingBox(),
+  ])
+  expect(firstBounds).not.toBeNull()
+  expect(replacementBounds).not.toBeNull()
+  await page.mouse.move(
+    replacementBounds!.x + replacementBounds!.width / 2,
+    replacementBounds!.y + replacementBounds!.height / 2,
+  )
+  await page.mouse.down()
+  await page.mouse.move(
+    firstBounds!.x + firstBounds!.width + replacementBounds!.width / 2,
+    replacementBounds!.y + replacementBounds!.height / 2,
+    { steps: 8 },
+  )
+  await expect(page.getByTestId('show-clip-move-preview')).toBeVisible()
+  await page.mouse.up()
+
+  await expect.poll(async () => {
+    const saved = await savedShow(page, showId)
+    if (!saved.composition) return null
+    return projectShowUnifiedTimeline(saved, saved.composition).zones
+      .flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
+      .find((clip) => clip.patternName === 'Kishimisu')?.startMs ?? null
+  }).toBe(30_000)
+  repaired = await savedShow(page, showId)
+  expect(projectShowTimeline(repaired)).toMatchObject({ durationMs: 62_000, transitions: [] })
+  await expect(page.getByRole('button', { name: 'Show End at 62 seconds' })).toBeVisible()
+  await expect.poll(async () => {
+    const [left, right] = await Promise.all([firstClip.boundingBox(), replacement.boundingBox()])
+    return left && right ? Math.abs(right.x - (left.x + left.width)) : Number.POSITIVE_INFINITY
+  }).toBeLessThanOrEqual(1.5)
+
+  await page.reload()
+  await expect(firstClip).toBeVisible()
+  await expect(replacement).toBeVisible()
+  await expect(page.getByRole('button', { name: /Edit crossfade Transition/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Show End at 62 seconds' })).toBeVisible()
+  await captureIssue1023(page, '1028-fresh-show-replacement-at-former-transition.png')
+  expect(errors).toEqual([])
+})
 
 test('deletes both starter Clips, exposes the former Transition time, and Clones into it (#1023)', async ({ page }) => {
   const show = boundaryClipDeletionFixture('boundary-delete-success-1023')

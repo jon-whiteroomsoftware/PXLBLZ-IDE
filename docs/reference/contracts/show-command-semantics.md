@@ -419,7 +419,12 @@ The canonical descriptor supplies the diagnostic invocation schema and touch
 inventory. Ordinary manual deletion and confirmed connected deletion call the
 same validated whole-Show owner, `deleteShowClipInShow`, which composes
 `deleteShowClipWithLayerTransitions` with boundary eligibility and the explicit
-time-preserving conversion. The existing connected confirmation remains the
+time-preserving conversion. Before manual deletion, an editor viewing a flat
+Show projects it to the canonical composition with resolved Pattern sources and
+adopts the repaired whole Show in the same save and history entry. Missing
+sources refuse deletion instead of guessing projection metadata. The legacy
+store `removeClip` helper remains a flat-model compatibility operation and is
+not a manual deletion owner. The existing connected confirmation remains the
 manual consent surface. Adoption, one-save history, and whole-Show revision
 admission retain their existing owners.
 
