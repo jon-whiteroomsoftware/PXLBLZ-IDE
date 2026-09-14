@@ -1,0 +1,632 @@
+{
+  "file": "four-layer.pxlshow",
+  "bytes": 2126,
+  "importer": "parseShowFileBundle (default product normalization)",
+  "showId": "bb57220f-e49d-4926-9ad4-3d5cd61f359b",
+  "loopDurationMs": 30000,
+  "sceneDurations": [
+    30000
+  ],
+  "clips": 4,
+  "instances": 4,
+  "tracks": 8,
+  "keyframes": 24,
+  "patternReferences": [
+    {
+      "kind": "stock",
+      "id": "CoronalMassEjection"
+    },
+    {
+      "kind": "stock",
+      "id": "CoronalMassEjection"
+    },
+    {
+      "kind": "stock",
+      "id": "CoronalMassEjection"
+    },
+    {
+      "kind": "stock",
+      "id": "CoronalMassEjection"
+    }
+  ],
+  "reopened": {
+    "id": "bb57220f-e49d-4926-9ad4-3d5cd61f359b",
+    "name": "1029 Four Layer proof",
+    "scenes": [
+      {
+        "id": "scene-1",
+        "name": "Scene 1",
+        "durationMs": 30000
+      }
+    ],
+    "zones": [
+      {
+        "id": "zone-1",
+        "name": "main",
+        "nominalPixelCount": 256,
+        "color": "#38bdf8"
+      }
+    ],
+    "cells": [
+      {
+        "id": "cell-1",
+        "zoneId": "zone-1",
+        "sceneId": "scene-1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "TestPattern1D"
+        },
+        "patternName": "TestPattern1D",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "layout-1",
+        "name": "Default",
+        "zones": [
+          {
+            "zoneId": "zone-1",
+            "ranges": [
+              {
+                "start": 0,
+                "end": 255
+              }
+            ]
+          }
+        ],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "zone-1"
+          ]
+        }
+      }
+    ],
+    "transitions": [],
+    "stageMapId": "plane",
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "updatedAt": 1789421998207,
+    "composition": {
+      "version": 1,
+      "durationMs": 30000,
+      "patternInstances": [
+        {
+          "id": "0a4997b2-002c-4fc7-a514-2418fbc66114",
+          "pattern": {
+            "kind": "stock",
+            "id": "CoronalMassEjection"
+          },
+          "patternName": "CoronalMassEjection",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "5763e3e8-a309-4abc-acd3-2bebd397baf2",
+          "pattern": {
+            "kind": "stock",
+            "id": "CoronalMassEjection"
+          },
+          "patternName": "CoronalMassEjection",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "5ec69a77-0ab3-41f0-9746-da0bc033c71c",
+          "pattern": {
+            "kind": "stock",
+            "id": "CoronalMassEjection"
+          },
+          "patternName": "CoronalMassEjection",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "f04821b9-82d5-4035-9d03-ee7361e0f5d0",
+          "pattern": {
+            "kind": "stock",
+            "id": "CoronalMassEjection"
+          },
+          "patternName": "CoronalMassEjection",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "scene-1",
+          "zones": [
+            {
+              "zoneId": "zone-1",
+              "main": [],
+              "overlays": [
+                {
+                  "id": "e0c2591b-bf0b-4385-812f-4ae3d565de0a",
+                  "name": "Layer 5",
+                  "placements": [
+                    {
+                      "id": "32ce2a01-e85b-40da-9be8-b0522359b35f",
+                      "instanceId": "5763e3e8-a309-4abc-acd3-2bebd397baf2",
+                      "startMs": 0,
+                      "durationMs": 30000,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "opacity": 1,
+                      "transform": {
+                        "positionX": -0.25,
+                        "positionY": -0.25,
+                        "rotation": 0,
+                        "scaleX": 0.5,
+                        "scaleY": 0.5
+                      },
+                      "viewport": {
+                        "enabled": true,
+                        "x": 0,
+                        "y": 0,
+                        "width": 0.5,
+                        "height": 0.5,
+                        "edge": "soft",
+                        "feather": 0.05
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "edfe09eb-b668-4f6a-bf7d-1e2005c7a88d",
+                  "name": "Layer 4",
+                  "placements": [
+                    {
+                      "id": "22504ffb-13df-49eb-af24-b957391fcf60",
+                      "instanceId": "5ec69a77-0ab3-41f0-9746-da0bc033c71c",
+                      "startMs": 0,
+                      "durationMs": 30000,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "opacity": 1,
+                      "transform": {
+                        "positionX": 0.25,
+                        "positionY": -0.25,
+                        "rotation": 0,
+                        "scaleX": 0.5,
+                        "scaleY": 0.5
+                      },
+                      "viewport": {
+                        "enabled": true,
+                        "x": 0.5,
+                        "y": 0,
+                        "width": 0.5,
+                        "height": 0.5,
+                        "edge": "soft",
+                        "feather": 0.05
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "dac5194d-2b31-46bd-994a-696ceac7c13c",
+                  "name": "Layer 3",
+                  "placements": [
+                    {
+                      "id": "8ecf284f-6282-4048-86a0-a3214c3ff1f5",
+                      "instanceId": "0a4997b2-002c-4fc7-a514-2418fbc66114",
+                      "startMs": 0,
+                      "durationMs": 30000,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "opacity": 1,
+                      "transform": {
+                        "positionX": 0.25,
+                        "positionY": 0.25,
+                        "rotation": 0,
+                        "scaleX": 0.5,
+                        "scaleY": 0.5
+                      },
+                      "viewport": {
+                        "enabled": true,
+                        "x": 0.5,
+                        "y": 0.5,
+                        "width": 0.5,
+                        "height": 0.5,
+                        "edge": "soft",
+                        "feather": 0.05
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "737bfc81-b5d3-406f-8bc3-9dda51c57332",
+                  "name": "Layer 2",
+                  "placements": [
+                    {
+                      "id": "6b1431ab-2496-4397-be0b-b8075a63da1d",
+                      "instanceId": "f04821b9-82d5-4035-9d03-ee7361e0f5d0",
+                      "startMs": 0,
+                      "durationMs": 30000,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "opacity": 1,
+                      "transform": {
+                        "positionX": -0.25,
+                        "positionY": 0.25,
+                        "rotation": 0,
+                        "scaleX": 0.5,
+                        "scaleY": 0.5
+                      },
+                      "viewport": {
+                        "enabled": true,
+                        "x": 0,
+                        "y": 0.5,
+                        "width": 0.5,
+                        "height": 0.5,
+                        "edge": "soft",
+                        "feather": 0.05
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "propertyTracks": [
+            {
+              "id": "2d4d7cd2-a96f-46d0-ae1b-655695f82f3e",
+              "target": {
+                "kind": "placement-viewport",
+                "placementId": "6b1431ab-2496-4397-be0b-b8075a63da1d",
+                "property": "y"
+              },
+              "keyframes": [
+                {
+                  "timeMs": 0,
+                  "value": 0.5,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "271a93e0-8503-4b50-8f07-7df051d22824"
+                },
+                {
+                  "timeMs": 15000,
+                  "value": 0,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "ea3766e3-090c-4ec8-bd78-6e6dfb862100"
+                },
+                {
+                  "timeMs": 30000,
+                  "value": 0.5,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "56ba7736-9a98-4a6d-9e8f-04c884247d29"
+                }
+              ]
+            },
+            {
+              "id": "4bcbc34b-2b26-43c8-bfc2-80f3cf9554ec",
+              "target": {
+                "kind": "placement-viewport",
+                "placementId": "22504ffb-13df-49eb-af24-b957391fcf60",
+                "property": "y"
+              },
+              "keyframes": [
+                {
+                  "timeMs": 0,
+                  "value": 0,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "6d90e2ef-3ad4-4a73-a7cc-f7657eebe1bc"
+                },
+                {
+                  "timeMs": 15000,
+                  "value": 0.5,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "0eb84d3c-ac6c-4172-b4bb-2ff63a233957"
+                },
+                {
+                  "timeMs": 30000,
+                  "value": 0,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "83e96fc5-90f2-4457-862c-ca61978392b5"
+                }
+              ]
+            },
+            {
+              "id": "7c8f8567-1e66-47f7-bc55-17c3891eda6c",
+              "target": {
+                "kind": "placement-transform",
+                "placementId": "32ce2a01-e85b-40da-9be8-b0522359b35f",
+                "property": "positionX"
+              },
+              "keyframes": [
+                {
+                  "timeMs": 0,
+                  "value": -0.25,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "384e9db5-92dc-4786-84d9-a72d50686c02"
+                },
+                {
+                  "timeMs": 15000,
+                  "value": 0.25,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "7534f09e-74e6-4915-b316-ff86733e064e"
+                },
+                {
+                  "timeMs": 30000,
+                  "value": -0.25,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "80581d12-fe40-4887-804b-705f8109b04b"
+                }
+              ]
+            },
+            {
+              "id": "88a71f3c-6020-4ce0-b752-765d8a5aa614",
+              "target": {
+                "kind": "placement-transform",
+                "placementId": "22504ffb-13df-49eb-af24-b957391fcf60",
+                "property": "positionY"
+              },
+              "keyframes": [
+                {
+                  "timeMs": 0,
+                  "value": -0.25,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "e926d940-ea92-48b6-a3e1-566caeb542f0"
+                },
+                {
+                  "timeMs": 15000,
+                  "value": 0.25,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "3772ff34-ec82-49c9-872e-84345c1c180d"
+                },
+                {
+                  "timeMs": 30000,
+                  "value": -0.25,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "e3a91a4a-8d7c-45da-8e85-23941468f0ca"
+                }
+              ]
+            },
+            {
+              "id": "c52fbd52-5428-42aa-a4c3-f004e04f9b53",
+              "target": {
+                "kind": "placement-transform",
+                "placementId": "6b1431ab-2496-4397-be0b-b8075a63da1d",
+                "property": "positionY"
+              },
+              "keyframes": [
+                {
+                  "timeMs": 0,
+                  "value": 0.25,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "49d0ecbf-4d4d-4d54-b3c6-81ae65023a2b"
+                },
+                {
+                  "timeMs": 15000,
+                  "value": -0.25,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "c019cc33-0f10-4759-8d37-aeff89cf63b1"
+                },
+                {
+                  "timeMs": 30000,
+                  "value": 0.25,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "529564ba-c599-4512-ba3d-849623676b3c"
+                }
+              ]
+            },
+            {
+              "id": "df32be61-8020-438c-9dfa-8d6e58601f53",
+              "target": {
+                "kind": "placement-transform",
+                "placementId": "8ecf284f-6282-4048-86a0-a3214c3ff1f5",
+                "property": "positionX"
+              },
+              "keyframes": [
+                {
+                  "timeMs": 0,
+                  "value": 0.25,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "ae41b9a1-af69-4095-9fe8-fca559697556"
+                },
+                {
+                  "timeMs": 15000,
+                  "value": -0.25,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "41efcd0c-0e64-49dc-9093-30edcf830d4c"
+                },
+                {
+                  "timeMs": 30000,
+                  "value": 0.25,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "df778f19-32b6-4b50-96ed-7c6a24c8f423"
+                }
+              ]
+            },
+            {
+              "id": "e66cde1f-28a4-4942-9039-910a2b24f9a4",
+              "target": {
+                "kind": "placement-viewport",
+                "placementId": "32ce2a01-e85b-40da-9be8-b0522359b35f",
+                "property": "x"
+              },
+              "keyframes": [
+                {
+                  "timeMs": 0,
+                  "value": 0,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "fc1e9f98-d5af-4d66-8f49-22fc212074a8"
+                },
+                {
+                  "timeMs": 15000,
+                  "value": 0.5,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "9174954f-2ad1-4283-9bcb-5a9e1ee68805"
+                },
+                {
+                  "timeMs": 30000,
+                  "value": 0,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "15d932be-e122-4b1b-a4d2-a165c41d4a1f"
+                }
+              ]
+            },
+            {
+              "id": "f497fafd-edec-42bf-a2fe-a69fbe4d2cb9",
+              "target": {
+                "kind": "placement-viewport",
+                "placementId": "8ecf284f-6282-4048-86a0-a3214c3ff1f5",
+                "property": "x"
+              },
+              "keyframes": [
+                {
+                  "timeMs": 0,
+                  "value": 0.5,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "1c42d406-8ffd-4927-a5a6-bcb4d352fd60"
+                },
+                {
+                  "timeMs": 15000,
+                  "value": 0,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "8c7067b3-98f8-4e35-8769-fea5e8da4f40"
+                },
+                {
+                  "timeMs": 30000,
+                  "value": 0.5,
+                  "easing": {
+                    "curve": "linear"
+                  },
+                  "id": "bb6abbdb-00f0-437f-8d08-aad5f544003a"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "previewAndArtifactCompile": true,
+  "epe": {
+    "file": "four-layer.epe",
+    "name": "1029 Four Layer proof",
+    "sourceBytes": 39636,
+    "stamp": {
+      "version": 1,
+      "kind": "show",
+      "id": "bb57220f-e49d-4926-9ad4-3d5cd61f359b",
+      "name": "1029 Four Layer proof",
+      "hash": "cf004a7d",
+      "stamped": "2026-09-14T21:39:58.207Z",
+      "transforms": [
+        "show"
+      ],
+      "preferredMap": {
+        "kind": "stock",
+        "id": "plane",
+        "name": "Square"
+      },
+      "compatibility": {
+        "portability": "adaptive",
+        "dimensions": [
+          2
+        ],
+        "mapClasses": [
+          "surface"
+        ],
+        "resolution": "adaptive",
+        "exactMap": false
+      },
+      "showOutputContract": {
+        "version": 1,
+        "kind": "portable-2d",
+        "dimensions": [
+          2
+        ],
+        "mapClasses": [
+          "surface"
+        ],
+        "resolution": "variable"
+      }
+    },
+    "hashVerified": true
+  }
+}

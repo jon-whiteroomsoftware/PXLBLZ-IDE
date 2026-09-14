@@ -1,0 +1,28 @@
+{
+  "capturedAtCommit": "a8863539d2d70f30be41f86c98e28224a2a7e8cf",
+  "saved": {
+    "end30": true,
+    "compileError": false
+  },
+  "undo": {
+    "restored62": true,
+    "pastEmpty": true
+  },
+  "redo": {
+    "restored30": true,
+    "futureEmpty": true
+  },
+  "reload": {
+    "end30": true,
+    "compileError": false
+  },
+  "fadeRefusal": {
+    "unchanged62": true,
+    "undoDisabled": true
+  },
+  "manual": {
+    "end30": true,
+    "keyboardCommit": true
+  },
+  "consoleErrors": []
+}

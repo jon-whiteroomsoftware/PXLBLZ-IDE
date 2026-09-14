@@ -1,0 +1,320 @@
+{
+  "operation_id": "1029-visual-refusal",
+  "refused": {
+    "code": "refused",
+    "issues": [
+      {
+        "code": "unsupported-topology",
+        "message": "Set Show End to 32000 ms would remove Scene \"scene-2\", but Boundary \"transition-scene-1\" is a 2000 ms crossfade to that Scene.",
+        "remedy": "Reset that Boundary to Cut with set_boundary_transition, then set Show End again, or choose an end that keeps its destination Scene positive.",
+        "candidates": [
+          "transition-scene-1",
+          "scene-2"
+        ]
+      }
+    ]
+  },
+  "outcome": {
+    "code": "outcome",
+    "receipt": {
+      "request": {
+        "operationId": "f5aec13c-d65e-40c4-8a7a-0e693b774478:1029-visual-refusal",
+        "showId": "7171b45e-c9fd-407c-be4a-0373a20a3cfb",
+        "baseRevision": 1
+      },
+      "status": "completed",
+      "completion": "refused"
+    }
+  },
+  "before": {
+    "id": "7171b45e-c9fd-407c-be4a-0373a20a3cfb",
+    "name": "1029 Meaningful fade proof",
+    "scenes": [
+      {
+        "id": "scene-1",
+        "name": "Scene 1",
+        "durationMs": 30000
+      },
+      {
+        "id": "scene-2",
+        "name": "Scene 2",
+        "durationMs": 30000
+      }
+    ],
+    "zones": [
+      {
+        "id": "zone-1",
+        "name": "main",
+        "nominalPixelCount": 256,
+        "color": "#38bdf8"
+      }
+    ],
+    "cells": [
+      {
+        "id": "cell-1",
+        "zoneId": "zone-1",
+        "sceneId": "scene-1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "TestPattern1D"
+        },
+        "patternName": "TestPattern1D",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "layout-1",
+        "name": "Default",
+        "zones": [
+          {
+            "zoneId": "zone-1",
+            "ranges": [
+              {
+                "start": 0,
+                "end": 255
+              }
+            ]
+          }
+        ],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "zone-1"
+          ]
+        }
+      }
+    ],
+    "transitions": [
+      {
+        "id": "transition-scene-1",
+        "afterSceneId": "scene-1",
+        "kind": "crossfade",
+        "durationMs": 2000,
+        "easing": {
+          "curve": "linear"
+        },
+        "crossfadePolicy": "snapshot-live"
+      }
+    ],
+    "stageMapId": "plane",
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "updatedAt": 1789420225638,
+    "composition": {
+      "version": 1,
+      "patternInstances": [
+        {
+          "id": "cell-1",
+          "pattern": {
+            "kind": "stock",
+            "id": "TestPattern1D"
+          },
+          "patternName": "TestPattern1D",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "scene-1",
+          "zones": [
+            {
+              "zoneId": "zone-1",
+              "main": [
+                {
+                  "id": "placement-cell-1-scene-1",
+                  "instanceId": "cell-1",
+                  "startMs": 0,
+                  "durationMs": 30000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        },
+        {
+          "sceneId": "scene-2",
+          "zones": [
+            {
+              "zoneId": "zone-1",
+              "main": [],
+              "overlays": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "after": {
+    "id": "7171b45e-c9fd-407c-be4a-0373a20a3cfb",
+    "name": "1029 Meaningful fade proof",
+    "scenes": [
+      {
+        "id": "scene-1",
+        "name": "Scene 1",
+        "durationMs": 30000
+      },
+      {
+        "id": "scene-2",
+        "name": "Scene 2",
+        "durationMs": 30000
+      }
+    ],
+    "zones": [
+      {
+        "id": "zone-1",
+        "name": "main",
+        "nominalPixelCount": 256,
+        "color": "#38bdf8"
+      }
+    ],
+    "cells": [
+      {
+        "id": "cell-1",
+        "zoneId": "zone-1",
+        "sceneId": "scene-1",
+        "sceneSpan": 1,
+        "pattern": {
+          "kind": "stock",
+          "id": "TestPattern1D"
+        },
+        "patternName": "TestPattern1D",
+        "adaptations": {
+          "mirror": false,
+          "phase": 0,
+          "brightness": 1,
+          "timeScale": 1
+        },
+        "restartOnEntry": false
+      }
+    ],
+    "routingLayouts": [
+      {
+        "id": "layout-1",
+        "name": "Default",
+        "zones": [
+          {
+            "zoneId": "zone-1",
+            "ranges": [
+              {
+                "start": 0,
+                "end": 255
+              }
+            ]
+          }
+        ],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "zone-1"
+          ]
+        }
+      }
+    ],
+    "transitions": [
+      {
+        "id": "transition-scene-1",
+        "afterSceneId": "scene-1",
+        "kind": "crossfade",
+        "durationMs": 2000,
+        "easing": {
+          "curve": "linear"
+        },
+        "crossfadePolicy": "snapshot-live"
+      }
+    ],
+    "stageMapId": "plane",
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "updatedAt": 1789420225638,
+    "composition": {
+      "version": 1,
+      "patternInstances": [
+        {
+          "id": "cell-1",
+          "pattern": {
+            "kind": "stock",
+            "id": "TestPattern1D"
+          },
+          "patternName": "TestPattern1D",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "scene-1",
+          "zones": [
+            {
+              "zoneId": "zone-1",
+              "main": [
+                {
+                  "id": "placement-cell-1-scene-1",
+                  "instanceId": "cell-1",
+                  "startMs": 0,
+                  "durationMs": 30000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": []
+            }
+          ]
+        },
+        {
+          "sceneId": "scene-2",
+          "zones": [
+            {
+              "zoneId": "zone-1",
+              "main": [],
+              "overlays": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "providerUnchanged": true
+}

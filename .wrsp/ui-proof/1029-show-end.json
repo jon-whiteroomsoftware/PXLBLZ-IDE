@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1029",
+  "route": "/PXLBLZ-IDE/studio/shows/bb57220f-e49d-4926-9ad4-3d5cd61f359b",
+  "operation": "On code commit a8863539d2d70f30be41f86c98e28224a2a7e8cf, the coordinator used the real synthetic OAuth MCP route to replace the restored baseline with four independently animated Coronal Mass Ejection Layers and set Show End to exactly 30 seconds; save, Undo, keyboard Redo, reload, preview compilation, and both downloaded artifacts succeeded. Separate real routes showed a stable refusal for a 32-second end that would discard a meaningful fade and a keyboard-entered manual Cut shortening from 60 to 30 seconds.",
+  "captures": [
+    ".wrsp/ui-proof/1029-saved.jpg",
+    ".wrsp/ui-proof/1029-reopened.jpg",
+    ".wrsp/ui-proof/1029-refused.jpg",
+    ".wrsp/ui-proof/1029-manual.jpg"
+  ],
+  "capturedAtCommit": "a8863539d2d70f30be41f86c98e28224a2a7e8cf"
+}
