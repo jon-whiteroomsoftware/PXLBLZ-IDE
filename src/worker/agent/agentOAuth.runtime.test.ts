@@ -310,7 +310,7 @@ it('routes authenticated canonical MCP calls and confirms editing retirement onl
   expect(connected.result.structuredContent.code).toBe('bound')
   const bindingId = connected.result.structuredContent.binding_id
   const identity = { binding_id: bindingId, operation_id: 'operation' }
-  expect(await (await rpc('read_show', { binding_id: 'old-binding' })).json()).toMatchObject({ result: { structuredContent: { code: 'no_live_editor' } } })
+  expect(await (await rpc('read_show', { binding_id: 'old-binding' })).json()).toMatchObject({ result: { structuredContent: { code: 'binding_moved', show_id: showId } } })
   expect(await (await rpc('begin_edit', { ...identity, delivery_id: 'forged', sequence: 0, accountId: 'github:456' })).json()).toMatchObject({ result: { isError: true } })
   const begin = rpc('begin_edit', { ...identity, delivery_id: 'begin', sequence: 0, intent: 'Rename' })
   const received = await (await channel({ type: 'receive', ...own })).json() as { deliveries: { operationId: string; deliveryId: string; payload: unknown }[] }
@@ -351,6 +351,10 @@ it('routes authenticated canonical MCP calls and confirms editing retirement onl
   await channel({ type: 'leave', ...own })
 }, 10_000)
 it('moves one live external binding between authorized Show editors with fresh identities', async () => {
+  const suiteRuntime = runtime
+  const movementRuntime = new Miniflare(runtimeOptions())
+  runtime = movementRuntime
+  try {
   const tokens = await authorized()
   const channel = (body: object) => runtime.dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Cookie: cookie, Origin: 'https://app.test', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   const mcp = (method: string, params?: object) => runtime.dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json', 'MCP-Protocol-Version': '2025-11-25' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params ? { params } : {}) }) })
@@ -433,6 +437,10 @@ it('moves one live external binding between authorized Show editors with fresh i
   expect(await (await channel({ type: 'leave', ...first })).json()).toEqual({ code: 'retired' })
   await channel({ type: 'disconnect', ...second, bindingId: fourthBinding })
   await channel({ type: 'leave', ...second })
+  } finally {
+    await movementRuntime.dispose()
+    runtime = suiteRuntime
+  }
 }, 10_000)
 it('local Forget revokes only the grant attached to the exact owning window', async () => {
   const tokens = await authorized()

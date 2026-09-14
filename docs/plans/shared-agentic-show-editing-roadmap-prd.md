@@ -196,18 +196,23 @@ truth for the UX requirements that #946, #947 and #956 consume.
 - No arbitrary-code, raw-document-patch, device Run/Save or hardware-control escape hatch exists
   on either agent path. The finite command census and the three contracts remain the boundary.
 - Identity and target authorization are separate: OAuth identifies account and client; Connect
-  from the intended Show arms the target window. The accepted design has no pairing code, and
-  provider credentials never serve as connection credentials.
+  from the intended Show arms an initial target window. An existing external binding is visible
+  passively in other authorized Show editors and moves only after explicit Reconnect or Bring
+  agent here. The accepted design has no pairing code, and provider credentials never serve as
+  connection credentials.
 
 ### Accepted connection behaviour and remaining UX work
 
 Jon accepted #959's D1–D10 behaviour decisions on 2026-09-06. Manual editing continues while
 one agent connection, built-in or external, is bound to one window and Show. A second agent
-is refused; built-in and external agents are not simultaneously active. Leaving the Show,
-reload, tab closure, release, revocation or stale expiry ends the binding and retires unapplied
-requests. Disconnect and Forget are available in the bound window in v1. Cross-window recovery is deferred to #1002 and is not a v1.9 release gate. An HTTP stream ending
-alone is not cancellation or release. Reconnect requires an explicit Connect from the intended
-Show and never replays prior work.
+is refused; built-in and external agents are not simultaneously active. A delivered leave,
+Disconnect, Forget, release, revocation or stale expiry ends the binding and retires unapplied
+requests. A dropped or delayed leave can leave the external binding available for explicit
+Reconnect in another editor of the same Show or Bring agent here in a different Show. Opening a
+Show never moves a binding automatically. Built-in takeover, grant-only discovery and broader
+cross-window recovery remain deferred to #1002 and are not a v1.9 release gate. An HTTP stream
+ending alone is not cancellation or release. Movement never replays old work and promises no
+outcome for an edit already in flight in the old binding envelope.
 
 Identity grants, credentials, logical connections, editor bindings and edit requests have
 separate lifetimes. A stable operation id supports deduplication and outcome lookup; an unknown

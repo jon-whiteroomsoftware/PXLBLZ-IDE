@@ -76,12 +76,14 @@ it('serializes simultaneous external claims and competing Answers on the actual 
   const poll = await (await requestAs('account-b', { type: 'poll', showId: 'show-b', sessionId: 'b-one', registrationId: first.registrationId })).json() as { connection: { callId: string } }
   const answers = await Promise.all([[first, 'b-one'], [second, 'b-two']].map(async ([registration, sessionId]) => {
     const response = await requestAs('account-b', { type: 'answer', showId: 'show-b', sessionId, registrationId: (registration as { registrationId: string }).registrationId, callId: poll.connection.callId })
-    return response.json() as Promise<{ code: string; connection: { kind: string; bindingId?: string } }>
+    return response.json() as Promise<{ code: string; connection: Record<string, unknown> & { kind: string; bindingId?: string } }>
   }))
   expect(answers.map((answer) => answer.code).sort()).toEqual(['bound', 'occupied'])
-  expect(answers.find((answer) => answer.code === 'occupied')?.connection).not.toHaveProperty('bindingId')
   const loser = answers[0].code === 'occupied' ? [first, 'b-one'] : [second, 'b-two']
   const winner = answers.find((answer) => answer.code === 'bound')!
+  const occupied = answers.find((answer) => answer.code === 'occupied')!.connection
+  expect(occupied).toMatchObject({ kind: 'external-bound', relation: 'same-show', bindingId: winner.connection.bindingId })
+  for (const privateField of ['agentId', 'callId', 'registrationId', 'sessionId']) expect(occupied).not.toHaveProperty(privateField)
   const denied = await requestAs('account-b', { type: 'disconnect', showId: 'show-b', sessionId: loser[1], registrationId: (loser[0] as { registrationId: string }).registrationId, bindingId: winner.connection.bindingId })
   expect(await denied.json()).toEqual({ code: 'not_bound_here' })
 })

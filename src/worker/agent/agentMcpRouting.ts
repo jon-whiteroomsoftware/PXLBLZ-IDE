@@ -63,7 +63,7 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
       if (resolved.claim.bindingId !== bindingId) return { result: moved(resolved), resolved }
       return { identity: resolved.claim, resolved }
     }
-    return { result: { code: resolved.code === 'retirement_unconfirmed' ? resolved.code : 'no_live_editor', ...notice(resolved) }, resolved }
+    return { result: { code: 'no_live_editor', ...notice(resolved) }, resolved }
   }
   const server = new McpServer({ name: 'PXLBLZ Agent', version: '0.2.0' }, { instructions: `Call get_connection and Answer in the open Show editor. read_show/get_context read that editor. begin_edit captures one immutable private Show; canonical commands mutate only that candidate. commit_edit requests validation/adoption and may return waiting or saving. Query get_outcome for the authoritative receipt. Never replay a timed-out command; retain operation and delivery identities. New binding requires new operation IDs. ${SHOW_AUTHORING_SERVER_INTRO}` })
   const output = (result: PrivateEditResult) => ({ content: [{ type: 'text' as const, text: JSON.stringify(result) }], structuredContent: result })

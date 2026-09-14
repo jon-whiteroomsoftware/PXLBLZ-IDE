@@ -52,8 +52,8 @@ beforeAll(async () => {
     d1Databases: ['PXLBLZ_DB'], durableObjects: { AGENT_ACCOUNTS: { className: 'AgentAccount', useSQLite: true }, AGENT_ALLOWANCE: { className: 'AgentAllowance', useSQLite: true } },
   }))
   const db = await runtime.getD1Database('PXLBLZ_DB')
-  await db.exec('CREATE TABLE personal_shows (user_id TEXT, id TEXT); CREATE TABLE identities (user_id TEXT, provider TEXT, provider_user_id TEXT, handle TEXT, email TEXT, email_verified INTEGER)')
-  await db.prepare('INSERT INTO personal_shows VALUES (?, ?)').bind('account-open', showId).run()
+  await db.exec('CREATE TABLE personal_shows (user_id TEXT, id TEXT, name TEXT); CREATE TABLE identities (user_id TEXT, provider TEXT, provider_user_id TEXT, handle TEXT, email TEXT, email_verified INTEGER)')
+  await db.prepare('INSERT INTO personal_shows VALUES (?, ?, ?)').bind('account-open', showId, 'Runtime proof').run()
   const registered = await channel('account-open', { type: 'register', sessionId: windowIdentity.sessionId, showId })
   const body = await registered.json() as { code: string; registrationId: string }
   expect(body.code).toBe('registered')
