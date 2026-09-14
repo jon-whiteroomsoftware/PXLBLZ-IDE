@@ -8,7 +8,7 @@ import { DEMOS } from '@/pixelblaze/stock/patterns'
 import {
   applyFourLayerShowEndCommandSequence,
   fourLayerShowEndBaseFixture,
-} from '@/test/showCommandFixture'
+} from '@/test/fourLayerShowEndCommandFixture'
 import { showInitialState, useShowStore } from './showStore'
 
 function providerFor(show: ShowRecord) {

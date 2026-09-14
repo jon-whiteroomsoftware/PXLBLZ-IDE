@@ -12,7 +12,7 @@ import { LIBRARIES } from '../pixelblaze/libs'
 import {
   applyFourLayerShowEndCommandSequence,
   fourLayerShowEndBaseFixture,
-} from '../test/showCommandFixture'
+} from '../test/fourLayerShowEndCommandFixture'
 
 const SOURCE_A = 'export function render(index) { rgb(1, 0, 0) }'
 const SOURCE_B = 'export function render(index) { rgb(0, 0, 1) }'
