@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "issue": "1031",
+  "route": "/PXLBLZ-IDE/studio/shows/6ef5fccb-5e59-4e10-bca8-2dffce5687c0",
+  "operation": "The coordinator captured and visually inspected these images with the Codex in-app browser against the managed isolated localhost:5212 runtime at the exact code tip. A real synthetic OAuth/MCP binding in Solar Tides appeared passively in Northern Lights with the named cross-Show subtitle and Bring agent here action. The explicit move produced a fresh binding; the next MCP response named the new Show and instructed a connection/context refresh, while an old-binding read returned binding_moved. A fresh editor for the same Show exposed Reconnect and completed it by keyboard. Desktop 1280x720 and narrow 390x844 views preserve row alignment and the nominal connected green dot. A fresh begin_edit, rename_show, and commit_edit reached applied/saved get_outcome; reload showed the saved title and, after delivered leave, the ordinary no-binding chooser. The old Solar Show record was deep-equal before and after. Built-in selection without inference displayed the same connected dot. No browser console errors were observed. These captures were made by the coordinator through the in-app browser, not by an implementation worker.",
+  "captures": [
+    ".wrsp/ui-proof/1031-bring-agent-here.jpg",
+    ".wrsp/ui-proof/1031-builtin-connected.jpg",
+    ".wrsp/ui-proof/1031-external-connected.jpg",
+    ".wrsp/ui-proof/1031-narrow-connected.jpg",
+    ".wrsp/ui-proof/1031-narrow-reconnect.jpg",
+    ".wrsp/ui-proof/1031-reconnect.jpg",
+    ".wrsp/ui-proof/1031-saved-reopened.jpg"
+  ],
+  "capturedAtCommit": "9bf4ecc7b10653ea2c533721364a0080f39c6c2c"
+}
