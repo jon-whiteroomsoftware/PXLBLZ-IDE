@@ -1189,11 +1189,13 @@ remaining clipped by the vertical timeline pane (#63).
 `showExactTimelineMarker.ts` owns shared
 Marker edits; legacy timeline helpers forward to it. The
 [command contract](contracts/show-command-semantics.md) defines that boundary.
-`showTimelineAuthoring.ts` owns non-destructive Show End changes and Insert Time (extends the
-containing scene, splits crossing placements, shifts later content, holds
-crossing animation; refuses inside Transitions and inside value-changing
-nonlinear segments rather than silently reshaping a curve). Markers never
-affect rendering.
+`showTimelineAuthoring.ts` owns Show End changes and Insert Time. Show End may
+prune a composition-empty trailing Scene suffix across ordinary Cuts while
+keeping the retained Scene positive; it refuses before discarding meaningful
+visual or routing Boundaries or any Scene-owned content. Insert Time extends the
+containing Scene, splits crossing placements, shifts later content, holds crossing
+animation, and refuses inside Transitions and inside value-changing nonlinear
+segments rather than silently reshaping a curve. Markers never affect rendering.
 
 **Property lanes.** `showPropertyLaneProjection.ts` projects authored tracks
 into truthful sparkline geometry, disclosed only when a value actually

@@ -3,9 +3,9 @@
 import { newPersonalContentId } from '../personalContentMetadata'
 import { showLoopDurationMs } from '../showModel'
 import {
+  editShowEndMs,
   insertShowTime,
   planShowTimeInsertion,
-  setShowEndMs,
 } from '../showTimelineAuthoring'
 import { editShowMarkerExactly, type ShowMarkerRequest } from '../showExactTimelineMarker'
 import type { ShowRecord } from '../personalContentRecords'
@@ -58,30 +58,43 @@ const setShowEnd: ShowCommandDescriptor = {
   name: 'set_show_end',
   description:
     'Set the Show\'s loop boundary (Show End) in global milliseconds. Content is never truncated: the ' +
-    'boundary clamps to the end of the last clip. Refused when nothing would change.',
-  touches: ['/scenes/*/durationMs', '/composition/durationMs', '/updatedAt'],
+    'boundary clamps to the end of the last clip and may remove composition-empty trailing Scenes across Cuts. ' +
+    'Refused when meaningful boundary choreography would be removed or nothing would change.',
+  touches: ['/scenes', '/scenes/*/durationMs', '/cells', '/transitions', '/composition/scenes', '/composition/durationMs', '/updatedAt'],
   fields: {
     end_ms: { kind: 'number', description: 'Requested Show End in milliseconds' },
   },
   apply(record, input) {
-    const result = setShowEndMs(record, input.end_ms as number)
-    if (result === record) {
+    const result = editShowEndMs(record, input.end_ms as number)
+    if (result.status === 'refused') {
+      return refuseShowCommand({
+        code: result.code === 'invalid-input' ? 'invalid-argument' : result.code,
+        message: result.reason,
+        ...(result.remedy ? { remedy: result.remedy } : {}),
+        ...(result.blockerIds ? { candidates: result.blockerIds } : {}),
+      })
+    }
+    if (result.status === 'noop') {
       return refuseShowCommand({
         code: 'no-change',
-        message:
-          `Show End is already ${showLoopDurationMs(record)} ms, or the request was invalid ` +
-          '(it clamps to the end of the last clip and never truncates content).',
+        message: result.code === 'content-clamped'
+          ? `Show End remains ${result.actualEndMs} ms because content ends there and is never truncated.`
+          : `Show End is already ${result.actualEndMs} ms.`,
       })
     }
     return {
       ok: true,
-      record: result,
+      record: result.record,
       changes: [{
         command: 'set_show_end',
         targetId: 'show-end',
         before: { durationMs: showLoopDurationMs(record) },
-        after: { durationMs: showLoopDurationMs(result) },
-        description: `Show End is now ${showLoopDurationMs(result)} ms.`,
+        after: { durationMs: result.actualEndMs },
+        description: `Show End is now ${result.actualEndMs} ms.`,
+        details: {
+          removedSceneIds: result.removedSceneIds,
+          contentClamped: result.contentClamped,
+        },
       }],
     }
   },

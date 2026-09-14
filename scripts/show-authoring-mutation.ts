@@ -69,6 +69,7 @@ type ShowAuthoringOperation =
   | 'transition'
   | 'animation-track'
   | 'animation-edit'
+  | 'show-end'
   | 'bulk'
 
 interface MutationTarget {
@@ -83,6 +84,24 @@ export interface ResolvedMutationTarget extends MutationTarget {
 }
 
 const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
+  target(
+    'show-end',
+    'showTimelineAuthoring.ts',
+    'editShowEndMs',
+    'const durationMs = Math.max(contentEndMs, requestedMs)',
+  ),
+  target(
+    'show-end',
+    'showTimelineAuthoring.ts',
+    'editShowEndMs',
+    'const removedScenes = show.scenes.slice(retainedSceneIndex + 1)',
+  ),
+  target(
+    'show-end',
+    'showTimelineAuthoring.ts',
+    'showEndSuffixIssue',
+    'if (visual[0] && !isNeutralCut(visual[0])) {',
+  ),
   target(
     'bulk',
     'showTimelineClipAuthoring.ts',
@@ -316,6 +335,7 @@ export function buildStrykerConfig(repoRoot: string) {
       'src/engine/showCommands/clipProperties.test.ts',
       'src/engine/showClipInspectorModel.test.ts',
       'src/engine/showLayerTransitionAuthoring.test.ts',
+      'src/engine/showTimelineAuthoring.test.ts',
       'src/engine/showCommands/animationExpansion.test.ts',
       'src/engine/showCommands/bulkAuthoring.test.ts',
       'src/engine/showCommands/bulkAuthoring.partitions.test.ts',

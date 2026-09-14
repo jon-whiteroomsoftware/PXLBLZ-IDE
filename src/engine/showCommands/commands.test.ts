@@ -8,6 +8,7 @@ import * as providers from '../controllerProviderRegistry'
 import {
   boundaryFreeInstanceTrackedFixture,
   boundaryFreeTrackedFixture,
+  emptyCutSuffixCommandFixture,
   showCommandFixture,
   showOutputLayoutFixture,
   singleClipCommandFixture,
@@ -663,6 +664,14 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
   set_show_end: () => {
     const { record } = applyOk(showCommandFixture(), 'set_show_end', { end_ms: 70_000 })
     expect(showLoopDurationMs(record)).toBe(70_000)
+
+    const pruned = applyOk(emptyCutSuffixCommandFixture(), 'set_show_end', { end_ms: 30_000 })
+    expect(pruned.record.scenes.map((scene) => scene.id)).toEqual(['scene-1'])
+    expect(pruned.record.composition?.scenes.map((scene) => scene.sceneId)).toEqual(['scene-1'])
+    expect(pruned.record.cells.map((cell) => cell.id)).toEqual(['cell-1'])
+    expect(pruned.record.transitions).toEqual([])
+    expect(pruned.changes[0].details).toEqual({ removedSceneIds: ['scene-2'], contentClamped: false })
+    expect(showLoopDurationMs(pruned.record)).toBe(30_000)
   },
   add_marker: () => {
     const { record, changes } = applyOk(showCommandFixture(), 'add_marker', {
@@ -1252,6 +1261,20 @@ describe('Show command refusal partitions (#885)', () => {
     applyRefused(showCommandFixture(), 'set_show_end', { end_ms: 62_000 }, 'no-change')
   })
 
+  it('set_show_end refuses when exact shortening would discard a visual Boundary', () => {
+    const before = showCommandFixture()
+    const original = structuredClone(before)
+
+    const issues = applyRefused(before, 'set_show_end', { end_ms: 32_000 }, 'unsupported-topology')
+
+    expect(issues[0]).toMatchObject({
+      message: expect.stringContaining('2000 ms crossfade'),
+      remedy: expect.stringContaining('set_boundary_transition'),
+      candidates: ['transition-scene-1', 'scene-2'],
+    })
+    expect(before).toEqual(original)
+  })
+
   it('marker commands refuse an unknown marker with candidates', () => {
     const issues = applyRefused(showCommandFixture(), 'move_marker', { marker_id: 'nope', at_ms: 0 }, 'unknown-marker')
     expect(issues[0].candidates).toEqual(['marker-1'])
@@ -1653,6 +1676,7 @@ function permittedEntityIds({ command, input, changes, before }: AppliedRecord):
     for (const key of ['movedClipIds', 'changedClipIds', 'directClipIds', 'linkedClipIds', 'changedInstanceIds']) {
       for (const id of (change.details?.[key] as string[] | undefined) ?? []) add(id)
     }
+    for (const id of (change.details?.removedSceneIds as string[] | undefined) ?? []) add(id)
     for (const repair of (change.details?.boundaryRepairs as Array<{
       transitionId: string
       destinationSceneId: string
@@ -1771,7 +1795,24 @@ function permittedEntityIds({ command, input, changes, before }: AppliedRecord):
   if (['insert_layer_transition', 'resize_layer_transition', 'reset_layer_transition_to_cut'].includes(command)) {
     for (const transition of before.transitions) if (selected.some(item => item.sceneId === transition.afterSceneId)) add(transition.id)
   }
-  if (command === 'set_show_end' || (command === 'add_clip' && input.extend_show)) add(before.scenes[before.scenes.length - 1]?.id)
+  if (command === 'set_show_end') {
+    add(before.scenes[before.scenes.length - 1]?.id)
+    const removedSceneIds = new Set(changes.flatMap((change) => (
+      change.details?.removedSceneIds as string[] | undefined
+    ) ?? []))
+    const firstRemovedIndex = before.scenes.findIndex((scene) => removedSceneIds.has(scene.id))
+    if (firstRemovedIndex >= 0) {
+      for (const cell of before.cells) if (removedSceneIds.has(cell.sceneId)) add(cell.id)
+      for (const transition of before.transitions) {
+        const boundaryIndex = before.scenes.findIndex((scene) => scene.id === transition.afterSceneId)
+        if (boundaryIndex >= firstRemovedIndex - 1) add(transition.id)
+      }
+      for (const scene of composition.scenes) if (removedSceneIds.has(scene.sceneId)) {
+        for (const zone of scene.zones) for (const layer of zone.overlays) add(layer.id)
+      }
+    }
+  }
+  if (command === 'add_clip' && input.extend_show) add(before.scenes[before.scenes.length - 1]?.id)
   if (command === 'insert_time') {
     const atMs = input.at_ms as number
     const ranges = projectShowSummary(before, composition).scenes

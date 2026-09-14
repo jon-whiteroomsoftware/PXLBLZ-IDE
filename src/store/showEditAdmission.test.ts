@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import { createDefaultShow } from '@/engine/showModel'
+import { applyShowCommand } from '@/engine/showCommands/registry'
+import { buildShowFileBundle, parseShowFileBundle } from '@/engine/showFileBundle'
+import { validateShowAuthoring } from '@/engine/showAuthoringValidation'
 import { setPersonalContentProvider, resetPersonalContentProvider, type PersonalContentProvider } from '@/engine/personalContentProvider'
 import type { ShowRecord } from '@/engine/personalContentRecords'
+import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { showCommandFixture } from '@/test/showCommandFixture'
 import { showInitialState, useShowStore } from './showStore'
 
 function providerFor(show: ShowRecord) {
@@ -134,6 +139,135 @@ it('adopts once synchronously, records one complete history step and joins dupli
   expect(state().showHistories[show.id]).toEqual({ past: before.histories[show.id].past, future: adopted.shows })
   await state().redoShow(show.id)
   const redone = state().resolveEditableShow(show.id)!
+  await state().loadShows()
+  expect(state().resolveEditableShow(show.id)).toEqual(redone)
+})
+
+it('admits, saves, undoes, redoes and reopens the exact four-Layer Show End transaction (#1029)', async () => {
+  const show = showCommandFixture()
+  for (const instance of show.composition!.patternInstances) {
+    instance.pattern = { kind: 'stock', id: 'CometLoom' }
+    instance.patternName = 'Comet Loom'
+  }
+  show.composition!.scenes[0].zones[0].main = show.composition!.scenes[0].zones[0].main
+    .filter(placement => placement.id === 'clip-a')
+  show.composition!.scenes[1].zones[0].main = [{
+    id: 'clip-scene-2',
+    instanceId: 'instance-b',
+    startMs: 0,
+    durationMs: 30_000,
+    view: { mirror: false, phase: 0, brightness: 1 },
+  }]
+  show.composition!.scenes[1].zones[0].overlays = [{
+    id: 'overlay-2', name: 'Overlay 1', placements: [],
+  }]
+  const provider = providerFor(show)
+  await state().loadShows()
+  const before = structuredClone(state().resolveEditableShow(show.id)!)
+  const session = state().beginShowEditSession(show.id)
+  const pending = state().beginShowEdit(session, {
+    operationId: 'four-layer-show-end',
+    payloadKey: 'four-layer-show-end',
+    referenceContext: 'current Show',
+    targets: [],
+  })
+
+  const admittedCandidate = ((current: ShowRecord) => {
+    let candidate = current
+    const apply = (command: string, input: Record<string, unknown>) => {
+      const outcome = applyShowCommand(candidate, command, input, {
+        source: ref => DEMOS[ref.id],
+        libraries: {},
+      })
+      if (!outcome.ok) throw new Error(JSON.stringify(outcome.issues))
+      candidate = outcome.record
+      return outcome
+    }
+    const corners = [[-0.25, -0.25], [0.25, -0.25], [0.25, 0.25], [-0.25, 0.25]] as const
+    const created = apply('create_layers', {
+      schema_version: 1,
+      layers: corners.map(([x, y]) => ({
+        zone_id: 'zone-1',
+        clips: [{
+          start_ms: 0,
+          duration_ms: 30_000,
+          pattern: { kind: 'stock', id: 'CoronalMassEjection' },
+          properties: {
+            transform: { position_x: x, position_y: y, scale_x: 0.5, scale_y: 0.5 },
+            aperture: { enabled: true, x: x + 0.25, y: y + 0.25, width: 0.5, height: 0.5, edge: 'soft', feather: 0.05 },
+          },
+        }],
+      })),
+    })
+    const layerResults = created.changes[0].details?.layers as Array<{
+      clipResults: Array<{ clipId: string }>
+    }>
+    const clipIds = layerResults.map(layer => layer.clipResults[0].clipId)
+    const originalClipIds = [...new Set(current.composition!.scenes.flatMap(scene => (
+      scene.zones.flatMap(zone => [
+        ...zone.main,
+        ...zone.overlays.flatMap(layer => layer.placements),
+      ])
+    )).map(placement => placement.logicalClipId ?? placement.id))]
+    for (const clip_id of originalClipIds) {
+      apply('remove_clip', { clip_id })
+    }
+    apply('remove_overlay_layer', {
+      zone_id: 'zone-1',
+      layer_index: 4,
+    })
+    apply('set_show_end', { end_ms: 30_000 })
+    for (let index = 0; index < clipIds.length; index += 1) {
+      const axis = index % 2
+      const next = corners[(index + 1) % corners.length][axis]
+      for (const owner of ['transform', 'viewport'] as const) {
+        const offset = owner === 'viewport' ? 0.25 : 0
+        const coordinate = axis === 0 ? 'x' : 'y'
+        const target = owner === 'viewport'
+          ? `viewport-${coordinate}`
+          : `transform-position-${coordinate}`
+        apply('add_property_track', {
+          clip_id: clipIds[index],
+          target,
+          keyframes: [
+            { time_ms: 0, value: corners[index][axis] + offset, easing: 'linear' },
+            { time_ms: 15_000, value: next + offset, easing: 'linear' },
+            { time_ms: 30_000, value: corners[index][axis] + offset, easing: 'linear' },
+          ],
+        })
+      }
+    }
+    return candidate
+  })(before)
+
+  const receipt = state().admitShowEdit(pending.request, () => admittedCandidate, candidate => {
+    const validation = validateShowAuthoring(candidate, { source: ref => DEMOS[ref.id] })
+    return validation.valid
+  })
+
+  expect(receipt, JSON.stringify(receipt)).toMatchObject({ status: 'applied', settlement: 'saving' })
+  await vi.waitFor(() => expect(state().readShowEdit(session, pending.request.operationId)?.settlement).toBe('saved'))
+  const accepted = structuredClone(state().resolveEditableShow(show.id)!)
+  const composition = accepted.composition!
+  const tracks = composition.scenes.flatMap(scene => scene.propertyTracks ?? [])
+  expect(accepted.scenes.map(scene => [scene.id, scene.durationMs])).toEqual([['scene-1', 30_000]])
+  expect(composition.durationMs).toBe(30_000)
+  expect(composition.patternInstances).toHaveLength(4)
+  expect(composition.scenes[0].zones[0].overlays).toHaveLength(4)
+  expect(tracks).toHaveLength(8)
+  expect(tracks.flatMap(track => track.keyframes)).toHaveLength(24)
+  expect(provider.records.get(show.id)).toEqual(accepted)
+  expect(state().showHistories[show.id].past).toEqual([before])
+
+  await state().undoShow(show.id)
+  expect(state().resolveEditableShow(show.id)).toEqual({ ...before, updatedAt: expect.any(Number) })
+  await state().redoShow(show.id)
+  const redone = structuredClone(state().resolveEditableShow(show.id)!)
+  expect(redone).toEqual({ ...accepted, updatedAt: expect.any(Number) })
+
+  const { bundle } = buildShowFileBundle(redone, { patterns: [], maps: [] }, { appVersion: '1029-test' })
+  const reopened = await parseShowFileBundle(new TextEncoder().encode(JSON.stringify(bundle)))
+  expect(reopened.show).toEqual(redone)
   await state().loadShows()
   expect(state().resolveEditableShow(show.id)).toEqual(redone)
 })

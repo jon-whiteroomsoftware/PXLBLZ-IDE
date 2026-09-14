@@ -3,6 +3,7 @@ import { createDefaultShow, showLoopDurationMs } from './showModel'
 import { projectFlatShowToCompositionV1 } from './showCompositionModel'
 import {
   addShowTimelineMarker,
+  editShowEndMs,
   insertShowTime,
   moveShowTimelineMarker,
   planShowTimeInsertion,
@@ -25,6 +26,242 @@ function showWithComposition() {
 }
 
 describe('Show timeline authoring', () => {
+  it('sets an exact Show End by pruning a composition-empty Scene across a Cut', () => {
+    const show = showWithComposition()
+    show.transitions = [{
+      id: 'transition-scene-1',
+      afterSceneId: 'scene-1',
+      kind: 'cut',
+      durationMs: 0,
+      easing: { curve: 'linear' },
+    }]
+    show.composition!.scenes[1].zones.forEach((zone) => {
+      zone.main = []
+      zone.overlays = [{ id: 'empty-layer', name: 'Empty', placements: [] }]
+    })
+    show.composition!.markers = [{ id: 'later-guide', timeMs: 90_000, name: 'Later' }]
+    const before = structuredClone(show)
+
+    const result = editShowEndMs(show, 30_000)
+
+    expect(result.status).toBe('applied')
+    if (result.status !== 'applied') return
+    expect(result.removedSceneIds).toEqual(['scene-2'])
+    expect(result.record.scenes.map((scene) => [scene.id, scene.durationMs])).toEqual([['scene-1', 30_000]])
+    expect(result.record.composition?.scenes.map((scene) => scene.sceneId)).toEqual(['scene-1'])
+    expect(result.record.cells.map((cell) => cell.id)).toEqual(['cell-1'])
+    expect(result.record.transitions).toEqual([])
+    expect(result.record.composition?.durationMs).toBe(30_000)
+    expect(result.record.composition?.markers).toEqual(show.composition!.markers)
+    expect(showLoopDurationMs(result.record)).toBe(30_000)
+    expect(show).toEqual(before)
+  })
+
+  it('refuses an exact end that would discard a meaningful fade to an empty Scene', () => {
+    const show = showWithComposition()
+    show.composition!.scenes[1].zones.forEach((zone) => {
+      zone.main = []
+      zone.overlays = []
+    })
+    const before = structuredClone(show)
+
+    const result = editShowEndMs(show, 32_000)
+
+    expect(result).toMatchObject({
+      status: 'refused',
+      code: 'unsupported-topology',
+      record: show,
+      blockerIds: ['transition-scene-1', 'scene-2'],
+    })
+    if (result.status === 'refused') {
+      expect(result.reason).toContain('2000 ms crossfade')
+      expect(result.reason).toContain('Scene "scene-2"')
+    }
+    expect(show).toEqual(before)
+  })
+
+  it('refuses to prune a fade destination at the outgoing Scene edge', () => {
+    const show = showWithComposition()
+    show.composition!.scenes[1].zones.forEach((zone) => {
+      zone.main = []
+      zone.overlays = []
+    })
+
+    const result = editShowEndMs(show, 30_000)
+
+    expect(result).toMatchObject({
+      status: 'refused',
+      code: 'unsupported-topology',
+      blockerIds: ['transition-scene-1', 'scene-2'],
+    })
+  })
+
+  it('keeps a positive final Scene when Show End is just after its start', () => {
+    const show = showWithComposition()
+    show.transitions = [{
+      id: 'transition-scene-1',
+      afterSceneId: 'scene-1',
+      kind: 'cut',
+      durationMs: 0,
+      easing: { curve: 'linear' },
+    }]
+    show.composition!.scenes[1].zones.forEach((zone) => {
+      zone.main = []
+      zone.overlays = []
+    })
+
+    const result = editShowEndMs(show, 30_001)
+
+    expect(result.status).toBe('applied')
+    if (result.status !== 'applied') return
+    expect(result.removedSceneIds).toEqual([])
+    expect(result.record.scenes.map((scene) => scene.durationMs)).toEqual([30_000, 1])
+    expect(showLoopDurationMs(result.record)).toBe(30_001)
+  })
+
+  it('prunes multiple empty Scenes and clamps only flat cells that cross the removed suffix', () => {
+    const show = showWithComposition()
+    show.transitions = [{
+      id: 'transition-scene-1', afterSceneId: 'scene-1', kind: 'cut', durationMs: 0,
+      easing: { curve: 'linear' },
+    }, {
+      id: 'transition-scene-2', afterSceneId: 'scene-2', kind: 'cut', durationMs: 0,
+      easing: { curve: 'linear' },
+    }]
+    show.cells[0].sceneSpan = 3
+    show.scenes.push({ id: 'scene-3', name: 'Scene 3', durationMs: 30_000 })
+    show.cells.push({ ...structuredClone(show.cells[1]), id: 'cell-3', sceneId: 'scene-3' })
+    show.composition!.scenes.push({
+      ...structuredClone(show.composition!.scenes[1]),
+      sceneId: 'scene-3',
+    })
+    show.composition!.scenes.slice(1).forEach((scene) => {
+      scene.zones.forEach((zone) => {
+        zone.main = []
+        zone.overlays = []
+      })
+    })
+
+    const result = editShowEndMs(show, 30_000)
+
+    expect(result.status).toBe('applied')
+    if (result.status !== 'applied') return
+    expect(result.removedSceneIds).toEqual(['scene-2', 'scene-3'])
+    expect(result.record.cells).toEqual([{ ...show.cells[0], sceneSpan: 1 }])
+    expect(result.record.transitions).toEqual([])
+    expect(showLoopDurationMs(result.record)).toBe(30_000)
+  })
+
+  it('does not normalize unrelated flat-cell spans when no Scene is pruned', () => {
+    const show = showWithComposition()
+    show.cells[0].sceneSpan = 99
+
+    const result = editShowEndMs(show, 70_000)
+
+    expect(result.status).toBe('applied')
+    if (result.status !== 'applied') return
+    expect(result.removedSceneIds).toEqual([])
+    expect(result.record.cells).toBe(show.cells)
+    expect(result.record.cells[0].sceneSpan).toBe(99)
+  })
+
+  it('uses cause-specific remedies for routing and Scene-owned suffix blockers', () => {
+    const routing = showWithComposition()
+    routing.transitions = [{
+      id: 'transition-scene-1', afterSceneId: 'scene-1', kind: 'cut', durationMs: 0,
+      easing: { curve: 'linear' },
+    }, {
+      id: 'routing-scene-1', afterSceneId: 'scene-1', kind: 'routing', durationMs: 0,
+      easing: { curve: 'linear' }, layoutId: 'layout-1',
+    }]
+    routing.composition!.scenes[1].zones.forEach((zone) => {
+      zone.main = []
+      zone.overlays = []
+    })
+    const routed = editShowEndMs(routing, 30_000)
+    expect(routed).toMatchObject({
+      status: 'refused',
+      code: 'unsupported-topology',
+      blockerIds: ['routing-scene-1', 'scene-2'],
+    })
+    if (routed.status === 'refused') {
+      expect(routed.remedy).toContain('routing Boundary')
+      expect(routed.remedy).not.toContain('set_boundary_transition')
+    }
+
+    const owned = showWithComposition()
+    owned.transitions = [{
+      id: 'transition-scene-1', afterSceneId: 'scene-1', kind: 'cut', durationMs: 0,
+      easing: { curve: 'linear' },
+    }]
+    owned.composition!.scenes[1].zones.forEach((zone) => {
+      zone.main = []
+      zone.overlays = []
+    })
+    owned.scenes[1].routingTargets = { splitPosition: 0.25 }
+    const blocked = editShowEndMs(owned, 30_000)
+    expect(blocked).toMatchObject({
+      status: 'refused',
+      code: 'unsupported-topology',
+      blockerIds: ['scene-2', 'scene-2:routingTargets'],
+    })
+    if (blocked.status === 'refused') {
+      expect(blocked.remedy).toContain('remove its authored content explicitly')
+      expect(blocked.remedy).not.toContain('set_boundary_transition')
+    }
+  })
+
+  it.each([
+    {
+      label: 'Scene-local animation track',
+      blockerIds: ['scene-2', 'suffix-track'],
+      own: (show: ReturnType<typeof showWithComposition>) => {
+        show.composition!.scenes[1].propertyTracks = [{
+          id: 'suffix-track',
+          target: { kind: 'instance-time-scale', instanceId: show.composition!.patternInstances[0].id },
+          keyframes: [
+            { id: 'suffix-key-1', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+            { id: 'suffix-key-2', timeMs: 1_000, value: 0.5, easing: { curve: 'linear' } },
+          ],
+        }]
+      },
+    },
+    {
+      label: 'Group occurrence',
+      blockerIds: ['scene-2', 'suffix-group'],
+      own: (show: ReturnType<typeof showWithComposition>) => {
+        show.composition!.groupDefinitions = [{
+          id: 'empty-group', name: 'Empty group', patternInstances: [], placements: [],
+        }]
+        show.composition!.groupOccurrences = [{
+          id: 'suffix-group', definitionId: 'empty-group', sceneId: 'scene-2', zoneId: 'zone-1',
+          startMs: 0, baseLayer: 0, translationX: 0, translationY: 0,
+        }]
+      },
+    },
+  ])('refuses to prune a suffix that owns a $label', ({ blockerIds, own }) => {
+    const show = showWithComposition()
+    show.transitions = [{
+      id: 'transition-scene-1', afterSceneId: 'scene-1', kind: 'cut', durationMs: 0,
+      easing: { curve: 'linear' },
+    }]
+    show.composition!.scenes[1].zones.forEach((zone) => {
+      zone.main = []
+      zone.overlays = []
+    })
+    own(show)
+    const before = structuredClone(show)
+
+    const result = editShowEndMs(show, 30_000)
+
+    expect(result).toMatchObject({
+      status: 'refused',
+      code: 'unsupported-topology',
+      blockerIds,
+    })
+    expect(show).toEqual(before)
+  })
+
   it('persists an explicit Show End while keeping the internal final interval aligned', () => {
     const show = showWithComposition()
 

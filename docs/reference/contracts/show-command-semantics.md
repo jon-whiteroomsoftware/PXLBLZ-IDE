@@ -600,7 +600,8 @@ private service/transaction sequences remain in the same test file.
 Add Clip, make Pattern independent, rejoin Pattern instance, Insert Time and
 Set Show End use that same descriptor adapter. Timeline receipts retain stable targets: `at-<rounded milliseconds>`
 for Insert Time and `show-end` for Set Show End. The latter includes `before`
-and `after` duration values reflecting the actual clamped result. Add and independence retain
+and `after` duration values reflecting the actual clamped result, plus removed
+Scene ids and whether authored content clamped the request. Add and independence retain
 caller-local fresh IDs. Fresh instances take their former lexical insertion
 position on ordered input without reordering existing siblings. Add preserves
 optional-field presence through the validated authored-edit helper. Rejoin
@@ -610,8 +611,19 @@ including preserving unrelated explicitly empty track arrays.
 Insert Time and Set Show End validate their results without whole-composition
 normalization. Insertion orders newly created hold keys within the affected
 curve and places each fresh split half beside its source; unrelated track and
-instance order remain authored. Existing millisecond rounding, duration clamping,
-Transition/Group refusal and Show End no-change refusal remain unchanged.
+instance order remain authored. Set Show End may remove one or more trailing
+Scenes only when every removed Scene is composition-empty and every removed
+Boundary is an ordinary Cut. It removes those Scenes and their flat compatibility
+cells together, clamps a retained flat cell only when its span crossed the removed
+suffix, and leaves Pattern instances, Markers and other unrelated authored fields
+unchanged. Every retained Scene keeps a positive safe-integer duration.
+
+A request that would remove meaningful visual choreography, routing, a Group
+occurrence, Scene-local track, placement, routing target or sample target refuses
+atomically with `unsupported-topology` and blocker ids. Visual-boundary refusals
+explain that the user may explicitly reset that Boundary to Cut; other blockers
+receive remedies for their own owner. Existing millisecond rounding, authored-
+content clamping, Transition/Group refusal and Show End no-change behavior remain.
 The shared rows cover manual/canonical/diagnostic parity and identity collisions;
 `AC951`, `IC951`, `RJ951`, `IT951` and `SE951` in the existing admission table
 cover saved records, file reopen, Undo and stale/duplicate delivery.

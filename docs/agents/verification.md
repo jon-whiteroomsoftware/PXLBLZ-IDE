@@ -984,6 +984,7 @@ testing into a second full suite:
 | Transition | Insert validation and resize-delta arithmetic preserve a valid composition |
 | Animation track | Shortcut mapping, instance ownership, and post-rounding key-time uniqueness |
 | Animation edit | Batch limits, preimage reference uniqueness, final validation, and no-op identity |
+| Show End | Authored-content clamping, exact empty-suffix pruning, and meaningful-Boundary refusal |
 | Bulk Clip/Layer authoring | Final-state collision admission, materialized-to-authored Layer identity, atomic property refusal, nested omission, shared-instance conflicts, and distinct-path summary deduplication |
 
 The wrapper fails closed when the runner cannot start, omits or malforms its

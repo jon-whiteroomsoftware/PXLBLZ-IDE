@@ -84,6 +84,21 @@ export function showCommandFixture(): ShowRecord {
   return { ...base, composition }
 }
 
+/** Empty trailing Scene behind an explicit Cut, eligible for exact Show End pruning. */
+export function emptyCutSuffixCommandFixture(): ShowRecord {
+  const record = showCommandFixture()
+  return {
+    ...record,
+    transitions: [{
+      id: 'transition-scene-1',
+      afterSceneId: 'scene-1',
+      kind: 'cut',
+      durationMs: 0,
+      easing: { curve: 'linear' },
+    }],
+  }
+}
+
 /** The fixture with a brightness track on clip-b and a speed track on instance-a. */
 export function trackedCommandFixture(): ShowRecord {
   const record = showCommandFixture()

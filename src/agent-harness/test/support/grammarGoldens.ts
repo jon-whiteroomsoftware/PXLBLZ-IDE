@@ -630,6 +630,23 @@ export const GOLDEN_RUNS: Record<string, () => void> = {
     const { document: next } = applyOk(document, 'set_show_end', { end_ms: 70_000 })
     expect(showLoopDurationMs(next.show)).toBe(70_000)
     expect(next.show.scenes[1].durationMs).toBe(40_000)
+
+    const emptySuffix = fixture({ emptySecondScene: true })
+    emptySuffix.show.cells.push({
+      ...structuredClone(emptySuffix.show.cells[0]),
+      id: 'compatibility-cell-s2',
+      sceneId: 's2',
+    })
+    emptySuffix.show.transitions = [{
+      id: 'cut-s1', afterSceneId: 's1', kind: 'cut', durationMs: 0,
+      easing: { curve: 'linear' },
+    }]
+    const { document: shortened } = applyOk(emptySuffix, 'set_show_end', { end_ms: 30_000 })
+    expect(showLoopDurationMs(shortened.show)).toBe(30_000)
+    expect(shortened.show.scenes.map(scene => scene.id)).toEqual(['s1'])
+    expect(shortened.show.cells.map(cell => cell.id)).toEqual(['c1'])
+    expect(shortened.show.transitions).toEqual([])
+    expect(shortened.show.composition!.scenes.map(scene => scene.sceneId)).toEqual(['s1'])
   },
   add_marker: () => {
     const document = fixture()

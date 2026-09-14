@@ -43,7 +43,7 @@ import { createScriptedAgent, runUtterance } from '../bridge/service'
 import { runToolRound } from '../experiment/turn'
 import { createSessionStore } from '../grammar/session'
 import { duplicateShowClipEffect, moveShowClipEffectWithinStage, updateShowClipEffectParameter } from '@/engine/showEffectAuthoring'
-import { showOutputLayoutFixture } from '@/test/showCommandFixture'
+import { emptyCutSuffixCommandFixture, showOutputLayoutFixture } from '@/test/showCommandFixture'
 import { updateShowZone } from '@/engine/showModel'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { setShowOutputTrails } from '@/engine/showOutputEffectAuthoring'
@@ -784,6 +784,25 @@ const PARITY_ROWS: ParityRow[] = [
     expectedFacts: (before, after) => { expect(after.scenes[1].durationMs).toBe(38000); expect(after.composition!.scenes).toStrictEqual(before.composition!.scenes) },
     refusals: [{ end_ms: 62000 }, { end_ms: NaN }, { end_ms: 70000, extra: true }, {}],
   },
+  {
+    command: 'set_show_end', args: { end_ms: 30000 }, fixture: () => {
+      const show = emptyCutSuffixCommandFixture()
+      for (const instance of show.composition!.patternInstances) {
+        instance.pattern = { kind: 'stock', id: 'CometLoom' }
+        instance.patternName = 'Comet Loom'
+      }
+      return show
+    },
+    manualOwner: show => setShowEndMs(show, 30000),
+    expectedFacts: (before, after) => {
+      expect(after.scenes.map(scene => scene.id)).toEqual(['scene-1'])
+      expect(after.cells.map(cell => cell.id)).toEqual(['cell-1'])
+      expect(after.transitions).toEqual([])
+      expect(after.composition!.scenes.map(scene => scene.sceneId)).toEqual(['scene-1'])
+      expect(after.composition!.patternInstances).toStrictEqual(before.composition!.patternInstances)
+      expect(after.composition!.markers).toStrictEqual(before.composition!.markers)
+    },
+  },
   ...[false, true].flatMap(overlay => [7999, 8000].map((durationMs): ParityRow => ({
     command: 'resize_clip', args: { clip_id: 'a', duration_ms: durationMs }, fixture: () => fixture(overlay).show,
     manualOwner: show => resizeShowClipManually(show, show.composition!, { clipId: 'a', durationMs }).composition,
@@ -1015,8 +1034,8 @@ it.each(['add_clip', 'make_clip_pattern_independent', 'insert_time'])('%s refuse
 
 it.each([
   { command: 'insert_time', args: { at_ms: 29000.4, duration_ms: 1000 }, targetId: 'at-29000', description: '1000 ms inserted at 29000 ms.', details: { splitClipIdsBySourceId: {} } },
-  { command: 'set_show_end', args: { end_ms: 70000.4 }, targetId: 'show-end', description: 'Show End is now 70000 ms.', before: { durationMs: 62000 }, after: { durationMs: 70000 } },
-  { command: 'set_show_end', args: { end_ms: 1 }, targetId: 'show-end', description: 'Show End is now 34000 ms.', before: { durationMs: 62000 }, after: { durationMs: 34000 } },
+  { command: 'set_show_end', args: { end_ms: 70000.4 }, targetId: 'show-end', description: 'Show End is now 70000 ms.', before: { durationMs: 62000 }, after: { durationMs: 70000 }, details: { removedSceneIds: [], contentClamped: false } },
+  { command: 'set_show_end', args: { end_ms: 1 }, targetId: 'show-end', description: 'Show End is now 34000 ms.', before: { durationMs: 62000 }, after: { durationMs: 34000 }, details: { removedSceneIds: [], contentClamped: true } },
 ])('$command preserves its serialized timeline receipt', ({ command, args, ...expected }) => {
   const opened = openShowDocument(showOverlayLayerFixture())
   if (!opened.ok) throw new Error('fixture')
