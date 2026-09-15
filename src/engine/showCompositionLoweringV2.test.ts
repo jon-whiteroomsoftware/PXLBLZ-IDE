@@ -12,6 +12,7 @@ import { LIBRARIES } from '../pixelblaze/libs'
 import type { MapPoint } from './maps/types'
 
 const SOURCE = 'export var calls = 0; export function beforeRender(delta) { calls = calls + 1 } export function render(index) { rgb(index / pixelCount, 0.25, 0.75) }'
+const STATEFUL_SOURCE = 'export var calls = 0; export var elapsed = 0; export function beforeRender(delta) { calls = calls + 1; elapsed = elapsed + delta / 1000 } export function render(index) { rgb(elapsed, calls / 100, index / pixelCount) }'
 const OUT_SOURCE = 'export var calls = 0; export function beforeRender(delta) { calls = calls + 1 } export function render2D(index, x, y) { rgb(1, x * 0.25, y * 0.25) }'
 const IN_SOURCE = 'export var calls = 0; export function beforeRender(delta) { calls = calls + 1 } export function render2D(index, x, y) { rgb(x * 0.25, y * 0.25, 1) }'
 const MAP: MapPoint[] = Array.from({ length: 8 }, (_, index) => ({
@@ -114,12 +115,17 @@ describe('lowerShowCompositionV2ForCompile', () => {
   })
 
   it.each([
-    ['shared Continue identity', false, 1],
-    ['fresh Restart identity', true, 2],
-  ] as const)('preserves flat %s through projection, global lowering, and both runtimes', (_name, restartSecond, expectedInstances) => {
+    { name: 'shared Continue identity', restartSecond: false, expectedInstances: 1, fidelity: 'fast' },
+    { name: 'shared Continue identity', restartSecond: false, expectedInstances: 1, fidelity: 'fidelity' },
+    { name: 'fresh Restart identity', restartSecond: true, expectedInstances: 2, fidelity: 'fast' },
+    { name: 'fresh Restart identity', restartSecond: true, expectedInstances: 2, fidelity: 'fidelity' },
+  ] as const)('preserves flat $name through projection, global lowering, and $fidelity runtime', ({ restartSecond, expectedInstances, fidelity }) => {
     const source = flatV1Show(restartSecond)
+    source.scenes.push({ id: 'scene-c', name: 'Finale', durationMs: 500 })
+    source.cells[source.cells.length - 1].sceneSpan = restartSecond ? 2 : 3
+    const original = structuredClone(source)
     const flatLookup: ShowCompileRecipeSourceLookup = {
-      byCellId: restartSecond ? { 'cell-a': SOURCE, 'cell-b': SOURCE } : { 'cell-a': SOURCE },
+      byCellId: restartSecond ? { 'cell-a': STATEFUL_SOURCE, 'cell-b': STATEFUL_SOURCE } : { 'cell-a': STATEFUL_SOURCE },
     }
     const converted = convertShowRecordV1ToV2(source, flatLookup)
     expect(converted.status).toBe('converted')
@@ -127,19 +133,83 @@ describe('lowerShowCompositionV2ForCompile', () => {
     expect(converted.record.composition.patternInstances).toHaveLength(expectedInstances)
     const v2Lookup = {
       byCellId: {},
-      byPatternInstanceId: Object.fromEntries(converted.record.composition.patternInstances.map(instance => [instance.id, SOURCE])),
+      byPatternInstanceId: Object.fromEntries(converted.record.composition.patternInstances.map(instance => [instance.id, STATEFUL_SOURCE])),
     }
     const lowered = lowerShowCompositionV2ForCompile(converted.record, v2Lookup)
     const v1 = compileShow(showRecordToCompileRecipe(source, flatLookup), LIBRARIES)
     const v2 = compileShow(showRecordToCompileRecipe(lowered.show, lowered.lookup), LIBRARIES)
-    for (const fidelity of ['fast', 'fidelity'] as const) {
-      const left = replay(v1, fidelity)
-      const right = replay(v2, fidelity)
-      expect(freeze(right.renderCurrentFrame()).frame).toEqual(freeze(left.renderCurrentFrame()).frame)
-      for (const atMs of [499, 500, 501, 999, 1_001]) {
-        const options = { stepMs: 16, forceFullIntermediateRender: true }
-        expect(freeze(right.advanceTo(atMs, options)).frame).toEqual(freeze(left.advanceTo(atMs, options)).frame)
+    expect(source).toEqual(original)
+    expect(v2.summary.clips.map(member => member.id)).toEqual(v1.summary.clips.map(member => member.id))
+    expect(v2.summary.clips).toHaveLength(expectedInstances)
+
+    const left = replay(v1, fidelity)
+    const right = replay(v2, fidelity)
+    expect(freeze(right.renderCurrentFrame())).toEqual(freeze(left.renderCurrentFrame()))
+    for (const atMs of [499, 500, 501, 999, 1_000, 1_001, 1_499]) {
+      const options = { stepMs: 16, forceFullIntermediateRender: true }
+      const leftFrame = freeze(left.advanceTo(atMs, options))
+      const rightFrame = freeze(right.advanceTo(atMs, options))
+      expect(rightFrame.frame).toEqual(leftFrame.frame)
+      for (const member of v1.summary.clips) {
+        const rightMember = v2.summary.clips.find(candidate => candidate.id === member.id)
+        expect(rightMember).toBeTruthy()
+        for (const name of ['calls', 'elapsed']) {
+          expect(rightFrame.exports[`${rightMember!.prefix}_${name}`]).toEqual(leftFrame.exports[`${member.prefix}_${name}`])
+        }
       }
+    }
+  })
+
+  it.each([
+    { name: 'Freeze presentation', patch: { presentation: { mode: 'freeze' as const } }, fidelity: 'fast' },
+    { name: 'Freeze presentation', patch: { presentation: { mode: 'freeze' as const } }, fidelity: 'fidelity' },
+    { name: 'Blink visibility', patch: { blink: { rateHz: 2, duty: 0.5, phase: 0 } }, fidelity: 'fast' },
+    { name: 'Blink visibility', patch: { blink: { rateHz: 2, duty: 0.5, phase: 0 } }, fidelity: 'fidelity' },
+  ] as const)('preserves flat time-varying $name frames and state in $fidelity runtime', ({ name, patch, fidelity }) => {
+    const source = flatV1Show(false)
+    source.scenes.push({ id: 'scene-c', name: 'Finale', durationMs: 500 })
+    source.cells[0].sceneSpan = 3
+    source.cells[0].viewport = { enabled: true, x: 0, y: 0, width: 1, height: 1, edge: 'hard' }
+    Object.assign(source.cells[0], patch)
+    const original = structuredClone(source)
+    const flatLookup: ShowCompileRecipeSourceLookup = { byCellId: { 'cell-a': STATEFUL_SOURCE } }
+    const converted = convertShowRecordV1ToV2(source, flatLookup)
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') return
+    const v2Lookup = {
+      byCellId: {},
+      byPatternInstanceId: Object.fromEntries(converted.record.composition.patternInstances.map(instance => [instance.id, STATEFUL_SOURCE])),
+    }
+    const lowered = lowerShowCompositionV2ForCompile(converted.record, v2Lookup)
+    const v1 = compileShow(showRecordToCompileRecipe(source, flatLookup), LIBRARIES)
+    const v2 = compileShow(showRecordToCompileRecipe(lowered.show, lowered.lookup), LIBRARIES)
+    expect(source).toEqual(original)
+    expect(v2.summary.clips.map(member => member.id)).toEqual(['cell-a'])
+    if (name === 'Freeze presentation') {
+      expect(v1.summary.specializations.freezeAtEntry.selectedSceneCount).toBeGreaterThan(0)
+      expect(v2.summary.specializations.freezeAtEntry.selectedSceneCount).toEqual(v1.summary.specializations.freezeAtEntry.selectedSceneCount)
+    }
+
+    const left = replay(v1, fidelity)
+    const right = replay(v2, fidelity)
+    const leftPrefix = v1.summary.clips[0].prefix
+    const rightPrefix = v2.summary.clips[0].prefix
+    const frames: number[][] = []
+    for (const atMs of [0, 125, 250, 375, 499, 500, 501, 750, 999, 1_000, 1_001, 1_499]) {
+      const options = { stepMs: 1, forceFullIntermediateRender: true }
+      const leftFrame = freeze(atMs === 0 ? left.renderCurrentFrame() : left.advanceTo(atMs, options))
+      const rightFrame = freeze(atMs === 0 ? right.renderCurrentFrame() : right.advanceTo(atMs, options))
+      expect(rightFrame.frame).toEqual(leftFrame.frame)
+      expect(rightFrame.exports[`${rightPrefix}_calls`]).toEqual(leftFrame.exports[`${leftPrefix}_calls`])
+      expect(rightFrame.exports[`${rightPrefix}_elapsed`]).toEqual(leftFrame.exports[`${leftPrefix}_elapsed`])
+      frames.push(leftFrame.frame)
+    }
+    expect(Number(freeze(left.renderCurrentFrame()).exports[`${leftPrefix}_calls`])).toBeGreaterThan(0)
+    if (name === 'Freeze presentation') {
+      expect(new Set(frames.map(frame => JSON.stringify(frame))).size).toBeGreaterThan(1)
+    } else {
+      expect(frames.some(frame => frame.every(value => value === 0))).toBe(true)
+      expect(frames.some(frame => frame.some(value => value !== 0))).toBe(true)
     }
   })
 

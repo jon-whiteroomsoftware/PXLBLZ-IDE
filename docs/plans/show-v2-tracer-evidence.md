@@ -38,6 +38,11 @@ are no longer a refusal class: 21 prior Cut-identity refusals are retired with
 the exact source ID, boundary owner, and global time. A Cut with any residual
 transition-only payload still refuses at that source path.
 
+The accounting audit also records each retired flat compatibility cell as an
+exact `sourceCellId`/`sourcePath` provenance row. The current corpus contains
+300 such rows across 44 records; these are composition shadows, not discarded
+Pattern or appearance data.
+
 The 22 accepted records have exact v1/v2 parity for matched-time output and
 mapped private state in Fast and Precise, at the same phase in the second loop,
 and under the harness's cold-seek comparison. This evidence covers the current
@@ -51,7 +56,13 @@ runtime:
 - **Lifecycle:** an unstamped composition remains `continuous` and omits the
   compiler reset stamp; a stamped composition remains `deterministic-loop`.
   Flat Continue retains one shared instance; flat Restart derives separate
-  identities. Actual output and state match through 1.25 loops in both modes.
+  identities. A stateful, time-varying three-Scene fixture proves exact compiler
+  member identity/count, frames, and mapped `calls`/`elapsed` state immediately
+  around both entries in Fast and Precise. Flat Freeze presentation selects the
+  same required capture specialization on both paths, while flat Blink produces
+  both visible and gated frames; their frames and advancing private state match
+  at 12 entry/boundary/interior times in both modes. Actual output and state also
+  match through 1.25 loops in both modes.
   The two accepted flat fixtures retain byte-equal generated source but use
   projected placement IDs in the v2 compiler summary. The report records a
   complete converter-proven cell-to-member bijection and applies it only to
@@ -91,6 +102,16 @@ Trails `clear-at-target` behavior. The exact activation-value oracle uses the
 same direct live deltas on both sides so repeated fixed-point timestep rounding
 does not masquerade as a lifecycle result.
 
+Matched-time replay now derives samples from the union of source Scene,
+Transition, cell/placement, and property-key intervals plus v2 Clip appearance,
+Layout transfer, property activation/key, and Transition intervals. Every
+semantic boundary contributes boundary - 1 ms, the boundary, and boundary + 1
+ms; every partition contributes its midpoint. Compiled Transition windows are
+an additional oracle input, not the sole source. Narrative Markers contribute
+no samples. The 22 accepted records exercise 8–180 times per mode, 1,846
+per-mode samples in total, with no new Fast/Precise parity failure and no corpus
+outcome change.
+
 ## Diagnosed repair history
 
 Retiring structural Cuts initially admitted three stock Shows whose final
@@ -115,6 +136,15 @@ fails on missing or conflicting ownership. Runtime state comparison separately
 requires a complete bijection from source cell member to projected v2 member;
 unknown, merged, or ambiguous identities refuse instead of being ignored.
 
+The first continuous-flat lowerer then discarded that explicit instance map
+when rebuilding compatibility cells. On the three-Scene compiler path, a
+Restart fixture collapsed two state machines into one and a Continue fixture
+changed its compiled member identity. The lowerer now maps every derived cell
+back to its v2 Pattern instance and explicitly emits `restartOnEntry: false`;
+the instance identity owns the Continue/Restart distinction. The stateful
+Fast/Precise regression failed before this repair and passes at 499/500/501 and
+999/1000/1001 ms after it.
+
 ## Current refusal and implementation ledger
 
 | Area | Current result | Classification |
@@ -128,7 +158,7 @@ unknown, merged, or ambiguous identities refuse instead of being ignored.
 | Whole-boundary positive Transition | 12 records refuse; direct one-participant Layer matrix is green | Converter implementation remains |
 | Routing/Layout occurrence change | Six records refuse; omitted `splitPosition` and explicit `0.5` compare as the same semantic default | Lowering/compiler proof remains |
 | Group definitions/occurrences | Two records refuse | Materialization and occurrence-private runtime proof remains |
-| Flat projected source lookup | Two personal fixtures compile from exact cell sources transferred through converter provenance; output and mapped state match | Supported harness evidence; no dependency was synthesized |
+| Flat projected source/lifecycle/presentation | Exact cell sources and instance identities transfer through converter provenance; stateful Continue/Restart, Freeze, and Blink output/state match | Supported harness evidence; no dependency or lifecycle identity was synthesized |
 | Coincident positive windows in different Zones | Provisional v2 validates; current v1 scheduler rejects | Compiler-domain decision gate |
 
 ### Smallest compiler-domain counterexample
@@ -149,7 +179,8 @@ This increment does not prove full #1034 acceptance. Named gaps include:
   Transitions, unrelated content entering/leaving a window, alpha/source-over
   interaction, and simultaneous Layout transfer;
 - shared instance once-per-frame behavior across an actual gap and simultaneous
-  users, plus Freeze, Strobe, Blink, Trails, and occurrence-private Groups;
+  users, plus Strobe, Trails, non-flat presentation interactions, and
+  occurrence-private Groups;
 - repeated/reconfigured Layout occurrences, Zone disappearance/reappearance,
   and Group/Clip behavior across Layout change;
 - ordinary authored-v2 `.pxlshow` reopen and later save, history, admission,

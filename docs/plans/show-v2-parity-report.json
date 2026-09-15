@@ -144,6 +144,13 @@
       ],
       "accountedSourceLeaves": 82,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-tour-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -156,7 +163,20 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            2999,
+            3000,
+            3001,
+            5999,
+            6000,
+            6001,
             8000,
+            8999,
+            9000,
+            9001,
+            11999,
+            12000,
+            12001,
             15999
           ],
           "secondLoopMatched": true,
@@ -319,7 +339,20 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            2999,
+            3000,
+            3001,
+            5999,
+            6000,
+            6001,
             8000,
+            8999,
+            9000,
+            9001,
+            11999,
+            12000,
+            12001,
             15999
           ],
           "secondLoopMatched": true,
@@ -510,6 +543,13 @@
       ],
       "accountedSourceLeaves": 74,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-timeline-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -522,7 +562,20 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            2500,
+            4999,
+            5000,
+            5001,
+            7500,
             8000,
+            9999,
+            10000,
+            10001,
+            11999,
+            12000,
+            12001,
+            14000,
             15999
           ],
           "secondLoopMatched": true,
@@ -661,7 +714,20 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            2500,
+            4999,
+            5000,
+            5001,
+            7500,
             8000,
+            9999,
+            10000,
+            10001,
+            11999,
+            12000,
+            12001,
+            14000,
             15999
           ],
           "secondLoopMatched": true,
@@ -835,6 +901,13 @@
       ],
       "accountedSourceLeaves": 118,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-passages-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "lowering-refused",
       "refusalCodes": [
         "lowering-eligibility"
@@ -866,6 +939,13 @@
       ],
       "accountedSourceLeaves": 98,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-poses-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -878,7 +958,24 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4500,
+            5999,
+            6000,
+            6001,
             7500,
+            8999,
+            9000,
+            9001,
+            10500,
+            11999,
+            12000,
+            12001,
+            13500,
             14999
           ],
           "secondLoopMatched": true,
@@ -928,7 +1025,24 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4500,
+            5999,
+            6000,
+            6001,
             7500,
+            8999,
+            9000,
+            9001,
+            10500,
+            11999,
+            12000,
+            12001,
+            13500,
             14999
           ],
           "secondLoopMatched": true,
@@ -999,6 +1113,13 @@
       ],
       "accountedSourceLeaves": 93,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-stacks-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -1011,7 +1132,20 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            2000,
+            3999,
+            4000,
+            4001,
+            6000,
+            7999,
             8000,
+            8001,
+            10000,
+            11999,
+            12000,
+            12001,
+            14000,
             15999
           ],
           "secondLoopMatched": true,
@@ -1121,7 +1255,20 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            2000,
+            3999,
+            4000,
+            4001,
+            6000,
+            7999,
             8000,
+            8001,
+            10000,
+            11999,
+            12000,
+            12001,
+            14000,
             15999
           ],
           "secondLoopMatched": true,
@@ -1259,6 +1406,38 @@
       ],
       "accountedSourceLeaves": 222,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-split-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-split-zone-2",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-rings-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-rings-zone-2",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-pinwheel-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-pinwheel-zone-2",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-routing-change"
@@ -1304,6 +1483,18 @@
       ],
       "accountedSourceLeaves": 205,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-arc-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-arc-zone-2",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "lowering-refused",
       "refusalCodes": [
         "lowering-eligibility"
@@ -1342,6 +1533,13 @@
       ],
       "accountedSourceLeaves": 92,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-layers-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "lowering-refused",
       "refusalCodes": [
         "lowering-eligibility"
@@ -1380,6 +1578,13 @@
       ],
       "accountedSourceLeaves": 181,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-viewport-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "lowering-refused",
       "refusalCodes": [
         "lowering-eligibility"
@@ -1411,6 +1616,13 @@
       ],
       "accountedSourceLeaves": 81,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-lifecycle-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -1423,7 +1635,20 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            2000,
+            3999,
+            4000,
+            4001,
+            6000,
+            7999,
             8000,
+            8001,
+            10000,
+            11999,
+            12000,
+            12001,
+            14000,
             15999
           ],
           "secondLoopMatched": true,
@@ -1515,7 +1740,20 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            2000,
+            3999,
+            4000,
+            4001,
+            6000,
+            7999,
             8000,
+            8001,
+            10000,
+            11999,
+            12000,
+            12001,
+            14000,
             15999
           ],
           "secondLoopMatched": true,
@@ -1628,6 +1866,13 @@
       ],
       "accountedSourceLeaves": 95,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-presentation-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -1640,7 +1885,24 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4500,
+            5999,
+            6000,
+            6001,
             7500,
+            8999,
+            9000,
+            9001,
+            10500,
+            11999,
+            12000,
+            12001,
+            13500,
             14999
           ],
           "secondLoopMatched": true,
@@ -1750,7 +2012,24 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4500,
+            5999,
+            6000,
+            6001,
             7500,
+            8999,
+            9000,
+            9001,
+            10500,
+            11999,
+            12000,
+            12001,
+            13500,
             14999
           ],
           "secondLoopMatched": true,
@@ -1888,6 +2167,13 @@
       ],
       "accountedSourceLeaves": 138,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-reuse-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-group"
@@ -1926,6 +2212,33 @@
       ],
       "accountedSourceLeaves": 197,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-full-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-split-zone-1",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-split-zone-2",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-rings-zone-1",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-rings-zone-2",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-routing-change"
@@ -1964,6 +2277,13 @@
       ],
       "accountedSourceLeaves": 133,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-silhouettes-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -1976,7 +2296,24 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            2000,
+            3999,
+            4000,
+            4001,
+            6000,
+            7999,
+            8000,
+            8001,
             10000,
+            11999,
+            12000,
+            12001,
+            14000,
+            15999,
+            16000,
+            16001,
+            18000,
             19999
           ],
           "secondLoopMatched": true,
@@ -2056,7 +2393,24 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            2000,
+            3999,
+            4000,
+            4001,
+            6000,
+            7999,
+            8000,
+            8001,
             10000,
+            11999,
+            12000,
+            12001,
+            14000,
+            15999,
+            16000,
+            16001,
+            18000,
             19999
           ],
           "secondLoopMatched": true,
@@ -2165,6 +2519,23 @@
       ],
       "accountedSourceLeaves": 136,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-stage-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-stage-zone-2",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-stage-zone-3",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -2177,7 +2548,12 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            3500,
+            6999,
             7000,
+            7001,
+            10500,
             13999
           ],
           "secondLoopMatched": true,
@@ -2335,7 +2711,12 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            3500,
+            6999,
             7000,
+            7001,
+            10500,
             13999
           ],
           "secondLoopMatched": true,
@@ -2514,6 +2895,83 @@
       ],
       "accountedSourceLeaves": 775,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-render-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-render-zone-2",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-render-zone-3",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-render-zone-4",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-render-zone-5",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-windows-zone-1",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-windows-zone-2",
+          "sourcePath": "cells.6",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-windows-zone-3",
+          "sourcePath": "cells.7",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-windows-zone-4",
+          "sourcePath": "cells.8",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-windows-zone-5",
+          "sourcePath": "cells.9",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-answer-zone-1",
+          "sourcePath": "cells.10",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-answer-zone-2",
+          "sourcePath": "cells.11",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-answer-zone-3",
+          "sourcePath": "cells.12",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-answer-zone-4",
+          "sourcePath": "cells.13",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-answer-zone-5",
+          "sourcePath": "cells.14",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -2526,7 +2984,184 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            1600,
+            1700,
+            1800,
+            3000,
+            3199,
+            3200,
+            3201,
+            3399,
+            3400,
+            3401,
+            3599,
+            3600,
+            3601,
+            3700,
+            3900,
+            4100,
+            4199,
+            4200,
+            4201,
+            4399,
+            4400,
+            4401,
+            4599,
+            4600,
+            4601,
+            5100,
+            5200,
+            5300,
+            5999,
+            6000,
+            6001,
+            6100,
+            6199,
+            6200,
+            6201,
+            6300,
+            6399,
+            6400,
+            6401,
+            6500,
+            6599,
+            6600,
+            6601,
+            6700,
+            6900,
+            6999,
+            7000,
+            7001,
+            7100,
+            7199,
+            7200,
+            7201,
+            7399,
+            7400,
+            7401,
+            7599,
+            7600,
+            7601,
+            7799,
+            7800,
+            7801,
+            8100,
+            8500,
+            8700,
+            8900,
+            9100,
+            9199,
+            9200,
+            9201,
+            9999,
             10000,
+            10001,
+            10199,
+            10200,
+            10201,
+            10399,
+            10400,
+            10401,
+            10500,
+            10599,
+            10600,
+            10601,
+            10700,
+            10900,
+            10999,
+            11000,
+            11001,
+            11100,
+            11199,
+            11200,
+            11201,
+            11399,
+            11400,
+            11401,
+            11599,
+            11600,
+            11601,
+            12000,
+            12500,
+            12600,
+            12700,
+            12800,
+            13799,
+            13800,
+            13801,
+            13900,
+            13999,
+            14000,
+            14001,
+            14100,
+            14199,
+            14200,
+            14201,
+            14300,
+            14399,
+            14400,
+            14401,
+            14500,
+            14599,
+            14600,
+            14601,
+            14700,
+            14799,
+            14800,
+            14801,
+            14900,
+            14950,
+            14999,
+            15000,
+            15001,
+            15100,
+            15199,
+            15200,
+            15201,
+            15399,
+            15400,
+            15401,
+            15599,
+            15600,
+            15601,
+            15700,
+            15899,
+            15900,
+            15901,
+            16000,
+            16099,
+            16100,
+            16101,
+            16300,
+            16499,
+            16500,
+            16501,
+            16599,
+            16600,
+            16601,
+            17000,
+            17200,
+            17500,
+            17600,
+            17700,
+            17800,
+            17899,
+            17900,
+            17901,
+            18000,
+            18099,
+            18100,
+            18101,
+            18300,
+            18399,
+            18400,
+            18401,
+            18499,
+            18500,
+            18501,
+            19200,
+            19250,
             19999
           ],
           "secondLoopMatched": true,
@@ -2588,7 +3223,184 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            1600,
+            1700,
+            1800,
+            3000,
+            3199,
+            3200,
+            3201,
+            3399,
+            3400,
+            3401,
+            3599,
+            3600,
+            3601,
+            3700,
+            3900,
+            4100,
+            4199,
+            4200,
+            4201,
+            4399,
+            4400,
+            4401,
+            4599,
+            4600,
+            4601,
+            5100,
+            5200,
+            5300,
+            5999,
+            6000,
+            6001,
+            6100,
+            6199,
+            6200,
+            6201,
+            6300,
+            6399,
+            6400,
+            6401,
+            6500,
+            6599,
+            6600,
+            6601,
+            6700,
+            6900,
+            6999,
+            7000,
+            7001,
+            7100,
+            7199,
+            7200,
+            7201,
+            7399,
+            7400,
+            7401,
+            7599,
+            7600,
+            7601,
+            7799,
+            7800,
+            7801,
+            8100,
+            8500,
+            8700,
+            8900,
+            9100,
+            9199,
+            9200,
+            9201,
+            9999,
             10000,
+            10001,
+            10199,
+            10200,
+            10201,
+            10399,
+            10400,
+            10401,
+            10500,
+            10599,
+            10600,
+            10601,
+            10700,
+            10900,
+            10999,
+            11000,
+            11001,
+            11100,
+            11199,
+            11200,
+            11201,
+            11399,
+            11400,
+            11401,
+            11599,
+            11600,
+            11601,
+            12000,
+            12500,
+            12600,
+            12700,
+            12800,
+            13799,
+            13800,
+            13801,
+            13900,
+            13999,
+            14000,
+            14001,
+            14100,
+            14199,
+            14200,
+            14201,
+            14300,
+            14399,
+            14400,
+            14401,
+            14500,
+            14599,
+            14600,
+            14601,
+            14700,
+            14799,
+            14800,
+            14801,
+            14900,
+            14950,
+            14999,
+            15000,
+            15001,
+            15100,
+            15199,
+            15200,
+            15201,
+            15399,
+            15400,
+            15401,
+            15599,
+            15600,
+            15601,
+            15700,
+            15899,
+            15900,
+            15901,
+            16000,
+            16099,
+            16100,
+            16101,
+            16300,
+            16499,
+            16500,
+            16501,
+            16599,
+            16600,
+            16601,
+            17000,
+            17200,
+            17500,
+            17600,
+            17700,
+            17800,
+            17899,
+            17900,
+            17901,
+            18000,
+            18099,
+            18100,
+            18101,
+            18300,
+            18399,
+            18400,
+            18401,
+            18499,
+            18500,
+            18501,
+            19200,
+            19250,
             19999
           ],
           "secondLoopMatched": true,
@@ -2678,6 +3490,13 @@
       ],
       "accountedSourceLeaves": 105,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-score-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "lowering-refused",
       "refusalCodes": [
         "lowering-eligibility"
@@ -2709,6 +3528,38 @@
       ],
       "accountedSourceLeaves": 540,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-effect-1-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-2-zone-1",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-3-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-4-zone-1",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-5-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-6-zone-1",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -2721,7 +3572,49 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            3500,
+            3999,
+            4000,
+            4001,
+            5500,
+            6000,
+            7999,
+            8000,
+            8001,
+            8500,
+            8999,
+            9000,
+            9001,
+            10000,
+            10500,
             11500,
+            11999,
+            12000,
+            12001,
+            12500,
+            12999,
+            13000,
+            13001,
+            14000,
+            14500,
+            15999,
+            16000,
+            16001,
+            16500,
+            16999,
+            17000,
+            17001,
+            18000,
+            18500,
+            19999,
+            20000,
+            20001,
+            21500,
             22999
           ],
           "secondLoopMatched": true,
@@ -2818,7 +3711,49 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            3500,
+            3999,
+            4000,
+            4001,
+            5500,
+            6000,
+            7999,
+            8000,
+            8001,
+            8500,
+            8999,
+            9000,
+            9001,
+            10000,
+            10500,
             11500,
+            11999,
+            12000,
+            12001,
+            12500,
+            12999,
+            13000,
+            13001,
+            14000,
+            14500,
+            15999,
+            16000,
+            16001,
+            16500,
+            16999,
+            17000,
+            17001,
+            18000,
+            18500,
+            19999,
+            20000,
+            20001,
+            21500,
             22999
           ],
           "secondLoopMatched": true,
@@ -2936,6 +3871,38 @@
       ],
       "accountedSourceLeaves": 265,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-effect-1-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-2-zone-1",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-3-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-4-zone-1",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-5-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-6-zone-1",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -2948,7 +3915,29 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            5000,
+            6999,
+            7000,
+            7001,
+            8250,
             8500,
+            9499,
+            9500,
+            9501,
+            10750,
+            11999,
+            12000,
+            12001,
+            13250,
+            14499,
+            14500,
+            14501,
+            15750,
             16999
           ],
           "secondLoopMatched": true,
@@ -3010,7 +3999,29 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            5000,
+            6999,
+            7000,
+            7001,
+            8250,
             8500,
+            9499,
+            9500,
+            9501,
+            10750,
+            11999,
+            12000,
+            12001,
+            13250,
+            14499,
+            14500,
+            14501,
+            15750,
             16999
           ],
           "secondLoopMatched": true,
@@ -3093,6 +4104,58 @@
       ],
       "accountedSourceLeaves": 393,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-effect-1-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-2-zone-1",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-3-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-4-zone-1",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-5-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-6-zone-1",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-7-zone-1",
+          "sourcePath": "cells.6",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-8-zone-1",
+          "sourcePath": "cells.7",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-9-zone-1",
+          "sourcePath": "cells.8",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-10-zone-1",
+          "sourcePath": "cells.9",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -3105,7 +4168,44 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            2000,
+            3999,
+            4000,
+            4001,
+            5000,
+            5999,
+            6000,
+            6001,
+            7000,
+            7999,
+            8000,
+            8001,
+            9000,
+            9999,
+            10000,
+            10001,
             11000,
+            11999,
+            12000,
+            12001,
+            13000,
+            13999,
+            14000,
+            14001,
+            15000,
+            15999,
+            16000,
+            16001,
+            17000,
+            17999,
+            18000,
+            18001,
+            19000,
+            19999,
+            20000,
+            20001,
+            21000,
             21999
           ],
           "secondLoopMatched": true,
@@ -3167,7 +4267,44 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            2000,
+            3999,
+            4000,
+            4001,
+            5000,
+            5999,
+            6000,
+            6001,
+            7000,
+            7999,
+            8000,
+            8001,
+            9000,
+            9999,
+            10000,
+            10001,
             11000,
+            11999,
+            12000,
+            12001,
+            13000,
+            13999,
+            14000,
+            14001,
+            15000,
+            15999,
+            16000,
+            16001,
+            17000,
+            17999,
+            18000,
+            18001,
+            19000,
+            19999,
+            20000,
+            20001,
+            21000,
             21999
           ],
           "secondLoopMatched": true,
@@ -3271,6 +4408,48 @@
       ],
       "accountedSourceLeaves": 507,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-composite-1-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-composite-2-zone-1",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-composite-3-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-composite-4-zone-1",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-composite-5-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-composite-6-zone-1",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-composite-7-zone-1",
+          "sourcePath": "cells.6",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-composite-8-zone-1",
+          "sourcePath": "cells.7",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -3283,7 +4462,58 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4500,
+            5999,
+            6000,
+            6001,
+            6300,
+            6599,
+            6600,
+            6601,
+            7500,
+            7600,
+            8599,
+            8600,
+            8601,
+            8800,
+            8999,
+            9000,
+            9001,
+            10750,
+            12499,
+            12500,
+            12501,
             13750,
+            14250,
+            15999,
+            16000,
+            16001,
+            17500,
+            18999,
+            19000,
+            19001,
+            19625,
+            20249,
+            20250,
+            20251,
+            20875,
+            21499,
+            21500,
+            21501,
+            22125,
+            22749,
+            22750,
+            22751,
+            23375,
+            23999,
+            24000,
+            24001,
+            25750,
             27499
           ],
           "secondLoopMatched": true,
@@ -3554,7 +4784,58 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4500,
+            5999,
+            6000,
+            6001,
+            6300,
+            6599,
+            6600,
+            6601,
+            7500,
+            7600,
+            8599,
+            8600,
+            8601,
+            8800,
+            8999,
+            9000,
+            9001,
+            10750,
+            12499,
+            12500,
+            12501,
             13750,
+            14250,
+            15999,
+            16000,
+            16001,
+            17500,
+            18999,
+            19000,
+            19001,
+            19625,
+            20249,
+            20250,
+            20251,
+            20875,
+            21499,
+            21500,
+            21501,
+            22125,
+            22749,
+            22750,
+            22751,
+            23375,
+            23999,
+            24000,
+            24001,
+            25750,
             27499
           ],
           "secondLoopMatched": true,
@@ -3894,6 +5175,48 @@
       ],
       "accountedSourceLeaves": 441,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-luma-1-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-luma-2-zone-1",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-luma-3-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-luma-4-zone-1",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-luma-5-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-luma-6-zone-1",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-luma-7-zone-1",
+          "sourcePath": "cells.6",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-luma-8-zone-1",
+          "sourcePath": "cells.7",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -3906,7 +5229,72 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            1000,
+            1999,
+            2000,
+            2001,
+            3000,
+            3999,
+            4000,
+            4001,
+            5000,
+            5999,
+            6000,
+            6001,
+            7000,
+            7999,
+            8000,
+            8001,
+            9000,
+            9999,
+            10000,
+            10001,
+            11000,
+            11999,
+            12000,
+            12001,
+            13000,
+            13999,
+            14000,
+            14001,
+            14500,
+            14999,
+            15000,
+            15001,
+            15500,
+            15999,
             16000,
+            16001,
+            17000,
+            17999,
+            18000,
+            18001,
+            19000,
+            19999,
+            20000,
+            20001,
+            21000,
+            21999,
+            22000,
+            22001,
+            23000,
+            23999,
+            24000,
+            24001,
+            25000,
+            25999,
+            26000,
+            26001,
+            27000,
+            27999,
+            28000,
+            28001,
+            29000,
+            29999,
+            30000,
+            30001,
+            31000,
             31999
           ],
           "secondLoopMatched": true,
@@ -4196,7 +5584,72 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            1000,
+            1999,
+            2000,
+            2001,
+            3000,
+            3999,
+            4000,
+            4001,
+            5000,
+            5999,
+            6000,
+            6001,
+            7000,
+            7999,
+            8000,
+            8001,
+            9000,
+            9999,
+            10000,
+            10001,
+            11000,
+            11999,
+            12000,
+            12001,
+            13000,
+            13999,
+            14000,
+            14001,
+            14500,
+            14999,
+            15000,
+            15001,
+            15500,
+            15999,
             16000,
+            16001,
+            17000,
+            17999,
+            18000,
+            18001,
+            19000,
+            19999,
+            20000,
+            20001,
+            21000,
+            21999,
+            22000,
+            22001,
+            23000,
+            23999,
+            24000,
+            24001,
+            25000,
+            25999,
+            26000,
+            26001,
+            27000,
+            27999,
+            28000,
+            28001,
+            29000,
+            29999,
+            30000,
+            30001,
+            31000,
             31999
           ],
           "secondLoopMatched": true,
@@ -4616,6 +6069,33 @@
       ],
       "accountedSourceLeaves": 185,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-reference-1-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-2-zone-1",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-3-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-4-zone-1",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-5-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-boundary-transition"
@@ -4654,6 +6134,63 @@
       ],
       "accountedSourceLeaves": 416,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-reference-1-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-2-zone-1",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-3-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-4-zone-1",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-5-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-6-zone-1",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-7-zone-1",
+          "sourcePath": "cells.6",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-8-zone-1",
+          "sourcePath": "cells.7",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-9-zone-1",
+          "sourcePath": "cells.8",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-10-zone-1",
+          "sourcePath": "cells.9",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-11-zone-1",
+          "sourcePath": "cells.10",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-boundary-transition"
@@ -4692,6 +6229,33 @@
       ],
       "accountedSourceLeaves": 198,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-reference-1-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-2-zone-1",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-3-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-4-zone-1",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-5-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-boundary-transition"
@@ -4730,6 +6294,48 @@
       ],
       "accountedSourceLeaves": 347,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-reference-1-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-2-zone-1",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-3-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-4-zone-1",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-5-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-6-zone-1",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-7-zone-1",
+          "sourcePath": "cells.6",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-8-zone-1",
+          "sourcePath": "cells.7",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-boundary-transition"
@@ -4768,6 +6374,73 @@
       ],
       "accountedSourceLeaves": 556,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-reference-1-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-2-zone-1",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-3-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-4-zone-1",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-5-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-6-zone-1",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-7-zone-1",
+          "sourcePath": "cells.6",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-8-zone-1",
+          "sourcePath": "cells.7",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-9-zone-1",
+          "sourcePath": "cells.8",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-10-zone-1",
+          "sourcePath": "cells.9",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-11-zone-1",
+          "sourcePath": "cells.10",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-12-zone-1",
+          "sourcePath": "cells.11",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-13-zone-1",
+          "sourcePath": "cells.12",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-boundary-transition"
@@ -4806,6 +6479,43 @@
       ],
       "accountedSourceLeaves": 298,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-reference-1-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-2-zone-1",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-3-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-4-zone-1",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-5-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-6-zone-1",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-7-zone-1",
+          "sourcePath": "cells.6",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-boundary-transition"
@@ -4844,6 +6554,48 @@
       ],
       "accountedSourceLeaves": 338,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-reference-1-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-2-zone-1",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-3-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-4-zone-1",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-5-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-6-zone-1",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-7-zone-1",
+          "sourcePath": "cells.6",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-8-zone-1",
+          "sourcePath": "cells.7",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-boundary-transition"
@@ -4882,6 +6634,98 @@
       ],
       "accountedSourceLeaves": 679,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-animation-speed-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-animation-speed-zone-2",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-pattern-control-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-pattern-control-zone-2",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-brightness-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-brightness-zone-2",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-clip-transform-zone-1",
+          "sourcePath": "cells.6",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-clip-transform-zone-2",
+          "sourcePath": "cells.7",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-clip-viewport-zone-1",
+          "sourcePath": "cells.8",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-clip-viewport-zone-2",
+          "sourcePath": "cells.9",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-overlay-opacity-zone-1",
+          "sourcePath": "cells.10",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-overlay-opacity-zone-2",
+          "sourcePath": "cells.11",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-parameter-zone-1",
+          "sourcePath": "cells.12",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-parameter-zone-2",
+          "sourcePath": "cells.13",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-split-position-zone-1",
+          "sourcePath": "cells.14",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-split-position-zone-2",
+          "sourcePath": "cells.15",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-repeat-scale-zone-1",
+          "sourcePath": "cells.16",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-repeat-scale-zone-2",
+          "sourcePath": "cells.17",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-boundary-transition",
@@ -4922,6 +6766,113 @@
       ],
       "accountedSourceLeaves": 774,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-reference-1-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-2-zone-1",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-3-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-4-zone-1",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-5-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-6-zone-1",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-7-zone-1",
+          "sourcePath": "cells.6",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-8-zone-1",
+          "sourcePath": "cells.7",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-9-zone-1",
+          "sourcePath": "cells.8",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-10-zone-1",
+          "sourcePath": "cells.9",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-11-zone-1",
+          "sourcePath": "cells.10",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-12-zone-1",
+          "sourcePath": "cells.11",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-13-zone-1",
+          "sourcePath": "cells.12",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-14-zone-1",
+          "sourcePath": "cells.13",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-15-zone-1",
+          "sourcePath": "cells.14",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-16-zone-1",
+          "sourcePath": "cells.15",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-17-zone-1",
+          "sourcePath": "cells.16",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-18-zone-1",
+          "sourcePath": "cells.17",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-19-zone-1",
+          "sourcePath": "cells.18",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-20-zone-1",
+          "sourcePath": "cells.19",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-reference-21-zone-1",
+          "sourcePath": "cells.20",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-boundary-transition"
@@ -4960,6 +6911,58 @@
       ],
       "accountedSourceLeaves": 484,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-rectangle-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-ellipse-zone-1",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-diamond-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-rounded-box-zone-1",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-rounded-box-wide-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-cross-zone-1",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-polygon-zone-1",
+          "sourcePath": "cells.6",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-ring-soft-zone-1",
+          "sourcePath": "cells.7",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-ring-hard-zone-1",
+          "sourcePath": "cells.8",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-ring-dither-zone-1",
+          "sourcePath": "cells.9",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -4972,7 +6975,45 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            5500,
+            7999,
+            8000,
+            8001,
+            9000,
+            9999,
+            10000,
+            10001,
+            11000,
+            11999,
+            12000,
+            12001,
+            13000,
             13500,
+            13999,
+            14000,
+            14001,
+            15000,
+            15999,
+            16000,
+            16001,
+            17000,
+            17999,
+            18000,
+            18001,
+            20000,
+            21999,
+            22000,
+            22001,
+            23000,
+            23999,
+            24000,
+            24001,
+            25500,
             26999
           ],
           "secondLoopMatched": true,
@@ -5058,7 +7099,45 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            5500,
+            7999,
+            8000,
+            8001,
+            9000,
+            9999,
+            10000,
+            10001,
+            11000,
+            11999,
+            12000,
+            12001,
+            13000,
             13500,
+            13999,
+            14000,
+            14001,
+            15000,
+            15999,
+            16000,
+            16001,
+            17000,
+            17999,
+            18000,
+            18001,
+            20000,
+            21999,
+            22000,
+            22001,
+            23000,
+            23999,
+            24000,
+            24001,
+            25500,
             26999
           ],
           "secondLoopMatched": true,
@@ -5172,6 +7251,53 @@
       ],
       "accountedSourceLeaves": 436,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-heart-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-star-zone-1",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-crescent-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-cloud-zone-1",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-cat-head-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-cat-side-profile-zone-1",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-bastet-zone-1",
+          "sourcePath": "cells.6",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-star-rotated-zone-1",
+          "sourcePath": "cells.7",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-cloud-cut-out-zone-1",
+          "sourcePath": "cells.8",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -5184,7 +7310,41 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            2000,
+            3999,
+            4000,
+            4001,
+            5000,
+            5999,
+            6000,
+            6001,
+            7000,
+            7999,
+            8000,
+            8001,
+            9500,
+            10999,
+            11000,
+            11001,
             11500,
+            12000,
+            12999,
+            13000,
+            13001,
+            14000,
+            14999,
+            15000,
+            15001,
+            16000,
+            16999,
+            17000,
+            17001,
+            18500,
+            19999,
+            20000,
+            20001,
+            21500,
             22999
           ],
           "secondLoopMatched": true,
@@ -5330,7 +7490,41 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            2000,
+            3999,
+            4000,
+            4001,
+            5000,
+            5999,
+            6000,
+            6001,
+            7000,
+            7999,
+            8000,
+            8001,
+            9500,
+            10999,
+            11000,
+            11001,
             11500,
+            12000,
+            12999,
+            13000,
+            13001,
+            14000,
+            14999,
+            15000,
+            15001,
+            16000,
+            16999,
+            17000,
+            17001,
+            18500,
+            19999,
+            20000,
+            20001,
+            21500,
             22999
           ],
           "secondLoopMatched": true,
@@ -5504,6 +7698,48 @@
       ],
       "accountedSourceLeaves": 280,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-full-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-full-zone-2",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-moving-split-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-moving-split-zone-2",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-soft-split-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-soft-split-zone-2",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-checker-zone-1",
+          "sourcePath": "cells.6",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-checker-zone-2",
+          "sourcePath": "cells.7",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-routing-change"
@@ -5556,6 +7792,68 @@
       ],
       "accountedSourceLeaves": 363,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-full-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-full-zone-2",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-full-zone-3",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-full-zone-4",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-stripes-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-stripes-zone-2",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-stripes-zone-3",
+          "sourcePath": "cells.6",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-stripes-zone-4",
+          "sourcePath": "cells.7",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-grid-zone-1",
+          "sourcePath": "cells.8",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-grid-zone-2",
+          "sourcePath": "cells.9",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-grid-zone-3",
+          "sourcePath": "cells.10",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-grid-zone-4",
+          "sourcePath": "cells.11",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-routing-change"
@@ -5594,6 +7892,48 @@
       ],
       "accountedSourceLeaves": 284,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-full-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-full-zone-2",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-rings-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-rings-zone-2",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-wave-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-wave-zone-2",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-pinwheel-zone-1",
+          "sourcePath": "cells.6",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-pinwheel-zone-2",
+          "sourcePath": "cells.7",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-routing-change"
@@ -5625,6 +7965,208 @@
       ],
       "accountedSourceLeaves": 1500,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-ignition-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-ignition-zone-2",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-ignition-zone-3",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-ignition-zone-4",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-ignition-zone-5",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-first-lift-zone-1",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-first-lift-zone-2",
+          "sourcePath": "cells.6",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-first-lift-zone-3",
+          "sourcePath": "cells.7",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-first-lift-zone-4",
+          "sourcePath": "cells.8",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-first-lift-zone-5",
+          "sourcePath": "cells.9",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-countermotion-zone-1",
+          "sourcePath": "cells.10",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-countermotion-zone-2",
+          "sourcePath": "cells.11",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-countermotion-zone-3",
+          "sourcePath": "cells.12",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-countermotion-zone-4",
+          "sourcePath": "cells.13",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-countermotion-zone-5",
+          "sourcePath": "cells.14",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-first-drop-zone-1",
+          "sourcePath": "cells.15",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-first-drop-zone-2",
+          "sourcePath": "cells.16",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-first-drop-zone-3",
+          "sourcePath": "cells.17",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-first-drop-zone-4",
+          "sourcePath": "cells.18",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-first-drop-zone-5",
+          "sourcePath": "cells.19",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-vacuum-zone-1",
+          "sourcePath": "cells.20",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-vacuum-zone-2",
+          "sourcePath": "cells.21",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-vacuum-zone-3",
+          "sourcePath": "cells.22",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-vacuum-zone-4",
+          "sourcePath": "cells.23",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-vacuum-zone-5",
+          "sourcePath": "cells.24",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-rebuild-zone-1",
+          "sourcePath": "cells.25",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-rebuild-zone-2",
+          "sourcePath": "cells.26",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-rebuild-zone-3",
+          "sourcePath": "cells.27",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-rebuild-zone-4",
+          "sourcePath": "cells.28",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-rebuild-zone-5",
+          "sourcePath": "cells.29",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-compression-zone-1",
+          "sourcePath": "cells.30",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-compression-zone-2",
+          "sourcePath": "cells.31",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-compression-zone-3",
+          "sourcePath": "cells.32",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-compression-zone-4",
+          "sourcePath": "cells.33",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-compression-zone-5",
+          "sourcePath": "cells.34",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-peak-release-zone-1",
+          "sourcePath": "cells.35",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-peak-release-zone-2",
+          "sourcePath": "cells.36",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-peak-release-zone-3",
+          "sourcePath": "cells.37",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-peak-release-zone-4",
+          "sourcePath": "cells.38",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-peak-release-zone-5",
+          "sourcePath": "cells.39",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -5637,7 +8179,67 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            937,
+            1874,
+            1875,
+            1876,
+            2812,
+            3749,
+            3750,
+            3751,
+            4687,
+            5624,
+            5625,
+            5626,
+            6562,
+            7499,
+            7500,
+            7501,
+            9374,
+            9375,
+            9376,
+            11249,
+            11250,
+            11251,
+            12187,
+            13125,
+            14999,
+            15000,
+            15001,
+            18750,
+            22499,
+            22500,
+            22501,
+            26250,
+            29999,
             30000,
+            30001,
+            33750,
+            37499,
+            37500,
+            37501,
+            38249,
+            38250,
+            38251,
+            38999,
+            39000,
+            39001,
+            39749,
+            39750,
+            39751,
+            41250,
+            41625,
+            42000,
+            42375,
+            44999,
+            45000,
+            45001,
+            48750,
+            52499,
+            52500,
+            52501,
+            56250,
             59999
           ],
           "secondLoopMatched": true,
@@ -5705,7 +8307,67 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            937,
+            1874,
+            1875,
+            1876,
+            2812,
+            3749,
+            3750,
+            3751,
+            4687,
+            5624,
+            5625,
+            5626,
+            6562,
+            7499,
+            7500,
+            7501,
+            9374,
+            9375,
+            9376,
+            11249,
+            11250,
+            11251,
+            12187,
+            13125,
+            14999,
+            15000,
+            15001,
+            18750,
+            22499,
+            22500,
+            22501,
+            26250,
+            29999,
             30000,
+            30001,
+            33750,
+            37499,
+            37500,
+            37501,
+            38249,
+            38250,
+            38251,
+            38999,
+            39000,
+            39001,
+            39749,
+            39750,
+            39751,
+            41250,
+            41625,
+            42000,
+            42375,
+            44999,
+            45000,
+            45001,
+            48750,
+            52499,
+            52500,
+            52501,
+            56250,
             59999
           ],
           "secondLoopMatched": true,
@@ -5794,6 +8456,13 @@
       ],
       "accountedSourceLeaves": 334,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -5806,7 +8475,156 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            4000,
+            7999,
+            8000,
+            8001,
+            10000,
+            11999,
+            12000,
+            12001,
+            15950,
+            16000,
+            18000,
             20000,
+            23899,
+            23900,
+            23901,
+            23950,
+            23999,
+            24000,
+            24001,
+            24075,
+            24149,
+            24150,
+            24151,
+            24400,
+            24649,
+            24650,
+            24651,
+            24775,
+            24899,
+            24900,
+            24901,
+            24950,
+            24999,
+            25000,
+            25001,
+            25075,
+            25149,
+            25150,
+            25151,
+            25400,
+            25649,
+            25650,
+            25651,
+            25775,
+            25899,
+            25900,
+            25901,
+            25950,
+            25999,
+            26000,
+            26001,
+            26075,
+            26149,
+            26150,
+            26151,
+            26400,
+            26649,
+            26650,
+            26651,
+            26775,
+            26899,
+            26900,
+            26901,
+            26950,
+            26999,
+            27000,
+            27001,
+            27075,
+            27149,
+            27150,
+            27151,
+            27400,
+            27649,
+            27650,
+            27651,
+            27775,
+            27899,
+            27900,
+            27901,
+            27950,
+            27999,
+            28000,
+            28001,
+            28075,
+            28149,
+            28150,
+            28151,
+            28400,
+            28649,
+            28650,
+            28651,
+            28775,
+            28899,
+            28900,
+            28901,
+            28950,
+            28999,
+            29000,
+            29001,
+            29075,
+            29149,
+            29150,
+            29151,
+            29400,
+            29649,
+            29650,
+            29651,
+            29875,
+            30000,
+            30099,
+            30100,
+            30101,
+            30150,
+            30199,
+            30200,
+            30201,
+            30275,
+            30349,
+            30350,
+            30351,
+            30600,
+            30849,
+            30850,
+            30851,
+            31125,
+            31399,
+            31400,
+            31401,
+            31450,
+            31499,
+            31500,
+            31501,
+            31550,
+            31599,
+            31600,
+            31601,
+            31800,
+            31999,
+            32000,
+            32001,
+            33500,
+            34999,
+            35000,
+            35001,
+            35500,
+            35999,
+            36000,
+            36001,
+            38000,
             39999
           ],
           "secondLoopMatched": true,
@@ -5856,7 +8674,156 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            4000,
+            7999,
+            8000,
+            8001,
+            10000,
+            11999,
+            12000,
+            12001,
+            15950,
+            16000,
+            18000,
             20000,
+            23899,
+            23900,
+            23901,
+            23950,
+            23999,
+            24000,
+            24001,
+            24075,
+            24149,
+            24150,
+            24151,
+            24400,
+            24649,
+            24650,
+            24651,
+            24775,
+            24899,
+            24900,
+            24901,
+            24950,
+            24999,
+            25000,
+            25001,
+            25075,
+            25149,
+            25150,
+            25151,
+            25400,
+            25649,
+            25650,
+            25651,
+            25775,
+            25899,
+            25900,
+            25901,
+            25950,
+            25999,
+            26000,
+            26001,
+            26075,
+            26149,
+            26150,
+            26151,
+            26400,
+            26649,
+            26650,
+            26651,
+            26775,
+            26899,
+            26900,
+            26901,
+            26950,
+            26999,
+            27000,
+            27001,
+            27075,
+            27149,
+            27150,
+            27151,
+            27400,
+            27649,
+            27650,
+            27651,
+            27775,
+            27899,
+            27900,
+            27901,
+            27950,
+            27999,
+            28000,
+            28001,
+            28075,
+            28149,
+            28150,
+            28151,
+            28400,
+            28649,
+            28650,
+            28651,
+            28775,
+            28899,
+            28900,
+            28901,
+            28950,
+            28999,
+            29000,
+            29001,
+            29075,
+            29149,
+            29150,
+            29151,
+            29400,
+            29649,
+            29650,
+            29651,
+            29875,
+            30000,
+            30099,
+            30100,
+            30101,
+            30150,
+            30199,
+            30200,
+            30201,
+            30275,
+            30349,
+            30350,
+            30351,
+            30600,
+            30849,
+            30850,
+            30851,
+            31125,
+            31399,
+            31400,
+            31401,
+            31450,
+            31499,
+            31500,
+            31501,
+            31550,
+            31599,
+            31600,
+            31601,
+            31800,
+            31999,
+            32000,
+            32001,
+            33500,
+            34999,
+            35000,
+            35001,
+            35500,
+            35999,
+            36000,
+            36001,
+            38000,
             39999
           ],
           "secondLoopMatched": true,
@@ -5934,6 +8901,38 @@
       ],
       "accountedSourceLeaves": 697,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-first-light-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-four-mirrors-zone-1",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-the-dancer-enters-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-lace-and-turns-zone-1",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-all-four-dance-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-rejoined-zone-1",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-boundary-transition",
@@ -5974,6 +8973,28 @@
       ],
       "accountedSourceLeaves": 573,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-the-circuits-zone-2",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-curtain-up-zone-1",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-the-surge-zone-3",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-the-house-zone-1",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -5986,7 +9007,58 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            3749,
+            3750,
+            3751,
+            5625,
+            7499,
+            7500,
+            7501,
+            9375,
+            11249,
+            11250,
+            11251,
+            13125,
+            14999,
+            15000,
+            15001,
+            18047,
+            18750,
+            21093,
+            21094,
+            21095,
+            21797,
+            22499,
+            22500,
+            22501,
             24375,
+            26250,
+            29999,
+            30000,
+            30001,
+            30469,
+            30937,
+            30938,
+            30939,
+            31406,
+            31874,
+            31875,
+            31876,
+            32344,
+            32812,
+            32813,
+            32814,
+            33281,
+            33749,
+            33750,
+            33751,
+            38437,
+            41250,
+            43124,
+            43125,
+            43126,
+            45937,
             48749
           ],
           "secondLoopMatched": true,
@@ -6168,7 +9240,58 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            3749,
+            3750,
+            3751,
+            5625,
+            7499,
+            7500,
+            7501,
+            9375,
+            11249,
+            11250,
+            11251,
+            13125,
+            14999,
+            15000,
+            15001,
+            18047,
+            18750,
+            21093,
+            21094,
+            21095,
+            21797,
+            22499,
+            22500,
+            22501,
             24375,
+            26250,
+            29999,
+            30000,
+            30001,
+            30469,
+            30937,
+            30938,
+            30939,
+            31406,
+            31874,
+            31875,
+            31876,
+            32344,
+            32812,
+            32813,
+            32814,
+            33281,
+            33749,
+            33750,
+            33751,
+            38437,
+            41250,
+            43124,
+            43125,
+            43126,
+            45937,
             48749
           ],
           "secondLoopMatched": true,
@@ -6378,6 +9501,7 @@
       ],
       "accountedSourceLeaves": 47,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -6401,7 +9525,12 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            15000,
+            29999,
             30000,
+            30001,
+            45000,
             59999
           ],
           "secondLoopMatched": true,
@@ -6480,7 +9609,12 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            15000,
+            29999,
             30000,
+            30001,
+            45000,
             59999
           ],
           "secondLoopMatched": true,
@@ -6594,6 +9728,7 @@
       ],
       "accountedSourceLeaves": 47,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -6617,7 +9752,12 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            15000,
+            29999,
             30000,
+            30001,
+            45000,
             59999
           ],
           "secondLoopMatched": true,
@@ -6666,7 +9806,12 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            15000,
+            29999,
             30000,
+            30001,
+            45000,
             59999
           ],
           "secondLoopMatched": true,
@@ -6743,6 +9888,13 @@
       ],
       "accountedSourceLeaves": 74,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-timeline-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -6755,7 +9907,20 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            2500,
+            4999,
+            5000,
+            5001,
+            7500,
             8000,
+            9999,
+            10000,
+            10001,
+            11999,
+            12000,
+            12001,
+            14000,
             15999
           ],
           "secondLoopMatched": true,
@@ -6894,7 +10059,20 @@
           "matched": true,
           "sampledMs": [
             0,
+            1,
+            2500,
+            4999,
+            5000,
+            5001,
+            7500,
             8000,
+            9999,
+            10000,
+            10001,
+            11999,
+            12000,
+            12001,
+            14000,
             15999
           ],
           "secondLoopMatched": true,
@@ -7061,6 +10239,13 @@
       ],
       "accountedSourceLeaves": 138,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-reuse-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-group"
@@ -7099,6 +10284,98 @@
       ],
       "accountedSourceLeaves": 679,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-animation-speed-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-animation-speed-zone-2",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-pattern-control-zone-1",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-pattern-control-zone-2",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-brightness-zone-1",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-brightness-zone-2",
+          "sourcePath": "cells.5",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-clip-transform-zone-1",
+          "sourcePath": "cells.6",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-clip-transform-zone-2",
+          "sourcePath": "cells.7",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-clip-viewport-zone-1",
+          "sourcePath": "cells.8",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-clip-viewport-zone-2",
+          "sourcePath": "cells.9",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-overlay-opacity-zone-1",
+          "sourcePath": "cells.10",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-overlay-opacity-zone-2",
+          "sourcePath": "cells.11",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-parameter-zone-1",
+          "sourcePath": "cells.12",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-effect-parameter-zone-2",
+          "sourcePath": "cells.13",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-split-position-zone-1",
+          "sourcePath": "cells.14",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-split-position-zone-2",
+          "sourcePath": "cells.15",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-repeat-scale-zone-1",
+          "sourcePath": "cells.16",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-repeat-scale-zone-2",
+          "sourcePath": "cells.17",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-boundary-transition",
@@ -7139,6 +10416,33 @@
       ],
       "accountedSourceLeaves": 197,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [
+        {
+          "sourceCellId": "cell-full-zone-1",
+          "sourcePath": "cells.0",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-split-zone-1",
+          "sourcePath": "cells.1",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-split-zone-2",
+          "sourcePath": "cells.2",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-rings-zone-1",
+          "sourcePath": "cells.3",
+          "outcome": "retired-composition-shadow"
+        },
+        {
+          "sourceCellId": "cell-rings-zone-2",
+          "sourcePath": "cells.4",
+          "outcome": "retired-composition-shadow"
+        }
+      ],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-routing-change"
@@ -7184,6 +10488,7 @@
       ],
       "accountedSourceLeaves": 252,
       "unaccountedSourcePaths": [],
+      "retiredFlatCellShadows": [],
       "outcome": "conversion-refused",
       "refusalCodes": [
         "unsupported-boundary-transition"

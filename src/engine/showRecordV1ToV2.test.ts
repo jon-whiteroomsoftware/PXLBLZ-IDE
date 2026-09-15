@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { convertibleV1Show, flatV1Show } from '../test/showV2TracerFixture'
 import { stockShowById } from '../pixelblaze/stock/shows'
-import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
+import { auditShowV1ToV2Accounting, convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 
 describe('convertShowRecordV1ToV2', () => {
   it('converts global Clip and stable Layer identity without mutating or leaving source paths unaccounted', () => {
@@ -124,6 +124,88 @@ describe('convertShowRecordV1ToV2', () => {
       },
     })
     expect(JSON.stringify(source)).toBe(before)
+  })
+
+  it.each([
+    ['Freeze presentation', { presentation: { mode: 'freeze' as const } }],
+    ['Blink visibility', { blink: { rateHz: 2, duty: 0.25, phase: 0.125 } }],
+  ])('preserves flat %s on every projected Clip appearance', (_label, appearance) => {
+    const source = flatV1Show()
+    Object.assign(source.cells[0], appearance)
+
+    const result = convertShowRecordV1ToV2(source, { byCellId: { 'cell-a': 'source' } })
+
+    expect(result).toMatchObject({ status: 'converted' })
+    if (result.status !== 'converted') return
+    expect(result.record.composition.clips).toHaveLength(2)
+    expect(result.record.composition.clips.every(clip => (
+      clip.appearance.keys.every(key => expect(key.value).toEqual(expect.objectContaining(appearance)))
+    ))).toBe(true)
+    expect(result.report.accounting).toEqual(expect.arrayContaining(
+      Object.keys(appearance).flatMap(field => (
+        result.report.accounting
+          .filter(entry => entry.sourcePath.startsWith(`cells.0.${field}.`))
+          .map(entry => expect.objectContaining({ sourcePath: entry.sourcePath, outcome: 'mapped' }))
+      )),
+    ))
+    expect(result.report.unaccountedSourcePaths).toEqual([])
+  })
+
+  it('finds a known mapped leaf when its candidate output correspondence is removed', () => {
+    const source = flatV1Show()
+    source.cells[0].blink = { rateHz: 2, duty: 0.25, phase: 0.125 }
+    const conversion = convertShowRecordV1ToV2(source, { byCellId: { 'cell-a': 'source' } })
+    expect(conversion).toMatchObject({ status: 'converted' })
+    if (conversion.status !== 'converted') return
+    const candidate = structuredClone(conversion.record)
+    delete candidate.composition.clips[0].appearance.keys[0].value.blink
+
+    const audit = auditShowV1ToV2Accounting(source, candidate, conversion.report)
+
+    expect(audit.unaccountedSourcePaths).toEqual([
+      'cells.0.blink.rateHz',
+      'cells.0.blink.duty',
+      'cells.0.blink.phase',
+    ])
+  })
+
+  it('refuses an unknown output-affecting flat Cell field before accounting can bless it', () => {
+    const source = flatV1Show()
+    const cell = source.cells[0] as typeof source.cells[number] & { shaderSeed?: number }
+    cell.shaderSeed = 17
+
+    expect(convertShowRecordV1ToV2(source, { byCellId: { 'cell-a': 'source' } })).toMatchObject({
+      status: 'refused',
+      issues: expect.arrayContaining([expect.objectContaining({
+        code: 'unknown-source-field',
+        path: '/cells/0',
+      })]),
+      report: { unaccountedSourcePaths: [] },
+    })
+  })
+
+  it('records explicit provenance when composition authority retires legacy flat Cell shadows', () => {
+    const source = convertibleV1Show()
+    source.cells = flatV1Show().cells
+
+    const result = convertShowRecordV1ToV2(source)
+
+    expect(result).toMatchObject({
+      status: 'converted',
+      report: {
+        retiredFlatCellShadows: [{
+          sourceCellId: 'cell-a',
+          sourcePath: 'cells.0',
+          outcome: 'retired-composition-shadow',
+        }],
+        unaccountedSourcePaths: [],
+      },
+    })
+    if (result.status !== 'converted') return
+    expect(result.report.accounting.filter(entry => entry.sourcePath.startsWith('cells.0.')))
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ outcome: 'retired-source-structure', targetPath: 'composition' }),
+      ]))
   })
 
   it('refuses flat conversion when an exact source dependency is absent', () => {

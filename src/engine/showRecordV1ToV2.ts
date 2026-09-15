@@ -18,6 +18,7 @@ import {
 export type ShowV1ToV2IssueCode =
   | 'invalid-v1'
   | 'unknown-source-field'
+  | 'unaccounted-source-field'
   | 'missing-source-dependency'
   | 'unsupported-boundary-transition'
   | 'unsupported-transition-track-activation'
@@ -51,6 +52,11 @@ export interface ShowV1ToV2Report {
   clipMappings: Array<{ sourcePlacementIds: string[]; clipId: string }>
   markerMappings: Array<{ sourceSceneId: string; markerId: string; timeMs: number }>
   flatProjectionMappings: Array<{ cellId: string; placementIds: string[]; patternInstanceIds: string[] }>
+  retiredFlatCellShadows: Array<{
+    sourceCellId: string
+    sourcePath: string
+    outcome: 'retired-composition-shadow'
+  }>
   retiredStructuralCuts: Array<{
     sourceTransitionId: string
     afterSceneId: string
@@ -112,6 +118,19 @@ export function convertShowRecordV1ToV2(
     }
     const projected = projectFlatShowToCompositionV1WithCellOrigins(show, lookup)
     composition = projected.composition
+    const cellById = new Map(show.cells.map(cell => [cell.id, cell]))
+    for (const scene of composition.scenes) {
+      for (const zone of scene.zones) {
+        for (const placement of [
+          ...zone.main,
+          ...zone.overlays.flatMap(layer => layer.placements),
+        ]) {
+          const cell = cellById.get(projected.sourceCellIdByPlacementId[placement.id])
+          if (cell?.presentation !== undefined) placement.presentation = structuredClone(cell.presentation)
+          if (cell?.blink !== undefined) placement.blink = structuredClone(cell.blink)
+        }
+      }
+    }
     sourceShow = { ...show, composition }
     for (const cell of show.cells) {
       const placementIds = Object.entries(projected.sourceCellIdByPlacementId)
@@ -124,6 +143,14 @@ export function convertShowRecordV1ToV2(
       report.flatProjectionMappings.push({ cellId: cell.id, placementIds, patternInstanceIds })
       const zoneSampleMode = cell.zoneMode ?? ((cell.zoneSpan ?? 1) === 1 ? 'independent' : 'span')
       for (const placementId of placementIds) flatSampleModeByPlacementId.set(placementId, zoneSampleMode)
+    }
+  } else {
+    for (const [cellIndex, cell] of show.cells.entries()) {
+      report.retiredFlatCellShadows.push({
+        sourceCellId: cell.id,
+        sourcePath: `cells.${cellIndex}`,
+        outcome: 'retired-composition-shadow',
+      })
     }
   }
   for (const issue of validateShowComposition(sourceShow, composition)) {
@@ -198,7 +225,11 @@ export function convertShowRecordV1ToV2(
   const showEndMs = showLoopDurationMs(show)
   const markers = structuredClone(composition.markers ?? [])
   for (const scene of timeline.scenes) {
-    if (markers.some(marker => marker.timeMs === scene.startMs && marker.name === scene.scene.name)) continue
+    const existing = markers.find(marker => marker.timeMs === scene.startMs && marker.name === scene.scene.name)
+    if (existing) {
+      report.markerMappings.push({ sourceSceneId: scene.sceneId, markerId: existing.id, timeMs: scene.startMs })
+      continue
+    }
     const markerId = uniqueId(`scene-marker:${scene.sceneId}`, new Set(markers.map(marker => marker.id)))
     markers.push({ id: markerId, timeMs: scene.startMs, name: scene.scene.name })
     report.markerMappings.push({ sourceSceneId: scene.sceneId, markerId, timeMs: scene.startMs })
@@ -297,7 +328,21 @@ export function convertShowRecordV1ToV2(
     issues.push({ path: issue.path, code: 'invalid-v2', message: issue.message })
   }
   if (issues.length > 0) return refused(show, report, issues)
-  return { status: 'converted', record, report: finalizeAccounting(show, report, false) }
+  const audit = auditShowV1ToV2Accounting(show, record, report)
+  report.accounting = audit.accounting
+  report.unaccountedSourcePaths = audit.unaccountedSourcePaths
+  if (audit.unaccountedSourcePaths.length > 0) {
+    return {
+      status: 'refused',
+      issues: audit.unaccountedSourcePaths.map(path => ({
+        path,
+        code: 'unaccounted-source-field',
+        message: `The v1 source leaf "${path}" has no verified v2 disposition.`,
+      })),
+      report,
+    }
+  }
+  return { status: 'converted', record, report }
 }
 
 function transitionSettings(
@@ -535,6 +580,7 @@ function emptyReport(show: ShowRecord): ShowV1ToV2Report {
     clipMappings: [],
     markerMappings: [],
     flatProjectionMappings: [],
+    retiredFlatCellShadows: [],
     retiredStructuralCuts: [],
     retiredNoContributionPropertyTracks: [],
   }
@@ -546,42 +592,314 @@ function refused(show: ShowRecord, report: ShowV1ToV2Report, issues: ShowV1ToV2I
 
 function finalizeAccounting(show: ShowRecord, report: ShowV1ToV2Report, isRefused: boolean): ShowV1ToV2Report {
   const paths = leafPaths(show)
-  report.accounting = paths.map(sourcePath => ({
-    sourcePath,
-    outcome: isRefused ? 'refused' : accountingOutcome(sourcePath, show, report),
-    ...(isRefused ? {} : { targetPath: targetForSourcePath(sourcePath, show, report) }),
-  }))
+  report.accounting = isRefused
+    ? paths.map(sourcePath => ({ sourcePath, outcome: 'refused' as const }))
+    : report.accounting
   report.unaccountedSourcePaths = paths.filter(path => !report.accounting.some(entry => entry.sourcePath === path))
   return report
 }
 
-function accountingOutcome(
-  path: string,
+export function auditShowV1ToV2Accounting(
   show: ShowRecord,
+  record: ShowRecordV2,
   report: ShowV1ToV2Report,
-): ShowV1ToV2AccountingEntry['outcome'] {
-  if (retiredCutForPath(path, show, report)) return 'retired-source-structure'
-  if (path.startsWith('scenes.') || path.startsWith('composition.scenes.') || path.startsWith('cells.')) {
-    return 'retired-source-structure'
+): Pick<ShowV1ToV2Report, 'accounting' | 'unaccountedSourcePaths'> {
+  const accounting: ShowV1ToV2AccountingEntry[] = []
+  const equal = (
+    sourcePath: string,
+    targetPath: string,
+    source: unknown,
+    target: unknown,
+    outcome: ShowV1ToV2AccountingEntry['outcome'] = sourcePath === targetPath ? 'preserved' : 'mapped',
+  ) => {
+    if (JSON.stringify(source) === JSON.stringify(target)) addAccountingLeaves(accounting, sourcePath, source, outcome, targetPath)
   }
-  return path.startsWith('composition.') || path.startsWith('transitions.') ? 'mapped' : 'preserved'
+  const mapped = (sourcePath: string, targetPath: string, source: unknown, condition: boolean) => {
+    if (condition) addAccountingLeaves(accounting, sourcePath, source, 'mapped', targetPath)
+  }
+  const retired = (sourcePath: string, targetPath: string, source: unknown, condition: boolean) => {
+    if (condition) addAccountingLeaves(accounting, sourcePath, source, 'retired-source-structure', targetPath, false)
+  }
+
+  equal('id', 'id', show.id, record.id)
+  equal('name', 'name', show.name, record.name)
+  equal('zones', 'zones', show.zones, record.zones)
+  equal('routingLayouts', 'zoneLayouts', show.routingLayouts, record.zoneLayouts)
+  if (show.targetControllerProfileId !== undefined) equal('targetControllerProfileId', 'targetControllerProfileId', show.targetControllerProfileId, record.targetControllerProfileId)
+  if (show.stageMapId !== undefined) equal('stageMapId', 'stageMapId', show.stageMapId, record.stageMapId)
+  equal('outputContract', 'outputContract', show.outputContract, record.outputContract)
+  if (show.outputEffects !== undefined) equal('outputEffects', 'outputEffects', show.outputEffects, record.outputEffects)
+  if (show.importMetadata !== undefined) equal('importMetadata', 'importMetadata', show.importMetadata, record.importMetadata)
+  equal('updatedAt', 'updatedAt', show.updatedAt, record.updatedAt)
+
+  for (const [sceneIndex, scene] of show.scenes.entries()) {
+    const sourcePath = `scenes.${sceneIndex}`
+    const offset = report.sceneOffsets.find(candidate => candidate.sceneId === scene.id)
+    const markerMapping = report.markerMappings.find(candidate => candidate.sourceSceneId === scene.id)
+    const marker = record.composition.markers.find(candidate => candidate.id === markerMapping?.markerId)
+    const nextScene = show.scenes[sceneIndex + 1]
+    const nextMarkerMapping = nextScene
+      ? report.markerMappings.find(candidate => candidate.sourceSceneId === nextScene.id)
+      : undefined
+    const nextMarker = nextMarkerMapping
+      ? record.composition.markers.find(candidate => candidate.id === nextMarkerMapping.markerId)
+      : undefined
+    const layout = record.composition.layoutOccurrences[0]
+    const candidateEndMs = nextScene ? nextMarker?.timeMs : record.composition.showEndMs
+    mapped(`${sourcePath}.id`, marker ? `composition.markers.${record.composition.markers.indexOf(marker)}.id` : 'composition.markers', scene.id, Boolean(offset && markerMapping && marker && marker.timeMs === offset.startMs))
+    equal(`${sourcePath}.name`, marker ? `composition.markers.${record.composition.markers.indexOf(marker)}.name` : 'composition.markers', scene.name, marker?.name)
+    mapped(
+      `${sourcePath}.durationMs`,
+      'composition.markers/showEndMs/layoutOccurrences',
+      scene.durationMs,
+      Boolean(
+        offset
+        && marker?.timeMs === offset.startMs
+        && candidateEndMs === offset.endMs
+        && offset.endMs - offset.startMs === scene.durationMs
+        && layout?.startMs === 0
+        && layout.durationMs === record.composition.showEndMs
+      ),
+    )
+    if (scene.routingTargets !== undefined) {
+      const value = scene.routingTargets.splitPosition
+      if (value !== undefined) equal(`${sourcePath}.routingTargets.splitPosition`, 'composition.layoutOccurrences.0.parameters.splitPosition', value, record.composition.layoutOccurrences[0]?.parameters.splitPosition)
+      else mapped(`${sourcePath}.routingTargets`, 'composition.layoutOccurrences.0.parameters', scene.routingTargets, Object.keys(scene.routingTargets).length === 0)
+    }
+    if (scene.sampleTargets !== undefined) {
+      const value = scene.sampleTargets.repeatScale
+      if (value !== undefined) equal(`${sourcePath}.sampleTargets.repeatScale`, 'composition.sampleRemap.repeatScale', value, record.composition.sampleRemap.repeatScale)
+      else mapped(`${sourcePath}.sampleTargets`, 'composition.sampleRemap', scene.sampleTargets, Object.keys(scene.sampleTargets).length === 0)
+    }
+  }
+
+  if (!show.composition) {
+    for (const cellIndex of show.cells.keys()) {
+      auditFlatCell(accounting, show, record, report, cellIndex)
+    }
+  } else {
+    if (show.cells.length === 0) {
+      retired('cells', 'composition', show.cells, true)
+    } else {
+      for (const [cellIndex, cell] of show.cells.entries()) {
+        const provenance = report.retiredFlatCellShadows.find(candidate => (
+          candidate.sourceCellId === cell.id && candidate.sourcePath === `cells.${cellIndex}`
+        ))
+        retired(`cells.${cellIndex}`, 'composition', cell, provenance?.outcome === 'retired-composition-shadow')
+      }
+    }
+    auditComposition(accounting, show, record, report)
+  }
+
+  if (show.transitions.length === 0) {
+    retired('transitions', 'composition.transitions/layoutOccurrences', show.transitions, true)
+  } else {
+    for (const [transitionIndex, transition] of show.transitions.entries()) {
+      const retirement = report.retiredStructuralCuts.find(candidate => candidate.sourceTransitionId === transition.id)
+      retired(
+        `transitions.${transitionIndex}`,
+        'composition.clips/markers',
+        transition,
+        Boolean(retirement && transition.kind === 'cut' && !cutCarrierField(transition)),
+      )
+    }
+  }
+
+  const sourcePaths = leafPaths(show)
+  const accounted = new Set(accounting.map(entry => entry.sourcePath))
+  return {
+    accounting: accounting.sort((left, right) => left.sourcePath.localeCompare(right.sourcePath)),
+    unaccountedSourcePaths: sourcePaths.filter(path => !accounted.has(path)),
+  }
 }
 
-function targetForSourcePath(path: string, show: ShowRecord, report: ShowV1ToV2Report): string {
-  if (retiredCutForPath(path, show, report)) return 'composition.clips/markers'
-  if (path.startsWith('scenes.')) return 'composition.markers/layoutOccurrences/clips'
-  if (path.startsWith('cells.')) return 'composition.patternInstances/clips'
-  if (path.startsWith('composition.scenes.')) return 'composition.layers/clips/propertyTracks'
-  if (path.startsWith('transitions.')) return 'composition.transitions/layoutOccurrences'
-  if (path === 'routingLayouts' || path.startsWith('routingLayouts.')) return path.replace('routingLayouts', 'zoneLayouts')
-  return path
+function addAccountingLeaves(
+  accounting: ShowV1ToV2AccountingEntry[],
+  sourcePath: string,
+  source: unknown,
+  outcome: ShowV1ToV2AccountingEntry['outcome'],
+  targetPath: string,
+  appendSuffix = true,
+): void {
+  for (const leaf of leafPaths(source, sourcePath)) {
+    const suffix = leaf.slice(sourcePath.length)
+    accounting.push({ sourcePath: leaf, outcome, targetPath: appendSuffix ? `${targetPath}${suffix}` : targetPath })
+  }
 }
 
-function retiredCutForPath(path: string, show: ShowRecord, report: ShowV1ToV2Report): boolean {
-  const match = /^transitions\.(\d+)(?:\.|$)/.exec(path)
-  if (!match) return false
-  const transition = show.transitions[Number(match[1])]
-  return Boolean(transition && report.retiredStructuralCuts.some(cut => cut.sourceTransitionId === transition.id))
+function auditFlatCell(
+  accounting: ShowV1ToV2AccountingEntry[],
+  show: ShowRecord,
+  record: ShowRecordV2,
+  report: ShowV1ToV2Report,
+  cellIndex: number,
+): void {
+  const cell = show.cells[cellIndex]
+  const sourcePath = `cells.${cellIndex}`
+  const projection = report.flatProjectionMappings.find(candidate => candidate.cellId === cell.id)
+  if (!projection) return
+  const clipIds = new Set(report.clipMappings
+    .filter(mapping => mapping.sourcePlacementIds.some(id => projection.placementIds.includes(id)))
+    .map(mapping => mapping.clipId))
+  const clips = record.composition.clips.filter(clip => clipIds.has(clip.id))
+  const instances = record.composition.patternInstances.filter(instance => projection.patternInstanceIds.includes(instance.id))
+  const mapped = (path: string, targetPath: string, value: unknown, condition: boolean) => {
+    if (condition) addAccountingLeaves(accounting, `${sourcePath}.${path}`, value, 'mapped', targetPath)
+  }
+  const equalAll = (path: string, targetPath: string, value: unknown, targets: unknown[]) => {
+    mapped(path, targetPath, value, targets.length > 0 && targets.every(target => JSON.stringify(target) === JSON.stringify(value)))
+  }
+  mapped('id', 'composition.patternInstances/clips', cell.id, clips.length > 0 && instances.length > 0)
+  mapped('zoneId', 'composition.clips.*.zoneId', cell.zoneId, clips.length > 0 && clips.some(clip => clip.zoneId === cell.zoneId))
+  const startSceneIndex = show.scenes.findIndex(scene => scene.id === cell.sceneId)
+  const startMs = show.scenes.slice(0, Math.max(0, startSceneIndex)).reduce((sum, scene) => sum + scene.durationMs, 0)
+  const durationMs = show.scenes.slice(startSceneIndex, startSceneIndex + Math.max(1, cell.sceneSpan)).reduce((sum, scene) => sum + scene.durationMs, 0)
+  mapped('sceneId', 'composition.clips.*.startMs', cell.sceneId, startSceneIndex >= 0 && clips.length > 0 && Math.min(...clips.map(clip => clip.startMs)) === startMs)
+  mapped('sceneSpan', 'composition.clips.*.durationMs', cell.sceneSpan, clips.length > 0 && Math.max(...clips.map(clip => clip.startMs + clip.durationMs)) === startMs + durationMs)
+  if (cell.zoneSpan !== undefined) {
+    const startZoneIndex = show.zones.findIndex(zone => zone.id === cell.zoneId)
+    const expectedZoneIds = show.zones.slice(startZoneIndex, startZoneIndex + Math.max(1, cell.zoneSpan)).map(zone => zone.id)
+    mapped('zoneSpan', 'composition.clips.*.zoneId', cell.zoneSpan, expectedZoneIds.every(zoneId => clips.some(clip => clip.zoneId === zoneId)))
+  }
+  if (cell.zoneMode !== undefined) equalAll('zoneMode', 'composition.clips.*.zoneSampleMode', cell.zoneMode, clips.map(clip => clip.zoneSampleMode))
+  equalAll('pattern', 'composition.patternInstances.*.pattern', cell.pattern, instances.map(instance => instance.pattern))
+  equalAll('patternName', 'composition.patternInstances.*.patternName', cell.patternName, instances.map(instance => instance.patternName))
+  equalAll('adaptations.mirror', 'composition.clips.*.appearance.keys.*.value.view.mirror', cell.adaptations.mirror, clips.flatMap(clip => clip.appearance.keys.map(key => key.value.view.mirror)))
+  equalAll('adaptations.phase', 'composition.clips.*.appearance.keys.*.value.view.phase', cell.adaptations.phase, clips.flatMap(clip => clip.appearance.keys.map(key => key.value.view.phase)))
+  equalAll('adaptations.brightness', 'composition.clips.*.appearance.keys.*.value.view.brightness', cell.adaptations.brightness, clips.flatMap(clip => clip.appearance.keys.map(key => key.value.view.brightness)))
+  equalAll('adaptations.timeScale', 'composition.patternInstances.*.time.timeScale', cell.adaptations.timeScale, instances.map(instance => instance.time.timeScale))
+  if (cell.adaptations.timeOffsetMs !== undefined) equalAll('adaptations.timeOffsetMs', 'composition.patternInstances.*.time.timeOffsetMs', cell.adaptations.timeOffsetMs, instances.map(instance => instance.time.timeOffsetMs))
+  if (cell.adaptations.lightShutter !== undefined) equalAll('adaptations.lightShutter', 'composition.patternInstances.*.time.lightShutter', cell.adaptations.lightShutter, instances.map(instance => instance.time.lightShutter))
+  if (cell.adaptations.steppedClock !== undefined) equalAll('adaptations.steppedClock', 'composition.patternInstances.*.time.steppedClock', cell.adaptations.steppedClock, instances.map(instance => instance.time.steppedClock))
+  if (cell.restartOnEntry !== undefined) mapped('restartOnEntry', 'composition.patternInstances.*.id', cell.restartOnEntry, instances.length > 0)
+  if (cell.evaluationPolicy !== undefined) equalAll('evaluationPolicy', 'composition.patternInstances.*.evaluationPolicy', cell.evaluationPolicy, instances.map(instance => instance.evaluationPolicy ?? 'live'))
+  if (cell.controlTargets !== undefined) equalAll('controlTargets', 'composition.patternInstances.*.controlTargets', cell.controlTargets, instances.map(instance => instance.controlTargets))
+  const appearances = clips.flatMap(clip => clip.appearance.keys.map(key => key.value))
+  if (cell.presentation !== undefined) equalAll('presentation', 'composition.clips.*.appearance.keys.*.value.presentation', cell.presentation, appearances.map(value => value.presentation))
+  if (cell.blink !== undefined) equalAll('blink', 'composition.clips.*.appearance.keys.*.value.blink', cell.blink, appearances.map(value => value.blink))
+  if (cell.transform !== undefined) equalAll('transform', 'composition.clips.*.appearance.keys.*.value.transform', cell.transform, appearances.map(value => value.transform))
+  if (cell.viewport !== undefined) equalAll('viewport', 'composition.clips.*.appearance.keys.*.value.aperture', cell.viewport, appearances.map(value => value.aperture))
+  if (cell.effects !== undefined) equalAll('effects', 'composition.clips.*.appearance.keys.*.value.effects', cell.effects, appearances.map(value => value.effects))
+}
+
+function auditComposition(
+  accounting: ShowV1ToV2AccountingEntry[],
+  show: ShowRecord,
+  record: ShowRecordV2,
+  report: ShowV1ToV2Report,
+): void {
+  const composition = show.composition!
+  const mapped = (sourcePath: string, targetPath: string, source: unknown, condition: boolean) => {
+    if (condition) addAccountingLeaves(accounting, sourcePath, source, 'mapped', targetPath)
+  }
+  mapped('composition.version', 'composition.version', composition.version, record.composition.version === 2)
+  if (composition.executionModel !== undefined) mapped('composition.executionModel', 'composition.executionModel', composition.executionModel, record.composition.executionModel === composition.executionModel)
+  if (composition.durationMs !== undefined) mapped('composition.durationMs', 'composition.showEndMs', composition.durationMs, record.composition.showEndMs === composition.durationMs)
+  if (JSON.stringify(composition.patternInstances) === JSON.stringify(record.composition.patternInstances)) {
+    addAccountingLeaves(accounting, 'composition.patternInstances', composition.patternInstances, 'preserved', 'composition.patternInstances')
+  }
+  for (const [markerIndex, marker] of (composition.markers ?? []).entries()) {
+    const targetIndex = record.composition.markers.findIndex(candidate => candidate.id === marker.id)
+    if (targetIndex >= 0 && JSON.stringify(marker) === JSON.stringify(record.composition.markers[targetIndex])) {
+      addAccountingLeaves(accounting, `composition.markers.${markerIndex}`, marker, 'mapped', `composition.markers.${targetIndex}`)
+    }
+  }
+  if (composition.markers?.length === 0) mapped('composition.markers', 'composition.markers', composition.markers, true)
+  if ((composition.groupDefinitions?.length ?? 0) === 0 && composition.groupDefinitions !== undefined) mapped('composition.groupDefinitions', 'composition.groupDefinitions', composition.groupDefinitions, record.composition.groupDefinitions.length === 0)
+  if ((composition.groupOccurrences?.length ?? 0) === 0 && composition.groupOccurrences !== undefined) mapped('composition.groupOccurrences', 'composition.groupOccurrences', composition.groupOccurrences, record.composition.groupOccurrences.length === 0)
+
+  for (const [sceneIndex, scene] of composition.scenes.entries()) {
+    const scenePath = `composition.scenes.${sceneIndex}`
+    const offset = report.sceneOffsets.find(candidate => candidate.sceneId === scene.sceneId)
+    mapped(`${scenePath}.sceneId`, 'composition.markers/clips/propertyTracks', scene.sceneId, Boolean(offset))
+    if (scene.propertyTracks?.length === 0) mapped(`${scenePath}.propertyTracks`, 'composition.propertyTracks', scene.propertyTracks, true)
+    for (const [trackIndex, track] of (scene.propertyTracks ?? []).entries()) {
+      const targetIndex = record.composition.propertyTracks.findIndex(candidate => candidate.id === track.id)
+      const target = record.composition.propertyTracks[targetIndex]
+      const expectedTarget = convertPropertyTarget(track.target, new Map(report.clipMappings.flatMap(item => item.sourcePlacementIds.map(id => [id, item.clipId]))))
+      const keysPreserved = Boolean(target && track.keyframes.every((key, index) => (
+        target.keyframes[index]?.id === key.id
+        && target.keyframes[index]?.value === key.value
+        && JSON.stringify(target.keyframes[index]?.easing) === JSON.stringify(key.easing)
+        && target.keyframes[index]?.timeMs === (offset?.startMs ?? 0) + key.timeMs
+      )))
+      mapped(
+        `${scenePath}.propertyTracks.${trackIndex}`,
+        targetIndex >= 0 ? `composition.propertyTracks.${targetIndex}` : 'composition.propertyTracks',
+        track,
+        Boolean(target && offset && target.activeStartMs === offset.startMs && JSON.stringify(target.target) === JSON.stringify(expectedTarget) && keysPreserved),
+      )
+    }
+    for (const [zoneIndex, zone] of scene.zones.entries()) {
+      const zonePath = `${scenePath}.zones.${zoneIndex}`
+      const hasMappedLayer = report.layerMappings.some(candidate => candidate.sceneId === scene.sceneId && candidate.zoneId === zone.zoneId)
+      mapped(`${zonePath}.zoneId`, 'composition.layers/clips', zone.zoneId, hasMappedLayer)
+      if (zone.main.length === 0) mapped(`${zonePath}.main`, 'composition.clips', zone.main, true)
+      for (const [placementIndex, placement] of zone.main.entries()) {
+        auditPlacement(accounting, record, report, placement, `${zonePath}.main.${placementIndex}`, offset?.startMs ?? 0)
+      }
+      if (zone.overlays.length === 0) mapped(`${zonePath}.overlays`, 'composition.layers', zone.overlays, true)
+      for (const [layerIndex, layer] of zone.overlays.entries()) {
+        const layerPath = `${zonePath}.overlays.${layerIndex}`
+        const layerMapping = report.layerMappings.find(candidate => candidate.sceneId === scene.sceneId && candidate.zoneId === zone.zoneId && candidate.sourceLayerId === layer.id)
+        const targetIndex = record.composition.layers.findIndex(candidate => candidate.id === layerMapping?.layerId)
+        const target = record.composition.layers[targetIndex]
+        mapped(`${layerPath}.id`, targetIndex >= 0 ? `composition.layers.${targetIndex}.id` : 'composition.layers', layer.id, Boolean(target && layerMapping))
+        mapped(`${layerPath}.name`, targetIndex >= 0 ? `composition.layers.${targetIndex}.name` : 'composition.layers', layer.name, target?.name === layer.name)
+        if (layer.placements.length === 0) mapped(`${layerPath}.placements`, 'composition.clips', layer.placements, true)
+        for (const [placementIndex, placement] of layer.placements.entries()) {
+          auditPlacement(accounting, record, report, placement, `${layerPath}.placements.${placementIndex}`, offset?.startMs ?? 0)
+        }
+      }
+    }
+  }
+
+  if ((composition.transitions?.length ?? 0) === 0 && composition.transitions !== undefined) mapped('composition.transitions', 'composition.transitions', composition.transitions, record.composition.transitions.length === 0)
+  for (const [transitionIndex, transition] of (composition.transitions ?? []).entries()) {
+    const targetIndex = record.composition.transitions.findIndex(candidate => candidate.id === transition.id)
+    const target = record.composition.transitions[targetIndex]
+    if (!target) continue
+    const { fromPlacementId, toPlacementId, ...settings } = transition
+    const { participants: _participants, propertyRamps: _ramps, ...targetSettings } = target
+    if (JSON.stringify(settings) === JSON.stringify(targetSettings)) {
+      addAccountingLeaves(accounting, `composition.transitions.${transitionIndex}`, settings, 'mapped', `composition.transitions.${targetIndex}`)
+    }
+    const participant = target.participants[0]
+    const fromClipId = report.clipMappings.find(mapping => mapping.sourcePlacementIds.includes(fromPlacementId))?.clipId
+    const toClipId = report.clipMappings.find(mapping => mapping.sourcePlacementIds.includes(toPlacementId))?.clipId
+    mapped(`composition.transitions.${transitionIndex}.fromPlacementId`, `composition.transitions.${targetIndex}.participants.0.fromClipId`, fromPlacementId, participant?.fromClipId === fromClipId)
+    mapped(`composition.transitions.${transitionIndex}.toPlacementId`, `composition.transitions.${targetIndex}.participants.0.toClipId`, toPlacementId, participant?.toClipId === toClipId)
+  }
+}
+
+function auditPlacement(
+  accounting: ShowV1ToV2AccountingEntry[],
+  record: ShowRecordV2,
+  report: ShowV1ToV2Report,
+  placement: ShowMainPlacement | ShowOverlayPlacement,
+  sourcePath: string,
+  sceneStartMs: number,
+): void {
+  const mapping = report.clipMappings.find(candidate => candidate.sourcePlacementIds.includes(placement.id))
+  const clipIndex = record.composition.clips.findIndex(candidate => candidate.id === mapping?.clipId)
+  const clip = record.composition.clips[clipIndex]
+  if (!clip) return
+  const timeMs = sceneStartMs + placement.startMs
+  const key = [...clip.appearance.keys].reverse().find(candidate => candidate.timeMs <= timeMs)
+  const expectedAppearance = {
+    opacity: placement.opacity ?? 1,
+    view: placement.view,
+    ...(placement.presentation !== undefined ? { presentation: placement.presentation } : {}),
+    ...(placement.blink !== undefined ? { blink: placement.blink } : {}),
+    ...(placement.transform !== undefined ? { transform: placement.transform } : {}),
+    ...(placement.viewport !== undefined ? { aperture: placement.viewport } : {}),
+    effects: placement.effects ?? [],
+  }
+  const logicalId = placement.logicalClipId ?? placement.id
+  const intervalCovered = clip.startMs <= timeMs && clip.startMs + clip.durationMs >= timeMs + placement.durationMs
+  if (mapping && mapping.clipId === logicalId && clip.instanceId === placement.instanceId && intervalCovered && JSON.stringify(key?.value) === JSON.stringify(expectedAppearance)) {
+    addAccountingLeaves(accounting, sourcePath, placement, 'mapped', `composition.clips.${clipIndex}`)
+  }
 }
 
 function leafPaths(value: unknown, path = ''): string[] {

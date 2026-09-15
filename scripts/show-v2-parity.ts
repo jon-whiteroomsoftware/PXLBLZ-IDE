@@ -8,8 +8,9 @@ import { stockMapSpec } from '@/engine/maps'
 import type { MapPoint } from '@/engine/maps/types'
 import type { LibraryRecord, PatternRecord, ShowPatternRef, ShowRecord } from '@/engine/personalContentRecords'
 import { compileShow, type GeneratedShowArtifact } from '@/engine/showCompiler'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { lowerShowCompositionV2ForCompile } from '@/engine/showCompositionLoweringV2'
-import { showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from '@/engine/showModel'
+import { projectShowTimeline, showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from '@/engine/showModel'
 import { convertShowRecordV1ToV2, type ShowV1ToV2Report } from '@/engine/showRecordV1ToV2'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
@@ -56,6 +57,7 @@ interface CorpusEntry {
   refusalMessages: string[]
   accountedSourceLeaves: number
   unaccountedSourcePaths: string[]
+  retiredFlatCellShadows: ShowV1ToV2Report['retiredFlatCellShadows']
   parity?: Parity
 }
 
@@ -121,6 +123,7 @@ function runEntry(input: { corpus: CorpusEntry['corpus']; corpusId: string; show
     dependencies,
     accountedSourceLeaves: conversion.report.accounting.length,
     unaccountedSourcePaths: conversion.report.unaccountedSourcePaths,
+    retiredFlatCellShadows: structuredClone(conversion.report.retiredFlatCellShadows),
   }
   if (missing.length > 0) return {
     ...base, outcome: 'dependency-refused', refusalCodes: ['missing-dependency'],
@@ -155,8 +158,8 @@ function runEntry(input: { corpus: CorpusEntry['corpus']; corpusId: string; show
         sourceEqual: v2.code === v1.code && v2.fxCode === v1.fxCode,
         summaryEqual: stableJson(v2.summary) === stableJson(v1.summary),
         memberIdentityMappings,
-        fast: runtimeParity(v1, v2, conversion.record.composition.showEndMs, 'fast', memberIdentityMappings),
-        precise: runtimeParity(v1, v2, conversion.record.composition.showEndMs, 'fidelity', memberIdentityMappings),
+        fast: runtimeParity(v1, v2, show, conversion.record, 'fast', memberIdentityMappings),
+        precise: runtimeParity(v1, v2, show, conversion.record, 'fidelity', memberIdentityMappings),
       },
     }
   } catch (error) {
@@ -289,17 +292,19 @@ function librarySources(fixture?: BaselineFixture): Record<string, string> {
 function runtimeParity(
   leftArtifact: GeneratedShowArtifact,
   rightArtifact: GeneratedShowArtifact,
-  showEndMs: number,
+  source: ShowRecord,
+  converted: ShowRecordV2,
   fidelity: 'fast' | 'fidelity',
   memberIdentityMappings: MemberIdentityMapping[],
 ): RuntimeParity {
+  const showEndMs = converted.composition.showEndMs
   const dimension = Math.max(nativeDimension(leftArtifact.metadata.renderFns), nativeDimension(rightArtifact.metadata.renderFns)) as 1 | 2 | 3
   const points = mapPoints(dimension)
   const runtime = (artifact: GeneratedShowArtifact) => createFastReplayRuntime({
     code: artifact.code, fxCode: artifact.fxCode, metadata: artifact.metadata,
     dimension: nativeDimension(artifact.metadata.renderFns),
   }, { mapPoints: points, randomSeed: RANDOM_SEED, fidelity })
-  const times = sampleTimes(leftArtifact, showEndMs)
+  const times = semanticSampleTimes(source, converted, leftArtifact.summary.transitions ?? [])
   const left = runtime(leftArtifact)
   const right = runtime(rightArtifact)
   const rightMemberIdAliases = new Map(memberIdentityMappings.map(mapping => [mapping.v2MemberId, mapping.v1MemberId]))
@@ -398,14 +403,90 @@ function freeze(
   return { frame: Array.from(result.frame), state }
 }
 
-function sampleTimes(artifact: GeneratedShowArtifact, showEndMs: number): number[] {
-  const boundaries = (artifact.summary.transitions ?? []).flatMap(transition => [
-    transition.startMs - 1, transition.startMs, transition.startMs + 1,
-    Math.floor((transition.startMs + transition.endMs) / 2),
-    transition.endMs - 1, transition.endMs, transition.endMs + 1,
-  ])
-  return sortedUnique([0, Math.floor(showEndMs / 2), showEndMs - 1, ...boundaries]
-    .filter(time => Number.isSafeInteger(time) && time >= 0 && time < showEndMs))
+export function semanticSampleTimes(
+  source: ShowRecord,
+  converted: ShowRecordV2,
+  compiledTransitions: GeneratedShowArtifact['summary']['transitions'],
+): number[] {
+  const showEndMs = converted.composition.showEndMs
+  const boundaries = new Set<number>()
+  const intervalMidpoints: number[] = []
+  const boundary = (timeMs: number) => {
+    if (Number.isSafeInteger(timeMs)) boundaries.add(timeMs)
+  }
+  const interval = (startMs: number, endMs: number) => {
+    boundary(startMs)
+    boundary(endMs)
+    if (Number.isSafeInteger(startMs) && Number.isSafeInteger(endMs) && endMs > startMs) {
+      intervalMidpoints.push(Math.floor((startMs + endMs) / 2))
+    }
+  }
+  const partition = (startMs: number, endMs: number, points: number[]) => {
+    const ordered = sortedUnique([startMs, ...points.filter(timeMs => timeMs > startMs && timeMs < endMs), endMs])
+    ordered.slice(0, -1).forEach((timeMs, index) => interval(timeMs, ordered[index + 1]))
+  }
+
+  interval(0, showEndMs)
+  const timeline = projectShowTimeline(source)
+  timeline.scenes.forEach(range => interval(range.startMs, range.endMs))
+  timeline.transitions.forEach(range => interval(range.startMs, range.endMs))
+  timeline.boundaryTransitions.forEach(range => interval(range.startMs, range.endMs))
+  timeline.rows.flatMap(row => row.cells).forEach(range => interval(range.startMs, range.endMs))
+  const sourceSceneById = new Map(timeline.scenes.map(scene => [scene.sceneId, scene]))
+  for (const scene of source.composition?.scenes ?? []) {
+    const sceneRange = sourceSceneById.get(scene.sceneId)
+    if (!sceneRange) continue
+    for (const zone of scene.zones) {
+      for (const placement of [...zone.main, ...zone.overlays.flatMap(layer => layer.placements)]) {
+        interval(sceneRange.startMs + placement.startMs, sceneRange.startMs + placement.startMs + placement.durationMs)
+      }
+    }
+    for (const track of scene.propertyTracks ?? []) {
+      partition(
+        sceneRange.startMs,
+        sceneRange.endMs,
+        track.keyframes.map(keyframe => sceneRange.startMs + keyframe.timeMs),
+      )
+    }
+  }
+
+  const clipById = new Map(converted.composition.clips.map(clip => [clip.id, clip]))
+  for (const clip of converted.composition.clips) {
+    partition(
+      clip.startMs,
+      clip.startMs + clip.durationMs,
+      clip.appearance.keys.map(key => key.timeMs),
+    )
+  }
+  for (const occurrence of converted.composition.layoutOccurrences) {
+    interval(occurrence.startMs, occurrence.startMs + occurrence.durationMs)
+    if (occurrence.incomingTransfer) {
+      interval(occurrence.startMs, occurrence.startMs + occurrence.incomingTransfer.durationMs)
+    }
+  }
+  for (const track of converted.composition.propertyTracks) {
+    partition(
+      track.activeStartMs,
+      track.activeStartMs + track.activeDurationMs,
+      track.keyframes.map(keyframe => keyframe.timeMs),
+    )
+  }
+  for (const transition of converted.composition.transitions) {
+    for (const participant of transition.participants) {
+      const from = clipById.get(participant.fromClipId)
+      if (!from) continue
+      const startMs = from.startMs + from.durationMs
+      interval(startMs, startMs + transition.durationMs)
+    }
+  }
+  for (const transition of compiledTransitions) {
+    interval(transition.startMs, transition.endMs)
+  }
+
+  return sortedUnique([
+    ...intervalMidpoints,
+    ...[...boundaries].flatMap(timeMs => [timeMs - 1, timeMs, timeMs + 1]),
+  ].filter(timeMs => Number.isSafeInteger(timeMs) && timeMs >= 0 && timeMs < showEndMs))
 }
 
 function mapPoints(dimension: 1 | 2 | 3): MapPoint[] {

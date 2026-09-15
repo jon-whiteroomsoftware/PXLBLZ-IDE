@@ -367,6 +367,7 @@ function lowerContinuousToFlat(
   const sceneIndexByStart = new Map(boundaries.slice(0, -1).map((startMs, index) => [startMs, index]))
   const instanceById = new Map(composition.patternInstances.map(instance => [instance.id, instance]))
   const byCellId: Record<string, string> = {}
+  const instanceIdByCellId = { ...(lookup.instanceIdByCellId ?? {}) }
   const cells = composition.clips.map((clip): ShowCell => {
     const appearance = clip.appearance.keys[0].value
     const instance = instanceById.get(clip.instanceId)!
@@ -375,6 +376,7 @@ function lowerContinuousToFlat(
     const source = lookup.byPatternInstanceId?.[instance.id]
     if (!source) throw new Error(`Show composition v2 requires exact Pattern source for instance "${instance.id}".`)
     byCellId[clip.id] = source
+    instanceIdByCellId[clip.id] = instance.id
     return {
       id: clip.id,
       zoneId: clip.zoneId,
@@ -383,6 +385,7 @@ function lowerContinuousToFlat(
       pattern: structuredClone(instance.pattern),
       patternName: instance.patternName,
       evaluationPolicy: instance.evaluationPolicy,
+      restartOnEntry: false,
       ...(clip.zoneSampleMode === 'independent' ? {} : { zoneMode: clip.zoneSampleMode }),
       adaptations: {
         mirror: appearance.view.mirror,
@@ -417,7 +420,7 @@ function lowerContinuousToFlat(
       ...(record.importMetadata !== undefined ? { importMetadata: structuredClone(record.importMetadata) } : {}),
       updatedAt: record.updatedAt,
     },
-    lookup: { ...structuredClone(lookup), byCellId },
+    lookup: { ...structuredClone(lookup), byCellId, instanceIdByCellId },
   }
 }
 
