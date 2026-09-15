@@ -4,6 +4,8 @@ import {
   type ShowRecordV2,
   type ShowTransitionV2,
 } from './showCompositionV2'
+import { materializeShowGroupsV2 } from './showGroupsV2'
+import { validateClipLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 
 export interface ShowDerivedCutJunctionV2 {
   kind: 'cut'
@@ -255,7 +257,11 @@ function resizeTrailing(record: ShowRecordV2, clipId: string, endMs: number): Sh
   if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
   const compilerRestriction = firstCompilerRestriction(next)
   if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction)
-  const unavailable = firstUnavailableMovedClip(next, new Set([clip.id, ...affectedClipIds]))
+  const unavailable = firstUnavailableContributor(next, [...new Set([
+    clip.id,
+    ...affectedClipIds,
+    ...endpoints.all,
+  ])])
   if (unavailable) return refusedResult(record, 'unsupported-layout', unavailable)
   return {
     status: 'changed', record: next,
@@ -294,7 +300,7 @@ function resizeLeading(record: ShowRecordV2, clipId: string, startMs: number): S
   if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
   const compilerRestriction = firstCompilerRestriction(next)
   if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction)
-  const unavailable = firstUnavailableMovedClip(next, new Set([clip.id]))
+  const unavailable = firstUnavailableContributor(next, [...new Set([clip.id, ...endpoints.all])])
   if (unavailable) return refusedResult(record, 'unsupported-layout', unavailable)
   return {
     status: 'changed', record: next, affectedClipIds: [clip.id], affectedTransitionIds: [transition.id],
@@ -333,7 +339,14 @@ function commitShift(
   if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
   const compilerRestriction = firstCompilerRestriction(next)
   if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction)
-  const unavailable = firstUnavailableMovedClip(next, moved)
+  const contributionAffected = new Set(moved)
+  for (const transition of replacements) {
+    transitionEndpoints(transition).all.forEach(id => contributionAffected.add(id))
+  }
+  for (const transition of record.composition.transitions.filter(candidate => removedIds.includes(candidate.id))) {
+    transitionEndpoints(transition).all.forEach(id => contributionAffected.add(id))
+  }
+  const unavailable = firstUnavailableContributor(next, [...contributionAffected])
   if (unavailable) return refusedResult(record, 'unsupported-layout', unavailable)
   const affectedTransitionIds = [...new Set([
     ...replacements.map(transition => transition.id),
@@ -474,10 +487,18 @@ function shiftOwnedTracks(
   moved: Set<string>,
   deltaMs: number,
 ): string[] {
+  const effective = source.composition.groupOccurrences.length > 0
+    ? materializeShowGroupsV2(source)
+    : source
+  const clipUsersByInstance = new Map<string, string[]>()
+  for (const clip of effective.composition.clips) {
+    const users = clipUsersByInstance.get(clip.instanceId) ?? []
+    users.push(clip.id)
+    clipUsersByInstance.set(clip.instanceId, users)
+  }
   const soleClipByInstance = new Map<string, string>()
-  for (const instance of source.composition.patternInstances) {
-    const users = source.composition.clips.filter(clip => clip.instanceId === instance.id)
-    if (users.length === 1) soleClipByInstance.set(instance.id, users[0].id)
+  for (const [instanceId, users] of clipUsersByInstance) {
+    if (users.length === 1) soleClipByInstance.set(instanceId, users[0])
   }
   const affected: string[] = []
   for (const track of tracks) {
@@ -494,29 +515,11 @@ function shiftOwnedTracks(
   return affected
 }
 
-function firstUnavailableMovedClip(record: ShowRecordV2, moved: Set<string>): string | null {
-  for (const clip of record.composition.clips.filter(candidate => moved.has(candidate.id))) {
-    let startMs = clip.startMs
-    let endMs = clip.startMs + clip.durationMs
-    for (const transition of record.composition.transitions) {
-      const endpoints = transitionEndpoints(transition)
-      const windowStart = transition.wholeOutput?.startMs
-        ?? record.composition.clips.find(candidate => candidate.id === endpoints.from[0])!.startMs
-          + record.composition.clips.find(candidate => candidate.id === endpoints.from[0])!.durationMs
-      if (endpoints.to.includes(clip.id)) startMs = Math.min(startMs, windowStart)
-      if (endpoints.from.includes(clip.id)) endMs = Math.max(endMs, windowStart + transition.durationMs)
-    }
-    for (const occurrence of record.composition.layoutOccurrences) {
-      if (occurrence.startMs >= endMs || occurrence.startMs + occurrence.durationMs <= startMs) continue
-      const layout = record.zoneLayouts.find(candidate => candidate.id === occurrence.layoutId)!
-      const zoneIds = layout.logical?.zoneIds
-        ?? (layout.zones.length > 0 ? layout.zones.map(zone => zone.zoneId) : record.zones.map(zone => zone.id))
-      if (!zoneIds.includes(clip.zoneId)) {
-        return `Clip "${clip.id}" contributes while Zone "${clip.zoneId}" is unavailable in Layout occurrence "${occurrence.id}".`
-      }
-    }
-  }
-  return null
+function firstUnavailableContributor(record: ShowRecordV2, clipIds: readonly string[]): string | null {
+  const issue = validateClipLayoutAvailabilityV2(record, clipIds)[0]
+  return issue
+    ? `Clip "${issue.entityId}" contributes while Zone "${issue.zoneId}" is unavailable in Layout occurrence "${issue.layoutOccurrenceId}".`
+    : null
 }
 
 function firstCompilerRestriction(record: ShowRecordV2): string | null {

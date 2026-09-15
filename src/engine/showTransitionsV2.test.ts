@@ -94,6 +94,32 @@ function unequalWholeOutputShow(): ShowRecordV2 {
   return record
 }
 
+function crossZoneWholeOutputShow(): ShowRecordV2 {
+  const record = cutShow()
+  const incoming = record.composition.clips.find(clip => clip.id === 'in')!
+  record.zones.push({ id: 'zone-b', name: 'Second', nominalPixelCount: 16 })
+  record.zoneLayouts[0].logical = { kind: 'split', zoneIds: ['zone', 'zone-b'], axis: 'x' }
+  record.zoneLayouts.push({
+    id: 'layout-b', name: 'Second only', zones: [], logical: { kind: 'single', zoneIds: ['zone-b'] },
+  })
+  record.composition.layers.push({ id: 'layer:zone-b:main', zoneId: 'zone-b', name: 'Main', rank: 0 })
+  incoming.zoneId = 'zone-b'
+  incoming.layerId = 'layer:zone-b:main'
+  incoming.startMs = 500
+  incoming.appearance.keys.forEach(key => { key.timeMs = 500 })
+  record.composition.layoutOccurrences = [
+    { id: 'layout-both', layoutId: 'layout', startMs: 0, durationMs: 500, parameters: {} },
+    { id: 'layout-b', layoutId: 'layout-b', startMs: 500, durationMs: 500, parameters: {} },
+  ]
+  record.composition.transitions = [{
+    id: 'whole', kind: 'crossfade', durationMs: 100, easing: { curve: 'linear' },
+    crossfadePolicy: 'live-live', propertyRamps: [], participants: [],
+    wholeOutput: { startMs: 400, fromClipIds: ['out'], toClipIds: ['in'] },
+  }]
+  expect(validateShowRecordV2(record)).toEqual([])
+  return record
+}
+
 function compiledFrames(record: ShowRecordV2, fidelity: 'fast' | 'fidelity') {
   const compileCandidate = reopen(record)
   // #1037 projects these owned tracks; this proof isolates the Transition topology/artifact.
@@ -273,6 +299,59 @@ describe('v2 Transition ownership', () => {
     for (const fidelity of ['fast', 'fidelity'] as const) compiledFrames(reset.record, fidelity)
   })
 
+  it('keeps instance animation global when a materialized Group Clip shares the moved Clip instance', () => {
+    const source = cutShow()
+    const incoming = source.composition.clips.find(clip => clip.id === 'in')!
+    const sharedInstance = source.composition.patternInstances.find(instance => instance.id === incoming.instanceId)!
+    const overlayLayer = source.composition.layers.find(layer => layer.rank === 1)!
+    const { zoneId: _zoneId, ...groupClip } = structuredClone(incoming)
+    source.composition.groupDefinitions = [{
+      id: 'group-definition', name: 'Shared runtime Group',
+      patternInstances: [{ ...structuredClone(sharedInstance), id: 'group-slot' }],
+      layers: [{ id: 'group-layer', name: 'Main', rank: 0 }],
+      clips: [{
+        ...groupClip, id: 'group-clip', instanceId: 'group-slot', layerId: 'group-layer',
+        startMs: 0, durationMs: 100,
+        appearance: { keys: [{ ...groupClip.appearance.keys[0], id: 'group-appearance', timeMs: 0 }] },
+      }],
+      transitions: [], propertyTracks: [],
+    }]
+    source.composition.groupOccurrences = [{
+      id: 'group-use', definitionId: 'group-definition', layoutOccurrenceId: source.composition.layoutOccurrences[0].id,
+      zoneId: 'zone', startMs: 800, translationX: 0, translationY: 0,
+      instanceBindings: { 'group-slot': incoming.instanceId },
+      layerBindings: [{ definitionLayerId: 'group-layer', layerId: overlayLayer.id }],
+    }]
+    source.composition.propertyTracks = [{
+      id: 'shared-instance-track', target: { kind: 'instance-time-scale', instanceId: incoming.instanceId },
+      activeStartMs: 400, activeDurationMs: 400,
+      keyframes: [
+        { id: 'shared-start', timeMs: 400, value: 1, easing: { curve: 'linear' } },
+        { id: 'shared-end', timeMs: 800, value: 0.5, easing: { curve: 'linear' } },
+      ],
+    }]
+    expect(validateShowRecordV2(source)).toEqual([])
+    const before = structuredClone(source)
+
+    const result = editShowTransitionV2(source, {
+      kind: 'insert',
+      transition: {
+        id: 'transition', kind: 'crossfade', durationMs: 100, easing: { curve: 'linear' },
+        crossfadePolicy: 'live-live', propertyRamps: [],
+        participants: [{
+          id: 'participant', zoneId: 'zone', layerId: 'layer:zone:main', fromClipId: 'out', toClipId: 'in',
+        }],
+      },
+    })
+
+    expect(result).toMatchObject({ status: 'changed', affectedClipIds: ['in'], affectedTrackIds: [] })
+    if (result.status !== 'changed') return
+    expect(result.record.composition.propertyTracks[0]).toEqual(source.composition.propertyTracks[0])
+    expect(result.record.composition.groupDefinitions).toEqual(source.composition.groupDefinitions)
+    expect(result.record.composition.groupOccurrences).toEqual(source.composition.groupOccurrences)
+    expect(source).toEqual(before)
+  })
+
   it('refuses collision and unavailable-Zone cascades atomically', () => {
     const transition: ShowTransitionV2 = {
       id: 'transition', kind: 'crossfade', durationMs: 200, easing: { curve: 'linear' },
@@ -308,6 +387,61 @@ describe('v2 Transition ownership', () => {
     expect(unavailableResult).toMatchObject({ status: 'refused', code: 'unsupported-layout' })
     expect(unavailableResult.record).toBe(unavailable)
     expect(unavailable).toEqual(unavailableBefore)
+  })
+
+  it('refuses a whole-output insert that makes a stationary outgoing contributor unavailable', () => {
+    const source = cutShow()
+    const incoming = source.composition.clips.find(clip => clip.id === 'in')!
+    source.zones.push({ id: 'zone-b', name: 'Second', nominalPixelCount: 16 })
+    source.zoneLayouts.push({
+      id: 'layout-b', name: 'Second only', zones: [], logical: { kind: 'single', zoneIds: ['zone-b'] },
+    })
+    source.composition.layers.push({ id: 'layer:zone-b:main', zoneId: 'zone-b', name: 'Main', rank: 0 })
+    incoming.zoneId = 'zone-b'
+    incoming.layerId = 'layer:zone-b:main'
+    source.composition.layoutOccurrences = [
+      { id: 'layout-a', layoutId: 'layout', startMs: 0, durationMs: 400, parameters: {} },
+      { id: 'layout-b', layoutId: 'layout-b', startMs: 400, durationMs: 600, parameters: {} },
+    ]
+    expect(validateShowRecordV2(source)).toEqual([])
+    const before = structuredClone(source)
+
+    const result = editShowTransitionV2(source, {
+      kind: 'insert',
+      transition: {
+        id: 'whole', kind: 'crossfade', durationMs: 200, easing: { curve: 'linear' },
+        crossfadePolicy: 'live-live', propertyRamps: [], participants: [],
+        wholeOutput: { startMs: 400, fromClipIds: ['out'], toClipIds: ['in'] },
+      },
+    })
+
+    expect(result).toMatchObject({
+      status: 'refused', code: 'unsupported-layout',
+      message: expect.stringContaining('Clip "out"'),
+      affectedClipIds: [], affectedTransitionIds: [], affectedTrackIds: [], removedIds: [],
+    })
+    expect(result.record).toBe(source)
+    expect(source).toEqual(before)
+  })
+
+  it.each([
+    ['duration edit', (record: ShowRecordV2) => editShowTransitionV2(record, {
+      kind: 'resize-transition', transitionId: 'whole', durationMs: 200,
+    })],
+    ['leading Clip resize', (record: ShowRecordV2) => editShowTransitionV2(record, {
+      kind: 'resize-leading', clipId: 'in', startMs: 600,
+    })],
+  ])('refuses a %s that extends a stationary outgoing contribution past Zone availability', (_name, edit) => {
+    const source = crossZoneWholeOutputShow()
+    const before = structuredClone(source)
+
+    const result = edit(source)
+
+    expect(result).toMatchObject({
+      status: 'refused', code: 'unsupported-layout', message: expect.stringContaining('Clip "out"'),
+    })
+    expect(result.record).toBe(source)
+    expect(source).toEqual(before)
   })
 
   it('classifies RL08-RL10 compiler restrictions without mutating the candidate', () => {
