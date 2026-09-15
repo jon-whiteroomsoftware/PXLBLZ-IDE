@@ -617,6 +617,86 @@ describe('v2 property animation', () => {
     expect(source).toEqual(before)
   })
 
+  it('checks copied instance tracks against materialized Group owners with half-open boundaries', () => {
+    const source = animatedRecord()
+    const base = source.composition.clips[0]
+    source.composition.patternInstances.push({ ...structuredClone(source.composition.patternInstances[0]), id: 'replacement' })
+    const original = source.composition.propertyTracks[0]
+    source.composition.propertyTracks = [{
+      ...structuredClone(original), id: 'source-speed',
+      target: { kind: 'instance-time-scale', instanceId: 'instance' },
+      activeStartMs: 100, activeDurationMs: 400,
+      keyframes: [
+        { id: 'source-speed:start', timeMs: 100, value: 1, easing: { curve: 'linear' } },
+        { id: 'source-speed:end', timeMs: 500, value: 2, easing: { curve: 'linear' } },
+      ],
+    }]
+    const { zoneId: _zoneId, ...groupClip } = structuredClone(base)
+    source.composition.groupDefinitions = [{
+      id: 'definition', name: 'Definition',
+      patternInstances: [{ ...structuredClone(source.composition.patternInstances[0]), id: 'group-slot' }],
+      layers: [{ id: 'group-layer', name: 'Group Layer', rank: 0 }],
+      clips: [{
+        ...groupClip, id: 'group-clip', instanceId: 'group-slot', layerId: 'group-layer',
+        startMs: 0, durationMs: 400,
+        appearance: { keys: [{ ...groupClip.appearance.keys[0], id: 'group:key', timeMs: 0 }] },
+      }],
+      transitions: [],
+      propertyTracks: [{
+        id: 'group-speed', target: { kind: 'instance-time-scale', instanceId: 'group-slot' },
+        activeStartMs: 0, activeDurationMs: 400,
+        keyframes: [
+          { id: 'group-speed:start', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+          { id: 'group-speed:end', timeMs: 400, value: 2, easing: { curve: 'linear' } },
+        ],
+      }],
+    }]
+    source.composition.groupOccurrences = [{
+      id: 'occurrence', definitionId: 'definition', layoutOccurrenceId: source.composition.layoutOccurrences[0].id,
+      zoneId: base.zoneId, startMs: 1_200, translationX: 0, translationY: 0,
+      instanceBindings: { 'group-slot': 'replacement' },
+      layerBindings: [{ definitionLayerId: 'group-layer', layerId: base.layerId }],
+    }]
+    expect(validateShowRecordV2(source)).toEqual([])
+    const before = structuredClone(source)
+    const identitiesBySourceTrackId = {
+      'source-speed': {
+        trackId: 'source-speed:replacement',
+        keyframeIdsBySourceId: {
+          'source-speed:start': 'source-speed:start:replacement',
+          'source-speed:end': 'source-speed:end:replacement',
+        },
+      },
+    }
+
+    const overlap = copyShowInstancePropertyTracksV2(source, {
+      fromInstanceId: 'instance', toInstanceId: 'replacement', placementDeltaMs: 1_100,
+      identitiesBySourceTrackId,
+    })
+    expect(overlap).toMatchObject({
+      status: 'refused', propertyTracks: source.composition.propertyTracks,
+      copiedTrackIds: [], discardedTargets: [], message: expect.stringContaining('occurrence:group-speed'),
+    })
+    expect(overlap.propertyTracks).toBe(source.composition.propertyTracks)
+    expect(source).toEqual(before)
+
+    const adjacent = copyShowInstancePropertyTracksV2(source, {
+      fromInstanceId: 'instance', toInstanceId: 'replacement', placementDeltaMs: 1_500,
+      identitiesBySourceTrackId,
+    })
+    expect(adjacent.status).toBe('changed')
+    if (adjacent.status !== 'changed') return
+    expect(adjacent.propertyTracks[adjacent.propertyTracks.length - 1]).toMatchObject({
+      id: 'source-speed:replacement', activeStartMs: 1_600, activeDurationMs: 400,
+      target: { kind: 'instance-time-scale', instanceId: 'replacement' },
+    })
+    expect(validateShowRecordV2({
+      ...source,
+      composition: { ...source.composition, propertyTracks: adjacent.propertyTracks },
+    })).toEqual([])
+    expect(source).toEqual(before)
+  })
+
   it('refuses an incomplete caller-supplied copy identity plan atomically', () => {
     const source = animatedRecord()
     source.composition.patternInstances.push({ ...structuredClone(source.composition.patternInstances[0]), id: 'replacement' })

@@ -301,14 +301,25 @@ export function copyShowInstancePropertyTracksV2(
     || !Number.isSafeInteger(placementDeltaMs)) {
     return { status: 'refused', propertyTracks: record.composition.propertyTracks, copiedTrackIds: [], discardedTargets: [], message: 'Track copying requires distinct existing instances and a safe placement delta.' }
   }
+  let effectiveTracks: ShowPropertyTrackV2[]
+  try {
+    effectiveTracks = record.composition.groupOccurrences.length > 0
+      ? materializeShowGroupsV2(record).composition.propertyTracks
+      : record.composition.propertyTracks
+  } catch (error) {
+    return {
+      status: 'refused', propertyTracks: record.composition.propertyTracks, copiedTrackIds: [], discardedTargets: [],
+      message: error instanceof Error ? error.message : String(error),
+    }
+  }
   const compatible = intent.compatibleControlExports === undefined
     ? undefined
     : new Set(intent.compatibleControlExports)
   const discardedTargets: ShowPropertyTrackV2['target'][] = []
   const copies: ShowPropertyTrackV2[] = []
   const copiedTrackIds: string[] = []
-  const usedTrackIds = new Set(record.composition.propertyTracks.map(track => track.id))
-  const usedKeyIds = new Set(record.composition.propertyTracks.flatMap(track => track.keyframes.map(key => key.id)))
+  const usedTrackIds = new Set(effectiveTracks.map(track => track.id))
+  const usedKeyIds = new Set(effectiveTracks.flatMap(track => track.keyframes.map(key => key.id)))
   for (const source of record.composition.propertyTracks) {
     if (!('instanceId' in source.target) || source.target.instanceId !== fromInstanceId) continue
     if (source.target.kind === 'instance-control' && compatible && !compatible.has(source.target.exportName)) {
@@ -344,7 +355,7 @@ export function copyShowInstancePropertyTracksV2(
       || copy.keyframes.some(key => !Number.isSafeInteger(key.timeMs) || key.timeMs < 0)) {
       return { status: 'refused', propertyTracks: record.composition.propertyTracks, copiedTrackIds: [], discardedTargets: [], message: `Copied track "${source.id}" would leave Show time.` }
     }
-    const conflict = [...record.composition.propertyTracks, ...copies].find(track => (
+    const conflict = [...effectiveTracks, ...copies].find(track => (
       sameShowInstancePropertyTargetV2(track.target, copy.target) && propertyTrackIntervalsOverlap(track, copy)
     ))
     if (conflict) {

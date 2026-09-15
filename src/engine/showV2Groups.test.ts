@@ -7,6 +7,8 @@ import { showRecordToCompileRecipe } from './showModel'
 import { compileShow } from './showCompiler'
 import { LIBRARIES } from '../pixelblaze/libs'
 import { materializeShowGroupOccurrences } from './showGroupModel'
+import { materializeShowGroupsV2 } from './showGroupsV2'
+import { evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 
 function groupShow() {
   const source = convertibleV1Show()
@@ -102,6 +104,43 @@ it('translates Group Transform curves together with held appearance', () => {
   expect(prepared.status, JSON.stringify(prepared.status === 'refused' && prepared.issues)).toBe('ready')
   if (prepared.status !== 'ready') return
   expect(compileShow(prepared.recipe, LIBRARIES).code).toBe(compileShow(showRecordToCompileRecipe(source, lookup), LIBRARIES).code)
+})
+
+it.each([
+  [{ kind: 'clip-transform', clipId: 'pulse', property: 'positionX' }, 'translationX'],
+  [{ kind: 'clip-transform', clipId: 'pulse', property: 'positionY' }, 'translationY'],
+  [{ kind: 'clip-aperture', clipId: 'pulse', property: 'x' }, 'translationX'],
+  [{ kind: 'clip-aperture', clipId: 'pulse', property: 'y' }, 'translationY'],
+] as const)('translates retained Group curve coefficients for $0', (target, translation) => {
+  const converted = convertShowRecordV1ToV2(groupShow())
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  const occurrence = converted.record.composition.groupOccurrences[1]
+  occurrence.translationX = 0
+  occurrence.translationY = 0
+  occurrence[translation] = 0.2
+  const track = converted.record.composition.groupDefinitions[0].propertyTracks[0]
+  track.target = target
+  track.keyframes = [
+    {
+      id: 'retained-start', timeMs: 0, value: 0.05, easing: { curve: 'linear' },
+      curveSegment: {
+        baseValue: 0.05, deltaValue: 0.8, easing: { curve: 'quadratic', direction: 'in' },
+        sourceDurationMs: 200, elapsedOffsetMs: 0,
+      },
+    },
+    { id: 'retained-end', timeMs: 200, value: 0.85, easing: { curve: 'linear' } },
+  ]
+  const before = structuredClone(converted.record)
+
+  const materialized = materializeShowGroupsV2(converted.record)
+  const reopened = parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(materialized))
+  expect(reopened.status).toBe('opened')
+  if (reopened.status !== 'opened') return
+  const translated = reopened.record.composition.propertyTracks.find(candidate => candidate.id === 'occ-1:opacity')!
+
+  expect(translated.keyframes[0].curveSegment?.baseValue).toBeCloseTo(0.25)
+  expect(evaluateShowPropertyTrackV2(translated, 700)).toBeCloseTo(0.45)
+  expect(converted.record).toEqual(before)
 })
 
 it('refuses an accidental default runtime collision with an ordinary instance', () => {

@@ -67,7 +67,9 @@ the helper validates and returns those exact IDs. It reports discarded control
 targets, leaves source tracks unchanged, and refuses an incomplete identity plan
 or destination activation conflict atomically. Record validation likewise refuses
 overlapping instance-control or instance-time-scale owners while allowing
-half-open adjacency, including after Group materialization.
+half-open adjacency. Copy planning materializes Group occurrences before checking
+destination ownership and fresh identities, so a Group-bound effective track can
+neither be overlapped nor shadowed by an ordinary copied track.
 
 `projectShowTransitionPropertyRampsV2` converts every explicit ramp on one visual
 Transition into an independently activated Property track before a caller resets
@@ -100,13 +102,17 @@ restarts at its pre-roll contribution rather than its nominal local start.
 
 Lowering maps each derived event to the one compiler member that owns the effective
 shared instance. The transient recipe carries `{ atMs, clipId }`; no second event
-list is persisted. When playback crosses an event, the routed scheduler applies
-the compiler's exact Pattern reset assignments, coordinate state and elapsed-clock
-reset, then advances only the post-entry portion of that frame. Ordinary placement
-setup reapplies authored controls and adaptations before the member advances. The
-same member remains shared, simultaneous entries coalesce, time zero fires once,
-and loop/cold replay crosses the same events. A Pattern the existing reset analysis
-cannot reconstruct exactly is refused rather than partially reset.
+list is persisted. When one frame crosses an event, the routed scheduler walks
+every elapsed hold or Transition slice up to that boundary. Each slice uses the
+ordinary placement setup path for controls, effects, adaptations, Transition
+ramps and Property tracks before advancing the member; an inactive slice inside
+the member's deterministic continuity window uses the existing hidden advance.
+It then applies the
+compiler's exact Pattern reset assignments, coordinate state and elapsed-clock
+reset; the ordinary frame scheduler binds and advances the post-entry portion.
+The same member remains shared, simultaneous entries coalesce, time zero fires
+once, and loop/cold replay crosses the same events. A Pattern the existing reset
+analysis cannot reconstruct exactly is refused rather than partially reset.
 
 `lowerShowCompositionV2ForCompile` refuses effective Restart entries, including
 entries inside used Group definitions, and Layout split-position tracks because
@@ -128,7 +134,10 @@ exercise move → trim → extend → split → reopen for every supported easin
 equal stored endpoints with a nonconstant retained interior, steps/hold
 discontinuities, generated Fast/Precise source parity at activation boundaries,
 Insert Time boundary partitions, Group-aware sharing/Restart, carrier projection,
-caller-supplied copy identities, copy/filter results and atomic conflict refusal.
+caller-supplied copy identities, effective Group destination conflicts,
+copy/filter results and atomic conflict refusal. Group tests reopen translated
+Transform and Aperture tracks and evaluate retained nonlinear interiors after
+their `curveSegment` bases receive the occurrence offset.
 The [Transition owner tests](../../../src/engine/showTransitionsV2.test.ts) prove
 projection before carrier reset and exact nonlinear restriction during connected
 edge resize.

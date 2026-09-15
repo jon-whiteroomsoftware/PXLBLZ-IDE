@@ -116,10 +116,19 @@ export function materializeShowGroupsV2(record: ShowRecordV2): ShowRecordV2 {
         ...structuredClone(track), id: `${occurrence.id}:${track.id}`, target,
         activeStartMs: activation.startMs, activeDurationMs: activation.durationMs,
         keyframes: track.keyframes.map(key => {
-          let value = key.value
-          if (target.kind === 'clip-transform' && target.property === 'positionX' || target.kind === 'clip-aperture' && target.property === 'x') value += occurrence.translationX
-          if (target.kind === 'clip-transform' && target.property === 'positionY' || target.kind === 'clip-aperture' && target.property === 'y') value += occurrence.translationY
-          return { ...structuredClone(key), id: `${occurrence.id}:${key.id}`, timeMs: occurrence.startMs + key.timeMs, value }
+          const translated = structuredClone(key)
+          const offset = target.kind === 'clip-transform' && target.property === 'positionX'
+            || target.kind === 'clip-aperture' && target.property === 'x'
+            ? occurrence.translationX
+            : target.kind === 'clip-transform' && target.property === 'positionY'
+              || target.kind === 'clip-aperture' && target.property === 'y'
+              ? occurrence.translationY
+              : 0
+          translated.id = `${occurrence.id}:${key.id}`
+          translated.timeMs = occurrence.startMs + key.timeMs
+          translated.value += offset
+          if (translated.curveSegment) translated.curveSegment.baseValue += offset
+          return translated
         }),
       })
     }

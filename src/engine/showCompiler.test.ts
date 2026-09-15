@@ -1796,6 +1796,208 @@ export function render(index) { renders = renders + 1; rgb(elapsed, renders, 0) 
     expect(crossed.exports[`${artifact.summary.clips[0].prefix}_sample`]).toBe(expectedAfterSecondReset)
   })
 
+  it('rebinds every active property while advancing between Restart boundaries (#1037)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: [
+          'export var elapsed = 0',
+          'export var sample = 0',
+          'export var level = 0',
+          'export function sliderLevel(value) { level = value }',
+          'export function beforeRender(delta) {',
+          '  elapsed = elapsed + delta',
+          '  if (delta > 0) {',
+          '    sample = random(1)',
+          '    if (level > 0.4) sample = random(1)',
+          '    if (delta > 60) sample = random(1)',
+          '  }',
+          '}',
+          'export function render(index) { rgb(sample, elapsed / 100, level) }',
+        ].join('\n'),
+        controlTargets: { sliderLevel: 0 },
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [
+        {
+          holdMs: 50,
+          placements: [{ zoneName: 'main', clipId: 'shared', timeScale: 0, controlTargets: { sliderLevel: 0.1 } }],
+          transitionOut: { kind: 'cut', durationMs: 0 },
+        },
+        {
+          holdMs: 50,
+          placements: [{ zoneName: 'main', clipId: 'shared', timeScale: 1, controlTargets: { sliderLevel: 0.5 } }],
+          propertyTracks: [{
+            id: 'middle-scale',
+            target: { kind: 'instance-time-scale', instanceId: 'shared' },
+            keyframes: [
+              { id: 'middle-scale-a', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+              { id: 'middle-scale-b', timeMs: 50, value: 1.5, easing: { curve: 'linear' } },
+            ],
+          }],
+          transitionOut: { kind: 'cut', durationMs: 0 },
+        },
+        {
+          holdMs: 100,
+          placements: [{ zoneName: 'main', clipId: 'shared', timeScale: 2, controlTargets: { sliderLevel: 0.9 } }],
+        },
+      ] },
+      restartEvents: [{ atMs: 50, clipId: 'shared' }, { atMs: 100, clipId: 'shared' }],
+      loopDurationMs: 200,
+    }, {}, { patternSlotSharing: 'none' })
+    const runtime = () => createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 1,
+    }, {
+      mapPoints: [{ sample: [0.5], pos: [0.5, 0.5] }],
+      randomSeed: 1037,
+      fidelity: 'fast',
+    })
+    const coarse = runtime()
+    const boundaryStepped = runtime()
+
+    coarse.advanceLive(10)
+    const coarseResult = coarse.advanceLive(110)
+    boundaryStepped.advanceLive(10)
+    boundaryStepped.advanceLive(40)
+    boundaryStepped.advanceLive(50)
+    const steppedResult = boundaryStepped.advanceLive(20)
+
+    expect(coarseResult.exports.__pxlblz_show_c0_sample).toBe(steppedResult.exports.__pxlblz_show_c0_sample)
+    expect(Number(coarseResult.exports.__pxlblz_show_c0_elapsed))
+      .toBeCloseTo(Number(steppedResult.exports.__pxlblz_show_c0_elapsed))
+    expect(coarseResult.exports.__pxlblz_show_c0_level).toBe(steppedResult.exports.__pxlblz_show_c0_level)
+    expect(coarseResult.exports.__pxlblz_show_c0_adapt_timeScale).toBe(steppedResult.exports.__pxlblz_show_c0_adapt_timeScale)
+    expect(coarseResult.pixels[0][0]).toBe(steppedResult.pixels[0][0])
+    expect(Number(coarseResult.pixels[0][1])).toBeCloseTo(Number(steppedResult.pixels[0][1]))
+    expect(coarseResult.pixels[0][2]).toBe(steppedResult.pixels[0][2])
+    expect(coarseResult.pixels[0].map(value => Math.round(Number(value) * 255)))
+      .toEqual(steppedResult.pixels[0].map(value => Math.round(Number(value) * 255)))
+    expect(coarseResult.exports.__pxlblz_show_c0_elapsed).toBeCloseTo(40)
+    expect(coarseResult.exports.__pxlblz_show_c0_level).toBe(0.9)
+  })
+
+  it('evaluates a crossed Restart subinterval with its Transition ramps (#1037)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: [
+          'export var elapsed = 0',
+          'export var sample = 0',
+          'export var level = 0',
+          'export function sliderLevel(value) { level = value }',
+          'export function beforeRender(delta) {',
+          '  elapsed = elapsed + delta',
+          '  if (delta > 0) {',
+          '    sample = random(1)',
+          '    if (level > 0.4) sample = random(1)',
+          '  }',
+          '}',
+          'export function render(index) { rgb(sample, elapsed / 100, level) }',
+        ].join('\n'),
+        controlTargets: { sliderLevel: 0 },
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [{
+        holdMs: 100,
+        placements: [{ zoneName: 'main', clipId: 'shared', timeScale: 0, controlTargets: { sliderLevel: 0.1 } }],
+        transitionOut: { kind: 'crossfade', durationMs: 100 },
+        transitionRamps: [{
+          clipId: 'shared',
+          propertyRamps: { timeScale: { from: 0, to: 1, durationMs: 100, easing: 'linear' } },
+          controlRamps: { sliderLevel: { from: 0.1, to: 0.9, durationMs: 100, easing: 'linear' } },
+        }],
+      }, {
+        holdMs: 100,
+        placements: [{ zoneName: 'main', clipId: 'shared', timeScale: 1, controlTargets: { sliderLevel: 0.9 } }],
+      }] },
+      restartEvents: [{ atMs: 150, clipId: 'shared' }],
+      loopDurationMs: 300,
+    }, {}, { patternSlotSharing: 'none' })
+    const mapPoints: MapPoint[] = [{ sample: [0.5], pos: [0.5, 0.5] }]
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 1,
+    }, { mapPoints, randomSeed: 1037, fidelity: 'fast' })
+    const expectedShim = createShim({ mapPoints, pixelCount: 1, dimensions: 1, getVirtualTime: () => 0, randomSeed: 1037 })
+    const random = expectedShim.builtins.random as (maximum?: number) => number
+    random()
+    random()
+    random()
+    const expectedSample = random()
+
+    runtime.advanceLive(100)
+    const crossed = runtime.advanceLive(80)
+
+    expect(crossed.exports.__pxlblz_show_c0_sample).toBe(expectedSample)
+    expect(crossed.exports.__pxlblz_show_c0_elapsed).toBeCloseTo(24)
+    expect(crossed.exports.__pxlblz_show_c0_level).toBeCloseTo(0.74)
+    expect(crossed.pixels[0].map(value => Math.round(value * 255)))
+      .toEqual([expectedSample, 0.24, 0.74].map(value => Math.round(value * 255)))
+  })
+
+  it('preserves hidden continuity before a crossed Restart resets the shared runtime (#1037)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'shared',
+          source: 'export var sample = 0\nexport function beforeRender(delta) { if (delta > 0) sample = random(1) }\nexport function render(index) { rgb(sample, 0, 0) }',
+        },
+        { id: 'other', source: 'export function render(index) { rgb(0, 0, 0) }' },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [
+        {
+          holdMs: 50,
+          placements: [{ zoneName: 'main', clipId: 'shared' }],
+          transitionOut: { kind: 'cut', durationMs: 0 },
+        },
+        {
+          holdMs: 50,
+          placements: [{ zoneName: 'main', clipId: 'other' }],
+          transitionOut: { kind: 'cut', durationMs: 0 },
+        },
+        { holdMs: 100, placements: [{ zoneName: 'main', clipId: 'shared' }] },
+      ] },
+      restartEvents: [{ atMs: 100, clipId: 'shared' }],
+      loopDurationMs: 200,
+      deterministicLoopReset: true,
+    }, {}, { patternSlotSharing: 'none' })
+    const runtime = () => createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 1,
+    }, {
+      mapPoints: [{ sample: [0.5], pos: [0.5, 0.5] }],
+      randomSeed: 1037,
+      fidelity: 'fast',
+    })
+    const coarse = runtime()
+    const boundaryStepped = runtime()
+
+    coarse.advanceLive(10)
+    const coarseResult = coarse.advanceLive(110)
+    boundaryStepped.advanceLive(10)
+    boundaryStepped.advanceLive(40)
+    boundaryStepped.advanceLive(50)
+    const steppedResult = boundaryStepped.advanceLive(20)
+
+    expect(coarseResult.exports.__pxlblz_show_c0_sample).toBe(steppedResult.exports.__pxlblz_show_c0_sample)
+    expect(coarseResult.pixels[0].map(value => Math.round(Number(value) * 255)))
+      .toEqual(steppedResult.pixels[0].map(value => Math.round(Number(value) * 255)))
+  })
+
   it('resets isolated coordinate transforms at deterministic Show loop boundaries', () => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
     const source = `
