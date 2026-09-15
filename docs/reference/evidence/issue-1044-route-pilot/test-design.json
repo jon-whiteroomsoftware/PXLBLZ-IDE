@@ -20,6 +20,7 @@
     "Open a version-1 Show on the opt-in route, convert, edit its Transition, preview, save, Undo, Redo, reload provider bytes, export, and reopen both artifacts.",
     "Reload the browser at the saved Show route after the ordinary version-1 list excludes its row; cold-open the stored version-2 record and repeat artifact qualification.",
     "Queue an older write and a newer write, fail the older operation, then confirm the newer candidate and history remain authoritative.",
+    "Adopt a #1035 delete-Clip result with a fresh replacement at the original boundary, save/reload it, and reopen its artifact without restoring the removed Transition identity.",
     "Apply migration 0028 to a disposable Miniflare D1 database, interrupt after its first version-2 replacement, resume the remaining inventory, roll back, and compare every restored source column.",
     "Inventory an undecodable row and a source changed after inventory; record independent refusals while leaving both source rows recoverable."
   ],
@@ -27,6 +28,7 @@
     "The committed opt-in browser route: visible version-2 format, edited Transition duration, working Stage preview, saved Undo/Redo/reload status, and importer reopen status after a cold browser reload.",
     "Provider calls and D1 rows decoded through production adapters, including complete record_json bytes and exclusion from ordinary reads.",
     "Whole store record/history/failure state and ordered persistence calls rather than helper internals.",
+    "Reopened delete/re-add candidate with the original first Clip and Show End unchanged, no persisted Transition, and one identity-free derived Cut naming the fresh replacement.",
     "Reopened .pxlshow bundle, remapped import candidate, parsed .epe source/stamp, and compiled artifact source.",
     "Actual Miniflare D1 rows for source backup, source_version/status outcome, interrupted-write recovery, complete restored source columns, and absent outcome after rollback."
   ],

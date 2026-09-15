@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { transitionV1Show } from '../test/showV2TracerFixture'
-import { editShowTransitionV2 } from '../engine/showTransitionsV2'
+import { editShowTransitionV2, projectShowTransitionJunctionsV2 } from '../engine/showTransitionsV2'
 import { convertShowRecordV1ToV2 } from '../engine/showRecordV1ToV2'
+import { qualifyShowV2PilotArtifacts } from '../engine/showV2Pilot'
+import { cloneValidShowRecordV2 } from '../engine/showDocument'
 import { setPersonalContentProvider, type PersonalContentProvider } from '../engine/personalContentProvider'
 import type { ShowRecordV2 } from '../engine/showCompositionV2'
 import { showInitialState, useShowStore } from './showStore'
@@ -95,6 +97,52 @@ describe('opt-in v2 Show route adoption', () => {
     const reopened = await state().reloadShowV2Pilot(source.id)
     expect(reopened).toEqual(stored)
     expect(state().showV2Histories[source.id]).toEqual({ past: [], future: [] })
+  })
+
+  it('persists and reopens a delete/re-add candidate without resurrecting Transition identity', async () => {
+    const source = transitionV1Show('crossfade')
+    let stored: ShowRecordV2 | undefined
+    setPersonalContentProvider({
+      id: 'v2-delete-readd',
+      listShows: async () => [source],
+      listShowDocumentsV2: async () => stored ? [structuredClone(stored)] : [],
+      replaceShowV2: async (_id: string, record: ShowRecordV2) => { stored = structuredClone(record) },
+    } as unknown as PersonalContentProvider)
+    useShowStore.setState({ shows: [source] })
+    const opened = await state().openShowV2Pilot(source.id)
+    if (opened.status !== 'ready') throw new Error('conversion failed')
+    const originalOut = structuredClone(opened.record.composition.clips.find(clip => clip.id === 'out'))
+    const originalIn = structuredClone(opened.record.composition.clips.find(clip => clip.id === 'in'))
+    if (!originalOut || !originalIn) throw new Error('fixture clips unavailable')
+    const deleted = editShowTransitionV2(opened.record, { kind: 'delete-clip', clipId: originalIn.id })
+    if (deleted.status !== 'changed') throw new Error(JSON.stringify(deleted))
+    const readded = structuredClone(deleted.record)
+    readded.composition.clips.push({
+      ...originalIn,
+      id: 'replacement',
+      startMs: originalOut.startMs + originalOut.durationMs,
+      appearance: { keys: originalIn.appearance.keys.map((key, index) => ({
+        ...key,
+        id: `replacement:appearance:${index + 1}`,
+        timeMs: key.timeMs - originalIn.startMs + originalOut.startMs + originalOut.durationMs,
+      })) },
+    })
+    const candidate = cloneValidShowRecordV2(readded)
+
+    await state().updateShowV2Pilot(source.id, candidate)
+    const reopened = await state().reloadShowV2Pilot(source.id)
+    expect(reopened?.composition.showEndMs).toBe(opened.record.composition.showEndMs)
+    expect(reopened?.composition.clips.find(clip => clip.id === 'out')).toEqual(originalOut)
+    expect(reopened?.composition.transitions).toEqual([])
+    expect(reopened && projectShowTransitionJunctionsV2(reopened)).toEqual([
+      expect.objectContaining({ kind: 'cut', atMs: 400, fromClipId: 'out', toClipId: 'replacement' }),
+    ])
+
+    const artifacts = await qualifyShowV2PilotArtifacts(reopened!, { patterns: [], maps: [], libraries: [] })
+    expect(artifacts.importedShow.composition.transitions).toEqual([])
+    expect(projectShowTransitionJunctionsV2(artifacts.importedShow)).toEqual([
+      expect.objectContaining({ kind: 'cut', atMs: 400, fromClipId: 'out', toClipId: 'replacement' }),
+    ])
   })
 
   it('rolls a failed current save back atomically with its history', async () => {
