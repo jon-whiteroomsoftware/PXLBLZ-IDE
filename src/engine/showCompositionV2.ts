@@ -1,0 +1,659 @@
+import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv'
+import Ajv2020 from 'ajv/dist/2020'
+import draft07MetaSchemaText from 'ajv/dist/refs/json-schema-draft-07.json?raw'
+import showRecordV1SchemaText from '../../schemas/show-record.schema.json?raw'
+import showRecordV2SchemaText from '../../schemas/show-record-v2.provisional.schema.json?raw'
+import type {
+  ShowBoundaryTransition,
+  ShowClipBlink,
+  ShowClipEffect,
+  ShowClipPresentation,
+  ShowClipTransform,
+  ShowClipViewport,
+  ShowLayerTransition,
+  ShowOutputContract,
+  ShowOutputEffect,
+  ShowPatternInstance,
+  ShowPlacementView,
+  ShowRoutingDirection,
+  ShowRoutingLayout,
+  ShowStructuredEasing,
+  ShowTimelineMarker,
+  ShowTransitionKind,
+  ShowZone,
+} from './personalContentRecords'
+
+export interface ShowLayerV2 {
+  id: string
+  zoneId: string
+  name: string
+  /** Zero is the bottom Layer. */
+  rank: number
+}
+
+export interface ShowClipV2 {
+  id: string
+  instanceId: string
+  zoneId: string
+  layerId: string
+  startMs: number
+  durationMs: number
+  entryPolicy: 'continue' | 'restart'
+  zoneSampleMode: 'independent' | 'span' | 'repeat'
+  appearance: ShowClipAppearanceTimelineV2
+}
+
+export interface ShowClipAppearanceTimelineV2 {
+  keys: ShowClipAppearanceKeyV2[]
+}
+
+export interface ShowClipAppearanceKeyV2 {
+  id: string
+  timeMs: number
+  value: ShowClipAppearanceValueV2
+}
+
+export interface ShowClipAppearanceValueV2 {
+  opacity: number
+  view: ShowPlacementView
+  presentation?: ShowClipPresentation
+  blink?: ShowClipBlink
+  transform?: ShowClipTransform
+  aperture?: ShowClipViewport
+  effects?: ShowClipEffect[]
+}
+
+export interface ShowTransitionParticipantV2 {
+  id: string
+  zoneId: string
+  layerId: string
+  fromClipId: string
+  toClipId: string
+}
+
+export type ShowPropertyTargetV2 =
+  | { kind: 'instance-time-scale'; instanceId: string }
+  | { kind: 'instance-control'; instanceId: string; exportName: string }
+  | { kind: 'clip-opacity'; clipId: string }
+  | { kind: 'clip-view'; clipId: string; property: 'brightness' | 'phase' }
+  | { kind: 'clip-transform'; clipId: string; property: keyof ShowClipTransform }
+  | { kind: 'clip-aperture'; clipId: string; property: 'x' | 'y' | 'width' | 'height' }
+  | { kind: 'clip-effect'; clipId: string; effectId: string; effectKind: ShowClipEffect['kind']; parameterId: string }
+  | { kind: 'layout-occurrence-split-position'; layoutOccurrenceId: string }
+  | { kind: 'show-repeat-scale' }
+
+export interface ShowTransitionPropertyRampV2 {
+  participantId?: string
+  target: ShowPropertyTargetV2
+  from: number
+  durationMs?: number
+  easing?: ShowStructuredEasing
+}
+
+export interface ShowTransitionV2 extends Omit<
+  ShowBoundaryTransition,
+  'afterSceneId' | 'kind' | 'layoutId' | 'routingDirection' | 'propertyTransitions'
+> {
+  kind: ShowTransitionKind
+  participants: ShowTransitionParticipantV2[]
+  propertyRamps: ShowTransitionPropertyRampV2[]
+}
+
+export interface ShowLayoutTransferV2 {
+  id: string
+  fromOccurrenceId: string
+  durationMs: number
+  direction: ShowRoutingDirection
+}
+
+export interface ShowLayoutOccurrenceV2 {
+  id: string
+  layoutId: string
+  startMs: number
+  durationMs: number
+  parameters: { splitPosition?: number }
+  incomingTransfer?: ShowLayoutTransferV2
+}
+
+export interface ShowPropertyKeyframeV2 {
+  id: string
+  timeMs: number
+  value: number
+  easing: ShowStructuredEasing
+}
+
+export interface ShowPropertyTrackV2 {
+  id: string
+  target: ShowPropertyTargetV2
+  activeStartMs: number
+  activeDurationMs: number
+  keyframes: ShowPropertyKeyframeV2[]
+}
+
+export interface ShowGroupLayerV2 {
+  id: string
+  name: string
+  rank: number
+}
+
+export type ShowGroupClipV2 = Omit<ShowClipV2, 'zoneId'>
+
+export interface ShowGroupDefinitionV2 {
+  id: string
+  name: string
+  patternInstances: ShowPatternInstance[]
+  layers: ShowGroupLayerV2[]
+  clips: ShowGroupClipV2[]
+  transitions: ShowLayerTransition[]
+  propertyTracks: ShowPropertyTrackV2[]
+}
+
+export interface ShowGroupLayerBindingV2 {
+  definitionLayerId: string
+  layerId: string
+}
+
+export interface ShowGroupOccurrenceV2 {
+  id: string
+  definitionId: string
+  layoutOccurrenceId: string
+  zoneId: string
+  startMs: number
+  translationX: number
+  translationY: number
+  layerBindings: ShowGroupLayerBindingV2[]
+}
+
+export interface ShowCompositionV2 {
+  version: 2
+  executionModel: 'continuous' | 'deterministic-loop'
+  showEndMs: number
+  sampleRemap: { repeatScale: number }
+  patternInstances: ShowPatternInstance[]
+  layers: ShowLayerV2[]
+  clips: ShowClipV2[]
+  transitions: ShowTransitionV2[]
+  layoutOccurrences: ShowLayoutOccurrenceV2[]
+  propertyTracks: ShowPropertyTrackV2[]
+  markers: ShowTimelineMarker[]
+  groupDefinitions: ShowGroupDefinitionV2[]
+  groupOccurrences: ShowGroupOccurrenceV2[]
+}
+
+export interface ShowRecordV2 {
+  version: 2
+  id: string
+  name: string
+  zones: ShowZone[]
+  zoneLayouts: ShowRoutingLayout[]
+  targetControllerProfileId?: string
+  stageMapId?: string | null
+  outputContract: ShowOutputContract
+  composition: ShowCompositionV2
+  outputEffects?: ShowOutputEffect[]
+  importMetadata?: {
+    kind: 'show-file'
+    originalShowId: string
+    appVersion: string
+    exportedAt: string
+    importedAt: number
+  }
+  updatedAt: number
+}
+
+export type ShowCompositionV2ValidationCode =
+  | 'schema'
+  | 'invalid-version'
+  | 'duplicate-id'
+  | 'missing-reference'
+  | 'not-finite'
+  | 'not-integer'
+  | 'out-of-bounds'
+  | 'overlap'
+  | 'invalid-transition'
+  | 'invalid-layout-coverage'
+  | 'invalid-group-binding'
+  | 'invalid-property-target'
+
+export interface ShowCompositionV2ValidationIssue {
+  path: string
+  code: ShowCompositionV2ValidationCode
+  message: string
+}
+
+export type ProvisionalShowRecordV2OpenResult =
+  | { status: 'opened'; record: ShowRecordV2 }
+  | { status: 'refused'; issues: ShowCompositionV2ValidationIssue[] }
+
+/** Additive tracer codec only; production import/export does not call this. */
+export function serializeProvisionalShowRecordV2(record: ShowRecordV2): string {
+  const issues = validateShowRecordV2(record)
+  if (issues.length > 0) throw new Error(`Invalid provisional Show v2 record at ${issues[0].path}: ${issues[0].message}`)
+  return `${JSON.stringify(record, null, 2)}\n`
+}
+
+/** Reopen additive tracer bytes through both structural and domain validation. */
+export function parseProvisionalShowRecordV2(text: string): ProvisionalShowRecordV2OpenResult {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    return {
+      status: 'refused',
+      issues: [{ path: '/', code: 'schema', message: 'Document is not valid JSON.' }],
+    }
+  }
+  const structural = structuralIssues(v2StructuralValidator(), parsed)
+  if (structural.length > 0) return { status: 'refused', issues: structural }
+  const record = parsed as ShowRecordV2
+  const issues = validateShowRecordV2(record)
+  return issues.length > 0 ? { status: 'refused', issues } : { status: 'opened', record }
+}
+
+/**
+ * Validate a complete provisional v2 record without normalizing or repairing it.
+ * The validator is intentionally additive and is not a production admission path.
+ */
+export function validateShowRecordV2(record: ShowRecordV2): ShowCompositionV2ValidationIssue[] {
+  const issues = structuralIssues(v2StructuralValidator(), record)
+  if (issues.length > 0) return issues
+  if (record.version !== 2) {
+    addIssue(issues, 'version', 'invalid-version', 'Show record version must be 2.')
+  }
+  if (record.composition.version !== 2) {
+    addIssue(
+      issues,
+      'composition.version',
+      'invalid-version',
+      'Show composition must use version 2.',
+    )
+  }
+
+  const composition = record.composition
+  validatePositiveTime(issues, 'composition.showEndMs', composition.showEndMs)
+  const zones = uniqueIndex(issues, 'zones', record.zones)
+  const layouts = uniqueIndex(issues, 'zoneLayouts', record.zoneLayouts)
+  const instances = uniqueIndex(issues, 'composition.patternInstances', composition.patternInstances)
+  const layers = uniqueIndex(issues, 'composition.layers', composition.layers)
+  const clips = uniqueIndex(issues, 'composition.clips', composition.clips)
+  uniqueIndex(issues, 'composition.transitions', composition.transitions)
+  const occurrences = uniqueIndex(issues, 'composition.layoutOccurrences', composition.layoutOccurrences)
+  const definitions = uniqueIndex(issues, 'composition.groupDefinitions', composition.groupDefinitions)
+  uniqueIndex(issues, 'composition.groupOccurrences', composition.groupOccurrences)
+  validateUniqueNestedIds(issues, composition)
+
+  const ranks = new Set<string>()
+  composition.layers.forEach((layer, index) => {
+    const path = `composition.layers[${index}]`
+    if (!zones.has(layer.zoneId)) {
+      addIssue(issues, `${path}.zoneId`, 'missing-reference', `Zone "${layer.zoneId}" does not exist.`)
+    }
+    validateNonnegativeTime(issues, `${path}.rank`, layer.rank)
+    const rankKey = `${layer.zoneId}:${layer.rank}`
+    if (ranks.has(rankKey)) {
+      addIssue(issues, `${path}.rank`, 'duplicate-id', `Layer rank ${layer.rank} is duplicated in Zone "${layer.zoneId}".`)
+    }
+    ranks.add(rankKey)
+  })
+
+  composition.clips.forEach((clip, index) => {
+    const path = `composition.clips[${index}]`
+    const layer = layers.get(clip.layerId)
+    if (!instances.has(clip.instanceId)) {
+      addIssue(issues, `${path}.instanceId`, 'missing-reference', `Pattern instance "${clip.instanceId}" does not exist.`)
+    }
+    if (!zones.has(clip.zoneId)) {
+      addIssue(issues, `${path}.zoneId`, 'missing-reference', `Zone "${clip.zoneId}" does not exist.`)
+    }
+    if (!layer) {
+      addIssue(issues, `${path}.layerId`, 'missing-reference', `Layer "${clip.layerId}" does not exist.`)
+    } else if (layer.zoneId !== clip.zoneId) {
+      addIssue(issues, `${path}.layerId`, 'missing-reference', 'The Clip Layer belongs to a different Zone.')
+    }
+    validateNonnegativeTime(issues, `${path}.startMs`, clip.startMs)
+    validatePositiveTime(issues, `${path}.durationMs`, clip.durationMs)
+    if (safeAdd(clip.startMs, clip.durationMs) > composition.showEndMs) {
+      addIssue(issues, path, 'out-of-bounds', 'The Clip extends beyond Show End.')
+    }
+    uniqueIndex(issues, `${path}.appearance.keys`, clip.appearance.keys)
+    clip.appearance.keys.forEach((key, keyIndex) => {
+      const keyPath = `${path}.appearance.keys[${keyIndex}]`
+      validateNonnegativeTime(issues, `${keyPath}.timeMs`, key.timeMs)
+      if (key.timeMs < clip.startMs || key.timeMs >= safeAdd(clip.startMs, clip.durationMs)) {
+        addIssue(issues, `${keyPath}.timeMs`, 'out-of-bounds', 'Appearance key time must be inside the Clip interval.')
+      }
+      if (keyIndex === 0 && key.timeMs !== clip.startMs) {
+        addIssue(issues, `${keyPath}.timeMs`, 'out-of-bounds', 'The first appearance key must start with the Clip.')
+      }
+      if (keyIndex > 0 && key.timeMs <= clip.appearance.keys[keyIndex - 1].timeMs) {
+        addIssue(issues, `${keyPath}.timeMs`, 'overlap', 'Appearance key times must be strictly increasing.')
+      }
+      if (!Number.isFinite(key.value.opacity) || key.value.opacity < 0 || key.value.opacity > 1) {
+        addIssue(issues, `${keyPath}.value.opacity`, 'out-of-bounds', 'Clip opacity must be finite and between 0 and 1.')
+      }
+    })
+  })
+
+  const clipsByLayer = new Map<string, Array<{ clip: ShowClipV2; index: number }>>()
+  composition.clips.forEach((clip, index) => {
+    const key = `${clip.zoneId}:${clip.layerId}`
+    const entries = clipsByLayer.get(key) ?? []
+    entries.push({ clip, index })
+    clipsByLayer.set(key, entries)
+  })
+  for (const entries of clipsByLayer.values()) {
+    entries.sort((left, right) => left.clip.startMs - right.clip.startMs || left.clip.id.localeCompare(right.clip.id))
+    entries.forEach((entry, index) => {
+      const previous = entries[index - 1]
+      if (previous && safeAdd(previous.clip.startMs, previous.clip.durationMs) > entry.clip.startMs) {
+        addIssue(issues, `composition.clips[${entry.index}]`, 'overlap', 'Clips on one Zone and Layer cannot overlap.')
+      }
+    })
+  }
+
+  composition.transitions.forEach((transition, transitionIndex) => {
+    const path = `composition.transitions[${transitionIndex}]`
+    if (transition.kind === 'cut') {
+      if (transition.durationMs !== 0) addIssue(issues, `${path}.durationMs`, 'invalid-transition', 'Cut duration must be zero.')
+    } else {
+      validatePositiveTime(issues, `${path}.durationMs`, transition.durationMs)
+    }
+    if (transition.participants.length === 0) {
+      addIssue(issues, `${path}.participants`, 'invalid-transition', 'A Transition needs at least one participant.')
+    }
+    transition.participants.forEach((participant, participantIndex) => {
+      const participantPath = `${path}.participants[${participantIndex}]`
+      const from = clips.get(participant.fromClipId)
+      const to = clips.get(participant.toClipId)
+      if (!from || !to) {
+        addIssue(issues, participantPath, 'missing-reference', 'Transition participant Clips must exist.')
+        return
+      }
+      const exactEndpoints = from.zoneId === participant.zoneId
+        && to.zoneId === participant.zoneId
+        && from.layerId === participant.layerId
+        && to.layerId === participant.layerId
+        && safeAdd(from.startMs, from.durationMs) + transition.durationMs === to.startMs
+      if (!exactEndpoints) {
+        addIssue(
+          issues,
+          participantPath,
+          'invalid-transition',
+          'A Transition participant must join exact endpoints on one Zone and Layer.',
+        )
+      }
+    })
+  })
+
+  validateLayoutCoverage(issues, record, layouts, occurrences)
+  composition.propertyTracks.forEach((track, index) => {
+    validatePropertyTrack(issues, `composition.propertyTracks[${index}]`, track, {
+      instances,
+      clips,
+      occurrences,
+      showEndMs: composition.showEndMs,
+    })
+  })
+  validateGroups(issues, record, { layers, layouts: occurrences, definitions })
+
+  return issues
+}
+
+let cachedV1StructuralValidator: ValidateFunction | undefined
+let cachedV2StructuralValidator: ValidateFunction | undefined
+
+export function validateShowRecordV1Structure(record: unknown): ShowCompositionV2ValidationIssue[] {
+  if (!cachedV1StructuralValidator) {
+    cachedV1StructuralValidator = new Ajv({ allErrors: true, strict: false, strictNumbers: true })
+      .compile(JSON.parse(showRecordV1SchemaText))
+  }
+  return structuralIssues(cachedV1StructuralValidator, record)
+}
+
+function v2StructuralValidator(): ValidateFunction {
+  if (!cachedV2StructuralValidator) {
+    const ajv = new Ajv2020({ allErrors: true, strict: false, strictNumbers: true })
+    ajv.addMetaSchema(JSON.parse(draft07MetaSchemaText))
+    ajv.addSchema(JSON.parse(showRecordV1SchemaText), 'https://pxlblz.dev/schemas/show-record.schema.json')
+    cachedV2StructuralValidator = ajv.compile(JSON.parse(showRecordV2SchemaText))
+  }
+  return cachedV2StructuralValidator
+}
+
+function structuralIssues(
+  validator: ValidateFunction,
+  record: unknown,
+): ShowCompositionV2ValidationIssue[] {
+  if (validator(record)) return []
+  return (validator.errors ?? []).map((error: ErrorObject) => ({
+    path: error.instancePath || '/',
+    code: 'schema' as const,
+    message: `${error.instancePath || 'document'} ${error.message ?? 'is invalid'}`.trim(),
+  }))
+}
+
+function addIssue(
+  issues: ShowCompositionV2ValidationIssue[],
+  path: string,
+  code: ShowCompositionV2ValidationCode,
+  message: string,
+): void {
+  issues.push({ path, code, message })
+}
+
+function uniqueIndex<T extends { id: string }>(
+  issues: ShowCompositionV2ValidationIssue[],
+  path: string,
+  values: readonly T[],
+): Map<string, T> {
+  const result = new Map<string, T>()
+  values.forEach((value, index) => {
+    if (typeof value.id !== 'string' || value.id.length === 0) {
+      addIssue(issues, `${path}[${index}].id`, 'missing-reference', 'Identity must be a non-empty string.')
+    } else if (result.has(value.id)) {
+      addIssue(issues, `${path}[${index}].id`, 'duplicate-id', `Identity "${value.id}" is duplicated.`)
+    } else {
+      result.set(value.id, value)
+    }
+  })
+  return result
+}
+
+function validateUniqueNestedIds(
+  issues: ShowCompositionV2ValidationIssue[],
+  composition: ShowCompositionV2,
+): void {
+  uniqueIndex(issues, 'composition.markers', composition.markers)
+  uniqueIndex(issues, 'composition.propertyTracks', composition.propertyTracks)
+  composition.propertyTracks.forEach((track, index) => {
+    uniqueIndex(issues, `composition.propertyTracks[${index}].keyframes`, track.keyframes)
+  })
+  composition.transitions.forEach((transition, index) => {
+    uniqueIndex(issues, `composition.transitions[${index}].participants`, transition.participants)
+  })
+}
+
+function validateNonnegativeTime(
+  issues: ShowCompositionV2ValidationIssue[],
+  path: string,
+  value: number,
+): void {
+  if (!Number.isFinite(value)) addIssue(issues, path, 'not-finite', 'Value must be finite.')
+  else if (!Number.isSafeInteger(value)) addIssue(issues, path, 'not-integer', 'Value must be a safe integer.')
+  else if (value < 0) addIssue(issues, path, 'out-of-bounds', 'Value must be nonnegative.')
+}
+
+function validatePositiveTime(
+  issues: ShowCompositionV2ValidationIssue[],
+  path: string,
+  value: number,
+): void {
+  validateNonnegativeTime(issues, path, value)
+  if (Number.isSafeInteger(value) && value <= 0) addIssue(issues, path, 'out-of-bounds', 'Value must be positive.')
+}
+
+function safeAdd(left: number, right: number): number {
+  const sum = left + right
+  return Number.isSafeInteger(sum) ? sum : Number.POSITIVE_INFINITY
+}
+
+function validateLayoutCoverage(
+  issues: ShowCompositionV2ValidationIssue[],
+  record: ShowRecordV2,
+  layouts: Map<string, ShowRoutingLayout>,
+  occurrences: Map<string, ShowLayoutOccurrenceV2>,
+): void {
+  const ordered = [...record.composition.layoutOccurrences]
+    .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
+  let cursorMs = 0
+  ordered.forEach((occurrence, index) => {
+    const path = `composition.layoutOccurrences[${record.composition.layoutOccurrences.indexOf(occurrence)}]`
+    validateNonnegativeTime(issues, `${path}.startMs`, occurrence.startMs)
+    validatePositiveTime(issues, `${path}.durationMs`, occurrence.durationMs)
+    if (!layouts.has(occurrence.layoutId)) {
+      addIssue(issues, `${path}.layoutId`, 'missing-reference', `Zone Layout "${occurrence.layoutId}" does not exist.`)
+    }
+    if (occurrence.startMs !== cursorMs) {
+      addIssue(issues, 'composition.layoutOccurrences', 'invalid-layout-coverage', 'Layout occurrences must cover Show time exactly once.')
+    }
+    cursorMs = safeAdd(occurrence.startMs, occurrence.durationMs)
+    if (occurrence.incomingTransfer) {
+      if (index === 0 || !occurrences.has(occurrence.incomingTransfer.fromOccurrenceId)) {
+        addIssue(issues, `${path}.incomingTransfer.fromOccurrenceId`, 'missing-reference', 'Incoming transfer must reference a preceding occurrence.')
+      }
+      validateNonnegativeTime(issues, `${path}.incomingTransfer.durationMs`, occurrence.incomingTransfer.durationMs)
+    }
+  })
+  if (cursorMs !== record.composition.showEndMs) {
+    addIssue(issues, 'composition.layoutOccurrences', 'invalid-layout-coverage', 'Layout occurrences must end exactly at Show End.')
+  }
+}
+
+interface PropertyValidationContext {
+  instances: Map<string, ShowPatternInstance>
+  clips: Map<string, ShowClipV2>
+  occurrences: Map<string, ShowLayoutOccurrenceV2>
+  showEndMs: number
+}
+
+function validatePropertyTrack(
+  issues: ShowCompositionV2ValidationIssue[],
+  path: string,
+  track: ShowPropertyTrackV2,
+  context: PropertyValidationContext,
+): void {
+  validateNonnegativeTime(issues, `${path}.activeStartMs`, track.activeStartMs)
+  validatePositiveTime(issues, `${path}.activeDurationMs`, track.activeDurationMs)
+  const activeEndMs = safeAdd(track.activeStartMs, track.activeDurationMs)
+  if (activeEndMs > context.showEndMs) {
+    addIssue(issues, `${path}.activeDurationMs`, 'out-of-bounds', 'Property activation must stay inside Show End.')
+  }
+  if (track.keyframes.length < 2) {
+    addIssue(issues, `${path}.keyframes`, 'out-of-bounds', 'A property track requires at least two keyframes.')
+  }
+  let previous = -1
+  track.keyframes.forEach((keyframe, index) => {
+    validateNonnegativeTime(issues, `${path}.keyframes[${index}].timeMs`, keyframe.timeMs)
+    if (keyframe.timeMs <= previous || keyframe.timeMs < track.activeStartMs || keyframe.timeMs > activeEndMs) {
+      addIssue(issues, `${path}.keyframes[${index}].timeMs`, 'out-of-bounds', 'Keyframe times must be ordered inside the active interval.')
+    }
+    if (!Number.isFinite(keyframe.value)) {
+      addIssue(issues, `${path}.keyframes[${index}].value`, 'not-finite', 'Keyframe value must be finite.')
+    }
+    previous = keyframe.timeMs
+  })
+  validatePropertyTarget(issues, `${path}.target`, track, context)
+}
+
+function validatePropertyTarget(
+  issues: ShowCompositionV2ValidationIssue[],
+  path: string,
+  track: ShowPropertyTrackV2,
+  context: PropertyValidationContext,
+): void {
+  const target = track.target
+  if (target.kind === 'show-repeat-scale') return
+  if (target.kind === 'layout-occurrence-split-position') {
+    if (!context.occurrences.has(target.layoutOccurrenceId)) {
+      addIssue(issues, path, 'invalid-property-target', 'Property target Layout occurrence does not exist.')
+    }
+    return
+  }
+  if (target.kind === 'instance-time-scale' || target.kind === 'instance-control') {
+    if (!context.instances.has(target.instanceId)) {
+      addIssue(issues, path, 'invalid-property-target', 'Property target Pattern instance does not exist.')
+    }
+    return
+  }
+  const clip = context.clips.get(target.clipId)
+  if (!clip) {
+    addIssue(issues, path, 'invalid-property-target', 'Property target Clip does not exist.')
+  } else if (target.kind === 'clip-effect') {
+    const activeEndMs = track.activeStartMs + track.activeDurationMs
+    const everyAppearanceOwnsEffect = clip.appearance.keys.every((key, index) => {
+      const keyEndMs = clip.appearance.keys[index + 1]?.timeMs ?? clip.startMs + clip.durationMs
+      if (key.timeMs >= activeEndMs || keyEndMs <= track.activeStartMs) return true
+      return (key.value.effects ?? []).some(effect => effect.id === target.effectId && effect.kind === target.effectKind)
+    })
+    if (!everyAppearanceOwnsEffect) {
+      addIssue(issues, path, 'invalid-property-target', 'Property target Effect identity does not match its Clip.')
+    }
+  }
+}
+
+function validateGroups(
+  issues: ShowCompositionV2ValidationIssue[],
+  record: ShowRecordV2,
+  context: {
+    layers: Map<string, ShowLayerV2>
+    layouts: Map<string, ShowLayoutOccurrenceV2>
+    definitions: Map<string, ShowGroupDefinitionV2>
+  },
+): void {
+  record.composition.groupDefinitions.forEach((definition, definitionIndex) => {
+    const path = `composition.groupDefinitions[${definitionIndex}]`
+    const layers = uniqueIndex(issues, `${path}.layers`, definition.layers)
+    const instances = uniqueIndex(issues, `${path}.patternInstances`, definition.patternInstances)
+    uniqueIndex(issues, `${path}.clips`, definition.clips)
+    const ranks = new Set<number>()
+    definition.layers.forEach((layer, index) => {
+      validateNonnegativeTime(issues, `${path}.layers[${index}].rank`, layer.rank)
+      if (ranks.has(layer.rank)) addIssue(issues, `${path}.layers[${index}].rank`, 'duplicate-id', 'Group Layer rank is duplicated.')
+      ranks.add(layer.rank)
+    })
+    definition.clips.forEach((clip, index) => {
+      const clipPath = `${path}.clips[${index}]`
+      if (!layers.has(clip.layerId)) addIssue(issues, `${clipPath}.layerId`, 'missing-reference', 'Group Clip Layer does not exist.')
+      if (!instances.has(clip.instanceId)) addIssue(issues, `${clipPath}.instanceId`, 'missing-reference', 'Group Clip instance does not exist.')
+      validateNonnegativeTime(issues, `${clipPath}.startMs`, clip.startMs)
+      validatePositiveTime(issues, `${clipPath}.durationMs`, clip.durationMs)
+    })
+  })
+
+  record.composition.groupOccurrences.forEach((occurrence, occurrenceIndex) => {
+    const path = `composition.groupOccurrences[${occurrenceIndex}]`
+    const definition = context.definitions.get(occurrence.definitionId)
+    if (!definition) addIssue(issues, `${path}.definitionId`, 'missing-reference', 'Group definition does not exist.')
+    if (!context.layouts.has(occurrence.layoutOccurrenceId)) {
+      addIssue(issues, `${path}.layoutOccurrenceId`, 'missing-reference', 'Layout occurrence does not exist.')
+    }
+    const boundDefinitionLayers = new Set<string>()
+    occurrence.layerBindings.forEach((binding, bindingIndex) => {
+      const bindingPath = `${path}.layerBindings[${bindingIndex}]`
+      if (!definition?.layers.some(layer => layer.id === binding.definitionLayerId)) {
+        addIssue(issues, `${bindingPath}.definitionLayerId`, 'invalid-group-binding', 'Bound Group Layer does not exist.')
+      }
+      const destination = context.layers.get(binding.layerId)
+      if (!destination || destination.zoneId !== occurrence.zoneId) {
+        addIssue(issues, `${bindingPath}.layerId`, 'invalid-group-binding', 'Destination Layer must exist in the occurrence Zone.')
+      }
+      if (boundDefinitionLayers.has(binding.definitionLayerId)) {
+        addIssue(issues, bindingPath, 'invalid-group-binding', 'A Group Layer may be bound only once.')
+      }
+      boundDefinitionLayers.add(binding.definitionLayerId)
+    })
+    if (definition && definition.layers.some(layer => !boundDefinitionLayers.has(layer.id))) {
+      addIssue(issues, `${path}.layerBindings`, 'invalid-group-binding', 'Every Group Layer requires an explicit binding.')
+    }
+  })
+}

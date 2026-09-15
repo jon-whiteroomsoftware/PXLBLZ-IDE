@@ -5,9 +5,10 @@ test('a Controller with no map stays settled across panel polling, reopen, and T
   const request = page.context().request
   const deviceId = 'pixelblaze_pb32_005544332211'
   const ip = '192.168.8.224'
+  const trashedControllerName = 'Legacy Controller'
   for (const [id, name, updatedAt] of [
     ['map-kept', 'Bench Controller', 1],
-    ['map-trashed', 'Legacy Controller', 2],
+    ['map-trashed', trashedControllerName, 2],
   ] as const) {
     const created = await request.post('/api/controllers', { data: {
       id, name, deviceId, lastKnownDeviceName: name, lastSeenIp: ip,
@@ -40,10 +41,10 @@ test('a Controller with no map stays settled across panel polling, reopen, and T
 
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('studio/controllers/map-kept')
-  await page.getByRole('treeitem', { name: 'Legacy Controller', exact: true }).hover()
-  await page.getByRole('button', { name: 'More actions for Legacy Controller' }).click()
+  await page.getByRole('treeitem', { name: trashedControllerName, exact: true }).hover()
+  await page.getByRole('button', { name: `More actions for ${trashedControllerName}` }).click()
   await page.getByRole('button', { name: 'Move to Trash', exact: true }).click()
-  await expect(page.getByRole('treeitem', { name: 'Legacy Controller', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('treeitem', { name: trashedControllerName, exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: 'Connect a Controller', exact: true }).click()
   await page.getByRole('textbox', { name: 'Controller IP address' }).fill(ip)
   await page.getByTestId('controller-go').click()
