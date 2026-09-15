@@ -20,7 +20,8 @@
     "Insert through a discontinuity, activation start, exclusive end and last active key; inspect held and resumed values",
     "Move and split a restarting Clip; verify Restart stays left and follows first contribution",
     "Share one instance across visible outgoing/incoming Clips, cross one and then multiple Restart boundaries in a frame, loop, and reconstruct with cold replay through a reopened generated .epe",
-    "Copy eligible instance tracks to an independent replacement, filter incompatible controls, then attempt a conflicting copy",
+    "Copy eligible instance tracks to an independent replacement with caller-supplied identities, filter incompatible controls, then attempt incomplete-identity and activation-conflict copies",
+    "Project a Transition carrier ramp before reset, then resize a connected edge through a retained nonlinear segment without shifting the projection twice",
     "Convert two consecutive legacy Scene track owners on one shared instance through incoming pre-roll, lower, and compare emitted source"
   ],
   "oracles": [
@@ -28,7 +29,7 @@
     "Public evaluator values and compiler-emitted Fast/Fidelity values match retained source-curve evaluation at boundaries and interiors",
     "Serialized provisional v2 records reopen with exact descriptors while the v1 JSON schema rejects the v2-only field",
     "Reopened generated .epe runtime exports prove private state and elapsed reset, authored control reapplication, one compiled shared member and cold-replay equality",
-    "The pinned parity harness accounts for all 47 records and reports no changed recipe/source/output/state behavior beyond the deliberate provisional schema hash",
+    "The pinned parity harness accounts for all 47 records, measures the accepted retired-silent-runtime differences, and keeps every unrelated recipe/source/output/state comparison exact",
     "Targeted Show-authoring mutation report kills every selected curve-offset, Insert boundary, Restart coalescing and overlap fault"
   ],
   "faults": [
@@ -38,11 +39,11 @@
     "Restart at nominal start instead of incoming contribution, collapse of distinct crossed boundaries, repeated held-time reset or duplicate shared runtime",
     "Clock-only reset that leaves private state, full reset that clears authored controls, or approximate reset of unsupported initial state",
     "Overlapping instance target admitted because track order or exact adjacency is mishandled",
-    "Incoming legacy Scene owner activated during outgoing pre-roll and rejected by the strict conflict validator"
+    "Incoming legacy Scene owner activated during outgoing pre-roll and rejected by the strict conflict validator",
+    "Transition carrier removed before its Property ramps are projected, or projection shifted a second time by the visual edit",
+    "Layout split-position descriptor linearized, left active at the exclusive end, or applied to a different occurrence"
   ],
   "residualGaps": [
-    "#1035 must replace its private effective instance-use count with the shared helper after coordinator rebase",
-    "Layout interval binding and integrated Layout-target proof follow #1036 on landed main",
     "#1038 owns duplicate, Make Independent, Replace and Group occurrence authoring integration around these pure owners",
     "#1044/#1039 own history, provider readback, adoption and production route proof",
     "Coordinator owns final committed-tip suites, cross-family review, landing and publication"

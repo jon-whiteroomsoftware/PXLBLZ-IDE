@@ -56,13 +56,19 @@ Zone refuses; the owner never reroutes or restarts content implicitly.
 
 The v1 adapter omits source placements that contributed no pixels because their
 Zone was absent, and emits a distinct `--layout-N` Clip when that Zone returns.
-The Clip keeps the same Pattern instance with Continue entry. Lowering recognizes
-only those adapter-owned segment IDs and reconstructs a transient unrouted carrier
-for the silent gap, preserving the original runtime clock and routed `pixelCount`
-without putting an unavailable-Zone Clip in the v2 record. The pinned showcase
-artifacts retain byte-identical generated source and Fast/Precise output and state;
-their intermediate recipe objects differ because the v2 record now expresses the
-absence explicitly.
+The visible Clip keeps the same Pattern instance with Continue entry. A wholly
+unrouted placement is recorded as `retired-silent-runtime-use`; conversion emits
+no hidden activation or carrier for it. This explicit compatibility exception
+can change later Pattern state and output when the old silent placement advanced
+a runtime before its first visible use. The parity report measures those changes,
+accounts for every pinned showcase, and keeps unaffected recipe, source, output
+and state comparisons exact.
+
+An occurrence-owned `layout-split-position` Property track lowers directly into
+the routed scalar recipe. Lowering retains any nonlinear `curveSegment`, suppresses
+the base zero-duration assignment during authored activation and restores the
+occurrence baseline at the exclusive activation end. Overlapping authored tracks
+or an overlap with an existing positive routing ramp refuse before compilation.
 
 ## Show End protection
 
@@ -83,7 +89,10 @@ spanning Clip compiles and executes in Fast and Precise modes with one continuou
 runtime across the switch. The combined
 [Layout/Transition tests](../../../src/engine/showV2MixedLayout.test.ts) run the
 owner at visual-window start, interior and end partitions and distinguish an
-accepted domain edit from the current bounded compiler-adapter refusal.
+accepted domain edit from a bounded compiler-adapter refusal. The
+[v2 lowering tests](../../../src/engine/showCompositionLoweringV2.test.ts) compile
+an occurrence split-position track with a retained nonlinear segment and compare
+Fast and Fidelity frames with the public Property evaluator.
 
 Group occurrence-local holds are owned by #1038. This owner consumes materialized
 Group contribution, so hold-aware duration and child projection must receive the

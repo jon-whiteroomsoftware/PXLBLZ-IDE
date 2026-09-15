@@ -6,6 +6,7 @@ import { buildShowEpeExport } from './showEpeExport'
 import { compileShow, type GeneratedShowArtifact } from './showCompiler'
 import { showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
 import { lowerShowCompositionV2ForCompile, prepareShowV2ForCompile } from './showCompositionLoweringV2'
+import { evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { continuingV1Show, convertibleV1Show, flatV1Show, transitionV1Show } from '../test/showV2TracerFixture'
 import { LIBRARIES } from '../pixelblaze/libs'
@@ -182,6 +183,54 @@ describe('lowerShowCompositionV2ForCompile', () => {
       expect(atLandmarks.frame[3]).toBeCloseTo(((0.01 / (1 - splitPosition)) * repeatScale) % 1)
       expect(atLandmarks.frame[1]).toBeCloseTo(0.1)
       expect(atLandmarks.frame[4]).toBeCloseTo(0.1)
+    }
+  })
+
+  it.each(['fast', 'fidelity'] as const)('lowers an occurrence-owned retained split-position curve through routed %s output', fidelity => {
+    const flatLookup = { byCellId: { 'cell-left': COORDINATE_SOURCE, 'cell-right': COORDINATE_SOURCE }, stageDimension: 2 as const }
+    const converted = convertShowRecordV1ToV2(flatSamplingShow(1, 0.25), flatLookup)
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') return
+    const occurrence = converted.record.composition.layoutOccurrences[0]
+    occurrence.parameters.splitPosition = 0.25
+    const easing = { curve: 'quadratic', direction: 'in' } as const
+    const sourceValue = (elapsedMs: number) => 0.2 + 0.6 * (elapsedMs / 2_000) ** 2
+    converted.record.composition.propertyTracks.push({
+      id: 'split-track',
+      target: { kind: 'layout-occurrence-split-position', layoutOccurrenceId: occurrence.id },
+      activeStartMs: 0,
+      activeDurationMs: 1_000,
+      keyframes: [
+        {
+          id: 'split-start', timeMs: 0, value: sourceValue(500), easing,
+          curveSegment: { baseValue: 0.2, deltaValue: 0.6, easing, sourceDurationMs: 2_000, elapsedOffsetMs: 500 },
+        },
+        { id: 'split-end', timeMs: 1_000, value: sourceValue(1_500), easing: { curve: 'hold', at: 1 } },
+      ],
+    })
+    const lookup = {
+      byCellId: {},
+      byPatternInstanceId: Object.fromEntries(converted.record.composition.patternInstances.map(instance => [instance.id, COORDINATE_SOURCE])),
+      stageDimension: 2 as const,
+    }
+
+    const prepared = prepareShowV2ForCompile(converted.record, lookup)
+
+    expect(prepared.status, JSON.stringify(prepared)).toBe('ready')
+    if (prepared.status !== 'ready') return
+    const artifact = compileShow(prepared.recipe, LIBRARIES)
+    const pointX = 0.4
+    const runtime = replay(artifact, fidelity, [{ sample: [pointX, 0.25], pos: [pointX, 0.25] }])
+    let previousMs = 0
+    const track = converted.record.composition.propertyTracks[0]
+    for (const atMs of [1, 250, 500, 750, 999]) {
+      const result = runtime.advanceLive(atMs - previousMs)
+      const splitPosition = evaluateShowPropertyTrackV2(track, atMs)!
+      const expectedX = pointX < splitPosition
+        ? pointX / splitPosition
+        : (pointX - splitPosition) / (1 - splitPosition)
+      expect(result.frame[0]).toBeCloseTo(expectedX, fidelity === 'fast' ? 8 : 3)
+      previousMs = atMs
     }
   })
 

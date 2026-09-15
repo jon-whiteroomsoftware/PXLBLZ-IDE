@@ -4,8 +4,13 @@ import {
   type ShowRecordV2,
   type ShowTransitionV2,
 } from './showCompositionV2'
-import { materializeShowGroupsV2 } from './showGroupsV2'
+import { effectiveShowInstanceUseCountV2 } from './showGroupsV2'
 import { validateClipLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
+import {
+  editShowClipPropertyTracksV2,
+  projectShowTransitionPropertyRampsV2,
+  type ShowTransitionRampProjectionV2,
+} from './showPropertyAnimationV2'
 
 export interface ShowDerivedCutJunctionV2 {
   kind: 'cut'
@@ -23,7 +28,7 @@ export type ShowTransitionEditIntentV2 =
   | { kind: 'move-connected'; clipId: string; startMs: number; zoneId?: string; layerId?: string }
   | { kind: 'resize-trailing'; clipId: string; endMs: number }
   | { kind: 'resize-leading'; clipId: string; startMs: number }
-  | { kind: 'reset-to-cut'; transitionId: string }
+  | { kind: 'reset-to-cut'; transitionId: string; propertyRampProjections?: readonly ShowTransitionRampProjectionV2[] }
   | { kind: 'delete-clip'; clipId: string }
 
 export type ShowTransitionEditRefusalV2 =
@@ -156,16 +161,6 @@ export function editShowTransitionV2(
     if (!Number.isSafeInteger(requestedMs) || requestedMs < 0 || requestedMs > record.composition.showEndMs) {
       return refuse('invalid-intent', 'Clip edge must be a safe integer within Show End.')
     }
-    const relatedTracks = record.composition.propertyTracks.filter(track => (
-      'clipId' in track.target && track.target.clipId === clip.id
-    ) || (
-      'instanceId' in track.target
-      && track.target.instanceId === clip.instanceId
-      && record.composition.clips.filter(candidate => candidate.instanceId === clip.instanceId).length === 1
-    ))
-    if (relatedTracks.length > 0) {
-      return refuse('unsupported-property-carrier', 'Connected Clip resize with owned animation requires the #1037 exact curve owner.')
-    }
     if (intent.kind === 'resize-trailing') return resizeTrailing(record, clip.id, intent.endMs)
     return resizeLeading(record, clip.id, intent.startMs)
   }
@@ -211,6 +206,9 @@ export function editShowTransitionV2(
     return { status: 'unchanged', record, ...empty() }
   }
   if (transition.propertyRamps.length > 0) {
+    if (intent.kind === 'reset-to-cut' && intent.propertyRampProjections) {
+      return resetTransitionWithProjectedPropertyRamps(record, transition, intent.propertyRampProjections)
+    }
     return refuse('unsupported-property-carrier', `Transition "${transition.id}" has property ramps that require the #1037 projection owner.`)
   }
   if (intent.kind === 'resize-transition' && intent.durationMs === 0) {
@@ -243,9 +241,15 @@ function resizeTrailing(record: ShowRecordV2, clipId: string, endMs: number): Sh
   const deltaMs = endMs - oldEndMs
   const affectedClipIds = downstreamClosure(record, endpoints.to)
   if (affectedClipIds.includes(clip.id)) return refusedResult(record, 'invalid-topology', 'Transition topology contains a directed cycle.')
+  const trackEdit = editShowClipPropertyTracksV2(record, clip, {
+    kind: endMs < oldEndMs ? 'trim' : 'extend',
+    startMs: clip.startMs,
+    endMs,
+  })
   const next = structuredClone(record)
+  next.composition.propertyTracks = trackEdit.propertyTracks
   shiftClips(next, affectedClipIds, deltaMs)
-  const affectedTrackIds = shiftOwnedTracks(record, next.composition.propertyTracks, new Set(affectedClipIds), deltaMs)
+  const shiftedTrackIds = shiftOwnedTracks(record, next.composition.propertyTracks, new Set(affectedClipIds), deltaMs)
   shiftWholeOutputWindows(record, next, new Set(affectedClipIds), deltaMs, new Set([transition.id]))
   const edited = next.composition.clips.find(candidate => candidate.id === clip.id)!
   edited.durationMs = endMs - clip.startMs
@@ -267,7 +271,42 @@ function resizeTrailing(record: ShowRecordV2, clipId: string, endMs: number): Sh
     status: 'changed', record: next,
     affectedClipIds: [clip.id, ...affectedClipIds].sort(),
     affectedTransitionIds: affectedTransitionIdsFor(record, new Set([clip.id, ...affectedClipIds])),
-    affectedTrackIds: affectedTrackIds.sort(), removedIds: [],
+    affectedTrackIds: [...new Set([...trackEdit.affectedTrackIds, ...shiftedTrackIds])].sort(), removedIds: [],
+  }
+}
+
+function resetTransitionWithProjectedPropertyRamps(
+  record: ShowRecordV2,
+  transition: ShowTransitionV2,
+  projections: readonly ShowTransitionRampProjectionV2[],
+): ShowTransitionEditResultV2 {
+  const projected = projectShowTransitionPropertyRampsV2(record, transition.id, projections)
+  if (projected.status === 'refused') {
+    return refusedResult(record, 'unsupported-property-carrier', projected.message)
+  }
+  if (projected.status !== 'changed') {
+    return refusedResult(record, 'unsupported-property-carrier', `Transition "${transition.id}" Property ramps were not projected.`)
+  }
+  const projectedTrackIds = new Set(projected.affectedTrackIds)
+  const projectedTracks = projected.record.composition.propertyTracks
+    .filter(track => projectedTrackIds.has(track.id))
+    .map(track => structuredClone(track))
+  const carrierCleared = structuredClone(record)
+  carrierCleared.composition.transitions = carrierCleared.composition.transitions.map(candidate => (
+    candidate.id === transition.id ? { ...candidate, propertyRamps: [] } : candidate
+  ))
+  const reset = editShowTransitionV2(carrierCleared, { kind: 'reset-to-cut', transitionId: transition.id })
+  if (reset.status !== 'changed') return { ...reset, record }
+  const next = structuredClone(reset.record)
+  next.composition.propertyTracks.push(...projectedTracks)
+  const issue = validateShowRecordV2(next)[0]
+  if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
+  const compilerRestriction = firstCompilerRestriction(next)
+  if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction)
+  return {
+    ...reset,
+    record: next,
+    affectedTrackIds: [...new Set([...reset.affectedTrackIds, ...projected.affectedTrackIds])].sort(),
   }
 }
 
@@ -284,7 +323,13 @@ function resizeLeading(record: ShowRecordV2, clipId: string, startMs: number): S
   const durationMs = transition.durationMs + startMs - clip.startMs
   if (durationMs < 0) return refusedResult(record, 'invalid-intent', 'Leading resize cannot create a negative Transition duration.')
   if (durationMs === 0) return editShowTransitionV2(record, { kind: 'reset-to-cut', transitionId: transition.id })
+  const trackEdit = editShowClipPropertyTracksV2(record, clip, {
+    kind: startMs > clip.startMs ? 'trim' : 'extend',
+    startMs,
+    endMs: oldEndMs,
+  })
   const next = structuredClone(record)
+  next.composition.propertyTracks = trackEdit.propertyTracks
   const edited = next.composition.clips.find(candidate => candidate.id === clip.id)!
   edited.startMs = startMs
   edited.durationMs = oldEndMs - startMs
@@ -304,7 +349,7 @@ function resizeLeading(record: ShowRecordV2, clipId: string, startMs: number): S
   if (unavailable) return refusedResult(record, 'unsupported-layout', unavailable)
   return {
     status: 'changed', record: next, affectedClipIds: [clip.id], affectedTransitionIds: [transition.id],
-    affectedTrackIds: [], removedIds: [],
+    affectedTrackIds: trackEdit.affectedTrackIds.sort(), removedIds: [],
   }
 }
 
@@ -487,25 +532,16 @@ function shiftOwnedTracks(
   moved: Set<string>,
   deltaMs: number,
 ): string[] {
-  const effective = source.composition.groupOccurrences.length > 0
-    ? materializeShowGroupsV2(source)
-    : source
-  const clipUsersByInstance = new Map<string, string[]>()
-  for (const clip of effective.composition.clips) {
-    const users = clipUsersByInstance.get(clip.instanceId) ?? []
-    users.push(clip.id)
-    clipUsersByInstance.set(clip.instanceId, users)
-  }
-  const soleClipByInstance = new Map<string, string>()
-  for (const [instanceId, users] of clipUsersByInstance) {
-    if (users.length === 1) soleClipByInstance.set(instanceId, users[0])
-  }
+  const soleMovedInstanceIds = new Set([...moved].flatMap(clipId => {
+    const instanceId = source.composition.clips.find(clip => clip.id === clipId)?.instanceId
+    return instanceId && effectiveShowInstanceUseCountV2(source, instanceId) === 1 ? [instanceId] : []
+  }))
   const affected: string[] = []
   for (const track of tracks) {
     const follows = 'clipId' in track.target
       ? moved.has(track.target.clipId)
       : 'instanceId' in track.target
-        ? moved.has(soleClipByInstance.get(track.target.instanceId) ?? '')
+        ? soleMovedInstanceIds.has(track.target.instanceId)
         : false
     if (!follows) continue
     track.activeStartMs += deltaMs

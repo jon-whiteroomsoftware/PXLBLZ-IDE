@@ -481,6 +481,19 @@ describe('v2 property animation', () => {
     const copied = copyShowInstancePropertyTracksV2(source, {
       fromInstanceId: 'instance', toInstanceId: 'replacement', placementDeltaMs: 200,
       compatibleControlExports: ['sliderKept'],
+      identitiesBySourceTrackId: {
+        speed: {
+          trackId: 'speed:instance:replacement',
+          keyframeIdsBySourceId: { 'speed:start': 'speed:start:replacement', 'speed:end': 'speed:end:replacement' },
+        },
+        'kept-control': {
+          trackId: 'kept-control:instance:replacement',
+          keyframeIdsBySourceId: {
+            'kept-control:start': 'kept-control:start:replacement',
+            'kept-control:end': 'kept-control:end:replacement',
+          },
+        },
+      },
     })
 
     expect(copied.status).toBe('changed')
@@ -505,11 +518,47 @@ describe('v2 property animation', () => {
     const before = structuredClone(source)
     const result = copyShowInstancePropertyTracksV2(source, {
       fromInstanceId: 'instance', toInstanceId: 'replacement', placementDeltaMs: 0,
+      identitiesBySourceTrackId: {
+        'source-speed': {
+          trackId: 'source-speed:replacement',
+          keyframeIdsBySourceId: {
+            [`${original.keyframes[0].id}`]: 'source-speed:start:replacement',
+            [`${original.keyframes[1].id}`]: 'source-speed:end:replacement',
+          },
+        },
+      },
     })
 
     expect(result).toMatchObject({
       status: 'refused', propertyTracks: source.composition.propertyTracks,
       copiedTrackIds: [], discardedTargets: [], message: expect.stringContaining('destination-speed'),
+    })
+    expect(source).toEqual(before)
+  })
+
+  it('refuses an incomplete caller-supplied copy identity plan atomically', () => {
+    const source = animatedRecord()
+    source.composition.patternInstances.push({ ...structuredClone(source.composition.patternInstances[0]), id: 'replacement' })
+    source.composition.propertyTracks = [{
+      ...structuredClone(source.composition.propertyTracks[0]),
+      id: 'source-speed',
+      target: { kind: 'instance-time-scale', instanceId: 'instance' },
+    }]
+    const before = structuredClone(source)
+
+    const result = copyShowInstancePropertyTracksV2(source, {
+      fromInstanceId: 'instance', toInstanceId: 'replacement', placementDeltaMs: 0,
+      identitiesBySourceTrackId: {
+        'source-speed': {
+          trackId: 'source-speed:replacement',
+          keyframeIdsBySourceId: { [source.composition.propertyTracks[0].keyframes[0].id]: 'source-speed:start:replacement' },
+        },
+      },
+    })
+
+    expect(result).toMatchObject({
+      status: 'refused', propertyTracks: source.composition.propertyTracks,
+      copiedTrackIds: [], discardedTargets: [], message: expect.stringContaining('complete fresh caller-supplied'),
     })
     expect(source).toEqual(before)
   })

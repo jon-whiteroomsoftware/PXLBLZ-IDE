@@ -58,9 +58,11 @@ choreography; the Insert Time orchestrator owns those changes and validates the
 combined candidate.
 
 `copyShowInstancePropertyTracksV2` copies time-scale tracks and compatible public
-control tracks for Make Independent or Clip-scoped Replace. It reports new track
-IDs and discarded control targets, leaves source tracks unchanged, and refuses a
-destination activation conflict atomically. Record validation likewise refuses
+control tracks for Make Independent or Clip-scoped Replace. The caller supplies a
+complete fresh track and keyframe identity plan for every copied source track;
+the helper validates and returns those exact IDs. It reports discarded control
+targets, leaves source tracks unchanged, and refuses an incomplete identity plan
+or destination activation conflict atomically. Record validation likewise refuses
 overlapping instance-control or instance-time-scale owners while allowing
 half-open adjacency, including after Group materialization.
 
@@ -68,7 +70,10 @@ half-open adjacency, including after Group materialization.
 Transition into an independently activated Property track before a caller resets
 or deletes that carrier. The caller supplies fresh identities, the retained end
 value and activation end; an incomplete or conflicting projection refuses with
-the original record.
+the original record. The Transition reset owner invokes this projection before
+removing the carrier, then performs the visual edit without shifting the new
+tracks. Connected edge resize delegates nonlinear restriction to the same exact
+curve owner.
 
 ## Current admission domain
 
@@ -112,7 +117,10 @@ exercise move → trim → extend → split → reopen for every supported easin
 equal stored endpoints with a nonconstant retained interior, steps/hold
 discontinuities, generated Fast/Precise source parity at activation boundaries,
 Insert Time boundary partitions, Group-aware sharing/Restart, carrier projection,
-copy/filter results and atomic conflict refusal.
+caller-supplied copy identities, copy/filter results and atomic conflict refusal.
+The [Transition owner tests](../../../src/engine/showTransitionsV2.test.ts) prove
+projection before carrier reset and exact nonlinear restriction during connected
+edge resize.
 
 UI, durable provider writes, actual Undo/Redo integration and full Insert Time
 orchestration are not proven here. Generated Restart replay is proved at the

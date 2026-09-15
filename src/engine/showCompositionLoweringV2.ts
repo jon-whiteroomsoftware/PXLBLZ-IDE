@@ -1,4 +1,5 @@
 import { groupRuntimeBindings, materializeShowGroupsV2 } from './showGroupsV2'
+import { applyShowEasing } from './showEasing'
 import { lowerPropertyTarget } from './showV2ValueConversion'
 import { isHeldRepeatScaleTrack, repeatScaleAt, scalarBoundaryRamps } from './showV2ScalarProperties'
 import type {
@@ -15,7 +16,7 @@ import type {
 import { showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
 import { validateShowComposition } from './showCompositionModel'
 import type { ShowRecipe } from './showCompiler'
-import { deriveShowRestartEventsV2 } from './showPropertyAnimationV2'
+import { deriveShowRestartEventsV2, evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 import {
   validateShowRecordV2,
   type ShowClipV2,
@@ -100,6 +101,11 @@ export function prepareShowV2ForCompile(
     }
   }
   const recipe = showRecordToCompileRecipe(lowered.show, lowered.lookup)
+  const layoutPropertyRamps = lowerLayoutSplitPositionTracks(context.record, recipe.routingPropertyRamps)
+  if (layoutPropertyRamps.status === 'refused') {
+    return { status: 'refused', ...refuse('unsupported-property-target', layoutPropertyRamps.path, layoutPropertyRamps.message) }
+  }
+  if (layoutPropertyRamps.value) recipe.routingPropertyRamps = layoutPropertyRamps.value
   const expectedInstances = [...new Set(Object.values(context.runtimeInstanceIdByClipId))].sort()
   const representedInstances = recipe.clips.filter(clip => !clip.compilerOwnedEmpty)
     .map(clip => lowered.lookup.instanceIdByCellId?.[clip.id] ?? clip.id).sort()
@@ -196,6 +202,136 @@ function refuse(
   return { issues: [{ code, path, message }] }
 }
 
+type RoutingPropertyRamps = NonNullable<ShowRecipe['routingPropertyRamps']>
+type RoutingPropertyRamp = RoutingPropertyRamps['splitPosition']['ramps'][number]
+
+function lowerLayoutSplitPositionTracks(
+  record: ShowRecordV2,
+  source: ShowRecipe['routingPropertyRamps'],
+): { status: 'ready'; value?: RoutingPropertyRamps } | { status: 'refused'; path: string; message: string } {
+  const tracks = record.composition.propertyTracks
+    .filter(track => track.target.kind === 'layout-occurrence-split-position')
+    .sort((left, right) => left.activeStartMs - right.activeStartMs || left.id.localeCompare(right.id))
+  if (tracks.length === 0) return { status: 'ready', ...(source ? { value: source } : {}) }
+  if (!source) {
+    return {
+      status: 'refused',
+      path: 'composition.propertyTracks',
+      message: 'Layout split-position animation requires a compiled split or soft-split routing Layout.',
+    }
+  }
+  for (const [index, track] of tracks.entries()) {
+    const target = track.target
+    if (target.kind !== 'layout-occurrence-split-position') continue
+    const occurrence = record.composition.layoutOccurrences.find(candidate => candidate.id === target.layoutOccurrenceId)!
+    const layout = record.zoneLayouts.find(candidate => candidate.id === occurrence.layoutId)
+    if (layout?.logical?.kind !== 'split' && layout?.logical?.kind !== 'soft-split') {
+      return {
+        status: 'refused',
+        path: `composition.propertyTracks[${record.composition.propertyTracks.indexOf(track)}].target`,
+        message: `Layout occurrence "${occurrence.id}" does not use a split-position routing Layout.`,
+      }
+    }
+    const activeEndMs = track.activeStartMs + track.activeDurationMs
+    const overlap = tracks.slice(index + 1).find(candidate => (
+      candidate.target.kind === 'layout-occurrence-split-position'
+      && candidate.target.layoutOccurrenceId === target.layoutOccurrenceId
+      && track.activeStartMs < candidate.activeStartMs + candidate.activeDurationMs
+      && candidate.activeStartMs < activeEndMs
+    ))
+    if (overlap) {
+      return {
+        status: 'refused',
+        path: `composition.propertyTracks[${record.composition.propertyTracks.indexOf(overlap)}].target`,
+        message: `Layout split-position track "${overlap.id}" overlaps active owner "${track.id}".`,
+      }
+    }
+  }
+
+  const baseline = structuredClone(source.splitPosition)
+  const positiveCarrier = baseline.ramps.find(ramp => ramp.durationMs > 0 && tracks.some(track => (
+    ramp.atMs < track.activeStartMs + track.activeDurationMs
+    && track.activeStartMs < ramp.atMs + ramp.durationMs
+  )))
+  if (positiveCarrier) {
+    return {
+      status: 'refused',
+      path: 'composition.propertyTracks',
+      message: 'Layout split-position animation overlaps an existing positive routing Property ramp.',
+    }
+  }
+  const retainedBase = baseline.ramps.filter(ramp => !tracks.some(track => (
+    ramp.durationMs === 0
+    && ramp.atMs >= track.activeStartMs
+    && ramp.atMs < track.activeStartMs + track.activeDurationMs
+  )))
+  const authored: RoutingPropertyRamp[] = []
+  for (const track of tracks) {
+    const keys = [...track.keyframes].sort((left, right) => left.timeMs - right.timeMs)
+    const baselineAtStart = evaluateRoutingSplitPosition(baseline, track.activeStartMs)
+    authored.push({
+      atMs: track.activeStartMs,
+      from: baselineAtStart,
+      to: keys[0].value,
+      durationMs: 0,
+      easing: { curve: 'linear' },
+    })
+    for (const [index, left] of keys.slice(0, -1).entries()) {
+      const right = keys[index + 1]
+      authored.push({
+        atMs: left.timeMs,
+        from: left.value,
+        to: right.value,
+        durationMs: right.timeMs - left.timeMs,
+        easing: structuredClone(left.easing),
+        ...(left.curveSegment ? { curveSegment: structuredClone(left.curveSegment) } : {}),
+      })
+    }
+    const activeEndMs = track.activeStartMs + track.activeDurationMs
+    if (activeEndMs < record.composition.showEndMs) {
+      authored.push({
+        atMs: activeEndMs,
+        from: evaluateShowPropertyTrackV2(track, activeEndMs - 1) ?? keys[keys.length - 1].value,
+        to: evaluateRoutingSplitPosition(baseline, activeEndMs),
+        durationMs: 0,
+        easing: { curve: 'linear' },
+      })
+    }
+  }
+  const ramps = [...retainedBase, ...authored]
+    .map((ramp, index) => ({ ramp, index }))
+    .sort((left, right) => left.ramp.atMs - right.ramp.atMs || left.index - right.index)
+    .map(({ ramp }) => ramp)
+  const atZero = tracks.find(track => track.activeStartMs === 0)
+  return {
+    status: 'ready',
+    value: {
+      splitPosition: {
+        initial: atZero ? evaluateShowPropertyTrackV2(atZero, 0)! : baseline.initial,
+        ramps,
+      },
+    },
+  }
+}
+
+function evaluateRoutingSplitPosition(source: RoutingPropertyRamps['splitPosition'], atMs: number): number {
+  let value = source.initial
+  for (const ramp of source.ramps) {
+    if (atMs < ramp.atMs) continue
+    value = ramp.to
+    if (ramp.durationMs <= 0 || atMs >= ramp.atMs + ramp.durationMs) continue
+    const segment = ramp.curveSegment
+    const progress = segment
+      ? (segment.elapsedOffsetMs + atMs - ramp.atMs) / segment.sourceDurationMs
+      : (atMs - ramp.atMs) / ramp.durationMs
+    const easing = segment?.easing ?? ramp.easing
+    value = segment
+      ? segment.baseValue + segment.deltaValue * applyShowEasing(easing, progress)
+      : ramp.from + (ramp.to - ramp.from) * applyShowEasing(easing, progress)
+  }
+  return value
+}
+
 function resolveShowV2CompileContext(
   record: ShowRecordV2,
   lookup: ShowCompileRecipeSourceLookup,
@@ -234,11 +370,14 @@ function resolveShowV2CompileContext(
   if (composition.transitions.some(transition => transition.propertyRamps.some(ramp => !transition.wholeOutput || ramp.participantId !== undefined || (ramp.target.kind !== 'show-repeat-scale' && ramp.target.kind !== 'layout-occurrence-split-position')))) {
     return refuse('unsupported-transition-property-ramp', 'composition.transitions', 'lowering requires Transition property-ramp compiler evidence before compilation.')
   }
-  if (!wholeOutput && composition.transitions.length > 0 && composition.propertyTracks.some(track => track.activeStartMs !== 0 || track.activeDurationMs !== composition.showEndMs)) {
+  if (!wholeOutput && composition.transitions.length > 0 && composition.propertyTracks.some(track => (
+    track.target.kind !== 'layout-occurrence-split-position'
+    && (track.activeStartMs !== 0 || track.activeDurationMs !== composition.showEndMs)
+  ))) {
     return refuse('unsupported-transition-property-track', 'composition.propertyTracks', 'lowering requires section-scoped positive-Transition property-track activation evidence before compilation.')
   }
   const unsupportedTargetIndex = composition.propertyTracks.findIndex(track => (
-    track.target.kind === 'layout-occurrence-split-position' || (track.target.kind === 'show-repeat-scale' && !isHeldRepeatScaleTrack(track, composition.showEndMs))
+    track.target.kind === 'show-repeat-scale' && !isHeldRepeatScaleTrack(track, composition.showEndMs)
   ))
   if (unsupportedTargetIndex >= 0) {
     return refuse(
@@ -348,10 +487,14 @@ function propertyTrackSectionBounds(
 
 function firstCrossSectionTrackIndex(record: ShowRecordV2): number {
   const sections = derivedSections(record)
-  return record.composition.propertyTracks.findIndex(track => track.target.kind !== 'show-repeat-scale' && !sections.some(section => {
+  return record.composition.propertyTracks.findIndex(track => (
+    track.target.kind !== 'show-repeat-scale'
+    && track.target.kind !== 'layout-occurrence-split-position'
+    && !sections.some(section => {
     const bounds = propertyTrackSectionBounds(record, section, track)
     return bounds.startMs === track.activeStartMs && bounds.endMs === track.activeStartMs + track.activeDurationMs
-  }))
+    })
+  ))
 }
 
 function emitResolvedShowV2(context: ResolvedShowV2CompileContext): LoweredShowCompositionV2 {
@@ -396,7 +539,7 @@ function emitResolvedShowV2(context: ResolvedShowV2CompileContext): LoweredShowC
       kind: transition.kind,
     }
   })
-  const propertyTracks = composition.propertyTracks.map(track => ({
+  const propertyTracks = composition.propertyTracks.filter(track => track.target.kind !== 'layout-occurrence-split-position').map(track => ({
     ...stripV2PropertyTrackActivation(track),
     target: lowerPropertyTarget(track.target),
   }))
@@ -431,7 +574,9 @@ function lowerGlobalClipsToSections(
   const composition = record.composition
   const sections = derivedSections(record)
   const trackSection = new Map<string, number>()
-  for (const track of composition.propertyTracks.filter(track => track.target.kind !== 'show-repeat-scale')) {
+  for (const track of composition.propertyTracks.filter(track => (
+    track.target.kind !== 'show-repeat-scale' && track.target.kind !== 'layout-occurrence-split-position'
+  ))) {
     const activeEndMs = track.activeStartMs + track.activeDurationMs
     const index = sections.findIndex(section => {
       const bounds = propertyTrackSectionBounds(record, section, track)
@@ -590,7 +735,7 @@ function canLowerToFlat(record: ShowRecordV2): boolean {
     return record.zones.length === 1 && !composition.clips.some(clip => clip !== from && clip !== to && clip.startMs <= to.startMs && clip.startMs + clip.durationMs >= from.startMs + from.durationMs)
   })
   return wholeBoundary
-    && composition.propertyTracks.length === 0
+    && composition.propertyTracks.every(track => track.target.kind === 'layout-occurrence-split-position')
     && composition.layers.every(layer => layer.rank === 0)
     && composition.clips.every(clip => clip.appearance.keys.length === 1 && clip.appearance.keys[0].value.opacity === 1)
     && composition.clips.every(clip => clip.zoneSampleMode === 'independent')

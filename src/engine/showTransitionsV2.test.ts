@@ -5,6 +5,7 @@ import { compileShow } from './showCompiler'
 import { createFastReplayRuntime } from './fastReplay'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
+import { evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 import { editShowTransitionV2, projectShowTransitionJunctionsV2 } from './showTransitionsV2'
 import {
   parseProvisionalShowRecordV2,
@@ -206,6 +207,80 @@ describe('v2 Transition ownership', () => {
     expect(reset.record.composition.clips.map(clip => [clip.id, clip.startMs])).toEqual([['out', 100], ['in', 500]])
     expect(reset.record.composition.transitions).toEqual([])
     expect(projectShowTransitionJunctionsV2(reopen(reset.record))).toEqual([expect.objectContaining({ kind: 'cut', atMs: 500 })])
+  })
+
+  it('projects Property ramps before resetting their visual Transition carrier', () => {
+    const source = convertedTransitionShow()
+    const transition = source.composition.transitions[0]
+    const incoming = source.composition.clips.find(clip => clip.id === transition.participants[0].toClipId)!
+    transition.propertyRamps = [{
+      participantId: transition.participants[0].id,
+      target: { kind: 'clip-view', clipId: incoming.id, property: 'brightness' },
+      from: 0.2,
+      easing: { curve: 'quadratic', direction: 'in' },
+    }]
+    const before = structuredClone(source)
+
+    const reset = editShowTransitionV2(source, {
+      kind: 'reset-to-cut',
+      transitionId: transition.id,
+      propertyRampProjections: [{
+        rampIndex: 0,
+        trackId: 'brightness-track',
+        startKeyId: 'brightness-start',
+        endKeyId: 'brightness-end',
+        activeEndMs: incoming.startMs + incoming.durationMs,
+        toValue: incoming.appearance.keys[0].value.view.brightness,
+      }],
+    })
+
+    expect(source).toEqual(before)
+    expect(reset).toMatchObject({
+      status: 'changed', affectedTransitionIds: [transition.id], affectedTrackIds: ['brightness-track'],
+      removedIds: [transition.id],
+    })
+    if (reset.status !== 'changed') return
+    const reopened = reopen(reset.record)
+    expect(reopened.composition.transitions).toEqual([])
+    expect(reopened.composition.clips.find(clip => clip.id === incoming.id)?.startMs).toBe(400)
+    expect(reopened.composition.propertyTracks).toEqual([{
+      id: 'brightness-track',
+      target: { kind: 'clip-view', clipId: incoming.id, property: 'brightness' },
+      activeStartMs: 400,
+      activeDurationMs: incoming.startMs + incoming.durationMs - 400,
+      keyframes: [
+        { id: 'brightness-start', timeMs: 400, value: 0.2, easing: { curve: 'quadratic', direction: 'in' } },
+        { id: 'brightness-end', timeMs: 600, value: 1, easing: { curve: 'linear' } },
+      ],
+    }])
+    expect(evaluateShowPropertyTrackV2(reopened.composition.propertyTracks[0], 500)).toBeCloseTo(0.4)
+    expect(validateShowRecordV2(reopened)).toEqual([])
+  })
+
+  it('retains the exact owned curve when a connected Clip edge is resized', () => {
+    const source = convertedTransitionShow()
+    const outgoing = source.composition.clips.find(clip => clip.id === 'out')!
+    source.composition.propertyTracks = [{
+      id: 'brightness-track',
+      target: { kind: 'clip-view', clipId: outgoing.id, property: 'brightness' },
+      activeStartMs: outgoing.startMs,
+      activeDurationMs: outgoing.durationMs,
+      keyframes: [
+        { id: 'brightness-start', timeMs: outgoing.startMs, value: 0, easing: { curve: 'quadratic', direction: 'in' } },
+        { id: 'brightness-end', timeMs: outgoing.startMs + outgoing.durationMs, value: 1, easing: { curve: 'linear' } },
+      ],
+    }]
+    const expected = evaluateShowPropertyTrackV2(source.composition.propertyTracks[0], 299)
+
+    const resized = editShowTransitionV2(source, { kind: 'resize-trailing', clipId: outgoing.id, endMs: 300 })
+
+    expect(resized).toMatchObject({ status: 'changed', affectedTrackIds: ['brightness-track'] })
+    if (resized.status !== 'changed') return
+    const track = resized.record.composition.propertyTracks[0]
+    expect(track.activeDurationMs).toBe(300)
+    expect(track.keyframes[0].curveSegment).toMatchObject({ sourceDurationMs: 400, elapsedOffsetMs: 0 })
+    expect(evaluateShowPropertyTrackV2(track, 299)).toBeCloseTo(expected!)
+    expect(validateShowRecordV2(reopen(resized.record))).toEqual([])
   })
 
   it('deletes a Clip and its Transition without retaining ghost identity on re-add', () => {

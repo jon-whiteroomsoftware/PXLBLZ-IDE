@@ -40,6 +40,10 @@ export interface CopyShowInstancePropertyTracksIntentV2 {
   fromInstanceId: string
   toInstanceId: string
   placementDeltaMs: number
+  identitiesBySourceTrackId: Readonly<Record<string, {
+    trackId: string
+    keyframeIdsBySourceId: Readonly<Record<string, string>>
+  }>>
   /** Omit to retain every authored control track, as for Make Independent. */
   compatibleControlExports?: readonly string[]
 }
@@ -302,6 +306,7 @@ export function copyShowInstancePropertyTracksV2(
   const discardedTargets: ShowPropertyTrackV2['target'][] = []
   const copies: ShowPropertyTrackV2[] = []
   const copiedTrackIds: string[] = []
+  const usedTrackIds = new Set(record.composition.propertyTracks.map(track => track.id))
   const usedKeyIds = new Set(record.composition.propertyTracks.flatMap(track => track.keyframes.map(key => key.id)))
   for (const source of record.composition.propertyTracks) {
     if (!('instanceId' in source.target) || source.target.instanceId !== fromInstanceId) continue
@@ -309,7 +314,20 @@ export function copyShowInstancePropertyTracksV2(
       discardedTargets.push(structuredClone(source.target))
       continue
     }
-    const id = freshTrackId(record, `${source.id}:instance:${toInstanceId}`)
+    const identity = intent.identitiesBySourceTrackId[source.id]
+    const plannedSourceIds = Object.keys(identity?.keyframeIdsBySourceId ?? {}).sort()
+    const sourceIds = source.keyframes.map(key => key.id).sort()
+    const plannedKeyIds = source.keyframes.map(key => identity?.keyframeIdsBySourceId[key.id] ?? '')
+    if (!identity?.trackId.trim()
+      || usedTrackIds.has(identity.trackId)
+      || JSON.stringify(plannedSourceIds) !== JSON.stringify(sourceIds)
+      || plannedKeyIds.some(id => !id.trim() || usedKeyIds.has(id))
+      || new Set(plannedKeyIds).size !== plannedKeyIds.length) {
+      return { status: 'refused', propertyTracks: record.composition.propertyTracks, copiedTrackIds: [], discardedTargets: [], message: `Copied track "${source.id}" requires complete fresh caller-supplied track and keyframe identities.` }
+    }
+    const id = identity.trackId
+    usedTrackIds.add(id)
+    plannedKeyIds.forEach(keyId => usedKeyIds.add(keyId))
     const copy: ShowPropertyTrackV2 = {
       ...structuredClone(source),
       id,
@@ -317,7 +335,7 @@ export function copyShowInstancePropertyTracksV2(
       activeStartMs: source.activeStartMs + placementDeltaMs,
       keyframes: source.keyframes.map(key => ({
         ...structuredClone(key),
-        id: freshId(usedKeyIds, `${key.id}:instance:${toInstanceId}`),
+        id: identity.keyframeIdsBySourceId[key.id],
         timeMs: key.timeMs + placementDeltaMs,
       })),
     }
@@ -588,14 +606,6 @@ function freshTrackId(record: ShowRecordV2, base: string): string {
   let suffix = 2
   while (used.has(`${base}:${suffix}`)) suffix += 1
   return `${base}:${suffix}`
-}
-
-function freshId(used: Set<string>, base: string): string {
-  let id = base
-  let suffix = 2
-  while (used.has(id)) id = `${base}:${suffix++}`
-  used.add(id)
-  return id
 }
 
 function retargetClip(
