@@ -23,3 +23,17 @@ it('reopens edited v2 .pxlshow and compiled .epe through the ordinary importers'
   expect(parseEpe(artifacts.epeText)).toMatchObject({ name: edited.record.name, stamp: { kind: 'show' } })
   expect(artifacts.epeSource).toContain('Compiled PXLBLZ Show')
 })
+
+it.each([
+  { kind: 'user' as const, id: 'missing-user-pattern' },
+  { kind: 'stock' as const, id: 'missing-stock-pattern' },
+])('refuses a missing $kind Pattern dependency instead of compiling fallback source', async (pattern) => {
+  const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  converted.record.composition.patternInstances[0].pattern = pattern
+
+  await expect(qualifyShowV2PilotArtifacts(
+    converted.record,
+    { patterns: [], maps: [], libraries: [] },
+  )).rejects.toThrow('requires exact Pattern source')
+})

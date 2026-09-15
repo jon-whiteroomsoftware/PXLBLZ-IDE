@@ -1,6 +1,5 @@
 import { compileLibraries } from './libraries'
-import type { LibraryRecord, MapRecord, PatternRecord, ShowRecord } from './personalContentRecords'
-import { sourceForShowPatternRef } from './showPreviewArtifact'
+import type { LibraryRecord, MapRecord, PatternRecord, ShowPatternRef, ShowRecord } from './personalContentRecords'
 import { prepareShowV2ForCompile, lowerShowCompositionV2ForCompile } from './showCompositionLoweringV2'
 import type { ShowRecordV2 } from './showCompositionV2'
 import { compileShow } from './showCompiler'
@@ -9,6 +8,7 @@ import { parseEpe } from './epeImport'
 import { buildShowFileBundle, parseShowFileBundle, serializeShowFileBundle } from './showFileBundle'
 import { applyShowImportPlanV2, planShowImportV2 } from './showImportPlanV2'
 import { LIBRARIES } from '@/pixelblaze/libs'
+import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 
 export interface ShowV2PilotAssets {
   patterns: readonly PatternRecord[]
@@ -61,12 +61,21 @@ function sourceLookup(record: ShowRecordV2, patterns: readonly PatternRecord[]) 
     ...record.composition.patternInstances,
     ...record.composition.groupDefinitions.flatMap(definition => definition.patternInstances),
   ]
+  const byPatternInstanceId = Object.fromEntries(instances.flatMap(instance => {
+    const source = exactPatternSource(instance.pattern, patterns)
+    return source === undefined ? [] : [[instance.id, source]]
+  }))
   return {
     byCellId: {},
-    byPatternInstanceId: Object.fromEntries(instances.map(instance => [
-      instance.id,
-      sourceForShowPatternRef(instance.pattern, [...patterns]),
-    ])),
+    byPatternInstanceId,
     stageDimension: 2 as const,
   }
+}
+
+function exactPatternSource(reference: ShowPatternRef, patterns: readonly PatternRecord[]): string | undefined {
+  if (reference.kind === 'stock') {
+    const id = resolveStockPatternId(reference.id)
+    return Object.prototype.hasOwnProperty.call(DEMOS, id) ? DEMOS[id] : undefined
+  }
+  return patterns.find(pattern => pattern.id === reference.id)?.src
 }
