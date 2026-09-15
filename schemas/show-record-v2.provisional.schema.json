@@ -1,0 +1,602 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pxlblz.dev/schemas/show-record-v2.provisional.schema.json",
+  "title": "Provisional Scene-free Show record v2",
+  "description": "EXPERIMENTAL INPUT FOR ISSUE #1034 ONLY. This schema is not wired to production decoding, persistence, admission, compilation, import, or export. It records tracer choices awaiting evidence and human acceptance.",
+  "$ref": "#/$defs/ShowRecordV2",
+  "$defs": {
+    "Id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "NonnegativeSafeInteger": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "PositiveSafeInteger": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "ShowRecordV2": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 2,
+          "description": "Composition record version. This is unrelated to the application's V2 editor name."
+        },
+        "id": { "$ref": "#/$defs/Id" },
+        "name": { "type": "string" },
+        "zones": {
+          "type": "array",
+          "items": { "$ref": "show-record.schema.json#/definitions/ShowZone" },
+          "minItems": 1
+        },
+        "zoneLayouts": {
+          "type": "array",
+          "items": { "$ref": "show-record.schema.json#/definitions/ShowRoutingLayout" },
+          "minItems": 1
+        },
+        "targetControllerProfileId": { "type": "string" },
+        "stageMapId": { "type": ["string", "null"] },
+        "outputContract": { "$ref": "show-record.schema.json#/definitions/ShowOutputContract" },
+        "composition": { "$ref": "#/$defs/ShowCompositionV2" },
+        "outputEffects": {
+          "type": "array",
+          "items": { "$ref": "show-record.schema.json#/definitions/ShowOutputEffect" }
+        },
+        "importMetadata": { "$ref": "#/$defs/ShowImportMetadata" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": [
+        "version",
+        "id",
+        "name",
+        "zones",
+        "zoneLayouts",
+        "outputContract",
+        "composition",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    },
+    "ShowImportMetadata": {
+      "type": "object",
+      "properties": {
+        "kind": { "const": "show-file" },
+        "originalShowId": { "type": "string" },
+        "appVersion": { "type": "string" },
+        "exportedAt": { "type": "string" },
+        "importedAt": { "type": "number" }
+      },
+      "required": ["kind", "originalShowId", "appVersion", "exportedAt", "importedAt"],
+      "additionalProperties": false
+    },
+    "ShowCompositionV2": {
+      "type": "object",
+      "properties": {
+        "version": { "const": 2 },
+        "executionModel": {
+          "enum": ["continuous", "deterministic-loop"],
+          "description": "Provisional Show-loop lifecycle. continuous preserves the existing compiler path by omitting deterministicLoopReset; deterministic-loop requests the existing reset behavior. Clip entry policy remains separate."
+        },
+        "showEndMs": { "$ref": "#/$defs/PositiveSafeInteger" },
+        "sampleRemap": { "$ref": "#/$defs/ShowSampleRemap" },
+        "patternInstances": {
+          "type": "array",
+          "items": { "$ref": "show-record.schema.json#/definitions/ShowPatternInstance" }
+        },
+        "layers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ShowLayerV2" }
+        },
+        "clips": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ShowClipV2" }
+        },
+        "transitions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ShowTransitionV2" }
+        },
+        "layoutOccurrences": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ShowLayoutOccurrenceV2" },
+          "minItems": 1
+        },
+        "propertyTracks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ShowPropertyTrackV2" }
+        },
+        "markers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ShowMarkerV2" }
+        },
+        "groupDefinitions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ShowGroupDefinitionV2" }
+        },
+        "groupOccurrences": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ShowGroupOccurrenceV2" }
+        }
+      },
+      "required": [
+        "version",
+        "executionModel",
+        "showEndMs",
+        "sampleRemap",
+        "patternInstances",
+        "layers",
+        "clips",
+        "transitions",
+        "layoutOccurrences",
+        "propertyTracks",
+        "markers",
+        "groupDefinitions",
+        "groupOccurrences"
+      ],
+      "additionalProperties": false
+    },
+    "ShowSampleRemap": {
+      "type": "object",
+      "properties": {
+        "repeatScale": { "type": "number" }
+      },
+      "required": ["repeatScale"],
+      "additionalProperties": false,
+      "description": "Provisional Show-level sample-remap owner. Its exact production owner and shape await the #1034 evidence gate."
+    },
+    "ShowLayerV2": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "zoneId": { "$ref": "#/$defs/Id" },
+        "name": { "type": "string" },
+        "rank": { "$ref": "#/$defs/NonnegativeSafeInteger" }
+      },
+      "required": ["id", "zoneId", "name", "rank"],
+      "additionalProperties": false,
+      "description": "Provisional stable Zone-owned Layer. Rank zero is the bottom Layer."
+    },
+    "ShowClipV2": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "instanceId": { "$ref": "#/$defs/Id" },
+        "zoneId": { "$ref": "#/$defs/Id" },
+        "layerId": { "$ref": "#/$defs/Id" },
+        "startMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
+        "durationMs": { "$ref": "#/$defs/PositiveSafeInteger" },
+        "entryPolicy": { "enum": ["continue", "restart"] },
+        "zoneSampleMode": {
+          "enum": ["independent", "span", "repeat"],
+          "description": "Routed-coordinate behavior. independent preserves the current flat single-Zone default; it is not source-origin metadata."
+        },
+        "appearance": { "$ref": "#/$defs/ShowClipAppearanceTimelineV2" }
+      },
+      "required": [
+        "id",
+        "instanceId",
+        "zoneId",
+        "layerId",
+        "startMs",
+        "durationMs",
+        "entryPolicy",
+        "zoneSampleMode",
+        "appearance"
+      ],
+      "additionalProperties": false,
+      "description": "One provisional ordinary Clip in global Show time. Its experimental appearance-key value timeline preserves appearance changes without persisted logical Clip segments."
+    },
+    "ShowClipAppearanceTimelineV2": {
+      "type": "object",
+      "properties": {
+        "keys": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ShowClipAppearanceKeyV2" },
+          "minItems": 1
+        }
+      },
+      "required": ["keys"],
+      "additionalProperties": false,
+      "description": "Experimental Clip-owned appearance values. Domain validation requires stable unique key IDs, strictly increasing global times, a first key at Clip start, and every key inside the Clip interval. Each value holds until the next key or Clip end."
+    },
+    "ShowClipAppearanceKeyV2": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "timeMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
+        "value": { "$ref": "#/$defs/ShowClipAppearanceValueV2" }
+      },
+      "required": ["id", "timeMs", "value"],
+      "additionalProperties": false,
+      "description": "A stable appearance value change only. It has no duration, placement ownership, Pattern instance, Zone, Layer, Transition endpoint, or entry policy."
+    },
+    "ShowClipAppearanceValueV2": {
+      "type": "object",
+      "properties": {
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "view": { "$ref": "show-record.schema.json#/definitions/ShowPlacementView" },
+        "presentation": { "$ref": "show-record.schema.json#/definitions/ShowClipPresentation" },
+        "blink": { "$ref": "show-record.schema.json#/definitions/ShowClipBlink" },
+        "transform": { "$ref": "show-record.schema.json#/definitions/ShowClipTransform" },
+        "aperture": { "$ref": "show-record.schema.json#/definitions/ShowClipViewport" },
+        "effects": {
+          "type": "array",
+          "items": { "$ref": "show-record.schema.json#/definitions/ShowClipEffect" }
+        }
+      },
+      "required": ["opacity", "view", "effects"],
+      "additionalProperties": false,
+      "description": "A complete held appearance value. Existing typed property tracks override their targeted field only during explicit track activation. Effect identity is required only for appearance spans intersecting that half-open interval."
+    },
+    "ShowTransitionParticipantV2": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "zoneId": { "$ref": "#/$defs/Id" },
+        "layerId": { "$ref": "#/$defs/Id" },
+        "fromClipId": { "$ref": "#/$defs/Id" },
+        "toClipId": { "$ref": "#/$defs/Id" }
+      },
+      "required": ["id", "zoneId", "layerId", "fromClipId", "toClipId"],
+      "additionalProperties": false,
+      "description": "A provisional two-sided participant. One-sided cases remain deferred to #1045."
+    },
+    "ShowTransitionV2": {
+      "type": "object",
+      "description": "A provisional authored visual junction. The schema admits explicit zero-duration Cuts for direct v2 experiments, but conversion retires a plain carrier-free v1 structural boundary Cut instead of synthesizing this record.",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "kind": { "$ref": "show-record.schema.json#/definitions/ShowTransitionKind" },
+        "durationMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
+        "easing": { "$ref": "show-record.schema.json#/definitions/ShowStructuredEasing" },
+        "participants": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ShowTransitionParticipantV2" },
+          "minItems": 1
+        },
+        "propertyRamps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ShowTransitionPropertyRampV2" }
+        },
+        "crossfadePolicy": { "$ref": "show-record.schema.json#/definitions/ShowCrossfadePolicy" },
+        "color": { "type": "string" },
+        "direction": { "type": "number" },
+        "wipeVariant": { "$ref": "show-record.schema.json#/definitions/ShowWipeVariant" },
+        "wipeMode": { "$ref": "show-record.schema.json#/definitions/ShowWipeMode" },
+        "orientation": { "$ref": "show-record.schema.json#/definitions/ShowWipeOrientation" },
+        "count": { "type": "number" },
+        "phase": { "type": "number" },
+        "clockwise": { "type": "boolean" },
+        "edgePolicy": { "$ref": "show-record.schema.json#/definitions/ShowTransitionEdgePolicy" },
+        "dissolveVariant": { "$ref": "show-record.schema.json#/definitions/ShowDissolveVariant" },
+        "seed": { "type": "number" },
+        "blockSize": { "type": "number" },
+        "softness": { "type": "number" },
+        "feather": { "type": "number" },
+        "centerX": { "type": "number" },
+        "centerY": { "type": "number" },
+        "featherPolicy": { "$ref": "show-record.schema.json#/definitions/ShowPortalFeatherPolicy" },
+        "shape": { "$ref": "show-record.schema.json#/definitions/ShowSpatialShape" },
+        "scale": { "type": "number" },
+        "rotation": { "type": "number" },
+        "spin": { "type": "number" },
+        "ringWidth": { "type": "number" },
+        "revealMode": { "$ref": "show-record.schema.json#/definitions/ShowRevealMode" },
+        "aspect": { "type": "number" },
+        "cornerRadius": { "type": "number" },
+        "crossWidth": { "type": "number" },
+        "starPoints": { "type": "number" },
+        "starInner": { "type": "number" },
+        "crescentOffset": { "type": "number" },
+        "polygonSides": { "type": "number" },
+        "motionVariant": { "$ref": "show-record.schema.json#/definitions/ShowMotionTransitionVariant" },
+        "anchorX": { "type": "number" },
+        "anchorY": { "type": "number" },
+        "contentScale": { "type": "number" },
+        "spinDirection": { "$ref": "show-record.schema.json#/definitions/ShowMotionSpinDirection" },
+        "addressPolicy": { "$ref": "show-record.schema.json#/definitions/ShowMotionAddressPolicy" }
+      },
+      "required": ["id", "kind", "durationMs", "easing", "participants", "propertyRamps"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "cut" } }, "required": ["kind"] },
+          "then": { "properties": { "durationMs": { "const": 0 } } }
+        },
+        {
+          "if": { "properties": { "kind": { "enum": ["crossfade", "fade-color", "wipe", "dither", "portal", "motion"] } }, "required": ["kind"] },
+          "then": { "properties": { "durationMs": { "$ref": "#/$defs/PositiveSafeInteger" } } }
+        }
+      ]
+    },
+    "ShowTransitionPropertyRampV2": {
+      "type": "object",
+      "properties": {
+        "participantId": { "$ref": "#/$defs/Id" },
+        "target": { "$ref": "#/$defs/ShowPropertyTargetV2" },
+        "from": { "type": "number" },
+        "durationMs": { "$ref": "#/$defs/PositiveSafeInteger" },
+        "easing": { "$ref": "show-record.schema.json#/definitions/ShowStructuredEasing" }
+      },
+      "required": ["target", "from"],
+      "additionalProperties": false
+    },
+    "ShowLayoutOccurrenceV2": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "layoutId": { "$ref": "#/$defs/Id" },
+        "startMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
+        "durationMs": { "$ref": "#/$defs/PositiveSafeInteger" },
+        "parameters": { "$ref": "#/$defs/ShowLayoutOccurrenceParametersV2" },
+        "incomingTransfer": { "$ref": "#/$defs/ShowLayoutTransferV2" }
+      },
+      "required": ["id", "layoutId", "startMs", "durationMs", "parameters"],
+      "additionalProperties": false
+    },
+    "ShowLayoutOccurrenceParametersV2": {
+      "type": "object",
+      "properties": {
+        "splitPosition": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "ShowLayoutTransferV2": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "fromOccurrenceId": { "$ref": "#/$defs/Id" },
+        "durationMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
+        "direction": { "$ref": "show-record.schema.json#/definitions/ShowRoutingDirection" }
+      },
+      "required": ["id", "fromOccurrenceId", "durationMs", "direction"],
+      "additionalProperties": false
+    },
+    "ShowPropertyTargetV2": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "instance-time-scale" },
+            "instanceId": { "$ref": "#/$defs/Id" }
+          },
+          "required": ["kind", "instanceId"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "instance-control" },
+            "instanceId": { "$ref": "#/$defs/Id" },
+            "exportName": { "type": "string", "minLength": 1 }
+          },
+          "required": ["kind", "instanceId", "exportName"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "clip-opacity" },
+            "clipId": { "$ref": "#/$defs/Id" }
+          },
+          "required": ["kind", "clipId"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "clip-view" },
+            "clipId": { "$ref": "#/$defs/Id" },
+            "property": { "enum": ["brightness", "phase"] }
+          },
+          "required": ["kind", "clipId", "property"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "clip-transform" },
+            "clipId": { "$ref": "#/$defs/Id" },
+            "property": { "enum": ["positionX", "positionY", "rotation", "scaleX", "scaleY"] }
+          },
+          "required": ["kind", "clipId", "property"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "clip-aperture" },
+            "clipId": { "$ref": "#/$defs/Id" },
+            "property": { "enum": ["x", "y", "width", "height"] }
+          },
+          "required": ["kind", "clipId", "property"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "clip-effect" },
+            "clipId": { "$ref": "#/$defs/Id" },
+            "effectId": { "$ref": "#/$defs/Id" },
+            "effectKind": { "type": "string", "minLength": 1 },
+            "parameterId": { "type": "string", "minLength": 1 }
+          },
+          "required": ["kind", "clipId", "effectId", "effectKind", "parameterId"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "layout-occurrence-split-position" },
+            "layoutOccurrenceId": { "$ref": "#/$defs/Id" }
+          },
+          "required": ["kind", "layoutOccurrenceId"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "show-repeat-scale" }
+          },
+          "required": ["kind"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ShowPropertyTrackV2": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "target": { "$ref": "#/$defs/ShowPropertyTargetV2" },
+        "activeStartMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
+        "activeDurationMs": { "$ref": "#/$defs/PositiveSafeInteger" },
+        "keyframes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ShowPropertyKeyframeV2" },
+          "minItems": 2
+        }
+      },
+      "required": ["id", "target", "activeStartMs", "activeDurationMs", "keyframes"],
+      "additionalProperties": false,
+      "description": "The track applies only on its explicit half-open activation interval, independently of keyframe extrema. activeDurationMs is positive; a source track with no contribution is omitted with an explicit conversion report instead of becoming a zero-duration track. Composition times are global; the same fields inside a Group definition are definition-local. Source contribution bounds own activation; endpoint key values hold only within it."
+    },
+    "ShowPropertyKeyframeV2": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "timeMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
+        "value": { "type": "number" },
+        "easing": { "$ref": "show-record.schema.json#/definitions/ShowStructuredEasing" }
+      },
+      "required": ["id", "timeMs", "value", "easing"],
+      "additionalProperties": false
+    },
+    "ShowMarkerV2": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "timeMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
+        "name": { "type": "string" },
+        "color": { "type": "string" }
+      },
+      "required": ["id", "timeMs"],
+      "additionalProperties": false
+    },
+    "ShowGroupDefinitionV2": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "name": { "type": "string" },
+        "patternInstances": {
+          "type": "array",
+          "items": { "$ref": "show-record.schema.json#/definitions/ShowPatternInstance" }
+        },
+        "layers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ShowGroupLayerV2" },
+          "minItems": 1
+        },
+        "clips": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ShowGroupClipV2" }
+        },
+        "transitions": {
+          "type": "array",
+          "items": { "$ref": "show-record.schema.json#/definitions/ShowLayerTransition" },
+          "description": "Provisional reuse of the current definition-local endpoint form. A later accepted v2 Group Transition shape must remain local and cannot require a Zone id."
+        },
+        "propertyTracks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ShowPropertyTrackV2" }
+        }
+      },
+      "required": ["id", "name", "patternInstances", "layers", "clips", "transitions", "propertyTracks"],
+      "additionalProperties": false,
+      "description": "Provisional local choreography. Its IDs and times are definition-local; nested Groups remain unsupported."
+    },
+    "ShowGroupLayerV2": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "name": { "type": "string" },
+        "rank": { "$ref": "#/$defs/NonnegativeSafeInteger" }
+      },
+      "required": ["id", "name", "rank"],
+      "additionalProperties": false
+    },
+    "ShowGroupClipV2": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "instanceId": { "$ref": "#/$defs/Id" },
+        "layerId": { "$ref": "#/$defs/Id" },
+        "startMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
+        "durationMs": { "$ref": "#/$defs/PositiveSafeInteger" },
+        "entryPolicy": { "enum": ["continue", "restart"] },
+        "zoneSampleMode": { "enum": ["span", "repeat"] },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "view": { "$ref": "show-record.schema.json#/definitions/ShowPlacementView" },
+        "presentation": { "$ref": "show-record.schema.json#/definitions/ShowClipPresentation" },
+        "blink": { "$ref": "show-record.schema.json#/definitions/ShowClipBlink" },
+        "transform": { "$ref": "show-record.schema.json#/definitions/ShowClipTransform" },
+        "aperture": { "$ref": "show-record.schema.json#/definitions/ShowClipViewport" },
+        "effects": {
+          "type": "array",
+          "items": { "$ref": "show-record.schema.json#/definitions/ShowClipEffect" }
+        }
+      },
+      "required": [
+        "id",
+        "instanceId",
+        "layerId",
+        "startMs",
+        "durationMs",
+        "entryPolicy",
+        "zoneSampleMode",
+        "opacity",
+        "view"
+      ],
+      "additionalProperties": false
+    },
+    "ShowGroupOccurrenceV2": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "definitionId": { "$ref": "#/$defs/Id" },
+        "layoutOccurrenceId": { "$ref": "#/$defs/Id" },
+        "zoneId": { "$ref": "#/$defs/Id" },
+        "startMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
+        "translationX": { "type": "number" },
+        "translationY": { "type": "number" },
+        "layerBindings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ShowGroupLayerBindingV2" },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "id",
+        "definitionId",
+        "layoutOccurrenceId",
+        "zoneId",
+        "startMs",
+        "translationX",
+        "translationY",
+        "layerBindings"
+      ],
+      "additionalProperties": false
+    },
+    "ShowGroupLayerBindingV2": {
+      "type": "object",
+      "properties": {
+        "definitionLayerId": { "$ref": "#/$defs/Id" },
+        "layerId": { "$ref": "#/$defs/Id" }
+      },
+      "required": ["definitionLayerId", "layerId"],
+      "additionalProperties": false
+    }
+  }
+}
