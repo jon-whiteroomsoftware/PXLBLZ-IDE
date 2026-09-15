@@ -294,9 +294,14 @@ export function convertShowRecordV1ToV2(
       const sourceIndex = show.scenes.findIndex(candidate => candidate.id === scene.sceneId)
       const incoming = visualBoundaries.find(boundary => boundary.afterSceneId === show.scenes[sourceIndex - 1]?.id)?.durationMs ?? 0
       const outgoing = visualBoundaries.find(boundary => boundary.afterSceneId === scene.sceneId)?.durationMs ?? 0
-      const activeStartMs = sceneStartMs - incoming
-      const activeDurationMs = holdDurationMs + incoming + outgoing
       const target = convertPropertyTarget(track.target, clipIdByPlacementId)
+      // Legacy Scene evaluation applies one shared-instance track owner until
+      // the following Scene becomes current. Incoming visual pre-roll uses the
+      // outgoing owner's shared runtime values; admitting both Scene tracks in
+      // that window would invent a last-writer conflict in v2.
+      const instanceOwned = target.kind === 'instance-time-scale' || target.kind === 'instance-control'
+      const activeStartMs = instanceOwned ? sceneStartMs : sceneStartMs - incoming
+      const activeDurationMs = holdDurationMs + outgoing + (instanceOwned ? 0 : incoming)
       if (target.kind === 'clip-effect') {
         const clip = clips.find(candidate => candidate.id === target.clipId)
         const activeEndMs = activeStartMs + activeDurationMs
@@ -946,11 +951,14 @@ function auditComposition(
       const sourceIndex = show.scenes.findIndex(candidate => candidate.id === scene.sceneId)
       const incoming = show.transitions.find(boundary => boundary.afterSceneId === show.scenes[sourceIndex - 1]?.id && boundary.kind !== 'cut' && boundary.kind !== 'routing')?.durationMs ?? 0
       const outgoing = show.transitions.find(boundary => boundary.afterSceneId === scene.sceneId && boundary.kind !== 'cut' && boundary.kind !== 'routing')?.durationMs ?? 0
+      const instanceOwned = expectedTarget.kind === 'instance-time-scale' || expectedTarget.kind === 'instance-control'
+      const expectedActiveStartMs = instanceOwned ? offset?.startMs : (offset?.startMs ?? 0) - incoming
+      const expectedActiveDurationMs = (offset?.endMs ?? 0) - (offset?.startMs ?? 0) + outgoing + (instanceOwned ? 0 : incoming)
       mapped(
         `${scenePath}.propertyTracks.${trackIndex}`,
         targetIndex >= 0 ? `composition.propertyTracks.${targetIndex}` : 'composition.propertyTracks',
         track,
-        Boolean(target && offset && target.activeStartMs === offset.startMs - incoming && target.activeDurationMs === offset.endMs - offset.startMs + incoming + outgoing && JSON.stringify(target.target) === JSON.stringify(expectedTarget) && keysPreserved),
+        Boolean(target && offset && target.activeStartMs === expectedActiveStartMs && target.activeDurationMs === expectedActiveDurationMs && JSON.stringify(target.target) === JSON.stringify(expectedTarget) && keysPreserved),
       )
     }
     for (const [zoneIndex, zone] of scene.zones.entries()) {

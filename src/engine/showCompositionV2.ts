@@ -16,6 +16,7 @@ import type {
   ShowOutputEffect,
   ShowPatternInstance,
   ShowPlacementView,
+  ShowPropertyCurveSegment,
   ShowRoutingDirection,
   ShowRoutingLayout,
   ShowStructuredEasing,
@@ -23,6 +24,8 @@ import type {
   ShowTransitionKind,
   ShowZone,
 } from './personalContentRecords'
+import { validateShowEasing } from './showEasing'
+import { findShowInstancePropertyTrackConflictsV2 } from './showPropertyTrackConflictsV2'
 
 export interface ShowLayerV2 {
   id: string
@@ -124,6 +127,8 @@ export interface ShowPropertyKeyframeV2 {
   timeMs: number
   value: number
   easing: ShowStructuredEasing
+  /** Exact outgoing source-curve interval retained by restriction or insertion. */
+  curveSegment?: ShowPropertyCurveSegment
 }
 
 export interface ShowPropertyTrackV2 {
@@ -436,6 +441,15 @@ export function validateShowRecordV2(record: ShowRecordV2): ShowCompositionV2Val
       showEndMs: composition.showEndMs,
     })
   })
+  for (const conflict of findShowInstancePropertyTrackConflictsV2(composition.propertyTracks)) {
+    const index = composition.propertyTracks.findIndex(track => track.id === conflict.trackIds[1])
+    addIssue(
+      issues,
+      `composition.propertyTracks[${index}].target`,
+      'invalid-property-target',
+      `Instance animation track "${conflict.trackIds[1]}" overlaps active owner "${conflict.trackIds[0]}" for the same target.`,
+    )
+  }
   validateGroups(issues, record, {
     layers,
     occurrences,
@@ -611,6 +625,27 @@ function validatePropertyTrack(
     }
     if (!Number.isFinite(keyframe.value)) {
       addIssue(issues, `${path}.keyframes[${index}].value`, 'not-finite', 'Keyframe value must be finite.')
+    }
+    if (!validateShowEasing(keyframe.easing).valid) {
+      addIssue(issues, `${path}.keyframes[${index}].easing`, 'out-of-bounds', 'Keyframe easing must be valid.')
+    }
+    if (keyframe.curveSegment) {
+      const segment = keyframe.curveSegment
+      const retainedDurationMs = track.keyframes[index + 1]?.timeMs - keyframe.timeMs
+      if (index === track.keyframes.length - 1) {
+        addIssue(issues, `${path}.keyframes[${index}].curveSegment`, 'out-of-bounds', 'The last keyframe cannot own an outgoing curve segment.')
+      }
+      if (!Number.isFinite(segment.baseValue) || !Number.isFinite(segment.deltaValue)) {
+        addIssue(issues, `${path}.keyframes[${index}].curveSegment`, 'not-finite', 'Curve coefficients must be finite.')
+      }
+      validatePositiveTime(issues, `${path}.keyframes[${index}].curveSegment.sourceDurationMs`, segment.sourceDurationMs)
+      validateNonnegativeTime(issues, `${path}.keyframes[${index}].curveSegment.elapsedOffsetMs`, segment.elapsedOffsetMs)
+      if (!validateShowEasing(segment.easing).valid) {
+        addIssue(issues, `${path}.keyframes[${index}].curveSegment.easing`, 'out-of-bounds', 'Retained curve easing must be valid.')
+      }
+      if (Number.isSafeInteger(retainedDurationMs) && segment.elapsedOffsetMs + retainedDurationMs > segment.sourceDurationMs) {
+        addIssue(issues, `${path}.keyframes[${index}].curveSegment`, 'out-of-bounds', 'Retained curve interval must stay inside its source duration.')
+      }
     }
     previous = keyframe.timeMs
   })

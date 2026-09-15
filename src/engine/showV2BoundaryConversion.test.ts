@@ -131,6 +131,39 @@ it('preserves complete incoming and outgoing animation curves through a whole bo
   expect(compileShow(prepared.recipe, LIBRARIES).code).toBe(compileShow(showRecordToCompileRecipe(source, lookup), LIBRARIES).code)
 })
 
+it('keeps consecutive legacy shared-instance owners adjacent across incoming pre-roll', () => {
+  const source = boundaryShow()
+  const composition = source.composition!
+  const sharedId = composition.patternInstances[0].id
+  composition.patternInstances = composition.patternInstances.slice(0, 1)
+  composition.scenes[1].zones[0].main[0].instanceId = sharedId
+  for (const [index, scene] of composition.scenes.entries()) {
+    scene.propertyTracks = [{
+      id: `speed-${index}`,
+      target: { kind: 'instance-time-scale', instanceId: sharedId },
+      keyframes: [
+        { id: `speed-${index}:start`, timeMs: 0, value: index + 1, easing: { curve: 'linear' } },
+        { id: `speed-${index}:end`, timeMs: 400, value: index + 2, easing: { curve: 'sine', direction: 'in-out' } },
+      ],
+    }]
+  }
+  const sharedLookup = { byCellId: {}, byPatternInstanceId: { [sharedId]: lookup.byPatternInstanceId['out-instance'] }, stageDimension: 2 as const }
+  const converted = convertShowRecordV1ToV2(source)
+  expect(converted.status).toBe('converted')
+  if (converted.status !== 'converted') return
+
+  expect(converted.record.composition.propertyTracks.map(track => [track.activeStartMs, track.activeDurationMs])).toEqual([
+    [0, 600],
+    [600, 400],
+  ])
+  const prepared = prepareShowV2ForCompile(converted.record, sharedLookup)
+  expect(prepared.status).toBe('ready')
+  if (prepared.status !== 'ready') return
+  expect(compileShow(prepared.recipe, LIBRARIES).code).toBe(
+    compileShow(showRecordToCompileRecipe(source, sharedLookup), LIBRARIES).code,
+  )
+})
+
 
 it.each(['crossfade', 'fade-color', 'wipe', 'dither', 'portal', 'motion'] as const)('preserves whole-output %s compositing across unequal Layer contributor sets', kind => {
   const source = boundaryShow(kind)

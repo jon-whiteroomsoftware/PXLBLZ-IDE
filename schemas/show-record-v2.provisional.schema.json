@@ -470,9 +470,22 @@
         "id": { "$ref": "#/$defs/Id" },
         "timeMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
         "value": { "type": "number" },
-        "easing": { "$ref": "show-record.schema.json#/definitions/ShowStructuredEasing" }
+        "easing": { "$ref": "show-record.schema.json#/definitions/ShowStructuredEasing" },
+        "curveSegment": { "$ref": "#/$defs/ShowPropertyCurveSegmentV2" }
       },
       "required": ["id", "timeMs", "value", "easing"],
+      "additionalProperties": false
+    },
+    "ShowPropertyCurveSegmentV2": {
+      "type": "object",
+      "properties": {
+        "baseValue": { "type": "number" },
+        "deltaValue": { "type": "number" },
+        "easing": { "$ref": "show-record.schema.json#/definitions/ShowStructuredEasing" },
+        "sourceDurationMs": { "$ref": "#/$defs/PositiveSafeInteger" },
+        "elapsedOffsetMs": { "$ref": "#/$defs/NonnegativeSafeInteger" }
+      },
+      "required": ["baseValue", "deltaValue", "easing", "sourceDurationMs", "elapsedOffsetMs"],
       "additionalProperties": false
     },
     "ShowMarkerV2": {

@@ -1688,6 +1688,85 @@ export function render(index) { renders = renders + 1; rgb(elapsed, renders, 0) 
     expect(exports.__pxlblz_show_c0_frames).toBe(1)
   })
 
+  it('fully resets one existing shared Pattern runtime once when a Restart entry is crossed (#1037)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: 'export var elapsed = 7\nexport var frames = 3\nexport var level = 0.25\nexport function sliderLevel(value) { level = value }\nexport function beforeRender(delta) { elapsed = elapsed + delta; frames = frames + 1 }\nexport function render(index) { rgb(elapsed, frames, level) }',
+        controlTargets: { sliderLevel: 0.75 },
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [
+        { holdMs: 100, placements: [{ zoneName: 'main', clipId: 'shared' }], transitionOut: { kind: 'cut', durationMs: 0 } },
+        { holdMs: 100, placements: [{ zoneName: 'main', clipId: 'shared' }] },
+      ] },
+      restartEvents: [{ atMs: 0, clipId: 'shared' }, { atMs: 100, clipId: 'shared' }],
+      loopDurationMs: 200,
+    }, {}, { patternSlotSharing: 'none' })
+    const { handle } = loadShow(artifact.code, artifact.metadata, 1)
+
+    handle.beforeRender(60)
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_elapsed: 67, __pxlblz_show_c0_frames: 4, __pxlblz_show_c0_level: 0.75 })
+    handle.beforeRender(0)
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_elapsed: 67, __pxlblz_show_c0_frames: 5 })
+    handle.beforeRender(60)
+    expect(handle.getExports().__pxlblz_show_c0_elapsed).toBeCloseTo(27)
+    expect(handle.getExports().__pxlblz_show_c0_frames).toBe(4)
+    expect(handle.getExports().__pxlblz_show_c0_level).toBe(0.75)
+    handle.beforeRender(0)
+    expect(handle.getExports().__pxlblz_show_c0_elapsed).toBeCloseTo(27)
+    expect(handle.getExports().__pxlblz_show_c0_frames).toBe(5)
+    handle.beforeRender(100)
+    expect(handle.getExports().__pxlblz_show_c0_elapsed).toBeCloseTo(27)
+    expect(handle.getExports().__pxlblz_show_c0_frames).toBe(4)
+    handle.beforeRender(100)
+    expect(handle.getExports().__pxlblz_show_c0_elapsed).toBeCloseTo(27)
+    expect(handle.getExports().__pxlblz_show_c0_frames).toBe(4)
+    expect(artifact.summary.clips).toHaveLength(1)
+  })
+
+  it('refuses a Restart whose Pattern initial state cannot be reconstructed exactly (#1037)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    expect(() => compileShow({
+      clips: [{ id: 'stateful-array', source: 'var state = array(2)\nexport function render(index) { rgb(state[0], 0, 0) }' }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [{ holdMs: 100, placements: [{ zoneName: 'main', clipId: 'stateful-array' }] }] },
+      restartEvents: [{ atMs: 0, clipId: 'stateful-array' }],
+      loopDurationMs: 100,
+    }, {})).toThrow('cannot fully reset Pattern state')
+  })
+
+  it('advances an already-visible shared runtime to the Restart boundary before resetting it (#1037)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    const artifact = compileShow({
+      clips: [{ id: 'shared', source: 'export var sample = 0\nexport function beforeRender(delta) { sample = random(1) }\nexport function render(index) { rgb(sample, 0, 0) }' }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [
+        { holdMs: 100, placements: [{ zoneName: 'main', clipId: 'shared' }], transitionOut: { kind: 'cut', durationMs: 0 } },
+        { holdMs: 100, placements: [{ zoneName: 'main', clipId: 'shared' }] },
+      ] },
+      restartEvents: [{ atMs: 100, clipId: 'shared' }],
+      loopDurationMs: 200,
+    }, {}, { patternSlotSharing: 'none' })
+    const mapPoints: MapPoint[] = [{ sample: [0.5], pos: [0.5, 0.5] }]
+    const runtime = createFastReplayRuntime({ code: artifact.code, fxCode: artifact.fxCode, metadata: artifact.metadata, dimension: 1 }, {
+      mapPoints, randomSeed: 1037, fidelity: 'fast',
+    })
+    const expectedShim = createShim({ mapPoints, pixelCount: 1, dimensions: 1, getVirtualTime: () => 0, randomSeed: 1037 })
+    const random = expectedShim.builtins.random as (maximum?: number) => number
+    random()
+    random()
+    const expectedAfterReset = random()
+
+    runtime.advanceLive(60)
+    const crossed = runtime.advanceLive(60)
+    expect(crossed.exports[`${artifact.summary.clips[0].prefix}_sample`]).toBe(expectedAfterReset)
+  })
+
   it('resets isolated coordinate transforms at deterministic Show loop boundaries', () => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
     const source = `

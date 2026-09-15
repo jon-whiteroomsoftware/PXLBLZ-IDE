@@ -42,7 +42,7 @@ available. A plan amendment alone never changes those production claims.
 - Preserve existing supported timing, appearance, sampling, runtime identity,
   property activation and Transition variants. Explicit accepted behavior changes
   are Cut-as-absence, removal of Scene-only edit exceptions, Clip-scoped Replace,
-  shared-by-default duplication, shared Restart clock, retirement of wholly
+  shared-by-default duplication, shared full Pattern Restart, retirement of wholly
   unrouted v1 Pattern placements and the edit policies below.
 - Keep independent simultaneous positive Transitions and RL08–RL10 compiler-domain
   expansion deferred to #1045. A required compiler change beyond the accepted
@@ -92,7 +92,7 @@ differ; the parity report must measure them rather than treating them as exact.
 | G2 / P2 | Stable Zone-owned Layers accepted. Reconcile legacy identity/order deterministically; ambiguous conversion refuses without loss. |
 | G3 / P3 | One Clip with held appearance keys accepted, including trim/split/extend policies in §6. |
 | G4 / P6, P10, P14 | Global storage, ownership-based moves, exact curve restriction and Insert Time accepted; source activation stays explicit. §6–§7 specify the mechanisms. |
-| G5 / P7, P11 | Sharing and clock reset are separate. New Restart resets only the existing clock at first contribution; legacy lifecycle conversion stays preserved. |
+| G5 / P7, P11 | Sharing and Restart are separate. New Restart resets the existing shared Pattern instance's clock and Pattern-owned variable/private state at first contribution without creating another runtime; legacy lifecycle conversion stays preserved. |
 | G6 / P8, P12 | Groups share runtimes by default; explicit Layer bindings and Zone-valid crossing accepted. Occurrence-local holds are §7. |
 | G7 / P9 | Scene names become Markers; equal name/time pairs deduplicate; Markers are optional narrative guides, not playback owners. |
 
@@ -133,7 +133,7 @@ all affected validators together, then qualify the complete record.
    Transitions. Keep legacy Cut decoding in conversion. V2 decode rejects a stored
    Cut instead of silently stripping an invalid authored object.
 2. **#1037:** retain `entryPolicy: continue | restart` on the Clip, with the new
-   clock-only meaning of restart. No second persisted global clock-event list.
+   full Pattern-reset meaning of restart. No second persisted global event list.
    Derive events from Clip identity and first contribution (§4); legacy conversion
    uses its proved private runtime identities, not newly authored restart flags.
 3. **#1037:** property keyframes may carry an outgoing `curveSegment` descriptor:
@@ -194,18 +194,20 @@ choose whichever occurrence materializes first. #1038 updates `groupRuntimeBindi
 and materialization to enforce this authority; dependency remapping visits both
 slot references and explicit Show instances.
 
-### Restart clock
+### Restart
 
 Restart is an authored Clip-entry instruction. It triggers at first contribution:
 nominal Clip start without an incoming Transition, the incoming contribution
 window start otherwise. Moving/deleting the Clip moves/removes its instruction;
 attaching/resizing a Transition can move the trigger. All sharing users observe
-the reset. Only clock accumulation resets; arbitrary Pattern variables are not
-reinitialized. Continue/private legacy Restart conversion remains a separate axis.
+the reset. The existing shared Pattern instance's elapsed clocks and Pattern-owned
+variable/private state return to their compiled initial values. Authored instance
+controls and adaptations remain external bindings and are reapplied; no new runtime
+is created. Continue/private legacy Restart conversion remains a separate axis.
 
 Derive each event by `(effective instance ID, materialized Clip ID, entry time)`.
 For one instance, coalesce simultaneous resets into one reset; this changes no
-state beyond the same clock write. At each event boundary: advance the preceding
+state beyond the same full reset. At each event boundary: advance the preceding
 interval under the existing policy, apply the reset, then evaluate the following
 interval. A reset at zero executes once on entry, not on every frame or held
 Group-local time. Positive frame deltas crossing an event must honor its boundary.
@@ -215,13 +217,13 @@ respect existing Show `continuous`/`deterministic-loop` semantics independently.
 Cold seek replays from the appropriate existing baseline through the same events.
 Reopening does not promise saved private memory or persistent Undo history.
 
-#1037 owns event derivation, replay and the emitted clock-reset seam. The current
-lowerer refuses authored Restart; that is unfinished work, not a policy refusal.
-First qualify a stateful shared-instance fixture through generated `.epe` output.
-Use the existing compiler clock ownership; never call a full member initializer
-that clears Pattern state. A compiler API/emitter expansion required to realize
-this rule must be isolated and presented to Jon before changing compiler scope.
-Other animation work proceeds independently if that feasibility proof blocks.
+#1037 owns event derivation, replay and the emitted full-reset seam. The lowerer
+derives transient compiler events from authored Clips; no independent event list
+is persisted. Qualify a stateful shared-instance fixture through generated `.epe`
+output. Reuse the compiler's existing exact Pattern reset assignments and clock
+ownership at Clip-entry boundaries, then let ordinary placement setup reapply
+authored controls and adaptations. If the existing reset analysis cannot reconstruct
+a Pattern's initial state exactly, compilation refuses instead of approximating it.
 
 ### Shared animation
 
@@ -605,11 +607,11 @@ No worker changes a neighbor's contract silently to make its own tests pass.
 | #1033 | This specification, historical pointers, issue handoffs, AGENTS entry | Step zero; Fable review, then readiness record |
 | #1035 | New `src/engine/showTransitionsV2.ts`; `showCompositionV2.ts`, v2 schema, `showCompositionLoweringV2.ts`; §5 | Starts independently; §6 carrier projection consumes #1037 when needed |
 | #1036 | New `src/engine/showLayoutIntervalsV2.ts`; lowering and Group availability; §8 | Starts independently; supplies interval owner to #1037 |
-| #1037 | New `src/engine/showPropertyAnimationV2.ts`, clock-event helper; `showEasing.ts`, lowering, schema; §4/§6 | Starts non-Layout targets independently; Layout binding follows #1036; runtime feasibility isolated first |
+| #1037 | New `src/engine/showPropertyAnimationV2.ts`, Restart-event helper; `showEasing.ts`, lowering, schema and transient compiler event seam; §4/§6 | Starts non-Layout targets independently; Layout binding follows #1036; generated shared-runtime reset proof required |
 | #1044 | `src/cloudflare/shows.ts`, providers, `showFileBundle.ts`, `showImportPlan.ts`, store/editor opt-in adapters; §9–§10 | First route after #1035; expand with #1036/#1037; no default switch |
 | #1038 | `showClipsV2.ts`, new `showTimelineV2.ts`, `showGroupsV2.ts`, Layer/inspector/timeline adapters; §4/§6–§8 | Full integration after #1035–#1037 and #1044; appearance foundation already landed |
 | #1040 | `src/pixelblaze/stock/shows.ts`, chapter projections, pinned stock parity inputs | After #1038; native v2 prepared without activation |
-| #1041 | `src/engine/showCommands/`, `src/agent-harness/`, schemas, MCP/admission resources | After #1038; `replace_clip_pattern` plus accepted clock action; real pilot MCP proof |
+| #1041 | `src/engine/showCommands/`, `src/agent-harness/`, schemas, MCP/admission resources | After #1038; `replace_clip_pattern` plus accepted Restart action; real pilot MCP proof |
 | #1039 | Show store/editor, providers/fresh/native stock, production MCP, migration procedure | After #1044/#1038/#1040/#1041; deployed route/MCP and per-row evidence |
 | #1042 | Legacy authoring imports/modules, then storage migration | After #1039; separate code/storage milestones |
 | #1043 | CONTEXT, Feature/Technical references, contracts, diagram and string guard | After #1042; current public vocabulary and behavior |
@@ -641,7 +643,7 @@ independently authored expected result for intentional new behavior.
 | CURVE | Move → trim → extend → split → reopen; each easing family, equal endpoint/nonconstant interior, steps/hold discontinuities | #1037; evaluator and emitted Fast/Precise values at boundaries ±1 ms/interiors; no discarded-key restoration |
 | ACTIVATION | Incoming/outgoing contribution; inactive gap; Effect absent at exclusive end then re-added; property-only carrier Reset | #1037; target activation and values retained without a visual carrier |
 | SHARING | Plain duplicate, Group repeat, Make Group Unique, explicit independence and Rejoin | #1038; effective runtime IDs/count and controls/tracks; shared instance advances once per frame |
-| RESTART | Shared visible users → entry reset → incoming Transition attach/resize → move/split/delete → duplicate → loop/seek | #1037/#1038; same runtime, clock-only reset at contribution, no right-split or held-time retrigger; generated `.epe` replay |
+| RESTART | Shared visible users → entry reset → incoming Transition attach/resize → move/split/delete → duplicate → loop/seek | #1037/#1038; same runtime, full clock and Pattern-owned state reset at contribution, authored controls reapplied, no right-split or held-time retrigger; generated `.epe` replay |
 | REPLACE | Shared/unshared Clip and Group definition/unique occurrence → replace → Undo/Redo → reopen | #1038/#1041; other users' instance/control/track/logical compiled member unchanged, selected Transition identity stable; eligible metadata pruning |
 | INSERT | Insert through static/animated Clip, exact property/appearance key (including discontinuity/last active key), shared track, zero scale/Freeze, gap, Layout boundary, visual/transfer interior | #1037/#1038; exact authored hold/resume, normal runtime evolution; no implicit clone/reset; typed refusal |
 | GROUP-HOLD | Two occurrences example in §7; repeat insertion inside hold; move/duplicate/unique/ungroup; internal Transition and shared-animation conflict | #1038; mapped choreography, unchanged definition/runtime identities, reopened artifact and immutable refusal |
@@ -655,7 +657,7 @@ independently authored expected result for intentional new behavior.
 | RETIRE | Post-cutover legacy import plus native save/export; per-row restore rehearsal; bounded Scene-string inventory | #1042/#1043; retained behavioral tests, verified row/column retirement, product diagnostics mapped |
 
 Fault sensitivity targets the changed high-risk seams: wrong ripple set/double
-shift, clock reset clearing private state, duplicate runtime minting, curve
+shift, Restart failing to clear private state or clearing authored controls, duplicate runtime minting, curve
 boundary-only approximation, activation leakage, hold retrigger and source-lookup
 remap loss. Use focused mutation qualification where repository policy calls for
 it. Do not expand a costly suite merely to increase counts.
@@ -663,7 +665,7 @@ it. Do not expand a costly suite merely to increase counts.
 The existing parity harness's limits remain explicit: eight map points, deterministic
 16 ms stepping split at probes, exported scalar state rather than arbitrary hidden
 arrays, bounded seek and two-loop comparisons. These are not universal timestep,
-map or hardware-performance claims. New clock/curve/hold proof includes dedicated
+map or hardware-performance claims. New Restart/curve/hold proof includes dedicated
 stateful fixtures and both runtime modes; measure arithmetic differences explicitly.
 The silent-runtime fixture additionally covers continuous-flat and global-section
 lowering, an initial gap, a later retired interval, visible reuse of the same

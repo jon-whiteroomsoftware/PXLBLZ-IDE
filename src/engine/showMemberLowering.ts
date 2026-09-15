@@ -349,6 +349,7 @@ export function compileMember(
     // the Pattern-slot bank. Keep transformed members on independent machines
     // until that state participates in slot save/restore.
     resettable: reset.resettable && coordinateTransformBuiltins.size === 0,
+    fullResettable: reset.resettable,
     resetAssignments: reset.assignments,
     slotOwnerCount: 1,
     slotOwnerAdaptations: [adaptation],

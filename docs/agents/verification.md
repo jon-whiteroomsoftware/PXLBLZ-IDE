@@ -983,7 +983,7 @@ testing into a second full suite:
 | Inspector | Timing and colocated placement fields commit or refuse atomically |
 | Transition | Insert validation, resize-delta arithmetic, and v2 hyperedge ripple preserve a valid composition and move each downstream Clip once |
 | Animation track | Shortcut mapping, instance ownership, and post-rounding key-time uniqueness |
-| Animation edit | Batch limits, preimage reference uniqueness, final validation, and no-op identity |
+| Animation edit | Batch limits, preimage reference uniqueness, final validation, no-op identity, exact retained-curve offsets, Insert Time boundary mapping, shared Restart coalescing and instance-target overlap |
 | Show End | Authored-content clamping, exact empty-suffix pruning, and meaningful-Boundary refusal |
 | Bulk Clip/Layer authoring | Final-state collision admission, materialized-to-authored Layer identity, atomic property refusal, nested omission, shared-instance conflicts, and distinct-path summary deduplication |
 

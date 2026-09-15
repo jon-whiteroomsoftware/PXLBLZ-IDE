@@ -406,6 +406,12 @@ export interface ShowRoutedSceneSequenceRecipe {
   scenes: ShowRoutedSceneSequenceSceneRecipe[]
 }
 
+/** Compiler-only full Pattern reset scheduled at an authored Clip's first contribution. */
+export interface ShowRestartEventRecipe {
+  atMs: number
+  clipId: string
+}
+
 export interface ShowRoutingLayoutRecipe {
   id: string
   name: string
@@ -447,6 +453,7 @@ export interface ShowRecipe {
   clips: ShowClipRecipe[]
   /** Opts the new timeline model into exact Pattern-state reset on Show wrap. */
   deterministicLoopReset?: boolean
+  restartEvents?: ShowRestartEventRecipe[]
   crossfade?: ShowCrossfadeRecipe
   cut?: ShowCutRecipe
   adaptationRamp?: ShowAdaptationRampRecipe
@@ -1038,6 +1045,7 @@ export interface CompiledMember {
   rollingRefreshRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>
   vignetteScalarField?: SelectedScalarField
   resettable: boolean
+  fullResettable: boolean
   resetAssignments: string[]
   slotOwnerCount: number
   slotOwnerAdaptations: ShowClipAdaptation[]
@@ -2176,7 +2184,8 @@ export function compileShow(
     return primary
   }
   const requestedPatternSlotSharing = options.patternSlotSharing ?? 'auto'
-  const potentialPatternSlotReuse = Boolean(recipe.routedSceneSequence)
+  const potentialPatternSlotReuse = (recipe.restartEvents?.length ?? 0) === 0
+    && Boolean(recipe.routedSceneSequence)
     && new Set(recipe.clips.map((clip) => clip.source)).size < recipe.clips.length
   if (requestedPatternSlotSharing === 'auto' && potentialPatternSlotReuse) {
     const candidate = compileShow(recipe, libraries, { ...options, patternSlotSharing: 'force' })
@@ -2250,7 +2259,9 @@ export function compileShow(
   const renderTargetArenaEmission = options.renderTargetArenaEmission ?? true
   const motionTransitionSharing = options.motionTransitionSharing ?? 'auto'
   const showScoreSharing = options.showScoreSharing ?? 'auto'
-  const patternSlotSharing = requestedPatternSlotSharing === 'auto' ? 'none' : requestedPatternSlotSharing
+  const patternSlotSharing = (recipe.restartEvents?.length ?? 0) > 0
+    ? 'none'
+    : requestedPatternSlotSharing === 'auto' ? 'none' : requestedPatternSlotSharing
   const patternOutputReuse = options.patternOutputReuse ?? true
   const scalarFieldCaching = options.scalarFieldCaching ?? true
   const contentKeyConditionalEvaluation = options.contentKeyConditionalEvaluation ?? true
@@ -2866,6 +2877,7 @@ export function compileShow(
           functionValuedSinkRebinding: options?.functionValuedSinkRebinding ?? false,
         },
         deterministicLoopReset: expandedRecipe.deterministicLoopReset,
+        restartEvents: expandedRecipe.restartEvents,
       })
       : null
   const emittedCode = routedSceneEmission
@@ -3826,8 +3838,18 @@ function describeCaptureSpecialization(
 
 function validateRecipe(recipe: ShowRecipe): void {
   const routeMode = recipe.clips.some((clip) => routeTargets(clip).length > 0)
+  const clipIds = new Set(recipe.clips.map((clip) => clip.id))
   const boundaryModes = [recipe.crossfade, recipe.cut, recipe.adaptationRamp, recipe.routeTransition, recipe.sceneSequence, recipe.routedSceneSequence].filter(Boolean).length
   if (recipe.clips.length < 1) throw new Error('compileShow requires at least one clip.')
+  if ((recipe.restartEvents?.length ?? 0) > 0 && !recipe.routedSceneSequence) {
+    throw new Error('compileShow Restart events require a routed scene sequence.')
+  }
+  for (const event of recipe.restartEvents ?? []) {
+    if (!clipIds.has(event.clipId)) throw new Error(`compileShow Restart event references missing clip "${event.clipId}".`)
+    if (!Number.isSafeInteger(event.atMs) || event.atMs < 0 || (recipe.loopDurationMs !== undefined && event.atMs >= recipe.loopDurationMs)) {
+      throw new Error('compileShow Restart events must use a safe whole-millisecond time inside the Show loop.')
+    }
+  }
   if (!routeMode && !recipe.sceneSequence && !recipe.routedSceneSequence && recipe.clips.length > 2) throw new Error('compileShow v1 requires one or two unrouted clips.')
   if (boundaryModes > 1) throw new Error('compileShow accepts only one boundary mode.')
   if (routeMode && boundaryModes > 0 && !recipe.routedSceneSequence) throw new Error('compileShow routed clips cannot use scene boundary modes yet.')
@@ -4712,6 +4734,7 @@ interface RoutedSceneSequenceEmissionOptions {
     functionValuedSinkRebinding?: boolean
   }
   deterministicLoopReset?: boolean
+  restartEvents?: ShowRestartEventRecipe[]
 }
 
 function emitRoutedSceneSequenceShowCode(
@@ -4941,7 +4964,7 @@ function emitRoutedSceneSequenceShowCode(
   const continuityMembers = deterministicLoopReset ? [...continuityWindowByMember.keys()] : []
   const continuityMemberSet = new Set(continuityMembers)
   const advancedFlag = (member: CompiledMember) => `${member.prefix}_advanced_this_frame`
-  const loopResetLines = members.flatMap((member) => [
+  const fullMemberResetLines = (member: CompiledMember) => [
     ...member.resetAssignments,
     ...memberCoordinateTransformResetAssignments(member),
     `${member.elapsedName} = ${member.adaptation.timeOffsetMs}`,
@@ -4953,6 +4976,9 @@ function emitRoutedSceneSequenceShowCode(
           `${member.prefix}_step_primed = 0`,
         ]
       : []),
+  ]
+  const loopResetLines = members.flatMap((member) => [
+    ...fullMemberResetLines(member),
     ...(member.slotOwnerCount > 1
       ? [
           `${member.prefix}_slot_owner = -1`,
@@ -4960,6 +4986,70 @@ function emitRoutedSceneSequenceShowCode(
         ]
       : []),
   ])
+  const restartEventsByMember = new Map<CompiledMember, ShowRestartEventRecipe[]>()
+  for (const event of emissionOptions.restartEvents ?? []) {
+    const member = memberById.get(event.clipId)
+    if (!member) throw new Error(`compileShow Restart event references missing compiled clip "${event.clipId}".`)
+    if (!member.fullResettable) throw new Error(`compileShow cannot fully reset Pattern state for clip "${event.clipId}".`)
+    restartEventsByMember.set(member, [...(restartEventsByMember.get(member) ?? []), event])
+  }
+  for (const events of restartEventsByMember.values()) events.sort((left, right) => left.atMs - right.atMs)
+  const restartMembers = [...restartEventsByMember.keys()]
+  const memberIsActiveImmediatelyBefore = (member: CompiledMember, atMs: number) => {
+    if (atMs <= 0) return false
+    const previous = segments.find(segment => segment.startMs < atMs && atMs <= segment.endMs)
+    if (!previous) return false
+    const activeScenes = previous.kind === 'transition'
+      ? [scenes[previous.sceneIndex], scenes[previous.sceneIndex + 1]]
+      : [scenes[previous.sceneIndex]]
+    return activeScenes.some(scene => scene.placements.some(placement => placement.member === member))
+  }
+  const restartDelta = (member: CompiledMember) => restartEventsByMember.has(member)
+    ? `${member.prefix}_restart_delta`
+    : 'delta'
+  const restartDeclarations = restartMembers.flatMap((member) => [
+    `var ${member.prefix}_restart_delta = 0`,
+    `var ${member.prefix}_restart_at_s = -1`,
+  ])
+  const restartCrossingPrelude = restartMembers.length === 0 ? '' : `var __pxlblz_show_restart_previous_s = __pxlblz_show_elapsed_s
+  var __pxlblz_show_restart_wrapped = __pxlblz_show_elapsed_s + delta / 1000 >= ${totalMs / 1_000}`
+  const restartEventPrelude = restartMembers.length === 0 ? '' : `${restartMembers.map((member) => {
+    const events = restartEventsByMember.get(member)!
+    const initialZero = events.some((event) => event.atMs === 0)
+      ? `  if (!__pxlblz_show_restart_primed) ${member.prefix}_restart_at_s = 0\n`
+      : ''
+    const ordinary = events.map((event) => (
+      `    if (__pxlblz_show_restart_previous_s < ${event.atMs / 1_000} && __pxlblz_show_elapsed_s >= ${event.atMs / 1_000}) ${member.prefix}_restart_at_s = ${event.atMs / 1_000}`
+    )).join('\n')
+    const beforeWrap = events.map((event) => (
+      `    if (__pxlblz_show_restart_previous_s < ${event.atMs / 1_000}) ${member.prefix}_restart_at_s = ${event.atMs / 1_000}`
+    )).join('\n')
+    const afterWrap = events.map((event) => (
+      `    if (__pxlblz_show_elapsed_s >= ${event.atMs / 1_000}) ${member.prefix}_restart_at_s = ${event.atMs / 1_000}`
+    )).join('\n')
+    const precedingAdvance = events.filter(event => memberIsActiveImmediatelyBefore(member, event.atMs)).map((event) => (
+      `    if (!__pxlblz_show_restart_wrapped && ${member.prefix}_restart_at_s == ${event.atMs / 1_000}) {
+      var __pxlblz_show_restart_final_s = __pxlblz_show_elapsed_s
+      __pxlblz_show_elapsed_s = ${event.atMs / 1_000}
+      ${member.prefix}_advance((${event.atMs / 1_000} - __pxlblz_show_restart_previous_s) * 1000)
+      __pxlblz_show_elapsed_s = __pxlblz_show_restart_final_s
+    }`
+    )).join('\n')
+    return `  ${member.prefix}_restart_delta = delta
+  ${member.prefix}_restart_at_s = -1
+${initialZero}  if (!__pxlblz_show_restart_wrapped) {
+${ordinary}
+  } else {
+${beforeWrap}
+${afterWrap}
+  }
+  if (${member.prefix}_restart_at_s >= 0) {
+${precedingAdvance}
+${indentBlock(fullMemberResetLines(member).join('\n'), 4)}
+    ${member.prefix}_restart_delta = (__pxlblz_show_elapsed_s - ${member.prefix}_restart_at_s + (__pxlblz_show_restart_wrapped && ${member.prefix}_restart_at_s > __pxlblz_show_elapsed_s ? ${totalMs / 1_000} : 0)) * 1000
+  }`
+  }).join('\n')}
+  __pxlblz_show_restart_primed = 1`
   const loopAdvancePrelude = deterministicLoopReset ? `var __pxlblz_show_loop_wrapped = __pxlblz_show_elapsed_s + delta / 1000 >= ${totalMs / 1_000}
   __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${totalMs / 1_000}
   if (__pxlblz_show_loop_wrapped) {
@@ -4968,11 +5058,12 @@ ${indentBlock(loopResetLines.join('\n'), 4)}
   }${continuityMembers.length > 0 ? `
 ${continuityMembers.map((member) => `  ${advancedFlag(member)} = 0`).join('\n')}` : ''}`
     : `__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${totalMs / 1_000}`
+  const frameAdvancePrelude = `${restartCrossingPrelude}${restartCrossingPrelude ? '\n  ' : ''}${loopAdvancePrelude}${restartEventPrelude ? `\n${restartEventPrelude}` : ''}`
   const hiddenContinuityFunction = continuityMembers.length > 0
     ? `function __pxlblz_show_advance_hidden_instances(delta) {
 ${continuityMembers.map((member) => {
       const window = continuityWindowByMember.get(member)!
-      return `  if (!${advancedFlag(member)} && __pxlblz_show_elapsed_s >= ${window.startMs / 1_000} && __pxlblz_show_elapsed_s < ${window.endMs / 1_000}) ${member.prefix}_advance(delta)`
+      return `  if (!${advancedFlag(member)} && __pxlblz_show_elapsed_s >= ${window.startMs / 1_000} && __pxlblz_show_elapsed_s < ${window.endMs / 1_000}) ${member.prefix}_advance(${restartDelta(member)})`
     }).join('\n')}
 }`
     : ''
@@ -5053,7 +5144,7 @@ ${member.prefix}_mir_base_i = ${member.prefix}_adapt_mirror * (${member.pixelCou
             : ''}${propertyTrackAssignments
               ? `\n${propertyTrackAssignments}`
               : ''}
-${member.prefix}_advance(delta)${continuityMemberSet.has(member) ? `
+${member.prefix}_advance(${restartDelta(member)})${continuityMemberSet.has(member) ? `
 ${advancedFlag(member)} = 1` : ''}`
       return {
         member,
@@ -5932,9 +6023,10 @@ function __pxlblz_show_capture_transition_rgb(r, g, b) {
     ...(usesRouteLayout ? ['var __pxlblz_show_route_layout = 0'] : []),
     ...(propertyRamps ? [`var __pxlblz_show_route_split_position = ${clampNumber(propertyRamps.splitPosition.initial, 0, 1)}`] : []),
     ...continuityMembers.map((member) => `var ${advancedFlag(member)} = 0`),
+    ...(restartMembers.length > 0 ? ['var __pxlblz_show_restart_primed = 0', ...restartDeclarations] : []),
     ...(hiddenContinuityFunction ? [hiddenContinuityFunction] : []),
     `export function beforeRender(delta) {
-  ${loopAdvancePrelude}
+  ${frameAdvancePrelude}
 ${usesRouteLayout ? '  __pxlblz_show_route_layout = 0\n' : ''}
 ${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRoutingPropertyAssignments(propertyRamps)}\n` : ''}  ${schedulerBranches}${hiddenContinuityCall ? `\n  ${hiddenContinuityCall}` : ''}${coordinateTargetAssignments ? `\n${indentBlock(coordinateTargetAssignments, 2)}` : ''}${freezeLifecycle ? `\n${indentBlock(freezeLifecycle, 2)}` : ''}${refreshLifecycle ? `\n${indentBlock(refreshLifecycle, 2)}` : ''}${rollingRefreshLifecycle ? `\n${indentBlock(rollingRefreshLifecycle, 2)}` : ''}${patternOutputReuseGroups.length > 0 ? `\n${indentBlock(emitPatternOutputReusePrepass(patternOutputReuseGroups), 2)}` : ''}
 }`,
@@ -6091,12 +6183,13 @@ ${indentBlock(body, 2)}
       'var __pxlblz_show_score_to_stack = 1',
       'var __pxlblz_show_score_kernel = -1',
       ...continuityMembers.map((member) => `var ${advancedFlag(member)} = 0`),
+      ...(restartMembers.length > 0 ? ['var __pxlblz_show_restart_primed = 0', ...restartDeclarations] : []),
       ...(hiddenContinuityFunction ? [hiddenContinuityFunction] : []),
       ...(scoreUsesSnapshot
         ? ['var __pxlblz_show_score_snapshot_boundary = -1', 'var __pxlblz_show_snapshot_ready = 0']
         : []),
       `export function beforeRender(delta) {
-  ${loopAdvancePrelude}
+  ${frameAdvancePrelude}
   var __pxlblz_show_score_position = __pxlblz_show_elapsed_s - ${firstBoundarySeconds}
   if (__pxlblz_show_score_position < 0) {
     __pxlblz_show_scene = 0

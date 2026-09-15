@@ -15,6 +15,7 @@ import type {
 import { showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
 import { validateShowComposition } from './showCompositionModel'
 import type { ShowRecipe } from './showCompiler'
+import { deriveShowRestartEventsV2 } from './showPropertyAnimationV2'
 import {
   validateShowRecordV2,
   type ShowClipV2,
@@ -105,6 +106,25 @@ export function prepareShowV2ForCompile(
   if (JSON.stringify(representedInstances) !== JSON.stringify(expectedInstances)) {
     return { status: 'refused', ...refuse('unsupported-runtime-sharing', 'composition.clips', 'existing compiler recipe cannot represent every used Pattern instance exactly once.') }
   }
+  const restart = deriveShowRestartEventsV2(context.record)
+  if (restart.status === 'refused') {
+    return { status: 'refused', ...refuse('unsupported-restart', 'composition.clips', restart.message) }
+  }
+  if (restart.events.length > 0) {
+    const recipeClipIdByInstanceId = new Map(recipe.clips.filter(clip => !clip.compilerOwnedEmpty).map(clip => [
+      lowered.lookup.instanceIdByCellId?.[clip.id] ?? clip.id,
+      clip.id,
+    ]))
+    const restartEvents = restart.events.map(event => ({
+      atMs: event.atMs,
+      clipId: recipeClipIdByInstanceId.get(event.instanceId),
+    }))
+    const missing = restartEvents.find(event => event.clipId === undefined)
+    if (missing) {
+      return { status: 'refused', ...refuse('unsupported-runtime-sharing', 'composition.clips', 'Restart event has no matching compiled Pattern instance.') }
+    }
+    recipe.restartEvents = restartEvents.map(event => ({ atMs: event.atMs, clipId: event.clipId! }))
+  }
   return {
     status: 'ready',
     recipe,
@@ -126,6 +146,9 @@ export function lowerShowCompositionV2ForCompile(
   record: ShowRecordV2,
   lookup: ShowCompileRecipeSourceLookup,
 ): LoweredShowCompositionV2 {
+  if (record.composition.clips.some(clip => clip.entryPolicy === 'restart')) {
+    throw new Error('Show composition v2 Restart requires prepareShowV2ForCompile so its transient reset events cannot be dropped.')
+  }
   const resolved = resolveAndLowerShowV2(record, lookup)
   if ('issues' in resolved) {
     throw new Error(resolved.issues.map(issue => `Show composition v2 ${issue.path}: ${issue.message}`).join('; '))
@@ -201,9 +224,6 @@ function resolveShowV2CompileContext(
     return false
   })) {
     return refuse('unsupported-transition-property-track', 'composition.propertyTracks', 'A property track targeting a multi-key Clip requires the #1037 projection owner.')
-  }
-  if (composition.clips.some(clip => clip.entryPolicy === 'restart')) {
-    return refuse('unsupported-restart', 'composition.clips', 'lowering requires Restart lifecycle evidence before compilation.')
   }
   if (composition.transitions.some(transition => !transition.wholeOutput && transition.participants.length !== 1)) {
     return refuse('unsupported-transition-participants', 'composition.transitions', 'lowering requires one participant per Transition until shared-scope parity is proved.')
@@ -315,11 +335,22 @@ function sectionContribution(record: ShowRecordV2, section: DerivedSection) {
   return { startMs: section.startMs - (incoming?.durationMs ?? 0), endMs: section.endMs + (outgoing?.durationMs ?? 0) }
 }
 
+function propertyTrackSectionBounds(
+  record: ShowRecordV2,
+  section: DerivedSection,
+  track: ShowRecordV2['composition']['propertyTracks'][number],
+) {
+  const contribution = sectionContribution(record, section)
+  return track.target.kind === 'instance-time-scale' || track.target.kind === 'instance-control'
+    ? { startMs: section.startMs, endMs: contribution.endMs }
+    : contribution
+}
+
 function firstCrossSectionTrackIndex(record: ShowRecordV2): number {
   const sections = derivedSections(record)
   return record.composition.propertyTracks.findIndex(track => track.target.kind !== 'show-repeat-scale' && !sections.some(section => {
-    const contribution = sectionContribution(record, section)
-    return contribution.startMs === track.activeStartMs && contribution.endMs === track.activeStartMs + track.activeDurationMs
+    const bounds = propertyTrackSectionBounds(record, section, track)
+    return bounds.startMs === track.activeStartMs && bounds.endMs === track.activeStartMs + track.activeDurationMs
   }))
 }
 
@@ -403,8 +434,8 @@ function lowerGlobalClipsToSections(
   for (const track of composition.propertyTracks.filter(track => track.target.kind !== 'show-repeat-scale')) {
     const activeEndMs = track.activeStartMs + track.activeDurationMs
     const index = sections.findIndex(section => {
-      const contribution = sectionContribution(record, section)
-      return track.activeStartMs === contribution.startMs && activeEndMs === contribution.endMs
+      const bounds = propertyTrackSectionBounds(record, section, track)
+      return track.activeStartMs === bounds.startMs && activeEndMs === bounds.endMs
     })
     if (index < 0) {
       throw new Error(`Show composition v2 property track "${track.id}" activation crosses a derived Clip/appearance section.`)

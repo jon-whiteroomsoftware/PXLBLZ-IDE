@@ -305,6 +305,49 @@ describe('lowerShowCompositionV2ForCompile', () => {
     expect(reopened.src).toContain(artifact.code)
   })
 
+  it.each(['fast', 'fidelity'] as const)('reopens an .epe whose incoming Restart fully resets its one shared runtime in %s mode', (fidelity) => {
+    const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade', 'live-live'))
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') return
+    const [outgoing, incoming] = converted.record.composition.clips
+    incoming.instanceId = outgoing.instanceId
+    incoming.entryPolicy = 'restart'
+    converted.record.composition.patternInstances = converted.record.composition.patternInstances
+      .filter(instance => instance.id === outgoing.instanceId)
+    const lookup = { byCellId: {}, byPatternInstanceId: { [outgoing.instanceId]: STATEFUL_SOURCE }, stageDimension: 2 as const }
+
+    const prepared = prepareShowV2ForCompile(converted.record, lookup)
+    expect(prepared.status).toBe('ready')
+    if (prepared.status !== 'ready') return
+    expect(() => lowerShowCompositionV2ForCompile(converted.record, lookup)).toThrow('requires prepareShowV2ForCompile')
+    expect(prepared.recipe.restartEvents).toEqual([{ atMs: 400, clipId: outgoing.instanceId }])
+    const artifact = compileShow(prepared.recipe, LIBRARIES, { patternSlotSharing: 'none' })
+    expect(artifact.summary.clips).toHaveLength(1)
+    const reopened = parseEpe(buildShowEpeExport(transitionV1Show('crossfade', 'live-live'), artifact.code).text)
+    const preparedReplay = {
+      code: reopened.src,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: nativeDimension(artifact.metadata.renderFns),
+    }
+    const runtime = createFastReplayRuntime(preparedReplay, { mapPoints: MAP, randomSeed: 1037, fidelity })
+    const prefix = artifact.summary.clips[0].prefix
+    const scalar = (value: unknown) => Number(value) / (fidelity === 'fidelity' ? 65_536 : 1)
+
+    const before = runtime.advanceTo(390, { stepMs: 1 })
+    const beforeCalls = scalar(before.exports[`${prefix}_calls`])
+    const beforeElapsed = scalar(before.exports[`${prefix}_elapsed`])
+    expect(beforeElapsed).toBeGreaterThan(0.35)
+    const after = runtime.advanceTo(410, { stepMs: 1 })
+    expect(scalar(after.exports[`${prefix}_calls`])).toBeLessThan(beforeCalls)
+    expect(scalar(after.exports[`${prefix}_elapsed`])).toBeLessThan(0.03)
+    expect(scalar(after.exports[`${prefix}_elapsed`])).toBeLessThan(beforeElapsed)
+    const cold = createFastReplayRuntime(preparedReplay, { mapPoints: MAP, randomSeed: 1037, fidelity })
+      .advanceTo(410, { stepMs: 1 })
+    expect(cold.exports).toEqual(after.exports)
+    expect(Array.from(cold.frame)).toEqual(Array.from(after.frame))
+  })
+
   it.each(['fast', 'fidelity'] as const)('preserves compiled output and advancing private state in %s mode', (fidelity) => {
     const source = convertibleV1Show()
     const converted = convertShowRecordV1ToV2(source)

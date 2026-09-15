@@ -79,6 +79,7 @@ const catalog = {
   'unordered-keyframes': ['composition', 'Property keyframes must be ordered.'],
   'too-few-keyframes': ['composition', 'A property track requires more keyframes.'],
   'invalid-easing': ['composition', 'A property keyframe has invalid easing.'],
+  'invalid-curve-segment': ['composition', 'A retained property curve segment is invalid.'],
   'pattern-reference-unavailable': ['missing-reference', 'A required Pattern is unavailable.'],
   'library-reference-unavailable': ['missing-reference', 'A required Library function is unavailable.'],
   'reference-unavailable': ['missing-reference', 'A required authored reference is unavailable.'],

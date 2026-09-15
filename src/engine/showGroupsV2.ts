@@ -6,6 +6,18 @@ export function groupDuration(definition: ShowGroupDefinitionV2): number {
   return Math.max(0, ...definition.clips.map(clip => clip.startMs + clip.durationMs))
 }
 
+/** Return the ordinary Clips that execute after expanding every Group occurrence. */
+export function effectiveShowClipsV2(record: ShowRecordV2): ShowClipV2[] {
+  return record.composition.groupOccurrences.length > 0
+    ? materializeShowGroupsV2(record).composition.clips
+    : record.composition.clips
+}
+
+/** Count effective Clip users after Group occurrence bindings resolve runtime identity. */
+export function effectiveShowInstanceUseCountV2(record: ShowRecordV2, instanceId: string): number {
+  return effectiveShowClipsV2(record).filter(clip => clip.instanceId === instanceId).length
+}
+
 export function convertGroupDefinition(definition: ShowGroupDefinition): ShowGroupDefinitionV2 {
   const ranks = [...new Set(definition.placements.map(placement => placement.layerOffset))].sort((a, b) => a - b)
   const layers = ranks.map(rank => ({ id: `${definition.id}:layer:${rank}`, name: `Layer ${rank}`, rank }))

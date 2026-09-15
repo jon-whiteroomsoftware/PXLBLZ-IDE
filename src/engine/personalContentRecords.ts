@@ -206,6 +206,20 @@ export interface ShowPropertyAnimationKeyframe {
   value: number
   /** Interpolation used while leaving this keyframe. */
   easing: ShowStructuredEasing
+  /**
+   * Exact retained subinterval of a source curve. Persisted v2 records admit
+   * this field; the v1 persistence schema remains closed to it while the
+   * compiler adapter carries it through this shared internal type.
+   */
+  curveSegment?: ShowPropertyCurveSegment
+}
+
+export interface ShowPropertyCurveSegment {
+  baseValue: number
+  deltaValue: number
+  easing: ShowStructuredEasing
+  sourceDurationMs: number
+  elapsedOffsetMs: number
 }
 
 export interface ShowPropertyAnimationTrack {

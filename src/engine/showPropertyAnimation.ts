@@ -32,6 +32,7 @@ export type ShowPropertyAnimationValidationCode =
   | 'unordered-keyframes'
   | 'too-few-keyframes'
   | 'invalid-easing'
+  | 'invalid-curve-segment'
 
 export interface ShowPropertyAnimationValidationIssue {
   path: string
@@ -55,6 +56,11 @@ export function evaluateShowPropertyTrack(track: ShowPropertyAnimationTrack, atM
   const rightIndex = keyframes.findIndex((keyframe) => keyframe.timeMs > atMs)
   const left = keyframes[Math.max(0, rightIndex - 1)]
   const right = keyframes[rightIndex]
+  if (left.curveSegment) {
+    const segment = left.curveSegment
+    const progress = (segment.elapsedOffsetMs + atMs - left.timeMs) / segment.sourceDurationMs
+    return segment.baseValue + segment.deltaValue * applyShowEasing(segment.easing, progress)
+  }
   const progress = (atMs - left.timeMs) / Math.max(1, right.timeMs - left.timeMs)
   const eased = applyShowEasing(left.easing, progress)
   return left.value + (right.value - left.value) * eased
@@ -72,10 +78,15 @@ export function emitShowPropertyTrackExpression(
   for (let index = keyframes.length - 2; index >= 0; index -= 1) {
     const left = keyframes[index]
     const right = keyframes[index + 1]
-    const progress = `((${atMsExpression}) - ${left.timeMs}) / ${right.timeMs - left.timeMs}`
-    const eased = emitShowEasingExpression(left.easing, progress)
-    const segment = `(${left.value} + (${right.value - left.value}) * ${eased})`
-    expression = `((${atMsExpression}) < ${right.timeMs} ? ${segment} : ${expression})`
+    const retained = left.curveSegment
+    const progress = retained
+      ? `(${retained.elapsedOffsetMs} + ((${atMsExpression}) - ${left.timeMs})) / ${retained.sourceDurationMs}`
+      : `((${atMsExpression}) - ${left.timeMs}) / ${right.timeMs - left.timeMs}`
+    const eased = emitShowEasingExpression(retained?.easing ?? left.easing, progress)
+    const segmentExpression = retained
+      ? `(${retained.baseValue} + (${retained.deltaValue}) * ${eased})`
+      : `(${left.value} + (${right.value - left.value}) * ${eased})`
+    expression = `((${atMsExpression}) < ${right.timeMs} ? ${segmentExpression} : ${expression})`
   }
   return `((${atMsExpression}) <= ${keyframes[0].timeMs} ? ${keyframes[0].value} : ${expression})`
 }
@@ -124,6 +135,7 @@ export function validateShowPropertyTracks(
         if (keyframeIds.has(keyframe.id)) addIssue(issues, `${keyframePath}.id`, 'duplicate-keyframe-id', `Keyframe id "${keyframe.id}" is duplicated.`)
         keyframeIds.add(keyframe.id)
         validateKeyframe(issues, keyframePath, keyframe, scene?.durationMs, constraint)
+        validateCurveSegment(issues, keyframePath, keyframe, track.keyframes[keyframeIndex + 1])
         const previous = track.keyframes[keyframeIndex - 1]
         if (previous && keyframe.timeMs <= previous.timeMs) {
           addIssue(issues, `${keyframePath}.timeMs`, 'unordered-keyframes', 'Keyframe times must be strictly increasing in authored order.')
@@ -132,6 +144,24 @@ export function validateShowPropertyTracks(
     }
   })
   return issues
+}
+
+function validateCurveSegment(
+  issues: ShowPropertyAnimationValidationIssue[],
+  path: string,
+  keyframe: ShowPropertyAnimationKeyframe,
+  right: ShowPropertyAnimationKeyframe | undefined,
+): void {
+  const segment = keyframe.curveSegment
+  if (!segment) return
+  const validNumbers = Number.isFinite(segment.baseValue) && Number.isFinite(segment.deltaValue)
+    && Number.isSafeInteger(segment.sourceDurationMs) && segment.sourceDurationMs > 0
+    && Number.isSafeInteger(segment.elapsedOffsetMs) && segment.elapsedOffsetMs >= 0
+  const retainedDurationMs = right ? right.timeMs - keyframe.timeMs : Number.POSITIVE_INFINITY
+  if (!right || !validNumbers || !validateShowEasing(segment.easing).valid
+    || segment.elapsedOffsetMs + retainedDurationMs > segment.sourceDurationMs) {
+    addIssue(issues, `${path}.curveSegment`, 'invalid-curve-segment', 'Retained curve interval must be finite, valid and contained by its source duration.')
+  }
 }
 
 export function addShowPropertyTrack(

@@ -1,8 +1,9 @@
 # Additive v2 Clip edit contract
 
-`editShowClipV2(record, intent)` supplies immutable held-appearance edits for the
-provisional v2 engine. It is not connected to production commands, the editor,
-history, or persistence. Those callers must not treat its existence as v2 rollout.
+`editShowClipV2(record, intent)` supplies immutable held-appearance and Property
+animation edits for the provisional v2 engine. It is not connected to production
+commands, the editor, history, or persistence. Those callers must not treat its
+existence as v2 rollout.
 Accepted product behavior is recorded in the
 [authoring decisions](../../plans/show-v2-accepted-authoring.md).
 
@@ -26,8 +27,48 @@ values. Neither operation stores discarded keys for future restoration.
 
 Split requires a strict interior time and a caller-supplied fresh nonblank Clip
 ID. The left Clip retains its identity; the right shares its instance and starts
-with the held boundary value. Held-key IDs are scoped to their owning Clip and
+with the held boundary value. Clip-owned Property tracks partition into left and
+right activation intervals and the right target follows the new Clip. Instance
+tracks retain one global owner. Held-key IDs are scoped to their owning Clip and
 are preserved when their value is reused; splitting does not mint a runtime.
+Restart stays on the left Clip and the new right Clip uses Continue.
+
+## Exact Property curves and activation
+
+`showPropertyAnimationV2.ts` owns half-open activation, curve restriction and
+Property-track edit translation. A retained nonlinear interval stores an outgoing
+`curveSegment` on its left key. The descriptor keeps the original curve base,
+delta, easing, duration and elapsed offset. Repeated restriction increments the
+offset; it neither samples endpoints nor keeps removed key identities. Extension
+adds constant boundary segments. Explicit key reauthoring removes stale retained
+descriptors only from the affected adjacent segments.
+
+The v2 JSON schema persists `curveSegment`; the v1 persistence schema remains
+closed to it. The v2 compiler adapter carries the descriptor through its internal
+v1-shaped recipe, and the existing evaluator and emitter apply the same formula.
+Activation remains independent of key extrema and uses
+`[activeStartMs, activeStartMs + activeDurationMs)`.
+
+`insertTimeInShowPropertyTracksV2(record, atMs, durationMs)` applies the global
+time mapping once per track. A track ending at the insertion stays left; a track
+starting there shifts. A crossing track holds its right-boundary value over the
+inserted interval and resumes its original outgoing curve on the right. The helper
+does not change Pattern state, clocks, instance identity, Show End or other
+choreography; the Insert Time orchestrator owns those changes and validates the
+combined candidate.
+
+`copyShowInstancePropertyTracksV2` copies time-scale tracks and compatible public
+control tracks for Make Independent or Clip-scoped Replace. It reports new track
+IDs and discarded control targets, leaves source tracks unchanged, and refuses a
+destination activation conflict atomically. Record validation likewise refuses
+overlapping instance-control or instance-time-scale owners while allowing
+half-open adjacency, including after Group materialization.
+
+`projectShowTransitionPropertyRampsV2` converts every explicit ramp on one visual
+Transition into an independently activated Property track before a caller resets
+or deletes that carrier. The caller supplies fresh identities, the retained end
+value and activation end; an incomplete or conflicting projection refuses with
+the original record.
 
 ## Current admission domain
 
@@ -35,30 +76,44 @@ The owner validates the complete preimage and final candidate. Times must be saf
 integer milliseconds within Show End. Collisions and invalid references refuse
 atomically. A no-op returns the original valid record without running an edit.
 
-Actual edits currently require a Continue Clip, no Transition records, no Group
-occurrences and one full-Show Layout occurrence. The Clip's Zone must be present
+Actual Clip edits currently require no Transition records, no Group occurrences
+and one full-Show Layout occurrence. The Clip's Zone must be present
 in that Layout. A Layout without logical routing or explicit ranges uses the
-existing nominal-Zone fallback. General Layout changes and shared clock-reset
-semantics need their dedicated owners.
+existing nominal-Zone fallback. General Transition, Group, Layout and Insert Time
+orchestration remains with their dedicated owners.
 
-Trim, Extend and Split refuse when the Clip or its instance has animation
-tracks: exact curve restriction is not implemented. Move supports those tracks
-according to ownership, with complete candidate validation. These temporary
-restrictions define this additive foundation; they do not narrow the accepted
-completed-product behavior or change production v1 operations.
+`deriveShowRestartEventsV2` materializes Group Clips, derives one event from
+each restarting Clip's effective instance, materialized Clip identity and first
+contribution, and coalesces simultaneous events per instance. A contribution map
+from the Transition owner overrides nominal Clip starts. Moving a Clip therefore
+moves its derived instruction; splitting keeps only the left instruction.
+
+Lowering maps each derived event to the one compiler member that owns the effective
+shared instance. The transient recipe carries `{ atMs, clipId }`; no second event
+list is persisted. When playback crosses an event, the routed scheduler applies
+the compiler's exact Pattern reset assignments, coordinate state and elapsed-clock
+reset, then advances only the post-entry portion of that frame. Ordinary placement
+setup reapplies authored controls and adaptations before the member advances. The
+same member remains shared, simultaneous entries coalesce, time zero fires once,
+and loop/cold replay crosses the same events. A Pattern the existing reset analysis
+cannot reconstruct exactly is refused rather than partially reset.
 
 ## Evidence
 
 [Public edit tests](../../../src/engine/showClipsV2.test.ts) exercise immutable
-results, serialized/reopened records, held-change boundaries, trim/extend and
-split/move sequences, invalid intents, collision refusal, animation ownership,
-and Layout availability. Reopened records compile through the preparation seam
-and run in Fast and Precise modes. Split preserves frames and private state
-through the next loop; trim/extend matches an independently authored dim Show.
-Precise-mode timestep rounding near Clip end is compared against that reference,
-while interior pixels have explicit expected RGB values.
+results, serialized/reopened records, held-change boundaries, Restart ownership,
+invalid intents, collision refusal, animation ownership, and Layout availability.
+Reopened records compile through the preparation seam and run in Fast and Precise
+modes. Split preserves frames and private state through the next loop unless the
+left Clip's authored Restart fires again on the next loop.
 
-Three targeted mutations were rejected: missing Move time translation, retaining
-the original value after Trim, and restarting on Split. This qualifies those
-faults, not the complete future authoring surface. UI, durable provider writes,
-actual Undo/Redo integration and nonlinear curve edits are not proven here.
+[Property animation tests](../../../src/engine/showPropertyAnimationV2.test.ts)
+exercise move → trim → extend → split → reopen for every supported easing option,
+equal stored endpoints with a nonconstant retained interior, steps/hold
+discontinuities, generated Fast/Precise source parity at activation boundaries,
+Insert Time boundary partitions, Group-aware sharing/Restart, carrier projection,
+copy/filter results and atomic conflict refusal.
+
+UI, durable provider writes, actual Undo/Redo integration and full Insert Time
+orchestration are not proven here. Generated Restart replay is proved at the
+reopened `.epe` consumer in both Fast and Fidelity modes.

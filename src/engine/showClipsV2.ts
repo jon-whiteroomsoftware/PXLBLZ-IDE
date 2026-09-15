@@ -1,10 +1,11 @@
 import { validateShowRecordV2, type ShowClipV2, type ShowRecordV2 } from './showCompositionV2'
+import { editShowClipPropertyTracksV2, findNewShowInstancePropertyTrackConflictV2 } from './showPropertyAnimationV2'
 
 export type ShowClipEditIntentV2 =
   | { kind: 'move'; clipId: string; startMs: number }
   | { kind: 'trim' | 'extend'; clipId: string; startMs: number; endMs: number }
   | { kind: 'split'; clipId: string; atMs: number; rightClipId: string }
-export type ShowClipEditRefusalV2 = 'invalid-record' | 'missing-clip' | 'invalid-intent' | 'unsupported-topology' | 'unsupported-animation' | 'invalid-result'
+export type ShowClipEditRefusalV2 = 'invalid-record' | 'missing-clip' | 'invalid-intent' | 'unsupported-topology' | 'invalid-result'
 export type ShowClipEditResultV2 =
   | { status: 'changed'; record: ShowRecordV2; affectedClipIds: string[]; affectedTrackIds: string[] }
   | { status: 'unchanged'; record: ShowRecordV2; affectedClipIds: []; affectedTrackIds: [] }
@@ -33,34 +34,26 @@ export function editShowClipV2(record: ShowRecordV2, intent: ShowClipEditIntentV
     return refuse('invalid-intent', 'Split requires an interior time and a fresh right Clip ID.')
   }
   if (start === clip.startMs && end === oldEnd) return { status: 'unchanged', record, affectedClipIds: [], affectedTrackIds: [] }
-  if (clip.entryPolicy !== 'continue' || composition.transitions.length || composition.groupOccurrences.length || composition.layoutOccurrences.length !== 1) {
-    return refuse('unsupported-topology', 'This edit requires the Restart, Transition, Group or Layout-crossing authoring owner.')
+  if (composition.transitions.length || composition.groupOccurrences.length || composition.layoutOccurrences.length !== 1) {
+    return refuse('unsupported-topology', 'This edit requires the Transition, Group or Layout-crossing authoring owner.')
   }
   const layout = record.zoneLayouts.find(candidate => candidate.id === composition.layoutOccurrences[0].layoutId)!
   const activeZoneIds = layout.logical?.zoneIds ?? (layout.zones.length ? layout.zones.map(zone => zone.zoneId) : record.zones.map(zone => zone.id))
   if (!activeZoneIds.includes(clip.zoneId)) return refuse('unsupported-topology', 'The Clip Zone is absent from the active Layout.')
-  const relatedTracks = composition.propertyTracks.filter(track =>
-    ('clipId' in track.target && track.target.clipId === clip.id)
-    || ('instanceId' in track.target && track.target.instanceId === clip.instanceId))
-  if (intent.kind !== 'move' && relatedTracks.length) return refuse('unsupported-animation', 'Animated trim, extension and split require exact curve-preservation support.')
+  const trackEdit = editShowClipPropertyTracksV2(record, clip, intent)
+  const newTrackConflict = findNewShowInstancePropertyTrackConflictV2(composition.propertyTracks, trackEdit.propertyTracks)
+  if (newTrackConflict) {
+    return refuse('invalid-result', `Instance animation tracks "${newTrackConflict.trackIds[0]}" and "${newTrackConflict.trackIds[1]}" would overlap for the same target.`)
+  }
   const next = structuredClone(record)
   const edited = next.composition.clips[index]
   edited.startMs = start
   edited.durationMs = end - start
-  const affectedTrackIds: string[] = []
+  next.composition.propertyTracks = trackEdit.propertyTracks
+  const affectedTrackIds = trackEdit.affectedTrackIds
   if (intent.kind === 'move') {
     const delta = start - clip.startMs
     edited.appearance.keys.forEach(key => { key.timeMs += delta })
-    const soleUser = composition.clips.filter(candidate => candidate.instanceId === clip.instanceId).length === 1
-    for (const track of next.composition.propertyTracks) {
-      const follows = ('clipId' in track.target && track.target.clipId === clip.id)
-        || ('instanceId' in track.target && track.target.instanceId === clip.instanceId && soleUser)
-      if (follows) {
-        track.activeStartMs += delta
-        track.keyframes.forEach(key => { key.timeMs += delta })
-        affectedTrackIds.push(track.id)
-      }
-    }
   } else edited.appearance.keys = retainedAppearance(clip, start, end)
   if (intent.kind === 'split') {
     next.composition.clips.splice(index + 1, 0, {

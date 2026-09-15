@@ -6,6 +6,7 @@ import { LIBRARIES } from '../pixelblaze/libs'
 import type { ShowClipEditIntentV2 } from './showClipsV2'
 import { describe, expect, it } from 'vitest'
 import { editShowClipV2 } from './showClipsV2'
+import { deriveShowRestartEventsV2, evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { convertibleV1Show } from '../test/showV2TracerFixture'
 import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
@@ -214,8 +215,12 @@ it.each([false, true])('moves animation according to ownership (shared instance:
   expect(result.affectedTrackIds).toEqual(shared ? ['appearance'] : ['appearance', 'clock'])
   expect(source).toEqual(before)
   const trimmed = editShowClipV2(source, { kind: 'trim', clipId: 'clip', startMs: 300, endMs: 900 })
-  expect(trimmed).toMatchObject({ status: 'refused', code: 'unsupported-animation' })
-  expect(trimmed.record).toBe(source)
+  expect(trimmed.status).toBe('changed')
+  if (trimmed.status !== 'changed') return
+  const trimmedTrack = trimmed.record.composition.propertyTracks.find(item => item.id === 'appearance')!
+  expect(trimmedTrack).toMatchObject({ activeStartMs: 300, activeDurationMs: 600 })
+  expect(evaluateShowPropertyTrackV2(trimmedTrack, 300)).toBeCloseTo(0.9)
+  expect(evaluateShowPropertyTrackV2(trimmedTrack, 899)).toBeCloseTo(evaluateShowPropertyTrackV2(composition.propertyTracks[0], 899)!)
 })
 
 it('refuses a Clip whose Zone is absent from the active Layout', () => {
@@ -229,12 +234,33 @@ it('refuses a Clip whose Zone is absent from the active Layout', () => {
 })
 
 
-it('refuses pending Restart semantics and invalid preimages without changing state', () => {
+it('keeps Restart with the left split owner and derives the edited reset event', () => {
   const source = fixture()
   source.composition.clips[0].entryPolicy = 'restart'
   const result = editShowClipV2(source, { kind: 'split', clipId: 'clip', atMs: 700, rightClipId: 'right' })
-  expect(result).toMatchObject({ status: 'refused', code: 'unsupported-topology' })
-  expect(result.record).toBe(source)
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(result.record.composition.clips.map(clip => [clip.id, clip.entryPolicy])).toEqual([
+    ['clip', 'restart'], ['right', 'continue'],
+  ])
+  expect(deriveShowRestartEventsV2(result.record)).toMatchObject({
+    status: 'derived', events: [{ instanceId: 'instance', atMs: 100, clipIds: ['clip'] }],
+  })
+
+  const moved = editShowClipV2(source, { kind: 'move', clipId: 'clip', startMs: 300 })
+  expect(moved.status).toBe('changed')
+  if (moved.status !== 'changed') return
+  expect(deriveShowRestartEventsV2(moved.record)).toMatchObject({
+    status: 'derived', events: [{ instanceId: 'instance', atMs: 300, clipIds: ['clip'] }],
+  })
+})
+
+it('refuses invalid preimages without changing state', () => {
+  const source = fixture()
   source.composition.clips[0].durationMs = 0
-  expect(editShowClipV2(source, { kind: 'move', clipId: 'clip', startMs: 300 })).toMatchObject({ status: 'refused', code: 'invalid-record' })
+  const before = structuredClone(source)
+  const result = editShowClipV2(source, { kind: 'move', clipId: 'clip', startMs: 300 })
+  expect(result).toMatchObject({ status: 'refused', code: 'invalid-record' })
+  expect(result.record).toBe(source)
+  expect(source).toEqual(before)
 })
