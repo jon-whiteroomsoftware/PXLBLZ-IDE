@@ -234,7 +234,7 @@ export function convertShowRecordV1ToV2(
       continue
     }
     const { afterSceneId: _after, layoutId: _layout, routingDirection: _routing, propertyTransitions: _ramps, ...settings } = structuredClone(boundary)
-    const needsWholeOutput = boundary.propertyTransitions !== undefined || from.length !== 1 || to.length !== 1 || from[0].zoneId !== to[0].zoneId || from[0].layerId !== to[0].layerId || composition.scenes.some(scene => (scene.propertyTracks?.length ?? 0) > 0)
+    const needsWholeOutput = layoutOccurrences.length > 1 || show.scenes.some(scene => (scene.sampleTargets?.repeatScale ?? 1) !== (show.scenes[0]?.sampleTargets?.repeatScale ?? 1)) || boundary.propertyTransitions !== undefined || from.length !== 1 || to.length !== 1 || from[0].zoneId !== to[0].zoneId || from[0].layerId !== to[0].layerId || composition.scenes.some(scene => (scene.propertyTracks?.length ?? 0) > 0)
     boundaryTransitions.push({
       ...settings,
       kind: settings.kind as ShowTransitionV2['kind'],

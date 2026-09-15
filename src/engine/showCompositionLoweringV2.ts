@@ -160,6 +160,9 @@ function resolveShowV2CompileContext(
   if (wholeOutput && composition.transitions.some(transition => !transition.wholeOutput)) {
     return refuse('unsupported-transition-participants', 'composition.transitions', 'Mixed whole-output and Layer scopes require separate preservation proof.')
   }
+  if (!wholeOutput && composition.transitions.length > 0 && (composition.layoutOccurrences.length > 1 || composition.propertyTracks.some(track => track.target.kind === 'show-repeat-scale'))) {
+    return refuse('unsupported-transition-property-track', 'composition.transitions', 'Global scalar changes require whole-output preservation scope.')
+  }
   if (composition.transitions.length > 0 && composition.layoutOccurrences.some(occurrence => occurrence.incomingTransfer || occurrence.layoutId !== composition.layoutOccurrences[0].layoutId)) {
     return refuse('unsupported-layout-occurrences', 'composition.layoutOccurrences', 'Mixed Layout and visual Transition lowering requires separate preservation proof.')
   }

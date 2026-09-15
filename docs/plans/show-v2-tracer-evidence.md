@@ -4,6 +4,16 @@
 > wired to product save, import, Undo/Redo, or admission. It does not satisfy
 > the full #1034 acceptance set or approve the provisional v2 model.
 
+## Scalar route correction (2026-09-15)
+
+The scalar-carrier review identified two P2 holes without explicit property ramps:
+held repeat scale could reach the participant emitter and throw, and same-Layout
+split changes could be discarded there. Source conversion now selects whole-output
+scope whenever global scalar targets change. Equivalent handcrafted participant
+forms refuse before emission. Regressions reproduce both failures with a two-Zone
+split and one blank Zone, then preserve public scalar descriptors and generated
+code. The corpus remains 45/47; Group proof and the full matrix remain outstanding.
+
 ## Scalar property-carrier increment (2026-09-15)
 
 The corpus now admits **45/47** records with complete source accounting and no
