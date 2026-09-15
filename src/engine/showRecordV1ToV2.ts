@@ -6,6 +6,7 @@ import type {
   ShowMainPlacement,
   ShowOverlayPlacement,
   ShowRecord,
+  ShowRoutingLayout,
 } from './personalContentRecords'
 import { projectFlatShowToCompositionV1WithCellOrigins, validateShowComposition } from './showCompositionModel'
 import { projectShowTimeline, showLoopDurationMs, type ShowCompileRecipeSourceLookup } from './showModel'
@@ -198,14 +199,6 @@ export function convertShowRecordV1ToV2(
   }
   const { layers, layerIdByOwner } = convertLayers(sourceShow, issues, report)
   const placementSources = collectPlacements(sourceShow, sceneStartById, layerIdByOwner, flatSampleModeByPlacementId)
-  const clips = convertClips(placementSources, issues, report)
-
-  if (issues.length > 0) return refused(show, report, issues)
-
-  const clipIdByPlacementId = new Map<string, string>()
-  for (const mapping of report.clipMappings) {
-    for (const placementId of mapping.sourcePlacementIds) clipIdByPlacementId.set(placementId, mapping.clipId)
-  }
   const showEndMs = showLoopDurationMs(show)
   const layoutOccurrences: ShowLayoutOccurrenceV2[] = []
   let activeLayoutId = show.routingLayouts[0]?.id ?? ''
@@ -221,9 +214,24 @@ export function convertShowRecordV1ToV2(
     } else {
       if (previous) previous.durationMs = startMs - previous.startMs
       layoutOccurrences.push({ id: `layout-occurrence:${layoutOccurrences.length + 1}`, layoutId: activeLayoutId, startMs, durationMs: (timeline.scenes[index + 1]?.startMs ?? showEndMs) - startMs, parameters,
-        ...(routing && previous ? { incomingTransfer: { id: routing.id, fromOccurrenceId: previous.id, durationMs: routing.durationMs, direction: routing.routingDirection ?? 'forward', easing: structuredClone(routing.easing) } } : {}),
+        ...(routing && previous && routing.durationMs > 0 ? { incomingTransfer: { id: routing.id, fromOccurrenceId: previous.id, durationMs: routing.durationMs, direction: routing.routingDirection ?? 'forward', easing: structuredClone(routing.easing) } } : {}),
       })
     }
+  }
+  const clips = convertClips(
+    placementSources,
+    layoutOccurrences,
+    show.routingLayouts,
+    show.zones.map(zone => zone.id),
+    issues,
+    report,
+  )
+
+  if (issues.length > 0) return refused(show, report, issues)
+
+  const clipIdByPlacementId = new Map<string, string>()
+  for (const mapping of report.clipMappings) {
+    for (const placementId of mapping.sourcePlacementIds) clipIdByPlacementId.set(placementId, mapping.clipId)
   }
   const boundaryTransitions: ShowTransitionV2[] = []
   for (const boundary of visualBoundaries) {
@@ -479,6 +487,9 @@ function collectPlacements(
 
 function convertClips(
   placements: PlacementSource[],
+  layoutOccurrences: ShowLayoutOccurrenceV2[],
+  layouts: ShowRoutingLayout[],
+  allZoneIds: string[],
   issues: ShowV1ToV2Issue[],
   report: ShowV1ToV2Report,
 ): ShowClipV2[] {
@@ -490,6 +501,7 @@ function convertClips(
     byLogicalId.set(id, entries)
   }
   const clips: ShowClipV2[] = []
+  const pendingLayoutGapPlacements = new Map<string, string[]>()
   for (const [clipId, sources] of byLogicalId) {
     sources.sort((left, right) => left.globalStartMs - right.globalStartMs || left.placement.id.localeCompare(right.placement.id))
     const first = sources[0]
@@ -513,26 +525,101 @@ function convertClips(
     })).filter((entry, index, entries) => (
       index === 0 || JSON.stringify(entry.value) !== JSON.stringify(entries[index - 1].value)
     ))
-    clips.push({
-      id: clipId,
-      instanceId: first.placement.instanceId,
-      zoneId: first.zoneId,
-      layerId: first.layerId,
-      startMs: first.globalStartMs,
-      durationMs: endMs - first.globalStartMs,
-      entryPolicy: 'continue',
-      zoneSampleMode: first.zoneSampleMode,
-      appearance: {
-        keys: appearanceValues.map((entry, index) => ({
-          id: `${clipId}:appearance:${index + 1}`,
-          timeMs: entry.timeMs,
-          value: entry.value,
-        })),
-      },
-    })
-    report.clipMappings.push({ sourcePlacementIds: sources.map(source => source.placement.id), clipId })
+    const runs = layoutAvailableRuns(
+      first.globalStartMs,
+      endMs,
+      first.zoneId,
+      layoutOccurrences,
+      layouts,
+      allZoneIds,
+    )
+    const continuityKey = `${first.placement.instanceId}\u0000${first.zoneId}\u0000${first.layerId}`
+    if (runs.length === 0) {
+      pendingLayoutGapPlacements.set(continuityKey, [
+        ...(pendingLayoutGapPlacements.get(continuityKey) ?? []),
+        ...sources.map(source => source.placement.id),
+      ])
+      continue
+    }
+    const pendingPlacementIds = pendingLayoutGapPlacements.get(continuityKey) ?? []
+    pendingLayoutGapPlacements.delete(continuityKey)
+    const segmentedByLayout = pendingPlacementIds.length > 0
+      || runs.length !== 1
+      || runs[0]?.startMs !== first.globalStartMs
+      || runs[0]?.endMs !== endMs
+    for (const [runIndex, run] of runs.entries()) {
+      const runId = segmentedByLayout ? `${clipId}--layout-${runIndex + 1}` : clipId
+      const held = [...appearanceValues].reverse().find(entry => entry.timeMs <= run.startMs)
+      if (!held) continue
+      const keys = [
+        { timeMs: run.startMs, value: structuredClone(held.value) },
+        ...appearanceValues
+          .filter(entry => entry.timeMs > run.startMs && entry.timeMs < run.endMs)
+          .map(entry => structuredClone(entry)),
+      ].filter((entry, index, entries) => index === 0 || JSON.stringify(entry.value) !== JSON.stringify(entries[index - 1].value))
+      clips.push({
+        id: runId,
+        instanceId: first.placement.instanceId,
+        zoneId: first.zoneId,
+        layerId: first.layerId,
+        startMs: run.startMs,
+        durationMs: run.endMs - run.startMs,
+        entryPolicy: 'continue',
+        zoneSampleMode: first.zoneSampleMode,
+        appearance: {
+          keys: keys.map((entry, index) => ({
+            id: `${runId}:appearance:${index + 1}`,
+            timeMs: entry.timeMs,
+            value: entry.value,
+          })),
+        },
+      })
+      report.clipMappings.push({
+        sourcePlacementIds: [
+          ...(runIndex === 0 ? pendingPlacementIds : []),
+          ...sources
+            .filter(source => source.globalStartMs >= run.startMs && source.globalStartMs + source.placement.durationMs <= run.endMs)
+            .map(source => source.placement.id),
+        ],
+        clipId: runId,
+      })
+    }
   }
   return clips.sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
+}
+
+function layoutAvailableRuns(
+  startMs: number,
+  endMs: number,
+  zoneId: string,
+  occurrences: ShowLayoutOccurrenceV2[],
+  layouts: ShowRoutingLayout[],
+  allZoneIds: string[],
+): Array<{ startMs: number; endMs: number }> {
+  const layoutById = new Map(layouts.map(layout => [layout.id, layout]))
+  const runs: Array<{ startMs: number; endMs: number }> = []
+  for (const occurrence of [...occurrences].sort((left, right) => left.startMs - right.startMs)) {
+    const occurrenceEndMs = occurrence.startMs + occurrence.durationMs
+    if (occurrenceEndMs <= startMs || occurrence.startMs >= endMs) continue
+    const layout = layoutById.get(occurrence.layoutId)
+    if (!layoutProvidesZone(layout, zoneId, allZoneIds)) continue
+    const part = { startMs: Math.max(startMs, occurrence.startMs), endMs: Math.min(endMs, occurrenceEndMs) }
+    const previous = runs[runs.length - 1]
+    if (previous?.endMs === part.startMs) previous.endMs = part.endMs
+    else runs.push(part)
+  }
+  return runs
+}
+
+function layoutProvidesZone(
+  layout: ShowRoutingLayout | undefined,
+  zoneId: string,
+  allZoneIds: string[],
+): boolean {
+  if (!layout) return false
+  const zoneIds = layout.logical?.zoneIds
+    ?? (layout.zones.length > 0 ? layout.zones.map(zone => zone.zoneId) : allZoneIds)
+  return zoneIds.includes(zoneId)
 }
 
 function isScalarCarrier(carrier: NonNullable<ShowRecord['transitions'][number]['propertyTransitions']>): boolean {
@@ -675,10 +762,21 @@ export function auditShowV1ToV2Accounting(
   } else {
     for (const [transitionIndex, transition] of show.transitions.entries()) {
       if (transition.kind === 'routing') {
-        const occurrence = record.composition.layoutOccurrences.find(candidate => candidate.incomingTransfer?.id === transition.id)
-        const transfer = occurrence?.incomingTransfer
         const offset = report.sceneOffsets.find(scene => scene.sceneId === transition.afterSceneId)
-        const valid = !!(occurrence && transfer && occurrence.layoutId === transition.layoutId && occurrence.startMs === offset?.endMs && transfer.durationMs === transition.durationMs && transfer.direction === (transition.routingDirection ?? 'forward') && JSON.stringify(transfer.easing) === JSON.stringify(transition.easing))
+        const occurrence = transition.durationMs > 0
+          ? record.composition.layoutOccurrences.find(candidate => candidate.incomingTransfer?.id === transition.id)
+          : record.composition.layoutOccurrences.find(candidate => (
+            candidate.startMs === offset?.endMs && candidate.layoutId === transition.layoutId
+          ))
+        const transfer = occurrence?.incomingTransfer
+        const valid = !!(occurrence
+          && occurrence.layoutId === transition.layoutId
+          && occurrence.startMs === offset?.endMs
+          && (transition.durationMs === 0
+            ? transfer === undefined
+            : transfer?.durationMs === transition.durationMs
+              && transfer.direction === (transition.routingDirection ?? 'forward')
+              && JSON.stringify(transfer.easing) === JSON.stringify(transition.easing)))
         mapped(`transitions.${transitionIndex}`, 'composition.layoutOccurrences', transition, valid)
         continue
       }
@@ -851,7 +949,7 @@ function auditComposition(
       mapped(`${zonePath}.zoneId`, 'composition.layers/clips', zone.zoneId, hasMappedLayer)
       if (zone.main.length === 0) mapped(`${zonePath}.main`, 'composition.clips', zone.main, true)
       for (const [placementIndex, placement] of zone.main.entries()) {
-        auditPlacement(accounting, record, report, placement, `${zonePath}.main.${placementIndex}`, offset?.startMs ?? 0)
+        auditPlacement(accounting, record, report, placement, `${zonePath}.main.${placementIndex}`, offset?.startMs ?? 0, zone.zoneId)
       }
       if (zone.overlays.length === 0) mapped(`${zonePath}.overlays`, 'composition.layers', zone.overlays, true)
       for (const [layerIndex, layer] of zone.overlays.entries()) {
@@ -863,7 +961,7 @@ function auditComposition(
         mapped(`${layerPath}.name`, targetIndex >= 0 ? `composition.layers.${targetIndex}.name` : 'composition.layers', layer.name, target?.name === layer.name)
         if (layer.placements.length === 0) mapped(`${layerPath}.placements`, 'composition.clips', layer.placements, true)
         for (const [placementIndex, placement] of layer.placements.entries()) {
-          auditPlacement(accounting, record, report, placement, `${layerPath}.placements.${placementIndex}`, offset?.startMs ?? 0)
+          auditPlacement(accounting, record, report, placement, `${layerPath}.placements.${placementIndex}`, offset?.startMs ?? 0, zone.zoneId)
         }
       }
     }
@@ -894,12 +992,27 @@ function auditPlacement(
   placement: ShowMainPlacement | ShowOverlayPlacement,
   sourcePath: string,
   sceneStartMs: number,
+  zoneId: string,
 ): void {
-  const mapping = report.clipMappings.find(candidate => candidate.sourcePlacementIds.includes(placement.id))
+  const timeMs = sceneStartMs + placement.startMs
+  const endMs = timeMs + placement.durationMs
+  const routed = record.composition.layoutOccurrences.some(occurrence => {
+    if (occurrence.startMs >= endMs || occurrence.startMs + occurrence.durationMs <= timeMs) return false
+    const layout = record.zoneLayouts.find(candidate => candidate.id === occurrence.layoutId)
+    return layoutProvidesZone(layout, zoneId, record.zones.map(zone => zone.id))
+  })
+  if (!routed && record.composition.patternInstances.some(instance => instance.id === placement.instanceId)) {
+    addAccountingLeaves(accounting, sourcePath, placement, 'mapped', 'composition.patternInstances/layoutOccurrences', false)
+    return
+  }
+  const candidateMappings = report.clipMappings.filter(candidate => candidate.sourcePlacementIds.includes(placement.id))
+  const mapping = candidateMappings.find(candidate => {
+    const target = record.composition.clips.find(clip => clip.id === candidate.clipId)
+    return target && target.startMs <= timeMs && target.startMs + target.durationMs >= endMs
+  }) ?? candidateMappings[0]
   const clipIndex = record.composition.clips.findIndex(candidate => candidate.id === mapping?.clipId)
   const clip = record.composition.clips[clipIndex]
   if (!clip) return
-  const timeMs = sceneStartMs + placement.startMs
   const key = [...clip.appearance.keys].reverse().find(candidate => candidate.timeMs <= timeMs)
   const expectedAppearance = {
     opacity: placement.opacity ?? 1,
@@ -911,8 +1024,9 @@ function auditPlacement(
     effects: placement.effects ?? [],
   }
   const logicalId = placement.logicalClipId ?? placement.id
-  const intervalCovered = clip.startMs <= timeMs && clip.startMs + clip.durationMs >= timeMs + placement.durationMs
-  if (mapping && mapping.clipId === logicalId && clip.instanceId === placement.instanceId && intervalCovered && JSON.stringify(key?.value) === JSON.stringify(expectedAppearance)) {
+  const intervalCovered = clip.startMs <= timeMs && clip.startMs + clip.durationMs >= endMs
+  const mappedLogicalId = mapping?.clipId === logicalId || mapping?.clipId.startsWith(`${logicalId}--layout-`)
+  if (mapping && mappedLogicalId && clip.instanceId === placement.instanceId && intervalCovered && JSON.stringify(key?.value) === JSON.stringify(expectedAppearance)) {
     addAccountingLeaves(accounting, sourcePath, placement, 'mapped', `composition.clips.${clipIndex}`)
   }
 }

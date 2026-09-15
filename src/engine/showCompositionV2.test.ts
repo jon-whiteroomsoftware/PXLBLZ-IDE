@@ -144,6 +144,60 @@ describe('validateShowRecordV2', () => {
     }))
   })
 
+  it('requires timed Layout transfers to be positive and fit both adjacent occurrences', () => {
+    const record = minimalShowRecordV2()
+    record.composition.layoutOccurrences = [
+      { ...record.composition.layoutOccurrences[0], durationMs: 400 },
+      {
+        id: 'second', layoutId: 'layout', startMs: 400, durationMs: 600, parameters: {},
+        incomingTransfer: {
+          id: 'transfer', fromOccurrenceId: 'layout-occurrence', durationMs: 0, direction: 'forward',
+        },
+      },
+    ]
+
+    expect(validateShowRecordV2(record)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: 'composition.layoutOccurrences[1].incomingTransfer.durationMs',
+        code: 'out-of-bounds',
+      }),
+    ]))
+    record.composition.layoutOccurrences[1].incomingTransfer!.durationMs = 500
+    expect(validateShowRecordV2(record)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: 'composition.layoutOccurrences[1].incomingTransfer.durationMs',
+        code: 'out-of-bounds',
+        message: 'Incoming transfer must fit both adjacent Layout occurrences and Show End.',
+      }),
+    ]))
+  })
+
+  it('requires a Layout split-position track to remain inside its owning occurrence', () => {
+    const record = minimalShowRecordV2()
+    record.composition.layoutOccurrences = [
+      { ...record.composition.layoutOccurrences[0], durationMs: 400 },
+      { id: 'second', layoutId: 'layout', startMs: 400, durationMs: 600, parameters: {} },
+    ]
+    record.composition.propertyTracks = [{
+      id: 'split',
+      target: { kind: 'layout-occurrence-split-position', layoutOccurrenceId: 'second' },
+      activeStartMs: 300,
+      activeDurationMs: 300,
+      keyframes: [
+        { id: 'a', timeMs: 300, value: 0.2, easing: { curve: 'linear' } },
+        { id: 'b', timeMs: 600, value: 0.8, easing: { curve: 'linear' } },
+      ],
+    }]
+
+    expect(validateShowRecordV2(record)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: 'composition.propertyTracks[0].target',
+        code: 'out-of-bounds',
+        message: 'Layout property activation must remain inside its owning occurrence.',
+      }),
+    ]))
+  })
+
   it('rejects structurally unknown fields instead of admitting data the domain validator cannot see', () => {
     const record = minimalShowRecordV2() as ShowRecordV2 & { experimental?: unknown }
     record.experimental = { authored: true }

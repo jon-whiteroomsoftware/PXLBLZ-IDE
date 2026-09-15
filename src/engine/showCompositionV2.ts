@@ -436,7 +436,12 @@ export function validateShowRecordV2(record: ShowRecordV2): ShowCompositionV2Val
       showEndMs: composition.showEndMs,
     })
   })
-  validateGroups(issues, record, { layers, layouts: occurrences, definitions })
+  validateGroups(issues, record, {
+    layers,
+    occurrences,
+    routingLayouts: layouts,
+    definitions,
+  })
 
   return issues
 }
@@ -563,7 +568,12 @@ function validateLayoutCoverage(
       if (index === 0 || !occurrences.has(occurrence.incomingTransfer.fromOccurrenceId) || ordered[index - 1].id !== occurrence.incomingTransfer.fromOccurrenceId) {
         addIssue(issues, `${path}.incomingTransfer.fromOccurrenceId`, 'missing-reference', 'Incoming transfer must reference a preceding occurrence.')
       }
-      validateNonnegativeTime(issues, `${path}.incomingTransfer.durationMs`, occurrence.incomingTransfer.durationMs)
+      validatePositiveTime(issues, `${path}.incomingTransfer.durationMs`, occurrence.incomingTransfer.durationMs)
+      if (index > 0 && (occurrence.incomingTransfer.durationMs > ordered[index - 1].durationMs
+        || occurrence.incomingTransfer.durationMs > occurrence.durationMs
+        || safeAdd(occurrence.startMs, occurrence.incomingTransfer.durationMs) > record.composition.showEndMs)) {
+        addIssue(issues, `${path}.incomingTransfer.durationMs`, 'out-of-bounds', 'Incoming transfer must fit both adjacent Layout occurrences and Show End.')
+      }
     }
   })
   if (cursorMs !== record.composition.showEndMs) {
@@ -614,10 +624,15 @@ function validatePropertyTarget(
   context: PropertyValidationContext,
 ): void {
   const target = track.target
+  const activeEndMs = safeAdd(track.activeStartMs, track.activeDurationMs)
   if (target.kind === 'show-repeat-scale') return
   if (target.kind === 'layout-occurrence-split-position') {
-    if (!context.occurrences.has(target.layoutOccurrenceId)) {
+    const occurrence = context.occurrences.get(target.layoutOccurrenceId)
+    if (!occurrence) {
       addIssue(issues, path, 'invalid-property-target', 'Property target Layout occurrence does not exist.')
+    } else if (track.activeStartMs < occurrence.startMs
+      || activeEndMs > safeAdd(occurrence.startMs, occurrence.durationMs)) {
+      addIssue(issues, path, 'out-of-bounds', 'Layout property activation must remain inside its owning occurrence.')
     }
     return
   }
@@ -631,7 +646,6 @@ function validatePropertyTarget(
   if (!clip) {
     addIssue(issues, path, 'invalid-property-target', 'Property target Clip does not exist.')
   } else if (target.kind === 'clip-effect') {
-    const activeEndMs = track.activeStartMs + track.activeDurationMs
     const everyAppearanceOwnsEffect = clip.appearance.keys.every((key, index) => {
       const keyEndMs = clip.appearance.keys[index + 1]?.timeMs ?? clip.startMs + clip.durationMs
       if (key.timeMs >= activeEndMs || keyEndMs <= track.activeStartMs) return true
@@ -648,7 +662,8 @@ function validateGroups(
   record: ShowRecordV2,
   context: {
     layers: Map<string, ShowLayerV2>
-    layouts: Map<string, ShowLayoutOccurrenceV2>
+    occurrences: Map<string, ShowLayoutOccurrenceV2>
+    routingLayouts: Map<string, ShowRoutingLayout>
     definitions: Map<string, ShowGroupDefinitionV2>
   },
 ): void {
@@ -680,13 +695,31 @@ function validateGroups(
     const path = `composition.groupOccurrences[${occurrenceIndex}]`
     const definition = context.definitions.get(occurrence.definitionId)
     if (!definition) addIssue(issues, `${path}.definitionId`, 'missing-reference', 'Group definition does not exist.')
-    if (!context.layouts.has(occurrence.layoutOccurrenceId)) {
+    if (!context.occurrences.has(occurrence.layoutOccurrenceId)) {
       addIssue(issues, `${path}.layoutOccurrenceId`, 'missing-reference', 'Layout occurrence does not exist.')
     }
     if (definition) {
       const endMs = safeAdd(occurrence.startMs, groupDuration(definition))
-      const layout = context.layouts.get(occurrence.layoutOccurrenceId)
-      if (!layout || occurrence.startMs < layout.startMs || endMs > layout.startMs + layout.durationMs || endMs > record.composition.showEndMs) addIssue(issues, path, 'out-of-bounds', 'Group occurrence must remain inside its Layout occurrence and Show End.')
+      const layout = context.occurrences.get(occurrence.layoutOccurrenceId)
+      if (!layout
+        || occurrence.startMs < layout.startMs
+        || occurrence.startMs >= safeAdd(layout.startMs, layout.durationMs)) {
+        addIssue(issues, `${path}.layoutOccurrenceId`, 'out-of-bounds', 'Group occurrence Layout association must own its start time.')
+      }
+      if (endMs > record.composition.showEndMs) {
+        addIssue(issues, path, 'out-of-bounds', 'Group occurrence must end within Show End.')
+      }
+      for (const intersected of record.composition.layoutOccurrences) {
+        if (occurrence.startMs >= safeAdd(intersected.startMs, intersected.durationMs)
+          || endMs <= intersected.startMs) continue
+        const routing = context.routingLayouts.get(intersected.layoutId)
+        const zoneIds = routing?.logical?.zoneIds ?? (routing?.zones.length
+          ? routing.zones.map(zone => zone.zoneId)
+          : record.zones.map(zone => zone.id))
+        if (!zoneIds.includes(occurrence.zoneId)) {
+          addIssue(issues, path, 'out-of-bounds', `Group occurrence Zone is unavailable in Layout occurrence "${intersected.id}".`)
+        }
+      }
       if (Object.keys(occurrence.instanceBindings ?? {}).some(id => !definition.patternInstances.some(instance => instance.id === id))) addIssue(issues, path, 'missing-reference', 'Group runtime binding must name a definition instance.')
       if (occurrence.trackActivation && (occurrence.trackActivation.startMs > occurrence.startMs || occurrence.trackActivation.startMs + occurrence.trackActivation.durationMs < endMs || occurrence.trackActivation.startMs + occurrence.trackActivation.durationMs > record.composition.showEndMs)) addIssue(issues, path, 'out-of-bounds', 'Group track activation must cover the occurrence inside Show End.')
     }

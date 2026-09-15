@@ -7,6 +7,7 @@ import { compileShow } from './showCompiler'
 import { validateShowRecordV2 } from './showCompositionV2'
 import { LIBRARIES } from '../pixelblaze/libs'
 import { runtimeParity } from '../../scripts/show-v2-parity'
+import { editShowLayoutIntervalsV2 } from './showLayoutIntervalsV2'
 
 it.each([1, 2])('preserves %i Layout transfers starting with whole-output visual Transitions', count => {
   const source = transitionV1Show('crossfade', 'live-live')
@@ -52,10 +53,13 @@ it.each([1, 2])('preserves %i Layout transfers starting with whole-output visual
   expect(b.code).toBe(a.code)
   for (const fidelity of ['fast', 'fidelity'] as const) expect(runtimeParity(a, b, source, converted.record, fidelity, [])).toMatchObject({ matched: true, secondLoopMatched: true, coldSeekMatchedContinuous: true })
   for (const atMs of [399, 400, 401, 599, 600, 601]) {
-    const changed = structuredClone(converted.record)
-    changed.composition.layoutOccurrences[0].durationMs = atMs
-    changed.composition.layoutOccurrences[1].startMs = atMs
-    changed.composition.layoutOccurrences[1].durationMs -= atMs - 400
+    const edit = editShowLayoutIntervalsV2(converted.record, {
+      kind: 'move',
+      occurrenceId: converted.record.composition.layoutOccurrences[1].id,
+      startMs: atMs,
+    })
+    expect(edit.status, edit.status === 'refused' ? edit.message : undefined).toBe(atMs === 400 ? 'unchanged' : 'changed')
+    const changed = edit.record
     expect(validateShowRecordV2(changed)).toEqual([])
     const preimage = structuredClone(changed)
     const result = prepareShowV2ForCompile(changed, lookup)
@@ -82,7 +86,7 @@ it('preserves a Zone disappearing and returning with the same runtime instance',
   composition.durationMs = 1200
   composition.patternInstances = [composition.patternInstances[0]]
   composition.scenes = source.scenes.map((scene, index) => ({ sceneId: scene.id, zones: [
-    { zoneId: 'zone', main: index === 1 ? [] : [{ ...structuredClone(out), id: `clip-${index}` }], overlays: [] },
+    { zoneId: 'zone', main: [{ ...structuredClone(out), id: `clip-${index}` }], overlays: [] },
     { zoneId: 'other', main: [], overlays: [] },
   ] }))
   delete composition.transitions
@@ -97,6 +101,10 @@ it('preserves a Zone disappearing and returning with the same runtime instance',
   expect(source).toEqual(before)
   expect(converted.report.unaccountedSourcePaths).toEqual([])
   expect(converted.record.composition.patternInstances).toHaveLength(1)
+  expect(converted.record.composition.clips.map(clip => ({ id: clip.id, startMs: clip.startMs, durationMs: clip.durationMs }))).toEqual([
+    { id: 'clip-0', startMs: 0, durationMs: 400 },
+    { id: 'clip-2--layout-1', startMs: 800, durationMs: 400 },
+  ])
   const prepared = prepareShowV2ForCompile(converted.record, lookup)
   if (prepared.status !== 'ready') throw new Error(JSON.stringify(prepared.issues))
   const a = compileShow(showRecordToCompileRecipe(source, lookup), LIBRARIES)
