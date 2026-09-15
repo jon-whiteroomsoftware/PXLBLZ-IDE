@@ -31,6 +31,37 @@ describe('opt-in v2 Show route adoption', () => {
     expect(state().showV2Pilots[converted.record.id]).toEqual(converted.record)
   })
 
+  it('drops the previous workspace pilot cache before reopening the same id from a new provider', async () => {
+    const first = convertShowRecordV1ToV2({ ...transitionV1Show('crossfade'), name: 'First account' })
+    const second = convertShowRecordV1ToV2({ ...transitionV1Show('crossfade'), name: 'Second account' })
+    if (first.status !== 'converted' || second.status !== 'converted') throw new Error('conversion failed')
+    setPersonalContentProvider({
+      id: 'first-workspace',
+      listShows: async () => [],
+      listShowDocumentsV2: async () => [structuredClone(first.record)],
+    } as unknown as PersonalContentProvider)
+    await state().openShowV2Pilot(first.record.id)
+    useShowStore.setState({
+      showV2Histories: { [first.record.id]: { past: [structuredClone(first.record)], future: [] } },
+      showV2SaveFailure: { showId: first.record.id, record: structuredClone(first.record) },
+    })
+
+    setPersonalContentProvider({
+      id: 'second-workspace',
+      listShows: async () => [],
+      listShowDocumentsV2: async () => [structuredClone(second.record)],
+    } as unknown as PersonalContentProvider)
+    await state().loadShows()
+
+    expect(state().showV2Pilots).toEqual({})
+    expect(state().showV2Histories).toEqual({})
+    expect(state().showV2SaveFailure).toBeNull()
+    await expect(state().openShowV2Pilot(second.record.id)).resolves.toMatchObject({
+      status: 'ready',
+      record: { name: 'Second account' },
+    })
+  })
+
   it('converts v1, edits through the Transition owner, saves, undoes/redoes, and reloads provider bytes', async () => {
     const source = transitionV1Show('crossfade')
     let stored: ShowRecordV2 | undefined

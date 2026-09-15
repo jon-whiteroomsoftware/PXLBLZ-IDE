@@ -597,6 +597,11 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
   loadShows: async () => {
     resizeAdmission.invalidate()
     inputWait.invalidate()
+    // Pilot documents are provider-owned personal content. Retire them before
+    // a workspace reload so a same-id record from the previous account cannot
+    // satisfy the next route before its provider has been consulted.
+    lastPersistedShowV2Pilots.clear()
+    set({ showV2Pilots: {}, showV2Histories: {}, showV2SaveFailure: null })
     const hydration = (async () => {
     const shows = (await getPersonalContentProvider().listShows())
       .map(normalizeShowRecord)
