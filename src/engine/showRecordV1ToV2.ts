@@ -13,6 +13,7 @@ import {
   type ShowLayerV2,
   type ShowPropertyTargetV2,
   type ShowRecordV2,
+  type ShowTransitionV2,
 } from './showCompositionV2'
 
 export type ShowV1ToV2IssueCode =
@@ -173,11 +174,6 @@ export function convertShowRecordV1ToV2(
   }
   const visualBoundaries = show.transitions.filter(transition => transition.kind !== 'routing' && transition.kind !== 'cut')
   if (visualBoundaries.length > 0) {
-    issues.push({
-      path: 'transitions',
-      code: 'unsupported-boundary-transition',
-      message: 'Whole-boundary visual scope must be converted into explicit participants before admission.',
-    })
     if (composition.scenes.some(scene => (scene.propertyTracks?.length ?? 0) > 0)) {
       issues.push({
         path: 'composition.scenes.*.propertyTracks',
@@ -223,6 +219,19 @@ export function convertShowRecordV1ToV2(
     for (const placementId of mapping.sourcePlacementIds) clipIdByPlacementId.set(placementId, mapping.clipId)
   }
   const showEndMs = showLoopDurationMs(show)
+  const boundaryTransitions: ShowTransitionV2[] = []
+  for (const boundary of visualBoundaries) {
+    const atMs = sceneEndById.get(boundary.afterSceneId)
+    const from = clips.filter(clip => clip.startMs + clip.durationMs === atMs)
+    const to = clips.filter(clip => clip.startMs === (atMs ?? 0) + boundary.durationMs)
+    if (from.length !== 1 || to.length !== 1 || from[0].zoneId !== to[0].zoneId || from[0].layerId !== to[0].layerId || clips.some(clip => clip !== from[0] && clip !== to[0] && clip.startMs < (atMs ?? 0) + boundary.durationMs && clip.startMs + clip.durationMs > (atMs ?? 0)) || boundary.propertyTransitions || boundary.layoutId || boundary.routingDirection) {
+      issues.push({ path: 'transitions', code: 'unsupported-boundary-transition', message: 'Whole-boundary scope requires a two-sided single participant without unrelated contribution or boundary carriers.' })
+      continue
+    }
+    const { afterSceneId: _after, layoutId: _layout, routingDirection: _routing, propertyTransitions: _ramps, ...settings } = structuredClone(boundary)
+    boundaryTransitions.push({ ...settings, kind: settings.kind as ShowTransitionV2['kind'], participants: [{ id: `${boundary.id}:participant:1`, zoneId: from[0].zoneId, layerId: from[0].layerId, fromClipId: from[0].id, toClipId: to[0].id }], propertyRamps: [] })
+  }
+  if (issues.length > 0) return refused(show, report, issues)
   const markers = structuredClone(composition.markers ?? [])
   for (const scene of timeline.scenes) {
     const existing = markers.find(marker => marker.timeMs === scene.startMs && marker.name === scene.scene.name)
@@ -296,7 +305,7 @@ export function convertShowRecordV1ToV2(
       patternInstances: structuredClone(composition.patternInstances),
       layers,
       clips,
-      transitions: (composition.transitions ?? []).map((transition) => ({
+      transitions: [...boundaryTransitions, ...(composition.transitions ?? []).map((transition) => ({
         ...transitionSettings(transition),
         participants: [{
           id: `${transition.id}:participant:1`,
@@ -306,7 +315,7 @@ export function convertShowRecordV1ToV2(
           toClipId: clipIdByPlacementId.get(transition.toPlacementId) ?? '',
         }],
         propertyRamps: [],
-      })),
+      }))],
       layoutOccurrences: [{
         id: 'layout-occurrence:1',
         layoutId: show.routingLayouts[0]?.id ?? '',
@@ -655,7 +664,9 @@ export function auditShowV1ToV2Accounting(
       Boolean(
         offset
         && marker?.timeMs === offset.startMs
-        && candidateEndMs === offset.endMs
+        && candidateEndMs === offset.endMs + (record.composition.transitions.find(transition =>
+          show.transitions.some(source => source.id === transition.id && source.afterSceneId === scene.id)
+        )?.durationMs ?? 0)
         && offset.endMs - offset.startMs === scene.durationMs
         && layout?.startMs === 0
         && layout.durationMs === record.composition.showEndMs
@@ -695,6 +706,14 @@ export function auditShowV1ToV2Accounting(
     retired('transitions', 'composition.transitions/layoutOccurrences', show.transitions, true)
   } else {
     for (const [transitionIndex, transition] of show.transitions.entries()) {
+      const targetIndex = record.composition.transitions.findIndex(candidate => candidate.id === transition.id)
+      if (transition.kind !== 'cut' && targetIndex >= 0) {
+        const { afterSceneId, ...settings } = transition
+        const { participants: _participants, propertyRamps: _ramps, ...targetSettings } = record.composition.transitions[targetIndex]
+        mapped(`transitions.${transitionIndex}`, `composition.transitions.${targetIndex}`, settings, JSON.stringify(settings) === JSON.stringify(targetSettings))
+        retired(`transitions.${transitionIndex}.afterSceneId`, `composition.transitions.${targetIndex}.participants`, afterSceneId, report.sceneOffsets.some(scene => scene.sceneId === afterSceneId))
+        continue
+      }
       const retirement = report.retiredStructuralCuts.find(candidate => candidate.sourceTransitionId === transition.id)
       retired(
         `transitions.${transitionIndex}`,
@@ -752,8 +771,10 @@ function auditFlatCell(
   mapped('id', 'composition.patternInstances/clips', cell.id, clips.length > 0 && instances.length > 0)
   mapped('zoneId', 'composition.clips.*.zoneId', cell.zoneId, clips.length > 0 && clips.some(clip => clip.zoneId === cell.zoneId))
   const startSceneIndex = show.scenes.findIndex(scene => scene.id === cell.sceneId)
-  const startMs = show.scenes.slice(0, Math.max(0, startSceneIndex)).reduce((sum, scene) => sum + scene.durationMs, 0)
-  const durationMs = show.scenes.slice(startSceneIndex, startSceneIndex + Math.max(1, cell.sceneSpan)).reduce((sum, scene) => sum + scene.durationMs, 0)
+  const startMs = report.sceneOffsets.find(scene => scene.sceneId === cell.sceneId)?.startMs ?? 0
+  const lastScene = show.scenes[startSceneIndex + Math.max(1, cell.sceneSpan) - 1]
+  const endMs = report.sceneOffsets.find(scene => scene.sceneId === lastScene?.id)?.endMs ?? 0
+  const durationMs = endMs - startMs
   mapped('sceneId', 'composition.clips.*.startMs', cell.sceneId, startSceneIndex >= 0 && clips.length > 0 && Math.min(...clips.map(clip => clip.startMs)) === startMs)
   mapped('sceneSpan', 'composition.clips.*.durationMs', cell.sceneSpan, clips.length > 0 && Math.max(...clips.map(clip => clip.startMs + clip.durationMs)) === startMs + durationMs)
   if (cell.zoneSpan !== undefined) {

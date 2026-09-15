@@ -65,17 +65,15 @@
   "summary": {
     "total": 47,
     "byOutcome": {
-      "conversion-refused": 20,
-      "converted-compiled": 22,
-      "preparation-refused": 5
+      "conversion-refused": 11,
+      "converted-compiled": 35,
+      "preparation-refused": 1
     },
     "byRefusalCode": {
-      "unsupported-boundary-transition": 12,
       "unsupported-group": 2,
       "unsupported-routing-change": 6,
-      "unsupported-track-activation": 3,
-      "unsupported-transition-property-track": 2,
-      "unsupported-transition-track-activation": 3
+      "unsupported-transition-track-activation": 3,
+      "unsupported-zone-sampling": 1
     },
     "parityFailures": [],
     "lifecycleObservations": {
@@ -84,18 +82,31 @@
       "fixedStepFreshPhaseResiduals": [
         "stock:stock-show-100-getting-around",
         "stock:stock-show-101-clips-cuts-blank-time",
+        "stock:stock-show-102-transitions-values",
         "stock:stock-show-103-clip-transform",
         "stock:stock-show-104-effects-and-ordering",
+        "stock:stock-show-106-built-from-basics",
+        "stock:stock-show-201-layers-property-animation",
+        "stock:stock-show-202-content-clip-viewport",
         "stock:stock-show-203-pattern-instance-lifecycle",
         "stock:stock-show-204-presentation-modes",
         "stock:stock-show-207-aperture-shapes-edges",
         "stock:stock-show-301-installation-mapping",
         "stock:stock-show-302-installation-composition",
+        "stock:stock-show-303-compile-simplify-deliver",
         "stock:stock-show-showcase-transform-effects",
         "stock:stock-show-showcase-distortion-effects",
         "stock:stock-show-showcase-color-adjustment-effects",
         "stock:stock-show-showcase-compositing-key-effects",
         "stock:stock-show-showcase-luma-sources",
+        "stock:stock-show-reference-blend-fade-transitions",
+        "stock:stock-show-reference-wipe-transitions",
+        "stock:stock-show-reference-dissolve-transitions",
+        "stock:stock-show-reference-shape-reveal-transitions",
+        "stock:stock-show-reference-shape-reveal-figures",
+        "stock:stock-show-reference-slide-transitions",
+        "stock:stock-show-reference-zoom-spin-transitions",
+        "stock:stock-show-reference-easing",
         "stock:stock-show-reference-aperture-shapes",
         "stock:stock-show-reference-aperture-icons",
         "stock:stock-show-showcase-redline-installation",
@@ -156,7 +167,7 @@
       "refusalCodes": [],
       "refusalMessages": [],
       "parity": {
-        "recipeEqual": false,
+        "recipeEqual": true,
         "sourceEqual": true,
         "summaryEqual": true,
         "memberIdentityMappings": [],
@@ -909,13 +920,361 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "preparation-refused",
-      "refusalCodes": [
-        "unsupported-transition-property-track"
-      ],
-      "refusalMessages": [
-        "composition.propertyTracks: lowering requires positive-Transition property-track activation evidence before compilation."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": true,
+        "sourceEqual": true,
+        "summaryEqual": true,
+        "memberIdentityMappings": [],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            2500,
+            4999,
+            5000,
+            5001,
+            6000,
+            6250,
+            6999,
+            7000,
+            7001,
+            8250,
+            9000,
+            10999,
+            11000,
+            11001,
+            11750,
+            12499,
+            12500,
+            12501,
+            13500,
+            14499,
+            14500,
+            14501,
+            15500,
+            16499
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "horizon:arcCount",
+            "horizon:b",
+            "horizon:beamC",
+            "horizon:beamS",
+            "horizon:elapsed_ms",
+            "horizon:flicker",
+            "horizon:g",
+            "horizon:jetPower",
+            "horizon:r",
+            "horizon:t",
+            "iris:apertureR",
+            "iris:elapsed_ms",
+            "iris:t",
+            "iris:tick",
+            "mandala:adapt_brightness",
+            "mandala:b",
+            "mandala:elapsed_ms",
+            "mandala:g",
+            "mandala:r",
+            "mandala:ringCount",
+            "mandala:spokeCount",
+            "mandala:t"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "horizon:arcCount",
+              "phase": 3,
+              "secondLoop": 4
+            },
+            {
+              "key": "horizon:b",
+              "phase": 0,
+              "secondLoop": 0.0003029623831398066
+            },
+            {
+              "key": "horizon:beamC",
+              "phase": 1,
+              "secondLoop": 0.7097756598723534
+            },
+            {
+              "key": "horizon:beamS",
+              "phase": 0,
+              "secondLoop": 0.7044277909429506
+            },
+            {
+              "key": "horizon:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 2401.2799999999716
+            },
+            {
+              "key": "horizon:flicker",
+              "phase": 1,
+              "secondLoop": 0.9957169073212362
+            },
+            {
+              "key": "horizon:g",
+              "phase": 0,
+              "secondLoop": 0.002794296427988943
+            },
+            {
+              "key": "horizon:jetPower",
+              "phase": 0,
+              "secondLoop": 0.35375
+            },
+            {
+              "key": "horizon:r",
+              "phase": 0,
+              "secondLoop": 0.006056837858925794
+            },
+            {
+              "key": "horizon:t",
+              "phase": 0,
+              "secondLoop": 1.1165951999999963
+            },
+            {
+              "key": "iris:apertureR",
+              "phase": 0.20009959000794109,
+              "secondLoop": 0.2298871308263673
+            },
+            {
+              "key": "iris:elapsed_ms",
+              "phase": 81.92,
+              "secondLoop": 2319.3599999999733
+            },
+            {
+              "key": "iris:t",
+              "phase": 0.045875200000000005,
+              "secondLoop": 1.298841600000002
+            },
+            {
+              "key": "iris:tick",
+              "phase": 0,
+              "secondLoop": 3
+            },
+            {
+              "key": "mandala:adapt_brightness",
+              "phase": 1,
+              "secondLoop": 0.44999999999999996
+            },
+            {
+              "key": "mandala:b",
+              "phase": 0,
+              "secondLoop": 0.04851373739069917
+            },
+            {
+              "key": "mandala:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 1762.559999999985
+            },
+            {
+              "key": "mandala:g",
+              "phase": 0,
+              "secondLoop": 0.010673022225953815
+            },
+            {
+              "key": "mandala:r",
+              "phase": 0,
+              "secondLoop": 0.03747033310741145
+            },
+            {
+              "key": "mandala:ringCount",
+              "secondLoop": 8.68
+            },
+            {
+              "key": "mandala:spokeCount",
+              "secondLoop": 14
+            },
+            {
+              "key": "mandala:t",
+              "phase": 0,
+              "secondLoop": 1.646231040000006
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            2500,
+            4999,
+            5000,
+            5001,
+            6000,
+            6250,
+            6999,
+            7000,
+            7001,
+            8250,
+            9000,
+            10999,
+            11000,
+            11001,
+            11750,
+            12499,
+            12500,
+            12501,
+            13500,
+            14499,
+            14500,
+            14501,
+            15500,
+            16499
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "horizon:arcCount",
+            "horizon:b",
+            "horizon:beamC",
+            "horizon:beamS",
+            "horizon:elapsed_ms",
+            "horizon:flicker",
+            "horizon:g",
+            "horizon:jetPower",
+            "horizon:r",
+            "horizon:t",
+            "iris:apertureR",
+            "iris:elapsed_ms",
+            "iris:t",
+            "iris:tick",
+            "mandala:adapt_brightness",
+            "mandala:b",
+            "mandala:elapsed_ms",
+            "mandala:g",
+            "mandala:r",
+            "mandala:ringCount",
+            "mandala:spokeCount",
+            "mandala:t"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "horizon:arcCount",
+              "phase": 196608,
+              "secondLoop": 262144
+            },
+            {
+              "key": "horizon:b",
+              "phase": 0,
+              "secondLoop": 19
+            },
+            {
+              "key": "horizon:beamC",
+              "phase": 65536,
+              "secondLoop": 46600
+            },
+            {
+              "key": "horizon:beamS",
+              "phase": 0,
+              "secondLoop": 46081
+            },
+            {
+              "key": "horizon:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 157038336
+            },
+            {
+              "key": "horizon:flicker",
+              "phase": 65536,
+              "secondLoop": 65114
+            },
+            {
+              "key": "horizon:g",
+              "phase": 0,
+              "secondLoop": 182
+            },
+            {
+              "key": "horizon:jetPower",
+              "phase": 0,
+              "secondLoop": 23183
+            },
+            {
+              "key": "horizon:r",
+              "phase": 0,
+              "secondLoop": 395
+            },
+            {
+              "key": "horizon:t",
+              "phase": 0,
+              "secondLoop": 73008
+            },
+            {
+              "key": "iris:apertureR",
+              "phase": 13113,
+              "secondLoop": 15064
+            },
+            {
+              "key": "iris:elapsed_ms",
+              "phase": 5368832,
+              "secondLoop": 152424496
+            },
+            {
+              "key": "iris:t",
+              "phase": 3008,
+              "secondLoop": 85399
+            },
+            {
+              "key": "iris:tick",
+              "phase": 0,
+              "secondLoop": 196608
+            },
+            {
+              "key": "mandala:adapt_brightness",
+              "phase": 65536,
+              "secondLoop": 29494
+            },
+            {
+              "key": "mandala:b",
+              "phase": 0,
+              "secondLoop": 3174
+            },
+            {
+              "key": "mandala:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 115094336
+            },
+            {
+              "key": "mandala:g",
+              "phase": 0,
+              "secondLoop": 698
+            },
+            {
+              "key": "mandala:r",
+              "phase": 0,
+              "secondLoop": 2450
+            },
+            {
+              "key": "mandala:ringCount",
+              "secondLoop": 568853
+            },
+            {
+              "key": "mandala:spokeCount",
+              "secondLoop": 917504
+            },
+            {
+              "key": "mandala:t",
+              "phase": 0,
+              "secondLoop": 107702
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "stock",
@@ -1496,13 +1855,397 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "preparation-refused",
-      "refusalCodes": [
-        "unsupported-transition-property-track"
-      ],
-      "refusalMessages": [
-        "composition.propertyTracks: lowering requires positive-Transition property-track activation evidence before compilation."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": true,
+        "sourceEqual": true,
+        "summaryEqual": true,
+        "memberIdentityMappings": [],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            4000,
+            6250,
+            7500,
+            7999,
+            8000,
+            8001,
+            9500,
+            10999,
+            11000,
+            11001,
+            12000,
+            12499,
+            12500,
+            12501,
+            13750,
+            14999,
+            15000,
+            15001,
+            15250,
+            19499,
+            19500,
+            19501,
+            21000,
+            22499,
+            22500,
+            22501,
+            23999,
+            24000,
+            24001,
+            26000,
+            26250,
+            27999,
+            28000,
+            28001,
+            29000,
+            29999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "bloom:elapsed_ms",
+            "bloom:petalR",
+            "bloom:t",
+            "garden:ax0",
+            "garden:ax1",
+            "garden:ax2",
+            "garden:ax3",
+            "garden:ax4",
+            "garden:ay0",
+            "garden:ay1",
+            "garden:ay2",
+            "garden:ay3",
+            "garden:ay4",
+            "garden:b",
+            "garden:elapsed_ms",
+            "garden:g",
+            "garden:r",
+            "garden:t",
+            "mandala:elapsed_ms",
+            "mandala:pixelCount",
+            "mandala:ringCount",
+            "mandala:spokeCount",
+            "mandala:t"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "bloom:elapsed_ms",
+              "phase": 81.92,
+              "secondLoop": 6963.199999999874
+            },
+            {
+              "key": "bloom:petalR",
+              "phase": 0.21279741941199054,
+              "secondLoop": 0.2198377118860987
+            },
+            {
+              "key": "bloom:t",
+              "phase": 0.06029312,
+              "secondLoop": 5.124915199999873
+            },
+            {
+              "key": "garden:ax0",
+              "phase": 0.7799090747636136,
+              "secondLoop": 0.22234626780854228
+            },
+            {
+              "key": "garden:ax1",
+              "phase": 0.43500194488020116,
+              "secondLoop": 0.7939449871180323
+            },
+            {
+              "key": "garden:ax2",
+              "phase": 0.4025840532120412,
+              "secondLoop": 0.345163774456966
+            },
+            {
+              "key": "garden:ax3",
+              "phase": 0.16270109458139076,
+              "secondLoop": 0.5388751630830665
+            },
+            {
+              "key": "garden:ax4",
+              "phase": 0.5915025750408236,
+              "secondLoop": 0.6378448158470311
+            },
+            {
+              "key": "garden:ay0",
+              "phase": 0.5072599066747037,
+              "secondLoop": 0.34855645755946774
+            },
+            {
+              "key": "garden:ay1",
+              "phase": 0.6241912802621318,
+              "secondLoop": 0.275462898283708
+            },
+            {
+              "key": "garden:ay2",
+              "phase": 0.6160666236925123,
+              "secondLoop": 0.45708172056044294
+            },
+            {
+              "key": "garden:ay3",
+              "phase": 0.6611093496640229,
+              "secondLoop": 0.5580325394322746
+            },
+            {
+              "key": "garden:ay4",
+              "phase": 0.20144485494855496,
+              "secondLoop": 0.49869789033450634
+            },
+            {
+              "key": "garden:b",
+              "phase": 0.038306514395917306,
+              "secondLoop": 0.1525466208458775
+            },
+            {
+              "key": "garden:elapsed_ms",
+              "phase": 81.92,
+              "secondLoop": 9681.92000000008
+            },
+            {
+              "key": "garden:g",
+              "phase": 0.10842707976334919,
+              "secondLoop": 0.2879922481431241
+            },
+            {
+              "key": "garden:r",
+              "phase": 0.024219447007805928,
+              "secondLoop": 0.08501441866197465
+            },
+            {
+              "key": "garden:t",
+              "phase": 0.04177920000000001,
+              "secondLoop": 4.937779199999899
+            },
+            {
+              "key": "mandala:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 4643.839999999924
+            },
+            {
+              "key": "mandala:pixelCount",
+              "phase": 8,
+              "secondLoop": 4
+            },
+            {
+              "key": "mandala:ringCount",
+              "secondLoop": 8.68
+            },
+            {
+              "key": "mandala:spokeCount",
+              "secondLoop": 14
+            },
+            {
+              "key": "mandala:t",
+              "phase": 0,
+              "secondLoop": 4.337346560000018
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            4000,
+            6250,
+            7500,
+            7999,
+            8000,
+            8001,
+            9500,
+            10999,
+            11000,
+            11001,
+            12000,
+            12499,
+            12500,
+            12501,
+            13750,
+            14999,
+            15000,
+            15001,
+            15250,
+            19499,
+            19500,
+            19501,
+            21000,
+            22499,
+            22500,
+            22501,
+            23999,
+            24000,
+            24001,
+            26000,
+            26250,
+            27999,
+            28000,
+            28001,
+            29000,
+            29999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "bloom:elapsed_ms",
+            "bloom:petalR",
+            "bloom:t",
+            "garden:ax0",
+            "garden:ax1",
+            "garden:ax2",
+            "garden:ax3",
+            "garden:ax4",
+            "garden:ay0",
+            "garden:ay1",
+            "garden:ay2",
+            "garden:ay3",
+            "garden:ay4",
+            "garden:b",
+            "garden:elapsed_ms",
+            "garden:g",
+            "garden:r",
+            "garden:t",
+            "mandala:elapsed_ms",
+            "mandala:pixelCount",
+            "mandala:ringCount",
+            "mandala:spokeCount",
+            "mandala:t"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "bloom:elapsed_ms",
+              "phase": 5368832,
+              "secondLoop": 456350720
+            },
+            {
+              "key": "bloom:petalR",
+              "phase": 13945,
+              "secondLoop": 14429
+            },
+            {
+              "key": "bloom:t",
+              "phase": 3968,
+              "secondLoop": 337280
+            },
+            {
+              "key": "garden:ax0",
+              "phase": 51112,
+              "secondLoop": 14577
+            },
+            {
+              "key": "garden:ax1",
+              "phase": 28508,
+              "secondLoop": 52042
+            },
+            {
+              "key": "garden:ax2",
+              "phase": 26383,
+              "secondLoop": 22642
+            },
+            {
+              "key": "garden:ax3",
+              "phase": 10663,
+              "secondLoop": 35284
+            },
+            {
+              "key": "garden:ax4",
+              "phase": 38765,
+              "secondLoop": 41768
+            },
+            {
+              "key": "garden:ay0",
+              "phase": 33243,
+              "secondLoop": 22873
+            },
+            {
+              "key": "garden:ay1",
+              "phase": 40907,
+              "secondLoop": 18039
+            },
+            {
+              "key": "garden:ay2",
+              "phase": 40374,
+              "secondLoop": 29902
+            },
+            {
+              "key": "garden:ay3",
+              "phase": 43326,
+              "secondLoop": 36529
+            },
+            {
+              "key": "garden:ay4",
+              "phase": 13201,
+              "secondLoop": 32657
+            },
+            {
+              "key": "garden:b",
+              "phase": 2510,
+              "secondLoop": 10033
+            },
+            {
+              "key": "garden:elapsed_ms",
+              "phase": 5368832,
+              "secondLoop": 634528832
+            },
+            {
+              "key": "garden:g",
+              "phase": 7108,
+              "secondLoop": 18922
+            },
+            {
+              "key": "garden:r",
+              "phase": 1587,
+              "secondLoop": 5590
+            },
+            {
+              "key": "garden:t",
+              "phase": 2736,
+              "secondLoop": 323361
+            },
+            {
+              "key": "mandala:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 304010112
+            },
+            {
+              "key": "mandala:pixelCount",
+              "phase": 524288,
+              "secondLoop": 262144
+            },
+            {
+              "key": "mandala:ringCount",
+              "secondLoop": 568853
+            },
+            {
+              "key": "mandala:spokeCount",
+              "secondLoop": 917504
+            },
+            {
+              "key": "mandala:t",
+              "phase": 0,
+              "secondLoop": 284484
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "stock",
@@ -1541,13 +2284,279 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "preparation-refused",
-      "refusalCodes": [
-        "unsupported-track-activation"
-      ],
-      "refusalMessages": [
-        "composition.propertyTracks[0]: property track \"track-fly-opacity\" activation extends outside its target Clip."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": true,
+        "sourceEqual": true,
+        "summaryEqual": true,
+        "memberIdentityMappings": [],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1000,
+            1999,
+            2000,
+            2001,
+            3000,
+            3999,
+            4000,
+            4001,
+            6500,
+            7000,
+            8999,
+            9000,
+            9001,
+            10500,
+            11999,
+            12000,
+            12001,
+            13000,
+            13999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "flies:elapsed_ms",
+            "flies:elapsed_s",
+            "flies:frameTime",
+            "flies:moveTime",
+            "flies:t1",
+            "flies:t2",
+            "water:b",
+            "water:elapsed_ms",
+            "water:elapsed_s",
+            "water:g",
+            "water:offAx",
+            "water:offAy",
+            "water:offBx",
+            "water:offBy",
+            "water:r",
+            "water:t"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "flies:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 3199.9999999999545
+            },
+            {
+              "key": "flies:elapsed_s",
+              "phase": 0,
+              "secondLoop": 3.1999999999999558
+            },
+            {
+              "key": "flies:frameTime",
+              "phase": 9999,
+              "secondLoop": 0
+            },
+            {
+              "key": "flies:moveTime",
+              "phase": 9999,
+              "secondLoop": 0
+            },
+            {
+              "key": "flies:t1",
+              "secondLoop": 0.21333007812499702
+            },
+            {
+              "key": "flies:t2",
+              "secondLoop": 0.006832031249994431
+            },
+            {
+              "key": "water:b",
+              "phase": 0.16222880962363045,
+              "secondLoop": 0.4416118198257906
+            },
+            {
+              "key": "water:elapsed_ms",
+              "phase": 81.92,
+              "secondLoop": 4561.9199999999255
+            },
+            {
+              "key": "water:elapsed_s",
+              "phase": 0.08192,
+              "secondLoop": 4.5619199999999
+            },
+            {
+              "key": "water:g",
+              "phase": 0.1522370886475914,
+              "secondLoop": 0.402817344643032
+            },
+            {
+              "key": "water:offAx",
+              "phase": 0.11709537886323364,
+              "secondLoop": 0.33814730716646263
+            },
+            {
+              "key": "water:offAy",
+              "phase": 0.5940141946299345,
+              "secondLoop": -0.011191274816005467
+            },
+            {
+              "key": "water:offBx",
+              "phase": -0.49605735065723894,
+              "secondLoop": -0.377640906142642
+            },
+            {
+              "key": "water:offBy",
+              "phase": 0.12035037019558668,
+              "secondLoop": -0.1372371780792855
+            },
+            {
+              "key": "water:r",
+              "phase": 0.03205483417168358,
+              "secondLoop": 0.19454414582480256
+            },
+            {
+              "key": "water:t",
+              "phase": 0.025,
+              "secondLoop": 1.3921874999999695
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1000,
+            1999,
+            2000,
+            2001,
+            3000,
+            3999,
+            4000,
+            4001,
+            6500,
+            7000,
+            8999,
+            9000,
+            9001,
+            10500,
+            11999,
+            12000,
+            12001,
+            13000,
+            13999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "flies:elapsed_ms",
+            "flies:elapsed_s",
+            "flies:frameTime",
+            "flies:moveTime",
+            "flies:t1",
+            "flies:t2",
+            "water:b",
+            "water:elapsed_ms",
+            "water:elapsed_s",
+            "water:g",
+            "water:offAx",
+            "water:offAy",
+            "water:offBx",
+            "water:offBy",
+            "water:r",
+            "water:t"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "flies:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 209720000
+            },
+            {
+              "key": "flies:elapsed_s",
+              "phase": 0,
+              "secondLoop": 210000
+            },
+            {
+              "key": "flies:frameTime",
+              "phase": 655294464,
+              "secondLoop": 0
+            },
+            {
+              "key": "flies:moveTime",
+              "phase": 655294464,
+              "secondLoop": 0
+            },
+            {
+              "key": "flies:t1",
+              "secondLoop": 14000
+            },
+            {
+              "key": "flies:t2",
+              "secondLoop": 498
+            },
+            {
+              "key": "water:b",
+              "phase": 10632,
+              "secondLoop": 29794
+            },
+            {
+              "key": "water:elapsed_ms",
+              "phase": 5368832,
+              "secondLoop": 298976832
+            },
+            {
+              "key": "water:elapsed_s",
+              "phase": 5376,
+              "secondLoop": 299376
+            },
+            {
+              "key": "water:g",
+              "phase": 9976,
+              "secondLoop": 27313
+            },
+            {
+              "key": "water:offAx",
+              "phase": 7680,
+              "secondLoop": 21706
+            },
+            {
+              "key": "water:offAy",
+              "phase": 38928,
+              "secondLoop": -1130
+            },
+            {
+              "key": "water:offBx",
+              "phase": -32509,
+              "secondLoop": -24554
+            },
+            {
+              "key": "water:offBy",
+              "phase": 7894,
+              "secondLoop": -9553
+            },
+            {
+              "key": "water:r",
+              "phase": 2100,
+              "secondLoop": 13462
+            },
+            {
+              "key": "water:t",
+              "phase": 1640,
+              "secondLoop": 91356
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "stock",
@@ -1586,13 +2595,387 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "preparation-refused",
-      "refusalCodes": [
-        "unsupported-track-activation"
-      ],
-      "refusalMessages": [
-        "composition.propertyTracks[0]: property track \"track-content-pan\" activation extends outside its target Clip."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": true,
+        "sourceEqual": true,
+        "summaryEqual": true,
+        "memberIdentityMappings": [],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            2000,
+            3999,
+            4000,
+            4001,
+            4250,
+            4750,
+            5499,
+            5500,
+            5501,
+            6000,
+            6250,
+            7999,
+            8000,
+            8001,
+            8499,
+            8500,
+            8501,
+            10000,
+            10750,
+            11499,
+            11500,
+            11501,
+            11999,
+            12000,
+            12001,
+            12499,
+            12500,
+            12501,
+            13750,
+            14000,
+            15499,
+            15500,
+            15501,
+            15750,
+            15999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "curve:b",
+            "curve:drawT",
+            "curve:elapsed_ms",
+            "curve:g",
+            "curve:penU",
+            "curve:r",
+            "curve:rot",
+            "garden:ax0",
+            "garden:ax1",
+            "garden:ax2",
+            "garden:ax3",
+            "garden:ax4",
+            "garden:ay0",
+            "garden:ay1",
+            "garden:ay2",
+            "garden:ay3",
+            "garden:ay4",
+            "garden:b",
+            "garden:elapsed_ms",
+            "garden:g",
+            "garden:r",
+            "garden:t"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "curve:b",
+              "phase": 0.0031973964247211015,
+              "secondLoop": 0.0032935794188343795
+            },
+            {
+              "key": "curve:drawT",
+              "phase": 2.5819199999999967,
+              "secondLoop": 7.701919999999788
+            },
+            {
+              "key": "curve:elapsed_ms",
+              "phase": 81.92,
+              "secondLoop": 5201.919999999912
+            },
+            {
+              "key": "curve:g",
+              "phase": 0.02664497020600918,
+              "secondLoop": 0.027446495156953164
+            },
+            {
+              "key": "curve:penU",
+              "phase": 0.0999424,
+              "secondLoop": 0.0631570928205522
+            },
+            {
+              "key": "curve:r",
+              "phase": 0.02639572336869786,
+              "secondLoop": 0.02442273012083516
+            },
+            {
+              "key": "curve:rot",
+              "phase": 0.0040960000000000015,
+              "secondLoop": 0.26009600000000355
+            },
+            {
+              "key": "garden:ax0",
+              "phase": 0.7799090747636136,
+              "secondLoop": 0.4866991315629313
+            },
+            {
+              "key": "garden:ax1",
+              "phase": 0.43500194488020116,
+              "secondLoop": 0.745045969414134
+            },
+            {
+              "key": "garden:ax2",
+              "phase": 0.4025840532120412,
+              "secondLoop": 0.6664696314059985
+            },
+            {
+              "key": "garden:ax3",
+              "phase": 0.16270109458139076,
+              "secondLoop": 0.27306508250245737
+            },
+            {
+              "key": "garden:ax4",
+              "phase": 0.5915025750408236,
+              "secondLoop": 0.29796010561216985
+            },
+            {
+              "key": "garden:ay0",
+              "phase": 0.5072599066747037,
+              "secondLoop": 0.6903649550371589
+            },
+            {
+              "key": "garden:ay1",
+              "phase": 0.6241912802621318,
+              "secondLoop": 0.3141805934486768
+            },
+            {
+              "key": "garden:ay2",
+              "phase": 0.6160666236925123,
+              "secondLoop": 0.18314163761135044
+            },
+            {
+              "key": "garden:ay3",
+              "phase": 0.6611093496640229,
+              "secondLoop": 0.35913018302849264
+            },
+            {
+              "key": "garden:ay4",
+              "phase": 0.20144485494855496,
+              "secondLoop": 0.2887662812237849
+            },
+            {
+              "key": "garden:b",
+              "phase": 0.022776752102416756,
+              "secondLoop": 0.05662391743708722
+            },
+            {
+              "key": "garden:elapsed_ms",
+              "phase": 81.92,
+              "secondLoop": 5201.919999999912
+            },
+            {
+              "key": "garden:g",
+              "phase": 0.04522809847536005,
+              "secondLoop": 0.07830787385007827
+            },
+            {
+              "key": "garden:r",
+              "phase": 0.012419820893686885,
+              "secondLoop": 0.03033292349757198
+            },
+            {
+              "key": "garden:t",
+              "phase": 0.04177920000000001,
+              "secondLoop": 2.652979200000028
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            2000,
+            3999,
+            4000,
+            4001,
+            4250,
+            4750,
+            5499,
+            5500,
+            5501,
+            6000,
+            6250,
+            7999,
+            8000,
+            8001,
+            8499,
+            8500,
+            8501,
+            10000,
+            10750,
+            11499,
+            11500,
+            11501,
+            11999,
+            12000,
+            12001,
+            12499,
+            12500,
+            12501,
+            13750,
+            14000,
+            15499,
+            15500,
+            15501,
+            15750,
+            15999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "curve:b",
+            "curve:drawT",
+            "curve:elapsed_ms",
+            "curve:g",
+            "curve:penU",
+            "curve:r",
+            "curve:rot",
+            "garden:ax0",
+            "garden:ax1",
+            "garden:ax2",
+            "garden:ax3",
+            "garden:ax4",
+            "garden:ay0",
+            "garden:ay1",
+            "garden:ay2",
+            "garden:ay3",
+            "garden:ay4",
+            "garden:b",
+            "garden:elapsed_ms",
+            "garden:g",
+            "garden:r",
+            "garden:t"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "curve:b",
+              "phase": 205,
+              "secondLoop": 210
+            },
+            {
+              "key": "curve:drawT",
+              "phase": 169232,
+              "secondLoop": 506232
+            },
+            {
+              "key": "curve:elapsed_ms",
+              "phase": 5368832,
+              "secondLoop": 340920832
+            },
+            {
+              "key": "curve:g",
+              "phase": 1713,
+              "secondLoop": 1752
+            },
+            {
+              "key": "curve:penU",
+              "phase": 6576,
+              "secondLoop": 5801
+            },
+            {
+              "key": "curve:r",
+              "phase": 1699,
+              "secondLoop": 1563
+            },
+            {
+              "key": "curve:rot",
+              "phase": 256,
+              "secondLoop": 16256
+            },
+            {
+              "key": "garden:ax0",
+              "phase": 51112,
+              "secondLoop": 31918
+            },
+            {
+              "key": "garden:ax1",
+              "phase": 28508,
+              "secondLoop": 48816
+            },
+            {
+              "key": "garden:ax2",
+              "phase": 26383,
+              "secondLoop": 43685
+            },
+            {
+              "key": "garden:ax3",
+              "phase": 10663,
+              "secondLoop": 17883
+            },
+            {
+              "key": "garden:ax4",
+              "phase": 38765,
+              "secondLoop": 19520
+            },
+            {
+              "key": "garden:ay0",
+              "phase": 33243,
+              "secondLoop": 45255
+            },
+            {
+              "key": "garden:ay1",
+              "phase": 40907,
+              "secondLoop": 20601
+            },
+            {
+              "key": "garden:ay2",
+              "phase": 40374,
+              "secondLoop": 12005
+            },
+            {
+              "key": "garden:ay3",
+              "phase": 43326,
+              "secondLoop": 23549
+            },
+            {
+              "key": "garden:ay4",
+              "phase": 13201,
+              "secondLoop": 18914
+            },
+            {
+              "key": "garden:b",
+              "phase": 1490,
+              "secondLoop": 3707
+            },
+            {
+              "key": "garden:elapsed_ms",
+              "phase": 5368832,
+              "secondLoop": 340920832
+            },
+            {
+              "key": "garden:g",
+              "phase": 2962,
+              "secondLoop": 5129
+            },
+            {
+              "key": "garden:r",
+              "phase": 813,
+              "secondLoop": 1986
+            },
+            {
+              "key": "garden:t",
+              "phase": 2736,
+              "secondLoop": 173736
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "stock",
@@ -2289,7 +3672,7 @@
       "refusalCodes": [],
       "refusalMessages": [],
       "parity": {
-        "recipeEqual": false,
+        "recipeEqual": true,
         "sourceEqual": true,
         "summaryEqual": true,
         "memberIdentityMappings": [],
@@ -2541,7 +3924,7 @@
       "refusalCodes": [],
       "refusalMessages": [],
       "parity": {
-        "recipeEqual": false,
+        "recipeEqual": true,
         "sourceEqual": true,
         "summaryEqual": true,
         "memberIdentityMappings": [],
@@ -3498,13 +4881,219 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "preparation-refused",
-      "refusalCodes": [
-        "unsupported-track-activation"
-      ],
-      "refusalMessages": [
-        "composition.propertyTracks[0]: property track \"track-echo-opacity\" activation extends outside its target Clip."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": true,
+        "sourceEqual": true,
+        "summaryEqual": true,
+        "memberIdentityMappings": [],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            4000,
+            5000,
+            7999,
+            8000,
+            8001,
+            9999,
+            10000,
+            10001,
+            11000,
+            11999,
+            12000,
+            12001,
+            12750,
+            13000,
+            13999,
+            14000,
+            14001,
+            14750,
+            15499,
+            15500,
+            15501,
+            15750,
+            15999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "garden:bandSpacing",
+            "garden:edgeWidth",
+            "garden:elapsed_ms",
+            "garden:formMix",
+            "garden:rotC",
+            "garden:rotS",
+            "garden:t",
+            "loom:elapsed_ms",
+            "loom:petalR",
+            "loom:t"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "garden:bandSpacing",
+              "phase": 0.06,
+              "secondLoop": 0.07100000000000001
+            },
+            {
+              "key": "garden:edgeWidth",
+              "phase": 0.03,
+              "secondLoop": 0.0338
+            },
+            {
+              "key": "garden:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 2559.999999999968
+            },
+            {
+              "key": "garden:formMix",
+              "phase": 0,
+              "secondLoop": 0.9758781678833857
+            },
+            {
+              "key": "garden:rotC",
+              "phase": 1,
+              "secondLoop": 0.9936380493461403
+            },
+            {
+              "key": "garden:rotS",
+              "phase": 0,
+              "secondLoop": 0.11262072141305615
+            },
+            {
+              "key": "garden:t",
+              "phase": 0,
+              "secondLoop": 0.16844800000000126
+            },
+            {
+              "key": "loom:elapsed_ms",
+              "phase": 81.92,
+              "secondLoop": 2641.9199999999664
+            },
+            {
+              "key": "loom:petalR",
+              "phase": 0.21279741941199054,
+              "secondLoop": 0.2370690332159983
+            },
+            {
+              "key": "loom:t",
+              "phase": 0.06029312,
+              "secondLoop": 1.9444531200000172
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            4000,
+            5000,
+            7999,
+            8000,
+            8001,
+            9999,
+            10000,
+            10001,
+            11000,
+            11999,
+            12000,
+            12001,
+            12750,
+            13000,
+            13999,
+            14000,
+            14001,
+            14750,
+            15499,
+            15500,
+            15501,
+            15750,
+            15999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "garden:bandSpacing",
+            "garden:edgeWidth",
+            "garden:elapsed_ms",
+            "garden:formMix",
+            "garden:rotC",
+            "garden:rotS",
+            "garden:t",
+            "loom:elapsed_ms",
+            "loom:petalR",
+            "loom:t"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "garden:bandSpacing",
+              "phase": 3932,
+              "secondLoop": 4653
+            },
+            {
+              "key": "garden:edgeWidth",
+              "phase": 1966,
+              "secondLoop": 2215
+            },
+            {
+              "key": "garden:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 167776000
+            },
+            {
+              "key": "garden:formMix",
+              "phase": 0,
+              "secondLoop": 63835
+            },
+            {
+              "key": "garden:rotC",
+              "phase": 65536,
+              "secondLoop": 65122
+            },
+            {
+              "key": "garden:rotS",
+              "phase": 0,
+              "secondLoop": 7353
+            },
+            {
+              "key": "garden:t",
+              "phase": 0,
+              "secondLoop": 11000
+            },
+            {
+              "key": "loom:elapsed_ms",
+              "phase": 5368832,
+              "secondLoop": 173144832
+            },
+            {
+              "key": "loom:petalR",
+              "phase": 13945,
+              "secondLoop": 15538
+            },
+            {
+              "key": "loom:t",
+              "phase": 3968,
+              "secondLoop": 127968
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "stock",
@@ -6097,13 +7686,317 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "conversion-refused",
-      "refusalCodes": [
-        "unsupported-boundary-transition"
-      ],
-      "refusalMessages": [
-        "transitions: Whole-boundary visual scope must be converted into explicit participants before admission."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": false,
+        "sourceEqual": true,
+        "summaryEqual": true,
+        "memberIdentityMappings": [],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4500,
+            5999,
+            6000,
+            6001,
+            7250,
+            8499,
+            8500,
+            8501,
+            10250,
+            10500,
+            12499,
+            12500,
+            12501,
+            13500,
+            14499,
+            14500,
+            14501,
+            15500,
+            16499,
+            16500,
+            16501,
+            17500,
+            18499,
+            18500,
+            18501,
+            19500,
+            20499
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-reference-content-reference:elapsed_ms",
+            "instance-reference-content-selected:active",
+            "instance-reference-content-selected:ax0",
+            "instance-reference-content-selected:ax1",
+            "instance-reference-content-selected:ax2",
+            "instance-reference-content-selected:ax3",
+            "instance-reference-content-selected:ax4",
+            "instance-reference-content-selected:ay0",
+            "instance-reference-content-selected:ay1",
+            "instance-reference-content-selected:ay2",
+            "instance-reference-content-selected:ay3",
+            "instance-reference-content-selected:ay4",
+            "instance-reference-content-selected:b",
+            "instance-reference-content-selected:elapsed_ms",
+            "instance-reference-content-selected:g",
+            "instance-reference-content-selected:gain",
+            "instance-reference-content-selected:r",
+            "instance-reference-content-selected:t",
+            "instance-reference-content-selected:threshold"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-reference-content-reference:elapsed_ms",
+              "phase": 81.92,
+              "secondLoop": 5044.479999999915
+            },
+            {
+              "key": "instance-reference-content-selected:active",
+              "secondLoop": 5
+            },
+            {
+              "key": "instance-reference-content-selected:ax0",
+              "secondLoop": 0.6155901316801151
+            },
+            {
+              "key": "instance-reference-content-selected:ax1",
+              "secondLoop": 0.6693947051752052
+            },
+            {
+              "key": "instance-reference-content-selected:ax2",
+              "secondLoop": 0.6683306968378602
+            },
+            {
+              "key": "instance-reference-content-selected:ax3",
+              "secondLoop": 0.21068769450268499
+            },
+            {
+              "key": "instance-reference-content-selected:ax4",
+              "secondLoop": 0.30709198453984166
+            },
+            {
+              "key": "instance-reference-content-selected:ay0",
+              "secondLoop": 0.7191562602355066
+            },
+            {
+              "key": "instance-reference-content-selected:ay1",
+              "secondLoop": 0.39471931920503783
+            },
+            {
+              "key": "instance-reference-content-selected:ay2",
+              "secondLoop": 0.2502445586109212
+            },
+            {
+              "key": "instance-reference-content-selected:ay3",
+              "secondLoop": 0.47904054361100257
+            },
+            {
+              "key": "instance-reference-content-selected:ay4",
+              "secondLoop": 0.24054502301717895
+            },
+            {
+              "key": "instance-reference-content-selected:b",
+              "phase": 0,
+              "secondLoop": 0.29861860520767003
+            },
+            {
+              "key": "instance-reference-content-selected:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 3681.2799999999443
+            },
+            {
+              "key": "instance-reference-content-selected:g",
+              "phase": 0,
+              "secondLoop": 0.45037942979997986
+            },
+            {
+              "key": "instance-reference-content-selected:gain",
+              "secondLoop": 0.047259999999999996
+            },
+            {
+              "key": "instance-reference-content-selected:r",
+              "phase": 0,
+              "secondLoop": 0.15929338245209404
+            },
+            {
+              "key": "instance-reference-content-selected:t",
+              "phase": 0,
+              "secondLoop": 1.8774528000000172
+            },
+            {
+              "key": "instance-reference-content-selected:threshold",
+              "secondLoop": 1.1265
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4500,
+            5999,
+            6000,
+            6001,
+            7250,
+            8499,
+            8500,
+            8501,
+            10250,
+            10500,
+            12499,
+            12500,
+            12501,
+            13500,
+            14499,
+            14500,
+            14501,
+            15500,
+            16499,
+            16500,
+            16501,
+            17500,
+            18499,
+            18500,
+            18501,
+            19500,
+            20499
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-reference-content-reference:elapsed_ms",
+            "instance-reference-content-selected:active",
+            "instance-reference-content-selected:ax0",
+            "instance-reference-content-selected:ax1",
+            "instance-reference-content-selected:ax2",
+            "instance-reference-content-selected:ax3",
+            "instance-reference-content-selected:ax4",
+            "instance-reference-content-selected:ay0",
+            "instance-reference-content-selected:ay1",
+            "instance-reference-content-selected:ay2",
+            "instance-reference-content-selected:ay3",
+            "instance-reference-content-selected:ay4",
+            "instance-reference-content-selected:b",
+            "instance-reference-content-selected:elapsed_ms",
+            "instance-reference-content-selected:g",
+            "instance-reference-content-selected:gain",
+            "instance-reference-content-selected:r",
+            "instance-reference-content-selected:t",
+            "instance-reference-content-selected:threshold"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-reference-content-reference:elapsed_ms",
+              "phase": 5368832,
+              "secondLoop": 330602608
+            },
+            {
+              "key": "instance-reference-content-selected:active",
+              "secondLoop": 327680
+            },
+            {
+              "key": "instance-reference-content-selected:ax0",
+              "secondLoop": 40357
+            },
+            {
+              "key": "instance-reference-content-selected:ax1",
+              "secondLoop": 43859
+            },
+            {
+              "key": "instance-reference-content-selected:ax2",
+              "secondLoop": 43793
+            },
+            {
+              "key": "instance-reference-content-selected:ax3",
+              "secondLoop": 13801
+            },
+            {
+              "key": "instance-reference-content-selected:ax4",
+              "secondLoop": 20131
+            },
+            {
+              "key": "instance-reference-content-selected:ay0",
+              "secondLoop": 47129
+            },
+            {
+              "key": "instance-reference-content-selected:ay1",
+              "secondLoop": 25879
+            },
+            {
+              "key": "instance-reference-content-selected:ay2",
+              "secondLoop": 16412
+            },
+            {
+              "key": "instance-reference-content-selected:ay3",
+              "secondLoop": 31411
+            },
+            {
+              "key": "instance-reference-content-selected:ay4",
+              "secondLoop": 15759
+            },
+            {
+              "key": "instance-reference-content-selected:b",
+              "phase": 0,
+              "secondLoop": 19568
+            },
+            {
+              "key": "instance-reference-content-selected:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 241261888
+            },
+            {
+              "key": "instance-reference-content-selected:g",
+              "phase": 0,
+              "secondLoop": 29516
+            },
+            {
+              "key": "instance-reference-content-selected:gain",
+              "secondLoop": 3097
+            },
+            {
+              "key": "instance-reference-content-selected:r",
+              "phase": 0,
+              "secondLoop": 10439
+            },
+            {
+              "key": "instance-reference-content-selected:t",
+              "phase": 0,
+              "secondLoop": 122949
+            },
+            {
+              "key": "instance-reference-content-selected:threshold",
+              "secondLoop": 73827
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "stock",
@@ -6192,13 +8085,553 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "conversion-refused",
-      "refusalCodes": [
-        "unsupported-boundary-transition"
-      ],
-      "refusalMessages": [
-        "transitions: Whole-boundary visual scope must be converted into explicit participants before admission."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": false,
+        "sourceEqual": true,
+        "summaryEqual": true,
+        "memberIdentityMappings": [],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4250,
+            5499,
+            5500,
+            5501,
+            7000,
+            8499,
+            8500,
+            8501,
+            9000,
+            9499,
+            9500,
+            9501,
+            10250,
+            10999,
+            11000,
+            11001,
+            11500,
+            11999,
+            12000,
+            12001,
+            12750,
+            13499,
+            13500,
+            13501,
+            14000,
+            14499,
+            14500,
+            14501,
+            15250,
+            15500,
+            15999,
+            16000,
+            16001,
+            16500,
+            16999,
+            17000,
+            17001,
+            17750,
+            18499,
+            18500,
+            18501,
+            19000,
+            19499,
+            19500,
+            19501,
+            20250,
+            20999,
+            21000,
+            21001,
+            21500,
+            21999,
+            22000,
+            22001,
+            22750,
+            23499,
+            23500,
+            23501,
+            24000,
+            24499,
+            24500,
+            24501,
+            25250,
+            25999,
+            26000,
+            26001,
+            26500,
+            26999,
+            27000,
+            27001,
+            27750,
+            28499,
+            28500,
+            28501,
+            29000,
+            29499,
+            29500,
+            29501,
+            30250,
+            30999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-reference-content-reference:b",
+            "instance-reference-content-reference:centerBri",
+            "instance-reference-content-reference:centerHue",
+            "instance-reference-content-reference:cosT",
+            "instance-reference-content-reference:elapsed_ms",
+            "instance-reference-content-reference:g",
+            "instance-reference-content-reference:numPetals",
+            "instance-reference-content-reference:petalLength",
+            "instance-reference-content-reference:petalShape",
+            "instance-reference-content-reference:r",
+            "instance-reference-content-reference:sinT",
+            "instance-reference-content-reference:speciesTimer",
+            "instance-reference-content-selected:active",
+            "instance-reference-content-selected:ax0",
+            "instance-reference-content-selected:ax1",
+            "instance-reference-content-selected:ax2",
+            "instance-reference-content-selected:ax3",
+            "instance-reference-content-selected:ax4",
+            "instance-reference-content-selected:ay0",
+            "instance-reference-content-selected:ay1",
+            "instance-reference-content-selected:ay2",
+            "instance-reference-content-selected:ay3",
+            "instance-reference-content-selected:ay4",
+            "instance-reference-content-selected:b",
+            "instance-reference-content-selected:elapsed_ms",
+            "instance-reference-content-selected:g",
+            "instance-reference-content-selected:gain",
+            "instance-reference-content-selected:r",
+            "instance-reference-content-selected:t",
+            "instance-reference-content-selected:threshold"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-reference-content-reference:b",
+              "phase": 0.07355098294149276,
+              "secondLoop": 0.08753101961531051
+            },
+            {
+              "key": "instance-reference-content-reference:centerBri",
+              "phase": 0.91808,
+              "secondLoop": 1
+            },
+            {
+              "key": "instance-reference-content-reference:centerHue",
+              "phase": 1.6171990150927753,
+              "secondLoop": 1.0246119843672217
+            },
+            {
+              "key": "instance-reference-content-reference:cosT",
+              "phase": 0.5403023058681398,
+              "secondLoop": 1
+            },
+            {
+              "key": "instance-reference-content-reference:elapsed_ms",
+              "phase": 81.92,
+              "secondLoop": 7119.359999999871
+            },
+            {
+              "key": "instance-reference-content-reference:g",
+              "phase": 0.36206490192344987,
+              "secondLoop": 0.002528354200315643
+            },
+            {
+              "key": "instance-reference-content-reference:numPetals",
+              "phase": 9,
+              "secondLoop": 2
+            },
+            {
+              "key": "instance-reference-content-reference:petalLength",
+              "phase": 0.5780312038725242,
+              "secondLoop": 0.5737688705325126
+            },
+            {
+              "key": "instance-reference-content-reference:petalShape",
+              "phase": 6.156930074095726,
+              "secondLoop": 6.181874817237258
+            },
+            {
+              "key": "instance-reference-content-reference:r",
+              "phase": 0.04326002775759635,
+              "secondLoop": 0.043453578980479975
+            },
+            {
+              "key": "instance-reference-content-reference:sinT",
+              "phase": 0.8414709848078965,
+              "secondLoop": 0
+            },
+            {
+              "key": "instance-reference-content-reference:speciesTimer",
+              "phase": 81.92,
+              "secondLoop": 1108.4799999999989
+            },
+            {
+              "key": "instance-reference-content-selected:active",
+              "secondLoop": 5
+            },
+            {
+              "key": "instance-reference-content-selected:ax0",
+              "secondLoop": 0.37328634627003
+            },
+            {
+              "key": "instance-reference-content-selected:ax1",
+              "secondLoop": 0.7899449418843216
+            },
+            {
+              "key": "instance-reference-content-selected:ax2",
+              "secondLoop": 0.5877749371378745
+            },
+            {
+              "key": "instance-reference-content-selected:ax3",
+              "secondLoop": 0.344577947363551
+            },
+            {
+              "key": "instance-reference-content-selected:ax4",
+              "secondLoop": 0.3670329651544987
+            },
+            {
+              "key": "instance-reference-content-selected:ay0",
+              "secondLoop": 0.6052967944496793
+            },
+            {
+              "key": "instance-reference-content-selected:ay1",
+              "secondLoop": 0.2671919210635223
+            },
+            {
+              "key": "instance-reference-content-selected:ay2",
+              "secondLoop": 0.19802271096158736
+            },
+            {
+              "key": "instance-reference-content-selected:ay3",
+              "secondLoop": 0.33236655694288897
+            },
+            {
+              "key": "instance-reference-content-selected:ay4",
+              "secondLoop": 0.34424291585244005
+            },
+            {
+              "key": "instance-reference-content-selected:b",
+              "phase": 0,
+              "secondLoop": 0.3916030994667911
+            },
+            {
+              "key": "instance-reference-content-selected:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 6558.719999999883
+            },
+            {
+              "key": "instance-reference-content-selected:g",
+              "phase": 0,
+              "secondLoop": 0.5342656564157322
+            },
+            {
+              "key": "instance-reference-content-selected:gain",
+              "secondLoop": 0.047259999999999996
+            },
+            {
+              "key": "instance-reference-content-selected:r",
+              "phase": 0,
+              "secondLoop": 0.2103437348049651
+            },
+            {
+              "key": "instance-reference-content-selected:t",
+              "phase": 0,
+              "secondLoop": 3.3449472000000373
+            },
+            {
+              "key": "instance-reference-content-selected:threshold",
+              "secondLoop": 1.1265
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4250,
+            5499,
+            5500,
+            5501,
+            7000,
+            8499,
+            8500,
+            8501,
+            9000,
+            9499,
+            9500,
+            9501,
+            10250,
+            10999,
+            11000,
+            11001,
+            11500,
+            11999,
+            12000,
+            12001,
+            12750,
+            13499,
+            13500,
+            13501,
+            14000,
+            14499,
+            14500,
+            14501,
+            15250,
+            15500,
+            15999,
+            16000,
+            16001,
+            16500,
+            16999,
+            17000,
+            17001,
+            17750,
+            18499,
+            18500,
+            18501,
+            19000,
+            19499,
+            19500,
+            19501,
+            20250,
+            20999,
+            21000,
+            21001,
+            21500,
+            21999,
+            22000,
+            22001,
+            22750,
+            23499,
+            23500,
+            23501,
+            24000,
+            24499,
+            24500,
+            24501,
+            25250,
+            25999,
+            26000,
+            26001,
+            26500,
+            26999,
+            27000,
+            27001,
+            27750,
+            28499,
+            28500,
+            28501,
+            29000,
+            29499,
+            29500,
+            29501,
+            30250,
+            30999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-reference-content-reference:b",
+            "instance-reference-content-reference:centerBri",
+            "instance-reference-content-reference:centerHue",
+            "instance-reference-content-reference:cosT",
+            "instance-reference-content-reference:elapsed_ms",
+            "instance-reference-content-reference:g",
+            "instance-reference-content-reference:numPetals",
+            "instance-reference-content-reference:petalLength",
+            "instance-reference-content-reference:petalShape",
+            "instance-reference-content-reference:r",
+            "instance-reference-content-reference:sinT",
+            "instance-reference-content-reference:speciesTimer",
+            "instance-reference-content-selected:active",
+            "instance-reference-content-selected:ax0",
+            "instance-reference-content-selected:ax1",
+            "instance-reference-content-selected:ax2",
+            "instance-reference-content-selected:ax3",
+            "instance-reference-content-selected:ax4",
+            "instance-reference-content-selected:ay0",
+            "instance-reference-content-selected:ay1",
+            "instance-reference-content-selected:ay2",
+            "instance-reference-content-selected:ay3",
+            "instance-reference-content-selected:ay4",
+            "instance-reference-content-selected:b",
+            "instance-reference-content-selected:elapsed_ms",
+            "instance-reference-content-selected:g",
+            "instance-reference-content-selected:gain",
+            "instance-reference-content-selected:r",
+            "instance-reference-content-selected:t",
+            "instance-reference-content-selected:threshold"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-reference-content-reference:b",
+              "phase": 4818,
+              "secondLoop": 5736
+            },
+            {
+              "key": "instance-reference-content-reference:centerBri",
+              "phase": 60167,
+              "secondLoop": 65536
+            },
+            {
+              "key": "instance-reference-content-reference:centerHue",
+              "phase": 105985,
+              "secondLoop": 67149
+            },
+            {
+              "key": "instance-reference-content-reference:cosT",
+              "phase": 35409,
+              "secondLoop": 65536
+            },
+            {
+              "key": "instance-reference-content-reference:elapsed_ms",
+              "phase": 5368832,
+              "secondLoop": 466585056
+            },
+            {
+              "key": "instance-reference-content-reference:g",
+              "phase": 23723,
+              "secondLoop": 165
+            },
+            {
+              "key": "instance-reference-content-reference:numPetals",
+              "phase": 589824,
+              "secondLoop": 131072
+            },
+            {
+              "key": "instance-reference-content-reference:petalLength",
+              "phase": 37882,
+              "secondLoop": 37603
+            },
+            {
+              "key": "instance-reference-content-reference:petalShape",
+              "phase": 403501,
+              "secondLoop": 405135
+            },
+            {
+              "key": "instance-reference-content-reference:r",
+              "phase": 2833,
+              "secondLoop": 2847
+            },
+            {
+              "key": "instance-reference-content-reference:sinT",
+              "phase": 55147,
+              "secondLoop": 0
+            },
+            {
+              "key": "instance-reference-content-reference:speciesTimer",
+              "phase": 5368832,
+              "secondLoop": 72647008
+            },
+            {
+              "key": "instance-reference-content-selected:active",
+              "secondLoop": 327680
+            },
+            {
+              "key": "instance-reference-content-selected:ax0",
+              "secondLoop": 24488
+            },
+            {
+              "key": "instance-reference-content-selected:ax1",
+              "secondLoop": 51761
+            },
+            {
+              "key": "instance-reference-content-selected:ax2",
+              "secondLoop": 38545
+            },
+            {
+              "key": "instance-reference-content-selected:ax3",
+              "secondLoop": 22563
+            },
+            {
+              "key": "instance-reference-content-selected:ax4",
+              "secondLoop": 24030
+            },
+            {
+              "key": "instance-reference-content-selected:ay0",
+              "secondLoop": 39694
+            },
+            {
+              "key": "instance-reference-content-selected:ay1",
+              "secondLoop": 17518
+            },
+            {
+              "key": "instance-reference-content-selected:ay2",
+              "secondLoop": 12965
+            },
+            {
+              "key": "instance-reference-content-selected:ay3",
+              "secondLoop": 21777
+            },
+            {
+              "key": "instance-reference-content-selected:ay4",
+              "secondLoop": 22545
+            },
+            {
+              "key": "instance-reference-content-selected:b",
+              "phase": 0,
+              "secondLoop": 25674
+            },
+            {
+              "key": "instance-reference-content-selected:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 429842112
+            },
+            {
+              "key": "instance-reference-content-selected:g",
+              "phase": 0,
+              "secondLoop": 35025
+            },
+            {
+              "key": "instance-reference-content-selected:gain",
+              "secondLoop": 3097
+            },
+            {
+              "key": "instance-reference-content-selected:r",
+              "phase": 0,
+              "secondLoop": 13791
+            },
+            {
+              "key": "instance-reference-content-selected:t",
+              "phase": 0,
+              "secondLoop": 219051
+            },
+            {
+              "key": "instance-reference-content-selected:threshold",
+              "secondLoop": 73827
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "stock",
@@ -6257,13 +8690,285 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "conversion-refused",
-      "refusalCodes": [
-        "unsupported-boundary-transition"
-      ],
-      "refusalMessages": [
-        "transitions: Whole-boundary visual scope must be converted into explicit participants before admission."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": false,
+        "sourceEqual": true,
+        "summaryEqual": true,
+        "memberIdentityMappings": [],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4250,
+            5499,
+            5500,
+            5501,
+            7000,
+            8499,
+            8500,
+            8501,
+            9250,
+            9500,
+            9999,
+            10000,
+            10001,
+            11000,
+            11999,
+            12000,
+            12001,
+            12750,
+            13499,
+            13500,
+            13501,
+            14500,
+            15499,
+            15500,
+            15501,
+            16250,
+            16999,
+            17000,
+            17001,
+            18000,
+            18999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-reference-content-reference:b",
+            "instance-reference-content-reference:elapsed_ms",
+            "instance-reference-content-reference:g",
+            "instance-reference-content-reference:r",
+            "instance-reference-content-selected:b",
+            "instance-reference-content-selected:elapsed_ms",
+            "instance-reference-content-selected:elapsed_s",
+            "instance-reference-content-selected:g",
+            "instance-reference-content-selected:lerpPct",
+            "instance-reference-content-selected:morphClock",
+            "instance-reference-content-selected:nextShape",
+            "instance-reference-content-selected:r",
+            "instance-reference-content-selected:shape",
+            "instance-reference-content-selected:wait"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-reference-content-reference:b",
+              "phase": 0.056640759460143984,
+              "secondLoop": 0.008902740215999861
+            },
+            {
+              "key": "instance-reference-content-reference:elapsed_ms",
+              "phase": 81.92,
+              "secondLoop": 4559.359999999926
+            },
+            {
+              "key": "instance-reference-content-reference:g",
+              "phase": 0.056640759460143984,
+              "secondLoop": 0.008902740215999861
+            },
+            {
+              "key": "instance-reference-content-reference:r",
+              "phase": 0.56640759460144,
+              "secondLoop": 0.08902740215999863
+            },
+            {
+              "key": "instance-reference-content-selected:b",
+              "phase": 0,
+              "secondLoop": 0.14512828267939415
+            },
+            {
+              "key": "instance-reference-content-selected:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 3839.999999999941
+            },
+            {
+              "key": "instance-reference-content-selected:elapsed_s",
+              "phase": 0,
+              "secondLoop": 3.8399999999999297
+            },
+            {
+              "key": "instance-reference-content-selected:g",
+              "phase": 0,
+              "secondLoop": 1
+            },
+            {
+              "key": "instance-reference-content-selected:lerpPct",
+              "phase": 0,
+              "secondLoop": 0.8294400000000006
+            },
+            {
+              "key": "instance-reference-content-selected:morphClock",
+              "phase": 0,
+              "secondLoop": 829.4400000000006
+            },
+            {
+              "key": "instance-reference-content-selected:nextShape",
+              "phase": 1,
+              "secondLoop": 3
+            },
+            {
+              "key": "instance-reference-content-selected:r",
+              "phase": 0,
+              "secondLoop": 0.004173875227810431
+            },
+            {
+              "key": "instance-reference-content-selected:shape",
+              "phase": 0,
+              "secondLoop": 2
+            },
+            {
+              "key": "instance-reference-content-selected:wait",
+              "phase": 0,
+              "secondLoop": true
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4250,
+            5499,
+            5500,
+            5501,
+            7000,
+            8499,
+            8500,
+            8501,
+            9250,
+            9500,
+            9999,
+            10000,
+            10001,
+            11000,
+            11999,
+            12000,
+            12001,
+            12750,
+            13499,
+            13500,
+            13501,
+            14500,
+            15499,
+            15500,
+            15501,
+            16250,
+            16999,
+            17000,
+            17001,
+            18000,
+            18999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-reference-content-reference:b",
+            "instance-reference-content-reference:elapsed_ms",
+            "instance-reference-content-reference:g",
+            "instance-reference-content-reference:r",
+            "instance-reference-content-selected:b",
+            "instance-reference-content-selected:elapsed_ms",
+            "instance-reference-content-selected:elapsed_s",
+            "instance-reference-content-selected:g",
+            "instance-reference-content-selected:lerpPct",
+            "instance-reference-content-selected:morphClock",
+            "instance-reference-content-selected:nextShape",
+            "instance-reference-content-selected:shape",
+            "instance-reference-content-selected:wait"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-reference-content-reference:b",
+              "phase": 3712,
+              "secondLoop": 623
+            },
+            {
+              "key": "instance-reference-content-reference:elapsed_ms",
+              "phase": 5368832,
+              "secondLoop": 298809056
+            },
+            {
+              "key": "instance-reference-content-reference:g",
+              "phase": 3712,
+              "secondLoop": 623
+            },
+            {
+              "key": "instance-reference-content-reference:r",
+              "phase": 37123,
+              "secondLoop": 6238
+            },
+            {
+              "key": "instance-reference-content-selected:b",
+              "phase": 0,
+              "secondLoop": 1996
+            },
+            {
+              "key": "instance-reference-content-selected:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 251664000
+            },
+            {
+              "key": "instance-reference-content-selected:elapsed_s",
+              "phase": 0,
+              "secondLoop": 252000
+            },
+            {
+              "key": "instance-reference-content-selected:g",
+              "phase": 0,
+              "secondLoop": 566
+            },
+            {
+              "key": "instance-reference-content-selected:lerpPct",
+              "phase": 0,
+              "secondLoop": 54359
+            },
+            {
+              "key": "instance-reference-content-selected:morphClock",
+              "phase": 0,
+              "secondLoop": 54359424
+            },
+            {
+              "key": "instance-reference-content-selected:nextShape",
+              "phase": 65536,
+              "secondLoop": 196608
+            },
+            {
+              "key": "instance-reference-content-selected:shape",
+              "phase": 0,
+              "secondLoop": 131072
+            },
+            {
+              "key": "instance-reference-content-selected:wait",
+              "phase": 0,
+              "secondLoop": 65536
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "stock",
@@ -6337,13 +9042,309 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "conversion-refused",
-      "refusalCodes": [
-        "unsupported-boundary-transition"
-      ],
-      "refusalMessages": [
-        "transitions: Whole-boundary visual scope must be converted into explicit participants before admission."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": false,
+        "sourceEqual": true,
+        "summaryEqual": true,
+        "memberIdentityMappings": [],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4250,
+            5499,
+            5500,
+            5501,
+            7000,
+            8499,
+            8500,
+            8501,
+            9100,
+            9699,
+            9700,
+            9701,
+            10450,
+            11199,
+            11200,
+            11201,
+            11800,
+            12350,
+            12399,
+            12400,
+            12401,
+            13150,
+            13899,
+            13900,
+            13901,
+            14500,
+            15099,
+            15100,
+            15101,
+            15850,
+            16599,
+            16600,
+            16601,
+            17200,
+            17799,
+            17800,
+            17801,
+            18550,
+            19299,
+            19300,
+            19301,
+            19900,
+            20499,
+            20500,
+            20501,
+            21250,
+            21999,
+            22000,
+            22001,
+            22600,
+            23199,
+            23200,
+            23201,
+            23950,
+            24699
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-reference-content-reference:elapsed_ms",
+            "instance-reference-content-reference:t",
+            "instance-reference-content-selected:ax0",
+            "instance-reference-content-selected:ax1",
+            "instance-reference-content-selected:ax2",
+            "instance-reference-content-selected:ay0",
+            "instance-reference-content-selected:ay1",
+            "instance-reference-content-selected:ay2",
+            "instance-reference-content-selected:density",
+            "instance-reference-content-selected:elapsed_ms",
+            "instance-reference-content-selected:gain",
+            "instance-reference-content-selected:sharp",
+            "instance-reference-content-selected:t"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-reference-content-reference:elapsed_ms",
+              "phase": 81.92,
+              "secondLoop": 5580.799999999904
+            },
+            {
+              "key": "instance-reference-content-reference:t",
+              "phase": 0.03686400000000001,
+              "secondLoop": 2.511360000000046
+            },
+            {
+              "key": "instance-reference-content-selected:ax0",
+              "secondLoop": 0.4962568995752789
+            },
+            {
+              "key": "instance-reference-content-selected:ax1",
+              "secondLoop": 0.6748453291294815
+            },
+            {
+              "key": "instance-reference-content-selected:ax2",
+              "secondLoop": 0.6774351614187294
+            },
+            {
+              "key": "instance-reference-content-selected:ay0",
+              "secondLoop": 0.7327135970518593
+            },
+            {
+              "key": "instance-reference-content-selected:ay1",
+              "secondLoop": 0.6520151232953156
+            },
+            {
+              "key": "instance-reference-content-selected:ay2",
+              "secondLoop": 0.743936495307574
+            },
+            {
+              "key": "instance-reference-content-selected:density",
+              "secondLoop": 8
+            },
+            {
+              "key": "instance-reference-content-selected:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 5507.839999999906
+            },
+            {
+              "key": "instance-reference-content-selected:gain",
+              "secondLoop": 2.3
+            },
+            {
+              "key": "instance-reference-content-selected:sharp",
+              "secondLoop": 0.3312
+            },
+            {
+              "key": "instance-reference-content-selected:t",
+              "phase": 0,
+              "secondLoop": 2.17008896000001
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4250,
+            5499,
+            5500,
+            5501,
+            7000,
+            8499,
+            8500,
+            8501,
+            9100,
+            9699,
+            9700,
+            9701,
+            10450,
+            11199,
+            11200,
+            11201,
+            11800,
+            12350,
+            12399,
+            12400,
+            12401,
+            13150,
+            13899,
+            13900,
+            13901,
+            14500,
+            15099,
+            15100,
+            15101,
+            15850,
+            16599,
+            16600,
+            16601,
+            17200,
+            17799,
+            17800,
+            17801,
+            18550,
+            19299,
+            19300,
+            19301,
+            19900,
+            20499,
+            20500,
+            20501,
+            21250,
+            21999,
+            22000,
+            22001,
+            22600,
+            23199,
+            23200,
+            23201,
+            23950,
+            24699
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-reference-content-reference:elapsed_ms",
+            "instance-reference-content-reference:t",
+            "instance-reference-content-selected:ax0",
+            "instance-reference-content-selected:ax1",
+            "instance-reference-content-selected:ax2",
+            "instance-reference-content-selected:ay0",
+            "instance-reference-content-selected:ay1",
+            "instance-reference-content-selected:ay2",
+            "instance-reference-content-selected:density",
+            "instance-reference-content-selected:elapsed_ms",
+            "instance-reference-content-selected:gain",
+            "instance-reference-content-selected:sharp",
+            "instance-reference-content-selected:t"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-reference-content-reference:elapsed_ms",
+              "phase": 5368832,
+              "secondLoop": 366003344
+            },
+            {
+              "key": "instance-reference-content-reference:t",
+              "phase": 2416,
+              "secondLoop": 164703
+            },
+            {
+              "key": "instance-reference-content-selected:ax0",
+              "secondLoop": 32588
+            },
+            {
+              "key": "instance-reference-content-selected:ax1",
+              "secondLoop": 44184
+            },
+            {
+              "key": "instance-reference-content-selected:ax2",
+              "secondLoop": 44406
+            },
+            {
+              "key": "instance-reference-content-selected:ay0",
+              "secondLoop": 48007
+            },
+            {
+              "key": "instance-reference-content-selected:ay1",
+              "secondLoop": 42785
+            },
+            {
+              "key": "instance-reference-content-selected:ay2",
+              "secondLoop": 48783
+            },
+            {
+              "key": "instance-reference-content-selected:density",
+              "secondLoop": 524288
+            },
+            {
+              "key": "instance-reference-content-selected:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 360718400
+            },
+            {
+              "key": "instance-reference-content-selected:gain",
+              "secondLoop": 150733
+            },
+            {
+              "key": "instance-reference-content-selected:sharp",
+              "secondLoop": 21705
+            },
+            {
+              "key": "instance-reference-content-selected:t",
+              "phase": 0,
+              "secondLoop": 141900
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "stock",
@@ -6442,13 +9443,311 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "conversion-refused",
-      "refusalCodes": [
-        "unsupported-boundary-transition"
-      ],
-      "refusalMessages": [
-        "transitions: Whole-boundary visual scope must be converted into explicit participants before admission."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": false,
+        "sourceEqual": true,
+        "summaryEqual": true,
+        "memberIdentityMappings": [],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4875,
+            6749,
+            6750,
+            6751,
+            7750,
+            8749,
+            8750,
+            8751,
+            10550,
+            12349,
+            12350,
+            12351,
+            12850,
+            13349,
+            13350,
+            13351,
+            15150,
+            16949,
+            16950,
+            16951,
+            17450,
+            17949,
+            17950,
+            17951,
+            19750,
+            21549,
+            21550,
+            21551,
+            22050,
+            22549,
+            22550,
+            22551,
+            24350,
+            26149,
+            26150,
+            26151,
+            26650,
+            27149,
+            27150,
+            27151,
+            28950,
+            29675,
+            30749,
+            30750,
+            30751,
+            31250,
+            31749,
+            31750,
+            31751,
+            33550,
+            35349,
+            35350,
+            35351,
+            35850,
+            36349,
+            36350,
+            36351,
+            38150,
+            39949,
+            39950,
+            39951,
+            40450,
+            40949,
+            40950,
+            40951,
+            42750,
+            44549,
+            44550,
+            44551,
+            45050,
+            45549,
+            45550,
+            45551,
+            47350,
+            49149,
+            49150,
+            49151,
+            49650,
+            50149,
+            50150,
+            50151,
+            51950,
+            53749,
+            53750,
+            53751,
+            54250,
+            54749,
+            54750,
+            54751,
+            56550,
+            58349,
+            58350,
+            58351,
+            58850,
+            59349
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-reference-content-reference:elapsed_ms",
+            "instance-reference-content-selected:built",
+            "instance-reference-content-selected:elapsed_ms",
+            "instance-reference-content-selected:t",
+            "instance-reference-content-selected:tick"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-reference-content-reference:elapsed_ms",
+              "phase": 81.92,
+              "secondLoop": 16846.720000001034
+            },
+            {
+              "key": "instance-reference-content-selected:built",
+              "phase": 0,
+              "secondLoop": 1
+            },
+            {
+              "key": "instance-reference-content-selected:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 16097.280000001083
+            },
+            {
+              "key": "instance-reference-content-selected:t",
+              "phase": 0,
+              "secondLoop": 16.097279999999465
+            },
+            {
+              "key": "instance-reference-content-selected:tick",
+              "phase": 0,
+              "secondLoop": 128
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4875,
+            6749,
+            6750,
+            6751,
+            7750,
+            8749,
+            8750,
+            8751,
+            10550,
+            12349,
+            12350,
+            12351,
+            12850,
+            13349,
+            13350,
+            13351,
+            15150,
+            16949,
+            16950,
+            16951,
+            17450,
+            17949,
+            17950,
+            17951,
+            19750,
+            21549,
+            21550,
+            21551,
+            22050,
+            22549,
+            22550,
+            22551,
+            24350,
+            26149,
+            26150,
+            26151,
+            26650,
+            27149,
+            27150,
+            27151,
+            28950,
+            29675,
+            30749,
+            30750,
+            30751,
+            31250,
+            31749,
+            31750,
+            31751,
+            33550,
+            35349,
+            35350,
+            35351,
+            35850,
+            36349,
+            36350,
+            36351,
+            38150,
+            39949,
+            39950,
+            39951,
+            40450,
+            40949,
+            40950,
+            40951,
+            42750,
+            44549,
+            44550,
+            44551,
+            45050,
+            45549,
+            45550,
+            45551,
+            47350,
+            49149,
+            49150,
+            49151,
+            49650,
+            50149,
+            50150,
+            50151,
+            51950,
+            53749,
+            53750,
+            53751,
+            54250,
+            54749,
+            54750,
+            54751,
+            56550,
+            58349,
+            58350,
+            58351,
+            58850,
+            59349
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-reference-content-reference:elapsed_ms",
+            "instance-reference-content-selected:built",
+            "instance-reference-content-selected:elapsed_ms",
+            "instance-reference-content-selected:t",
+            "instance-reference-content-selected:tick"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-reference-content-reference:elapsed_ms",
+              "phase": 5368832,
+              "secondLoop": 1103420808
+            },
+            {
+              "key": "instance-reference-content-selected:built",
+              "phase": 0,
+              "secondLoop": 65536
+            },
+            {
+              "key": "instance-reference-content-selected:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 1055311040
+            },
+            {
+              "key": "instance-reference-content-selected:t",
+              "phase": 0,
+              "secondLoop": 1059865
+            },
+            {
+              "key": "instance-reference-content-selected:tick",
+              "phase": 0,
+              "secondLoop": 8454144
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "stock",
@@ -6517,13 +9816,273 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "conversion-refused",
-      "refusalCodes": [
-        "unsupported-boundary-transition"
-      ],
-      "refusalMessages": [
-        "transitions: Whole-boundary visual scope must be converted into explicit participants before admission."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": false,
+        "sourceEqual": true,
+        "summaryEqual": true,
+        "memberIdentityMappings": [],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4250,
+            5499,
+            5500,
+            5501,
+            7000,
+            8499,
+            8500,
+            8501,
+            9250,
+            9999,
+            10000,
+            10001,
+            11000,
+            11500,
+            11999,
+            12000,
+            12001,
+            12750,
+            13499,
+            13500,
+            13501,
+            14500,
+            15499,
+            15500,
+            15501,
+            16000,
+            16499,
+            16500,
+            16501,
+            17250,
+            17999,
+            18000,
+            18001,
+            18500,
+            18999,
+            19000,
+            19001,
+            19750,
+            20499,
+            20500,
+            20501,
+            21000,
+            21499,
+            21500,
+            21501,
+            22250,
+            22999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-reference-content-reference:apertureR",
+            "instance-reference-content-reference:elapsed_ms",
+            "instance-reference-content-reference:t",
+            "instance-reference-content-reference:tick",
+            "instance-reference-content-selected:b",
+            "instance-reference-content-selected:elapsed_ms",
+            "instance-reference-content-selected:g",
+            "instance-reference-content-selected:pointCount",
+            "instance-reference-content-selected:r",
+            "instance-reference-content-selected:t"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-reference-content-reference:apertureR",
+              "phase": 0.20009959000794109,
+              "secondLoop": 0.2103835652826706
+            },
+            {
+              "key": "instance-reference-content-reference:elapsed_ms",
+              "phase": 81.92,
+              "secondLoop": 5358.079999999909
+            },
+            {
+              "key": "instance-reference-content-reference:t",
+              "phase": 0.045875200000000005,
+              "secondLoop": 3.000524799999966
+            },
+            {
+              "key": "instance-reference-content-reference:tick",
+              "phase": 0,
+              "secondLoop": 7
+            },
+            {
+              "key": "instance-reference-content-selected:b",
+              "phase": 0,
+              "secondLoop": 0.0602536019689468
+            },
+            {
+              "key": "instance-reference-content-selected:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 4797.4399999999205
+            },
+            {
+              "key": "instance-reference-content-selected:g",
+              "phase": 0,
+              "secondLoop": 0.018076080590684045
+            },
+            {
+              "key": "instance-reference-content-selected:pointCount",
+              "secondLoop": 15
+            },
+            {
+              "key": "instance-reference-content-selected:r",
+              "phase": 0,
+              "secondLoop": 0.03386746984507311
+            },
+            {
+              "key": "instance-reference-content-selected:t",
+              "phase": 0,
+              "secondLoop": 2.59061760000001
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4250,
+            5499,
+            5500,
+            5501,
+            7000,
+            8499,
+            8500,
+            8501,
+            9250,
+            9999,
+            10000,
+            10001,
+            11000,
+            11500,
+            11999,
+            12000,
+            12001,
+            12750,
+            13499,
+            13500,
+            13501,
+            14500,
+            15499,
+            15500,
+            15501,
+            16000,
+            16499,
+            16500,
+            16501,
+            17250,
+            17999,
+            18000,
+            18001,
+            18500,
+            18999,
+            19000,
+            19001,
+            19750,
+            20499,
+            20500,
+            20501,
+            21000,
+            21499,
+            21500,
+            21501,
+            22250,
+            22999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-reference-content-reference:apertureR",
+            "instance-reference-content-reference:elapsed_ms",
+            "instance-reference-content-reference:t",
+            "instance-reference-content-reference:tick",
+            "instance-reference-content-selected:b",
+            "instance-reference-content-selected:elapsed_ms",
+            "instance-reference-content-selected:g",
+            "instance-reference-content-selected:pointCount",
+            "instance-reference-content-selected:r",
+            "instance-reference-content-selected:t"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-reference-content-reference:apertureR",
+              "phase": 13113,
+              "secondLoop": 13797
+            },
+            {
+              "key": "instance-reference-content-reference:elapsed_ms",
+              "phase": 5368832,
+              "secondLoop": 351490720
+            },
+            {
+              "key": "instance-reference-content-reference:t",
+              "phase": 3008,
+              "secondLoop": 196930
+            },
+            {
+              "key": "instance-reference-content-reference:tick",
+              "phase": 0,
+              "secondLoop": 458752
+            },
+            {
+              "key": "instance-reference-content-selected:b",
+              "phase": 0,
+              "secondLoop": 16219
+            },
+            {
+              "key": "instance-reference-content-selected:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 314412224
+            },
+            {
+              "key": "instance-reference-content-selected:g",
+              "phase": 0,
+              "secondLoop": 4865
+            },
+            {
+              "key": "instance-reference-content-selected:pointCount",
+              "secondLoop": 983040
+            },
+            {
+              "key": "instance-reference-content-selected:r",
+              "phase": 0,
+              "secondLoop": 5688
+            },
+            {
+              "key": "instance-reference-content-selected:t",
+              "phase": 0,
+              "secondLoop": 169597
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "stock",
@@ -6597,13 +10156,303 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "conversion-refused",
-      "refusalCodes": [
-        "unsupported-boundary-transition"
-      ],
-      "refusalMessages": [
-        "transitions: Whole-boundary visual scope must be converted into explicit participants before admission."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": false,
+        "sourceEqual": true,
+        "summaryEqual": true,
+        "memberIdentityMappings": [],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4250,
+            5499,
+            5500,
+            5501,
+            7000,
+            8499,
+            8500,
+            8501,
+            9100,
+            9699,
+            9700,
+            9701,
+            10450,
+            11199,
+            11200,
+            11201,
+            11800,
+            12350,
+            12399,
+            12400,
+            12401,
+            13150,
+            13899,
+            13900,
+            13901,
+            14500,
+            15099,
+            15100,
+            15101,
+            15850,
+            16599,
+            16600,
+            16601,
+            17200,
+            17799,
+            17800,
+            17801,
+            18550,
+            19299,
+            19300,
+            19301,
+            19900,
+            20499,
+            20500,
+            20501,
+            21250,
+            21999,
+            22000,
+            22001,
+            22600,
+            23199,
+            23200,
+            23201,
+            23950,
+            24699
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-reference-content-reference:elapsed_ms",
+            "instance-reference-content-reference:elapsed_s",
+            "instance-reference-content-reference:offAx",
+            "instance-reference-content-reference:offAy",
+            "instance-reference-content-reference:offBx",
+            "instance-reference-content-reference:offBy",
+            "instance-reference-content-reference:t",
+            "instance-reference-content-selected:built",
+            "instance-reference-content-selected:elapsed_ms",
+            "instance-reference-content-selected:t",
+            "instance-reference-content-selected:tick"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-reference-content-reference:elapsed_ms",
+              "phase": 81.92,
+              "secondLoop": 5580.799999999904
+            },
+            {
+              "key": "instance-reference-content-reference:elapsed_s",
+              "phase": 0.08192,
+              "secondLoop": 5.580799999999859
+            },
+            {
+              "key": "instance-reference-content-reference:offAx",
+              "phase": 0.11709537886323364,
+              "secondLoop": -0.8660203328643656
+            },
+            {
+              "key": "instance-reference-content-reference:offAy",
+              "phase": 0.5940141946299345,
+              "secondLoop": -0.5872936508094733
+            },
+            {
+              "key": "instance-reference-content-reference:offBx",
+              "phase": -0.49605735065723894,
+              "secondLoop": 0.32472402416500945
+            },
+            {
+              "key": "instance-reference-content-reference:offBy",
+              "phase": 0.12035037019558668,
+              "secondLoop": -0.4998102186360336
+            },
+            {
+              "key": "instance-reference-content-reference:t",
+              "phase": 0.025,
+              "secondLoop": 1.703124999999957
+            },
+            {
+              "key": "instance-reference-content-selected:built",
+              "phase": 0,
+              "secondLoop": 1
+            },
+            {
+              "key": "instance-reference-content-selected:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 5507.839999999906
+            },
+            {
+              "key": "instance-reference-content-selected:t",
+              "phase": 0,
+              "secondLoop": 5.507839999999862
+            },
+            {
+              "key": "instance-reference-content-selected:tick",
+              "phase": 0,
+              "secondLoop": 44
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            4250,
+            5499,
+            5500,
+            5501,
+            7000,
+            8499,
+            8500,
+            8501,
+            9100,
+            9699,
+            9700,
+            9701,
+            10450,
+            11199,
+            11200,
+            11201,
+            11800,
+            12350,
+            12399,
+            12400,
+            12401,
+            13150,
+            13899,
+            13900,
+            13901,
+            14500,
+            15099,
+            15100,
+            15101,
+            15850,
+            16599,
+            16600,
+            16601,
+            17200,
+            17799,
+            17800,
+            17801,
+            18550,
+            19299,
+            19300,
+            19301,
+            19900,
+            20499,
+            20500,
+            20501,
+            21250,
+            21999,
+            22000,
+            22001,
+            22600,
+            23199,
+            23200,
+            23201,
+            23950,
+            24699
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-reference-content-reference:elapsed_ms",
+            "instance-reference-content-reference:elapsed_s",
+            "instance-reference-content-reference:offAx",
+            "instance-reference-content-reference:offAy",
+            "instance-reference-content-reference:offBx",
+            "instance-reference-content-reference:offBy",
+            "instance-reference-content-reference:t",
+            "instance-reference-content-selected:built",
+            "instance-reference-content-selected:elapsed_ms",
+            "instance-reference-content-selected:t",
+            "instance-reference-content-selected:tick"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-reference-content-reference:elapsed_ms",
+              "phase": 5368832,
+              "secondLoop": 366003344
+            },
+            {
+              "key": "instance-reference-content-reference:elapsed_s",
+              "phase": 5376,
+              "secondLoop": 366492
+            },
+            {
+              "key": "instance-reference-content-reference:offAx",
+              "phase": 7680,
+              "secondLoop": -57131
+            },
+            {
+              "key": "instance-reference-content-reference:offAy",
+              "phase": 38928,
+              "secondLoop": -38329
+            },
+            {
+              "key": "instance-reference-content-reference:offBx",
+              "phase": -32509,
+              "secondLoop": 21703
+            },
+            {
+              "key": "instance-reference-content-reference:offBy",
+              "phase": 7894,
+              "secondLoop": -31993
+            },
+            {
+              "key": "instance-reference-content-reference:t",
+              "phase": 1640,
+              "secondLoop": 111838
+            },
+            {
+              "key": "instance-reference-content-selected:built",
+              "phase": 0,
+              "secondLoop": 65536
+            },
+            {
+              "key": "instance-reference-content-selected:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 360718400
+            },
+            {
+              "key": "instance-reference-content-selected:t",
+              "phase": 0,
+              "secondLoop": 362275
+            },
+            {
+              "key": "instance-reference-content-selected:tick",
+              "phase": 0,
+              "secondLoop": 2883584
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "stock",
@@ -6729,12 +10578,10 @@
       ],
       "outcome": "conversion-refused",
       "refusalCodes": [
-        "unsupported-boundary-transition",
         "unsupported-transition-track-activation"
       ],
       "refusalMessages": [
-        "composition.scenes.*.propertyTracks: Property-track activation during positive Transition contribution requires a dedicated parity proof.",
-        "transitions: Whole-boundary visual scope must be converted into explicit participants before admission."
+        "composition.scenes.*.propertyTracks: Property-track activation during positive Transition contribution requires a dedicated parity proof."
       ]
     },
     {
@@ -6874,13 +10721,641 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "conversion-refused",
-      "refusalCodes": [
-        "unsupported-boundary-transition"
-      ],
-      "refusalMessages": [
-        "transitions: Whole-boundary visual scope must be converted into explicit participants before admission."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": false,
+        "sourceEqual": true,
+        "summaryEqual": true,
+        "memberIdentityMappings": [],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            3900,
+            4799,
+            4800,
+            4801,
+            5800,
+            6799,
+            6800,
+            6801,
+            7700,
+            8599,
+            8600,
+            8601,
+            9600,
+            10599,
+            10600,
+            10601,
+            11500,
+            12399,
+            12400,
+            12401,
+            13400,
+            14399,
+            14400,
+            14401,
+            15300,
+            16199,
+            16200,
+            16201,
+            17200,
+            18199,
+            18200,
+            18201,
+            19100,
+            19999,
+            20000,
+            20001,
+            21000,
+            21999,
+            22000,
+            22001,
+            22900,
+            23799,
+            23800,
+            23801,
+            24800,
+            25799,
+            25800,
+            25801,
+            26700,
+            27599,
+            27600,
+            27601,
+            28600,
+            29599,
+            29600,
+            29601,
+            30500,
+            31399,
+            31400,
+            31401,
+            32400,
+            33399,
+            33400,
+            33401,
+            34300,
+            35199,
+            35200,
+            35201,
+            36200,
+            37199,
+            37200,
+            37201,
+            38100,
+            38999,
+            39000,
+            39001,
+            39500,
+            40000,
+            40999,
+            41000,
+            41001,
+            41900,
+            42799,
+            42800,
+            42801,
+            43800,
+            44799,
+            44800,
+            44801,
+            45700,
+            46599,
+            46600,
+            46601,
+            47600,
+            48599,
+            48600,
+            48601,
+            49500,
+            50399,
+            50400,
+            50401,
+            51400,
+            52399,
+            52400,
+            52401,
+            53300,
+            54199,
+            54200,
+            54201,
+            55200,
+            56199,
+            56200,
+            56201,
+            57100,
+            57999,
+            58000,
+            58001,
+            59000,
+            59999,
+            60000,
+            60001,
+            60900,
+            61799,
+            61800,
+            61801,
+            62800,
+            63799,
+            63800,
+            63801,
+            64700,
+            65599,
+            65600,
+            65601,
+            66600,
+            67599,
+            67600,
+            67601,
+            68500,
+            69399,
+            69400,
+            69401,
+            70400,
+            71399,
+            71400,
+            71401,
+            72300,
+            73199,
+            73200,
+            73201,
+            74200,
+            75199,
+            75200,
+            75201,
+            76100,
+            76999,
+            77000,
+            77001,
+            78000,
+            78999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-reference-content-reference:b",
+            "instance-reference-content-reference:elapsed_ms",
+            "instance-reference-content-reference:g",
+            "instance-reference-content-reference:r",
+            "instance-reference-content-reference:scroll",
+            "instance-reference-content-reference:t",
+            "instance-reference-content-selected:active",
+            "instance-reference-content-selected:ax0",
+            "instance-reference-content-selected:ax1",
+            "instance-reference-content-selected:ax2",
+            "instance-reference-content-selected:ax3",
+            "instance-reference-content-selected:ax4",
+            "instance-reference-content-selected:ay0",
+            "instance-reference-content-selected:ay1",
+            "instance-reference-content-selected:ay2",
+            "instance-reference-content-selected:ay3",
+            "instance-reference-content-selected:ay4",
+            "instance-reference-content-selected:b",
+            "instance-reference-content-selected:elapsed_ms",
+            "instance-reference-content-selected:g",
+            "instance-reference-content-selected:gain",
+            "instance-reference-content-selected:r",
+            "instance-reference-content-selected:t",
+            "instance-reference-content-selected:threshold"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-reference-content-reference:b",
+              "phase": 0.6611019706851483,
+              "secondLoop": 0.31019229424668704
+            },
+            {
+              "key": "instance-reference-content-reference:elapsed_ms",
+              "phase": 81.92,
+              "secondLoop": 18961.920000000617
+            },
+            {
+              "key": "instance-reference-content-reference:g",
+              "phase": 0.9125198908947842,
+              "secondLoop": 0.9439868810726137
+            },
+            {
+              "key": "instance-reference-content-reference:r",
+              "phase": 0.667664329812571,
+              "secondLoop": 0.7240334426274672
+            },
+            {
+              "key": "instance-reference-content-reference:scroll",
+              "phase": 0.00442368,
+              "secondLoop": 1.0239436800000183
+            },
+            {
+              "key": "instance-reference-content-reference:t",
+              "phase": 0.08192,
+              "secondLoop": 18.96192000000034
+            },
+            {
+              "key": "instance-reference-content-selected:active",
+              "secondLoop": 5
+            },
+            {
+              "key": "instance-reference-content-selected:ax0",
+              "secondLoop": 0.7126561532502447
+            },
+            {
+              "key": "instance-reference-content-selected:ax1",
+              "secondLoop": 0.33557932738068774
+            },
+            {
+              "key": "instance-reference-content-selected:ax2",
+              "secondLoop": 0.6658852199114926
+            },
+            {
+              "key": "instance-reference-content-selected:ax3",
+              "secondLoop": 0.8383580072312387
+            },
+            {
+              "key": "instance-reference-content-selected:ax4",
+              "secondLoop": 0.29932335815323224
+            },
+            {
+              "key": "instance-reference-content-selected:ay0",
+              "secondLoop": 0.6772444068760995
+            },
+            {
+              "key": "instance-reference-content-selected:ay1",
+              "secondLoop": 0.719203873925431
+            },
+            {
+              "key": "instance-reference-content-selected:ay2",
+              "secondLoop": 0.6178433509158259
+            },
+            {
+              "key": "instance-reference-content-selected:ay3",
+              "secondLoop": 0.33560693718379675
+            },
+            {
+              "key": "instance-reference-content-selected:ay4",
+              "secondLoop": 0.7967796846458519
+            },
+            {
+              "key": "instance-reference-content-selected:b",
+              "phase": 0,
+              "secondLoop": 0.04878359666964004
+            },
+            {
+              "key": "instance-reference-content-selected:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 17920.000000000822
+            },
+            {
+              "key": "instance-reference-content-selected:g",
+              "phase": 0,
+              "secondLoop": 0.1748326934327818
+            },
+            {
+              "key": "instance-reference-content-selected:gain",
+              "secondLoop": 0.047259999999999996
+            },
+            {
+              "key": "instance-reference-content-selected:r",
+              "phase": 0,
+              "secondLoop": 0.03146988481790073
+            },
+            {
+              "key": "instance-reference-content-selected:t",
+              "phase": 0,
+              "secondLoop": 9.13919999999963
+            },
+            {
+              "key": "instance-reference-content-selected:threshold",
+              "secondLoop": 1.1265
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1500,
+            2999,
+            3000,
+            3001,
+            3900,
+            4799,
+            4800,
+            4801,
+            5800,
+            6799,
+            6800,
+            6801,
+            7700,
+            8599,
+            8600,
+            8601,
+            9600,
+            10599,
+            10600,
+            10601,
+            11500,
+            12399,
+            12400,
+            12401,
+            13400,
+            14399,
+            14400,
+            14401,
+            15300,
+            16199,
+            16200,
+            16201,
+            17200,
+            18199,
+            18200,
+            18201,
+            19100,
+            19999,
+            20000,
+            20001,
+            21000,
+            21999,
+            22000,
+            22001,
+            22900,
+            23799,
+            23800,
+            23801,
+            24800,
+            25799,
+            25800,
+            25801,
+            26700,
+            27599,
+            27600,
+            27601,
+            28600,
+            29599,
+            29600,
+            29601,
+            30500,
+            31399,
+            31400,
+            31401,
+            32400,
+            33399,
+            33400,
+            33401,
+            34300,
+            35199,
+            35200,
+            35201,
+            36200,
+            37199,
+            37200,
+            37201,
+            38100,
+            38999,
+            39000,
+            39001,
+            39500,
+            40000,
+            40999,
+            41000,
+            41001,
+            41900,
+            42799,
+            42800,
+            42801,
+            43800,
+            44799,
+            44800,
+            44801,
+            45700,
+            46599,
+            46600,
+            46601,
+            47600,
+            48599,
+            48600,
+            48601,
+            49500,
+            50399,
+            50400,
+            50401,
+            51400,
+            52399,
+            52400,
+            52401,
+            53300,
+            54199,
+            54200,
+            54201,
+            55200,
+            56199,
+            56200,
+            56201,
+            57100,
+            57999,
+            58000,
+            58001,
+            59000,
+            59999,
+            60000,
+            60001,
+            60900,
+            61799,
+            61800,
+            61801,
+            62800,
+            63799,
+            63800,
+            63801,
+            64700,
+            65599,
+            65600,
+            65601,
+            66600,
+            67599,
+            67600,
+            67601,
+            68500,
+            69399,
+            69400,
+            69401,
+            70400,
+            71399,
+            71400,
+            71401,
+            72300,
+            73199,
+            73200,
+            73201,
+            74200,
+            75199,
+            75200,
+            75201,
+            76100,
+            76999,
+            77000,
+            77001,
+            78000,
+            78999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-reference-content-reference:b",
+            "instance-reference-content-reference:elapsed_ms",
+            "instance-reference-content-reference:g",
+            "instance-reference-content-reference:r",
+            "instance-reference-content-reference:scroll",
+            "instance-reference-content-reference:t",
+            "instance-reference-content-selected:active",
+            "instance-reference-content-selected:ax0",
+            "instance-reference-content-selected:ax1",
+            "instance-reference-content-selected:ax2",
+            "instance-reference-content-selected:ax3",
+            "instance-reference-content-selected:ax4",
+            "instance-reference-content-selected:ay0",
+            "instance-reference-content-selected:ay1",
+            "instance-reference-content-selected:ay2",
+            "instance-reference-content-selected:ay3",
+            "instance-reference-content-selected:ay4",
+            "instance-reference-content-selected:b",
+            "instance-reference-content-selected:elapsed_ms",
+            "instance-reference-content-selected:g",
+            "instance-reference-content-selected:gain",
+            "instance-reference-content-selected:r",
+            "instance-reference-content-selected:t",
+            "instance-reference-content-selected:threshold"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-reference-content-reference:b",
+              "phase": 43326,
+              "secondLoop": 19906
+            },
+            {
+              "key": "instance-reference-content-reference:elapsed_ms",
+              "phase": 5368832,
+              "secondLoop": 1242716832
+            },
+            {
+              "key": "instance-reference-content-reference:g",
+              "phase": 59804,
+              "secondLoop": 62274
+            },
+            {
+              "key": "instance-reference-content-reference:r",
+              "phase": 43759,
+              "secondLoop": 48264
+            },
+            {
+              "key": "instance-reference-content-reference:scroll",
+              "phase": 291,
+              "secondLoop": 67397
+            },
+            {
+              "key": "instance-reference-content-reference:t",
+              "phase": 5392,
+              "secondLoop": 1248079
+            },
+            {
+              "key": "instance-reference-content-selected:active",
+              "secondLoop": 327680
+            },
+            {
+              "key": "instance-reference-content-selected:ax0",
+              "secondLoop": 46616
+            },
+            {
+              "key": "instance-reference-content-selected:ax1",
+              "secondLoop": 22083
+            },
+            {
+              "key": "instance-reference-content-selected:ax2",
+              "secondLoop": 43691
+            },
+            {
+              "key": "instance-reference-content-selected:ax3",
+              "secondLoop": 54952
+            },
+            {
+              "key": "instance-reference-content-selected:ax4",
+              "secondLoop": 19659
+            },
+            {
+              "key": "instance-reference-content-selected:ay0",
+              "secondLoop": 44301
+            },
+            {
+              "key": "instance-reference-content-selected:ay1",
+              "secondLoop": 47084
+            },
+            {
+              "key": "instance-reference-content-selected:ay2",
+              "secondLoop": 40652
+            },
+            {
+              "key": "instance-reference-content-selected:ay3",
+              "secondLoop": 21957
+            },
+            {
+              "key": "instance-reference-content-selected:ay4",
+              "secondLoop": 52205
+            },
+            {
+              "key": "instance-reference-content-selected:b",
+              "phase": 0,
+              "secondLoop": 3202
+            },
+            {
+              "key": "instance-reference-content-selected:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 1173760896
+            },
+            {
+              "key": "instance-reference-content-selected:g",
+              "phase": 0,
+              "secondLoop": 11458
+            },
+            {
+              "key": "instance-reference-content-selected:gain",
+              "secondLoop": 3097
+            },
+            {
+              "key": "instance-reference-content-selected:r",
+              "phase": 0,
+              "secondLoop": 2064
+            },
+            {
+              "key": "instance-reference-content-selected:t",
+              "phase": 0,
+              "secondLoop": 598158
+            },
+            {
+              "key": "instance-reference-content-selected:threshold",
+              "secondLoop": 73827
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "stock",
@@ -8172,7 +12647,7 @@
       "refusalCodes": [],
       "refusalMessages": [],
       "parity": {
-        "recipeEqual": false,
+        "recipeEqual": true,
         "sourceEqual": true,
         "summaryEqual": true,
         "memberIdentityMappings": [],
@@ -8936,12 +13411,10 @@
       ],
       "outcome": "conversion-refused",
       "refusalCodes": [
-        "unsupported-boundary-transition",
         "unsupported-transition-track-activation"
       ],
       "refusalMessages": [
-        "composition.scenes.*.propertyTracks: Property-track activation during positive Transition contribution requires a dedicated parity proof.",
-        "transitions: Whole-boundary visual scope must be converted into explicit participants before admission."
+        "composition.scenes.*.propertyTracks: Property-track activation during positive Transition contribution requires a dedicated parity proof."
       ]
     },
     {
@@ -9000,7 +13473,7 @@
       "refusalCodes": [],
       "refusalMessages": [],
       "parity": {
-        "recipeEqual": false,
+        "recipeEqual": true,
         "sourceEqual": true,
         "summaryEqual": true,
         "memberIdentityMappings": [],
@@ -10379,12 +14852,10 @@
       ],
       "outcome": "conversion-refused",
       "refusalCodes": [
-        "unsupported-boundary-transition",
         "unsupported-transition-track-activation"
       ],
       "refusalMessages": [
-        "composition.scenes.*.propertyTracks: Property-track activation during positive Transition contribution requires a dedicated parity proof.",
-        "transitions: Whole-boundary visual scope must be converted into explicit participants before admission."
+        "composition.scenes.*.propertyTracks: Property-track activation during positive Transition contribution requires a dedicated parity proof."
       ]
     },
     {
@@ -10490,12 +14961,12 @@
       "accountedSourceLeaves": 252,
       "unaccountedSourcePaths": [],
       "retiredFlatCellShadows": [],
-      "outcome": "conversion-refused",
+      "outcome": "preparation-refused",
       "refusalCodes": [
-        "unsupported-boundary-transition"
+        "unsupported-zone-sampling"
       ],
       "refusalMessages": [
-        "transitions: Whole-boundary visual scope must be converted into explicit participants before admission."
+        "composition.clips: lowering requires repeat-mode Clip sampling evidence before compilation."
       ]
     }
   ]

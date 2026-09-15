@@ -4,6 +4,44 @@
 > wired to product save, import, Undo/Redo, or admission. It does not satisfy
 > the full #1034 acceptance set or approve the provisional v2 model.
 
+## Current completion increment (2026-09-15)
+
+The current corpus has **35 converted/compiled, 11 conversion refusals, and one
+preparation refusal**, with zero matched-time Fast/Precise or second-loop parity
+failures. All 47 records remain accounted for. The earlier 22-record results below
+are historical evidence; the machine-readable report contains current outcomes.
+
+Whole-boundary visual Transitions now convert when one outgoing and one incoming
+Clip share a Zone and Layer, no unrelated Clip contributes inside the window,
+and no boundary property/routing carrier is present. All six current kinds preserve
+generated source; boundary/interior frames and exported private state match in
+Fast and Precise through the second loop. Settings and source boundary time receive
+explicit accounting. Flat-cell accounting includes inter-Scene Transition time.
+Unproved multi-participant scope and carriers continue to refuse.
+
+Global sections now derive from held appearance changes and activation intervals;
+ordinary Clip start/end times alone do not split a curve. A track's activation may
+extend beyond its visible Clip if it intersects it. Full-Show activation also lowers
+through the existing single-section Transition route unchanged. Wholly disjoint
+activation and activation crossing an appearance/other activation boundary remain
+refused. No curve is sampled, shortened, or re-eased to obtain admission.
+
+The replay oracle now completes each artifact's replay before constructing the
+other runtime. An identical-artifact regression showed that implicit Pattern globals
+otherwise cross-contaminate interleaved runtimes in both modes. Default compiler
+artifacts still supply frame/state parity. Logical member provenance is checked on
+an additional unslotted compile when the default compiler selects its existing
+physical-slot reuse optimization; this avoids mistaking proved machine reuse for
+lost authored identity. No compiler behavior changed.
+
+Remaining completion work: section-owned animation around whole-boundary
+Transitions (three records), Layout conversion (six), Group materialization (two),
+and independent flat sampling with Transitions (one). These are implementation/proof
+work, not approved permanent restrictions. This increment does not complete #1034,
+start #1035, or wire production v2 consumers. Jon directed completion of #1034,
+separate Astra/medium review and local landing, then a stop; UX work is separately
+assigned. The coincident independent-Transition redesign remains deferred.
+
 ## Reproducible inputs
 
 - Base commit: `d685125b34c694f311972e258efb48d12cf05cd8`.

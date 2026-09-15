@@ -2,7 +2,7 @@ import { prepareShowV2ForCompile } from '../src/engine/showCompositionLoweringV2
 import { compileShow } from '../src/engine/showCompiler'
 import { LIBRARIES } from '../src/pixelblaze/libs'
 import { describe, expect, it } from 'vitest'
-import { assertPreparedMemberProvenance, semanticSampleTimes } from './show-v2-parity'
+import { assertPreparedMemberProvenance, runtimeParity, semanticSampleTimes } from './show-v2-parity'
 import { convertShowRecordV1ToV2 } from '../src/engine/showRecordV1ToV2'
 import { flatV1Show, transitionV1Show } from '../src/test/showV2TracerFixture'
 
@@ -80,5 +80,19 @@ describe('prepared runtime provenance oracle', () => {
     const prepared = prepareShowV2ForCompile(converted.record, { byCellId: {}, byPatternInstanceId: Object.fromEntries(ids.map(id => [id, 'export function render(index) { rgb(1, 0, 0) }'])) })
     if (prepared.status !== 'ready') throw new Error('Fixture preparation failed')
     expect(() => assertPreparedMemberProvenance(converted.record, prepared.provenance, prepared.recipe, compileShow(prepared.recipe, LIBRARIES))).not.toThrow()
+  })
+})
+
+
+describe('isolated replay parity', () => {
+  it.each(['fast', 'fidelity'] as const)('compares an identical artifact with implicit Pattern globals in %s', fidelity => {
+    const source = transitionV1Show('crossfade')
+    const converted = convertShowRecordV1ToV2(source)
+    if (converted.status !== 'converted') throw new Error('fixture conversion failed')
+    const code = 'scratchClock=0; export function beforeRender(delta) { scratchClock+=delta/1000 } export function render2D(index,x,y) { rgb(scratchClock,0,0) }'
+    const prepared = prepareShowV2ForCompile(converted.record, { byCellId: {}, byPatternInstanceId: { 'out-instance': code, 'in-instance': code }, stageDimension: 2 })
+    if (prepared.status !== 'ready') throw new Error('fixture preparation failed')
+    const artifact = compileShow(prepared.recipe, LIBRARIES)
+    expect(runtimeParity(artifact, artifact, source, converted.record, fidelity, []).matched).toBe(true)
   })
 })

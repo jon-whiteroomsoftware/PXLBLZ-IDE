@@ -91,7 +91,7 @@ export async function main(): Promise<void> {
     records,
   }
   if (STOCK_SHOWS.length !== 40 || BASELINE_FIXTURES.length !== 7) throw new Error('The pinned #1034 corpus census changed; review the inventory before updating expected counts.')
-  if (records.some(record => record.unaccountedSourcePaths.length > 0)) throw new Error('At least one source record has unaccounted leaf paths.')
+  if (records.some(record => record.unaccountedSourcePaths.length > 0)) throw new Error(`Unaccounted source leaves: ${JSON.stringify(records.filter(record => record.unaccountedSourcePaths.length > 0).map(record => ({ id: record.corpusId, paths: record.unaccountedSourcePaths })))}`)
   const parityFailures = records.filter(record => record.parity && (!record.parity.fast.matched || !record.parity.precise.matched))
   if (parityFailures.length > 0) {
     throw new Error(`Supported conversion diverged in matched-time Fast/Precise replay: ${parityFailures.map(record => (
@@ -157,7 +157,12 @@ function runEntry(input: { corpus: CorpusEntry['corpus']; corpusId: string; show
   } catch (error) {
     return { ...base, outcome: 'compile-refused', refusalCodes: ['compile-error'], refusalMessages: [errorMessage(error)] }
   }
-  assertPreparedMemberProvenance(conversion.record, preparation.provenance, preparation.recipe, v2)
+  // Check logical ownership before the compiler's independent physical-slot optimization.
+  // Actual default-compiled artifacts remain the output and lifecycle parity oracle.
+  const identityArtifact = v2.summary.specializations.patternSlots?.selected
+    ? compileShow(v2Recipe, libraries, { patternSlotSharing: 'none' })
+    : v2
+  assertPreparedMemberProvenance(conversion.record, preparation.provenance, preparation.recipe, identityArtifact)
   const memberIdentityMappings = flatMemberIdentityMappings(conversion.report, v1, v2)
   return {
     ...base, outcome: 'converted-compiled', refusalCodes: [], refusalMessages: [],
@@ -337,7 +342,7 @@ function librarySources(fixture?: BaselineFixture): Record<string, string> {
   return { ...LIBRARIES, ...Object.fromEntries((fixture?.libraries ?? []).map((library: LibraryRecord) => [library.name, library.src])) }
 }
 
-function runtimeParity(
+export function runtimeParity(
   leftArtifact: GeneratedShowArtifact,
   rightArtifact: GeneratedShowArtifact,
   source: ShowRecord,
@@ -353,37 +358,32 @@ function runtimeParity(
     dimension: nativeDimension(artifact.metadata.renderFns),
   }, { mapPoints: points, randomSeed: RANDOM_SEED, fidelity })
   const times = semanticSampleTimes(source, converted)
-  const left = runtime(leftArtifact)
-  const right = runtime(rightArtifact)
   const rightMemberIdAliases = new Map(memberIdentityMappings.map(mapping => [mapping.v2MemberId, mapping.v1MemberId]))
-  const initialLeft = freeze(left.renderCurrentFrame(), leftArtifact)
-  const initialRight = freeze(right.renderCurrentFrame(), rightArtifact, rightMemberIdAliases)
-  let matched = stableJson(initialLeft) === stableJson(initialRight)
-  let firstMismatchMs = matched ? undefined : 0
-  for (const timeMs of times.filter(time => time > 0)) {
-    const options = { stepMs: STEP_MS, forceFullIntermediateRender: true }
-    const leftResult = freeze(left.advanceTo(timeMs, options), leftArtifact)
-    const rightResult = freeze(right.advanceTo(timeMs, options), rightArtifact, rightMemberIdAliases)
-    if (stableJson(leftResult) !== stableJson(rightResult)) {
-      matched = false
-      firstMismatchMs ??= timeMs
+  const sample = (artifact: GeneratedShowArtifact, aliases: ReadonlyMap<string, string> = new Map()) => {
+    const instance = runtime(artifact)
+    const results = [freeze(instance.renderCurrentFrame(), artifact, aliases)]
+    for (const timeMs of times.filter(time => time > 0)) {
+      results.push(freeze(instance.advanceTo(timeMs, { stepMs: STEP_MS, forceFullIntermediateRender: true }), artifact, aliases))
     }
+    return results
   }
+  const leftSamples = sample(leftArtifact)
+  const rightSamples = sample(rightArtifact, rightMemberIdAliases)
+  const sampleTimes = [0, ...times.filter(time => time > 0)]
+  const mismatchIndex = leftSamples.findIndex((result, index) => stableJson(result) !== stableJson(rightSamples[index]))
+  let matched = mismatchIndex < 0
+  const firstMismatchMs = mismatchIndex < 0 ? undefined : sampleTimes[mismatchIndex]
   const phaseMs = Math.max(1, Math.min(256, Math.floor(showEndMs / 4)))
-  const phaseLeft = runtime(leftArtifact)
-  const phaseRight = runtime(rightArtifact)
-  phaseLeft.renderCurrentFrame()
-  phaseRight.renderCurrentFrame()
-  const phaseLeftResult = freeze(phaseLeft.advanceTo(phaseMs, { stepMs: STEP_MS, forceFullIntermediateRender: true }), leftArtifact)
-  const phaseRightResult = freeze(phaseRight.advanceTo(phaseMs, { stepMs: STEP_MS, forceFullIntermediateRender: true }), rightArtifact, rightMemberIdAliases)
-  const loopLeft = runtime(leftArtifact)
-  const loopRight = runtime(rightArtifact)
-  loopLeft.renderCurrentFrame()
-  loopRight.renderCurrentFrame()
-  loopLeft.advanceTo(showEndMs, { stepMs: STEP_MS, forceFullIntermediateRender: true })
-  loopRight.advanceTo(showEndMs, { stepMs: STEP_MS, forceFullIntermediateRender: true })
-  const loopLeftResult = freeze(loopLeft.advanceTo(showEndMs + phaseMs, { stepMs: STEP_MS, forceFullIntermediateRender: true }), leftArtifact)
-  const loopRightResult = freeze(loopRight.advanceTo(showEndMs + phaseMs, { stepMs: STEP_MS, forceFullIntermediateRender: true }), rightArtifact, rightMemberIdAliases)
+  const phase = (artifact: GeneratedShowArtifact, secondLoop: boolean, aliases: ReadonlyMap<string, string> = new Map()) => {
+    const instance = runtime(artifact)
+    instance.renderCurrentFrame()
+    if (secondLoop) instance.advanceTo(showEndMs, { stepMs: STEP_MS, forceFullIntermediateRender: true })
+    return freeze(instance.advanceTo((secondLoop ? showEndMs : 0) + phaseMs, { stepMs: STEP_MS, forceFullIntermediateRender: true }), artifact, aliases)
+  }
+  const phaseLeftResult = phase(leftArtifact, false)
+  const phaseRightResult = phase(rightArtifact, false, rightMemberIdAliases)
+  const loopLeftResult = phase(leftArtifact, true)
+  const loopRightResult = phase(rightArtifact, true, rightMemberIdAliases)
   const targetMs = Math.max(1, Math.min(512, showEndMs - 1))
   const cold = runtime(leftArtifact)
   cold.renderCurrentFrame()

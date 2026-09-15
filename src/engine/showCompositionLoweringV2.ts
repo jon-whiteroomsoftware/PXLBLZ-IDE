@@ -176,8 +176,8 @@ function resolveShowV2CompileContext(
   if (composition.transitions.some(transition => transition.propertyRamps.length > 0)) {
     return refuse('unsupported-transition-property-ramp', 'composition.transitions', 'lowering requires Transition property-ramp compiler evidence before compilation.')
   }
-  if (composition.transitions.length > 0 && composition.propertyTracks.length > 0) {
-    return refuse('unsupported-transition-property-track', 'composition.propertyTracks', 'lowering requires positive-Transition property-track activation evidence before compilation.')
+  if (composition.transitions.length > 0 && composition.propertyTracks.some(track => track.activeStartMs !== 0 || track.activeDurationMs !== composition.showEndMs)) {
+    return refuse('unsupported-transition-property-track', 'composition.propertyTracks', 'lowering requires section-scoped positive-Transition property-track activation evidence before compilation.')
   }
   if (composition.transitions.some(transition => transition.kind === 'cut')) {
     return refuse('unsupported-explicit-cut', 'composition.transitions', 'lowering cannot preserve explicit Cut identity in the implicit v1 Layer-transition form.')
@@ -196,8 +196,8 @@ function resolveShowV2CompileContext(
     if (!('clipId' in track.target)) continue
     const clipId = track.target.clipId
     const clip = composition.clips.find(candidate => candidate.id === clipId)!
-    if (track.activeStartMs < clip.startMs || track.activeStartMs + track.activeDurationMs > clip.startMs + clip.durationMs) {
-      return refuse('unsupported-track-activation', `composition.propertyTracks[${index}]`, `property track "${track.id}" activation extends outside its target Clip.`)
+    if (track.activeStartMs >= clip.startMs + clip.durationMs || track.activeStartMs + track.activeDurationMs <= clip.startMs) {
+      return refuse('unsupported-track-activation', `composition.propertyTracks[${index}]`, `property track "${track.id}" activation does not intersect its target Clip.`)
     }
   }
   const flatEligible = composition.executionModel === 'continuous' && canLowerToFlat(record)
@@ -251,11 +251,7 @@ function globalSectionBoundaries(record: ShowRecordV2): number[] {
   return [...new Set([
     0,
     composition.showEndMs,
-    ...composition.clips.flatMap(clip => [
-      clip.startMs,
-      clip.startMs + clip.durationMs,
-      ...clip.appearance.keys.map(key => key.timeMs),
-    ]),
+    ...composition.clips.flatMap(clip => clip.appearance.keys.slice(1).map(key => key.timeMs)),
     ...composition.propertyTracks.flatMap(track => [
       track.activeStartMs,
       track.activeStartMs + track.activeDurationMs,
