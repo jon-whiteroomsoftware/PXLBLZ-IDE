@@ -4,6 +4,7 @@ import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { showRecordToCompileRecipe } from './showModel'
 import { compileShow } from './showCompiler'
+import { validateShowRecordV2 } from './showCompositionV2'
 import { LIBRARIES } from '../pixelblaze/libs'
 import { runtimeParity } from '../../scripts/show-v2-parity'
 
@@ -50,11 +51,25 @@ it.each([1, 2])('preserves %i Layout transfers starting with whole-output visual
   const b = compileShow(prepared.recipe, LIBRARIES)
   expect(b.code).toBe(a.code)
   for (const fidelity of ['fast', 'fidelity'] as const) expect(runtimeParity(a, b, source, converted.record, fidelity, [])).toMatchObject({ matched: true, secondLoopMatched: true, coldSeekMatchedContinuous: true })
-  const changed = structuredClone(converted.record)
-  changed.composition.layoutOccurrences[0].durationMs = 450
-  changed.composition.layoutOccurrences[1].startMs = 450
-  changed.composition.layoutOccurrences[1].durationMs -= 50
-  expect(prepareShowV2ForCompile(changed, lookup).status).toBe('refused')
+  for (const atMs of [399, 400, 401, 599, 600, 601]) {
+    const changed = structuredClone(converted.record)
+    changed.composition.layoutOccurrences[0].durationMs = atMs
+    changed.composition.layoutOccurrences[1].startMs = atMs
+    changed.composition.layoutOccurrences[1].durationMs -= atMs - 400
+    expect(validateShowRecordV2(changed)).toEqual([])
+    const preimage = structuredClone(changed)
+    const result = prepareShowV2ForCompile(changed, lookup)
+    expect(changed).toEqual(preimage)
+    if (atMs > 400 && atMs <= 600) {
+      expect(result, `Layout edge ${atMs}`).toMatchObject({ status: 'refused', issues: [{ code: 'unsupported-layout-occurrences' }] })
+    } else {
+      expect(result.status, `Layout edge ${atMs}`).toBe('ready')
+      if (result.status === 'ready') {
+        expect(result.recipe.routingSwitches).toEqual([{ ...v1Recipe.routingSwitches![0], atMs }, ...v1Recipe.routingSwitches!.slice(1)])
+        expect(() => compileShow(result.recipe, LIBRARIES)).not.toThrow()
+      }
+    }
+  }
 })
 
 it('preserves a Zone disappearing and returning with the same runtime instance', () => {

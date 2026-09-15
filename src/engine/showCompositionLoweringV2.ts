@@ -150,7 +150,12 @@ function resolveAndLowerShowV2(
   }
   const resolved = resolveShowV2CompileContext(expanded, { ...lookup, byPatternInstanceId: sources })
   if ('issues' in resolved) return resolved
-  return { context: resolved, lowered: emitResolvedShowV2(resolved) }
+  const lowered = emitResolvedShowV2(resolved)
+  const sceneIds = new Set(lowered.show.scenes.map(scene => scene.id))
+  if (lowered.show.transitions.some(transition => transition.kind === 'routing' && !sceneIds.has(transition.afterSceneId))) {
+    return refuse('unsupported-layout-occurrences', 'composition.layoutOccurrences', 'A Layout switch must attach to an emitted compiler hold end; this time cannot be represented without losing routing behavior.')
+  }
+  return { context: resolved, lowered }
 }
 
 function refuse(

@@ -197,7 +197,8 @@ inventing Layer pairings for unequal topologies. Mixed whole-output/participant
 scope and independent overlapping positive windows remain ineligible. A Layout
 transfer at a visual boundary starts at the outgoing hold end; later switches
 include intervening visual durations in their global time. An edge strictly
-inside a visual window remains refused. See the measured scope fixtures.
+inside a visual window, or at its end without an emitted compiler hold owner,
+remains refused. See the measured scope fixtures.
 
 The schema provisionally admits an explicit zero-duration Cut for direct v2
 authoring experiments, but conversion does not create one for every v1
