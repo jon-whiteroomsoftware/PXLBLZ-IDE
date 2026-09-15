@@ -156,61 +156,66 @@ it('discovers OAuth and MCP through the actual Worker with the finite canonical 
 })
 it('registers bounded public DCR clients without replacing static clients', async () => {
   await runtime.setOptions(runtimeOptions({ AGENT_OAUTH_CLIENTS: '[]' }))
-  const registeredRedirect = 'http://127.0.0.1:3100/callback'
-  const requestedRedirect = 'http://127.0.0.1:3200/callback'
-  const dynamic = {
-    redirect_uris: [registeredRedirect],
-    client_name: 'Independent MCP client',
-    grant_types: ['authorization_code', 'refresh_token'],
-    response_types: ['code'],
-    token_endpoint_auth_method: 'none',
-  }
-  const registrations = []
-  for (let index = 0; index < 10; index++) {
-    const token_endpoint_auth_method = index === 1 ? 'client_secret_basic' : index === 2 ? 'client_secret_post' : 'none'
-    const response = await runtime.dispatchFetch('https://app.test/oauth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...dynamic, token_endpoint_auth_method, client_name: `${dynamic.client_name} ${index}` }) })
-    registrations.push(response)
-  }
-  expect(registrations.map(response => response.status), JSON.stringify(await Promise.all(registrations.map(response => response.clone().text())))).toEqual(Array(10).fill(201))
-  const registeredClients = await Promise.all(registrations.slice(0, 3).map(response => response.json())) as Array<{ client_id: string; client_secret?: string; redirect_uris: string[]; token_endpoint_auth_method: string }>
-  const registered = registeredClients[0]
-  expect(registered).toMatchObject({ redirect_uris: dynamic.redirect_uris, token_endpoint_auth_method: 'none' })
-  expect(registeredClients.map(value => value.token_endpoint_auth_method)).toEqual(['none', 'client_secret_basic', 'client_secret_post'])
-  expect(registeredClients.slice(1).every(value => typeof value.client_secret === 'string')).toBe(true)
-  const limited = await runtime.dispatchFetch('https://app.test/oauth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dynamic) })
-  expect(limited.status).toBe(429)
-
-  for (const clientInfo of registeredClients) {
-    const authorization = await runtime.dispatchFetch(await authURL({ client_id: clientInfo.client_id, redirect_uri: requestedRedirect }), { headers: { Cookie: cookie } })
-    expect(authorization.status, await authorization.clone().text()).toBe(200)
-    const nonce = (await authorization.text()).match(/name="nonce" value="([^"]+)"/)![1]
-    const allowed = await answer(nonce)
-    const redirect = new URL(allowed.headers.get('Location')!)
-    expect(redirect.origin).toBe('http://127.0.0.1:3200')
-    const fields = new URLSearchParams({ resource: 'https://app.test/mcp', grant_type: 'authorization_code', code: redirect.searchParams.get('code')!, code_verifier: verifier, redirect_uri: requestedRedirect })
-    const headers: Record<string, string> = { 'Content-Type': 'application/x-www-form-urlencoded' }
-    if (clientInfo.token_endpoint_auth_method === 'client_secret_basic') headers.Authorization = `Basic ${btoa(`${clientInfo.client_id}:${clientInfo.client_secret}`)}`
-    else {
-      fields.set('client_id', clientInfo.client_id)
-      if (clientInfo.token_endpoint_auth_method === 'client_secret_post') fields.set('client_secret', clientInfo.client_secret!)
+  const capture = async (response: { status: number; headers: { get(name: string): string | null }; text(): Promise<string> }) => ({ status: response.status, headers: response.headers, body: await response.text() })
+  try {
+    const registeredRedirect = 'http://127.0.0.1:3100/callback'
+    const requestedRedirect = 'http://127.0.0.1:3200/callback'
+    const dynamic = {
+      redirect_uris: [registeredRedirect],
+      client_name: 'Independent MCP client',
+      grant_types: ['authorization_code', 'refresh_token'],
+      response_types: ['code'],
+      token_endpoint_auth_method: 'none',
     }
-    const token = await runtime.dispatchFetch('https://app.test/oauth/token', { method: 'POST', headers, body: fields.toString() })
-    expect(token.status, await token.clone().text()).toBe(200)
-    if (clientInfo.token_endpoint_auth_method === 'none') {
-      const issued = await token.clone().json() as { access_token: string }
-      const initialize = (origin: string) => runtime.dispatchFetch('https://app.test/mcp', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${issued.access_token}`, Origin: origin, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json', 'MCP-Protocol-Version': '2025-11-25' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'loopback', version: '1' } } }),
-      })
-      expect((await initialize(new URL(requestedRedirect).origin)).status).toBe(200)
-      expect((await initialize('http://127.0.0.1:3300')).status).toBe(403)
+    const registrations = []
+    for (let index = 0; index < 10; index++) {
+      const token_endpoint_auth_method = index === 1 ? 'client_secret_basic' : index === 2 ? 'client_secret_post' : 'none'
+      const response = await runtime.dispatchFetch('https://app.test/oauth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...dynamic, token_endpoint_auth_method, client_name: `${dynamic.client_name} ${index}` }) })
+      registrations.push(await capture(response))
     }
-  }
+    expect(registrations.map(response => response.status), JSON.stringify(registrations.map(response => response.body))).toEqual(Array(10).fill(201))
+    const registeredClients = registrations.slice(0, 3).map(response => JSON.parse(response.body)) as Array<{ client_id: string; client_secret?: string; redirect_uris: string[]; token_endpoint_auth_method: string }>
+    const registered = registeredClients[0]
+    expect(registered).toMatchObject({ redirect_uris: dynamic.redirect_uris, token_endpoint_auth_method: 'none' })
+    expect(registeredClients.map(value => value.token_endpoint_auth_method)).toEqual(['none', 'client_secret_basic', 'client_secret_post'])
+    expect(registeredClients.slice(1).every(value => typeof value.client_secret === 'string')).toBe(true)
+    const limited = await capture(await runtime.dispatchFetch('https://app.test/oauth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dynamic) }))
+    expect(limited.status).toBe(429)
 
-  // Reintroducing deployment-owned preregistration leaves the DCR records live.
-  await runtime.setOptions(runtimeOptions())
-  expect((await runtime.dispatchFetch(await authURL(), { headers: { Cookie: cookie } })).status).toBe(200)
+    for (const clientInfo of registeredClients) {
+      const authorization = await capture(await runtime.dispatchFetch(await authURL({ client_id: clientInfo.client_id, redirect_uri: requestedRedirect }), { headers: { Cookie: cookie } }))
+      expect(authorization.status, authorization.body).toBe(200)
+      const nonce = authorization.body.match(/name="nonce" value="([^"]+)"/)![1]
+      const allowed = await capture(await answer(nonce))
+      const redirect = new URL(allowed.headers.get('Location')!)
+      expect(redirect.origin).toBe('http://127.0.0.1:3200')
+      const fields = new URLSearchParams({ resource: 'https://app.test/mcp', grant_type: 'authorization_code', code: redirect.searchParams.get('code')!, code_verifier: verifier, redirect_uri: requestedRedirect })
+      const headers: Record<string, string> = { 'Content-Type': 'application/x-www-form-urlencoded' }
+      if (clientInfo.token_endpoint_auth_method === 'client_secret_basic') headers.Authorization = `Basic ${btoa(`${clientInfo.client_id}:${clientInfo.client_secret}`)}`
+      else {
+        fields.set('client_id', clientInfo.client_id)
+        if (clientInfo.token_endpoint_auth_method === 'client_secret_post') fields.set('client_secret', clientInfo.client_secret!)
+      }
+      const token = await capture(await runtime.dispatchFetch('https://app.test/oauth/token', { method: 'POST', headers, body: fields.toString() }))
+      expect(token.status, token.body).toBe(200)
+      if (clientInfo.token_endpoint_auth_method === 'none') {
+        const issued = JSON.parse(token.body) as { access_token: string }
+        const initialize = (origin: string) => runtime.dispatchFetch('https://app.test/mcp', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${issued.access_token}`, Origin: origin, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json', 'MCP-Protocol-Version': '2025-11-25' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'loopback', version: '1' } } }),
+        })
+        expect((await capture(await initialize(new URL(requestedRedirect).origin))).status).toBe(200)
+        expect((await capture(await initialize('http://127.0.0.1:3300'))).status).toBe(403)
+      }
+    }
+
+    // Reintroducing deployment-owned preregistration leaves the DCR records live.
+    await runtime.setOptions(runtimeOptions())
+    expect((await capture(await runtime.dispatchFetch(await authURL(), { headers: { Cookie: cookie } }))).status).toBe(200)
+  } finally {
+    await runtime.setOptions(runtimeOptions())
+  }
 })
 it('refuses wrong resource, redirect and verifier without consuming the valid code', async () => {
   const response = await answer(await consent())
