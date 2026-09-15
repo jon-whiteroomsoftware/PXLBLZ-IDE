@@ -262,20 +262,17 @@ describe('convertShowRecordV1ToV2', () => {
     ['explicit values', 0.25, 0.75],
     ['initial default', undefined, 0.75],
     ['later default', 0.25, undefined],
-  ] as const)('refuses divergent per-Scene split positions across a carrier-free Cut: %s', (_name, first, second) => {
+  ] as const)('preserves changed split positions as explicit Layout occurrences across a carrier-free Cut: %s', (_name, first, second) => {
     const source = continuingCutShow()
     if (first !== undefined) source.scenes[0].routingTargets = { splitPosition: first }
     if (second !== undefined) source.scenes[1].routingTargets = { splitPosition: second }
     const before = JSON.stringify(source)
 
-    expect(convertShowRecordV1ToV2(source)).toMatchObject({
-      status: 'refused',
-      issues: expect.arrayContaining([expect.objectContaining({
-        code: 'unsupported-routing-change',
-        path: 'scenes.*.routingTargets.splitPosition',
-      })]),
-      report: { unaccountedSourcePaths: [] },
-    })
+    const converted = convertShowRecordV1ToV2(source)
+    expect(converted).toMatchObject({ status: 'converted', report: { unaccountedSourcePaths: [] } })
+    if (converted.status === 'converted') {
+      expect(converted.record.composition.layoutOccurrences.map(occurrence => occurrence.parameters.splitPosition ?? 0.5)).toEqual([first ?? 0.5, second ?? 0.5])
+    }
     expect(JSON.stringify(source)).toBe(before)
   })
 

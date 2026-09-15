@@ -100,6 +100,7 @@ export interface ShowTransitionV2 extends Omit<
 }
 
 export interface ShowLayoutTransferV2 {
+  easing?: ShowStructuredEasing
   id: string
   fromOccurrenceId: string
   durationMs: number
@@ -518,7 +519,7 @@ function validateLayoutCoverage(
     }
     cursorMs = safeAdd(occurrence.startMs, occurrence.durationMs)
     if (occurrence.incomingTransfer) {
-      if (index === 0 || !occurrences.has(occurrence.incomingTransfer.fromOccurrenceId)) {
+      if (index === 0 || !occurrences.has(occurrence.incomingTransfer.fromOccurrenceId) || ordered[index - 1].id !== occurrence.incomingTransfer.fromOccurrenceId) {
         addIssue(issues, `${path}.incomingTransfer.fromOccurrenceId`, 'missing-reference', 'Incoming transfer must reference a preceding occurrence.')
       }
       validateNonnegativeTime(issues, `${path}.incomingTransfer.durationMs`, occurrence.incomingTransfer.durationMs)

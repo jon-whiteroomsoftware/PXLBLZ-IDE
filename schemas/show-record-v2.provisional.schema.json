@@ -347,6 +347,7 @@
     "ShowLayoutTransferV2": {
       "type": "object",
       "properties": {
+        "easing": { "$ref": "show-record.schema.json#/definitions/ShowStructuredEasing" },
         "id": { "$ref": "#/$defs/Id" },
         "fromOccurrenceId": { "$ref": "#/$defs/Id" },
         "durationMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },

@@ -77,7 +77,7 @@ export async function main(): Promise<void> {
     generatedFrom: {
       baseCommit: 'd685125b34c694f311972e258efb48d12cf05cd8',
       provisionalPlanSha256: 'a13641e8d6233e037ac1e3993b110fce49f44f3908ad0972a50b81279d79722f',
-      provisionalSchemaSha256: '776c6068c3b179d9775864def12853bd170eaaacca17fe23c57718d203d14c9f',
+      provisionalSchemaSha256: sha256(readFileSync(resolve('schemas/show-record-v2.provisional.schema.json'), 'utf8')),
       runtime: { stepMs: STEP_MS, randomSeed: RANDOM_SEED, modes: ['fast', 'fidelity'], mapPoints: 8 },
       recordIdentity: { algorithm: 'sha256', excludedVolatileFields: ['updatedAt'] },
     },
@@ -237,7 +237,7 @@ function sourceLookupWithFlatProjection(
   return { ...lookup, byPatternInstanceId }
 }
 
-function flatMemberIdentityMappings(
+export function flatMemberIdentityMappings(
   report: ShowV1ToV2Report,
   v1: GeneratedShowArtifact,
   v2: GeneratedShowArtifact,
@@ -255,21 +255,22 @@ function flatMemberIdentityMappings(
       v2MemberByPlacementId.set(placementId, mapping.clipId)
     }
   }
-  const mappings = report.flatProjectionMappings.map(mapping => {
-    if (!v1MemberIds.has(mapping.cellId)) {
-      throw new Error(`Flat projection cell "${mapping.cellId}" has no matching v1 compiled member.`)
-    }
-    const projectedIds = mapping.placementIds.map(placementId => v2MemberByPlacementId.get(placementId))
-    if (projectedIds.some(instanceId => instanceId === undefined)) {
-      throw new Error(`Flat projection cell "${mapping.cellId}" has an unaccounted placement.`)
-    }
-    const uniqueProjectedIds = v2MemberIds.has(mapping.cellId) ? [mapping.cellId] : sortedUnique(projectedIds as string[])
-    if (uniqueProjectedIds.length !== 1 || !v2MemberIds.has(uniqueProjectedIds[0])) {
-      throw new Error(`Flat projection cell "${mapping.cellId}" does not map to exactly one v2 compiled member.`)
-    }
-    return { v1MemberId: mapping.cellId, v2MemberId: uniqueProjectedIds[0], provenance: 'flat-projection' as const }
+  const byInstance = new Map<string, typeof report.flatProjectionMappings>()
+  for (const mapping of report.flatProjectionMappings) {
+    if (mapping.patternInstanceIds.length !== 1) throw new Error(`Flat cell "${mapping.cellId}" has ambiguous runtime provenance.`)
+    const instanceId = mapping.patternInstanceIds[0]
+    byInstance.set(instanceId, [...(byInstance.get(instanceId) ?? []), mapping])
+  }
+  const mappings = [...byInstance].map(([instanceId, cells]) => {
+    const leftIds = sortedUnique([instanceId, ...cells.map(cell => cell.cellId)].filter(id => v1MemberIds.has(id)))
+    const placements = cells.flatMap(cell => cell.placementIds.map(id => v2MemberByPlacementId.get(id)))
+    if (placements.some(id => id === undefined)) throw new Error(`Flat instance "${instanceId}" has an unaccounted placement.`)
+    const rightIds = sortedUnique([instanceId, ...cells.map(cell => cell.cellId), ...placements as string[]].filter(id => v2MemberIds.has(id)))
+    if (leftIds.length !== 1 || rightIds.length !== 1) throw new Error(`Flat instance "${instanceId}" does not map to exactly one compiled member on each side.`)
+    return { v1MemberId: leftIds[0], v2MemberId: rightIds[0], provenance: 'flat-projection' as const }
   })
-  if (new Set(mappings.map(mapping => mapping.v1MemberId)).size !== mappings.length
+  if (v1MemberIds.size !== v1.summary.clips.length || v2MemberIds.size !== v2.summary.clips.length
+    || new Set(mappings.map(mapping => mapping.v1MemberId)).size !== mappings.length
     || new Set(mappings.map(mapping => mapping.v2MemberId)).size !== mappings.length
     || mappings.length !== v1MemberIds.size
     || mappings.length !== v2MemberIds.size) {

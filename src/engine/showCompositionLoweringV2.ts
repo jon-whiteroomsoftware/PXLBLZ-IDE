@@ -155,8 +155,8 @@ function resolveShowV2CompileContext(
   const issue = validateShowRecordV2(record)[0]
   if (issue) return refuse('invalid-record', issue.path, issue.message)
   const composition = record.composition
-  if (composition.layoutOccurrences.length !== 1) {
-    return refuse('unsupported-layout-occurrences', 'composition.layoutOccurrences', 'lowering currently requires one full-Show Layout occurrence.')
+  if (composition.layoutOccurrences.length !== 1 && composition.transitions.length > 0) {
+    return refuse('unsupported-layout-occurrences', 'composition.layoutOccurrences', 'Mixed Layout and visual Transition lowering requires separate preservation proof.')
   }
   if (composition.groupDefinitions.length > 0 || composition.groupOccurrences.length > 0) {
     return refuse('unsupported-groups', 'composition.groupDefinitions', 'lowering requires Group materialization evidence before compilation.')
@@ -223,7 +223,7 @@ function resolveShowV2CompileContext(
       )
     }
   }
-  const occurrence = composition.layoutOccurrences[0]
+  const occurrence = composition.layoutOccurrences.find(candidate => candidate.startMs === 0)!
   const route: PreparationRoute = flatEligible
     ? 'continuous-flat'
     : composition.transitions.length === 0 ? 'global-sections' : 'transition'
@@ -251,6 +251,7 @@ function globalSectionBoundaries(record: ShowRecordV2): number[] {
   return [...new Set([
     0,
     composition.showEndMs,
+    ...composition.layoutOccurrences.map(occurrence => occurrence.startMs),
     ...composition.clips.flatMap(clip => clip.appearance.keys.slice(1).map(key => key.timeMs)),
     ...composition.propertyTracks.flatMap(track => [
       track.activeStartMs,
@@ -420,6 +421,7 @@ function lowerGlobalClipsToSections(
     section.id,
     `Section ${index + 1}`,
     section.endMs - section.startMs,
+    section.startMs,
   ))
   return { show: buildLoweredShow(context, scenes, [], v1Composition), lookup }
 }
@@ -495,7 +497,13 @@ function lowerPropertyTargetForSection(
 
 function canLowerToFlat(record: ShowRecordV2): boolean {
   const composition = record.composition
-  return composition.transitions.length === 0
+  const wholeBoundary = composition.transitions.every(transition => {
+    const participant = transition.participants[0]
+    const from = composition.clips.find(clip => clip.id === participant.fromClipId)!
+    const to = composition.clips.find(clip => clip.id === participant.toClipId)!
+    return record.zones.length === 1 && !composition.clips.some(clip => clip !== from && clip !== to && clip.startMs <= to.startMs && clip.startMs + clip.durationMs >= from.startMs + from.durationMs)
+  })
+  return wholeBoundary
     && composition.propertyTracks.length === 0
     && composition.layers.every(layer => layer.rank === 0)
     && composition.clips.every(clip => clip.appearance.keys.length === 1 && clip.appearance.keys[0].value.opacity === 1)
@@ -510,15 +518,24 @@ function lowerContinuousToFlat(
   const boundaries = [...new Set([
     0,
     composition.showEndMs,
+    ...composition.layoutOccurrences.map(occurrence => occurrence.startMs),
     ...composition.clips.flatMap(clip => [clip.startMs, clip.startMs + clip.durationMs]),
   ])].sort((left, right) => left - right)
-  const scenes = boundaries.slice(0, -1).map((startMs, index) => buildDerivedScene(
+  const windows = composition.transitions.map(transition => {
+    const from = composition.clips.find(clip => clip.id === transition.participants[0].fromClipId)!
+    const startMs = from.startMs + from.durationMs
+    return { transition, startMs, endMs: startMs + transition.durationMs }
+  })
+  const sections = boundaries.slice(0, -1).map((startMs, index) => ({ startMs, endMs: boundaries[index + 1] }))
+    .filter(section => !windows.some(window => section.startMs >= window.startMs && section.endMs <= window.endMs))
+  const scenes = sections.map((section, index) => buildDerivedScene(
     context,
     `v2-flat-section:${index}`,
-    composition.markers.find(marker => marker.timeMs === startMs)?.name ?? `Section ${index + 1}`,
-    boundaries[index + 1] - startMs,
+    composition.markers.find(marker => marker.timeMs === section.startMs)?.name ?? `Section ${index + 1}`,
+    section.endMs - section.startMs,
+    section.startMs,
   ))
-  const sceneIndexByStart = new Map(boundaries.slice(0, -1).map((startMs, index) => [startMs, index]))
+  const sceneIndexByStart = new Map(sections.map((section, index) => [section.startMs, index]))
   const instanceById = new Map(composition.patternInstances.map(instance => [instance.id, instance]))
   const byCellId: Record<string, string> = {}
   const instanceIdByCellId = { ...(lookup.instanceIdByCellId ?? {}) }
@@ -527,7 +544,7 @@ function lowerContinuousToFlat(
     const instanceId = runtimeInstanceId(context, clip)
     const instance = instanceById.get(instanceId)!
     const startIndex = sceneIndexByStart.get(clip.startMs)!
-    const endIndex = boundaries.indexOf(clip.startMs + clip.durationMs)
+    const endIndex = sections.findIndex(section => section.endMs === clip.startMs + clip.durationMs) + 1
     const source = lookup.byPatternInstanceId?.[instance.id]
     if (!source) throw new Error(`Show composition v2 requires exact Pattern source for instance "${instance.id}".`)
     byCellId[clip.id] = source
@@ -569,8 +586,14 @@ function lowerContinuousToFlat(
     if (previous) previous.sceneSpan += cell.sceneSpan
     else coalesced.push({ ...cell })
   }
+  const show = buildLoweredShow(context, scenes, coalesced)
+  show.transitions.push(...windows.map(window => ({
+    ...stripV2TransitionFields(window.transition),
+    id: window.transition.id, kind: window.transition.kind,
+    afterSceneId: scenes[sections.findIndex(section => section.endMs === window.startMs)].id,
+  })))
   return {
-    show: buildLoweredShow(context, scenes, coalesced),
+    show,
     lookup: { ...structuredClone(lookup), byCellId, instanceIdByCellId },
   }
 }
@@ -591,8 +614,10 @@ function buildDerivedScene(
   id: string,
   name: string,
   durationMs: number,
+  startMs = 0,
 ): ShowRecord['scenes'][number] {
-  return { id, name, durationMs, ...structuredClone(context.sceneSettings) }
+  const occurrence = context.record.composition.layoutOccurrences.find(candidate => candidate.startMs <= startMs && candidate.startMs + candidate.durationMs > startMs)!
+  return { id, name, durationMs, ...(context.record.composition.sampleRemap.repeatScale !== 1 ? { sampleTargets: { repeatScale: context.record.composition.sampleRemap.repeatScale } } : {}), ...(occurrence.parameters.splitPosition !== undefined ? { routingTargets: { splitPosition: occurrence.parameters.splitPosition } } : {}) }
 }
 
 function buildLoweredShow(
@@ -602,6 +627,16 @@ function buildLoweredShow(
   composition?: ShowCompositionV1,
 ): ShowRecord {
   const { record } = context
+  const sceneEnds = new Map<number, string>()
+  let cursor = 0
+  for (const scene of scenes) { cursor += scene.durationMs; sceneEnds.set(cursor, scene.id) }
+  const transitions: ShowRecord['transitions'] = [...record.composition.layoutOccurrences].sort((a, b) => a.startMs - b.startMs).slice(1).map(occurrence => ({
+    id: occurrence.incomingTransfer?.id ?? `routing:${occurrence.id}`,
+    afterSceneId: sceneEnds.get(occurrence.startMs)!, kind: 'routing', layoutId: occurrence.layoutId,
+    durationMs: occurrence.incomingTransfer?.durationMs ?? 0,
+    easing: structuredClone(occurrence.incomingTransfer?.easing ?? { curve: 'linear' }),
+    ...(occurrence.incomingTransfer ? { routingDirection: occurrence.incomingTransfer.direction } : {}),
+  }))
   return {
     id: record.id,
     name: record.name,
@@ -609,7 +644,7 @@ function buildLoweredShow(
     zones: structuredClone(record.zones),
     cells,
     routingLayouts: structuredClone(context.routingLayouts),
-    transitions: [],
+    transitions,
     ...(record.targetControllerProfileId !== undefined ? { targetControllerProfileId: record.targetControllerProfileId } : {}),
     ...(record.stageMapId !== undefined ? { stageMapId: record.stageMapId } : {}),
     outputContract: structuredClone(record.outputContract),
@@ -633,7 +668,7 @@ function hasCoincidentPositiveTransitionWindows(record: ShowRecordV2): boolean {
 }
 
 function selectedLayoutFirst(record: ShowRecordV2) {
-  const selectedId = record.composition.layoutOccurrences[0].layoutId
+  const selectedId = record.composition.layoutOccurrences.find(occurrence => occurrence.startMs === 0)!.layoutId
   return structuredClone(record.zoneLayouts).sort((left, right) => (
     Number(right.id === selectedId) - Number(left.id === selectedId)
   ))

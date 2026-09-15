@@ -4,6 +4,34 @@
 > wired to product save, import, Undo/Redo, or admission. It does not satisfy
 > the full #1034 acceptance set or approve the provisional v2 model.
 
+## Layout and flat-sampling completion increment (2026-09-15)
+
+The latest corpus contains **42 converted/compiled records and five explicit
+conversion refusals**, with complete source accounting and zero matched-time,
+second-loop or cold-seek parity failures. Remaining records: two Groups and three
+whole-boundary animation records. Earlier counts below are historical increments.
+
+Layout occurrences retain authored switch time, Layout identity, parameters and
+transfer duration/direction/easing. The provisional schema now has optional
+transfer easing (omission keeps the existing linear default); the report hashes
+the actual schema bytes. Conversion coalesces unchanged occurrences but retains
+explicit routing boundaries, including repeated Layout use. Compile preparation
+orders occurrences by time, requires the immediate predecessor transfer reference,
+and derives existing compiler routing switches. No compiler or editor changes.
+
+Single-Zone flat Transitions retain independent sampling by deriving hold sections
+outside the positive window. Compilation keeps existing flat cell source and
+instance provenance. Multiple source cells sharing one recorded instance map to
+one member; missing, split or duplicate members still fail the complete bijection.
+A stateful flat fixture checks Fast/Precise parity through that public oracle.
+
+A two-Zone spatial transfer checks Fast/Precise frames and state through a second
+loop. Explicit public preparation assertions preserve duration, direction and
+sine easing. A discarded-easing mutation survived the sampled frames, then was
+caught by the strengthened transfer-parameter assertion; runtime samples alone
+are not claimed to qualify that field. Self-referential transfers refuse, and
+reversing occurrence array order leaves the prepared recipe unchanged.
+
 ## Current completion increment (2026-09-15)
 
 The current corpus has **35 converted/compiled, 11 conversion refusals, and one

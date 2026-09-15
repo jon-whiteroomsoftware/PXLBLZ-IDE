@@ -11,6 +11,7 @@ import {
   validateShowRecordV2,
   type ShowClipV2,
   type ShowLayerV2,
+  type ShowLayoutOccurrenceV2,
   type ShowPropertyTargetV2,
   type ShowRecordV2,
   type ShowTransitionV2,
@@ -165,12 +166,8 @@ export function convertShowRecordV1ToV2(
     })
   }
   const routingChanges = show.transitions.filter(transition => transition.kind === 'routing')
-  if (routingChanges.length > 0) {
-    issues.push({
-      path: 'transitions',
-      code: 'unsupported-routing-change',
-      message: 'Multiple Layout occurrences require the routing parity proof before admission.',
-    })
+  if (routingChanges.some(transition => !transition.layoutId || Object.keys(transition).some(key => !['id', 'afterSceneId', 'kind', 'layoutId', 'durationMs', 'easing', 'routingDirection'].includes(key))) || (routingChanges.length > 0 && show.transitions.some(transition => transition.kind !== 'routing' && transition.kind !== 'cut'))) {
+    issues.push({ path: 'transitions', code: 'unsupported-routing-change', message: 'Routing carriers and simultaneous visual/routing boundaries require separate preservation proof.' })
   }
   const visualBoundaries = show.transitions.filter(transition => transition.kind !== 'routing' && transition.kind !== 'cut')
   if (visualBoundaries.length > 0) {
@@ -219,6 +216,22 @@ export function convertShowRecordV1ToV2(
     for (const placementId of mapping.sourcePlacementIds) clipIdByPlacementId.set(placementId, mapping.clipId)
   }
   const showEndMs = showLoopDurationMs(show)
+  const layoutOccurrences: ShowLayoutOccurrenceV2[] = []
+  let activeLayoutId = show.routingLayouts[0]?.id ?? ''
+  for (const [index, scene] of timeline.scenes.entries()) {
+    const routing = routingChanges.find(transition => transition.afterSceneId === timeline.scenes[index - 1]?.sceneId)
+    if (routing?.layoutId) activeLayoutId = routing.layoutId
+    const parameters = scene.scene.routingTargets?.splitPosition === undefined ? {} : { splitPosition: scene.scene.routingTargets.splitPosition }
+    const previous = layoutOccurrences[layoutOccurrences.length - 1]
+    if (previous && !routing && previous.layoutId === activeLayoutId && (previous.parameters.splitPosition ?? 0.5) === (parameters.splitPosition ?? 0.5)) {
+      previous.durationMs = (timeline.scenes[index + 1]?.startMs ?? showEndMs) - previous.startMs
+      if (parameters.splitPosition !== undefined) previous.parameters.splitPosition = parameters.splitPosition
+    } else {
+      layoutOccurrences.push({ id: `layout-occurrence:${layoutOccurrences.length + 1}`, layoutId: activeLayoutId, startMs: scene.startMs, durationMs: (timeline.scenes[index + 1]?.startMs ?? showEndMs) - scene.startMs, parameters,
+        ...(routing && previous ? { incomingTransfer: { id: routing.id, fromOccurrenceId: previous.id, durationMs: routing.durationMs, direction: routing.routingDirection ?? 'forward', easing: structuredClone(routing.easing) } } : {}),
+      })
+    }
+  }
   const boundaryTransitions: ShowTransitionV2[] = []
   for (const boundary of visualBoundaries) {
     const atMs = sceneEndById.get(boundary.afterSceneId)
@@ -316,13 +329,7 @@ export function convertShowRecordV1ToV2(
         }],
         propertyRamps: [],
       }))],
-      layoutOccurrences: [{
-        id: 'layout-occurrence:1',
-        layoutId: show.routingLayouts[0]?.id ?? '',
-        startMs: 0,
-        durationMs: showEndMs,
-        parameters: commonLayoutParameters(show, issues),
-      }],
+      layoutOccurrences,
       propertyTracks,
       markers,
       groupDefinitions: [],
@@ -553,25 +560,6 @@ function commonRepeatScale(show: ShowRecord, issues: ShowV1ToV2Issue[]): number 
   return values.values().next().value ?? 1
 }
 
-function commonLayoutParameters(
-  show: ShowRecord,
-  issues: ShowV1ToV2Issue[],
-): { splitPosition?: number } {
-  const splitPositions = show.scenes.map(scene => scene.routingTargets?.splitPosition ?? 0.5)
-  const values = new Set(splitPositions)
-  if (values.size > 1) {
-    issues.push({
-      path: 'scenes.*.routingTargets.splitPosition',
-      code: 'unsupported-routing-change',
-      message: 'Changing split position requires proved Layout-occurrence conversion.',
-    })
-  }
-  const splitPosition = splitPositions[0] ?? 0.5
-  return show.scenes.some(scene => scene.routingTargets?.splitPosition !== undefined)
-    ? { splitPosition }
-    : {}
-}
-
 function uniqueId(preferred: string, used: Set<string>): string {
   if (!used.has(preferred)) return preferred
   let suffix = 2
@@ -653,7 +641,7 @@ export function auditShowV1ToV2Accounting(
     const nextMarker = nextMarkerMapping
       ? record.composition.markers.find(candidate => candidate.id === nextMarkerMapping.markerId)
       : undefined
-    const layout = record.composition.layoutOccurrences[0]
+    const layout = record.composition.layoutOccurrences.find(occurrence => offset && occurrence.startMs <= offset.startMs && occurrence.startMs + occurrence.durationMs > offset.startMs)
     const candidateEndMs = nextScene ? nextMarker?.timeMs : record.composition.showEndMs
     mapped(`${sourcePath}.id`, marker ? `composition.markers.${record.composition.markers.indexOf(marker)}.id` : 'composition.markers', scene.id, Boolean(offset && markerMapping && marker && marker.timeMs === offset.startMs))
     equal(`${sourcePath}.name`, marker ? `composition.markers.${record.composition.markers.indexOf(marker)}.name` : 'composition.markers', scene.name, marker?.name)
@@ -668,13 +656,12 @@ export function auditShowV1ToV2Accounting(
           show.transitions.some(source => source.id === transition.id && source.afterSceneId === scene.id)
         )?.durationMs ?? 0)
         && offset.endMs - offset.startMs === scene.durationMs
-        && layout?.startMs === 0
-        && layout.durationMs === record.composition.showEndMs
+        && layout !== undefined
       ),
     )
     if (scene.routingTargets !== undefined) {
       const value = scene.routingTargets.splitPosition
-      if (value !== undefined) equal(`${sourcePath}.routingTargets.splitPosition`, 'composition.layoutOccurrences.0.parameters.splitPosition', value, record.composition.layoutOccurrences[0]?.parameters.splitPosition)
+      if (value !== undefined) equal(`${sourcePath}.routingTargets.splitPosition`, 'composition.layoutOccurrences.*.parameters.splitPosition', value, layout?.parameters.splitPosition)
       else mapped(`${sourcePath}.routingTargets`, 'composition.layoutOccurrences.0.parameters', scene.routingTargets, Object.keys(scene.routingTargets).length === 0)
     }
     if (scene.sampleTargets !== undefined) {
@@ -706,6 +693,14 @@ export function auditShowV1ToV2Accounting(
     retired('transitions', 'composition.transitions/layoutOccurrences', show.transitions, true)
   } else {
     for (const [transitionIndex, transition] of show.transitions.entries()) {
+      if (transition.kind === 'routing') {
+        const occurrence = record.composition.layoutOccurrences.find(candidate => candidate.incomingTransfer?.id === transition.id)
+        const transfer = occurrence?.incomingTransfer
+        const offset = report.sceneOffsets.find(scene => scene.sceneId === transition.afterSceneId)
+        const valid = !!(occurrence && transfer && occurrence.layoutId === transition.layoutId && occurrence.startMs === offset?.endMs && transfer.durationMs === transition.durationMs && transfer.direction === (transition.routingDirection ?? 'forward') && JSON.stringify(transfer.easing) === JSON.stringify(transition.easing))
+        mapped(`transitions.${transitionIndex}`, 'composition.layoutOccurrences', transition, valid)
+        continue
+      }
       const targetIndex = record.composition.transitions.findIndex(candidate => candidate.id === transition.id)
       if (transition.kind !== 'cut' && targetIndex >= 0) {
         const { afterSceneId, ...settings } = transition
