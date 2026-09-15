@@ -4,6 +4,26 @@
 > wired to product save, import, Undo/Redo, or admission. It does not satisfy
 > the full #1034 acceptance set or approve the provisional v2 model.
 
+## Scalar property-carrier increment (2026-09-15)
+
+The corpus now admits **45/47** records with complete source accounting and no
+matched-time Fast/Precise, second-loop or cold-seek parity failures. Only the stock
+and baseline Group records still refuse. Full #1034 remains incomplete.
+
+Changing repeat-scale targets use one global held property track; the existing
+base value remains the initial target. Boundary-owned sample/routing ramps retain
+origin, duration and easing in typed `propertyRamps`. Lowering emits existing
+compiler scalar descriptors; smooth arbitrary global tracks remain unproved.
+Same-Layout parameter changes can accompany whole-output boundaries without
+inventing a routing switch. Actual mixed Layout transfers remain separately gated.
+
+Public tests retain exact generated source for repeat-scale and simultaneous
+split/repeat ramps, assert the 500 ms origin and 200 ms duration, and reopen the
+provisional file. Duplicate scalar ownership, wrong incoming Layout references
+and participant-scoped global ramps refuse without mutation. A wrong-origin
+mutation is killed. Existing Clip/instance/effect boundary carriers remain explicit
+refusals; this slice does not widen those unproved forms or change the compiler.
+
 ## Whole-output animation increment (2026-09-15)
 
 The corpus now admits **43/47** records with complete source accounting and no

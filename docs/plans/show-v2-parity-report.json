@@ -65,11 +65,10 @@
   "summary": {
     "total": 47,
     "byOutcome": {
-      "conversion-refused": 4,
-      "converted-compiled": 43
+      "conversion-refused": 2,
+      "converted-compiled": 45
     },
     "byRefusalCode": {
-      "unsupported-boundary-transition": 2,
       "unsupported-group": 2
     },
     "parityFailures": [],
@@ -105,6 +104,7 @@
         "stock:stock-show-reference-shape-reveal-figures",
         "stock:stock-show-reference-slide-transitions",
         "stock:stock-show-reference-zoom-spin-transitions",
+        "stock:stock-show-reference-property-animation",
         "stock:stock-show-reference-easing",
         "stock:stock-show-reference-aperture-shapes",
         "stock:stock-show-reference-aperture-icons",
@@ -118,6 +118,7 @@
         "agent-baseline:personal-base",
         "agent-baseline:personal-library-pattern",
         "agent-baseline:stock-draft",
+        "agent-baseline:animation",
         "agent-baseline:routing",
         "agent-baseline:long-timeline"
       ]
@@ -10993,13 +10994,593 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "conversion-refused",
-      "refusalCodes": [
-        "unsupported-boundary-transition"
-      ],
-      "refusalMessages": [
-        "transitions: Whole-boundary scope requires two nonempty contributor sets without unrelated contribution or boundary carriers."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": true,
+        "sourceEqual": true,
+        "summaryEqual": true,
+        "memberIdentityMappings": [],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1250,
+            2499,
+            2500,
+            2501,
+            3750,
+            4999,
+            5000,
+            5001,
+            6250,
+            7499,
+            7500,
+            7501,
+            8750,
+            9999,
+            10000,
+            10001,
+            11250,
+            12499,
+            12500,
+            12501,
+            13750,
+            14999,
+            15000,
+            15001,
+            16250,
+            17499,
+            17500,
+            17501,
+            18750,
+            19999,
+            20000,
+            20001,
+            21250,
+            21800,
+            22499,
+            22500,
+            22501,
+            23750,
+            24300,
+            24999,
+            25000,
+            25001,
+            26250,
+            27499,
+            27500,
+            27501,
+            28750,
+            29999,
+            30000,
+            30001,
+            31250,
+            32499,
+            32500,
+            32501,
+            33400,
+            33750,
+            34999,
+            35000,
+            35001,
+            35900,
+            36799,
+            36800,
+            36801,
+            39300,
+            40200,
+            41799,
+            41800,
+            41801,
+            42700,
+            43599,
+            43600,
+            43601,
+            46100,
+            48599
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-overlay-opacity-overlay:elapsed_ms",
+            "instance-overlay-opacity-overlay:ringCount",
+            "instance-overlay-opacity-overlay:spokeCount",
+            "instance-overlay-opacity-overlay:t",
+            "instance-property-comparison-control:elapsed_ms",
+            "instance-property-comparison-control:elapsed_s",
+            "instance-property-comparison-control:speed",
+            "instance-property-comparison-control:t1",
+            "instance-property-comparison-control:timebase",
+            "instance-property-comparison-control:zoom",
+            "instance-property-comparison-speed:elapsed_ms",
+            "instance-property-comparison-speed:elapsed_s",
+            "instance-property-comparison-speed:t1",
+            "instance-property-comparison-speed:timebase",
+            "instance-property-comparison-speed:zoom",
+            "instance-property-subject-control:control_sliderSpeed",
+            "instance-property-subject-control:elapsed_ms",
+            "instance-property-subject-control:elapsed_s",
+            "instance-property-subject-control:speed",
+            "instance-property-subject-control:t1",
+            "instance-property-subject-control:timebase",
+            "instance-property-subject-control:zoom",
+            "instance-property-subject-speed:adapt_timeScale",
+            "instance-property-subject-speed:elapsed_ms",
+            "instance-property-subject-speed:elapsed_s",
+            "instance-property-subject-speed:t1",
+            "instance-property-subject-speed:timebase",
+            "instance-property-subject-speed:zoom",
+            "instance-property-subject:elapsed_ms",
+            "instance-property-subject:elapsed_s",
+            "instance-property-subject:speed",
+            "instance-property-subject:t1",
+            "instance-property-subject:timebase",
+            "instance-property-subject:zoom"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-overlay-opacity-overlay:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 1402.2400000000043
+            },
+            {
+              "key": "instance-overlay-opacity-overlay:ringCount",
+              "secondLoop": 8.68
+            },
+            {
+              "key": "instance-overlay-opacity-overlay:spokeCount",
+              "secondLoop": 14
+            },
+            {
+              "key": "instance-overlay-opacity-overlay:t",
+              "phase": 0,
+              "secondLoop": 1.3096921600000047
+            },
+            {
+              "key": "instance-property-comparison-control:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 998.4000000000055
+            },
+            {
+              "key": "instance-property-comparison-control:elapsed_s",
+              "phase": 0,
+              "secondLoop": 0.9983999999999957
+            },
+            {
+              "key": "instance-property-comparison-control:speed",
+              "phase": 4.6,
+              "secondLoop": 1.18
+            },
+            {
+              "key": "instance-property-comparison-control:t1",
+              "secondLoop": 1.178111999999995
+            },
+            {
+              "key": "instance-property-comparison-control:timebase",
+              "phase": 0,
+              "secondLoop": 0.9983999999999957
+            },
+            {
+              "key": "instance-property-comparison-control:zoom",
+              "secondLoop": 0.3548576613727661
+            },
+            {
+              "key": "instance-property-comparison-speed:elapsed_ms",
+              "phase": 51.20000000000001,
+              "secondLoop": 1049.6000000000063
+            },
+            {
+              "key": "instance-property-comparison-speed:elapsed_s",
+              "phase": 0.051200000000000016,
+              "secondLoop": 1.0495999999999972
+            },
+            {
+              "key": "instance-property-comparison-speed:t1",
+              "phase": 0.06041600000000002,
+              "secondLoop": 1.2385279999999967
+            },
+            {
+              "key": "instance-property-comparison-speed:timebase",
+              "phase": 0.051200000000000016,
+              "secondLoop": 1.0495999999999972
+            },
+            {
+              "key": "instance-property-comparison-speed:zoom",
+              "phase": 0.0010705383806982605,
+              "secondLoop": 0.38646186848281155
+            },
+            {
+              "key": "instance-property-subject-control:control_sliderSpeed",
+              "phase": 0.02,
+              "secondLoop": 0.02127999999999941
+            },
+            {
+              "key": "instance-property-subject-control:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 998.4000000000055
+            },
+            {
+              "key": "instance-property-subject-control:elapsed_s",
+              "phase": 0,
+              "secondLoop": 0.9983999999999957
+            },
+            {
+              "key": "instance-property-subject-control:speed",
+              "phase": 4.6,
+              "secondLoop": 1.1915199999999948
+            },
+            {
+              "key": "instance-property-subject-control:t1",
+              "secondLoop": 1.1896135679999897
+            },
+            {
+              "key": "instance-property-subject-control:timebase",
+              "phase": 0,
+              "secondLoop": 0.9983999999999957
+            },
+            {
+              "key": "instance-property-subject-control:zoom",
+              "secondLoop": 0.3548576613727661
+            },
+            {
+              "key": "instance-property-subject-speed:adapt_timeScale",
+              "phase": 0.09072000000000001,
+              "secondLoop": 0.09071999999957092
+            },
+            {
+              "key": "instance-property-subject-speed:elapsed_ms",
+              "phase": 19.53792,
+              "secondLoop": 1069.0559999998893
+            },
+            {
+              "key": "instance-property-subject-speed:elapsed_s",
+              "phase": 0.01953792,
+              "secondLoop": 1.0690559999998899
+            },
+            {
+              "key": "instance-property-subject-speed:t1",
+              "phase": 0.0230547456,
+              "secondLoop": 1.26148607999987
+            },
+            {
+              "key": "instance-property-subject-speed:timebase",
+              "phase": 0.01953792,
+              "secondLoop": 1.0690559999998899
+            },
+            {
+              "key": "instance-property-subject-speed:zoom",
+              "phase": 0.00015593781183204092,
+              "secondLoop": 0.39860635232167485
+            },
+            {
+              "key": "instance-property-subject:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 7723.199999999699
+            },
+            {
+              "key": "instance-property-subject:elapsed_s",
+              "phase": 0,
+              "secondLoop": 7.723199999999672
+            },
+            {
+              "key": "instance-property-subject:speed",
+              "phase": 4.6,
+              "secondLoop": 1.18
+            },
+            {
+              "key": "instance-property-subject:t1",
+              "secondLoop": 9.113375999999612
+            },
+            {
+              "key": "instance-property-subject:timebase",
+              "phase": 0,
+              "secondLoop": 7.723199999999672
+            },
+            {
+              "key": "instance-property-subject:zoom",
+              "secondLoop": 0.9506744235231017
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1250,
+            2499,
+            2500,
+            2501,
+            3750,
+            4999,
+            5000,
+            5001,
+            6250,
+            7499,
+            7500,
+            7501,
+            8750,
+            9999,
+            10000,
+            10001,
+            11250,
+            12499,
+            12500,
+            12501,
+            13750,
+            14999,
+            15000,
+            15001,
+            16250,
+            17499,
+            17500,
+            17501,
+            18750,
+            19999,
+            20000,
+            20001,
+            21250,
+            21800,
+            22499,
+            22500,
+            22501,
+            23750,
+            24300,
+            24999,
+            25000,
+            25001,
+            26250,
+            27499,
+            27500,
+            27501,
+            28750,
+            29999,
+            30000,
+            30001,
+            31250,
+            32499,
+            32500,
+            32501,
+            33400,
+            33750,
+            34999,
+            35000,
+            35001,
+            35900,
+            36799,
+            36800,
+            36801,
+            39300,
+            40200,
+            41799,
+            41800,
+            41801,
+            42700,
+            43599,
+            43600,
+            43601,
+            46100,
+            48599
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-overlay-opacity-overlay:elapsed_ms",
+            "instance-overlay-opacity-overlay:ringCount",
+            "instance-overlay-opacity-overlay:spokeCount",
+            "instance-overlay-opacity-overlay:t",
+            "instance-property-comparison-control:elapsed_ms",
+            "instance-property-comparison-control:elapsed_s",
+            "instance-property-comparison-control:speed",
+            "instance-property-comparison-control:t1",
+            "instance-property-comparison-control:timebase",
+            "instance-property-comparison-control:zoom",
+            "instance-property-comparison-speed:elapsed_ms",
+            "instance-property-comparison-speed:elapsed_s",
+            "instance-property-comparison-speed:t1",
+            "instance-property-comparison-speed:timebase",
+            "instance-property-comparison-speed:zoom",
+            "instance-property-subject-control:control_sliderSpeed",
+            "instance-property-subject-control:elapsed_ms",
+            "instance-property-subject-control:elapsed_s",
+            "instance-property-subject-control:speed",
+            "instance-property-subject-control:t1",
+            "instance-property-subject-control:timebase",
+            "instance-property-subject-control:zoom",
+            "instance-property-subject-speed:adapt_timeScale",
+            "instance-property-subject-speed:elapsed_ms",
+            "instance-property-subject-speed:elapsed_s",
+            "instance-property-subject-speed:t1",
+            "instance-property-subject-speed:timebase",
+            "instance-property-subject-speed:zoom",
+            "instance-property-subject:elapsed_ms",
+            "instance-property-subject:elapsed_s",
+            "instance-property-subject:speed",
+            "instance-property-subject:t1",
+            "instance-property-subject:timebase",
+            "instance-property-subject:zoom"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-overlay-opacity-overlay:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 91896800
+            },
+            {
+              "key": "instance-overlay-opacity-overlay:ringCount",
+              "secondLoop": 568853
+            },
+            {
+              "key": "instance-overlay-opacity-overlay:spokeCount",
+              "secondLoop": 917504
+            },
+            {
+              "key": "instance-overlay-opacity-overlay:t",
+              "phase": 0,
+              "secondLoop": 86075
+            },
+            {
+              "key": "instance-property-comparison-control:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 65430144
+            },
+            {
+              "key": "instance-property-comparison-control:elapsed_s",
+              "phase": 0,
+              "secondLoop": 65520
+            },
+            {
+              "key": "instance-property-comparison-control:speed",
+              "phase": 301466,
+              "secondLoop": 77335
+            },
+            {
+              "key": "instance-property-comparison-control:t1",
+              "secondLoop": 77316
+            },
+            {
+              "key": "instance-property-comparison-control:timebase",
+              "phase": 0,
+              "secondLoop": 65520
+            },
+            {
+              "key": "instance-property-comparison-control:zoom",
+              "secondLoop": 23313
+            },
+            {
+              "key": "instance-property-comparison-speed:elapsed_ms",
+              "phase": 3355392,
+              "secondLoop": 69100104
+            },
+            {
+              "key": "instance-property-comparison-speed:elapsed_s",
+              "phase": 3360,
+              "secondLoop": 69195
+            },
+            {
+              "key": "instance-property-comparison-speed:t1",
+              "phase": 3964,
+              "secondLoop": 81652
+            },
+            {
+              "key": "instance-property-comparison-speed:timebase",
+              "phase": 3360,
+              "secondLoop": 69195
+            },
+            {
+              "key": "instance-property-comparison-speed:zoom",
+              "phase": 70,
+              "secondLoop": 25582
+            },
+            {
+              "key": "instance-property-subject-control:control_sliderSpeed",
+              "phase": 1311,
+              "secondLoop": 1374
+            },
+            {
+              "key": "instance-property-subject-control:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 65430144
+            },
+            {
+              "key": "instance-property-subject-control:elapsed_s",
+              "phase": 0,
+              "secondLoop": 65520
+            },
+            {
+              "key": "instance-property-subject-control:speed",
+              "phase": 301466,
+              "secondLoop": 77902
+            },
+            {
+              "key": "instance-property-subject-control:t1",
+              "secondLoop": 77882
+            },
+            {
+              "key": "instance-property-subject-control:timebase",
+              "phase": 0,
+              "secondLoop": 65520
+            },
+            {
+              "key": "instance-property-subject-control:zoom",
+              "secondLoop": 23313
+            },
+            {
+              "key": "instance-property-subject-speed:adapt_timeScale",
+              "phase": 5946,
+              "secondLoop": 6101
+            },
+            {
+              "key": "instance-property-subject-speed:elapsed_ms",
+              "phase": 1280512,
+              "secondLoop": 70178240
+            },
+            {
+              "key": "instance-property-subject-speed:elapsed_s",
+              "phase": 1280,
+              "secondLoop": 70182
+            },
+            {
+              "key": "instance-property-subject-speed:t1",
+              "phase": 1510,
+              "secondLoop": 82817
+            },
+            {
+              "key": "instance-property-subject-speed:timebase",
+              "phase": 1280,
+              "secondLoop": 70182
+            },
+            {
+              "key": "instance-property-subject-speed:zoom",
+              "phase": 10,
+              "secondLoop": 26200
+            },
+            {
+              "key": "instance-property-subject:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 505825344
+            },
+            {
+              "key": "instance-property-subject:elapsed_s",
+              "phase": 0,
+              "secondLoop": 506520
+            },
+            {
+              "key": "instance-property-subject:speed",
+              "phase": 301466,
+              "secondLoop": 77335
+            },
+            {
+              "key": "instance-property-subject:t1",
+              "secondLoop": 597713
+            },
+            {
+              "key": "instance-property-subject:timebase",
+              "phase": 0,
+              "secondLoop": 506520
+            },
+            {
+              "key": "instance-property-subject:zoom",
+              "secondLoop": 62194
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "stock",
@@ -16547,13 +17128,593 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "conversion-refused",
-      "refusalCodes": [
-        "unsupported-boundary-transition"
-      ],
-      "refusalMessages": [
-        "transitions: Whole-boundary scope requires two nonempty contributor sets without unrelated contribution or boundary carriers."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": true,
+        "sourceEqual": true,
+        "summaryEqual": true,
+        "memberIdentityMappings": [],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1250,
+            2499,
+            2500,
+            2501,
+            3750,
+            4999,
+            5000,
+            5001,
+            6250,
+            7499,
+            7500,
+            7501,
+            8750,
+            9999,
+            10000,
+            10001,
+            11250,
+            12499,
+            12500,
+            12501,
+            13750,
+            14999,
+            15000,
+            15001,
+            16250,
+            17499,
+            17500,
+            17501,
+            18750,
+            19999,
+            20000,
+            20001,
+            21250,
+            21800,
+            22499,
+            22500,
+            22501,
+            23750,
+            24300,
+            24999,
+            25000,
+            25001,
+            26250,
+            27499,
+            27500,
+            27501,
+            28750,
+            29999,
+            30000,
+            30001,
+            31250,
+            32499,
+            32500,
+            32501,
+            33400,
+            33750,
+            34999,
+            35000,
+            35001,
+            35900,
+            36799,
+            36800,
+            36801,
+            39300,
+            40200,
+            41799,
+            41800,
+            41801,
+            42700,
+            43599,
+            43600,
+            43601,
+            46100,
+            48599
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-overlay-opacity-overlay:elapsed_ms",
+            "instance-overlay-opacity-overlay:ringCount",
+            "instance-overlay-opacity-overlay:spokeCount",
+            "instance-overlay-opacity-overlay:t",
+            "instance-property-comparison-control:elapsed_ms",
+            "instance-property-comparison-control:elapsed_s",
+            "instance-property-comparison-control:speed",
+            "instance-property-comparison-control:t1",
+            "instance-property-comparison-control:timebase",
+            "instance-property-comparison-control:zoom",
+            "instance-property-comparison-speed:elapsed_ms",
+            "instance-property-comparison-speed:elapsed_s",
+            "instance-property-comparison-speed:t1",
+            "instance-property-comparison-speed:timebase",
+            "instance-property-comparison-speed:zoom",
+            "instance-property-subject-control:control_sliderSpeed",
+            "instance-property-subject-control:elapsed_ms",
+            "instance-property-subject-control:elapsed_s",
+            "instance-property-subject-control:speed",
+            "instance-property-subject-control:t1",
+            "instance-property-subject-control:timebase",
+            "instance-property-subject-control:zoom",
+            "instance-property-subject-speed:adapt_timeScale",
+            "instance-property-subject-speed:elapsed_ms",
+            "instance-property-subject-speed:elapsed_s",
+            "instance-property-subject-speed:t1",
+            "instance-property-subject-speed:timebase",
+            "instance-property-subject-speed:zoom",
+            "instance-property-subject:elapsed_ms",
+            "instance-property-subject:elapsed_s",
+            "instance-property-subject:speed",
+            "instance-property-subject:t1",
+            "instance-property-subject:timebase",
+            "instance-property-subject:zoom"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-overlay-opacity-overlay:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 1402.2400000000043
+            },
+            {
+              "key": "instance-overlay-opacity-overlay:ringCount",
+              "secondLoop": 8.68
+            },
+            {
+              "key": "instance-overlay-opacity-overlay:spokeCount",
+              "secondLoop": 14
+            },
+            {
+              "key": "instance-overlay-opacity-overlay:t",
+              "phase": 0,
+              "secondLoop": 1.3096921600000047
+            },
+            {
+              "key": "instance-property-comparison-control:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 998.4000000000055
+            },
+            {
+              "key": "instance-property-comparison-control:elapsed_s",
+              "phase": 0,
+              "secondLoop": 0.9983999999999957
+            },
+            {
+              "key": "instance-property-comparison-control:speed",
+              "phase": 4.6,
+              "secondLoop": 1.18
+            },
+            {
+              "key": "instance-property-comparison-control:t1",
+              "secondLoop": 1.178111999999995
+            },
+            {
+              "key": "instance-property-comparison-control:timebase",
+              "phase": 0,
+              "secondLoop": 0.9983999999999957
+            },
+            {
+              "key": "instance-property-comparison-control:zoom",
+              "secondLoop": 0.3548576613727661
+            },
+            {
+              "key": "instance-property-comparison-speed:elapsed_ms",
+              "phase": 51.20000000000001,
+              "secondLoop": 1049.6000000000063
+            },
+            {
+              "key": "instance-property-comparison-speed:elapsed_s",
+              "phase": 0.051200000000000016,
+              "secondLoop": 1.0495999999999972
+            },
+            {
+              "key": "instance-property-comparison-speed:t1",
+              "phase": 0.06041600000000002,
+              "secondLoop": 1.2385279999999967
+            },
+            {
+              "key": "instance-property-comparison-speed:timebase",
+              "phase": 0.051200000000000016,
+              "secondLoop": 1.0495999999999972
+            },
+            {
+              "key": "instance-property-comparison-speed:zoom",
+              "phase": 0.0010705383806982605,
+              "secondLoop": 0.38646186848281155
+            },
+            {
+              "key": "instance-property-subject-control:control_sliderSpeed",
+              "phase": 0.02,
+              "secondLoop": 0.02127999999999941
+            },
+            {
+              "key": "instance-property-subject-control:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 998.4000000000055
+            },
+            {
+              "key": "instance-property-subject-control:elapsed_s",
+              "phase": 0,
+              "secondLoop": 0.9983999999999957
+            },
+            {
+              "key": "instance-property-subject-control:speed",
+              "phase": 4.6,
+              "secondLoop": 1.1915199999999948
+            },
+            {
+              "key": "instance-property-subject-control:t1",
+              "secondLoop": 1.1896135679999897
+            },
+            {
+              "key": "instance-property-subject-control:timebase",
+              "phase": 0,
+              "secondLoop": 0.9983999999999957
+            },
+            {
+              "key": "instance-property-subject-control:zoom",
+              "secondLoop": 0.3548576613727661
+            },
+            {
+              "key": "instance-property-subject-speed:adapt_timeScale",
+              "phase": 0.09072000000000001,
+              "secondLoop": 0.09071999999957092
+            },
+            {
+              "key": "instance-property-subject-speed:elapsed_ms",
+              "phase": 19.53792,
+              "secondLoop": 1069.0559999998893
+            },
+            {
+              "key": "instance-property-subject-speed:elapsed_s",
+              "phase": 0.01953792,
+              "secondLoop": 1.0690559999998899
+            },
+            {
+              "key": "instance-property-subject-speed:t1",
+              "phase": 0.0230547456,
+              "secondLoop": 1.26148607999987
+            },
+            {
+              "key": "instance-property-subject-speed:timebase",
+              "phase": 0.01953792,
+              "secondLoop": 1.0690559999998899
+            },
+            {
+              "key": "instance-property-subject-speed:zoom",
+              "phase": 0.00015593781183204092,
+              "secondLoop": 0.39860635232167485
+            },
+            {
+              "key": "instance-property-subject:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 7723.199999999699
+            },
+            {
+              "key": "instance-property-subject:elapsed_s",
+              "phase": 0,
+              "secondLoop": 7.723199999999672
+            },
+            {
+              "key": "instance-property-subject:speed",
+              "phase": 4.6,
+              "secondLoop": 1.18
+            },
+            {
+              "key": "instance-property-subject:t1",
+              "secondLoop": 9.113375999999612
+            },
+            {
+              "key": "instance-property-subject:timebase",
+              "phase": 0,
+              "secondLoop": 7.723199999999672
+            },
+            {
+              "key": "instance-property-subject:zoom",
+              "secondLoop": 0.9506744235231017
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1250,
+            2499,
+            2500,
+            2501,
+            3750,
+            4999,
+            5000,
+            5001,
+            6250,
+            7499,
+            7500,
+            7501,
+            8750,
+            9999,
+            10000,
+            10001,
+            11250,
+            12499,
+            12500,
+            12501,
+            13750,
+            14999,
+            15000,
+            15001,
+            16250,
+            17499,
+            17500,
+            17501,
+            18750,
+            19999,
+            20000,
+            20001,
+            21250,
+            21800,
+            22499,
+            22500,
+            22501,
+            23750,
+            24300,
+            24999,
+            25000,
+            25001,
+            26250,
+            27499,
+            27500,
+            27501,
+            28750,
+            29999,
+            30000,
+            30001,
+            31250,
+            32499,
+            32500,
+            32501,
+            33400,
+            33750,
+            34999,
+            35000,
+            35001,
+            35900,
+            36799,
+            36800,
+            36801,
+            39300,
+            40200,
+            41799,
+            41800,
+            41801,
+            42700,
+            43599,
+            43600,
+            43601,
+            46100,
+            48599
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "instance-overlay-opacity-overlay:elapsed_ms",
+            "instance-overlay-opacity-overlay:ringCount",
+            "instance-overlay-opacity-overlay:spokeCount",
+            "instance-overlay-opacity-overlay:t",
+            "instance-property-comparison-control:elapsed_ms",
+            "instance-property-comparison-control:elapsed_s",
+            "instance-property-comparison-control:speed",
+            "instance-property-comparison-control:t1",
+            "instance-property-comparison-control:timebase",
+            "instance-property-comparison-control:zoom",
+            "instance-property-comparison-speed:elapsed_ms",
+            "instance-property-comparison-speed:elapsed_s",
+            "instance-property-comparison-speed:t1",
+            "instance-property-comparison-speed:timebase",
+            "instance-property-comparison-speed:zoom",
+            "instance-property-subject-control:control_sliderSpeed",
+            "instance-property-subject-control:elapsed_ms",
+            "instance-property-subject-control:elapsed_s",
+            "instance-property-subject-control:speed",
+            "instance-property-subject-control:t1",
+            "instance-property-subject-control:timebase",
+            "instance-property-subject-control:zoom",
+            "instance-property-subject-speed:adapt_timeScale",
+            "instance-property-subject-speed:elapsed_ms",
+            "instance-property-subject-speed:elapsed_s",
+            "instance-property-subject-speed:t1",
+            "instance-property-subject-speed:timebase",
+            "instance-property-subject-speed:zoom",
+            "instance-property-subject:elapsed_ms",
+            "instance-property-subject:elapsed_s",
+            "instance-property-subject:speed",
+            "instance-property-subject:t1",
+            "instance-property-subject:timebase",
+            "instance-property-subject:zoom"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "instance-overlay-opacity-overlay:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 91896800
+            },
+            {
+              "key": "instance-overlay-opacity-overlay:ringCount",
+              "secondLoop": 568853
+            },
+            {
+              "key": "instance-overlay-opacity-overlay:spokeCount",
+              "secondLoop": 917504
+            },
+            {
+              "key": "instance-overlay-opacity-overlay:t",
+              "phase": 0,
+              "secondLoop": 86075
+            },
+            {
+              "key": "instance-property-comparison-control:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 65430144
+            },
+            {
+              "key": "instance-property-comparison-control:elapsed_s",
+              "phase": 0,
+              "secondLoop": 65520
+            },
+            {
+              "key": "instance-property-comparison-control:speed",
+              "phase": 301466,
+              "secondLoop": 77335
+            },
+            {
+              "key": "instance-property-comparison-control:t1",
+              "secondLoop": 77316
+            },
+            {
+              "key": "instance-property-comparison-control:timebase",
+              "phase": 0,
+              "secondLoop": 65520
+            },
+            {
+              "key": "instance-property-comparison-control:zoom",
+              "secondLoop": 23313
+            },
+            {
+              "key": "instance-property-comparison-speed:elapsed_ms",
+              "phase": 3355392,
+              "secondLoop": 69100104
+            },
+            {
+              "key": "instance-property-comparison-speed:elapsed_s",
+              "phase": 3360,
+              "secondLoop": 69195
+            },
+            {
+              "key": "instance-property-comparison-speed:t1",
+              "phase": 3964,
+              "secondLoop": 81652
+            },
+            {
+              "key": "instance-property-comparison-speed:timebase",
+              "phase": 3360,
+              "secondLoop": 69195
+            },
+            {
+              "key": "instance-property-comparison-speed:zoom",
+              "phase": 70,
+              "secondLoop": 25582
+            },
+            {
+              "key": "instance-property-subject-control:control_sliderSpeed",
+              "phase": 1311,
+              "secondLoop": 1374
+            },
+            {
+              "key": "instance-property-subject-control:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 65430144
+            },
+            {
+              "key": "instance-property-subject-control:elapsed_s",
+              "phase": 0,
+              "secondLoop": 65520
+            },
+            {
+              "key": "instance-property-subject-control:speed",
+              "phase": 301466,
+              "secondLoop": 77902
+            },
+            {
+              "key": "instance-property-subject-control:t1",
+              "secondLoop": 77882
+            },
+            {
+              "key": "instance-property-subject-control:timebase",
+              "phase": 0,
+              "secondLoop": 65520
+            },
+            {
+              "key": "instance-property-subject-control:zoom",
+              "secondLoop": 23313
+            },
+            {
+              "key": "instance-property-subject-speed:adapt_timeScale",
+              "phase": 5946,
+              "secondLoop": 6101
+            },
+            {
+              "key": "instance-property-subject-speed:elapsed_ms",
+              "phase": 1280512,
+              "secondLoop": 70178240
+            },
+            {
+              "key": "instance-property-subject-speed:elapsed_s",
+              "phase": 1280,
+              "secondLoop": 70182
+            },
+            {
+              "key": "instance-property-subject-speed:t1",
+              "phase": 1510,
+              "secondLoop": 82817
+            },
+            {
+              "key": "instance-property-subject-speed:timebase",
+              "phase": 1280,
+              "secondLoop": 70182
+            },
+            {
+              "key": "instance-property-subject-speed:zoom",
+              "phase": 10,
+              "secondLoop": 26200
+            },
+            {
+              "key": "instance-property-subject:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 505825344
+            },
+            {
+              "key": "instance-property-subject:elapsed_s",
+              "phase": 0,
+              "secondLoop": 506520
+            },
+            {
+              "key": "instance-property-subject:speed",
+              "phase": 301466,
+              "secondLoop": 77335
+            },
+            {
+              "key": "instance-property-subject:t1",
+              "secondLoop": 597713
+            },
+            {
+              "key": "instance-property-subject:timebase",
+              "phase": 0,
+              "secondLoop": 506520
+            },
+            {
+              "key": "instance-property-subject:zoom",
+              "secondLoop": 62194
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "agent-baseline",

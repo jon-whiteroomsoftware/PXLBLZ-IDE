@@ -1,3 +1,4 @@
+import { isHeldRepeatScaleTrack, repeatScaleAt, scalarBoundaryRamps } from './showV2ScalarProperties'
 import type {
   ShowCompositionV1,
   ShowCell,
@@ -159,7 +160,7 @@ function resolveShowV2CompileContext(
   if (wholeOutput && composition.transitions.some(transition => !transition.wholeOutput)) {
     return refuse('unsupported-transition-participants', 'composition.transitions', 'Mixed whole-output and Layer scopes require separate preservation proof.')
   }
-  if (composition.layoutOccurrences.length !== 1 && composition.transitions.length > 0) {
+  if (composition.transitions.length > 0 && composition.layoutOccurrences.some(occurrence => occurrence.incomingTransfer || occurrence.layoutId !== composition.layoutOccurrences[0].layoutId)) {
     return refuse('unsupported-layout-occurrences', 'composition.layoutOccurrences', 'Mixed Layout and visual Transition lowering requires separate preservation proof.')
   }
   if (composition.groupDefinitions.length > 0 || composition.groupOccurrences.length > 0) {
@@ -177,7 +178,7 @@ function resolveShowV2CompileContext(
   if (hasCoincidentPositiveTransitionWindows(record)) {
     return refuse('unsupported-transition-overlap', 'composition.transitions', 'lowering cannot compile coincident positive Transition windows without independent render targets.')
   }
-  if (composition.transitions.some(transition => transition.propertyRamps.length > 0)) {
+  if (composition.transitions.some(transition => transition.propertyRamps.some(ramp => !transition.wholeOutput || ramp.participantId !== undefined || (ramp.target.kind !== 'show-repeat-scale' && ramp.target.kind !== 'layout-occurrence-split-position')))) {
     return refuse('unsupported-transition-property-ramp', 'composition.transitions', 'lowering requires Transition property-ramp compiler evidence before compilation.')
   }
   if (!wholeOutput && composition.transitions.length > 0 && composition.propertyTracks.some(track => track.activeStartMs !== 0 || track.activeDurationMs !== composition.showEndMs)) {
@@ -187,7 +188,7 @@ function resolveShowV2CompileContext(
     return refuse('unsupported-explicit-cut', 'composition.transitions', 'lowering cannot preserve explicit Cut identity in the implicit v1 Layer-transition form.')
   }
   const unsupportedTargetIndex = composition.propertyTracks.findIndex(track => (
-    track.target.kind === 'layout-occurrence-split-position' || track.target.kind === 'show-repeat-scale'
+    track.target.kind === 'layout-occurrence-split-position' || (track.target.kind === 'show-repeat-scale' && !isHeldRepeatScaleTrack(track, composition.showEndMs))
   ))
   if (unsupportedTargetIndex >= 0) {
     return refuse(
@@ -195,6 +196,9 @@ function resolveShowV2CompileContext(
       `composition.propertyTracks[${unsupportedTargetIndex}].target`,
       `property target "${composition.propertyTracks[unsupportedTargetIndex].target.kind}" requires direct compiler support.`,
     )
+  }
+  if (composition.propertyTracks.filter(track => track.target.kind === 'show-repeat-scale').length > 1) {
+    return refuse('unsupported-property-target', 'composition.propertyTracks', 'Only one global held repeat-scale target is admitted.')
   }
   for (const [index, track] of composition.propertyTracks.entries()) {
     if (!('clipId' in track.target)) continue
@@ -258,10 +262,9 @@ function globalSectionBoundaries(record: ShowRecordV2): number[] {
     ...composition.layoutOccurrences.map(occurrence => occurrence.startMs),
     ...composition.transitions.flatMap(transition => transition.wholeOutput ? [transition.wholeOutput.startMs, transition.wholeOutput.startMs + transition.durationMs] : []),
     ...composition.clips.flatMap(clip => clip.appearance.keys.slice(1).map(key => key.timeMs)),
-    ...composition.propertyTracks.flatMap(track => [
-      track.activeStartMs,
-      track.activeStartMs + track.activeDurationMs,
-    ]),
+    ...composition.propertyTracks.flatMap(track => track.target.kind === 'show-repeat-scale'
+      ? track.keyframes.map(key => key.timeMs)
+      : [track.activeStartMs, track.activeStartMs + track.activeDurationMs]),
   ])].filter(timeMs => timeMs >= 0 && timeMs <= composition.showEndMs)
     .sort((left, right) => left - right)
 }
@@ -284,7 +287,7 @@ function sectionContribution(record: ShowRecordV2, section: DerivedSection) {
 
 function firstCrossSectionTrackIndex(record: ShowRecordV2): number {
   const sections = derivedSections(record)
-  return record.composition.propertyTracks.findIndex(track => !sections.some(section => {
+  return record.composition.propertyTracks.findIndex(track => track.target.kind !== 'show-repeat-scale' && !sections.some(section => {
     const contribution = sectionContribution(record, section)
     return contribution.startMs === track.activeStartMs && contribution.endMs === track.activeStartMs + track.activeDurationMs
   }))
@@ -370,7 +373,7 @@ function lowerGlobalClipsToSections(
   const composition = record.composition
   const sections = derivedSections(record)
   const trackSection = new Map<string, number>()
-  for (const track of composition.propertyTracks) {
+  for (const track of composition.propertyTracks.filter(track => track.target.kind !== 'show-repeat-scale')) {
     const activeEndMs = track.activeStartMs + track.activeDurationMs
     const index = sections.findIndex(section => {
       const contribution = sectionContribution(record, section)
@@ -443,7 +446,7 @@ function lowerGlobalClipsToSections(
   for (const transition of composition.transitions) {
     const sectionIndex = sections.findIndex(section => section.endMs === transition.wholeOutput!.startMs)
     if (sectionIndex < 0) throw new Error('Whole-output Transition has no outgoing hold section.')
-    lowered.transitions.push({ ...stripV2TransitionFields(transition), id: transition.id, kind: transition.kind, afterSceneId: scenes[sectionIndex].id })
+    lowered.transitions.push({ ...stripV2TransitionFields(transition), id: transition.id, kind: transition.kind, afterSceneId: scenes[sectionIndex].id, ...(transition.propertyRamps.length > 0 ? { propertyTransitions: scalarBoundaryRamps(transition) } : {}) })
   }
   return { show: lowered, lookup }
 }
@@ -640,7 +643,7 @@ function buildDerivedScene(
   startMs = 0,
 ): ShowRecord['scenes'][number] {
   const occurrence = context.record.composition.layoutOccurrences.find(candidate => candidate.startMs <= startMs && candidate.startMs + candidate.durationMs > startMs)!
-  return { id, name, durationMs, ...(context.record.composition.sampleRemap.repeatScale !== 1 ? { sampleTargets: { repeatScale: context.record.composition.sampleRemap.repeatScale } } : {}), ...(occurrence.parameters.splitPosition !== undefined ? { routingTargets: { splitPosition: occurrence.parameters.splitPosition } } : {}) }
+  return { id, name, durationMs, ...(repeatScaleAt(context.record, startMs) !== 1 ? { sampleTargets: { repeatScale: repeatScaleAt(context.record, startMs) } } : {}), ...(occurrence.parameters.splitPosition !== undefined ? { routingTargets: { splitPosition: occurrence.parameters.splitPosition } } : {}) }
 }
 
 function buildLoweredShow(
@@ -653,7 +656,7 @@ function buildLoweredShow(
   const sceneEnds = new Map<number, string>()
   let cursor = 0
   for (const scene of scenes) { cursor += scene.durationMs; sceneEnds.set(cursor, scene.id) }
-  const transitions: ShowRecord['transitions'] = [...record.composition.layoutOccurrences].sort((a, b) => a.startMs - b.startMs).slice(1).map(occurrence => ({
+  const transitions: ShowRecord['transitions'] = [...record.composition.layoutOccurrences].sort((a, b) => a.startMs - b.startMs).filter((occurrence, index, ordered) => index > 0 && (occurrence.incomingTransfer || occurrence.layoutId !== ordered[index - 1].layoutId)).map(occurrence => ({
     id: occurrence.incomingTransfer?.id ?? `routing:${occurrence.id}`,
     afterSceneId: sceneEnds.get(occurrence.startMs)!, kind: 'routing', layoutId: occurrence.layoutId,
     durationMs: occurrence.incomingTransfer?.durationMs ?? 0,

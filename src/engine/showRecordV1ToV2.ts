@@ -1,3 +1,4 @@
+import { repeatScaleAt, scalarBoundaryRamps } from './showV2ScalarProperties'
 import type {
   ShowMainPlacement,
   ShowOverlayPlacement,
@@ -228,18 +229,21 @@ export function convertShowRecordV1ToV2(
     const atMs = sceneEndById.get(boundary.afterSceneId)
     const from = clips.filter(clip => clip.startMs + clip.durationMs === atMs)
     const to = clips.filter(clip => clip.startMs === (atMs ?? 0) + boundary.durationMs)
-    if (from.length === 0 || to.length === 0 || clips.some(clip => !from.includes(clip) && !to.includes(clip) && clip.startMs < (atMs ?? 0) + boundary.durationMs && clip.startMs + clip.durationMs > (atMs ?? 0)) || boundary.propertyTransitions || boundary.layoutId || boundary.routingDirection) {
+    if (from.length === 0 || to.length === 0 || clips.some(clip => !from.includes(clip) && !to.includes(clip) && clip.startMs < (atMs ?? 0) + boundary.durationMs && clip.startMs + clip.durationMs > (atMs ?? 0)) || (boundary.propertyTransitions !== undefined && !isScalarCarrier(boundary.propertyTransitions)) || boundary.layoutId || boundary.routingDirection) {
       issues.push({ path: 'transitions', code: 'unsupported-boundary-transition', message: 'Whole-boundary scope requires two nonempty contributor sets without unrelated contribution or boundary carriers.' })
       continue
     }
     const { afterSceneId: _after, layoutId: _layout, routingDirection: _routing, propertyTransitions: _ramps, ...settings } = structuredClone(boundary)
-    const needsWholeOutput = from.length !== 1 || to.length !== 1 || from[0].zoneId !== to[0].zoneId || from[0].layerId !== to[0].layerId || composition.scenes.some(scene => (scene.propertyTracks?.length ?? 0) > 0)
+    const needsWholeOutput = boundary.propertyTransitions !== undefined || from.length !== 1 || to.length !== 1 || from[0].zoneId !== to[0].zoneId || from[0].layerId !== to[0].layerId || composition.scenes.some(scene => (scene.propertyTracks?.length ?? 0) > 0)
     boundaryTransitions.push({
       ...settings,
       kind: settings.kind as ShowTransitionV2['kind'],
       ...(needsWholeOutput ? { wholeOutput: { startMs: atMs!, fromClipIds: from.map(clip => clip.id), toClipIds: to.map(clip => clip.id) } } : {}),
       participants: needsWholeOutput ? [] : [{ id: `${boundary.id}:participant:1`, zoneId: from[0].zoneId, layerId: from[0].layerId, fromClipId: from[0].id, toClipId: to[0].id }],
-      propertyRamps: [],
+      propertyRamps: [
+        ...(boundary.propertyTransitions?.sample?.repeatScale ? [{ target: { kind: 'show-repeat-scale' as const }, ...structuredClone(boundary.propertyTransitions.sample.repeatScale) }] : []),
+        ...(boundary.propertyTransitions?.routing?.splitPosition ? [{ target: { kind: 'layout-occurrence-split-position' as const, layoutOccurrenceId: layoutOccurrences.find(occurrence => occurrence.startMs <= atMs! + boundary.durationMs && occurrence.startMs + occurrence.durationMs > atMs! + boundary.durationMs)!.id }, ...structuredClone(boundary.propertyTransitions.routing.splitPosition) }] : []),
+      ],
     })
   }
   if (issues.length > 0) return refused(show, report, issues)
@@ -303,6 +307,15 @@ export function convertShowRecordV1ToV2(
 
   if (issues.length > 0) return refused(show, report, issues)
 
+  const repeatKeys = timeline.scenes.map(scene => ({ timeMs: scene.startMs, value: scene.scene.sampleTargets?.repeatScale ?? 1 }))
+    .filter((key, index, all) => index === 0 || key.value !== all[index - 1].value)
+  if (repeatKeys.length > 1) {
+    const id = uniqueId('show-repeat-scale:held', new Set(propertyTracks.map(track => track.id)))
+    propertyTracks.push({ id, target: { kind: 'show-repeat-scale' }, activeStartMs: 0, activeDurationMs: showEndMs,
+      keyframes: repeatKeys.map((key, index) => ({ ...key, id: `${id}:${index}`, easing: { curve: 'hold', at: 1 } })),
+    })
+  }
+
   const record: ShowRecordV2 = {
     version: 2,
     id: show.id,
@@ -316,7 +329,7 @@ export function convertShowRecordV1ToV2(
       version: 2,
       executionModel: composition.executionModel === 'deterministic-loop' ? 'deterministic-loop' : 'continuous',
       showEndMs,
-      sampleRemap: { repeatScale: commonRepeatScale(show, issues) },
+      sampleRemap: { repeatScale: show.scenes[0]?.sampleTargets?.repeatScale ?? 1 },
       patternInstances: structuredClone(composition.patternInstances),
       layers,
       clips,
@@ -550,16 +563,10 @@ function convertPropertyTarget(
   }
 }
 
-function commonRepeatScale(show: ShowRecord, issues: ShowV1ToV2Issue[]): number {
-  const values = new Set(show.scenes.map(scene => scene.sampleTargets?.repeatScale ?? 1))
-  if (values.size > 1) {
-    issues.push({
-      path: 'scenes.*.sampleTargets.repeatScale',
-      code: 'unsupported-routing-change',
-      message: 'Changing repeat scale requires a proved global property track conversion.',
-    })
-  }
-  return values.values().next().value ?? 1
+function isScalarCarrier(carrier: NonNullable<ShowRecord['transitions'][number]['propertyTransitions']>): boolean {
+  return Object.keys(carrier).length > 0 && Object.keys(carrier).every(key => key === 'sample' || key === 'routing')
+    && (!carrier.sample || (Object.keys(carrier.sample).length === 1 && carrier.sample.repeatScale !== undefined))
+    && (!carrier.routing || (Object.keys(carrier.routing).length === 1 && carrier.routing.splitPosition !== undefined))
 }
 
 function uniqueId(preferred: string, used: Set<string>): string {
@@ -668,7 +675,7 @@ export function auditShowV1ToV2Accounting(
     }
     if (scene.sampleTargets !== undefined) {
       const value = scene.sampleTargets.repeatScale
-      if (value !== undefined) equal(`${sourcePath}.sampleTargets.repeatScale`, 'composition.sampleRemap.repeatScale', value, record.composition.sampleRemap.repeatScale)
+      if (value !== undefined) equal(`${sourcePath}.sampleTargets.repeatScale`, 'composition.sampleRemap.repeatScale', value, repeatScaleAt(record, offset?.startMs ?? 0))
       else mapped(`${sourcePath}.sampleTargets`, 'composition.sampleRemap', scene.sampleTargets, Object.keys(scene.sampleTargets).length === 0)
     }
   }
@@ -705,9 +712,10 @@ export function auditShowV1ToV2Accounting(
       }
       const targetIndex = record.composition.transitions.findIndex(candidate => candidate.id === transition.id)
       if (transition.kind !== 'cut' && targetIndex >= 0) {
-        const { afterSceneId, ...settings } = transition
+        const { afterSceneId, propertyTransitions, ...settings } = transition
         const { participants: _participants, wholeOutput: _wholeOutput, propertyRamps: _ramps, ...targetSettings } = record.composition.transitions[targetIndex]
         mapped(`transitions.${transitionIndex}`, `composition.transitions.${targetIndex}`, settings, JSON.stringify(settings) === JSON.stringify(targetSettings))
+        if (propertyTransitions !== undefined) mapped(`transitions.${transitionIndex}.propertyTransitions`, `composition.transitions.${targetIndex}.propertyRamps`, propertyTransitions, JSON.stringify([propertyTransitions.sample, propertyTransitions.routing]) === JSON.stringify([scalarBoundaryRamps(record.composition.transitions[targetIndex])?.sample, scalarBoundaryRamps(record.composition.transitions[targetIndex])?.routing]))
         retired(`transitions.${transitionIndex}.afterSceneId`, `composition.transitions.${targetIndex}.participants`, afterSceneId, report.sceneOffsets.some(scene => scene.sceneId === afterSceneId))
         continue
       }

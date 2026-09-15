@@ -410,6 +410,20 @@ export function validateShowRecordV2(record: ShowRecordV2): ShowCompositionV2Val
         )
       }
     })
+    const scalarTargets = new Set<string>()
+    transition.propertyRamps.forEach((ramp, index) => {
+      const rampPath = `${path}.propertyRamps[${index}]`
+      if (ramp.target.kind !== 'show-repeat-scale' && ramp.target.kind !== 'layout-occurrence-split-position') return
+      if (scalarTargets.has(ramp.target.kind)) addIssue(issues, rampPath, 'invalid-transition', 'A scalar target may have only one boundary ramp.')
+      scalarTargets.add(ramp.target.kind)
+      if (!transition.wholeOutput || ramp.participantId !== undefined) addIssue(issues, rampPath, 'invalid-transition', 'Global scalar ramps require whole-output scope.')
+      if (ramp.target.kind === 'layout-occurrence-split-position') {
+        const occurrence = occurrences.get(ramp.target.layoutOccurrenceId)
+        const atMs = (transition.wholeOutput?.startMs ?? 0) + transition.durationMs
+        if (!occurrence || occurrence.startMs > atMs || occurrence.startMs + occurrence.durationMs <= atMs) addIssue(issues, rampPath, 'missing-reference', 'Split ramp must target the incoming Layout occurrence.')
+        if (ramp.from < 0 || ramp.from > 1) addIssue(issues, rampPath, 'out-of-bounds', 'Split ramp origin must be between zero and one.')
+      } else if (ramp.from <= 0) addIssue(issues, rampPath, 'out-of-bounds', 'Repeat-scale ramp origin must be positive.')
+    })
   })
 
   validateLayoutCoverage(issues, record, layouts, occurrences)
