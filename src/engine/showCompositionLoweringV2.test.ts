@@ -715,7 +715,7 @@ describe('lowerShowCompositionV2ForCompile', () => {
     })).toThrow('independent render targets')
   })
 
-  it('refuses a Transition-bearing global Clip with later appearance keys instead of lowering only key zero', () => {
+  it.each(['fast', 'fidelity'] as const)('preserves divergent Clip appearance through a positive Transition in %s mode', (fidelity) => {
     const source = transitionV1Show('crossfade', 'snapshot-live')
     const converted = convertShowRecordV1ToV2(source)
     expect(converted.status).toBe('converted')
@@ -728,12 +728,41 @@ describe('lowerShowCompositionV2ForCompile', () => {
       value: { ...structuredClone(outgoing.appearance.keys[0].value), opacity: 0.25 },
     })
     const before = JSON.stringify(converted.record)
-
-    expect(() => lowerShowCompositionV2ForCompile(converted.record, {
+    const lookup = {
       byCellId: {},
       byPatternInstanceId: { 'out-instance': OUT_SOURCE, 'in-instance': IN_SOURCE },
-      stageDimension: 2,
-    })).toThrow('multi-key Clip appearance with Transitions')
+      stageDimension: 2 as const,
+    }
+    const prepared = prepareShowV2ForCompile(converted.record, lookup)
+    if (prepared.status !== 'ready') throw new Error(JSON.stringify(prepared.issues))
+    expect(prepared).toMatchObject({ status: 'ready' })
+
+    const expected = structuredClone(source)
+    const outgoingPlacements = expected.composition!.scenes[0].zones[0].main
+    outgoingPlacements[0].durationMs = 200
+    outgoingPlacements.splice(1, 0, {
+      ...structuredClone(outgoingPlacements[0]),
+      id: 'out--appearance-1',
+      logicalClipId: 'out',
+      startMs: 200,
+      durationMs: 200,
+      opacity: 0.25,
+    })
+    expected.composition!.transitions![0].fromPlacementId = 'out--appearance-1'
+    const expectedLookup = {
+      ...lookup,
+      instanceIdByCellId: {},
+    }
+    const expectedArtifact = compileShow(showRecordToCompileRecipe(expected, expectedLookup), LIBRARIES)
+    const actualArtifact = compileShow(prepared.recipe, LIBRARIES)
+    const expectedRuntime = replay(expectedArtifact, fidelity)
+    const actualRuntime = replay(actualArtifact, fidelity)
+    for (const atMs of [0, 199, 200, 201, 399, 400, 500, 599, 600, 601]) {
+      const options = { stepMs: 1, forceFullIntermediateRender: true }
+      const left = freeze(atMs === 0 ? expectedRuntime.renderCurrentFrame() : expectedRuntime.advanceTo(atMs, options))
+      const right = freeze(atMs === 0 ? actualRuntime.renderCurrentFrame() : actualRuntime.advanceTo(atMs, options))
+      expect(right).toEqual(left)
+    }
     expect(JSON.stringify(converted.record)).toBe(before)
   })
 

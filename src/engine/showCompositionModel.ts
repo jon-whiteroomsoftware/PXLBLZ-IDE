@@ -920,7 +920,9 @@ function resolveLogicalPlacementSegments(
   const logicalClipId = selected.placement.logicalClipId ?? selected.placement.id
   const segments = placements
     .filter((segment) => (segment.placement.logicalClipId ?? segment.placement.id) === logicalClipId)
-    .sort((left, right) => left.sceneIndex - right.sceneIndex)
+    .sort((left, right) => left.sceneIndex - right.sceneIndex
+      || left.placement.startMs - right.placement.startMs
+      || left.placement.id.localeCompare(right.placement.id))
   if (segments.length === 1 && !segments[0].placement.logicalClipId) return segments
   const root = segments[0]
   if (
@@ -932,9 +934,12 @@ function resolveLogicalPlacementSegments(
       || segment.zoneId !== root.zoneId
       || segment.layerKey !== root.layerKey
       || (index > 0 && (
-        segment.sceneIndex !== segments[index - 1].sceneIndex + 1
-        || segment.placement.id !== `${logicalClipId}--span-${segment.sceneId}`
-        || segment.placement.startMs !== 0
+        segment.sceneIndex === segments[index - 1].sceneIndex
+          ? segment.placement.id !== `${logicalClipId}--appearance-${index}`
+            || segment.placement.startMs !== segments[index - 1].placement.startMs + segments[index - 1].placement.durationMs
+          : segment.sceneIndex !== segments[index - 1].sceneIndex + 1
+            || segment.placement.id !== `${logicalClipId}--span-${segment.sceneId}`
+            || segment.placement.startMs !== 0
       ))
     ))
   ) return null
@@ -984,10 +989,11 @@ function validateLogicalClipSegments(
     const hasValidSceneSlices = segments?.every((segment, index) => {
       const owner = sceneById.get(segment.sceneId)
       const previous = index > 0 ? sceneById.get(segments[index - 1].sceneId) : null
+      const next = index < segments.length - 1 ? sceneById.get(segments[index + 1].sceneId) : null
       return Boolean(
         owner
-        && (!previous || owner.index === previous.index + 1)
-        && (index === segments.length - 1
+        && (!previous || owner.index === previous.index || owner.index === previous.index + 1)
+        && (!next || owner.index === next.index
           || segment.placement.startMs + segment.placement.durationMs === owner.scene.durationMs),
       )
     })

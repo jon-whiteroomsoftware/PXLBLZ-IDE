@@ -1,0 +1,562 @@
+import {
+  validateShowRecordV2,
+  type ShowPropertyTrackV2,
+  type ShowRecordV2,
+  type ShowTransitionV2,
+} from './showCompositionV2'
+
+export interface ShowDerivedCutJunctionV2 {
+  kind: 'cut'
+  atMs: number
+  zoneId: string
+  layerId: string
+  fromClipId: string
+  toClipId: string
+}
+
+export type ShowTransitionEditIntentV2 =
+  | { kind: 'insert'; transition: ShowTransitionV2 }
+  | { kind: 'update-transition'; transition: ShowTransitionV2 }
+  | { kind: 'resize-transition'; transitionId: string; durationMs: number }
+  | { kind: 'move-connected'; clipId: string; startMs: number; zoneId?: string; layerId?: string }
+  | { kind: 'resize-trailing'; clipId: string; endMs: number }
+  | { kind: 'resize-leading'; clipId: string; startMs: number }
+  | { kind: 'reset-to-cut'; transitionId: string }
+  | { kind: 'delete-clip'; clipId: string }
+
+export type ShowTransitionEditRefusalV2 =
+  | 'invalid-record'
+  | 'missing-clip'
+  | 'missing-transition'
+  | 'invalid-intent'
+  | 'invalid-topology'
+  | 'unsupported-layout'
+  | 'unsupported-property-carrier'
+  | 'compiler-ineligible'
+  | 'invalid-result'
+
+interface ShowTransitionEditAffectedV2 {
+  affectedClipIds: string[]
+  affectedTransitionIds: string[]
+  affectedTrackIds: string[]
+  removedIds: string[]
+}
+
+export type ShowTransitionEditResultV2 =
+  | ({ status: 'changed'; record: ShowRecordV2 } & ShowTransitionEditAffectedV2)
+  | ({ status: 'unchanged'; record: ShowRecordV2 } & ShowTransitionEditAffectedV2)
+  | ({ status: 'refused'; record: ShowRecordV2; code: ShowTransitionEditRefusalV2; message: string } & ShowTransitionEditAffectedV2)
+
+/** Project selectable Cut junctions without minting persisted identity. */
+export function projectShowTransitionJunctionsV2(record: ShowRecordV2): ShowDerivedCutJunctionV2[] {
+  const result: ShowDerivedCutJunctionV2[] = []
+  for (const layer of record.composition.layers) {
+    const clips = record.composition.clips
+      .filter(clip => clip.zoneId === layer.zoneId && clip.layerId === layer.id)
+      .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
+    for (let index = 1; index < clips.length; index += 1) {
+      const from = clips[index - 1]
+      const to = clips[index]
+      const atMs = from.startMs + from.durationMs
+      if (atMs !== to.startMs) continue
+      result.push({
+        kind: 'cut',
+        atMs,
+        zoneId: layer.zoneId,
+        layerId: layer.id,
+        fromClipId: from.id,
+        toClipId: to.id,
+      })
+    }
+  }
+  return result.sort((left, right) => left.atMs - right.atMs
+    || left.zoneId.localeCompare(right.zoneId)
+    || left.layerId.localeCompare(right.layerId)
+    || left.fromClipId.localeCompare(right.fromClipId))
+}
+
+/** Additive v2 Transition owner. Adoption, history and persistence remain caller-owned. */
+export function editShowTransitionV2(
+  record: ShowRecordV2,
+  intent: ShowTransitionEditIntentV2,
+): ShowTransitionEditResultV2 {
+  const empty = (): ShowTransitionEditAffectedV2 => ({
+    affectedClipIds: [], affectedTransitionIds: [], affectedTrackIds: [], removedIds: [],
+  })
+  const refuse = (code: ShowTransitionEditRefusalV2, message: string): ShowTransitionEditResultV2 => ({
+    status: 'refused', record, code, message, ...empty(),
+  })
+  const invalid = validateShowRecordV2(record)[0]
+  if (invalid) return refuse('invalid-record', `${invalid.path}: ${invalid.message}`)
+
+  if (intent.kind === 'delete-clip') {
+    const clip = record.composition.clips.find(candidate => candidate.id === intent.clipId)
+    if (!clip) return refuse('missing-clip', `Clip "${intent.clipId}" does not exist.`)
+    const removedTransitions = record.composition.transitions.filter(transition => (
+      transitionEndpoints(transition).all.includes(clip.id)
+    ))
+    if (removedTransitions.some(transition => transition.propertyRamps.length > 0)) {
+      return refuse('unsupported-property-carrier', `Deleting Clip "${clip.id}" would remove Transition property ramps that require the #1037 projection owner.`)
+    }
+    const removedTransitionIds = removedTransitions.map(transition => transition.id)
+    const removedTrackIds = record.composition.propertyTracks
+      .filter(track => 'clipId' in track.target && track.target.clipId === clip.id)
+      .map(track => track.id)
+    const next = structuredClone(record)
+    next.composition.clips = next.composition.clips.filter(candidate => candidate.id !== clip.id)
+    next.composition.transitions = next.composition.transitions.filter(transition => !removedTransitionIds.includes(transition.id))
+    next.composition.propertyTracks = next.composition.propertyTracks.filter(track => !removedTrackIds.includes(track.id))
+    const issue = validateShowRecordV2(next)[0]
+    if (issue) return refuse('invalid-result', `${issue.path}: ${issue.message}`)
+    const compilerRestriction = firstCompilerRestriction(next)
+    if (compilerRestriction) return refuse('compiler-ineligible', compilerRestriction)
+    return {
+      status: 'changed', record: next,
+      affectedClipIds: [clip.id],
+      affectedTransitionIds: removedTransitionIds.sort(),
+      affectedTrackIds: removedTrackIds.sort(),
+      removedIds: [clip.id, ...removedTransitionIds, ...removedTrackIds].sort(),
+    }
+  }
+
+  if (intent.kind === 'update-transition') {
+    const current = record.composition.transitions.find(candidate => candidate.id === intent.transition.id)
+    if (!current) return refuse('missing-transition', `Transition "${intent.transition.id}" does not exist.`)
+    const ownership = (transition: ShowTransitionV2) => ({
+      id: transition.id,
+      durationMs: transition.durationMs,
+      participants: transition.participants,
+      wholeOutput: transition.wholeOutput,
+      propertyRamps: transition.propertyRamps,
+    })
+    if (JSON.stringify(ownership(current)) !== JSON.stringify(ownership(intent.transition))) {
+      return refuse('invalid-intent', 'A settings edit cannot change Transition identity, timing, participants or property ramps.')
+    }
+    if (JSON.stringify(current) === JSON.stringify(intent.transition)) return { status: 'unchanged', record, ...empty() }
+    const next = structuredClone(record)
+    next.composition.transitions = next.composition.transitions.map(transition => (
+      transition.id === current.id ? structuredClone(intent.transition) : transition
+    ))
+    const issue = validateShowRecordV2(next)[0]
+    if (issue) return refuse('invalid-result', `${issue.path}: ${issue.message}`)
+    const compilerRestriction = firstCompilerRestriction(next)
+    if (compilerRestriction) return refuse('compiler-ineligible', compilerRestriction)
+    return {
+      status: 'changed', record: next, affectedClipIds: [], affectedTransitionIds: [current.id],
+      affectedTrackIds: [], removedIds: [],
+    }
+  }
+
+  if (intent.kind === 'resize-trailing' || intent.kind === 'resize-leading') {
+    const clip = record.composition.clips.find(candidate => candidate.id === intent.clipId)
+    if (!clip) return refuse('missing-clip', `Clip "${intent.clipId}" does not exist.`)
+    const requestedMs = intent.kind === 'resize-trailing' ? intent.endMs : intent.startMs
+    if (!Number.isSafeInteger(requestedMs) || requestedMs < 0 || requestedMs > record.composition.showEndMs) {
+      return refuse('invalid-intent', 'Clip edge must be a safe integer within Show End.')
+    }
+    const relatedTracks = record.composition.propertyTracks.filter(track => (
+      'clipId' in track.target && track.target.clipId === clip.id
+    ) || (
+      'instanceId' in track.target
+      && track.target.instanceId === clip.instanceId
+      && record.composition.clips.filter(candidate => candidate.instanceId === clip.instanceId).length === 1
+    ))
+    if (relatedTracks.length > 0) {
+      return refuse('unsupported-property-carrier', 'Connected Clip resize with owned animation requires the #1037 exact curve owner.')
+    }
+    if (intent.kind === 'resize-trailing') return resizeTrailing(record, clip.id, intent.endMs)
+    return resizeLeading(record, clip.id, intent.startMs)
+  }
+
+  if (intent.kind === 'move-connected') {
+    const clip = record.composition.clips.find(candidate => candidate.id === intent.clipId)
+    if (!clip) return refuse('missing-clip', `Clip "${intent.clipId}" does not exist.`)
+    if (!Number.isSafeInteger(intent.startMs) || intent.startMs < 0) return refuse('invalid-intent', 'Clip start must be a nonnegative safe integer.')
+    if (intent.zoneId !== undefined && intent.zoneId !== clip.zoneId || intent.layerId !== undefined && intent.layerId !== clip.layerId) {
+      return refuse('invalid-topology', 'A connected Transition component cannot move to a different Zone or Layer.')
+    }
+    const deltaMs = intent.startMs - clip.startMs
+    if (deltaMs === 0) return { status: 'unchanged', record, ...empty() }
+    const affectedClipIds = connectedComponent(record, [clip.id])
+    return commitShift(record, affectedClipIds, deltaMs, [], [])
+  }
+
+  if (intent.kind === 'insert') {
+    const transition = intent.transition
+    if (!Number.isSafeInteger(transition.durationMs) || transition.durationMs <= 0 || !transition.id.trim()) {
+      return refuse('invalid-intent', 'A Transition requires a fresh identity and positive safe-integer duration.')
+    }
+    if (record.composition.transitions.some(candidate => candidate.id === transition.id)) {
+      return refuse('invalid-intent', `Transition "${transition.id}" already exists.`)
+    }
+    const endpoints = transitionEndpoints(transition)
+    if (!insertEndpointsAreExact(record, transition, endpoints)) {
+      return refuse('invalid-intent', 'Insertion requires an exact derived Cut across every named contributor.')
+    }
+    const affectedClipIds = downstreamClosure(record, endpoints.to)
+    if (endpoints.from.some(id => affectedClipIds.includes(id))) {
+      return refuse('invalid-topology', 'Transition topology contains a directed cycle.')
+    }
+    return commitShift(record, affectedClipIds, transition.durationMs, [structuredClone(transition)], [])
+  }
+
+  const transition = record.composition.transitions.find(candidate => candidate.id === intent.transitionId)
+  if (!transition) return refuse('missing-transition', `Transition "${intent.transitionId}" does not exist.`)
+  if (intent.kind === 'resize-transition' && (!Number.isSafeInteger(intent.durationMs) || intent.durationMs < 0)) {
+    return refuse('invalid-intent', 'Transition duration must be a nonnegative safe integer.')
+  }
+  if (intent.kind === 'resize-transition' && intent.durationMs === transition.durationMs) {
+    return { status: 'unchanged', record, ...empty() }
+  }
+  if (transition.propertyRamps.length > 0) {
+    return refuse('unsupported-property-carrier', `Transition "${transition.id}" has property ramps that require the #1037 projection owner.`)
+  }
+  if (intent.kind === 'resize-transition' && intent.durationMs === 0) {
+    return editShowTransitionV2(record, { kind: 'reset-to-cut', transitionId: transition.id })
+  }
+  const endpoints = transitionEndpoints(transition)
+  const affectedClipIds = downstreamClosure(record, endpoints.to)
+  if (endpoints.from.some(id => affectedClipIds.includes(id))) {
+    return refuse('invalid-topology', 'Transition topology contains a directed cycle.')
+  }
+  const deltaMs = intent.kind === 'resize-transition'
+    ? intent.durationMs - transition.durationMs
+    : -transition.durationMs
+  const replacements = intent.kind === 'resize-transition'
+    ? [{ ...structuredClone(transition), durationMs: intent.durationMs }]
+    : []
+  return commitShift(record, affectedClipIds, deltaMs, replacements, intent.kind === 'reset-to-cut' ? [transition.id] : [])
+}
+
+function resizeTrailing(record: ShowRecordV2, clipId: string, endMs: number): ShowTransitionEditResultV2 {
+  const clip = record.composition.clips.find(candidate => candidate.id === clipId)!
+  const oldEndMs = clip.startMs + clip.durationMs
+  if (endMs <= clip.startMs) return refusedResult(record, 'invalid-intent', 'Trailing resize must leave a positive Clip duration.')
+  if (endMs === oldEndMs) return unchangedResult(record)
+  const outgoing = record.composition.transitions.filter(transition => transitionEndpoints(transition).from.includes(clip.id))
+  if (outgoing.length !== 1) return refusedResult(record, 'invalid-topology', 'Trailing connected resize requires exactly one outgoing Transition.')
+  const transition = outgoing[0]
+  const endpoints = transitionEndpoints(transition)
+  if (endpoints.from.length !== 1) return refusedResult(record, 'invalid-topology', 'Resize cannot split a multi-contributor Transition window.')
+  const deltaMs = endMs - oldEndMs
+  const affectedClipIds = downstreamClosure(record, endpoints.to)
+  if (affectedClipIds.includes(clip.id)) return refusedResult(record, 'invalid-topology', 'Transition topology contains a directed cycle.')
+  const next = structuredClone(record)
+  shiftClips(next, affectedClipIds, deltaMs)
+  const affectedTrackIds = shiftOwnedTracks(record, next.composition.propertyTracks, new Set(affectedClipIds), deltaMs)
+  shiftWholeOutputWindows(record, next, new Set(affectedClipIds), deltaMs, new Set([transition.id]))
+  const edited = next.composition.clips.find(candidate => candidate.id === clip.id)!
+  edited.durationMs = endMs - clip.startMs
+  edited.appearance.keys = edited.appearance.keys.filter(key => key.timeMs < endMs)
+  next.composition.transitions = next.composition.transitions.map(candidate => candidate.id === transition.id && candidate.wholeOutput
+    ? { ...candidate, wholeOutput: { ...candidate.wholeOutput, startMs: candidate.wholeOutput.startMs + deltaMs } }
+    : candidate)
+  const issue = validateShowRecordV2(next)[0]
+  if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
+  const compilerRestriction = firstCompilerRestriction(next)
+  if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction)
+  const unavailable = firstUnavailableMovedClip(next, new Set([clip.id, ...affectedClipIds]))
+  if (unavailable) return refusedResult(record, 'unsupported-layout', unavailable)
+  return {
+    status: 'changed', record: next,
+    affectedClipIds: [clip.id, ...affectedClipIds].sort(),
+    affectedTransitionIds: affectedTransitionIdsFor(record, new Set([clip.id, ...affectedClipIds])),
+    affectedTrackIds: affectedTrackIds.sort(), removedIds: [],
+  }
+}
+
+function resizeLeading(record: ShowRecordV2, clipId: string, startMs: number): ShowTransitionEditResultV2 {
+  const clip = record.composition.clips.find(candidate => candidate.id === clipId)!
+  const oldEndMs = clip.startMs + clip.durationMs
+  if (startMs >= oldEndMs) return refusedResult(record, 'invalid-intent', 'Leading resize must leave a positive Clip duration.')
+  if (startMs === clip.startMs) return unchangedResult(record)
+  const incoming = record.composition.transitions.filter(transition => transitionEndpoints(transition).to.includes(clip.id))
+  if (incoming.length !== 1) return refusedResult(record, 'invalid-topology', 'Leading connected resize requires exactly one incoming Transition.')
+  const transition = incoming[0]
+  const endpoints = transitionEndpoints(transition)
+  if (endpoints.to.length !== 1) return refusedResult(record, 'invalid-topology', 'Resize cannot split a multi-contributor Transition window.')
+  const durationMs = transition.durationMs + startMs - clip.startMs
+  if (durationMs < 0) return refusedResult(record, 'invalid-intent', 'Leading resize cannot create a negative Transition duration.')
+  if (durationMs === 0) return editShowTransitionV2(record, { kind: 'reset-to-cut', transitionId: transition.id })
+  const next = structuredClone(record)
+  const edited = next.composition.clips.find(candidate => candidate.id === clip.id)!
+  edited.startMs = startMs
+  edited.durationMs = oldEndMs - startMs
+  const held = [...clip.appearance.keys].reverse().find(key => key.timeMs <= startMs) ?? clip.appearance.keys[0]
+  edited.appearance.keys = [
+    { ...structuredClone(held), timeMs: startMs },
+    ...structuredClone(clip.appearance.keys.filter(key => key !== held && key.timeMs > startMs && key.timeMs < oldEndMs)),
+  ]
+  next.composition.transitions = next.composition.transitions.map(candidate => candidate.id === transition.id
+    ? { ...candidate, durationMs }
+    : candidate)
+  const issue = validateShowRecordV2(next)[0]
+  if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
+  const compilerRestriction = firstCompilerRestriction(next)
+  if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction)
+  const unavailable = firstUnavailableMovedClip(next, new Set([clip.id]))
+  if (unavailable) return refusedResult(record, 'unsupported-layout', unavailable)
+  return {
+    status: 'changed', record: next, affectedClipIds: [clip.id], affectedTransitionIds: [transition.id],
+    affectedTrackIds: [], removedIds: [],
+  }
+}
+
+function unchangedResult(record: ShowRecordV2): ShowTransitionEditResultV2 {
+  return {
+    status: 'unchanged', record, affectedClipIds: [], affectedTransitionIds: [], affectedTrackIds: [], removedIds: [],
+  }
+}
+
+function commitShift(
+  record: ShowRecordV2,
+  affectedClipIds: string[],
+  deltaMs: number,
+  replacements: ShowTransitionV2[],
+  removedIds: string[],
+): ShowTransitionEditResultV2 {
+  const moved = new Set(affectedClipIds)
+  const next = structuredClone(record)
+  shiftClips(next, affectedClipIds, deltaMs)
+  const affectedTrackIds = shiftOwnedTracks(record, next.composition.propertyTracks, moved, deltaMs)
+  const replacementById = new Map(replacements.map(transition => [transition.id, transition]))
+  next.composition.transitions = next.composition.transitions
+    .filter(transition => !removedIds.includes(transition.id))
+    .map(transition => replacementById.get(transition.id) ?? transition)
+  for (const replacement of replacements) {
+    if (!next.composition.transitions.some(transition => transition.id === replacement.id)) {
+      next.composition.transitions.push(replacement)
+    }
+  }
+  shiftWholeOutputWindows(record, next, moved, deltaMs, new Set(replacementById.keys()))
+  const issue = validateShowRecordV2(next)[0]
+  if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
+  const compilerRestriction = firstCompilerRestriction(next)
+  if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction)
+  const unavailable = firstUnavailableMovedClip(next, moved)
+  if (unavailable) return refusedResult(record, 'unsupported-layout', unavailable)
+  const affectedTransitionIds = [...new Set([
+    ...replacements.map(transition => transition.id),
+    ...removedIds,
+    ...record.composition.transitions
+      .filter(transition => transitionEndpoints(transition).all.some(id => moved.has(id)))
+      .map(transition => transition.id),
+  ])].sort()
+  return {
+    status: 'changed',
+    record: next,
+    affectedClipIds: [...moved].sort(),
+    affectedTransitionIds,
+    affectedTrackIds: affectedTrackIds.sort(),
+    removedIds: [...removedIds].sort(),
+  }
+}
+
+function shiftClips(record: ShowRecordV2, clipIds: readonly string[], deltaMs: number): void {
+  const moved = new Set(clipIds)
+  for (const clip of record.composition.clips) {
+    if (!moved.has(clip.id)) continue
+    clip.startMs += deltaMs
+    clip.appearance.keys.forEach(key => { key.timeMs += deltaMs })
+  }
+}
+
+function shiftWholeOutputWindows(
+  source: ShowRecordV2,
+  next: ShowRecordV2,
+  moved: Set<string>,
+  deltaMs: number,
+  excluded: Set<string>,
+): void {
+  for (const transition of next.composition.transitions) {
+    if (!transition.wholeOutput || excluded.has(transition.id)) continue
+    const original = source.composition.transitions.find(candidate => candidate.id === transition.id)!
+    const endpoints = transitionEndpoints(original)
+    if (endpoints.all.every(id => moved.has(id))) transition.wholeOutput.startMs += deltaMs
+  }
+}
+
+function affectedTransitionIdsFor(record: ShowRecordV2, affectedClipIds: Set<string>): string[] {
+  return record.composition.transitions
+    .filter(transition => transitionEndpoints(transition).all.some(id => affectedClipIds.has(id)))
+    .map(transition => transition.id)
+    .sort()
+}
+
+function refusedResult(
+  record: ShowRecordV2,
+  code: ShowTransitionEditRefusalV2,
+  message: string,
+): ShowTransitionEditResultV2 {
+  return {
+    status: 'refused', record, code, message,
+    affectedClipIds: [], affectedTransitionIds: [], affectedTrackIds: [], removedIds: [],
+  }
+}
+
+function transitionEndpoints(transition: ShowTransitionV2): { from: string[]; to: string[]; all: string[] } {
+  const from = transition.wholeOutput?.fromClipIds ?? transition.participants.map(participant => participant.fromClipId)
+  const to = transition.wholeOutput?.toClipIds ?? transition.participants.map(participant => participant.toClipId)
+  return { from, to, all: [...new Set([...from, ...to])] }
+}
+
+function insertEndpointsAreExact(
+  record: ShowRecordV2,
+  transition: ShowTransitionV2,
+  endpoints: ReturnType<typeof transitionEndpoints>,
+): boolean {
+  const clips = new Map(record.composition.clips.map(clip => [clip.id, clip]))
+  if (transition.wholeOutput) {
+    const atMs = transition.wholeOutput.startMs
+    return transition.participants.length === 0
+      && endpoints.from.length > 0
+      && endpoints.to.length > 0
+      && endpoints.from.every(id => {
+        const clip = clips.get(id)
+        return clip !== undefined && clip.startMs + clip.durationMs === atMs
+      })
+      && endpoints.to.every(id => clips.get(id)?.startMs === atMs)
+  }
+  return transition.participants.length > 0 && transition.participants.every(participant => {
+    const from = clips.get(participant.fromClipId)
+    const to = clips.get(participant.toClipId)
+    return from !== undefined && to !== undefined
+      && from.zoneId === participant.zoneId && to.zoneId === participant.zoneId
+      && from.layerId === participant.layerId && to.layerId === participant.layerId
+      && from.startMs + from.durationMs === to.startMs
+  })
+}
+
+function connectedComponent(record: ShowRecordV2, seeds: readonly string[]): string[] {
+  const connected = new Set(seeds)
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const transition of record.composition.transitions) {
+      const endpoints = transitionEndpoints(transition).all
+      if (!endpoints.some(id => connected.has(id))) continue
+      for (const id of endpoints) {
+        if (!connected.has(id)) {
+          connected.add(id)
+          changed = true
+        }
+      }
+    }
+  }
+  return [...connected].sort()
+}
+
+function downstreamClosure(record: ShowRecordV2, seeds: readonly string[]): string[] {
+  const downstream = new Set(seeds)
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const transition of record.composition.transitions) {
+      const endpoints = transitionEndpoints(transition)
+      const touchesTo = endpoints.to.some(id => downstream.has(id))
+      const touchesFrom = endpoints.from.some(id => downstream.has(id))
+      if (!touchesFrom && !touchesTo) continue
+      const required = touchesFrom ? [...endpoints.from, ...endpoints.to] : endpoints.to
+      for (const id of required) {
+        if (!downstream.has(id)) {
+          downstream.add(id)
+          changed = true
+        }
+      }
+    }
+  }
+  return [...downstream].sort()
+}
+
+function shiftOwnedTracks(
+  source: ShowRecordV2,
+  tracks: ShowPropertyTrackV2[],
+  moved: Set<string>,
+  deltaMs: number,
+): string[] {
+  const soleClipByInstance = new Map<string, string>()
+  for (const instance of source.composition.patternInstances) {
+    const users = source.composition.clips.filter(clip => clip.instanceId === instance.id)
+    if (users.length === 1) soleClipByInstance.set(instance.id, users[0].id)
+  }
+  const affected: string[] = []
+  for (const track of tracks) {
+    const follows = 'clipId' in track.target
+      ? moved.has(track.target.clipId)
+      : 'instanceId' in track.target
+        ? moved.has(soleClipByInstance.get(track.target.instanceId) ?? '')
+        : false
+    if (!follows) continue
+    track.activeStartMs += deltaMs
+    track.keyframes.forEach(key => { key.timeMs += deltaMs })
+    affected.push(track.id)
+  }
+  return affected
+}
+
+function firstUnavailableMovedClip(record: ShowRecordV2, moved: Set<string>): string | null {
+  for (const clip of record.composition.clips.filter(candidate => moved.has(candidate.id))) {
+    let startMs = clip.startMs
+    let endMs = clip.startMs + clip.durationMs
+    for (const transition of record.composition.transitions) {
+      const endpoints = transitionEndpoints(transition)
+      const windowStart = transition.wholeOutput?.startMs
+        ?? record.composition.clips.find(candidate => candidate.id === endpoints.from[0])!.startMs
+          + record.composition.clips.find(candidate => candidate.id === endpoints.from[0])!.durationMs
+      if (endpoints.to.includes(clip.id)) startMs = Math.min(startMs, windowStart)
+      if (endpoints.from.includes(clip.id)) endMs = Math.max(endMs, windowStart + transition.durationMs)
+    }
+    for (const occurrence of record.composition.layoutOccurrences) {
+      if (occurrence.startMs >= endMs || occurrence.startMs + occurrence.durationMs <= startMs) continue
+      const layout = record.zoneLayouts.find(candidate => candidate.id === occurrence.layoutId)!
+      const zoneIds = layout.logical?.zoneIds
+        ?? (layout.zones.length > 0 ? layout.zones.map(zone => zone.zoneId) : record.zones.map(zone => zone.id))
+      if (!zoneIds.includes(clip.zoneId)) {
+        return `Clip "${clip.id}" contributes while Zone "${clip.zoneId}" is unavailable in Layout occurrence "${occurrence.id}".`
+      }
+    }
+  }
+  return null
+}
+
+function firstCompilerRestriction(record: ShowRecordV2): string | null {
+  const clipsById = new Map(record.composition.clips.map(clip => [clip.id, clip]))
+  const windows = record.composition.transitions.map(transition => {
+    const endpoints = transitionEndpoints(transition)
+    const startMs = transition.wholeOutput?.startMs
+      ?? (() => {
+        const from = clipsById.get(endpoints.from[0])!
+        return from.startMs + from.durationMs
+      })()
+    return { transition, endpoints, startMs, endMs: startMs + transition.durationMs }
+  })
+  for (const [index, left] of windows.entries()) {
+    if (windows.slice(index + 1).some(right => left.startMs < right.endMs && right.startMs < left.endMs)) {
+      return 'RL10: independent overlapping positive Transition windows require compiler render-target widening.'
+    }
+    if (left.transition.wholeOutput) continue
+    const owned = new Set(left.endpoints.all)
+    const participantZones = new Set(left.transition.participants.map(participant => participant.zoneId))
+    const unrelated = record.composition.clips.filter(clip => !owned.has(clip.id))
+    const boundaryInside = unrelated.some(clip => {
+      const clipEndMs = clip.startMs + clip.durationMs
+      if (participantZones.has(clip.zoneId)) {
+        const touches = clipEndMs >= left.startMs && clip.startMs <= left.endMs
+        const spans = clip.startMs < left.startMs && clipEndMs > left.endMs
+        return touches && !spans
+      }
+      return (clip.startMs > left.startMs && clip.startMs <= left.endMs)
+        || (clipEndMs > left.startMs && clipEndMs <= left.endMs)
+    })
+    if (boundaryInside) {
+      return 'RL09: an unrelated Clip cannot start or stop at or inside a Layer Transition window.'
+    }
+    const unrelatedSpansWindow = unrelated.some(clip => (
+      clip.startMs < left.startMs && clip.startMs + clip.durationMs > left.endMs
+    ))
+    if (unrelatedSpansWindow && (left.transition.kind === 'fade-color' || left.transition.kind === 'motion')) {
+      return 'RL08: Fade and Motion Layer Transitions cannot pass over unrelated contributing Clips.'
+    }
+  }
+  return null
+}

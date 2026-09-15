@@ -95,7 +95,7 @@ export interface ShowTransitionV2 extends Omit<
   ShowBoundaryTransition,
   'afterSceneId' | 'kind' | 'layoutId' | 'routingDirection' | 'propertyTransitions'
 > {
-  kind: ShowTransitionKind
+  kind: Exclude<ShowTransitionKind, 'cut'>
   /** Whole-output ownership preserves existing boundary compositing without pairing Layers. */
   wholeOutput?: { startMs: number; fromClipIds: string[]; toClipIds: string[] }
   participants: ShowTransitionParticipantV2[]
@@ -361,15 +361,11 @@ export function validateShowRecordV2(record: ShowRecordV2): ShowCompositionV2Val
 
   composition.transitions.forEach((transition, transitionIndex) => {
     const path = `composition.transitions[${transitionIndex}]`
-    if (transition.kind === 'cut') {
-      if (transition.durationMs !== 0) addIssue(issues, `${path}.durationMs`, 'invalid-transition', 'Cut duration must be zero.')
-    } else {
-      validatePositiveTime(issues, `${path}.durationMs`, transition.durationMs)
-    }
+    validatePositiveTime(issues, `${path}.durationMs`, transition.durationMs)
     if (transition.wholeOutput) {
       const scope = transition.wholeOutput
       validateNonnegativeTime(issues, `${path}.wholeOutput.startMs`, scope.startMs)
-      if (transition.participants.length !== 0 || transition.kind === 'cut' || safeAdd(scope.startMs, transition.durationMs) > composition.showEndMs) {
+      if (transition.participants.length !== 0 || safeAdd(scope.startMs, transition.durationMs) > composition.showEndMs) {
         addIssue(issues, path, 'invalid-transition', 'Whole-output scope requires a positive in-bounds window and no Layer participants.')
       }
       const endMs = safeAdd(scope.startMs, transition.durationMs)

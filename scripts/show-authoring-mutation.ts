@@ -227,6 +227,12 @@ const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
     'const deltaMs = durationMs - transition.durationMs',
   ),
   target(
+    'transition',
+    'showTransitionsV2.ts',
+    'downstreamClosure',
+    'const required = touchesFrom ? [...endpoints.from, ...endpoints.to] : endpoints.to',
+  ),
+  target(
     'animation-track',
     'showCommands/animation.ts',
     'resolveAnimationTarget',
@@ -335,6 +341,7 @@ export function buildStrykerConfig(repoRoot: string) {
       'src/engine/showCommands/clipProperties.test.ts',
       'src/engine/showClipInspectorModel.test.ts',
       'src/engine/showLayerTransitionAuthoring.test.ts',
+      'src/engine/showTransitionsV2.test.ts',
       'src/engine/showTimelineAuthoring.test.ts',
       'src/engine/showCommands/animationExpansion.test.ts',
       'src/engine/showCommands/bulkAuthoring.test.ts',

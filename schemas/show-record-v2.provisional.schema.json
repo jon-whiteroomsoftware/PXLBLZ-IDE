@@ -246,10 +246,10 @@
     },
     "ShowTransitionV2": {
       "type": "object",
-      "description": "A provisional authored visual junction. The schema admits explicit zero-duration Cuts for direct v2 experiments, but conversion retires a plain carrier-free v1 structural boundary Cut instead of synthesizing this record.",
+      "description": "A positive-duration authored visual junction. Exact adjacency without this record is a derived Cut.",
       "properties": {
         "id": { "$ref": "#/$defs/Id" },
-        "kind": { "$ref": "show-record.schema.json#/definitions/ShowTransitionKind" },
+        "kind": { "enum": ["crossfade", "fade-color", "wipe", "dither", "portal", "motion"] },
         "durationMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
         "easing": { "$ref": "show-record.schema.json#/definitions/ShowStructuredEasing" },
         "wholeOutput": {
@@ -310,16 +310,7 @@
       },
       "required": ["id", "kind", "durationMs", "easing", "participants", "propertyRamps"],
       "additionalProperties": false,
-      "allOf": [
-        {
-          "if": { "properties": { "kind": { "const": "cut" } }, "required": ["kind"] },
-          "then": { "properties": { "durationMs": { "const": 0 } } }
-        },
-        {
-          "if": { "properties": { "kind": { "enum": ["crossfade", "fade-color", "wipe", "dither", "portal", "motion"] } }, "required": ["kind"] },
-          "then": { "properties": { "durationMs": { "$ref": "#/$defs/PositiveSafeInteger" } } }
-        }
-      ]
+      "allOf": [{ "properties": { "durationMs": { "$ref": "#/$defs/PositiveSafeInteger" } } }]
     },
     "ShowTransitionPropertyRampV2": {
       "type": "object",

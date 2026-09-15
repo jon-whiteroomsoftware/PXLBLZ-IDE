@@ -94,6 +94,56 @@ describe('validateShowRecordV2', () => {
     ]))
   })
 
+  it('rejects a persisted Cut instead of admitting a dormant Transition identity', () => {
+    const record = minimalShowRecordV2()
+    record.composition.clips = [
+      { ...record.composition.clips[0], id: 'out', durationMs: 500 },
+      {
+        ...record.composition.clips[0], id: 'in', startMs: 500, durationMs: 500,
+        appearance: { keys: [{ ...record.composition.clips[0].appearance.keys[0], id: 'in:appearance:1', timeMs: 500 }] },
+      },
+    ]
+    const storedCut = {
+      id: 'stored-cut', kind: 'cut', durationMs: 0, easing: { curve: 'linear' },
+      participants: [{ id: 'participant', zoneId: 'zone', layerId: 'layer', fromClipId: 'out', toClipId: 'in' }],
+      propertyRamps: [],
+    }
+
+    expect(parseProvisionalShowRecordV2(JSON.stringify({
+      ...record,
+      composition: { ...record.composition, transitions: [storedCut] },
+    }))).toEqual(expect.objectContaining({
+      status: 'refused',
+      issues: expect.arrayContaining([expect.objectContaining({ path: '/composition/transitions/0/kind', code: 'schema' })]),
+    }))
+  })
+
+  it('rejects a persisted Group-local Cut at the structural boundary', () => {
+    const record = minimalShowRecordV2()
+    const storedCut = {
+      id: 'group-cut', kind: 'cut', durationMs: 0, easing: { curve: 'linear' },
+      fromPlacementId: 'out', toPlacementId: 'in',
+    }
+    const group = {
+      id: 'group', name: 'Group',
+      patternInstances: [],
+      layers: [{ id: 'group-layer', name: 'Main', rank: 0 }],
+      clips: [],
+      transitions: [storedCut],
+      propertyTracks: [],
+    }
+
+    expect(parseProvisionalShowRecordV2(JSON.stringify({
+      ...record,
+      composition: { ...record.composition, groupDefinitions: [group] },
+    }))).toEqual(expect.objectContaining({
+      status: 'refused',
+      issues: expect.arrayContaining([expect.objectContaining({
+        path: '/composition/groupDefinitions/0/transitions/0/kind', code: 'schema',
+      })]),
+    }))
+  })
+
   it('rejects structurally unknown fields instead of admitting data the domain validator cannot see', () => {
     const record = minimalShowRecordV2() as ShowRecordV2 & { experimental?: unknown }
     record.experimental = { authored: true }

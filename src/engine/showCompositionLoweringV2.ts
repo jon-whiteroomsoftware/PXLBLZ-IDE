@@ -32,13 +32,11 @@ export type ShowV2CompilePreparationIssueCode =
   | 'missing-pattern-source'
   | 'unsupported-layout-occurrences'
   | 'unsupported-groups'
-  | 'unsupported-transition-appearance'
   | 'unsupported-restart'
   | 'unsupported-transition-participants'
   | 'unsupported-transition-overlap'
   | 'unsupported-transition-property-ramp'
   | 'unsupported-transition-property-track'
-  | 'unsupported-explicit-cut'
   | 'unsupported-zone-sampling'
   | 'unsupported-property-target'
   | 'unsupported-track-activation'
@@ -186,8 +184,14 @@ function resolveShowV2CompileContext(
   if (composition.groupDefinitions.length > 0 || composition.groupOccurrences.length > 0) {
     return refuse('unsupported-groups', 'composition.groupDefinitions', 'lowering requires Group materialization evidence before compilation.')
   }
-  if (composition.transitions.length > 0 && composition.clips.some(clip => clip.appearance.keys.length > 1)) {
-    return refuse('unsupported-transition-appearance', 'composition.clips', 'lowering cannot preserve multi-key Clip appearance with Transitions.')
+  const divergentClips = composition.clips.filter(clip => clip.appearance.keys.length > 1)
+  if (composition.transitions.length > 0 && divergentClips.length > 0 && composition.propertyTracks.some(track => {
+    const target = track.target
+    if ('clipId' in target) return divergentClips.some(clip => clip.id === target.clipId)
+    if ('instanceId' in target) return divergentClips.some(clip => clip.instanceId === target.instanceId)
+    return false
+  })) {
+    return refuse('unsupported-transition-property-track', 'composition.propertyTracks', 'A property track targeting a multi-key Clip requires the #1037 projection owner.')
   }
   if (composition.clips.some(clip => clip.entryPolicy === 'restart')) {
     return refuse('unsupported-restart', 'composition.clips', 'lowering requires Restart lifecycle evidence before compilation.')
@@ -203,9 +207,6 @@ function resolveShowV2CompileContext(
   }
   if (!wholeOutput && composition.transitions.length > 0 && composition.propertyTracks.some(track => track.activeStartMs !== 0 || track.activeDurationMs !== composition.showEndMs)) {
     return refuse('unsupported-transition-property-track', 'composition.propertyTracks', 'lowering requires section-scoped positive-Transition property-track activation evidence before compilation.')
-  }
-  if (composition.transitions.some(transition => transition.kind === 'cut')) {
-    return refuse('unsupported-explicit-cut', 'composition.transitions', 'lowering cannot preserve explicit Cut identity in the implicit v1 Layer-transition form.')
   }
   const unsupportedTargetIndex = composition.propertyTracks.findIndex(track => (
     track.target.kind === 'layout-occurrence-split-position' || (track.target.kind === 'show-repeat-scale' && !isHeldRepeatScaleTrack(track, composition.showEndMs))
@@ -332,7 +333,7 @@ function emitResolvedShowV2(context: ResolvedShowV2CompileContext): LoweredShowC
     const mainLayer = layers.find(layer => layer.rank === 0)
     const main = composition.clips
       .filter(clip => clip.zoneId === zone.id && clip.layerId === mainLayer?.id)
-      .map(clip => lowerMainClip(context, clip))
+      .flatMap(clip => lowerTransitionAppearanceSegments(context, clip, false))
     const overlays: ShowOverlayLayer[] = layers
       .filter(layer => layer.rank > 0)
       .sort((left, right) => right.rank - left.rank || left.id.localeCompare(right.id))
@@ -341,19 +342,16 @@ function emitResolvedShowV2(context: ResolvedShowV2CompileContext): LoweredShowC
         name: layer.name,
         placements: composition.clips
           .filter(clip => clip.zoneId === zone.id && clip.layerId === layer.id)
-          .map(clip => lowerOverlayClip(context, clip)),
+          .flatMap(clip => lowerTransitionAppearanceSegments(context, clip, true)),
       }))
     return { zoneId: zone.id, main, overlays }
   })
   const transitionParticipants = composition.transitions.map((transition): ShowLayerTransition => {
-    if (transition.kind === 'cut') {
-      throw new Error('Show composition v2 lowering cannot preserve explicit Cut identity.')
-    }
     const participant = transition.participants[0]
     return {
       ...stripV2TransitionFields(transition),
       id: transition.id,
-      fromPlacementId: participant.fromClipId,
+      fromPlacementId: finalAppearanceSegmentId(composition.clips.find(clip => clip.id === participant.fromClipId)!),
       toPlacementId: participant.toClipId,
       kind: transition.kind,
     }
@@ -732,25 +730,60 @@ function runtimeInstanceId(context: ResolvedShowV2CompileContext, clip: ShowClip
   return instanceId
 }
 
-function lowerMainClip(context: ResolvedShowV2CompileContext, clip: ShowClipV2): ShowMainPlacement {
-  const appearance = clip.appearance.keys[0].value
-  return {
-    id: clip.id,
-    instanceId: runtimeInstanceId(context, clip),
-    startMs: clip.startMs,
-    durationMs: clip.durationMs,
-    opacity: appearance.opacity,
-    view: structuredClone(appearance.view),
-    ...(appearance.presentation !== undefined ? { presentation: structuredClone(appearance.presentation) } : {}),
-    ...(appearance.blink !== undefined ? { blink: structuredClone(appearance.blink) } : {}),
-    ...(appearance.transform !== undefined ? { transform: structuredClone(appearance.transform) } : {}),
-    ...(appearance.aperture !== undefined ? { viewport: structuredClone(appearance.aperture) } : {}),
-    ...((appearance.effects?.length ?? 0) > 0 ? { effects: structuredClone(appearance.effects) } : {}),
-  }
+function finalAppearanceSegmentId(clip: ShowClipV2): string {
+  return clip.appearance.keys.length === 1
+    ? clip.id
+    : `${clip.id}--appearance-${clip.appearance.keys.length - 1}`
 }
 
-function lowerOverlayClip(context: ResolvedShowV2CompileContext, clip: ShowClipV2): ShowOverlayPlacement {
-  return { ...lowerMainClip(context, clip), opacity: clip.appearance.keys[0].value.opacity }
+function lowerTransitionAppearanceSegments(
+  context: ResolvedShowV2CompileContext,
+  clip: ShowClipV2,
+  overlay: false,
+): ShowMainPlacement[]
+function lowerTransitionAppearanceSegments(
+  context: ResolvedShowV2CompileContext,
+  clip: ShowClipV2,
+  overlay: true,
+): ShowOverlayPlacement[]
+function lowerTransitionAppearanceSegments(
+  context: ResolvedShowV2CompileContext,
+  clip: ShowClipV2,
+  overlay: boolean,
+): Array<ShowMainPlacement | ShowOverlayPlacement> {
+  const sharesPresentationOwner = clip.appearance.keys.every(key => (
+    JSON.stringify({
+      view: key.value.view,
+      presentation: key.value.presentation,
+      blink: key.value.blink,
+      effects: key.value.effects,
+    }) === JSON.stringify({
+      view: clip.appearance.keys[0].value.view,
+      presentation: clip.appearance.keys[0].value.presentation,
+      blink: clip.appearance.keys[0].value.blink,
+      effects: clip.appearance.keys[0].value.effects,
+    })
+  ))
+  return clip.appearance.keys.map((key, index) => {
+    const endMs = clip.appearance.keys[index + 1]?.timeMs ?? clip.startMs + clip.durationMs
+    const id = index === 0 ? clip.id : `${clip.id}--appearance-${index}`
+    const appearance = key.value
+    const placement: ShowMainPlacement = {
+      id,
+      ...(index === 0 || !sharesPresentationOwner ? {} : { logicalClipId: clip.id }),
+      instanceId: runtimeInstanceId(context, clip),
+      startMs: key.timeMs,
+      durationMs: endMs - key.timeMs,
+      opacity: appearance.opacity,
+      view: structuredClone(appearance.view),
+      ...(appearance.presentation !== undefined ? { presentation: structuredClone(appearance.presentation) } : {}),
+      ...(appearance.blink !== undefined ? { blink: structuredClone(appearance.blink) } : {}),
+      ...(appearance.transform !== undefined ? { transform: structuredClone(appearance.transform) } : {}),
+      ...(appearance.aperture !== undefined ? { viewport: structuredClone(appearance.aperture) } : {}),
+      ...((appearance.effects?.length ?? 0) > 0 ? { effects: structuredClone(appearance.effects) } : {}),
+    }
+    return overlay ? { ...placement, opacity: appearance.opacity } : placement
+  })
 }
 
 function stripV2PropertyTrackActivation(

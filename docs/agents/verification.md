@@ -981,7 +981,7 @@ testing into a second full suite:
 | Duplicate | The immediate-after destination retains one complete source-Clip duration and every distinct copied static appearance |
 | Delete | The complete logical Clip, its tracks, and connected Transitions are removed together |
 | Inspector | Timing and colocated placement fields commit or refuse atomically |
-| Transition | Insert validation and resize-delta arithmetic preserve a valid composition |
+| Transition | Insert validation, resize-delta arithmetic, and v2 hyperedge ripple preserve a valid composition and move each downstream Clip once |
 | Animation track | Shortcut mapping, instance ownership, and post-rounding key-time uniqueness |
 | Animation edit | Batch limits, preimage reference uniqueness, final validation, and no-op identity |
 | Show End | Authored-content clamping, exact empty-suffix pruning, and meaningful-Boundary refusal |
