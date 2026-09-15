@@ -1,5 +1,7 @@
 # Scene retirement: design assessment and proposed next step
 
+Current accepted product decisions are consolidated in [Show v2 authoring decisions](show-v2-accepted-authoring.md). This assessment preserves the historical diagnosis and earlier proposals; conflicting recommendations below are superseded.
+
 Status: appearance ownership and selected-time editing accepted by Jon; remaining recommendations are proposed. This document assesses the paused #1033/#1034
 experiment at `a186df09353ab8c13099198a4e822b0c051c6a14` against base
 `d685125b34c694f311972e258efb48d12cf05cd8`. It does not approve the full provisional schema. After discussing this approach
