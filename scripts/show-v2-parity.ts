@@ -7,9 +7,9 @@ import { nativeDimension } from '@/engine/loadPattern'
 import { stockMapSpec } from '@/engine/maps'
 import type { MapPoint } from '@/engine/maps/types'
 import type { LibraryRecord, PatternRecord, ShowPatternRef, ShowRecord } from '@/engine/personalContentRecords'
-import { compileShow, type GeneratedShowArtifact } from '@/engine/showCompiler'
+import { compileShow, type GeneratedShowArtifact, type ShowRecipe } from '@/engine/showCompiler'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
-import { lowerShowCompositionV2ForCompile } from '@/engine/showCompositionLoweringV2'
+import { prepareShowV2ForCompile, type ShowV2CompileProvenance } from '@/engine/showCompositionLoweringV2'
 import { projectShowTimeline, showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from '@/engine/showModel'
 import { convertShowRecordV1ToV2, type ShowV1ToV2Report } from '@/engine/showRecordV1ToV2'
 import { LIBRARIES } from '@/pixelblaze/libs'
@@ -52,7 +52,7 @@ interface CorpusEntry {
   showId: string
   recordSemanticSha256: string
   dependencies: Dependency[]
-  outcome: 'converted-compiled' | 'conversion-refused' | 'lowering-refused' | 'dependency-refused' | 'compile-refused'
+  outcome: 'converted-compiled' | 'conversion-refused' | 'preparation-refused' | 'dependency-refused' | 'compile-refused'
   refusalCodes: string[]
   refusalMessages: string[]
   accountedSourceLeaves: number
@@ -135,35 +135,40 @@ function runEntry(input: { corpus: CorpusEntry['corpus']; corpusId: string; show
     refusalMessages: sortedUnique(conversion.issues.map(issue => `${issue.path}: ${issue.message}`)),
   }
   if (!lookup) throw new Error('Exact source lookup unexpectedly unavailable.')
-  let lowered: ReturnType<typeof lowerShowCompositionV2ForCompile>
-  try {
-    lowered = lowerShowCompositionV2ForCompile(
-      conversion.record,
-      sourceLookupWithFlatProjection(lookup, conversion.report.flatProjectionMappings),
-    )
-  } catch (error) {
-    return { ...base, outcome: 'lowering-refused', refusalCodes: ['lowering-eligibility'], refusalMessages: [errorMessage(error)] }
+  const preparation = prepareShowV2ForCompile(
+    conversion.record,
+    sourceLookupWithFlatProjection(lookup, conversion.report.flatProjectionMappings),
+  )
+  if (preparation.status === 'refused') return {
+    ...base,
+    outcome: 'preparation-refused',
+    refusalCodes: sortedUnique(preparation.issues.map(issue => issue.code)),
+    refusalMessages: sortedUnique(preparation.issues.map(issue => `${issue.path}: ${issue.message}`)),
   }
+  const libraries = librarySources(input.fixture)
+  const v2Recipe = preparation.recipe
+  let v1Recipe: ReturnType<typeof showRecordToCompileRecipe>
+  let v1: GeneratedShowArtifact
+  let v2: GeneratedShowArtifact
   try {
-    const libraries = librarySources(input.fixture)
-    const v1Recipe = showRecordToCompileRecipe(show, lookup)
-    const v2Recipe = showRecordToCompileRecipe(lowered.show, lowered.lookup)
-    const v1 = compileShow(v1Recipe, libraries)
-    const v2 = compileShow(v2Recipe, libraries)
-    const memberIdentityMappings = flatMemberIdentityMappings(conversion.report, v1, v2)
-    return {
-      ...base, outcome: 'converted-compiled', refusalCodes: [], refusalMessages: [],
-      parity: {
-        recipeEqual: stableJson(v2Recipe) === stableJson(v1Recipe),
-        sourceEqual: v2.code === v1.code && v2.fxCode === v1.fxCode,
-        summaryEqual: stableJson(v2.summary) === stableJson(v1.summary),
-        memberIdentityMappings,
-        fast: runtimeParity(v1, v2, show, conversion.record, 'fast', memberIdentityMappings),
-        precise: runtimeParity(v1, v2, show, conversion.record, 'fidelity', memberIdentityMappings),
-      },
-    }
+    v1Recipe = showRecordToCompileRecipe(show, lookup)
+    v1 = compileShow(v1Recipe, libraries)
+    v2 = compileShow(v2Recipe, libraries)
   } catch (error) {
     return { ...base, outcome: 'compile-refused', refusalCodes: ['compile-error'], refusalMessages: [errorMessage(error)] }
+  }
+  assertPreparedMemberProvenance(conversion.record, preparation.provenance, preparation.recipe, v2)
+  const memberIdentityMappings = flatMemberIdentityMappings(conversion.report, v1, v2)
+  return {
+    ...base, outcome: 'converted-compiled', refusalCodes: [], refusalMessages: [],
+    parity: {
+      recipeEqual: stableJson(v2Recipe) === stableJson(v1Recipe),
+      sourceEqual: v2.code === v1.code && v2.fxCode === v1.fxCode,
+      summaryEqual: stableJson(v2.summary) === stableJson(v1.summary),
+      memberIdentityMappings,
+      fast: runtimeParity(v1, v2, show, conversion.record, 'fast', memberIdentityMappings),
+      precise: runtimeParity(v1, v2, show, conversion.record, 'fidelity', memberIdentityMappings),
+    },
   }
 }
 
@@ -268,6 +273,49 @@ function flatMemberIdentityMappings(
   return mappings
 }
 
+function assertPreparedMemberProvenance(
+  record: ShowRecordV2,
+  provenance: ShowV2CompileProvenance,
+  recipe: ShowRecipe,
+  artifact: GeneratedShowArtifact,
+): void {
+  const clips = record.composition.clips
+  const clipIds = clips.map(clip => clip.id).sort()
+  const provenanceClipIds = Object.keys(provenance.runtimeInstanceIdByClipId).sort()
+  if (stableJson(provenanceClipIds) !== stableJson(clipIds)) {
+    throw new Error('Compile preparation provenance does not account for every v2 Clip exactly once.')
+  }
+  for (const clip of clips) {
+    if (provenance.runtimeInstanceIdByClipId[clip.id] !== clip.instanceId) {
+      throw new Error(`Compile preparation changed runtime instance ownership for Clip "${clip.id}".`)
+    }
+  }
+  const summaryMemberIds = artifact.summary.clips.map(member => member.id).sort()
+  const runtimeInstanceIds = sortedUnique(Object.values(provenance.runtimeInstanceIdByClipId))
+  const compilerOwnedEmptyIds = recipe.clips
+    .filter(clip => clip.compilerOwnedEmpty)
+    .map(clip => clip.id)
+    .sort()
+  if (provenance.route === 'continuous-flat') {
+    const authoredSummaryMemberIds = summaryMemberIds.filter(memberId => !compilerOwnedEmptyIds.includes(memberId))
+    if (authoredSummaryMemberIds.some(memberId => !Object.prototype.hasOwnProperty.call(provenance.runtimeInstanceIdByClipId, memberId))) {
+      throw new Error('Continuous-flat preparation emitted a summary member without Clip provenance.')
+    }
+    const representedInstances = sortedUnique(authoredSummaryMemberIds.map(memberId => provenance.runtimeInstanceIdByClipId[memberId]))
+    if (stableJson(representedInstances) !== stableJson(runtimeInstanceIds)) {
+      throw new Error('Continuous-flat preparation summary does not represent every runtime instance exactly once.')
+    }
+    if (stableJson(summaryMemberIds) !== stableJson([...authoredSummaryMemberIds, ...compilerOwnedEmptyIds].sort())) {
+      throw new Error('Continuous-flat preparation summary has unaccounted compiler members.')
+    }
+    return
+  }
+  const expectedMemberIds = sortedUnique([...runtimeInstanceIds, ...compilerOwnedEmptyIds])
+  if (stableJson(summaryMemberIds) !== stableJson(expectedMemberIds)) {
+    throw new Error(`${record.id}: ${provenance.route} preparation summary members ${stableJson(summaryMemberIds)} do not match runtime instances and compiler-owned empties ${stableJson(expectedMemberIds)}.`)
+  }
+}
+
 function patternSource(ref: ShowPatternRef, patterns: Map<string, PatternRecord>): { id: string; source: string } | undefined {
   if (ref.kind === 'stock') {
     const id = resolveStockPatternId(ref.id)
@@ -304,7 +352,7 @@ function runtimeParity(
     code: artifact.code, fxCode: artifact.fxCode, metadata: artifact.metadata,
     dimension: nativeDimension(artifact.metadata.renderFns),
   }, { mapPoints: points, randomSeed: RANDOM_SEED, fidelity })
-  const times = semanticSampleTimes(source, converted, leftArtifact.summary.transitions ?? [])
+  const times = semanticSampleTimes(source, converted)
   const left = runtime(leftArtifact)
   const right = runtime(rightArtifact)
   const rightMemberIdAliases = new Map(memberIdentityMappings.map(mapping => [mapping.v2MemberId, mapping.v1MemberId]))
@@ -406,7 +454,6 @@ function freeze(
 export function semanticSampleTimes(
   source: ShowRecord,
   converted: ShowRecordV2,
-  compiledTransitions: GeneratedShowArtifact['summary']['transitions'],
 ): number[] {
   const showEndMs = converted.composition.showEndMs
   const boundaries = new Set<number>()
@@ -479,10 +526,6 @@ export function semanticSampleTimes(
       interval(startMs, startMs + transition.durationMs)
     }
   }
-  for (const transition of compiledTransitions) {
-    interval(transition.startMs, transition.endMs)
-  }
-
   return sortedUnique([
     ...intervalMidpoints,
     ...[...boundaries].flatMap(timeMs => [timeMs - 1, timeMs, timeMs + 1]),

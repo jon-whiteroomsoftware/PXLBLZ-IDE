@@ -5,14 +5,16 @@ import { nativeDimension } from './loadPattern'
 import { buildShowEpeExport } from './showEpeExport'
 import { compileShow, type GeneratedShowArtifact } from './showCompiler'
 import { showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
-import { lowerShowCompositionV2ForCompile } from './showCompositionLoweringV2'
+import { lowerShowCompositionV2ForCompile, prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { continuingV1Show, convertibleV1Show, flatV1Show, transitionV1Show } from '../test/showV2TracerFixture'
 import { LIBRARIES } from '../pixelblaze/libs'
 import type { MapPoint } from './maps/types'
+import type { ShowRecord } from './personalContentRecords'
 
 const SOURCE = 'export var calls = 0; export function beforeRender(delta) { calls = calls + 1 } export function render(index) { rgb(index / pixelCount, 0.25, 0.75) }'
 const STATEFUL_SOURCE = 'export var calls = 0; export var elapsed = 0; export function beforeRender(delta) { calls = calls + 1; elapsed = elapsed + delta / 1000 } export function render(index) { rgb(elapsed, calls / 100, index / pixelCount) }'
+const COORDINATE_SOURCE = 'export var calls = 0; export var elapsed = 0; export function beforeRender(delta) { calls = calls + 1; elapsed = elapsed + delta / 1000 } export function render2D(index, x, y) { rgb(x, elapsed, calls / 100) }'
 const OUT_SOURCE = 'export var calls = 0; export function beforeRender(delta) { calls = calls + 1 } export function render2D(index, x, y) { rgb(1, x * 0.25, y * 0.25) }'
 const IN_SOURCE = 'export var calls = 0; export function beforeRender(delta) { calls = calls + 1 } export function render2D(index, x, y) { rgb(x * 0.25, y * 0.25, 1) }'
 const MAP: MapPoint[] = Array.from({ length: 8 }, (_, index) => ({
@@ -20,13 +22,13 @@ const MAP: MapPoint[] = Array.from({ length: 8 }, (_, index) => ({
   pos: [index / 7, 0.5],
 }))
 
-function replay(artifact: GeneratedShowArtifact, fidelity: 'fast' | 'fidelity') {
+function replay(artifact: GeneratedShowArtifact, fidelity: 'fast' | 'fidelity', mapPoints = MAP) {
   return createFastReplayRuntime({
     code: artifact.code,
     fxCode: artifact.fxCode,
     metadata: artifact.metadata,
     dimension: nativeDimension(artifact.metadata.renderFns),
-  }, { mapPoints: MAP, randomSeed: 1034, fidelity })
+  }, { mapPoints, randomSeed: 1034, fidelity })
 }
 
 function freeze(result: ReturnType<ReturnType<typeof replay>['renderCurrentFrame']>) {
@@ -37,7 +39,245 @@ function freeze(result: ReturnType<ReturnType<typeof replay>['renderCurrentFrame
   }
 }
 
+function flatSamplingShow(repeatScale: number, splitPosition: number): ShowRecord {
+  const show = flatV1Show(false)
+  show.zones = [
+    { id: 'left', name: 'Left', nominalPixelCount: 4 },
+    { id: 'right', name: 'Right', nominalPixelCount: 4 },
+  ]
+  show.routingLayouts = [{
+    id: 'split',
+    name: 'Split',
+    zones: [],
+    logical: { kind: 'split', zoneIds: ['left', 'right'], axis: 'x' },
+  }]
+  show.scenes.forEach(scene => {
+    scene.routingTargets = { splitPosition }
+    scene.sampleTargets = { repeatScale }
+  })
+  show.cells = [
+    {
+      ...show.cells[0],
+      id: 'cell-left',
+      zoneId: 'left',
+      sceneSpan: 2,
+      pattern: { kind: 'stock', id: 'TestPattern1D' },
+    },
+    {
+      ...show.cells[0],
+      id: 'cell-right',
+      zoneId: 'right',
+      sceneSpan: 2,
+      pattern: { kind: 'stock', id: 'CometLoom' },
+    },
+  ]
+  return show
+}
+
+function routedSamplingShow(route: 'global-sections' | 'transition', repeatScale: number, splitPosition: number): ShowRecord {
+  const show = route === 'transition' ? transitionV1Show('crossfade') : convertibleV1Show()
+  show.zones = [
+    { id: 'left', name: 'Left', nominalPixelCount: 4 },
+    { id: 'right', name: 'Right', nominalPixelCount: 4 },
+  ]
+  show.routingLayouts = [{
+    id: 'split',
+    name: 'Split',
+    zones: [],
+    logical: { kind: 'split', zoneIds: ['left', 'right'], axis: 'x' },
+  }]
+  show.scenes.forEach(scene => {
+    scene.routingTargets = { splitPosition }
+    scene.sampleTargets = { repeatScale }
+  })
+  const composition = show.composition!
+  if (route === 'global-sections') {
+    composition.patternInstances = [
+      { ...structuredClone(composition.patternInstances[0]), id: 'left-instance' },
+      { ...structuredClone(composition.patternInstances[0]), id: 'right-instance' },
+    ]
+    composition.scenes[0].zones = [
+      {
+        zoneId: 'left', overlays: [],
+        main: [{ id: 'left-clip', instanceId: 'left-instance', startMs: 0, durationMs: 1_000, view: { mirror: false, phase: 0, brightness: 1 } }],
+      },
+      {
+        zoneId: 'right', overlays: [],
+        main: [{ id: 'right-clip', instanceId: 'right-instance', startMs: 0, durationMs: 1_000, view: { mirror: false, phase: 0, brightness: 1 } }],
+      },
+    ]
+  } else {
+    composition.patternInstances.push({ ...structuredClone(composition.patternInstances[0]), id: 'right-instance' })
+    composition.scenes[0].zones[0].zoneId = 'left'
+    composition.scenes[0].zones.push({
+      zoneId: 'right', overlays: [],
+      main: [{ id: 'right-clip', instanceId: 'right-instance', startMs: 0, durationMs: 1_000, view: { mirror: false, phase: 0, brightness: 1 } }],
+    })
+  }
+  return show
+}
+
 describe('lowerShowCompositionV2ForCompile', () => {
+  it.each([
+    { repeatScale: 1, splitPosition: 0.5, fidelity: 'fast' },
+    { repeatScale: 1, splitPosition: 0.5, fidelity: 'fidelity' },
+    { repeatScale: 2, splitPosition: 0.5, fidelity: 'fast' },
+    { repeatScale: 2, splitPosition: 0.5, fidelity: 'fidelity' },
+    { repeatScale: 1, splitPosition: 0.3, fidelity: 'fast' },
+    { repeatScale: 1, splitPosition: 0.3, fidelity: 'fidelity' },
+    { repeatScale: 2, splitPosition: 0.3, fidelity: 'fast' },
+    { repeatScale: 2, splitPosition: 0.3, fidelity: 'fidelity' },
+  ] as const)('prepares flat repeat $repeatScale and split $splitPosition through routed $fidelity replay', ({ repeatScale, splitPosition, fidelity }) => {
+    const source = flatSamplingShow(repeatScale, splitPosition)
+    const original = structuredClone(source)
+    const flatLookup = { byCellId: { 'cell-left': COORDINATE_SOURCE, 'cell-right': COORDINATE_SOURCE }, stageDimension: 2 as const }
+    const converted = convertShowRecordV1ToV2(source, flatLookup)
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') return
+    const v2Lookup = {
+      byCellId: {},
+      byPatternInstanceId: Object.fromEntries(converted.record.composition.patternInstances.map(instance => [instance.id, COORDINATE_SOURCE])),
+      stageDimension: 2 as const,
+    }
+    const convertedBefore = structuredClone(converted.record)
+    const lookupBefore = structuredClone(v2Lookup)
+    const prepared = prepareShowV2ForCompile(converted.record, v2Lookup)
+    expect(prepared.status).toBe('ready')
+    if (prepared.status !== 'ready') return
+    const v1 = compileShow(showRecordToCompileRecipe(source, flatLookup), LIBRARIES)
+    const v2 = compileShow(prepared.recipe, LIBRARIES)
+    const points: MapPoint[] = [splitPosition - 0.01, splitPosition + 0.01]
+      .map(x => ({ sample: [x, 0.25], pos: [x, 0.25] }))
+    const leftRuntime = replay(v1, fidelity, points)
+    const rightRuntime = replay(v2, fidelity, points)
+
+    expect(source).toEqual(original)
+    expect(converted.record).toEqual(convertedBefore)
+    expect(v2Lookup).toEqual(lookupBefore)
+    expect(prepared.provenance).toMatchObject({
+      route: 'continuous-flat',
+      layoutId: 'split',
+      runtimeInstanceIdByClipId: Object.fromEntries(converted.record.composition.clips.map(clip => [clip.id, clip.instanceId])),
+    })
+    expect(prepared.provenance.derivedSceneIds).toEqual(['v2-flat-section:0', 'v2-flat-section:1'])
+    expect(v2.summary.clips.map(member => member.id)).toEqual(converted.report.flatProjectionMappings.flatMap(mapping => mapping.placementIds.slice(0, 1)))
+    expect(v2.summary.clips).toHaveLength(v1.summary.clips.length)
+    for (const atMs of [0, 100, 499, 500, 501, 999]) {
+      const options = { stepMs: 1, forceFullIntermediateRender: true }
+      const left = freeze(atMs === 0 ? leftRuntime.renderCurrentFrame() : leftRuntime.advanceTo(atMs, options))
+      const right = freeze(atMs === 0 ? rightRuntime.renderCurrentFrame() : rightRuntime.advanceTo(atMs, options))
+      expect(right.frame).toEqual(left.frame)
+      for (const mapping of converted.report.flatProjectionMappings) {
+        const leftMember = v1.summary.clips.find(member => member.id === mapping.cellId)!
+        const rightMember = v2.summary.clips.find(member => member.id === mapping.placementIds[0])!
+        expect(rightMember).toBeTruthy()
+        for (const state of ['calls', 'elapsed']) {
+          expect(right.exports[`${rightMember.prefix}_${state}`]).toEqual(left.exports[`${leftMember.prefix}_${state}`])
+        }
+      }
+    }
+    if (fidelity === 'fast') {
+      const atLandmarks = freeze(replay(v2, fidelity, points).advanceLive(100))
+      expect(atLandmarks.frame[0]).toBeCloseTo((((splitPosition - 0.01) / splitPosition) * repeatScale) % 1)
+      expect(atLandmarks.frame[3]).toBeCloseTo(((0.01 / (1 - splitPosition)) * repeatScale) % 1)
+      expect(atLandmarks.frame[1]).toBeCloseTo(0.1)
+      expect(atLandmarks.frame[4]).toBeCloseTo(0.1)
+    }
+  })
+
+  it.each([
+    { route: 'global-sections', repeatScale: 1, splitPosition: 0.5 },
+    { route: 'global-sections', repeatScale: 2, splitPosition: 0.3 },
+    { route: 'transition', repeatScale: 1, splitPosition: 0.5 },
+    { route: 'transition', repeatScale: 2, splitPosition: 0.3 },
+  ] as const)('prepares $route default/combined routing semantics through both runtimes', ({ route, repeatScale, splitPosition }) => {
+    const source = routedSamplingShow(route, repeatScale, splitPosition)
+    const original = structuredClone(source)
+    const ids = source.composition!.patternInstances.map(instance => instance.id)
+    const lookup = {
+      byCellId: {},
+      byPatternInstanceId: Object.fromEntries(ids.map(id => [id, COORDINATE_SOURCE])),
+      stageDimension: 2 as const,
+    }
+    const converted = convertShowRecordV1ToV2(source)
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') return
+    const recordBefore = structuredClone(converted.record)
+    const prepared = prepareShowV2ForCompile(converted.record, lookup)
+    expect(prepared.status).toBe('ready')
+    if (prepared.status !== 'ready') return
+    expect(prepared.provenance).toMatchObject({ route, layoutId: 'split' })
+    expect(Object.keys(prepared.provenance.runtimeInstanceIdByClipId).sort()).toEqual(
+      converted.record.composition.clips.map(clip => clip.id).sort(),
+    )
+    const v1 = compileShow(showRecordToCompileRecipe(source, lookup), LIBRARIES)
+    const v2 = compileShow(prepared.recipe, LIBRARIES)
+    expect(v2.summary.clips.map(member => member.id).sort()).toEqual(v1.summary.clips.map(member => member.id).sort())
+    const points: MapPoint[] = [splitPosition - 0.01, splitPosition + 0.01]
+      .map(x => ({ sample: [x, 0.25], pos: [x, 0.25] }))
+    for (const fidelity of ['fast', 'fidelity'] as const) {
+      const leftRuntime = replay(v1, fidelity, points)
+      const rightRuntime = replay(v2, fidelity, points)
+      for (const atMs of [0, 100, 399, 400, 401, 500, 599, 600, 601, 999]) {
+        const options = { stepMs: 1, forceFullIntermediateRender: true }
+        const left = freeze(atMs === 0 ? leftRuntime.renderCurrentFrame() : leftRuntime.advanceTo(atMs, options))
+        const right = freeze(atMs === 0 ? rightRuntime.renderCurrentFrame() : rightRuntime.advanceTo(atMs, options))
+        expect(right.frame).toEqual(left.frame)
+        for (const member of v1.summary.clips) {
+          const rightMember = v2.summary.clips.find(candidate => candidate.id === member.id)!
+          expect(rightMember).toBeTruthy()
+          for (const state of ['calls', 'elapsed']) {
+            expect(right.exports[`${rightMember.prefix}_${state}`]).toEqual(left.exports[`${member.prefix}_${state}`])
+          }
+        }
+      }
+    }
+    expect(source).toEqual(original)
+    expect(converted.record).toEqual(recordBefore)
+  })
+
+  it('returns typed source and activation refusals without mutating input', () => {
+    const record = convertedRecord()
+    const before = structuredClone(record)
+    expect(prepareShowV2ForCompile(record, { byCellId: {} })).toEqual({
+      status: 'refused',
+      issues: [{
+        code: 'missing-pattern-source',
+        path: 'composition.patternInstances[0]',
+        message: 'requires exact Pattern source for instance "instance".',
+      }],
+    })
+    expect(record).toEqual(before)
+
+    record.composition.clips[0].appearance.keys.push({
+      ...structuredClone(record.composition.clips[0].appearance.keys[0]),
+      id: 'appearance-second',
+      timeMs: 500,
+    })
+    record.composition.propertyTracks.push({
+      id: 'full-track',
+      target: { kind: 'instance-time-scale', instanceId: 'instance' },
+      activeStartMs: 0,
+      activeDurationMs: 1_000,
+      keyframes: [
+        { id: 'start', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+        { id: 'end', timeMs: 1_000, value: 2, easing: { curve: 'linear' } },
+      ],
+    })
+    const activationBefore = structuredClone(record)
+    expect(prepareShowV2ForCompile(record, {
+      byCellId: {}, byPatternInstanceId: { instance: SOURCE },
+    })).toEqual({
+      status: 'refused',
+      issues: [{
+        code: 'unsupported-track-activation',
+        path: 'composition.propertyTracks[0]',
+        message: 'property track "full-track" activation crosses a derived Clip/appearance section.',
+      }],
+    })
+    expect(record).toEqual(activationBefore)
+  })
+
   it('derives the existing compiler recipe from global v2 entities without retaining a v1 source snapshot', () => {
     const source = convertibleV1Show()
     const converted = convertShowRecordV1ToV2(source)
@@ -48,12 +288,15 @@ describe('lowerShowCompositionV2ForCompile', () => {
     const lowered = lowerShowCompositionV2ForCompile(converted.record, lookup)
     const v1Recipe = showRecordToCompileRecipe(source, lookup)
     const v2Recipe = showRecordToCompileRecipe(lowered.show, lowered.lookup)
+    const prepared = prepareShowV2ForCompile(converted.record, lookup)
 
     expect(v2Recipe).toEqual(v1Recipe)
+    expect(prepared).toMatchObject({ status: 'ready', recipe: v1Recipe })
     expect(lowered.show.composition?.scenes[0].sceneId).toBe('v2-section:0')
     expect(Object.keys(lowered).sort()).toEqual(['lookup', 'show'])
-    const artifact = compileShow(v2Recipe, LIBRARIES)
-    const exported = buildShowEpeExport(lowered.show, artifact.code, {
+    if (prepared.status !== 'ready') return
+    const artifact = compileShow(prepared.recipe, LIBRARIES)
+    const exported = buildShowEpeExport(source, artifact.code, {
       id: 'show-v2-tracer',
       stampedAt: '2026-09-14T00:00:00.000Z',
     })

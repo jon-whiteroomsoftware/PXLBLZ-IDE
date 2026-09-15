@@ -67,13 +67,14 @@
     "byOutcome": {
       "conversion-refused": 20,
       "converted-compiled": 22,
-      "lowering-refused": 5
+      "preparation-refused": 5
     },
     "byRefusalCode": {
-      "lowering-eligibility": 5,
       "unsupported-boundary-transition": 12,
       "unsupported-group": 2,
       "unsupported-routing-change": 6,
+      "unsupported-track-activation": 3,
+      "unsupported-transition-property-track": 2,
       "unsupported-transition-track-activation": 3
     },
     "parityFailures": [],
@@ -908,12 +909,12 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "lowering-refused",
+      "outcome": "preparation-refused",
       "refusalCodes": [
-        "lowering-eligibility"
+        "unsupported-transition-property-track"
       ],
       "refusalMessages": [
-        "Show composition v2 lowering requires positive-Transition property-track activation evidence before compilation."
+        "composition.propertyTracks: lowering requires positive-Transition property-track activation evidence before compilation."
       ]
     },
     {
@@ -1495,12 +1496,12 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "lowering-refused",
+      "outcome": "preparation-refused",
       "refusalCodes": [
-        "lowering-eligibility"
+        "unsupported-transition-property-track"
       ],
       "refusalMessages": [
-        "Show composition v2 lowering requires positive-Transition property-track activation evidence before compilation."
+        "composition.propertyTracks: lowering requires positive-Transition property-track activation evidence before compilation."
       ]
     },
     {
@@ -1540,12 +1541,12 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "lowering-refused",
+      "outcome": "preparation-refused",
       "refusalCodes": [
-        "lowering-eligibility"
+        "unsupported-track-activation"
       ],
       "refusalMessages": [
-        "Show composition v2 property track \"track-fly-opacity\" activation crosses a derived Clip/appearance section."
+        "composition.propertyTracks[0]: property track \"track-fly-opacity\" activation crosses a derived Clip/appearance section."
       ]
     },
     {
@@ -1585,12 +1586,12 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "lowering-refused",
+      "outcome": "preparation-refused",
       "refusalCodes": [
-        "lowering-eligibility"
+        "unsupported-track-activation"
       ],
       "refusalMessages": [
-        "Show composition v2 property track \"track-content-pan\" activation crosses a derived Clip/appearance section."
+        "composition.propertyTracks[0]: property track \"track-content-pan\" activation crosses a derived Clip/appearance section."
       ]
     },
     {
@@ -3497,12 +3498,12 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "lowering-refused",
+      "outcome": "preparation-refused",
       "refusalCodes": [
-        "lowering-eligibility"
+        "unsupported-track-activation"
       ],
       "refusalMessages": [
-        "Show composition v2 property track \"track-echo-opacity\" activation crosses a derived Clip/appearance section."
+        "composition.propertyTracks[0]: property track \"track-echo-opacity\" activation crosses a derived Clip/appearance section."
       ]
     },
     {

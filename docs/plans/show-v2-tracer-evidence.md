@@ -29,9 +29,9 @@ preservation model produces:
 
 | Outcome | Records | Result |
 | --- | ---: | --- |
-| Converted, lowered, compiled | 22 | Exact matched-time Fast/Precise frames and mapped scalar state; zero parity failures |
+| Converted, prepared, compiled | 22 | Exact matched-time Fast/Precise frames and mapped scalar state; zero parity failures |
 | Conversion refused | 20 | 12 positive boundary Transition, six routing change, two Group; codes overlap with three positive-Transition track-activation refusals |
-| Lowering refused | 5 | Three track activations cross an additional derived Clip/key section; two require positive-Transition activation evidence |
+| Compile preparation refused | 5 | Three track activations cross an additional derived Clip/key section; two require positive-Transition activation evidence |
 
 All 47 records have zero unaccounted source leaves. Carrier-free boundary Cuts
 are no longer a refusal class: 21 prior Cut-identity refusals are retired with
@@ -46,12 +46,17 @@ Pattern or appearance data.
 The 22 accepted records have exact v1/v2 parity for matched-time output and
 mapped private state in Fast and Precise, at the same phase in the second loop,
 and under the harness's cold-seek comparison. This evidence covers the current
-supported subset only.
+supported subset only. Generated Pattern and Effect source is byte-equal for all
+22. The higher-level compiler recipe is equal for 13 of 22 and the compiler
+summary is equal for 20 of 22; those identity differences remain recorded rather
+than being treated as runtime parity. The five compile-preparation refusals keep
+their owning typed reasons: three `unsupported-track-activation` and two
+`unsupported-transition-property-track`.
 
 ## Consumer oracles
 
-The focused suite exercises converter to lowerer to the existing compiler and
-runtime:
+The focused suite exercises converter to compile preparation to the existing
+compiler and runtime:
 
 - **Lifecycle:** an unstamped composition remains `continuous` and omits the
   compiler reset stamp; a stamped composition remains `deterministic-loop`.
@@ -88,9 +93,9 @@ runtime:
 - **Transitions:** seven positive kind/policy cases (six kinds and two
   Crossfade policies) preserve recipe, source, boundary/interior frames, and
   state. This is the one-participant Layer form with single-key Clip
-  appearances, not the unconverted v1 whole-boundary form. The lowerer refuses
-  multi-key Clip appearance with a positive Transition until that combination
-  has its own preservation proof.
+  appearances, not the unconverted v1 whole-boundary form. Compile preparation
+  returns a typed refusal for multi-key Clip appearance with a positive
+  Transition until that combination has its own preservation proof.
 - **Artifacts:** normal `.epe` output reopens through the existing EPE parser.
   The additive provisional JSON codec reopens v2 bytes. This is not ordinary
   authored-v2 `.pxlshow` reopen, which remains intentionally unwired.
@@ -106,11 +111,13 @@ Matched-time replay now derives samples from the union of source Scene,
 Transition, cell/placement, and property-key intervals plus v2 Clip appearance,
 Layout transfer, property activation/key, and Transition intervals. Every
 semantic boundary contributes boundary - 1 ms, the boundary, and boundary + 1
-ms; every partition contributes its midpoint. Compiled Transition windows are
-an additional oracle input, not the sole source. Narrative Markers contribute
-no samples. The 22 accepted records exercise 8–180 times per mode, 1,846
-per-mode samples in total, with no new Fast/Precise parity failure and no corpus
-outcome change.
+ms; every partition contributes its midpoint. The generated artifact summary
+does not expose Transition windows and is not an input to this sampler; the
+source and converted authored models supply those intervals. Narrative Markers
+contribute no samples. The sampler and its valid-model integration test are
+included in the repository's strict `tsc -b` check. The 22 accepted records
+exercise 8–180 times per mode, 923 samples per mode and 1,846 across both modes,
+with no new Fast/Precise parity failure and no corpus outcome change.
 
 ## Diagnosed repair history
 
@@ -153,7 +160,7 @@ Fast/Precise regression failed before this repair and passes at 499/500/501 and
 | Carrier-free v1 Cut | Retired with exact source/time accounting; output/state parity proved | Supported |
 | Cut with residual payload | Refuses at exact payload path | Requires explicit payload rehoming before support |
 | Track activation within one derived section | Global half-open interval lowers to source contribution; Effect identity checked only on intersection | Supported |
-| Track activation crossing another Clip/key boundary | Three stock records refuse before compile | Next lowering implementation: partition one activation without changing its curve/holds |
+| Track activation crossing another Clip/key boundary | Three stock records receive a typed compile-preparation refusal | Next lowering implementation: partition one activation without changing its curve/holds |
 | Positive-boundary track contribution | Typed refusal; nominal Clip rectangles are not substituted | Next conversion/lowering proof: preserve both source contributions during the Transition |
 | Whole-boundary positive Transition | 12 records refuse; direct one-participant Layer matrix is green | Converter implementation remains |
 | Routing/Layout occurrence change | Six records refuse; omitted `splitPosition` and explicit `0.5` compare as the same semantic default | Lowering/compiler proof remains |

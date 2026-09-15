@@ -9,7 +9,8 @@ import type {
   ShowRecord,
   ShowZoneComposition,
 } from './personalContentRecords'
-import type { ShowCompileRecipeSourceLookup } from './showModel'
+import { showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
+import type { ShowRecipe } from './showCompiler'
 import {
   validateShowRecordV2,
   type ShowClipV2,
@@ -22,6 +23,82 @@ export interface LoweredShowCompositionV2 {
   lookup: ShowCompileRecipeSourceLookup
 }
 
+export type ShowV2CompilePreparationIssueCode =
+  | 'invalid-record'
+  | 'missing-pattern-source'
+  | 'unsupported-layout-occurrences'
+  | 'unsupported-groups'
+  | 'unsupported-transition-appearance'
+  | 'unsupported-restart'
+  | 'unsupported-transition-participants'
+  | 'unsupported-transition-overlap'
+  | 'unsupported-transition-property-ramp'
+  | 'unsupported-transition-property-track'
+  | 'unsupported-explicit-cut'
+  | 'unsupported-zone-sampling'
+  | 'unsupported-property-target'
+  | 'unsupported-track-activation'
+
+export interface ShowV2CompilePreparationIssue {
+  code: ShowV2CompilePreparationIssueCode
+  path: string
+  message: string
+}
+
+export interface ShowV2CompileProvenance {
+  route: 'continuous-flat' | 'global-sections' | 'transition'
+  layoutOccurrenceId: string
+  layoutId: string
+  derivedSceneIds: string[]
+  runtimeInstanceIdByClipId: Record<string, string>
+}
+
+export type ShowV2CompilePreparation =
+  | { status: 'ready'; recipe: ShowRecipe; provenance: ShowV2CompileProvenance }
+  | { status: 'refused'; issues: ShowV2CompilePreparationIssue[] }
+
+type PreparationRoute = ShowV2CompileProvenance['route']
+
+interface ResolvedShowV2CompileContext {
+  record: ShowRecordV2
+  lookup: ShowCompileRecipeSourceLookup
+  route: PreparationRoute
+  layoutOccurrenceId: string
+  layoutId: string
+  routingLayouts: ShowRecord['routingLayouts']
+  sceneSettings: Pick<ShowRecord['scenes'][number], 'routingTargets' | 'sampleTargets'>
+  runtimeInstanceIdByClipId: Record<string, string>
+}
+
+interface ResolvedLowering {
+  context: ResolvedShowV2CompileContext
+  lowered: LoweredShowCompositionV2
+}
+
+/**
+ * Resolve v2 compile semantics once, then return the compiler's existing recipe
+ * and enough identity provenance for consumer-side parity checks.
+ */
+export function prepareShowV2ForCompile(
+  record: ShowRecordV2,
+  lookup: ShowCompileRecipeSourceLookup,
+): ShowV2CompilePreparation {
+  const resolved = resolveAndLowerShowV2(record, lookup)
+  if ('issues' in resolved) return { status: 'refused', issues: resolved.issues }
+  const { context, lowered } = resolved
+  return {
+    status: 'ready',
+    recipe: showRecordToCompileRecipe(lowered.show, lowered.lookup),
+    provenance: {
+      route: context.route,
+      layoutOccurrenceId: context.layoutOccurrenceId,
+      layoutId: context.layoutId,
+      derivedSceneIds: lowered.show.scenes.map(scene => scene.id),
+      runtimeInstanceIdByClipId: structuredClone(context.runtimeInstanceIdByClipId),
+    },
+  }
+}
+
 /**
  * Derive transient v1 compiler sections solely from authored global-time v2
  * entities. This adapter is not connected to production persistence or decode.
@@ -30,46 +107,153 @@ export function lowerShowCompositionV2ForCompile(
   record: ShowRecordV2,
   lookup: ShowCompileRecipeSourceLookup,
 ): LoweredShowCompositionV2 {
+  const resolved = resolveAndLowerShowV2(record, lookup)
+  if ('issues' in resolved) {
+    throw new Error(resolved.issues.map(issue => `Show composition v2 ${issue.path}: ${issue.message}`).join('; '))
+  }
+  return resolved.lowered
+}
+
+function resolveAndLowerShowV2(
+  record: ShowRecordV2,
+  lookup: ShowCompileRecipeSourceLookup,
+): ResolvedLowering | { issues: ShowV2CompilePreparationIssue[] } {
+  const resolved = resolveShowV2CompileContext(record, lookup)
+  if ('issues' in resolved) return resolved
+  return { context: resolved, lowered: emitResolvedShowV2(resolved) }
+}
+
+function refuse(
+  code: ShowV2CompilePreparationIssueCode,
+  path: string,
+  message: string,
+): { issues: ShowV2CompilePreparationIssue[] } {
+  return { issues: [{ code, path, message }] }
+}
+
+function resolveShowV2CompileContext(
+  record: ShowRecordV2,
+  lookup: ShowCompileRecipeSourceLookup,
+): ResolvedShowV2CompileContext | { issues: ShowV2CompilePreparationIssue[] } {
   const issue = validateShowRecordV2(record)[0]
-  if (issue) throw new Error(`Show composition v2 ${issue.path}: ${issue.message}`)
+  if (issue) return refuse('invalid-record', issue.path, issue.message)
   const composition = record.composition
   if (composition.layoutOccurrences.length !== 1) {
-    throw new Error('Show composition v2 lowering currently requires one full-Show Layout occurrence.')
+    return refuse('unsupported-layout-occurrences', 'composition.layoutOccurrences', 'lowering currently requires one full-Show Layout occurrence.')
   }
   if (composition.groupDefinitions.length > 0 || composition.groupOccurrences.length > 0) {
-    throw new Error('Show composition v2 lowering requires Group materialization evidence before compilation.')
+    return refuse('unsupported-groups', 'composition.groupDefinitions', 'lowering requires Group materialization evidence before compilation.')
   }
   if (composition.transitions.length > 0 && composition.clips.some(clip => clip.appearance.keys.length > 1)) {
-    throw new Error('Show composition v2 lowering cannot preserve multi-key Clip appearance with Transitions.')
+    return refuse('unsupported-transition-appearance', 'composition.clips', 'lowering cannot preserve multi-key Clip appearance with Transitions.')
   }
   if (composition.clips.some(clip => clip.entryPolicy === 'restart')) {
-    throw new Error('Show composition v2 lowering requires Restart lifecycle evidence before compilation.')
+    return refuse('unsupported-restart', 'composition.clips', 'lowering requires Restart lifecycle evidence before compilation.')
   }
   if (composition.transitions.some(transition => transition.participants.length !== 1)) {
-    throw new Error('Show composition v2 lowering requires one participant per Transition until shared-scope parity is proved.')
+    return refuse('unsupported-transition-participants', 'composition.transitions', 'lowering requires one participant per Transition until shared-scope parity is proved.')
   }
   if (hasCoincidentPositiveTransitionWindows(record)) {
-    throw new Error('Show composition v2 lowering cannot compile coincident positive Transition windows without independent render targets.')
+    return refuse('unsupported-transition-overlap', 'composition.transitions', 'lowering cannot compile coincident positive Transition windows without independent render targets.')
   }
   if (composition.transitions.some(transition => transition.propertyRamps.length > 0)) {
-    throw new Error('Show composition v2 lowering requires Transition property-ramp compiler evidence before compilation.')
+    return refuse('unsupported-transition-property-ramp', 'composition.transitions', 'lowering requires Transition property-ramp compiler evidence before compilation.')
   }
   if (composition.transitions.length > 0 && composition.propertyTracks.length > 0) {
-    throw new Error('Show composition v2 lowering requires positive-Transition property-track activation evidence before compilation.')
+    return refuse('unsupported-transition-property-track', 'composition.propertyTracks', 'lowering requires positive-Transition property-track activation evidence before compilation.')
   }
   if (composition.transitions.some(transition => transition.kind === 'cut')) {
-    throw new Error('Show composition v2 lowering cannot preserve explicit Cut identity in the implicit v1 Layer-transition form.')
+    return refuse('unsupported-explicit-cut', 'composition.transitions', 'lowering cannot preserve explicit Cut identity in the implicit v1 Layer-transition form.')
   }
-  if (composition.clips.some(clip => clip.zoneSampleMode !== 'span')
-    && !(composition.executionModel === 'continuous' && canLowerToFlat(record))) {
-    throw new Error('Show composition v2 lowering requires repeat-mode Clip sampling evidence before compilation.')
+  const unsupportedTargetIndex = composition.propertyTracks.findIndex(track => (
+    track.target.kind === 'layout-occurrence-split-position' || track.target.kind === 'show-repeat-scale'
+  ))
+  if (unsupportedTargetIndex >= 0) {
+    return refuse(
+      'unsupported-property-target',
+      `composition.propertyTracks[${unsupportedTargetIndex}].target`,
+      `property target "${composition.propertyTracks[unsupportedTargetIndex].target.kind}" requires direct compiler support.`,
+    )
   }
-  if (composition.executionModel === 'continuous' && canLowerToFlat(record)) {
-    return lowerContinuousToFlat(record, lookup)
+  const flatEligible = composition.executionModel === 'continuous' && canLowerToFlat(record)
+  if (composition.clips.some(clip => clip.zoneSampleMode !== 'span') && !flatEligible) {
+    return refuse('unsupported-zone-sampling', 'composition.clips', 'lowering requires repeat-mode Clip sampling evidence before compilation.')
   }
-  if (composition.transitions.length === 0) {
-    return lowerGlobalClipsToSections(record, lookup)
+  if (!flatEligible && composition.transitions.length === 0) {
+    const unsupportedTrackIndex = firstCrossSectionTrackIndex(record)
+    if (unsupportedTrackIndex >= 0) {
+      return refuse(
+        'unsupported-track-activation',
+        `composition.propertyTracks[${unsupportedTrackIndex}]`,
+        `property track "${composition.propertyTracks[unsupportedTrackIndex].id}" activation crosses a derived Clip/appearance section.`,
+      )
+    }
   }
+  for (const [index, instance] of composition.patternInstances.entries()) {
+    if (!lookup.byPatternInstanceId?.[instance.id]) {
+      return refuse(
+        'missing-pattern-source',
+        `composition.patternInstances[${index}]`,
+        `requires exact Pattern source for instance "${instance.id}".`,
+      )
+    }
+  }
+  const occurrence = composition.layoutOccurrences[0]
+  const route: PreparationRoute = flatEligible
+    ? 'continuous-flat'
+    : composition.transitions.length === 0 ? 'global-sections' : 'transition'
+  return {
+    record,
+    lookup: structuredClone(lookup),
+    route,
+    layoutOccurrenceId: occurrence.id,
+    layoutId: occurrence.layoutId,
+    routingLayouts: selectedLayoutFirst(record),
+    sceneSettings: {
+      ...(occurrence.parameters.splitPosition !== undefined
+        ? { routingTargets: { splitPosition: occurrence.parameters.splitPosition } }
+        : {}),
+      ...(composition.sampleRemap.repeatScale !== 1
+        ? { sampleTargets: { repeatScale: composition.sampleRemap.repeatScale } }
+        : {}),
+    },
+    runtimeInstanceIdByClipId: Object.fromEntries(composition.clips.map(clip => [clip.id, clip.instanceId])),
+  }
+}
+
+function globalSectionBoundaries(record: ShowRecordV2): number[] {
+  const composition = record.composition
+  return [...new Set([
+    0,
+    composition.showEndMs,
+    ...composition.clips.flatMap(clip => [
+      clip.startMs,
+      clip.startMs + clip.durationMs,
+      ...clip.appearance.keys.map(key => key.timeMs),
+    ]),
+    ...composition.propertyTracks.flatMap(track => [
+      track.activeStartMs,
+      track.activeStartMs + track.activeDurationMs,
+    ]),
+  ])].filter(timeMs => timeMs >= 0 && timeMs <= composition.showEndMs)
+    .sort((left, right) => left - right)
+}
+
+function firstCrossSectionTrackIndex(record: ShowRecordV2): number {
+  const boundaries = globalSectionBoundaries(record)
+  return record.composition.propertyTracks.findIndex(track => {
+    const startIndex = boundaries.indexOf(track.activeStartMs)
+    const endIndex = boundaries.indexOf(track.activeStartMs + track.activeDurationMs)
+    return startIndex < 0 || endIndex !== startIndex + 1
+  })
+}
+
+function emitResolvedShowV2(context: ResolvedShowV2CompileContext): LoweredShowCompositionV2 {
+  if (context.route === 'continuous-flat') return lowerContinuousToFlat(context)
+  if (context.route === 'global-sections') return lowerGlobalClipsToSections(context)
+
+  const { record, lookup } = context
+  const composition = record.composition
 
   const sectionId = 'v2-section:0'
   const layersByZone = new Map(record.zones.map(zone => [
@@ -83,7 +267,7 @@ export function lowerShowCompositionV2ForCompile(
     const mainLayer = layers.find(layer => layer.rank === 0)
     const main = composition.clips
       .filter(clip => clip.zoneId === zone.id && clip.layerId === mainLayer?.id)
-      .map(clip => lowerMainClip(clip))
+      .map(clip => lowerMainClip(context, clip))
     const overlays: ShowOverlayLayer[] = layers
       .filter(layer => layer.rank > 0)
       .sort((left, right) => right.rank - left.rank || left.id.localeCompare(right.id))
@@ -92,7 +276,7 @@ export function lowerShowCompositionV2ForCompile(
         name: layer.name,
         placements: composition.clips
           .filter(clip => clip.zoneId === zone.id && clip.layerId === layer.id)
-          .map(clip => lowerOverlayClip(clip)),
+          .map(clip => lowerOverlayClip(context, clip)),
       }))
     return { zoneId: zone.id, main, overlays }
   })
@@ -128,54 +312,21 @@ export function lowerShowCompositionV2ForCompile(
     ...(composition.markers.length > 0 ? { markers: structuredClone(composition.markers) } : {}),
     ...(transitionParticipants.length > 0 ? { transitions: transitionParticipants } : {}),
   }
-  const show: ShowRecord = {
-    id: record.id,
-    name: record.name,
-    scenes: [{
-      id: sectionId,
-      name: record.name,
-      durationMs: composition.showEndMs,
-      ...(composition.layoutOccurrences[0].parameters.splitPosition !== undefined
-        ? { routingTargets: { splitPosition: composition.layoutOccurrences[0].parameters.splitPosition } }
-        : {}),
-      ...(composition.sampleRemap.repeatScale !== 1
-        ? { sampleTargets: { repeatScale: composition.sampleRemap.repeatScale } }
-        : {}),
-    }],
-    zones: structuredClone(record.zones),
-    cells: [],
-    routingLayouts: selectedLayoutFirst(record),
-    transitions: [],
-    ...(record.targetControllerProfileId !== undefined ? { targetControllerProfileId: record.targetControllerProfileId } : {}),
-    ...(record.stageMapId !== undefined ? { stageMapId: record.stageMapId } : {}),
-    outputContract: structuredClone(record.outputContract),
-    composition: v1Composition,
-    ...(record.outputEffects !== undefined ? { outputEffects: structuredClone(record.outputEffects) } : {}),
-    ...(record.importMetadata !== undefined ? { importMetadata: structuredClone(record.importMetadata) } : {}),
-    updatedAt: record.updatedAt,
-  }
-  return { show, lookup: structuredClone(lookup) }
+  const show = buildLoweredShow(
+    context,
+    [buildDerivedScene(context, sectionId, record.name, composition.showEndMs)],
+    [],
+    v1Composition,
+  )
+  return { show, lookup }
 }
 
 function lowerGlobalClipsToSections(
-  record: ShowRecordV2,
-  lookup: ShowCompileRecipeSourceLookup,
+  context: ResolvedShowV2CompileContext,
 ): LoweredShowCompositionV2 {
+  const { record, lookup } = context
   const composition = record.composition
-  const boundaries = [...new Set([
-    0,
-    composition.showEndMs,
-    ...composition.clips.flatMap(clip => [
-      clip.startMs,
-      clip.startMs + clip.durationMs,
-      ...clip.appearance.keys.map(key => key.timeMs),
-    ]),
-    ...composition.propertyTracks.flatMap(track => [
-      track.activeStartMs,
-      track.activeStartMs + track.activeDurationMs,
-    ]),
-  ])].filter(timeMs => timeMs >= 0 && timeMs <= composition.showEndMs)
-    .sort((left, right) => left - right)
+  const boundaries = globalSectionBoundaries(record)
   const sections = boundaries.slice(0, -1).map((startMs, index) => ({
     id: `v2-section:${index}`,
     startMs,
@@ -204,7 +355,7 @@ function lowerGlobalClipsToSections(
       const mainLayer = layers.find(layer => layer.rank === 0)
       const main = composition.clips
         .filter(clip => clip.zoneId === zone.id && clip.layerId === mainLayer?.id && overlaps(clip, section))
-        .map(clip => lowerClipSection(clip, section, false))
+        .map(clip => lowerClipSection(context, clip, section, false))
       const overlays: ShowOverlayLayer[] = layers
         .filter(layer => layer.rank > 0)
         .sort((left, right) => right.rank - left.rank || left.id.localeCompare(right.id))
@@ -213,7 +364,7 @@ function lowerGlobalClipsToSections(
           name: layer.name,
           placements: composition.clips
             .filter(clip => clip.zoneId === zone.id && clip.layerId === layer.id && overlaps(clip, section))
-            .map(clip => lowerClipSection(clip, section, true)),
+            .map(clip => lowerClipSection(context, clip, section, true)),
         }))
       return { zoneId: zone.id, main, overlays }
     })
@@ -243,33 +394,13 @@ function lowerGlobalClipsToSections(
     scenes: v1Scenes,
     ...(composition.markers.length > 0 ? { markers: structuredClone(composition.markers) } : {}),
   }
-  const show: ShowRecord = {
-    id: record.id,
-    name: record.name,
-    scenes: sections.map((section, index) => ({
-      id: section.id,
-      name: `Section ${index + 1}`,
-      durationMs: section.endMs - section.startMs,
-      ...(composition.layoutOccurrences[0].parameters.splitPosition !== undefined
-        ? { routingTargets: { splitPosition: composition.layoutOccurrences[0].parameters.splitPosition } }
-        : {}),
-      ...(composition.sampleRemap.repeatScale !== 1
-        ? { sampleTargets: { repeatScale: composition.sampleRemap.repeatScale } }
-        : {}),
-    })),
-    zones: structuredClone(record.zones),
-    cells: [],
-    routingLayouts: selectedLayoutFirst(record),
-    transitions: [],
-    ...(record.targetControllerProfileId !== undefined ? { targetControllerProfileId: record.targetControllerProfileId } : {}),
-    ...(record.stageMapId !== undefined ? { stageMapId: record.stageMapId } : {}),
-    outputContract: structuredClone(record.outputContract),
-    composition: v1Composition,
-    ...(record.outputEffects !== undefined ? { outputEffects: structuredClone(record.outputEffects) } : {}),
-    ...(record.importMetadata !== undefined ? { importMetadata: structuredClone(record.importMetadata) } : {}),
-    updatedAt: record.updatedAt,
-  }
-  return { show, lookup: structuredClone(lookup) }
+  const scenes = sections.map((section, index) => buildDerivedScene(
+    context,
+    section.id,
+    `Section ${index + 1}`,
+    section.endMs - section.startMs,
+  ))
+  return { show: buildLoweredShow(context, scenes, [], v1Composition), lookup }
 }
 
 type DerivedSection = { id: string; startMs: number; endMs: number }
@@ -278,9 +409,10 @@ function overlaps(clip: ShowClipV2, section: DerivedSection): boolean {
   return clip.startMs < section.endMs && clip.startMs + clip.durationMs > section.startMs
 }
 
-function lowerClipSection(clip: ShowClipV2, section: DerivedSection, overlay: false): ShowMainPlacement
-function lowerClipSection(clip: ShowClipV2, section: DerivedSection, overlay: true): ShowOverlayPlacement
+function lowerClipSection(context: ResolvedShowV2CompileContext, clip: ShowClipV2, section: DerivedSection, overlay: false): ShowMainPlacement
+function lowerClipSection(context: ResolvedShowV2CompileContext, clip: ShowClipV2, section: DerivedSection, overlay: true): ShowOverlayPlacement
 function lowerClipSection(
+  context: ResolvedShowV2CompileContext,
   clip: ShowClipV2,
   section: DerivedSection,
   overlay: boolean,
@@ -292,7 +424,7 @@ function lowerClipSection(
   const placement: ShowMainPlacement = {
     id,
     ...(id === clip.id ? {} : { logicalClipId: clip.id }),
-    instanceId: clip.instanceId,
+    instanceId: runtimeInstanceId(context, clip),
     startMs: segmentStartMs - section.startMs,
     durationMs: segmentEndMs - segmentStartMs,
     opacity: appearance.opacity,
@@ -350,33 +482,35 @@ function canLowerToFlat(record: ShowRecordV2): boolean {
 }
 
 function lowerContinuousToFlat(
-  record: ShowRecordV2,
-  lookup: ShowCompileRecipeSourceLookup,
+  context: ResolvedShowV2CompileContext,
 ): LoweredShowCompositionV2 {
+  const { record, lookup } = context
   const composition = record.composition
   const boundaries = [...new Set([
     0,
     composition.showEndMs,
     ...composition.clips.flatMap(clip => [clip.startMs, clip.startMs + clip.durationMs]),
   ])].sort((left, right) => left - right)
-  const scenes = boundaries.slice(0, -1).map((startMs, index) => ({
-    id: `v2-flat-section:${index}`,
-    name: composition.markers.find(marker => marker.timeMs === startMs)?.name ?? `Section ${index + 1}`,
-    durationMs: boundaries[index + 1] - startMs,
-  }))
+  const scenes = boundaries.slice(0, -1).map((startMs, index) => buildDerivedScene(
+    context,
+    `v2-flat-section:${index}`,
+    composition.markers.find(marker => marker.timeMs === startMs)?.name ?? `Section ${index + 1}`,
+    boundaries[index + 1] - startMs,
+  ))
   const sceneIndexByStart = new Map(boundaries.slice(0, -1).map((startMs, index) => [startMs, index]))
   const instanceById = new Map(composition.patternInstances.map(instance => [instance.id, instance]))
   const byCellId: Record<string, string> = {}
   const instanceIdByCellId = { ...(lookup.instanceIdByCellId ?? {}) }
   const cells = composition.clips.map((clip): ShowCell => {
     const appearance = clip.appearance.keys[0].value
-    const instance = instanceById.get(clip.instanceId)!
+    const instanceId = runtimeInstanceId(context, clip)
+    const instance = instanceById.get(instanceId)!
     const startIndex = sceneIndexByStart.get(clip.startMs)!
     const endIndex = boundaries.indexOf(clip.startMs + clip.durationMs)
     const source = lookup.byPatternInstanceId?.[instance.id]
     if (!source) throw new Error(`Show composition v2 requires exact Pattern source for instance "${instance.id}".`)
     byCellId[clip.id] = source
-    instanceIdByCellId[clip.id] = instance.id
+    instanceIdByCellId[clip.id] = instanceId
     return {
       id: clip.id,
       zoneId: clip.zoneId,
@@ -405,22 +539,42 @@ function lowerContinuousToFlat(
     }
   })
   return {
-    show: {
-      id: record.id,
-      name: record.name,
-      scenes,
-      zones: structuredClone(record.zones),
-      cells,
-      routingLayouts: selectedLayoutFirst(record),
-      transitions: [],
-      ...(record.targetControllerProfileId !== undefined ? { targetControllerProfileId: record.targetControllerProfileId } : {}),
-      ...(record.stageMapId !== undefined ? { stageMapId: record.stageMapId } : {}),
-      outputContract: structuredClone(record.outputContract),
-      ...(record.outputEffects !== undefined ? { outputEffects: structuredClone(record.outputEffects) } : {}),
-      ...(record.importMetadata !== undefined ? { importMetadata: structuredClone(record.importMetadata) } : {}),
-      updatedAt: record.updatedAt,
-    },
+    show: buildLoweredShow(context, scenes, cells),
     lookup: { ...structuredClone(lookup), byCellId, instanceIdByCellId },
+  }
+}
+
+function buildDerivedScene(
+  context: ResolvedShowV2CompileContext,
+  id: string,
+  name: string,
+  durationMs: number,
+): ShowRecord['scenes'][number] {
+  return { id, name, durationMs, ...structuredClone(context.sceneSettings) }
+}
+
+function buildLoweredShow(
+  context: ResolvedShowV2CompileContext,
+  scenes: ShowRecord['scenes'],
+  cells: ShowCell[],
+  composition?: ShowCompositionV1,
+): ShowRecord {
+  const { record } = context
+  return {
+    id: record.id,
+    name: record.name,
+    scenes,
+    zones: structuredClone(record.zones),
+    cells,
+    routingLayouts: structuredClone(context.routingLayouts),
+    transitions: [],
+    ...(record.targetControllerProfileId !== undefined ? { targetControllerProfileId: record.targetControllerProfileId } : {}),
+    ...(record.stageMapId !== undefined ? { stageMapId: record.stageMapId } : {}),
+    outputContract: structuredClone(record.outputContract),
+    ...(composition !== undefined ? { composition } : {}),
+    ...(record.outputEffects !== undefined ? { outputEffects: structuredClone(record.outputEffects) } : {}),
+    ...(record.importMetadata !== undefined ? { importMetadata: structuredClone(record.importMetadata) } : {}),
+    updatedAt: record.updatedAt,
   }
 }
 
@@ -443,11 +597,17 @@ function selectedLayoutFirst(record: ShowRecordV2) {
   ))
 }
 
-function lowerMainClip(clip: ShowClipV2): ShowMainPlacement {
+function runtimeInstanceId(context: ResolvedShowV2CompileContext, clip: ShowClipV2): string {
+  const instanceId = context.runtimeInstanceIdByClipId[clip.id]
+  if (!instanceId) throw new Error(`Resolved Show composition v2 Clip "${clip.id}" has no runtime identity.`)
+  return instanceId
+}
+
+function lowerMainClip(context: ResolvedShowV2CompileContext, clip: ShowClipV2): ShowMainPlacement {
   const appearance = clip.appearance.keys[0].value
   return {
     id: clip.id,
-    instanceId: clip.instanceId,
+    instanceId: runtimeInstanceId(context, clip),
     startMs: clip.startMs,
     durationMs: clip.durationMs,
     opacity: appearance.opacity,
@@ -460,8 +620,8 @@ function lowerMainClip(clip: ShowClipV2): ShowMainPlacement {
   }
 }
 
-function lowerOverlayClip(clip: ShowClipV2): ShowOverlayPlacement {
-  return { ...lowerMainClip(clip), opacity: clip.appearance.keys[0].value.opacity }
+function lowerOverlayClip(context: ResolvedShowV2CompileContext, clip: ShowClipV2): ShowOverlayPlacement {
+  return { ...lowerMainClip(context, clip), opacity: clip.appearance.keys[0].value.opacity }
 }
 
 function lowerPropertyTarget(target: ShowPropertyTargetV2): ShowPropertyAnimationTarget {
