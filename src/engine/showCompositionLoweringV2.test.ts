@@ -357,15 +357,17 @@ describe('lowerShowCompositionV2ForCompile', () => {
     }
   })
 
-  it.each([
+  it.each(([
     { name: 'shared Continue identity', restartSecond: false, expectedInstances: 1, fidelity: 'fast' },
     { name: 'shared Continue identity', restartSecond: false, expectedInstances: 1, fidelity: 'fidelity' },
     { name: 'fresh Restart identity', restartSecond: true, expectedInstances: 2, fidelity: 'fast' },
     { name: 'fresh Restart identity', restartSecond: true, expectedInstances: 2, fidelity: 'fidelity' },
-  ] as const)('preserves flat $name through projection, global lowering, and $fidelity runtime', ({ restartSecond, expectedInstances, fidelity }) => {
+  ] as const).flatMap(testCase => [2, 3].map(sceneCount => ({ ...testCase, sceneCount }))))('preserves flat $name with $sceneCount Scenes through projection, global lowering, and $fidelity runtime', ({ restartSecond, expectedInstances, fidelity, sceneCount }) => {
     const source = flatV1Show(restartSecond)
-    source.scenes.push({ id: 'scene-c', name: 'Finale', durationMs: 500 })
-    source.cells[source.cells.length - 1].sceneSpan = restartSecond ? 2 : 3
+    if (sceneCount === 3) {
+      source.scenes.push({ id: 'scene-c', name: 'Finale', durationMs: 500 })
+      source.cells[source.cells.length - 1].sceneSpan = restartSecond ? 2 : 3
+    }
     const original = structuredClone(source)
     const flatLookup: ShowCompileRecipeSourceLookup = {
       byCellId: restartSecond ? { 'cell-a': STATEFUL_SOURCE, 'cell-b': STATEFUL_SOURCE } : { 'cell-a': STATEFUL_SOURCE },
@@ -382,19 +384,19 @@ describe('lowerShowCompositionV2ForCompile', () => {
     const v1 = compileShow(showRecordToCompileRecipe(source, flatLookup), LIBRARIES)
     const v2 = compileShow(showRecordToCompileRecipe(lowered.show, lowered.lookup), LIBRARIES)
     expect(source).toEqual(original)
-    expect(v2.summary.clips.map(member => member.id)).toEqual(v1.summary.clips.map(member => member.id))
+    expect(v2.summary.clips.map(member => lowered.lookup.instanceIdByCellId?.[member.id] ?? member.id)).toEqual(v1.summary.clips.map(member => member.id))
     expect(v2.summary.clips).toHaveLength(expectedInstances)
 
     const left = replay(v1, fidelity)
     const right = replay(v2, fidelity)
     expect(freeze(right.renderCurrentFrame())).toEqual(freeze(left.renderCurrentFrame()))
-    for (const atMs of [499, 500, 501, 999, 1_000, 1_001, 1_499]) {
+    for (const atMs of [499, 500, 501, 999, 1_000, 1_001, 1_499].filter(time => time < sceneCount * 500)) {
       const options = { stepMs: 16, forceFullIntermediateRender: true }
       const leftFrame = freeze(left.advanceTo(atMs, options))
       const rightFrame = freeze(right.advanceTo(atMs, options))
       expect(rightFrame.frame).toEqual(leftFrame.frame)
       for (const member of v1.summary.clips) {
-        const rightMember = v2.summary.clips.find(candidate => candidate.id === member.id)
+        const rightMember = v2.summary.clips.find(candidate => (lowered.lookup.instanceIdByCellId?.[candidate.id] ?? candidate.id) === member.id)
         expect(rightMember).toBeTruthy()
         for (const name of ['calls', 'elapsed']) {
           expect(rightFrame.exports[`${rightMember!.prefix}_${name}`]).toEqual(leftFrame.exports[`${member.prefix}_${name}`])

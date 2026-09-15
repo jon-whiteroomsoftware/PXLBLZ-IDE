@@ -258,7 +258,7 @@ function flatMemberIdentityMappings(
     if (projectedIds.some(instanceId => instanceId === undefined)) {
       throw new Error(`Flat projection cell "${mapping.cellId}" has an unaccounted placement.`)
     }
-    const uniqueProjectedIds = sortedUnique(projectedIds as string[])
+    const uniqueProjectedIds = v2MemberIds.has(mapping.cellId) ? [mapping.cellId] : sortedUnique(projectedIds as string[])
     if (uniqueProjectedIds.length !== 1 || !v2MemberIds.has(uniqueProjectedIds[0])) {
       throw new Error(`Flat projection cell "${mapping.cellId}" does not map to exactly one v2 compiled member.`)
     }
@@ -273,7 +273,7 @@ function flatMemberIdentityMappings(
   return mappings
 }
 
-function assertPreparedMemberProvenance(
+export function assertPreparedMemberProvenance(
   record: ShowRecordV2,
   provenance: ShowV2CompileProvenance,
   recipe: ShowRecipe,
@@ -291,17 +291,17 @@ function assertPreparedMemberProvenance(
     }
   }
   const summaryMemberIds = artifact.summary.clips.map(member => member.id).sort()
-  const runtimeInstanceIds = sortedUnique(Object.values(provenance.runtimeInstanceIdByClipId))
+  const runtimeInstanceIds = [...new Set(Object.values(provenance.runtimeInstanceIdByClipId))].sort()
   const compilerOwnedEmptyIds = recipe.clips
     .filter(clip => clip.compilerOwnedEmpty)
     .map(clip => clip.id)
     .sort()
   if (provenance.route === 'continuous-flat') {
     const authoredSummaryMemberIds = summaryMemberIds.filter(memberId => !compilerOwnedEmptyIds.includes(memberId))
-    if (authoredSummaryMemberIds.some(memberId => !Object.prototype.hasOwnProperty.call(provenance.runtimeInstanceIdByClipId, memberId))) {
+    if (authoredSummaryMemberIds.some(memberId => !runtimeInstanceIds.includes(memberId) && !Object.prototype.hasOwnProperty.call(provenance.runtimeInstanceIdByClipId, memberId))) {
       throw new Error('Continuous-flat preparation emitted a summary member without Clip provenance.')
     }
-    const representedInstances = sortedUnique(authoredSummaryMemberIds.map(memberId => provenance.runtimeInstanceIdByClipId[memberId]))
+    const representedInstances = authoredSummaryMemberIds.map(memberId => runtimeInstanceIds.includes(memberId) ? memberId : provenance.runtimeInstanceIdByClipId[memberId]).sort()
     if (stableJson(representedInstances) !== stableJson(runtimeInstanceIds)) {
       throw new Error('Continuous-flat preparation summary does not represent every runtime instance exactly once.')
     }
@@ -310,7 +310,7 @@ function assertPreparedMemberProvenance(
     }
     return
   }
-  const expectedMemberIds = sortedUnique([...runtimeInstanceIds, ...compilerOwnedEmptyIds])
+  const expectedMemberIds = [...runtimeInstanceIds, ...compilerOwnedEmptyIds].sort()
   if (stableJson(summaryMemberIds) !== stableJson(expectedMemberIds)) {
     throw new Error(`${record.id}: ${provenance.route} preparation summary members ${stableJson(summaryMemberIds)} do not match runtime instances and compiler-owned empties ${stableJson(expectedMemberIds)}.`)
   }

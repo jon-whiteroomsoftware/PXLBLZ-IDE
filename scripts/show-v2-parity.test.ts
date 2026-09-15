@@ -1,7 +1,10 @@
+import { prepareShowV2ForCompile } from '../src/engine/showCompositionLoweringV2'
+import { compileShow } from '../src/engine/showCompiler'
+import { LIBRARIES } from '../src/pixelblaze/libs'
 import { describe, expect, it } from 'vitest'
-import { semanticSampleTimes } from './show-v2-parity'
+import { assertPreparedMemberProvenance, semanticSampleTimes } from './show-v2-parity'
 import { convertShowRecordV1ToV2 } from '../src/engine/showRecordV1ToV2'
-import { transitionV1Show } from '../src/test/showV2TracerFixture'
+import { flatV1Show, transitionV1Show } from '../src/test/showV2TracerFixture'
 
 describe('semanticSampleTimes', () => {
   it('samples source and v2 semantic boundaries, neighbors, and interval interiors without treating Markers as behavior', () => {
@@ -43,5 +46,39 @@ describe('semanticSampleTimes', () => {
     ]))
     expect(sampled).not.toEqual(expect.arrayContaining([332, 333, 334]))
     expect(sampled).toEqual([...sampled].sort((left, right) => left - right))
+  })
+})
+
+
+describe('prepared runtime provenance oracle', () => {
+  it.each([2, 3])('rejects a shared runtime split across two compiled members with %s source Scenes', sceneCount => {
+    const source = flatV1Show(false)
+    if (sceneCount === 3) {
+      source.scenes.push({ id: 'third', name: 'Third', durationMs: 500 })
+      source.cells[0].sceneSpan = 3
+    }
+    const result = convertShowRecordV1ToV2(source, { byCellId: { 'cell-a': 'export function render(index) { rgb(1, 0, 0) }' } })
+    if (result.status !== 'converted') throw new Error('Fixture conversion failed')
+    const record = result.record
+    const prepared = prepareShowV2ForCompile(record, { byCellId: {}, byPatternInstanceId: { 'cell-a': 'export function render(index) { rgb(1, 0, 0) }' } })
+    if (prepared.status !== 'ready') throw new Error('Fixture preparation failed')
+    const artifact = compileShow(prepared.recipe, LIBRARIES)
+    expect(() => assertPreparedMemberProvenance(record, prepared.provenance, prepared.recipe, artifact)).not.toThrow()
+    artifact.summary.clips.push({ ...artifact.summary.clips[0], id: record.composition.clips[1].id })
+    expect(() => assertPreparedMemberProvenance(record, prepared.provenance, prepared.recipe, artifact)).toThrow(/exactly once/)
+  })
+
+  it('accepts identical member sets with mixed case identifiers', () => {
+    const source = transitionV1Show('crossfade')
+    const composition = source.composition!
+    const ids = ['Rings', 'bed']
+    const renames = new Map(composition.patternInstances.map((instance, index) => [instance.id, ids[index]]))
+    composition.patternInstances.forEach(instance => { instance.id = renames.get(instance.id)! })
+    composition.scenes.forEach(scene => scene.zones.forEach(zone => zone.main.forEach(clip => { clip.instanceId = renames.get(clip.instanceId)! })))
+    const converted = convertShowRecordV1ToV2(source)
+    if (converted.status !== 'converted') throw new Error('Fixture conversion failed')
+    const prepared = prepareShowV2ForCompile(converted.record, { byCellId: {}, byPatternInstanceId: Object.fromEntries(ids.map(id => [id, 'export function render(index) { rgb(1, 0, 0) }'])) })
+    if (prepared.status !== 'ready') throw new Error('Fixture preparation failed')
+    expect(() => assertPreparedMemberProvenance(converted.record, prepared.provenance, prepared.recipe, compileShow(prepared.recipe, LIBRARIES))).not.toThrow()
   })
 })

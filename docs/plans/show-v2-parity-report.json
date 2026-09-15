@@ -1546,7 +1546,7 @@
         "unsupported-track-activation"
       ],
       "refusalMessages": [
-        "composition.propertyTracks[0]: property track \"track-fly-opacity\" activation crosses a derived Clip/appearance section."
+        "composition.propertyTracks[0]: property track \"track-fly-opacity\" activation extends outside its target Clip."
       ]
     },
     {
@@ -1591,7 +1591,7 @@
         "unsupported-track-activation"
       ],
       "refusalMessages": [
-        "composition.propertyTracks[0]: property track \"track-content-pan\" activation crosses a derived Clip/appearance section."
+        "composition.propertyTracks[0]: property track \"track-content-pan\" activation extends outside its target Clip."
       ]
     },
     {
@@ -3503,7 +3503,7 @@
         "unsupported-track-activation"
       ],
       "refusalMessages": [
-        "composition.propertyTracks[0]: property track \"track-echo-opacity\" activation crosses a derived Clip/appearance section."
+        "composition.propertyTracks[0]: property track \"track-echo-opacity\" activation extends outside its target Clip."
       ]
     },
     {

@@ -31,7 +31,7 @@ preservation model produces:
 | --- | ---: | --- |
 | Converted, prepared, compiled | 22 | Exact matched-time Fast/Precise frames and mapped scalar state; zero parity failures |
 | Conversion refused | 20 | 12 positive boundary Transition, six routing change, two Group; codes overlap with three positive-Transition track-activation refusals |
-| Compile preparation refused | 5 | Three track activations cross an additional derived Clip/key section; two require positive-Transition activation evidence |
+| Compile preparation refused | 5 | Three track activations extend outside their target Clip; two require positive-Transition activation evidence |
 
 All 47 records have zero unaccounted source leaves. Carrier-free boundary Cuts
 are no longer a refusal class: 21 prior Cut-identity refusals are retired with
@@ -61,7 +61,7 @@ compiler and runtime:
 - **Lifecycle:** an unstamped composition remains `continuous` and omits the
   compiler reset stamp; a stamped composition remains `deterministic-loop`.
   Flat Continue retains one shared instance; flat Restart derives separate
-  identities. A stateful, time-varying three-Scene fixture proves exact compiler
+  identities. Stateful, time-varying two- and three-Scene fixtures prove mapped compiler
   member identity/count, frames, and mapped `calls`/`elapsed` state immediately
   around both entries in Fast and Precise. Flat Freeze presentation selects the
   same required capture specialization on both paths, while flat Blink produces
@@ -205,3 +205,36 @@ Keep the model and tracer provisional. The current preservation increment is
 ready for candidate review once committed, but #1034 remains open. Do not begin
 #1035 or wire production consumers until the remaining named proof families
 and the coincident-transition compiler-domain decision are resolved.
+
+
+## Coordinator-owned lifecycle repair
+
+The fourth review exposed a real two-Scene flat Continue defect: two projected
+Clips became two compatibility cells, and the legacy recipe path ignored the
+instance map. The original fixture now runs with both two and three Scenes,
+for Continue and Restart in Fast and Precise. Member counts, rendered frames,
+and private `calls`/`elapsed` values are checked across the 500 ms boundary.
+
+Flat preparation now coalesces adjacent compatibility cells only when their
+runtime identity and complete non-timing cell payload match. This does not
+merge authored Clips or distinct Restart instances. It retains the original
+sampling path; forcing the routed path was tested and rejected because it
+changed pixel-index sampling. Preparation checks recipe member multiplicities
+and explicitly refuses an unrepresentable shared runtime instead of silently
+splitting it. This bounded refusal is not general shared-runtime support.
+
+The parity oracle independently rejects an injected duplicate member on both
+two- and three-Scene inputs and accepts mixed-case instance IDs. It recognizes
+both cell-ID and instance-ID compiler naming. An animation active outside its
+Clip now returns a typed `unsupported-track-activation` refusal; the regression
+first reproduced the previous exception. Unexpected programming exceptions still
+propagate. The review's multi-Zone ID contradiction was disproved by all eight
+existing sampling tests: the routed compiler's static-schedule shortcut explains
+the cell IDs. Its Portal recipe-exception example also did not reproduce;
+preparation returned a recipe, so no speculative exception catch was added.
+
+Focused proof: 59 tests across the lowerer, preparation contract and parity
+harness. The 47-record corpus keeps 22 compiled / 20 conversion-refused / five
+preparation-refused; only three refusal descriptions became more precise.
+No production compiler, persistence, or editor path changed. Full committed-tip
+suites and separate Astra review remain delivery gates.

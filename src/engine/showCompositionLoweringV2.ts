@@ -38,6 +38,7 @@ export type ShowV2CompilePreparationIssueCode =
   | 'unsupported-zone-sampling'
   | 'unsupported-property-target'
   | 'unsupported-track-activation'
+  | 'unsupported-runtime-sharing'
 
 export interface ShowV2CompilePreparationIssue {
   code: ShowV2CompilePreparationIssueCode
@@ -86,9 +87,16 @@ export function prepareShowV2ForCompile(
   const resolved = resolveAndLowerShowV2(record, lookup)
   if ('issues' in resolved) return { status: 'refused', issues: resolved.issues }
   const { context, lowered } = resolved
+  const recipe = showRecordToCompileRecipe(lowered.show, lowered.lookup)
+  const expectedInstances = [...new Set(Object.values(context.runtimeInstanceIdByClipId))].sort()
+  const representedInstances = recipe.clips.filter(clip => !clip.compilerOwnedEmpty)
+    .map(clip => lowered.lookup.instanceIdByCellId?.[clip.id] ?? clip.id).sort()
+  if (JSON.stringify(representedInstances) !== JSON.stringify(expectedInstances)) {
+    return { status: 'refused', ...refuse('unsupported-runtime-sharing', 'composition.clips', 'existing compiler recipe cannot represent every used Pattern instance exactly once.') }
+  }
   return {
     status: 'ready',
-    recipe: showRecordToCompileRecipe(lowered.show, lowered.lookup),
+    recipe,
     provenance: {
       route: context.route,
       layoutOccurrenceId: context.layoutOccurrenceId,
@@ -174,6 +182,14 @@ function resolveShowV2CompileContext(
       `composition.propertyTracks[${unsupportedTargetIndex}].target`,
       `property target "${composition.propertyTracks[unsupportedTargetIndex].target.kind}" requires direct compiler support.`,
     )
+  }
+  for (const [index, track] of composition.propertyTracks.entries()) {
+    if (!('clipId' in track.target)) continue
+    const clipId = track.target.clipId
+    const clip = composition.clips.find(candidate => candidate.id === clipId)!
+    if (track.activeStartMs < clip.startMs || track.activeStartMs + track.activeDurationMs > clip.startMs + clip.durationMs) {
+      return refuse('unsupported-track-activation', `composition.propertyTracks[${index}]`, `property track "${track.id}" activation extends outside its target Clip.`)
+    }
   }
   const flatEligible = composition.executionModel === 'continuous' && canLowerToFlat(record)
   if (composition.clips.some(clip => clip.zoneSampleMode !== 'span') && !flatEligible) {
@@ -538,10 +554,31 @@ function lowerContinuousToFlat(
       ...((appearance.effects?.length ?? 0) > 0 ? { effects: structuredClone(appearance.effects) } : {}),
     }
   })
+  const coalesced: ShowCell[] = []
+  for (const cell of [...cells].sort((a, b) => scenes.findIndex(scene => scene.id === a.sceneId) - scenes.findIndex(scene => scene.id === b.sceneId))) {
+    const start = scenes.findIndex(scene => scene.id === cell.sceneId)
+    const previous = coalesced.find(candidate =>
+      instanceIdByCellId[candidate.id] === instanceIdByCellId[cell.id]
+      && scenes.findIndex(scene => scene.id === candidate.sceneId) + candidate.sceneSpan === start
+      && sameFlatCellAppearance(candidate, cell))
+    if (previous) previous.sceneSpan += cell.sceneSpan
+    else coalesced.push({ ...cell })
+  }
   return {
-    show: buildLoweredShow(context, scenes, cells),
+    show: buildLoweredShow(context, scenes, coalesced),
     lookup: { ...structuredClone(lookup), byCellId, instanceIdByCellId },
   }
+}
+
+function sameFlatCellAppearance(left: ShowCell, right: ShowCell): boolean {
+  const payload = (cell: ShowCell) => {
+    const result: Partial<ShowCell> = { ...cell }
+    delete result.id
+    delete result.sceneId
+    delete result.sceneSpan
+    return result
+  }
+  return JSON.stringify(payload(left)) === JSON.stringify(payload(right))
 }
 
 function buildDerivedScene(
