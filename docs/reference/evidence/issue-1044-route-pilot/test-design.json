@@ -20,7 +20,7 @@
     "Open a version-1 Show on the opt-in route, convert, edit its Transition, preview, save, Undo, Redo, reload provider bytes, export, and reopen both artifacts.",
     "Reload the browser at the saved Show route after the ordinary version-1 list excludes its row; cold-open the stored version-2 record and repeat artifact qualification.",
     "Queue an older write and a newer write, fail the older operation, then confirm the newer candidate and history remain authoritative.",
-    "Inventory a disposable D1-shaped database, snapshot and convert a real stored row, rerun as an idempotent version-2 no-op, roll back, and compare the complete restored row.",
+    "Apply migration 0028 to a disposable Miniflare D1 database, interrupt after its first version-2 replacement, resume the remaining inventory, roll back, and compare every restored source column.",
     "Inventory an undecodable row and a source changed after inventory; record independent refusals while leaving both source rows recoverable."
   ],
   "oracles": [
@@ -28,12 +28,12 @@
     "Provider calls and D1 rows decoded through production adapters, including complete record_json bytes and exclusion from ordinary reads.",
     "Whole store record/history/failure state and ordered persistence calls rather than helper internals.",
     "Reopened .pxlshow bundle, remapped import candidate, parsed .epe source/stamp, and compiled artifact source.",
-    "SQLite-backed D1 contract rows for source backup, source_version/status outcome, complete restored source columns, and absent outcome after rollback."
+    "Actual Miniflare D1 rows for source backup, source_version/status outcome, interrupted-write recovery, complete restored source columns, and absent outcome after rollback."
   ],
   "residualGaps": [
     "Production remains on version 1; this development-only pilot does not activate native version-2 creation, commands/MCP, stock Shows, or deployment.",
     "Layout and property-animation/Restart route extensions require the reviewed #1036 and #1037 engine candidates to land and are integration work after this independent candidate rebases.",
-    "The disposable migration rehearsal proves the D1 procedure and rollback with synthetic fixtures; the isolated personal workspace contained zero user rows before the authorized pilot seed, so no personal compatibility claim is made.",
+    "The disposable Miniflare D1 rehearsal proves migration SQL, interrupted-write resume, and rollback with synthetic fixtures; the isolated personal workspace contained zero user rows before the authorized pilot seed, so no personal compatibility claim is made.",
     "Final committed-tip suites, cross-family review, rebase onto landed engine dependencies, local-main landing, labels, and issue closure belong to the coordinator."
   ]
 }
