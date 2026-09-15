@@ -12,14 +12,14 @@
     "Activation start, interior, exclusive end, inactive gap, incoming pre-roll and outgoing contribution",
     "Clip, instance time-scale, instance control, appearance, Transform, Aperture, Effect, Layout split-position and Show repeat-scale targets",
     "Ordinary Clips, shared Clips, independent instances and Group-materialized occurrences",
-    "Restart at time zero, nominal entry, incoming contribution, simultaneous shared entries, positive-delta crossing, Show loop and cold replay",
+    "Restart at time zero, nominal entry, incoming contribution, simultaneous shared entries, one frame crossing multiple distinct entries, Show loop and cold replay",
     "Accepted exact edits, half-open adjacency, overlapping-owner refusal, invalid/unsafe Insert Time and unresettable Pattern refusal"
   ],
   "sequences": [
     "Move then trim then extend then split then serialize/reopen each easing family",
     "Insert through a discontinuity, activation start, exclusive end and last active key; inspect held and resumed values",
     "Move and split a restarting Clip; verify Restart stays left and follows first contribution",
-    "Share one instance across visible outgoing/incoming Clips, cross Restart, loop, and reconstruct with cold replay through a reopened generated .epe",
+    "Share one instance across visible outgoing/incoming Clips, cross one and then multiple Restart boundaries in a frame, loop, and reconstruct with cold replay through a reopened generated .epe",
     "Copy eligible instance tracks to an independent replacement, filter incompatible controls, then attempt a conflicting copy",
     "Convert two consecutive legacy Scene track owners on one shared instance through incoming pre-roll, lower, and compare emitted source"
   ],
@@ -35,7 +35,7 @@
     "Endpoint-only linearization of a retained nonlinear curve",
     "Wrong retained source offset after successive edits",
     "Inclusive activation end or double shift of an instance track",
-    "Restart at nominal start instead of incoming contribution, repeated held-time reset or duplicate shared runtime",
+    "Restart at nominal start instead of incoming contribution, collapse of distinct crossed boundaries, repeated held-time reset or duplicate shared runtime",
     "Clock-only reset that leaves private state, full reset that clears authored controls, or approximate reset of unsupported initial state",
     "Overlapping instance target admitted because track order or exact adjacency is mishandled",
     "Incoming legacy Scene owner activated during outgoing pre-roll and rejected by the strict conflict validator"

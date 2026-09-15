@@ -1767,6 +1767,35 @@ export function render(index) { renders = renders + 1; rgb(elapsed, renders, 0) 
     expect(crossed.exports[`${artifact.summary.clips[0].prefix}_sample`]).toBe(expectedAfterReset)
   })
 
+  it('processes every distinct Restart boundary crossed by one frame in chronological order (#1037)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    const artifact = compileShow({
+      clips: [{ id: 'shared', source: 'export var sample = 0\nexport function beforeRender(delta) { sample = random(1) }\nexport function render(index) { rgb(sample, 0, 0) }' }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [
+        { holdMs: 50, placements: [{ zoneName: 'main', clipId: 'shared' }], transitionOut: { kind: 'cut', durationMs: 0 } },
+        { holdMs: 50, placements: [{ zoneName: 'main', clipId: 'shared' }], transitionOut: { kind: 'cut', durationMs: 0 } },
+        { holdMs: 100, placements: [{ zoneName: 'main', clipId: 'shared' }] },
+      ] },
+      restartEvents: [{ atMs: 50, clipId: 'shared' }, { atMs: 100, clipId: 'shared' }],
+      loopDurationMs: 200,
+    }, {}, { patternSlotSharing: 'none' })
+    const mapPoints: MapPoint[] = [{ sample: [0.5], pos: [0.5, 0.5] }]
+    const runtime = createFastReplayRuntime({ code: artifact.code, fxCode: artifact.fxCode, metadata: artifact.metadata, dimension: 1 }, {
+      mapPoints, randomSeed: 1037, fidelity: 'fast',
+    })
+    const expectedShim = createShim({ mapPoints, pixelCount: 1, dimensions: 1, getVirtualTime: () => 0, randomSeed: 1037 })
+    const random = expectedShim.builtins.random as (maximum?: number) => number
+    random()
+    random()
+    const expectedAfterSecondReset = random()
+
+    const crossed = runtime.advanceLive(120)
+
+    expect(crossed.exports[`${artifact.summary.clips[0].prefix}_sample`]).toBe(expectedAfterSecondReset)
+  })
+
   it('resets isolated coordinate transforms at deterministic Show loop boundaries', () => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
     const source = `

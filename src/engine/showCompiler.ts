@@ -5009,44 +5009,71 @@ function emitRoutedSceneSequenceShowCode(
     : 'delta'
   const restartDeclarations = restartMembers.flatMap((member) => [
     `var ${member.prefix}_restart_delta = 0`,
-    `var ${member.prefix}_restart_at_s = -1`,
   ])
+  const restartResetFunctions = restartMembers.map(member => `function ${member.prefix}_restart() {
+${indentBlock(fullMemberResetLines(member).join('\n'), 2)}
+}`)
   const restartCrossingPrelude = restartMembers.length === 0 ? '' : `var __pxlblz_show_restart_previous_s = __pxlblz_show_elapsed_s
   var __pxlblz_show_restart_wrapped = __pxlblz_show_elapsed_s + delta / 1000 >= ${totalMs / 1_000}`
   const restartEventPrelude = restartMembers.length === 0 ? '' : `${restartMembers.map((member) => {
     const events = restartEventsByMember.get(member)!
-    const initialZero = events.some((event) => event.atMs === 0)
-      ? `  if (!__pxlblz_show_restart_primed) ${member.prefix}_restart_at_s = 0\n`
-      : ''
-    const ordinary = events.map((event) => (
-      `    if (__pxlblz_show_restart_previous_s < ${event.atMs / 1_000} && __pxlblz_show_elapsed_s >= ${event.atMs / 1_000}) ${member.prefix}_restart_at_s = ${event.atMs / 1_000}`
-    )).join('\n')
-    const beforeWrap = events.map((event) => (
-      `    if (__pxlblz_show_restart_previous_s < ${event.atMs / 1_000}) ${member.prefix}_restart_at_s = ${event.atMs / 1_000}`
-    )).join('\n')
-    const afterWrap = events.map((event) => (
-      `    if (__pxlblz_show_elapsed_s >= ${event.atMs / 1_000}) ${member.prefix}_restart_at_s = ${event.atMs / 1_000}`
-    )).join('\n')
-    const precedingAdvance = events.filter(event => memberIsActiveImmediatelyBefore(member, event.atMs)).map((event) => (
-      `    if (!__pxlblz_show_restart_wrapped && ${member.prefix}_restart_at_s == ${event.atMs / 1_000}) {
-      var __pxlblz_show_restart_final_s = __pxlblz_show_elapsed_s
-      __pxlblz_show_elapsed_s = ${event.atMs / 1_000}
-      ${member.prefix}_advance((${event.atMs / 1_000} - __pxlblz_show_restart_previous_s) * 1000)
+    const eventBlock = (event: ShowRestartEventRecipe, condition: string, pathSeconds: number) => {
+      const atSeconds = event.atMs / 1_000
+      const precedingAdvance = memberIsActiveImmediatelyBefore(member, event.atMs)
+        ? `      var __pxlblz_show_restart_final_s = __pxlblz_show_elapsed_s
+      __pxlblz_show_elapsed_s = ${atSeconds}
+      ${member.prefix}_advance((${pathSeconds} - ${member.prefix}_restart_cursor_s) * 1000)
       __pxlblz_show_elapsed_s = __pxlblz_show_restart_final_s
+`
+        : ''
+      return `    if (${condition}) {
+${precedingAdvance}      ${member.prefix}_restart()
+      ${member.prefix}_restart_cursor_s = ${pathSeconds}
+      ${member.prefix}_restart_crossed = 1
     }`
+    }
+    const ordinary = events.map(event => eventBlock(
+      event,
+      `__pxlblz_show_restart_previous_s < ${event.atMs / 1_000} && __pxlblz_show_elapsed_s >= ${event.atMs / 1_000}`,
+      event.atMs / 1_000,
     )).join('\n')
+    const beforeWrap = events.map(event => eventBlock(
+      event,
+      `__pxlblz_show_restart_previous_s < ${event.atMs / 1_000}`,
+      event.atMs / 1_000,
+    )).join('\n')
+    const afterWrap = events.map(event => eventBlock(
+      event,
+      `__pxlblz_show_elapsed_s >= ${event.atMs / 1_000}`,
+      totalMs / 1_000 + event.atMs / 1_000,
+    )).join('\n')
+    const afterDeterministicWrap = events.filter(event => event.atMs > 0).map(event => eventBlock(
+      event,
+      `__pxlblz_show_elapsed_s >= ${event.atMs / 1_000}`,
+      totalMs / 1_000 + event.atMs / 1_000,
+    )).join('\n')
+    const initialZero = events.some(event => event.atMs === 0)
+      ? `  if (!__pxlblz_show_restart_primed) {
+    ${member.prefix}_restart()
+    ${member.prefix}_restart_cursor_s = 0
+    ${member.prefix}_restart_crossed = 1
+  }
+`
+      : ''
     return `  ${member.prefix}_restart_delta = delta
-  ${member.prefix}_restart_at_s = -1
+  var ${member.prefix}_restart_cursor_s = __pxlblz_show_restart_previous_s
+  var ${member.prefix}_restart_crossed = 0
 ${initialZero}  if (!__pxlblz_show_restart_wrapped) {
 ${ordinary}
+  } else if (${deterministicLoopReset ? 1 : 0}) {
+    ${member.prefix}_restart_cursor_s = ${totalMs / 1_000}
+${afterDeterministicWrap}
   } else {
 ${beforeWrap}
 ${afterWrap}
   }
-  if (${member.prefix}_restart_at_s >= 0) {
-${precedingAdvance}
-${indentBlock(fullMemberResetLines(member).join('\n'), 4)}
-    ${member.prefix}_restart_delta = (__pxlblz_show_elapsed_s - ${member.prefix}_restart_at_s + (__pxlblz_show_restart_wrapped && ${member.prefix}_restart_at_s > __pxlblz_show_elapsed_s ? ${totalMs / 1_000} : 0)) * 1000
+  if (${member.prefix}_restart_crossed) {
+    ${member.prefix}_restart_delta = (__pxlblz_show_elapsed_s + (__pxlblz_show_restart_wrapped ? ${totalMs / 1_000} : 0) - ${member.prefix}_restart_cursor_s) * 1000
   }`
   }).join('\n')}
   __pxlblz_show_restart_primed = 1`
@@ -6023,7 +6050,7 @@ function __pxlblz_show_capture_transition_rgb(r, g, b) {
     ...(usesRouteLayout ? ['var __pxlblz_show_route_layout = 0'] : []),
     ...(propertyRamps ? [`var __pxlblz_show_route_split_position = ${clampNumber(propertyRamps.splitPosition.initial, 0, 1)}`] : []),
     ...continuityMembers.map((member) => `var ${advancedFlag(member)} = 0`),
-    ...(restartMembers.length > 0 ? ['var __pxlblz_show_restart_primed = 0', ...restartDeclarations] : []),
+    ...(restartMembers.length > 0 ? ['var __pxlblz_show_restart_primed = 0', ...restartDeclarations, ...restartResetFunctions] : []),
     ...(hiddenContinuityFunction ? [hiddenContinuityFunction] : []),
     `export function beforeRender(delta) {
   ${frameAdvancePrelude}
@@ -6183,7 +6210,7 @@ ${indentBlock(body, 2)}
       'var __pxlblz_show_score_to_stack = 1',
       'var __pxlblz_show_score_kernel = -1',
       ...continuityMembers.map((member) => `var ${advancedFlag(member)} = 0`),
-      ...(restartMembers.length > 0 ? ['var __pxlblz_show_restart_primed = 0', ...restartDeclarations] : []),
+      ...(restartMembers.length > 0 ? ['var __pxlblz_show_restart_primed = 0', ...restartDeclarations, ...restartResetFunctions] : []),
       ...(hiddenContinuityFunction ? [hiddenContinuityFunction] : []),
       ...(scoreUsesSnapshot
         ? ['var __pxlblz_show_score_snapshot_boundary = -1', 'var __pxlblz_show_snapshot_ready = 0']
