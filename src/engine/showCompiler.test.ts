@@ -1739,6 +1739,33 @@ export function render(index) { renders = renders + 1; rgb(elapsed, renders, 0) 
     }, {})).toThrow('cannot fully reset Pattern state')
   })
 
+  it('refuses Restart when authored code reassigns a declared function binding (#1037)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    expect(() => compileShow({
+      clips: [{
+        id: 'function-state',
+        source: [
+          'export var frame = 0',
+          'function mode() { return 0 }',
+          'function alternate() { return 1 }',
+          'export function beforeRender(delta) {',
+          '  frame = frame + 1',
+          '  if (frame == 2) mode = alternate',
+          '}',
+          'export function render(index) { rgb(mode(), frame, 0) }',
+        ].join('\n'),
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [{
+        holdMs: 100,
+        placements: [{ zoneName: 'main', clipId: 'function-state' }],
+      }] },
+      restartEvents: [{ atMs: 0, clipId: 'function-state' }],
+      loopDurationMs: 100,
+    }, {})).toThrow('cannot fully reset Pattern state')
+  })
+
   it('advances an already-visible shared runtime to the Restart boundary before resetting it (#1037)', () => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
     const artifact = compileShow({

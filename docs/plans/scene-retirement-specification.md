@@ -224,6 +224,12 @@ output. Reuse the compiler's existing exact Pattern reset assignments and clock
 ownership at Clip-entry boundaries, then let ordinary placement setup reapply
 authored controls and adaptations. If the existing reset analysis cannot reconstruct
 a Pattern's initial state exactly, compilation refuses instead of approximating it.
+The admitted domain includes declared functions only while authored code never
+reassigns their resolved top-level bindings. Function-binding reassignment is
+state the compiler does not snapshot or restore, so Restart fails closed for that
+Pattern. Lexically resolved parameter or local bindings with the same spelling do
+not disqualify an otherwise resettable Pattern; ordinary unreassigned functions
+remain accepted.
 
 ### Shared animation
 
@@ -643,7 +649,7 @@ independently authored expected result for intentional new behavior.
 | CURVE | Move → trim → extend → split → reopen; each easing family, equal endpoint/nonconstant interior, steps/hold discontinuities | #1037; evaluator and emitted Fast/Precise values at boundaries ±1 ms/interiors; no discarded-key restoration |
 | ACTIVATION | Incoming/outgoing contribution; inactive gap; Effect absent at exclusive end then re-added; property-only carrier Reset | #1037; target activation and values retained without a visual carrier |
 | SHARING | Plain duplicate, Group repeat, Make Group Unique, explicit independence and Rejoin | #1038; effective runtime IDs/count and controls/tracks; shared instance advances once per frame |
-| RESTART | Shared visible users → entry reset → incoming Transition attach/resize → move/split/delete → duplicate → loop/seek | #1037/#1038; same runtime, full clock and Pattern-owned state reset at contribution, authored controls reapplied, no right-split or held-time retrigger; generated `.epe` replay |
+| RESTART | Shared visible users → entry reset → incoming Transition attach/resize → move/split/delete → duplicate → loop/seek; ordinary function, reassigned function binding and shadowed-local partitions | #1037/#1038; same runtime, full clock and Pattern-owned state reset at contribution, authored controls reapplied, no right-split or held-time retrigger; exact refusal when function state cannot be restored; generated `.epe` replay |
 | REPLACE | Shared/unshared Clip and Group definition/unique occurrence → replace → Undo/Redo → reopen | #1038/#1041; other users' instance/control/track/logical compiled member unchanged, selected Transition identity stable; eligible metadata pruning |
 | INSERT | Insert through static/animated Clip, exact property/appearance key (including discontinuity/last active key), shared track, zero scale/Freeze, gap, Layout boundary, visual/transfer interior | #1037/#1038; exact authored hold/resume, normal runtime evolution; no implicit clone/reset; typed refusal |
 | GROUP-HOLD | Two occurrences example in §7; repeat insertion inside hold; move/duplicate/unique/ungroup; internal Transition and shared-animation conflict | #1038; mapped choreography, unchanged definition/runtime identities, reopened artifact and immutable refusal |
@@ -657,7 +663,7 @@ independently authored expected result for intentional new behavior.
 | RETIRE | Post-cutover legacy import plus native save/export; per-row restore rehearsal; bounded Scene-string inventory | #1042/#1043; retained behavioral tests, verified row/column retirement, product diagnostics mapped |
 
 Fault sensitivity targets the changed high-risk seams: wrong ripple set/double
-shift, Restart failing to clear private state or clearing authored controls, duplicate runtime minting, curve
+shift, Restart failing to clear private state, preserving a reassigned function binding or clearing authored controls, duplicate runtime minting, curve
 boundary-only approximation, activation leakage, hold retrigger and source-lookup
 remap loss. Use focused mutation qualification where repository policy calls for
 it. Do not expand a costly suite merely to increase counts.

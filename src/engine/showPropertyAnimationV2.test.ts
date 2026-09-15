@@ -35,6 +35,25 @@ function animatedRecord(): ShowRecordV2 {
   return record
 }
 
+function interiorKeyRecord(): ShowRecordV2 {
+  const record = animatedRecord()
+  const clip = record.composition.clips[0]
+  clip.startMs = 0
+  clip.durationMs = 1_000
+  clip.appearance.keys[0].timeMs = 0
+  record.composition.propertyTracks[0] = {
+    id: 'brightness',
+    target: { kind: 'clip-view', clipId: clip.id, property: 'brightness' },
+    activeStartMs: 0,
+    activeDurationMs: 1_000,
+    keyframes: [
+      { id: 'first', timeMs: 200, value: 0.2, easing: { curve: 'quadratic', direction: 'in' } },
+      { id: 'last', timeMs: 800, value: 0.8, easing: { curve: 'linear' } },
+    ],
+  }
+  return record
+}
+
 function reopen(record: ShowRecordV2): ShowRecordV2 {
   const opened = parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(record))
   if (opened.status !== 'opened') throw new Error(JSON.stringify(opened.issues))
@@ -123,6 +142,93 @@ describe('v2 property animation', () => {
     expect(evaluateShowPropertyTrackV2(extendedTrack, 200)).toBeCloseTo(evaluateShowPropertyTrackV2(track, 350)!)
     expect(evaluateShowPropertyTrackV2(extendedTrack, 1_000)).toBeCloseTo(track.keyframes[track.keyframes.length - 1].value)
     expect(extendedTrack.keyframes.some(key => key.id === 'dark' && key.timeMs === 100)).toBe(false)
+  })
+
+  it('allocates a fresh trim boundary before the first key while preserving authored identities and values', () => {
+    const source = interiorKeyRecord()
+    source.composition.propertyTracks[0].keyframes[0].id = 'brightness:boundary:100'
+    const before = structuredClone(source)
+    const original = structuredClone(source.composition.propertyTracks[0])
+
+    const trimmed = editShowClipV2(source, { kind: 'trim', clipId: 'clip', startMs: 100, endMs: 900 })
+
+    expect(trimmed.status).toBe('changed')
+    if (trimmed.status !== 'changed') return
+    const track = reopen(trimmed.record).composition.propertyTracks[0]
+    const ids = track.keyframes.map(key => key.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(ids).toContain('brightness:boundary:100')
+    expect(ids).toContain('last')
+    expect(track.keyframes[0]).toMatchObject({ id: 'brightness:boundary:100:2', timeMs: 100, value: 0.2 })
+    expect(track.keyframes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'brightness:boundary:100', timeMs: 200, value: 0.2 }),
+    ]))
+    for (const atMs of [100, 199, 200, 500, 800, 899]) {
+      expect(evaluateShowPropertyTrackV2(track, atMs), `trim at ${atMs}`)
+        .toBeCloseTo(evaluateShowPropertyTrackV2(original, atMs)!, 10)
+    }
+    expect(source).toEqual(before)
+  })
+
+  it('preserves authored identities across a split before the first key', () => {
+    const source = interiorKeyRecord()
+    const before = structuredClone(source)
+    const original = structuredClone(source.composition.propertyTracks[0])
+
+    const split = editShowClipV2(source, { kind: 'split', clipId: 'clip', atMs: 100, rightClipId: 'right' })
+
+    expect(split.status).toBe('changed')
+    if (split.status !== 'changed') return
+    const tracks = reopen(split.record).composition.propertyTracks
+      .filter(track => track.target.kind === 'clip-view')
+      .sort((left, right) => left.activeStartMs - right.activeStartMs)
+    expect(tracks).toHaveLength(2)
+    const ids = tracks.flatMap(track => track.keyframes.map(key => key.id))
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(ids.filter(id => id === 'first')).toHaveLength(1)
+    expect(ids.filter(id => id === 'last')).toHaveLength(1)
+    expect(tracks.flatMap(track => track.keyframes)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'first', timeMs: 200, value: 0.2 }),
+      expect.objectContaining({ id: 'last', timeMs: 800, value: 0.8 }),
+    ]))
+    for (const atMs of [0, 50, 99]) {
+      expect(evaluateShowPropertyTrackV2(tracks[0], atMs), `split left at ${atMs}`)
+        .toBeCloseTo(evaluateShowPropertyTrackV2(original, atMs)!, 10)
+    }
+    for (const atMs of [100, 199, 200, 500, 800, 999]) {
+      expect(evaluateShowPropertyTrackV2(tracks[1], atMs), `split right at ${atMs}`)
+        .toBeCloseTo(evaluateShowPropertyTrackV2(original, atMs)!, 10)
+    }
+    expect(source).toEqual(before)
+  })
+
+  it('keeps no-op and exact-key trim identities stable', () => {
+    const source = interiorKeyRecord()
+    const original = structuredClone(source.composition.propertyTracks[0])
+
+    const unchanged = editShowClipV2(source, { kind: 'trim', clipId: 'clip', startMs: 0, endMs: 1_000 })
+    expect(unchanged.status).toBe('unchanged')
+    expect(unchanged.record).toBe(source)
+    expect(unchanged.affectedTrackIds).toEqual([])
+
+    const exact = editShowClipV2(source, { kind: 'trim', clipId: 'clip', startMs: 200, endMs: 900 })
+    expect(exact.status).toBe('changed')
+    if (exact.status !== 'changed') return
+    const track = reopen(exact.record).composition.propertyTracks[0]
+    expect(track.keyframes[0]).toMatchObject({ id: 'first', timeMs: 200, value: 0.2 })
+    expect(track.keyframes.filter(key => key.id === 'first')).toHaveLength(1)
+    for (const atMs of [200, 500, 800, 899]) {
+      expect(evaluateShowPropertyTrackV2(track, atMs), `exact trim at ${atMs}`)
+        .toBeCloseTo(evaluateShowPropertyTrackV2(original, atMs)!, 10)
+    }
+
+    const between = editShowClipV2(source, { kind: 'trim', clipId: 'clip', startMs: 300, endMs: 900 })
+    expect(between.status).toBe('changed')
+    if (between.status !== 'changed') return
+    const betweenTrack = reopen(between.record).composition.propertyTracks[0]
+    expect(betweenTrack.keyframes[0]).toMatchObject({ id: 'first', timeMs: 300 })
+    expect(evaluateShowPropertyTrackV2(betweenTrack, 300))
+      .toBeCloseTo(evaluateShowPropertyTrackV2(original, 300)!, 10)
   })
 
   it.each([

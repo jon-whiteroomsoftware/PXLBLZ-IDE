@@ -189,8 +189,9 @@ export function editShowClipPropertyTracksV2(
     if (intent.kind !== 'split') return [structuredClone(source)]
     const splitMs = intent.atMs
     const oldEndMs = clip.startMs + clip.durationMs
-    const left = restrictTrack(record, source, clip.startMs, splitMs)
-    const right = restrictTrack(record, source, splitMs, oldEndMs)
+    const sourceKeyIds = new Set(source.keyframes.map(key => key.id))
+    const left = restrictTrack(record, source, clip.startMs, splitMs, sourceKeyIds)
+    const right = restrictTrack(record, source, splitMs, oldEndMs, sourceKeyIds)
     if (!left && !right) return []
     affectedTrackIds.push(source.id)
     if (!left && right) return [{ ...right, target: retargetClip(right.target, intent.rightClipId) }]
@@ -488,6 +489,7 @@ function restrictTrack(
   source: ShowPropertyTrackV2,
   requestedStartMs: number,
   requestedEndMs: number,
+  reservedSourceKeyIds?: ReadonlySet<string>,
 ): ShowPropertyTrackV2 | undefined {
   const activeEndMs = source.activeStartMs + source.activeDurationMs
   const startMs = Math.max(source.activeStartMs, requestedStartMs)
@@ -498,7 +500,7 @@ function restrictTrack(
     ...structuredClone(source),
     activeStartMs: startMs,
     activeDurationMs: endMs - startMs,
-    keyframes: retainedKeys(record, source, startMs, endMs),
+    keyframes: retainedKeys(record, source, startMs, endMs, reservedSourceKeyIds),
   }
 }
 
@@ -507,6 +509,7 @@ function retainedKeys(
   source: ShowPropertyTrackV2,
   startMs: number,
   endMs: number,
+  reservedSourceKeyIds?: ReadonlySet<string>,
 ): ShowPropertyKeyframeV2[] {
   const keys = [...source.keyframes].sort(compareKeys)
   const result: ShowPropertyKeyframeV2[] = []
@@ -515,7 +518,16 @@ function retainedKeys(
   else {
     const left = [...keys].reverse().find(key => key.timeMs < startMs)
     const right = keys.find(key => key.timeMs > startMs)
-    const seed = structuredClone(left ?? keys[0])
+    const seedSource = left ?? keys[0]
+    const seed = structuredClone(seedSource)
+    if ((seedSource.timeMs > startMs && seedSource.timeMs <= endMs) || reservedSourceKeyIds?.has(seedSource.id)) {
+      seed.id = freshKeyId(
+        record,
+        source,
+        `${source.id}:boundary:${startMs}`,
+        new Set(keys.map(key => key.id)),
+      )
+    }
     seed.timeMs = startMs
     seed.value = evaluateShowPropertyKeysV2(keys, startMs)
     if (left && right) seed.curveSegment = retainedSegment(left, right, startMs)

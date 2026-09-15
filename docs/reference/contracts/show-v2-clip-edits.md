@@ -112,7 +112,11 @@ compiler's exact Pattern reset assignments, coordinate state and elapsed-clock
 reset; the ordinary frame scheduler binds and advances the post-entry portion.
 The same member remains shared, simultaneous entries coalesce, time zero fires
 once, and loop/cold replay crosses the same events. A Pattern the existing reset
-analysis cannot reconstruct exactly is refused rather than partially reset.
+analysis cannot reconstruct exactly is refused rather than partially reset. This
+includes a declared function whose resolved top-level binding is reassigned:
+function values are not snapshotted or restored. The eligibility analysis resolves
+writes through lexical scopes, so parameter and local shadows do not create a
+false refusal, and ordinary unreassigned functions remain accepted.
 
 `lowerShowCompositionV2ForCompile` refuses effective Restart entries, including
 entries inside used Group definitions, and Layout split-position tracks because
