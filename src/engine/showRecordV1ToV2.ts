@@ -166,8 +166,8 @@ export function convertShowRecordV1ToV2(
   for (const zone of show.zones) composition = materializeShowGroupLayerShells(composition, zone.id)
   sourceShow = { ...sourceShow, composition }
   const routingChanges = show.transitions.filter(transition => transition.kind === 'routing')
-  if (routingChanges.some(transition => !transition.layoutId || Object.keys(transition).some(key => !['id', 'afterSceneId', 'kind', 'layoutId', 'durationMs', 'easing', 'routingDirection'].includes(key))) || (routingChanges.length > 0 && show.transitions.some(transition => transition.kind !== 'routing' && transition.kind !== 'cut'))) {
-    issues.push({ path: 'transitions', code: 'unsupported-routing-change', message: 'Routing carriers and simultaneous visual/routing boundaries require separate preservation proof.' })
+  if (routingChanges.some(transition => !transition.layoutId || Object.keys(transition).some(key => !['id', 'afterSceneId', 'kind', 'layoutId', 'durationMs', 'easing', 'routingDirection'].includes(key)))) {
+    issues.push({ path: 'transitions', code: 'unsupported-routing-change', message: 'Routing boundaries with additional carriers require separate preservation proof.' })
   }
   const visualBoundaries = show.transitions.filter(transition => transition.kind !== 'routing' && transition.kind !== 'cut')
   const timeline = projectShowTimeline(show)
@@ -212,13 +212,15 @@ export function convertShowRecordV1ToV2(
   for (const [index, scene] of timeline.scenes.entries()) {
     const routing = routingChanges.find(transition => transition.afterSceneId === timeline.scenes[index - 1]?.sceneId)
     if (routing?.layoutId) activeLayoutId = routing.layoutId
+    const startMs = routing ? timeline.scenes[index - 1].endMs : scene.startMs
     const parameters = scene.scene.routingTargets?.splitPosition === undefined ? {} : { splitPosition: scene.scene.routingTargets.splitPosition }
     const previous = layoutOccurrences[layoutOccurrences.length - 1]
     if (previous && !routing && previous.layoutId === activeLayoutId && (previous.parameters.splitPosition ?? 0.5) === (parameters.splitPosition ?? 0.5)) {
       previous.durationMs = (timeline.scenes[index + 1]?.startMs ?? showEndMs) - previous.startMs
       if (parameters.splitPosition !== undefined) previous.parameters.splitPosition = parameters.splitPosition
     } else {
-      layoutOccurrences.push({ id: `layout-occurrence:${layoutOccurrences.length + 1}`, layoutId: activeLayoutId, startMs: scene.startMs, durationMs: (timeline.scenes[index + 1]?.startMs ?? showEndMs) - scene.startMs, parameters,
+      if (previous) previous.durationMs = startMs - previous.startMs
+      layoutOccurrences.push({ id: `layout-occurrence:${layoutOccurrences.length + 1}`, layoutId: activeLayoutId, startMs, durationMs: (timeline.scenes[index + 1]?.startMs ?? showEndMs) - startMs, parameters,
         ...(routing && previous ? { incomingTransfer: { id: routing.id, fromOccurrenceId: previous.id, durationMs: routing.durationMs, direction: routing.routingDirection ?? 'forward', easing: structuredClone(routing.easing) } } : {}),
       })
     }

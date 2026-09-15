@@ -5,6 +5,21 @@
 > that still require compiler evidence and Jon's acceptance. It describes no
 > shipped composition schema or behavior.
 
+## Measured tracer status (2026-09-15)
+
+The additive #1034 tracer now converts and compiles all 47 inventoried records.
+The [final evidence and restriction ledger](show-v2-tracer-evidence.md) records
+actual supported/refused partitions, resource differences and matrix ownership.
+The [accepted authoring decisions](show-v2-accepted-authoring.md) supersede the
+historical provisional choices below, especially appearance editing, default
+instance sharing and Restart clock. Production v2 adoption remains separate.
+
+The implemented preservation representation adds explicit whole-output contributor
+sets for legacy composite boundaries, half-open track activation including incoming
+pre-roll/outgoing contribution, Layout transfer easing and timing, and explicit
+Group runtime bindings. Default Group bindings share; migration records the private
+identities that existing v1 occurrences already own. No compiler internals changed.
+
 ## Outcome and limits
 
 The Scene-free record makes the objects authors manipulate the objects the Show
@@ -15,9 +30,8 @@ Scene partition.
 
 The provisional schema lives in
 [`schemas/show-record-v2.provisional.schema.json`](../../schemas/show-record-v2.provisional.schema.json).
-It gives #1034 a concrete input for conversion and lowering experiments. No
-runtime validator, importer, store, editor, compiler, or export path references
-that file. A successful structural validation against the draft therefore says
+It gives #1034 a concrete input for conversion and lowering experiments. The additive v2 validator/codec uses
+that file; production importer, store, editor and compiler paths do not. A successful structural validation against the draft therefore says
 nothing about production admission or compiler support.
 
 This definition preserves the existing compiler API and generated hardware
@@ -27,8 +41,10 @@ contract, and bounded alternatives before implementation continues.
 
 ## Decision register
 
-The status column is part of the design. A tracer choice makes an experiment
-possible; it does not become product policy through use in a test fixture.
+The table retains the original experiment questions as design provenance. The
+accepted-authoring document and measured evidence above take precedence where
+subsequent decisions or implementation supersede them. A tracer choice does not
+become product policy through use in a test fixture.
 
 | ID | Status | Decision or question | Authority / next evidence |
 | --- | --- | --- | --- |
@@ -52,7 +68,7 @@ possible; it does not become product policy through use in a test fixture.
 | P11 | Provisional for tracer | Show-loop lifecycle is explicit: `continuous` preserves the existing compiler path with `deterministicLoopReset` omitted, while `deterministic-loop` requests the existing reset behavior. Flat Shows and unstamped v1 compositions convert to `continuous`; stamped compositions remain `deterministic-loop`. Clip entry policy remains a separate lifecycle axis. | Exact two-loop lifecycle comparison in #1034; approve at G0/G5 |
 | P12 | Provisional for tracer | Clip sampling is explicit: `independent` preserves the current flat single-Zone default that evaluates routed domains independently; `span` and `repeat` retain their current meanings. This is output behavior, not source-origin metadata. | Exact routed-coordinate samples in #1034; approve at G0/G6 |
 | P13 | Provisional for tracer | A zero-duration v1 boundary Cut with no visual, property, routing, or referenced-identity payload retires with the hidden Scene boundary after exact timing/output accounting. Carrier payloads first move to their explicit v2 owners. The schema may still admit an explicit v2 Cut for the unresolved direct-authoring/Reset policy; conversion does not synthesize one merely to preserve compiler structure. | Plain/carrier Cut fixtures in #1034; approve at G0/G1 |
-| P14 | Provisional source-preservation shape | Every contributing property track owns an explicit half-open activation interval independently of its keyframe range. `activeDurationMs` is positive. Composition tracks use global `activeStartMs`/`activeDurationMs`; Group-definition tracks interpret the same fields in definition-local time. Source contribution bounds define activation; endpoint keys define interpolation and held values only inside it. A source track with no contribution emits no v2 track and receives an explicit retirement report. | Cut activation fixture in #1034; positive-Transition contribution mapping remains a typed refusal until proved |
+| P14 | Provisional source-preservation shape | Every contributing property track owns an explicit half-open activation interval independently of its keyframe range. `activeDurationMs` is positive. Composition tracks use global `activeStartMs`/`activeDurationMs`; Group-definition tracks interpret the same fields in definition-local time. Source contribution bounds define activation; endpoint keys define interpolation and held values only inside it. A source track with no contribution emits no v2 track and receives an explicit retirement report. | Cut and whole-output positive-Transition activation proved in #1034; see measured evidence |
 
 The evidence gates stop dependent production work:
 
@@ -175,6 +191,14 @@ pixel evaluation, snapshot/live capture, and visibility do not silently stop a
 clock. One-sided participants remain optional #1045 research and are absent from
 the provisional schema.
 
+The implemented tracer also preserves a legacy composite boundary with explicit
+`wholeOutput` start time and complete outgoing/incoming Clip-ID sets, without
+inventing Layer pairings for unequal topologies. Mixed whole-output/participant
+scope and independent overlapping positive windows remain ineligible. A Layout
+transfer at a visual boundary starts at the outgoing hold end; later switches
+include intervening visual durations in their global time. An edge strictly
+inside a visual window remains refused. See the measured scope fixtures.
+
 The schema provisionally admits an explicit zero-duration Cut for direct v2
 authoring experiments, but conversion does not create one for every v1
 boundary. A plain v1 boundary Cut is hidden Scene structure when it has no
@@ -241,9 +265,10 @@ Conversion derives activation from the actual source contribution owner, never
 from keyframe extrema. The first bounded Cut case maps placement and instance
 tracks to the source Scene contribution interval after globalizing its start.
 Positive Transition participants can contribute outside a nominal Clip
-rectangle and retain source-local clock behavior. Until #1034 proves that exact
-dual-contribution interval, the converter reports a typed refusal rather than
-substituting the Clip rectangle, a retired Scene label, or a Marker.
+rectangle and retain source-local clock behavior. #1034 proves the exact
+dual-contribution interval for its accepted whole-output boundary form. Other
+unproved activation/section combinations still refuse rather than substituting
+the Clip rectangle, a retired Scene label, or a Marker.
 
 Pure owners apply these provisional cascades before validation:
 
@@ -469,6 +494,9 @@ accepted v2 clauses.
 
 ## Restriction ledger
 
+The [completed measured ledger](show-v2-tracer-evidence.md#measured-restriction-ledger)
+supersedes the initial dispositions below and links their positive/negative proof.
+
 #1034 owns the measured ledger. Each row must name the current enforcing source,
 smallest positive and negative fixtures, consumer evidence, current scope,
 classification, and residual. The classification vocabulary is closed:
@@ -495,6 +523,9 @@ classification, and residual. The classification vocabulary is closed:
 | RL16 | A property track is active from its first through last keyframe, or anywhere its target identity appears | Reject: activation is a separate source-owned half-open interval under P14; validate target identity only over intersecting appearance spans | A01–A10, C08–C12 |
 
 ## Consolidated proof matrix
+
+The [executed proof mapping](show-v2-tracer-evidence.md#consolidated-proof-mapping)
+separates #1034 preservation evidence from later authoring/adoption rows.
 
 The stable consumer boundaries are: a reopened v2 Show artifact; the recipe and
 compiled Pattern produced through the ordinary importer/compiler path; matched

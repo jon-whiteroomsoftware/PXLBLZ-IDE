@@ -1,398 +1,172 @@
 # Show v2 tracer evidence (#1034)
 
-> **Status: provisional preservation increment.** This additive tracer is not
-> wired to product save, import, Undo/Redo, or admission. It does not satisfy
-> the full #1034 acceptance set or approve the provisional v2 model.
+## Result and boundary
 
-## Group preservation increment (2026-09-15)
+The additive tracer converts, validates and compiles **47/47 available records**:
+40 stock Shows and seven agent baseline fixtures. Every source leaf is accounted
+for. Fast/Precise matched-time output and mapped scalar state, second-loop v1/v2
+parity, and the declared cold-seek comparison have no failures. The focused proof
+suite contains 204 passing tests across 14 files.
 
-All **47/47 corpus records now convert and compile**, with complete source
-accounting and no Fast/Precise, second-loop or cold-seek parity failures. Both
-Group records have exact recipe, generated source and summary equality. The
-remaining #1034 work is the consolidated restriction/proof matrix and final review;
-corpus completion alone is not whole-ticket completion.
+This completes the conversion/lowering experiment and its measured restriction
+ledger. It does not switch production import, editor, commands, history, saves,
+MCP, or D1 to v2. The normal compiler is unchanged. The v2 codec remains explicitly
+provisional; ordinary production `.pxlshow` adoption belongs to #1044/#1039.
+Review, exact-tip suite results and local landing are recorded in
+[#1034](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1034).
 
-Group definitions retain local Layers, Clips, Transitions and animation. Their Clip
-schema now matches the existing held-appearance TypeScript model. Occurrences bind
-Layers explicitly. Omitted instance bindings share a definition instance across
-occurrences; explicit bindings preserve legacy occurrence-private runtime identities.
-Migration also retains the source contribution interval for Group tracks rather
-than shortening activation to the visible Group. Materialization is transient and
-does not flatten authored Groups into persisted ordinary Clips.
+Jon's [accepted authoring decisions](show-v2-accepted-authoring.md) govern the next
+owners. Independent simultaneous positive Transitions remain deferred. Existing
+source-preservation success does not approve every provisional field or every
+future authoring operation. Jon assigned UX separately and directed a stop after
+#1034's reviewed local landing.
 
-Validation checks unused definitions and the complete materialized graph, including
-appearance/track references, collisions, Layer bounds, Layout crossing and conflicting
-runtime bindings. Default identities cannot accidentally reuse an ordinary instance.
-The harness resolves actual occurrence-runtime sources and checks every materialized
-Clip against compiler provenance. Fast/Precise parity still compares the real default
-artifacts, without an identity or state omission.
+## Reproduction and measured differences
 
-Public tests reopen the provisional file, compare private and shared behavior to
-the existing materializer, retain translated Transform curves and local Transitions,
-and reject malformed ownership without mutation. Omitting track translation is a
-killed mutation. Source segmented logical Clips inside Group definitions and Group
-occurrences crossing Layout boundaries remain typed refusals pending their own proof.
-No compiler, production editor, persistence or UX changes are included.
+- [Machine-readable report](show-v2-parity-report.json): source/dependency hashes,
+  outcomes, equality flags, sample times, member mappings and lifecycle diagnostics.
+- [Harness](../../scripts/show-v2-parity.ts): `npm run show:v2-parity` verifies the
+  committed report; `-- --write` regenerates it for deliberate review.
+- Original experiment base: `d685125b34c694f311972e258efb48d12cf05cd8`.
+  The report retains the original plan hash as baseline provenance and hashes the
+  actual provisional schema bytes. It is not a claim that this evolving plan is frozen.
+- Personal authored exports: unavailable, zero records, confirmed by Jon on
+  2026-09-14. Synthetic personal fixtures do not establish personal-export coverage.
+  No personal account records were changed.
 
-## Scalar route correction (2026-09-15)
-
-The scalar-carrier review identified two P2 holes without explicit property ramps:
-held repeat scale could reach the participant emitter and throw, and same-Layout
-split changes could be discarded there. Source conversion now selects whole-output
-scope whenever global scalar targets change. Equivalent handcrafted participant
-forms refuse before emission. Regressions reproduce both failures with a two-Zone
-split and one blank Zone, then preserve public scalar descriptors and generated
-code. The corpus remains 45/47; Group proof and the full matrix remain outstanding.
-
-## Scalar property-carrier increment (2026-09-15)
-
-The corpus now admits **45/47** records with complete source accounting and no
-matched-time Fast/Precise, second-loop or cold-seek parity failures. Only the stock
-and baseline Group records still refuse. Full #1034 remains incomplete.
-
-Changing repeat-scale targets use one global held property track; the existing
-base value remains the initial target. Boundary-owned sample/routing ramps retain
-origin, duration and easing in typed `propertyRamps`. Lowering emits existing
-compiler scalar descriptors; smooth arbitrary global tracks remain unproved.
-Same-Layout parameter changes can accompany whole-output boundaries without
-inventing a routing switch. Actual mixed Layout transfers remain separately gated.
-
-Public tests retain exact generated source for repeat-scale and simultaneous
-split/repeat ramps, assert the 500 ms origin and 200 ms duration, and reopen the
-provisional file. Duplicate scalar ownership, wrong incoming Layout references
-and participant-scoped global ramps refuse without mutation. A wrong-origin
-mutation is killed. Existing Clip/instance/effect boundary carriers remain explicit
-refusals; this slice does not widen those unproved forms or change the compiler.
-
-## Whole-output animation increment (2026-09-15)
-
-The corpus now admits **43/47** records with complete source accounting and no
-matched-time Fast/Precise, second-loop or cold-seek parity failures. Quadrille's
-unequal Layer topology and boundary animation are preserved. Four refusals remain:
-two Group records and two property-carrier animation records. This remains partial
-#1034 delivery, with no production cutover or compiler changes.
-
-The provisional Transition can own explicit `wholeOutput` contributor sets at a
-global start time instead of paired Layer participants. Both sets must be nonempty,
-complete, unique and at exact endpoints. Mixed scopes, hidden intervening Clips,
-and unproved property carriers refuse. This is preservation of existing composite
-boundaries; it does not introduce one-sided or independent simultaneous Transition UX.
-
-Transient hold sections exclude positive windows. Animation activation includes
-incoming pre-roll and outgoing contribution, while key times and easing are retained
-exactly relative to the original hold. A two-sided animation fixture has identical
-generated source and reopens through the provisional codec. All six current visual
-kinds preserve source across unequal contributor sets. Malformed/missing ownership
-refuses without mutation. Omitting the incoming key-time offset is a killed mutation.
-
-## Layout and flat-sampling completion increment (2026-09-15)
-
-The latest corpus contains **42 converted/compiled records and five explicit
-conversion refusals**, with complete source accounting and zero matched-time,
-second-loop or cold-seek parity failures. Remaining records: two Groups and three
-whole-boundary animation records. Earlier counts below are historical increments.
-
-Layout occurrences retain authored switch time, Layout identity, parameters and
-transfer duration/direction/easing. The provisional schema now has optional
-transfer easing (omission keeps the existing linear default); the report hashes
-the actual schema bytes. Conversion coalesces unchanged occurrences but retains
-explicit routing boundaries, including repeated Layout use. Compile preparation
-orders occurrences by time, requires the immediate predecessor transfer reference,
-and derives existing compiler routing switches. No compiler or editor changes.
-
-Single-Zone flat Transitions retain independent sampling by deriving hold sections
-outside the positive window. Compilation keeps existing flat cell source and
-instance provenance. Multiple source cells sharing one recorded instance map to
-one member; missing, split or duplicate members still fail the complete bijection.
-A stateful flat fixture checks Fast/Precise parity through that public oracle.
-
-A two-Zone spatial transfer checks Fast/Precise frames and state through a second
-loop. Explicit public preparation assertions preserve duration, direction and
-sine easing. A discarded-easing mutation survived the sampled frames, then was
-caught by the strengthened transfer-parameter assertion; runtime samples alone
-are not claimed to qualify that field. Self-referential transfers refuse, and
-reversing occurrence array order leaves the prepared recipe unchanged.
-
-## Current completion increment (2026-09-15)
-
-The current corpus has **35 converted/compiled, 11 conversion refusals, and one
-preparation refusal**, with zero matched-time Fast/Precise or second-loop parity
-failures. All 47 records remain accounted for. The earlier 22-record results below
-are historical evidence; the machine-readable report contains current outcomes.
-
-Whole-boundary visual Transitions now convert when one outgoing and one incoming
-Clip share a Zone and Layer, no unrelated Clip contributes inside the window,
-and no boundary property/routing carrier is present. All six current kinds preserve
-generated source; boundary/interior frames and exported private state match in
-Fast and Precise through the second loop. Settings and source boundary time receive
-explicit accounting. Flat-cell accounting includes inter-Scene Transition time.
-Unproved multi-participant scope and carriers continue to refuse.
-
-Global sections now derive from held appearance changes and activation intervals;
-ordinary Clip start/end times alone do not split a curve. A track's activation may
-extend beyond its visible Clip if it intersects it. Full-Show activation also lowers
-through the existing single-section Transition route unchanged. Wholly disjoint
-activation and activation crossing an appearance/other activation boundary remain
-refused. No curve is sampled, shortened, or re-eased to obtain admission.
-
-The replay oracle now completes each artifact's replay before constructing the
-other runtime. An identical-artifact regression showed that implicit Pattern globals
-otherwise cross-contaminate interleaved runtimes in both modes. Default compiler
-artifacts still supply frame/state parity. Logical member provenance is checked on
-an additional unslotted compile when the default compiler selects its existing
-physical-slot reuse optimization; this avoids mistaking proved machine reuse for
-lost authored identity. No compiler behavior changed.
-
-Remaining completion work: section-owned animation around whole-boundary
-Transitions (three records), Layout conversion (six), Group materialization (two),
-and independent flat sampling with Transitions (one). These are implementation/proof
-work, not approved permanent restrictions. This increment does not complete #1034,
-start #1035, or wire production v2 consumers. Jon directed completion of #1034,
-separate Astra/medium review and local landing, then a stop; UX work is separately
-assigned. The coincident independent-Transition redesign remains deferred.
-
-## Reproducible inputs
-
-- Base commit: `d685125b34c694f311972e258efb48d12cf05cd8`.
-- Frozen #1033 plan SHA-256: `a13641e8d6233e037ac1e3993b110fce49f44f3908ad0972a50b81279d79722f`.
-- Frozen provisional schema SHA-256: `776c6068c3b179d9775864def12853bd170eaaacca17fe23c57718d203d14c9f`.
-- Machine-readable inventory: [`show-v2-parity-report.json`](show-v2-parity-report.json).
-- Harness: `npm run show:v2-parity`; regenerate with
-  `npm run show:v2-parity -- --write`.
-
-The harness inventories repository sources directly, hashes Show semantics
-excluding volatile `updatedAt`, and pins every referenced Pattern, personal
-Library, stock Map, and compiler Library source. Missing dependencies refuse.
-It does not use the preview wrapper's missing-personal-Pattern fallback.
-
-## Corpus result
-
-The report accounts for 47 available records: 40 stock Shows and seven agent
-baseline fixtures. Jon confirmed on 2026-09-14 that no personal authored Show
-exports exist, so that category is unavailable with zero records.
-
-The initial frozen-model run converted two records and refused 45. The current
-preservation model produces:
-
-| Outcome | Records | Result |
+| Comparison | Equal | Explanation of remaining differences |
 | --- | ---: | --- |
-| Converted, prepared, compiled | 22 | Exact matched-time Fast/Precise frames and mapped scalar state; zero parity failures |
-| Conversion refused | 20 | 12 positive boundary Transition, six routing change, two Group; codes overlap with three positive-Transition track-activation refusals |
-| Compile preparation refused | 5 | Three track activations extend outside their target Clip; two require positive-Transition activation evidence |
+| Compiler recipe | 33/47 | Derived placement IDs replace Scene suffixes; stable Layer ranks can contain gaps; one-Zone Layer scope is explicit; flat lowering carries explicit identity-valued brightness/time scale. |
+| Generated Pattern and Effect source | 46/47 | `long-timeline` adds explicit brightness/time-scale descriptors. Actual replay still matches in both modes. |
+| Compiler summary | 44/47 | `personal-base` and `personal-library-pattern` report projected member IDs consistently in specialization/source inventory. `long-timeline` has the source-size change below. |
 
-All 47 records have zero unaccounted source leaves. Carrier-free boundary Cuts
-are no longer a refusal class: 21 prior Cut-identity refusals are retired with
-the exact source ID, boundary owner, and global time. A Cut with any residual
-transition-only payload still refuses at that source path.
+For `long-timeline`, the compiler's artifact-byte estimate changes **16,820 →
+17,283** (+463). Estimated VM words remain **6,012**, persistent globals **58**,
+render-target allocations **three**, and resource blockers **zero** on both sides.
+These are compiler estimates, not measurements on hardware. Both Group corpus
+records have exact recipe, source and summary equality. The report also records
+300 retired flat compatibility shadows with exact source paths; composition
+remains authoritative and no Pattern or appearance payload is silently discarded.
 
-The accounting audit also records each retired flat compatibility cell as an
-exact `sourceCellId`/`sourcePath` provenance row. The current corpus contains
-300 such rows across 44 records; these are composition shadows, not discarded
-Pattern or appearance data.
+## Consumer oracle and its limits
 
-The 22 accepted records have exact v1/v2 parity for matched-time output and
-mapped private state in Fast and Precise, at the same phase in the second loop,
-and under the harness's cold-seek comparison. This evidence covers the current
-supported subset only. Generated Pattern and Effect source is byte-equal for all
-22. The higher-level compiler recipe is equal for 13 of 22 and the compiler
-summary is equal for 20 of 22; those identity differences remain recorded rather
-than being treated as runtime parity. The five compile-preparation refusals keep
-their owning typed reasons: three `unsupported-track-activation` and two
-`unsupported-transition-property-track`.
+Conversion → provisional serialize/parse → compile preparation → existing
+`showRecordToCompileRecipe`/`compileShow` → deterministic runtime is the additive
+consumer path. Tests also reopen normal `.epe` output with `parseEpe` and replay
+its source. These are artifact/runtime proofs; no browser or production-save
+claim is inferred from them.
 
-## Consumer oracles
+The corpus executes the actual default-compiled artifacts. When physical Pattern
+slot reuse is selected, a second unslotted compile checks complete logical member
+provenance; it never replaces the default artifact for output/state comparison.
+Flat identity aliases require a complete converter-proven member mapping. Unknown,
+duplicate, missing or split members fail the oracle. Compiler-owned empty members
+remain explicitly accounted for.
 
-The focused suite exercises converter to compile preparation to the existing
-compiler and runtime:
+The harness uses seed 1034, eight map points, and 16 ms deterministic stepping,
+splitting the last step to reach a named millisecond. It samples the union of source
+and converted intervals, their midpoints, and boundary ±1 ms. Group content is
+materialized before sampling. The corpus has **2,211 probes per mode**, 4,422 across
+Fast and Precise. Results copy frames/exports before advancing. Each artifact is
+replayed separately because implicit Pattern globals can contaminate interleaved
+runtime objects; an identical-artifact regression enforces that isolation.
 
-- **Lifecycle:** an unstamped composition remains `continuous` and omits the
-  compiler reset stamp; a stamped composition remains `deterministic-loop`.
-  Flat Continue retains one shared instance; flat Restart derives separate
-  identities. Stateful, time-varying two- and three-Scene fixtures prove mapped compiler
-  member identity/count, frames, and mapped `calls`/`elapsed` state immediately
-  around both entries in Fast and Precise. Flat Freeze presentation selects the
-  same required capture specialization on both paths, while flat Blink produces
-  both visible and gated frames; their frames and advancing private state match
-  at 12 entry/boundary/interior times in both modes. Actual output and state also
-  match through 1.25 loops in both modes.
-  The two accepted flat fixtures retain byte-equal generated source but use
-  projected placement IDs in the v2 compiler summary. The report records a
-  complete converter-proven cell-to-member bijection and applies it only to
-  private-state key comparison; recipe and summary inequality remain visible.
-- **Sampling:** one-Zone flat omitted sampling maps to `independent`; existing
-  Composition placement maps to `span`. The first implementation's `span`
-  mapping produced an immediate pixel-index counterexample, so the model now
-  carries this behavior explicitly.
-- **Appearance:** two v1 logical-placement segments become one v2 Clip with
-  keys `clip:appearance:1@0` and `clip:appearance:2@500`. Opacity, Transform,
-  and Aperture match at 249, 499, 500, 501, 750, and 999 ms with mapped member
-  state in Fast and Precise. Uniform appearance canonicalizes to one key.
-  JSON serialization and parse preserve the provisional record exactly.
-- **Track activation:** a three-part 500 ms Cut fixture has a tracked
-  Brightness Effect, an interval without that Effect, then a static re-add.
-  Conversion emits `activeStartMs: 0` and `activeDurationMs: 500`. Fast and
-  Precise v1/v2 output matches the source at 250 ms (`0.625`), 499 ms
-  (`~0.2515`), exact 500/750 ms (`1`), and exact 1000/1250 ms (`0.5`). The
-  activation interval is half-open and independent of keyframe endpoint hold.
-- **Markers:** deleting, moving, or adding narrative Markers leaves generated
-  code, Fast/Precise frames, and mapped private state unchanged around every
-  edited time. Markers never drive compiler partitioning.
-- **Transitions:** seven positive kind/policy cases (six kinds and two
-  Crossfade policies) preserve recipe, source, boundary/interior frames, and
-  state. This is the one-participant Layer form with single-key Clip
-  appearances, not the unconverted v1 whole-boundary form. Compile preparation
-  returns a typed refusal for multi-key Clip appearance with a positive
-  Transition until that combination has its own preservation proof.
-- **Artifacts:** normal `.epe` output reopens through the existing EPE parser.
-  The additive provisional JSON codec reopens v2 bytes. This is not ordinary
-  authored-v2 `.pxlshow` reopen, which remains intentionally unwired.
+Comparisons are exact at these probes, including Precise output words; no wider
+numerical tolerance was introduced. Captured state includes exported scalar member
+values, not arbitrary hidden arrays. Exact-source equality is additional evidence
+for unchanged internals, not a universal substitute for lifecycle tests.
+Second-loop parity compares v1 and v2 at the same phase. Cold seek reconstructs
+from Show start to `min(512, ShowEnd-1)` and compares live stepping on each path.
+It does not assert equivalence for every UI seek policy, every timestep or every
+physical map. Focused cases separately inspect actual loop boundaries and shared
+instance counters on consecutive frames.
 
-Runtime results copy frames and exports before advancement. Precise uses the
-public `fidelity` mode. The corpus harness declares a 16 ms fixed schedule with
-split final steps; it does not claim the preview UI's `1000 / 60` schedule or
-Trails `clear-at-target` behavior. The exact activation-value oracle uses the
-same direct live deltas on both sides so repeated fixed-point timestep rounding
-does not masquerade as a lifecycle result.
+`fixedStepFreshPhaseResiduals` is diagnostic: a fresh first-loop phase need not
+match a later phase for continuous Shows, and fixed-point timestep rounding can
+also accumulate. All 47 retain that diagnostic. It is not waived v1/v2 divergence;
+second-loop v1/v2 comparisons pass. A focused deterministic-reset fixture uses
+exact 1000 ms/250 ms deltas and proves its intended reset in both modes.
 
-Matched-time replay now derives samples from the union of source Scene,
-Transition, cell/placement, and property-key intervals plus v2 Clip appearance,
-Layout transfer, property activation/key, and Transition intervals. Every
-semantic boundary contributes boundary - 1 ms, the boundary, and boundary + 1
-ms; every partition contributes its midpoint. The generated artifact summary
-does not expose Transition windows and is not an input to this sampler; the
-source and converted authored models supply those intervals. Narrative Markers
-contribute no samples. The sampler and its valid-model integration test are
-included in the repository's strict `tsc -b` check. The 22 accepted records
-exercise 8–180 times per mode, 923 samples per mode and 1,846 across both modes,
-with no new Fast/Precise parity failure and no corpus outcome change.
+## Measured restriction ledger
 
-## Diagnosed repair history
+Classifications use the plan's closed vocabulary. “Supported” is bounded to the
+named fixtures/accepted representation. An unproved form receives a typed refusal;
+that is not permission to discard a valid legacy Show during later cutover.
 
-Retiring structural Cuts initially admitted three stock Shows whose final
-sample diverged. The first lowerer collapsed every global Clip and property
-track into one compiler section. That made source Scene-local track activation
-coexist in one section and allowed held endpoints to affect later content.
-Deriving transient sections from Clip and appearance-key boundaries, rebasing
-placements/tracks, and adding explicit half-open track activation fixed all
-three. Marker times are not part of the derivation.
+| ID | Enforcing source and smallest measured partition | Consumer evidence / current scope | Classification and residual |
+| --- | --- | --- | --- |
+| RL01 | `showCompositionV2.ts` + provisional schema: valid record versus duplicate IDs, missing references, unsafe time and unknown fields | `showCompositionV2.test.ts`, `showRecordV1ToV2.test.ts`: reopen/validation, immutable refusals | `intentional-domain-rule`; validation never repairs. |
+| RL02 | `showCompositionV2.ts`: adjacent Clips versus overlap on one Zone/Layer | Validator and `showClipsV2.test.ts`: overlap/move refusal leaves preimage unchanged | `intentional-domain-rule`; different Layers can contribute together. |
+| RL03 | `showClipsV2.ts`: move through former Scene time versus occupied/out-of-range destination | Reopened held appearance, exact ranges, runtime after trim/extend | `removed-by-model`; connected Transition edits remain #1035. |
+| RL04 | `showClipsV2.ts` and current `showTimelineAuthoring.ts` | Plain move/split needs no Scene boundary; animated trim/split refuses without shortening a curve | `removed-by-model` for proved plain edits; broader animation/Insert Time owners #1037/#1038 remain unimplemented. |
+| RL05 | Current `showBoundaryTransitionTimeRepair.ts`; accepted deletion policy | Current-owner baselines in the design; no v2 Transition-deletion owner is claimed | `removed-by-model` as accepted representation policy; its executable edit proof remains #1035. |
+| RL06 | Converter/global-section lowerer: shared Clip across two Layouts; Layout + visual boundary versus an interior Layout edge | `showV2LayoutConversion.test.ts`, `showV2MixedLayout.test.ts`: exact switches/source, Fast/Precise two-loop output/state; interior edge refuses | `supported-or-safely-narrowed`; arbitrary crossing edits require Zone-availability proof. Disappear/re-add uses separate Clips sharing one instance. |
+| RL07 | `showCompositionV2.ts` Group bounds: occurrence inside one Layout versus crossing its end | `showV2Groups.test.ts` reopens/materializes legal bindings; crossing refuses without mutation | `supported-or-safely-narrowed` tracer domain; accepted crossing behavior still requires #1038 implementation/proof, not necessarily compiler work. |
+| RL08 | `showCompositionModel.ts` / `showCompositionLowering.ts`: full-window unrelated contribution in same/different Zone | `showV2ScopeProof.test.ts`: Crossfade live/live, Wipe, Dither and Portal preserve composite with opacity 0.4; current v1 Fade/Motion rejects it | `requires-compiler-work` to widen Fade/Motion scope; existing supported behavior retained. |
+| RL09 | Same scheduler: unrelated Clip ends around [400,600) | Same-Zone 399/601 ready, 400/500/600 refused (`showV2PreparationContract.test.ts`); other-Zone start/end edges 399/400/601 accepted, 401/600 refused (`showV2ScopeProof.test.ts`) | `requires-compiler-work` to widen the refused edge cases; no blanket cross-Zone authoring rule inferred. |
+| RL10 | `resolveLocalLayerTransitions` and v2 preparation: separated versus coincident positive windows | `showCompositionLoweringV2.test.ts`: two Zones, Crossfade + Wipe both [400,600) is schema-valid but compiler-ineligible | `requires-compiler-work`; independent render-target scheduling remains deferred. |
+| RL11 | `showCompositionV2.ts` distinguishes Layer participants from explicit whole-output scope | Unequal contributor sets preserve all six visual kinds in `showV2BoundaryConversion.test.ts`; coincident independent events remain separate and refuse | `supported-or-safely-narrowed`; one visual effect for all simultaneous junctions is not permanent policy. |
+| RL12 | `showRecordV1ToV2.ts` flat projection | `showCompositionLoweringV2.test.ts` independent/span/repeat coordinate matrix; report includes exact expansion/source mapping | `supported-or-safely-narrowed`; one-Zone Clip identity is not faked for a multi-Zone cell. |
+| RL13 | Converter held-appearance reconciliation and lowerer | Divergent opacity/Transform/Aperture becomes one Clip with stable keys; exact boundary/interior replay. Gaps/ownership conflicts and multi-key positive-Transition combinations refuse | `supported-or-safely-narrowed`; broader combinations need preservation proof. |
+| RL14 | Lowerer `unsupported-restart`; accepted clock decision | Legacy Continue/private Restart identities preserve state; authored v2 Restart refuses. Shared simultaneous users advance once per frame (`showV2LifecycleProof.test.ts`) | `supported-or-safely-narrowed`; new shared clock-reset semantics belong to #1037 and do not mint instances. |
+| RL15 | Converter structural-Cut accounting | Plain zero-duration Cut retires with source ID/time; residual carrier payload refuses (`showRecordV1ToV2.test.ts`) | `removed-by-model`; unsupported Cut carriers still block cutover of those forms. |
+| RL16 | Explicit track activation in converter/validator/lowerer | Cut Effect disappears at exclusive end then returns static; incoming/outgoing animation preserves original curve and source contribution (`showV2BoundaryConversion.test.ts`) | `supported-or-safely-narrowed`; arbitrary activation crossing derived sections and unsupported ramp targets refuse. |
 
-The original Effect-target validator also checked an Effect identity across
-every appearance key. v1 requires the identity only in appearance spans that
-intersect the track's active interval. The validator now enforces that exact
-intersection. An Effect absent exactly at the active end is valid.
+The smallest independent-window counterexample is two Zones, each with an outgoing
+Clip ending at 400 ms and an incoming Clip starting at 600 ms, with separate
+Crossfade and Wipe events. The existing scheduler rejects their overlapping
+200 ms windows even though the Zones differ. This is proposed domain widening,
+not a lost supported v1 record. No compiler workaround was added.
 
-The first corpus harness handed flat fixture source to the v1 compiler by cell
-ID but gave the v2 lowerer only sources keyed by authored Composition instance.
-Those exact sources were present; the harness lookup was incomplete. The
-converter already records each source cell's projected placement and instance
-IDs, so the harness now transfers the cell source only across that mapping and
-fails on missing or conflicting ownership. Runtime state comparison separately
-requires a complete bijection from source cell member to projected v2 member;
-unknown, merged, or ambiguous identities refuse instead of being ignored.
+## Consolidated proof mapping
 
-The first continuous-flat lowerer then discarded that explicit instance map
-when rebuilding compatibility cells. On the three-Scene compiler path, a
-Restart fixture collapsed two state machines into one and a Continue fixture
-changed its compiled member identity. The lowerer now maps every derived cell
-back to its v2 Pattern instance and explicitly emits `restartOnEntry: false`;
-the instance identity owns the Continue/Restart distinction. The stateful
-Fast/Precise regression failed before this repair and passes at 499/500/501 and
-999/1000/1001 ms after it.
+Rows refer to the [design matrix](scene-retirement-design.md#consolidated-proof-matrix).
+Tests below live in `src/engine/` unless named otherwise. A row family can contain
+both measured preservation and explicitly deferred authoring; this table does not
+claim that every future editor operation is implemented by the tracer.
 
-## Current refusal and implementation ledger
-
-| Area | Current result | Classification |
+| Rows | Executed proof | Remaining owner / limit |
 | --- | --- | --- |
-| Unknown or malformed source fields | Structural validation refuses before conversion; immutable input | Intentional fail-closed rule |
-| Carrier-free v1 Cut | Retired with exact source/time accounting; output/state parity proved | Supported |
-| Cut with residual payload | Refuses at exact payload path | Requires explicit payload rehoming before support |
-| Track activation within one derived section | Global half-open interval lowers to source contribution; Effect identity checked only on intersection | Supported |
-| Track activation crossing another Clip/key boundary | Three stock records receive a typed compile-preparation refusal | Next lowering implementation: partition one activation without changing its curve/holds |
-| Positive-boundary track contribution | Typed refusal; nominal Clip rectangles are not substituted | Next conversion/lowering proof: preserve both source contributions during the Transition |
-| Whole-boundary positive Transition | 12 records refuse; direct one-participant Layer matrix is green | Converter implementation remains |
-| Routing/Layout occurrence change | Six records refuse; omitted `splitPosition` and explicit `0.5` compare as the same semantic default | Lowering/compiler proof remains |
-| Group definitions/occurrences | Two records refuse | Materialization and occurrence-private runtime proof remains |
-| Flat projected source/lifecycle/presentation | Exact cell sources and instance identities transfer through converter provenance; stateful Continue/Restart, Freeze, and Blink output/state match | Supported harness evidence; no dependency or lifecycle identity was synthesized |
-| Coincident positive windows in different Zones | Provisional v2 validates; current v1 scheduler rejects | Compiler-domain decision gate |
+| D01–D05 | `showCompositionV2.test.ts`, `showRecordV1ToV2.test.ts`: structure, references, immutable refusal, provisional reopen | Production admission #1044/#1041. |
+| Y01–Y08 | Converter tests preserve empty Layer IDs/names and refuse conflicting legacy names/order; Group tests preserve explicit shells/bindings; Quadrille preserves relative stacking | Layer-reorder UI and full authoring #1038. |
+| E01–E12 | `showClipsV2.test.ts`: move, trim→extend→reopen, split, collision/no-op, owned-animation move; connected/animated unsupported edits refuse atomically | Existing v1 owner baseline remains in design. Connected move/resize/delete/Replace/Reset #1035; full command adoption #1044. |
+| T01–T08 | Lowering/BoundaryConversion/FlatTransition tests plus stock Transition reference Shows cover Cut, six visual kinds, both Crossfade policies and current variants | One-sided UX #1045. |
+| T09–T16 | ScopeProof, PreparationContract, BoundaryConversion and MixedLayout: continuing alpha composite; same/different Zone edge guards; unequal sets; two routing/visual boundaries; independent overlap refusal | Unsupported scheduler widening is RL08–RL11, deferred. |
+| A01–A14 | Lowering tests cover source-owned half-open activation, Effect absence/re-add and exact divergent appearance; BoundaryConversion covers incoming pre-roll/outgoing contribution; PropertyCarrier covers split/repeat origin/duration/easing; stock animation/easing records cover current target families | Arbitrary global tracks, Clip/instance/effect boundary ramps, exact nonlinear trim/split and Insert Time #1037. Safe refusal, not destructive curve sampling. |
+| S01–S10 | Lowering tests: continuous/deterministic loops, Continue/private Restart, Freeze/Blink. LifecycleProof: gaps, Strobe, Trails, rolling-refresh, same instance on two Layers/two Zones advances once per frame; reopened `.epe` replay | Shared clock-reset event and orphan cleanup commands #1037/#1038. |
+| L01–L12 | LayoutConversion, MixedLayout, PropertyCarrier: reused Layout definitions, split/repeat changes, zero/nonzero transfers, two visual-boundary transfers, disappearing/returning Zone, exact source/state | Group crossing and general Layout edits #1036/#1038; interior visual-window Layout edge refuses. |
+| G01–G12 | Groups: reopened definitions/local Layers, explicit bindings, default sharing, legacy private IDs, collision/unused-definition validation, local Transition/track translation; two corpus Group records exact | Make Unique/Ungroup/Delete/Insert Time command endpoints and Layout-crossing authoring #1038. |
+| C01–C16 | All 47 inventoried sources/dependencies hashed; converter immutable accounting; divergent appearance, scalar carriers, flat projection/sampling, unknown/missing-source refusals | No personal-export compatibility claim; unproved valid forms remain fail-closed before cutover. |
+| P01–P06 | Actual artifacts, equality counts/resource differences above, Fast/Precise semantic probes, repeated-loop parity, cold seek, complete member provenance | Eight-point deterministic domain; no hardware performance claim. |
+| R01–R02 | Provisional codec round trip plus normal EPE parser and replay in lowerer/Group/LifecycleProof tests | Ordinary authored-v2 `.pxlshow` importer deliberately unwired. |
+| R03–R06 | Inventoried only: save/reopen, Undo/Redo, stale/duplicate admission, failed persistence recovery | Deferred production integration #1044/#1039; current v1 contracts unchanged. |
 
-### Smallest compiler-domain counterexample
+## Fault sensitivity and repaired findings
 
-Two Zones each contain an outgoing Clip ending at 400 ms and an incoming Clip
-starting at 600 ms. Separate Crossfade and Wipe records own the same 200 ms
-window. The provisional v2 record passes structural/domain validation. The
-current adapter and compiler have one shared transition render target and
-reject the overlap even though the Zones differ. Current accepted v1 input
-also rejects this overlap, so this is proposed v2 domain widening rather than
-loss of a supported v1 record. No workaround or compiler change was added.
+The final Layout tests kill moving a simultaneous routing switch from outgoing
+end to incoming hold start, and omitting preceding visual duration when locating
+a later routing switch. The latter fails on the second boundary, not merely a
+single boundary screenshot. Earlier increments killed missing incoming animation
+offset, scalar ramp origin, Group track translation, duplicate compiler-member
+acceptance, and dropped Layout easing. Dropped easing initially survived sampled
+frames; an explicit public recipe assertion was added and killed it. Runtime-only
+qualification is not claimed for that field.
 
-## Remaining proof gaps
+Review corrections also cover empty Transition-array source accounting, shared
+flat runtime splitting, typed scheduler refusal before recipe emission, held
+repeat targets reaching the wrong route, and same-Layout split values disappearing.
+Each correction retains a public-boundary regression. Candidate receipts and
+committed-tip runner evidence remain attached to the issue/local review store.
 
-This increment does not prove full #1034 acceptance. Named gaps include:
+## Documentation and next gate
 
-- incoming/outgoing private-state contribution and pre-roll during positive
-  Transitions, unrelated content entering/leaving a window, alpha/source-over
-  interaction, and simultaneous Layout transfer;
-- shared instance once-per-frame behavior across an actual gap and simultaneous
-  users, plus Strobe, Trails, non-flat presentation interactions, and
-  occurrence-private Groups;
-- repeated/reconfigured Layout occurrences, Zone disappearance/reappearance,
-  and Group/Clip behavior across Layout change;
-- ordinary authored-v2 `.pxlshow` reopen and later save, history, admission,
-  and persistence flows.
+This evidence replaces the incremental 2/22/35/42/43/45-record diary; those results
+remain in Git/issue history. The current report and this ledger describe the final
+47-record tracer. The design links the measured representation and limits.
+`CONTEXT.md`, the Feature/Technical References and command/history/candidate
+contracts were checked and remain unchanged because production semantics did not
+switch. No README, stock source, personal data, or compiler internals changed.
 
-The report retains `fixedStepFreshPhaseResiduals` as a diagnostic. Repeated
-16 ms stepping does not produce an exact fresh-phase raw-state oracle because
-Fast accumulates tiny floating residuals and Precise quantizes each timestep.
-Second-loop v1/v2 parity remains exact. The focused deterministic-reset case
-uses exact 1000 ms and 250 ms deltas and proves reset in both modes.
-
-## Gate status
-
-Keep the model and tracer provisional. The current preservation increment is
-ready for candidate review once committed, but #1034 remains open. Do not begin
-#1035 or wire production consumers until the remaining named proof families
-and the coincident-transition compiler-domain decision are resolved.
-
-
-## Coordinator-owned lifecycle repair
-
-The fourth review exposed a real two-Scene flat Continue defect: two projected
-Clips became two compatibility cells, and the legacy recipe path ignored the
-instance map. The original fixture now runs with both two and three Scenes,
-for Continue and Restart in Fast and Precise. Member counts, rendered frames,
-and private `calls`/`elapsed` values are checked across the 500 ms boundary.
-
-Flat preparation now coalesces adjacent compatibility cells only when their
-runtime identity and complete non-timing cell payload match. This does not
-merge authored Clips or distinct Restart instances. It retains the original
-sampling path; forcing the routed path was tested and rejected because it
-changed pixel-index sampling. Preparation checks recipe member multiplicities
-and explicitly refuses an unrepresentable shared runtime instead of silently
-splitting it. This bounded refusal is not general shared-runtime support.
-
-The parity oracle independently rejects an injected duplicate member on both
-two- and three-Scene inputs and accepts mixed-case instance IDs. It recognizes
-both cell-ID and instance-ID compiler naming. An animation active outside its
-Clip now returns a typed `unsupported-track-activation` refusal; the regression
-first reproduced the previous exception. Unexpected programming exceptions still
-propagate. The review's multi-Zone ID contradiction was disproved by all eight
-existing sampling tests: the routed compiler's static-schedule shortcut explains
-the cell IDs. Its Portal recipe-exception example also did not reproduce;
-preparation returned a recipe, so no speculative exception catch was added.
-
-Focused proof: 59 tests across the lowerer, preparation contract and parity
-harness. The 47-record corpus keeps 22 compiled / 20 conversion-refused / five
-preparation-refused; only three refusal descriptions became more precise.
-No production compiler, persistence, or editor path changed. Full committed-tip
-suites and separate Astra review remain delivery gates.
-
-
-### Advisory follow-up: Transition scheduling admission
-
-After `636abbc3` landed with Astra/medium advisory coverage, preparation was
-extended to run the existing v1 composition validator on its derived input.
-Known unsupported schedules return `compiler-ineligible` with the validator's
-path and reason before recipe construction; unexpected exceptions still escape.
-A schema-valid unrelated same-Zone Clip ending at 400, 500 or 600 ms beside a
-[400,600) Crossfade reproduced the exception before this change. Those cases now
-refuse; 399 ms and 601 ms remain accepted. The 47-record corpus is unchanged.
+The evidence makes later authoring work concrete; it does not silently resolve a
+new UX or compiler-domain decision. No #1035 implementation, editor pilot or
+publication is part of this completion run.

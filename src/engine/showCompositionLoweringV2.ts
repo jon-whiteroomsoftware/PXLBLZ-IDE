@@ -175,8 +175,8 @@ function resolveShowV2CompileContext(
   if (!wholeOutput && composition.transitions.length > 0 && (composition.layoutOccurrences.length > 1 || composition.propertyTracks.some(track => track.target.kind === 'show-repeat-scale'))) {
     return refuse('unsupported-transition-property-track', 'composition.transitions', 'Global scalar changes require whole-output preservation scope.')
   }
-  if (composition.transitions.length > 0 && composition.layoutOccurrences.some(occurrence => occurrence.incomingTransfer || occurrence.layoutId !== composition.layoutOccurrences[0].layoutId)) {
-    return refuse('unsupported-layout-occurrences', 'composition.layoutOccurrences', 'Mixed Layout and visual Transition lowering requires separate preservation proof.')
+  if (composition.transitions.some(transition => transition.wholeOutput && composition.layoutOccurrences.some(occurrence => occurrence.startMs > transition.wholeOutput!.startMs && occurrence.startMs < transition.wholeOutput!.startMs + transition.durationMs))) {
+    return refuse('unsupported-layout-occurrences', 'composition.layoutOccurrences', 'An interior Layout edge inside a whole-output window requires separate preservation proof.')
   }
   if (composition.groupDefinitions.length > 0 || composition.groupOccurrences.length > 0) {
     return refuse('unsupported-groups', 'composition.groupDefinitions', 'lowering requires Group materialization evidence before compilation.')
@@ -670,7 +670,12 @@ function buildLoweredShow(
   const { record } = context
   const sceneEnds = new Map<number, string>()
   let cursor = 0
-  for (const scene of scenes) { cursor += scene.durationMs; sceneEnds.set(cursor, scene.id) }
+  for (const scene of scenes) {
+    cursor += scene.durationMs
+    sceneEnds.set(cursor, scene.id)
+    const boundary = record.composition.transitions.find(transition => transition.wholeOutput?.startMs === cursor)
+    cursor += boundary?.durationMs ?? 0
+  }
   const transitions: ShowRecord['transitions'] = [...record.composition.layoutOccurrences].sort((a, b) => a.startMs - b.startMs).filter((occurrence, index, ordered) => index > 0 && (occurrence.incomingTransfer || occurrence.layoutId !== ordered[index - 1].layoutId)).map(occurrence => ({
     id: occurrence.incomingTransfer?.id ?? `routing:${occurrence.id}`,
     afterSceneId: sceneEnds.get(occurrence.startMs)!, kind: 'routing', layoutId: occurrence.layoutId,
