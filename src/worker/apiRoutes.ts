@@ -105,7 +105,7 @@ export const apiRoutes: readonly WorkerRoute<WorkerEnv>[] = [
   route('/api/libraries', { GET: librariesIndex.onRequestGet, POST: librariesIndex.onRequestPost }),
   route('/api/libraries/[id]', { PATCH: librariesItem.onRequestPatch, DELETE: librariesItem.onRequestDelete }),
   route('/api/shows', { GET: showsIndex.onRequestGet, POST: showsIndex.onRequestPost }),
-  route('/api/shows/[id]', { PATCH: showsItem.onRequestPatch, DELETE: showsItem.onRequestDelete }),
+  route('/api/shows/[id]', { PUT: showsItem.onRequestPut, PATCH: showsItem.onRequestPatch, DELETE: showsItem.onRequestDelete }),
   route('/api/controllers', { GET: controllersIndex.onRequestGet, POST: controllersIndex.onRequestPost }),
   route('/api/controllers/[id]', {
     GET: controllersItem.onRequestGet,

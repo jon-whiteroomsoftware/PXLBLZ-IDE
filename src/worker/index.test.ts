@@ -182,6 +182,7 @@ describe('api route table', () => {
       'POST /api/shows',
       'PUT /api/controller-metadata/[key]',
       'PUT /api/settings/[key]',
+      'PUT /api/shows/[id]',
     ])
   })
 })
