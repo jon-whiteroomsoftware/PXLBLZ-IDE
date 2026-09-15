@@ -4,6 +4,27 @@
 > wired to product save, import, Undo/Redo, or admission. It does not satisfy
 > the full #1034 acceptance set or approve the provisional v2 model.
 
+## Whole-output animation increment (2026-09-15)
+
+The corpus now admits **43/47** records with complete source accounting and no
+matched-time Fast/Precise, second-loop or cold-seek parity failures. Quadrille's
+unequal Layer topology and boundary animation are preserved. Four refusals remain:
+two Group records and two property-carrier animation records. This remains partial
+#1034 delivery, with no production cutover or compiler changes.
+
+The provisional Transition can own explicit `wholeOutput` contributor sets at a
+global start time instead of paired Layer participants. Both sets must be nonempty,
+complete, unique and at exact endpoints. Mixed scopes, hidden intervening Clips,
+and unproved property carriers refuse. This is preservation of existing composite
+boundaries; it does not introduce one-sided or independent simultaneous Transition UX.
+
+Transient hold sections exclude positive windows. Animation activation includes
+incoming pre-roll and outgoing contribution, while key times and easing are retained
+exactly relative to the original hold. A two-sided animation fixture has identical
+generated source and reopens through the provisional codec. All six current visual
+kinds preserve source across unequal contributor sets. Malformed/missing ownership
+refuses without mutation. Omitting the incoming key-time offset is a killed mutation.
+
 ## Layout and flat-sampling completion increment (2026-09-15)
 
 The latest corpus contains **42 converted/compiled records and five explicit

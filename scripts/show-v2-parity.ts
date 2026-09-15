@@ -520,6 +520,7 @@ export function semanticSampleTimes(
     )
   }
   for (const transition of converted.composition.transitions) {
+    if (transition.wholeOutput) interval(transition.wholeOutput.startMs, transition.wholeOutput.startMs + transition.durationMs)
     for (const participant of transition.participants) {
       const from = clipById.get(participant.fromClipId)
       if (!from) continue

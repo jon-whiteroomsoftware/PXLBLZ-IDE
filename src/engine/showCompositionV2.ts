@@ -95,6 +95,8 @@ export interface ShowTransitionV2 extends Omit<
   'afterSceneId' | 'kind' | 'layoutId' | 'routingDirection' | 'propertyTransitions'
 > {
   kind: ShowTransitionKind
+  /** Whole-output ownership preserves existing boundary compositing without pairing Layers. */
+  wholeOutput?: { startMs: number; fromClipIds: string[]; toClipIds: string[] }
   participants: ShowTransitionParticipantV2[]
   propertyRamps: ShowTransitionPropertyRampV2[]
 }
@@ -359,7 +361,31 @@ export function validateShowRecordV2(record: ShowRecordV2): ShowCompositionV2Val
     } else {
       validatePositiveTime(issues, `${path}.durationMs`, transition.durationMs)
     }
-    if (transition.participants.length === 0) {
+    if (transition.wholeOutput) {
+      const scope = transition.wholeOutput
+      validateNonnegativeTime(issues, `${path}.wholeOutput.startMs`, scope.startMs)
+      if (transition.participants.length !== 0 || transition.kind === 'cut' || safeAdd(scope.startMs, transition.durationMs) > composition.showEndMs) {
+        addIssue(issues, path, 'invalid-transition', 'Whole-output scope requires a positive in-bounds window and no Layer participants.')
+      }
+      const endMs = safeAdd(scope.startMs, transition.durationMs)
+      const expectedFrom = composition.clips.filter(clip => safeAdd(clip.startMs, clip.durationMs) === scope.startMs).map(clip => clip.id).sort()
+      const expectedTo = composition.clips.filter(clip => clip.startMs === endMs).map(clip => clip.id).sort()
+      if (JSON.stringify([...scope.fromClipIds].sort()) !== JSON.stringify(expectedFrom)
+        || JSON.stringify([...scope.toClipIds].sort()) !== JSON.stringify(expectedTo)
+        || composition.clips.some(clip => clip.startMs < endMs && safeAdd(clip.startMs, clip.durationMs) > scope.startMs)) {
+        addIssue(issues, path, 'invalid-transition', 'Whole-output scope must name every boundary contributor and cannot hide an intervening Clip.')
+      }
+      for (const [side, ids] of [['from', scope.fromClipIds], ['to', scope.toClipIds]] as const) {
+        if (ids.length === 0 || new Set(ids).size !== ids.length) addIssue(issues, path, 'invalid-transition', 'Whole-output contributor sets must be nonempty and unique.')
+        for (const id of ids) {
+          const clip = clips.get(id)
+          if (!clip) addIssue(issues, path, 'missing-reference', 'Whole-output contributor Clips must exist.')
+          else if (side === 'from' ? safeAdd(clip.startMs, clip.durationMs) !== scope.startMs : clip.startMs !== safeAdd(scope.startMs, transition.durationMs)) {
+            addIssue(issues, path, 'invalid-transition', 'Whole-output contributors must meet the exact window endpoints.')
+          }
+        }
+      }
+    } else if (transition.participants.length === 0) {
       addIssue(issues, `${path}.participants`, 'invalid-transition', 'A Transition needs at least one participant.')
     }
     transition.participants.forEach((participant, participantIndex) => {

@@ -170,15 +170,6 @@ export function convertShowRecordV1ToV2(
     issues.push({ path: 'transitions', code: 'unsupported-routing-change', message: 'Routing carriers and simultaneous visual/routing boundaries require separate preservation proof.' })
   }
   const visualBoundaries = show.transitions.filter(transition => transition.kind !== 'routing' && transition.kind !== 'cut')
-  if (visualBoundaries.length > 0) {
-    if (composition.scenes.some(scene => (scene.propertyTracks?.length ?? 0) > 0)) {
-      issues.push({
-        path: 'composition.scenes.*.propertyTracks',
-        code: 'unsupported-transition-track-activation',
-        message: 'Property-track activation during positive Transition contribution requires a dedicated parity proof.',
-      })
-    }
-  }
   const timeline = projectShowTimeline(show)
   report.sceneOffsets = timeline.scenes.map(scene => ({
     sceneId: scene.sceneId,
@@ -237,12 +228,19 @@ export function convertShowRecordV1ToV2(
     const atMs = sceneEndById.get(boundary.afterSceneId)
     const from = clips.filter(clip => clip.startMs + clip.durationMs === atMs)
     const to = clips.filter(clip => clip.startMs === (atMs ?? 0) + boundary.durationMs)
-    if (from.length !== 1 || to.length !== 1 || from[0].zoneId !== to[0].zoneId || from[0].layerId !== to[0].layerId || clips.some(clip => clip !== from[0] && clip !== to[0] && clip.startMs < (atMs ?? 0) + boundary.durationMs && clip.startMs + clip.durationMs > (atMs ?? 0)) || boundary.propertyTransitions || boundary.layoutId || boundary.routingDirection) {
-      issues.push({ path: 'transitions', code: 'unsupported-boundary-transition', message: 'Whole-boundary scope requires a two-sided single participant without unrelated contribution or boundary carriers.' })
+    if (from.length === 0 || to.length === 0 || clips.some(clip => !from.includes(clip) && !to.includes(clip) && clip.startMs < (atMs ?? 0) + boundary.durationMs && clip.startMs + clip.durationMs > (atMs ?? 0)) || boundary.propertyTransitions || boundary.layoutId || boundary.routingDirection) {
+      issues.push({ path: 'transitions', code: 'unsupported-boundary-transition', message: 'Whole-boundary scope requires two nonempty contributor sets without unrelated contribution or boundary carriers.' })
       continue
     }
     const { afterSceneId: _after, layoutId: _layout, routingDirection: _routing, propertyTransitions: _ramps, ...settings } = structuredClone(boundary)
-    boundaryTransitions.push({ ...settings, kind: settings.kind as ShowTransitionV2['kind'], participants: [{ id: `${boundary.id}:participant:1`, zoneId: from[0].zoneId, layerId: from[0].layerId, fromClipId: from[0].id, toClipId: to[0].id }], propertyRamps: [] })
+    const needsWholeOutput = from.length !== 1 || to.length !== 1 || from[0].zoneId !== to[0].zoneId || from[0].layerId !== to[0].layerId || composition.scenes.some(scene => (scene.propertyTracks?.length ?? 0) > 0)
+    boundaryTransitions.push({
+      ...settings,
+      kind: settings.kind as ShowTransitionV2['kind'],
+      ...(needsWholeOutput ? { wholeOutput: { startMs: atMs!, fromClipIds: from.map(clip => clip.id), toClipIds: to.map(clip => clip.id) } } : {}),
+      participants: needsWholeOutput ? [] : [{ id: `${boundary.id}:participant:1`, zoneId: from[0].zoneId, layerId: from[0].layerId, fromClipId: from[0].id, toClipId: to[0].id }],
+      propertyRamps: [],
+    })
   }
   if (issues.length > 0) return refused(show, report, issues)
   const markers = structuredClone(composition.markers ?? [])
@@ -262,8 +260,8 @@ export function convertShowRecordV1ToV2(
     const sceneStartMs = sceneStartById.get(scene.sceneId) ?? 0
     return (scene.propertyTracks ?? []).flatMap((track, trackIndex) => {
       const sourcePath = `composition.scenes[${sceneIndex}].propertyTracks[${trackIndex}]`
-      const activeDurationMs = show.scenes.find(candidate => candidate.id === scene.sceneId)?.durationMs ?? 0
-      if (activeDurationMs <= 0) {
+      const holdDurationMs = show.scenes.find(candidate => candidate.id === scene.sceneId)?.durationMs ?? 0
+      if (holdDurationMs <= 0) {
         report.retiredNoContributionPropertyTracks.push({
           sourceTrackId: track.id,
           sourcePath,
@@ -271,7 +269,11 @@ export function convertShowRecordV1ToV2(
         })
         return []
       }
-      const activeStartMs = sceneStartMs
+      const sourceIndex = show.scenes.findIndex(candidate => candidate.id === scene.sceneId)
+      const incoming = visualBoundaries.find(boundary => boundary.afterSceneId === show.scenes[sourceIndex - 1]?.id)?.durationMs ?? 0
+      const outgoing = visualBoundaries.find(boundary => boundary.afterSceneId === scene.sceneId)?.durationMs ?? 0
+      const activeStartMs = sceneStartMs - incoming
+      const activeDurationMs = holdDurationMs + incoming + outgoing
       const target = convertPropertyTarget(track.target, clipIdByPlacementId)
       if (target.kind === 'clip-effect') {
         const clip = clips.find(candidate => candidate.id === target.clipId)
@@ -704,7 +706,7 @@ export function auditShowV1ToV2Accounting(
       const targetIndex = record.composition.transitions.findIndex(candidate => candidate.id === transition.id)
       if (transition.kind !== 'cut' && targetIndex >= 0) {
         const { afterSceneId, ...settings } = transition
-        const { participants: _participants, propertyRamps: _ramps, ...targetSettings } = record.composition.transitions[targetIndex]
+        const { participants: _participants, wholeOutput: _wholeOutput, propertyRamps: _ramps, ...targetSettings } = record.composition.transitions[targetIndex]
         mapped(`transitions.${transitionIndex}`, `composition.transitions.${targetIndex}`, settings, JSON.stringify(settings) === JSON.stringify(targetSettings))
         retired(`transitions.${transitionIndex}.afterSceneId`, `composition.transitions.${targetIndex}.participants`, afterSceneId, report.sceneOffsets.some(scene => scene.sceneId === afterSceneId))
         continue
@@ -839,11 +841,14 @@ function auditComposition(
         && JSON.stringify(target.keyframes[index]?.easing) === JSON.stringify(key.easing)
         && target.keyframes[index]?.timeMs === (offset?.startMs ?? 0) + key.timeMs
       )))
+      const sourceIndex = show.scenes.findIndex(candidate => candidate.id === scene.sceneId)
+      const incoming = show.transitions.find(boundary => boundary.afterSceneId === show.scenes[sourceIndex - 1]?.id && boundary.kind !== 'cut' && boundary.kind !== 'routing')?.durationMs ?? 0
+      const outgoing = show.transitions.find(boundary => boundary.afterSceneId === scene.sceneId && boundary.kind !== 'cut' && boundary.kind !== 'routing')?.durationMs ?? 0
       mapped(
         `${scenePath}.propertyTracks.${trackIndex}`,
         targetIndex >= 0 ? `composition.propertyTracks.${targetIndex}` : 'composition.propertyTracks',
         track,
-        Boolean(target && offset && target.activeStartMs === offset.startMs && JSON.stringify(target.target) === JSON.stringify(expectedTarget) && keysPreserved),
+        Boolean(target && offset && target.activeStartMs === offset.startMs - incoming && target.activeDurationMs === offset.endMs - offset.startMs + incoming + outgoing && JSON.stringify(target.target) === JSON.stringify(expectedTarget) && keysPreserved),
       )
     }
     for (const [zoneIndex, zone] of scene.zones.entries()) {
@@ -876,7 +881,7 @@ function auditComposition(
     const target = record.composition.transitions[targetIndex]
     if (!target) continue
     const { fromPlacementId, toPlacementId, ...settings } = transition
-    const { participants: _participants, propertyRamps: _ramps, ...targetSettings } = target
+    const { participants: _participants, wholeOutput: _wholeOutput, propertyRamps: _ramps, ...targetSettings } = target
     if (JSON.stringify(settings) === JSON.stringify(targetSettings)) {
       addAccountingLeaves(accounting, `composition.transitions.${transitionIndex}`, settings, 'mapped', `composition.transitions.${targetIndex}`)
     }

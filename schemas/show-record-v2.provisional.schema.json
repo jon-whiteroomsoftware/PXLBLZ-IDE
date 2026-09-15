@@ -252,10 +252,19 @@
         "kind": { "$ref": "show-record.schema.json#/definitions/ShowTransitionKind" },
         "durationMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
         "easing": { "$ref": "show-record.schema.json#/definitions/ShowStructuredEasing" },
+        "wholeOutput": {
+          "type": "object",
+          "properties": {
+            "startMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
+            "fromClipIds": { "type": "array", "items": { "$ref": "#/$defs/Id" }, "minItems": 1, "uniqueItems": true },
+            "toClipIds": { "type": "array", "items": { "$ref": "#/$defs/Id" }, "minItems": 1, "uniqueItems": true }
+          },
+          "required": ["startMs", "fromClipIds", "toClipIds"],
+          "additionalProperties": false
+        },
         "participants": {
           "type": "array",
-          "items": { "$ref": "#/$defs/ShowTransitionParticipantV2" },
-          "minItems": 1
+          "items": { "$ref": "#/$defs/ShowTransitionParticipantV2" }
         },
         "propertyRamps": {
           "type": "array",

@@ -4,7 +4,7 @@
   "generatedFrom": {
     "baseCommit": "d685125b34c694f311972e258efb48d12cf05cd8",
     "provisionalPlanSha256": "a13641e8d6233e037ac1e3993b110fce49f44f3908ad0972a50b81279d79722f",
-    "provisionalSchemaSha256": "07a86573b80d2647bc1e1d65c077beb05c57a060c4ca66fe4036c3ce0f12e3f8",
+    "provisionalSchemaSha256": "48b98b56ab93258c602ef08c72f83f4fafbaeabb38d21faaf49edfe242c88575",
     "runtime": {
       "stepMs": 16,
       "randomSeed": 1034,
@@ -65,12 +65,12 @@
   "summary": {
     "total": 47,
     "byOutcome": {
-      "conversion-refused": 5,
-      "converted-compiled": 42
+      "conversion-refused": 4,
+      "converted-compiled": 43
     },
     "byRefusalCode": {
-      "unsupported-group": 2,
-      "unsupported-transition-track-activation": 3
+      "unsupported-boundary-transition": 2,
+      "unsupported-group": 2
     },
     "parityFailures": [],
     "lifecycleObservations": {
@@ -113,6 +113,7 @@
         "stock:stock-show-showcase-zone-layouts-radial",
         "stock:stock-show-showcase-redline-installation",
         "stock:stock-show-remix-coronal-mass-ejection",
+        "stock:stock-show-remix-quadrille",
         "stock:stock-show-remix-overture",
         "agent-baseline:personal-base",
         "agent-baseline:personal-library-pattern",
@@ -10994,10 +10995,10 @@
       ],
       "outcome": "conversion-refused",
       "refusalCodes": [
-        "unsupported-transition-track-activation"
+        "unsupported-boundary-transition"
       ],
       "refusalMessages": [
-        "composition.scenes.*.propertyTracks: Property-track activation during positive Transition contribution requires a dedicated parity proof."
+        "transitions: Whole-boundary scope requires two nonempty contributor sets without unrelated contribution or boundary carriers."
       ]
     },
     {
@@ -14729,13 +14730,389 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "conversion-refused",
-      "refusalCodes": [
-        "unsupported-transition-track-activation"
-      ],
-      "refusalMessages": [
-        "composition.scenes.*.propertyTracks: Property-track activation during positive Transition contribution requires a dedicated parity proof."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": false,
+        "sourceEqual": true,
+        "summaryEqual": true,
+        "memberIdentityMappings": [],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            3200,
+            6399,
+            6400,
+            6401,
+            9200,
+            11999,
+            12000,
+            12001,
+            12400,
+            12799,
+            12800,
+            12801,
+            15000,
+            15600,
+            17199,
+            17200,
+            17201,
+            17500,
+            17799,
+            17800,
+            17801,
+            18100,
+            18399,
+            18400,
+            18401,
+            18800,
+            19199,
+            19200,
+            19201,
+            22000,
+            22400,
+            22800,
+            23200,
+            23600,
+            24000,
+            25200,
+            25599,
+            25600,
+            25601,
+            27199,
+            27200,
+            27201,
+            27900,
+            28400,
+            28599,
+            28600,
+            28601,
+            28799,
+            28800,
+            28801,
+            29500,
+            29900,
+            30199,
+            30200,
+            30201,
+            30300,
+            30700,
+            31100,
+            31199,
+            31200,
+            31201,
+            31600,
+            31999,
+            32000,
+            32001,
+            33575,
+            34800,
+            35149,
+            35150,
+            35151,
+            35175,
+            35199,
+            35200,
+            35201,
+            36775,
+            37599,
+            37600,
+            37601,
+            38000,
+            38349,
+            38350,
+            38351,
+            38375,
+            38399,
+            38400,
+            38401,
+            40800,
+            41200,
+            41600,
+            43999,
+            44000,
+            44001,
+            44400,
+            44799,
+            44800,
+            44801,
+            48000,
+            51199
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "bands:elapsed_ms",
+            "dancer:control_sliderReflections",
+            "dancer:control_sliderTwist",
+            "dancer:elapsed_ms",
+            "dancer:elapsed_s",
+            "dancer:nSides",
+            "dancer:slice",
+            "dancer:speed",
+            "dancer:t1",
+            "dancer:timebase",
+            "dancer:twist",
+            "dancer:zoom"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "bands:elapsed_ms",
+              "phase": 153.59999999999997,
+              "secondLoop": 30873.59999999824
+            },
+            {
+              "key": "dancer:control_sliderReflections",
+              "phase": 0,
+              "secondLoop": 0.7
+            },
+            {
+              "key": "dancer:control_sliderTwist",
+              "phase": 0.66,
+              "secondLoop": 0.85
+            },
+            {
+              "key": "dancer:elapsed_ms",
+              "phase": 3829,
+              "secondLoop": 18887.924000000494
+            },
+            {
+              "key": "dancer:elapsed_s",
+              "phase": 3.829,
+              "secondLoop": 18.887924000000616
+            },
+            {
+              "key": "dancer:nSides",
+              "phase": 1,
+              "secondLoop": 5
+            },
+            {
+              "key": "dancer:slice",
+              "phase": 3.141592653589793,
+              "secondLoop": 0.6283185307179586
+            },
+            {
+              "key": "dancer:speed",
+              "phase": 4.6,
+              "secondLoop": 10
+            },
+            {
+              "key": "dancer:t1",
+              "secondLoop": 150.58924000000897
+            },
+            {
+              "key": "dancer:timebase",
+              "phase": 0,
+              "secondLoop": 15.058924000000898
+            },
+            {
+              "key": "dancer:twist",
+              "phase": 1.75,
+              "secondLoop": 1.8875
+            },
+            {
+              "key": "dancer:zoom",
+              "secondLoop": 0.22481156917785722
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            3200,
+            6399,
+            6400,
+            6401,
+            9200,
+            11999,
+            12000,
+            12001,
+            12400,
+            12799,
+            12800,
+            12801,
+            15000,
+            15600,
+            17199,
+            17200,
+            17201,
+            17500,
+            17799,
+            17800,
+            17801,
+            18100,
+            18399,
+            18400,
+            18401,
+            18800,
+            19199,
+            19200,
+            19201,
+            22000,
+            22400,
+            22800,
+            23200,
+            23600,
+            24000,
+            25200,
+            25599,
+            25600,
+            25601,
+            27199,
+            27200,
+            27201,
+            27900,
+            28400,
+            28599,
+            28600,
+            28601,
+            28799,
+            28800,
+            28801,
+            29500,
+            29900,
+            30199,
+            30200,
+            30201,
+            30300,
+            30700,
+            31100,
+            31199,
+            31200,
+            31201,
+            31600,
+            31999,
+            32000,
+            32001,
+            33575,
+            34800,
+            35149,
+            35150,
+            35151,
+            35175,
+            35199,
+            35200,
+            35201,
+            36775,
+            37599,
+            37600,
+            37601,
+            38000,
+            38349,
+            38350,
+            38351,
+            38375,
+            38399,
+            38400,
+            38401,
+            40800,
+            41200,
+            41600,
+            43999,
+            44000,
+            44001,
+            44400,
+            44799,
+            44800,
+            44801,
+            48000,
+            51199
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "bands:elapsed_ms",
+            "dancer:control_sliderReflections",
+            "dancer:control_sliderTwist",
+            "dancer:elapsed_ms",
+            "dancer:elapsed_s",
+            "dancer:nSides",
+            "dancer:slice",
+            "dancer:speed",
+            "dancer:t1",
+            "dancer:timebase",
+            "dancer:twist",
+            "dancer:zoom"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "bands:elapsed_ms",
+              "phase": 10066432,
+              "secondLoop": 2023352832
+            },
+            {
+              "key": "dancer:control_sliderReflections",
+              "phase": 0,
+              "secondLoop": 45875
+            },
+            {
+              "key": "dancer:control_sliderTwist",
+              "phase": 43254,
+              "secondLoop": 55706
+            },
+            {
+              "key": "dancer:elapsed_ms",
+              "phase": 250937344,
+              "secondLoop": 1237040384
+            },
+            {
+              "key": "dancer:elapsed_s",
+              "phase": 250937,
+              "secondLoop": 1237760
+            },
+            {
+              "key": "dancer:nSides",
+              "phase": 65536,
+              "secondLoop": 327680
+            },
+            {
+              "key": "dancer:slice",
+              "phase": 205887,
+              "secondLoop": 41177
+            },
+            {
+              "key": "dancer:speed",
+              "phase": 301466,
+              "secondLoop": 655360
+            },
+            {
+              "key": "dancer:t1",
+              "secondLoop": 9868230
+            },
+            {
+              "key": "dancer:timebase",
+              "phase": 0,
+              "secondLoop": 986823
+            },
+            {
+              "key": "dancer:twist",
+              "phase": 114688,
+              "secondLoop": 123699
+            },
+            {
+              "key": "dancer:zoom",
+              "secondLoop": 14746
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "stock",
@@ -16172,10 +16549,10 @@
       ],
       "outcome": "conversion-refused",
       "refusalCodes": [
-        "unsupported-transition-track-activation"
+        "unsupported-boundary-transition"
       ],
       "refusalMessages": [
-        "composition.scenes.*.propertyTracks: Property-track activation during positive Transition contribution requires a dedicated parity proof."
+        "transitions: Whole-boundary scope requires two nonempty contributor sets without unrelated contribution or boundary carriers."
       ]
     },
     {

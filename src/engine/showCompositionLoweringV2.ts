@@ -155,6 +155,10 @@ function resolveShowV2CompileContext(
   const issue = validateShowRecordV2(record)[0]
   if (issue) return refuse('invalid-record', issue.path, issue.message)
   const composition = record.composition
+  const wholeOutput = composition.transitions.some(transition => transition.wholeOutput !== undefined)
+  if (wholeOutput && composition.transitions.some(transition => !transition.wholeOutput)) {
+    return refuse('unsupported-transition-participants', 'composition.transitions', 'Mixed whole-output and Layer scopes require separate preservation proof.')
+  }
   if (composition.layoutOccurrences.length !== 1 && composition.transitions.length > 0) {
     return refuse('unsupported-layout-occurrences', 'composition.layoutOccurrences', 'Mixed Layout and visual Transition lowering requires separate preservation proof.')
   }
@@ -167,7 +171,7 @@ function resolveShowV2CompileContext(
   if (composition.clips.some(clip => clip.entryPolicy === 'restart')) {
     return refuse('unsupported-restart', 'composition.clips', 'lowering requires Restart lifecycle evidence before compilation.')
   }
-  if (composition.transitions.some(transition => transition.participants.length !== 1)) {
+  if (composition.transitions.some(transition => !transition.wholeOutput && transition.participants.length !== 1)) {
     return refuse('unsupported-transition-participants', 'composition.transitions', 'lowering requires one participant per Transition until shared-scope parity is proved.')
   }
   if (hasCoincidentPositiveTransitionWindows(record)) {
@@ -176,7 +180,7 @@ function resolveShowV2CompileContext(
   if (composition.transitions.some(transition => transition.propertyRamps.length > 0)) {
     return refuse('unsupported-transition-property-ramp', 'composition.transitions', 'lowering requires Transition property-ramp compiler evidence before compilation.')
   }
-  if (composition.transitions.length > 0 && composition.propertyTracks.some(track => track.activeStartMs !== 0 || track.activeDurationMs !== composition.showEndMs)) {
+  if (!wholeOutput && composition.transitions.length > 0 && composition.propertyTracks.some(track => track.activeStartMs !== 0 || track.activeDurationMs !== composition.showEndMs)) {
     return refuse('unsupported-transition-property-track', 'composition.propertyTracks', 'lowering requires section-scoped positive-Transition property-track activation evidence before compilation.')
   }
   if (composition.transitions.some(transition => transition.kind === 'cut')) {
@@ -204,7 +208,7 @@ function resolveShowV2CompileContext(
   if (composition.clips.some(clip => clip.zoneSampleMode !== 'span') && !flatEligible) {
     return refuse('unsupported-zone-sampling', 'composition.clips', 'lowering requires repeat-mode Clip sampling evidence before compilation.')
   }
-  if (!flatEligible && composition.transitions.length === 0) {
+  if (!flatEligible && (composition.transitions.length === 0 || wholeOutput)) {
     const unsupportedTrackIndex = firstCrossSectionTrackIndex(record)
     if (unsupportedTrackIndex >= 0) {
       return refuse(
@@ -226,7 +230,7 @@ function resolveShowV2CompileContext(
   const occurrence = composition.layoutOccurrences.find(candidate => candidate.startMs === 0)!
   const route: PreparationRoute = flatEligible
     ? 'continuous-flat'
-    : composition.transitions.length === 0 ? 'global-sections' : 'transition'
+    : composition.transitions.length === 0 || wholeOutput ? 'global-sections' : 'transition'
   return {
     record,
     lookup: structuredClone(lookup),
@@ -252,6 +256,7 @@ function globalSectionBoundaries(record: ShowRecordV2): number[] {
     0,
     composition.showEndMs,
     ...composition.layoutOccurrences.map(occurrence => occurrence.startMs),
+    ...composition.transitions.flatMap(transition => transition.wholeOutput ? [transition.wholeOutput.startMs, transition.wholeOutput.startMs + transition.durationMs] : []),
     ...composition.clips.flatMap(clip => clip.appearance.keys.slice(1).map(key => key.timeMs)),
     ...composition.propertyTracks.flatMap(track => [
       track.activeStartMs,
@@ -261,13 +266,28 @@ function globalSectionBoundaries(record: ShowRecordV2): number[] {
     .sort((left, right) => left - right)
 }
 
-function firstCrossSectionTrackIndex(record: ShowRecordV2): number {
+function derivedSections(record: ShowRecordV2): DerivedSection[] {
   const boundaries = globalSectionBoundaries(record)
-  return record.composition.propertyTracks.findIndex(track => {
-    const startIndex = boundaries.indexOf(track.activeStartMs)
-    const endIndex = boundaries.indexOf(track.activeStartMs + track.activeDurationMs)
-    return startIndex < 0 || endIndex !== startIndex + 1
-  })
+  return boundaries.slice(0, -1).map((startMs, index) => ({
+    id: `v2-section:${index}`, startMs, endMs: boundaries[index + 1],
+  })).filter(section => !record.composition.transitions.some(transition => transition.wholeOutput
+    && section.startMs >= transition.wholeOutput.startMs
+    && section.endMs <= transition.wholeOutput.startMs + transition.durationMs))
+}
+
+function sectionContribution(record: ShowRecordV2, section: DerivedSection) {
+  const incoming = record.composition.transitions.find(transition => transition.wholeOutput
+    && transition.wholeOutput.startMs + transition.durationMs === section.startMs)
+  const outgoing = record.composition.transitions.find(transition => transition.wholeOutput?.startMs === section.endMs)
+  return { startMs: section.startMs - (incoming?.durationMs ?? 0), endMs: section.endMs + (outgoing?.durationMs ?? 0) }
+}
+
+function firstCrossSectionTrackIndex(record: ShowRecordV2): number {
+  const sections = derivedSections(record)
+  return record.composition.propertyTracks.findIndex(track => !sections.some(section => {
+    const contribution = sectionContribution(record, section)
+    return contribution.startMs === track.activeStartMs && contribution.endMs === track.activeStartMs + track.activeDurationMs
+  }))
 }
 
 function emitResolvedShowV2(context: ResolvedShowV2CompileContext): LoweredShowCompositionV2 {
@@ -348,18 +368,14 @@ function lowerGlobalClipsToSections(
 ): LoweredShowCompositionV2 {
   const { record, lookup } = context
   const composition = record.composition
-  const boundaries = globalSectionBoundaries(record)
-  const sections = boundaries.slice(0, -1).map((startMs, index) => ({
-    id: `v2-section:${index}`,
-    startMs,
-    endMs: boundaries[index + 1],
-  }))
+  const sections = derivedSections(record)
   const trackSection = new Map<string, number>()
   for (const track of composition.propertyTracks) {
     const activeEndMs = track.activeStartMs + track.activeDurationMs
-    const index = sections.findIndex(section => (
-      track.activeStartMs === section.startMs && activeEndMs === section.endMs
-    ))
+    const index = sections.findIndex(section => {
+      const contribution = sectionContribution(record, section)
+      return track.activeStartMs === contribution.startMs && activeEndMs === contribution.endMs
+    })
     if (index < 0) {
       throw new Error(`Show composition v2 property track "${track.id}" activation crosses a derived Clip/appearance section.`)
     }
@@ -423,7 +439,13 @@ function lowerGlobalClipsToSections(
     section.endMs - section.startMs,
     section.startMs,
   ))
-  return { show: buildLoweredShow(context, scenes, [], v1Composition), lookup }
+  const lowered = buildLoweredShow(context, scenes, [], v1Composition)
+  for (const transition of composition.transitions) {
+    const sectionIndex = sections.findIndex(section => section.endMs === transition.wholeOutput!.startMs)
+    if (sectionIndex < 0) throw new Error('Whole-output Transition has no outgoing hold section.')
+    lowered.transitions.push({ ...stripV2TransitionFields(transition), id: transition.id, kind: transition.kind, afterSceneId: scenes[sectionIndex].id })
+  }
+  return { show: lowered, lookup }
 }
 
 type DerivedSection = { id: string; startMs: number; endMs: number }
@@ -496,6 +518,7 @@ function lowerPropertyTargetForSection(
 }
 
 function canLowerToFlat(record: ShowRecordV2): boolean {
+  if (record.composition.transitions.some(transition => transition.wholeOutput)) return false
   const composition = record.composition
   const wholeBoundary = composition.transitions.every(transition => {
     const participant = transition.participants[0]
@@ -658,6 +681,7 @@ function buildLoweredShow(
 function hasCoincidentPositiveTransitionWindows(record: ShowRecordV2): boolean {
   const clipById = new Map(record.composition.clips.map(clip => [clip.id, clip]))
   const windows = record.composition.transitions.map(transition => {
+    if (transition.wholeOutput) return { id: transition.id, startMs: transition.wholeOutput.startMs, endMs: transition.wholeOutput.startMs + transition.durationMs }
     const participant = transition.participants[0]
     const from = clipById.get(participant.fromClipId)!
     return { id: transition.id, startMs: from.startMs + from.durationMs, endMs: from.startMs + from.durationMs + transition.durationMs }
@@ -733,6 +757,6 @@ function stripV2PropertyTrackActivation(
 function stripV2TransitionFields(
   transition: ShowRecordV2['composition']['transitions'][number],
 ): Omit<ShowLayerTransition, 'id' | 'fromPlacementId' | 'toPlacementId' | 'kind'> {
-  const { participants: _participants, propertyRamps: _propertyRamps, ...settings } = structuredClone(transition)
+  const { participants: _participants, wholeOutput: _wholeOutput, propertyRamps: _propertyRamps, ...settings } = structuredClone(transition)
   return settings
 }
