@@ -39,6 +39,9 @@ export function lowerShowCompositionV2ForCompile(
   if (composition.groupDefinitions.length > 0 || composition.groupOccurrences.length > 0) {
     throw new Error('Show composition v2 lowering requires Group materialization evidence before compilation.')
   }
+  if (composition.transitions.length > 0 && composition.clips.some(clip => clip.appearance.keys.length > 1)) {
+    throw new Error('Show composition v2 lowering cannot preserve multi-key Clip appearance with Transitions.')
+  }
   if (composition.clips.some(clip => clip.entryPolicy === 'restart')) {
     throw new Error('Show composition v2 lowering requires Restart lifecycle evidence before compilation.')
   }

@@ -176,6 +176,38 @@ describe('convertShowRecordV1ToV2', () => {
     expect(JSON.stringify(source)).toBe(before)
   })
 
+  it.each([
+    ['explicit values', 0.25, 0.75],
+    ['initial default', undefined, 0.75],
+    ['later default', 0.25, undefined],
+  ] as const)('refuses divergent per-Scene split positions across a carrier-free Cut: %s', (_name, first, second) => {
+    const source = continuingCutShow()
+    if (first !== undefined) source.scenes[0].routingTargets = { splitPosition: first }
+    if (second !== undefined) source.scenes[1].routingTargets = { splitPosition: second }
+    const before = JSON.stringify(source)
+
+    expect(convertShowRecordV1ToV2(source)).toMatchObject({
+      status: 'refused',
+      issues: expect.arrayContaining([expect.objectContaining({
+        code: 'unsupported-routing-change',
+        path: 'scenes.*.routingTargets.splitPosition',
+      })]),
+      report: { unaccountedSourcePaths: [] },
+    })
+    expect(JSON.stringify(source)).toBe(before)
+  })
+
+  it('accepts explicit and omitted split positions when both mean the v1 default', () => {
+    const source = continuingCutShow()
+    source.scenes[1].routingTargets = { splitPosition: 0.5 }
+
+    expect(convertShowRecordV1ToV2(source)).toMatchObject({
+      status: 'converted',
+      record: { composition: { layoutOccurrences: [{ parameters: { splitPosition: 0.5 } }] } },
+      report: { unaccountedSourcePaths: [] },
+    })
+  })
+
   it('refuses a Cut carrying transition-only payload instead of retiring it', () => {
     const source = continuingCutShow()
     source.transitions[0].color = '#fff'

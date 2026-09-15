@@ -400,6 +400,28 @@ describe('lowerShowCompositionV2ForCompile', () => {
     })).toThrow('independent render targets')
   })
 
+  it('refuses a Transition-bearing global Clip with later appearance keys instead of lowering only key zero', () => {
+    const source = transitionV1Show('crossfade', 'snapshot-live')
+    const converted = convertShowRecordV1ToV2(source)
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') return
+    const outgoing = converted.record.composition.clips.find(clip => clip.id === 'out')!
+    outgoing.appearance.keys.push({
+      ...structuredClone(outgoing.appearance.keys[0]),
+      id: 'out:appearance:2',
+      timeMs: 200,
+      value: { ...structuredClone(outgoing.appearance.keys[0].value), opacity: 0.25 },
+    })
+    const before = JSON.stringify(converted.record)
+
+    expect(() => lowerShowCompositionV2ForCompile(converted.record, {
+      byCellId: {},
+      byPatternInstanceId: { 'out-instance': OUT_SOURCE, 'in-instance': IN_SOURCE },
+      stageDimension: 2,
+    })).toThrow('multi-key Clip appearance with Transitions')
+    expect(JSON.stringify(converted.record)).toBe(before)
+  })
+
   it.each([
     ['Clip repeat sampling', (record: ReturnType<typeof convertedRecord>) => { record.composition.clips[0].zoneSampleMode = 'repeat' }, 'repeat-mode'],
     ['Transition property ramps', (record: ReturnType<typeof convertedRecord>) => {

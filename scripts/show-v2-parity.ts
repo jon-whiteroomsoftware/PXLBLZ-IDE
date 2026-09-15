@@ -10,7 +10,7 @@ import type { LibraryRecord, PatternRecord, ShowPatternRef, ShowRecord } from '@
 import { compileShow, type GeneratedShowArtifact } from '@/engine/showCompiler'
 import { lowerShowCompositionV2ForCompile } from '@/engine/showCompositionLoweringV2'
 import { showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from '@/engine/showModel'
-import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
+import { convertShowRecordV1ToV2, type ShowV1ToV2Report } from '@/engine/showRecordV1ToV2'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { STOCK_SHOWS, stockShowById } from '@/pixelblaze/stock/shows'
@@ -20,10 +20,12 @@ const STEP_MS = 16
 const RANDOM_SEED = 1034
 
 type Dependency = { kind: 'pattern' | 'library' | 'map'; id: string; resolvedId?: string; sha256?: string; status: 'pinned' | 'missing' | 'not-applicable' }
+type MemberIdentityMapping = { v1MemberId: string; v2MemberId: string; provenance: 'flat-projection' }
 type Parity = {
   recipeEqual: boolean
   sourceEqual: boolean
   summaryEqual: boolean
+  memberIdentityMappings: MemberIdentityMapping[]
   fast: RuntimeParity
   precise: RuntimeParity
 }
@@ -132,7 +134,10 @@ function runEntry(input: { corpus: CorpusEntry['corpus']; corpusId: string; show
   if (!lookup) throw new Error('Exact source lookup unexpectedly unavailable.')
   let lowered: ReturnType<typeof lowerShowCompositionV2ForCompile>
   try {
-    lowered = lowerShowCompositionV2ForCompile(conversion.record, lookup)
+    lowered = lowerShowCompositionV2ForCompile(
+      conversion.record,
+      sourceLookupWithFlatProjection(lookup, conversion.report.flatProjectionMappings),
+    )
   } catch (error) {
     return { ...base, outcome: 'lowering-refused', refusalCodes: ['lowering-eligibility'], refusalMessages: [errorMessage(error)] }
   }
@@ -142,14 +147,16 @@ function runEntry(input: { corpus: CorpusEntry['corpus']; corpusId: string; show
     const v2Recipe = showRecordToCompileRecipe(lowered.show, lowered.lookup)
     const v1 = compileShow(v1Recipe, libraries)
     const v2 = compileShow(v2Recipe, libraries)
+    const memberIdentityMappings = flatMemberIdentityMappings(conversion.report, v1, v2)
     return {
       ...base, outcome: 'converted-compiled', refusalCodes: [], refusalMessages: [],
       parity: {
         recipeEqual: stableJson(v2Recipe) === stableJson(v1Recipe),
         sourceEqual: v2.code === v1.code && v2.fxCode === v1.fxCode,
         summaryEqual: stableJson(v2.summary) === stableJson(v1.summary),
-        fast: runtimeParity(v1, v2, conversion.record.composition.showEndMs, 'fast'),
-        precise: runtimeParity(v1, v2, conversion.record.composition.showEndMs, 'fidelity'),
+        memberIdentityMappings,
+        fast: runtimeParity(v1, v2, conversion.record.composition.showEndMs, 'fast', memberIdentityMappings),
+        precise: runtimeParity(v1, v2, conversion.record.composition.showEndMs, 'fidelity', memberIdentityMappings),
       },
     }
   } catch (error) {
@@ -197,6 +204,67 @@ function sourceLookup(show: ShowRecord, fixture?: BaselineFixture): ShowCompileR
   }
 }
 
+function sourceLookupWithFlatProjection(
+  lookup: ShowCompileRecipeSourceLookup,
+  mappings: ShowV1ToV2Report['flatProjectionMappings'],
+): ShowCompileRecipeSourceLookup {
+  if (mappings.length === 0) return lookup
+  const byPatternInstanceId = { ...lookup.byPatternInstanceId }
+  for (const mapping of mappings) {
+    const source = lookup.byCellId[mapping.cellId]
+    if (source === undefined) throw new Error(`Flat projection has no exact Pattern source for cell "${mapping.cellId}".`)
+    for (const instanceId of mapping.patternInstanceIds) {
+      const existing = byPatternInstanceId[instanceId]
+      if (existing !== undefined && existing !== source) {
+        throw new Error(`Flat projection maps conflicting Pattern sources to instance "${instanceId}".`)
+      }
+      byPatternInstanceId[instanceId] = source
+    }
+  }
+  return { ...lookup, byPatternInstanceId }
+}
+
+function flatMemberIdentityMappings(
+  report: ShowV1ToV2Report,
+  v1: GeneratedShowArtifact,
+  v2: GeneratedShowArtifact,
+): MemberIdentityMapping[] {
+  if (report.flatProjectionMappings.length === 0) return []
+  const v1MemberIds = new Set(v1.summary.clips.map(clip => clip.id))
+  const v2MemberIds = new Set(v2.summary.clips.map(clip => clip.id))
+  const v2MemberByPlacementId = new Map<string, string>()
+  for (const mapping of report.clipMappings) {
+    for (const placementId of mapping.sourcePlacementIds) {
+      const existing = v2MemberByPlacementId.get(placementId)
+      if (existing !== undefined && existing !== mapping.clipId) {
+        throw new Error(`Flat projection placement "${placementId}" maps to multiple v2 members.`)
+      }
+      v2MemberByPlacementId.set(placementId, mapping.clipId)
+    }
+  }
+  const mappings = report.flatProjectionMappings.map(mapping => {
+    if (!v1MemberIds.has(mapping.cellId)) {
+      throw new Error(`Flat projection cell "${mapping.cellId}" has no matching v1 compiled member.`)
+    }
+    const projectedIds = mapping.placementIds.map(placementId => v2MemberByPlacementId.get(placementId))
+    if (projectedIds.some(instanceId => instanceId === undefined)) {
+      throw new Error(`Flat projection cell "${mapping.cellId}" has an unaccounted placement.`)
+    }
+    const uniqueProjectedIds = sortedUnique(projectedIds as string[])
+    if (uniqueProjectedIds.length !== 1 || !v2MemberIds.has(uniqueProjectedIds[0])) {
+      throw new Error(`Flat projection cell "${mapping.cellId}" does not map to exactly one v2 compiled member.`)
+    }
+    return { v1MemberId: mapping.cellId, v2MemberId: uniqueProjectedIds[0], provenance: 'flat-projection' as const }
+  })
+  if (new Set(mappings.map(mapping => mapping.v1MemberId)).size !== mappings.length
+    || new Set(mappings.map(mapping => mapping.v2MemberId)).size !== mappings.length
+    || mappings.length !== v1MemberIds.size
+    || mappings.length !== v2MemberIds.size) {
+    throw new Error('Flat projection runtime member mapping is not a complete bijection.')
+  }
+  return mappings
+}
+
 function patternSource(ref: ShowPatternRef, patterns: Map<string, PatternRecord>): { id: string; source: string } | undefined {
   if (ref.kind === 'stock') {
     const id = resolveStockPatternId(ref.id)
@@ -223,6 +291,7 @@ function runtimeParity(
   rightArtifact: GeneratedShowArtifact,
   showEndMs: number,
   fidelity: 'fast' | 'fidelity',
+  memberIdentityMappings: MemberIdentityMapping[],
 ): RuntimeParity {
   const dimension = Math.max(nativeDimension(leftArtifact.metadata.renderFns), nativeDimension(rightArtifact.metadata.renderFns)) as 1 | 2 | 3
   const points = mapPoints(dimension)
@@ -233,14 +302,15 @@ function runtimeParity(
   const times = sampleTimes(leftArtifact, showEndMs)
   const left = runtime(leftArtifact)
   const right = runtime(rightArtifact)
+  const rightMemberIdAliases = new Map(memberIdentityMappings.map(mapping => [mapping.v2MemberId, mapping.v1MemberId]))
   const initialLeft = freeze(left.renderCurrentFrame(), leftArtifact)
-  const initialRight = freeze(right.renderCurrentFrame(), rightArtifact)
+  const initialRight = freeze(right.renderCurrentFrame(), rightArtifact, rightMemberIdAliases)
   let matched = stableJson(initialLeft) === stableJson(initialRight)
   let firstMismatchMs = matched ? undefined : 0
   for (const timeMs of times.filter(time => time > 0)) {
     const options = { stepMs: STEP_MS, forceFullIntermediateRender: true }
     const leftResult = freeze(left.advanceTo(timeMs, options), leftArtifact)
-    const rightResult = freeze(right.advanceTo(timeMs, options), rightArtifact)
+    const rightResult = freeze(right.advanceTo(timeMs, options), rightArtifact, rightMemberIdAliases)
     if (stableJson(leftResult) !== stableJson(rightResult)) {
       matched = false
       firstMismatchMs ??= timeMs
@@ -252,7 +322,7 @@ function runtimeParity(
   phaseLeft.renderCurrentFrame()
   phaseRight.renderCurrentFrame()
   const phaseLeftResult = freeze(phaseLeft.advanceTo(phaseMs, { stepMs: STEP_MS, forceFullIntermediateRender: true }), leftArtifact)
-  const phaseRightResult = freeze(phaseRight.advanceTo(phaseMs, { stepMs: STEP_MS, forceFullIntermediateRender: true }), rightArtifact)
+  const phaseRightResult = freeze(phaseRight.advanceTo(phaseMs, { stepMs: STEP_MS, forceFullIntermediateRender: true }), rightArtifact, rightMemberIdAliases)
   const loopLeft = runtime(leftArtifact)
   const loopRight = runtime(rightArtifact)
   loopLeft.renderCurrentFrame()
@@ -260,14 +330,14 @@ function runtimeParity(
   loopLeft.advanceTo(showEndMs, { stepMs: STEP_MS, forceFullIntermediateRender: true })
   loopRight.advanceTo(showEndMs, { stepMs: STEP_MS, forceFullIntermediateRender: true })
   const loopLeftResult = freeze(loopLeft.advanceTo(showEndMs + phaseMs, { stepMs: STEP_MS, forceFullIntermediateRender: true }), leftArtifact)
-  const loopRightResult = freeze(loopRight.advanceTo(showEndMs + phaseMs, { stepMs: STEP_MS, forceFullIntermediateRender: true }), rightArtifact)
+  const loopRightResult = freeze(loopRight.advanceTo(showEndMs + phaseMs, { stepMs: STEP_MS, forceFullIntermediateRender: true }), rightArtifact, rightMemberIdAliases)
   const targetMs = Math.max(1, Math.min(512, showEndMs - 1))
   const cold = runtime(leftArtifact)
   cold.renderCurrentFrame()
   const coldResult = freeze(cold.advanceTo(targetMs, { stepMs: STEP_MS, forceFullIntermediateRender: true }), leftArtifact)
   const coldRight = runtime(rightArtifact)
   coldRight.renderCurrentFrame()
-  const coldRightResult = freeze(coldRight.advanceTo(targetMs, { stepMs: STEP_MS, forceFullIntermediateRender: true }), rightArtifact)
+  const coldRightResult = freeze(coldRight.advanceTo(targetMs, { stepMs: STEP_MS, forceFullIntermediateRender: true }), rightArtifact, rightMemberIdAliases)
   const continuous = runtime(leftArtifact)
   let live = continuous.renderCurrentFrame()
   while (continuous.getElapsedMs() + STEP_MS <= targetMs) live = continuous.advanceLive(STEP_MS)
@@ -277,7 +347,7 @@ function runtimeParity(
   let liveRight = continuousRight.renderCurrentFrame()
   while (continuousRight.getElapsedMs() + STEP_MS <= targetMs) liveRight = continuousRight.advanceLive(STEP_MS)
   if (continuousRight.getElapsedMs() < targetMs) liveRight = continuousRight.advanceLive(targetMs - continuousRight.getElapsedMs())
-  const continuousRightResult = freeze(liveRight, rightArtifact)
+  const continuousRightResult = freeze(liveRight, rightArtifact, rightMemberIdAliases)
   const coldFrameMatched = stableJson(coldResult.frame) === stableJson(continuousResult.frame)
     && stableJson(coldRightResult.frame) === stableJson(continuousRightResult.frame)
   const coldStateMatched = stableJson(coldResult.state) === stableJson(continuousResult.state)
@@ -316,11 +386,15 @@ function runtimeParity(
   }
 }
 
-function freeze(result: FastReplayResult, artifact: GeneratedShowArtifact) {
+function freeze(
+  result: FastReplayResult,
+  artifact: GeneratedShowArtifact,
+  memberIdAliases: ReadonlyMap<string, string> = new Map(),
+) {
   const normalizedBindings = new Set(artifact.metadata.deterministicReplay?.normalizedBindings ?? [])
   const state = Object.fromEntries(artifact.summary.clips.flatMap(clip => Object.entries(result.exports)
     .filter(([key, value]) => key.startsWith(`${clip.prefix}_`) && !normalizedBindings.has(key) && scalar(value))
-    .map(([key, value]) => [`${clip.id}:${key.slice(clip.prefix.length + 1)}`, value])))
+    .map(([key, value]) => [`${memberIdAliases.get(clip.id) ?? clip.id}:${key.slice(clip.prefix.length + 1)}`, value])))
   return { frame: Array.from(result.frame), state }
 }
 

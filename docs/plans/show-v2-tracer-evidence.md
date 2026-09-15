@@ -29,16 +29,16 @@ preservation model produces:
 
 | Outcome | Records | Result |
 | --- | ---: | --- |
-| Converted, lowered, compiled | 20 | Exact matched-time Fast/Precise frames and mapped scalar state; zero parity failures |
+| Converted, lowered, compiled | 22 | Exact matched-time Fast/Precise frames and mapped scalar state; zero parity failures |
 | Conversion refused | 20 | 12 positive boundary Transition, six routing change, two Group; codes overlap with three positive-Transition track-activation refusals |
-| Lowering refused | 7 | Three track activations cross an additional derived Clip/key section, two positive-Transition activation cases, two fixtures lack exact instance source lookup |
+| Lowering refused | 5 | Three track activations cross an additional derived Clip/key section; two require positive-Transition activation evidence |
 
 All 47 records have zero unaccounted source leaves. Carrier-free boundary Cuts
 are no longer a refusal class: 21 prior Cut-identity refusals are retired with
 the exact source ID, boundary owner, and global time. A Cut with any residual
 transition-only payload still refuses at that source path.
 
-The 20 accepted records have exact v1/v2 parity for matched-time output and
+The 22 accepted records have exact v1/v2 parity for matched-time output and
 mapped private state in Fast and Precise, at the same phase in the second loop,
 and under the harness's cold-seek comparison. This evidence covers the current
 supported subset only.
@@ -52,6 +52,10 @@ runtime:
   compiler reset stamp; a stamped composition remains `deterministic-loop`.
   Flat Continue retains one shared instance; flat Restart derives separate
   identities. Actual output and state match through 1.25 loops in both modes.
+  The two accepted flat fixtures retain byte-equal generated source but use
+  projected placement IDs in the v2 compiler summary. The report records a
+  complete converter-proven cell-to-member bijection and applies it only to
+  private-state key comparison; recipe and summary inequality remain visible.
 - **Sampling:** one-Zone flat omitted sampling maps to `independent`; existing
   Composition placement maps to `span`. The first implementation's `span`
   mapping produced an immediate pixel-index counterexample, so the model now
@@ -72,8 +76,10 @@ runtime:
   edited time. Markers never drive compiler partitioning.
 - **Transitions:** seven positive kind/policy cases (six kinds and two
   Crossfade policies) preserve recipe, source, boundary/interior frames, and
-  state. This is the one-participant Layer form, not the unconverted v1
-  whole-boundary form.
+  state. This is the one-participant Layer form with single-key Clip
+  appearances, not the unconverted v1 whole-boundary form. The lowerer refuses
+  multi-key Clip appearance with a positive Transition until that combination
+  has its own preservation proof.
 - **Artifacts:** normal `.epe` output reopens through the existing EPE parser.
   The additive provisional JSON codec reopens v2 bytes. This is not ordinary
   authored-v2 `.pxlshow` reopen, which remains intentionally unwired.
@@ -100,6 +106,15 @@ every appearance key. v1 requires the identity only in appearance spans that
 intersect the track's active interval. The validator now enforces that exact
 intersection. An Effect absent exactly at the active end is valid.
 
+The first corpus harness handed flat fixture source to the v1 compiler by cell
+ID but gave the v2 lowerer only sources keyed by authored Composition instance.
+Those exact sources were present; the harness lookup was incomplete. The
+converter already records each source cell's projected placement and instance
+IDs, so the harness now transfers the cell source only across that mapping and
+fails on missing or conflicting ownership. Runtime state comparison separately
+requires a complete bijection from source cell member to projected v2 member;
+unknown, merged, or ambiguous identities refuse instead of being ignored.
+
 ## Current refusal and implementation ledger
 
 | Area | Current result | Classification |
@@ -111,9 +126,9 @@ intersection. An Effect absent exactly at the active end is valid.
 | Track activation crossing another Clip/key boundary | Three stock records refuse before compile | Next lowering implementation: partition one activation without changing its curve/holds |
 | Positive-boundary track contribution | Typed refusal; nominal Clip rectangles are not substituted | Next conversion/lowering proof: preserve both source contributions during the Transition |
 | Whole-boundary positive Transition | 12 records refuse; direct one-participant Layer matrix is green | Converter implementation remains |
-| Routing/Layout occurrence change | Six records refuse | Lowering/compiler proof remains |
+| Routing/Layout occurrence change | Six records refuse; omitted `splitPosition` and explicit `0.5` compare as the same semantic default | Lowering/compiler proof remains |
 | Group definitions/occurrences | Two records refuse | Materialization and occurrence-private runtime proof remains |
-| Flat fixture without exact instance lookup | Two fixtures refuse | Dependency qualification, not a model decision |
+| Flat projected source lookup | Two personal fixtures compile from exact cell sources transferred through converter provenance; output and mapped state match | Supported harness evidence; no dependency was synthesized |
 | Coincident positive windows in different Zones | Provisional v2 validates; current v1 scheduler rejects | Compiler-domain decision gate |
 
 ### Smallest compiler-domain counterexample

@@ -281,7 +281,7 @@ export function convertShowRecordV1ToV2(
         layoutId: show.routingLayouts[0]?.id ?? '',
         startMs: 0,
         durationMs: showEndMs,
-        parameters: initialLayoutParameters(show),
+        parameters: commonLayoutParameters(show, issues),
       }],
       propertyTracks,
       markers,
@@ -499,9 +499,23 @@ function commonRepeatScale(show: ShowRecord, issues: ShowV1ToV2Issue[]): number 
   return values.values().next().value ?? 1
 }
 
-function initialLayoutParameters(show: ShowRecord): { splitPosition?: number } {
-  const splitPosition = show.scenes[0]?.routingTargets?.splitPosition
-  return splitPosition === undefined ? {} : { splitPosition }
+function commonLayoutParameters(
+  show: ShowRecord,
+  issues: ShowV1ToV2Issue[],
+): { splitPosition?: number } {
+  const splitPositions = show.scenes.map(scene => scene.routingTargets?.splitPosition ?? 0.5)
+  const values = new Set(splitPositions)
+  if (values.size > 1) {
+    issues.push({
+      path: 'scenes.*.routingTargets.splitPosition',
+      code: 'unsupported-routing-change',
+      message: 'Changing split position requires proved Layout-occurrence conversion.',
+    })
+  }
+  const splitPosition = splitPositions[0] ?? 0.5
+  return show.scenes.some(scene => scene.routingTargets?.splitPosition !== undefined)
+    ? { splitPosition }
+    : {}
 }
 
 function uniqueId(preferred: string, used: Set<string>): string {

@@ -66,11 +66,11 @@
     "total": 47,
     "byOutcome": {
       "conversion-refused": 20,
-      "converted-compiled": 20,
-      "lowering-refused": 7
+      "converted-compiled": 22,
+      "lowering-refused": 5
     },
     "byRefusalCode": {
-      "lowering-eligibility": 7,
+      "lowering-eligibility": 5,
       "unsupported-boundary-transition": 12,
       "unsupported-group": 2,
       "unsupported-routing-change": 6,
@@ -100,6 +100,8 @@
         "stock:stock-show-showcase-redline-installation",
         "stock:stock-show-remix-coronal-mass-ejection",
         "stock:stock-show-remix-overture",
+        "agent-baseline:personal-base",
+        "agent-baseline:personal-library-pattern",
         "agent-baseline:stock-draft"
       ]
     }
@@ -149,6 +151,7 @@
         "recipeEqual": false,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
@@ -514,6 +517,7 @@
         "recipeEqual": true,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
@@ -869,6 +873,7 @@
         "recipeEqual": true,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
@@ -1001,6 +1006,7 @@
         "recipeEqual": true,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
@@ -1412,6 +1418,7 @@
         "recipeEqual": true,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
@@ -1628,6 +1635,7 @@
         "recipeEqual": true,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
@@ -1963,6 +1971,7 @@
         "recipeEqual": false,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
@@ -2163,6 +2172,7 @@
         "recipeEqual": false,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
@@ -2511,6 +2521,7 @@
         "recipeEqual": true,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
@@ -2705,6 +2716,7 @@
         "recipeEqual": false,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
@@ -2931,6 +2943,7 @@
         "recipeEqual": true,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
@@ -3087,6 +3100,7 @@
         "recipeEqual": true,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
@@ -3264,6 +3278,7 @@
         "recipeEqual": false,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
@@ -3886,6 +3901,7 @@
         "recipeEqual": true,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
@@ -4951,6 +4967,7 @@
         "recipeEqual": true,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
@@ -5162,6 +5179,7 @@
         "recipeEqual": true,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
@@ -5614,6 +5632,7 @@
         "recipeEqual": false,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
@@ -5782,6 +5801,7 @@
         "recipeEqual": true,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
@@ -5961,6 +5981,7 @@
         "recipeEqual": false,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
@@ -6357,13 +6378,184 @@
       ],
       "accountedSourceLeaves": 47,
       "unaccountedSourcePaths": [],
-      "outcome": "lowering-refused",
-      "refusalCodes": [
-        "lowering-eligibility"
-      ],
-      "refusalMessages": [
-        "Show composition v2 requires exact Pattern source for instance \"c1\"."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": false,
+        "sourceEqual": true,
+        "summaryEqual": false,
+        "memberIdentityMappings": [
+          {
+            "v1MemberId": "c1",
+            "v2MemberId": "placement-c1-s1",
+            "provenance": "flat-projection"
+          },
+          {
+            "v1MemberId": "c2",
+            "v2MemberId": "placement-c2-s2",
+            "provenance": "flat-projection"
+          }
+        ],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            30000,
+            59999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "c1:elapsed_ms",
+            "c1:p0",
+            "c1:p1",
+            "c1:p2",
+            "c1:p3",
+            "c1:p4",
+            "c1:t",
+            "c2:elapsed_ms",
+            "c2:elapsed_s",
+            "c2:t"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "c1:elapsed_ms",
+              "phase": 256,
+              "secondLoop": 30000
+            },
+            {
+              "key": "c1:p0",
+              "phase": 0.013063680000000006,
+              "secondLoop": 0.5308999999999662
+            },
+            {
+              "key": "c1:p1",
+              "phase": 0.193017216,
+              "secondLoop": -0.7801699999999558
+            },
+            {
+              "key": "c1:p2",
+              "phase": 0.450901888,
+              "secondLoop": 0.8794399999999456
+            },
+            {
+              "key": "c1:p3",
+              "phase": 0.615179008,
+              "secondLoop": -0.2687099999999356
+            },
+            {
+              "key": "c1:p4",
+              "phase": 0.848740096,
+              "secondLoop": 0.18797999999992498
+            },
+            {
+              "key": "c1:t",
+              "phase": 0.18662400000000007,
+              "secondLoop": 21.869999999999514
+            },
+            {
+              "key": "c2:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 30256
+            },
+            {
+              "key": "c2:elapsed_s",
+              "phase": 0,
+              "secondLoop": 30.25599999999844
+            },
+            {
+              "key": "c2:t",
+              "secondLoop": 0.616699218749762
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            30000,
+            59999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "c1:elapsed_ms",
+            "c1:p0",
+            "c1:p1",
+            "c1:p2",
+            "c1:p3",
+            "c1:p4",
+            "c1:t",
+            "c2:elapsed_ms",
+            "c2:elapsed_s",
+            "c2:t"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "c1:elapsed_ms",
+              "phase": 16777216,
+              "secondLoop": 1965031424
+            },
+            {
+              "key": "c1:p0",
+              "phase": 861,
+              "secondLoop": 35351
+            },
+            {
+              "key": "c1:p1",
+              "phase": 12643,
+              "secondLoop": -51847
+            },
+            {
+              "key": "c1:p2",
+              "phase": 29558,
+              "secondLoop": 58511
+            },
+            {
+              "key": "c1:p3",
+              "phase": 40306,
+              "secondLoop": -18646
+            },
+            {
+              "key": "c1:p4",
+              "phase": 55634,
+              "secondLoop": 13536
+            },
+            {
+              "key": "c1:t",
+              "phase": 12304,
+              "secondLoop": 1441106
+            },
+            {
+              "key": "c2:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 1983905792
+            },
+            {
+              "key": "c2:elapsed_s",
+              "phase": 0,
+              "secondLoop": 1984708
+            },
+            {
+              "key": "c2:t",
+              "secondLoop": 40681
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "agent-baseline",
@@ -6402,13 +6594,124 @@
       ],
       "accountedSourceLeaves": 47,
       "unaccountedSourcePaths": [],
-      "outcome": "lowering-refused",
-      "refusalCodes": [
-        "lowering-eligibility"
-      ],
-      "refusalMessages": [
-        "Show composition v2 requires exact Pattern source for instance \"c1\"."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": false,
+        "sourceEqual": true,
+        "summaryEqual": false,
+        "memberIdentityMappings": [
+          {
+            "v1MemberId": "c1",
+            "v2MemberId": "placement-c1-s1",
+            "provenance": "flat-projection"
+          },
+          {
+            "v1MemberId": "c2",
+            "v2MemberId": "placement-c2-s2",
+            "provenance": "flat-projection"
+          }
+        ],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            30000,
+            59999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "c1:elapsed_ms",
+            "c1:elapsed_s",
+            "c2:elapsed_ms",
+            "c2:elapsed_s",
+            "c2:t"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "c1:elapsed_ms",
+              "phase": 256,
+              "secondLoop": 30000
+            },
+            {
+              "key": "c1:elapsed_s",
+              "phase": 0.2560000000000001,
+              "secondLoop": 29.99999999999847
+            },
+            {
+              "key": "c2:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 30256
+            },
+            {
+              "key": "c2:elapsed_s",
+              "phase": 0,
+              "secondLoop": 30.25599999999844
+            },
+            {
+              "key": "c2:t",
+              "secondLoop": 0.616699218749762
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            30000,
+            59999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "c1:elapsed_ms",
+            "c1:elapsed_s",
+            "c2:elapsed_ms",
+            "c2:elapsed_s",
+            "c2:t"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "c1:elapsed_ms",
+              "phase": 16777216,
+              "secondLoop": 1965031424
+            },
+            {
+              "key": "c1:elapsed_s",
+              "phase": 16784,
+              "secondLoop": 1965826
+            },
+            {
+              "key": "c2:elapsed_ms",
+              "phase": 0,
+              "secondLoop": 1983905792
+            },
+            {
+              "key": "c2:elapsed_s",
+              "phase": 0,
+              "secondLoop": 1984708
+            },
+            {
+              "key": "c2:t",
+              "secondLoop": 40681
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "agent-baseline",
@@ -6447,6 +6750,7 @@
         "recipeEqual": true,
         "sourceEqual": true,
         "summaryEqual": true,
+        "memberIdentityMappings": [],
         "fast": {
           "matched": true,
           "sampledMs": [
