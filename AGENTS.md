@@ -6,6 +6,12 @@ and reference docs for current product and architecture detail.
 
 ## Start here
 
+For Scene retirement (#1032–#1045), read
+`docs/plans/scene-retirement-specification.md` before editing or reviewing.
+Record its commit and your assigned proof rows in the issue claim; every worker
+dispatch includes that specification. It supersedes the older Scene-retirement
+plans for current design, while as-built contracts remain current until adoption.
+
 - Read `CONTEXT.md` for canonical domain language.
 - Read the relevant part of `docs/reference/PXLBLZ Technical Reference.md`
   before changing architecture or behavior.

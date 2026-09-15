@@ -1,5 +1,10 @@
 # Scene retirement: design assessment and proposed next step
 
+> Historical planning record. The current design and worker contract is the
+> [Scene-free Show implementation specification](scene-retirement-specification.md).
+> Read that document for implementation; superseded proposals and provisional gates
+> below are retained solely as provenance.
+
 Current accepted product decisions are consolidated in [Show v2 authoring decisions](show-v2-accepted-authoring.md). This assessment preserves the historical diagnosis and earlier proposals; conflicting recommendations below are superseded.
 
 Status: appearance ownership and selected-time editing accepted by Jon; remaining recommendations are proposed. This document assesses the paused #1033/#1034

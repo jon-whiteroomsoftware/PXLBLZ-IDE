@@ -1,5 +1,10 @@
 # Scene retirement design
 
+> Historical planning record. The current design and worker contract is the
+> [Scene-free Show implementation specification](scene-retirement-specification.md).
+> Read that document for implementation; superseded proposals and provisional gates
+> below are retained solely as provenance.
+
 > **Status: provisional definition for #1033.** This plan records policy already
 > accepted in #1032, a concrete record shape for the #1034 tracer, and decisions
 > that still require compiler evidence and Jon's acceptance. It describes no

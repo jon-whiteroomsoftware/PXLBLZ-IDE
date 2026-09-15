@@ -1,5 +1,10 @@
 # Accepted Show v2 authoring decisions
 
+> Historical planning record. The current design and worker contract is the
+> [Scene-free Show implementation specification](scene-retirement-specification.md).
+> Read that document for implementation; superseded proposals and provisional gates
+> below are retained solely as provenance.
+
 Jon accepted these decisions in the #1033 design discussion on 2026-09-15.
 They supersede conflicting proposals in the frozen
 [Scene-retirement tracer plan](scene-retirement-design.md) and the historical
