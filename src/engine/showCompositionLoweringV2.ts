@@ -424,7 +424,6 @@ function lowerGlobalClipsToSections(
       const main = composition.clips
         .filter(clip => clip.zoneId === zone.id && clip.layerId === mainLayer?.id && overlaps(clip, section))
         .map(clip => lowerClipSection(context, clip, section, false))
-      main.push(...lowerRuntimeCarriers(context, section, zone.id, mainLayer?.id, false))
       const overlays: ShowOverlayLayer[] = layers
         .filter(layer => layer.rank > 0)
         .sort((left, right) => right.rank - left.rank || left.id.localeCompare(right.id))
@@ -435,7 +434,6 @@ function lowerGlobalClipsToSections(
             ...composition.clips
               .filter(clip => clip.zoneId === zone.id && clip.layerId === layer.id && overlaps(clip, section))
               .map(clip => lowerClipSection(context, clip, section, true)),
-            ...lowerRuntimeCarriers(context, section, zone.id, layer.id, true),
           ],
         }))
       return { zoneId: zone.id, main, overlays }
@@ -521,46 +519,6 @@ function heldAppearance(clip: ShowClipV2, timeMs: number) {
   return [...clip.appearance.keys].reverse().find(key => key.timeMs <= timeMs)!.value
 }
 
-function lowerRuntimeCarriers(context: ResolvedShowV2CompileContext, section: DerivedSection, zoneId: string, layerId: string | undefined, overlay: false): ShowMainPlacement[]
-function lowerRuntimeCarriers(context: ResolvedShowV2CompileContext, section: DerivedSection, zoneId: string, layerId: string | undefined, overlay: true): ShowOverlayPlacement[]
-function lowerRuntimeCarriers(
-  context: ResolvedShowV2CompileContext,
-  section: DerivedSection,
-  zoneId: string,
-  layerId: string | undefined,
-  overlay: boolean,
-): Array<ShowMainPlacement | ShowOverlayPlacement> {
-  if (!layerId || !intervalHasNoLayoutZone(context.record, zoneId, section.startMs, section.endMs)) return []
-  const activeInstances = new Set(context.record.composition.clips
-    .filter(clip => overlaps(clip, section))
-    .map(clip => clip.instanceId))
-  const nextByInstance = new Map<string, ShowClipV2>()
-  for (const clip of [...context.record.composition.clips]
-    .filter(clip => isLayoutSegmentClipId(clip.id) && clip.zoneId === zoneId && clip.layerId === layerId && clip.entryPolicy === 'continue' && clip.startMs >= section.endMs)
-    .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))) {
-    if (activeInstances.has(clip.instanceId) || nextByInstance.has(clip.instanceId)) continue
-    if (!intervalHasNoLayoutZone(context.record, zoneId, section.startMs, clip.startMs)) continue
-    nextByInstance.set(clip.instanceId, clip)
-  }
-  return [...nextByInstance.values()].map(clip => {
-    const appearance = clip.appearance.keys[0].value
-    const placement: ShowMainPlacement = {
-      id: `runtime-carrier:${clip.id}:${section.id}`,
-      instanceId: runtimeInstanceId(context, clip),
-      startMs: 0,
-      durationMs: section.endMs - section.startMs,
-      opacity: appearance.opacity,
-      view: structuredClone(appearance.view),
-      ...(appearance.presentation !== undefined ? { presentation: structuredClone(appearance.presentation) } : {}),
-      ...(appearance.blink !== undefined ? { blink: structuredClone(appearance.blink) } : {}),
-      ...(appearance.transform !== undefined ? { transform: structuredClone(appearance.transform) } : {}),
-      ...(appearance.aperture !== undefined ? { viewport: structuredClone(appearance.aperture) } : {}),
-      ...((appearance.effects?.length ?? 0) > 0 ? { effects: structuredClone(appearance.effects) } : {}),
-    }
-    return overlay ? { ...placement, opacity: appearance.opacity } : placement
-  })
-}
-
 function lowerPropertyTargetForSection(
   target: ShowPropertyTargetV2,
   clips: ShowClipV2[],
@@ -636,7 +594,6 @@ function lowerContinuousToFlat(
   const instanceById = new Map(composition.patternInstances.map(instance => [instance.id, instance]))
   const byCellId: Record<string, string> = {}
   const instanceIdByCellId = { ...(lookup.instanceIdByCellId ?? {}) }
-  const cellByClipId = new Map<string, ShowCell>()
   const cells = composition.clips.map((clip): ShowCell => {
     const appearance = clip.appearance.keys[0].value
     const instanceId = runtimeInstanceId(context, clip)
@@ -673,33 +630,8 @@ function lowerContinuousToFlat(
       ...(appearance.aperture ? { viewport: structuredClone(appearance.aperture) } : {}),
       ...((appearance.effects?.length ?? 0) > 0 ? { effects: structuredClone(appearance.effects) } : {}),
     }
-    cellByClipId.set(clip.id, cell)
     return cell
   })
-  const clipsByInstanceId = new Map<string, ShowClipV2[]>()
-  for (const clip of composition.clips) {
-    clipsByInstanceId.set(clip.instanceId, [...(clipsByInstanceId.get(clip.instanceId) ?? []), clip])
-  }
-  for (const [instanceId, instanceClips] of clipsByInstanceId) {
-    let coveredUntilMs = 0
-    for (const clip of [...instanceClips].sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))) {
-      if (
-        isLayoutSegmentClipId(clip.id)
-        && clip.entryPolicy === 'continue'
-        && clip.startMs > coveredUntilMs
-        && intervalHasNoLayoutZone(record, clip.zoneId, coveredUntilMs, clip.startMs)
-      ) {
-        const template = cellByClipId.get(clip.id)!
-        const startIndex = sceneIndexByStart.get(coveredUntilMs)!
-        const endIndex = sections.findIndex(section => section.endMs === clip.startMs) + 1
-        const id = `runtime-carrier:${clip.id}:${coveredUntilMs}`
-        cells.push({ ...structuredClone(template), id, sceneId: scenes[startIndex].id, sceneSpan: endIndex - startIndex })
-        byCellId[id] = byCellId[clip.id]
-        instanceIdByCellId[id] = instanceId
-      }
-      coveredUntilMs = Math.max(coveredUntilMs, clip.startMs + clip.durationMs)
-    }
-  }
   const coalesced: ShowCell[] = []
   for (const cell of [...cells].sort((a, b) => scenes.findIndex(scene => scene.id === a.sceneId) - scenes.findIndex(scene => scene.id === b.sceneId))) {
     const start = scenes.findIndex(scene => scene.id === cell.sceneId)
@@ -720,26 +652,6 @@ function lowerContinuousToFlat(
     show,
     lookup: { ...structuredClone(lookup), byCellId, instanceIdByCellId },
   }
-}
-
-function intervalHasNoLayoutZone(
-  record: ShowRecordV2,
-  zoneId: string,
-  startMs: number,
-  endMs: number,
-): boolean {
-  return record.composition.layoutOccurrences
-    .filter(occurrence => occurrence.startMs < endMs && occurrence.startMs + occurrence.durationMs > startMs)
-    .every(occurrence => {
-      const layout = record.zoneLayouts.find(candidate => candidate.id === occurrence.layoutId)!
-      const zoneIds = layout.logical?.zoneIds
-        ?? (layout.zones.length > 0 ? layout.zones.map(zone => zone.zoneId) : record.zones.map(zone => zone.id))
-      return !zoneIds.includes(zoneId)
-    })
-}
-
-function isLayoutSegmentClipId(clipId: string): boolean {
-  return /--layout-[1-9]\d*$/.test(clipId)
 }
 
 function sameFlatCellAppearance(left: ShowCell, right: ShowCell): boolean {

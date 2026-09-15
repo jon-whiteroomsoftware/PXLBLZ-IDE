@@ -44,7 +44,7 @@ export interface ShowV1ToV2Issue {
 
 export interface ShowV1ToV2AccountingEntry {
   sourcePath: string
-  outcome: 'preserved' | 'mapped' | 'retired-source-structure' | 'refused'
+  outcome: 'preserved' | 'mapped' | 'retired-source-structure' | 'retired-silent-runtime-use' | 'refused'
   targetPath?: string
 }
 
@@ -61,6 +61,15 @@ export interface ShowV1ToV2Report {
     sourceCellId: string
     sourcePath: string
     outcome: 'retired-composition-shadow'
+  }>
+  retiredSilentRuntimeUses: Array<{
+    sourcePlacementId: string
+    sourcePath: string
+    instanceId: string
+    zoneId: string
+    startMs: number
+    durationMs: number
+    outcome: 'retired-silent-runtime-use'
   }>
   retiredStructuralCuts: Array<{
     sourceTransitionId: string
@@ -646,6 +655,7 @@ function emptyReport(show: ShowRecord): ShowV1ToV2Report {
     markerMappings: [],
     flatProjectionMappings: [],
     retiredFlatCellShadows: [],
+    retiredSilentRuntimeUses: [],
     retiredStructuralCuts: [],
     retiredNoContributionPropertyTracks: [],
   }
@@ -1002,7 +1012,18 @@ function auditPlacement(
     return layoutProvidesZone(layout, zoneId, record.zones.map(zone => zone.id))
   })
   if (!routed && record.composition.patternInstances.some(instance => instance.id === placement.instanceId)) {
-    addAccountingLeaves(accounting, sourcePath, placement, 'mapped', 'composition.patternInstances/layoutOccurrences', false)
+    if (!report.retiredSilentRuntimeUses.some(retirement => retirement.sourcePath === sourcePath)) {
+      report.retiredSilentRuntimeUses.push({
+        sourcePlacementId: placement.id,
+        sourcePath,
+        instanceId: placement.instanceId,
+        zoneId,
+        startMs: timeMs,
+        durationMs: placement.durationMs,
+        outcome: 'retired-silent-runtime-use',
+      })
+    }
+    addAccountingLeaves(accounting, sourcePath, placement, 'retired-silent-runtime-use', 'conversion.report.retiredSilentRuntimeUses', false)
     return
   }
   const candidateMappings = report.clipMappings.filter(candidate => candidate.sourcePlacementIds.includes(placement.id))

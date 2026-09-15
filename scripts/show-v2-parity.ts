@@ -36,6 +36,12 @@ type RuntimeParity = {
   matched: boolean
   sampledMs: number[]
   firstMismatchMs?: number
+  firstMismatchFrameMaxAbsoluteDifference?: number
+  firstFrameMismatchMs?: number
+  firstStateMismatchMs?: number
+  maxSampledFrameAbsoluteDifference: number
+  firstMismatchStateDifferences: string[]
+  firstMismatchStateResiduals: Array<{ key: string; source: unknown; converted: unknown }>
   secondLoopMatched: boolean
   loopResetMatched: boolean
   loopResetFrameMatched: boolean
@@ -60,6 +66,16 @@ interface CorpusEntry {
   accountedSourceLeaves: number
   unaccountedSourcePaths: string[]
   retiredFlatCellShadows: ShowV1ToV2Report['retiredFlatCellShadows']
+  retiredSilentRuntimeUses: ShowV1ToV2Report['retiredSilentRuntimeUses']
+  acceptedSemanticDifference?: {
+    kind: 'retired-silent-runtime-use'
+    rationale: string
+    firstRetiredStartMs: number
+    modes: {
+      fast: Pick<RuntimeParity, 'firstMismatchMs' | 'firstFrameMismatchMs' | 'firstStateMismatchMs' | 'maxSampledFrameAbsoluteDifference' | 'firstMismatchStateDifferences'>
+      precise: Pick<RuntimeParity, 'firstMismatchMs' | 'firstFrameMismatchMs' | 'firstStateMismatchMs' | 'maxSampledFrameAbsoluteDifference' | 'firstMismatchStateDifferences'>
+    }
+  }
   parity?: Parity
 }
 
@@ -74,7 +90,7 @@ export async function main(): Promise<void> {
     })),
   ].map(runEntry)
   const report = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     issue: 1034,
     generatedFrom: {
       baseCommit: 'd685125b34c694f311972e258efb48d12cf05cd8',
@@ -82,6 +98,7 @@ export async function main(): Promise<void> {
       provisionalSchemaSha256: sha256(readFileSync(resolve('schemas/show-record-v2.provisional.schema.json'), 'utf8')),
       runtime: { stepMs: STEP_MS, randomSeed: RANDOM_SEED, modes: ['fast', 'fidelity'], mapPoints: 8 },
       recordIdentity: { algorithm: 'sha256', excludedVolatileFields: ['updatedAt'] },
+      silentRuntimePolicy: 'Retire v1 placements wholly inside intervals where their Zone is absent; do not infer activation from future Clip IDs or Layout gaps.',
     },
     corpus: {
       stock: { expected: 40, observed: STOCK_SHOWS.length },
@@ -94,9 +111,9 @@ export async function main(): Promise<void> {
   }
   if (STOCK_SHOWS.length !== 40 || BASELINE_FIXTURES.length !== 7) throw new Error('The pinned #1034 corpus census changed; review the inventory before updating expected counts.')
   if (records.some(record => record.unaccountedSourcePaths.length > 0)) throw new Error(`Unaccounted source leaves: ${JSON.stringify(records.filter(record => record.unaccountedSourcePaths.length > 0).map(record => ({ id: record.corpusId, paths: record.unaccountedSourcePaths })))}`)
-  const parityFailures = records.filter(record => record.parity && (!record.parity.fast.matched || !record.parity.precise.matched))
-  if (parityFailures.length > 0) {
-    throw new Error(`Supported conversion diverged in matched-time Fast/Precise replay: ${parityFailures.map(record => (
+  const unexpectedParityFailures = records.filter(record => record.parity && (!record.parity.fast.matched || !record.parity.precise.matched) && !record.acceptedSemanticDifference)
+  if (unexpectedParityFailures.length > 0) {
+    throw new Error(`Supported conversion has an unexplained matched-time Fast/Precise replay divergence: ${unexpectedParityFailures.map(record => (
       `${record.corpus}:${record.corpusId}[recipe=${record.parity?.recipeEqual},source=${record.parity?.sourceEqual},fast@${record.parity?.fast.firstMismatchMs},precise@${record.parity?.precise.firstMismatchMs}]`
     )).join(', ')}`)
   }
@@ -126,6 +143,7 @@ function runEntry(input: { corpus: CorpusEntry['corpus']; corpusId: string; show
     accountedSourceLeaves: conversion.report.accounting.length,
     unaccountedSourcePaths: conversion.report.unaccountedSourcePaths,
     retiredFlatCellShadows: structuredClone(conversion.report.retiredFlatCellShadows),
+    retiredSilentRuntimeUses: structuredClone(conversion.report.retiredSilentRuntimeUses),
   }
   if (missing.length > 0) return {
     ...base, outcome: 'dependency-refused', refusalCodes: ['missing-dependency'],
@@ -166,16 +184,46 @@ function runEntry(input: { corpus: CorpusEntry['corpus']; corpusId: string; show
     : v2
   assertPreparedMemberProvenance(conversion.record, preparation.provenance, preparation.recipe, identityArtifact)
   const memberIdentityMappings = flatMemberIdentityMappings(conversion.report, v1, v2)
+  const parity: Parity = {
+    recipeEqual: stableJson(v2Recipe) === stableJson(v1Recipe),
+    sourceEqual: v2.code === v1.code && v2.fxCode === v1.fxCode,
+    summaryEqual: stableJson(v2.summary) === stableJson(v1.summary),
+    memberIdentityMappings,
+    fast: runtimeParity(v1, v2, show, conversion.record, 'fast', memberIdentityMappings),
+    precise: runtimeParity(v1, v2, show, conversion.record, 'fidelity', memberIdentityMappings),
+  }
+  const acceptedSemanticDifference = classifyRetiredSilentRuntimeDifference(conversion.report, parity)
   return {
     ...base, outcome: 'converted-compiled', refusalCodes: [], refusalMessages: [],
-    parity: {
-      recipeEqual: stableJson(v2Recipe) === stableJson(v1Recipe),
-      sourceEqual: v2.code === v1.code && v2.fxCode === v1.fxCode,
-      summaryEqual: stableJson(v2.summary) === stableJson(v1.summary),
-      memberIdentityMappings,
-      fast: runtimeParity(v1, v2, show, conversion.record, 'fast', memberIdentityMappings),
-      precise: runtimeParity(v1, v2, show, conversion.record, 'fidelity', memberIdentityMappings),
-    },
+    ...(acceptedSemanticDifference ? { acceptedSemanticDifference } : {}),
+    parity,
+  }
+}
+
+function classifyRetiredSilentRuntimeDifference(
+  report: ShowV1ToV2Report,
+  parity: Parity,
+): CorpusEntry['acceptedSemanticDifference'] | undefined {
+  const failedModes = [parity.fast, parity.precise].filter(mode => !mode.matched)
+  if (failedModes.length === 0 || report.retiredSilentRuntimeUses.length === 0) return undefined
+  const firstRetiredStartMs = Math.min(...report.retiredSilentRuntimeUses.map(retirement => retirement.startMs))
+  if (failedModes.some(mode => mode.firstMismatchMs === undefined || mode.firstMismatchMs < firstRetiredStartMs)) return undefined
+  const retiredInstanceIds = new Set(report.retiredSilentRuntimeUses.map(retirement => retirement.instanceId))
+  if (failedModes.some(mode => mode.firstMismatchStateDifferences.some(key => (
+    !key.startsWith('__pxlblz_empty-routed:') && ![...retiredInstanceIds].some(instanceId => key.startsWith(`${instanceId}:`))
+  )))) return undefined
+  const evidence = (mode: RuntimeParity) => ({
+    ...(mode.firstMismatchMs === undefined ? {} : { firstMismatchMs: mode.firstMismatchMs }),
+    ...(mode.firstFrameMismatchMs === undefined ? {} : { firstFrameMismatchMs: mode.firstFrameMismatchMs }),
+    ...(mode.firstStateMismatchMs === undefined ? {} : { firstStateMismatchMs: mode.firstStateMismatchMs }),
+    maxSampledFrameAbsoluteDifference: mode.maxSampledFrameAbsoluteDifference,
+    firstMismatchStateDifferences: mode.firstMismatchStateDifferences,
+  })
+  return {
+    kind: 'retired-silent-runtime-use',
+    rationale: 'The converter explicitly retired one or more source placements whose Zone was absent for their full authored interval; later state/output drift is accepted from the first retired interval onward.',
+    firstRetiredStartMs,
+    modes: { fast: evidence(parity.fast), precise: evidence(parity.precise) },
   }
 }
 
@@ -377,6 +425,22 @@ export function runtimeParity(
   const mismatchIndex = leftSamples.findIndex((result, index) => stableJson(result) !== stableJson(rightSamples[index]))
   let matched = mismatchIndex < 0
   const firstMismatchMs = mismatchIndex < 0 ? undefined : sampleTimes[mismatchIndex]
+  const firstMismatchLeft = mismatchIndex < 0 ? undefined : leftSamples[mismatchIndex]
+  const firstMismatchRight = mismatchIndex < 0 ? undefined : rightSamples[mismatchIndex]
+  const firstMismatchStateDifferences = firstMismatchLeft && firstMismatchRight
+    ? differentKeys(firstMismatchLeft.state, firstMismatchRight.state)
+    : []
+  const firstMismatchStateResiduals = firstMismatchLeft && firstMismatchRight
+    ? firstMismatchStateDifferences.map(key => ({ key, source: firstMismatchLeft.state[key], converted: firstMismatchRight.state[key] }))
+    : []
+  const firstMismatchFrameMaxAbsoluteDifference = firstMismatchLeft && firstMismatchRight
+    ? firstMismatchLeft.frame.reduce((maximum, value, index) => Math.max(maximum, Math.abs(value - firstMismatchRight.frame[index])), 0)
+    : undefined
+  const frameDifferences = leftSamples.map((result, index) => (
+    result.frame.reduce((maximum, value, pixelIndex) => Math.max(maximum, Math.abs(value - rightSamples[index].frame[pixelIndex])), 0)
+  ))
+  const firstFrameMismatchIndex = frameDifferences.findIndex(difference => difference > 0)
+  const firstStateMismatchIndex = leftSamples.findIndex((result, index) => stableJson(result.state) !== stableJson(rightSamples[index].state))
   const phaseMs = Math.max(1, Math.min(256, Math.floor(showEndMs / 4)))
   const phase = (artifact: GeneratedShowArtifact, secondLoop: boolean, aliases: ReadonlyMap<string, string> = new Map()) => {
     const instance = runtime(artifact)
@@ -422,6 +486,12 @@ export function runtimeParity(
     matched,
     sampledMs: times,
     ...(firstMismatchMs === undefined ? {} : { firstMismatchMs }),
+    ...(firstMismatchFrameMaxAbsoluteDifference === undefined ? {} : { firstMismatchFrameMaxAbsoluteDifference }),
+    ...(firstFrameMismatchIndex < 0 ? {} : { firstFrameMismatchMs: sampleTimes[firstFrameMismatchIndex] }),
+    ...(firstStateMismatchIndex < 0 ? {} : { firstStateMismatchMs: sampleTimes[firstStateMismatchIndex] }),
+    maxSampledFrameAbsoluteDifference: Math.max(...frameDifferences),
+    firstMismatchStateDifferences,
+    firstMismatchStateResiduals,
     secondLoopMatched,
     loopResetMatched: loopFrameMatched && loopStateMatched,
     loopResetFrameMatched: loopFrameMatched,
@@ -558,6 +628,8 @@ function summarize(records: CorpusEntry[]) {
     byOutcome: Object.fromEntries(sortedUnique(records.map(record => record.outcome)).map(outcome => [outcome, records.filter(record => record.outcome === outcome).length])),
     byRefusalCode: Object.fromEntries(sortedUnique(records.flatMap(record => record.refusalCodes)).map(code => [code, records.filter(record => record.refusalCodes.includes(code)).length])),
     parityFailures: records.filter(record => record.parity && (!record.parity.fast.matched || !record.parity.precise.matched)).map(record => `${record.corpus}:${record.corpusId}`),
+    acceptedSilentRuntimeDifferences: records.filter(record => record.acceptedSemanticDifference).map(record => `${record.corpus}:${record.corpusId}`),
+    unexpectedParityFailures: records.filter(record => record.parity && (!record.parity.fast.matched || !record.parity.precise.matched) && !record.acceptedSemanticDifference).map(record => `${record.corpus}:${record.corpusId}`),
     lifecycleObservations: {
       secondLoopParityFailures: records.filter(record => record.parity && (!record.parity.fast.secondLoopMatched || !record.parity.precise.secondLoopMatched)).map(record => `${record.corpus}:${record.corpusId}`),
       coldSeekSemanticFailures: records.filter(record => record.parity && (!record.parity.fast.coldSeekMatchedContinuous || !record.parity.precise.coldSeekMatchedContinuous)).map(record => `${record.corpus}:${record.corpusId}`),

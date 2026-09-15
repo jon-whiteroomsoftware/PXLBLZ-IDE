@@ -4,38 +4,46 @@
     "A switch edit changes only adjacent coverage, explicit transfer references, and derived Group start associations; Clips, Markers, unrelated tracks, runtimes and sampling identities remain unchanged.",
     "A Clip or materialized Group is admitted only when its Zone exists through its complete contribution interval, including incoming and outgoing Transition windows.",
     "Occurrence-owned split-position tracks retain global time and refuse when activation leaves the owner; timed transfers are positive, adjacent, nonoverlapping by fit, and inside Show End.",
-    "Show End changes exactly or refuse atomically while protecting routed content, Property activation and transfers; dormant Markers survive."
+    "Show End changes exactly or refuse atomically while protecting routed content, Property activation and transfers; dormant Markers survive.",
+    "Lowering emits runtime use only from explicit retained Clips; it never reconstructs activation from a Layout gap, a future --layout-N Clip ID, or time zero.",
+    "A v1 placement wholly inside an absent-Zone interval is source-accounted as retired-silent-runtime-use; only report-backed differences at or after that interval are accepted."
   ],
   "partitions": [
     "First, interior and final occurrence; same versus different Layout definition; repeated definition versus Make Unique.",
     "Single and multiple Zones; logical and nominal fallback routing; continuously available versus disappearing and reappearing Zone.",
     "No transfer, positive forward/reverse transfer, zero stored transfer, overlong transfer and source rebinding after insertion.",
     "Ordinary Clip and Group occurrence spanning; nominal interval versus incoming/outgoing Layer and whole-output contribution.",
-    "Show End extension, truncation inside final occurrence, exact boundary suffix removal, dormant Marker, protected Clip/Group/track/transfer."
+    "Show End extension, truncation inside final occurrence, exact boundary suffix removal, dormant Marker, protected Clip/Group/track/transfer.",
+    "Continuous-flat and global-sections lowering; Fast and Precise replay; initial true gap, later wholly unrouted use, visible reuse, and disconnected gap."
   ],
   "sequences": [
     "Insert occurrence, select Layout, move switch, edit split parameters, attach/remove transfer, reopen.",
     "Repeat one Layout definition, Make Unique, attempt protected removal, resolve track, remove, reopen.",
     "Append occurrence, shorten Show End across an exact boundary, extend again, and compare the retained preimage used by Undo.",
     "Convert a supported Show, move a switch to visual Transition start/interior/end, then compile and classify domain acceptance versus adapter refusal.",
-    "Move a switch across a Group start, recompute its occurrence association, and validate spanning Zone availability."
+    "Move a switch across a Group start, recompute its occurrence association, and validate spanning Zone availability.",
+    "Convert an initial true gap followed by a wholly unrouted placement, visible reuse of the same instance, and a disconnected gap; lower by both routes; compare generated Fast/Precise state and output."
   ],
   "oracles": [
     "Pure-owner result status, exact complete record, affected identity sets, input equality and original-reference refusal/no-op.",
     "Provisional codec reopen followed by complete v2 validation.",
     "Generated recipe routing switches and explicit compiler refusal code for the bounded interior-window adapter gap.",
     "Fast and Precise reopened artifacts preserve one runtime identity, call count and elapsed state across a transient Layout slice.",
-    "Pinned 47-record parity report retains complete accounting and exact-or-explained recipe/source/runtime results."
+    "Pinned 47-record parity report retains complete accounting and exact-or-explained recipe/source/runtime results.",
+    "Generated recipes contain no runtime-carrier Clip; v2 state stays at zero through the initial gap, differs after the explicitly retired interval, and stops advancing through the disconnected gap.",
+    "All 47 corpus records convert/compile; 44 remain exact; three source-accounted Layout showcases record first state/output mismatch and maximum sampled frame delta with zero unexpected parity failures."
   ],
   "mutationEvidence": [
     "Removing adjacent incoming-transfer rebinding made the insertion/rebinding case refuse instead of change (1 targeted failure).",
     "Bypassing complete Layout/Zone availability made the disappearing-Zone insertion change instead of refuse (1 targeted failure).",
-    "Bypassing early Show End protection changed the typed refusal from protected-content to invalid-result (1 targeted failure)."
+    "Bypassing early Show End protection changed the typed refusal from protected-content to invalid-result (1 targeted failure).",
+    "Against reviewed tip fa1528e9, the new dual-route regression failed in both partitions with firstMismatchMs=0 because inferred carriers filled the initial true gap; the repaired lowerer passes with firstMismatchMs=400 and no carrier identities."
   ],
   "residualGaps": [
     "#1038 must supply hold-aware Group materialization before the GROUP-HOLD cross-owner partition can execute.",
     "#1037 supplies Layout split-position curve evaluation; this candidate owns only binding and interval protection.",
     "#1044/#1039 own production history, provider readback, .pxlshow/.epe route reopening and activation.",
-    "The coordinator owns final committed-tip suites, exact-range Astra review, landing and publication."
+    "The coordinator owns final committed-tip suites, exact-range Astra review, landing and publication.",
+    "Jon accepted loss of legacy execution during wholly unrouted intervals; no persisted silent activation representation remains, and #1044 must consume this amended conversion contract."
   ]
 }

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "issue": 1034,
   "generatedFrom": {
     "baseCommit": "d685125b34c694f311972e258efb48d12cf05cd8",
@@ -19,7 +19,8 @@
       "excludedVolatileFields": [
         "updatedAt"
       ]
-    }
+    },
+    "silentRuntimePolicy": "Retire v1 placements wholly inside intervals where their Zone is absent; do not infer activation from future Clip IDs or Layout gaps."
   },
   "corpus": {
     "stock": {
@@ -68,9 +69,23 @@
       "converted-compiled": 47
     },
     "byRefusalCode": {},
-    "parityFailures": [],
+    "parityFailures": [
+      "stock:stock-show-showcase-zone-layouts-splits",
+      "stock:stock-show-showcase-zone-layouts-stripes-grid",
+      "stock:stock-show-showcase-zone-layouts-radial"
+    ],
+    "acceptedSilentRuntimeDifferences": [
+      "stock:stock-show-showcase-zone-layouts-splits",
+      "stock:stock-show-showcase-zone-layouts-stripes-grid",
+      "stock:stock-show-showcase-zone-layouts-radial"
+    ],
+    "unexpectedParityFailures": [],
     "lifecycleObservations": {
-      "secondLoopParityFailures": [],
+      "secondLoopParityFailures": [
+        "stock:stock-show-showcase-zone-layouts-splits",
+        "stock:stock-show-showcase-zone-layouts-stripes-grid",
+        "stock:stock-show-showcase-zone-layouts-radial"
+      ],
       "coldSeekSemanticFailures": [],
       "fixedStepFreshPhaseResiduals": [
         "stock:stock-show-100-getting-around",
@@ -168,6 +183,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -196,6 +212,9 @@
             12001,
             15999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -372,6 +391,9 @@
             12001,
             15999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -567,6 +589,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -595,6 +618,9 @@
             14000,
             15999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -747,6 +773,9 @@
             14000,
             15999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -925,6 +954,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -963,6 +993,9 @@
             15500,
             16499
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -1136,6 +1169,9 @@
             15500,
             16499
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -1311,6 +1347,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -1343,6 +1380,9 @@
             13500,
             14999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -1410,6 +1450,9 @@
             13500,
             14999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -1485,6 +1528,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -1513,6 +1557,9 @@
             14000,
             15999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -1636,6 +1683,9 @@
             14000,
             15999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -1803,6 +1853,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -1836,6 +1887,9 @@
             17000,
             19999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -1952,6 +2006,9 @@
             17000,
             19999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -2094,6 +2151,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -2144,6 +2202,9 @@
             29000,
             29999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -2335,6 +2396,9 @@
             29000,
             29999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -2523,6 +2587,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -2556,6 +2621,9 @@
             13000,
             13999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -2688,6 +2756,9 @@
             13000,
             13999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -2834,6 +2905,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -2883,6 +2955,9 @@
             15750,
             15999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -3069,6 +3144,9 @@
             15750,
             15999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -3246,6 +3324,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -3274,6 +3353,9 @@
             14000,
             15999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -3379,6 +3461,9 @@
             14000,
             15999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -3496,6 +3581,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -3528,6 +3614,9 @@
             13500,
             14999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -3655,6 +3744,9 @@
             13500,
             14999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -3797,6 +3889,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -3857,6 +3950,9 @@
             14500,
             15999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -3978,6 +4074,9 @@
             14500,
             15999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -4106,6 +4205,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -4135,6 +4235,9 @@
             14000,
             16999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -4223,6 +4326,9 @@
             14000,
             16999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -4329,6 +4435,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -4361,6 +4468,9 @@
             18000,
             19999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -4458,6 +4568,9 @@
             18000,
             19999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -4581,6 +4694,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -4601,6 +4715,9 @@
             10500,
             13999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -4764,6 +4881,9 @@
             10500,
             13999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -5017,6 +5137,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -5209,6 +5330,9 @@
             19250,
             19999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -5448,6 +5572,9 @@
             19250,
             19999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -5542,6 +5669,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -5579,6 +5707,9 @@
             15750,
             15999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -5681,6 +5812,9 @@
             15750,
             15999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -5811,6 +5945,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -5868,6 +6003,9 @@
             21500,
             22999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -6007,6 +6145,9 @@
             21500,
             22999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -6154,6 +6295,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -6191,6 +6333,9 @@
             15750,
             16999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -6275,6 +6420,9 @@
             15750,
             16999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -6407,6 +6555,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -6459,6 +6608,9 @@
             21000,
             21999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -6558,6 +6710,9 @@
             21000,
             21999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -6701,6 +6856,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -6767,6 +6923,9 @@
             25750,
             27499
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -7089,6 +7248,9 @@
             25750,
             27499
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -7468,6 +7630,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -7548,6 +7711,9 @@
             31000,
             31999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -7903,6 +8069,9 @@
             31000,
             31999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -8347,6 +8516,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -8392,6 +8562,9 @@
             19500,
             20499
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -8543,6 +8716,9 @@
             19500,
             20499
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -8746,6 +8922,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -8843,6 +9020,9 @@
             30250,
             30999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -9112,6 +9292,9 @@
             30250,
             30999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -9351,6 +9534,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -9400,6 +9584,9 @@
             18000,
             18999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -9538,6 +9725,9 @@
             18000,
             18999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -9703,6 +9893,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -9776,6 +9967,9 @@
             23950,
             24699
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -9923,6 +10117,9 @@
             23950,
             24699
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -10104,6 +10301,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -10217,6 +10415,9 @@
             58850,
             59349
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -10365,6 +10566,9 @@
             58850,
             59349
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -10477,6 +10681,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -10542,6 +10747,9 @@
             22250,
             22999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -10671,6 +10879,9 @@
             22250,
             22999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -10817,6 +11028,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -10890,6 +11102,9 @@
             23950,
             24699
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -11034,6 +11249,9 @@
             23950,
             24699
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -11237,6 +11455,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -11325,6 +11544,9 @@
             46100,
             48599
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -11614,6 +11836,9 @@
             46100,
             48599
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -11962,6 +12187,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -12139,6 +12365,9 @@
             78000,
             78999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -12452,6 +12681,9 @@
             78000,
             78999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -12680,6 +12912,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -12733,6 +12966,9 @@
             25500,
             26999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -12857,6 +13093,9 @@
             25500,
             26999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -13015,6 +13254,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -13064,6 +13304,9 @@
             21500,
             22999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -13244,6 +13487,9 @@
             21500,
             22999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -13457,16 +13703,70 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [
+        {
+          "sourcePlacementId": "clip-full-ember",
+          "sourcePath": "composition.scenes.0.zones.1.main.0",
+          "instanceId": "ember",
+          "zoneId": "zone-2",
+          "startMs": 0,
+          "durationMs": 4000,
+          "outcome": "retired-silent-runtime-use"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
+      "acceptedSemanticDifference": {
+        "kind": "retired-silent-runtime-use",
+        "rationale": "The converter explicitly retired one or more source placements whose Zone was absent for their full authored interval; later state/output drift is accepted from the first retired interval onward.",
+        "firstRetiredStartMs": 0,
+        "modes": {
+          "fast": {
+            "firstMismatchMs": 0,
+            "firstFrameMismatchMs": 4000,
+            "firstStateMismatchMs": 0,
+            "maxSampledFrameAbsoluteDifference": 0.21465769816047509,
+            "firstMismatchStateDifferences": [
+              "__pxlblz_empty-routed:adapt_brightness",
+              "__pxlblz_empty-routed:adapt_mirror",
+              "__pxlblz_empty-routed:adapt_phase",
+              "__pxlblz_empty-routed:adapt_timeScale",
+              "__pxlblz_empty-routed:b",
+              "__pxlblz_empty-routed:elapsed_ms",
+              "__pxlblz_empty-routed:g",
+              "__pxlblz_empty-routed:pixelCount",
+              "__pxlblz_empty-routed:r",
+              "ember:pixelCount"
+            ]
+          },
+          "precise": {
+            "firstMismatchMs": 0,
+            "firstFrameMismatchMs": 3999,
+            "firstStateMismatchMs": 0,
+            "maxSampledFrameAbsoluteDifference": 0.214752197265625,
+            "firstMismatchStateDifferences": [
+              "__pxlblz_empty-routed:adapt_brightness",
+              "__pxlblz_empty-routed:adapt_mirror",
+              "__pxlblz_empty-routed:adapt_phase",
+              "__pxlblz_empty-routed:adapt_timeScale",
+              "__pxlblz_empty-routed:b",
+              "__pxlblz_empty-routed:elapsed_ms",
+              "__pxlblz_empty-routed:g",
+              "__pxlblz_empty-routed:pixelCount",
+              "__pxlblz_empty-routed:r",
+              "ember:pixelCount"
+            ]
+          }
+        }
+      },
       "parity": {
         "recipeEqual": false,
-        "sourceEqual": true,
-        "summaryEqual": true,
+        "sourceEqual": false,
+        "summaryEqual": false,
         "memberIdentityMappings": [],
         "fast": {
-          "matched": true,
+          "matched": false,
           "sampledMs": [
             0,
             1,
@@ -13485,12 +13785,74 @@
             15500,
             17999
           ],
-          "secondLoopMatched": true,
+          "firstMismatchMs": 0,
+          "firstMismatchFrameMaxAbsoluteDifference": 0,
+          "firstFrameMismatchMs": 4000,
+          "firstStateMismatchMs": 0,
+          "maxSampledFrameAbsoluteDifference": 0.21465769816047509,
+          "firstMismatchStateDifferences": [
+            "__pxlblz_empty-routed:adapt_brightness",
+            "__pxlblz_empty-routed:adapt_mirror",
+            "__pxlblz_empty-routed:adapt_phase",
+            "__pxlblz_empty-routed:adapt_timeScale",
+            "__pxlblz_empty-routed:b",
+            "__pxlblz_empty-routed:elapsed_ms",
+            "__pxlblz_empty-routed:g",
+            "__pxlblz_empty-routed:pixelCount",
+            "__pxlblz_empty-routed:r",
+            "ember:pixelCount"
+          ],
+          "firstMismatchStateResiduals": [
+            {
+              "key": "__pxlblz_empty-routed:adapt_brightness",
+              "converted": 1
+            },
+            {
+              "key": "__pxlblz_empty-routed:adapt_mirror",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:adapt_phase",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:adapt_timeScale",
+              "converted": 1
+            },
+            {
+              "key": "__pxlblz_empty-routed:b",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:elapsed_ms",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:g",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:pixelCount",
+              "converted": 4
+            },
+            {
+              "key": "__pxlblz_empty-routed:r",
+              "converted": 0
+            },
+            {
+              "key": "ember:pixelCount",
+              "source": 4,
+              "converted": 8
+            }
+          ],
+          "secondLoopMatched": false,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
           "loopResetStateMatched": false,
           "loopResetStateDifferences": [
+            "__pxlblz_empty-routed:elapsed_ms",
             "ember:elapsed_ms",
+            "ember:pixelCount",
             "ember:scroll",
             "ember:t",
             "garden:b",
@@ -13547,7 +13909,7 @@
           "coldSeekStateDifferences": []
         },
         "precise": {
-          "matched": true,
+          "matched": false,
           "sampledMs": [
             0,
             1,
@@ -13566,12 +13928,74 @@
             15500,
             17999
           ],
-          "secondLoopMatched": true,
+          "firstMismatchMs": 0,
+          "firstMismatchFrameMaxAbsoluteDifference": 0,
+          "firstFrameMismatchMs": 3999,
+          "firstStateMismatchMs": 0,
+          "maxSampledFrameAbsoluteDifference": 0.214752197265625,
+          "firstMismatchStateDifferences": [
+            "__pxlblz_empty-routed:adapt_brightness",
+            "__pxlblz_empty-routed:adapt_mirror",
+            "__pxlblz_empty-routed:adapt_phase",
+            "__pxlblz_empty-routed:adapt_timeScale",
+            "__pxlblz_empty-routed:b",
+            "__pxlblz_empty-routed:elapsed_ms",
+            "__pxlblz_empty-routed:g",
+            "__pxlblz_empty-routed:pixelCount",
+            "__pxlblz_empty-routed:r",
+            "ember:pixelCount"
+          ],
+          "firstMismatchStateResiduals": [
+            {
+              "key": "__pxlblz_empty-routed:adapt_brightness",
+              "converted": 65536
+            },
+            {
+              "key": "__pxlblz_empty-routed:adapt_mirror",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:adapt_phase",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:adapt_timeScale",
+              "converted": 65536
+            },
+            {
+              "key": "__pxlblz_empty-routed:b",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:elapsed_ms",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:g",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:pixelCount",
+              "converted": 262144
+            },
+            {
+              "key": "__pxlblz_empty-routed:r",
+              "converted": 0
+            },
+            {
+              "key": "ember:pixelCount",
+              "source": 262144,
+              "converted": 524288
+            }
+          ],
+          "secondLoopMatched": false,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
           "loopResetStateMatched": false,
           "loopResetStateDifferences": [
+            "__pxlblz_empty-routed:elapsed_ms",
             "ember:elapsed_ms",
+            "ember:pixelCount",
             "ember:scroll",
             "ember:t",
             "garden:b",
@@ -13735,16 +14159,108 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [
+        {
+          "sourcePlacementId": "clip-full-ember",
+          "sourcePath": "composition.scenes.0.zones.1.main.0",
+          "instanceId": "ember",
+          "zoneId": "zone-2",
+          "startMs": 0,
+          "durationMs": 4000,
+          "outcome": "retired-silent-runtime-use"
+        },
+        {
+          "sourcePlacementId": "clip-full-tide",
+          "sourcePath": "composition.scenes.0.zones.2.main.0",
+          "instanceId": "tide",
+          "zoneId": "zone-3",
+          "startMs": 0,
+          "durationMs": 4000,
+          "outcome": "retired-silent-runtime-use"
+        },
+        {
+          "sourcePlacementId": "clip-full-rain",
+          "sourcePath": "composition.scenes.0.zones.3.main.0",
+          "instanceId": "rain",
+          "zoneId": "zone-4",
+          "startMs": 0,
+          "durationMs": 4000,
+          "outcome": "retired-silent-runtime-use"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
+      "acceptedSemanticDifference": {
+        "kind": "retired-silent-runtime-use",
+        "rationale": "The converter explicitly retired one or more source placements whose Zone was absent for their full authored interval; later state/output drift is accepted from the first retired interval onward.",
+        "firstRetiredStartMs": 0,
+        "modes": {
+          "fast": {
+            "firstMismatchMs": 0,
+            "firstFrameMismatchMs": 4000,
+            "firstStateMismatchMs": 0,
+            "maxSampledFrameAbsoluteDifference": 0.8355655342088981,
+            "firstMismatchStateDifferences": [
+              "__pxlblz_empty-routed:adapt_brightness",
+              "__pxlblz_empty-routed:adapt_mirror",
+              "__pxlblz_empty-routed:adapt_phase",
+              "__pxlblz_empty-routed:adapt_timeScale",
+              "__pxlblz_empty-routed:b",
+              "__pxlblz_empty-routed:elapsed_ms",
+              "__pxlblz_empty-routed:g",
+              "__pxlblz_empty-routed:pixelCount",
+              "__pxlblz_empty-routed:r",
+              "ember:pixelCount",
+              "rain:built",
+              "rain:pixelCount",
+              "tide:offAx",
+              "tide:offAy",
+              "tide:offBx",
+              "tide:offBy",
+              "tide:pixelCount",
+              "tide:SCALE",
+              "tide:sharp",
+              "tide:t"
+            ]
+          },
+          "precise": {
+            "firstMismatchMs": 0,
+            "firstFrameMismatchMs": 3999,
+            "firstStateMismatchMs": 0,
+            "maxSampledFrameAbsoluteDifference": 0.8376922607421875,
+            "firstMismatchStateDifferences": [
+              "__pxlblz_empty-routed:adapt_brightness",
+              "__pxlblz_empty-routed:adapt_mirror",
+              "__pxlblz_empty-routed:adapt_phase",
+              "__pxlblz_empty-routed:adapt_timeScale",
+              "__pxlblz_empty-routed:b",
+              "__pxlblz_empty-routed:elapsed_ms",
+              "__pxlblz_empty-routed:g",
+              "__pxlblz_empty-routed:pixelCount",
+              "__pxlblz_empty-routed:r",
+              "ember:pixelCount",
+              "rain:built",
+              "rain:pixelCount",
+              "tide:offAx",
+              "tide:offAy",
+              "tide:offBx",
+              "tide:offBy",
+              "tide:pixelCount",
+              "tide:SCALE",
+              "tide:sharp",
+              "tide:t"
+            ]
+          }
+        }
+      },
       "parity": {
         "recipeEqual": false,
-        "sourceEqual": true,
-        "summaryEqual": true,
+        "sourceEqual": false,
+        "summaryEqual": false,
         "memberIdentityMappings": [],
         "fast": {
-          "matched": true,
+          "matched": false,
           "sampledMs": [
             0,
             1,
@@ -13760,14 +14276,129 @@
             12000,
             14999
           ],
-          "secondLoopMatched": true,
+          "firstMismatchMs": 0,
+          "firstMismatchFrameMaxAbsoluteDifference": 0,
+          "firstFrameMismatchMs": 4000,
+          "firstStateMismatchMs": 0,
+          "maxSampledFrameAbsoluteDifference": 0.8355655342088981,
+          "firstMismatchStateDifferences": [
+            "__pxlblz_empty-routed:adapt_brightness",
+            "__pxlblz_empty-routed:adapt_mirror",
+            "__pxlblz_empty-routed:adapt_phase",
+            "__pxlblz_empty-routed:adapt_timeScale",
+            "__pxlblz_empty-routed:b",
+            "__pxlblz_empty-routed:elapsed_ms",
+            "__pxlblz_empty-routed:g",
+            "__pxlblz_empty-routed:pixelCount",
+            "__pxlblz_empty-routed:r",
+            "ember:pixelCount",
+            "rain:built",
+            "rain:pixelCount",
+            "tide:offAx",
+            "tide:offAy",
+            "tide:offBx",
+            "tide:offBy",
+            "tide:pixelCount",
+            "tide:SCALE",
+            "tide:sharp",
+            "tide:t"
+          ],
+          "firstMismatchStateResiduals": [
+            {
+              "key": "__pxlblz_empty-routed:adapt_brightness",
+              "converted": 1
+            },
+            {
+              "key": "__pxlblz_empty-routed:adapt_mirror",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:adapt_phase",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:adapt_timeScale",
+              "converted": 1
+            },
+            {
+              "key": "__pxlblz_empty-routed:b",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:elapsed_ms",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:g",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:pixelCount",
+              "converted": 2
+            },
+            {
+              "key": "__pxlblz_empty-routed:r",
+              "converted": 0
+            },
+            {
+              "key": "ember:pixelCount",
+              "source": 2,
+              "converted": 8
+            },
+            {
+              "key": "rain:built",
+              "source": 1,
+              "converted": 0
+            },
+            {
+              "key": "rain:pixelCount",
+              "source": 2,
+              "converted": 8
+            },
+            {
+              "key": "tide:offAx",
+              "source": 0
+            },
+            {
+              "key": "tide:offAy",
+              "source": 0.6
+            },
+            {
+              "key": "tide:offBx",
+              "source": -0.5
+            },
+            {
+              "key": "tide:offBy",
+              "source": 0
+            },
+            {
+              "key": "tide:pixelCount",
+              "source": 2,
+              "converted": 8
+            },
+            {
+              "key": "tide:SCALE",
+              "source": 5
+            },
+            {
+              "key": "tide:sharp",
+              "source": 1.6949999999999998
+            },
+            {
+              "key": "tide:t",
+              "source": 0
+            }
+          ],
+          "secondLoopMatched": false,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
           "loopResetStateMatched": false,
           "loopResetStateDifferences": [
+            "__pxlblz_empty-routed:elapsed_ms",
             "ember:b",
             "ember:elapsed_ms",
             "ember:g",
+            "ember:pixelCount",
             "ember:r",
             "ember:scroll",
             "ember:t",
@@ -13787,8 +14418,10 @@
             "garden:r",
             "garden:t",
             "rain:b",
+            "rain:built",
             "rain:elapsed_ms",
             "rain:g",
+            "rain:pixelCount",
             "rain:r",
             "rain:t",
             "rain:tick",
@@ -13800,7 +14433,10 @@
             "tide:offAy",
             "tide:offBx",
             "tide:offBy",
+            "tide:pixelCount",
             "tide:r",
+            "tide:SCALE",
+            "tide:sharp",
             "tide:t"
           ],
           "loopResetStateResiduals": [
@@ -13996,7 +14632,7 @@
           "coldSeekStateDifferences": []
         },
         "precise": {
-          "matched": true,
+          "matched": false,
           "sampledMs": [
             0,
             1,
@@ -14012,14 +14648,129 @@
             12000,
             14999
           ],
-          "secondLoopMatched": true,
+          "firstMismatchMs": 0,
+          "firstMismatchFrameMaxAbsoluteDifference": 0,
+          "firstFrameMismatchMs": 3999,
+          "firstStateMismatchMs": 0,
+          "maxSampledFrameAbsoluteDifference": 0.8376922607421875,
+          "firstMismatchStateDifferences": [
+            "__pxlblz_empty-routed:adapt_brightness",
+            "__pxlblz_empty-routed:adapt_mirror",
+            "__pxlblz_empty-routed:adapt_phase",
+            "__pxlblz_empty-routed:adapt_timeScale",
+            "__pxlblz_empty-routed:b",
+            "__pxlblz_empty-routed:elapsed_ms",
+            "__pxlblz_empty-routed:g",
+            "__pxlblz_empty-routed:pixelCount",
+            "__pxlblz_empty-routed:r",
+            "ember:pixelCount",
+            "rain:built",
+            "rain:pixelCount",
+            "tide:offAx",
+            "tide:offAy",
+            "tide:offBx",
+            "tide:offBy",
+            "tide:pixelCount",
+            "tide:SCALE",
+            "tide:sharp",
+            "tide:t"
+          ],
+          "firstMismatchStateResiduals": [
+            {
+              "key": "__pxlblz_empty-routed:adapt_brightness",
+              "converted": 65536
+            },
+            {
+              "key": "__pxlblz_empty-routed:adapt_mirror",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:adapt_phase",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:adapt_timeScale",
+              "converted": 65536
+            },
+            {
+              "key": "__pxlblz_empty-routed:b",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:elapsed_ms",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:g",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:pixelCount",
+              "converted": 131072
+            },
+            {
+              "key": "__pxlblz_empty-routed:r",
+              "converted": 0
+            },
+            {
+              "key": "ember:pixelCount",
+              "source": 131072,
+              "converted": 524288
+            },
+            {
+              "key": "rain:built",
+              "source": 65536,
+              "converted": 0
+            },
+            {
+              "key": "rain:pixelCount",
+              "source": 131072,
+              "converted": 524288
+            },
+            {
+              "key": "tide:offAx",
+              "source": 0
+            },
+            {
+              "key": "tide:offAy",
+              "source": 39322
+            },
+            {
+              "key": "tide:offBx",
+              "source": -32768
+            },
+            {
+              "key": "tide:offBy",
+              "source": 0
+            },
+            {
+              "key": "tide:pixelCount",
+              "source": 131072,
+              "converted": 524288
+            },
+            {
+              "key": "tide:SCALE",
+              "source": 327678
+            },
+            {
+              "key": "tide:sharp",
+              "source": 111083
+            },
+            {
+              "key": "tide:t",
+              "source": 0
+            }
+          ],
+          "secondLoopMatched": false,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
           "loopResetStateMatched": false,
           "loopResetStateDifferences": [
+            "__pxlblz_empty-routed:elapsed_ms",
             "ember:b",
             "ember:elapsed_ms",
             "ember:g",
+            "ember:pixelCount",
             "ember:r",
             "ember:scroll",
             "ember:t",
@@ -14039,8 +14790,10 @@
             "garden:r",
             "garden:t",
             "rain:b",
+            "rain:built",
             "rain:elapsed_ms",
             "rain:g",
+            "rain:pixelCount",
             "rain:r",
             "rain:t",
             "rain:tick",
@@ -14052,7 +14805,10 @@
             "tide:offAy",
             "tide:offBx",
             "tide:offBy",
+            "tide:pixelCount",
             "tide:r",
+            "tide:SCALE",
+            "tide:sharp",
             "tide:t"
           ],
           "loopResetStateResiduals": [
@@ -14321,16 +15077,70 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [
+        {
+          "sourcePlacementId": "clip-full-ember",
+          "sourcePath": "composition.scenes.0.zones.1.main.0",
+          "instanceId": "ember",
+          "zoneId": "zone-2",
+          "startMs": 0,
+          "durationMs": 4000,
+          "outcome": "retired-silent-runtime-use"
+        }
+      ],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
+      "acceptedSemanticDifference": {
+        "kind": "retired-silent-runtime-use",
+        "rationale": "The converter explicitly retired one or more source placements whose Zone was absent for their full authored interval; later state/output drift is accepted from the first retired interval onward.",
+        "firstRetiredStartMs": 0,
+        "modes": {
+          "fast": {
+            "firstMismatchMs": 0,
+            "firstFrameMismatchMs": 4000,
+            "firstStateMismatchMs": 0,
+            "maxSampledFrameAbsoluteDifference": 0.21523290040459425,
+            "firstMismatchStateDifferences": [
+              "__pxlblz_empty-routed:adapt_brightness",
+              "__pxlblz_empty-routed:adapt_mirror",
+              "__pxlblz_empty-routed:adapt_phase",
+              "__pxlblz_empty-routed:adapt_timeScale",
+              "__pxlblz_empty-routed:b",
+              "__pxlblz_empty-routed:elapsed_ms",
+              "__pxlblz_empty-routed:g",
+              "__pxlblz_empty-routed:pixelCount",
+              "__pxlblz_empty-routed:r",
+              "ember:pixelCount"
+            ]
+          },
+          "precise": {
+            "firstMismatchMs": 0,
+            "firstFrameMismatchMs": 3999,
+            "firstStateMismatchMs": 0,
+            "maxSampledFrameAbsoluteDifference": 0.215423583984375,
+            "firstMismatchStateDifferences": [
+              "__pxlblz_empty-routed:adapt_brightness",
+              "__pxlblz_empty-routed:adapt_mirror",
+              "__pxlblz_empty-routed:adapt_phase",
+              "__pxlblz_empty-routed:adapt_timeScale",
+              "__pxlblz_empty-routed:b",
+              "__pxlblz_empty-routed:elapsed_ms",
+              "__pxlblz_empty-routed:g",
+              "__pxlblz_empty-routed:pixelCount",
+              "__pxlblz_empty-routed:r",
+              "ember:pixelCount"
+            ]
+          }
+        }
+      },
       "parity": {
         "recipeEqual": false,
-        "sourceEqual": true,
-        "summaryEqual": true,
+        "sourceEqual": false,
+        "summaryEqual": false,
         "memberIdentityMappings": [],
         "fast": {
-          "matched": true,
+          "matched": false,
           "sampledMs": [
             0,
             1,
@@ -14354,14 +15164,76 @@
             16000,
             18999
           ],
-          "secondLoopMatched": true,
+          "firstMismatchMs": 0,
+          "firstMismatchFrameMaxAbsoluteDifference": 0,
+          "firstFrameMismatchMs": 4000,
+          "firstStateMismatchMs": 0,
+          "maxSampledFrameAbsoluteDifference": 0.21523290040459425,
+          "firstMismatchStateDifferences": [
+            "__pxlblz_empty-routed:adapt_brightness",
+            "__pxlblz_empty-routed:adapt_mirror",
+            "__pxlblz_empty-routed:adapt_phase",
+            "__pxlblz_empty-routed:adapt_timeScale",
+            "__pxlblz_empty-routed:b",
+            "__pxlblz_empty-routed:elapsed_ms",
+            "__pxlblz_empty-routed:g",
+            "__pxlblz_empty-routed:pixelCount",
+            "__pxlblz_empty-routed:r",
+            "ember:pixelCount"
+          ],
+          "firstMismatchStateResiduals": [
+            {
+              "key": "__pxlblz_empty-routed:adapt_brightness",
+              "converted": 1
+            },
+            {
+              "key": "__pxlblz_empty-routed:adapt_mirror",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:adapt_phase",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:adapt_timeScale",
+              "converted": 1
+            },
+            {
+              "key": "__pxlblz_empty-routed:b",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:elapsed_ms",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:g",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:pixelCount",
+              "converted": 4
+            },
+            {
+              "key": "__pxlblz_empty-routed:r",
+              "converted": 0
+            },
+            {
+              "key": "ember:pixelCount",
+              "source": 4,
+              "converted": 8
+            }
+          ],
+          "secondLoopMatched": false,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
           "loopResetStateMatched": false,
           "loopResetStateDifferences": [
+            "__pxlblz_empty-routed:elapsed_ms",
             "ember:b",
             "ember:elapsed_ms",
             "ember:g",
+            "ember:pixelCount",
             "ember:r",
             "ember:scroll",
             "ember:t",
@@ -14446,7 +15318,7 @@
           "coldSeekStateDifferences": []
         },
         "precise": {
-          "matched": true,
+          "matched": false,
           "sampledMs": [
             0,
             1,
@@ -14470,14 +15342,76 @@
             16000,
             18999
           ],
-          "secondLoopMatched": true,
+          "firstMismatchMs": 0,
+          "firstMismatchFrameMaxAbsoluteDifference": 0,
+          "firstFrameMismatchMs": 3999,
+          "firstStateMismatchMs": 0,
+          "maxSampledFrameAbsoluteDifference": 0.215423583984375,
+          "firstMismatchStateDifferences": [
+            "__pxlblz_empty-routed:adapt_brightness",
+            "__pxlblz_empty-routed:adapt_mirror",
+            "__pxlblz_empty-routed:adapt_phase",
+            "__pxlblz_empty-routed:adapt_timeScale",
+            "__pxlblz_empty-routed:b",
+            "__pxlblz_empty-routed:elapsed_ms",
+            "__pxlblz_empty-routed:g",
+            "__pxlblz_empty-routed:pixelCount",
+            "__pxlblz_empty-routed:r",
+            "ember:pixelCount"
+          ],
+          "firstMismatchStateResiduals": [
+            {
+              "key": "__pxlblz_empty-routed:adapt_brightness",
+              "converted": 65536
+            },
+            {
+              "key": "__pxlblz_empty-routed:adapt_mirror",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:adapt_phase",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:adapt_timeScale",
+              "converted": 65536
+            },
+            {
+              "key": "__pxlblz_empty-routed:b",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:elapsed_ms",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:g",
+              "converted": 0
+            },
+            {
+              "key": "__pxlblz_empty-routed:pixelCount",
+              "converted": 262144
+            },
+            {
+              "key": "__pxlblz_empty-routed:r",
+              "converted": 0
+            },
+            {
+              "key": "ember:pixelCount",
+              "source": 262144,
+              "converted": 524288
+            }
+          ],
+          "secondLoopMatched": false,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
           "loopResetStateMatched": false,
           "loopResetStateDifferences": [
+            "__pxlblz_empty-routed:elapsed_ms",
             "ember:b",
             "ember:elapsed_ms",
             "ember:g",
+            "ember:pixelCount",
             "ember:r",
             "ember:scroll",
             "ember:t",
@@ -14788,6 +15722,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -14863,6 +15798,9 @@
             56250,
             59999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -14991,6 +15929,9 @@
             56250,
             59999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -15084,6 +16025,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -15248,6 +16190,9 @@
             38000,
             39999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -15447,6 +16392,9 @@
             38000,
             39999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -15554,6 +16502,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -15666,6 +16615,9 @@
             48000,
             51199
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -15853,6 +16805,9 @@
             48000,
             51199
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -15990,6 +16945,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -16056,6 +17012,9 @@
             45937,
             48749
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": true,
@@ -16289,6 +17248,9 @@
             45937,
             48749
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": true,
@@ -16497,6 +17459,7 @@
       "accountedSourceLeaves": 47,
       "unaccountedSourcePaths": [],
       "retiredFlatCellShadows": [],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -16528,6 +17491,9 @@
             45000,
             59999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -16612,6 +17578,9 @@
             45000,
             59999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -16724,6 +17693,7 @@
       "accountedSourceLeaves": 47,
       "unaccountedSourcePaths": [],
       "retiredFlatCellShadows": [],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -16755,6 +17725,9 @@
             45000,
             59999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -16809,6 +17782,9 @@
             45000,
             59999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -16890,6 +17866,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -16918,6 +17895,9 @@
             14000,
             15999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -17070,6 +18050,9 @@
             14000,
             15999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -17241,6 +18224,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -17301,6 +18285,9 @@
             14500,
             15999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -17422,6 +18409,9 @@
             14500,
             15999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -17615,6 +18605,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -17703,6 +18694,9 @@
             46100,
             48599
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -17992,6 +18986,9 @@
             46100,
             48599
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -18260,6 +19257,7 @@
           "outcome": "retired-composition-shadow"
         }
       ],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -18289,6 +19287,9 @@
             14000,
             16999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -18377,6 +19378,9 @@
             14000,
             16999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -18484,6 +19488,7 @@
       "accountedSourceLeaves": 252,
       "unaccountedSourcePaths": [],
       "retiredFlatCellShadows": [],
+      "retiredSilentRuntimeUses": [],
       "outcome": "converted-compiled",
       "refusalCodes": [],
       "refusalMessages": [],
@@ -18604,6 +19609,9 @@
             356000,
             370999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,
@@ -18845,6 +19853,9 @@
             356000,
             370999
           ],
+          "maxSampledFrameAbsoluteDifference": 0,
+          "firstMismatchStateDifferences": [],
+          "firstMismatchStateResiduals": [],
           "secondLoopMatched": true,
           "loopResetMatched": false,
           "loopResetFrameMatched": false,

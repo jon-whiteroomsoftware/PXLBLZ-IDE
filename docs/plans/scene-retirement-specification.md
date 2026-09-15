@@ -42,7 +42,8 @@ available. A plan amendment alone never changes those production claims.
 - Preserve existing supported timing, appearance, sampling, runtime identity,
   property activation and Transition variants. Explicit accepted behavior changes
   are Cut-as-absence, removal of Scene-only edit exceptions, Clip-scoped Replace,
-  shared-by-default duplication, shared Restart clock and the edit policies below.
+  shared-by-default duplication, shared Restart clock, retirement of wholly
+  unrouted v1 Pattern placements and the edit policies below.
 - Keep independent simultaneous positive Transitions and RL08–RL10 compiler-domain
   expansion deferred to #1045. A required compiler change beyond the accepted
   scope returns to Jon with a minimal counterexample before implementation.
@@ -58,10 +59,13 @@ available. A plan amendment alone never changes those production claims.
 The completed #1034 tracer baseline is local main `3ee10d7cb653e5281ed9d29d66d302b8811cfe63`.
 The [measured tracer evidence](show-v2-tracer-evidence.md) and
 [47-record report](show-v2-parity-report.json) establish conversion/lowering for
-40 stock Shows and seven agent fixtures. All convert, validate and compile; the
-bounded Fast/Precise output/state, second-loop and cold-seek comparisons pass.
-Recipes match for 33 records, generated source for 46, and summaries for 44; the
-report explains each difference. Personal authored exports are unavailable.
+40 stock Shows and seven agent fixtures. All convert, validate and compile. The
+bounded Fast/Precise output/state comparison remains exact for 44 records. Three
+stock Layout showcases explicitly retire v1 placements whose Zone is absent for
+their whole authored interval; the report measures the resulting state/resource
+difference from time zero and first visible output difference near 4,000 ms in
+both modes. Recipes match for 30 records, generated source for 43, and summaries
+for 41; the report explains each difference. Personal authored exports are unavailable.
 The bounded [Clip owner](../reference/contracts/show-v2-clip-edits.md) is also landed.
 Neither experiment proves complete authoring or production save/import adoption.
 
@@ -71,6 +75,15 @@ refusal or changed source requires classification and semantic evidence. The
 census must not shrink to make the comparison pass. At #1040, retain the pinned
 legacy inputs independently of the new native stock builder; comparing two
 outputs of the rewritten builder is not preservation evidence.
+
+Jon accepted one narrow conversion exception on 2026-09-15: v2 does not preserve
+legacy Pattern execution for a placement wholly inside an interval where its Zone
+is absent from the active Layout. Conversion records the source placement,
+instance, Zone and exact interval as `retired-silent-runtime-use`. Lowering starts
+the v2 instance at its first retained contribution and never infers activation
+from a future Clip ID, a Layout gap or hidden Clip history. No persisted silent-use
+entity or compiler-only runtime carrier is introduced. Later state and output may
+differ; the parity report must measure them rather than treating them as exact.
 
 | Former gate | Current policy / remaining implementation |
 | --- | --- |
@@ -479,6 +492,13 @@ No implicit reroute or Restart occurs. Disappear/reappear requires distinct Clip
 sharing the instance; a continuously authored Clip cannot hide an unavailable Zone.
 Lowering may slice transiently and must preserve runtime/sampling identity.
 
+During v1 conversion, a placement whose Zone is unavailable for its complete
+authored interval is retired and reported. It does not create a Clip, extend a
+neighbor, or keep its Pattern instance running. A later visible Clip may retain
+the same effective instance identity, but its runtime begins at that first retained
+contribution. Layout switch, Show End, Clip delete/move/duplicate and Replace edits
+therefore operate only on explicit retained v2 entities.
+
 Set Show End is exact: an invalid shortening refuses, with no silent content cut
 or clamp in the command owner. Protect Clip/Group contribution ends, meaningful
 track activation, positive visual/transfer windows and routed content. Remove
@@ -526,6 +546,16 @@ appearance, private legacy instances, property activation, Layout scalar carrier
 Groups and execution lifecycle follow the measured converter. Preserve identity
 mappings for source/render comparison. Unknown fields, dependencies or unsupported
 valid forms remain recoverable; no silent best-effort flattening.
+
+The explicit exception is a v1 placement fully unrouted because its Zone is absent
+for the entire placement interval. Account every such source leaf as
+`retired-silent-runtime-use`; include its placement/instance/Zone/interval provenance;
+emit no hidden activation record or inferred lowering carrier. Partial routed
+intervals still become visible Clip runs with their original effective instance
+identity and timing. The parity harness accepts a resulting mismatch only when the
+conversion report supplies that provenance, the first mismatch is at or after the
+first retired interval, and the first differing exported state belongs to a retired
+instance or the compiler's empty routed member. Every other record remains exact.
 
 #1044 builds one opt-in real-route qualification path through shared production
 adapters. It reads v1, explicitly converts, invokes #1035, previews, saves a
@@ -618,7 +648,7 @@ independently authored expected result for intentional new behavior.
 | LAYOUT-END | Repeated Layout definition → Make Unique → switch move/remove → shorten/extend Show End → Undo | #1036/#1038; coverage, transfer/track protection, Clip/Group continuity, dormant Markers |
 | LAYERS | Empty named Layer → reorder → Group bind → remove/reassign | #1038; stable IDs/stacking, explicit ambiguity and materialized collision refusal |
 | CHAPTERS | No chapter / converted Scene label / same-name-time Marker / general Marker / equal-time chapters | #1040; Gallery/Live and timeline projection, unchanged playback |
-| PARITY | All 47 legacy records and later native stock counterparts | Every engine owner; pinned source/dependencies, complete accounting and exact-or-explained output/state/resource report |
+| PARITY | All 47 legacy records and later native stock counterparts; initial true gap → wholly unrouted use → retained visible use → disconnected gap in both lowering routes | Every engine owner; all 47 convert/compile with complete accounting; exact Fast/Precise output/state for unaffected records; source-accounted retired intervals plus first state/output mismatch and maximum sampled frame delta for accepted differences; no inferred carrier before authored use |
 | ROUTE | v1 flat/composition or v2 → edit → Undo/Redo → save → reload → export/import | #1044/#1039; committed browser proof, provider readback, ordinary `.pxlshow` v1/v2 and `.epe` reopen |
 | FAILURE | Missing dependency, invalid/stale/duplicate candidate; failed/superseded save; interrupted conversion/retry | #1044/#1041/#1039; original recoverable, no partial adoption, existing rollback and idempotency |
 | MCP | #1029 sequence: Layers/Clips → remove content → exact 30000 ms end → tracks → commit → outcome → reopen | #1041 pilot, #1039 deployed actual tip; manual/command parity, descriptors/grammar/touches/resources |
@@ -635,6 +665,10 @@ The existing parity harness's limits remain explicit: eight map points, determin
 arrays, bounded seek and two-loop comparisons. These are not universal timestep,
 map or hardware-performance claims. New clock/curve/hold proof includes dedicated
 stateful fixtures and both runtime modes; measure arithmetic differences explicitly.
+The silent-runtime fixture additionally covers continuous-flat and global-section
+lowering, an initial gap, a later retired interval, visible reuse of the same
+instance and a disconnected gap. It asserts that no generated recipe Clip uses a
+runtime-carrier identity and that state stops advancing in the disconnected gap.
 
 ## 13. Delivery and completion
 
