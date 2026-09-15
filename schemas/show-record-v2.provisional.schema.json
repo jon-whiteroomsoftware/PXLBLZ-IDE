@@ -546,17 +546,11 @@
         "startMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
         "durationMs": { "$ref": "#/$defs/PositiveSafeInteger" },
         "entryPolicy": { "enum": ["continue", "restart"] },
-        "zoneSampleMode": { "enum": ["span", "repeat"] },
-        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
-        "view": { "$ref": "show-record.schema.json#/definitions/ShowPlacementView" },
-        "presentation": { "$ref": "show-record.schema.json#/definitions/ShowClipPresentation" },
-        "blink": { "$ref": "show-record.schema.json#/definitions/ShowClipBlink" },
-        "transform": { "$ref": "show-record.schema.json#/definitions/ShowClipTransform" },
-        "aperture": { "$ref": "show-record.schema.json#/definitions/ShowClipViewport" },
-        "effects": {
-          "type": "array",
-          "items": { "$ref": "show-record.schema.json#/definitions/ShowClipEffect" }
-        }
+        "zoneSampleMode": {
+          "enum": ["independent", "span", "repeat"],
+          "description": "Routed-coordinate behavior. independent preserves the current flat single-Zone default; it is not source-origin metadata."
+        },
+        "appearance": { "$ref": "#/$defs/ShowClipAppearanceTimelineV2" }
       },
       "required": [
         "id",
@@ -566,14 +560,24 @@
         "durationMs",
         "entryPolicy",
         "zoneSampleMode",
-        "opacity",
-        "view"
+        "appearance"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "One definition-local Group Clip. Its experimental appearance-key value timeline preserves appearance changes without persisted logical Clip segments."
     },
     "ShowGroupOccurrenceV2": {
       "type": "object",
       "properties": {
+        "instanceBindings": { "type": "object", "additionalProperties": { "$ref": "#/$defs/Id" } },
+        "trackActivation": {
+          "type": "object",
+          "properties": {
+            "startMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
+            "durationMs": { "$ref": "#/$defs/PositiveSafeInteger" }
+          },
+          "required": ["startMs", "durationMs"],
+          "additionalProperties": false
+        },
         "id": { "$ref": "#/$defs/Id" },
         "definitionId": { "$ref": "#/$defs/Id" },
         "layoutOccurrenceId": { "$ref": "#/$defs/Id" },

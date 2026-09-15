@@ -297,14 +297,13 @@ describe('convertShowRecordV1ToV2', () => {
     })
   })
 
-  it('classifies Group materialization as unsupported with a real stock authored record', () => {
+  it('preserves a real stock Group record with complete source accounting', () => {
     const source = stockShowById('stock-show-205-groups-linked-reuse')?.show
     expect(source).toBeTruthy()
     if (!source) return
 
     expect(convertShowRecordV1ToV2(source)).toMatchObject({
-      status: 'refused',
-      issues: expect.arrayContaining([expect.objectContaining({ code: 'unsupported-group' })]),
+      status: 'converted',
       report: { unaccountedSourcePaths: [] },
     })
   })

@@ -4,6 +4,36 @@
 > wired to product save, import, Undo/Redo, or admission. It does not satisfy
 > the full #1034 acceptance set or approve the provisional v2 model.
 
+## Group preservation increment (2026-09-15)
+
+All **47/47 corpus records now convert and compile**, with complete source
+accounting and no Fast/Precise, second-loop or cold-seek parity failures. Both
+Group records have exact recipe, generated source and summary equality. The
+remaining #1034 work is the consolidated restriction/proof matrix and final review;
+corpus completion alone is not whole-ticket completion.
+
+Group definitions retain local Layers, Clips, Transitions and animation. Their Clip
+schema now matches the existing held-appearance TypeScript model. Occurrences bind
+Layers explicitly. Omitted instance bindings share a definition instance across
+occurrences; explicit bindings preserve legacy occurrence-private runtime identities.
+Migration also retains the source contribution interval for Group tracks rather
+than shortening activation to the visible Group. Materialization is transient and
+does not flatten authored Groups into persisted ordinary Clips.
+
+Validation checks unused definitions and the complete materialized graph, including
+appearance/track references, collisions, Layer bounds, Layout crossing and conflicting
+runtime bindings. Default identities cannot accidentally reuse an ordinary instance.
+The harness resolves actual occurrence-runtime sources and checks every materialized
+Clip against compiler provenance. Fast/Precise parity still compares the real default
+artifacts, without an identity or state omission.
+
+Public tests reopen the provisional file, compare private and shared behavior to
+the existing materializer, retain translated Transform curves and local Transitions,
+and reject malformed ownership without mutation. Omitting track translation is a
+killed mutation. Source segmented logical Clips inside Group definitions and Group
+occurrences crossing Layout boundaries remain typed refusals pending their own proof.
+No compiler, production editor, persistence or UX changes are included.
+
 ## Scalar route correction (2026-09-15)
 
 The scalar-carrier review identified two P2 holes without explicit property ramps:

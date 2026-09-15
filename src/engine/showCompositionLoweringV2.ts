@@ -1,3 +1,5 @@
+import { groupRuntimeBindings, materializeShowGroupsV2 } from './showGroupsV2'
+import { lowerPropertyTarget } from './showV2ValueConversion'
 import { isHeldRepeatScaleTrack, repeatScaleAt, scalarBoundaryRamps } from './showV2ScalarProperties'
 import type {
   ShowCompositionV1,
@@ -136,7 +138,17 @@ function resolveAndLowerShowV2(
   record: ShowRecordV2,
   lookup: ShowCompileRecipeSourceLookup,
 ): ResolvedLowering | { issues: ShowV2CompilePreparationIssue[] } {
-  const resolved = resolveShowV2CompileContext(record, lookup)
+  const invalid = validateShowRecordV2(record)[0]
+  if (invalid) return refuse('invalid-record', invalid.path, invalid.message)
+  const expanded = record.composition.groupDefinitions.length > 0 ? materializeShowGroupsV2(record) : record
+  const sources = { ...lookup.byPatternInstanceId }
+  for (const binding of groupRuntimeBindings(record)) {
+    const sameLocalId = [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap(definition => definition.patternInstances)].filter(instance => instance.id === binding.instance.id)
+    const unambiguous = sameLocalId.every(instance => JSON.stringify(instance.pattern) === JSON.stringify(binding.instance.pattern))
+    const source = sources[binding.runtimeId] ?? (unambiguous ? lookup.byPatternInstanceId?.[binding.instance.id] : undefined)
+    if (source) sources[binding.runtimeId] = source
+  }
+  const resolved = resolveShowV2CompileContext(expanded, { ...lookup, byPatternInstanceId: sources })
   if ('issues' in resolved) return resolved
   return { context: resolved, lowered: emitResolvedShowV2(resolved) }
 }
@@ -729,24 +741,6 @@ function lowerMainClip(context: ResolvedShowV2CompileContext, clip: ShowClipV2):
 
 function lowerOverlayClip(context: ResolvedShowV2CompileContext, clip: ShowClipV2): ShowOverlayPlacement {
   return { ...lowerMainClip(context, clip), opacity: clip.appearance.keys[0].value.opacity }
-}
-
-function lowerPropertyTarget(target: ShowPropertyTargetV2): ShowPropertyAnimationTarget {
-  if (target.kind === 'instance-time-scale' || target.kind === 'instance-control') return structuredClone(target)
-  if (target.kind === 'clip-opacity') return { kind: 'placement-opacity', placementId: target.clipId }
-  if (target.kind === 'clip-view') return { kind: 'placement-view', placementId: target.clipId, property: target.property }
-  if (target.kind === 'clip-transform') return { kind: 'placement-transform', placementId: target.clipId, property: target.property }
-  if (target.kind === 'clip-aperture') return { kind: 'placement-viewport', placementId: target.clipId, property: target.property }
-  if (target.kind === 'clip-effect') {
-    return {
-      kind: 'placement-effect',
-      placementId: target.clipId,
-      effectId: target.effectId,
-      effectKind: target.effectKind,
-      parameterId: target.parameterId,
-    }
-  }
-  throw new Error(`Show composition v2 property target "${target.kind}" requires direct compiler support.`)
 }
 
 function stripV2PropertyTrackActivation(

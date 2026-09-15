@@ -1,3 +1,4 @@
+import { groupDefinitionAsRecord, groupDuration, materializeShowGroupsV2 } from './showGroupsV2'
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv'
 import Ajv2020 from 'ajv/dist/2020'
 import draft07MetaSchemaText from 'ajv/dist/refs/json-schema-draft-07.json?raw'
@@ -157,6 +158,10 @@ export interface ShowGroupLayerBindingV2 {
 }
 
 export interface ShowGroupOccurrenceV2 {
+  /** Omission shares definition instances; explicit bindings preserve independent runtimes. */
+  instanceBindings?: Record<string, string>
+  /** Explicit source contribution interval for migrated definition tracks. */
+  trackActivation?: { startMs: number; durationMs: number }
   id: string
   definitionId: string
   layoutOccurrenceId: string
@@ -662,6 +667,10 @@ function validateGroups(
       if (ranks.has(layer.rank)) addIssue(issues, `${path}.layers[${index}].rank`, 'duplicate-id', 'Group Layer rank is duplicated.')
       ranks.add(layer.rank)
     })
+    if (definition.propertyTracks.some(track => track.target.kind === 'layout-occurrence-split-position' || track.target.kind === 'show-repeat-scale')) addIssue(issues, path, 'invalid-group-binding', 'Group tracks must target definition-local Clips or instances.')
+    for (const issue of validateShowRecordV2(groupDefinitionAsRecord(record, definition))) {
+      addIssue(issues, `${path}.${issue.path}`, issue.code, issue.message)
+    }
     definition.clips.forEach((clip, index) => {
       const clipPath = `${path}.clips[${index}]`
       if (!layers.has(clip.layerId)) addIssue(issues, `${clipPath}.layerId`, 'missing-reference', 'Group Clip Layer does not exist.')
@@ -677,6 +686,13 @@ function validateGroups(
     if (!definition) addIssue(issues, `${path}.definitionId`, 'missing-reference', 'Group definition does not exist.')
     if (!context.layouts.has(occurrence.layoutOccurrenceId)) {
       addIssue(issues, `${path}.layoutOccurrenceId`, 'missing-reference', 'Layout occurrence does not exist.')
+    }
+    if (definition) {
+      const endMs = safeAdd(occurrence.startMs, groupDuration(definition))
+      const layout = context.layouts.get(occurrence.layoutOccurrenceId)
+      if (!layout || occurrence.startMs < layout.startMs || endMs > layout.startMs + layout.durationMs || endMs > record.composition.showEndMs) addIssue(issues, path, 'out-of-bounds', 'Group occurrence must remain inside its Layout occurrence and Show End.')
+      if (Object.keys(occurrence.instanceBindings ?? {}).some(id => !definition.patternInstances.some(instance => instance.id === id))) addIssue(issues, path, 'missing-reference', 'Group runtime binding must name a definition instance.')
+      if (occurrence.trackActivation && (occurrence.trackActivation.startMs > occurrence.startMs || occurrence.trackActivation.startMs + occurrence.trackActivation.durationMs < endMs || occurrence.trackActivation.startMs + occurrence.trackActivation.durationMs > record.composition.showEndMs)) addIssue(issues, path, 'out-of-bounds', 'Group track activation must cover the occurrence inside Show End.')
     }
     const boundDefinitionLayers = new Set<string>()
     occurrence.layerBindings.forEach((binding, bindingIndex) => {
@@ -697,4 +713,11 @@ function validateGroups(
       addIssue(issues, `${path}.layerBindings`, 'invalid-group-binding', 'Every Group Layer requires an explicit binding.')
     }
   })
+  if (issues.length === 0 && record.composition.groupOccurrences.length > 0) {
+    try {
+      for (const issue of validateShowRecordV2(materializeShowGroupsV2(record))) addIssue(issues, `materialized.${issue.path}`, issue.code, issue.message)
+    } catch (error) {
+      addIssue(issues, 'composition.groupOccurrences', 'invalid-group-binding', error instanceof Error ? error.message : String(error))
+    }
+  }
 }

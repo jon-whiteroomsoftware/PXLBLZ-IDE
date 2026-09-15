@@ -1,8 +1,10 @@
+import { convertGroupDefinition, convertGroupOccurrence, groupDefinitionPreserved } from './showGroupsV2'
+import { materializeShowGroupLayerShells } from './showGroupModel'
+import { clipAppearance, convertPropertyTarget } from './showV2ValueConversion'
 import { repeatScaleAt, scalarBoundaryRamps } from './showV2ScalarProperties'
 import type {
   ShowMainPlacement,
   ShowOverlayPlacement,
-  ShowPropertyAnimationTarget,
   ShowRecord,
 } from './personalContentRecords'
 import { projectFlatShowToCompositionV1WithCellOrigins, validateShowComposition } from './showCompositionModel'
@@ -13,7 +15,6 @@ import {
   type ShowClipV2,
   type ShowLayerV2,
   type ShowLayoutOccurrenceV2,
-  type ShowPropertyTargetV2,
   type ShowRecordV2,
   type ShowTransitionV2,
 } from './showCompositionV2'
@@ -159,13 +160,11 @@ export function convertShowRecordV1ToV2(
   for (const issue of validateShowComposition(sourceShow, composition)) {
     issues.push({ path: `composition.${issue.path}`, code: 'invalid-v1', message: issue.message })
   }
-  if ((composition.groupDefinitions?.length ?? 0) > 0 || (composition.groupOccurrences?.length ?? 0) > 0) {
-    issues.push({
-      path: 'composition.groupDefinitions',
-      code: 'unsupported-group',
-      message: 'Group Layer bindings require an explicit lossless conversion proof before admission.',
-    })
+  if ((composition.groupDefinitions ?? []).some(definition => definition.placements.some(clip => clip.logicalClipId !== undefined && clip.logicalClipId !== clip.id))) {
+    issues.push({ path: 'composition.groupDefinitions', code: 'unsupported-group', message: 'Segmented Group logical Clips require separate conversion proof.' })
   }
+  for (const zone of show.zones) composition = materializeShowGroupLayerShells(composition, zone.id)
+  sourceShow = { ...sourceShow, composition }
   const routingChanges = show.transitions.filter(transition => transition.kind === 'routing')
   if (routingChanges.some(transition => !transition.layoutId || Object.keys(transition).some(key => !['id', 'afterSceneId', 'kind', 'layoutId', 'durationMs', 'easing', 'routingDirection'].includes(key))) || (routingChanges.length > 0 && show.transitions.some(transition => transition.kind !== 'routing' && transition.kind !== 'cut'))) {
     issues.push({ path: 'transitions', code: 'unsupported-routing-change', message: 'Routing carriers and simultaneous visual/routing boundaries require separate preservation proof.' })
@@ -347,13 +346,15 @@ export function convertShowRecordV1ToV2(
       layoutOccurrences,
       propertyTracks,
       markers,
-      groupDefinitions: [],
+      groupDefinitions: (composition.groupDefinitions ?? []).map(convertGroupDefinition),
       groupOccurrences: [],
     },
     ...(show.outputEffects !== undefined ? { outputEffects: structuredClone(show.outputEffects) } : {}),
     ...(show.importMetadata !== undefined ? { importMetadata: structuredClone(show.importMetadata) } : {}),
     updatedAt: show.updatedAt,
   }
+
+  record.composition.groupOccurrences = (composition.groupOccurrences ?? []).map(occurrence => convertGroupOccurrence(sourceShow, occurrence, record, sceneStartById.get(occurrence.sceneId)!, layerIdByOwner))
 
   for (const issue of validateShowRecordV2(record)) {
     issues.push({ path: issue.path, code: 'invalid-v2', message: issue.message })
@@ -530,37 +531,6 @@ function convertClips(
     report.clipMappings.push({ sourcePlacementIds: sources.map(source => source.placement.id), clipId })
   }
   return clips.sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
-}
-
-function clipAppearance(placement: ShowMainPlacement | ShowOverlayPlacement) {
-  return {
-    opacity: placement.opacity ?? 1,
-    view: structuredClone(placement.view),
-    ...(placement.presentation !== undefined ? { presentation: structuredClone(placement.presentation) } : {}),
-    ...(placement.blink !== undefined ? { blink: structuredClone(placement.blink) } : {}),
-    ...(placement.transform !== undefined ? { transform: structuredClone(placement.transform) } : {}),
-    ...(placement.viewport !== undefined ? { aperture: structuredClone(placement.viewport) } : {}),
-    effects: structuredClone(placement.effects ?? []),
-  }
-}
-
-function convertPropertyTarget(
-  target: ShowPropertyAnimationTarget,
-  clipIdByPlacementId: Map<string, string>,
-): ShowPropertyTargetV2 {
-  if (target.kind === 'instance-time-scale' || target.kind === 'instance-control') return structuredClone(target)
-  const clipId = clipIdByPlacementId.get(target.placementId) ?? ''
-  if (target.kind === 'placement-opacity') return { kind: 'clip-opacity', clipId }
-  if (target.kind === 'placement-view') return { kind: 'clip-view', clipId, property: target.property }
-  if (target.kind === 'placement-transform') return { kind: 'clip-transform', clipId, property: target.property }
-  if (target.kind === 'placement-viewport') return { kind: 'clip-aperture', clipId, property: target.property }
-  return {
-    kind: 'clip-effect',
-    clipId,
-    effectId: target.effectId,
-    effectKind: target.effectKind,
-    parameterId: target.parameterId,
-  }
 }
 
 function isScalarCarrier(carrier: NonNullable<ShowRecord['transitions'][number]['propertyTransitions']>): boolean {
@@ -833,6 +803,20 @@ function auditComposition(
   if (composition.markers?.length === 0) mapped('composition.markers', 'composition.markers', composition.markers, true)
   if ((composition.groupDefinitions?.length ?? 0) === 0 && composition.groupDefinitions !== undefined) mapped('composition.groupDefinitions', 'composition.groupDefinitions', composition.groupDefinitions, record.composition.groupDefinitions.length === 0)
   if ((composition.groupOccurrences?.length ?? 0) === 0 && composition.groupOccurrences !== undefined) mapped('composition.groupOccurrences', 'composition.groupOccurrences', composition.groupOccurrences, record.composition.groupOccurrences.length === 0)
+
+  for (const [index, definition] of (composition.groupDefinitions ?? []).entries()) {
+    const targetIndex = record.composition.groupDefinitions.findIndex(candidate => candidate.id === definition.id)
+    const target = record.composition.groupDefinitions[targetIndex]
+    mapped(`composition.groupDefinitions.${index}`, `composition.groupDefinitions.${targetIndex}`, definition, Boolean(target && groupDefinitionPreserved(definition, target)))
+  }
+  let withLayers = composition
+  for (const zone of show.zones) withLayers = materializeShowGroupLayerShells(withLayers, zone.id)
+  const layerIds = new Map(report.layerMappings.map(mapping => [`${mapping.sceneId}:${mapping.zoneId}:${mapping.sourceLayerId}`, mapping.layerId]))
+  for (const [index, occurrence] of (composition.groupOccurrences ?? []).entries()) {
+    const targetIndex = record.composition.groupOccurrences.findIndex(candidate => candidate.id === occurrence.id)
+    const expected = convertGroupOccurrence({ ...show, composition: withLayers }, occurrence, record, report.sceneOffsets.find(scene => scene.sceneId === occurrence.sceneId)!.startMs, layerIds)
+    mapped(`composition.groupOccurrences.${index}`, `composition.groupOccurrences.${targetIndex}`, occurrence, JSON.stringify(record.composition.groupOccurrences[targetIndex]) === JSON.stringify(expected))
+  }
 
   for (const [sceneIndex, scene] of composition.scenes.entries()) {
     const scenePath = `composition.scenes.${sceneIndex}`

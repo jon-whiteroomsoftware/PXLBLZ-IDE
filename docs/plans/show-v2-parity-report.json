@@ -4,7 +4,7 @@
   "generatedFrom": {
     "baseCommit": "d685125b34c694f311972e258efb48d12cf05cd8",
     "provisionalPlanSha256": "a13641e8d6233e037ac1e3993b110fce49f44f3908ad0972a50b81279d79722f",
-    "provisionalSchemaSha256": "48b98b56ab93258c602ef08c72f83f4fafbaeabb38d21faaf49edfe242c88575",
+    "provisionalSchemaSha256": "682924fb54f906794953db23ffde0839362ad13d8770cbfbfff07f35b3aae130",
     "runtime": {
       "stepMs": 16,
       "randomSeed": 1034,
@@ -65,12 +65,9 @@
   "summary": {
     "total": 47,
     "byOutcome": {
-      "conversion-refused": 2,
-      "converted-compiled": 45
+      "converted-compiled": 47
     },
-    "byRefusalCode": {
-      "unsupported-group": 2
-    },
+    "byRefusalCode": {},
     "parityFailures": [],
     "lifecycleObservations": {
       "secondLoopParityFailures": [],
@@ -87,6 +84,7 @@
         "stock:stock-show-202-content-clip-viewport",
         "stock:stock-show-203-pattern-instance-lifecycle",
         "stock:stock-show-204-presentation-modes",
+        "stock:stock-show-205-groups-linked-reuse",
         "stock:stock-show-206-changing-zone-layouts",
         "stock:stock-show-207-aperture-shapes-edges",
         "stock:stock-show-301-installation-mapping",
@@ -118,6 +116,7 @@
         "agent-baseline:personal-base",
         "agent-baseline:personal-library-pattern",
         "agent-baseline:stock-draft",
+        "agent-baseline:groups",
         "agent-baseline:animation",
         "agent-baseline:routing",
         "agent-baseline:long-timeline"
@@ -3798,13 +3797,257 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "conversion-refused",
-      "refusalCodes": [
-        "unsupported-group"
-      ],
-      "refusalMessages": [
-        "composition.groupDefinitions: Group Layer bindings require an explicit lossless conversion proof before admission."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": true,
+        "sourceEqual": true,
+        "summaryEqual": true,
+        "memberIdentityMappings": [],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1000,
+            1500,
+            1999,
+            2000,
+            2001,
+            2750,
+            2999,
+            3000,
+            3001,
+            3499,
+            3500,
+            3501,
+            3750,
+            4000,
+            4499,
+            4500,
+            4501,
+            4750,
+            5000,
+            5250,
+            5999,
+            6000,
+            6001,
+            8000,
+            8999,
+            9000,
+            9001,
+            9750,
+            9999,
+            10000,
+            10001,
+            10499,
+            10500,
+            10501,
+            10750,
+            11000,
+            11499,
+            11500,
+            11501,
+            11750,
+            12250,
+            12999,
+            13000,
+            13001,
+            14500,
+            15999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "loom:elapsed_ms",
+            "loom:p0",
+            "loom:p1",
+            "loom:p2",
+            "loom:p3",
+            "loom:t",
+            "occurrence-first:pulse:ringCount",
+            "occurrence-first:pulse:spokeCount",
+            "occurrence-second:pulse:ringCount",
+            "occurrence-second:pulse:spokeCount"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "loom:elapsed_ms",
+              "phase": 81.92,
+              "secondLoop": 81.92000000000341
+            },
+            {
+              "key": "loom:p0",
+              "phase": 0.02654208,
+              "secondLoop": 0.02654208000000111
+            },
+            {
+              "key": "loom:p1",
+              "phase": 0.30096576,
+              "secondLoop": 0.3009657600000013
+            },
+            {
+              "key": "loom:p2",
+              "phase": 0.57538944,
+              "secondLoop": 0.5753894400000015
+            },
+            {
+              "key": "loom:p3",
+              "phase": 0.8498131200000001,
+              "secondLoop": 0.8498131200000018
+            },
+            {
+              "key": "loom:t",
+              "phase": 0.147456,
+              "secondLoop": 0.14745600000000617
+            },
+            {
+              "key": "occurrence-first:pulse:ringCount",
+              "secondLoop": 0
+            },
+            {
+              "key": "occurrence-first:pulse:spokeCount",
+              "secondLoop": 0
+            },
+            {
+              "key": "occurrence-second:pulse:ringCount",
+              "secondLoop": 0
+            },
+            {
+              "key": "occurrence-second:pulse:spokeCount",
+              "secondLoop": 0
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1000,
+            1500,
+            1999,
+            2000,
+            2001,
+            2750,
+            2999,
+            3000,
+            3001,
+            3499,
+            3500,
+            3501,
+            3750,
+            4000,
+            4499,
+            4500,
+            4501,
+            4750,
+            5000,
+            5250,
+            5999,
+            6000,
+            6001,
+            8000,
+            8999,
+            9000,
+            9001,
+            9750,
+            9999,
+            10000,
+            10001,
+            10499,
+            10500,
+            10501,
+            10750,
+            11000,
+            11499,
+            11500,
+            11501,
+            11750,
+            12250,
+            12999,
+            13000,
+            13001,
+            14500,
+            15999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "loom:elapsed_ms",
+            "loom:p0",
+            "loom:p1",
+            "loom:p2",
+            "loom:p3",
+            "loom:t",
+            "occurrence-first:pulse:ringCount",
+            "occurrence-first:pulse:spokeCount",
+            "occurrence-second:pulse:ringCount",
+            "occurrence-second:pulse:spokeCount"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "loom:elapsed_ms",
+              "phase": 5368832,
+              "secondLoop": 5504515
+            },
+            {
+              "key": "loom:p0",
+              "phase": 1745,
+              "secondLoop": 1789
+            },
+            {
+              "key": "loom:p1",
+              "phase": 19731,
+              "secondLoop": 19782
+            },
+            {
+              "key": "loom:p2",
+              "phase": 37716,
+              "secondLoop": 37774
+            },
+            {
+              "key": "loom:p3",
+              "phase": 55701,
+              "secondLoop": 55767
+            },
+            {
+              "key": "loom:t",
+              "phase": 9696,
+              "secondLoop": 9940
+            },
+            {
+              "key": "occurrence-first:pulse:ringCount",
+              "secondLoop": 0
+            },
+            {
+              "key": "occurrence-first:pulse:spokeCount",
+              "secondLoop": 0
+            },
+            {
+              "key": "occurrence-second:pulse:ringCount",
+              "secondLoop": 0
+            },
+            {
+              "key": "occurrence-second:pulse:spokeCount",
+              "secondLoop": 0
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "stock",
@@ -16998,13 +17241,257 @@
           "outcome": "retired-composition-shadow"
         }
       ],
-      "outcome": "conversion-refused",
-      "refusalCodes": [
-        "unsupported-group"
-      ],
-      "refusalMessages": [
-        "composition.groupDefinitions: Group Layer bindings require an explicit lossless conversion proof before admission."
-      ]
+      "outcome": "converted-compiled",
+      "refusalCodes": [],
+      "refusalMessages": [],
+      "parity": {
+        "recipeEqual": true,
+        "sourceEqual": true,
+        "summaryEqual": true,
+        "memberIdentityMappings": [],
+        "fast": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1000,
+            1500,
+            1999,
+            2000,
+            2001,
+            2750,
+            2999,
+            3000,
+            3001,
+            3499,
+            3500,
+            3501,
+            3750,
+            4000,
+            4499,
+            4500,
+            4501,
+            4750,
+            5000,
+            5250,
+            5999,
+            6000,
+            6001,
+            8000,
+            8999,
+            9000,
+            9001,
+            9750,
+            9999,
+            10000,
+            10001,
+            10499,
+            10500,
+            10501,
+            10750,
+            11000,
+            11499,
+            11500,
+            11501,
+            11750,
+            12250,
+            12999,
+            13000,
+            13001,
+            14500,
+            15999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "loom:elapsed_ms",
+            "loom:p0",
+            "loom:p1",
+            "loom:p2",
+            "loom:p3",
+            "loom:t",
+            "occurrence-first:pulse:ringCount",
+            "occurrence-first:pulse:spokeCount",
+            "occurrence-second:pulse:ringCount",
+            "occurrence-second:pulse:spokeCount"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "loom:elapsed_ms",
+              "phase": 81.92,
+              "secondLoop": 81.92000000000341
+            },
+            {
+              "key": "loom:p0",
+              "phase": 0.02654208,
+              "secondLoop": 0.02654208000000111
+            },
+            {
+              "key": "loom:p1",
+              "phase": 0.30096576,
+              "secondLoop": 0.3009657600000013
+            },
+            {
+              "key": "loom:p2",
+              "phase": 0.57538944,
+              "secondLoop": 0.5753894400000015
+            },
+            {
+              "key": "loom:p3",
+              "phase": 0.8498131200000001,
+              "secondLoop": 0.8498131200000018
+            },
+            {
+              "key": "loom:t",
+              "phase": 0.147456,
+              "secondLoop": 0.14745600000000617
+            },
+            {
+              "key": "occurrence-first:pulse:ringCount",
+              "secondLoop": 0
+            },
+            {
+              "key": "occurrence-first:pulse:spokeCount",
+              "secondLoop": 0
+            },
+            {
+              "key": "occurrence-second:pulse:ringCount",
+              "secondLoop": 0
+            },
+            {
+              "key": "occurrence-second:pulse:spokeCount",
+              "secondLoop": 0
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        },
+        "precise": {
+          "matched": true,
+          "sampledMs": [
+            0,
+            1,
+            1000,
+            1500,
+            1999,
+            2000,
+            2001,
+            2750,
+            2999,
+            3000,
+            3001,
+            3499,
+            3500,
+            3501,
+            3750,
+            4000,
+            4499,
+            4500,
+            4501,
+            4750,
+            5000,
+            5250,
+            5999,
+            6000,
+            6001,
+            8000,
+            8999,
+            9000,
+            9001,
+            9750,
+            9999,
+            10000,
+            10001,
+            10499,
+            10500,
+            10501,
+            10750,
+            11000,
+            11499,
+            11500,
+            11501,
+            11750,
+            12250,
+            12999,
+            13000,
+            13001,
+            14500,
+            15999
+          ],
+          "secondLoopMatched": true,
+          "loopResetMatched": false,
+          "loopResetFrameMatched": false,
+          "loopResetStateMatched": false,
+          "loopResetStateDifferences": [
+            "loom:elapsed_ms",
+            "loom:p0",
+            "loom:p1",
+            "loom:p2",
+            "loom:p3",
+            "loom:t",
+            "occurrence-first:pulse:ringCount",
+            "occurrence-first:pulse:spokeCount",
+            "occurrence-second:pulse:ringCount",
+            "occurrence-second:pulse:spokeCount"
+          ],
+          "loopResetStateResiduals": [
+            {
+              "key": "loom:elapsed_ms",
+              "phase": 5368832,
+              "secondLoop": 5504515
+            },
+            {
+              "key": "loom:p0",
+              "phase": 1745,
+              "secondLoop": 1789
+            },
+            {
+              "key": "loom:p1",
+              "phase": 19731,
+              "secondLoop": 19782
+            },
+            {
+              "key": "loom:p2",
+              "phase": 37716,
+              "secondLoop": 37774
+            },
+            {
+              "key": "loom:p3",
+              "phase": 55701,
+              "secondLoop": 55767
+            },
+            {
+              "key": "loom:t",
+              "phase": 9696,
+              "secondLoop": 9940
+            },
+            {
+              "key": "occurrence-first:pulse:ringCount",
+              "secondLoop": 0
+            },
+            {
+              "key": "occurrence-first:pulse:spokeCount",
+              "secondLoop": 0
+            },
+            {
+              "key": "occurrence-second:pulse:ringCount",
+              "secondLoop": 0
+            },
+            {
+              "key": "occurrence-second:pulse:spokeCount",
+              "secondLoop": 0
+            }
+          ],
+          "coldSeekMatchedContinuous": true,
+          "coldSeekFrameMatchedContinuous": true,
+          "coldSeekStateMatchedContinuous": true,
+          "coldSeekStateDifferences": []
+        }
+      }
     },
     {
       "corpus": "agent-baseline",

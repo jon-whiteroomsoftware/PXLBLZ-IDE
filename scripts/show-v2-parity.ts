@@ -1,3 +1,5 @@
+import { materializeShowGroupsV2 } from '@/engine/showGroupsV2'
+import { projectShowGroupRuntimePatternInstances } from '@/engine/showGroupModel'
 import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -209,6 +211,7 @@ function sourceLookup(show: ShowRecord, fixture?: BaselineFixture): ShowCompileR
   const byPatternInstanceId = Object.fromEntries([
     ...(show.composition?.patternInstances ?? []),
     ...(show.composition?.groupDefinitions ?? []).flatMap(group => group.patternInstances),
+    ...(show.composition ? projectShowGroupRuntimePatternInstances(show.composition) : []),
   ].map(instance => [instance.id, source(instance.pattern)]))
   return {
     byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, source(cell.pattern)])),
@@ -285,7 +288,7 @@ export function assertPreparedMemberProvenance(
   recipe: ShowRecipe,
   artifact: GeneratedShowArtifact,
 ): void {
-  const clips = record.composition.clips
+  const clips = materializeShowGroupsV2(record).composition.clips
   const clipIds = clips.map(clip => clip.id).sort()
   const provenanceClipIds = Object.keys(provenance.runtimeInstanceIdByClipId).sort()
   if (stableJson(provenanceClipIds) !== stableJson(clipIds)) {
@@ -456,6 +459,7 @@ export function semanticSampleTimes(
   source: ShowRecord,
   converted: ShowRecordV2,
 ): number[] {
+  converted = materializeShowGroupsV2(converted)
   const showEndMs = converted.composition.showEndMs
   const boundaries = new Set<number>()
   const intervalMidpoints: number[] = []
