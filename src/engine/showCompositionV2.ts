@@ -270,6 +270,12 @@ export function parseProvisionalShowRecordV2(text: string): ProvisionalShowRecor
 export function validateShowRecordV2(record: ShowRecordV2): ShowCompositionV2ValidationIssue[] {
   const issues = structuralIssues(v2StructuralValidator(), record)
   if (issues.length > 0) return issues
+  return validateShowRecordV2Domain(record)
+}
+
+/** Run referential and timeline validation after a trusted structural validator. */
+export function validateShowRecordV2Domain(record: ShowRecordV2): ShowCompositionV2ValidationIssue[] {
+  const issues: ShowCompositionV2ValidationIssue[] = []
   if (record.version !== 2) {
     addIssue(issues, 'version', 'invalid-version', 'Show record version must be 2.')
   }

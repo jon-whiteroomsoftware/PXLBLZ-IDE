@@ -1,5 +1,5 @@
 import type { ShowCompositionV1, ShowRecord } from '../engine/personalContentRecords'
-import { cloneValidShowRecordV2, isShowRecordV2, type ShowDocument } from '../engine/showDocument'
+import { isShowRecordV2, type ShowDocument } from '../engine/showDocument'
 import { normalizeShowRoutingState, normalizeShowTransitionState } from '../engine/showModel'
 import { requireShowOutputContract } from '../engine/showOutputContract'
 import { normalizeShowOutputEffects } from '../engine/showPreviousRgbFeedback'
@@ -9,6 +9,7 @@ import {
   validateShowCompositionTimelineMetadata,
 } from '../engine/showCompositionModel'
 import { PersonalStorageGuardError } from './resourceProtection'
+import { cloneValidShowRecordV2ForWorker } from './showV2Codec'
 
 export interface D1ShowStatementLike {
   bind(...values: unknown[]): D1ShowStatementLike
@@ -55,7 +56,7 @@ export interface ListD1ShowsOptions {
 }
 
 export function showRecordFromRow(row: D1ShowRow): ShowDocument {
-  if (row.record_json) return cloneValidShowRecordV2(parseJson<unknown>(row.record_json, null))
+  if (row.record_json) return cloneValidShowRecordV2ForWorker(parseJson<unknown>(row.record_json, null))
   const outputContract = requireShowOutputContract(
     row.output_contract_json ? parseJson(row.output_contract_json, null) : null,
     row.id,
@@ -152,7 +153,7 @@ async function writeD1ShowV2(
   if (!isShowRecordV2(record) || record.id !== id) {
     throw new Error('A version-2 Show replacement must match the requested identity.')
   }
-  const validated = cloneValidShowRecordV2(record)
+  const validated = cloneValidShowRecordV2ForWorker(record)
   const outputContract = requireWritableShowOutputContract(validated.outputContract, validated.id)
   const result = await db
     .prepare(`
@@ -195,7 +196,7 @@ export async function createD1Show(
 ): Promise<void> {
   const outputContract = requireWritableShowOutputContract(record.outputContract, record.id)
   if (isShowRecordV2(record)) {
-    const validated = cloneValidShowRecordV2(record)
+    const validated = cloneValidShowRecordV2ForWorker(record)
     await db
       .prepare(`
         INSERT INTO personal_shows (
