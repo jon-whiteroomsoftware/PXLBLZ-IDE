@@ -382,10 +382,23 @@ at `p` shift right; content ending at `p` stays left; content strictly spanning
 
 - Shift later Clips, Group starts, Markers (including dormant ones), Layout
   switches and derived entry events. Extend a crossing Clip, keeping one identity.
-- Split a crossing animation segment at `p` using §6, hold its value over the
-  inserted interval, then resume the remaining exact curve. Shift later keys and
-  activation bounds. If a track starts at `p`, shift it; if it ends at `p`, retain
-  its exclusive end. Transform shared-instance tracks once, not per Clip.
+- For a track active strictly across `p`, evaluate its original value at `p`
+  using the existing right-boundary rule. Keep the preceding curve unchanged up
+  to `p`, create a fresh hold key at `p`, and move the original key at `p` (or
+  create the split resume key) to `p + d`. The hold key owns a constant segment
+  over `[p, p + d)`; the resume key owns the original outgoing curve/retained
+  descriptor. Thus an exact-boundary key, including a discontinuity or the last
+  key of a still-active track, holds its right-boundary value without stretching
+  the preceding easing or evaluating a descriptor beyond its retained domain.
+  Shift later keys and activation bounds. If a track starts at `p`, shift it
+  without adding a hold; if it ends at `p`, retain its exclusive end. Transform
+  shared-instance tracks once, not per Clip.
+- For held appearance on a Clip strictly spanning `p`, likewise seed a fresh key
+  at `p` with the original value at `p`, and move an original key at `p` to
+  `p + d`; later keys shift. The original authored key keeps its ID on the right.
+  This matches Group-local holds at an exact key boundary; Group materialization
+  derives hold/resume keys without changing the shared definition. A Clip starting
+  at `p` only shifts, and a Clip ending at `p` only retains its original end.
 - Preserve Layout coverage: extend the occurrence immediately before a switch at
   `p`, shift that switch right, and leave explicit definition identity intact.
   At `p = 0`, retain first occurrence start zero and extend it. Parameter-only
@@ -600,7 +613,7 @@ independently authored expected result for intentional new behavior.
 | SHARING | Plain duplicate, Group repeat, Make Group Unique, explicit independence and Rejoin | #1038; effective runtime IDs/count and controls/tracks; shared instance advances once per frame |
 | RESTART | Shared visible users → entry reset → incoming Transition attach/resize → move/split/delete → duplicate → loop/seek | #1037/#1038; same runtime, clock-only reset at contribution, no right-split or held-time retrigger; generated `.epe` replay |
 | REPLACE | Shared/unshared Clip and Group definition/unique occurrence → replace → Undo/Redo → reopen | #1038/#1041; other users' instance/control/track/logical compiled member unchanged, selected Transition identity stable; eligible metadata pruning |
-| INSERT | Insert through static/animated Clip, shared track, zero scale/Freeze, gap, Layout boundary, visual/transfer interior | #1037/#1038; exact authored hold/resume, normal runtime evolution; no implicit clone/reset; typed refusal |
+| INSERT | Insert through static/animated Clip, exact property/appearance key (including discontinuity/last active key), shared track, zero scale/Freeze, gap, Layout boundary, visual/transfer interior | #1037/#1038; exact authored hold/resume, normal runtime evolution; no implicit clone/reset; typed refusal |
 | GROUP-HOLD | Two occurrences example in §7; repeat insertion inside hold; move/duplicate/unique/ungroup; internal Transition and shared-animation conflict | #1038; mapped choreography, unchanged definition/runtime identities, reopened artifact and immutable refusal |
 | LAYOUT-END | Repeated Layout definition → Make Unique → switch move/remove → shorten/extend Show End → Undo | #1036/#1038; coverage, transfer/track protection, Clip/Group continuity, dormant Markers |
 | LAYERS | Empty named Layer → reorder → Group bind → remove/reassign | #1038; stable IDs/stacking, explicit ambiguity and materialized collision refusal |
