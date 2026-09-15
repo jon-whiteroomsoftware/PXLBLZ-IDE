@@ -21,7 +21,7 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
   const patterns = usePatternStore(state => state.userPatterns)
   const maps = useMapStore(state => state.userMaps)
   const libraries = useLibraryStore(state => state.userLibraries)
-  const [status, setStatus] = useState(() => record ? 'V2 record opened in memory.' : 'Opening v2 pilot…')
+  const [status, setStatus] = useState('')
 
   useEffect(() => {
     if (record) return
@@ -110,7 +110,9 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
             <Button size="xs" variant="outline" onClick={() => void reopen()}>Reload saved v2</Button>
             <Button size="xs" variant="outline" onClick={() => void qualifyArtifacts()}>Reopen artifacts</Button>
           </div>
-          <output aria-live="polite" className={`mt-6 block text-sm leading-6 ${failure ? 'text-red-300' : 'text-zinc-400'}`}>{status}</output>
+          <output aria-live="polite" className={`mt-6 block text-sm leading-6 ${failure ? 'text-red-300' : 'text-zinc-400'}`}>
+            {status || (record ? 'V2 record opened in memory.' : 'Opening v2 pilot…')}
+          </output>
         </div>
       </section>
       <section className="min-h-[20rem] border-t border-zinc-800 p-3 lg:min-h-0 lg:border-l lg:border-t-0" aria-label="V2 Stage preview">

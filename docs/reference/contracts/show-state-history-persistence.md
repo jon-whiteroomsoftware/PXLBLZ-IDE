@@ -222,6 +222,37 @@ store revisions; existing manual replacement callers retain their original API.
 - Notice reset: `dismissShowSaveFailure` removes only the recovery notice. It
   changes no record, history, queued operation, or durable baseline.
 
+## Opt-in version-2 route pilot
+
+Development builds admit a version-2 Show only when the route includes
+`show-v2-pilot=1`. The ordinary Show route, provider list, creation, sparse
+patch, import, and production build remain version 1. The pilot first looks for
+a stored version-2 record; when none exists, it converts the selected version-1
+record explicitly and refuses unsupported input without mutating either form.
+
+`updateShowV2Pilot(id, next)` adopts one complete changed candidate. It reuses
+the same per-Show persistence queue and generic history transitions as ordinary
+Show updates. Undo and redo therefore each replace one whole record and perform
+one durable write. A current write failure restores the last durable
+record/history pair; a superseded failure cannot replace a newer accepted
+candidate. Providers without the version-2 replacement capability refuse
+before optimistic adoption. Reload obtains and validates stored version-2 bytes
+and starts a fresh session history.
+
+The remote provider addresses the explicit v2 collection with
+`show-version=2`; D1 stores the complete closed record in `record_json` and
+excludes that row from ordinary version-1 reads. Worker admission uses the same
+domain validator after a Cloudflare-compatible structural-schema interpreter,
+because Workers prohibit AJV's runtime code generation. Migration records keep
+the source row and hash before compare-and-swap replacement, reopen written
+bytes through production decoding, resume from outcomes, and restore every
+source column during rollback.
+
+The pilot's Stage preview, `.pxlshow`, and `.epe` checks are qualification
+surfaces. They do not switch the production editor or compiler default. The
+[route-pilot test design](../evidence/issue-1044-route-pilot/test-design.json)
+defines its conversion, history, persistence, artifact, and migration oracles.
+
 ## Known limits and discrepancies
 
 - Durable-baseline ordering uses store-assigned `updatedAt` ordering stamps.

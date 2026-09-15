@@ -396,7 +396,6 @@ function StudioApp() {
   const shows = useShowStore((s) => s.shows)
   const showsLoaded = useShowStore((s) => s.showsLoaded)
   const showV2Pilots = useShowStore((s) => s.showV2Pilots)
-  const openShowV2Pilot = useShowStore((s) => s.openShowV2Pilot)
   const openShow = useShowStore((s) => s.openShow)
   const renameShow = useShowStore((s) => s.renameShow)
   const showCreation = useShowStore((s) => s.showCreation)
@@ -606,11 +605,9 @@ function StudioApp() {
       const entityId = currentRoute.entity.id
       if (stockShowById(entityId)) {
         if (activeShowId !== null) void openShow(null)
-      } else if (showV2PilotEnabled && showsLoaded && !showV2Pilots[entityId]) {
-        void openShowV2Pilot(entityId)
-      } else if (shows.some((show) => show.id === entityId) && activeShowId !== entityId) openShow(entityId)
+      } else if (!showV2PilotEnabled && shows.some((show) => show.id === entityId) && activeShowId !== entityId) openShow(entityId)
     }
-  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, librariesLoaded, showsLoaded, syncDocsFromRoute, shows, showV2PilotEnabled, showV2Pilots, activeShowId, activeLibraryName, userPatterns, openShow, openShowV2Pilot])
+  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, librariesLoaded, showsLoaded, syncDocsFromRoute, shows, showV2PilotEnabled, activeShowId, activeLibraryName, userPatterns, openShow])
 
   // State → URL: the active studio entity is addressable. Push when moving
   // between entities so back/forward walk them; replace when a plain /studio
@@ -829,8 +826,10 @@ function StudioApp() {
     ), (ref) => bundledPatternSliderNames(sourceForShowPatternRef(ref, userPatterns), compileLibrarySet))
   }, [compileLibrarySet, routedStockShow, routedStockShowDraft, selectedReferencePatterns, userPatterns])
   const activeShow = routedStockShowOverride ?? (activeShowId ? shows.find((show) => show.id === activeShowId) : undefined)
-  const activeShowV2Pilot = activeShowId ? showV2Pilots[activeShowId] : undefined
-  const pilotShowId = showV2PilotEnabled && activeShowId && (activeShow || activeShowV2Pilot) ? activeShowId : null
+  const pilotShowId = showV2PilotEnabled && showsLoaded && route.kind === 'studio' && route.entity?.kind === 'shows'
+    ? route.entity.id
+    : null
+  const activeShowV2Pilot = pilotShowId ? showV2Pilots[pilotShowId] : undefined
   const activeShowEditor = activeShow ? (
     <ShowEditor
       showId={activeShow.id}
@@ -913,7 +912,7 @@ function StudioApp() {
       : routeEntity.kind === 'controllers'
         ? controllerProfilesLoaded && !controllerProfiles.some((profile) => profile.id === routeEntity.id)
       : routeEntity.kind === 'shows'
-        ? showsLoaded && !shows.some((show) => show.id === routeEntity.id) && !stockShowById(routeEntity.id)
+        ? pilotShowId === null && showsLoaded && !shows.some((show) => show.id === routeEntity.id) && !stockShowById(routeEntity.id)
         : true)
   const invalidDocRoute = route.kind === 'docs' && route.docId !== null && !isDocId(route.docId)
   const activeApiReference = route.kind === 'api-reference'

@@ -36,6 +36,8 @@ import { openDemoPattern } from '@/store/openPattern'
 import { studioOperationInitialState, useStudioOperationStore } from '@/store/studioOperationStore'
 import { EMPTY_REMEMBERED_STUDIO_PLACES, useStudioPlaceStore } from '@/store/studioPlaceStore'
 import { useStudioEntityDrawerStore } from '@/store/studioEntityDrawerStore'
+import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
+import { transitionV1Show } from '@/test/showV2TracerFixture'
 
 const authSessionMock = vi.hoisted(() => ({
   getAuthSession: vi.fn(),
@@ -167,6 +169,44 @@ describe('App smoke test', () => {
   it('has a top bar', () => {
     render(<App />)
     expect(screen.getByTestId('top-bar')).toBeInTheDocument()
+  })
+
+  it('mounts the opt-in v2 Show route when the ordinary v1 list excludes its record', () => {
+    const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    setStudioLocation(`/studio/shows/${converted.record.id}?show-v2-pilot=1`)
+    seedSignedInWorkspace()
+    useShowStore.setState({
+      shows: [],
+      showsLoaded: true,
+      activeShowId: null,
+      showV2Pilots: { [converted.record.id]: converted.record },
+    })
+
+    render(<App />)
+
+    expect(screen.getByRole('heading', { name: 'V2 route qualification' })).toBeInTheDocument()
+    expect(screen.queryByText('Show not found')).not.toBeInTheDocument()
+  })
+
+  it('waits for ordinary Show hydration before mounting an opt-in route', async () => {
+    const source = transitionV1Show('crossfade')
+    const converted = convertShowRecordV1ToV2(source)
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    setStudioLocation(`/studio/shows/${source.id}?show-v2-pilot=1`)
+    seedSignedInWorkspace()
+    useShowStore.setState({ shows: [], showsLoaded: false, activeShowId: null })
+    render(<App />)
+    expect(screen.queryByRole('heading', { name: 'V2 route qualification' })).not.toBeInTheDocument()
+
+    act(() => useShowStore.setState({
+      shows: [source],
+      showsLoaded: true,
+      showV2Pilots: { [source.id]: converted.record },
+    }))
+
+    expect(await screen.findByRole('heading', { name: 'V2 route qualification' })).toBeInTheDocument()
+    expect(screen.getByText('V2 record opened in memory.')).toBeInTheDocument()
   })
 
   it.each([

@@ -41,3 +41,21 @@ it('mounts the converted v2 record and sends a Transition edit through store ado
   expect(update.mock.calls[0][1].composition.transitions[0].durationMs).toBe(100)
   expect(await screen.findByText('Saved v2 Transition at 100 ms.')).toBeInTheDocument()
 })
+
+it('reports a cold provider record as opened after the store publishes it', async () => {
+  const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  useShowStore.setState({
+    openShowV2Pilot: async () => {
+      useShowStore.setState({
+        showV2Pilots: { [converted.record.id]: converted.record },
+        showV2Histories: { [converted.record.id]: { past: [], future: [] } },
+      })
+      return { status: 'ready', record: converted.record }
+    },
+  })
+
+  render(<ShowV2RoutePilot showId={converted.record.id} />)
+
+  expect(await screen.findByText('V2 record opened in memory.')).toBeInTheDocument()
+})
