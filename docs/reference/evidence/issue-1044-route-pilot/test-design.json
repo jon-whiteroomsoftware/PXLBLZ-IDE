@@ -1,0 +1,39 @@
+{
+  "invariants": [
+    "The version-2 route exists only behind the explicit development pilot flag; ordinary Show reads, patches, creation, and file import remain version 1 by default.",
+    "A version-1 flat or composition Show converts explicitly to one validated version-2 record; a stored version-2 record cold-opens without passing through a version-1 normalizer.",
+    "Transition edits publish one complete candidate through the existing Show persistence queue and generic history policy; refusal, no-op, unsupported persistence, failed save, and superseded failure never leave partial state.",
+    "Version-aware D1 and provider writers replace the complete version-2 record and read back the same validated bytes while keeping version-2 rows out of ordinary version-1 reads.",
+    "Show-file export inventories every reachable ordinary or Group Pattern instance, custom Map, and transitive user Library; conflict remaps update all owners consistently before any import writes.",
+    "Migration inventory hashes and snapshots the source row before conversion, records source version and outcome per row, compare-and-swaps unchanged legacy rows, reopens the written record, resumes safely, and restores every source column from backup.",
+    "Preview and .epe qualification compile through the version-2 preparation boundary; .pxlshow and .epe proof reopens through their actual importers."
+  ],
+  "partitions": [
+    "Version-1 flat, version-1 composition, already-version-2, invalid/unknown version, and missing dependency inputs.",
+    "Pilot flag absent/present; warm conversion from the ordinary Show list and cold reopen from a version-2-only row.",
+    "Changed Transition duration, unchanged/refused edit, Undo/Redo, durable reload, current failed save, older failed save superseded by a newer accepted save, and provider without version-2 capability.",
+    "Ordinary version-1 API read/write versus opt-in version-2 GET/PUT/POST; matching and mismatched route/body versions; missing row and changed-row compare-and-swap.",
+    "Ordinary and Group-owned Pattern references; built-in/user Pattern, custom/stock Map, direct/transitive Library, matching identity, conflicting identity, and missing dependency.",
+    "Convertible, already-version-2, undecodable, concurrently changed, interrupted-after-write, repeated, and rollback migration rows."
+  ],
+  "sequences": [
+    "Open a version-1 Show on the opt-in route, convert, edit its Transition, preview, save, Undo, Redo, reload provider bytes, export, and reopen both artifacts.",
+    "Reload the browser at the saved Show route after the ordinary version-1 list excludes its row; cold-open the stored version-2 record and repeat artifact qualification.",
+    "Queue an older write and a newer write, fail the older operation, then confirm the newer candidate and history remain authoritative.",
+    "Inventory a disposable D1-shaped database, snapshot and convert a real stored row, rerun as an idempotent version-2 no-op, roll back, and compare the complete restored row.",
+    "Inventory an undecodable row and a source changed after inventory; record independent refusals while leaving both source rows recoverable."
+  ],
+  "oracles": [
+    "The committed opt-in browser route: visible version-2 format, edited Transition duration, working Stage preview, saved Undo/Redo/reload status, and importer reopen status after a cold browser reload.",
+    "Provider calls and D1 rows decoded through production adapters, including complete record_json bytes and exclusion from ordinary reads.",
+    "Whole store record/history/failure state and ordered persistence calls rather than helper internals.",
+    "Reopened .pxlshow bundle, remapped import candidate, parsed .epe source/stamp, and compiled artifact source.",
+    "SQLite-backed D1 contract rows for source backup, source_version/status outcome, complete restored source columns, and absent outcome after rollback."
+  ],
+  "residualGaps": [
+    "Production remains on version 1; this development-only pilot does not activate native version-2 creation, commands/MCP, stock Shows, or deployment.",
+    "Layout and property-animation/Restart route extensions require the reviewed #1036 and #1037 engine candidates to land and are integration work after this independent candidate rebases.",
+    "The disposable migration rehearsal proves the D1 procedure and rollback with synthetic fixtures; the isolated personal workspace contained zero user rows before the authorized pilot seed, so no personal compatibility claim is made.",
+    "Final committed-tip suites, cross-family review, rebase onto landed engine dependencies, local-main landing, labels, and issue closure belong to the coordinator."
+  ]
+}

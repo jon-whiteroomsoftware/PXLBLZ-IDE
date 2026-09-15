@@ -11,6 +11,8 @@ import type { Settings } from './settings'
 import type { LibraryRecord, MapRecord, MixinRecord, PatternRecord, ShowRecord } from './personalContentRecords'
 import type { ControllerProfile } from './controllerProfile'
 import type { EntityOrganizationV1 } from './entityOrganization'
+import type { ShowRecordV2 } from './showCompositionV2'
+import { isShowRecordV2 } from './showDocument'
 
 export interface RemotePersonalContentProviderOptions {
   fetcher?: typeof fetch
@@ -152,6 +154,17 @@ export function createRemotePersonalContentProvider(
     deleteShow: async (id) => {
       await requestJson(fetcher, `/api/shows/${encodeURIComponent(id)}`, {
         method: 'DELETE',
+      })
+    },
+    listShowDocumentsV2: async () => {
+      const body = await requestJson<{ shows: unknown[] }>(fetcher, '/api/shows?show-version=2')
+      return body.shows.filter(isShowRecordV2) as ShowRecordV2[]
+    },
+    replaceShowV2: async (id, record) => {
+      await requestJson(fetcher, `/api/shows/${encodeURIComponent(id)}?show-version=2`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(record),
       })
     },
     listControllerProfiles: async () => {

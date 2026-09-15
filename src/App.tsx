@@ -126,6 +126,7 @@ import { useStudioPlaceStore } from '@/store/studioPlaceStore'
 import { useStudioEntityDrawerStore } from '@/store/studioEntityDrawerStore'
 import { requestBufferReplacement } from '@/store/navigationPreflightStore'
 import { AgentDrawerWorkspace } from '@/components/agent/AgentDrawer'
+import { ShowV2RoutePilot } from '@/components/ShowV2RoutePilot'
 
 function Splitter({
   onDrag,
@@ -342,6 +343,8 @@ export default function App() {
 }
 
 function StudioApp() {
+  const showV2PilotEnabled = import.meta.env.DEV
+    && new URLSearchParams(window.location.search).get('show-v2-pilot') === '1'
   const activePatternId = usePatternStore((s) => s.activePatternId)
   const activeLibraryName = usePatternStore((s) => s.activeLibraryName)
   const activeDemoName = usePatternStore((s) => s.activeDemoName)
@@ -392,6 +395,8 @@ function StudioApp() {
   const activeShowId = useShowStore((s) => s.activeShowId)
   const shows = useShowStore((s) => s.shows)
   const showsLoaded = useShowStore((s) => s.showsLoaded)
+  const showV2Pilots = useShowStore((s) => s.showV2Pilots)
+  const openShowV2Pilot = useShowStore((s) => s.openShowV2Pilot)
   const openShow = useShowStore((s) => s.openShow)
   const renameShow = useShowStore((s) => s.renameShow)
   const showCreation = useShowStore((s) => s.showCreation)
@@ -601,9 +606,11 @@ function StudioApp() {
       const entityId = currentRoute.entity.id
       if (stockShowById(entityId)) {
         if (activeShowId !== null) void openShow(null)
+      } else if (showV2PilotEnabled && showsLoaded && !showV2Pilots[entityId]) {
+        void openShowV2Pilot(entityId)
       } else if (shows.some((show) => show.id === entityId) && activeShowId !== entityId) openShow(entityId)
     }
-  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, librariesLoaded, showsLoaded, syncDocsFromRoute, shows, activeShowId, activeLibraryName, userPatterns, openShow])
+  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, librariesLoaded, showsLoaded, syncDocsFromRoute, shows, showV2PilotEnabled, showV2Pilots, activeShowId, activeLibraryName, userPatterns, openShow, openShowV2Pilot])
 
   // State → URL: the active studio entity is addressable. Push when moving
   // between entities so back/forward walk them; replace when a plain /studio
@@ -822,6 +829,8 @@ function StudioApp() {
     ), (ref) => bundledPatternSliderNames(sourceForShowPatternRef(ref, userPatterns), compileLibrarySet))
   }, [compileLibrarySet, routedStockShow, routedStockShowDraft, selectedReferencePatterns, userPatterns])
   const activeShow = routedStockShowOverride ?? (activeShowId ? shows.find((show) => show.id === activeShowId) : undefined)
+  const activeShowV2Pilot = activeShowId ? showV2Pilots[activeShowId] : undefined
+  const pilotShowId = showV2PilotEnabled && activeShowId && (activeShow || activeShowV2Pilot) ? activeShowId : null
   const activeShowEditor = activeShow ? (
     <ShowEditor
       showId={activeShow.id}
@@ -1307,7 +1316,7 @@ function StudioApp() {
                   <span className="show-header-title flex min-w-0 items-center gap-1.5">
                     <Film size={14} aria-hidden className="shrink-0 text-zinc-500" />
                     <InlineEntityTitle
-                      name={activeShow?.name ?? 'Shows'}
+                      name={activeShow?.name ?? activeShowV2Pilot?.name ?? 'Shows'}
                       noun="show"
                       onRename={activeShow && !routedStockShow ? (nextName) => renameShow(activeShow.id, nextName) : undefined}
                       takenNames={shows.filter((show) => show.id !== activeShow?.id).map((show) => show.name)}
@@ -1448,6 +1457,8 @@ function StudioApp() {
                     }}
                   />
                 </div>
+              ) : pilotShowId ? (
+                <ShowV2RoutePilot showId={pilotShowId} />
               ) : activeShow ? (
                 <ShowWorkspace
                   previewAspect={showStagePreviewAspect}

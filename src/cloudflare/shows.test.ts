@@ -4,12 +4,15 @@ import {
   listD1Shows,
   showRecordFromRow,
   updateD1Show,
+  replaceD1ShowV2,
   type D1DatabaseShowsLike,
 } from './shows'
 import { createDefaultShow, normalizeShowTransitionState } from '../engine/showModel'
 import { createInstallationShowOutputContract } from '../engine/showOutputContract'
 import { normalizeShowComposition } from '../engine/showCompositionModel'
 import type { ShowCompositionV1 } from '../engine/personalContentRecords'
+import { transitionV1Show } from '../test/showV2TracerFixture'
+import { convertShowRecordV1ToV2 } from '../engine/showRecordV1ToV2'
 
 function composition(): ShowCompositionV1 {
   return {
@@ -67,6 +70,57 @@ function fakeDb(rows: Record<string, unknown>[] = []): {
 }
 
 describe('D1 show persistence (#318)', () => {
+  it('writes and reopens an explicitly versioned v2 Show without the v1 normalizer', async () => {
+    const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    const record = { ...converted.record, id: 'show-v2', name: 'V2 pilot', updatedAt: 456 }
+    const { db, calls } = fakeDb()
+
+    await createD1Show(db, 'github:123', record, 100)
+
+    const values = calls[0].values
+    expect(values).toContain(JSON.stringify(record))
+    expect(showRecordFromRow({
+      id: record.id,
+      name: record.name,
+      scenes_json: '[]',
+      zones_json: JSON.stringify(record.zones),
+      cells_json: '[]',
+      routing_layouts_json: JSON.stringify(record.zoneLayouts),
+      transitions_json: '[]',
+      composition_json: JSON.stringify(record.composition),
+      record_json: JSON.stringify(record),
+      output_effects_json: null,
+      target_controller_profile_id: null,
+      stage_map_id: record.stageMapId ?? null,
+      output_contract_json: JSON.stringify(record.outputContract),
+      import_metadata_json: null,
+      updated_at: record.updatedAt,
+    })).toEqual(record)
+  })
+
+  it('keeps v2 rows out of ordinary reads and replaces them only through the full-record writer', async () => {
+    const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    const record = { ...converted.record, id: 'v2-explicit', updatedAt: 789 }
+    const row = {
+      id: record.id, name: record.name, scenes_json: '[]', zones_json: '[]', cells_json: '[]',
+      routing_layouts_json: '[]', transitions_json: '[]', composition_json: null,
+      record_json: JSON.stringify(record), output_effects_json: null, output_contract_json: JSON.stringify(record.outputContract),
+      target_controller_profile_id: null, stage_map_id: record.stageMapId ?? null, import_metadata_json: null, updated_at: record.updatedAt,
+    }
+    const ordinary = fakeDb([row])
+    await expect(listD1Shows(ordinary.db, 'github:123')).resolves.toEqual({ shows: [], unreadableShows: [] })
+    const optedIn = fakeDb([row])
+    await expect(listD1Shows(optedIn.db, 'github:123', { includeV2: true })).resolves.toEqual({ shows: [record], unreadableShows: [] })
+
+    const replacement = { ...record, name: 'Saved v2' }
+    const written = fakeDb()
+    await replaceD1ShowV2(written.db, 'github:123', record.id, replacement)
+    expect(written.calls[0].values).toContain(JSON.stringify(replacement))
+    await expect(replaceD1ShowV2(written.db, 'github:123', 'wrong-id', replacement)).rejects.toThrow('match')
+  })
+
   it('maps D1 rows to ShowRecord values', () => {
     const show = createDefaultShow('show-1', 'Tazii nights', 123)
     const outputContract = createInstallationShowOutputContract({ outputMapId: 'map-1', pixelCount: 240 })

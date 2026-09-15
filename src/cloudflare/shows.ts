@@ -1,4 +1,5 @@
 import type { ShowCompositionV1, ShowRecord } from '../engine/personalContentRecords'
+import { cloneValidShowRecordV2, isShowRecordV2, type ShowDocument } from '../engine/showDocument'
 import { normalizeShowRoutingState, normalizeShowTransitionState } from '../engine/showModel'
 import { requireShowOutputContract } from '../engine/showOutputContract'
 import { normalizeShowOutputEffects } from '../engine/showPreviousRgbFeedback'
@@ -12,7 +13,7 @@ import { PersonalStorageGuardError } from './resourceProtection'
 export interface D1ShowStatementLike {
   bind(...values: unknown[]): D1ShowStatementLike
   all<T = Record<string, unknown>>(): Promise<{ results: T[] }>
-  run(): Promise<{ success: boolean }>
+  run(): Promise<{ success: boolean; meta?: { changes?: number } }>
 }
 
 export interface D1DatabaseShowsLike {
@@ -28,6 +29,7 @@ export interface D1ShowRow {
   routing_layouts_json?: string | null
   transitions_json?: string | null
   composition_json?: string | null
+  record_json?: string | null
   output_effects_json?: string | null
   output_contract_json?: string | null
   import_metadata_json?: string | null
@@ -44,11 +46,16 @@ export interface D1UnreadableShow {
 }
 
 export interface D1ShowListResult {
-  shows: ShowRecord[]
+  shows: ShowDocument[]
   unreadableShows: D1UnreadableShow[]
 }
 
-export function showRecordFromRow(row: D1ShowRow): ShowRecord {
+export interface ListD1ShowsOptions {
+  includeV2?: boolean
+}
+
+export function showRecordFromRow(row: D1ShowRow): ShowDocument {
+  if (row.record_json) return cloneValidShowRecordV2(parseJson<unknown>(row.record_json, null))
   const outputContract = requireShowOutputContract(
     row.output_contract_json ? parseJson(row.output_contract_json, null) : null,
     row.id,
@@ -57,6 +64,9 @@ export function showRecordFromRow(row: D1ShowRow): ShowRecord {
     ? normalizeShowOutputEffects(parseJson(row.output_effects_json, []))
     : []
   const importMetadata = normalizeShowImportMetadata(parseJson(row.import_metadata_json ?? 'null', null))
+  const rawComposition = row.composition_json
+    ? parseJson<unknown>(row.composition_json, null)
+    : undefined
   const show = normalizeShowTransitionState(normalizeShowRoutingState({
     id: row.id,
     name: row.name,
@@ -72,17 +82,21 @@ export function showRecordFromRow(row: D1ShowRow): ShowRecord {
     ...(importMetadata ? { importMetadata } : {}),
     updatedAt: row.updated_at,
   }))
-  const composition = row.composition_json
-    ? normalizeStoredComposition(show, parseJson<unknown>(row.composition_json, null))
+  const composition = rawComposition
+    ? normalizeStoredComposition(show, rawComposition)
     : undefined
   return composition ? { ...show, composition } : show
 }
 
-export async function listD1Shows(db: D1DatabaseShowsLike, userId: string): Promise<D1ShowListResult> {
+export async function listD1Shows(
+  db: D1DatabaseShowsLike,
+  userId: string,
+  options: ListD1ShowsOptions = {},
+): Promise<D1ShowListResult> {
   const { results } = await db
     .prepare(`
       SELECT id, name, scenes_json, zones_json, cells_json, routing_layouts_json, transitions_json,
-             composition_json, output_effects_json, target_controller_profile_id, stage_map_id, output_contract_json,
+             composition_json, record_json, output_effects_json, target_controller_profile_id, stage_map_id, output_contract_json,
              import_metadata_json, updated_at
       FROM personal_shows
       WHERE user_id = ?
@@ -90,9 +104,10 @@ export async function listD1Shows(db: D1DatabaseShowsLike, userId: string): Prom
     `)
     .bind(userId)
     .all<D1ShowRow>()
-  const shows: ShowRecord[] = []
+  const shows: ShowDocument[] = []
   const unreadableShows: D1UnreadableShow[] = []
   for (const row of results) {
+    if (row.record_json && !options.includeV2) continue
     try {
       shows.push(showRecordFromRow(row))
     } catch (error) {
@@ -107,13 +122,111 @@ export async function listD1Shows(db: D1DatabaseShowsLike, userId: string): Prom
   return { shows, unreadableShows }
 }
 
+export async function replaceD1ShowV2(
+  db: D1DatabaseShowsLike,
+  userId: string,
+  id: string,
+  record: ShowDocument,
+): Promise<void> {
+  const written = await writeD1ShowV2(db, userId, id, record)
+  if (!written) throw new Error(`Show "${id}" is unavailable for version-2 replacement.`)
+}
+
+export async function replaceD1ShowV2IfCurrent(
+  db: D1DatabaseShowsLike,
+  userId: string,
+  id: string,
+  record: ShowDocument,
+  expected: { updatedAt: number; recordJson: string | null },
+): Promise<boolean> {
+  return writeD1ShowV2(db, userId, id, record, expected)
+}
+
+async function writeD1ShowV2(
+  db: D1DatabaseShowsLike,
+  userId: string,
+  id: string,
+  record: ShowDocument,
+  expected?: { updatedAt: number; recordJson: string | null },
+): Promise<boolean> {
+  if (!isShowRecordV2(record) || record.id !== id) {
+    throw new Error('A version-2 Show replacement must match the requested identity.')
+  }
+  const validated = cloneValidShowRecordV2(record)
+  const outputContract = requireWritableShowOutputContract(validated.outputContract, validated.id)
+  const result = await db
+    .prepare(`
+      UPDATE personal_shows
+      SET name = ?, scenes_json = ?, zones_json = ?, cells_json = ?, routing_layouts_json = ?,
+          transitions_json = ?, composition_json = ?, record_json = ?, output_effects_json = ?,
+          target_controller_profile_id = ?, stage_map_id = ?, output_contract_json = ?,
+          import_metadata_json = ?, updated_at = ?
+      WHERE user_id = ? AND id = ?
+      ${expected ? 'AND updated_at = ? AND record_json IS ?' : ''}
+    `)
+    .bind(
+      validated.name,
+      '[]',
+      JSON.stringify(validated.zones),
+      '[]',
+      JSON.stringify(validated.zoneLayouts),
+      '[]',
+      null,
+      JSON.stringify(validated),
+      validated.outputEffects?.length ? JSON.stringify(normalizeShowOutputEffects(validated.outputEffects)) : null,
+      validated.targetControllerProfileId ?? null,
+      validated.stageMapId ?? null,
+      JSON.stringify(outputContract),
+      validated.importMetadata ? JSON.stringify(validated.importMetadata) : null,
+      validated.updatedAt,
+      userId,
+      id,
+      ...(expected ? [expected.updatedAt, expected.recordJson] : []),
+    )
+    .run()
+  return expected ? result.meta?.changes === 1 : result.meta?.changes !== 0
+}
+
 export async function createD1Show(
   db: D1DatabaseShowsLike,
   userId: string,
-  record: ShowRecord,
+  record: ShowDocument,
   now = Math.floor(Date.now() / 1000),
 ): Promise<void> {
   const outputContract = requireWritableShowOutputContract(record.outputContract, record.id)
+  if (isShowRecordV2(record)) {
+    const validated = cloneValidShowRecordV2(record)
+    await db
+      .prepare(`
+        INSERT INTO personal_shows (
+          user_id, id, name, scenes_json, zones_json, cells_json, routing_layouts_json, transitions_json,
+          composition_json, record_json, output_effects_json, target_controller_profile_id, stage_map_id, output_contract_json, created_at, updated_at,
+          import_metadata_json
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .bind(
+        userId,
+        validated.id,
+        validated.name,
+        '[]',
+        JSON.stringify(validated.zones),
+        '[]',
+        JSON.stringify(validated.zoneLayouts),
+        '[]',
+        null,
+        JSON.stringify(validated),
+        validated.outputEffects?.length ? JSON.stringify(normalizeShowOutputEffects(validated.outputEffects)) : null,
+        validated.targetControllerProfileId ?? null,
+        validated.stageMapId ?? null,
+        JSON.stringify(outputContract),
+        now,
+        validated.updatedAt,
+        validated.importMetadata ? JSON.stringify(validated.importMetadata) : null,
+      )
+      .run()
+    return
+  }
   if (
     record.composition != null
     && (!isShowSceneArray(record.scenes) || !isShowZoneArray(record.zones))

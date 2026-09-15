@@ -1,5 +1,7 @@
 import { STOCK_MAP_SPECS } from './maps'
-import type { MapRecord, PatternRecord, ShowRecord } from './personalContentRecords'
+import type { LibraryRecord, MapRecord, PatternRecord, ShowPatternRef, ShowRecord } from './personalContentRecords'
+import { cloneValidShowRecordV2, isShowRecordV2, type ShowDocument } from './showDocument'
+import type { ShowRecordV2 } from './showCompositionV2'
 import { epeFilenameStem } from './showEpeExport'
 import { buildShowArtifactAttribution } from './showPreviewArtifact'
 import {
@@ -14,6 +16,9 @@ import {
 } from './showModel'
 import { requireShowOutputContract } from './showOutputContract'
 import { normalizeShowOutputEffects } from './showPreviousRgbFeedback'
+import { inspectPatternLibraryReferences } from './bundle'
+import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
+import { LIBRARIES } from '@/pixelblaze/libs'
 
 export interface ShowFileBundleV1 {
   version: 1
@@ -27,9 +32,21 @@ export interface ShowFileBundleV1 {
   }
 }
 
+export interface ShowFileBundleV2 {
+  version: 2
+  show: ShowRecordV2
+  patterns: PatternRecord[]
+  maps: MapRecord[]
+  libraries: LibraryRecord[]
+  provenance: ShowFileBundleV1['provenance']
+}
+
+export type ShowFileBundle = ShowFileBundleV1 | ShowFileBundleV2
+
 export interface ShowFileBundleLibrary {
   patterns: readonly PatternRecord[]
   maps: readonly MapRecord[]
+  libraries?: readonly LibraryRecord[]
 }
 
 export interface BuildShowFileBundleOptions {
@@ -40,6 +57,8 @@ export interface BuildShowFileBundleOptions {
 export type ShowFileBundleErrorCode =
   | 'missing_user_pattern'
   | 'missing_custom_map'
+  | 'missing_user_library'
+  | 'unsupported_library_reference'
   | 'invalid_file'
   | 'unsupported_version'
 
@@ -57,9 +76,22 @@ export function buildShowFileBundle(
   show: ShowRecord,
   library: ShowFileBundleLibrary,
   options: BuildShowFileBundleOptions,
-): { filename: string; bundle: ShowFileBundleV1 } {
+): { filename: string; bundle: ShowFileBundleV1 }
+export function buildShowFileBundle(
+  show: ShowRecordV2,
+  library: ShowFileBundleLibrary,
+  options: BuildShowFileBundleOptions,
+): { filename: string; bundle: ShowFileBundleV2 }
+export function buildShowFileBundle(
+  show: ShowDocument,
+  library: ShowFileBundleLibrary,
+  options: BuildShowFileBundleOptions,
+): { filename: string; bundle: ShowFileBundle } {
   const patternById = new Map(library.patterns.map((pattern) => [pattern.id, pattern]))
-  const patterns = buildShowArtifactAttribution(show, library.patterns).patterns.flatMap((reference) => {
+  const references = isShowRecordV2(show)
+    ? showPatternReferencesV2(show)
+    : buildShowArtifactAttribution(show, library.patterns).patterns
+  const patterns = references.flatMap((reference) => {
     if (reference.kind !== 'user') return []
     const pattern = patternById.get(reference.id)
     if (!pattern) {
@@ -85,27 +117,82 @@ export function buildShowFileBundle(
     }
     return [clone(map)]
   })
+  const libraries = isShowRecordV2(show)
+    ? collectReferencedLibraries(show, references, patterns, library.libraries ?? [])
+    : []
 
   const exportedAt = options.exportedAt instanceof Date
     ? options.exportedAt.toISOString()
     : options.exportedAt ?? new Date().toISOString()
   return {
     filename: `${epeFilenameStem(show.name.trim() || 'Untitled Show')}.pxlshow`,
-    bundle: {
-      version: 1,
-      show: clone(show),
-      patterns,
-      maps,
-      provenance: {
-        appVersion: options.appVersion,
-        exportedAt,
-        originalShowId: show.id,
-      },
-    },
+    bundle: isShowRecordV2(show)
+      ? {
+          version: 2,
+          show: clone(show),
+          patterns,
+          maps,
+          libraries,
+          provenance: {
+            appVersion: options.appVersion,
+            exportedAt,
+            originalShowId: show.id,
+          },
+        }
+      : {
+          version: 1,
+          show: clone(show),
+          patterns,
+          maps,
+          provenance: {
+            appVersion: options.appVersion,
+            exportedAt,
+            originalShowId: show.id,
+          },
+        },
   }
 }
 
-export async function serializeShowFileBundle(bundle: ShowFileBundleV1): Promise<Uint8Array> {
+function collectReferencedLibraries(
+  show: ShowRecordV2,
+  references: ReturnType<typeof showPatternReferencesV2>,
+  embeddedPatterns: readonly PatternRecord[],
+  availableLibraries: readonly LibraryRecord[],
+): LibraryRecord[] {
+  const userPatternById = new Map(embeddedPatterns.map(pattern => [pattern.id, pattern]))
+  const userLibraryByName = new Map(availableLibraries.map(item => [item.name, item]))
+  const stockLibraryNames = new Set(Object.keys(LIBRARIES))
+  const pendingSources = references.map(reference => {
+    if (reference.kind === 'user') return userPatternById.get(reference.id)?.src ?? ''
+    return DEMOS[resolveStockPatternId(reference.id)] ?? ''
+  })
+  const selected = new Map<string, LibraryRecord>()
+  while (pendingSources.length > 0) {
+    const source = pendingSources.shift()!
+    const inspection = inspectPatternLibraryReferences(source)
+    if (inspection.unsupportedCalls) {
+      throw new ShowFileBundleError(
+        'unsupported_library_reference',
+        `Show "${show.name}" contains a source form whose Library dependencies cannot be inventoried safely.`,
+      )
+    }
+    for (const namespace of new Set(inspection.references.map(reference => reference.namespace))) {
+      if (stockLibraryNames.has(namespace) || selected.has(namespace)) continue
+      const dependency = userLibraryByName.get(namespace)
+      if (!dependency) {
+        throw new ShowFileBundleError(
+          'missing_user_library',
+          `Show "${show.name}" needs user Library "${namespace}", which is not in the library.`,
+        )
+      }
+      selected.set(namespace, clone(dependency))
+      pendingSources.push(dependency.src)
+    }
+  }
+  return [...selected.values()].sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export async function serializeShowFileBundle(bundle: ShowFileBundle): Promise<Uint8Array> {
   const input = new Blob([JSON.stringify(bundle)]).stream()
   const compressed = input.pipeThrough(new CompressionStream('gzip'))
   return new Uint8Array(await new Response(compressed).arrayBuffer())
@@ -114,9 +201,13 @@ export async function serializeShowFileBundle(bundle: ShowFileBundleV1): Promise
 export interface ParseShowFileBundleOptions {
   /** Internal authoring qualification only; product import callers keep normalization. */
   preserveAuthoringPhysicalRanges?: boolean
+  /** #1044 opt-in route pilot only; production import remains v1 until #1039. */
+  acceptV2?: boolean
 }
 
-export async function parseShowFileBundle(bytes: Uint8Array, options: ParseShowFileBundleOptions = {}): Promise<ShowFileBundleV1> {
+export function parseShowFileBundle(bytes: Uint8Array, options?: ParseShowFileBundleOptions & { acceptV2?: false }): Promise<ShowFileBundleV1>
+export function parseShowFileBundle(bytes: Uint8Array, options: ParseShowFileBundleOptions & { acceptV2: true }): Promise<ShowFileBundle>
+export async function parseShowFileBundle(bytes: Uint8Array, options: ParseShowFileBundleOptions = {}): Promise<ShowFileBundle> {
   let payload = bytes
   if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
     try {
@@ -137,16 +228,17 @@ export async function parseShowFileBundle(bytes: Uint8Array, options: ParseShowF
   if (!isRecord(parsed) || !Number.isInteger(parsed.version)) {
     throw new ShowFileBundleError('invalid_file', 'This Show file is missing a format version.')
   }
-  if (parsed.version !== 1) {
+  if (parsed.version !== 1 && (parsed.version !== 2 || !options.acceptV2)) {
     throw new ShowFileBundleError(
       'unsupported_version',
       `This Show file uses format version ${String(parsed.version)}. Update PXLBLZ to import it.`,
     )
   }
+  if (parsed.version === 2) return validateParsedBundleV2(parsed)
   return validateParsedBundle(parsed, options)
 }
 
-function referencedMapIds(show: ShowRecord): string[] {
+function referencedMapIds(show: ShowDocument): string[] {
   const ids = new Set<string>()
   if (show.stageMapId) ids.add(show.stageMapId)
   const contractMapId = show.outputContract.kind === 'installation'
@@ -154,6 +246,19 @@ function referencedMapIds(show: ShowRecord): string[] {
     : show.outputContract.referenceMapId
   if (contractMapId) ids.add(contractMapId)
   return [...ids]
+}
+
+function showPatternReferencesV2(show: ShowRecordV2): Array<{ kind: ShowPatternRef['kind']; id: string; name: string }> {
+  const seen = new Set<string>()
+  return [
+    ...show.composition.patternInstances,
+    ...show.composition.groupDefinitions.flatMap(definition => definition.patternInstances),
+  ].flatMap(instance => {
+    const key = `${instance.pattern.kind}:${instance.pattern.id}`
+    if (seen.has(key)) return []
+    seen.add(key)
+    return [{ kind: instance.pattern.kind, id: instance.pattern.id, name: instance.patternName }]
+  })
 }
 
 function clone<T>(value: T): T {
@@ -192,6 +297,48 @@ function validateParsedBundle(value: Record<string, unknown>, options: ParseShow
       exportedAt: provenance.exportedAt,
       originalShowId: provenance.originalShowId,
     },
+  }
+}
+
+function validateParsedBundleV2(value: Record<string, unknown>): ShowFileBundleV2 {
+  let show: ShowRecordV2
+  try {
+    show = cloneValidShowRecordV2(value.show)
+  } catch {
+    invalid('This Show file has an invalid version-2 Show record.')
+  }
+  if (!Array.isArray(value.patterns) || !value.patterns.every(isPatternRecord)) {
+    invalid('This Show file has an invalid embedded Pattern list.')
+  }
+  if (!Array.isArray(value.maps) || !value.maps.every(isMapRecord)) {
+    invalid('This Show file has an invalid embedded Map list.')
+  }
+  if (!Array.isArray(value.libraries) || !value.libraries.every(isLibraryRecord)) {
+    invalid('This Show file has an invalid embedded Library list.')
+  }
+  const provenance = validProvenance(value.provenance)
+  return {
+    version: 2,
+    show: show!,
+    patterns: clone(value.patterns),
+    maps: clone(value.maps),
+    libraries: clone(value.libraries),
+    provenance,
+  }
+}
+
+function validProvenance(value: unknown): ShowFileBundleV1['provenance'] {
+  if (
+    !isRecord(value)
+    || !isNonEmptyString(value.appVersion)
+    || !isNonEmptyString(value.exportedAt)
+    || !isNonEmptyString(value.originalShowId)
+    || Number.isNaN(Date.parse(value.exportedAt))
+  ) invalid('This Show file has invalid export provenance.')
+  return {
+    appVersion: value.appVersion as string,
+    exportedAt: value.exportedAt as string,
+    originalShowId: value.originalShowId as string,
   }
 }
 
@@ -281,6 +428,14 @@ function isPatternRecord(value: unknown): value is PatternRecord {
       || Array.isArray(control) && control.every((item) => typeof item === 'number' && Number.isFinite(item))
     ))
     && (value.authors === undefined || Array.isArray(value.authors) && value.authors.every((author) => typeof author === 'string'))
+    && Number.isFinite(value.updatedAt)
+}
+
+function isLibraryRecord(value: unknown): value is LibraryRecord {
+  return isRecord(value)
+    && isNonEmptyString(value.id)
+    && isNonEmptyString(value.name)
+    && typeof value.src === 'string'
     && Number.isFinite(value.updatedAt)
 }
 

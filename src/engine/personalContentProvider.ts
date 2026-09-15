@@ -3,6 +3,7 @@ import type { LibraryRecord, MapRecord, MixinRecord, PatternRecord, ShowRecord }
 import type { ControllerProfile } from './controllerProfile'
 import type { EntityOrganizationKind, EntityOrganizationV1 } from './entityOrganization'
 import { createRemotePersonalContentProvider } from './remotePersonalContentProvider'
+import type { ShowRecordV2 } from './showCompositionV2'
 
 export const LAST_ACTIVE_KEY = 'lastActive'
 export const DEMO_OVERRIDES_KEY = 'demoOverrides'
@@ -53,6 +54,9 @@ export interface PersonalContentProvider {
   createShow(record: ShowRecord): Promise<void>
   updateShow(id: string, changes: Partial<Omit<ShowRecord, 'id'>>): Promise<void>
   deleteShow(id: string): Promise<void>
+  /** Explicit #1044 pilot boundary. Ordinary Show methods remain v1-only. */
+  listShowDocumentsV2?(): Promise<ShowRecordV2[]>
+  replaceShowV2?(id: string, record: ShowRecordV2): Promise<void>
   listControllerProfiles(): Promise<ControllerProfile[]>
   createControllerProfile(profile: ControllerProfile): Promise<void>
   updateControllerProfile(id: string, changes: Partial<Omit<ControllerProfile, 'id'>>): Promise<void>

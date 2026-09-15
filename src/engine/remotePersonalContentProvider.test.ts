@@ -3,6 +3,8 @@ import {
 } from './remotePersonalContentProvider'
 import type { ControllerProfile } from './controllerProfile'
 import type { LibraryRecord, PatternRecord, ShowRecord } from './personalContentRecords'
+import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
+import { convertibleV1Show } from '../test/showV2TracerFixture'
 import type { EntityOrganizationV1 } from './entityOrganization'
 
 describe('remote personal content provider', () => {
@@ -247,6 +249,26 @@ describe('remote personal content provider', () => {
       ['/api/shows/show-1', 'DELETE'],
     ])
     expect(requests[2].init?.body).toBe(JSON.stringify({ name: 'Renamed', updatedAt: 2 }))
+  })
+
+  it('uses explicit endpoints for v2 readback and full-record replacement', async () => {
+    const converted = convertShowRecordV1ToV2(convertibleV1Show())
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    const requests: Array<{ url: string; init?: RequestInit }> = []
+    const provider = createRemotePersonalContentProvider({ fetcher: async (url, init) => {
+      requests.push({ url: String(url), init })
+      return String(url).includes('show-version=2') && !init
+        ? Response.json({ shows: [convertibleV1Show(), converted.record] })
+        : Response.json({ ok: true })
+    } })
+
+    await expect(provider.listShowDocumentsV2!()).resolves.toEqual([converted.record])
+    await provider.replaceShowV2!(converted.record.id, converted.record)
+    expect(requests.map(item => [item.url, item.init?.method ?? 'GET'])).toEqual([
+      ['/api/shows?show-version=2', 'GET'],
+      [`/api/shows/${converted.record.id}?show-version=2`, 'PUT'],
+    ])
+    expect(requests[1].init?.body).toBe(JSON.stringify(converted.record))
   })
 
   it('encodes explicit output-effect clearing without changing sparse Show patches (#954)', async () => {

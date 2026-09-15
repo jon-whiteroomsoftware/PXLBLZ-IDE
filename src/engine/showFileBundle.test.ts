@@ -6,8 +6,25 @@ import {
   parseShowFileBundle,
   serializeShowFileBundle,
 } from './showFileBundle'
+import { transitionV1Show } from '../test/showV2TracerFixture'
+import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 
 describe('Show file bundle export', () => {
+  it('exports and reopens an explicit v2 Show without sending it through v1 normalization', async () => {
+    const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+
+    const built = buildShowFileBundle(converted.record, { patterns: [], maps: [], libraries: [] }, {
+      appVersion: '1044-test',
+      exportedAt: '2026-09-15T00:00:00.000Z',
+    })
+    const reopened = await parseShowFileBundle(await serializeShowFileBundle(built.bundle), { acceptV2: true })
+
+    expect(built.bundle).toMatchObject({ version: 2, show: { version: 2 } })
+    expect(reopened).toEqual(built.bundle)
+    expect(reopened.show).toEqual(converted.record)
+  })
+
   it('collects the reachable user Pattern and custom output Map without mutating the library', () => {
     const show = createDefaultShow('show-original', 'Voltage Bloom', 100)
     show.cells[0] = {
