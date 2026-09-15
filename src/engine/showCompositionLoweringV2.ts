@@ -152,8 +152,16 @@ export function lowerShowCompositionV2ForCompile(
   record: ShowRecordV2,
   lookup: ShowCompileRecipeSourceLookup,
 ): LoweredShowCompositionV2 {
-  if (record.composition.clips.some(clip => clip.entryPolicy === 'restart')) {
+  const hasEffectiveRestart = record.composition.clips.some(clip => clip.entryPolicy === 'restart')
+    || record.composition.groupOccurrences.some(occurrence => (
+      record.composition.groupDefinitions.find(definition => definition.id === occurrence.definitionId)
+        ?.clips.some(clip => clip.entryPolicy === 'restart') === true
+    ))
+  if (hasEffectiveRestart) {
     throw new Error('Show composition v2 Restart requires prepareShowV2ForCompile so its transient reset events cannot be dropped.')
+  }
+  if (record.composition.propertyTracks.some(track => track.target.kind === 'layout-occurrence-split-position')) {
+    throw new Error('Show composition v2 Layout split-position animation requires prepareShowV2ForCompile so its transient routing ramps cannot be dropped.')
   }
   const resolved = resolveAndLowerShowV2(record, lookup)
   if ('issues' in resolved) {

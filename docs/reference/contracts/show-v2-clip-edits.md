@@ -41,11 +41,14 @@ Property-track edit translation. A retained nonlinear interval stores an outgoin
 delta, easing, duration and elapsed offset. Repeated restriction increments the
 offset; it neither samples endpoints nor keeps removed key identities. Extension
 adds constant boundary segments. Explicit key reauthoring removes stale retained
-descriptors only from the affected adjacent segments.
+descriptors only from the affected adjacent segments. When a trim or split ends
+at an existing key, that key is the retained segment endpoint; a later key never
+changes the curve that approaches the boundary.
 
 The v2 JSON schema persists `curveSegment`; the v1 persistence schema remains
-closed to it. The v2 compiler adapter carries the descriptor through its internal
-v1-shaped recipe, and the existing evaluator and emitter apply the same formula.
+closed to it. Persisted v1 keyframe types do not expose the descriptor. A separate
+transient compiler track type carries it through the internal v1-shaped recipe,
+and the existing evaluator and emitter apply the same formula.
 Activation remains independent of key extrema and uses
 `[activeStartMs, activeStartMs + activeDurationMs)`.
 
@@ -91,7 +94,9 @@ orchestration remains with their dedicated owners.
 each restarting Clip's effective instance, materialized Clip identity and first
 contribution, and coalesces simultaneous events per instance. A contribution map
 from the Transition owner overrides nominal Clip starts. Moving a Clip therefore
-moves its derived instruction; splitting keeps only the left instruction.
+moves its derived instruction; splitting keeps only the left instruction. Group
+internal Transitions are materialized with their Clips, so an incoming child
+restarts at its pre-roll contribution rather than its nominal local start.
 
 Lowering maps each derived event to the one compiler member that owns the effective
 shared instance. The transient recipe carries `{ atMs, clipId }`; no second event
@@ -102,6 +107,12 @@ setup reapplies authored controls and adaptations before the member advances. Th
 same member remains shared, simultaneous entries coalesce, time zero fires once,
 and loop/cold replay crosses the same events. A Pattern the existing reset analysis
 cannot reconstruct exactly is refused rather than partially reset.
+
+`lowerShowCompositionV2ForCompile` refuses effective Restart entries, including
+entries inside used Group definitions, and Layout split-position tracks because
+that direct adapter cannot return their transient recipe data. Callers with those
+features must use `prepareShowV2ForCompile`, which returns the complete recipe or
+a typed refusal.
 
 ## Evidence
 

@@ -125,6 +125,42 @@ describe('v2 property animation', () => {
     expect(extendedTrack.keyframes.some(key => key.id === 'dark' && key.timeMs === 100)).toBe(false)
   })
 
+  it.each([
+    ['linear', { curve: 'linear' }],
+    ['nonlinear', { curve: 'quadratic', direction: 'in' }],
+    ['discontinuous', { curve: 'hold', at: 0.5 }],
+  ] as const)('preserves the %s source segment when trim and split end at an existing key', (_name, easing) => {
+    const source = animatedRecord()
+    source.composition.propertyTracks[0].keyframes = [
+      { id: 'start', timeMs: 100, value: 0, easing: structuredClone(easing) },
+      { id: 'middle', timeMs: 600, value: 1, easing: { curve: 'linear' } },
+      { id: 'end', timeMs: 1_100, value: 0, easing: { curve: 'linear' } },
+    ]
+    const original = structuredClone(source.composition.propertyTracks[0])
+
+    const trimmed = editShowClipV2(source, { kind: 'trim', clipId: 'clip', startMs: 100, endMs: 600 })
+    const split = editShowClipV2(source, { kind: 'split', clipId: 'clip', atMs: 600, rightClipId: 'right' })
+    expect(trimmed.status).toBe('changed')
+    expect(split.status).toBe('changed')
+    if (trimmed.status !== 'changed' || split.status !== 'changed') return
+
+    const trimmedTrack = reopen(trimmed.record).composition.propertyTracks[0]
+    const splitTracks = reopen(split.record).composition.propertyTracks
+      .filter(track => track.target.kind === 'clip-view')
+      .sort((left, right) => left.activeStartMs - right.activeStartMs)
+    expect(trimmedTrack.keyframes.map(key => [key.timeMs, key.value])).toEqual([[100, 0], [600, 1]])
+    expect(splitTracks).toHaveLength(2)
+    for (const atMs of [100, 349, 350, 599]) {
+      const expected = evaluateShowPropertyTrackV2(original, atMs)!
+      expect(evaluateShowPropertyTrackV2(trimmedTrack, atMs), `trim at ${atMs}`).toBeCloseTo(expected, 10)
+      expect(evaluateShowPropertyTrackV2(splitTracks[0], atMs), `split left at ${atMs}`).toBeCloseTo(expected, 10)
+    }
+    for (const atMs of [600, 601, 850, 1_099]) {
+      expect(evaluateShowPropertyTrackV2(splitTracks[1], atMs), `split right at ${atMs}`)
+        .toBeCloseTo(evaluateShowPropertyTrackV2(original, atMs)!, 10)
+    }
+  })
+
   it.each(SHOW_EASING_OPTIONS.map(option => [option.id, option.easing] as const))(
     'preserves %s through move, trim, extend, split and reopen',
     (_id, easing) => {
@@ -215,7 +251,7 @@ describe('v2 property animation', () => {
           baseValue: 0, deltaValue: 1, easing: { curve: 'linear' },
           sourceDurationMs: 1_000, elapsedOffsetMs: 0,
         },
-      }, { id: 'right', timeMs: 1_000, value: 1, easing: { curve: 'linear' } }],
+      } as never, { id: 'right', timeMs: 1_000, value: 1, easing: { curve: 'linear' } }],
     }]
 
     expect(validateShowRecordV1Structure(source)).toContainEqual(expect.objectContaining({
@@ -434,6 +470,51 @@ describe('v2 property animation', () => {
     expect(deriveShowRestartEventsV2(source)).toMatchObject({
       status: 'derived',
       events: [{ instanceId: 'instance', atMs: 1_200, clipIds: ['occurrence:child-clip'] }],
+    })
+    expect(source).toEqual(before)
+  })
+
+  it('derives a Group Restart from its materialized incoming Transition contribution', () => {
+    const source = animatedRecord()
+    const base = source.composition.clips[0]
+    source.composition.showEndMs = 2_400
+    source.composition.layoutOccurrences[0].durationMs = 2_400
+    const { zoneId: _zoneId, ...groupClip } = structuredClone(base)
+    source.composition.groupDefinitions = [{
+      id: 'definition', name: 'Definition',
+      patternInstances: [{ ...structuredClone(source.composition.patternInstances[0]), id: 'group-instance' }],
+      layers: [{ id: 'group-layer', name: 'Group Layer', rank: 0 }],
+      clips: [
+        {
+          ...groupClip, id: 'outgoing', instanceId: 'group-instance', layerId: 'group-layer',
+          startMs: 0, durationMs: 400, entryPolicy: 'continue',
+          appearance: { keys: [{ ...groupClip.appearance.keys[0], id: 'outgoing:key', timeMs: 0 }] },
+        },
+        {
+          ...groupClip, id: 'incoming', instanceId: 'group-instance', layerId: 'group-layer',
+          startMs: 600, durationMs: 400, entryPolicy: 'restart',
+          appearance: { keys: [{ ...groupClip.appearance.keys[0], id: 'incoming:key', timeMs: 600 }] },
+        },
+      ],
+      transitions: [{
+        id: 'internal', kind: 'crossfade', durationMs: 200, easing: { curve: 'linear' },
+        crossfadePolicy: 'live-live', fromPlacementId: 'outgoing', toPlacementId: 'incoming',
+      }],
+      propertyTracks: [],
+    }]
+    source.composition.groupOccurrences = [{
+      id: 'occurrence', definitionId: 'definition', layoutOccurrenceId: source.composition.layoutOccurrences[0].id,
+      zoneId: base.zoneId, startMs: 1_200, translationX: 0, translationY: 0,
+      instanceBindings: { 'group-instance': 'instance' },
+      layerBindings: [{ definitionLayerId: 'group-layer', layerId: base.layerId }],
+    }]
+    source.composition.propertyTracks = []
+    expect(validateShowRecordV2(source)).toEqual([])
+    const before = structuredClone(source)
+
+    expect(deriveShowRestartEventsV2(source)).toMatchObject({
+      status: 'derived',
+      events: [{ instanceId: 'instance', atMs: 1_600, clipIds: ['occurrence:incoming'] }],
     })
     expect(source).toEqual(before)
   })

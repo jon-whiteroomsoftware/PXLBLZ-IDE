@@ -16,7 +16,6 @@ import type {
   ShowOutputEffect,
   ShowPatternInstance,
   ShowPlacementView,
-  ShowPropertyCurveSegment,
   ShowRoutingDirection,
   ShowRoutingLayout,
   ShowStructuredEasing,
@@ -25,6 +24,7 @@ import type {
   ShowZone,
 } from './personalContentRecords'
 import { validateShowEasing } from './showEasing'
+import type { ShowPropertyCurveSegment } from './showPropertyAnimation'
 import { findShowInstancePropertyTrackConflictsV2 } from './showPropertyTrackConflictsV2'
 
 export interface ShowLayerV2 {

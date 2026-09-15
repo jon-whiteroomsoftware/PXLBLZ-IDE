@@ -16,10 +16,11 @@
     "Accepted exact edits, half-open adjacency, overlapping-owner refusal, invalid/unsafe Insert Time and unresettable Pattern refusal"
   ],
   "sequences": [
-    "Move then trim then extend then split then serialize/reopen each easing family",
+    "Move then trim then extend then split then serialize/reopen each easing family, including a trim or split whose exclusive end is an existing linear, nonlinear or discontinuous key",
     "Insert through a discontinuity, activation start, exclusive end and last active key; inspect held and resumed values",
     "Move and split a restarting Clip; verify Restart stays left and follows first contribution",
     "Share one instance across visible outgoing/incoming Clips, cross one and then multiple Restart boundaries in a frame, loop, and reconstruct with cold replay through a reopened generated .epe",
+    "Materialize a Group child with an internal incoming Transition and Restart; compare nominal entry with pre-roll contribution in stateful Fast/Fidelity execution",
     "Copy eligible instance tracks to an independent replacement with caller-supplied identities, filter incompatible controls, then attempt incomplete-identity and activation-conflict copies",
     "Project a Transition carrier ramp before reset, then resize a connected edge through a retained nonlinear segment without shifting the projection twice",
     "Convert two consecutive legacy Scene track owners on one shared instance through incoming pre-roll, lower, and compare emitted source"
@@ -27,7 +28,7 @@
   "oracles": [
     "Complete immutable v2 records validate after accepted edits; refusals return the complete original record and named reason",
     "Public evaluator values and compiler-emitted Fast/Fidelity values match retained source-curve evaluation at boundaries and interiors",
-    "Serialized provisional v2 records reopen with exact descriptors while the v1 JSON schema rejects the v2-only field",
+    "Serialized provisional v2 records reopen with exact descriptors while the v1 JSON schema and generated persisted-v1 TypeScript schema reject the v2-only field",
     "Reopened generated .epe runtime exports prove private state and elapsed reset, authored control reapplication, one compiled shared member and cold-replay equality",
     "The pinned parity harness accounts for all 47 records, measures the accepted retired-silent-runtime differences, and keeps every unrelated recipe/source/output/state comparison exact",
     "Targeted Show-authoring mutation report kills every selected curve-offset, Insert boundary, Restart coalescing and overlap fault"
@@ -40,6 +41,10 @@
     "Clock-only reset that leaves private state, full reset that clears authored controls, or approximate reset of unsupported initial state",
     "Overlapping instance target admitted because track order or exact adjacency is mishandled",
     "Incoming legacy Scene owner activated during outgoing pre-roll and rejected by the strict conflict validator",
+    "Exact-key restriction chooses the following key as the retained endpoint and flattens or changes the approaching curve",
+    "Restart derivation materializes Group Clips but reads unmaterialized Transitions, moving reset from pre-roll to nominal entry",
+    "Direct lowering accepts transient-only Restart or Layout animation and silently drops its behavior",
+    "A v2-only curve descriptor leaks into the persisted v1 TypeScript model and changes its generated JSON schema",
     "Transition carrier removed before its Property ramps are projected, or projection shifted a second time by the visual edit",
     "Layout split-position descriptor linearized, left active at the exclusive end, or applied to a different occurrence"
   ],

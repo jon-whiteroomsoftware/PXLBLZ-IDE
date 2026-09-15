@@ -69,6 +69,8 @@ the routed scalar recipe. Lowering retains any nonlinear `curveSegment`, suppres
 the base zero-duration assignment during authored activation and restores the
 occurrence baseline at the exclusive activation end. Overlapping authored tracks
 or an overlap with an existing positive routing ramp refuse before compilation.
+The direct composition lowerer refuses this target because only
+`prepareShowV2ForCompile` attaches the transient routed scalar recipe.
 
 ## Show End protection
 

@@ -1,6 +1,6 @@
 import { applyShowEasing } from './showEasing'
 import { validateShowRecordV2, type ShowClipV2, type ShowPropertyKeyframeV2, type ShowPropertyTrackV2, type ShowRecordV2 } from './showCompositionV2'
-import { effectiveShowClipsV2, effectiveShowInstanceUseCountV2 } from './showGroupsV2'
+import { effectiveShowInstanceUseCountV2, materializeShowGroupsV2 } from './showGroupsV2'
 import { propertyTrackIntervalsOverlap, sameShowInstancePropertyTargetV2 } from './showPropertyTrackConflictsV2'
 
 export { findNewShowInstancePropertyTrackConflictV2, findShowInstancePropertyTrackConflictsV2 } from './showPropertyTrackConflictsV2'
@@ -248,15 +248,16 @@ export function deriveShowRestartEventsV2(
   record: ShowRecordV2,
   contributionStartMsByClipId: Readonly<Record<string, number>> = {},
 ): ShowRestartEventDerivationV2 {
-  let clips: ShowClipV2[]
+  let effective: ShowRecordV2
   try {
-    clips = effectiveShowClipsV2(record)
+    effective = record.composition.groupOccurrences.length > 0 ? materializeShowGroupsV2(record) : record
   } catch (error) {
     return { status: 'refused', events: [], message: error instanceof Error ? error.message : String(error) }
   }
+  const clips = effective.composition.clips
   const clipById = new Map(clips.map(clip => [clip.id, clip]))
   const inferred = new Map<string, number>()
-  for (const transition of record.composition.transitions) {
+  for (const transition of effective.composition.transitions) {
     if (transition.wholeOutput) {
       for (const clipId of transition.wholeOutput.toClipIds) inferred.set(clipId, transition.wholeOutput.startMs)
       continue
@@ -511,8 +512,9 @@ function retainedKeys(
     result.push(seed)
   }
   result.push(...keys.filter(key => key.timeMs > startMs && key.timeMs < endMs).map(key => structuredClone(key)))
+  const exactEnd = keys.find(key => key.timeMs === endMs)
   const sourceLeftAtEnd = [...keys].reverse().find(key => key.timeMs < endMs)
-  const sourceRightAtEnd = keys.find(key => key.timeMs > endMs)
+  const sourceRightAtEnd = exactEnd ?? keys.find(key => key.timeMs > endMs)
   if (sourceLeftAtEnd && sourceRightAtEnd) {
     const retainedLeft = [...result].reverse().find(key => key.timeMs === sourceLeftAtEnd.timeMs)
       ?? result[result.length - 1]
@@ -520,7 +522,6 @@ function retainedKeys(
       retainedLeft.curveSegment = retainedSegment(sourceLeftAtEnd, sourceRightAtEnd, retainedLeft.timeMs)
     }
   }
-  const exactEnd = keys.find(key => key.timeMs === endMs)
   const end = exactEnd ? structuredClone(exactEnd) : {
     ...structuredClone([...keys].reverse().find(key => key.timeMs < endMs) ?? keys[0]),
     id: freshKeyId(record, source, `${source.id}:boundary:${endMs}`, new Set(result.map(key => key.id))),

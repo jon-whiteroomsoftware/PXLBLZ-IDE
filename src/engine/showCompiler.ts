@@ -20,8 +20,6 @@ import type {
   ShowMotionSpinDirection,
   ShowMotionTransitionVariant,
   ShowOutputEffect,
-  ShowPropertyAnimationTrack,
-  ShowPropertyCurveSegment,
   ShowRevealMode,
   ShowSpatialShape,
   ShowTransitionEasing,
@@ -50,7 +48,11 @@ import {
 import { injectSpatialGaugeHelpers, spatialGaugeCallExpression } from './spatialShapeGauge'
 import { normalizeShowTransitionColor, showTransitionColorToRgb } from './showFadeThroughColor'
 import { showClipEffectPersistedField } from './showEffectAuthoring'
-import { emitShowPropertyTrackExpression } from './showPropertyAnimation'
+import {
+  emitShowPropertyTrackExpression,
+  type ShowCompilerPropertyAnimationTrack as ShowPropertyAnimationTrack,
+  type ShowPropertyCurveSegment,
+} from './showPropertyAnimation'
 import { normalizeShowTransitionEdgePolicy } from './showTransitionEdge'
 import { showWipeMaskPositionExpression } from './showWipe'
 import {

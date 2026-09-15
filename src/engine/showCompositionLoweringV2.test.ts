@@ -214,6 +214,8 @@ describe('lowerShowCompositionV2ForCompile', () => {
       stageDimension: 2 as const,
     }
 
+    expect(() => lowerShowCompositionV2ForCompile(converted.record, lookup))
+      .toThrow('Layout split-position animation requires prepareShowV2ForCompile')
     const prepared = prepareShowV2ForCompile(converted.record, lookup)
 
     expect(prepared.status, JSON.stringify(prepared)).toBe('ready')
@@ -396,6 +398,69 @@ describe('lowerShowCompositionV2ForCompile', () => {
     expect(cold.exports).toEqual(after.exports)
     expect(Array.from(cold.frame)).toEqual(Array.from(after.frame))
   })
+
+  it.each(['fast', 'fidelity'] as const)(
+    'uses a Group internal incoming Transition to reset shared state at first contribution in %s mode',
+    fidelity => {
+      const record = convertedRecord()
+      record.composition.showEndMs = 2_400
+      record.composition.layoutOccurrences[0].durationMs = 2_400
+      const base = record.composition.clips[0]
+      const instance = record.composition.patternInstances.find(candidate => candidate.id === base.instanceId)!
+      const { zoneId: _zoneId, ...groupClip } = structuredClone(base)
+      record.composition.groupDefinitions = [{
+        id: 'definition', name: 'Restarting transition',
+        patternInstances: [{ ...structuredClone(instance), id: 'group-instance' }],
+        layers: [{ id: 'group-layer', name: 'Group layer', rank: 0 }],
+        clips: [
+          {
+            ...groupClip, id: 'outgoing', instanceId: 'group-instance', layerId: 'group-layer',
+            startMs: 0, durationMs: 400, entryPolicy: 'continue',
+            appearance: { keys: [{ ...groupClip.appearance.keys[0], id: 'outgoing:key', timeMs: 0 }] },
+          },
+          {
+            ...groupClip, id: 'incoming', instanceId: 'group-instance', layerId: 'group-layer',
+            startMs: 600, durationMs: 400, entryPolicy: 'restart',
+            appearance: { keys: [{ ...groupClip.appearance.keys[0], id: 'incoming:key', timeMs: 600 }] },
+          },
+        ],
+        transitions: [{
+          id: 'internal', kind: 'crossfade', durationMs: 200, easing: { curve: 'linear' },
+          crossfadePolicy: 'live-live', fromPlacementId: 'outgoing', toPlacementId: 'incoming',
+        }],
+        propertyTracks: [],
+      }]
+      record.composition.groupOccurrences = [{
+        id: 'occurrence', definitionId: 'definition', layoutOccurrenceId: record.composition.layoutOccurrences[0].id,
+        zoneId: base.zoneId, startMs: 1_200, translationX: 0, translationY: 0,
+        instanceBindings: { 'group-instance': base.instanceId },
+        layerBindings: [{ definitionLayerId: 'group-layer', layerId: base.layerId }],
+      }]
+      const lookup = { byCellId: {}, byPatternInstanceId: { [base.instanceId]: STATEFUL_SOURCE }, stageDimension: 2 as const }
+
+      expect(() => lowerShowCompositionV2ForCompile(record, lookup))
+        .toThrow('Restart requires prepareShowV2ForCompile')
+      const prepared = prepareShowV2ForCompile(record, lookup)
+      expect(prepared.status).toBe('ready')
+      if (prepared.status !== 'ready') return
+      expect(prepared.recipe.restartEvents).toEqual([{ atMs: 1_600, clipId: base.instanceId }])
+      const artifact = compileShow(prepared.recipe, LIBRARIES, { patternSlotSharing: 'none' })
+      const members = artifact.summary.clips.filter(member => member.id === base.instanceId)
+      expect(members).toHaveLength(1)
+      const runtime = replay(artifact, fidelity)
+      const prefix = members[0].prefix
+      const scalar = (value: unknown) => Number(value) / (fidelity === 'fidelity' ? 65_536 : 1)
+
+      const before = runtime.advanceTo(1_500, { stepMs: 1 })
+      const beforeElapsed = scalar(before.exports[`${prefix}_elapsed`])
+      const beforeCalls = scalar(before.exports[`${prefix}_calls`])
+      expect(beforeElapsed).toBeGreaterThan(1)
+      const after = runtime.advanceTo(1_610, { stepMs: 1 })
+      expect(scalar(after.exports[`${prefix}_elapsed`])).toBeLessThan(0.03)
+      expect(scalar(after.exports[`${prefix}_elapsed`])).toBeLessThan(beforeElapsed)
+      expect(scalar(after.exports[`${prefix}_calls`])).toBeLessThan(beforeCalls)
+    },
+  )
 
   it.each(['fast', 'fidelity'] as const)('preserves compiled output and advancing private state in %s mode', (fidelity) => {
     const source = convertibleV1Show()
