@@ -875,7 +875,7 @@ function auditComposition(
     }
   }
 
-  if ((composition.transitions?.length ?? 0) === 0 && composition.transitions !== undefined) mapped('composition.transitions', 'composition.transitions', composition.transitions, record.composition.transitions.length === 0)
+  if ((composition.transitions?.length ?? 0) === 0 && composition.transitions !== undefined) mapped('composition.transitions', 'composition.transitions', composition.transitions, record.composition.transitions.every(target => show.transitions.some(source => source.id === target.id && source.kind !== 'cut' && source.kind !== 'routing')))
   for (const [transitionIndex, transition] of (composition.transitions ?? []).entries()) {
     const targetIndex = record.composition.transitions.findIndex(candidate => candidate.id === transition.id)
     const target = record.composition.transitions[targetIndex]

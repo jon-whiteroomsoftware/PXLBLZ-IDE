@@ -97,3 +97,17 @@ it.each(['unrelated', 'carrier'] as const)('refuses unproved whole-boundary %s w
   expect(source).toEqual(before)
   if (result.status === 'refused') expect(result.issues.some(issue => issue.code === 'unsupported-boundary-transition')).toBe(true)
 })
+
+it('accounts for an explicitly empty Layer-Transition collection independently of boundary Transitions', () => {
+  const source = boundaryShow()
+  const omitted = convertShowRecordV1ToV2(source)
+  source.composition!.transitions = []
+  const before = structuredClone(source)
+  const explicit = convertShowRecordV1ToV2(source)
+  expect(explicit.status).toBe('converted')
+  if (explicit.status !== 'converted' || omitted.status !== 'converted') return
+  expect(explicit.record).toEqual(omitted.record)
+  expect(explicit.report.unaccountedSourcePaths).toEqual([])
+  expect(explicit.report.accounting).toContainEqual(expect.objectContaining({ sourcePath: 'composition.transitions', outcome: 'mapped' }))
+  expect(source).toEqual(before)
+})
