@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { validateShowRecordV2 } from './showCompositionV2'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
-import { convertibleV1Show, flatV1Show } from '../test/showV2TracerFixture'
+import { convertibleV1Show, flatV1Show, transitionV1Show } from '../test/showV2TracerFixture'
 
 const lookup = { byCellId: {}, byPatternInstanceId: { instance: 'export function render(index) { rgb(1, 0, 0) }' } }
 
@@ -35,4 +35,28 @@ it('refuses shared flat runtime appearance changes that the legacy recipe would 
   record.composition.clips[1].appearance.keys[0].value.view.brightness = 0.5
   expect(validateShowRecordV2(record)).toEqual([])
   expect(prepareShowV2ForCompile(record, { byCellId: {}, byPatternInstanceId: { 'cell-a': lookup.byPatternInstanceId.instance } })).toMatchObject({ status: 'refused', issues: [{ code: 'unsupported-runtime-sharing' }] })
+})
+
+
+it.each([
+  { endMs: 399, status: 'ready' },
+  { endMs: 400, status: 'refused' },
+  { endMs: 500, status: 'refused' },
+  { endMs: 600, status: 'refused' },
+  { endMs: 601, status: 'ready' },
+])('classifies an unrelated Clip ending at $endMs beside a [400,600) Transition', ({ endMs, status }) => {
+  const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
+  if (converted.status !== 'converted') throw new Error('Fixture conversion failed')
+  const record = converted.record
+  const composition = record.composition
+  const outgoing = composition.clips.find(clip => clip.id === 'out')!
+  composition.layers.push({ ...composition.layers.find(layer => layer.id === outgoing.layerId)!, id: 'unrelated-layer', rank: 2 })
+  composition.clips.push({ ...structuredClone(outgoing), id: 'unrelated', layerId: 'unrelated-layer', durationMs: endMs })
+  expect(validateShowRecordV2(record)).toEqual([])
+  const before = structuredClone(record)
+  const sources = Object.fromEntries(composition.patternInstances.map(instance => [instance.id, lookup.byPatternInstanceId.instance]))
+  const result = prepareShowV2ForCompile(record, { byCellId: {}, byPatternInstanceId: sources })
+  expect(result.status).toBe(status)
+  if (status === 'refused') expect(result).toMatchObject({ issues: [{ code: 'compiler-ineligible' }] })
+  expect(record).toEqual(before)
 })

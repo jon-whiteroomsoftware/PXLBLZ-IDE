@@ -10,6 +10,7 @@ import type {
   ShowZoneComposition,
 } from './personalContentRecords'
 import { showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
+import { validateShowComposition } from './showCompositionModel'
 import type { ShowRecipe } from './showCompiler'
 import {
   validateShowRecordV2,
@@ -39,6 +40,7 @@ export type ShowV2CompilePreparationIssueCode =
   | 'unsupported-property-target'
   | 'unsupported-track-activation'
   | 'unsupported-runtime-sharing'
+  | 'compiler-ineligible'
 
 export interface ShowV2CompilePreparationIssue {
   code: ShowV2CompilePreparationIssueCode
@@ -87,6 +89,13 @@ export function prepareShowV2ForCompile(
   const resolved = resolveAndLowerShowV2(record, lookup)
   if ('issues' in resolved) return { status: 'refused', issues: resolved.issues }
   const { context, lowered } = resolved
+  if (lowered.show.composition) {
+    const issues = validateShowComposition(lowered.show, lowered.show.composition)
+    if (issues.length > 0) return {
+      status: 'refused',
+      issues: issues.map(issue => ({ code: 'compiler-ineligible', path: `compileRecipe.composition.${issue.path}`, message: issue.message })),
+    }
+  }
   const recipe = showRecordToCompileRecipe(lowered.show, lowered.lookup)
   const expectedInstances = [...new Set(Object.values(context.runtimeInstanceIdByClipId))].sort()
   const representedInstances = recipe.clips.filter(clip => !clip.compilerOwnedEmpty)

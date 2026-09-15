@@ -238,3 +238,14 @@ harness. The 47-record corpus keeps 22 compiled / 20 conversion-refused / five
 preparation-refused; only three refusal descriptions became more precise.
 No production compiler, persistence, or editor path changed. Full committed-tip
 suites and separate Astra review remain delivery gates.
+
+
+### Advisory follow-up: Transition scheduling admission
+
+After `636abbc3` landed with Astra/medium advisory coverage, preparation was
+extended to run the existing v1 composition validator on its derived input.
+Known unsupported schedules return `compiler-ineligible` with the validator's
+path and reason before recipe construction; unexpected exceptions still escape.
+A schema-valid unrelated same-Zone Clip ending at 400, 500 or 600 ms beside a
+[400,600) Crossfade reproduced the exception before this change. Those cases now
+refuse; 399 ms and 601 ms remain accepted. The 47-record corpus is unchanged.
