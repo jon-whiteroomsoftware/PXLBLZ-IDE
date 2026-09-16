@@ -19,7 +19,7 @@ for Clips, Pattern instances, Transitions, tracks, Layouts, Groups, Layers,
 Markers, appearance keys, Property keys, hoisted instances, removed IDs and
 discarded controls. This operation leaves unrelated collections empty. Refusal
 and no-op return the original record identity and empty affected collections.
-An occurrence whose definition already has one user is a no-op.
+Make Unique on an occurrence whose definition already has one user is a no-op.
 
 ## Runtime authority
 
@@ -123,6 +123,44 @@ instance-track conflicts refuse atomically with the original record and empty
 affected collections. Compile eligibility remains an explicit
 `prepareShowV2ForCompile` concern; Ungroup does not widen compiler APIs.
 
+## Selected-occurrence deletion
+
+`deleteShowGroupOccurrenceV2` takes exactly `{ kind: 'delete-occurrence',
+occurrenceId }`. It removes that exact persisted occurrence shell without
+matching ID prefixes, moving surviving content or collecting definitions,
+Pattern-instance payloads, authored tracks, nested keys, Layers, Layouts or
+Markers. The selected definition becomes dormant when its last occurrence is
+removed. Explicit bindings keep their existing authority rules; deletion never
+hoists or manufactures a runtime.
+Existing IDs use the validator's nonempty-string domain and remain exact;
+whitespace is not trimmed or normalized during target selection.
+
+Complete preimage/result record and Layout validation and the shared materialized
+RL08–RL10 placement check enforce references, timing and effective ownership.
+Invalid intents/preimages and missing or already removed IDs refuse with original
+record identity and empty affected collections. Changed results are unaliased;
+only `affectedGroupOccurrenceIds` and `removedIds` contain the removed shell ID.
+Transient materialized children, hold keys and Restart events are recomputable
+contributions rather than separately removed persisted owners.
+
+Canonical §9 permits final-content deletion to leave a structurally valid,
+editable/saveable empty Show. No placeholder or general compiler-refusal bypass
+is added. Reopened persistence and zero effective Clip count prove the pure
+empty result; the landed `isValidatedEmptyShowV2` route capability makes preview
+and export unavailable until content is added. Public preparation's existing
+behavior is preserved rather than forced to refuse. Deletion does not own store
+history, save or capability rendering.
+
+[Deletion tests](../../../src/engine/showGroupDeletionV2.test.ts) compare nonempty
+reopened Fast/Fidelity artifacts against an independently authored surviving
+schedule. Removing a shared runtime's animation/Restart contributor can change
+its surviving playback; this is intentional, and the oracle retains the actual
+surviving schedule rather than asserting all output stays unchanged. An
+independent surviving runtime separately proves exact unchanged output. Tests
+also cover holds, linked/explicit/default authority, dormant slots/unused authored
+tracks, duplicate/delete, Make Unique/delete, exact IDs and full empty reopening
+followed by reuse of the retained definition.
+
 ## Evidence and limits
 
 [Group identity tests](../../../src/engine/showGroupEditsV2.test.ts) reopen the
@@ -141,9 +179,9 @@ window conflicts and confirm the same refusals through
 `prepareShowV2ForCompile`; this edit owner does not widen the compiler.
 
 This owner covers Make Unique, occurrence move, linked duplicate and
-selected-occurrence Ungroup. Group delete, global Insert Time, Layer authoring,
+selected-occurrence Ungroup and deletion. Global Insert Time, Layer authoring,
 UI and store adoption remain separate #1038 owners. These operations do not
-impose deletion or garbage-collection policy.
+impose definition deletion or garbage-collection policy.
 
 Definition-local Clip Pattern replacement has its own pure owner and
 [replacement contract](show-v2-group-replacement.md).

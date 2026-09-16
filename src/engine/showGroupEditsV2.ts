@@ -52,6 +52,11 @@ export interface UngroupShowGroupOccurrenceIntentV2 {
   occurrenceId: string
 }
 
+export interface DeleteShowGroupOccurrenceIntentV2 {
+  kind: 'delete-occurrence'
+  occurrenceId: string
+}
+
 export type ShowGroupEditRefusalV2 =
   | 'invalid-record'
   | 'missing-occurrence'
@@ -249,6 +254,29 @@ export function duplicateShowGroupOccurrenceV2(
   const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
   if (compilerRestriction) return refuseGroupEdit(record, 'compiler-ineligible', compilerRestriction.message)
   return { status: 'changed', record: next, ...emptyGroupEditAffected(), affectedGroupOccurrenceIds: [duplicate.id] }
+}
+
+/** Remove one occurrence shell, retaining its authored definition and runtime owners. */
+export function deleteShowGroupOccurrenceV2(
+  record: ShowRecordV2,
+  intent: DeleteShowGroupOccurrenceIntentV2,
+): ShowGroupEditResultV2 {
+  const preimage = validateGroupEditPreimage(record)
+  if (preimage) return preimage
+  if (typeof intent !== 'object' || intent === null || Array.isArray(intent)
+    || JSON.stringify(Object.keys(intent).sort()) !== JSON.stringify(['kind', 'occurrenceId']) || intent.kind !== 'delete-occurrence'
+    || typeof intent.occurrenceId !== 'string' || intent.occurrenceId.length === 0) {
+    return refuseGroupEdit(record, 'invalid-occurrence-id', 'Give only the explicit delete operation and one nonempty exact occurrence identity.')
+  }
+  const occurrence = record.composition.groupOccurrences.find(value => value.id === intent.occurrenceId)
+  if (!occurrence) return refuseGroupEdit(record, 'missing-occurrence', `Group occurrence "${intent.occurrenceId}" does not exist.`)
+  const next = structuredClone(record)
+  next.composition.groupOccurrences = next.composition.groupOccurrences.filter(value => value.id !== occurrence.id)
+  const resultIssue = validateGroupEditResult(next)
+  if (resultIssue) return refuseGroupEdit(record, 'invalid-result', resultIssue)
+  const restriction = firstShowTransitionPlacementRestrictionV2(next)
+  if (restriction) return refuseGroupEdit(record, 'compiler-ineligible', restriction.message)
+  return { status: 'changed', record: next, ...emptyGroupEditAffected(), affectedGroupOccurrenceIds: [occurrence.id], removedIds: [occurrence.id] }
 }
 
 /** Persist one occurrence's existing materialized projection without cloning its runtimes. */

@@ -1,0 +1,54 @@
+{
+  "issue": 1038,
+  "specificationCommit": "caf2395421b299ed0f1abcd85aac34c9fcf96099",
+  "proofRows": [
+    "MODEL",
+    "SHARING",
+    "RESTART",
+    "ACTIVATION",
+    "GROUP-HOLD",
+    "PARITY"
+  ],
+  "boundary": "deleteShowGroupOccurrenceV2 -> reopened validated v2 record -> public preparation -> compile/import .epe -> Fast/Fidelity replay; empty result -> isValidatedEmptyShowV2 capability",
+  "invariants": [
+    "Only the exact selected occurrence shell is removed; definitions, runtime IDs/payloads, authored tracks, surviving positions, Show End, routing, Layers and dormant Markers remain exact.",
+    "No deletion-driven garbage collection, hoisting, runtime allocation or placeholder content occurs.",
+    "Invalid preimages/intents and missing/already deleted IDs refuse atomically with original record identity and empty affected collections; accepted output is complete and unaliased.",
+    "Empty effective content remains valid/editable/saveable; explicit route capability disables preview/export without requiring a new compiler refusal."
+  ],
+  "partitions": [
+    "Last or remaining occurrence, ordinary survivor, held/repeated Restart and nonlinear local animation; bound, definition-authoritative explicit, unbound/hoisted default and independent runtime authorities.",
+    "Exact nonempty IDs, including whitespace, versus prefix-related occurrence IDs; malformed/extraneous/null intents; missing or already removed ID; invalid local slot binding, hold and effective overlap.",
+    "Retained dormant definition and unused authored runtime animation; complete empty record and retained definition reused through ordinary authoring.",
+    "Shared-runtime playback intentionally changes when animation/Restart contribution disappears; independent surviving runtime separately retains identical frames."
+  ],
+  "sequences": [
+    "Linked duplicate -> delete copy -> reopen exact original held graph.",
+    "Make Unique -> delete occurrence -> retain unused unique definition and hoisted same-ID authority -> reopen/prepare remaining schedule.",
+    "Delete final effective content -> reopen valid empty graph -> assert explicit empty capability -> add retained occurrence through ordinary authoring -> capability/prepare restore.",
+    "Prepare preimage and independently authored surviving schedule, delete selected contribution, compile/import delivered .epe and replay before/during/after former contribution, remaining Restart and Score loop in both modes."
+  ],
+  "oracles": [
+    "Complete source and expected reopened graph equality, exact affectedGroupOccurrenceIds/removedIds shell-only reporting, empty untouched collections and result mutation proving no input alias.",
+    "Public preparation of supported nonempty preimages/results; imported delivered Fast/Fidelity frames and exports equal an independently authored surviving schedule.",
+    "Shared playback differs from pre-deletion because reset/animation contribution is removed; independent surviving runtime output remains exact.",
+    "Validated zero effective Clip count and landed isValidatedEmptyShowV2 guard distinguish empty persistence/capability from compiler behavior."
+  ],
+  "tddEvidence": [
+    "After correcting fixture schema, first public tracer fails because deleteShowGroupOccurrenceV2 is absent; minimal exact-shell owner makes it green.",
+    "Malformed/extraneous public intent cases fail before strict intent admission and pass afterward.",
+    "21 owner cases pass; an initially mistaken empty-prepare refusal oracle was corrected to Jon's accepted route capability boundary without compiler changes.",
+    "Unowned explicit runtime binding is valid definition authority, so the invalid partition uses an unknown local slot rather than narrowing supported authority.",
+    "A validator/public-preparation admitted whitespace occurrence ID initially refuses through a trim guard; nonempty exact reference admission repairs that red case without changing the stored ID."
+  ],
+  "mutationEvidence": [
+    "Green 21-case baseline kills nine deletion-region faults with assertion failures: normalized existing reference, wrong occurrence, prefix removal, aliased input, definition/runtime collection, changed Show End with valid coverage extension, hidden placeholder Clip and invalid-preimage laundering. Entire owner source restored after each check; sibling operations untouched.",
+    "Seven-file adjacent proof passes 364/364 and the actual landed empty-content store admission/save/reopen/Undo/Redo sibling proof passes 14/14. Project TypeScript, scoped lint and exact47-record parity pass."
+  ],
+  "residualGaps": [
+    "UI/store history/save/Undo/Redo and capability rendering are separate route adoption evidence; this pure slice consumes the landed empty guard.",
+    "Definition deletion and garbage-collection policy are excluded; raw runtime/definition/track references persist.",
+    "Parent Group replacement 7abcb65238e7ec782f2a3da8d72dc5618da05904 is now landed; this is the exact candidate base.",
+    "Coordinator owns native Astra Medium review, authoritative final suites, landing and issue updates; whole #1038 is not marked implemented."
+  ]
+}
