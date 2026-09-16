@@ -6,7 +6,8 @@
     "Version-aware D1 and provider writers replace the complete version-2 record and read back the same validated bytes while keeping version-2 rows out of ordinary version-1 reads.",
     "Show-file export inventories every reachable ordinary or Group Pattern instance, custom Map, and transitive user Library; conflict remaps update all owners consistently before any import writes.",
     "Migration inventory hashes and snapshots the source row before conversion, records source version and outcome per row, compare-and-swaps unchanged legacy rows, reopens the written record, resumes safely, and restores every source column from backup.",
-    "Preview and .epe qualification compile through the version-2 preparation boundary; .pxlshow and .epe proof reopens through their actual importers."
+    "Preview and .epe qualification compile through the version-2 preparation boundary; .pxlshow and .epe proof reopens through their actual importers.",
+    "Restart preparation and final compilation consume the same resolved stock-and-user Library map, so admitted scalar state and refused persistent state cannot receive different eligibility answers."
   ],
   "partitions": [
     "Version-1 flat, version-1 composition, already-version-2, invalid/unknown version, and missing dependency inputs.",
@@ -14,6 +15,7 @@
     "Changed Transition duration, unchanged/refused edit, Undo/Redo, durable reload, current failed save, older failed save superseded by a newer accepted save, and provider without version-2 capability.",
     "Ordinary version-1 API read/write versus opt-in version-2 GET/PUT/POST; matching and mismatched route/body versions; missing row and changed-row compare-and-swap.",
     "Ordinary and Group-owned Pattern references; built-in/user Pattern, custom/stock Map, direct/transitive Library, matching identity, conflicting identity, and missing dependency.",
+    "Restart with scalar state in a user Library versus unsupported persistent array state in that same Library dependency.",
     "Convertible, already-version-2, undecodable, concurrently changed, interrupted-after-write, repeated, and rollback migration rows."
   ],
   "sequences": [
@@ -21,6 +23,7 @@
     "Reload the browser at the saved Show route after the ordinary version-1 list excludes its row; cold-open the stored version-2 record and repeat artifact qualification.",
     "Queue an older write and a newer write, fail the older operation, then confirm the newer candidate and history remain authoritative.",
     "Adopt a #1035 delete-Clip result with a fresh replacement at the original boundary, save/reload it, and reopen its artifact without restoring the removed Transition identity.",
+    "Resolve the pilot's stock and user Libraries once, prepare and compile a shared-instance Restart using that map, then replace the Library scalar with persistent array state and refuse before artifact publication.",
     "Apply migration 0028 to a disposable Miniflare D1 database, interrupt after its first version-2 replacement, resume the remaining inventory, roll back, and compare every restored source column.",
     "Inventory an undecodable row and a source changed after inventory; record independent refusals while leaving both source rows recoverable."
   ],
@@ -30,11 +33,12 @@
     "Whole store record/history/failure state and ordered persistence calls rather than helper internals.",
     "Reopened delete/re-add candidate with the original first Clip and Show End unchanged, no persisted Transition, and one identity-free derived Cut naming the fresh replacement.",
     "Reopened .pxlshow bundle, remapped import candidate, parsed .epe source/stamp, and compiled artifact source.",
+    "Compiled Restart artifact with one shared runtime and no unresolved Library namespace; typed preparation refusal naming the Restart Clip and array-or-object-state for unsupported Library persistence.",
     "Actual Miniflare D1 rows for source backup, source_version/status outcome, interrupted-write recovery, complete restored source columns, and absent outcome after rollback."
   ],
   "residualGaps": [
     "Production remains on version 1; this development-only pilot does not activate native version-2 creation, commands/MCP, stock Shows, or deployment.",
-    "Layout and property-animation/Restart route extensions require the reviewed #1036 and #1037 engine candidates to land and are integration work after this independent candidate rebases.",
+    "Restart compile preparation is integrated from the stacked #1037 candidate. The compatibility Stage preview and .epe metadata adapter still refuse Restart and Layout animation instead of dropping their transient compiler behavior; generic preview/export-metadata support remains later integration.",
     "The disposable Miniflare D1 rehearsal proves migration SQL, interrupted-write resume, and rollback with synthetic fixtures; the isolated personal workspace contained zero user rows before the authorized pilot seed, so no personal compatibility claim is made.",
     "Final committed-tip suites, cross-family review, rebase onto landed engine dependencies, local-main landing, labels, and issue closure belong to the coordinator."
   ]

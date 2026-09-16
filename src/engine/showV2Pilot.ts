@@ -28,16 +28,21 @@ export function lowerShowV2PilotPreview(record: ShowRecordV2, patterns: readonly
   return lowerShowCompositionV2ForCompile(record, sourceLookup(record, patterns)).show
 }
 
+export function compileShowV2PilotArtifact(record: ShowRecordV2, assets: ShowV2PilotAssets) {
+  const lookup = sourceLookup(record, assets.patterns)
+  const libraries = compileLibraries(LIBRARIES, assets.libraries)
+  const prepared = prepareShowV2ForCompile(record, lookup, { libraries })
+  if (prepared.status !== 'ready') throw new Error(prepared.issues.map(issue => `${issue.path}: ${issue.message}`).join('; '))
+  return compileShow(prepared.recipe, libraries)
+}
+
 export async function qualifyShowV2PilotArtifacts(
   record: ShowRecordV2,
   assets: ShowV2PilotAssets,
   options: { appVersion: string; exportedAt?: string } = { appVersion: 'v2-route-pilot' },
 ): Promise<ShowV2PilotArtifacts> {
   const lookup = sourceLookup(record, assets.patterns)
-  const prepared = prepareShowV2ForCompile(record, lookup)
-  if (prepared.status !== 'ready') throw new Error(prepared.issues.map(issue => `${issue.path}: ${issue.message}`).join('; '))
-  const libraries = compileLibraries(LIBRARIES, assets.libraries)
-  const artifact = compileShow(prepared.recipe, libraries)
+  const artifact = compileShowV2PilotArtifact(record, assets)
   const previewShow = lowerShowCompositionV2ForCompile(record, lookup).show
   const epe = buildShowEpeExport(previewShow, artifact.code, { stampedAt: options.exportedAt })
   const reopenedEpe = parseEpe(epe.text)

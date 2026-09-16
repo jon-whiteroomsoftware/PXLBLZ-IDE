@@ -248,9 +248,15 @@ the source row and hash before compare-and-swap replacement, reopen written
 bytes through production decoding, resume from outcomes, and restore every
 source column during rollback.
 
-The pilot's Stage preview, `.pxlshow`, and `.epe` checks are qualification
-surfaces. They do not switch the production editor or compiler default. The
-[route-pilot test design](../evidence/issue-1044-route-pilot/test-design.json)
+The pilot's compilation seam resolves one Library map and passes that identical
+map through version-2 preparation and final Show compilation. A Restart whose
+bundled Pattern and Library state is restorable scalar state compiles; unsupported
+persistent Library state refuses at preparation before an artifact can escape.
+The compatibility Stage preview and `.epe` metadata adapter still refuse Restart
+records rather than dropping their transient reset events. The ordinary
+`.pxlshow` and `.epe` checks remain qualification surfaces for the direct-lowerable
+Transition subset. They do not switch the production editor or compiler default.
+The [route-pilot test design](../evidence/issue-1044-route-pilot/test-design.json)
 defines its conversion, history, persistence, artifact, and migration oracles.
 
 ## Known limits and discrepancies
