@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/show-v2-transitions?show-v2-pilot=1",
+  "operation": "Drove the v2 pilot Transitions panel as the synthetic authenticated user through repository Playwright (Chromium), because the Codex in-app browser is unavailable to this worker. Selected the derived 3000 ms overlay Cut junction, attempted a Fade Insert and captured the zero-write RL08 compiler refusal with Undo still disabled, then inserted a 1500 ms snapshot-and-live Crossfade, changed its kind to Wipe Linear keeping the same identity and 3000-4500 ms window, captured visible Precise-mode Stage output on that adopted record, checked the 390 px panel with keyboard focus moving from Cut junction to Transition, and Reset to Cut leaving no Transition and the incoming Clip back at 3000 ms.",
+  "captures": [
+    ".wrsp/ui-proof/1038-transitions-refusal.png",
+    ".wrsp/ui-proof/1038-transitions-inserted.png",
+    ".wrsp/ui-proof/1038-transitions-settings.png",
+    ".wrsp/ui-proof/1038-transitions-precise.png",
+    ".wrsp/ui-proof/1038-transitions-narrow.png",
+    ".wrsp/ui-proof/1038-transitions-reset.png"
+  ],
+  "capturedAtCommit": "8ee1491cfc155dd971c72ef8d0681a357384125a"
+}
