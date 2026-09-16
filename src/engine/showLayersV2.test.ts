@@ -73,8 +73,78 @@ function addGroup(record: ShowRecordV2, destinationLayerId: string): void {
     translationX: 0,
     translationY: 0,
     layerBindings: [{ definitionLayerId: 'group-layer', layerId: destinationLayerId }],
+    holds: [],
   })
   expect(validateShowRecordV2(record)).toEqual([])
+}
+
+function heldGroupRecord(targetClipStartMs: number): {
+  record: ShowRecordV2
+  sourceLayerId: string
+  targetLayerId: string
+  runtimeId: string
+} {
+  const record = baseRecord()
+  addSourceLayer(record, 'held-source-layer')
+  const targetLayerId = record.composition.layers.find(layer => layer.rank === 1)!.id
+  const template = record.composition.clips[0]
+  const { zoneId: _zoneId, ...groupTemplate } = template
+  const definitionInstance = { ...structuredClone(record.composition.patternInstances[0]), id: 'held-instance' }
+  record.composition.groupDefinitions.push({
+    id: 'held-definition',
+    name: 'Held Group',
+    patternInstances: [definitionInstance],
+    layers: [{ id: 'group-layer', name: 'Group Layer', rank: 0 }],
+    clips: [{
+      ...structuredClone(groupTemplate),
+      id: 'child-clip',
+      instanceId: definitionInstance.id,
+      layerId: 'group-layer',
+      startMs: 0,
+      durationMs: 200,
+      appearance: {
+        keys: [{
+          ...structuredClone(template.appearance.keys[0]),
+          id: 'child-clip:appearance:1',
+          timeMs: 0,
+        }],
+      },
+    }],
+    transitions: [],
+    propertyTracks: [],
+  })
+  record.composition.groupOccurrences.push({
+    id: 'held-use',
+    definitionId: 'held-definition',
+    layoutOccurrenceId: record.composition.layoutOccurrences[0].id,
+    zoneId: record.zones[0].id,
+    startMs: 200,
+    translationX: 0,
+    translationY: 0,
+    layerBindings: [{ definitionLayerId: 'group-layer', layerId: 'held-source-layer' }],
+    holds: [{ id: 'pause', localTimeMs: 100, durationMs: 100 }],
+  })
+  record.composition.clips.push({
+    ...structuredClone(template),
+    id: 'target-clip',
+    layerId: targetLayerId,
+    startMs: targetClipStartMs,
+    durationMs: 100,
+    appearance: {
+      keys: [{
+        ...structuredClone(template.appearance.keys[0]),
+        id: 'target-clip:appearance:1',
+        timeMs: targetClipStartMs,
+      }],
+    },
+  })
+  expect(validateShowRecordV2(record)).toEqual([])
+  return {
+    record,
+    sourceLayerId: 'held-source-layer',
+    targetLayerId,
+    runtimeId: 'group:["held-definition","held-instance"]',
+  }
 }
 
 function addSourceLayer(record: ShowRecordV2, id = 'layer-source'): void {
@@ -244,6 +314,70 @@ describe('v2 Layer ownership (#1038)', () => {
     expectEmptyAffected(result)
     expect(result.record).toBe(source)
     expect(source).toEqual(before)
+  })
+
+  it('uses the complete held Group interval for collision and half-open adjacency during reassignment', () => {
+    const overlap = heldGroupRecord(499)
+    const overlapBefore = structuredClone(overlap.record)
+    const overlapChild = materializeShowGroupsV2(overlap.record).composition.clips
+      .find(clip => clip.id === 'held-use:child-clip')!
+    expect(overlapChild).toMatchObject({
+      startMs: 200,
+      durationMs: 300,
+      layerId: overlap.sourceLayerId,
+      instanceId: overlap.runtimeId,
+    })
+    expect(overlapChild.startMs + overlapChild.durationMs).toBe(500)
+
+    const refused = editShowLayerV2(overlap.record, {
+      kind: 'remove',
+      zoneId: overlap.record.zones[0].id,
+      layerId: overlap.sourceLayerId,
+      reassignments: [{
+        kind: 'group-layer-binding',
+        groupOccurrenceId: 'held-use',
+        definitionLayerId: 'group-layer',
+        layerId: overlap.targetLayerId,
+      }],
+    })
+    expect(refused).toMatchObject({ status: 'refused', code: 'invalid-result' })
+    expectEmptyAffected(refused)
+    expect(refused.record).toBe(overlap.record)
+    expect(overlap.record).toEqual(overlapBefore)
+
+    const adjacent = heldGroupRecord(500)
+    const adjacentBefore = structuredClone(adjacent.record)
+    const changed = editShowLayerV2(adjacent.record, {
+      kind: 'remove',
+      zoneId: adjacent.record.zones[0].id,
+      layerId: adjacent.sourceLayerId,
+      reassignments: [{
+        kind: 'group-layer-binding',
+        groupOccurrenceId: 'held-use',
+        definitionLayerId: 'group-layer',
+        layerId: adjacent.targetLayerId,
+      }],
+    })
+    expect(changed).toMatchObject({
+      status: 'changed',
+      affectedGroupOccurrenceIds: ['held-use'],
+      affectedLayerIds: [adjacent.sourceLayerId, adjacent.targetLayerId].sort(),
+      removedIds: [adjacent.sourceLayerId],
+    })
+    if (changed.status !== 'changed') return
+    const changedChild = materializeShowGroupsV2(changed.record).composition.clips
+      .find(clip => clip.id === 'held-use:child-clip')!
+    expect(changedChild).toMatchObject({
+      startMs: 200,
+      durationMs: 300,
+      layerId: adjacent.targetLayerId,
+      instanceId: adjacent.runtimeId,
+    })
+    expect(changedChild.startMs + changedChild.durationMs).toBe(500)
+    expect(changed.record.composition.groupDefinitions).toEqual(adjacentBefore.composition.groupDefinitions)
+    expect(changed.record.composition.groupOccurrences[0].holds).toEqual([{ id: 'pause', localTimeMs: 100, durationMs: 100 }])
+    expect(validateShowRecordV2(reopen(changed.record))).toEqual([])
+    expect(adjacent.record).toEqual(adjacentBefore)
   })
 
   it('requires and preserves every connected Transition participant while reassigning endpoint Clips', () => {
