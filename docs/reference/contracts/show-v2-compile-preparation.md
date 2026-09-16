@@ -78,3 +78,12 @@ Sequential replay and fresh cold reopening do not prove snapshot restore. The
 records a pre-existing `getRuntimeState` ReferenceError on both independently
 authored and byte-identical formerly admitted sources; checkpoint repair is
 separate integration work.
+
+## Global Layout switches with participant Transitions
+
+The [Layout/Transition preparation contract](show-v2-layout-transition-preparation.md)
+defines the formerly refused multiple-occurrence participant route. Its global
+routing switches and occurrence scalar baselines use existing recipe channels
+independently of the unchanged placement schedule. Previously admitted routes
+and byte parity remain exact; the direct legacy-shaped API fails closed for
+this richer prepared-only result.

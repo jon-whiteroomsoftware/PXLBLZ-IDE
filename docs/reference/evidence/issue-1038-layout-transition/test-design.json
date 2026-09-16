@@ -1,0 +1,45 @@
+{
+  "issue": 1038,
+  "specCommit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+  "proofRows": [
+    "V2-EDIT-LAYOUT-TRANSITION",
+    "LAYOUT-END",
+    "SHARING",
+    "RESTART",
+    "GROUP-HOLD"
+  ],
+  "invariants": [
+    "Global routing changes do not change participant placement/runtime schedules.",
+    "Complete occurrence identity, parameters and transfer semantics remain exact.",
+    "Every existing admitted recipe/source path stays byte-exact; no compiler/domain widening.",
+    "Invalid availability refuses atomically; richer direct legacy result fails closed."
+  ],
+  "partitions": [
+    "Switch before/start/interior/end/after positive participant window.",
+    "Same/changed definition and instant/timed transfer.",
+    "Occurrence scalar baseline, ordinary/retained nonlinear activation and restoration.",
+    "Distinct/shared runtimes and Continue/Restart entry, linked held Groups/global controls.",
+    "Available/disappearing contribution Zone and direct/prepared API."
+  ],
+  "sequences": [
+    "Independent existing compiler global switch recipe -> Fast/Precise output/state -> public adapter comparison.",
+    "Formerly refused repeated Layout Group -> typed Make Unique -> one save/history -> trusted reopen.",
+    "Saved complete v2 -> prepared recipe -> native EPE reopen -> immediate frame/private snapshot at each boundary."
+  ],
+  "oracles": [
+    "Independently authored global switch/scalar schedule leaves accepted participant recipe schedule fixed.",
+    "Complete prepared recipe and reopened native EPE frames/private state exact in both modes; export getters cloned before next advance.",
+    "Original record unchanged, exact runtime count and authored first-contribution reset events.",
+    "Unavailable Zone typed refusal and preparation-required direct error; existing47-record parity."
+  ],
+  "residualGaps": [
+    "Existing unrelated compiler/adapter representation refusals remain explicitly enforced; this candidate adds only repeated-Layout participant routing."
+  ],
+  "qualification": {
+    "red": "Independent existing recipe2/2 passed; five public boundary cases failed at existing guard before repair.",
+    "focused": "152/152 affected cases across4 suites; own20 native public adapter cases",
+    "static": "Final full-project TypeScript and assigned ESLint PASS",
+    "parity": "47/47 source-byte exact",
+    "faults": "Three named semantic faults killed (drop switches, wrong initial baseline, drop timed transfer); exact source bytes restored"
+  }
+}

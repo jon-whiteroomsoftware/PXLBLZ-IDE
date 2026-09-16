@@ -132,15 +132,20 @@ it.each(['fast', 'fidelity'] as const)('reopened native %s five-action schedules
     }
   }
 })
-it('preserves the existing adapter refusal for positive Layer Transition plus repeated Layouts without adopting a candidate', async () => {
-  const { record, context, write, dependencies } = setup()
+it('adopts Make Unique across positive Layer Transition and repeated Layouts without duplicating runtime owners', async () => {
+  const { record, context, write, dependencies, saved } = setup()
   const first = record.composition.layoutOccurrences[0]; first.durationMs = 17000
   record.composition.layoutOccurrences.push({ ...structuredClone(first), id: 'later-layout', startMs: 17000, durationMs: 14000 })
   const capture = stage.captureShowStageEditV2(record, dependencies)
   expect(capture.inputCapture.status).toBe('qualified')
-  expect(capture.prepared).toMatchObject({ status: 'refused', message: 'composition.transitions: Global scalar changes require whole-output preservation scope.' })
+  expect(capture.prepared.status).toBe('ready')
   const outcome = await admitShowV2PilotGroupOccurrenceEdit({ ...context, capture, intent: intentFor(record, 'make-unique') })
-  expect(outcome).toMatchObject({ status: 'refused', source: 'admission', code: 'unsupported-pilot-record' }); emptyEffects(outcome)
-  expect(write).not.toHaveBeenCalled(); expect(useShowStore.getState().showV2Pilots[record.id]).toBe(record)
-  expect(useShowStore.getState().showV2Histories[record.id].past).toEqual([])
+  expect(outcome).toMatchObject({ status: 'applied', settlement: 'saved' })
+  expect(write).toHaveBeenCalledTimes(1)
+  expect(saved().composition.patternInstances).toEqual(record.composition.patternInstances)
+  expect(saved().composition.propertyTracks).toEqual(record.composition.propertyTracks)
+  expect(saved().composition.layoutOccurrences).toEqual(record.composition.layoutOccurrences)
+  expect(useShowStore.getState().showV2Histories[record.id].past).toEqual([record])
+  const reopened = stage.captureShowStageEditV2(saved(), dependencies)
+  expect(reopened.prepared.status).toBe('ready')
 })

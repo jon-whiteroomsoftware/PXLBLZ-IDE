@@ -1,0 +1,25 @@
+{
+  "baseline": "20/20 native public adapter tests pass",
+  "faults": [
+    {
+      "fault": "drop-global-layout-switches",
+      "status": "killed",
+      "oracle": "Public preparation -> independently authored global recipe -> reopened native EPE output and immediate member state",
+      "log": "/tmp/issue-1038-layout-transition-fault-drop-global-layout-switches.log"
+    },
+    {
+      "fault": "replace-initial-scalar-baseline",
+      "status": "killed",
+      "oracle": "Public preparation -> independently authored global recipe -> reopened native EPE output and immediate member state",
+      "log": "/tmp/issue-1038-layout-transition-fault-replace-initial-scalar-baseline.log"
+    },
+    {
+      "fault": "drop-timed-transfer",
+      "status": "killed",
+      "oracle": "Public preparation -> independently authored global recipe -> reopened native EPE output and immediate member state",
+      "log": "/tmp/issue-1038-layout-transition-fault-drop-timed-transfer.log"
+    }
+  ],
+  "restored": "Exact original bytes",
+  "sourceSha256": "20ea957a226c1c4ff16d63a50eb6aefe9bb6842ae9a8d3cbdab5a69328b4c8bc"
+}

@@ -87,6 +87,14 @@ interface ResolvedLowering {
   lowered: LoweredShowCompositionV2
 }
 
+export class ShowV2PreparedRecipeRequiredError extends Error {
+  readonly code = 'requires-prepared-recipe' as const
+  constructor() {
+    super('Show composition v2 participant Transitions with multiple Layout occurrences require prepareShowV2ForCompile so global Layout switches and scalar baselines cannot be dropped.')
+    this.name = 'ShowV2PreparedRecipeRequiredError'
+  }
+}
+
 /**
  * Resolve v2 compile semantics once, then return the compiler's existing recipe
  * and enough identity provenance for consumer-side parity checks.
@@ -108,6 +116,21 @@ export function prepareShowV2ForCompile(
     }
   }
   const recipe = showRecordToCompileRecipe(lowered.show, lowered.lookup)
+  if (context.route === 'transition' && context.record.composition.layoutOccurrences.length > 1) {
+    const occurrences = [...context.record.composition.layoutOccurrences].sort((left, right) => left.startMs - right.startMs)
+    recipe.routingSwitches = occurrences.flatMap((occurrence, index) => index > 0 && (occurrence.incomingTransfer || occurrence.layoutId !== occurrences[index - 1].layoutId)
+      ? [{ atMs: occurrence.startMs, layoutId: occurrence.layoutId, durationMs: occurrence.incomingTransfer?.durationMs ?? 0,
+          easing: structuredClone(occurrence.incomingTransfer?.easing ?? { curve: 'linear' as const }),
+          direction: occurrence.incomingTransfer?.direction ?? 'forward' as const }] : [])
+    if (recipe.routingPropertyRamps) {
+      recipe.routingPropertyRamps = { splitPosition: {
+        initial: occurrences[0].parameters.splitPosition ?? 0.5,
+        ramps: occurrences.slice(1).map((occurrence, index) => ({ atMs: occurrence.startMs,
+          from: occurrences[index].parameters.splitPosition ?? 0.5, to: occurrence.parameters.splitPosition ?? 0.5,
+          durationMs: 0, easing: { curve: 'linear' as const } })),
+      } }
+    }
+  }
   const layoutPropertyRamps = lowerLayoutSplitPositionTracks(context.record, recipe.routingPropertyRamps)
   if (layoutPropertyRamps.status === 'refused') {
     return { status: 'refused', ...refuse('unsupported-property-target', layoutPropertyRamps.path, layoutPropertyRamps.message) }
@@ -208,6 +231,9 @@ export function lowerShowCompositionV2ForCompile(
   const resolved = resolveAndLowerShowV2(record, lookup)
   if ('issues' in resolved) {
     throw new Error(resolved.issues.map(issue => `Show composition v2 ${issue.path}: ${issue.message}`).join('; '))
+  }
+  if (resolved.context.route === 'transition' && resolved.context.record.composition.layoutOccurrences.length > 1) {
+    throw new ShowV2PreparedRecipeRequiredError()
   }
   return resolved.lowered
 }
@@ -326,7 +352,7 @@ function resolveShowV2CompileContext(
   if (wholeOutput && composition.transitions.some(transition => !transition.wholeOutput)) {
     return refuse('unsupported-transition-participants', 'composition.transitions', 'Mixed whole-output and Layer scopes require separate preservation proof.')
   }
-  if (!wholeOutput && composition.transitions.length > 0 && (composition.layoutOccurrences.length > 1 || composition.propertyTracks.some(track => track.target.kind === 'show-repeat-scale'))) {
+  if (!wholeOutput && composition.transitions.length > 0 && composition.propertyTracks.some(track => track.target.kind === 'show-repeat-scale')) {
     return refuse('unsupported-transition-property-track', 'composition.transitions', 'Global scalar changes require whole-output preservation scope.')
   }
   if (composition.transitions.some(transition => transition.wholeOutput && composition.layoutOccurrences.some(occurrence => occurrence.startMs > transition.wholeOutput!.startMs && occurrence.startMs < transition.wholeOutput!.startMs + transition.durationMs))) {
@@ -964,7 +990,7 @@ function buildLoweredShow(
     const boundary = record.composition.transitions.find(transition => transition.wholeOutput?.startMs === cursor)
     cursor += boundary?.durationMs ?? 0
   }
-  const transitions: ShowRecord['transitions'] = [...record.composition.layoutOccurrences].sort((a, b) => a.startMs - b.startMs).filter((occurrence, index, ordered) => index > 0 && (occurrence.incomingTransfer || occurrence.layoutId !== ordered[index - 1].layoutId)).map(occurrence => ({
+  const transitions: ShowRecord['transitions'] = context.route === 'transition' && record.composition.layoutOccurrences.length > 1 ? [] : [...record.composition.layoutOccurrences].sort((a, b) => a.startMs - b.startMs).filter((occurrence, index, ordered) => index > 0 && (occurrence.incomingTransfer || occurrence.layoutId !== ordered[index - 1].layoutId)).map(occurrence => ({
     id: occurrence.incomingTransfer?.id ?? `routing:${occurrence.id}`,
     afterSceneId: sceneEnds.get(occurrence.startMs)!, kind: 'routing', layoutId: occurrence.layoutId,
     durationMs: occurrence.incomingTransfer?.durationMs ?? 0,
