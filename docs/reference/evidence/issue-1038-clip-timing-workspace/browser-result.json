@@ -1,0 +1,62 @@
+{
+  "sourceCommit": "386ac1a9f12c92b4851d7643bc817acebd4d4cc5",
+  "ready": true,
+  "writes": 9,
+  "validHeldGroupPutGet": true,
+  "invalidHeldGroupHttp400Partitions": 5,
+  "fast": {
+    "frames": 2,
+    "deltaMs": 125,
+    "startMs": 23000,
+    "names": [
+      "issue1038-timing-fast-00000.png",
+      "issue1038-timing-fast-00001.png"
+    ],
+    "failures": []
+  },
+  "precise": {
+    "frames": 2,
+    "deltaMs": 125,
+    "startMs": 23000,
+    "names": [
+      "issue1038-timing-precise-00000.png",
+      "issue1038-timing-precise-00001.png"
+    ],
+    "failures": []
+  },
+  "errors": [],
+  "overflows": [],
+  "captures": [
+    ".wrsp/ui-proof/1038-clip-timing-workspace-desktop.png",
+    ".wrsp/ui-proof/1038-clip-timing-workspace-desktop-controls.png",
+    ".wrsp/ui-proof/1038-clip-timing-workspace-desktop-add.png",
+    ".wrsp/ui-proof/1038-clip-timing-workspace-intermediate.png",
+    ".wrsp/ui-proof/1038-clip-timing-workspace-intermediate-controls.png",
+    ".wrsp/ui-proof/1038-clip-timing-workspace-intermediate-insert.png",
+    ".wrsp/ui-proof/1038-clip-timing-workspace-narrow.png",
+    ".wrsp/ui-proof/1038-clip-timing-workspace-narrow-controls.png",
+    ".wrsp/ui-proof/1038-clip-timing-workspace-narrow-insert.png"
+  ],
+  "viewports": [
+    [
+      1440,
+      1000
+    ],
+    [
+      1024,
+      844
+    ],
+    [
+      390,
+      844
+    ]
+  ],
+  "provenance": "IAB connected; no documented isolated-cookie admission. Declared repoPlaywright isolated synthetic context, same product renderer and own managed Worker.",
+  "runtime": {
+    "profile": "isolated",
+    "port": 5212,
+    "worktreeSourceCommit": "386ac1a9f12c92b4851d7643bc817acebd4d4cc5",
+    "api": "own Worker from the same committed worktree",
+    "main5174": "untouched"
+  }
+}

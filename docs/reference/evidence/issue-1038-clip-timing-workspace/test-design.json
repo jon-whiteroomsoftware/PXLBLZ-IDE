@@ -50,9 +50,10 @@
   "qualification": {
     "focused": "105 tests across9 selected files pass on ef024; actual matching file list is in final-focused log.",
     "static": "Full TypeScript project check and scoped ESLint pass after the authorized structural callback seam.",
-    "browser": "Real authenticated7-action/9-write sequence, UndoRedo/reload/native reopen, Fast/Precise125ms,1440/1024/390 keyboard and overflow checks pass; fresh committed screenshots follow source checkpoint.",
+    "browser": "Fresh committed386ac1a9 captured on isolated5212 ownWorker:7 actions/9 writes, UndoRedo/save/reload/native reopen, valid heldGroupPUTGET and5 malformed400 partitions; Fast/Precise125ms at23s;1440/1024/390 keyboard/errors[]/overflow[]. Nine desktop/Add/bounds/Insert/Stage/timeline captures visually inspected. Browser result and UI record identify exact source/provenance.",
     "mutations": "Nine named semantic mutants killed; exact source restored. DOM matcher Error classified by actual failing consumer assertions.",
-    "worker": "Initial heldGroup save500/code-generation denial reproduced; repaired validPUT\u2192GET and five invalidPUT400 with unchanged stored bytes pass. Derived structural bypass mutant killed.",
-    "parity": "Final restored-source corpus47 passes on ef024; no compiler/schema change."
+    "worker": "Initial actual heldGroup500 codegen denial preserved in worker-persistence-proof.json; isolated committed386ac1a9 validPUTGET plus5 malformed400 cases retain originalbytes. No-codegen/derived structural tests and mutation pass.",
+    "parity": "Final restored-source corpus47 passes on ef024; no compiler/schema change.",
+    "hooks": "Source normal hooks pass: full lint,18 authenticated specs reachable, staged270/31, layout12/4. Local zinc contrast correction normal hooks/static and mapped3tests pass; independent style-focused14tests pass."
   }
 }

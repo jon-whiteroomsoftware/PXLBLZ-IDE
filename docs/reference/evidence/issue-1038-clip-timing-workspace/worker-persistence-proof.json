@@ -1,0 +1,27 @@
+{
+  "fixture": "e2e/fixtures/showV2ClipTiming.json",
+  "initial": {
+    "status": 500,
+    "diagnostic": "Code generation from strings disallowed for this context",
+    "cause": "Derived Group validation reentered runtime AJV in Worker",
+    "redTests": 6
+  },
+  "repair": "Trusted structural-only callback: existing Worker interpreter, mandatory domain recursion; public desktop full validation and schema unchanged",
+  "consumer": {
+    "profile": "isolated",
+    "port": 5212,
+    "sourceCommit": "386ac1a9f12c92b4851d7643bc817acebd4d4cc5",
+    "validHeldGroupPutGetReopen": true,
+    "invalidStatus": 400,
+    "invalidCode": "invalid_show_v2_record",
+    "invalidPartitions": [
+      "nested-field",
+      "missing-instance",
+      "blank-hold",
+      "negative-hold",
+      "overlap"
+    ],
+    "storedPreimageRetained": true
+  },
+  "derivedStructuralBypassMutant": "killed"
+}

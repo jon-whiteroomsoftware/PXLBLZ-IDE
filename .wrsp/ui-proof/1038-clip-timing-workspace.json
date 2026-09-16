@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/clip-timing-synthetic?show-v2-pilot=1&capture",
+  "operation": "Ordinary Clip timing opt-in workspace: Create/select/move/trim/extend/split/Insert Time/Show End, one existing history/save per changed action, UndoRedo gives9 own PUTs, provider reload/native pxlshow/epe reopen; cancel/selection/noop/fractional refusal add no writes. Thirty-second nonlinear shared runtime fixture with held Group fullRestart grows to40s. Public builderREADY before seeding; own isolated5212 Worker valid heldGroupPUTGET and5 malformed nested/domain/hold/collision400 partitions preserve stored preimage. Fast/Precise125ms23s capture passes; desktop1440x1000, intermediate1024x844/narrow390x844 native keyboard selection, errors/overflow empty. Explicit zinc timing controls visually inspected. IAB connected but lacks documented isolated-cookie admission; declared repoPlaywright synthetic isolated context uses actual renderer and own Worker, preserving user session; main5174 untouched.",
+  "captures": [
+    ".wrsp/ui-proof/1038-clip-timing-workspace-desktop.png",
+    ".wrsp/ui-proof/1038-clip-timing-workspace-desktop-controls.png",
+    ".wrsp/ui-proof/1038-clip-timing-workspace-desktop-add.png",
+    ".wrsp/ui-proof/1038-clip-timing-workspace-intermediate.png",
+    ".wrsp/ui-proof/1038-clip-timing-workspace-intermediate-controls.png",
+    ".wrsp/ui-proof/1038-clip-timing-workspace-intermediate-insert.png",
+    ".wrsp/ui-proof/1038-clip-timing-workspace-narrow.png",
+    ".wrsp/ui-proof/1038-clip-timing-workspace-narrow-controls.png",
+    ".wrsp/ui-proof/1038-clip-timing-workspace-narrow-insert.png"
+  ],
+  "capturedAtCommit": "386ac1a9f12c92b4851d7643bc817acebd4d4cc5"
+}
