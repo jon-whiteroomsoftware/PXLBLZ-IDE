@@ -118,6 +118,7 @@ async function runGeneratedRestartProgress(
   sampleBinding: string,
   elapsedBinding: string,
   fidelity: 'fast' | 'fidelity' = 'fast',
+  options: { deltaMs?: number; initialElapsedSeconds?: number; warmupDeltaMs?: number } = {},
 ): Promise<{
   elapsed: number
   randomCalls: number
@@ -172,7 +173,11 @@ async function runGeneratedRestartProgress(
     function hsv(hue, saturation, value) { rgb(value, value, value) }
     function time() { return 0 }
     eval(workerData.source.replace(/\\bexport\\s+/g, ''))
-    beforeRender(encode(670))
+    if (workerData.warmupDeltaMs !== undefined) beforeRender(encode(workerData.warmupDeltaMs))
+    if (workerData.initialElapsedSeconds !== undefined) {
+      eval(workerData.elapsedBinding + ' = encode(workerData.initialElapsedSeconds)')
+    }
+    beforeRender(encode(workerData.deltaMs))
     render(encode(0))
     parentPort.postMessage({
       elapsed: eval(workerData.elapsedBinding),
@@ -190,6 +195,9 @@ async function runGeneratedRestartProgress(
       elapsedBinding,
       randomSeed: 1037,
       fidelity,
+      deltaMs: options.deltaMs ?? 670,
+      initialElapsedSeconds: options.initialElapsedSeconds,
+      warmupDeltaMs: options.warmupDeltaMs,
       fxMethods: Object.entries(fx).map(([name, implementation]) => [name, implementation.toString()]),
     },
   })
@@ -777,6 +785,156 @@ describe('lowerShowCompositionV2ForCompile', () => {
     expect(result.sample).toBe(result.lastRandom)
     expect(result.pixel).toBe(fx.toFloat(result.lastRandom))
   })
+
+  it.each(['fast', 'fidelity'] as const)(
+    'executes the generated $fidelity artifact across the first wrap of an accepted long Show',
+    { timeout: 5_000 },
+    async (fidelity) => {
+    const loopDurationMs = 16_384_000
+    const initialElapsedSeconds = 16_383.99
+    const deltaMs = 20
+    const artifact = restartSchedulerArtifact('continuous', [8_192_000], false, loopDurationMs)
+    const prefix = artifact.summary.clips[0].prefix
+    const sampleName = `${prefix}_sample`
+    const elapsedName = '__pxlblz_show_elapsed_s'
+    const result = await runGeneratedRestartProgress(
+      fidelity === 'fidelity' ? artifact.fxCode : artifact.code,
+      artifact.metadata.patternVarBindings?.[sampleName] ?? sampleName,
+      artifact.metadata.patternVarBindings?.[elapsedName] ?? elapsedName,
+      fidelity,
+      { deltaMs, initialElapsedSeconds },
+    )
+    const expectedElapsed = fidelity === 'fidelity'
+      ? fx.mod(
+          fx.add(
+            fx.fromFloat(initialElapsedSeconds),
+            fx.div(fx.fromFloat(deltaMs), fx.fromFloat(1_000)),
+          ),
+          fx.fromFloat(loopDurationMs / 1_000),
+        )
+      : (initialElapsedSeconds + deltaMs / 1_000) % (loopDurationMs / 1_000)
+    expect(result.elapsed).toBe(expectedElapsed)
+    expect(result.randomCalls).toBe(1)
+    const expectedSample = seededRandomDraw(fidelity, 1)
+    expect(result.lastRandom).toBe(fidelity === 'fidelity' ? fx.fromFloat(expectedSample) : expectedSample)
+    expect(result.sample).toBe(result.lastRandom)
+    expect(result.pixel).toBe(fidelity === 'fidelity' ? fx.toFloat(result.lastRandom) : result.lastRandom)
+    },
+  )
+
+  it.each(([30_000, 60_000] as const).flatMap(loopDurationMs => (
+    (['fast', 'fidelity'] as const).map(fidelity => ({ loopDurationMs, fidelity }))
+  )))(
+    'runs normal and boundary frames for a $loopDurationMs ms Show in $fidelity mode',
+    { timeout: 5_000 },
+    async ({ loopDurationMs, fidelity }) => {
+      const durationSeconds = loopDurationMs / 1_000
+      const initialElapsedSeconds = durationSeconds - 0.01
+      const artifact = restartSchedulerArtifact('continuous', [loopDurationMs / 2], false, loopDurationMs)
+      const prefix = artifact.summary.clips[0].prefix
+      const sampleName = `${prefix}_sample`
+      const elapsedName = '__pxlblz_show_elapsed_s'
+      const result = await runGeneratedRestartProgress(
+        fidelity === 'fidelity' ? artifact.fxCode : artifact.code,
+        artifact.metadata.patternVarBindings?.[sampleName] ?? sampleName,
+        artifact.metadata.patternVarBindings?.[elapsedName] ?? elapsedName,
+        fidelity,
+        { warmupDeltaMs: 16, deltaMs: 20, initialElapsedSeconds },
+      )
+      const expectedElapsed = fidelity === 'fidelity'
+        ? fx.mod(
+            fx.add(
+              fx.fromFloat(initialElapsedSeconds),
+              fx.div(fx.fromFloat(20), fx.fromFloat(1_000)),
+            ),
+            fx.fromFloat(durationSeconds),
+          )
+        : (initialElapsedSeconds + 0.02) % durationSeconds
+      const expectedSample = seededRandomDraw(fidelity, 2)
+      expect(result.elapsed).toBe(expectedElapsed)
+      expect(result.randomCalls).toBe(2)
+      expect(result.sample).toBe(fidelity === 'fidelity' ? fx.fromFloat(expectedSample) : expectedSample)
+      expect(result.pixel).toBe(expectedSample)
+    },
+  )
+
+  it.each((['fast', 'fidelity'] as const).flatMap(fidelity => ([
+    { fidelity, policy: 'continuous' as const, expectedDraws: 4 },
+    { fidelity, policy: 'deterministic-loop' as const, expectedDraws: 2 },
+  ])))(
+    'owns an exact loop boundary without a sentinel in $fidelity $policy mode',
+    { timeout: 5_000 },
+    async ({ fidelity, policy, expectedDraws }) => {
+      const artifact = restartSchedulerArtifact(policy, [50], false, 125)
+      const prefix = artifact.summary.clips[0].prefix
+      const sampleName = `${prefix}_sample`
+      const elapsedName = '__pxlblz_show_elapsed_s'
+      const result = await runGeneratedRestartProgress(
+        fidelity === 'fidelity' ? artifact.fxCode : artifact.code,
+        artifact.metadata.patternVarBindings?.[sampleName] ?? sampleName,
+        artifact.metadata.patternVarBindings?.[elapsedName] ?? elapsedName,
+        fidelity,
+        { deltaMs: 250 },
+      )
+      expect(result.elapsed).toBe(0)
+      expect(result.randomCalls).toBe(expectedDraws)
+      if (policy === 'continuous') {
+        const expectedSample = seededRandomDraw(fidelity, expectedDraws)
+        expect(result.sample).toBe(fidelity === 'fidelity' ? fx.fromFloat(expectedSample) : expectedSample)
+        expect(result.pixel).toBe(expectedSample)
+      } else {
+        expect(result.sample).toBe(0)
+        expect(result.pixel).toBe(0)
+      }
+    },
+  )
+
+  it.each([
+    { policy: 'continuous' as const, expectedDraws: 20 },
+    { policy: 'deterministic-loop' as const, expectedDraws: 1 },
+  ])(
+    'makes bounded Precise progress through the minimum 1 ms $policy loop',
+    { timeout: 5_000 },
+    async ({ policy, expectedDraws }) => {
+      const artifact = restartSchedulerArtifact(policy, [0], false, 1)
+      const prefix = artifact.summary.clips[0].prefix
+      const sampleName = `${prefix}_sample`
+      const elapsedName = '__pxlblz_show_elapsed_s'
+      const result = await runGeneratedRestartProgress(
+        artifact.fxCode,
+        artifact.metadata.patternVarBindings?.[sampleName] ?? sampleName,
+        artifact.metadata.patternVarBindings?.[elapsedName] ?? elapsedName,
+        'fidelity',
+        { deltaMs: 20 },
+      )
+      const deltaSeconds = fx.div(fx.fromFloat(20), fx.fromFloat(1_000))
+      const duration = fx.fromFloat(0.001)
+      expect(duration).toBe(66)
+      expect(result.elapsed).toBe(fx.mod(deltaSeconds, duration))
+      expect(result.randomCalls).toBe(expectedDraws)
+      const expectedSample = seededRandomDraw('fidelity', expectedDraws)
+      expect(result.sample).toBe(fx.fromFloat(expectedSample))
+      expect(result.pixel).toBe(expectedSample)
+    },
+  )
+
+  it.each([32_768_000, 40_000_000])(
+    'terminates generated Precise Restart traversal for out-of-range %i ms clock input',
+    { timeout: 5_000 },
+    async (loopDurationMs) => {
+      const artifact = restartSchedulerArtifact('continuous', [1], false, loopDurationMs)
+      const prefix = artifact.summary.clips[0].prefix
+      const sampleName = `${prefix}_sample`
+      const elapsedName = '__pxlblz_show_elapsed_s'
+      await expect(runGeneratedRestartProgress(
+        artifact.fxCode,
+        artifact.metadata.patternVarBindings?.[sampleName] ?? sampleName,
+        artifact.metadata.patternVarBindings?.[elapsedName] ?? elapsedName,
+        'fidelity',
+        { deltaMs: 16 },
+      )).resolves.toEqual(expect.objectContaining({ randomCalls: expect.any(Number) }))
+    },
+  )
 
   it.each((['fast', 'fidelity'] as const).flatMap(fidelity => ([
     { fidelity, policy: 'continuous' as const, expectedDraw: 4 },

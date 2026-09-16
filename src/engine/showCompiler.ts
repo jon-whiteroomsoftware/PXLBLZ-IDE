@@ -5056,7 +5056,7 @@ ${indentBlock([...restartMemberResetLines(member), ...memberSlotOwnerResetLines(
 }`)
     : []
   const restartCrossingPrelude = restartMembers.length === 0 ? '' : `var __pxlblz_show_restart_previous_s = __pxlblz_show_elapsed_s
-  var __pxlblz_show_restart_path_end_s = __pxlblz_show_elapsed_s + delta / 1000`
+  var __pxlblz_show_restart_path_delta_s = delta / 1000`
   const loopAdvancePrelude = deterministicLoopReset ? `var __pxlblz_show_loop_wrapped = __pxlblz_show_elapsed_s + delta / 1000 >= ${totalMs / 1_000}
   __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${totalMs / 1_000}
   if (__pxlblz_show_loop_wrapped) {
@@ -5174,10 +5174,9 @@ ${member.prefix}_mir_base_i = ${member.prefix}_adapt_mirror * (${member.pixelCou
 
   const restartAdvanceFunctions = restartMembers.map((member) => {
     const cursor = `${member.prefix}_restart_cursor_s`
-    const target = `${member.prefix}_restart_target_s`
-    const loopIndex = `${member.prefix}_restart_advance_loop_index`
-    const loopStart = `${member.prefix}_restart_loop_start_s`
-    const loopEnd = `${member.prefix}_restart_loop_end_s`
+    const remaining = `${member.prefix}_restart_remaining_s`
+    const distanceToEnd = `${member.prefix}_restart_distance_to_end_s`
+    const passDelta = `${member.prefix}_restart_pass_delta_s`
     const passEnd = `${member.prefix}_restart_pass_end_s`
     const segmentEnd = `${member.prefix}_restart_segment_end_s`
     const segmentBlocks = segments.flatMap((segment) => {
@@ -5185,8 +5184,8 @@ ${member.prefix}_mir_base_i = ${member.prefix}_adapt_mirror * (${member.pixelCou
         ? [segment.sceneIndex, segment.sceneIndex + 1]
         : [segment.sceneIndex]
       const placements = sceneIndices.flatMap(sceneIndex => scenes[sceneIndex].placements)
-      const pathStart = `${loopStart} + ${segment.startMs / 1_000}`
-      const pathEnd = `${loopStart} + ${segment.endMs / 1_000}`
+      const pathStart = `${segment.startMs / 1_000}`
+      const pathEnd = `${segment.endMs / 1_000}`
       if (!placements.some(placement => placement.member === member)) {
         const continuityWindow = continuityWindowByMember.get(member)
         const advanceHidden = continuityMemberSet.has(member)
@@ -5219,7 +5218,7 @@ ${member.prefix}_mir_base_i = ${member.prefix}_adapt_mirror * (${member.pixelCou
       return [`    ${segmentEnd} = min(${passEnd}, ${pathEnd})
     if (${cursor} < ${segmentEnd} && ${passEnd} > ${pathStart}) {
       var __pxlblz_show_restart_final_s = __pxlblz_show_elapsed_s
-      __pxlblz_show_elapsed_s = ${segmentEnd} - ${loopStart}${segment.kind === 'transition'
+      __pxlblz_show_elapsed_s = ${segmentEnd}${segment.kind === 'transition'
           ? `\n      __pxlblz_show_transition_start_s = ${segment.startMs / 1_000}`
           : ''}
 ${indentBlock(entry.code, 6)}
@@ -5227,16 +5226,18 @@ ${indentBlock(entry.code, 6)}
       __pxlblz_show_elapsed_s = __pxlblz_show_restart_final_s
     }`]
     }).join('\n')
-    return `function ${member.prefix}_restart_advance_to(${cursor}, ${target}) {
-  var ${loopIndex} = floor(${cursor} / ${totalMs / 1_000})
-  while (${cursor} < ${target}) {
-    var ${loopStart} = ${loopIndex} * ${totalMs / 1_000}
-    var ${loopEnd} = (${loopIndex} + 1) * ${totalMs / 1_000}
-    var ${passEnd} = min(${target}, ${loopEnd})
+    return `function ${member.prefix}_restart_advance_by(${cursor}, ${remaining}) {
+  if (${totalMs / 1_000} <= 0) return ${cursor}
+  if (${cursor} >= ${totalMs / 1_000}) ${cursor} = 0
+  while (${remaining} > 0) {
+    var ${distanceToEnd} = ${totalMs / 1_000} - ${cursor}
+    var ${passDelta} = min(${remaining}, ${distanceToEnd})
+    var ${passEnd} = ${cursor} + ${passDelta}
     var ${segmentEnd} = 0
 ${segmentBlocks}
     if (${cursor} < ${passEnd}) ${cursor} = ${passEnd}
-    ${loopIndex} = ${loopIndex} + 1
+    ${remaining} = ${remaining} - ${passDelta}
+    if (${passDelta} >= ${distanceToEnd}) ${cursor} = 0
   }
   return ${cursor}
 }`
@@ -5244,43 +5245,73 @@ ${segmentBlocks}
   const restartEventPrelude = restartMembers.length === 0 ? '' : `${restartMembers.map((member) => {
     const events = restartEventsByMember.get(member)!
     const eventTarget = `${member.prefix}_restart_event_s`
-    const loopIndex = `${member.prefix}_restart_loop_index`
-    const loopOffset = `${member.prefix}_restart_loop_offset_s`
-    const eventBlocks = events.map(event => `    ${eventTarget} = ${loopOffset} + ${event.atMs / 1_000}
-    if (${member.prefix}_restart_cursor_s < ${eventTarget} && ${eventTarget} <= __pxlblz_show_restart_path_end_s) {
-      ${member.prefix}_restart_cursor_s = ${member.prefix}_restart_advance_to(${member.prefix}_restart_cursor_s, ${eventTarget})
+    const scanCursor = `${member.prefix}_restart_scan_cursor_s`
+    const advanceCursor = `${member.prefix}_restart_advance_cursor_s`
+    const remaining = `${member.prefix}_restart_path_remaining_s`
+    const pending = `${member.prefix}_restart_pending_s`
+    const distanceToEnd = `${member.prefix}_restart_scan_distance_to_end_s`
+    const passDelta = `${member.prefix}_restart_scan_pass_delta_s`
+    const passEnd = `${member.prefix}_restart_scan_pass_end_s`
+    const eventBlocks = events.map(event => `    ${eventTarget} = ${event.atMs / 1_000}
+    if (${scanCursor} < ${eventTarget} && ${eventTarget} <= ${passEnd}) {
+      ${pending} = ${pending} + ${eventTarget} - ${scanCursor}
+      ${advanceCursor} = ${member.prefix}_restart_advance_by(${advanceCursor}, ${pending})
       ${member.prefix}_restart()
-      ${member.prefix}_restart_cursor_s = ${eventTarget}
+      ${advanceCursor} = ${eventTarget}
+      ${scanCursor} = ${eventTarget}
+      ${pending} = 0
       ${member.prefix}_restart_crossed = 1
     }`).join('\n')
-    const initialZero = events.some(event => event.atMs === 0)
+    const hasZeroEvent = events.some(event => event.atMs === 0)
+    const initialZero = hasZeroEvent
       ? `  if (!__pxlblz_show_restart_primed) {
     ${member.prefix}_restart()
-    ${member.prefix}_restart_cursor_s = 0
+    ${advanceCursor} = 0
     ${member.prefix}_restart_crossed = 1
   }
 `
       : ''
     return `  ${member.prefix}_restart_delta = delta
-  var ${member.prefix}_restart_cursor_s = __pxlblz_show_restart_previous_s
+  var ${scanCursor} = __pxlblz_show_restart_previous_s
+  var ${advanceCursor} = __pxlblz_show_restart_previous_s
   var ${member.prefix}_restart_crossed = 0
-${initialZero}  var ${loopIndex} = 0
-  var ${loopOffset} = 0
+${initialZero}  var ${remaining} = __pxlblz_show_restart_path_delta_s
+  var ${pending} = 0
+  var ${distanceToEnd} = 0
+  var ${passDelta} = 0
+  var ${passEnd} = 0
   var ${eventTarget} = 0
-  while (${loopOffset} <= __pxlblz_show_restart_path_end_s) {
+  if (${totalMs / 1_000} > 0) {
+    if (${scanCursor} >= ${totalMs / 1_000}) ${scanCursor} = 0
+    while (${remaining} > 0) {
+    ${distanceToEnd} = ${totalMs / 1_000} - ${scanCursor}
+    ${passDelta} = min(${remaining}, ${distanceToEnd})
+    ${passEnd} = ${scanCursor} + ${passDelta}
 ${eventBlocks}
+    ${pending} = ${pending} + ${passEnd} - ${scanCursor}
+    ${scanCursor} = ${passEnd}
+    ${remaining} = ${remaining} - ${passDelta}
+    if (${passDelta} >= ${distanceToEnd}) {
 ${deterministicLoopReset
-    ? `    if (${loopOffset} + ${totalMs / 1_000} <= __pxlblz_show_restart_path_end_s) {
-      ${member.prefix}_restart_loop()
-      ${member.prefix}_restart_cursor_s = ${loopOffset} + ${totalMs / 1_000}
+    ? `      ${member.prefix}_restart_loop()
+      ${advanceCursor} = 0
+      ${pending} = 0
       ${member.prefix}_restart_crossed = 1
-    }`
-    : ''}
-    ${loopIndex} = ${loopIndex} + 1
-    ${loopOffset} = ${loopIndex} * ${totalMs / 1_000}
+`
+    : hasZeroEvent
+      ? `      ${advanceCursor} = ${member.prefix}_restart_advance_by(${advanceCursor}, ${pending})
+      ${member.prefix}_restart()
+      ${advanceCursor} = 0
+      ${pending} = 0
+      ${member.prefix}_restart_crossed = 1
+`
+      : ''}
+      ${scanCursor} = 0
+    }
+    }
   }
   if (${member.prefix}_restart_crossed) {
-    ${member.prefix}_restart_delta = (__pxlblz_show_restart_path_end_s - ${member.prefix}_restart_cursor_s) * 1000
+    ${member.prefix}_restart_delta = ${pending} * 1000
   }`
   }).join('\n')}
   __pxlblz_show_restart_primed = 1`

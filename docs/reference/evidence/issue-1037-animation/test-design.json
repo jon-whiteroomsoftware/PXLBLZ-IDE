@@ -13,7 +13,7 @@
     "Activation start, interior, exclusive end, inactive gap, incoming pre-roll and outgoing contribution",
     "Clip, instance time-scale, instance control, appearance, Transform, Aperture, Effect, Layout split-position and Show repeat-scale targets",
     "Ordinary Clips, shared Clips, independent instances and Group-materialized occurrences",
-    "Restart at time zero, nominal entry, incoming contribution, simultaneous shared entries, one frame crossing multiple distinct entries, intervening hold, Transition and inactive slices under continuous versus deterministic-loop policy, zero/one/multiple whole-loop crossings, a 100 ms loop with a 50 ms Restart crossed 6.7 times, and cold replay; ordinary functions, reassigned declared function bindings, and parameter, block, loop and local shadows",
+    "Restart at time zero, nominal entry, incoming contribution, simultaneous shared entries, one frame crossing multiple distinct entries, intervening hold, Transition and inactive slices under continuous versus deterministic-loop policy, zero/one/multiple whole-loop crossings, a minimum 1 ms loop, an exact 250 ms / 125 ms boundary, ordinary and boundary frames for 30 s and 60 s Shows, a 100 ms loop with a 50 ms Restart crossed 6.7 times, a 16,384 s first wrap, and cold replay; ordinary functions, reassigned declared function bindings, and parameter, block, loop and local shadows",
     "Forward-dependent and uninitialized scalar baselines, repeated declarations, repeated Restart, async/generator refusal, implicit state, arrays, palettes, dynamic calls and unknown runtime facilities",
     "Conventional routed and score-selected emission, Restart-routed flat records, no-Restart continuous-flat records, selected output reuse and Transition-owned snapshot capture",
     "Accepted exact edits, half-open adjacency, overlapping-owner refusal, invalid/unsafe Insert Time and unresettable Pattern refusal"
@@ -32,7 +32,7 @@
     "Complete immutable v2 records validate after accepted edits; refusals return the complete original record and named reason",
     "Public evaluator values and compiler-emitted Fast/Fidelity values match retained source-curve evaluation at boundaries and interiors",
     "Serialized provisional v2 records reopen with exact descriptors while the v1 JSON schema and generated persisted-v1 TypeScript schema reject the v2-only field",
-    "Reopened generated .epe Fast/Fidelity runtime exports prove captured private state and elapsed reset, authored control reapplication, one compiled shared member, continuous/deterministic hidden-gap policy, independently seeded environmental-random ordinals across zero/one/multiple loops, measured Precise arithmetic and cold-initializer equality; timeout-isolated generated Fast and Precise artifacts prove integer loop progress and exact slice count through the decimal 670 ms / 100 ms boundary, with the Precise result checked against an independent 16.16 remainder oracle",
+    "Reopened generated .epe Fast/Fidelity runtime exports prove captured private state and elapsed reset, authored control reapplication, one compiled shared member, continuous/deterministic hidden-gap policy, independently seeded environmental-random ordinals across zero/one/multiple loops, measured Precise arithmetic and cold-initializer equality; timeout-isolated generated Fast and Precise artifacts prove bounded local-cursor progress and exact slice counts at minimum, exact, decimal multiwrap and 16,384 s first-wrap boundaries, with Precise results checked against independent 16.16 remainder oracles; accepted durations whose Precise loop constant is nonpositive prove termination only",
     "Public preparation with resolved Libraries returns typed unsupported-restart diagnostics from the final compile path; the 47-record census distinguishes source eligibility, representation eligibility, resource blockers and all-Restart stress",
     "Selected output-reuse artifacts recompute after Restart while Transition-owned snapshots retain their authored held image and the live member resets",
     "The pinned parity harness accounts for all 47 records, measures the accepted retired-silent-runtime differences, and keeps every unrelated recipe/source/output/state comparison exact",
@@ -58,12 +58,14 @@
     "A crossed inactive slice advances the environmental PRNG in continuous mode because the Restart path ignores the deterministic-loop guard",
     "Restart wrap handling uses a boolean or one extra unrolled loop and skips entries in complete intervening loops",
     "Restart advance recomputes its loop only from a floating cursor, selects the preceding loop at an exact decimal boundary, and stops making progress",
+    "Restart traversal computes an absolute path-end sentinel or loop-index product that wraps in 16.16 before its termination condition can become false",
     "Group translation changes key values but leaves a retained nonlinear curve base in definition-local coordinates",
     "Instance-track copying checks only ordinary tracks and admits an overlap with a materialized Group owner",
     "Transition carrier removed before its Property ramps are projected, or projection shifted a second time by the visual edit",
     "Layout split-position descriptor linearized, left active at the exclusive end, or applied to a different occurrence"
   ],
   "residualGaps": [
+    "Precise Show clocks for accepted durations at or above 32,768 seconds predate this traversal repair and encode a nonpositive 16.16 loop constant; Restart traversal now terminates there but makes no semantic-correctness claim, and this slice does not add an authored-duration cap or widen the compiler domain",
     "#1038 owns duplicate, Make Independent, Replace and Group occurrence authoring integration around these pure owners",
     "#1044/#1039 own history, provider readback, adoption and production route proof",
     "Coordinator owns final committed-tip suites, the authorized native Astra Medium review, landing and publication"
