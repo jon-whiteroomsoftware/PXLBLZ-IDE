@@ -700,4 +700,47 @@ describe('definition-local Group Clip Pattern replacement', () => {
     next.composition.groupDefinitions[0].patternInstances[0].controlTargets!.sliderLevel = 0
     expect(source).toEqual(before)
   })
+
+  it('refuses a linked split that no other local Clip or original Group track requires', () => {
+    const source = linkedFixture([1000], true)
+    source.composition.groupDefinitions[0].propertyTracks = []
+    const value = linkedIntent(source)
+    value.runtimePlansBySourceRuntimeId = { [defaultGroupRuntimeIdV2('group', 'slot')]: { kind: 'retain' } }
+    atomicRefusal(source, value)
+    value.slot = { kind: 'retain' }
+    expect(replaceShowGroupDefinitionClipPatternV2(source, value).status).toBe('changed')
+  })
+
+  it('keeps an ordinary sharing user, its attached Transition and its compiled member exact while the selected linked use forks', () => {
+    const source = linkedFixture()
+    source.composition.propertyTracks = []
+    source.composition.groupDefinitions[0].propertyTracks = []
+    source.composition.clips[0].durationMs = 400
+    source.composition.clips.push({ ...structuredClone(source.composition.clips[0]), id: 'second', startMs: 600,
+      appearance: { keys: [{ ...structuredClone(source.composition.clips[0].appearance.keys[0]), id: 'second:key', timeMs: 600 }] } })
+    source.composition.transitions = [{ id: 'ordinary-fade', kind: 'crossfade', durationMs: 200, easing: { curve: 'linear' }, crossfadePolicy: 'live-live',
+      participants: [{ id: 'ordinary-fade:participant', zoneId: source.composition.clips[0].zoneId, layerId: source.composition.clips[0].layerId, fromClipId: 'clip', toClipId: 'second' }], propertyRamps: [] }]
+    const before = structuredClone(source)
+    const old = runtime(source, 'fast')
+    const value = linkedIntent(source)
+    value.slot = { kind: 'retain' }
+    const result = replaceShowGroupDefinitionClipPatternV2(source, value)
+    expect(result.status, JSON.stringify(result)).toBe('changed')
+    if (result.status !== 'changed') return
+    const next = reopen(result.record)
+    expect(next.composition.transitions).toEqual(before.composition.transitions)
+    expect(next.composition.clips).toEqual(before.composition.clips)
+    expect(next.composition.patternInstances[0]).toEqual(before.composition.patternInstances[0])
+    const changed = runtime(next, 'fast')
+    expect(normalizedPrivateSymbols(changed.memberSource('instance'))).toEqual(normalizedPrivateSymbols(old.memberSource('instance')))
+    const oldPrefix = old.artifact.summary.clips.find(member => member.id === 'instance')!.prefix
+    const prefix = changed.artifact.summary.clips.find(member => member.id === 'instance')!.prefix
+    for (const atMs of [200, 501, 700, 999]) {
+      const a = old.replay.advanceTo(atMs, { stepMs: 1, forceFullIntermediateRender: true })
+      const b = changed.replay.advanceTo(atMs, { stepMs: 1, forceFullIntermediateRender: true })
+      expect(b.frame, `ordinary frame at ${atMs}`).toEqual(a.frame)
+      for (const name of ['level', 'elapsed']) expect(b.exports[`${prefix}_${name}`], `ordinary ${name} at ${atMs}`).toEqual(a.exports[`${oldPrefix}_${name}`])
+    }
+    expect(source).toEqual(before)
+  })
 })
