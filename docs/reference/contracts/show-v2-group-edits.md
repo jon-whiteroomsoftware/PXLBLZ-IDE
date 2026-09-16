@@ -144,3 +144,6 @@ This owner covers Make Unique, occurrence move, linked duplicate and
 selected-occurrence Ungroup. Group delete, global Insert Time, Layer authoring,
 UI and store adoption remain separate #1038 owners. These operations do not
 impose deletion or garbage-collection policy.
+
+Definition-local Clip Pattern replacement has its own pure owner and
+[replacement contract](show-v2-group-replacement.md).

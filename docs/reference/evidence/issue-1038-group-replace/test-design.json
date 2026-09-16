@@ -1,0 +1,49 @@
+{
+  "issue": 1038,
+  "specificationCommit": "dc9d3735251581999a1dc6b64ed87b4d86e52264",
+  "proofRows": [
+    "MODEL",
+    "SHARING",
+    "REPLACE",
+    "RESTART",
+    "ACTIVATION",
+    "GROUP-HOLD"
+  ],
+  "boundary": "definition-local owner -> reopened .pxlshow -> public preparation -> delivered reopened .epe -> Fast/Fidelity replay",
+  "invariants": [
+    "Replace selects one local Clip across every linked occurrence, preserving selected sharing equivalence with exactly one destination per distinct source runtime.",
+    "Effective sharing controls sole retain versus explicit shared fork; authoritative source values/clocks and all retained effective animation survive without modifying unrelated users.",
+    "Dormant replacement edits only local templates/tracks, protecting shared slots and hoisted default authority through explicit globally fresh local identities.",
+    "Unsafe mixed/foreign Group animation pruning refuses atomically; complete explicit plans precede no-op admission and changed records are unaliased."
+  ],
+  "partitions": [
+    "Ordinary plus Group shared users; repeated adjacent/separated defaults; distinct sole and shared authoritative runtime classes; unused retained original slots.",
+    "Local shared slots, held nonlinear control/time-scale animation, Restart, attached local Crossfade, Make Group Unique before definition Replace.",
+    "Dormant sole/shared/default-hoisted authority and later default resolution, stale local static controls despite compatible top-level authority.",
+    "Missing/extraneous/blank/colliding runtime/slot/effective track/key identities, derived-default collisions, malformed metadata, wrong context/targets, valid no-op.",
+    "Publicly admitted mixed retain/fork and foreign unused-slot incompatible animation refuse with exact original identity and empty affected collections."
+  ],
+  "sequences": [
+    "Reopen source and prepare independently, replace with caller plans, reopen edited record, compile/import .epe and compare actual contributors in both modes.",
+    "Replace repeated linked uses with one destination per source; retain original Group owners/payloads and compare other-user controls/clocks/frames and delivered compiled Pattern member.",
+    "Make Group Unique then Replace; dormant split then add a later default occurrence; hold/repeat Restart and compare copied nonlinear global-time behavior."
+  ],
+  "oracles": [
+    "Exact complete input/source graph preservation, result identity/affected owners, `.pxlshow` validation and public preparation eligibility.",
+    "Independently prepared old/new delivered Fast/Fidelity state/control/frame comparisons isolate selected versus unrelated contributions and same first-contribution lifecycle.",
+    "Delivered compiled Pattern owner chunks compare under a bijection of generated private symbols only; authored names, values, operations, ordering, references and control flow remain exact.",
+    "Precise actual-contributor and Score-wrap boundaries use exact source/frame/state comparisons, without tuning nominal clock tolerance."
+  ],
+  "tddEvidence": [
+    "First-red partitions included dormant missing owner and active shared/default consumer behavior; stale local static cleanup reproduced unchanged instead of required changed before the fix.",
+    "All 54 Group cases and 424 affected checks pass on the landed zero-effective-use preparation prerequisite; retained orphaned original animation creates no phantom runtime."
+  ],
+  "mutationEvidence": [
+    "Green 54-case baseline; six scoped semantic faults all exit 1 with assertion failures: stale local template authority, discarded copied time-scale, dormant derived-default collision, stale-template no-op, aliased adoption and untrusted metadata. Owned source restored after each fault.",
+    "Repository Show authoring qualification kills all 166 adjacent mutants, with zero survivors, timeouts or errors."
+  ],
+  "residualGaps": [
+    "UI/store adoption, Group occurrence deletion and whole-issue integration remain separate slices.",
+    "Coordinator owns authoritative final suites, native review, landing and technical issue state; this candidate does not claim whole #1038 implementation."
+  ]
+}

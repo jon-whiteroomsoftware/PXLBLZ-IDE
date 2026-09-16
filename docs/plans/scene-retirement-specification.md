@@ -404,6 +404,24 @@ Other users retain their instance ID, controls, tracks and compiled logical memb
 Inside a Group definition, replacement affects linked occurrences; Make Group
 Unique first to select one occurrence. Then Clip replacement still applies the
 sharing test across effective uses and performs its explicit independence step.
+
+For definition-local Replace, preserve the equivalence of selected linked uses:
+one destination per distinct source runtime. A sole effective use retains that
+runtime; a shared source requires one explicit fresh destination shared by its
+selected uses, even if all its uses are selected. Different source runtimes never
+coalesce. Split the local slot explicitly only when another local Clip uses it or
+preserving original Group-owned animation requires a separate slot. Refuse mixed
+or foreign incompatible Group animation that cannot be pruned without changing
+unrelated users; do not mutate those owners or fork silently.
+
+With no linked occurrences, edit the selected local template and eligible local
+tracks without creating or modifying top-level runtimes. A shared local slot needs
+an explicit fresh slot and complete fresh local track/key identities. Split also
+when its derived default runtime already has top-level authority: preserve that
+payload, require the new slot's derived default runtime to be globally unused,
+and let a later default-bound occurrence resolve the new template. No implicit
+runtime allocation or Group duplication occurs in dormant replacement.
+
 Try with Pattern and lesson slot pickers retain their instance-level swaps.
 Required animation-loss confirmation remains at the adapter; cancellation adopts
 nothing. The pure owner reports loss rather than opening UI.
