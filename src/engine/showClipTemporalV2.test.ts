@@ -405,3 +405,61 @@ it('public temporal missing-target refusal carries every empty affected collecti
   const intent = { kind: 'move' as const, clipId: 'absent', startMs: 300 }
   expect(editShowClipV2(source, intent)).toEqual(editShowClipTemporalV2(source, intent))
 })
+
+it.each((['participants', 'whole-output'] as const).flatMap(topology => ([['full', 100, 700], ['incoming-only', 100, 200], ['outgoing-only', 600, 700]] as const).map(([name, start, end]) => ({ topology, name, start, end }))))('Split partitions $name contribution animation through $topology endpoints', ({ topology, name, start, end }) => {
+    const source = fixture()
+    if (topology === 'whole-output') for (const transition of source.composition.transitions) {
+      const participant = transition.participants[0]
+      const from = source.composition.clips.find(clip => clip.id === participant.fromClipId)!
+      transition.wholeOutput = { startMs: from.startMs + from.durationMs, fromClipIds: [participant.fromClipId], toClipIds: [participant.toClipId] }
+      transition.participants = []
+    }
+    const track = { id: name, target: { kind: 'clip-opacity' as const, clipId: 'selected' }, activeStartMs: start, activeDurationMs: end - start, keyframes: [
+      { id: `${name}:first`, timeMs: start, value: 0.2, easing: { curve: 'quadratic' as const, direction: 'in' as const } },
+      { id: `${name}:last`, timeMs: end, value: 0.8, easing: { curve: 'linear' as const } },
+    ] }
+    source.composition.propertyTracks = [track]
+    const prior = structuredClone(source)
+    const result = editShowClipV2(source, { kind: 'split', clipId: 'selected', atMs: 400, rightClipId: 'right' })
+    expect(result.status, name).toBe('changed')
+    if (result.status !== 'changed') throw new Error('Split refused')
+    const opened = reopen(result.record)
+    for (const time of [99, 100, 150, 199, 200, 399, 400, 401, 599, 600, 650, 699, 700]) {
+      const owner = time < 400 ? 'selected' : 'right'
+      const active = opened.composition.propertyTracks.find(candidate => 'clipId' in candidate.target && candidate.target.clipId === owner && evaluateShowPropertyTrackV2(candidate, time) !== undefined)
+      expect(active ? evaluateShowPropertyTrackV2(active, time) : undefined, `${name}@${time}`).toEqual(evaluateShowPropertyTrackV2(track, time))
+    }
+    if (name === 'incoming-only') { expect(result.affectedTrackIds).toEqual([]);expect(opened.composition.propertyTracks[0]).toEqual(track) }
+    else expect(result.affectedTrackIds).toContain(name)
+    expect(opened.composition.patternInstances).toEqual(source.composition.patternInstances)
+    expect(source).toEqual(prior)
+})
+
+it.each(['participants', 'whole-output'] as const)('Split retains existing typed positive-window animation preparation limit for%s', topology => {
+  const source = fixture()
+  source.composition.executionModel = 'continuous'
+  source.composition.layoutOccurrences = [{ id: 'layout-only', layoutId: 'layout', startMs: 0, durationMs: 2000, parameters: {} }]
+  source.composition.clips[1].appearance.keys.splice(1)
+  source.composition.clips[1].entryPolicy = 'restart'
+  source.composition.propertyTracks = [{ id: 'opacity', target: { kind: 'clip-opacity', clipId: 'selected' }, activeStartMs: 100, activeDurationMs: 600, keyframes: [
+    { id: 'first', timeMs: 100, value: 0.25, easing: { curve: 'quadratic', direction: 'in' } }, { id: 'last', timeMs: 700, value: 0.75, easing: { curve: 'linear' } },
+  ] }]
+  if (topology === 'whole-output') for (const transition of source.composition.transitions) {
+    const participant = transition.participants[0]
+    const from = source.composition.clips.find(clip => clip.id === participant.fromClipId)!
+    transition.wholeOutput = { startMs: from.startMs + from.durationMs, fromClipIds: [participant.fromClipId], toClipIds: [participant.toClipId] }
+    transition.participants = []
+  }
+  const edited = editShowClipTemporalV2(source, { kind: 'split', clipId: 'selected', atMs: 400, rightClipId: 'right' })
+  expect(edited.status).toBe('changed')
+  const lookup = { byCellId: {}, byPatternInstanceId: { instance: sourceCode }, stageDimension: 2 as const }
+  const code = topology === 'participants' ? 'unsupported-transition-property-track' : 'compiler-ineligible'
+  for (const record of [source, reopen(edited.record)]) {
+    const prepared = prepareShowV2ForCompile(record, lookup, { libraries: LIBRARIES })
+    expect(prepared.status).toBe('refused')
+    if (prepared.status !== 'refused') throw new Error('Unexpected admission')
+    expect(prepared.issues.length).toBeGreaterThan(0)
+    expect(prepared.issues.every(issue => issue.code === code)).toBe(true)
+  }
+  expect(deriveShowRestartEventsV2(edited.record)).toEqual(deriveShowRestartEventsV2(source))
+})

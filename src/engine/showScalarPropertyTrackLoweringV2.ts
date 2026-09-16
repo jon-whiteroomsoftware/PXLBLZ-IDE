@@ -35,7 +35,7 @@ export function lowerShowScalarPropertyTracksV2(tracks: readonly ShowPropertyTra
       authored.push({ atMs: left.timeMs, from: left.value, to: right.value, durationMs: right.timeMs - left.timeMs, easing: structuredClone(left.easing), ...(left.curveSegment ? { curveSegment: structuredClone(left.curveSegment) } : {}) })
     }
     const activeEndMs = track.activeStartMs + track.activeDurationMs
-    if (activeEndMs < showEndMs) authored.push({ atMs: activeEndMs, from: evaluateShowPropertyKeysV2(track.keyframes, activeEndMs - 1) ?? keys[keys.length - 1].value, to: evaluateShowScalarRampBaselineV2(baseline, activeEndMs), durationMs: 0, easing: { curve: 'linear' } })
+    if (activeEndMs < showEndMs && !retainedBase.some(ramp => ramp.atMs === activeEndMs)) authored.push({ atMs: activeEndMs, from: evaluateShowPropertyKeysV2(track.keyframes, activeEndMs - 1) ?? keys[keys.length - 1].value, to: evaluateShowScalarRampBaselineV2(baseline, activeEndMs), durationMs: 0, easing: { curve: 'linear' } })
   }
   const ramps = [...retainedBase, ...authored].map((ramp, index) => ({ ramp, index })).sort((a, b) => a.ramp.atMs - b.ramp.atMs || a.index - b.index).map(({ ramp }) => ramp)
   const atZero = tracks.find(track => track.activeStartMs === 0)

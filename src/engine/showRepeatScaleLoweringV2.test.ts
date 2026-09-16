@@ -9,7 +9,7 @@ import { showRecordToCompileRecipe } from './showModel'
 import { createFastReplayRuntime } from './fastReplay'
 import { parseEpe } from './epeImport'
 import { buildShowEpeExport } from './showEpeExport'
-import { lowerShowScalarPropertyTracksV2 } from './showScalarPropertyTrackLoweringV2'
+import { evaluateShowScalarRampBaselineV2, lowerShowScalarPropertyTracksV2 } from './showScalarPropertyTrackLoweringV2'
 
 const code = 'export var elapsed = 0; export function beforeRender(delta) { elapsed += delta } export function render2D(index, x, y) { rgb(x, y, elapsed / 1000) }'
 function fixture(): ShowRecordV2 {
@@ -114,4 +114,25 @@ it('refuses only positive baseline-carrier overlap and admits its exact activati
   expect(lowerShowScalarPropertyTracksV2([track()], 1000, source).status).toBe('ready')
   const shifted = { ...source, ramps: [{ ...source.ramps[0], atMs: 749 }] }
   expect(lowerShowScalarPropertyTracksV2([track()], 1000, shifted)).toMatchObject({ status: 'refused' })
+})
+
+it.each(['fast', 'fidelity'] as const)('activation end preserves same-time positive baseline ramp output in%s', fidelity => {
+  for (const easing of [{ curve: 'linear' as const }, { curve: 'quadratic' as const, direction: 'in' as const }]) for (const durationMs of [0, 125]) {
+    const baseline = { initial: 1, ramps: [{ atMs: 750, from: 1, to: 2, durationMs, easing }] }
+    const lowered = lowerShowScalarPropertyTracksV2([track()], 1000, baseline)
+    if (lowered.status !== 'ready') throw new Error(lowered.message)
+    for (const time of [749, 750, 751, 874, 875, 876]) {
+      const expected = time < 750 ? 2 + 2 * ((time - 250) / 500) ** 2 : evaluateShowScalarRampBaselineV2(baseline, time)
+      expect(evaluateShowScalarRampBaselineV2(lowered.value, time), `boundary@${time}`).toBe(expected)
+    }
+    const artifact = compileShow({ clips: ['first', 'second'].map(id => ({ id, source: 'export function render2D(i,x,y){rgb(x,y,0)}' })), sceneSequence: { scenes: [{ clipId: 'first', holdMs: 500, transitionOut: { kind: 'cut', durationMs: 0 } }, { clipId: 'second', holdMs: 500 }] }, samplePropertyRamps: { repeatScale: lowered.value } }, LIBRARIES)
+    const epe = parseEpe(buildShowEpeExport(convertibleV1Show(), artifact.code, { id: 'baseline-end', stampedAt: '2026-09-16T00:00:00Z' }).text)
+    const runtime = createFastReplayRuntime({ ...artifact, code: epe.src, dimension: 2 }, { fidelity, randomSeed: 1038, mapPoints: [{ sample: [0.125, 0.25], pos: [0.125, 0.25] }] })
+    for (const time of [625, 750, 812.5, 875, 937.5]) {
+      const progress = (time - 750) / 125
+      const scale = time < 750 ? 2 + 2 * ((time - 250) / 500) ** 2 : durationMs > 0 && time < 875 ? 1 + (easing.curve === 'linear' ? progress : progress ** 2) : 2
+      const frame = runtime.advanceTo(time, { stepMs: 62.5, forceFullIntermediateRender: true }).frame
+      expect(frame[0], `${easing.curve}@${time}`).toBe(0.125 * scale)
+    }
+  }
 })

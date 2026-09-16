@@ -22,7 +22,8 @@
     "Layout coverage, ShowEnd and RL08\u2013RL10 guard complete contribution, not nominal rectangles.",
     "Scalar sample channel preserves exact retained in-range curves, activation, baseline and source bytes of prior paths; no compiler/schema domain widening.",
     "Results are complete/unaliased; nested raw-key affected arrays preserve owner-scoped multiplicity.",
-    "Actual repeat hold checks only its split kernel and that entire original source range, including exact easing extrema; exact-key/before-first/after-last holds check the held constant. Unaffected earlier/later kernels retain existing playback. Projections check their complete source; outside retained coefficients cannot hide behind inside samples."
+    "Actual repeat hold checks only its split kernel and that entire original source range, including exact easing extrema; exact-key/before-first/after-last holds check the held constant. Unaffected earlier/later kernels retain existing playback. Projections check their complete source; outside retained coefficients cannot hide behind inside samples.",
+    "Split bounds Clip animation by complete incoming/outgoing contribution, not nominal timing; exact-end retained baseline carriers own future evaluation without a suppressing restoration cut."
   ],
   "partitions": [
     "Rigid chains, both-edge trim, leading zero/negative, trailing ripple, whole-output endpoint sets and common-window refusal.",
@@ -34,7 +35,8 @@
     "Reopened artifacts loop, selected displayed8-bit samples and state; fine \u00b11ms numeric evaluator probes retained; no-hold47-byte corpus.",
     "Repeat boundaries1/8 ascending/descending; tiny outside endpoints; raw source outside with retained values inside; Back/Bezier extrema; Reset outside from/to, complete source-shift and ended activation preservation.",
     "Public temporal dispatch preserves complete changed/no-op/refusal effects, including missing-target refusal and explicit zero Reset projection intent.",
-    "Earlier untouched outside kernel, later whole-shifted outside kernel, before-first/after-last constant and exact-key hold; admitted preimage/result through both edit owners and reopened Fast/Precise artifacts."
+    "Earlier untouched outside kernel, later whole-shifted outside kernel, before-first/after-last constant and exact-key hold; admitted preimage/result through both edit owners and reopened Fast/Precise artifacts.",
+    "Participant/whole-output \u00d7 full/incoming-only/outgoing-only nonlinear Clip tracks; raw public-owner codec/evaluator preservation; unchanged incoming owner effects and retargeted outgoing owner. Exact-end linear/quadratic baseline ramp and zero cut vs ordinary restoration with no same-time baseline."
   ],
   "oracles": [
     "Provisional codec reopen, complete v2 validator/availability and shared placement validator.",
@@ -51,7 +53,8 @@
     "Effective Group split track identity collision initially refused valid result; qualified fresh suffix corrected this.",
     "Outgoing Clip ramp retained selected target until explicit right retarget regression/repair.",
     "Range predicate initially absent; exact public connected dispatch red refused unsupported-topology before wiring; missing-target dispatch red omitted\u00a79 empty collections before early owner delegation.",
-    "Five selected-source locality cases failed under track-wide range scanning, then passed after only the actually split kernel was checked; two reopened Fast/Precise consumer cases preserve original endpoint-clamped playback of untouched outside kernels."
+    "Five selected-source locality cases failed under track-wide range scanning, then passed after only the actually split kernel was checked; two reopened Fast/Precise consumer cases preserve original endpoint-clamped playback of untouched outside kernels.",
+    "First native blocking review eb9: full contribution Split lost values at100/600 and window-only tracks disappeared. Six public owner regressions fail with nominal restrictions. Positive baseline at750 was admitted but actual sample812.5 stayed.125 instead of.1875; both Fast/Precise fail before restoration precedence repair."
   ],
   "mutationEvidence": [
     {
@@ -108,20 +111,31 @@
       "name": "unaffected-repeat-kernel-blocks-hold",
       "exitCode": 1,
       "killed": true
+    },
+    {
+      "name": "split-nominal-contribution",
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "baseline-end-ramp-suppressed",
+      "exitCode": 1,
+      "killed": true
     }
   ],
   "qualification": {
-    "focused": "Finalbase:508/508 across12 affected and adjacent files (407 temporal/Clip/Property/Insert/scalar/compiler/lowerer/Transition/v1-schema +42 ClipIdentity +59 GroupReplacement). Range21cases retain prior boundary and reopened Fast/Precise playback proofs; scalar19cases retained.",
-    "static": "Finalbase scoped ESLint/project tsc/diff-check pass. Source hook passed full source ESLint/project TypeScript/reachability/locator gates and139/139 staged mapped tests; preceding source hook passed263/263. Finalbase proof-only hook follows.",
+    "focused": "Repair finalbase:531/531 across13 affected/adjacent files; ClipTemporal49 and RepeatScale21 include first-review contribution storage/typed-refusal and actual scalar ramp/cut output. Existing admitted connected Split artifacts and 21 range/19 original scalar matrix cases retained.",
+    "static": "Repair scoped ESLint/project tsc/diff-check pass; ordinary source hook required. Previous source139 and263 mapped hook gates passed.",
     "parity": "47-record report unchanged",
-    "faultSensitivity": "Prior6, range4 and selected-kernel locality1 named semantic faults killed by executed consumer checks; sources restored exactly.",
+    "faultSensitivity": "Prior11 plus exact reviewed nominal-contribution and baseline-ramp suppression faults killed (13 total); exact source restored.",
     "finalSuites": "Coordinator-owned; no worker submission",
-    "state": "Bounded temporal integration/range adapter scope complete and suffix rebased patch-equivalently onto landed7abcb652, preserving Marker\u00a79 and Group\u00a76. Coordinator owns final suites/review/landing; whole1038 remains broader."
+    "state": "First blocking review repaired within unchanged lineage on7ab; no lowerer/compiler expansion. Coordinator owns matching final suites/review/landing; whole1038 remains broader."
   },
   "residualGaps": [
     "Full1038 UI/store owner integration remains other slices; this candidate only pure Clip temporal plus bounded scalar adapter/emitter and edit-local range guard.",
     "Existing repeated Layout+Layer Transition global-scalar adapter refuses source preimage; no RL08\u201310/source/Restart domain expansion or universal playback claim.",
-    "Coordinator owns final suites/native review/landing; no worker full-suite submission."
+    "Coordinator owns final suites/native review/landing; no worker full-suite submission.",
+    "Already-unadmitted positive-Transition Clip tracks spanning contribution windows retain typed participant unsupported-transition-property-track / whole-output compiler-ineligible section key bounds before/after Split. New contribution proof is public storage/codec/evaluator preservation, not compiled playback for that partition."
   ],
   "toolRecovery": {
     "failure": "Morph truncated giant compiler from566386 to417700bytes and removed knownNUL; detected before qualification",
@@ -141,6 +155,19 @@
     "Resize leading edge to zero with a complete explicit Reset ramp projection plan and simultaneous trailing cascade; reopen projected animation and generated artifacts. Missing/extraneous/colliding/wrong-partition plans return the identical preimage and empty effects.",
     "Split an incoming/outgoing connected Clip, reopen both partitions, derive entry events and inspect generated replay: incoming/Restart stays left, outgoing/Clip ramp retargets right, same runtime continues and Group-projected IDs remain reserved.",
     "Prepare repeat animation before insertion, insert125ms into a selected kernel or exact/constant boundary, reopen .pxlshow and .epe, compare fine evaluator boundaries and actual Fast/Precise playback through hold/resume/loop; untouched earlier and shifted later outside kernels retain existing playback.",
-    "Attempt an out-of-range actual hold or Reset projection against an admitted preimage; assert atomic refusal, then shift its complete source or insert after activation and retain admission. Execute named semantic faults, observe failing consumers, restore exact source and re-run green."
+    "Attempt an out-of-range actual hold or Reset projection against an admitted preimage; assert atomic refusal, then shift its complete source or insert after activation and retain admission. Execute named semantic faults, observe failing consumers, restore exact source and re-run green.",
+    "Split a track spanning or lying wholly in contribution windows, reopen each owner and compare boundary/interior values; preserve typed preparation refusal for already-unadmitted source/result. Compile reopened scalar baseline carriers, probe exclusive-end\u00b11 and actual Fast/Precise mid/end output; restore exact reviewed defects to kill regressions."
+  ],
+  "reviewHistory": [
+    {
+      "tip": "eb9cb95ee633889143efd55b22626f6eb534af35",
+      "outcome": "FIRST blocking native review; repair required",
+      "session": 97542,
+      "findings": [
+        "P1 nominal Split restriction drops complete incoming/outgoing animation",
+        "P2 restoration cut suppresses exact-end baseline positive ramp"
+      ],
+      "repair": "Reuse existing complete contribution owner; let exact-end retained baseline carrier own exclusive-end evaluation. No lowerer/compiler widening; lineages preserved."
+    }
   ]
 }

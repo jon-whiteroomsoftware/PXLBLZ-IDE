@@ -106,3 +106,25 @@ including optional explicit `propertyRampProjections` on trim/extend. Identity,
 duplicate and Replace branches retain their owners. Full temporal affected
 collections pass through unchanged; absent-Zone preimages refuse full availability
 validation before edits.
+
+## Contribution Split and scalar restoration qualification
+
+Split partitions Clip-owned animation over the existing complete contribution
+interval, including incoming pre-roll on the left and outgoing extension on the
+right. It reuses the availability owner's exact participant/whole-output timing;
+nominal Clip rectangles are not the animation bounds. A track wholly in the
+incoming window remains unchanged; one wholly in the outgoing window retargets
+right without losing activation or its source curve.
+
+At the exclusive scalar activation end, a retained baseline ramp or cut starting
+at that exact instant supplies both the boundary value and future evaluation.
+The adapter adds no later same-time restoration cut to suppress that carrier.
+When no baseline starts there, ordinary restoration still applies.
+
+Positive-Transition Clip tracks spanning contribution windows can already refuse
+public preparation: participant section-scoped activation evidence or whole-output
+legacy-section key bounds. The contribution repair proves reopened public-owner
+storage/evaluator preservation and unchanged typed refusal for those preimages;
+it does not claim compiled playback for this unadmitted adapter partition.
+Previously admitted connected Split artifacts and scalar Fast/Precise output
+retain their separate consumer qualification. No lowerer/compiler widening occurs.

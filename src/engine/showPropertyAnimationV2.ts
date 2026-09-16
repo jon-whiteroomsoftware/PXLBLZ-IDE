@@ -1,3 +1,4 @@
+import { clipContributionInterval } from './showLayoutIntervalsV2'
 import { repeatScaleSourceIsInRangeV2, repeatScaleHoldSourceIsInRangeV2 } from './showRepeatScaleEditEligibilityV2'
 import { validateShowRecordV2, type ShowClipV2, type ShowPropertyKeyframeV2, type ShowPropertyTrackV2, type ShowRecordV2 } from './showCompositionV2'
 import { effectiveShowInstanceUseCountV2, materializeShowGroupsV2 } from './showGroupsV2'
@@ -170,10 +171,10 @@ export function editShowClipPropertyTracksV2(
 
     if (intent.kind !== 'split') return [structuredClone(source)]
     const splitMs = intent.atMs
-    const oldEndMs = clip.startMs + clip.durationMs
+    const contribution = clipContributionInterval(record, clip)
     const sourceKeyIds = new Set(source.keyframes.map(key => key.id))
-    const left = restrictShowPropertyTrackV2(record.composition.propertyTracks, source, clip.startMs, splitMs, sourceKeyIds)
-    const right = restrictShowPropertyTrackV2(record.composition.propertyTracks, source, splitMs, oldEndMs, sourceKeyIds)
+    const left = restrictShowPropertyTrackV2(record.composition.propertyTracks, source, contribution.startMs, splitMs, sourceKeyIds)
+    const right = restrictShowPropertyTrackV2(record.composition.propertyTracks, source, splitMs, contribution.endMs, sourceKeyIds)
     if (!left && !right) return []
     affectedTrackIds.push(source.id)
     if (!left && right) return [{ ...right, target: retargetClip(right.target, intent.rightClipId) }]

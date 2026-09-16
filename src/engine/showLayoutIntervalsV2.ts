@@ -464,7 +464,7 @@ function layoutZoneIds(record: ShowRecordV2, layoutId: string): string[] {
   return [...new Set(ids)]
 }
 
-function clipContributionInterval(
+export function clipContributionInterval(
   record: ShowRecordV2,
   clip: ShowClipV2,
 ): { startMs: number; endMs: number } {
