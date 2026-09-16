@@ -114,6 +114,46 @@ it('publishes an output schema for every dynamic tool without advertising resour
   for (const tool of listed.result.tools) expect(tool.outputSchema, tool.name).toMatchObject({ type: 'object' })
 })
 
+it('publishes the complete external edit protocol in the initialization instructions', async () => {
+  const env = { ASSETS: { fetch: vi.fn() } } as unknown as WorkerEnv
+  const initialized = await (await request(env, 'initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } })).json() as {
+    result: { instructions?: string }
+  }
+  expect(initialized.result.instructions).toMatchInlineSnapshot(`
+    "Connect and edit in this order: call get_connection, then read_show. read_show returns the Show and the IDs used by command arguments. get_context reads the current editor focus when needed but does not replace read_show. Call begin_edit with the current binding_id, a required nonblank intent shown to the person in the editor, and a stable idempotency_key; it returns the relay-assigned operation_id. Send commands with that binding_id and operation_id, then call commit_edit and get_outcome until the receipt settles.
+
+    Independent commands may be queued because the relay serializes admitted calls in admission order. Await every prerequisite before its dependent command, and await every command before commit_edit. A canonical command domain refusal returns refused with issues, changes nothing, and keeps the private operation open for a corrected command, commit_edit, or cancel_edit; noop means a valid command made no change. Explicit whole-turn refusal, commit or admission refusal, service or result-size failure, cancellation, and retirement are terminal.
+
+    At most 10 ordinary calls may be queued, including the in-flight head. One operation admits at most 253 ordinary commands; the 256-delivery lifecycle reserves one delivery for commit_edit and one after it for cancel_edit. When a choreography needs more commands, split it into committed operations and call read_show again before each new chunk.
+
+    begin_edit requires a stable key. Later mutations may use an optional stable idempotency_key; a keyed retry with an identical payload only looks up the original admission. pending means the original call may still finish; unknown means its result is unavailable and never permits replay. After an unkeyed timeout, do not repeat the mutation; call get_outcome with its operation_id. The retry ledger is volatile: after connection or ledger loss, call get_connection, then read_show, and begin a new operation with a new key; never replay an unkeyed call.
+
+    Clip/Layer bulk authoring uses schema version 1: create_clips and create_layers create fresh Pattern instances; update_clips preserves shared instances. Times are exact global milliseconds. Nested objects patch supplied leaves, Effects arrays replace, and controls null clears one export. Each call is atomic and bounded to 128 entries. Read pxlblz://docs/clip-layer-authoring/v1 and pxlblz://schemas/clip-layer-authoring/v1 for the complete reference and examples."
+  `)
+})
+
+it('keeps tool metadata concise and marks exactly the non-claiming read tools read-only', async () => {
+  const env = { ASSETS: { fetch: vi.fn() } } as unknown as WorkerEnv
+  const listed = await (await request(env, 'tools/list')).json() as {
+    result: { tools: Array<{ name: string; description?: string; annotations?: { readOnlyHint?: boolean }; inputSchema: { properties?: Record<string, { description?: string }> } }> }
+  }
+  const byName = new Map(listed.result.tools.map(tool => [tool.name, tool]))
+  const mutationNames = new Set(['begin_edit', ...SHOW_COMMANDS.map(command => command.name), 'commit_edit', 'cancel_edit'])
+  const mutations = listed.result.tools.filter(tool => mutationNames.has(tool.name))
+
+  expect(mutations).toHaveLength(57)
+  expect(mutations.some(tool => tool.description?.includes('Requires the current bound editor'))).toBe(false)
+  expect(mutations.some(tool => tool.description?.includes('unkeyed timeouts must be recovered'))).toBe(false)
+  for (const command of SHOW_COMMANDS) expect(byName.get(command.name)?.description, command.name).toBe(command.description)
+  expect(byName.get('begin_edit')?.description).toBe('Capture a full immutable Show/context and begin one private operation. The intent is required and displayed to the person in the editor. The relay assigns and returns operation_id.')
+  expect(byName.get('begin_edit')?.inputSchema.properties?.intent?.description).toBe('Required nonblank edit intent displayed to the person in the editor; one line, at most 240 characters.')
+
+  const readOnly = listed.result.tools.filter(tool => tool.annotations?.readOnlyHint === true).map(tool => tool.name).sort()
+  expect(readOnly).toEqual(['get_context', 'get_outcome', 'list_commands', 'read_show'])
+  expect(byName.get('get_connection')?.annotations?.readOnlyHint).not.toBe(true)
+  for (const mutation of mutations) expect(mutation.annotations?.readOnlyHint, mutation.name).not.toBe(true)
+})
+
 it('keeps public success and error results schema-valid, distinguishable, and byte-equivalent across both copies', async () => {
   const env = { ASSETS: { fetch: vi.fn() } } as unknown as WorkerEnv
   const listed = await (await request(env, 'tools/list')).json() as { result: { tools: Array<{ name: string; outputSchema: object }> } }
@@ -186,6 +226,7 @@ it('publishes server-owned identity schemas and rejects legacy delivery fields',
   expect(begun.structuredContent).toEqual({ code: 'begun', operation_id: 'server-operation' })
   expectCopies(begun)
   for (const arguments_ of [
+    { binding_id: 'binding', idempotency_key: 'key' },
     { binding_id: 'binding', intent: 'Rename the Show', idempotency_key: '' },
     { binding_id: 'binding', intent: 'Rename the Show', idempotency_key: 'x'.repeat(129) },
     { binding_id: 'binding', intent: '', idempotency_key: 'key' },

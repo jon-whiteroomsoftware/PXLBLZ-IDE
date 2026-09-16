@@ -612,14 +612,17 @@ complete property vocabulary, exact timing rules, clearing behavior, limits,
 and examples.
 
 Edits remain private until the editor accepts them. A conflicting manual change
-can prevent an agent result from applying. Activity distinguishes saved edits,
-changes applied to a draft, refused work and cancellation. Losing contact does
-not prove failure: known save outcomes remain visible, and **Restore contact**
-checks the existing operation without replaying it. When the editor refuses an
-invalid complete candidate, the same result can identify a specific safe
-validation issue, such as the Scene and duration property that must be repaired.
-Earlier successful private commands remain proposals; the refusal means none of
-them changed the live Show.
+can prevent an agent result from applying. If one command is refused, its bounded
+issue appears on the same working activity entry while the private candidate and
+earlier accepted commands remain intact. The agent can correct that command,
+commit the accepted private work, or cancel it; the live Show does not change
+until commit adoption. Activity adds no completed or unread result for that
+interim issue. Activity distinguishes final saved edits, changes applied to a
+draft, refused work and cancellation. Losing contact does not prove failure:
+known save outcomes remain visible, and **Restore contact** checks the existing
+operation without replaying it. When the editor refuses an invalid complete
+candidate, the final result can identify a specific safe validation issue, such
+as the Scene and duration property that must be repaired.
 
 The activity transcript remains visible while choosing, connecting, disconnecting,
 or switching between the built-in and MCP agents. New and changing activity always

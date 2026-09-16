@@ -732,6 +732,8 @@ the complete observable `begun` result, including its status, operation, and
 revision wrapper, with the delivery journal's canonical byte oracle before
 retaining private or active candidate state. Oversize capture records terminal
 `service-refused`, latches capacity for that binding, and requires retirement
-plus a fresh executor before another candidate can begin. See the OAuth/MCP and
-rendezvous contracts for client-key scope, queue limits, transport identity and
-revocation acknowledgement.
+plus a fresh executor before another candidate can begin. A known command
+refusal is the exception to terminal error handling: the relay caches that
+refusal, preserves already-admitted followers, and delivers their correction
+in sequence. See the OAuth/MCP and rendezvous contracts for client-key scope,
+queue limits, transport identity and revocation acknowledgement.

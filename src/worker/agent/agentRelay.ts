@@ -253,7 +253,7 @@ export class AgentRelay {
       if (operation.phase === 'committed') this.settleUnsent(job.message.operationId)
     } else if (kind === 'cancel_edit') {
       operation.phase = 'terminal'
-    } else if (!['changed', 'noop', 'unchanged'].includes(result.code)) {
+    } else if (!['changed', 'noop', 'unchanged', 'refused'].includes(result.code)) {
       operation.phase = 'terminal'
     }
     if (operation.phase === 'terminal') {

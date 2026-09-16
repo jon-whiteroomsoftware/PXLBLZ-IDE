@@ -427,6 +427,48 @@ it.each([
   expect(relay.take()).toEqual([])
 })
 
+it('keeps an external operation open after a domain refusal and admits its correction', async () => {
+  const relay = new AgentRelay(scope, () => {})
+  const operationId = await beginExternal(relay)
+  const accepted = relay.dispatchExternal({ operationId, idempotencyKey: 'accepted-command', payload: { kind: 'command', name: 'rename_show', arguments: { name: 'First' } } })
+  const [first] = relay.take()
+  relay.reply(first, { code: 'changed', changes: [{ description: 'First change' }] })
+  expect(await accepted).toMatchObject({ code: 'changed' })
+
+  const refused = relay.dispatchExternal({ operationId, idempotencyKey: 'bad-command', payload: { kind: 'command', name: 'rename_show', arguments: { name: '' } } })
+  const corrected = relay.dispatchExternal({ operationId, idempotencyKey: 'corrected-command', payload: { kind: 'command', name: 'rename_show', arguments: { name: 'Corrected' } } })
+  const [bad] = relay.take()
+  const refusal = { code: 'refused' as const, issues: [{ code: 'invalid-argument', message: 'Name is required.' }] }
+  relay.reply(bad, refusal)
+  expect(await refused).toEqual(refusal)
+  expect(await relay.dispatchExternal({ operationId, idempotencyKey: 'bad-command', payload: { kind: 'command', name: 'rename_show', arguments: { name: '' } } })).toEqual(refusal)
+
+  const [good] = relay.take()
+  expect(good.operationId).toBe(operationId)
+  expect(good.sequence).toBe(bad.sequence + 1)
+  relay.reply(good, { code: 'changed', changes: [] })
+  expect(await corrected).toEqual({ code: 'changed', changes: [] })
+
+  const committing = relay.dispatchExternal({ operationId, payload: { kind: 'commit_edit' } })
+  const [commit] = relay.take()
+  expect((commit.payload as { kind: string }).kind).toBe('commit_edit')
+  relay.reply(commit, { code: 'outcome', receipt: { status: 'applied', settlement: 'saved' } })
+  expect(await committing).toMatchObject({ receipt: { status: 'applied', settlement: 'saved' } })
+})
+
+it.each(['result_too_large', 'result_unavailable', 'unavailable'] as const)('keeps terminal command failure %s terminal and settles unsent followers', async code => {
+  const relay = new AgentRelay(scope, () => {})
+  const operationId = await beginExternal(relay)
+  const failing = relay.dispatchExternal({ operationId, idempotencyKey: 'failing-command', payload: { kind: 'command', name: 'rename_show', arguments: { name: 'First' } } })
+  const follower = relay.dispatchExternal({ operationId, idempotencyKey: 'unsent-follower', payload: { kind: 'command', name: 'rename_show', arguments: { name: 'Second' } } })
+  const [head] = relay.take()
+  relay.reply(head, { code })
+  expect(await failing).toEqual({ code })
+  expect(await follower).toEqual({ code: 'result_unavailable' })
+  expect(await relay.dispatchExternal({ operationId, payload: { kind: 'command', name: 'rename_show', arguments: { name: 'Too late' } } })).toEqual({ code: 'finished', operationId })
+  expect(relay.take()).toEqual([])
+})
+
 it('canonicalizes keyed command arguments and reserves commit plus post-commit cancellation within 256 deliveries', async () => {
   const relay = new AgentRelay(scope, () => {})
   const operationId = await beginExternal(relay)

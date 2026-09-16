@@ -93,7 +93,9 @@ catalogue, read, mutation or outcome. The schemas close the public result-code
 domain and the shapes of command changes, refusals, binding-move notices and
 instructions while leaving Show, context and receipt objects opaque. This keeps
 new canonical commands on the same result contract without copying schemas into
-the command registry.
+the command registry. Discovery marks exactly `list_commands`, `read_show`,
+`get_context` and `get_outcome` with `readOnlyHint: true`. `get_connection`
+claims the account slot, so it is not read-only; no mutation advertises the hint.
 
 `get_connection` uses the validated grant/client identity to claim the account
 slot. An armed editor binds immediately; otherwise the call waits the full
@@ -121,6 +123,34 @@ operation ID. An unkeyed later mutation is safe only as one attempt: after a
 timeout, the client queries `get_outcome` and does not repeat it. Independent
 commands may be sent together, but dependent commands and commit must await their
 predecessors because relay admission order determines execution order.
+
+Initialization describes the complete client protocol: connect, read the Show,
+begin with a human-visible intent and stable key, send commands, commit, then
+query the outcome until it settles. `read_show` supplies the canonical IDs used
+by commands; `get_context` refreshes focus but never substitutes for the required
+full read. A canonical command's domain `refused` result changes nothing and
+keeps the same private operation open for a corrected command, commit or cancel.
+The current successful no-change result is `noop`. Explicit whole-turn refusal,
+commit or admission refusal, service or result-size failure, cancellation and
+retirement remain terminal.
+
+The relay admits at most ten ordinary calls at once, including the in-flight
+head. A 256-delivery operation uses one delivery for begin, admits at most 253
+ordinary commands, and reserves the remaining deliveries for commit and a
+post-commit cancel. Longer choreographies split across committed operations and
+read the Show again before each chunk. A keyed retry with the identical payload
+only looks up its original admission: `pending` means that call can still finish,
+while `unknown` means its result bytes are gone and never authorizes replay.
+After an unkeyed timeout the client queries `get_outcome` and never repeats the
+mutation. The scoped retry ledger is volatile; after binding or ledger loss the
+client reconnects, reads the Show, and begins a fresh operation rather than
+replaying an old call.
+
+The relay retains and caches a keyed domain refusal like every other admitted
+result, then continues with already-admitted successors in sequence. Every other
+command failure terminates the relay operation and settles unsent followers as
+unavailable. This matches the browser executor's refusal boundary without
+turning an interim command issue into an operation outcome.
 
 An explicit browser move keeps the validated grant while replacing its call and
 binding IDs. The next actual MCP tool handler resolves the current binding once,
@@ -162,6 +192,9 @@ The observed serialized `tools/list` response at integrated base
 after server-owned identity is269,177 bytes, a reduction of2,510 bytes. These totals
 include the shared output schemas introduced before this change; the earlier
 132,075-byte catalogue measurement therefore is not this comparison baseline.
+After moving the repeated mutation transport guidance into the server
+instructions and adding the four read-only hints, the same 62-tool/57-mutation
+catalogue is256,507 bytes, a further measured reduction of12,670 bytes.
 
 The text copy is the exact JSON encoding of `structuredContent`. Successful
 result codes are `bound`, `pending`, `commands`, `read`, `begun`, `changed`,

@@ -22,6 +22,13 @@ const id = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/)
 const binding = { binding_id: id.describe('Binding returned by get_connection; changed bindings require a new operation.') }
 const idempotencyKey = id
 const operation = { ...binding, operation_id: id, idempotency_key: idempotencyKey.optional() }
+export const AGENT_MCP_INSTRUCTIONS = [
+  'Connect and edit in this order: call get_connection, then read_show. read_show returns the Show and the IDs used by command arguments. get_context reads the current editor focus when needed but does not replace read_show. Call begin_edit with the current binding_id, a required nonblank intent shown to the person in the editor, and a stable idempotency_key; it returns the relay-assigned operation_id. Send commands with that binding_id and operation_id, then call commit_edit and get_outcome until the receipt settles.',
+  'Independent commands may be queued because the relay serializes admitted calls in admission order. Await every prerequisite before its dependent command, and await every command before commit_edit. A canonical command domain refusal returns refused with issues, changes nothing, and keeps the private operation open for a corrected command, commit_edit, or cancel_edit; noop means a valid command made no change. Explicit whole-turn refusal, commit or admission refusal, service or result-size failure, cancellation, and retirement are terminal.',
+  'At most 10 ordinary calls may be queued, including the in-flight head. One operation admits at most 253 ordinary commands; the 256-delivery lifecycle reserves one delivery for commit_edit and one after it for cancel_edit. When a choreography needs more commands, split it into committed operations and call read_show again before each new chunk.',
+  'begin_edit requires a stable key. Later mutations may use an optional stable idempotency_key; a keyed retry with an identical payload only looks up the original admission. pending means the original call may still finish; unknown means its result is unavailable and never permits replay. After an unkeyed timeout, do not repeat the mutation; call get_outcome with its operation_id. The retry ledger is volatile: after connection or ledger loss, call get_connection, then read_show, and begin a new operation with a new key; never replay an unkeyed call.',
+  SHOW_AUTHORING_SERVER_INTRO,
+].join('\n\n')
 export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: ValidatedAgentGrant): Promise<Response> {
   if (request.method !== 'POST') return new Response(null, { status: 405, headers: { Allow: 'POST' } })
   const active = () => grant.expiresAt * 1000 > Date.now()
@@ -46,7 +53,7 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
   const toolResult = (resolved: ExternalToolConnection): PrivateEditResult => resolved.code === 'binding_moved'
     ? moved(resolved)
     : resolved.code === 'retirement_unconfirmed' ? { code: 'no_live_editor', ...notice(resolved) } : visible(resolved)
-  const server = new McpServer({ name: 'PXLBLZ Agent', version: '0.2.0' }, { instructions: `Call get_connection, then read_show before editing; get_context can refresh editor focus later. begin_edit requires a stable idempotency key and returns the relay-assigned operation_id. The relay assigns delivery identity and execution order. Await dependent command results before committing. A keyed retry only looks up its original admission; after an unkeyed timeout, query get_outcome and never repeat the command. New bindings require fresh reads and operations. Command changes describe the private proposal, not adopted or saved state. commit_edit requests validation/adoption and may return waiting or saving; an invalid-candidate receipt may include bounded validation detail. ${SHOW_AUTHORING_SERVER_INTRO}` })
+  const server = new McpServer({ name: 'PXLBLZ Agent', version: '0.2.0' }, { instructions: AGENT_MCP_INSTRUCTIONS })
   const output = (untrusted: PrivateEditResult) => {
     const trusted: PrivateEditResult = isAgentMcpResult(untrusted) ? untrusted : { code: 'unknown' }
     const { operationId, ...rest } = trusted
@@ -65,7 +72,7 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     if (call_id === undefined && !await agentGrantLive(env, grant)) return output({ code: 'unauthorized' })
     return output({ code: 'bound', call_id: resolved.claim.callId, binding_id: resolved.claim.bindingId, ...(resolved.binding ? { show_id: resolved.binding.showId, ...(resolved.binding.showName ? { show_name: resolved.binding.showName } : {}) } : {}), ...notice(resolved) })
   })
-  server.registerTool('list_commands', { description: 'List canonical command metadata without attaching to an editor or reading Show contents.', inputSchema: z.object({}).strict(), outputSchema: AGENT_MCP_OUTPUT_SCHEMAS.catalogue }, async () => {
+  server.registerTool('list_commands', { description: 'List canonical command metadata without attaching to an editor or reading Show contents.', inputSchema: z.object({}).strict(), outputSchema: AGENT_MCP_OUTPUT_SCHEMAS.catalogue, annotations: { readOnlyHint: true } }, async () => {
     if (!active()) return output({ code: 'unauthorized' })
     const resolved = await resolveExternalTool(env, grant)
     if (['throttled', 'unauthorized', 'unavailable', 'unknown', 'service_disabled', 'invalid_request'].includes(resolved.code)) return output(visible(resolved))
@@ -77,7 +84,7 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     })), ...notice(resolved) })
   })
   for (const kind of ['read_show', 'get_context', 'get_outcome'] as const) {
-    server.registerTool(kind, { description: kind === 'get_outcome' ? 'Read the surviving browser receipt, including bounded invalid-candidate validation detail when available, for this binding and operation; unknown never permits replay.' : `Read ${kind === 'read_show' ? 'the full current Show' : 'the current editor focus/context'} from the bound editor.`, inputSchema: z.object({ ...binding, ...(kind === 'get_outcome' ? { operation_id: id } : {}) }).strict(), outputSchema: kind === 'get_outcome' ? AGENT_MCP_OUTPUT_SCHEMAS.outcome : AGENT_MCP_OUTPUT_SCHEMAS.read }, async (args) => {
+    server.registerTool(kind, { description: kind === 'get_outcome' ? 'Read the surviving browser receipt, including bounded invalid-candidate validation detail when available, for this binding and operation; unknown never permits replay.' : `Read ${kind === 'read_show' ? 'the full current Show' : 'the current editor focus/context'} from the bound editor.`, inputSchema: z.object({ ...binding, ...(kind === 'get_outcome' ? { operation_id: id } : {}) }).strict(), outputSchema: kind === 'get_outcome' ? AGENT_MCP_OUTPUT_SCHEMAS.outcome : AGENT_MCP_OUTPUT_SCHEMAS.read, annotations: { readOnlyHint: true } }, async (args) => {
       if (!active()) return output({ code: 'unauthorized' })
       const query = kind === 'get_outcome' ? { kind, operationId: (args as { operation_id: string }).operation_id } : { kind }
       const resolved = await queryExternalTool(env, grant, args.binding_id, query)
@@ -86,14 +93,14 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
   }
   const registerMutation = (name: string, description: string, fields: Record<string, z.ZodTypeAny>, payload: (args: Record<string, unknown>) => unknown) => {
     if (Object.keys(fields).some(key => key in operation)) throw new Error('Canonical command collides with transport identity')
-    server.registerTool(name, { description: `${description} Requires the current bound editor and an active begin_edit operation. Await dependent results before sending another command. A stable idempotency key makes retries lookup-only; unkeyed timeouts must be recovered with get_outcome.`, inputSchema: z.object({ ...operation, ...fields }).strict(), outputSchema: AGENT_MCP_OUTPUT_SCHEMAS.mutation }, async args => {
+    server.registerTool(name, { description, inputSchema: z.object({ ...operation, ...fields }).strict(), outputSchema: AGENT_MCP_OUTPUT_SCHEMAS.mutation }, async args => {
       const { binding_id, operation_id, idempotency_key, ...command } = args
       if (!active()) return output({ code: 'unauthorized' })
       const resolved = await dispatchExternalTool(env, grant, binding_id, { operationId: operation_id, ...(idempotency_key ? { idempotencyKey: idempotency_key } : {}), payload: payload(command) })
       return output(toolResult(resolved))
     })
   }
-  server.registerTool('begin_edit', { description: 'Capture a full immutable Show/context and begin one private operation. The relay assigns and returns operation_id. Retry only with the same idempotency key and identical intent.', inputSchema: z.object({ ...binding, intent: z.string().max(240).refine(value => value.trim().length > 0 && !/[\r\n]/.test(value)), idempotency_key: id }).strict(), outputSchema: AGENT_MCP_OUTPUT_SCHEMAS.mutation }, async ({ binding_id, intent, idempotency_key }) => {
+  server.registerTool('begin_edit', { description: 'Capture a full immutable Show/context and begin one private operation. The intent is required and displayed to the person in the editor. The relay assigns and returns operation_id.', inputSchema: z.object({ ...binding, intent: z.string().max(240).refine(value => value.trim().length > 0 && !/[\r\n]/.test(value)).describe('Required nonblank edit intent displayed to the person in the editor; one line, at most 240 characters.'), idempotency_key: id }).strict(), outputSchema: AGENT_MCP_OUTPUT_SCHEMAS.mutation }, async ({ binding_id, intent, idempotency_key }) => {
     if (!active()) return output({ code: 'unauthorized' })
     const resolved = await dispatchExternalTool(env, grant, binding_id, { idempotencyKey: idempotency_key, payload: { kind: 'begin_edit', intent } })
     return output(toolResult(resolved))

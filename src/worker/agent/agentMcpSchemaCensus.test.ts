@@ -5,9 +5,11 @@ import { agentMcpRouting } from './agentMcpRouting'
 
 const grant = { accountId: 'account', clientId: 'client', clientName: 'Client', clientOrigins: [], grantId: 'grant', expiresAt: Math.ceil(Date.now() / 1000) + 60 }
 type JsonSchema = { properties?: Record<string, JsonSchema>; required?: string[]; [key: string]: unknown }
-const OBSERVED_BASE_BYTES = 271_687
+const OBSERVED_PRE_IDENTITY_BYTES = 271_687
+const OBSERVED_IDENTITY_BYTES = 269_177
+const OBSERVED_CONCISE_DESCRIPTION_BYTES = 256_507
 
-it('measures the server-owned identity schema reduction against the same command catalogue', async () => {
+it('measures identity and concise-description reductions against the same command catalogue', async () => {
   const response = await agentMcpRouting(new Request('https://app.test/mcp', {
     method: 'POST',
     headers: { Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json' },
@@ -19,11 +21,15 @@ it('measures the server-owned identity schema reduction against the same command
   const measurement = {
     tools: current.result.tools.length,
     mutations: current.result.tools.filter(tool => mutationNames.has(tool.name)).length,
-    baseBytes: OBSERVED_BASE_BYTES,
+    preIdentityBytes: OBSERVED_PRE_IDENTITY_BYTES,
+    identityBytes: OBSERVED_IDENTITY_BYTES,
     currentBytes: encoded(current),
   }
-  const delta = measurement.currentBytes - measurement.baseBytes
-  console.info('issue-1048-schema-census', JSON.stringify({ ...measurement, delta }))
+  const identityDelta = measurement.identityBytes - measurement.preIdentityBytes
+  const conciseDescriptionDelta = measurement.currentBytes - measurement.identityBytes
+  console.info('issue-1049-schema-census', JSON.stringify({ ...measurement, identityDelta, conciseDescriptionDelta }))
   expect(measurement).toMatchObject({ tools: SHOW_COMMANDS.length + 8, mutations: SHOW_COMMANDS.length + 3 })
-  expect(delta).toBeLessThan(0)
+  expect(identityDelta).toBe(-2_510)
+  expect(measurement.currentBytes).toBe(OBSERVED_CONCISE_DESCRIPTION_BYTES)
+  expect(conciseDescriptionDelta).toBe(-12_670)
 })
