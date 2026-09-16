@@ -1,0 +1,47 @@
+{
+  "issue": 1038,
+  "specificationCommit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
+  "baseCommit": "4b0bb5704aaf3a7b81f50e5522be3944c685c7ee",
+  "proofRows": [
+    "GROUP-HOLD",
+    "INSERT",
+    "SHARING",
+    "RESTART"
+  ],
+  "invariants": [
+    "Retained descriptors own authored exact values; ordinary discontinuities keep historical outgoing boundary choices.",
+    "Hold/restriction preserve the original curve and boundary values, including incoming kernels and original first guards.",
+    "No compiler/schema/domain/runtime/history changes; ordinary direct source bytes remain exact."
+  ],
+  "partitions": [
+    "Ordinary steps/start and hold/at-zero versus retained descriptors and coherent ordinary kernels.",
+    "Before/at/after first, interior and final boundaries; new first/final restriction endpoints.",
+    "Exact-key hold, inside-kernel hold, before-first carrier and repeated hold/restriction.",
+    "All nine native target forms; linked held Groups Continue/Restart; Fast/Precise."
+  ],
+  "sequences": [
+    "Author ordinary discontinuity -> compare native/internal evaluator and emitted expression -> exact hold -> resume.",
+    "Exact hold -> inside hold -> resume-boundary hold -> restrict twice -> evaluate preserved original boundary.",
+    "Insert Time through public Show owner -> persisted .pxlshow reopen -> prepare once -> native EPE export/import -> Fast/Precise playback.",
+    "Linked held Group -> materialize -> native reopen/playback -> independent manually authored checkpoint choreography."
+  ],
+  "oracles": [
+    "Literal historical .4 steps boundary and1 hold-at-zero; independent incoming .1996 and preserved constant hold.",
+    "Original first value .2 at endpoint, stepped strict interior .4; exact restricted endpoints retain original evaluation.",
+    "Native delivered frames and ALL nonempty exported state fields equal independent descriptor-free checkpoint choreography.",
+    "Closed schema drift, full TypeScript/scoped lint, source parity47 and seven killed/restored semantic mutants."
+  ],
+  "residualGaps": [
+    "Precise native comparisons use exact binary 125ms checkpoints; fine evaluator/expression probes cover arbitrary-ms boundaries separately.",
+    "Existing source-dependent compiler refusals and inherited ordinary global-ramp endpoint policies are unchanged; no new generic playback domain is claimed.",
+    "Coordinator owns exact suffix native review, four authoritative final suites, host evidence gate and landing."
+  ],
+  "qualification": {
+    "red": "8 original public failures; sibling inside-kernel hold failed before predecessor retention. Preserved public/native reproduction in /tmp handoff.",
+    "focused": "306/12 affected focused checks PASS; own43/2 includes17 public expression/evaluator cases and26 native EPE cases.",
+    "native": "26/26 actual native reopened EPE cases: all nine Insert Time target forms Fast/Precise plus linked steps/start and hold/at-zero Groups Continue/Restart; every delivered frame and exported state field compared.",
+    "static": "Full project TypeScript, scoped ESLint and diff-check PASS.",
+    "parity": "47/47 source bytes unchanged; no updated corpus hashes.",
+    "mutation": "Seven named semantic mutants killed; one initially surviving start mutation exposed missing end-beyond-last partition, added before final successful qualification. Exact source restored."
+  }
+}

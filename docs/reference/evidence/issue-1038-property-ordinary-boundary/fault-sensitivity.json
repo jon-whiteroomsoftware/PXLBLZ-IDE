@@ -1,0 +1,47 @@
+{
+  "restored": true,
+  "results": [
+    {
+      "mutation": "native ordinary compatibility",
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-property-ordinary-mutant-0.log"
+    },
+    {
+      "mutation": "shared ordinary compatibility",
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-property-ordinary-mutant-1.log"
+    },
+    {
+      "mutation": "constant exact-key hold",
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-property-ordinary-mutant-2.log"
+    },
+    {
+      "mutation": "incoming predecessor preservation",
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-property-ordinary-mutant-3.log"
+    },
+    {
+      "mutation": "first endpoint preservation",
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-property-ordinary-mutant-4.log"
+    },
+    {
+      "mutation": "restricted start boundary",
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-property-ordinary-mutant-5.log"
+    },
+    {
+      "mutation": "restricted final boundary",
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-property-ordinary-mutant-6.log"
+    }
+  ]
+}

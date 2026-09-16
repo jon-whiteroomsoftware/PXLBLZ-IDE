@@ -14,7 +14,7 @@ export function evaluateShowPropertyKeysV2(
   const keys = [...source].sort(compareKeys)
   if (keys.length === 0) return 0
   const exact = keys.find(key => key.timeMs === atMs)
-  if (exact) return exact.value
+  if (exact?.curveSegment) return exact.value
   if (atMs <= keys[0].timeMs) return keys[0].value
   const last = keys[keys.length - 1]
   if (atMs >= last.timeMs) return last.value
@@ -90,8 +90,15 @@ function retainedKeys(
   const keys = [...source.keyframes].sort(compareKeys)
   const result: ShowPropertyKeyframeV2[] = []
   const exactStart = keys.find(key => key.timeMs === startMs)
-  if (exactStart) result.push(structuredClone(exactStart))
-  else {
+  if (exactStart) {
+    const seed = structuredClone(exactStart)
+    seed.value = evaluateShowPropertyKeysV2(keys, startMs)
+    const right = keys.find(key => key.timeMs > startMs)
+    if (!seed.curveSegment && right && seed.value !== exactStart.value) {
+      seed.curveSegment = retainedSegment(exactStart, right, startMs)
+    }
+    result.push(seed)
+  } else {
     const left = [...keys].reverse().find(key => key.timeMs < startMs)
     const right = keys.find(key => key.timeMs > startMs)
     const seedSource = left ?? keys[0]
@@ -116,9 +123,7 @@ function retainedKeys(
   if (sourceLeftAtEnd && sourceRightAtEnd) {
     const retainedLeft = [...result].reverse().find(key => key.timeMs === sourceLeftAtEnd.timeMs)
       ?? result[result.length - 1]
-    if (!retainedLeft.curveSegment) {
-      retainedLeft.curveSegment = retainedSegment(sourceLeftAtEnd, sourceRightAtEnd, retainedLeft.timeMs)
-    }
+    if (!retainedLeft.curveSegment) retainOrdinaryKernel(keys, result, sourceLeftAtEnd, sourceRightAtEnd, retainedLeft)
   }
   const end = exactEnd ? structuredClone(exactEnd) : {
     ...structuredClone([...keys].reverse().find(key => key.timeMs < endMs) ?? keys[0]),
@@ -126,8 +131,10 @@ function retainedKeys(
     timeMs: endMs,
     value: evaluateShowPropertyKeysV2(keys, endMs),
   }
+  end.value = evaluateShowPropertyKeysV2(keys, endMs)
   delete end.curveSegment
   if (!result.some(key => key.timeMs === endMs)) result.push(end)
+  preserveFirstEndpoint(keys, result)
   return result.sort(compareKeys)
 }
 
@@ -147,13 +154,25 @@ function insertTrackHold(
     : structuredClone(key))
   if (exact) {
     const holdId = freshKeyId(propertyTracks, `${source.id}:hold:${atMs}`, localIds)
-    shifted.push({ id: holdId, timeMs: atMs, value, easing: { curve: 'linear' } })
+    const hold: ShowPropertyKeyframeV2 = { id: holdId, timeMs: atMs, value, easing: { curve: 'linear' } }
+    if (value !== exact.value) {
+      const left = [...keys].reverse().find(key => key.timeMs < atMs)
+      if (left) {
+        const retainedLeft = shifted.find(key => key.id === left.id)!
+        if (!retainedLeft.curveSegment) retainOrdinaryKernel(keys, shifted, left, exact, retainedLeft)
+      }
+      hold.curveSegment = {
+        baseValue: value, deltaValue: 0, easing: { curve: 'linear' },
+        sourceDurationMs: durationMs, elapsedOffsetMs: 0,
+      }
+    }
+    shifted.push(hold)
   } else {
     const left = [...keys].reverse().find(key => key.timeMs < atMs)
     const right = keys.find(key => key.timeMs > atMs)
     if (left && right) {
       const retainedLeft = shifted.find(key => key.id === left.id)!
-      if (!retainedLeft.curveSegment) retainedLeft.curveSegment = retainedSegment(left, right, left.timeMs)
+      if (!retainedLeft.curveSegment) retainOrdinaryKernel(keys, shifted, left, right, retainedLeft)
       const holdId = freshKeyId(propertyTracks, `${source.id}:hold:${atMs}`, localIds)
       localIds.add(holdId)
       const resumeId = freshKeyId(propertyTracks, `${source.id}:resume:${atMs + durationMs}`, localIds)
@@ -174,11 +193,41 @@ function insertTrackHold(
       )
     }
   }
+  preserveFirstEndpoint(keys, shifted)
   return {
     ...structuredClone(source),
     activeDurationMs: source.activeDurationMs + durationMs,
     keyframes: shifted.sort(compareKeys),
   }
+}
+
+/** Preserve incoming math if storing an ordinary outgoing boundary changes its endpoint. */
+function retainOrdinaryKernel(
+  source: ShowPropertyKeyframeV2[],
+  mapped: ShowPropertyKeyframeV2[],
+  left: ShowPropertyKeyframeV2,
+  right: ShowPropertyKeyframeV2,
+  retained: ShowPropertyKeyframeV2,
+): void {
+  const originalValue = retained.value
+  retained.value = evaluateShowPropertyKeysV2(source, retained.timeMs)
+  retained.curveSegment = retainedSegment(left, right, retained.timeMs)
+  if (retained.value === originalValue) return
+  const predecessor = source[source.indexOf(left) - 1]
+  if (!predecessor) return
+  const previous = mapped.find(key => key.id === predecessor.id)
+  if (previous && !previous.curveSegment) retainOrdinaryKernel(source, mapped, predecessor, left, previous)
+}
+
+/** Retain a source first-key guard when a new preceding carrier makes it interior. */
+function preserveFirstEndpoint(source: ShowPropertyKeyframeV2[], mapped: ShowPropertyKeyframeV2[]): void {
+  const first = source[0]
+  const right = source[1]
+  if (!first || !right || first.curveSegment) return
+  const retained = mapped.find(key => key.id === first.id)
+  if (!retained || retained.curveSegment || !mapped.some(key => key.timeMs < retained.timeMs)) return
+  const outgoing = first.value + (right.value - first.value) * applyShowEasing(first.easing, 0)
+  if (outgoing !== first.value) retained.curveSegment = retainedSegment(first, right, first.timeMs)
 }
 
 function retainedSegment(
