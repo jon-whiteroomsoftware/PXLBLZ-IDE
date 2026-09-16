@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/prepared-transition-synthetic?show-v2-pilot=1&capture",
+  "operation": "Checked resize of the existing prepared31-second whole-output Transition with held nonlinear repeat animation and full shared Restart. Resize2000\u21921000, unchanged field submission and unsafe-duration refusal, Undo/Redo, saved provider reload and native .pxlshow/.epe reopening produce exactly3 own Show PUTs while preserving tracks and runtimes. Fast/Precise transport capture at17seconds passes; desktop1440x1000 and narrow390x844 with keyboard-accessible duration controls inspected, no console errors or horizontal overflow. Public preparation READY before fixture seeding. IAB connected but no documented isolated synthetic-cookie admission; declared isolated repoPlaywright context preserves user session and uses the product renderer.",
+  "captures": [
+    ".wrsp/ui-proof/1038-transition-admission-desktop.png",
+    ".wrsp/ui-proof/1038-transition-admission-narrow.png",
+    ".wrsp/ui-proof/1038-transition-admission-narrow-controls.png"
+  ],
+  "capturedAtCommit": "6022af157e28da30fb0472faafdfc480b4e50376"
+}

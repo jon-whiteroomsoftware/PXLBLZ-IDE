@@ -48,7 +48,6 @@
     "authenticated": "3/3 focused real-browser Transition/Marker/Stage flows passed. /tmp/issue-1038-transition-authenticated-final.log",
     "mutations": "6/6 named semantic mutants killed; source restored. fault-sensitivity.json",
     "browser": "Captured at6022af157e28da30fb0472faafdfc480b4e50376 on own managed1038:5178. Desktop/narrow/keyboard,3 exactPUTs, native reopen, Fast+Precise transport, console/overflow empty; browser-result.json and .wrsp/ui-proof/1038-transition-admission.json. Images opened and inspected.",
-    "hooks": "Suite registration append ordinary hooks: full lint, TypeScript, auth coverage17, locators, staged129, Chromiumlayout12 PASS. /tmp/issue-1038-transition-coverage-commit.log",
-    "uiProof": "Exact-range local gate follows this proof-only commit; coordinator finalbase refresh may still be required."
+    "hooks": "Suite registration append ordinary hooks: full lint, TypeScript, auth coverage17, locators, staged129, Chromiumlayout12 PASS. /tmp/issue-1038-transition-coverage-commit.log"
   }
 }
