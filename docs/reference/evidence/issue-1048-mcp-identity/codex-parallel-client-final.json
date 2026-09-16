@@ -1,0 +1,191 @@
+{
+  "client": "codex-cli 0.153.4",
+  "clientPath": "codex app-server mcpServer/tool/call",
+  "candidate": "68788b214bd1b074c1fd2f6cdb6e7f88aefd8cfa",
+  "callerIdentity": "Issue 1048 real Codex client (codex-cli 0.153.4)",
+  "protocolQualification": "Server-minted operation identity with current OAuth bearer grant",
+  "serverConfigured": true,
+  "connection": {
+    "code": "bound",
+    "show_id": "agent-identity-proof-1048"
+  },
+  "read_show": {
+    "code": "read",
+    "textMatchesStructured": true
+  },
+  "beginRetry": {
+    "codes": [
+      "begun",
+      "begun"
+    ],
+    "sameOperation": true,
+    "operation_id": "fa1f84c1-57f4-4436-b69b-4177e76377c4",
+    "textMatchesStructured": true
+  },
+  "parallelBatch": {
+    "requestCount": 10,
+    "allRequestsSentBeforeAwait": true,
+    "pendingAfterSend": 10,
+    "maxPendingRpcCount": 10,
+    "uniqueIdempotencyKeys": 10,
+    "commands": [
+      {
+        "name": "Parallel marker 01",
+        "at_ms": 1000,
+        "idempotency_key": "marker-01",
+        "code": "changed",
+        "changeCount": 1,
+        "textMatchesStructured": true
+      },
+      {
+        "name": "Parallel marker 02",
+        "at_ms": 2000,
+        "idempotency_key": "marker-02",
+        "code": "changed",
+        "changeCount": 1,
+        "textMatchesStructured": true
+      },
+      {
+        "name": "Parallel marker 03",
+        "at_ms": 3000,
+        "idempotency_key": "marker-03",
+        "code": "changed",
+        "changeCount": 1,
+        "textMatchesStructured": true
+      },
+      {
+        "name": "Parallel marker 04",
+        "at_ms": 4000,
+        "idempotency_key": "marker-04",
+        "code": "changed",
+        "changeCount": 1,
+        "textMatchesStructured": true
+      },
+      {
+        "name": "Parallel marker 05",
+        "at_ms": 5000,
+        "idempotency_key": "marker-05",
+        "code": "changed",
+        "changeCount": 1,
+        "textMatchesStructured": true
+      },
+      {
+        "name": "Parallel marker 06",
+        "at_ms": 6000,
+        "idempotency_key": "marker-06",
+        "code": "changed",
+        "changeCount": 1,
+        "textMatchesStructured": true
+      },
+      {
+        "name": "Parallel marker 07",
+        "at_ms": 7000,
+        "idempotency_key": "marker-07",
+        "code": "changed",
+        "changeCount": 1,
+        "textMatchesStructured": true
+      },
+      {
+        "name": "Parallel marker 08",
+        "at_ms": 8000,
+        "idempotency_key": "marker-08",
+        "code": "changed",
+        "changeCount": 1,
+        "textMatchesStructured": true
+      },
+      {
+        "name": "Parallel marker 09",
+        "at_ms": 9000,
+        "idempotency_key": "marker-09",
+        "code": "changed",
+        "changeCount": 1,
+        "textMatchesStructured": true
+      },
+      {
+        "name": "Parallel marker 10",
+        "at_ms": 10000,
+        "idempotency_key": "marker-10",
+        "code": "changed",
+        "changeCount": 1,
+        "textMatchesStructured": true
+      }
+    ]
+  },
+  "commit": {
+    "code": "outcome",
+    "textMatchesStructured": true
+  },
+  "savedReceipt": {
+    "status": "applied",
+    "settlement": "saved"
+  },
+  "errors": [],
+  "browser": {
+    "saved": {
+      "operationId": "fa1f84c1-57f4-4436-b69b-4177e76377c4",
+      "outcome": "saved",
+      "activityChangeCount": 10,
+      "unreadOutcomes": 0
+    },
+    "reopened": {
+      "route": "/PXLBLZ-IDE/studio/shows/agent-identity-proof-1048",
+      "markerCount": 10,
+      "uniqueMarkerIds": 10,
+      "markers": [
+        {
+          "name": "Parallel marker 01",
+          "timeMs": 1000
+        },
+        {
+          "name": "Parallel marker 02",
+          "timeMs": 2000
+        },
+        {
+          "name": "Parallel marker 03",
+          "timeMs": 3000
+        },
+        {
+          "name": "Parallel marker 04",
+          "timeMs": 4000
+        },
+        {
+          "name": "Parallel marker 05",
+          "timeMs": 5000
+        },
+        {
+          "name": "Parallel marker 06",
+          "timeMs": 6000
+        },
+        {
+          "name": "Parallel marker 07",
+          "timeMs": 7000
+        },
+        {
+          "name": "Parallel marker 08",
+          "timeMs": 8000
+        },
+        {
+          "name": "Parallel marker 09",
+          "timeMs": 9000
+        },
+        {
+          "name": "Parallel marker 10",
+          "timeMs": 10000
+        }
+      ],
+      "visibleDetails": "Parallel marker 10 details"
+    },
+    "captures": [
+      {
+        "path": ".wrsp/ui-proof/1048-parallel-saved-final.png",
+        "bytes": 251031,
+        "sha256": "8ce15b23a97595a49cbe22d38aa75eb3b61d89dfbeeb3dc01b8599a86d2b03c5"
+      },
+      {
+        "path": ".wrsp/ui-proof/1048-parallel-reopened-final.png",
+        "bytes": 200926,
+        "sha256": "03215448b3ee1d7d8416ab7ccccee138d162ef4b744b94af45f4a668dc60300c"
+      }
+    ]
+  }
+}
