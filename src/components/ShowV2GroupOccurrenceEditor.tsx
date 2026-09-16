@@ -82,7 +82,7 @@ export function ShowV2GroupOccurrenceEditor({ capture, submitGroupOccurrenceEdit
       <p className="text-xs text-zinc-500">{selected.startMs}–{selected.endMs} ms{selected.holdDurationMs > 0 ? ` · ${selected.holdDurationMs} ms held` : ''}</p>
       <fieldset disabled={!available} className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
-          <label className="min-w-0 text-xs text-zinc-400">Start (ms)<input aria-label="Group start (ms)" type="number" step="1" min="0" className={fieldStyle} value={draft.start} onChange={event => setDraft(value => ({ ...value, start: event.target.value }))} /></label>
+          <NumberField label="Start (ms)" ariaLabel="Group start (ms)" value={Number(draft.start)} variant="editor" onChange={value => setDraft(current => ({ ...current, start: String(value) }))} />
           <label className="min-w-0 text-xs text-zinc-400">Zone<select aria-label="Group Zone" className={fieldStyle} value={draft.zoneId} onChange={event => setDraft(value => ({ ...value, zoneId: event.target.value, bindings: {} }))}>{model.zones.map(zone => <option key={zone.id} value={zone.id}>{zone.name}</option>)}</select></label>
         </div>
         {selected.layers.map(layer => <label key={layer.id} className="block text-xs text-zinc-400">{layer.name} Layer<select aria-label={`Group Layer ${layer.name}`} className={fieldStyle} value={draft.bindings[layer.id] ?? ''} onChange={event => setDraft(value => ({ ...value, bindings: { ...value.bindings, [layer.id]: event.target.value } }))}><option value="">Choose Layer</option>{model.layers.filter(value => value.zoneId === draft.zoneId).map(value => <option key={value.id} value={value.id}>{value.name}</option>)}</select></label>)}
