@@ -1,5 +1,5 @@
 import { editShowMarkerV2, type ShowMarkerEditIntentV2 } from '@/engine/showMarkersV2'
-import { prepareShowStageV2, type ShowPreparedStageDependenciesV2, type ShowPreparedStageResultV2 } from '@/engine/showPreparedStageV2'
+import { prepareShowStageV2, prepareShowStageFromCapturedInputsV2, type ShowPreparedStageInputCaptureResultV2, type ShowPreparedStageDependenciesV2, type ShowPreparedStageResultV2 } from '@/engine/showPreparedStageV2'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { getPersonalContentProvider, type PersonalContentProvider } from '@/engine/personalContentProvider'
 import { isValidatedEmptyShowV2 } from '@/engine/showMarkerRouteModel'
@@ -13,10 +13,12 @@ import { insertShowTimeV2, type ShowInsertTimeIntentV2, type ShowTimelineEditRes
 import { editShowLayoutIntervalsV2, type ShowLayoutEditIntentV2, type ShowLayoutEditResultV2 } from '@/engine/showLayoutIntervalsV2'
 import { editShowLayerV2, type ShowLayerEditIntentV2, type ShowLayerEditResultV2, type ShowLayerEditAffectedV2 } from '@/engine/showLayersV2'
 import { editShowClipAppearanceV2, type ShowClipAppearanceEditIntentV2, type ShowClipAppearanceEditResultV2 } from '@/engine/showClipAppearanceEditsV2'
+import { editShowPropertyV2, type ShowPropertyTrackOwnerV2, type ShowPropertyEditIntentV2, type ShowPropertyEditResultV2 } from '@/engine/showPropertyEditsV2'
 export interface ShowV2PilotPreparedCapture {
   readonly record: ShowRecordV2
   readonly dependencies: ShowPreparedStageDependenciesV2
   readonly prepared: ShowPreparedStageResultV2
+  readonly inputCapture?: ShowPreparedStageInputCaptureResultV2
 }
 export interface ShowV2PilotAdoptionReceipt {
   readonly showId: string
@@ -58,6 +60,7 @@ type Command =
   | { owner: 'insert-time'; intent: ShowInsertTimeIntentV2 }
   | { owner: 'layer'; intent: ShowLayerEditIntentV2 }
   | { owner: 'appearance'; intent: ShowClipAppearanceEditIntentV2 }
+  | { owner: 'property'; propertyOwner: ShowPropertyTrackOwnerV2; intent: ShowPropertyEditIntentV2 }
   | { owner: 'set-show-end'; intent: Extract<ShowLayoutEditIntentV2, { kind: 'set-show-end' }> }
 type OwnerResult<C extends Command> = C extends { owner: 'marker' } ? ShowMarkerEditResultV2
   : C extends { owner: 'create-clip' } ? ShowClipCreationResultV2
@@ -65,6 +68,7 @@ type OwnerResult<C extends Command> = C extends { owner: 'marker' } ? ShowMarker
   : C extends { owner: 'insert-time' } ? ShowTimelineEditResultV2
   : C extends { owner: 'layer' } ? ShowLayerEditResultV2
   : C extends { owner: 'appearance' } ? ShowClipAppearanceEditResultV2
+  : C extends { owner: 'property' } ? ShowPropertyEditResultV2
   : C extends { owner: 'set-show-end' } ? ShowLayoutEditResultV2
   : ShowTransitionEditResultV2
 type CheckedOutcome<R> =
@@ -103,23 +107,30 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
             ? editShowLayerV2(current, structuredClone(command.intent))
             : command.owner === 'appearance'
               ? editShowClipAppearanceV2(current, structuredClone(command.intent))
-              : command.owner === 'set-show-end'
-                ? editShowLayoutIntervalsV2(current, structuredClone(command.intent))
-                : editShowTransitionV2(current, structuredClone(command.intent))) as OwnerResult<C>
+              : command.owner === 'property'
+                ? editShowPropertyV2(current, command.propertyOwner, command.intent)
+                : command.owner === 'set-show-end'
+                  ? editShowLayoutIntervalsV2(current, structuredClone(command.intent))
+                  : editShowTransitionV2(current, structuredClone(command.intent))) as OwnerResult<C>
   if (result.status === 'refused') return { status: 'refused', source: 'owner', result }
   if (result.status === 'unchanged') return { status: 'unchanged', result }
   const { capture } = request
   const prepared = capture.prepared
-  if (prepared.status === 'refused') return refuse('unsupported-pilot-record', prepared.message)
+  const capturedInputs = capture.inputCapture
+  if (capturedInputs?.status === 'invalid') return refuse('unsupported-pilot-record', capturedInputs.message)
+  if (capturedInputs?.status === 'qualified' && (capturedInputs.inputs.identity.record !== current || capturedInputs.inputs.identity.dependencies !== capture.dependencies)) return refuse('stale-edit', 'The Show or its captured inputs changed. Try the edit again.')
+  if (prepared.status === 'refused' && capturedInputs?.status !== 'qualified') return refuse('unsupported-pilot-record', prepared.message)
   if (prepared.status === 'ready' && (prepared.bundle.identity.record !== current || prepared.bundle.identity.dependencies !== capture.dependencies)) {
     return refuse('stale-edit', 'The Show or its prepared context changed. Try the edit again.')
   }
   if (prepared.status === 'empty' && (!isValidatedEmptyShowV2(current) || !isValidatedEmptyShowV2(prepared.record))) {
     return refuse('unsupported-pilot-record', 'The prepared empty Show does not match this edit.')
   }
-  const inputs = prepared.status === 'ready' ? { ...prepared.bundle.assets, stageMap: capture.dependencies.stageMap } : capture.dependencies
-  const candidate = prepareShowStageV2(result.record, inputs)
-  if (command.owner === 'create-clip' ? candidate.status !== 'ready' : candidate.status !== prepared.status) return refuse('unsupported-pilot-record', candidate.status === 'refused' ? candidate.message : 'The edit changed the prepared Show capability.')
+  const candidate = capturedInputs?.status === 'qualified'
+    ? prepareShowStageFromCapturedInputsV2(result.record, capturedInputs.inputs)
+    : prepareShowStageV2(result.record, prepared.status === 'ready' ? { ...prepared.bundle.assets, stageMap: capture.dependencies.stageMap } : capture.dependencies)
+  const expectedCapability = command.owner === 'create-clip' || prepared.status === 'refused' ? 'ready' : prepared.status
+  if (candidate.status !== expectedCapability) return refuse('unsupported-pilot-record', candidate.status === 'refused' ? candidate.message : 'The edit changed the prepared Show capability.')
   if (!eligible()) return refuse('stale-edit', 'The Show or its dependencies changed. Try the edit again.')
   const saving = useShowStore.getState().updateShowV2Pilot(showId, result.record)
   const adopted = useShowStore.getState().showV2Pilots[showId]
@@ -293,5 +304,11 @@ function validAppearanceIntentShape(intent: unknown): intent is ShowClipAppearan
 export async function admitShowV2PilotAppearanceEdit(request: ShowV2PilotAppearanceEditRequest): Promise<ShowV2PilotAppearanceEditOutcome> {
   if (!validAppearanceIntentShape(request.intent)) return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Give one complete appearance operation with explicit scope and identities.', ...timelineEffects() }
   const outcome = await admitPreparedEdit({ ...request, owner: 'appearance' as const })
+  return presentOwnerOutcome(outcome, timelineEffects('result' in outcome ? outcome.result : undefined))
+}
+export type ShowV2PilotPropertyEditRequest = ShowV2PilotPreparedEditContext & { propertyOwner: ShowPropertyTrackOwnerV2; intent: ShowPropertyEditIntentV2 }
+export type ShowV2PilotPropertyEditOutcome = PilotOwnerOutcome<ShowPropertyEditResultV2, ShowTimelineEditAffectedV2>
+export async function admitShowV2PilotPropertyEdit(request: ShowV2PilotPropertyEditRequest): Promise<ShowV2PilotPropertyEditOutcome> {
+  const outcome = await admitPreparedEdit({ ...request, owner: 'property' as const })
   return presentOwnerOutcome(outcome, timelineEffects('result' in outcome ? outcome.result : undefined))
 }

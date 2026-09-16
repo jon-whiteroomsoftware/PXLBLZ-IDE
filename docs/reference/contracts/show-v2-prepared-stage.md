@@ -1,7 +1,10 @@
 # Prepared v2 Stage preview
 
 The opt-in `ShowV2RoutePilot` captures one native v2 preparation bundle through
-`prepareShowStageV2`. The bundle binds the unaliased record snapshot and its
+`captureShowStageEditV2`; the compatible `prepareShowStageV2` wrapper returns
+the existing preparation result. Qualified immutable editing inputs remain
+available independently of source readiness, as described in
+[checked prepared recovery](show-v2-prepared-recovery.md). The bundle binds the unaliased record snapshot and its
 digest/stamp, trusted Pattern/Library inputs, selected map dimension and pixel
 context, exact public preparation recipe/provenance, compiled artifact and Stage
 presentation. Original record/dependency references identify the capture only;

@@ -1,0 +1,35 @@
+{
+  "restored": true,
+  "results": [
+    {
+      "mutation": "structural qualification",
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-prepared-recovery-mutant-0.log"
+    },
+    {
+      "mutation": "captured semantic source snapshot",
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-prepared-recovery-mutant-1.log"
+    },
+    {
+      "mutation": "candidate full eligibility",
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-prepared-recovery-mutant-2.log"
+    },
+    {
+      "mutation": "final currentness",
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-prepared-recovery-mutant-3.log"
+    },
+    {
+      "mutation": "qualified recovery",
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-prepared-recovery-mutant-4.log"
+    }
+  ]
+}

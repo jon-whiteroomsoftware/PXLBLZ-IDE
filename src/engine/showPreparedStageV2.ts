@@ -57,15 +57,62 @@ export type ShowPreparedStageResultV2 =
   | { status: 'empty'; record: ShowRecordV2 }
   | { status: 'refused'; message: string }
 
-/** All semantic data is captured once; original references identify the admission snapshot only. */
-export function prepareShowStageV2(record: ShowRecordV2, dependencies: ShowPreparedStageDependenciesV2): ShowPreparedStageResultV2 {
+export interface ShowPreparedStageInputCaptureV2 {
+  readonly identity: { readonly record: ShowRecordV2; readonly dependencies: ShowPreparedStageDependenciesV2 }
+  readonly record: ShowRecordV2
+  readonly assets: ShowPreparedStageAssetPayloadV2
+  readonly stageMap: PixelMap | null
+}
+export type ShowPreparedStageInputCaptureResultV2 =
+  | { status: 'qualified'; inputs: ShowPreparedStageInputCaptureV2 }
+  | { status: 'invalid'; message: string }
+export interface ShowPreparedStageEditCaptureV2 {
+  readonly record: ShowRecordV2
+  readonly dependencies: ShowPreparedStageDependenciesV2
+  readonly prepared: ShowPreparedStageResultV2
+  readonly inputCapture: ShowPreparedStageInputCaptureResultV2
+}
+
+/** Qualification is structural/domain/context admission, independent of source compilation. */
+export function captureShowStageEditV2(record: ShowRecordV2, dependencies: ShowPreparedStageDependenciesV2): ShowPreparedStageEditCaptureV2 {
+  let inputCapture: ShowPreparedStageInputCaptureResultV2
   try {
+    if (![dependencies.patterns, dependencies.maps, dependencies.libraries, dependencies.profiles].every(Array.isArray)) throw new Error('Stage asset collections must be arrays.')
     const snapshot = freezeCaptured(structuredClone(record))
     const assets = freezeCaptured(structuredClone({ patterns: dependencies.patterns, maps: dependencies.maps, libraries: dependencies.libraries, profiles: dependencies.profiles }))
     const invalid = validateShowRecordV2(snapshot)[0]
+    if (invalid) throw new Error(`${invalid.path}: ${invalid.message}`)
+    const map = dependencies.stageMap
+    if (effectiveShowClipsV2(snapshot).length > 0 && map) {
+      if (map.id !== snapshot.stageMapId || (map.dim !== 2 && map.dim !== 3) || typeof map.resolve !== 'function') throw new Error('Stage map identity or dimension does not match the captured Show.')
+      applyNormalizeMode(map.resolve(stagePixelCount(snapshot, map, assets, map.dim)), 'contain')
+    }
+    inputCapture = { status: 'qualified', inputs: Object.freeze({ identity: Object.freeze({ record, dependencies }), record: snapshot, assets, stageMap: map ? Object.freeze({ ...map, resolve: map.resolve.bind(map) }) : null }) }
+  } catch (error) {
+    inputCapture = { status: 'invalid', message: error instanceof Error ? error.message : String(error) }
+  }
+  const prepared = inputCapture.status === 'qualified'
+    ? prepareCapturedStage(inputCapture.inputs.record, inputCapture.inputs, record)
+    : { status: 'refused' as const, message: inputCapture.message }
+  return { record, dependencies, prepared, inputCapture }
+}
+
+/** All semantic data is captured once; original references identify the admission snapshot only. */
+export function prepareShowStageV2(record: ShowRecordV2, dependencies: ShowPreparedStageDependenciesV2): ShowPreparedStageResultV2 {
+  return captureShowStageEditV2(record, dependencies).prepared
+}
+
+export function prepareShowStageFromCapturedInputsV2(record: ShowRecordV2, inputs: ShowPreparedStageInputCaptureV2): ShowPreparedStageResultV2 {
+  try { return prepareCapturedStage(freezeCaptured(structuredClone(record)), inputs, record) }
+  catch (error) { return { status: 'refused', message: error instanceof Error ? error.message : String(error) } }
+}
+
+function prepareCapturedStage(snapshot: ShowRecordV2, inputs: ShowPreparedStageInputCaptureV2, record: ShowRecordV2): ShowPreparedStageResultV2 {
+  try {
+    const { assets, stageMap: map } = inputs
+    const invalid = validateShowRecordV2(snapshot)[0]
     if (invalid) return { status: 'refused', message: `${invalid.path}: ${invalid.message}` }
     if (effectiveShowClipsV2(snapshot).length === 0) return { status: 'empty', record: snapshot }
-    const map = dependencies.stageMap
     if (map && (map.id !== snapshot.stageMapId || (map.dim !== 2 && map.dim !== 3))) return { status: 'refused', message: 'Stage map identity or dimension does not match the captured Show.' }
     const stageDimension = map?.dim === 3 ? 3 : 2
     const sources: Record<string, string> = {}
@@ -91,10 +138,7 @@ export function prepareShowStageV2(record: ShowRecordV2, dependencies: ShowPrepa
       const strips = buildShowStripsLayout(snapshot.zones)
       layout = { kind: 'strips', mapPoints: strips.mapPoints, draw: { kind: '2d', positions: strips.positions }, projection: strips.projection, label: 'Zone strips - generic', note: snapshot.stageMapId ? 'The saved stage map is gone, so this show is previewing as generic strips.' : null }
     } else {
-      const profile = assets.profiles.find(candidate => candidate.id === snapshot.targetControllerProfileId) ?? assets.profiles[0]
-      const zoneTotal = snapshot.zones.reduce((total, zone) => total + Math.max(0, Math.floor(zone.nominalPixelCount)), 0)
-      const pixelCount = snapshot.outputContract.kind === 'installation' ? snapshot.outputContract.pixelCount : snapshot.outputContract.referencePixelCount
-      const count = Math.max(1, pixelCount ?? map.bakedCount ?? profile?.lastKnownPixelCount ?? (zoneTotal || (stageDimension === 3 ? 512 : 1024)))
+      const count = stagePixelCount(snapshot, map, assets, stageDimension)
       const resolved = applyNormalizeMode(map.resolve(count), 'contain')
       const mapPoints: MapPoint[] = resolved.map(point => {
         const raw = point.pos ?? point.sample
@@ -111,12 +155,19 @@ export function prepareShowStageV2(record: ShowRecordV2, dependencies: ShowPrepa
       layout = { kind: 'map', mapPoints, sampleDimension: stageDimension, draw, projection, label: map.name, note: logical ? showLogicalAspectAdvisory(mapPoints, logical) : null }
     }
     return { status: 'ready', bundle: {
-      record: snapshot, identity: { record, dependencies }, assets, digest: showStageRecordDigestV2(snapshot), libraries, recipe: prepared.recipe, provenance: prepared.provenance, artifact,
+      record: snapshot, identity: { record, dependencies: inputs.identity.dependencies }, assets, digest: showStageRecordDigestV2(snapshot), libraries, recipe: prepared.recipe, provenance: prepared.provenance, artifact,
       presentation: { layout, stageMap: map ? { id: map.id, name: map.name, dim: stageDimension } : null, stageIdentityRole: snapshot.outputContract.kind === 'installation' ? 'Output map' : 'Reference map', installationCoverage: validateInstallationCoverage(presentationInput), durationMs: snapshot.composition.showEndMs, stageDimension, pixelCount: layout.mapPoints.length },
     } }
   } catch (error) {
     return { status: 'refused', message: error instanceof Error ? error.message : String(error) }
   }
+}
+
+function stagePixelCount(record: ShowRecordV2, map: PixelMap, assets: ShowPreparedStageAssetPayloadV2, dimension: 2 | 3): number {
+  const profile = assets.profiles.find(candidate => candidate.id === record.targetControllerProfileId) ?? assets.profiles[0]
+  const zoneTotal = record.zones.reduce((total, zone) => total + Math.max(0, Math.floor(zone.nominalPixelCount)), 0)
+  const pixelCount = record.outputContract.kind === 'installation' ? record.outputContract.pixelCount : record.outputContract.referencePixelCount
+  return Math.max(1, pixelCount ?? map.bakedCount ?? profile?.lastKnownPixelCount ?? (zoneTotal || (dimension === 3 ? 512 : 1024)))
 }
 
 export function showStageRecordDigestV2(record: ShowRecordV2): string {

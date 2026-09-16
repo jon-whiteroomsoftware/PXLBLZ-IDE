@@ -11,7 +11,7 @@ import { ShowV2LayerEditor } from './ShowV2LayerEditor'
 import { ShowV2AppearanceEditor } from './ShowV2AppearanceEditor'
 import { buildShowV2TimelineEditorModel, selectedShowOrdinaryClipV2 } from '@/engine/showV2TimelineEditorModel'
 import { qualifyShowV2PilotArtifacts } from '@/engine/showV2Pilot'
-import { prepareShowStageV2 } from '@/engine/showPreparedStageV2'
+import { captureShowStageEditV2 } from '@/engine/showPreparedStageV2'
 import { useShowStore } from '@/store/showStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useMapStore, resolveMap, STOCK_MAPS } from '@/store/mapStore'
@@ -55,7 +55,7 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
   const editCapture = useMemo(() => {
     if (!record) return null
     const dependencies = { patterns, maps, libraries, profiles, stageMap }
-    return { record, dependencies, prepared: prepareShowStageV2(record, dependencies), provider }
+    return { ...captureShowStageEditV2(record, dependencies), provider }
   }, [record, patterns, maps, libraries, profiles, stageMap, provider])
   const preview = editCapture?.prepared ?? null
   const timingModel = useMemo(() => editCapture ? buildShowV2TimelineEditorModel(editCapture) : { sources: [], rows: [] }, [editCapture])

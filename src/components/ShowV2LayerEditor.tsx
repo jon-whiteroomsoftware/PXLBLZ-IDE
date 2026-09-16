@@ -61,7 +61,7 @@ export function ShowV2LayerEditor({ capture, isCurrentCapture, isCurrentCompleti
       return false
     } finally { pending.current = false; if (live.current) setBusy(false) }
   }
-  const available = !busy && capture.prepared.status !== 'refused'
+  const available = !busy && (capture.inputCapture ? capture.inputCapture.status === 'qualified' : capture.prepared.status !== 'refused')
   const sameZone = model.layers.filter(layer => layer.zoneId === zoneId)
   const choices = sameZone.filter(value => value.id !== layerId)
   const remove = () => {
