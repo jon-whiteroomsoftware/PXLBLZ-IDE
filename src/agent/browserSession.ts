@@ -102,6 +102,11 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
           }
         }
         else if (reply.code === 'retired') { retire(); connection = { kind: 'refused', code: 'retired' }; emit({ type: 'connection', connection }); return }
+        else if (reply.code === 'throttled') {
+          connection = { kind: 'refused', code: 'throttled' }
+          emit({ type: 'connection', connection })
+          await pause()
+        }
         else if (reply.code !== 'superseded') { contactLost(); await pause() }
         for (const delivery of reply.deliveries ?? []) {
           if (closed || version !== controlVersion) break

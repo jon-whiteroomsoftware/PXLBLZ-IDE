@@ -165,6 +165,10 @@ cleanup, so disabling access still permits retirement. It stores connection meta
 remain browser-owned. The volatile tab relay never persists Show contents or
 operation receipts. Revocation confirms editing end only after browser retirement
 acknowledgement; an earlier adopted save keeps its store-owned outcome.
+Each public MCP tool call reaches that owner once for trusted binding resolution,
+move-notice consumption and optional relay work. Its 240-per-minute agent counter
+is separate from browser liveness, so a throttled agent response retains a healthy
+browser receive/reply path and carries its fixed-window retry interval.
 An authorized Show may explicitly move the current external grant from another
 registered editor using an observed binding-generation compare. The serialized
 replacement creates fresh call/binding identities and an empty destination relay;

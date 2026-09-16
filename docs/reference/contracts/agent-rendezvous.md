@@ -37,6 +37,13 @@ Private bound responses include the exact registration/session/Show target for
 routing. Transports must not relay these internal capabilities to MCP clients.
 The [OAuth/MCP boundary](agent-oauth-discovery.md) validates external credentials
 before using this same owner; the built-in service resolves its initiating window.
+For one public MCP `tools/call`, the validated account and grant select one
+private account-owner request. That request resolves or creates the connection,
+atomically compares any supplied binding generation, consumes any move notice
+for that public response, and performs the relay query or dispatch when one is
+required. It derives the complete claim from owner state; the MCP payload never
+supplies or receives that capability. A held `get_connection` keeps its single
+public-call debit while internal wakeups and final inspection remain uncounted.
 
 ## Slot and lifetime
 
@@ -153,10 +160,26 @@ paths retain their existing ownership.
 ## Storage and failure ownership
 
 One SQLite-backed Durable Object per account stores at most eight registrations,
-one slot and an atomic request counter. The coordinator limits non-cleanup
-commands to 240 per minute per account. It does not evict live registrations or
-bindings to admit competitors. Its alarm deletes inactive coordination state
-after the registration/slot deadlines and throttle window have elapsed.
+one slot and two independent fixed-window counters. Each public agent call uses
+one debit from the existing 240-per-minute agent window. The separately retained
+240-per-minute control window applies to non-liveness browser setup and movement;
+it is not a new quota. Exhaustion in either window returns `throttled` with a
+nonnegative integer `retry_after_ms` until that fixed window resets. Neither
+window evicts a live registration or binding. Browser liveness is exempt from
+the agent window rather than protected by it. The complete accounting table is:
+
+| Class | Account-owner commands | Accounting |
+| --- | --- | --- |
+| Agent calls | One combined request for every external `get_connection`, `list_commands`, read, mutation, commit, cancel or outcome call; trusted built-in claim/connect and relay query/dispatch | One agent-window debit per eligible public invocation, including a held call; never one per internal transition |
+| Browser setup and movement | Register, Arm, Answer, Decline, movement inspection and compare-and-replace | One control-window debit per owner command, preserving the existing 240-per-minute bound |
+| Browser liveness | Heartbeat and Poll; the Heartbeat/Poll phases inside Receive and Reply | Exempt from both windows |
+| Cleanup | Disarm, Leave, Disconnect, retirement acknowledgement, local Forget/disconnect and grant retirement | Exempt so cleanup remains available during throttle |
+| Private continuation | Trusted inspection and built-in resolution, held-call resolution, move-notice compatibility inspection, expiry and alarm work | Exempt; an internal continuation cannot stand in for a separately debited public call |
+
+Legacy stored objects with the former shared counter seed both independent
+windows with cloned values on first use, preserving the stricter in-flight
+bound without coupling later debits. The alarm deletes inactive coordination
+state after registration/slot deadlines and both counter windows have elapsed.
 
 Only identity, deadline and counter metadata are durable. Show documents,
 candidates, conversation bodies and operation receipts never enter this store.
@@ -191,6 +214,10 @@ the surviving receipt or returns unknown. A terminal browser receipt releases
 lost-reply transport jobs while retaining unavailable-result tombstones. After commit consumes the private
 copy, cancel still targets its retained admission request: waiting work cancels,
 and an adopted save remains owned by the store.
+A defensive `throttled` Receive response leaves the browser executor and binding
+intact, surfaces the ordinary Too many requests refusal, and continues receiving;
+it never manufactures contact loss. Healthy Heartbeat, Receive, delivery, Reply
+and cleanup continue after the agent window is exhausted.
 
 Cloudflare documents transactional, strongly consistent per-object storage and
 recommends SQLite-backed namespaces. The implementation uses its key-value
@@ -215,7 +242,8 @@ were checked on 2026-09-10. Hosted provisioning and deployment remain unqualifie
 - [Runtime tests](../../../src/worker/agent/agentChannel.runtime.test.ts) bundle the
   actual Worker and run it with real local workerd, D1 and Durable Objects. They
   assert response-level authorization, simultaneous claims and Answers, account
-  throttling, external discovery/movement, and cleanup after capability
+  independent agent/control throttling, browser liveness and delivery after agent
+  exhaustion, external discovery/movement, and cleanup after capability
   loss/deletion, service disable and allowlist removal. They make no inference calls.
 
 Focused relay/OAuth workerd tests cover live tool routing, grant retirement and

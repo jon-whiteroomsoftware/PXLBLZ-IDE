@@ -96,10 +96,37 @@ it('rejects an old registration under another session without revealing the occu
 it('bounds account channel traffic atomically', async () => {
   const namespace = await runtime.getDurableObjectNamespace('AGENT_ACCOUNTS') as unknown as RuntimeNamespace
   const stub = namespace.get(namespace.idFromName('rate-account'))
-  const responses = await Promise.all(Array.from({ length: 241 }, () => stub.fetch('https://internal/window', { method: 'POST', body: JSON.stringify({ type: 'poll', registrationId: 'old', sessionId: 'old', showId: 'old' }) })))
+  const responses = await Promise.all(Array.from({ length: 241 }, () => stub.fetch('https://internal/window', { method: 'POST', body: JSON.stringify({ type: 'arm', registrationId: 'old', sessionId: 'old', showId: 'old' }) })))
   expect(responses.filter((response) => response.status === 429)).toHaveLength(1)
   expect(responses.filter((response) => response.status === 409)).toHaveLength(240)
-  expect(await responses.find((response) => response.status === 429)!.json()).toEqual({ code: 'throttled' })
+  expect(await responses.find((response) => response.status === 429)!.json()).toMatchObject({ code: 'throttled', retry_after_ms: expect.any(Number) })
+})
+it('keeps browser heartbeat, receive, delivery, reply and cleanup healthy after the agent budget is exhausted', async () => {
+  const namespace = await runtime.getDurableObjectNamespace('AGENT_ACCOUNTS') as unknown as RuntimeNamespace
+  const stub = namespace.get(namespace.idFromName('mixed-rate-account'))
+  const send = (body: object) => stub.fetch('https://internal/account', { method: 'POST', body: JSON.stringify(body) })
+  const json = async (body: object) => (await send(body)).json() as Promise<Record<string, unknown>>
+  const own = { registrationId: 'mixed-registration', sessionId: 'mixed-session', showId: 'mixed-show' }
+  await json({ type: 'register', ...own })
+  await json({ type: 'arm', ...own })
+  expect(await json({ type: 'external-tool-connect', agentId: 'grant', agentName: 'Client', nextCallId: 'call', nextBindingId: 'binding' })).toMatchObject({ code: 'bound' })
+
+  const dispatch = json({
+    type: 'external-tool-dispatch', agentId: 'grant', expectedBindingId: 'binding',
+    delivery: { operationId: 'operation', deliveryId: 'delivery', sequence: 0, payload: { kind: 'begin_edit' } },
+  })
+  for (let i = 0; i < 238; i++) expect(await json({ type: 'external-tool-resolve', agentId: 'grant' })).toMatchObject({ code: 'bound' })
+  const throttled = await send({ type: 'external-tool-resolve', agentId: 'grant' })
+  expect(throttled.status).toBe(429)
+  expect(await throttled.json()).toMatchObject({ code: 'throttled', retry_after_ms: expect.any(Number) })
+
+  expect(await json({ type: 'heartbeat', ...own })).toMatchObject({ code: 'status', contact: 'live' })
+  const received = await json({ type: 'receive', ...own }) as { deliveries: Array<{ operationId: string; deliveryId: string }> }
+  expect(received.deliveries).toEqual([expect.objectContaining({ operationId: 'operation', deliveryId: 'delivery' })])
+  expect(await json({ type: 'reply', ...own, bindingId: 'binding', operationId: 'operation', deliveryId: 'delivery', result: { code: 'begun' } })).toEqual({ code: 'received' })
+  expect(await dispatch).toEqual({ code: 'begun' })
+  expect(await json({ type: 'disconnect', ...own, bindingId: 'binding' })).toEqual({ code: 'disconnected' })
+  expect(await json({ type: 'leave', ...own })).toEqual({ code: 'retired' })
 })
 it('can retire its own window after capability loss or Show deletion', async () => {
   const registration = await (await requestAs('account-a', { type: 'register', showId: 'show-a', sessionId: 'leaving' })).json() as { registrationId: string }

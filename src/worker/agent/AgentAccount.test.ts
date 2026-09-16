@@ -51,20 +51,81 @@ it('holds a new external call for the full30 seconds and never recreates its exp
   try {
     await send({ type: 'register', ...window })
     let finished = false
-    const call = send({ type: 'connect-external', ...identity }).then(result => { finished = true; return result })
+    const call = send({ type: 'external-tool-connect', agentId: identity.agentId, agentName: identity.agentName, nextCallId: identity.callId, nextBindingId: identity.bindingId }).then(result => { finished = true; return result })
     await vi.advanceTimersByTimeAsync(25_000)
     expect(finished).toBe(false)
     await vi.advanceTimersByTimeAsync(4999)
     expect(finished).toBe(false)
     await vi.advanceTimersByTimeAsync(1)
     expect(await call).toEqual({ code: 'no_live_editor' })
+    expect((values.get('account') as { agentThrottle: { count: number } }).agentThrottle.count).toBe(1)
     expect(await send({ type: 'resolve-external', agentId: 'grant', callId: 'call' })).toEqual({ code: 'no_live_editor' })
-    const fresh = send({ type: 'connect-external', ...identity, callId: 'fresh', bindingId: 'fresh-binding' })
+    const fresh = send({ type: 'external-tool-connect', agentId: identity.agentId, agentName: identity.agentName, nextCallId: 'fresh', nextBindingId: 'fresh-binding' })
     await vi.advanceTimersByTimeAsync(0)
     expect(await send({ type: 'answer', ...window, callId: 'call' })).toMatchObject({ code: 'no_live_editor' })
     await send({ type: 'answer', ...window, callId: 'fresh' })
     expect(await fresh).toMatchObject({ code: 'bound', claim: { callId: 'fresh', bindingId: 'fresh-binding' } })
   } finally { vi.useRealTimers() }
+})
+
+it('keeps agent and control windows independent while liveness and cleanup remain exempt', async () => {
+  let now = 1000
+  vi.spyOn(Date, 'now').mockImplementation(() => now)
+  const values = new Map<string, unknown>()
+  const storage: ConstructorParameters<typeof AgentAccount>[0]['storage'] = {
+    async get<T>(key: string) { return structuredClone(values.get(key)) as T | undefined },
+    async put<T>(key: string, value: T) { values.set(key, structuredClone(value)) },
+    async delete(key: string) { return values.delete(key) },
+    async setAlarm() {}, async deleteAlarm() {}, async transaction(callback) { return callback(storage) },
+  }
+  const owner = new AgentAccount({ storage })
+  const response = (body: object) => owner.fetch(new Request('https://internal', { method: 'POST', body: JSON.stringify(body) }))
+  const send = async (body: object) => (await response(body)).json() as Promise<Record<string, unknown>>
+  const target = { registrationId: 'registration', sessionId: 'session', showId: 'show' }
+
+  await send({ type: 'register', ...target })
+  expect(values.get('account')).toMatchObject({ agentThrottle: { count: 0 }, controlThrottle: { count: 1 } })
+  for (let i = 0; i < 240; i++) expect(await send({ type: 'external-tool-resolve', agentId: 'grant' })).toEqual({ code: 'no_live_editor' })
+  const throttled = await response({ type: 'external-tool-resolve', agentId: 'grant' })
+  expect(throttled.status).toBe(429)
+  expect(await throttled.json()).toEqual({ code: 'throttled', retry_after_ms: 60_000 })
+
+  for (let i = 0; i < 300; i++) {
+    expect(await send({ type: 'heartbeat', ...target })).toMatchObject({ code: 'status', contact: 'live' })
+    expect(await send({ type: 'poll', ...target })).toMatchObject({ code: 'status' })
+  }
+  expect(await send({ type: 'receive', ...target, lastSeenConnection: 'force-current-snapshot' })).toMatchObject({ code: 'status', deliveries: [] })
+  expect(await send({ type: 'disarm', ...target })).toMatchObject({ code: 'not_armed_here' })
+  expect(values.get('account')).toMatchObject({ agentThrottle: { count: 240 }, controlThrottle: { count: 1 } })
+
+  now = 61_000
+  expect(await send({ type: 'external-tool-resolve', agentId: 'grant' })).toEqual({ code: 'no_live_editor' })
+  expect(values.get('account')).toMatchObject({ agentThrottle: { start: 61_000, count: 1 }, controlThrottle: { start: 61_000, count: 0 } })
+})
+
+it('migrates one persisted legacy window into independent counters', async () => {
+  const now = 1000
+  vi.spyOn(Date, 'now').mockImplementation(() => now)
+  const target = { registrationId: 'registration', sessionId: 'session', showId: 'show' }
+  const values = new Map<string, unknown>([['account', {
+    rendezvous: { registrations: [{ ...target, lastSeenAt: now }], slot: null },
+    throttle: { start: 500, count: 17 },
+  }]])
+  const storage: ConstructorParameters<typeof AgentAccount>[0]['storage'] = {
+    async get<T>(key: string) { return structuredClone(values.get(key)) as T | undefined },
+    async put<T>(key: string, value: T) { values.set(key, structuredClone(value)) },
+    async delete(key: string) { return values.delete(key) },
+    async setAlarm() {}, async deleteAlarm() {}, async transaction(callback) { return callback(storage) },
+  }
+  const owner = new AgentAccount({ storage })
+  const send = async (body: object) => (await owner.fetch(new Request('https://internal', { method: 'POST', body: JSON.stringify(body) }))).json()
+
+  await send({ type: 'heartbeat', ...target })
+  expect(values.get('account')).toMatchObject({ agentThrottle: { count: 17 }, controlThrottle: { count: 17 } })
+  await send({ type: 'external-tool-resolve', agentId: 'grant' })
+  expect(values.get('account')).toMatchObject({ agentThrottle: { count: 18 }, controlThrottle: { count: 17 } })
+  await send({ type: 'arm', ...target })
+  expect(values.get('account')).toMatchObject({ agentThrottle: { count: 18 }, controlThrottle: { count: 18 } })
 })
 
 it('serializes external movement and consumes its current-binding notice once', async () => {

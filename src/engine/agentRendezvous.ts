@@ -36,6 +36,7 @@ export type RendezvousCommand = WindowCommand
   | ({ type: 'inspect' } & AgentClaim)
   | ({ type: 'connect-external' } & AgentClaim)
   | { type: 'resolve-external'; agentId: string; callId?: string }
+  | { type: 'resolve-external-tool'; agentId: string; callId?: string; expectedBindingId?: string }
   | ({ type: 'resolve-builtin' } & WindowIdentity)
   | ({ type: 'disconnect-forget'; bindingId: string } & WindowIdentity)
   | ({ type: 'inspect-external-move'; expectedBindingId: string } & WindowIdentity)
@@ -78,6 +79,20 @@ export function transitionRendezvous(previous: RendezvousState, command: Rendezv
     if (command.type === 'resolve-external') return result('no_live_editor')
     if (command.agentKind !== 'external') return result('invalid_request')
     return transitionRendezvous(state, { ...command, type: 'claim' }, now)
+  }
+  if (command.type === 'resolve-external-tool') {
+    const slot = state.slot
+    if (!slot || slot.kind === 'armed' || slot.agentKind !== 'external' || slot.agentId !== command.agentId) return result('no_live_editor')
+    if (slot.kind === 'pending') {
+      if ((command.callId !== undefined && command.callId !== slot.callId) || command.expectedBindingId !== undefined) return result('no_live_editor')
+      return { state, result: { code: 'pending', claim: slotClaim(slot) } }
+    }
+    if (slot.retiring) return result('retirement_unconfirmed')
+    const moved = (command.callId !== undefined && command.callId !== slot.callId)
+      || (command.expectedBindingId !== undefined && command.expectedBindingId !== slot.bindingId)
+    const moveNotice = slot.moveNotice
+    delete slot.moveNotice
+    return { state, result: { code: moved ? 'binding_moved' : 'bound', claim: slotClaim(slot), ...(moveNotice ? { moveNotice } : {}) } }
   }
   if (command.type === 'inspect') {
     const slot = state.slot

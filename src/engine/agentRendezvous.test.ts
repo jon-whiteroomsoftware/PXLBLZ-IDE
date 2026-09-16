@@ -289,6 +289,22 @@ it('returns bound_here only for the exact current target and consumes the curren
   expect(transitionRendezvous(consumed.state, { type: 'consume-external-move-notice', agentId: 'agent-a' }, 5).result).not.toHaveProperty('moveNotice')
 })
 
+it('atomically compares an external tool binding while consuming its public-response notice once', () => {
+  const armed = transitionRendezvous(registered(), { type: 'arm', ...windowA }, 0).state
+  const bound = transitionRendezvous(armed, { type: 'claim', ...agentA }, 1).state
+  const moved = transitionRendezvous(bound, {
+    type: 'replace-external-binding', target: windowB,
+    expected: { agentId: 'agent-a', bindingId: 'binding-a' },
+    next: { callId: 'call-b', bindingId: 'binding-b' },
+  }, 2).state
+
+  const stale = transitionRendezvous(moved, { type: 'resolve-external-tool', agentId: 'agent-a', expectedBindingId: 'binding-a' }, 3)
+  expect(stale.result).toMatchObject({ code: 'binding_moved', claim: { callId: 'call-b', bindingId: 'binding-b' }, moveNotice: { showId: 'show-b' } })
+  expect(stale.state.slot).not.toHaveProperty('moveNotice')
+  expect(transitionRendezvous(stale.state, { type: 'resolve-external-tool', agentId: 'agent-a', expectedBindingId: 'binding-b' }, 4).result)
+    .toMatchObject({ code: 'bound', claim: { callId: 'call-b', bindingId: 'binding-b' } })
+})
+
 it('stores only bounded nonempty registration names', () => {
   const blank = transitionRendezvous(emptyRendezvous(), { type: 'register', ...windowA, showName: '' }, 0).state
   const long = transitionRendezvous(blank, { type: 'register', ...windowB, showName: 'x'.repeat(129) }, 0).state

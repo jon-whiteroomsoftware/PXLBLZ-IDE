@@ -115,6 +115,18 @@ inspection behaves the same while the grant has a newer binding; without a
 current binding the established `no_live_editor` result remains. Concurrent or
 lost notice responses are not acknowledged or replayed.
 
+Every public `tools/call`, including `list_commands`, performs exactly one
+account-owner fetch and consumes exactly one agent-window debit. Binding
+resolution, the one-shot notice and relay work share that request; internal
+inspection while a held connection waits cannot debit again. Owner refusal is
+authoritative: `throttled` includes the nonnegative integer `retry_after_ms` for
+the fixed-window remainder; `unauthorized` identifies invalid or expired
+credentials; `unavailable` identifies an absent required service; and `unknown`
+identifies an indeterminate owner transport. None becomes `no_live_editor`.
+The established `no_live_editor` result remains for a missing, expired,
+retiring or mismatched connection, while `binding_moved` remains the current
+generation mismatch. The server adds no client-visible retry loop.
+
 MCP request bodies are bounded to66 KiB before SDK parsing, allowing a64 KiB
 normalized command plus its JSON-RPC envelope. OAuth forms remain16 KiB. No
 input or captured reference context is truncated to fit. Relay/read results are

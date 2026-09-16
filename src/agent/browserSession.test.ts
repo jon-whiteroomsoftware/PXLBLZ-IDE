@@ -89,6 +89,21 @@ it('preserves the same private operation across contact loss without re-register
   expect(calls.filter(call => call.type === 'register')).toHaveLength(1)
   session.close()
 })
+it('keeps the binding and shows a throttled receive refusal without manufacturing contact loss', async () => {
+  const { session, receives, deliver, admission } = setup()
+  const events: unknown[] = []; session.subscribe(event => events.push(event))
+  await session.ready
+  await deliver({ kind: 'begin_edit' }, 0)
+  receives.shift()!(Response.json({ code: 'throttled', retry_after_ms: 4321 }, { status: 429 }))
+  await vi.waitFor(() => expect(session.getConnection()).toEqual({ kind: 'refused', code: 'throttled' }))
+  expect(events).not.toContainEqual(expect.objectContaining({ connection: expect.objectContaining({ kind: 'contact-lost' }) }))
+  expect(session.getOutcome('op').code).toBe('outcome')
+  await vi.waitFor(() => expect(receives.length).toBe(1), { timeout: 2000 })
+  await deliver({ kind: 'commit_edit' }, 1)
+  expect(admission.beginRequest).toHaveBeenCalledTimes(1)
+  expect(admission.complete).toHaveBeenCalledWith(expect.anything(), 'nothing-applied')
+  session.close()
+})
 it('returns a near-limit context unchanged and explicitly refuses oversized context and Show reads', async () => {
   const { session, admission, deliver, calls } = setup()
   await session.ready
