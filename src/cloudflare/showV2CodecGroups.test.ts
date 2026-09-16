@@ -1,0 +1,11 @@
+import {readFileSync} from 'node:fs'
+import {expect,it,vi} from 'vitest'
+import * as groups from '../engine/showGroupsV2'
+import {validateShowRecordV2} from '../engine/showCompositionV2'
+import {PersonalStorageGuardError} from './resourceProtection'
+import {cloneValidShowRecordV2ForWorker} from './showV2Codec'
+const fixture=()=>JSON.parse(readFileSync(new URL('../../e2e/fixtures/showV2ClipTiming.json',import.meta.url),'utf8'))
+it('keeps held Group definition/materialization schema and domain admission available without runtime code generation',()=>{const record=fixture();const original=globalThis.Function;globalThis.Function=function forbidden():never{throw Error('Code generation from strings disallowed')}as unknown as FunctionConstructor;try{expect(cloneValidShowRecordV2ForWorker(record)).toEqual(record)}finally{globalThis.Function=original}})
+it.each(['nested-field','missing-instance','blank-hold','negative-hold','overlap']as const)('rejects %s with existing typed400 guard and preserves desktop validation',partition=>{const record=fixture();switch(partition){case'nested-field':record.composition.groupDefinitions[0].clips[0].hidden=true;break;case'missing-instance':record.composition.groupDefinitions[0].clips[0].instanceId='missing';break;case'blank-hold':record.composition.groupOccurrences[0].holds[0].id=' ';break;case'negative-hold':record.composition.groupOccurrences[0].holds[0].durationMs=-1;break;case'overlap':record.composition.groupOccurrences.push({...structuredClone(record.composition.groupOccurrences[0]),id:'colliding'});break}expect(validateShowRecordV2(record).length).toBeGreaterThan(0);try{cloneValidShowRecordV2ForWorker(record);throw Error('Expected refusal')}catch(error){expect(error).toBeInstanceOf(PersonalStorageGuardError);expect(error).toMatchObject({status:400,code:'invalid_show_v2_record'});expect((error as Error).message).not.toMatch(/code generation/i)}})
+
+it('retains interpreted structural admission on the materialized derived record itself',()=>{const record=fixture();const effective=groups.materializeShowGroupsV2(record);const materialize=vi.spyOn(groups,'materializeShowGroupsV2').mockReturnValue({...effective,hidden:true}as never);try{expect(()=>cloneValidShowRecordV2ForWorker(record)).toThrow(/additional|not allowed|unexpected/i)}finally{materialize.mockRestore()}})

@@ -1,0 +1,9 @@
+# Worker v2 Group admission
+
+The Worker v2 replacement codec admits every authored and derived record through interpreted structural validation plus mandatory domain validation. Worker runtimes forbid dynamic code generation; Group definition-as-record and materialized recursion must use the same existing private `@cfworker/json-schema` interpreter as top-level admission.
+
+The explicitly domain-only `validateShowRecordV2Domain` accepts a trusted structural-only validator. Its desktop default uses the existing AJV schema. Private Group recursion performs structural admission first, then always recurses internally through domain validation with that same structural validator. It accepts no skip flag or complete-validation callback. Public full desktop validation, persisted schemas and Group projection semantics remain unchanged.
+
+Invalid client records raise the existing `PersonalStorageGuardError` with400/`invalid_show_v2_record` and the actual schema/domain diagnostic. The Worker router classifies that guard; no new error route, persistence queue or schema waiver is introduced. Valid held Groups PUT, GET and reopen without invoking `Function`/AJV generation. Unknown nested fields, missing local runtime references, invalid holds and materialized collisions refuse and leave stored bytes unchanged. The derived record itself also receives structural checks, even if the preimage was structurally admitted.
+
+Evidence: [timing qualification](../evidence/issue-1038-clip-timing-workspace/test-design.json), `showV2CodecGroups.test.ts`, existing codec/desktop/Group tests and the real authenticated timing fixture's five malformed PUT→retained GET partitions. This repair is a required persistence prerequisite for visible effective held Group occupancy; it does not expand source/compiler or authoring semantics.

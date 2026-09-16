@@ -6,6 +6,8 @@ import { ShowStagePreview } from './ShowStagePreview'
 import { isValidatedEmptyShowV2 } from '@/engine/showMarkerRouteModel'
 import { admitShowV2PilotTransitionResize, type ShowV2PilotAdoptionReceipt } from '@/store/showV2PreparedEditAdmission'
 import { ShowV2MarkerEditor } from './ShowV2MarkerEditor'
+import { ShowV2ClipTimingEditor, ShowV2TimelineRows } from './ShowV2ClipTimingEditor'
+import { buildShowV2TimelineEditorModel, selectedShowOrdinaryClipV2 } from '@/engine/showV2TimelineEditorModel'
 import { qualifyShowV2PilotArtifacts } from '@/engine/showV2Pilot'
 import { prepareShowStageV2 } from '@/engine/showPreparedStageV2'
 import { useShowStore } from '@/store/showStore'
@@ -27,6 +29,7 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
   const libraries = useLibraryStore(state => state.userLibraries)
   const profiles = useControllerProfileStore(state => state.profiles)
   const [status, setStatus] = useState('')
+  const [selectedClipId, setSelectedClipId] = useState('')
 
   useEffect(() => {
     if (record) return
@@ -52,6 +55,8 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
     return { record, dependencies, prepared: prepareShowStageV2(record, dependencies) }
   }, [record, patterns, maps, libraries, profiles, stageMap])
   const preview = editCapture?.prepared ?? null
+  const timingModel = useMemo(() => editCapture ? buildShowV2TimelineEditorModel(editCapture) : { sources: [], rows: [] }, [editCapture])
+  const selectedClip = record ? selectedShowOrdinaryClipV2(record, selectedClipId) : null
   const activeEditCapture = useRef(editCapture)
   useLayoutEffect(() => {
     activeEditCapture.current = editCapture
@@ -155,7 +160,7 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
   }
 
   return (
-    <div data-testid="show-v2-route-pilot" className="grid h-full min-h-0 grid-cols-1 bg-zinc-950 text-zinc-200 lg:grid-cols-[minmax(22rem,0.8fr)_minmax(26rem,1.2fr)]">
+    <div data-testid="show-v2-route-pilot" className="grid h-full min-h-0 grid-cols-1 bg-zinc-950 text-zinc-200 xl:grid-cols-[minmax(22rem,0.8fr)_minmax(26rem,1.2fr)]">
       <section className="min-h-0 overflow-y-auto px-5 py-5 sm:px-7">
         <div className="mx-auto max-w-xl">
           <div className="flex items-baseline justify-between gap-4 border-b border-zinc-800 pb-3">
@@ -184,6 +189,7 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
               </div>
             </div>
           )}
+          {editCapture && <ShowV2ClipTimingEditor key={`timing:${editCapture.record.id}`} capture={editCapture} sources={timingModel.sources} selectedClipId={selectedClip?.id ?? ''} onSelectClip={setSelectedClipId} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           {editCapture && <ShowV2MarkerEditor key={editCapture.record.id} capture={editCapture} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           <div className="mt-7 flex flex-wrap gap-2">
             <Button size="xs" variant="outline" disabled={!history?.past.length} onClick={() => void runHistory('undo')}>Undo</Button>
@@ -196,7 +202,8 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
           </output>
         </div>
       </section>
-      <section className="min-h-[20rem] border-t border-zinc-800 p-3 lg:min-h-0 lg:border-l lg:border-t-0" aria-label="V2 Stage preview">
+      <section className="flex min-h-[20rem] flex-col overflow-y-auto border-t border-zinc-800 p-3 xl:min-h-0 xl:border-l xl:border-t-0" aria-label="V2 Stage preview">
+        <div className="min-h-[24rem] flex-1">
         {preview?.status === 'ready' ? (
           <ShowStagePreview kind="prepared-v2" bundle={preview.bundle} />
         ) : (
@@ -204,6 +211,8 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
             {preview?.status === 'empty' ? 'Add content to preview or export this Show.' : preview?.status === 'refused' ? preview.message : 'Preparing Stage preview…'}
           </div>
         )}
+        </div>
+        {record && <ShowV2TimelineRows rows={timingModel.rows} showEndMs={record.composition.showEndMs} selectedClipId={selectedClip?.id ?? ''} onSelectClip={setSelectedClipId} />}
       </section>
     </div>
   )

@@ -7,6 +7,10 @@ import { useShowStore } from './showStore'
 
 import { editShowTransitionV2, type ShowTransitionEditIntentV2, type ShowTransitionEditResultV2, type ShowTransitionEditRefusalV2 } from '@/engine/showTransitionsV2'
 import type { ShowMarkerEditResultV2 } from '@/engine/showMarkersV2'
+import { createShowClipV2, type CreateShowClipIntentV2, type ShowClipCreationResultV2 } from '@/engine/showClipCreationV2'
+import { editShowClipTemporalV2, type ShowClipTemporalIntentV2, type ShowClipTemporalResultV2 } from '@/engine/showClipTemporalV2'
+import { insertShowTimeV2, type ShowInsertTimeIntentV2, type ShowTimelineEditResultV2, type ShowTimelineEditAffectedV2 } from '@/engine/showTimelineV2'
+import { editShowLayoutIntervalsV2, type ShowLayoutEditIntentV2, type ShowLayoutEditResultV2 } from '@/engine/showLayoutIntervalsV2'
 export interface ShowV2PilotPreparedCapture {
   readonly record: ShowRecordV2
   readonly dependencies: ShowPreparedStageDependenciesV2
@@ -44,8 +48,19 @@ export type ShowV2PilotTransitionResizeOutcome =
   | ({ status: 'unchanged' } & ResizeEmpty)
   | ({ status: 'refused'; source: 'admission'; code: AdmissionRefusal; message: string } & ResizeEmpty)
   | ({ status: 'refused'; source: 'transition'; code: ShowTransitionEditRefusalV2; message: string } & ResizeEmpty)
-type Command = { owner: 'marker'; intent: ShowMarkerEditIntentV2 } | { owner: 'transition-resize'; intent: ShowV2PilotTransitionResizeIntent }
-type OwnerResult<C extends Command> = C['owner'] extends 'marker' ? ShowMarkerEditResultV2 : ShowTransitionEditResultV2
+type Command =
+  | { owner: 'marker'; intent: ShowMarkerEditIntentV2 }
+  | { owner: 'transition-resize'; intent: ShowV2PilotTransitionResizeIntent }
+  | { owner: 'create-clip'; intent: CreateShowClipIntentV2 }
+  | { owner: 'clip-temporal'; intent: ShowClipTemporalIntentV2 }
+  | { owner: 'insert-time'; intent: ShowInsertTimeIntentV2 }
+  | { owner: 'set-show-end'; intent: Extract<ShowLayoutEditIntentV2, { kind: 'set-show-end' }> }
+type OwnerResult<C extends Command> = C extends { owner: 'marker' } ? ShowMarkerEditResultV2
+  : C extends { owner: 'create-clip' } ? ShowClipCreationResultV2
+  : C extends { owner: 'clip-temporal' } ? ShowClipTemporalResultV2
+  : C extends { owner: 'insert-time' } ? ShowTimelineEditResultV2
+  : C extends { owner: 'set-show-end' } ? ShowLayoutEditResultV2
+  : ShowTransitionEditResultV2
 type CheckedOutcome<R> =
   | { status: 'applied'; settlement: 'saved' | 'superseded'; result: R }
   | { status: 'unchanged'; result: R }
@@ -72,7 +87,15 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
   const command: Command = request
   const result = (command.owner === 'marker'
     ? editShowMarkerV2(current, structuredClone(command.intent))
-    : editShowTransitionV2(current, structuredClone(command.intent))) as OwnerResult<C>
+    : command.owner === 'create-clip'
+      ? createShowClipV2(current, structuredClone(command.intent))
+      : command.owner === 'clip-temporal'
+        ? editShowClipTemporalV2(current, structuredClone(command.intent))
+        : command.owner === 'insert-time'
+          ? insertShowTimeV2(current, structuredClone(command.intent))
+          : command.owner === 'set-show-end'
+            ? editShowLayoutIntervalsV2(current, structuredClone(command.intent))
+            : editShowTransitionV2(current, structuredClone(command.intent))) as OwnerResult<C>
   if (result.status === 'refused') return { status: 'refused', source: 'owner', result }
   if (result.status === 'unchanged') return { status: 'unchanged', result }
   const { capture } = request
@@ -86,7 +109,7 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
   }
   const inputs = prepared.status === 'ready' ? { ...prepared.bundle.assets, stageMap: capture.dependencies.stageMap } : capture.dependencies
   const candidate = prepareShowStageV2(result.record, inputs)
-  if (candidate.status !== prepared.status) return refuse('unsupported-pilot-record', candidate.status === 'refused' ? candidate.message : 'The edit changed the prepared Show capability.')
+  if (command.owner === 'create-clip' ? candidate.status !== 'ready' : candidate.status !== prepared.status) return refuse('unsupported-pilot-record', candidate.status === 'refused' ? candidate.message : 'The edit changed the prepared Show capability.')
   if (!eligible()) return refuse('stale-edit', 'The Show or its dependencies changed. Try the edit again.')
   const saving = useShowStore.getState().updateShowV2Pilot(showId, result.record)
   const adopted = useShowStore.getState().showV2Pilots[showId]
@@ -120,4 +143,76 @@ export async function admitShowV2PilotTransitionResize(request: ShowV2PilotTrans
   if (outcome.status === 'unchanged') return { status: 'unchanged', ...resizeEmpty() }
   const { affectedClipIds, affectedTransitionIds, affectedTrackIds, removedIds } = outcome.result
   return { status: 'applied', settlement: outcome.settlement, affectedClipIds, affectedTransitionIds, affectedTrackIds, removedIds }
+}
+export type ShowV2PilotCreateClipRequest = ShowV2PilotPreparedEditContext & { intent: CreateShowClipIntentV2 }
+type CreateEffects = Pick<ShowClipCreationResultV2, 'affectedClipIds' | 'affectedTrackIds' | 'affectedInstanceIds' | 'affectedAppearanceKeyIds' | 'affectedKeyframeIds' | 'hoistedInstanceIds' | 'removedIds'>
+export type ShowV2PilotCreateClipOutcome =
+  | ({ status: 'applied'; settlement: 'saved' | 'superseded' } & CreateEffects)
+  | ({ status: 'unchanged' } & CreateEffects)
+  | ({ status: 'refused'; source: 'admission'; code: AdmissionRefusal; message: string } & CreateEffects)
+  | ({ status: 'refused'; source: 'owner'; code: Extract<ShowClipCreationResultV2, { status: 'refused' }>['code']; message: string } & CreateEffects)
+export async function admitShowV2PilotCreateClip(request: ShowV2PilotCreateClipRequest): Promise<ShowV2PilotCreateClipOutcome> {
+  const outcome = await admitPreparedEdit({ ...request, owner: 'create-clip' as const })
+  if (outcome.status === 'refused' && outcome.source === 'admission') return { ...outcome, affectedClipIds: [], affectedTrackIds: [], affectedInstanceIds: [], affectedAppearanceKeyIds: [], affectedKeyframeIds: [], hoistedInstanceIds: [], removedIds: [] }
+  const { affectedClipIds, affectedTrackIds, affectedInstanceIds, affectedAppearanceKeyIds, affectedKeyframeIds, hoistedInstanceIds, removedIds } = outcome.result
+  const effects = { affectedClipIds, affectedTrackIds, affectedInstanceIds, affectedAppearanceKeyIds, affectedKeyframeIds, hoistedInstanceIds, removedIds }
+  if (outcome.status === 'refused') {
+    if (outcome.result.status !== 'refused') throw new Error('Invalid Create owner result.')
+    return { status: 'refused', source: 'owner', code: outcome.result.code, message: outcome.result.message, ...effects }
+  }
+  return outcome.status === 'unchanged' ? { status: 'unchanged', ...effects } : { status: 'applied', settlement: outcome.settlement, ...effects }
+}
+type OwnerRefusal<R> = R extends { status: 'refused'; code: infer C extends string } ? C : never
+type PilotOwnerOutcome<R, E> =
+  | ({ status: 'applied'; settlement: 'saved' | 'superseded' } & E)
+  | ({ status: 'unchanged' } & E)
+  | ({ status: 'refused'; source: 'admission'; code: AdmissionRefusal; message: string } & E)
+  | ({ status: 'refused'; source: 'owner'; code: OwnerRefusal<R>; message: string } & E)
+function presentOwnerOutcome<R extends { status: string }, E>(outcome: CheckedOutcome<R>, effects: E): PilotOwnerOutcome<R, E> {
+  if (outcome.status === 'refused') {
+    if (outcome.source === 'admission') return { ...outcome, ...effects }
+    if (outcome.result.status !== 'refused' || !('code' in outcome.result) || !('message' in outcome.result)) throw new Error('Invalid typed owner refusal.')
+    return { status: 'refused', source: 'owner', code: outcome.result.code as OwnerRefusal<R>, message: String(outcome.result.message), ...effects }
+  }
+  return outcome.status === 'unchanged' ? { status: 'unchanged', ...effects } : { status: 'applied', settlement: outcome.settlement, ...effects }
+}
+function timelineEffects(result?: ShowTimelineEditAffectedV2): ShowTimelineEditAffectedV2 {
+  return result ? {
+    affectedClipIds: result.affectedClipIds, affectedInstanceIds: result.affectedInstanceIds, affectedTransitionIds: result.affectedTransitionIds,
+    affectedTrackIds: result.affectedTrackIds, affectedLayoutDefinitionIds: result.affectedLayoutDefinitionIds, affectedLayoutOccurrenceIds: result.affectedLayoutOccurrenceIds,
+    affectedGroupDefinitionIds: result.affectedGroupDefinitionIds, affectedGroupOccurrenceIds: result.affectedGroupOccurrenceIds, affectedLayerIds: result.affectedLayerIds,
+    affectedMarkerIds: result.affectedMarkerIds, affectedAppearanceKeyIds: result.affectedAppearanceKeyIds, affectedPropertyKeyIds: result.affectedPropertyKeyIds,
+    removedIds: result.removedIds, discardedControlTargets: result.discardedControlTargets,
+  } : {
+    affectedClipIds: [], affectedInstanceIds: [], affectedTransitionIds: [], affectedTrackIds: [], affectedLayoutDefinitionIds: [], affectedLayoutOccurrenceIds: [],
+    affectedGroupDefinitionIds: [], affectedGroupOccurrenceIds: [], affectedLayerIds: [], affectedMarkerIds: [], affectedAppearanceKeyIds: [], affectedPropertyKeyIds: [], removedIds: [], discardedControlTargets: [],
+  }
+}
+function exactIntentFields(intent: unknown, fields: readonly string[]): boolean {
+  return !!intent && typeof intent === 'object' && !Array.isArray(intent) && Object.keys(intent).length === fields.length && fields.every(field => Object.prototype.hasOwnProperty.call(intent, field))
+}
+export type ShowV2PilotClipTemporalRequest = ShowV2PilotPreparedEditContext & { intent: ShowClipTemporalIntentV2 }
+export type ShowV2PilotClipTemporalOutcome = PilotOwnerOutcome<ShowClipTemporalResultV2, ShowTimelineEditAffectedV2>
+export async function admitShowV2PilotClipTemporal(request: ShowV2PilotClipTemporalRequest): Promise<ShowV2PilotClipTemporalOutcome> {
+  const outcome = await admitPreparedEdit({ ...request, owner: 'clip-temporal' as const })
+  return presentOwnerOutcome(outcome, timelineEffects('result' in outcome ? outcome.result : undefined))
+}
+export type ShowV2PilotInsertTimeRequest = ShowV2PilotPreparedEditContext & { intent: ShowInsertTimeIntentV2 }
+export type ShowV2PilotInsertTimeOutcome = PilotOwnerOutcome<ShowTimelineEditResultV2, ShowTimelineEditAffectedV2>
+export async function admitShowV2PilotInsertTime(request: ShowV2PilotInsertTimeRequest): Promise<ShowV2PilotInsertTimeOutcome> {
+  if (!exactIntentFields(request.intent, ['atMs', 'durationMs'])) return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Give one explicit Insert Time operation.', ...timelineEffects() }
+  const outcome = await admitPreparedEdit({ ...request, owner: 'insert-time' as const })
+  return presentOwnerOutcome(outcome, timelineEffects('result' in outcome ? outcome.result : undefined))
+}
+type EndEffects = Pick<ShowLayoutEditResultV2, 'affectedClipIds' | 'affectedGroupOccurrenceIds' | 'affectedLayoutDefinitionIds' | 'affectedLayoutOccurrenceIds' | 'affectedTrackIds' | 'removedLayoutOccurrenceIds'>
+function endEffects(result?: ShowLayoutEditResultV2): EndEffects {
+  return result ? { affectedClipIds: result.affectedClipIds, affectedGroupOccurrenceIds: result.affectedGroupOccurrenceIds, affectedLayoutDefinitionIds: result.affectedLayoutDefinitionIds, affectedLayoutOccurrenceIds: result.affectedLayoutOccurrenceIds, affectedTrackIds: result.affectedTrackIds, removedLayoutOccurrenceIds: result.removedLayoutOccurrenceIds }
+    : { affectedClipIds: [], affectedGroupOccurrenceIds: [], affectedLayoutDefinitionIds: [], affectedLayoutOccurrenceIds: [], affectedTrackIds: [], removedLayoutOccurrenceIds: [] }
+}
+export type ShowV2PilotSetShowEndRequest = ShowV2PilotPreparedEditContext & { intent: Extract<ShowLayoutEditIntentV2, { kind: 'set-show-end' }> }
+export type ShowV2PilotSetShowEndOutcome = PilotOwnerOutcome<ShowLayoutEditResultV2, EndEffects>
+export async function admitShowV2PilotSetShowEnd(request: ShowV2PilotSetShowEndRequest): Promise<ShowV2PilotSetShowEndOutcome> {
+  if (!exactIntentFields(request.intent, ['kind', 'showEndMs']) || request.intent.kind !== 'set-show-end') return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Give one explicit Show End operation.', ...endEffects() }
+  const outcome = await admitPreparedEdit({ ...request, owner: 'set-show-end' as const })
+  return presentOwnerOutcome(outcome, endEffects('result' in outcome ? outcome.result : undefined))
 }

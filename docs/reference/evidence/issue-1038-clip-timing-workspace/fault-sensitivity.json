@@ -1,0 +1,97 @@
+{
+  "mutants": [
+    {
+      "name": "create-cross-capability",
+      "source": "src/store/showV2PreparedEditAdmission.ts",
+      "testFiles": [
+        "src/store/showV2ClipTimingAdmission.test.ts"
+      ],
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-clip-timing-mutant-create-cross-capability.log"
+    },
+    {
+      "name": "candidate-refusal-bypass",
+      "source": "src/store/showV2PreparedEditAdmission.ts",
+      "testFiles": [
+        "src/store/showV2ClipTimingAdmission.test.ts"
+      ],
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-clip-timing-mutant-candidate-refusal-bypass.log"
+    },
+    {
+      "name": "lost-affected-track",
+      "source": "src/store/showV2PreparedEditAdmission.ts",
+      "testFiles": [
+        "src/store/showV2ClipTimingAdmission.test.ts"
+      ],
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-clip-timing-mutant-lost-affected-track.log"
+    },
+    {
+      "name": "lost-affected-property-key",
+      "source": "src/store/showV2PreparedEditAdmission.ts",
+      "testFiles": [
+        "src/store/showV2ClipTimingAdmission.test.ts"
+      ],
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-clip-timing-mutant-lost-affected-property-key.log"
+    },
+    {
+      "name": "ambiguous-runtime-choice",
+      "source": "src/engine/showV2TimelineEditorModel.ts",
+      "testFiles": [
+        "src/engine/showV2TimelineEditorModel.test.ts"
+      ],
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-clip-timing-mutant-ambiguous-runtime-choice.log"
+    },
+    {
+      "name": "identity-collision-bypass",
+      "source": "src/engine/showV2TimelineEditorModel.ts",
+      "testFiles": [
+        "src/engine/showV2TimelineEditorModel.test.ts"
+      ],
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-clip-timing-mutant-identity-collision-bypass.log"
+    },
+    {
+      "name": "wrong-source-runtime-match",
+      "source": "src/engine/showV2TimelineEditorModel.ts",
+      "testFiles": [
+        "src/engine/showV2TimelineEditorModel.test.ts"
+      ],
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-clip-timing-mutant-wrong-source-runtime-match.log"
+    },
+    {
+      "name": "obsolete-completion-publication",
+      "source": "src/components/ShowV2ClipTimingEditor.tsx",
+      "testFiles": [
+        "src/components/ShowV2ClipTimingCompletion.test.tsx"
+      ],
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-clip-timing-mutant-obsolete-completion-publication.log",
+      "classification": "Manual DOM matcher classification:7 genuine consumer assertions fail; matcher reports Error rather than AssertionError. No source rerun or oracle relaxation."
+    },
+    {
+      "name": "derived-structural-bypass",
+      "source": "src/engine/showCompositionV2.ts",
+      "testFiles": [
+        "src/cloudflare/showV2CodecGroups.test.ts"
+      ],
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-clip-timing-mutant-derived-structural-bypass.log"
+    }
+  ],
+  "allKilled": true,
+  "sourcesRestored": true
+}

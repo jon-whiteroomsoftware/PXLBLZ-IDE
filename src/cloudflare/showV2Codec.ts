@@ -6,6 +6,7 @@ import {
   type ShowCompositionV2ValidationIssue,
   type ShowRecordV2,
 } from '../engine/showCompositionV2'
+import { PersonalStorageGuardError } from './resourceProtection'
 
 let structuralValidator: Validator | undefined
 
@@ -36,10 +37,10 @@ function structuralIssues(value: unknown): ShowCompositionV2ValidationIssue[] {
 export function cloneValidShowRecordV2ForWorker(value: unknown): ShowRecordV2 {
   const cloned = JSON.parse(JSON.stringify(value)) as unknown
   const issues = structuralIssues(cloned)
-  if (issues.length === 0) issues.push(...validateShowRecordV2Domain(cloned as ShowRecordV2))
+  if (issues.length === 0) issues.push(...validateShowRecordV2Domain(cloned as ShowRecordV2, structuralIssues))
   if (issues.length > 0) {
     const first = issues[0]
-    throw new Error(`Invalid Show v2 record at ${first.path}: ${first.message}`)
+    throw new PersonalStorageGuardError('invalid_show_v2_record', 400, `Invalid Show v2 record at ${first.path}: ${first.message}`)
   }
   return cloned as ShowRecordV2
 }

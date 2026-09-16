@@ -1,0 +1,58 @@
+{
+  "issue": 1038,
+  "base": "ef0240ca6ed905cb3c90b4c181a7363615d5fd05",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
+    "proofRows": [
+      "ROUTE",
+      "FAILURE",
+      "SHARING",
+      "RESTART",
+      "CURVE",
+      "ACTIVATION",
+      "INSERT",
+      "GROUP-HOLD",
+      "LAYOUT-END",
+      "PARITY"
+    ]
+  },
+  "invariants": [
+    "Only typed Create crosses explicitly validated empty to ready; other commands preserve capability.",
+    "One exact captured source/dependency identity, final revision/provider/lifetime check and existing history/save adoption per action.",
+    "Ordinary Clip timing preserves shared runtimes and exact owned animation; effective Group occupancy remains read-only.",
+    "Fresh caller IDs use the existing allocator and collide atomically; source matching uses immutable kind/id, never display-name equality.",
+    "Every derived Group record receives structural admission before mandatory domain recursion; Worker uses its existing no-codegen interpreter, desktop retains AJV."
+  ],
+  "partitions": [
+    "Ready/empty creation, zero/one/multiple effective source/runtime matches, collision and missing trusted source/map.",
+    "Connected move/trim/extend/split, nonlinear contribution animation and existing property-carrier refusal.",
+    "Insert curve/hold/window boundaries, ordinary/held Group occupancy, Show End growth/protected shortening/empty.",
+    "Unsafe/malformed/no-op/stale revision/route/provider/assets; own save/rollback versus superseded completion.",
+    "Authenticated held Group PUT/GET/reopen, nested unknown field/missing reference/blank or negative hold/materialized overlap classify invalid input400 and retain prior bytes."
+  ],
+  "sequences": [
+    "Create -> select -> move -> trim -> extend -> split -> Insert Time -> Set Show End -> Undo/Redo -> save/reload/native artifact reopen.",
+    "Draft/cancel/selection/no-op/refusal -> unchanged history/write count; stale completion -> no obsolete selection/draft publication.",
+    "Empty -> typed Create -> ready; empty Insert/End -> empty without runtime."
+  ],
+  "oracles": [
+    "Persisted and reopened native record, independently calculated held nonlinear values and Fast/Precise artifact frames.",
+    "Exact one history/revision/provider write per changed action and zero writes/empty effects for no-op/refusal.",
+    "Real desktop/narrow/intermediate route, keyboard ordinary selection, Group noninteractive occupancy and no document overflow.",
+    "No-codegen derived structural fault oracle and actual Worker HTTP400 invalid_show_v2_record, never a generic compiler or schema bypass."
+  ],
+  "residualGaps": [
+    "No production activation, pointer editing, Layer/Group CRUD/create, appearance/Property authoring or Reset projection-plan UI.",
+    "Existing typed pure-owner/compiler preparation refusals stay atomic; no kernel/domain expansion.",
+    "Coordinator owns exact candidate review/final committed-tip suites/landing; worker reports focused evidence only."
+  ],
+  "qualification": {
+    "focused": "105 tests across9 selected files pass on ef024; actual matching file list is in final-focused log.",
+    "static": "Full TypeScript project check and scoped ESLint pass after the authorized structural callback seam.",
+    "browser": "Real authenticated7-action/9-write sequence, UndoRedo/reload/native reopen, Fast/Precise125ms,1440/1024/390 keyboard and overflow checks pass; fresh committed screenshots follow source checkpoint.",
+    "mutations": "Nine named semantic mutants killed; exact source restored. DOM matcher Error classified by actual failing consumer assertions.",
+    "worker": "Initial heldGroup save500/code-generation denial reproduced; repaired validPUT\u2192GET and five invalidPUT400 with unchanged stored bytes pass. Derived structural bypass mutant killed.",
+    "parity": "Final restored-source corpus47 passes on ef024; no compiler/schema change."
+  }
+}

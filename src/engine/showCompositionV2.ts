@@ -281,7 +281,7 @@ export function validateShowRecordV2(record: ShowRecordV2): ShowCompositionV2Val
 }
 
 /** Run referential and timeline validation after a trusted structural validator. */
-export function validateShowRecordV2Domain(record: ShowRecordV2): ShowCompositionV2ValidationIssue[] {
+export function validateShowRecordV2Domain(record: ShowRecordV2, derivedStructuralIssues: (value: unknown) => ShowCompositionV2ValidationIssue[] = desktopStructuralIssuesV2): ShowCompositionV2ValidationIssue[] {
   const issues: ShowCompositionV2ValidationIssue[] = []
   if (record.version !== 2) {
     addIssue(issues, 'version', 'invalid-version', 'Show record version must be 2.')
@@ -468,7 +468,7 @@ export function validateShowRecordV2Domain(record: ShowRecordV2): ShowCompositio
     occurrences,
     routingLayouts: layouts,
     definitions,
-  })
+  }, derivedStructuralIssues)
 
   return issues
 }
@@ -727,6 +727,7 @@ function validateGroups(
     routingLayouts: Map<string, ShowRoutingLayout>
     definitions: Map<string, ShowGroupDefinitionV2>
   },
+  derivedStructuralIssues: (value: unknown) => ShowCompositionV2ValidationIssue[],
 ): void {
   record.composition.groupDefinitions.forEach((definition, definitionIndex) => {
     const path = `composition.groupDefinitions[${definitionIndex}]`
@@ -740,7 +741,7 @@ function validateGroups(
       ranks.add(layer.rank)
     })
     if (definition.propertyTracks.some(track => track.target.kind === 'layout-occurrence-split-position' || track.target.kind === 'show-repeat-scale')) addIssue(issues, path, 'invalid-group-binding', 'Group tracks must target definition-local Clips or instances.')
-    for (const issue of validateShowRecordV2(groupDefinitionAsRecord(record, definition))) {
+    for (const issue of validateDerivedShowRecordV2(groupDefinitionAsRecord(record, definition), derivedStructuralIssues)) {
       addIssue(issues, `${path}.${issue.path}`, issue.code, issue.message)
     }
     definition.clips.forEach((clip, index) => {
@@ -823,9 +824,18 @@ function validateGroups(
   })
   if (issues.length === 0 && record.composition.groupOccurrences.length > 0) {
     try {
-      for (const issue of validateShowRecordV2(materializeShowGroupsV2(record))) addIssue(issues, `materialized.${issue.path}`, issue.code, issue.message)
+      for (const issue of validateDerivedShowRecordV2(materializeShowGroupsV2(record), derivedStructuralIssues)) addIssue(issues, `materialized.${issue.path}`, issue.code, issue.message)
     } catch (error) {
       addIssue(issues, 'composition.groupOccurrences', 'invalid-group-binding', error instanceof Error ? error.message : String(error))
     }
   }
+}
+
+function desktopStructuralIssuesV2(value: unknown): ShowCompositionV2ValidationIssue[] {
+  return structuralIssues(v2StructuralValidator(), value)
+}
+
+function validateDerivedShowRecordV2(record: ShowRecordV2, structural: (value: unknown) => ShowCompositionV2ValidationIssue[]): ShowCompositionV2ValidationIssue[] {
+  const issues = structural(record)
+  return issues.length > 0 ? issues : validateShowRecordV2Domain(record, structural)
 }
