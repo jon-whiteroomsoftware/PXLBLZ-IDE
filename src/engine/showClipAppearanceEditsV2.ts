@@ -111,13 +111,17 @@ function applyAppearance(value: ShowClipAppearanceValueV2, patch: ShowClipAppear
   if (patch.view) Object.assign(value.view, structuredClone(patch.view))
   if (has(patch, 'transform')) {
     if (patch.transform === null) delete value.transform
-    else value.transform = { ...NEUTRAL_SHOW_CLIP_TRANSFORM, ...value.transform, ...structuredClone(patch.transform) }
+    else if (Object.keys(patch.transform!).length) {
+      value.transform ??= { ...NEUTRAL_SHOW_CLIP_TRANSFORM }
+      Object.assign(value.transform, structuredClone(patch.transform))
+    }
   }
   if (has(patch, 'aperture')) {
     if (patch.aperture === null) delete value.aperture
     else {
-      value.aperture = { ...DEFAULT_SHOW_CLIP_VIEWPORT, ...value.aperture }
-      for (const [field, item] of Object.entries(patch.aperture!)) {
+      const entries = Object.entries(patch.aperture!)
+      if (!value.aperture && entries.some(([, item]) => item !== null)) value.aperture = { ...DEFAULT_SHOW_CLIP_VIEWPORT }
+      for (const [field, item] of value.aperture ? entries : []) {
         const aperture = value.aperture as unknown as Record<string, unknown>
         if (item === null) delete aperture[field]
         else aperture[field] = ['starPoints', 'polygonSides'].includes(field) ? Math.round(item as number) : structuredClone(item)

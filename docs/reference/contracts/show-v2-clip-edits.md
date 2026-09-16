@@ -377,6 +377,9 @@ unrequested span values, runtime payloads and numeric animation. Component `null
 removes an optional component; nested aperture `null` removes only optional
 fields. Required fields cannot be removed. Unknown, nonfinite and out-of-domain
 inputs refuse before normalization. Existing unrelated values are never normalized.
+Removal-only or empty patches keep a missing optional component absent. Empty
+Transform/Aperture patches are no-ops. Mixed present/absent held spans remove the
+requested field only where present and report only keys whose values changed.
 
 Effect identity is Clip-scoped. Add/duplicate require a caller-supplied nonblank ID
 unused in every selected held stack; the exact ID is reused across its keys.

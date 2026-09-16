@@ -1,0 +1,34 @@
+{
+  "issue": 1038,
+  "specificationCommit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
+  "proofRows": ["MODEL", "ACTIVATION", "CONTINUITY", "PARITY"],
+  "boundary": "editShowClipAppearanceV2 -> native Show codec -> actual EPE Fast/Precise replay",
+  "invariants": [
+    "Removal-only and empty optional appearance patches do not instantiate missing components or normalize unrelated present values.",
+    "Mixed spans change only requested existing optional fields; held keys/times and animation remain exact, affected IDs include only actual changed keys.",
+    "No-op preserves original record identity and empty affected collections; changed outputs remain unaliased, inputs immutable. Existing finite input and full candidate validation are unchanged."
+  ],
+  "partitions": [
+    "Absent aperture with one/multiple optional field removals, absent shape/invert removal and empty patch.",
+    "Mixed absent/present aperture spans with one removed feather and unrelated rotation retained.",
+    "Already absent feather plus absent whole Transform/presentation/blink removal, empty Transform/Aperture patches."
+  ],
+  "sequences": [
+    "Removal-only absent request -> original identity/empty affected sets -> exact reopened Fast/Precise artifact.",
+    "Mixed held spans -> field removal on present span only -> exact full expected graph and changed key ID -> unalias mutation -> source unchanged."
+  ],
+  "oracles": [
+    "Literal independently authored expected graph, native Show codec and actual native EPE importer/re-emitted Fast/Precise frames/exported state.",
+    "Original identity and all empty affected collections on no-op, exact mixed-span affected key and unrelated component values on change."
+  ],
+  "tddEvidence": [
+    "Eight regressions fail against landed c925301a: removal-only/empty patches manufacture defaults and mixed-span changes affect absent spans.",
+    "Missing components are now instantiated only for actual supplied values; present components are patched directly without rebuilding defaults. No API or animation semantics change.",
+    "Three focused files128/128, project TypeScript/scoped lint and exact47 parity pass."
+  ],
+  "mutationEvidence": ["Both guard faults are assertion-killed: instantiate removal-only aperture and instantiate empty Transform; original source restored after each."],
+  "residualGaps": [
+    "Held differing View/Effect adapter eligibility remains a separate parked candidate; participant Effect ramp preparation support is unchanged.",
+    "Coordinator owns finalbase, native exact-suffix review, authoritative full suites and landing. Whole #1038 remains in progress."
+  ]
+}

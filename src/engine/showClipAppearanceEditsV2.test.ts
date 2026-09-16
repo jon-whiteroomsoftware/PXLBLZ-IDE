@@ -546,3 +546,53 @@ it.each([200, 201])('checks complete candidate Layout availability beyond the ed
   }
   expect(record).toEqual(before)
 })
+
+it.each([{ feather: null }, { feather: null, rotation: null }, { aperture: null, invert: null }, {}])('keeps absent aperture absent for removal-only patches %j', aperture => {
+  const record = fixture(), before = structuredClone(record)
+  const requested = intent('appearance', { patch: { aperture } }), beforeIntent = structuredClone(requested)
+  const result = editShowClipAppearanceV2(record, requested)
+  expect(result.status, JSON.stringify(result)).toBe('unchanged')
+  expect(result.record).toBe(record)
+  expect(record).toEqual(before)
+  expect(requested).toEqual(beforeIntent)
+  emptyAffected(result)
+  compareDelivered(result.record, before)
+})
+
+it('removes aperture fields only in present spans and reports exactly the changed key without creating absent spans', () => {
+  const record = fixture(), keys = record.composition.clips[0].appearance.keys
+  keys[1].value.aperture = { enabled: false, x: 0, y: 0, width: 1, height: 1, feather: .2, rotation: .1 }
+  const before = structuredClone(record)
+  const result = editShowClipAppearanceV2(record, intent('appearance', { patch: { aperture: { feather: null } } }))
+  expect(result.status).toBe('changed')
+  const expected = structuredClone(before)
+  delete expected.composition.clips[0].appearance.keys[1].value.aperture!.feather
+  expect(reopen(result.record)).toEqual(expected)
+  expect(result.affectedAppearanceKeyIds).toEqual(['appearance-1'])
+  expect(result.affectedTrackIds).toEqual([])
+  expect(record).toEqual(before)
+  compareDelivered(result.record, expected)
+  result.record.composition.clips[0].appearance.keys[1].value.aperture!.rotation = .9
+  expect(record).toEqual(before)
+})
+
+it('keeps absent optional components absent and already removed aperture fields unchanged', () => {
+  const record = fixture()
+  record.composition.clips[0].appearance.keys[1].value.aperture = { enabled: false, x: 0, y: 0, width: 1, height: 1 }
+  const before = structuredClone(record)
+  const result = editShowClipAppearanceV2(record, intent('appearance', { patch: { transform: null, presentation: null, blink: null, aperture: { feather: null } } }))
+  expect(result.status).toBe('unchanged')
+  expect(result.record).toBe(record)
+  expect(record).toEqual(before)
+  emptyAffected(result)
+  compareDelivered(result.record, before)
+})
+
+it.each(['transform', 'aperture'] as const)('keeps an empty optional %s patch unchanged rather than instantiating defaults', component => {
+  const record = fixture(), before = structuredClone(record)
+  const result = editShowClipAppearanceV2(record, intent('appearance', { patch: { [component]: {} } }))
+  expect(result.status).toBe('unchanged')
+  expect(result.record).toBe(record)
+  expect(record).toEqual(before)
+  emptyAffected(result)
+})
