@@ -37,6 +37,11 @@ window and then fail current exact participant attachment validation; a hold
 strictly before the window shifts both participant boundaries together and keeps
 the Transition valid.
 
+The [authored-boundary contract](show-v2-property-boundaries.md) specifies exact
+key ownership even when a retained outgoing kernel disagrees with that value.
+Existing hold projection uses that authored seed, keeps the original incoming
+endpoint and holds it constant until the untouched shifted authored resume.
+
 The exact Property time transform lives in
 `showPropertyTrackTimeMappingV2.ts`. `insertTimeInShowPropertyTracksV2` retains
 its public signature and delegates to that acyclic kernel; Group materialization

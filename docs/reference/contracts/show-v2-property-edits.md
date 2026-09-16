@@ -69,13 +69,12 @@ fine evaluator boundaries and independent quadratic formulas complement125ms rep
 Linked held Group reauthoring preserves authoritative shared runtime payloads.
 Seven named semantic faults are killed with exact source restoration.
 
-An inherited exact-interior-key descriptor/Group-hold defect is separately preserved
-in [the reproduction](../evidence/issue-1038-property-edits/inherited-hold-counterexample.json).
-A stored key value differing from its outgoing descriptor's source-start value passes
-existing admission; current evaluator/emitter choose the descriptor at that exact
-interior boundary and the hold mapper changes the preceding ordinary interval and
-interpolates through the supposed hold. Canonical right-key boundary ownership is
-unchanged. This CRUD slice neither narrows descriptor admission nor repairs shared
-evaluator/emitter/hold projection; coordinator-directed correction follows separately.
+The historical admitted exact-interior-key descriptor/Group-hold reproduction is
+preserved in [the reproduction](../evidence/issue-1038-property-edits/inherited-hold-counterexample.json).
+Its separate [authored-boundary corrective](show-v2-property-boundaries.md) restores
+canonical right-key ownership without narrowing descriptor admission. The hold
+symptom came from the wrong exact-key seed; existing hold projection needs no new
+representation after equality is repaired. The CRUD owner still does not alter
+shared evaluation/emission or source-dependent preparation policy.
 No UI, store/history adapter, schema/compiler/domain expansion or production cutover
 is included.

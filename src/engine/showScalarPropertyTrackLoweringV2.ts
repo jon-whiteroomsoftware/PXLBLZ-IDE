@@ -15,6 +15,7 @@ export function evaluateShowScalarRampBaselineV2(source: ShowScalarRampBaselineV
     value = ramp.to
     if (ramp.durationMs <= 0 || atMs >= ramp.atMs + ramp.durationMs) continue
     const segment = ramp.curveSegment
+    if (segment && atMs === ramp.atMs) { value = ramp.from; continue }
     const progress = segment ? (segment.elapsedOffsetMs + atMs - ramp.atMs) / segment.sourceDurationMs : (atMs - ramp.atMs) / ramp.durationMs
     value = segment ? segment.baseValue + segment.deltaValue * applyShowEasing(segment.easing, progress) : ramp.from + (ramp.to - ramp.from) * applyShowEasing(ramp.easing, progress)
   }

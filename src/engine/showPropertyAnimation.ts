@@ -66,6 +66,8 @@ export type ShowCompilerPropertyAnimationTrack = Omit<ShowPropertyAnimationTrack
 export function evaluateShowPropertyTrack(track: ShowCompilerPropertyAnimationTrack, atMs: number): number {
   const keyframes = [...track.keyframes].sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
   if (keyframes.length === 0) return 0
+  const exact = keyframes.find(keyframe => keyframe.timeMs === atMs)
+  if (exact) return exact.value
   if (atMs <= keyframes[0].timeMs) return keyframes[0].value
   const last = keyframes[keyframes.length - 1]
   if (atMs >= last.timeMs) return last.value
@@ -99,9 +101,10 @@ export function emitShowPropertyTrackExpression(
       ? `(${retained.elapsedOffsetMs} + ((${atMsExpression}) - ${left.timeMs})) / ${retained.sourceDurationMs}`
       : `((${atMsExpression}) - ${left.timeMs}) / ${right.timeMs - left.timeMs}`
     const eased = emitShowEasingExpression(retained?.easing ?? left.easing, progress)
-    const segmentExpression = retained
+    let segmentExpression = retained
       ? `(${retained.baseValue} + (${retained.deltaValue}) * ${eased})`
       : `(${left.value} + (${right.value - left.value}) * ${eased})`
+    if (retained && index > 0) segmentExpression = `((${atMsExpression}) == ${left.timeMs} ? ${left.value} : ${segmentExpression})`
     expression = `((${atMsExpression}) < ${right.timeMs} ? ${segmentExpression} : ${expression})`
   }
   return `((${atMsExpression}) <= ${keyframes[0].timeMs} ? ${keyframes[0].value} : ${expression})`

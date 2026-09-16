@@ -1,0 +1,62 @@
+{
+  "issue": 1038,
+  "base": "0581e52f7c3d313f0f960f529d27d0ba0170a962",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
+    "proofRows": [
+      "CURVE",
+      "GROUP-HOLD",
+      "INSERT",
+      "SHARING",
+      "RESTART",
+      "PARITY",
+      "FAILURE"
+    ]
+  },
+  "boundary": "Existing exact authored-key contract: native/internal evaluator, shared member expression, scalar baseline, Layout split/repeat ramps. Existing hold representation unchanged.",
+  "invariants": [
+    "Every first/interior/last authored key owns its exact value; retained descriptor coefficients apply only strictly after the key until the next authored boundary.",
+    "Descriptor admission, mathematical source kernels/offsets, range/clamp/activation/restoration semantics remain unchanged; no epsilon boundary or sampled production fit.",
+    "The existing exact-key hold seed/resume now have the same authored value, preserving incoming endpoint/descriptor and constant interval without new mapping or extra descriptors.",
+    "Shared runtimes and Pattern state continue normally through holds; authored full Restart still uses the existing event path and does not gain a hold event.",
+    "Descriptor-free expression/source bytes stay exact; only descriptor expression branches change. Every other compiler byte and embedded NUL retained; unchanged47-record parity has no waiver or hash update."
+  ],
+  "partitions": [
+    "First/interior/last and before-first keys; descriptor/key value mismatch, discontinuous retained incoming/outgoing kernels, exact equality and strict before/after.",
+    "Fine p-1,p,p+1,p+d-1,p+d,p+d+1; repeated exact and inside-hold insertion; repeated restriction and offset composition; authored resume identity/coefficient preservation.",
+    "All nine target forms through actual native v2/EPE importers and Fast/Precise playback; Layout split and repeat scalar channels versus independent static scalar EPE probes.",
+    "Two linked held Group occurrences with both Continue/full Restart; exact output and shared elapsed/PRNG/control state.",
+    "Descriptor-free expression literal and ordinary held expression oracle; existing CRUD/Groups/temporal/Insert owners and generated v1 schema drift gate."
+  ],
+  "sequences": [
+    "Admitted mismatched descriptor/key -> evaluate/emit at199/200/201 -> exact key restores authored.5 and strict outgoing retains original.1502002 at201.",
+    "Insert exact hold -> insert inside that hold -> insert at shifted authored resume -> restrict twice -> verify original source coefficients, authored resume ID/time and independent values.",
+    "Native v2 serialize/reopen -> trusted prepare -> compile -> native EPE exporter/importer -> Fast/Precise exact checkpoint output and nonempty Pattern state versus independent descriptor-free choreography.",
+    "Linked definition with held occurrences -> materialize -> fine boundary evaluation -> native reopened playback with Continue/full Restart and shared-state oracle.",
+    "Seven targeted consumer faults -> expected value/output failure -> exact byte restoration -> same focused matrix passes."
+  ],
+  "oracles": [
+    "Independent original quadratic formulas and literal authored boundary values in native/internal evaluators and emitted expressions; exact input snapshots and shifted authored resume data.",
+    "Descriptor-free literal expression string and ordinary held expression byte identity; two literal compiler expression splices verified against committed base, every other byte identical/NUL1.",
+    "Actual native EPE all9-family22 cases: descriptor-free independently authored exact125ms checkpoint values, exact frames and all nonempty exports; fine interior formulas are separately checked, not a sampled production substitute.",
+    "Actual native scalar4 cases: independent static scalar per probe, exact delivered frames and every exported field except the known per-member routed RGB render-capture scratch channels. Different prior routing leaves those capture buffers populated differently; frames and all Pattern/runtime/control state are independently exact.",
+    "Seven named faults killed in native/internal exact key, shared expression, scalar baseline, routing ramp, repeat ramp and hold seed; sources restored byte-identically.",
+    "Focused affected pure owners/schema-drift, full TypeScript, scoped lint and unchanged47-record parity."
+  ],
+  "residualGaps": [
+    "Native Precise state qualification is at its existing125ms quantum; arbitrary-ms exact state and a runtime clock change are not claimed. Fine before/at/after Property evaluator/expression arithmetic remains independently qualified.",
+    "No schema/domain/source/compiler eligibility widening, renderer/UI/adoption/store change, production activation or range-policy change. Group hold projection uses its unchanged representation; observed projection symptom was rooted in equality.",
+    "Whole1038 remains partial; coordinator owns finalbase/exact native review/authoritative suites/landing."
+  ],
+  "qualification": {
+    "red": "Public evaluator/expression exact interior boundary and hold tests2 red; scalar baseline and admitted native repeat/split Fast/Precise5 red after fixing test source missing its declared slider.",
+    "focused": "Exact finalbase391/15 own boundary37/3 plus prior CRUD/shared Group/Insert/temporal/ingress/schema-drift matrix pass. Tightened scalar state5/1 excludes only routed RGB scratch channels and all other exports match.",
+    "native": "All nine target forms18 +linked held Group Continue/Restart4=22 reopened artifact cases; scalar native4 additional cases pass.",
+    "static": "Exact finalbase full project TypeScript/scoped ESLint exit0; git diff --check clean.",
+    "parity": "Exact finalbase unchanged47-record committed report matches; no waiver, allowlist or report/hash regeneration.",
+    "faultSensitivity": "Seven named faults killed and exact source bytes restored; compiler NUL1 preserved.",
+    "diagnosis": "Exact-key evaluator root defect caused incorrect hold seed and predecessor/interior symptoms. Removing redundant projection descriptors retained existing mapping/ordinary bytes; same independent cases pass.",
+    "finalbase": "Production four-file binary patch exact by cmp across d809 ->0581 stack; ingress contract paragraph preserved; no hold mapper change."
+  }
+}

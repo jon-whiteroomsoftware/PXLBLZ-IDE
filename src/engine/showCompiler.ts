@@ -9967,7 +9967,7 @@ function emitRoutingPropertyAssignments(propertyRamps: ShowRoutingPropertyRampsR
         : progress,
     )
     const value = segment
-      ? `${segment.baseValue} + ${segment.deltaValue} * ${mix}`
+      ? `(__pxlblz_show_elapsed_s == ${atS} ? ${from} : ${segment.baseValue} + ${segment.deltaValue} * ${mix})`
       : `${from} * (1 - ${mix}) + ${to} * ${mix}`
     lines.push(`  if (__pxlblz_show_elapsed_s >= ${atS}) {
     __pxlblz_show_route_split_position = ${to}
@@ -10127,7 +10127,7 @@ function emitSampleRemappingRuntime(propertyRamps: ShowSamplePropertyRampsRecipe
           : progress,
       )
       const value = segment
-        ? `${segment.baseValue} + ${segment.deltaValue} * ${mix}`
+        ? `(__pxlblz_show_elapsed_s == ${atS} ? ${from} : ${segment.baseValue} + ${segment.deltaValue} * ${mix})`
         : `${from} * (1 - ${mix}) + ${to} * ${mix}`
       return `  if (__pxlblz_show_elapsed_s >= ${atS}) {
     __pxlblz_show_sample_repeat_scale = ${to}

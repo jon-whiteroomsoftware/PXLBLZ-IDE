@@ -13,6 +13,8 @@ export function evaluateShowPropertyKeysV2(
 ): number {
   const keys = [...source].sort(compareKeys)
   if (keys.length === 0) return 0
+  const exact = keys.find(key => key.timeMs === atMs)
+  if (exact) return exact.value
   if (atMs <= keys[0].timeMs) return keys[0].value
   const last = keys[keys.length - 1]
   if (atMs >= last.timeMs) return last.value

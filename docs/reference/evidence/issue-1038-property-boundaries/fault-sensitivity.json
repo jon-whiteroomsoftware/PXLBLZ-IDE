@@ -1,0 +1,41 @@
+{
+  "mutants": [
+    {
+      "name": "native-exact-key-coefficient-wins",
+      "killed": true,
+      "oracle": "showPropertyBoundaryPreservationV2.test.ts public independent boundary/output value assertions"
+    },
+    {
+      "name": "legacy-exact-key-coefficient-wins",
+      "killed": true,
+      "oracle": "showPropertyBoundaryPreservationV2.test.ts public independent boundary/output value assertions"
+    },
+    {
+      "name": "binding-expression-coefficient-wins",
+      "killed": true,
+      "oracle": "showPropertyBoundaryPreservationV2.test.ts public independent boundary/output value assertions"
+    },
+    {
+      "name": "scalar-baseline-coefficient-wins",
+      "killed": true,
+      "oracle": "showScalarPropertyBoundaryV2.test.ts public independent boundary/output value assertions"
+    },
+    {
+      "name": "routing-ramp-coefficient-wins",
+      "killed": true,
+      "oracle": "showScalarPropertyBoundaryV2.test.ts public independent boundary/output value assertions"
+    },
+    {
+      "name": "repeat-ramp-coefficient-wins",
+      "killed": true,
+      "oracle": "showScalarPropertyBoundaryV2.test.ts public independent boundary/output value assertions"
+    },
+    {
+      "name": "hold-seed-loses-authored-boundary",
+      "killed": true,
+      "oracle": "showPropertyBoundaryPreservationV2.test.ts public independent boundary/output value assertions"
+    }
+  ],
+  "sourceRestored": true,
+  "compilerNulCount": 1
+}

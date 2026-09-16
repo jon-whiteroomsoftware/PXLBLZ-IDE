@@ -1,0 +1,8 @@
+{
+  "baseCompilerSha256": "bfeaa5b02a204587f5ca9e570fbac2d76aae00d87a785da1215f4f8684253e16",
+  "editedCompilerSha256": "e832a2d3dfc97459cccb57fb2e1f7db56115c7b2a3c24443a3a597557d624c17",
+  "literalSplices": 2,
+  "everyOtherByteIdentical": true,
+  "preservedNulCount": 1,
+  "base": "0581e52f7c3d313f0f960f529d27d0ba0170a962"
+}
