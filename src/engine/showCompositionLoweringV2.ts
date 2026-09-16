@@ -221,6 +221,19 @@ function resolveAndLowerShowV2(
     )
   }
   const expanded = record.composition.groupDefinitions.length > 0 ? materializeShowGroupsV2(record) : record
+  const invalidExpanded = validateShowRecordV2(expanded)[0]
+  if (invalidExpanded) return refuse('invalid-record', invalidExpanded.path, invalidExpanded.message)
+  // Retained instance animation can outlive its final Clip user. Such tracks
+  // remain authored for future edits, but cannot create an executing member.
+  // Every effective Clip counts, including invisible and later contributions.
+  const usedInstanceIds = new Set(expanded.composition.clips.map(clip => clip.instanceId))
+  const compileRecord: ShowRecordV2 = {
+    ...expanded,
+    composition: { ...expanded.composition, propertyTracks: expanded.composition.propertyTracks.filter(track => (
+      (track.target.kind !== 'instance-control' && track.target.kind !== 'instance-time-scale')
+      || usedInstanceIds.has(track.target.instanceId)
+    )) },
+  }
   const sources = { ...lookup.byPatternInstanceId }
   for (const binding of groupRuntimeBindings(record)) {
     const sameLocalId = [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap(definition => definition.patternInstances)].filter(instance => instance.id === binding.instance.id)
@@ -228,7 +241,7 @@ function resolveAndLowerShowV2(
     const source = sources[binding.runtimeId] ?? (unambiguous ? lookup.byPatternInstanceId?.[binding.instance.id] : undefined)
     if (source) sources[binding.runtimeId] = source
   }
-  const resolved = resolveShowV2CompileContext(expanded, { ...lookup, byPatternInstanceId: sources })
+  const resolved = resolveShowV2CompileContext(compileRecord, { ...lookup, byPatternInstanceId: sources })
   if ('issues' in resolved) return resolved
   const lowered = emitResolvedShowV2(resolved)
   const sceneIds = new Set(lowered.show.scenes.map(scene => scene.id))

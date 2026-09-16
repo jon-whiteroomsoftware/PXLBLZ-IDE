@@ -1,0 +1,39 @@
+{
+  "issue": 1038,
+  "specificationCommit": "dc9d3735251581999a1dc6b64ed87b4d86e52264",
+  "proofRows": ["MODEL", "SHARING", "ACTIVATION"],
+  "boundary": "prepareShowV2ForCompile -> compileShow -> reopened .epe -> Fast/Fidelity replay",
+  "invariants": [
+    "Retained instance animation with zero effective Clip uses never manufactures an executing Pattern member.",
+    "The compile-only filter preserves the complete persisted payload/slot/binding/track/key graph and all real effective Clip users.",
+    "Visibility and current activation never select the runtime cast; lifecycle still starts at first contribution.",
+    "Invalid persisted/materialized records refuse before filtering and the existing exact-source policy is unchanged."
+  ],
+  "partitions": [
+    "Ordinary unused top-level instance-control and time-scale tracks; both modes reopen and compile with one real runtime.",
+    "Repeated orphaned Group default slots and tracks with a hoisted old payload and real new-slot children; no old phantom runtime.",
+    "Invisible future Clip with admitted control/time-scale activation at the same first contribution as the visible oracle.",
+    "Missing unused-instance source, dangling target, negative activation, overlapping authored owners and overlapping materialized Group owners."
+  ],
+  "sequences": [
+    "Serialize/reopen source graph, prepare, compile and reopen .epe, then replay before/during/after contributions and prove complete input preservation.",
+    "Compare the same future-use lifecycle against the exact dc9d public adapter before introducing the filter; retain recipe/reopened-source digests and independent visible/invisible control/clock equality."
+  ],
+  "oracles": [
+    "Independent no-unconsumed-animation records have identical delivered Fast/Fidelity frames without an old runtime cast member.",
+    "Future-use dc9d prepared recipe SHA256 3f5aa41117ec7aa4d35b18b7b2719f310bd412d536dc3af9e9b94da502f7073c and reopened .epe source SHA256 1e64efbdc8626af2207bce5257dbd61669c02155c3531e925b4211fb44f1bdc4 remain exact.",
+    "Full record codec/validation, explicit represented cast, observable refusal codes and complete source equality."
+  ],
+  "tddEvidence": [
+    "The admitted unfiltered ordinary and Group records prepare ready but compileShow throws a missing Pattern-instance error for retained unconsumed control animation.",
+    "The transient post-validation filter repairs all four Fast/Fidelity consumer cases while preserving the same-schedule future-use baseline."
+  ],
+  "mutationEvidence": [
+    "A green 11-case baseline precedes five scoped faults, all killed: no filter and retained unused time-scale faults fail during real compilation; visibility/time-zero filtering and invalid-preimage laundering fail independent assertions. Source restored after every qualification."
+  ],
+  "residualGaps": [
+    "This prerequisite does not change owner garbage collection, instance replacement, compiler emission or runtime lifecycle.",
+    "Comparing a future first contribution with a manufactured full-Show Clip changes lifecycle and is not evidence of a pre-roll defect; that invalid comparison was discarded.",
+    "Coordinator owns authoritative full suites, native review, landing and issue progress."
+  ]
+}
