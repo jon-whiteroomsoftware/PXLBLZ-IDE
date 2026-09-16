@@ -3069,13 +3069,16 @@ export function compileShow(
     sum + (group.memberIds.length - 1) * 6
   ), 0)
   const metadata = buildMetadata(members, compiledOutputDimension, trailsSelected)
-  metadata.patternFunctions = inspectPatternMetadata(code).patternFunctions
+  const runtimeMetadata = inspectPatternMetadata(code)
+  const runtimeGlobals = new Set(runtimeMetadata.patternVars)
+  metadata.patternFunctions = runtimeMetadata.patternFunctions
+  metadata.runtimeVars = runtimeMetadata.patternVars
   if (needsInstalledMapZ) {
     metadata.renderFns.hasRender3D = true
   }
   const patternVarBindings = Object.fromEntries(metadata.patternVars.flatMap((name) => {
     const runtimeName = compacted.names.get(name)
-    return runtimeName ? [[name, runtimeName]] : []
+    return runtimeName && runtimeGlobals.has(runtimeName) ? [[name, runtimeName]] : []
   }))
   if (Object.keys(patternVarBindings).length > 0) metadata.patternVarBindings = patternVarBindings
   const replayRenderFunctions = [

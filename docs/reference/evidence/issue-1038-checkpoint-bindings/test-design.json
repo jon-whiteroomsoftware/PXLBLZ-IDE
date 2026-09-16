@@ -1,0 +1,48 @@
+{
+  "issue": 1038,
+  "specificationCommit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
+  "proofRows": ["RESTART", "ROUTE", "CONTINUITY", "PARITY"],
+  "boundary": "native Show codec -> public preparation/compile -> actual native EPE export/import -> Fast/Precise snapshot, advance, restore and subsequent replay",
+  "invariants": [
+    "One final-source inspection proves actual global/function declarations; references in the compaction map never prove runtime storage.",
+    "Semantic watch names remain stable, including unavailable compiler slots; live aliases resolve only to actual globals and all declared globals participate in runtime capture.",
+    "Snapshots retain cache/scheduler/private state, declared undefined storage, mutable function values and sharing/cycles across semantic and compacted keys.",
+    "Restored delivery and subsequent hidden state equal cold execution of the same contribution schedule in each fidelity; compiler-proven optimized replay remains equivalent to full traversal.",
+    "Source, Precise emission and EPE bytes remain unchanged; invalid external declared aliases still fail strictly without loader or replay weakening."
+  ],
+  "partitions": [
+    "No positive Transition versus declared positive Crossfade mix; snapshot before execution versus after private-state initialization.",
+    "Live, Freeze and Strobe; live-live versus snapshot-live Crossfade; Continue versus true Restart and loop crossing.",
+    "Ordinary scalar, declared undefined global, shared cyclic array aliases and function-valued mutable private state.",
+    "Compiler metadata on actual imported EPE versus existing source-rebundle import path; full traversal versus compiler-proven skipped renders.",
+    "Valid actual declarations versus externally stale claimed alias; semantic unavailable entries versus declared-but-uninitialized real storage."
+  ],
+  "sequences": [
+    "Actual EPE reopen -> snapshot before execution -> advance300 -> restore0 -> unavailable semantic mix stays undefined.",
+    "Advance300 -> snapshot -> advance1300 across loop -> restore300 -> replay900 -> compare delivered frames/exports/full runtime state -> advance1600 -> compare subsequent state and delivery.",
+    "Capture cyclic semantic/compacted aliases -> mutate arrays/function binding across loop -> restore -> verify identity/cycle coherence and later delivered behavior.",
+    "Snapshot actual declared undefined global -> initialize during execution -> restore -> replay50 -> compare cold expected frame and undefined storage.",
+    "Compile -> actual EPE reopen -> compare literal old source/Precise/EPE digests -> execute corrected metadata without altering bytes."
+  ],
+  "oracles": [
+    "Public preparation admits every supported fixture; parsed EPE source equals the actual exported source and Precise is re-emitted from that source.",
+    "Restored delivered frames equal fresh cold same-artifact replay and cold source-rebundle replay using the same imported bytes, map, seed and 1ms traversal.",
+    "Full runtime snapshots, exported state and later frames detect hidden cache/scheduler drift; independently evaluated exported functions compare exact name/source while snapshot tokens and subsequent execution prove restored binding behavior.",
+    "Same object across semantic/compacted snapshot keys and self-cycle; actual uninitialized declaration restores to undefined; stale alias raises its real missing-binding error.",
+    "Pre-repair literal SHA256 source/Precise/EPE digests remain exact, independently captured before changing compiler metadata."
+  ],
+  "tddEvidence": [
+    "Initial imported no-Transition capture fails with actual compacted ReferenceError in both modes; declaration-backed aliases make the initial pair green.",
+    "Alias-only repair still fails actual Freeze restored delivery in both modes; all actual runtime declarations repair cache/scheduler state.",
+    "Complete focused consumer suite has16 cases including aliases/cycles/functions, uninitialized storage, positive Crossfade, strict stale metadata, unchanged bytes and optimized restore."
+  ],
+  "mutationEvidence": [
+    "Four scoped restored-source faults are killed: reference-only alias registration (initial capture), omitted runtimeVars (actual Freeze drift), alias-only global capture (Freeze/Crossfade drift), omitted function registry (mutable callback restoration).",
+    "Restored-source six-file focused422/422, project TypeScript/scoped lint, exact47-record parity and explicit staged nine-file339/339 plus TypeScript pass. Original source/Precise/EPE digests and retained real EPE files are exact; no authoritative final-suite submission by this worker."
+  ],
+  "residualGaps": [
+    "No browser route/prewarm UI or hardware proof claimed; tests exercise the actual consumer replay and checkpoint seams through imported artifacts.",
+    "Existing artifact metadata must be regenerated in memory; source-only persisted EPE rebundling already has declaration-backed capture and needs no migration.",
+    "No emission widening, unknown-binding swallowing or general source-eligibility change. Full1038 and final authoritative suites/review/landing remain coordinator-owned."
+  ]
+}
