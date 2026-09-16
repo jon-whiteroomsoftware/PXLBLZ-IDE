@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1047",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-remix-quadrille",
+  "operation": "At exact committed tip 631eae84f8895473077f40e9c02e0c1dced0eacb, the established authenticated Playwright fixture drove real Studio UI, production browserSession and private executor. A bounded channel route fixture began proof-operation, returned exactly one HTTP429 throttled Receive, then supplied its matching commit after12 seconds. First capture shows that operation working with the visible throttle refusal; second shows the same operation completed Nothing was applied with Assistant connected. Independent DOM and reply assertions retained one operation and proved begun/outcome; zero personal Show mutations. In-app-browser capture was attempted first but produced unusable viewport/transition images; this is the announced repository Playwright fallback, with synthetic fixture authentication and no transferred credentials.",
+  "captures": [
+    ".wrsp/ui-proof/1047-rebased-throttled.png",
+    ".wrsp/ui-proof/1047-rebased-recovered.png"
+  ],
+  "capturedAtCommit": "631eae84f8895473077f40e9c02e0c1dced0eacb"
+}
