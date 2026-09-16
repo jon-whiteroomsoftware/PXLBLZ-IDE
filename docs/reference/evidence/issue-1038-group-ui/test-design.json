@@ -42,17 +42,18 @@
     "Real component controls use the trusted constructor and actual admission/store; refusal/pending/save rollback/obsolete completion remain observable."
   ],
   "residualGaps": [
-    "Browser route/UndoRedo/save/reload desktop+narrow proof remains pending source integration and final committed-base capture; checkpoint is not candidate-ready.",
+    "The UI exposes creation only; existing Group children remain read-only timeline occupancy. Occurrence-operation adoption is outside this bounded slice.",
     "Group creation introduces no occurrence-operation UI, production cutover or new compiler/domain support.",
     "Fine replay label rounding is separately measured against actual generated clock; independent125ms event state is exact. No tolerance or arbitrary-ms clock equivalence is claimed.",
     "Inherited held global-ramp section arithmetic remains documented in the pure creation owner packet and is not changed here.",
-    "Root owns exact finalbase, native cross-family review, authoritative suites and landing; this slice does not claim whole1038 implemented."
+    "Root owns exact finalbase, native cross-family review, authoritative suites and landing; this slice does not claim whole1038 implemented.",
+    "Prepared Stage inherits its existing sample-from-pos presentation mapping; this fixture uses matching stock-plane sample/pos coordinates and claims no independent-coordinate repair."
   ],
   "qualification": {
     "focused": "67/67 Group/Property/Route compatibility on finalbase0fd353c; previous67/67 Marker/admission compatibility",
     "static": "Finalbase TypeScript project/scoped ESLint pass; normal source hooks25/25",
     "faultSensitivity": "3/3 named semantic faults killed; exact source bytes restored",
-    "browser": "Registered existing show-v2-layers.auth.spec.ts consumer; committed-source desktop/narrow capture pending",
+    "browser": "PASS on committed7abe136f: actual managed isolated1038:5212 Worker; desktop1440 Fast/Precise visually lit Stage, tablet1024 and narrow390 native keyboard/hidden-drawer/overflow/error checks; Create1/Undo2/Redo3 writes, cold reload and pxlshow/EPE reopen, one shared runtime/global track unchanged.",
     "parity": "47/47 source bytes exact on final Property base"
   },
   "evidence": [
@@ -62,6 +63,9 @@
     "fault-sensitivity.json",
     "replay-clock-witness.json",
     "e2e/fixtures/showV2GroupCreation.ts",
-    "e2e/show-v2-layers.auth.spec.ts"
+    "e2e/show-v2-layers.auth.spec.ts",
+    ".wrsp/ui-proof/1038-group-create.json",
+    "browser-result.json",
+    "browser-setup.json"
   ]
 }

@@ -1,0 +1,17 @@
+{
+  "commit": "7abe136f0676f65944a5a4cbb5c2d82a13f7c90d",
+  "runtime": "managed isolated1038:5212",
+  "user": "synthetic local-agent-15",
+  "fallback": "repository Playwright synthetic context; previously established IAB isolated-auth limitation",
+  "writes": 3,
+  "showEndMs": 30000,
+  "patternInstances": 1,
+  "groupDefinitions": 1,
+  "groupOccurrences": 1,
+  "errors": [],
+  "captures": [
+    ".wrsp/ui-proof/1038-group-create-desktop-fast.png",
+    ".wrsp/ui-proof/1038-group-create-desktop-precise.png",
+    ".wrsp/ui-proof/1038-group-create-narrow.png"
+  ]
+}

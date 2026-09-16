@@ -1,0 +1,18 @@
+{
+  "scope": "Synthetic local-agent15 only; exact group-creation-ui/group-voice fixture cleanup; main5174 and Jon cookies untouched",
+  "preservedFailures": [
+    {
+      "log": "/tmp/issue-1038-group-ui-browser.log",
+      "cause": "Scratch driver passed string to SessionUser API, causing synthetic /api/me undefined-user D1 error; corrected via actual localSessionUser using runtime registry/manifest."
+    },
+    {
+      "log": "/tmp/issue-1038-group-ui-browser-qualified-auth.log",
+      "cause": "Cached Vite overlay from prior malformed synthetic auth intercepted controls despite corrected authentication; reset only owned managed issue runtime via release/reallocate."
+    },
+    {
+      "image": "/tmp/issue-1038-group-ui-narrow-pinned-drawer.png",
+      "cause": "Pinned Shows drawer occluded initial narrow photograph; reused existing Property driver Unpin/Close controls and hidden-drawer oracle."
+    }
+  ],
+  "final": "Unchanged committed production source; full registered native sequence and visible desktop/narrow images pass on7abe136f. No overlay bypass, compiler/domain change or timeout increase."
+}

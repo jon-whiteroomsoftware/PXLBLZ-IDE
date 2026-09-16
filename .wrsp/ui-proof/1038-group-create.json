@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/group-creation-ui?show-v2-pilot=1&capture",
+  "operation": "Thirty-second shared Show: explicit partial-chain refusal with zero writes, then complete ordinary Clip/Transition selection and Group creation; one Create, Undo/Redo, provider reload and pxlshow/EPE reopening. Desktop Fast/Precise visible Stage and narrow keyboard/layout verification; three total save writes preserve one shared runtime/global animation.",
+  "captures": [
+    ".wrsp/ui-proof/1038-group-create-desktop-fast.png",
+    ".wrsp/ui-proof/1038-group-create-desktop-precise.png",
+    ".wrsp/ui-proof/1038-group-create-narrow.png"
+  ],
+  "capturedAtCommit": "7abe136f0676f65944a5a4cbb5c2d82a13f7c90d"
+}
