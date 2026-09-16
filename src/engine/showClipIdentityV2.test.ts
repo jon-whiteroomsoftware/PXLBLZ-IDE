@@ -459,7 +459,8 @@ describe('identity admission and exact caller plans', () => {
   it('refuses overlapping effective Group and top-level owners before creating a runtime', () => {
     const source = groupFixture()
     source.composition.propertyTracks.push({ id: 'conflict', target: { kind: 'instance-control', instanceId: 'instance', exportName: 'sliderLevel' }, activeStartMs: 200, activeDurationMs: 100,
-      keyframes: [{ id: 'conflict:key', timeMs: 200, value: 0.9, easing: { curve: 'linear' } }] })
+      keyframes: [{ id: 'conflict:key', timeMs: 200, value: 0.9, easing: { curve: 'linear' } }, { id: 'conflict:end', timeMs: 300, value: 0.9, easing: { curve: 'linear' } }] })
+    expect(validateShowRecordV2(source)).toContainEqual(expect.objectContaining({ code: 'invalid-property-target', message: expect.stringContaining('overlap') }))
     refused(source, independent(source), 'invalid-record')
   })
 })

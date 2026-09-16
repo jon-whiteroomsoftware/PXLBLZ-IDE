@@ -244,5 +244,67 @@ through Rejoin. Exact held nonlinear projection is checked through the Property
 evaluator and reopened Fast/Fidelity output/state. The exact section-restriction
 adapter admits both the held preimage and its independent copy; controls, clock
 animation and Group owners remain preserved. Both consumer records use explicit
-continuous lifecycle to isolate this preservation from cast lifecycle invalidation. UI, Replace and
+continuous lifecycle to isolate this preservation from cast lifecycle invalidation. UI and
 Group-definition identity edits remain separate slices.
+
+## Ordinary Clip-scoped Replace Pattern
+
+`replace-pattern` receives the ordinary `clipId` and trusted `replacement`
+metadata: `patternReference`, `patternName`, and resolved public `exportedSliders`
+descriptors. The owner does not parse source, infer exports, or fill incoming
+control defaults. Pattern references use their structured stock/user identity;
+public controls match by exact exported name.
+
+A sole effective Clip user retains its runtime identity, clock configuration and
+evaluation policy. Replace keeps compatible static values and instance-control
+tracks, always retains time-scale animation, and removes incompatible authored
+control tracks with their keys. A shared user, including a materialized Group
+child, requires a caller-supplied `independence` plan for a fresh runtime and every
+retained effective control/time-scale track/key. Copies use placement delta zero;
+only the selected ordinary Clip binds the new runtime. The original payload,
+animation, other Clips, Groups and Transition attachments remain unchanged.
+Missing, extraneous, blank, malformed or colliding identities refuse atomically.
+The plan covers compatible tracks only, including occurrence-qualified Group
+tracks; supplying identities for discarded controls also refuses.
+
+Replace refuses when incompatible effective Group-owned control animation cannot
+be removed within this ordinary Clip's scope. This includes the admitted sole-use
+case where an unused Group slot animates the selected runtime and a repeated
+shared definition also animates another runtime. The compiler-ineligible refusal
+identifies the conflicting exported control, runtime, Group definition,
+occurrence and effective track. It preserves recovery and authorship by returning
+the original record; no silent runtime fork or Group-track mutation accepts it.
+This narrow rule is the accepted §6 product decision.
+
+Source changes or a fresh runtime set `continuous`; metadata pruning on the same
+sole source preserves its current execution lifecycle. An all-compatible request
+for the same Pattern reference and name is unchanged. An optional supplied shared
+no-op plan still receives complete identity validation without adopting copies.
+Sole-use requests must omit the independence plan.
+
+Changed results add `discardedControlTargets` to the identity result vocabulary.
+Each incompatible effective animation target is reported, including repeated
+targets from distinct occurrence-qualified tracks; static-only losses are added
+once if that control has no reported animation loss. `affectedTrackIds` and
+`affectedKeyframeIds` identify copied or removed owners, and `removedIds` contains
+only removed authored control tracks/keys. Replace no-op/refusal returns original
+record identity and all six affected/loss lists empty. Clip appearance, Clip
+Property tracks, entry policy, routing and attached Transitions stay fixed; full
+candidate validation and the shared bounded placement check still apply.
+
+[Replace tests](../../../src/engine/showClipReplaceV2.test.ts) serialize/reopen
+records and exported `.epe` artifacts through public preparation and Fast/Precise
+replay. The selected replacement changes red output to blue while retaining its
+nonlinear controls and clock; another ordinary user's exported state remains
+exact. The Group preservation fixture ends the selected Clip before the Group's
+window, isolating exact unchanged Group frames and controls at activation
+boundaries and the nonlinear midpoint. Restart events keep the authored Clip
+entry policies and isolate the new runtime from another user's later reset.
+
+Adding a compiler member shifts compact generated private symbols. The delivered
+source-inventory oracle compares the retained owner's compiled Pattern chunks
+under an explicit one-to-one renaming of `__pxlblz_*` private symbols only. That
+bijection preserves repeated references, constants, operations, control flow and
+ordering. It does not normalize authored names or values. Exact source payload,
+controls, authored tracks, Group owners and runtime replay accompany this bounded
+generated-source comparison. UI and Group-definition Replace remain separate.

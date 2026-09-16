@@ -1,0 +1,58 @@
+{
+  "issue": 1038,
+  "specificationCommit": "b532a9061215c8d6e6d0e7cf109630bdc54e93ae",
+  "proofRows": ["REPLACE", "SHARING", "RESTART", "ACTIVATION"],
+  "boundary": "editShowClipV2 ordinary replace-pattern with trusted resolved Pattern metadata",
+  "invariants": [
+    "Replace changes only the selected ordinary Clip; sharing includes effective Group Clip users and preserves every original user and owner.",
+    "A sole user retains its runtime payload; a shared user requires an explicit fresh runtime and complete retained effective track/key identity plan.",
+    "Exact exported control names retain static values and animation; incompatible authored controls and keys are removed and reported; time-scale animation always remains.",
+    "The engine neither parses source nor guesses incoming defaults, destinations, fresh IDs or Group mutations.",
+    "Incompatible effective Group animation outside this ordinary scope refuses atomically with its conflicting control and owners, including an admitted sole-user unused-slot case.",
+    "Changed records validate, reopen and have no aliases to input. No-op/refusal retains original identity and all six affected/loss lists empty."
+  ],
+  "partitions": [
+    "Sole user versus ordinary shared user, visible Group user, and invisible Group user whose animation drives the ordinary Clip.",
+    "Trusted stock/user reference, missing/blank/foreign source metadata, source-text guesses, non-slider or duplicate exported controls.",
+    "All controls compatible, some incompatible, no controls exported, static-only losses and absent static values; no incoming default fabrication.",
+    "Missing, discarded/extraneous or blank identities, owned runtime/track/key IDs, cross-copy collisions, missing/extra keys and occurrence-qualified Group freshness.",
+    "Same-source all-compatible no-op with no plan or a complete plan; malformed supplied no-op plan; same-source metadata pruning; sole-user unnecessary runtime plan.",
+    "Source changes preserve clock/evaluation payload and invalidate deterministic cast lifecycle; sole same-source metadata pruning preserves lifecycle.",
+    "Nonlinear midpoints and exact activation start/end in reopened Fast/Fidelity artifacts; unchanged Group output is isolated from the selected replacement.",
+    "Restart on the selected Clip and a later restarting shared user, plus an unchanged attached crossfade with public preparation before and after."
+  ],
+  "sequences": [
+    "Resolve metadata -> Replace -> serialize/reopen -> export/import .epe -> Fast/Fidelity replay.",
+    "End the selected Clip before the visible Group's window; Replace preserves exact remaining Group frames/control state at 1199/1200/1400/1599/1600 ms.",
+    "Keep the Group invisible while it animates the source; Replace's copied Group controls drive the selected new Pattern's blue output with the original red intensity and nonlinear midpoint.",
+    "Restart the retained user at 500 ms; Replace preserves its exact preimage scalar state while the selected fresh runtime continues independently at 600 ms.",
+    "An unused Group slot animates a sole ordinary user and a repeated shared definition animates another runtime; incompatible Replace refuses rather than altering those Group owners."
+  ],
+  "oracles": [
+    "Full validateShowRecordV2 plus provisional record serialization/import and whole input equality.",
+    "Public compile preparation on admitted preimages and replacements, followed by reopened .epe source and deterministic Fast/Fidelity frame/export replay.",
+    "Exact unchanged Group output when the selected Clip is inactive; exact old-user state under a later Restart; independent copied nonlinear control midpoint and selected red-to-blue output mapping.",
+    "Delivered source-inventory owner attribution and a bijection of compiler-generated __pxlblz_* private names only: repeated references, constants, authored names, operations, ordering and control flow stay exact.",
+    "Exact authored payload, source tracks, Group definitions/occurrences, Clip appearance/animation/entry policy, Transition attachment and affected/copied/removed identities.",
+    "A forced incompatible Group-owned mutation remains structurally valid but public preparation refuses sliderLost; the public edit refuses with original identity and identifies the control/runtime/Group/occurrence/track."
+  ],
+  "tddEvidence": [
+    "The initial sole/shared payload and generated replacement tests failed before the Replace branch existed, then passed after the scoped implementation.",
+    "A malformed supplied identity plan on unchanged metadata initially returned unchanged; complete identity validation now rejects it before returning a no-op.",
+    "The overlap preimage from the Independence suite now has two valid keys and explicitly proves the effective ownership-overlap issue rather than failing schema first.",
+    "The first drop-Group-copy mutant survived a preservation-only oracle. The added invisible-Group consumer exposes the missing copied animation; the strengthened proof qualifies the entire copy/preservation pair.",
+    "The final direct mutation qualification requires a green 44-case baseline before every mutant batch; all eleven mutants then fail explicit assertions.",
+    "The original eight-file Replace and affected owner/preparation focus passes 371 tests; project TypeScript, scoped ESLint, diff checks and the 47-record v2 parity inventory pass.",
+    "The suffix rebase onto the exact frozen Marker corrective preserves the landed admitted held-Group Fast/Fidelity tests and contract, plus the separate overlap-fixture improvement. The exact-base eight-file focus passes 372 tests and TypeScript/scoped ESLint/diff checks pass."
+  ],
+  "mutationEvidence": [
+    "Eleven direct owner semantic mutants are killed by explicit assertions: Group sharing, cloned clock payload, occurrence copies, incompatible Group ownership, static compatibility/loss reporting, source lifecycle invalidation, no-op plan validation, removed tracks, replacement source identity and retained time-scale tracks.",
+    "The adjacent Show-authoring inventory kills 166/166 mapped mutants with no survivors, timeouts or errors; these supplement the direct Replace-owner qualification."
+  ],
+  "residualGaps": [
+    "Group-definition Replace, UI/commands/store adoption and other identity operations remain separate slices; this ordinary owner does not change compiler/schema behavior.",
+    "Precise quantizes global-clock section and Restart event crossing; exact independently prepared preimage frames/controls/state are the replay oracle. The public Property evaluator proves the authored nonlinear midpoint exactly, with an independent numeric midpoint also in Fast replay.",
+    "Generated private-symbol normalization is bounded to the numeric synthetic Pattern fixture and compiler-generated namespace; authored symbols, literals and operation ordering are never normalized.",
+    "The coordinator owns final-base qualification, native review, authoritative full suites, landing and whole-issue implementation state."
+  ]
+}

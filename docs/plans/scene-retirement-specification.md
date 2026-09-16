@@ -393,6 +393,13 @@ Clip/Transition IDs and Transition settings. A source change invalidates
 that invalidation to the explicit continuous lifecycle rather than omit a required
 field. Preview/admission metadata also invalidates through the existing boundary.
 
+For an ordinary Clip, refuse Replace if dropping an incompatible effective
+instance-control track would alter Group-owned choreography outside that Clip's
+edit scope. This includes a sole ordinary Clip animated by an unused Group slot
+whose shared definition also animates another runtime. Return the original record
+and identify the conflicting control and Group owner. Do not create a runtime
+silently, mutate the shared Group, or disable its animation to accept replacement.
+
 Other users retain their instance ID, controls, tracks and compiled logical member.
 Inside a Group definition, replacement affects linked occurrences; Make Group
 Unique first to select one occurrence. Then Clip replacement still applies the

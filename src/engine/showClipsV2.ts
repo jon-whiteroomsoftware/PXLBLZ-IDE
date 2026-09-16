@@ -1,4 +1,6 @@
-import { validateShowRecordV2, type ShowClipV2, type ShowRecordV2 } from './showCompositionV2'
+import { validateShowRecordV2, type ShowClipV2, type ShowPropertyTargetV2, type ShowRecordV2 } from './showCompositionV2'
+import type { PatternMetadata } from './loadPattern'
+import type { ShowPatternRef } from './personalContentRecords'
 import { materializeShowGroupsV2, effectiveShowInstanceUseCountV2, groupRuntimeBindings } from './showGroupsV2'
 import { validateClipLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 import { copyShowInstancePropertyTracksV2, editShowClipPropertyTracksV2, findNewShowInstancePropertyTrackConflictV2, type CopyShowInstancePropertyTracksIntentV2 } from './showPropertyAnimationV2'
@@ -24,6 +26,7 @@ export interface ShowClipIdentityAffectedV2 {
   affectedInstanceIds?: string[]
   affectedKeyframeIds?: string[]
   removedIds?: string[]
+  discardedControlTargets?: Array<Extract<ShowPropertyTargetV2, { kind: 'instance-control' }>>
 }
 
 export type ShowClipEditIntentV2 =
@@ -40,6 +43,14 @@ export type ShowClipEditIntentV2 =
       startMs: number
       identities: ShowClipDuplicateIdentityPlanV2
     }
+  | { kind: 'replace-pattern'; clipId: string; replacement: ResolvedShowPatternReplacementV2; independence?: ShowIndependentInstancePlanV2 }
+
+export interface ResolvedShowPatternReplacementV2 {
+  patternReference: ShowPatternRef
+  patternName: string
+  exportedSliders: ReadonlyArray<Readonly<PatternMetadata['controls'][number] & { kind: 'slider' }>>
+}
+
 export type ShowClipEditRefusalV2 = 'invalid-record' | 'missing-clip' | 'invalid-intent' | 'unsupported-topology' | 'compiler-ineligible' | 'invalid-result'
 export type ShowClipEditResultV2 = ShowClipIdentityAffectedV2 & (
   | { status: 'changed'; record: ShowRecordV2; affectedClipIds: string[]; affectedTrackIds: string[] }
@@ -51,8 +62,9 @@ export type ShowClipEditResultV2 = ShowClipIdentityAffectedV2 & (
 export function editShowClipV2(record: ShowRecordV2, intent: ShowClipEditIntentV2): ShowClipEditResultV2 {
   const refuse = (code: ShowClipEditRefusalV2, message: string): ShowClipEditResultV2 => ({
     status: 'refused', record, code, message, affectedClipIds: [], affectedTrackIds: [],
-    ...(intent.kind === 'make-independent' || intent.kind === 'rejoin'
+    ...(intent.kind === 'make-independent' || intent.kind === 'rejoin' || intent.kind === 'replace-pattern'
       ? { affectedInstanceIds: [], affectedKeyframeIds: [], removedIds: [] } : {}),
+    ...(intent.kind === 'replace-pattern' ? { discardedControlTargets: [] } : {}),
   })
   const invalid = validateShowRecordV2(record)[0]
   if (invalid) return refuse('invalid-record', `${invalid.path}: ${invalid.message}`)
@@ -62,6 +74,7 @@ export function editShowClipV2(record: ShowRecordV2, intent: ShowClipEditIntentV
   const clip = composition.clips[index]
   if (intent.kind === 'make-independent' || intent.kind === 'rejoin') return editShowClipIdentityV2(record, clip, intent)
   if (intent.kind === 'duplicate') return duplicateShowClipV2(record, clip, intent, refuse)
+  if (intent.kind === 'replace-pattern') return replaceShowClipPatternV2(record, clip, intent)
   const oldEnd = clip.startMs + clip.durationMs
   const start = intent.kind === 'split' ? clip.startMs : intent.startMs
   const end = intent.kind === 'split' ? intent.atMs : intent.kind === 'move' ? start + clip.durationMs : intent.endMs
@@ -236,21 +249,9 @@ function editShowClipIdentityV2(
   let removedIds: string[] = []
   if (intent.kind === 'make-independent') {
     if (effectiveShowInstanceUseCountV2(record, source.id) === 1) return unchanged()
-    const raw: unknown = intent.independence
-    if (!isRecord(raw) || !exactKeys(raw, ['instanceId', 'identitiesBySourceTrackId'])
-      || typeof raw.instanceId !== 'string' || !raw.instanceId.trim()
-      || !isRecord(raw.identitiesBySourceTrackId)) return refuse('Independence requires a fresh instance and complete track identity plan.')
+    const planIssue = independentPlanIssue(record, intent.independence)
+    if (planIssue) return refuse(planIssue)
     const plan = intent.independence
-    const effective = materializeShowGroupsV2(record)
-    if (effective.composition.patternInstances.some(instance => instance.id === plan.instanceId)) return refuse('The independent runtime identity is already owned.')
-    for (const identity of Object.values(plan.identitiesBySourceTrackId)) {
-      const value: unknown = identity
-      if (!isRecord(value) || !exactKeys(value, ['trackId', 'keyframeIdsBySourceId'])
-        || typeof value.trackId !== 'string' || !isRecord(value.keyframeIdsBySourceId)
-        || Object.values(value.keyframeIdsBySourceId).some(id => typeof id !== 'string')) {
-        return refuse('Every copied track requires an exact track and key identity plan.')
-      }
-    }
     next.composition.patternInstances.push({ ...structuredClone(source), id: plan.instanceId })
     const copied = copyShowInstancePropertyTracksV2(next, { fromInstanceId: source.id, toInstanceId: plan.instanceId,
       placementDeltaMs: 0, identitiesBySourceTrackId: plan.identitiesBySourceTrackId })
@@ -287,6 +288,108 @@ function editShowClipIdentityV2(
   const restriction = firstShowTransitionPlacementRestrictionV2(next)
   if (restriction) return refuse(`${restriction.rule}: ${restriction.message}`, 'compiler-ineligible')
   return { status: 'changed', record: next, affectedClipIds: [clip.id], affectedTrackIds, affectedInstanceIds, affectedKeyframeIds, removedIds }
+}
+
+function independentPlanIssue(record: ShowRecordV2, raw: unknown): string | null {
+  if (!isRecord(raw) || !exactKeys(raw, ['instanceId', 'identitiesBySourceTrackId'])
+    || typeof raw.instanceId !== 'string' || !raw.instanceId.trim()
+    || !isRecord(raw.identitiesBySourceTrackId)) return 'Independence requires a fresh instance and complete track identity plan.'
+  if (materializeShowGroupsV2(record).composition.patternInstances.some(instance => instance.id === raw.instanceId)) return 'The independent runtime identity is already owned.'
+  for (const value of Object.values(raw.identitiesBySourceTrackId)) {
+    if (!isRecord(value) || !exactKeys(value, ['trackId', 'keyframeIdsBySourceId'])
+      || typeof value.trackId !== 'string' || !isRecord(value.keyframeIdsBySourceId)
+      || Object.values(value.keyframeIdsBySourceId).some(id => typeof id !== 'string')) {
+      return 'Every copied track requires an exact track and key identity plan.'
+    }
+  }
+  return null
+}
+
+function replaceShowClipPatternV2(
+  record: ShowRecordV2,
+  clip: ShowClipV2,
+  intent: Extract<ShowClipEditIntentV2, { kind: 'replace-pattern' }>,
+): ShowClipEditResultV2 {
+  const empty = { affectedClipIds: [] as [], affectedTrackIds: [] as [], affectedInstanceIds: [], affectedKeyframeIds: [], removedIds: [], discardedControlTargets: [] }
+  const refuse = (message: string, code: ShowClipEditRefusalV2 = 'invalid-intent'): ShowClipEditResultV2 => ({ status: 'refused', record, code, message, ...empty })
+  const raw: unknown = intent.replacement
+  if (!isRecord(raw) || !exactKeys(raw, ['patternReference', 'patternName', 'exportedSliders'])
+    || !isRecord(raw.patternReference) || !exactKeys(raw.patternReference, ['kind', 'id'])
+    || (raw.patternReference.kind !== 'stock' && raw.patternReference.kind !== 'user')
+    || typeof raw.patternReference.id !== 'string' || !raw.patternReference.id.trim()
+    || typeof raw.patternName !== 'string' || !raw.patternName.trim()
+    || !Array.isArray(raw.exportedSliders)
+    || raw.exportedSliders.some(value => !isRecord(value) || value.kind !== 'slider'
+      || typeof value.exportName !== 'string' || !value.exportName.trim() || typeof value.label !== 'string')) {
+    return refuse('Replace requires a trusted resolved Pattern reference, name and public slider descriptors.')
+  }
+  const replacement = intent.replacement
+  const exports = replacement.exportedSliders.map(control => control.exportName)
+  if (new Set(exports).size !== exports.length) return refuse('Resolved slider exports must be unique.')
+  const compatible = new Set(exports)
+  const source = record.composition.patternInstances.find(instance => instance.id === clip.instanceId)!
+  const shared = effectiveShowInstanceUseCountV2(record, source.id) > 1
+  if (!shared && intent.independence !== undefined) return refuse('A sole-user Replace must not supply an independence plan.')
+  const effective = materializeShowGroupsV2(record)
+  const lostEffective = effective.composition.propertyTracks.filter(track => track.target.kind === 'instance-control'
+    && track.target.instanceId === source.id && !compatible.has(track.target.exportName))
+  const lostValues = Object.keys(source.controlTargets ?? {}).filter(name => !compatible.has(name))
+  const sourceChanged = source.pattern.kind !== replacement.patternReference.kind || source.pattern.id !== replacement.patternReference.id
+  const unchanged = !sourceChanged && source.patternName === replacement.patternName && lostEffective.length === 0 && lostValues.length === 0
+  if (unchanged && intent.independence === undefined) {
+    return { status: 'unchanged', record, ...empty }
+  }
+  const next = structuredClone(record)
+  let instanceId = source.id
+  let affectedTrackIds: string[]
+  let affectedKeyframeIds: string[]
+  let removedIds: string[] = []
+  let discardedControlTargets: Array<Extract<ShowPropertyTargetV2, { kind: 'instance-control' }>>
+  if (shared) {
+    const planIssue = independentPlanIssue(record, intent.independence)
+    if (planIssue) return refuse(planIssue)
+    const plan = intent.independence!
+    instanceId = plan.instanceId
+    next.composition.patternInstances.push({ ...structuredClone(source), id: instanceId })
+    const copied = copyShowInstancePropertyTracksV2(next, { fromInstanceId: source.id, toInstanceId: instanceId, placementDeltaMs: 0,
+      identitiesBySourceTrackId: plan.identitiesBySourceTrackId, compatibleControlExports: exports })
+    if (copied.status === 'refused') return refuse(copied.message)
+    if (unchanged) return { status: 'unchanged', record, ...empty }
+    next.composition.propertyTracks = copied.propertyTracks
+    next.composition.clips.find(candidate => candidate.id === clip.id)!.instanceId = instanceId
+    affectedTrackIds = copied.copiedTrackIds
+    affectedKeyframeIds = next.composition.propertyTracks.filter(track => affectedTrackIds.includes(track.id)).flatMap(track => track.keyframes.map(key => key.id))
+    discardedControlTargets = copied.discardedTargets.filter((target): target is Extract<ShowPropertyTargetV2, { kind: 'instance-control' }> => target.kind === 'instance-control')
+    next.composition.executionModel = 'continuous'
+  } else {
+    const authoredIds = new Set(record.composition.propertyTracks.map(track => track.id))
+    const unowned = lostEffective.find(track => !authoredIds.has(track.id))
+    if (unowned && unowned.target.kind === 'instance-control') {
+      const occurrence = record.composition.groupOccurrences.find(owner => record.composition.groupDefinitions
+        .find(definition => definition.id === owner.definitionId)!.propertyTracks.some(track => `${owner.id}:${track.id}` === unowned.id))!
+      return refuse(`Cannot replace this Clip: control "${unowned.target.exportName}" on Pattern instance "${source.id}" is animated by Group "${occurrence.definitionId}", occurrence "${occurrence.id}", track "${unowned.id}". Removing it would alter Group-owned choreography.`, 'compiler-ineligible')
+    }
+    affectedTrackIds = lostEffective.map(track => track.id)
+    affectedKeyframeIds = lostEffective.flatMap(track => track.keyframes.map(key => key.id))
+    removedIds = [...affectedTrackIds, ...affectedKeyframeIds]
+    discardedControlTargets = lostEffective.map(track => structuredClone(track.target) as Extract<ShowPropertyTargetV2, { kind: 'instance-control' }>)
+    next.composition.propertyTracks = next.composition.propertyTracks.filter(track => !affectedTrackIds.includes(track.id))
+    if (sourceChanged) next.composition.executionModel = 'continuous'
+  }
+  for (const exportName of lostValues) {
+    if (!discardedControlTargets.some(target => target.instanceId === source.id && target.exportName === exportName)) {
+      discardedControlTargets.push({ kind: 'instance-control', instanceId: source.id, exportName })
+    }
+  }
+  const target = next.composition.patternInstances.find(instance => instance.id === instanceId)!
+  target.pattern = structuredClone(replacement.patternReference)
+  target.patternName = replacement.patternName
+  if (source.controlTargets !== undefined) target.controlTargets = Object.fromEntries(Object.entries(source.controlTargets).filter(([name]) => compatible.has(name)))
+  const invalid = validateShowRecordV2(next)[0]
+  if (invalid) return refuse(`${invalid.path}: ${invalid.message}`, 'invalid-result')
+  const restriction = firstShowTransitionPlacementRestrictionV2(next)
+  if (restriction) return refuse(`${restriction.rule}: ${restriction.message}`, 'compiler-ineligible')
+  return { status: 'changed', record: next, affectedClipIds: [clip.id], affectedInstanceIds: [instanceId], affectedTrackIds, affectedKeyframeIds, removedIds, discardedControlTargets }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
