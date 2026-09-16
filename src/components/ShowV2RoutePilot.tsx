@@ -9,6 +9,7 @@ import { ShowV2ClipTimingEditor, ShowV2TimelineRows } from './ShowV2ClipTimingEd
 import { ShowV2LayerEditor } from './ShowV2LayerEditor'
 import { ShowV2AppearanceEditor } from './ShowV2AppearanceEditor'
 import { ShowV2PropertyEditor } from './ShowV2PropertyEditor'
+import { ShowV2GroupCreationEditor } from './ShowV2GroupCreationEditor'
 import { buildShowV2TimelineEditorModel, selectedShowOrdinaryClipV2 } from '@/engine/showV2TimelineEditorModel'
 import { qualifyShowV2PilotArtifacts } from '@/engine/showV2Pilot'
 import { captureShowStageEditV2 } from '@/engine/showPreparedStageV2'
@@ -196,6 +197,7 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
           {editCapture && selectedClip && <ShowV2AppearanceEditor key={`appearance:${editCapture.record.id}:${selectedClip.id}`} clipId={selectedClip.id} capture={editCapture} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           {editCapture && <ShowV2LayerEditor key={`layers:${editCapture.record.id}`} capture={editCapture} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           {editCapture && <ShowV2PropertyEditor key={`properties:${editCapture.record.id}`} capture={editCapture} submitPropertyEdit={request => admitShowV2PilotPropertyEdit({ showId, baseRevision: useShowStore.getState().showRevisions[showId] ?? 0, capture: editCapture, ...request })} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
+          {editCapture && <ShowV2GroupCreationEditor key={`groups:${editCapture.record.id}`} capture={editCapture} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           {editCapture && <ShowV2MarkerEditor key={editCapture.record.id} capture={editCapture} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           <div className="mt-7 flex flex-wrap gap-2">
             <Button size="xs" variant="outline" disabled={!history?.past.length} onClick={() => void runHistory('undo')}>Undo</Button>

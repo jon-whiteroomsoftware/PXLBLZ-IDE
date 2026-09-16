@@ -49,16 +49,19 @@
     "Root owns exact finalbase, native cross-family review, authoritative suites and landing; this slice does not claim whole1038 implemented."
   ],
   "qualification": {
-    "focused": "67/67 across six own/compatibility files",
-    "static": "TypeScript project and seven scoped ESLint files pass",
+    "focused": "67/67 Group/Property/Route compatibility on finalbase0fd353c; previous67/67 Marker/admission compatibility",
+    "static": "Finalbase TypeScript project/scoped ESLint pass; normal source hooks25/25",
     "faultSensitivity": "3/3 named semantic faults killed; exact source bytes restored",
-    "browser": "Pending finalbase source/Route integration and committed desktop/narrow proof"
+    "browser": "Registered existing show-v2-layers.auth.spec.ts consumer; committed-source desktop/narrow capture pending",
+    "parity": "47/47 source bytes exact on final Property base"
   },
   "evidence": [
     "src/engine/showV2GroupCreationEditorModel.test.ts",
     "src/store/showV2GroupCreationAdmission.test.ts",
     "src/components/ShowV2GroupCreationEditor.test.tsx",
     "fault-sensitivity.json",
-    "replay-clock-witness.json"
+    "replay-clock-witness.json",
+    "e2e/fixtures/showV2GroupCreation.ts",
+    "e2e/show-v2-layers.auth.spec.ts"
   ]
 }
