@@ -51,18 +51,21 @@ test('offers client-specific MCP setup on an ordinary editable Show URL at deskt
     return [root.scrollWidth - root.clientWidth, root.scrollHeight - root.clientHeight]
   })
   const viewports = [
-    { name: 'desktop', width: 1280, height: 720 },
-    { name: '760', width: 760, height: 720 },
-    { name: '390', width: 390, height: 844 },
+    { name: 'desktop', width: 1280, height: 720, closesDrawer: false },
+    { name: '760', width: 760, height: 720, closesDrawer: true },
+    { name: '390', width: 390, height: 844, closesDrawer: false },
   ]
+  const drawerLayout = page.getByTestId('agent-drawer-layout')
   for (const viewport of viewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height })
     await page.waitForFunction(width => document.documentElement.clientWidth === width, viewport.width)
-    await page.waitForTimeout(300)
-    if (!(await drawer.isVisible())) {
+    if (viewport.closesDrawer) {
+      await expect(drawerLayout).toHaveAttribute('data-drawer-mode', 'tucked')
+      await expect(drawer).toBeHidden()
       await edge.focus()
       await edge.press('Enter')
     }
+    await expect(drawerLayout).toHaveAttribute('data-drawer-mode', 'open')
     await expect(drawer).toBeVisible()
     for (const option of options) {
       const picker = drawer.getByRole('radio', { name: option.name })
