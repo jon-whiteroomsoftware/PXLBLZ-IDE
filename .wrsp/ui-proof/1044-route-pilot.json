@@ -2,11 +2,11 @@
   "version": 1,
   "issue": "#1044",
   "route": "/PXLBLZ-IDE/studio/shows/issue-1044-route-b?show-v2-pilot=1",
-  "operation": "Inspected committed corrective code at 1440px and 760px with the isolated issue runtime. Delayed pilot A's v2 read, selected and navigated to B through the ordinary Show tree, released A, and observed that the URL and rendered header remained on B. Renamed B from Issue 1044 current B to Issue 1044 durable B through the header, reloaded provider bytes, and cold-reopened the route with the renamed v2 record intact. Edited transition duration from 200 to 137, exercised Undo and Redo, reloaded the provider record, and reopened both .pxlshow v2 and .epe artifacts. At 760px, wheel scrolling moved the control pane from 0 to its 124px maximum; keyboard Tab reached Reload saved v2 and Reopen artifacts, and Enter reopened both artifacts. API readback returned v2, the durable name, and duration 137; accessibility names and Stage preview passed without console or page errors.",
+  "operation": "Inspected committed corrective code at 1440px and 760px with the isolated issue runtime. Delayed pilot A's v2 read, selected and navigated to B through the ordinary Show tree, released A, and observed that the URL and rendered header remained on B. Renamed B from Issue 1044 current B to Issue 1044 durable B through the header, reloaded provider bytes, and cold-reopened the route with the renamed v2 record intact. Edited transition duration from 200 to 137, kept the title field open, invoked Undo by keyboard, then submitted Issue 1044 undo-safe B and observed that the current 200 ms composition remained intact. Edited the duration from 200 to 137 again, exercised Undo and Redo, reloaded the provider record, and reopened both .pxlshow v2 and .epe artifacts. At 760px, wheel scrolling moved the control pane from 0 to its 124px maximum; keyboard Tab reached Reload saved v2 and Reopen artifacts, and Enter reopened both artifacts. API readback returned v2, the undo-safe durable name, and duration 137; accessibility names and Stage preview passed without console or page errors.",
   "captures": [
     ".wrsp/ui-proof/1044-route-pilot-desktop.png",
     ".wrsp/ui-proof/1044-route-pilot-narrow-controls.png",
     ".wrsp/ui-proof/1044-route-pilot-narrow-stage.png"
   ],
-  "capturedAtCommit": "d529f61269a054ce700dad173c817cc555ab30a1"
+  "capturedAtCommit": "14bde0336bfe4679662e426d1303d223f5256766"
 }
