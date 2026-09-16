@@ -54,6 +54,11 @@ cover required storage, identity, ordering, boundary, duration and overflow
 partitions. [Property time tests](../../../src/engine/showPropertyTrackTimeMappingV2.test.ts)
 cover an exact discontinuous last key and authored-key identity retention.
 
-This slice supplies representation and materialization. Global Insert Time,
-Group lifecycle edits, Layer authoring, route adoption and UI remain later #1038
-owners.
+This slice supplies representation and materialization. The
+[Group edit contract](show-v2-group-edits.md) owns Make Unique plus occurrence
+move and linked duplicate on this representation. `showLayersV2.ts` owns pure
+Layer add, rename, reorder and explicit reassignment/removal, with its proof in
+[the Layer test design](../evidence/issue-1038-layers/test-design.json). Global
+Insert Time, Group delete and ungroup, and production UI/store adoption remain
+later #1038 owners; the landed route pilot consumes holds through the existing
+v2 codec and compile-preparation seams rather than redefining them.
