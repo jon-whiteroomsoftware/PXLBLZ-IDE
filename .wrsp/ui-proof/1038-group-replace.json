@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/group-replace-synthetic?show-v2-pilot=1&capture",
+  "operation": "Actual definition-local Group Clip Replace Pattern on the v2 pilot route. Chose the explicit Group Clip target 'Linked Voice · child', chose the captured personal Pattern 'Replacement Other', and took the first capture at the required animation-loss confirmation before adoption, showing the linked-occurrence scope line and the single dropped control 'sliderLost on instance'. Confirmed, awaited the successful PUT, and took the second capture after semantic D1 readback proved the definition gained one replacement slot: the target now reads 'Replacement Other', the Pattern picker reset, Undo is enabled and the status reads 'Group Pattern replacement saved.', with the Stage paused and visibly rendering in Fast at 22 s. The third capture is the 390 px narrow layout with the Shows list unpinned, showing the two-source 'Mixed Voice · mixed-child' confirmation ('sliderLost on instance, sliderLost on solo') with Confirm and Cancel fully inside the viewport. Zero browser errors were recorded. The Codex in-app browser is unavailable to this worker, so repository Playwright drove a separate synthetic authenticated context against the real Worker, D1 and renderer; no user browser cookies were touched. All three images were opened and inspected.",
+  "captures": [
+    ".wrsp/ui-proof/1038-group-replace-confirm.png",
+    ".wrsp/ui-proof/1038-group-replace-saved.png",
+    ".wrsp/ui-proof/1038-group-replace-narrow.png"
+  ],
+  "capturedAtCommit": "406b6deffffdd8dadf6e1fbdb91292895cc215fb"
+}

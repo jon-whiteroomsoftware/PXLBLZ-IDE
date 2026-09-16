@@ -1,0 +1,27 @@
+{
+  "status": "passed",
+  "sourceTip": "406b6deffffdd8dadf6e1fbdb91292895cc215fb",
+  "spec": "e2e/show-v2-group-replace.auth.spec.ts",
+  "writes": 6,
+  "dormantDefinitionReplacement": true,
+  "sameSourceNoOpZeroWrites": true,
+  "cancelledConfirmationZeroWrites": true,
+  "linkedSharedRuntimeForkedOnce": true,
+  "untouchedOrdinaryClipsInstancesTransitions": true,
+  "mixedSoleSharedRefusalZeroWrites": true,
+  "undoRedo": true,
+  "makeGroupUniqueThenOccurrenceReplacement": true,
+  "soleRuntimeRetainedWithSafeLocalPruning": true,
+  "durableReloadColdReopen": true,
+  "nativeArtifactReopen": true,
+  "captures": [
+    { "mode": "Fast", "frames": 2, "fps": 8, "startMs": 22000, "prefix": "group-replace-Fast", "failures": [] },
+    { "mode": "Precise", "frames": 2, "fps": 8, "startMs": 22000, "prefix": "group-replace-Precise", "failures": [] }
+  ],
+  "responsive": [
+    { "width": 1024, "keyboardFocused": true, "overflow": [] },
+    { "width": 390, "keyboardFocused": true, "overflow": [] }
+  ],
+  "proofRecord": ".wrsp/ui-proof/1038-group-replace.json",
+  "errors": []
+}
