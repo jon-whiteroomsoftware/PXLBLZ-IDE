@@ -1,0 +1,15 @@
+{
+  "mutants": [
+    {
+      "name": "bypassed-add-time-ingress",
+      "killed": true,
+      "oracle": "Public add/update BigInt time must return typed atomic refusal without throwing."
+    },
+    {
+      "name": "bypassed-update-time-ingress",
+      "killed": true,
+      "oracle": "Public add/update BigInt time must return typed atomic refusal without throwing."
+    }
+  ],
+  "sourceRestored": true
+}

@@ -1,0 +1,44 @@
+{
+  "issue": 1038,
+  "base": "d8097d8ca75040655ec4912a9e7cfc5d4be020d2",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
+    "proofRows": [
+      "CURVE",
+      "FAILURE"
+    ]
+  },
+  "boundary": "Tiny advisory corrective: editShowPropertyV2 add-key/update-key numeric time ingress, before existing sorting/reauthor arithmetic; pure owner only.",
+  "invariants": [
+    "Supplied key times are numbers and nonnegative safe integers before arithmetic; no coercion or rounding.",
+    "Malformed add/update times refuse atomically with invalid-intent, exact original record identity and every affected collection empty in Show and definition contexts.",
+    "Valid key editing, adjacent descriptor reauthoring, full candidate validation, runtime payloads and source-dependent preparation behavior stay unchanged."
+  ],
+  "partitions": [
+    "Show and Group-definition owners; add-key and update-key time ingress.",
+    "BigInt, numeric string, null, object, array, boolean, undefined, NaN, positive/negative Infinity, negative, fractional and unsafe numeric milliseconds.",
+    "Exact safe zero and active end, numeric moved key and equal-time no-op; native v2 reopened complete records."
+  ],
+  "sequences": [
+    "Malformed add/update time -> typed refusal -> original record and complete empty affected sets.",
+    "Valid add at zero -> add at active end -> native serialize/reopen -> equal-time update no-op -> valid key move.",
+    "Existing nine-target native EPE/shared Group CRUD matrix runs beside malformed ingress regression."
+  ],
+  "oracles": [
+    "Public pure owner returns without throwing; snapshots prove unchanged input and exact identity; all existing affected collections are enumerated and empty.",
+    "Exact authored times and IDs survive valid zero/end additions and native v2 parser reopening; equal-time setter preserves exact record identity.",
+    "Focused shared owner/native artifact/schema-drift tests plus full project TypeScript and scoped ESLint."
+  ],
+  "residualGaps": [
+    "No UI/store/schema/compiler/source-domain expansion; existing inherited authored-key descriptor/hold defect remains a separate paused boundary corrective.",
+    "Coordinator owns exact corrective review, authoritative final suites/landing and full issue state; whole1038 remains partial."
+  ],
+  "qualification": {
+    "red": "BigInt public add/update throw before repair in both Show/Group scopes; complete malformed intent classification matrix50 red /4 valid pass.",
+    "own": "54/1 pass after numeric ingress guard.",
+    "focused": "223/9 own ingress+all previous CRUD/shared animation/Group/native artifact/schema-drift tests pass; restored own54/1 pass.",
+    "static": "Full project TypeScript and scoped ESLint exit0 after using existing-library hasOwnProperty.call. No schema/compiler/configuration changes.",
+    "faultSensitivity": "Two bypass mutants reproduce public BigInt arithmetic throws and are killed; exact source bytes restored (fault-sensitivity.json)."
+  }
+}

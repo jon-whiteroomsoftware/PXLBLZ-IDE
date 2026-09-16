@@ -22,6 +22,11 @@ IDs track scoped. Fresh caller IDs must satisfy the current complete record's
 identity/conflict validation; existing same-string IDs in other owners are valid.
 Malformed operations, missing owners/references, duplicate identities and invalid
 structure/time/target/descriptor/effective shared ownership refuse atomically.
+Add-key times and explicitly supplied update-key times are checked as numeric,
+nonnegative safe-integer milliseconds before sorting or reauthor arithmetic.
+BigInt, coercible strings and other malformed times are typed `invalid-intent`
+refusals with the original record and every affected collection empty. Ordinary
+complete-record activation/time admission still applies after that ingress check.
 No owner invents controls, source metadata, runtime payloads or GC.
 
 Preimage and complete candidate pass structural/domain and Layout availability

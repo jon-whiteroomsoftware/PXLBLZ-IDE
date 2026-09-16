@@ -23,6 +23,7 @@ function exactObject(value: unknown, keys: readonly string[]): value is Record<s
   return value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).every(key => keys.includes(key))
 }
 function id(value: unknown): value is string { return typeof value === 'string' && value.trim().length > 0 }
+function keyTime(value: unknown): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 }
 function equal(a: unknown, b: unknown): boolean {
   const canonical = (value: unknown): string | undefined => JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item)
     ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item)
@@ -62,6 +63,7 @@ export function editShowPropertyV2(record: ShowRecordV2, owner: ShowPropertyTrac
   if (intent.kind === 'update-key' && (!id(intent.keyId) || !exactObject(intent.patch, ['timeMs', 'value', 'easing']) || Object.values(intent.patch).some(value => value === undefined))) return refuse('invalid-intent', 'Give exact key identity and supported reauthor fields.')
   if (intent.kind === 'remove-key' && !id(intent.keyId)) return refuse('invalid-intent', 'Give an explicit persisted key ID.')
   if (intent.kind === 'add-key' && (!exactObject(intent.key, ['id', 'timeMs', 'value', 'easing']) || !id(intent.key.id))) return refuse('invalid-intent', 'Give a complete ordinary key, without a descriptor patch.')
+  if ((intent.kind === 'add-key' && !keyTime(intent.key.timeMs)) || (intent.kind === 'update-key' && Object.prototype.hasOwnProperty.call(intent.patch, 'timeMs') && !keyTime(intent.patch.timeMs))) return refuse('invalid-intent', 'Key time requires nonnegative safe integer milliseconds.')
   if ((intent.kind === 'update-key' || intent.kind === 'remove-key') && !source!.keyframes.some(key => key.id === intent.keyId)) return refuse('missing-key', `Key "${intent.keyId}" does not exist in this track.`)
   if (intent.kind === 'add-key' && source!.keyframes.some(key => key.id === intent.key.id)) return refuse('duplicate-key', `Key "${intent.key.id}" already exists in this track.`)
   let updated: ShowPropertyTrackV2 | undefined
