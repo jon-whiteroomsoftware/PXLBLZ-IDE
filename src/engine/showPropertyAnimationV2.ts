@@ -3,6 +3,7 @@ import { effectiveShowInstanceUseCountV2, materializeShowGroupsV2 } from './show
 import { findShowInstancePropertyTrackConflictsV2, propertyTrackIntervalsOverlap, sameShowInstancePropertyTargetV2 } from './showPropertyTrackConflictsV2'
 import {
   evaluateShowPropertyKeysV2,
+  restrictShowPropertyTrackV2,
   insertTimeInPropertyTracksV2,
   type ShowInsertPropertyTimeResultV2,
 } from './showPropertyTrackTimeMappingV2'
@@ -153,7 +154,7 @@ export function editShowClipPropertyTracksV2(
     }
 
     if (intent.kind === 'trim') {
-      const restricted = restrictTrack(record, source, intent.startMs, intent.endMs)
+      const restricted = restrictShowPropertyTrackV2(record.composition.propertyTracks, source, intent.startMs, intent.endMs)
       if (restricted === source) return [structuredClone(source)]
       affectedTrackIds.push(source.id)
       return restricted ? [restricted] : []
@@ -170,8 +171,8 @@ export function editShowClipPropertyTracksV2(
     const splitMs = intent.atMs
     const oldEndMs = clip.startMs + clip.durationMs
     const sourceKeyIds = new Set(source.keyframes.map(key => key.id))
-    const left = restrictTrack(record, source, clip.startMs, splitMs, sourceKeyIds)
-    const right = restrictTrack(record, source, splitMs, oldEndMs, sourceKeyIds)
+    const left = restrictShowPropertyTrackV2(record.composition.propertyTracks, source, clip.startMs, splitMs, sourceKeyIds)
+    const right = restrictShowPropertyTrackV2(record.composition.propertyTracks, source, splitMs, oldEndMs, sourceKeyIds)
     if (!left && !right) return []
     affectedTrackIds.push(source.id)
     if (!left && right) return [{ ...right, target: retargetClip(right.target, intent.rightClipId) }]
@@ -430,95 +431,6 @@ function sameTarget(left: ShowPropertyTrackV2['target'], right: ShowPropertyTrac
   return JSON.stringify(left) === JSON.stringify(right)
 }
 
-function restrictTrack(
-  record: ShowRecordV2,
-  source: ShowPropertyTrackV2,
-  requestedStartMs: number,
-  requestedEndMs: number,
-  reservedSourceKeyIds?: ReadonlySet<string>,
-): ShowPropertyTrackV2 | undefined {
-  const activeEndMs = source.activeStartMs + source.activeDurationMs
-  const startMs = Math.max(source.activeStartMs, requestedStartMs)
-  const endMs = Math.min(activeEndMs, requestedEndMs)
-  if (endMs <= startMs) return undefined
-  if (startMs === source.activeStartMs && endMs === activeEndMs) return source
-  return {
-    ...structuredClone(source),
-    activeStartMs: startMs,
-    activeDurationMs: endMs - startMs,
-    keyframes: retainedKeys(record, source, startMs, endMs, reservedSourceKeyIds),
-  }
-}
-
-function retainedKeys(
-  record: ShowRecordV2,
-  source: ShowPropertyTrackV2,
-  startMs: number,
-  endMs: number,
-  reservedSourceKeyIds?: ReadonlySet<string>,
-): ShowPropertyKeyframeV2[] {
-  const keys = [...source.keyframes].sort(compareKeys)
-  const result: ShowPropertyKeyframeV2[] = []
-  const exactStart = keys.find(key => key.timeMs === startMs)
-  if (exactStart) result.push(structuredClone(exactStart))
-  else {
-    const left = [...keys].reverse().find(key => key.timeMs < startMs)
-    const right = keys.find(key => key.timeMs > startMs)
-    const seedSource = left ?? keys[0]
-    const seed = structuredClone(seedSource)
-    if ((seedSource.timeMs > startMs && seedSource.timeMs <= endMs) || reservedSourceKeyIds?.has(seedSource.id)) {
-      seed.id = freshKeyId(
-        record,
-        source,
-        `${source.id}:boundary:${startMs}`,
-        new Set(keys.map(key => key.id)),
-      )
-    }
-    seed.timeMs = startMs
-    seed.value = evaluateShowPropertyKeysV2(keys, startMs)
-    if (left && right) seed.curveSegment = retainedSegment(left, right, startMs)
-    else delete seed.curveSegment
-    result.push(seed)
-  }
-  result.push(...keys.filter(key => key.timeMs > startMs && key.timeMs < endMs).map(key => structuredClone(key)))
-  const exactEnd = keys.find(key => key.timeMs === endMs)
-  const sourceLeftAtEnd = [...keys].reverse().find(key => key.timeMs < endMs)
-  const sourceRightAtEnd = exactEnd ?? keys.find(key => key.timeMs > endMs)
-  if (sourceLeftAtEnd && sourceRightAtEnd) {
-    const retainedLeft = [...result].reverse().find(key => key.timeMs === sourceLeftAtEnd.timeMs)
-      ?? result[result.length - 1]
-    if (!retainedLeft.curveSegment) {
-      retainedLeft.curveSegment = retainedSegment(sourceLeftAtEnd, sourceRightAtEnd, retainedLeft.timeMs)
-    }
-  }
-  const end = exactEnd ? structuredClone(exactEnd) : {
-    ...structuredClone([...keys].reverse().find(key => key.timeMs < endMs) ?? keys[0]),
-    id: freshKeyId(record, source, `${source.id}:boundary:${endMs}`, new Set(result.map(key => key.id))),
-    timeMs: endMs,
-    value: evaluateShowPropertyKeysV2(keys, endMs),
-  }
-  delete end.curveSegment
-  if (!result.some(key => key.timeMs === endMs)) result.push(end)
-  return result.sort(compareKeys)
-}
-
-function retainedSegment(
-  left: ShowPropertyKeyframeV2,
-  right: ShowPropertyKeyframeV2,
-  startMs: number,
-) {
-  if (left.curveSegment) return {
-    ...structuredClone(left.curveSegment),
-    elapsedOffsetMs: left.curveSegment.elapsedOffsetMs + startMs - left.timeMs,
-  }
-  return {
-    baseValue: left.value,
-    deltaValue: right.value - left.value,
-    easing: structuredClone(left.easing),
-    sourceDurationMs: right.timeMs - left.timeMs,
-    elapsedOffsetMs: startMs - left.timeMs,
-  }
-}
 
 function extendTrack(
   record: ShowRecordV2,

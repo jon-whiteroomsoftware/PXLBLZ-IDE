@@ -508,7 +508,7 @@ describe('lowerShowCompositionV2ForCompile', () => {
     expect(converted.record).toEqual(recordBefore)
   })
 
-  it('returns typed source and activation refusals without mutating input', () => {
+  it('returns typed missing-source refusal and admits section-spanning activation without mutation', () => {
     const record = convertedRecord()
     const before = structuredClone(record)
     expect(prepareShowV2ForCompile(record, { byCellId: {} })).toEqual({
@@ -539,14 +539,7 @@ describe('lowerShowCompositionV2ForCompile', () => {
     const activationBefore = structuredClone(record)
     expect(prepareShowV2ForCompile(record, {
       byCellId: {}, byPatternInstanceId: { instance: SOURCE },
-    })).toEqual({
-      status: 'refused',
-      issues: [{
-        code: 'unsupported-track-activation',
-        path: 'composition.propertyTracks[0]',
-        message: 'property track "full-track" activation crosses a derived Clip/appearance section.',
-      }],
-    })
+    })).toMatchObject({ status: 'ready' })
     expect(record).toEqual(activationBefore)
   })
 

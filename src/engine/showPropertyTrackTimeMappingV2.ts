@@ -57,6 +57,79 @@ export function insertTimeInPropertyTracksV2(
     : { status: 'changed', propertyTracks: mapped, affectedTrackIds }
 }
 
+/** Restrict an active interval without changing its original nonlinear curve. */
+export function restrictShowPropertyTrackV2(
+  propertyTracks: ShowPropertyTrackV2[],
+  source: ShowPropertyTrackV2,
+  requestedStartMs: number,
+  requestedEndMs: number,
+  reservedSourceKeyIds?: ReadonlySet<string>,
+): ShowPropertyTrackV2 | undefined {
+  const activeEndMs = source.activeStartMs + source.activeDurationMs
+  const startMs = Math.max(source.activeStartMs, requestedStartMs)
+  const endMs = Math.min(activeEndMs, requestedEndMs)
+  if (endMs <= startMs) return undefined
+  if (startMs === source.activeStartMs && endMs === activeEndMs) return source
+  return {
+    ...structuredClone(source),
+    activeStartMs: startMs,
+    activeDurationMs: endMs - startMs,
+    keyframes: retainedKeys(propertyTracks, source, startMs, endMs, reservedSourceKeyIds),
+  }
+}
+
+function retainedKeys(
+  propertyTracks: ShowPropertyTrackV2[],
+  source: ShowPropertyTrackV2,
+  startMs: number,
+  endMs: number,
+  reservedSourceKeyIds?: ReadonlySet<string>,
+): ShowPropertyKeyframeV2[] {
+  const keys = [...source.keyframes].sort(compareKeys)
+  const result: ShowPropertyKeyframeV2[] = []
+  const exactStart = keys.find(key => key.timeMs === startMs)
+  if (exactStart) result.push(structuredClone(exactStart))
+  else {
+    const left = [...keys].reverse().find(key => key.timeMs < startMs)
+    const right = keys.find(key => key.timeMs > startMs)
+    const seedSource = left ?? keys[0]
+    const seed = structuredClone(seedSource)
+    if ((seedSource.timeMs > startMs && seedSource.timeMs <= endMs) || reservedSourceKeyIds?.has(seedSource.id)) {
+      seed.id = freshKeyId(
+        propertyTracks,
+        `${source.id}:boundary:${startMs}`,
+        new Set(keys.map(key => key.id)),
+      )
+    }
+    seed.timeMs = startMs
+    seed.value = evaluateShowPropertyKeysV2(keys, startMs)
+    if (left && right) seed.curveSegment = retainedSegment(left, right, startMs)
+    else delete seed.curveSegment
+    result.push(seed)
+  }
+  result.push(...keys.filter(key => key.timeMs > startMs && key.timeMs < endMs).map(key => structuredClone(key)))
+  const exactEnd = keys.find(key => key.timeMs === endMs)
+  const sourceLeftAtEnd = [...keys].reverse().find(key => key.timeMs < endMs)
+  const sourceRightAtEnd = exactEnd ?? keys.find(key => key.timeMs > endMs)
+  if (sourceLeftAtEnd && sourceRightAtEnd) {
+    const retainedLeft = [...result].reverse().find(key => key.timeMs === sourceLeftAtEnd.timeMs)
+      ?? result[result.length - 1]
+    if (!retainedLeft.curveSegment) {
+      retainedLeft.curveSegment = retainedSegment(sourceLeftAtEnd, sourceRightAtEnd, retainedLeft.timeMs)
+    }
+  }
+  const end = exactEnd ? structuredClone(exactEnd) : {
+    ...structuredClone([...keys].reverse().find(key => key.timeMs < endMs) ?? keys[0]),
+    id: freshKeyId(propertyTracks, `${source.id}:boundary:${endMs}`, new Set(result.map(key => key.id))),
+    timeMs: endMs,
+    value: evaluateShowPropertyKeysV2(keys, endMs),
+  }
+  delete end.curveSegment
+  if (!result.some(key => key.timeMs === endMs)) result.push(end)
+  return result.sort(compareKeys)
+}
+
+
 function insertTrackHold(
   propertyTracks: ShowPropertyTrackV2[],
   source: ShowPropertyTrackV2,
@@ -88,6 +161,14 @@ function insertTrackHold(
           id: resumeId, timeMs: atMs + durationMs, value, easing: structuredClone(left.easing),
           curveSegment: retainedSegment(left, right, atMs),
         },
+      )
+    } else {
+      const holdId = freshKeyId(propertyTracks, `${source.id}:hold:${atMs}`, localIds)
+      localIds.add(holdId)
+      const resumeId = freshKeyId(propertyTracks, `${source.id}:resume:${atMs + durationMs}`, localIds)
+      shifted.push(
+        { id: holdId, timeMs: atMs, value, easing: { curve: 'linear' } },
+        { id: resumeId, timeMs: atMs + durationMs, value, easing: { curve: 'linear' } },
       )
     }
   }

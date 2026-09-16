@@ -183,16 +183,28 @@ export function materializeShowGroupsV2(record: ShowRecordV2): ShowRecordV2 {
   return expanded
 }
 
-function occurrenceBoundaryBefore(occurrence: ShowGroupOccurrenceV2, localTimeMs: number): number {
+export function occurrenceBoundaryBefore(occurrence: ShowGroupOccurrenceV2, localTimeMs: number): number {
   return occurrence.startMs + localTimeMs + occurrence.holds.reduce((offsetMs, hold) => (
     hold.localTimeMs < localTimeMs ? offsetMs + hold.durationMs : offsetMs
   ), 0)
 }
 
-function occurrenceBoundaryAfter(occurrence: ShowGroupOccurrenceV2, localTimeMs: number): number {
+export function occurrenceBoundaryAfter(occurrence: ShowGroupOccurrenceV2, localTimeMs: number): number {
   return occurrence.startMs + localTimeMs + occurrence.holds.reduce((offsetMs, hold) => (
     hold.localTimeMs <= localTimeMs ? offsetMs + hold.durationMs : offsetMs
   ), 0)
+}
+
+/** Invert held occurrence time, including both boundaries of an existing hold. */
+export function groupOccurrenceLocalTimeAtV2(occurrence: ShowGroupOccurrenceV2, globalTimeMs: number): number {
+  let offsetMs = 0
+  for (const hold of occurrence.holds) {
+    const beforeMs = occurrence.startMs + hold.localTimeMs + offsetMs
+    if (globalTimeMs < beforeMs) break
+    if (globalTimeMs <= beforeMs + hold.durationMs) return hold.localTimeMs
+    offsetMs += hold.durationMs
+  }
+  return globalTimeMs - occurrence.startMs - offsetMs
 }
 
 function materializeOccurrenceAppearanceKeys(

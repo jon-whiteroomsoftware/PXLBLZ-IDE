@@ -1,0 +1,132 @@
+{
+  "issue": 1038,
+  "specificationCommit": "e22a78f0ec859590bcaf90cbc6d8e535b6d247f5",
+  "proofRows": [
+    "INSERT",
+    "GROUP-HOLD",
+    "SHARING",
+    "RESTART",
+    "LAYOUT-END"
+  ],
+  "boundary": "Pure global Insert Time and necessary bounded v2-to-existing-compiler section adapter integration",
+  "invariants": [
+    "Half-open content ending at insertion stays left, starting there shifts, and strict crossing gains held authored time; Show End grows once.",
+    "The top-level Property array maps once across shared instance, Clip, Layout and Show targets; exact authored-key identity remains on the right.",
+    "Nonlinear retained curves preserve original coefficients, easing, source duration and elapsed offset rather than rescaling new endpoints.",
+    "Crossing Group occurrences gain or extend local holds; linked definitions, effective runtime IDs, bindings, controls, translation and Restart policy remain unchanged.",
+    "Explicit source trackActivation maps as an independent global interval, including pre-roll and outgoing coverage outside nominal placement.",
+    "Layout coverage stays exact with initial occurrence at zero; transfers and visual windows keep duration, settings and contributors unchanged.",
+    "Pattern state evolves normally through the inserted duration; no reset, runtime clone or implicit Freeze is created.",
+    "Changed output is complete and unaliased; refusal keeps original record identity and every affected collection empty; nested key IDs retain owner-scoped multiplicity.",
+    "Previously admitted exact single-section tracks and parity corpus retain generated source bytes; compiler/emitter, persisted schemas and RL08\u201310 remain unchanged."
+  ],
+  "partitions": [
+    "Insertion at zero, exact Clip start/end, strict crossing, Layout switch, Show End, invalid intent and dormant Marker overflow.",
+    "Held appearance exact key, between keys, after last key and deterministic ID collisions.",
+    "Property activation start/end/crossing; quadratic source and retained descriptor; discontinuous exact last key; repeated nested IDs across owners.",
+    "Group crossing/later occurrence and repeated hold left/interior/right-resume insertion; independent explicit activation partitions.",
+    "Ordinary, whole-output and materialized Group visual windows before/start/interior/end/after; mapped endpoints refuse invalid exact attachment.",
+    "Timed Layout transfer before/start/interior/end/after; expanded predecessor coverage and valid owner split-position track.",
+    "Shared state, coalesced Restart, zero time-scale, explicit Freeze and logical compiled instance cardinality.",
+    "Global-section single and split activation; collision-safe transient identities; partial contribution refusal; participant transition admission preservation.",
+    "Structurally equal complete appearance with reordered object fields retains emitted source; each material appearance family and tiny exact floating difference still refuses honest unsupported divergence.",
+    "Existing authored track/key IDs collide with proposed section IDs; fresh transient IDs suffix safely and persist no identity changes.",
+    "Prioritized30/60-second Shows reopen and compile without clock widening; binary-exact Fast/Precise playback advances state500ms through added time."
+  ],
+  "sequences": [
+    "Insert, serialize/reopen, fully validate, then prepare/compile/reopen .epe through trusted lookup and Libraries.",
+    "Insert twice at the left, interior and right resume boundary of an existing Group hold, preserving the same hold ID and shared runtime.",
+    "Compare a manually authored expected mapped record with operation output across hold, Layout transfer, visual window, later Restart and loop boundaries.",
+    "Compare generated Fast/Precise nonlinear and discontinuous output with independent real-valued arithmetic and exact selected displayed8-bit values."
+  ],
+  "oracles": [
+    "validateShowRecordV2, Layout availability and provisional codec reopen for complete accepted candidates.",
+    "Exact immutable preimage, complete unaliased output and \u00a79 affected collections; raw repeated nested key IDs retained.",
+    "Public half-open Property evaluator at p-1,p,p+d-1,p+d and resumed nonlinear interior; exact authored right-key identity.",
+    "materializeShowGroupsV2, effectiveShowInstanceUseCountV2 and deriveShowRestartEventsV2 for held timeline, same runtime count and entry events.",
+    "Reopened .epe Fast/Fidelity frames and exported state versus independently authored mapping; state advances through added duration.",
+    "Direct independent quadratic output arithmetic with bounded Q16 numeric error and exact selected displayed8-bit values; binary-exact125ms Precise replay steps avoid existing1ms delta accumulation drift.",
+    "Unchanged47-record parity report and closed v1 schema drift coverage gate."
+  ],
+  "tddEvidence": [
+    "Initial owner tests failed because the new global timeline module was absent.",
+    "Group hold/activation and visual-window partitions initially failed before their mappings/guards were implemented.",
+    "Constant activation beforefirst/afterlast keys had2red kernel cases before fresh hold/resume representation was added.",
+    "Canonical ordinary/Group animated preimages prepared ready but both inserted records were rejected by firstCrossSectionTrackIndex; exact transient section restriction repaired both.",
+    "Participant Transition shared-instance full-show activation also prepared ready before insertion but redundant held appearance keys were rejected afterward. Exact complete-value transient coalescing repaired this second adapter-only regression."
+  ],
+  "mutationEvidence": [
+    {
+      "name": "exact-start-moves-right",
+      "file": "src/engine/showTimelineV2.ts",
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "shared-instance-mapped-once",
+      "file": "src/engine/showTimelineV2.ts",
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "nonlinear-source-duration-retained",
+      "file": "src/engine/showPropertyTrackTimeMappingV2.ts",
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "existing-hold-merged",
+      "file": "src/engine/showTimelineV2.ts",
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "first-layout-remains-zero",
+      "file": "src/engine/showTimelineV2.ts",
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "strict-visual-interior-refused",
+      "file": "src/engine/showTimelineV2.ts",
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "dormant-markers-map",
+      "file": "src/engine/showTimelineV2.ts",
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "retained-resume-offset",
+      "file": "src/engine/showPropertyTrackTimeMappingV2.ts",
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "complete-appearance-fields",
+      "file": "src/engine/showCompositionLoweringV2.ts",
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "collision-safe-transient-ids",
+      "file": "src/engine/showCompositionLoweringV2.ts",
+      "exitCode": 1,
+      "killed": true
+    }
+  ],
+  "residualGaps": [
+    "Marker CRUD, Set Show End wrappers, UI/store/command/history/save adoption and deletion/cleanup policies remain other slices.",
+    "Compiler/emitter/source/Restart limits are unchanged; arbitrary-millisecond Precise state equality is not claimed.",
+    "Coordinator owns committed-tip final suites, native review, landing, issue updates and publication."
+  ],
+  "qualification": {
+    "focused": "279/279 across7 affected owner/adapter/schema files; Timeline57/57",
+    "parity": "47 inventoried records match committed report with no source-byte/hash waiver",
+    "static": "Scoped ESLint, npx tsc -b --pretty false and git diff --check pass",
+    "mutations": "10/10 named faults killed by assertion failures; each source restored",
+    "finalSuites": "Not submitted by worker; coordinator owns exact committed-tip evidence"
+  }
+}

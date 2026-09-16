@@ -1,3 +1,4 @@
+import { restrictShowPropertyTrackV2 } from './showPropertyTrackTimeMappingV2'
 import { groupRuntimeBindings, materializeShowGroupsV2 } from './showGroupsV2'
 import { applyShowEasing } from './showEasing'
 import { lowerPropertyTarget } from './showV2ValueConversion'
@@ -395,7 +396,7 @@ function resolveShowV2CompileContext(
   if (composition.groupDefinitions.length > 0 || composition.groupOccurrences.length > 0) {
     return refuse('unsupported-groups', 'composition.groupDefinitions', 'lowering requires Group materialization evidence before compilation.')
   }
-  const divergentClips = composition.clips.filter(clip => clip.appearance.keys.length > 1)
+  const divergentClips = composition.clips.filter(clip => clip.appearance.keys.some(key => !structurallyEqualAppearance(key.value, clip.appearance.keys[0].value)))
   if (composition.transitions.length > 0 && divergentClips.length > 0 && composition.propertyTracks.some(track => {
     const target = track.target
     if ('clipId' in target) return divergentClips.some(clip => clip.id === target.clipId)
@@ -542,14 +543,25 @@ function propertyTrackSectionBounds(
 
 function firstCrossSectionTrackIndex(record: ShowRecordV2): number {
   const sections = derivedSections(record)
-  return record.composition.propertyTracks.findIndex(track => (
-    track.target.kind !== 'show-repeat-scale'
-    && track.target.kind !== 'layout-occurrence-split-position'
-    && !sections.some(section => {
-    const bounds = propertyTrackSectionBounds(record, section, track)
-    return bounds.startMs === track.activeStartMs && bounds.endMs === track.activeStartMs + track.activeDurationMs
+  return record.composition.propertyTracks.findIndex(track => {
+    if (track.target.kind === 'show-repeat-scale' || track.target.kind === 'layout-occurrence-split-position') return false
+    const targetClip = 'clipId' in track.target
+      ? record.composition.clips.find(clip => clip.id === ('clipId' in track.target ? track.target.clipId : undefined))
+      : undefined
+    const activeEndMs = track.activeStartMs + track.activeDurationMs
+    const represented = sections.filter(section => {
+      if (targetClip && !overlaps(targetClip, section)) return false
+      const bounds = propertyTrackSectionBounds(record, section, track)
+      return track.activeStartMs < bounds.endMs && activeEndMs > bounds.startMs
     })
-  ))
+    // A Scene track applies over its complete contribution. Activation edges
+    // become global section edges; a partial positive-Transition contribution
+    // still cannot lose its activation by stripping the persisted v2 fields.
+    return represented.length === 0 || represented.some(section => {
+      const bounds = propertyTrackSectionBounds(record, section, track)
+      return track.activeStartMs > bounds.startMs || activeEndMs < bounds.endMs
+    })
+  })
 }
 
 function emitResolvedShowV2(context: ResolvedShowV2CompileContext): LoweredShowCompositionV2 {
@@ -559,6 +571,18 @@ function emitResolvedShowV2(context: ResolvedShowV2CompileContext): LoweredShowC
   const { record, lookup } = context
   const composition = record.composition
 
+  // Only previously refused animated targets need redundant appearance
+  // coalescing. Other accepted multi-key records preserve their emitted bytes.
+  const clips = composition.clips.map(clip => {
+    const animated = composition.propertyTracks.some(track => (
+      ('clipId' in track.target && track.target.clipId === clip.id)
+      || ('instanceId' in track.target && track.target.instanceId === clip.instanceId)
+    ))
+    return animated && clip.appearance.keys.length > 1
+      && clip.appearance.keys.every(key => structurallyEqualAppearance(key.value, clip.appearance.keys[0].value))
+      ? { ...clip, appearance: { keys: [clip.appearance.keys[0]] } }
+      : clip
+  })
   const sectionId = 'v2-section:0'
   const layersByZone = new Map(record.zones.map(zone => [
     zone.id,
@@ -569,7 +593,7 @@ function emitResolvedShowV2(context: ResolvedShowV2CompileContext): LoweredShowC
   const sceneZones: ShowZoneComposition[] = record.zones.map(zone => {
     const layers = layersByZone.get(zone.id) ?? []
     const mainLayer = layers.find(layer => layer.rank === 0)
-    const main = composition.clips
+    const main = clips
       .filter(clip => clip.zoneId === zone.id && clip.layerId === mainLayer?.id)
       .flatMap(clip => lowerTransitionAppearanceSegments(context, clip, false))
     const overlays: ShowOverlayLayer[] = layers
@@ -578,7 +602,7 @@ function emitResolvedShowV2(context: ResolvedShowV2CompileContext): LoweredShowC
       .map(layer => ({
         id: layer.id,
         name: layer.name,
-        placements: composition.clips
+        placements: clips
           .filter(clip => clip.zoneId === zone.id && clip.layerId === layer.id)
           .flatMap(clip => lowerTransitionAppearanceSegments(context, clip, true)),
       }))
@@ -589,7 +613,7 @@ function emitResolvedShowV2(context: ResolvedShowV2CompileContext): LoweredShowC
     return {
       ...stripV2TransitionFields(transition),
       id: transition.id,
-      fromPlacementId: finalAppearanceSegmentId(composition.clips.find(clip => clip.id === participant.fromClipId)!),
+      fromPlacementId: finalAppearanceSegmentId(clips.find(clip => clip.id === participant.fromClipId)!),
       toPlacementId: participant.toClipId,
       kind: transition.kind,
     }
@@ -628,19 +652,42 @@ function lowerGlobalClipsToSections(
   const { record, lookup } = context
   const composition = record.composition
   const sections = derivedSections(record)
-  const trackSection = new Map<string, number>()
+  const trackIds = new Set(composition.propertyTracks.map(track => track.id))
+  const keyIds = new Set(composition.propertyTracks.flatMap(track => track.keyframes.map(key => key.id)))
+  const freshTransientId = (used: Set<string>, seed: string): string => {
+    let id = seed
+    let suffix = 2
+    while (used.has(id)) id = `${seed}:${suffix++}`
+    used.add(id)
+    return id
+  }
+  const sectionTracks = new Map<string, ShowRecordV2['composition']['propertyTracks']>()
   for (const track of composition.propertyTracks.filter(track => (
     track.target.kind !== 'show-repeat-scale' && track.target.kind !== 'layout-occurrence-split-position'
   ))) {
-    const activeEndMs = track.activeStartMs + track.activeDurationMs
-    const index = sections.findIndex(section => {
+    const targetClip = 'clipId' in track.target
+      ? composition.clips.find(clip => clip.id === ('clipId' in track.target ? track.target.clipId : undefined))
+      : undefined
+    const pieces = sections.flatMap(section => {
+      if (targetClip && !overlaps(targetClip, section)) return []
       const bounds = propertyTrackSectionBounds(record, section, track)
-      return track.activeStartMs === bounds.startMs && activeEndMs === bounds.endMs
+      const restricted = restrictShowPropertyTrackV2(composition.propertyTracks, track, bounds.startMs, bounds.endMs, keyIds)
+      return restricted ? [{ section, track: restricted }] : []
     })
-    if (index < 0) {
-      throw new Error(`Show composition v2 property track "${track.id}" activation crosses a derived Clip/appearance section.`)
+    for (const piece of pieces) {
+      // Previously admitted exact activations retain their track, key identities
+      // and authored endpoint representation, preserving generated source bytes.
+      const transient = pieces.length === 1 && piece.track === track ? track : {
+        ...piece.track,
+        id: freshTransientId(trackIds, `${track.id}@${piece.section.id}`),
+        keyframes: piece.track.keyframes.map(key => ({
+          ...key, id: freshTransientId(keyIds, `${key.id}@${piece.section.id}`),
+        })),
+      }
+      const tracks = sectionTracks.get(piece.section.id) ?? []
+      tracks.push(transient)
+      sectionTracks.set(piece.section.id, tracks)
     }
-    trackSection.set(track.id, index)
   }
   const layersByZone = new Map(record.zones.map(zone => [
     zone.id,
@@ -648,7 +695,7 @@ function lowerGlobalClipsToSections(
       .filter(layer => layer.zoneId === zone.id)
       .sort((left, right) => left.rank - right.rank || left.id.localeCompare(right.id)),
   ]))
-  const v1Scenes = sections.map((section, sectionIndex) => {
+  const v1Scenes = sections.map(section => {
     const zones: ShowZoneComposition[] = record.zones.map(zone => {
       const layers = layersByZone.get(zone.id) ?? []
       const mainLayer = layers.find(layer => layer.rank === 0)
@@ -669,8 +716,7 @@ function lowerGlobalClipsToSections(
         }))
       return { zoneId: zone.id, main, overlays }
     })
-    const propertyTracks = composition.propertyTracks
-      .filter(track => trackSection.get(track.id) === sectionIndex)
+    const propertyTracks = (sectionTracks.get(section.id) ?? [])
       .map(track => ({
         ...stripV2PropertyTrackActivation(track),
         target: lowerPropertyTargetForSection(track.target, composition.clips, section),
@@ -971,6 +1017,21 @@ function runtimeInstanceId(context: ResolvedShowV2CompileContext, clip: ShowClip
   const instanceId = context.runtimeInstanceIdByClipId[clip.id]
   if (!instanceId) throw new Error(`Resolved Show composition v2 Clip "${clip.id}" has no runtime identity.`)
   return instanceId
+}
+
+/** Complete exact JSON structure comparison; neither floats nor fields are approximated. */
+function structurallyEqualAppearance(left: unknown, right: unknown): boolean {
+  if (left === right) return true
+  if (left === null || right === null || typeof left !== 'object' || typeof right !== 'object') return false
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) && left.length === right.length
+      && left.every((value, index) => structurallyEqualAppearance(value, right[index]))
+  }
+  const leftObject = left as Record<string, unknown>
+  const rightObject = right as Record<string, unknown>
+  const keys = Object.keys(leftObject)
+  return keys.length === Object.keys(rightObject).length
+    && keys.every(key => Object.prototype.hasOwnProperty.call(rightObject, key) && structurallyEqualAppearance(leftObject[key], rightObject[key]))
 }
 
 function finalAppearanceSegmentId(clip: ShowClipV2): string {

@@ -60,6 +60,6 @@ move and linked duplicate on this representation. `showLayersV2.ts` owns pure
 Layer add, rename, reorder and explicit reassignment/removal, with its proof in
 [the Layer test design](../evidence/issue-1038-layers/test-design.json). The Group
 edit owner persists exact held projections during selected-occurrence Ungroup.
-Global Insert Time, Group delete, and production UI/store adoption remain later
-#1038 owners; the landed route pilot consumes holds through the existing
+[The timeline edit owner](show-v2-timeline-edits.md) supplies global Insert Time.
+Group delete and production UI/store adoption remain separate #1038 owners; the landed route pilot consumes holds through the existing
 v2 codec and compile-preparation seams rather than redefining them.
