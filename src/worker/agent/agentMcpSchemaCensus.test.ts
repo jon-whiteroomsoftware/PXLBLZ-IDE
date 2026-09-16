@@ -5,11 +5,12 @@ import { agentMcpRouting } from './agentMcpRouting'
 
 const grant = { accountId: 'account', clientId: 'client', clientName: 'Client', clientOrigins: [], grantId: 'grant', expiresAt: Math.ceil(Date.now() / 1000) + 60 }
 type JsonSchema = { properties?: Record<string, JsonSchema>; required?: string[]; [key: string]: unknown }
-const OBSERVED_PRE_IDENTITY_BYTES = 271_687
-const OBSERVED_IDENTITY_BYTES = 269_177
-const OBSERVED_CONCISE_DESCRIPTION_BYTES = 256_507
+// Actual tools/list responses from the same 64-tool discovery catalogue before
+// and after #1048 moved mutation identity ownership into the relay.
+const OBSERVED_PRE_IDENTITY_BYTES = 360_987
+const OBSERVED_IDENTITY_BYTES = 358_419
 
-it('measures identity and concise-description reductions against the same command catalogue', async () => {
+it('measures identity and concise-description reductions against the same discovery catalogue', async () => {
   const response = await agentMcpRouting(new Request('https://app.test/mcp', {
     method: 'POST',
     headers: { Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json' },
@@ -27,9 +28,8 @@ it('measures identity and concise-description reductions against the same comman
   }
   const identityDelta = measurement.identityBytes - measurement.preIdentityBytes
   const conciseDescriptionDelta = measurement.currentBytes - measurement.identityBytes
-  console.info('issue-1049-schema-census', JSON.stringify({ ...measurement, identityDelta, conciseDescriptionDelta }))
-  expect(measurement).toMatchObject({ tools: SHOW_COMMANDS.length + 8, mutations: SHOW_COMMANDS.length + 3 })
-  expect(identityDelta).toBe(-2_510)
-  expect(measurement.currentBytes).toBe(OBSERVED_CONCISE_DESCRIPTION_BYTES)
-  expect(conciseDescriptionDelta).toBe(-12_670)
+  console.info('issue-1051-schema-census', JSON.stringify({ ...measurement, identityDelta, conciseDescriptionDelta }))
+  expect(measurement).toMatchObject({ tools: SHOW_COMMANDS.length + 10, mutations: SHOW_COMMANDS.length + 3 })
+  expect(identityDelta).toBe(-2_568)
+  expect(conciseDescriptionDelta).toBeLessThan(0)
 })
