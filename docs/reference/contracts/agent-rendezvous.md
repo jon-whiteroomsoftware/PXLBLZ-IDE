@@ -194,18 +194,42 @@ External replacement ends the old volatile relay and creates an empty relay for
 the fresh destination binding. A bounded move notice lives only on that current
 slot and disappears when the slot is replaced or retired.
 
-The relay queues at most seven mutation jobs, reserving one additional slot for
-read/outcome queries. Responses wait at most25 seconds and return pending rather
-than cancel or replay. Browser requests have a35-second transport bound and
-independent15-second liveness heartbeats. Operation identities are retained until
-the binding retires: at most256 operations and256 deliveries per operation,
-with a4 MiB aggregate encoded identity budget. Capacity refuses new identities;
-it never evicts a tombstone into an executable state. Changed identity reuse is
-refused. Server/browser cached results are each bounded to4 MiB aggregate and
-1 MiB per result, with60-second cache eligibility. Cached-byte expiry leaves
-tombstones and admission receipts intact. Admission capture reserves a16 MiB
-aggregate encoded snapshot/source budget before retaining each new request.
-No document, command, result or outcome is written to Durable Object storage.
+The relay and its client-key map are volatile. If an account owner is recreated
+while its durable slot still says bound, it cannot reconstruct which client calls
+were admitted. The first connection resolution, dispatch, retry or query marks
+that old generation retiring before any delivery. The browser observes retirement
+and cancels unapplied private work through the existing owner; an adopted save
+continues under store ownership. The client reconnects under a fresh binding and
+reads the Show again before opening another operation. Payloads, keys, documents
+and receipts are never persisted to bridge this loss.
+
+The relay admits at most ten ordinary canonical jobs, including the sent head.
+Each has one response waiter and at most65,536 bytes of canonical payload identity.
+Eight separately bounded read/outcome jobs remain available when that queue is
+full. Calls wait at most25 seconds and return `pending` without cancelling their
+job. Only the head of an operation is sent. Delivery IDs are assigned at admission;
+sequences are assigned only when a job becomes sendable, so removing an unsent job
+cannot create a browser sequence gap.
+
+Terminal cancel has separate admission capacity. It discards unsent followers as
+`result_unavailable` and may follow the one sent head using the browser's existing
+cancel-after-sent check. The sent head then cannot release later ordinary work; a
+confirmed cancel makes its late reply unknown. Read and outcome queries never
+consume this terminal path.
+
+Operation identities are retained until the binding retires: at most256 operations
+and256 deliveries per operation, with a4 MiB aggregate encoded identity budget.
+One operation reserves sequence0 for begin, sequences1 through253 for at most253
+ordinary commands, sequence254 for commit and sequence255 for cancellation after
+a pending commit. A refused delivered command consumes its sequence. Ordinary
+capacity therefore directs the client to commit or cancel before lifecycle slots
+are exhausted. Capacity refuses new identities; it never evicts a tombstone into
+an executable state. Changed identity reuse is refused. Server/browser cached
+results are each bounded to4 MiB aggregate and1 MiB per result, with60-second
+cache eligibility. Cached-byte expiry leaves tombstones and admission receipts
+intact. Admission capture reserves a16 MiB aggregate encoded snapshot/source
+budget before retaining each new request. Browser requests retain their35-second
+transport bound and independent15-second liveness heartbeats.
 
 Disconnect/close retire local private work synchronously before network cleanup.
 A failed transport preserves the logical binding and known browser receipt;

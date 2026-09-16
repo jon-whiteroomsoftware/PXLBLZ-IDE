@@ -40,10 +40,10 @@ it.each([
   ['list_commands', {}],
   ['read_show', { binding_id: 'binding' }],
   ['get_context', { binding_id: 'binding' }],
-  ['begin_edit', { binding_id: 'binding', operation_id: 'operation', delivery_id: 'begin', sequence: 0 }],
-  ['rename_show', { binding_id: 'binding', operation_id: 'operation', delivery_id: 'rename', sequence: 1, name: 'Renamed' }],
-  ['commit_edit', { binding_id: 'binding', operation_id: 'operation', delivery_id: 'commit', sequence: 2 }],
-  ['cancel_edit', { binding_id: 'binding', operation_id: 'operation', delivery_id: 'cancel', sequence: 2 }],
+  ['begin_edit', { binding_id: 'binding', intent: 'Rename the Show', idempotency_key: 'begin' }],
+  ['rename_show', { binding_id: 'binding', operation_id: 'operation', idempotency_key: 'rename', name: 'Renamed' }],
+  ['commit_edit', { binding_id: 'binding', operation_id: 'operation', idempotency_key: 'commit' }],
+  ['cancel_edit', { binding_id: 'binding', operation_id: 'operation', idempotency_key: 'cancel' }],
   ['get_outcome', { binding_id: 'binding', operation_id: 'operation' }],
 ] as const)('%s preserves one authoritative throttled owner response', async (name, args) => {
   const owner = { fetch: vi.fn(async () => Response.json({ code: 'throttled', retry_after_ms: 4321 }, { status: 429 })) }
@@ -58,7 +58,7 @@ it.each([
   ['get_connection', {}],
   ['list_commands', {}],
   ['read_show', { binding_id: 'binding' }],
-  ['rename_show', { binding_id: 'binding', operation_id: 'op', delivery_id: 'change', sequence: 1, name: 'New' }],
+  ['rename_show', { binding_id: 'binding', operation_id: 'op', idempotency_key: 'change', name: 'New' }],
   ['get_outcome', { binding_id: 'binding', operation_id: 'op' }],
 ] as const)('%s fails closed for unknown or malformed account results', async (name, args) => {
   for (const response of [null, { code: 'future-unclassified-code' }]) {
@@ -137,12 +137,12 @@ it('keeps public success and error results schema-valid, distinguishable, and by
 
   const changed = await call({ fetch: vi.fn()
     .mockResolvedValueOnce(Response.json({ code: 'changed', changes: [{ command: 'rename_show', targetId: 'show', description: 'Renamed Show', before: 'Old', after: 'New', details: { source: 'agent' } }] })) },
-  'rename_show', { binding_id: 'binding', operation_id: 'op', delivery_id: 'change', sequence: 1, name: 'New' })
+  'rename_show', { binding_id: 'binding', operation_id: 'op', idempotency_key: 'change', name: 'New' })
   validate('rename_show', changed, false)
 
   const refused = await call({ fetch: vi.fn()
     .mockResolvedValueOnce(Response.json({ code: 'refused', issues: [{ code: 'invalid-argument', message: 'Name is invalid.', path: 'name', remedy: 'Choose another name.', candidates: ['New'], availableRange: { startMs: 0, endMs: 1 } }] })) },
-  'rename_show', { binding_id: 'binding', operation_id: 'op', delivery_id: 'refusal', sequence: 1, name: 'New' })
+  'rename_show', { binding_id: 'binding', operation_id: 'op', idempotency_key: 'refusal', name: 'New' })
   validate('rename_show', refused, true)
 
   const receipt = { status: 'refused', diagnostic: { stage: 'authoring', issues: [{ code: 'invalid-scene-duration', path: '["scene"]' }] } }
@@ -153,7 +153,7 @@ it('keeps public success and error results schema-valid, distinguishable, and by
   const moveNotice = { showId: 'show-2', showName: 'Destination' }
   const movedClaim = { ...claim, bindingId: 'binding-2' }
   const moved = await call({ fetch: vi.fn().mockResolvedValue(Response.json({ code: 'binding_moved', claim: movedClaim, binding: { ...movedClaim, showId: 'show-2', showName: 'Destination' }, moveNotice })) },
-  'begin_edit', { binding_id: 'binding', operation_id: 'op', delivery_id: 'begin', sequence: 0 })
+  'begin_edit', { binding_id: 'binding', intent: 'Move the Show', idempotency_key: 'begin' })
   validate('begin_edit', moved, true)
   expect(moved.structuredContent).toMatchObject({
     code: 'binding_moved', instruction: expect.any(String),
@@ -161,8 +161,39 @@ it('keeps public success and error results schema-valid, distinguishable, and by
   })
 
   expect(validators.get('rename_show')!({ code: 'accepted' })).toBe(false)
-  expect(validators.get('rename_show')!({ code: 'pending', operationId: 'op' })).toBe(true)
+  expect(validators.get('rename_show')!({ code: 'pending', operation_id: 'op' })).toBe(true)
   expect(validators.get('rename_show')!({ code: 'changed', changes: [{ description: 'Missing command' }] })).toBe(false)
   expect(validators.get('rename_show')!({ code: 'refused', issues: [{ code: 'invalid-argument' }] })).toBe(false)
   expect(validators.get('begin_edit')!({ code: 'binding_moved', connection_notice: { code: 'binding_moved', show_id: 'show-2' } })).toBe(false)
+})
+
+it('publishes server-owned identity schemas and rejects legacy delivery fields', async () => {
+  const env = { ASSETS: { fetch: vi.fn() } } as unknown as WorkerEnv
+  const listed = await (await request(env, 'tools/list')).json() as { result: { tools: Array<{ name: string; inputSchema: { required?: string[]; properties?: Record<string, unknown> } }> } }
+  const byName = new Map(listed.result.tools.map(tool => [tool.name, tool.inputSchema]))
+  expect(byName.get('begin_edit')).toMatchObject({
+    required: expect.arrayContaining(['binding_id', 'intent', 'idempotency_key']),
+    properties: { binding_id: expect.any(Object), intent: expect.any(Object), idempotency_key: expect.any(Object) },
+  })
+  expect(byName.get('begin_edit')?.properties).not.toHaveProperty('operation_id')
+  expect(byName.get('begin_edit')?.properties).not.toHaveProperty('delivery_id')
+  expect(byName.get('rename_show')).toMatchObject({ required: expect.arrayContaining(['binding_id', 'operation_id']) })
+  expect(byName.get('rename_show')?.properties).not.toHaveProperty('delivery_id')
+  expect(byName.get('rename_show')?.properties).not.toHaveProperty('sequence')
+
+  const owner = { fetch: vi.fn(async () => Response.json({ code: 'begun', operationId: 'server-operation' })) }
+  const begun = await call(owner, 'begin_edit', { binding_id: 'binding', intent: 'Rename the Show', idempotency_key: 'stable-key' })
+  expect(begun.structuredContent).toEqual({ code: 'begun', operation_id: 'server-operation' })
+  expectCopies(begun)
+  for (const arguments_ of [
+    { binding_id: 'binding', intent: 'Rename the Show', idempotency_key: '' },
+    { binding_id: 'binding', intent: 'Rename the Show', idempotency_key: 'x'.repeat(129) },
+    { binding_id: 'binding', intent: '', idempotency_key: 'key' },
+    { binding_id: 'binding', intent: '   ', idempotency_key: 'key' },
+    { binding_id: 'binding', intent: 'Rename\nthe Show', idempotency_key: 'key' },
+    { binding_id: 'binding', intent: 'Rename the Show', idempotency_key: 'key', delivery_id: 'legacy' },
+  ]) {
+    const response = await request({ ASSETS: { fetch: vi.fn() } } as unknown as WorkerEnv, 'tools/call', { name: 'begin_edit', arguments: arguments_ })
+    expect((await response.json() as { result: { isError?: boolean } }).result.isError).toBe(true)
+  }
 })

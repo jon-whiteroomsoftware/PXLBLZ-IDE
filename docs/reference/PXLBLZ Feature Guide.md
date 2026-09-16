@@ -645,6 +645,10 @@ Losing the advertised capability or leaving the Show retires pending private
 work; an already-applied personal save
 continues. Disconnect and Forget still require the exact owning window; only the
 explicit external Reconnect/Bring action replaces another editor's binding.
+If the server loses the live connection's in-memory delivery ledger, the editor
+shows that generation retiring instead of guessing whether a command ran. The
+external client reconnects and reads the Show again before starting a new edit;
+unapplied private work is cancelled and an already-applied save continues.
 The built-in testing service uses Luna Fast mode, a 30-message personal daily
 allowance, and a $10 daily allowance shared across signed-in accounts. Availability
 and both allowances are controlled by the server. See [Agent service limits](contracts/agent-builtin-service.md)

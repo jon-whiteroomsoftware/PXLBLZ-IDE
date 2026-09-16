@@ -100,17 +100,33 @@ slot. An armed editor binds immediately; otherwise the call waits the full
 30-second Answer window outside authorization serialization. A supplied
 `call_id` only inspects that original call and never recreates an expired call.
 Every content or edit tool requires the current `binding_id`; mutations also
-require `operation_id`, `delivery_id` and increasing `sequence` (begin is zero).
-These caller identifiers are scoped by the validated account, grant and binding;
-they never authorize a window or select an actor. The server rechecks the original
-generation at dispatch and browser reply. The editor executes closed canonical
-arguments against its private immutable capture and adopts only through admission.
+require the server-issued `operation_id`, except `begin_edit`. Begin requires a
+nonblank, single-line `intent` of at most 240 characters and a nonempty
+`idempotency_key` of at most 128 identity characters. It returns the relay-assigned
+operation ID. Later mutations accept an optional key scoped to that binding and
+operation. The public client never supplies a delivery ID or sequence. The relay
+assigns both, and the browser independently checks the immutable envelope and
+strictly increasing sequence before execution.
+The relay admits `begin_edit` only after `read_show` has completed successfully
+for that binding generation. `get_context` can refresh focus later but does not
+substitute for the full post-connect snapshot.
+
+The client key names one canonical payload, including tool kind, command name and
+arguments. Reusing it with the same payload returns the pending or retained result
+without another browser delivery; changing the payload returns
+`identity_conflict`. A repeated begin key retains its original operation even
+after completion. Cached result bytes may expire after 60 seconds, leaving a
+non-executable identity tombstone and an `unknown` result with the original
+operation ID. An unkeyed later mutation is safe only as one attempt: after a
+timeout, the client queries `get_outcome` and does not repeat it. Independent
+commands may be sent together, but dependent commands and commit must await their
+predecessors because relay admission order determines execution order.
 
 An explicit browser move keeps the validated grant while replacing its call and
 binding IDs. The next actual MCP tool handler resolves the current binding once,
 atomically consumes the current-slot move marker, and adds `connection_notice`
 with `binding_moved`, destination Show ID/name when available, and an instruction
-to call `get_connection` then refresh with `read_show` or `get_context`. This
+to call `get_connection` then refresh with `read_show`. This
 best-effort notice can be consumed by `get_connection`, `list_commands`, a read,
 or a mutation. Initialization, `tools/list`, and resources list/read neither
 resolve the slot nor consume it. No server push or client wake is added.
@@ -139,6 +155,13 @@ normalized command plus its JSON-RPC envelope. OAuth forms remain16 KiB. No
 input or captured reference context is truncated to fit. Relay/read results are
 at most1 MiB; MCP encodes that result as both text and structured content, so its
 wire response may contain two copies plus protocol framing.
+
+The current in-process schema census covers 62 tools and 57 mutation tools.
+The observed serialized `tools/list` response at integrated base
+`b2f8426e7e391d440d00e124590d9f1772d1db6d` is271,687 bytes; the same catalogue
+after server-owned identity is269,177 bytes, a reduction of2,510 bytes. These totals
+include the shared output schemas introduced before this change; the earlier
+132,075-byte catalogue measurement therefore is not this comparison baseline.
 
 The text copy is the exact JSON encoding of `structuredContent`. Successful
 result codes are `bound`, `pending`, `commands`, `read`, `begun`, `changed`,

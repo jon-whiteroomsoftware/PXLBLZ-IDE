@@ -3,7 +3,7 @@ import type { AgentClaim, ExternalMoveNotice, WindowIdentity } from '../../engin
 import type { PrivateEditResult } from '../../engine/agentPrivateExecutor'
 import { isAgentMcpResult } from '../../engine/agentMcpResults'
 import type { AgentAccountNamespace } from './AgentAccount'
-import type { AgentDeliveryInput, AgentEditorQuery } from './agentRelay'
+import type { AgentDeliveryInput, AgentEditorQuery, ExternalAgentDeliveryInput } from './agentRelay'
 type Environment = AgentAccessEnvironment & { AGENT_ACCOUNTS?: AgentAccountNamespace }
 export interface ExternalToolConnection extends PrivateEditResult {
   claim?: AgentClaim
@@ -28,7 +28,7 @@ export function connectExternalTool(env: Environment, grant: TrustedExternalTool
 export function resolveExternalTool(env: Environment, grant: TrustedExternalTool): Promise<ExternalToolConnection> {
   return sendExternal(env, grant, { type: 'external-tool-resolve' })
 }
-export function dispatchExternalTool(env: Environment, grant: TrustedExternalTool, expectedBindingId: string, delivery: AgentDeliveryInput): Promise<ExternalToolConnection> {
+export function dispatchExternalTool(env: Environment, grant: TrustedExternalTool, expectedBindingId: string, delivery: ExternalAgentDeliveryInput): Promise<ExternalToolConnection> {
   return sendExternal(env, grant, { type: 'external-tool-dispatch', expectedBindingId, delivery })
 }
 export function queryExternalTool(env: Environment, grant: TrustedExternalTool, expectedBindingId: string, query: AgentEditorQuery): Promise<ExternalToolConnection> {

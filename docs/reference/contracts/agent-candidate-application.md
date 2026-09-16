@@ -695,7 +695,8 @@ directly. Snapshot and finite resize-identity helpers are pure engine modules.
 No second adoption owner or diagnostic grammar is introduced.
 
 `src/engine/agentPrivateExecutor.ts` keeps one private candidate per binding,
-serializes canonical command deliveries with session-scoped immutable identity,
+serializes relay-assigned canonical command deliveries with session-scoped
+immutable identity,
 and delegates apply/complete/cancel/outcome to that admission. True command
 refusal discards the whole private candidate. Cached response loss preserves
 identity tombstones and uses the surviving admission receipt for outcome
@@ -703,7 +704,9 @@ recovery, never automatic application replay. The production browser session
 receives commands from the bounded account relay for both transports. Cancel
 after commit still reaches the retained admission request during input waiting;
 an already-adopted save remains intact. Local end retires synchronously before
-network cleanup; remote grant retirement is confirmed only after the browser
-acknowledges that retirement. Capture capacity is checked before retaining a
-new or retry request. See the OAuth/MCP and rendezvous contracts for transport
-identity, resource limits and revocation acknowledgement.
+network cleanup; remote grant retirement and loss of the relay's volatile
+identity ledger are confirmed only after the browser acknowledges retirement.
+Unsent relay followers never reach this executor, while a sent unknown head can
+only be followed by terminal cancel. Capture capacity is checked before retaining
+a new or retry request. See the OAuth/MCP and rendezvous contracts for client-key
+scope, queue limits, transport identity and revocation acknowledgement.

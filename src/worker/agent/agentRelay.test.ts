@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { AgentRelay } from './agentRelay'
+import { AgentRelay, type AgentRelayMessage } from './agentRelay'
 import { createShowEditSession } from '../../engine/showEditAdmission'
 const scope = { bindingId: 'binding', registrationId: 'registration', sessionId: 'session', showId: 'show' }
 const delivery = (sequence = 0, payload: unknown = { kind: 'begin_edit' }) => ({ operationId: 'op', deliveryId: `d${sequence}`, sequence, payload })
@@ -57,11 +57,11 @@ it('preserves command order and refuses replies from an old generation', async (
 })
 it('bounds waiting callers while retaining room for a non-mutating outcome query', async () => {
   const relay = new AgentRelay(scope, () => {})
-  const waiting = Array.from({ length: 7 }, (_, index) => relay.dispatch({ ...delivery(), operationId: `op${index}` }))
+  const waiting = Array.from({ length: 10 }, (_, index) => relay.dispatch({ ...delivery(), operationId: `op${index}` }))
   expect(await relay.dispatch({ ...delivery(), operationId: 'overflow' })).toEqual({ code: 'capacity' })
   const query = relay.query({ kind: 'get_outcome', operationId: 'op0' })
   const messages = relay.take()
-  expect(messages).toHaveLength(8)
+  expect(messages).toHaveLength(11)
   const queryMessage = messages.find(message => (message.payload as { kind: string }).kind === 'get_outcome')!
   relay.reply(queryMessage, { code: 'outcome', receipt: { status: 'pending' } })
   expect(await query).toMatchObject({ code: 'outcome' })
@@ -112,4 +112,139 @@ it.each([false, true])('allows only terminal cancel behind a sent command, with 
   }
   expect(relay.take()).toEqual([])
   relay.end(); browser.retire()
+})
+
+async function beginExternal(relay: AgentRelay, key = 'begin-key', intent = 'Rename the Show') {
+  await primeExternal(relay)
+  const call = relay.dispatchExternal({ idempotencyKey: key, payload: { kind: 'begin_edit', intent } })
+  const [message] = relay.take()
+  expect(message.sequence).toBe(0)
+  expect(relay.reply(message, { code: 'begun', operationId: message.operationId })).toBe(true)
+  expect(await call).toEqual({ code: 'begun', operationId: message.operationId })
+  return message.operationId
+}
+
+async function primeExternal(relay: AgentRelay) {
+  const reading = relay.query({ kind: 'read_show' })
+  const [message] = relay.take()
+  relay.reply(message, { code: 'read', show: {} })
+  await reading
+}
+
+it('recovers one server-minted begin identity across pending, known, changed, completed, and expired retries', async () => {
+  const relay = new AgentRelay(scope, () => {})
+  expect(await relay.dispatchExternal({ idempotencyKey: 'blank', payload: { kind: 'begin_edit', intent: '   ' } })).toEqual({ code: 'invalid_payload' })
+  expect(await relay.dispatchExternal({ idempotencyKey: 'before-read', payload: { kind: 'begin_edit', intent: 'Rename the Show' } })).toMatchObject({ code: 'invalid_request', remedy: expect.stringContaining('read_show') })
+  await primeExternal(relay)
+  const first = relay.dispatchExternal({ idempotencyKey: 'begin-key', payload: { kind: 'begin_edit', intent: 'Rename the Show' } })
+  const [message] = relay.take()
+  await vi.advanceTimersByTimeAsync(25_000)
+  expect(await first).toEqual({ code: 'pending', operationId: message.operationId })
+  expect(await relay.dispatchExternal({ idempotencyKey: 'begin-key', payload: { intent: 'Rename the Show', kind: 'begin_edit' } })).toEqual({ code: 'pending', operationId: message.operationId })
+  expect(await relay.dispatchExternal({ idempotencyKey: 'begin-key', payload: { kind: 'begin_edit', intent: 'Change the intent' } })).toEqual({ code: 'identity_conflict', operationId: message.operationId })
+  expect(await relay.dispatchExternal({ idempotencyKey: 'other-key', payload: { kind: 'begin_edit', intent: 'Rename the Show' } })).toEqual({ code: 'busy' })
+  relay.reply(message, { code: 'begun', operationId: message.operationId })
+  expect(await relay.dispatchExternal({ idempotencyKey: 'begin-key', payload: { kind: 'begin_edit', intent: 'Rename the Show' } })).toEqual({ code: 'begun', operationId: message.operationId })
+  const cancel = relay.dispatchExternal({ operationId: message.operationId, payload: { kind: 'cancel_edit' } })
+  const [cancelMessage] = relay.take()
+  relay.reply(cancelMessage, { code: 'outcome', receipt: { status: 'cancelled' } })
+  await cancel
+  expect(await relay.dispatchExternal({ idempotencyKey: 'begin-key', payload: { kind: 'begin_edit', intent: 'Rename the Show' } })).toEqual({ code: 'begun', operationId: message.operationId })
+  await vi.advanceTimersByTimeAsync(60_000)
+  expect(await relay.dispatchExternal({ idempotencyKey: 'begin-key', payload: { kind: 'begin_edit', intent: 'Rename the Show' } })).toEqual({ code: 'unknown', operationId: message.operationId })
+  const fresh = relay.dispatchExternal({ idempotencyKey: 'other-key', payload: { kind: 'begin_edit', intent: 'Start another edit' } })
+  const [freshMessage] = relay.take()
+  expect(freshMessage.operationId).not.toBe(message.operationId)
+  relay.end()
+  expect(await fresh).toEqual({ code: 'connection_retired' })
+})
+
+it('serializes ten admitted external calls in relay order and retains dedicated query capacity', async () => {
+  const relay = new AgentRelay(scope, () => {})
+  const operationId = await beginExternal(relay)
+  const calls = Array.from({ length: 10 }, (_, index) => relay.dispatchExternal({
+    operationId,
+    idempotencyKey: `command-${index}`,
+    payload: { kind: 'command', name: 'rename_show', arguments: { name: `Name ${index}` } },
+  }))
+  expect(await relay.dispatchExternal({ operationId, payload: { kind: 'command', name: 'rename_show', arguments: { name: 'Overflow' } } })).toMatchObject({ code: 'capacity', operationId })
+  const query = relay.query({ kind: 'get_outcome', operationId })
+  const received: AgentRelayMessage[] = []
+  for (let index = 0; index < 10; index += 1) {
+    const deliveries = relay.take()
+    const command = deliveries.find(item => (item.payload as { kind: string }).kind === 'command')!
+    if (index === 0) {
+      const queryMessage = deliveries.find(item => (item.payload as { kind: string }).kind === 'get_outcome')!
+      relay.reply(queryMessage, { code: 'outcome', receipt: { status: 'pending' } })
+    }
+    received.push(command)
+    expect(relay.take()).toEqual([])
+    relay.reply(command, { code: 'changed', changes: [] })
+  }
+  expect(received.map(item => item.sequence)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+  expect(received.map(item => (item.payload as { arguments: { name: string } }).arguments.name)).toEqual(Array.from({ length: 10 }, (_, index) => `Name ${index}`))
+  await expect(Promise.all(calls)).resolves.toEqual(Array.from({ length: 10 }, () => ({ code: 'changed', changes: [] })))
+  await expect(query).resolves.toMatchObject({ code: 'outcome' })
+})
+
+it('cancellation discards unsent followers, bypasses saturation behind a sent head, and rejects its late reply', async () => {
+  const relay = new AgentRelay(scope, () => {})
+  const operationId = await beginExternal(relay)
+  const calls = Array.from({ length: 10 }, (_, index) => relay.dispatchExternal({
+    operationId,
+    idempotencyKey: `command-${index}`,
+    payload: { kind: 'command', name: 'rename_show', arguments: { name: `Name ${index}` } },
+  }))
+  const [head] = relay.take()
+  const cancelling = relay.dispatchExternal({ operationId, idempotencyKey: 'cancel', payload: { kind: 'cancel_edit' } })
+  const [cancel] = relay.take()
+  expect(cancel.sequence).toBe(2)
+  expect((cancel.payload as { kind: string }).kind).toBe('cancel_edit')
+  relay.reply(cancel, { code: 'outcome', receipt: { status: 'cancelled' } })
+  expect(await cancelling).toMatchObject({ receipt: { status: 'cancelled' } })
+  expect(await Promise.all(calls)).toEqual(Array.from({ length: 10 }, () => ({ code: 'result_unavailable' })))
+  expect(relay.reply(head, { code: 'changed', changes: [] })).toBe(false)
+  expect(relay.take()).toEqual([])
+})
+
+it('a terminal commit settles followers that were admitted before its result', async () => {
+  const relay = new AgentRelay(scope, () => {})
+  const operationId = await beginExternal(relay)
+  const committing = relay.dispatchExternal({ operationId, payload: { kind: 'commit_edit' } })
+  const follower = relay.dispatchExternal({ operationId, idempotencyKey: 'late-command', payload: { kind: 'command', name: 'rename_show', arguments: { name: 'Too late' } } })
+  const [commit] = relay.take()
+  expect((commit.payload as { kind: string }).kind).toBe('commit_edit')
+  relay.reply(commit, { code: 'outcome', receipt: { status: 'applied', settlement: 'saved' } })
+  expect(await committing).toMatchObject({ receipt: { status: 'applied' } })
+  expect(await follower).toEqual({ code: 'result_unavailable' })
+  expect(await relay.dispatchExternal({ operationId, idempotencyKey: 'late-command', payload: { kind: 'command', name: 'rename_show', arguments: { name: 'Too late' } } })).toEqual({ code: 'result_unavailable' })
+  expect(relay.take()).toEqual([])
+})
+
+it('canonicalizes keyed command arguments and reserves commit plus post-commit cancellation within 256 deliveries', async () => {
+  const relay = new AgentRelay(scope, () => {})
+  const operationId = await beginExternal(relay)
+  const original = relay.dispatchExternal({ operationId, idempotencyKey: 'canonical', payload: { kind: 'command', name: 'rename_show', arguments: { a: 1, b: 2 } } })
+  const [first] = relay.take()
+  expect(await relay.dispatchExternal({ operationId, idempotencyKey: 'canonical', payload: { name: 'rename_show', arguments: { b: 2, a: 1 }, kind: 'command' } })).toEqual({ code: 'pending', operationId })
+  expect(await relay.dispatchExternal({ operationId, idempotencyKey: 'canonical', payload: { kind: 'command', name: 'rename_show', arguments: { a: 1, b: 3 } } })).toEqual({ code: 'identity_conflict', operationId })
+  relay.reply(first, { code: 'changed', changes: [] })
+  await original
+  for (let index = 1; index < 253; index += 1) {
+    const call = relay.dispatchExternal({ operationId, payload: { kind: 'command', name: 'rename_show', arguments: { name: `N${index}` } } })
+    const [message] = relay.take()
+    relay.reply(message, { code: 'changed', changes: [] })
+    await call
+  }
+  expect(await relay.dispatchExternal({ operationId, payload: { kind: 'command', name: 'rename_show', arguments: { name: 'Too many' } } })).toMatchObject({ code: 'capacity', remedy: expect.stringContaining('commit or cancel') })
+  const committing = relay.dispatchExternal({ operationId, payload: { kind: 'commit_edit' } })
+  const [commit] = relay.take()
+  expect(commit.sequence).toBe(254)
+  relay.reply(commit, { code: 'outcome', receipt: { status: 'pending' } })
+  await committing
+  const cancelling = relay.dispatchExternal({ operationId, payload: { kind: 'cancel_edit' } })
+  const [cancel] = relay.take()
+  expect(cancel.sequence).toBe(255)
+  relay.reply(cancel, { code: 'outcome', receipt: { status: 'cancelled' } })
+  await cancelling
 })

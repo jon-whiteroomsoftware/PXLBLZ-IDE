@@ -1,6 +1,6 @@
 import { emptyRendezvous, transitionRendezvous, windowRendezvousView, REGISTRATION_TTL_MS, type RendezvousCommand, type RendezvousState, type WindowIdentity, type AgentClaim, type WindowCommand, type EditorRegistration, type ExternalMoveNotice } from '../../engine/agentRendezvous'
 import { agentResponse } from '../../cloudflare/agentAccess'
-import { AgentRelay, type AgentDeliveryInput, type AgentEditorQuery, type AgentRelayMessage } from './agentRelay'
+import { AgentRelay, type AgentDeliveryInput, type AgentEditorQuery, type AgentRelayMessage, type ExternalAgentDeliveryInput } from './agentRelay'
 import type { PrivateEditResult } from '../../engine/agentPrivateExecutor'
 
 interface StorageTransaction {
@@ -35,7 +35,7 @@ type AccountCommand = RendezvousCommand | AgentWindowChannelCommand
   | { type: 'relay-query'; identity: AgentClaim; query: AgentEditorQuery; accountId: string }
   | { type: 'external-tool-connect'; agentId: string; agentName: string; callId?: string; nextCallId?: string; nextBindingId?: string }
   | { type: 'external-tool-resolve'; agentId: string }
-  | { type: 'external-tool-dispatch'; agentId: string; expectedBindingId: string; delivery: AgentDeliveryInput }
+  | { type: 'external-tool-dispatch'; agentId: string; expectedBindingId: string; delivery: ExternalAgentDeliveryInput }
   | { type: 'external-tool-query'; agentId: string; expectedBindingId: string; query: AgentEditorQuery }
 interface AccountBody { code: string; contact?: 'live' | 'lost'; registrationId?: string; binding?: AgentClaim & WindowIdentity & Pick<EditorRegistration, 'showName'>; connection?: ReturnType<typeof windowRendezvousView>; claim?: AgentClaim; expiresAt?: number; moveNotice?: ExternalMoveNotice; retry_after_ms?: number }
 interface AccountRead { body: AccountBody; status: number; state: RendezvousState }
@@ -54,14 +54,14 @@ export class AgentAccount {
     const command = await request.json() as AccountCommand
     if (command.type === 'external-tool-connect') return this.externalToolConnect(command)
     if (command.type === 'external-tool-resolve') {
-      const read = await this.coordinate({ type: 'resolve-external-tool', agentId: command.agentId }, 'agent')
+      const read = await this.failClosedExternal(await this.coordinate({ type: 'resolve-external-tool', agentId: command.agentId }, 'agent'), command.agentId)
       return agentResponse(read.body, read.status)
     }
     if (command.type === 'external-tool-dispatch' || command.type === 'external-tool-query') {
-      const read = await this.coordinate({ type: 'resolve-external-tool', agentId: command.agentId, expectedBindingId: command.expectedBindingId }, 'agent')
+      const read = await this.failClosedExternal(await this.coordinate({ type: 'resolve-external-tool', agentId: command.agentId, expectedBindingId: command.expectedBindingId }, 'agent'), command.agentId)
       if (read.body.code !== 'bound' || !read.body.claim || !read.body.binding || !this.relay || this.relay.scope.bindingId !== read.body.binding.bindingId) return agentResponse(read.body, read.status)
       const relay = this.relay
-      const result = await (command.type === 'external-tool-dispatch' ? relay.dispatch(command.delivery) : relay.query(command.query))
+      const result = await (command.type === 'external-tool-dispatch' ? relay.dispatchExternal(command.delivery) : relay.query(command.query))
       return agentResponse({ ...result, ...(read.body.moveNotice ? { moveNotice: read.body.moveNotice } : {}) })
     }
     if (command.type === 'connect-external') {
@@ -113,7 +113,7 @@ export class AgentAccount {
     return next
   }
   private async externalToolConnect(command: Extract<AccountCommand, { type: 'external-tool-connect' }>): Promise<Response> {
-    let read = await this.coordinate({ type: 'resolve-external-tool', agentId: command.agentId, ...(command.callId ? { callId: command.callId } : {}) }, 'agent')
+    let read = await this.failClosedExternal(await this.coordinate({ type: 'resolve-external-tool', agentId: command.agentId, ...(command.callId ? { callId: command.callId } : {}) }, 'agent'), command.agentId)
     if (read.body.code === 'no_live_editor' && command.callId === undefined && command.nextCallId && command.nextBindingId) {
       if (this.heldCalls >= 8) return agentResponse({ code: 'capacity' }, 429)
       read = await this.coordinate({ type: 'connect-external', agentKind: 'external', agentId: command.agentId, agentName: command.agentName, callId: command.nextCallId, bindingId: command.nextBindingId }, 'exempt')
@@ -168,17 +168,23 @@ export class AgentAccount {
       if (result.code === 'retired' || result.code === 'already_registered' || result.code === 'capacity') return reply(result, 409)
       return reply({ ...result, ...(command.type === 'register' ? { registrationId: command.registrationId } : {}), connection: windowRendezvousView(state, command) })
     })
-    this.reconcile(read.state)
+    this.reconcile(read.state, createsRelay(command, read.body.code))
     if (!['poll', 'heartbeat', 'inspect', 'resolve-builtin', 'resolve-external', 'resolve-external-tool', 'inspect-external-move', 'consume-external-move-notice'].includes(command.type)) this.wake()
     return read
   }
 
-  private reconcile(state: RendezvousState) {
+  private reconcile(state: RendezvousState, create = false) {
     const slot = state.slot
     const target = slot?.kind === 'bound' && !slot.retiring ? state.registrations.find(item => item.registrationId === slot.registrationId) : undefined
     if (slot?.kind === 'bound' && target && this.relay?.scope.bindingId === slot.bindingId && this.relay.scope.registrationId === target.registrationId) return
     this.relay?.end()
-    this.relay = slot?.kind === 'bound' && target ? new AgentRelay({ registrationId: target.registrationId, sessionId: target.sessionId, showId: target.showId, bindingId: slot.bindingId }, () => this.wake()) : undefined
+    this.relay = create && slot?.kind === 'bound' && target ? new AgentRelay({ registrationId: target.registrationId, sessionId: target.sessionId, showId: target.showId, bindingId: slot.bindingId }, () => this.wake()) : undefined
+  }
+  private async failClosedExternal(read: AccountRead, agentId: string): Promise<AccountRead> {
+    if (read.body.code !== 'bound' || !read.body.binding || this.relay?.scope.bindingId === read.body.binding.bindingId) return read
+    // Durable rendezvous state survived but the volatile identity ledger did
+    // not. Retire this generation before any dispatch or retry can be admitted.
+    return this.coordinate({ type: 'retire-grant', agentId }, 'exempt')
   }
   private take(read: AccountRead, window: WindowIdentity): AgentRelayMessage[] {
     if (read.status !== 200 || read.body.connection?.kind !== 'bound' || this.relay?.scope.registrationId !== window.registrationId || this.relay.scope.sessionId !== window.sessionId || this.relay.scope.showId !== window.showId || this.relay.scope.bindingId !== read.body.connection.bindingId) return []
@@ -219,6 +225,11 @@ export class AgentAccount {
       this.wake()
     })
   }
+}
+
+function createsRelay(command: RendezvousCommand, code: string): boolean {
+  return code === 'bound' && (command.type === 'claim' || command.type === 'answer' || command.type === 'connect-external')
+    || code === 'moved' && command.type === 'replace-external-binding'
 }
 
 function accountCommandAccounting(command: RendezvousCommand): 'agent' | 'control' | 'exempt' {

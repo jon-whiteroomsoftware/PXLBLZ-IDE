@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { AGENT_MCP_RESULT_CLASSIFICATION, type AgentMcpResultCode } from '../../engine/agentMcpResults'
 
-export const AGENT_MCP_MOVE_INSTRUCTION = 'Call get_connection, then read_show or get_context before starting a new edit.'
+export const AGENT_MCP_MOVE_INSTRUCTION = 'Call get_connection, then read_show before starting a new edit.'
 
 const failureCodes = Object.entries(AGENT_MCP_RESULT_CLASSIFICATION)
   .filter(([, isError]) => isError)
@@ -41,7 +41,7 @@ const payload = {
   binding_id: z.string().optional(),
   show_id: z.string().optional(),
   show_name: z.string().optional(),
-  operationId: z.string().optional(),
+  operation_id: z.string().optional(),
   baseRevision: z.unknown().optional(),
   show: z.record(z.unknown()).optional(),
   context: z.record(z.unknown()).optional(),

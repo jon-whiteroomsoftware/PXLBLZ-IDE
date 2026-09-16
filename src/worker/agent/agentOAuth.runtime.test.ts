@@ -327,6 +327,10 @@ it('shows only the signed account label and escapes hostile display text', async
   expect(html).not.toContain('Forged account')
 })
 it('routes authenticated canonical MCP calls and confirms editing retirement only after the original browser ACK', async () => {
+  const suiteRuntime = runtime
+  const canonicalRuntime = new Miniflare(runtimeOptions())
+  runtime = canonicalRuntime
+  try {
   const tokens = await authorized()
   const showId = STOCK_SHOW_IDS[0]
   const channel = async (body: object) => runtime.dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Cookie: cookie, Origin: 'https://app.test', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -337,36 +341,57 @@ it('routes authenticated canonical MCP calls and confirms editing retirement onl
   const connected = await (await rpc('get_connection')).json() as { result: { structuredContent: { code: string; binding_id: string } } }
   expect(connected.result.structuredContent.code).toBe('bound')
   const bindingId = connected.result.structuredContent.binding_id
-  const identity = { binding_id: bindingId, operation_id: 'operation' }
   expect(await (await rpc('read_show', { binding_id: 'old-binding' })).json()).toMatchObject({ result: { structuredContent: { code: 'binding_moved', show_id: showId } } })
-  expect(await (await rpc('begin_edit', { ...identity, delivery_id: 'forged', sequence: 0, accountId: 'github:456' })).json()).toMatchObject({ result: { isError: true } })
-  const begin = rpc('begin_edit', { ...identity, delivery_id: 'begin', sequence: 0, intent: 'Rename' })
-  const received = await (await channel({ type: 'receive', ...own })).json() as { deliveries: { operationId: string; deliveryId: string; payload: unknown }[] }
-  expect(received.deliveries).toEqual([expect.objectContaining({ operationId: 'operation', deliveryId: 'begin', payload: { kind: 'begin_edit', intent: 'Rename' } })])
-  await channel({ type: 'reply', ...own, bindingId, operationId: 'operation', deliveryId: 'begin', result: { code: 'begun' } })
-  expect(await (await begin).json()).toMatchObject({ result: { structuredContent: { code: 'begun' } } })
-  expect(await (await rpc('begin_edit', { ...identity, delivery_id: 'begin', sequence: 0, intent: 'Rename' })).json()).toMatchObject({ result: { structuredContent: { code: 'begun' } } })
-  expect(await (await rpc('begin_edit', { ...identity, delivery_id: 'begin', sequence: 0, intent: 'Changed intent' })).json()).toMatchObject({ result: { structuredContent: { code: 'identity_conflict' } } })
+  const initialRead = rpc('read_show', { binding_id: bindingId })
+  const initialReadReceive = await (await channel({ type: 'receive', ...own })).json() as { deliveries: Array<{ operationId: string; deliveryId: string }> }
+  const initialReadDelivery = initialReadReceive.deliveries[0]
+  await channel({ type: 'reply', ...own, bindingId, operationId: initialReadDelivery.operationId, deliveryId: initialReadDelivery.deliveryId, result: { code: 'read', show: { id: showId } } })
+  expect(await (await initialRead).json()).toMatchObject({ result: { structuredContent: { code: 'read' } } })
+  expect(await (await rpc('begin_edit', { binding_id: bindingId, intent: 'Rename', idempotency_key: 'begin', delivery_id: 'forged', sequence: 0, accountId: 'github:456' })).json()).toMatchObject({ result: { isError: true } })
+  const begin = rpc('begin_edit', { binding_id: bindingId, intent: 'Rename', idempotency_key: 'begin' })
+  const received = await (await channel({ type: 'receive', ...own })).json() as { deliveries: { operationId: string; deliveryId: string; sequence: number; payload: unknown }[] }
+  expect(received.deliveries).toEqual([expect.objectContaining({ sequence: 0, payload: { kind: 'begin_edit', intent: 'Rename' } })])
+  const beginDelivery = received.deliveries[0]
+  expect(await (await rpc('begin_edit', { binding_id: bindingId, intent: 'Rename', idempotency_key: 'begin' })).json()).toMatchObject({ result: { structuredContent: { code: 'pending', operation_id: beginDelivery.operationId } } })
+  expect(await (await channel({ type: 'receive', ...own, lastSeenConnection: 'force-no-replay' })).json()).toMatchObject({ deliveries: [] })
+  await channel({ type: 'reply', ...own, bindingId, operationId: beginDelivery.operationId, deliveryId: beginDelivery.deliveryId, result: { code: 'begun', operationId: beginDelivery.operationId } })
+  const begun = await (await begin).json() as { result: { structuredContent: { code: string; operation_id: string } } }
+  expect(begun.result.structuredContent).toEqual({ code: 'begun', operation_id: beginDelivery.operationId })
+  const operationId = begun.result.structuredContent.operation_id
+  const identity = { binding_id: bindingId, operation_id: operationId }
+  expect(await (await rpc('begin_edit', { binding_id: bindingId, intent: 'Rename', idempotency_key: 'begin' })).json()).toMatchObject({ result: { structuredContent: { code: 'begun', operation_id: operationId } } })
+  expect(await (await rpc('begin_edit', { binding_id: bindingId, intent: 'Changed intent', idempotency_key: 'begin' })).json()).toMatchObject({ result: { structuredContent: { code: 'identity_conflict', operation_id: operationId } } })
   // This canonical rename exceeds the old16KiB OAuth body limit but is below
   // the64KiB normalized command cap. The relay must preserve it byte-for-byte.
   const name = 'x'.repeat(64_000)
-  const rename = rpc('rename_show', { ...identity, delivery_id: 'rename', sequence: 1, name })
-  const large = await (await channel({ type: 'receive', ...own })).json() as { deliveries: { payload: unknown }[] }
-  expect(large.deliveries[0].payload).toEqual({ kind: 'command', name: 'rename_show', arguments: { name } })
-  await channel({ type: 'reply', ...own, bindingId, operationId: 'operation', deliveryId: 'rename', result: { code: 'changed' } })
-  expect(await (await rename).json()).toMatchObject({ result: { structuredContent: { code: 'changed' } } })
+  const renames = Array.from({ length: 10 }, (_, index) => rpc('rename_show', { ...identity, idempotency_key: `rename-${index}`, name: index === 0 ? name : `Parallel ${index}` }))
+  const sequences: number[] = []
+  const receivedNames: string[] = []
+  for (let index = 0; index < renames.length; index += 1) {
+    const next = await (await channel({ type: 'receive', ...own })).json() as { deliveries: Array<{ operationId: string; deliveryId: string; sequence: number; payload: unknown }> }
+    expect(next.deliveries).toHaveLength(1)
+    const delivery = next.deliveries[0]
+    sequences.push(delivery.sequence)
+    receivedNames.push((delivery.payload as { arguments: { name: string } }).arguments.name)
+    await channel({ type: 'reply', ...own, bindingId, operationId, deliveryId: delivery.deliveryId, result: { code: 'changed' } })
+  }
+  expect(sequences).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+  expect(new Set(receivedNames)).toEqual(new Set([name, ...Array.from({ length: 9 }, (_, index) => `Parallel ${index + 1}`)]))
+  for (const rename of renames) expect(await (await rename).json()).toMatchObject({ result: { structuredContent: { code: 'changed' } } })
   const oversized = await runtime.dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, 'Content-Type': 'application/json' }, body: ' '.repeat(67_585) })
   expect(oversized.status).toBe(413)
   expect(await oversized.json()).toEqual({ error: 'invalid_request' })
-  const committing = rpc('commit_edit', { ...identity, delivery_id: 'commit', sequence: 2 })
-  expect(await (await channel({ type: 'receive', ...own })).json()).toMatchObject({ deliveries: [{ deliveryId: 'commit' }] })
+  const committing = rpc('commit_edit', { ...identity, idempotency_key: 'commit' })
+  const commitReceive = await (await channel({ type: 'receive', ...own })).json() as { deliveries: Array<{ operationId: string; deliveryId: string }> }
+  const commitDelivery = commitReceive.deliveries[0]
   // The browser executed the commit but its waiting acknowledgement was lost.
-  const cancelling = rpc('cancel_edit', { ...identity, delivery_id: 'cancel', sequence: 3 })
-  expect(await (await channel({ type: 'receive', ...own })).json()).toMatchObject({ deliveries: [{ deliveryId: 'cancel' }] })
-  await channel({ type: 'reply', ...own, bindingId, operationId: 'operation', deliveryId: 'cancel', result: { code: 'outcome', receipt: { status: 'cancelled' } } })
+  const cancelling = rpc('cancel_edit', { ...identity, idempotency_key: 'cancel' })
+  const cancelReceive = await (await channel({ type: 'receive', ...own })).json() as { deliveries: Array<{ operationId: string; deliveryId: string }> }
+  const cancelDelivery = cancelReceive.deliveries[0]
+  await channel({ type: 'reply', ...own, bindingId, operationId, deliveryId: cancelDelivery.deliveryId, result: { code: 'outcome', receipt: { status: 'cancelled' } } })
   expect(await (await cancelling).json()).toMatchObject({ result: { structuredContent: { receipt: { status: 'cancelled' } } } })
   expect(await (await committing).json()).toMatchObject({ result: { structuredContent: { code: 'result_unavailable' } } })
-  expect(await (await channel({ type: 'reply', ...own, bindingId, operationId: 'operation', deliveryId: 'commit', result: { code: 'outcome', receipt: { status: 'waiting' } } })).json()).toEqual({ code: 'unknown' })
+  expect(await (await channel({ type: 'reply', ...own, bindingId, operationId, deliveryId: commitDelivery.deliveryId, result: { code: 'outcome', receipt: { status: 'waiting' } } })).json()).toEqual({ code: 'unknown' })
   const waiting = channel({ type: 'receive', ...own })
   expect((await exchange({ token: tokens.refresh_token })).status).toBe(200)
   expect(await (await waiting).json()).toMatchObject({ connection: { kind: 'retiring', bindingId }, deliveries: [] })
@@ -377,6 +402,10 @@ it('routes authenticated canonical MCP calls and confirms editing retirement onl
   expect(await (await channel({ type: 'poll', ...own })).json()).toMatchObject({ connection: { kind: 'idle' } })
   expect((await rpc('get_outcome', { ...identity })).status).toBe(401)
   await channel({ type: 'leave', ...own })
+  } finally {
+    await canonicalRuntime.dispose()
+    runtime = suiteRuntime
+  }
 }, 10_000)
 it('moves one live external binding between authorized Show editors with fresh identities', async () => {
   const suiteRuntime = runtime
@@ -423,13 +452,13 @@ it('moves one live external binding between authorized Show editors with fresh i
   ]) expect(response.status).toBe(200)
   const staleCall = await toolResult(await rpc('get_connection', { call_id: oldCall }))
   expect(staleCall).toMatchObject({
-    code: 'binding_moved', show_id: secondShowId, instruction: 'Call get_connection, then read_show or get_context before starting a new edit.',
+    code: 'binding_moved', show_id: secondShowId, instruction: 'Call get_connection, then read_show before starting a new edit.',
     connection_notice: { code: 'binding_moved', show_id: secondShowId },
   })
   const staleRead = await toolResult(await rpc('read_show', { binding_id: oldBinding }))
   expect(staleRead).toMatchObject({ code: 'binding_moved', show_id: secondShowId })
   expect(staleRead).not.toHaveProperty('connection_notice')
-  const staleMutation = await toolResult(await rpc('begin_edit', { binding_id: oldBinding, operation_id: 'old-operation', delivery_id: 'old-delivery', sequence: 0 }))
+  const staleMutation = await toolResult(await rpc('begin_edit', { binding_id: oldBinding, intent: 'Edit the old Show', idempotency_key: 'old-begin' }))
   expect(staleMutation).toMatchObject({ code: 'binding_moved', show_id: secondShowId })
   expect(await (await channel({ type: 'receive', ...second, lastSeenConnection: 'force-current-snapshot' })).json()).toMatchObject({ connection: { kind: 'bound', bindingId: freshView.connection.bindingId }, deliveries: [] })
   expect(await toolResult(await rpc('get_connection'))).toMatchObject({ code: 'bound', show_id: secondShowId, binding_id: freshView.connection.bindingId })
@@ -452,7 +481,7 @@ it('moves one live external binding between authorized Show editors with fresh i
   expect(await toolResult(await currentRead)).toMatchObject({ code: 'read', connection_notice: { code: 'binding_moved', show_id: secondShowId } })
 
   const thirdBinding = await moveTo(first, secondBinding)
-  expect(await toolResult(await rpc('begin_edit', { binding_id: secondBinding, operation_id: 'stale-operation', delivery_id: 'stale-delivery', sequence: 0 }))).toMatchObject({
+  expect(await toolResult(await rpc('begin_edit', { binding_id: secondBinding, intent: 'Edit the stale Show', idempotency_key: 'stale-begin' }))).toMatchObject({
     code: 'binding_moved', connection_notice: { code: 'binding_moved', show_id: firstShowId },
   })
   expect(await (await channel({ type: 'receive', ...first, lastSeenConnection: 'force-current-snapshot' })).json()).toMatchObject({ connection: { bindingId: thirdBinding }, deliveries: [] })
@@ -478,7 +507,9 @@ it('local Forget revokes only the grant attached to the exact owning window', as
   const own = { registrationId: registration.registrationId, sessionId: 'forget', showId }
   await channel({ type: 'arm', ...own })
   const connected = await runtime.dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_connection', arguments: {} } }) })
-  const bindingId = (await connected.json() as { result: { structuredContent: { binding_id: string } } }).result.structuredContent.binding_id
+  const connectedResult = (await connected.json() as { result: { structuredContent: { code: string; binding_id?: string } } }).result.structuredContent
+  expect(connectedResult).toMatchObject({ code: 'bound', binding_id: expect.any(String) })
+  const bindingId = connectedResult.binding_id!
   expect(await (await channel({ type: 'forget', ...own, sessionId: 'another-window', bindingId })).json()).toEqual({ code: 'not_bound_here' })
   expect((await runtime.dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}` } })).status).toBe(405)
   expect(await (await channel({ type: 'forget', ...own, bindingId })).json()).toEqual({ code: 'forgotten' })

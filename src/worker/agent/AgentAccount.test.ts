@@ -164,3 +164,38 @@ it('serializes external movement and consumes its current-binding notice once', 
   expect(await send({ type: 'leave', ...first })).toEqual({ code: 'retired' })
   expect(await send({ type: 'consume-external-move-notice', agentId: 'grant' })).toMatchObject({ code: 'bound', binding: second })
 })
+
+it('fails closed when persisted binding state outlives the volatile relay ledger', async () => {
+  const values = new Map<string, unknown>()
+  const storage: ConstructorParameters<typeof AgentAccount>[0]['storage'] = {
+    async get<T>(key: string) { return structuredClone(values.get(key)) as T | undefined },
+    async put<T>(key: string, value: T) { values.set(key, structuredClone(value)) },
+    async delete(key: string) { return values.delete(key) },
+    async setAlarm() {}, async deleteAlarm() {}, async transaction(callback) { return callback(storage) },
+  }
+  const send = async (owner: AgentAccount, body: object) => (await owner.fetch(new Request('https://internal', { method: 'POST', body: JSON.stringify(body) }))).json()
+  const window = { registrationId: 'registration', sessionId: 'session', showId: 'show' }
+  const old = { agentKind: 'external' as const, agentId: 'grant', agentName: 'Client', callId: 'old-call', bindingId: 'old-binding' }
+  const firstOwner = new AgentAccount({ storage })
+  await send(firstOwner, { type: 'register', ...window })
+  await send(firstOwner, { type: 'arm', ...window })
+  expect(await send(firstOwner, { type: 'claim', ...old })).toMatchObject({ code: 'bound' })
+
+  const recreatedOwner = new AgentAccount({ storage })
+  const oldAttempt = { type: 'external-tool-dispatch', agentId: 'grant', expectedBindingId: 'old-binding', delivery: { idempotencyKey: 'begin-key', payload: { kind: 'begin_edit', intent: 'Rename the Show' } } }
+  expect(await send(recreatedOwner, oldAttempt)).toEqual({ code: 'retirement_unconfirmed' })
+  expect(await send(recreatedOwner, oldAttempt)).toEqual({ code: 'retirement_unconfirmed' })
+  expect(await send(recreatedOwner, { type: 'receive', ...window, lastSeenConnection: 'force' })).toMatchObject({ connection: { kind: 'retiring', bindingId: 'old-binding' }, deliveries: [] })
+  expect(await send(recreatedOwner, { type: 'retirement-ack', ...window, bindingId: 'old-binding' })).toEqual({ code: 'editing_ended' })
+
+  await send(recreatedOwner, { type: 'arm', ...window })
+  const fresh = { ...old, callId: 'fresh-call', bindingId: 'fresh-binding' }
+  expect(await send(recreatedOwner, { type: 'claim', ...fresh })).toMatchObject({ code: 'bound' })
+  const reading = send(recreatedOwner, { type: 'external-tool-query', agentId: 'grant', expectedBindingId: 'fresh-binding', query: { kind: 'read_show' } })
+  const received = await send(recreatedOwner, { type: 'receive', ...window, lastSeenConnection: 'force-read' }) as { deliveries: Array<{ bindingId: string; payload: { kind: string }; operationId: string; deliveryId: string }> }
+  expect(received.deliveries).toHaveLength(1)
+  const read = received.deliveries[0]
+  expect(read).toMatchObject({ bindingId: 'fresh-binding', payload: { kind: 'read_show' } })
+  await send(recreatedOwner, { type: 'reply', ...window, bindingId: 'fresh-binding', operationId: read.operationId, deliveryId: read.deliveryId, result: { code: 'read', show: {} } })
+  expect(await reading).toMatchObject({ code: 'read' })
+})

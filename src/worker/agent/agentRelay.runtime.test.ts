@@ -51,3 +51,36 @@ it('accepts only exact stock IDs and disarms only the armed owning window', asyn
   expect(await (await channel({ type: 'poll', ...own })).json()).toMatchObject({ connection: { kind: 'idle' } })
   await channel({ type: 'leave', ...own })
 })
+
+it('evicts an account owner, retires its persisted old binding, and admits only a fresh generation', async () => {
+  const registration = await (await channel({ type: 'register', sessionId: 'recreated', showId })).json() as { registrationId: string }
+  const own = { registrationId: registration.registrationId, sessionId: 'recreated', showId }
+  const old = { agentKind: 'external', agentId: 'grant', agentName: 'Client', callId: 'old-call', bindingId: 'old-binding' }
+  await channel({ type: 'arm', ...own })
+  expect(await (await internal({ type: 'claim', ...old })).json()).toMatchObject({ code: 'bound' })
+
+  await runtime.unsafeEvictDurableObject('', 'AgentAccount', { name: 'relay-account' })
+  const oldAttempt = { type: 'external-tool-dispatch', agentId: 'grant', expectedBindingId: 'old-binding', delivery: { idempotencyKey: 'begin-key', payload: { kind: 'begin_edit', intent: 'Rename the Show' } } }
+  expect(await (await internal(oldAttempt)).json()).toEqual({ code: 'retirement_unconfirmed' })
+  expect(await (await internal(oldAttempt)).json()).toEqual({ code: 'retirement_unconfirmed' })
+  expect(await (await channel({ type: 'receive', ...own, lastSeenConnection: 'force-retirement' })).json()).toMatchObject({ connection: { kind: 'retiring', bindingId: 'old-binding' }, deliveries: [] })
+  expect(await (await channel({ type: 'retirement-ack', ...own, bindingId: 'old-binding' })).json()).toEqual({ code: 'editing_ended' })
+
+  await channel({ type: 'arm', ...own })
+  const fresh = { ...old, callId: 'fresh-call', bindingId: 'fresh-binding' }
+  expect(await (await internal({ type: 'claim', ...fresh })).json()).toMatchObject({ code: 'bound' })
+  const reading = internal({ type: 'external-tool-query', agentId: 'grant', expectedBindingId: 'fresh-binding', query: { kind: 'read_show' } })
+  const receive = await (await channel({ type: 'receive', ...own })).json() as { deliveries: Array<{ operationId: string; deliveryId: string }> }
+  expect(receive.deliveries).toHaveLength(1)
+  const delivery = receive.deliveries[0]
+  await channel({ type: 'reply', ...own, bindingId: 'fresh-binding', operationId: delivery.operationId, deliveryId: delivery.deliveryId, result: { code: 'read', show: { id: showId } } })
+  expect(await (await reading).json()).toMatchObject({ code: 'read', show: { id: showId } })
+  const beginning = internal({ type: 'external-tool-dispatch', agentId: 'grant', expectedBindingId: 'fresh-binding', delivery: { idempotencyKey: 'fresh-begin', payload: { kind: 'begin_edit', intent: 'Rename the Show' } } })
+  const beginReceive = await (await channel({ type: 'receive', ...own })).json() as { deliveries: Array<{ operationId: string; deliveryId: string; sequence: number }> }
+  const begin = beginReceive.deliveries[0]
+  expect(begin.sequence).toBe(0)
+  await channel({ type: 'reply', ...own, bindingId: 'fresh-binding', operationId: begin.operationId, deliveryId: begin.deliveryId, result: { code: 'begun', operationId: begin.operationId } })
+  expect(await (await beginning).json()).toEqual({ code: 'begun', operationId: begin.operationId })
+  await channel({ type: 'disconnect', ...own, bindingId: 'fresh-binding' })
+  await channel({ type: 'leave', ...own })
+}, 10_000)

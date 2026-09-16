@@ -20,7 +20,8 @@ import { AGENT_MCP_MOVE_INSTRUCTION, AGENT_MCP_OUTPUT_SCHEMAS } from './agentMcp
 
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/)
 const binding = { binding_id: id.describe('Binding returned by get_connection; changed bindings require a new operation.') }
-const operation = { ...binding, operation_id: id, delivery_id: id, sequence: z.number().int().min(0).max(255) }
+const idempotencyKey = id
+const operation = { ...binding, operation_id: id, idempotency_key: idempotencyKey.optional() }
 export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: ValidatedAgentGrant): Promise<Response> {
   if (request.method !== 'POST') return new Response(null, { status: 405, headers: { Allow: 'POST' } })
   const active = () => grant.expiresAt * 1000 > Date.now()
@@ -45,9 +46,11 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
   const toolResult = (resolved: ExternalToolConnection): PrivateEditResult => resolved.code === 'binding_moved'
     ? moved(resolved)
     : resolved.code === 'retirement_unconfirmed' ? { code: 'no_live_editor', ...notice(resolved) } : visible(resolved)
-  const server = new McpServer({ name: 'PXLBLZ Agent', version: '0.2.0' }, { instructions: `Call get_connection and Answer in the open Show editor. read_show/get_context read that editor. begin_edit captures one immutable private Show; canonical commands mutate only that candidate. Command changes describe the private proposal, not adopted or saved state. commit_edit requests validation/adoption and may return waiting or saving; an invalid-candidate receipt may include bounded validation detail. Query get_outcome for the authoritative receipt. Never replay a timed-out command; retain operation and delivery identities. New binding requires new operation IDs. ${SHOW_AUTHORING_SERVER_INTRO}` })
+  const server = new McpServer({ name: 'PXLBLZ Agent', version: '0.2.0' }, { instructions: `Call get_connection, then read_show before editing; get_context can refresh editor focus later. begin_edit requires a stable idempotency key and returns the relay-assigned operation_id. The relay assigns delivery identity and execution order. Await dependent command results before committing. A keyed retry only looks up its original admission; after an unkeyed timeout, query get_outcome and never repeat the command. New bindings require fresh reads and operations. Command changes describe the private proposal, not adopted or saved state. commit_edit requests validation/adoption and may return waiting or saving; an invalid-candidate receipt may include bounded validation detail. ${SHOW_AUTHORING_SERVER_INTRO}` })
   const output = (untrusted: PrivateEditResult) => {
-    const result: PrivateEditResult = isAgentMcpResult(untrusted) ? untrusted : { code: 'unknown' }
+    const trusted: PrivateEditResult = isAgentMcpResult(untrusted) ? untrusted : { code: 'unknown' }
+    const { operationId, ...rest } = trusted
+    const result = { ...rest, ...(typeof operationId === 'string' ? { operation_id: operationId } : {}) } as PrivateEditResult
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(result) }],
       structuredContent: result,
@@ -83,14 +86,18 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
   }
   const registerMutation = (name: string, description: string, fields: Record<string, z.ZodTypeAny>, payload: (args: Record<string, unknown>) => unknown) => {
     if (Object.keys(fields).some(key => key in operation)) throw new Error('Canonical command collides with transport identity')
-    server.registerTool(name, { description: `${description} Requires the current bound editor${name === 'begin_edit' ? '' : ' and an active begin_edit operation'}. Preserve increasing sequence and stable delivery identity; changed identity reuse is refused.`, inputSchema: z.object({ ...operation, ...fields }).strict(), outputSchema: AGENT_MCP_OUTPUT_SCHEMAS.mutation }, async args => {
-      const { binding_id, operation_id, delivery_id, sequence, ...command } = args
+    server.registerTool(name, { description: `${description} Requires the current bound editor and an active begin_edit operation. Await dependent results before sending another command. A stable idempotency key makes retries lookup-only; unkeyed timeouts must be recovered with get_outcome.`, inputSchema: z.object({ ...operation, ...fields }).strict(), outputSchema: AGENT_MCP_OUTPUT_SCHEMAS.mutation }, async args => {
+      const { binding_id, operation_id, idempotency_key, ...command } = args
       if (!active()) return output({ code: 'unauthorized' })
-      const resolved = await dispatchExternalTool(env, grant, binding_id, { operationId: operation_id, deliveryId: delivery_id, sequence, payload: payload(command) })
+      const resolved = await dispatchExternalTool(env, grant, binding_id, { operationId: operation_id, ...(idempotency_key ? { idempotencyKey: idempotency_key } : {}), payload: payload(command) })
       return output(toolResult(resolved))
     })
   }
-  registerMutation('begin_edit', 'Capture a full immutable Show/context and begin one private operation (sequence 0).', { intent: z.string().max(240).refine(value => !/[\r\n]/.test(value)).optional() }, args => ({ kind: 'begin_edit', ...args }))
+  server.registerTool('begin_edit', { description: 'Capture a full immutable Show/context and begin one private operation. The relay assigns and returns operation_id. Retry only with the same idempotency key and identical intent.', inputSchema: z.object({ ...binding, intent: z.string().max(240).refine(value => value.trim().length > 0 && !/[\r\n]/.test(value)), idempotency_key: id }).strict(), outputSchema: AGENT_MCP_OUTPUT_SCHEMAS.mutation }, async ({ binding_id, intent, idempotency_key }) => {
+    if (!active()) return output({ code: 'unauthorized' })
+    const resolved = await dispatchExternalTool(env, grant, binding_id, { idempotencyKey: idempotency_key, payload: { kind: 'begin_edit', intent } })
+    return output(toolResult(resolved))
+  })
   for (const descriptor of SHOW_COMMANDS) registerMutation(descriptor.name, descriptor.description, showCommandInputShape(descriptor), args => ({ kind: 'command', name: descriptor.name, arguments: args }))
   registerMutation('commit_edit', 'Validate and request adoption of the entire private candidate once; command changes describe only the private proposal, waiting/saving are not completion, and invalid-candidate may include bounded validation detail.', {}, () => ({ kind: 'commit_edit' }))
   registerMutation('cancel_edit', 'Retire the private candidate; already-adopted saves retain their receipt.', {}, () => ({ kind: 'cancel_edit' }))
