@@ -12,6 +12,8 @@ export async function exerciseShowV2GroupCreation(page: Page) {
   page.on('request', request => { if (request.method() === 'PUT' && request.url().includes(`/api/shows/${record.id}?show-version=2`)) writes++ })
   page.on('response', response => { if (response.request().method() === 'PUT' && response.url().includes(`/api/shows/${record.id}?show-version=2`) && response.ok()) settled++ })
   await page.goto(`studio/shows/${record.id}?show-v2-pilot=1&capture`)
+  const unpin = page.getByRole('button', { name: 'Unpin Shows list', exact: true }); if (await unpin.count()) await unpin.click()
+  const close = page.getByRole('button', { name: 'Close Shows list', exact: true }); if (await close.count()) await close.click()
   const route = page.getByTestId('show-v2-route-pilot'), editor = route.getByRole('region', { name: 'Create Group', exact: true })
   const stage = page.getByTestId('show-stage-preview'), timeline = route.getByTestId('show-v2-timeline')
   await expect(stage).toBeVisible(); await expect(editor.getByRole('button', { name: 'Create Group', exact: true })).toBeDisabled()
