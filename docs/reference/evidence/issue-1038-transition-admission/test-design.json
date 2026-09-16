@@ -1,6 +1,6 @@
 {
   "issue": 1038,
-  "base": "c6e3da523f1776155063567668251bb6a9726bad",
+  "base": "45adc94ac4ecf4bec90d6b71c886a37f2bd7acc8",
   "specification": {
     "path": "docs/plans/scene-retirement-specification.md",
     "commit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
@@ -42,12 +42,13 @@
     "Participant visual Transition with global scalar animation remains existing preparation refusal; admitted global scalar proof uses whole-output scope."
   ],
   "qualification": {
-    "focused": "109/109 in10 files with maxWorkers2; unchanged existing5s timeout passed after contention removed. /tmp/issue-1038-transition-final-focused-green.log",
-    "static": "Project TypeScript and scoped ESLint passed. /tmp/issue-1038-transition-qualified-tsc.log; /tmp/issue-1038-transition-qualified-lint.log",
-    "parity": "47 inventoried source-byte records match. /tmp/issue-1038-transition-parity.log",
-    "authenticated": "3/3 focused real-browser Transition/Marker/Stage flows passed. /tmp/issue-1038-transition-authenticated-final.log",
+    "focused": "Finalbase105/105 in10 files with maxWorkers2; /tmp/issue-1038-transition-finalbase-focused.log. Original109 qualification remains in prior evidence.",
+    "static": "Finalbase TypeScript and scoped ESLint passed; /tmp/issue-1038-transition-finalbase-tsc.log; /tmp/issue-1038-transition-finalbase-lint.log.",
+    "parity": "Finalbase47 inventoried source-byte records match; /tmp/issue-1038-transition-finalbase-parity.log.",
+    "authenticated": "Finalbase3/3 real-browser Transition/Marker/Stage flows pass; /tmp/issue-1038-transition-finalbase-auth.log.",
     "mutations": "6/6 named semantic mutants killed; source restored. fault-sensitivity.json",
-    "browser": "Captured at6022af157e28da30fb0472faafdfc480b4e50376 on own managed1038:5178. Desktop/narrow/keyboard,3 exactPUTs, native reopen, Fast+Precise transport, console/overflow empty; browser-result.json and .wrsp/ui-proof/1038-transition-admission.json. Images opened and inspected.",
-    "hooks": "Suite registration append ordinary hooks: full lint, TypeScript, auth coverage17, locators, staged129, Chromiumlayout12 PASS. /tmp/issue-1038-transition-coverage-commit.log"
+    "browser": "Fresh committed42f22bccdeb1a47a9f95a11b019d13a7755f21a8 finalbase capture: desktop/narrow/keyboard, exactly3 PUTs, native reopen and Fast/Precise125ms transport, empty console/overflow; all3 images opened/inspected. /tmp/issue-1038-transition-finalbase-browser.log; browser-result.json and .wrsp/ui-proof/1038-transition-admission.json.",
+    "hooks": "Suite registration append ordinary hooks: full lint, TypeScript, auth coverage17, locators, staged129, Chromiumlayout12 PASS. /tmp/issue-1038-transition-coverage-commit.log",
+    "patchEquivalence": "git range-diff c6e3..b36 45adc..42f22bcc: all4 commits exact =. Rebase post-commit notifications exited141; normal qualification commit hooks will supply final check evidence."
   }
 }
