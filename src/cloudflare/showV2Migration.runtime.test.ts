@@ -19,7 +19,7 @@ beforeAll(async () => {
 
 afterAll(async () => { await runtime?.dispose() })
 
-it('resumes after a real D1 write interruption and restores every source column', async () => {
+it('uses real D1 for interrupted resume, rollback, and immutable backup generations', async () => {
   const db = await runtime.getD1Database('PXLBLZ_DB')
   await executeSql(db as unknown as D1ShowV2MigrationDatabaseLike, `
     CREATE TABLE app_metadata (
@@ -45,6 +45,7 @@ it('resumes after a real D1 write interruption and restores every source column'
   )
 
   const typedDb = db as unknown as D1DatabaseShowsLike & D1ShowV2MigrationDatabaseLike
+  const migrationDb = db as unknown as D1ShowV2MigrationDatabaseLike
   const userId = 'github:issue-1044-disposable'
   for (const [index, id] of ['a-first', 'b-second'].entries()) {
     await createD1Show(typedDb, userId, { ...convertibleV1Show(), id, updatedAt: 100 + index }, 10 + index)
@@ -87,7 +88,82 @@ it('resumes after a real D1 write interruption and restores every source column'
     outcomes: 0,
     versions: [['a-first', 1], ['b-second', 1]],
   })
-})
+
+  const repairedUserId = 'github:issue-1044-repaired'
+  const repairedSource = { ...convertibleV1Show(), id: 'repaired-source', updatedAt: 200 }
+  await createD1Show(typedDb, repairedUserId, repairedSource, 20)
+  await typedDb.prepare(`
+    UPDATE personal_shows SET output_contract_json = NULL
+    WHERE user_id = ? AND id = ?
+  `).bind(repairedUserId, repairedSource.id).run()
+  const repairedStore = createD1ShowV2MigrationStore(typedDb, repairedUserId, () => 789)
+
+  await expect(rehearseShowV2Migration(repairedStore)).resolves.toEqual([
+    expect.objectContaining({ id: repairedSource.id, status: 'refused' }),
+  ])
+  const backupA = await migrationDb.prepare(`
+    SELECT source_hash, source_row_json FROM personal_show_v2_migration_backups
+    WHERE user_id = ? AND show_id = ?
+  `).bind(repairedUserId, repairedSource.id).first<Record<string, unknown>>()
+
+  await typedDb.prepare(`
+    UPDATE personal_shows SET name = ?, output_contract_json = ?
+    WHERE user_id = ? AND id = ?
+  `).bind('Repaired B', JSON.stringify(repairedSource.outputContract), repairedUserId, repairedSource.id).run()
+  const repairedB = await readRows(typedDb, repairedUserId)
+
+  await expect(rehearseShowV2Migration(repairedStore)).resolves.toEqual([
+    expect.objectContaining({
+      id: repairedSource.id,
+      status: 'refused',
+      detail: 'Migration backup belongs to a different source revision.',
+    }),
+  ])
+  expect(await readRows(typedDb, repairedUserId)).toEqual(repairedB)
+  expect(await migrationDb.prepare(`
+    SELECT source_hash, source_row_json FROM personal_show_v2_migration_backups
+    WHERE user_id = ? AND show_id = ?
+  `).bind(repairedUserId, repairedSource.id).first<Record<string, unknown>>()).toEqual(backupA)
+  await expect(rollbackShowV2Migration(repairedStore, [repairedSource.id]))
+    .rejects.toThrow('changed after its migration backup')
+  expect(await readRows(typedDb, repairedUserId)).toEqual(repairedB)
+
+  const rolledBackSource = { ...convertibleV1Show(), id: 'rolled-back-source', updatedAt: 300 }
+  await createD1Show(typedDb, repairedUserId, rolledBackSource, 30)
+  await expect(rehearseShowV2Migration(repairedStore)).resolves.toEqual(expect.arrayContaining([
+    expect.objectContaining({ id: rolledBackSource.id, status: 'converted' }),
+  ]))
+  await rollbackShowV2Migration(repairedStore, [rolledBackSource.id])
+  await typedDb.prepare(`
+    UPDATE personal_shows SET name = ? WHERE user_id = ? AND id = ?
+  `).bind('Edited after rollback', repairedUserId, rolledBackSource.id).run()
+  const editedAfterRollback = (await readRows(typedDb, repairedUserId))
+    .find(row => row.id === rolledBackSource.id)
+  await expect(rehearseShowV2Migration(repairedStore)).resolves.toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      id: rolledBackSource.id,
+      status: 'refused',
+      detail: 'Migration backup belongs to a different source revision.',
+    }),
+  ]))
+  expect((await readRows(typedDb, repairedUserId)).find(row => row.id === rolledBackSource.id))
+    .toEqual(editedAfterRollback)
+
+  const racedSource = { ...convertibleV1Show(), id: 'raced-source', updatedAt: 400 }
+  await createD1Show(typedDb, repairedUserId, racedSource, 40)
+  await expect(rehearseShowV2Migration(repairedStore)).resolves.toEqual(expect.arrayContaining([
+    expect.objectContaining({ id: racedSource.id, status: 'converted' }),
+  ]))
+  const racingStore = createD1ShowV2MigrationStore(
+    databaseWithRestoreRace(migrationDb, repairedUserId, racedSource.id),
+    repairedUserId,
+    () => 790,
+  )
+  await expect(rollbackShowV2Migration(racingStore, [racedSource.id]))
+    .rejects.toThrow('changed during migration rollback')
+  expect((await readRows(typedDb, repairedUserId)).find(row => row.id === racedSource.id))
+    .toMatchObject({ name: 'Concurrent edit', updated_at: 999 })
+}, 15_000)
 
 const SHOW_COLUMNS = `
   user_id, id, name, scenes_json, zones_json, cells_json, target_controller_profile_id,
@@ -122,5 +198,37 @@ async function executeSql(db: D1ShowV2MigrationDatabaseLike, sql: string): Promi
   for (const statement of sql.split(';').map(part => part.trim()).filter(Boolean)) {
     const result = await db.prepare(statement).run()
     if (!result.success) throw new Error(`D1 refused migration statement: ${statement}`)
+  }
+}
+
+function databaseWithRestoreRace(
+  db: D1ShowV2MigrationDatabaseLike,
+  userId: string,
+  id: string,
+): D1ShowV2MigrationDatabaseLike {
+  let injected = false
+  return {
+    prepare(sql) {
+      const statement = db.prepare(sql)
+      let bound = statement
+      return {
+        bind(...values) {
+          bound = statement.bind(...values)
+          return this
+        },
+        all: <T>() => bound.all<T>(),
+        first: <T>() => bound.first<T>(),
+        async run() {
+          if (!injected && sql.includes('SET name = ?, scenes_json = ?')) {
+            injected = true
+            await db.prepare(`
+              UPDATE personal_shows SET name = ?, updated_at = ?
+              WHERE user_id = ? AND id = ?
+            `).bind('Concurrent edit', 999, userId, id).run()
+          }
+          return bound.run()
+        },
+      }
+    },
   }
 }

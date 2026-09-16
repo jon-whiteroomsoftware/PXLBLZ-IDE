@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { convertibleV1Show } from '../test/showV2TracerFixture'
 import type { ShowDocument } from './showDocument'
 import type { ShowV2MigrationOutcome, ShowV2MigrationSource, ShowV2MigrationStore } from './showV2Migration'
@@ -18,9 +18,14 @@ function memoryMigrationStore(initial: ShowDocument[]) {
       sourceRow: structuredClone(document),
     })),
     outcome: async id => outcomes.get(id),
-    snapshot: async (source) => {
+    snapshot: async (source, sourceHash) => {
       if (!source.document) throw new Error('memory fixture is missing its document')
-      if (!backups.has(source.id)) backups.set(source.id, structuredClone(source.document))
+      if (!backups.has(source.id)) {
+        backups.set(source.id, structuredClone(source.document))
+        return 'ready'
+      }
+      const { migrationSourceHash } = await import('./showV2Migration')
+      return migrationSourceHash(backups.get(source.id)) === sourceHash ? 'ready' : 'conflicting-source'
     },
     writeV2: async (id, sourceHash, record) => {
       const current = documents.get(id)!
@@ -89,7 +94,7 @@ it('records an undecodable source as refused without losing its recovery snapsho
   const store: ShowV2MigrationStore = {
     inventory: async () => [source],
     outcome: async id => outcomes.get(id),
-    snapshot: async item => { snapshot = item },
+    snapshot: async item => { snapshot = item; return 'ready' },
     writeV2: async () => { throw new Error('must not write') },
     read: async () => { throw new Error('must not read') },
     record: async outcome => { outcomes.set(outcome.id, outcome) },
@@ -100,4 +105,34 @@ it('records an undecodable source as refused without losing its recovery snapsho
     expect.objectContaining({ id: 'broken', sourceVersion: 1, status: 'refused' }),
   ])
   expect(snapshot).toBe(source)
+})
+
+it('refuses conversion when the retained backup belongs to an older source revision', async () => {
+  const source = convertibleV1Show()
+  const record = vi.fn()
+  const writeV2 = vi.fn()
+  const store: ShowV2MigrationStore = {
+    inventory: async () => [{
+      id: source.id,
+      sourceVersion: 1,
+      document: source,
+      sourceRow: source,
+    }],
+    outcome: async () => undefined,
+    snapshot: async () => 'conflicting-source',
+    writeV2,
+    read: async () => { throw new Error('must not read') },
+    record,
+    restore: async () => {},
+  }
+
+  await expect(rehearseShowV2Migration(store)).resolves.toEqual([
+    expect.objectContaining({
+      id: source.id,
+      status: 'refused',
+      detail: 'Migration backup belongs to a different source revision.',
+    }),
+  ])
+  expect(writeV2).not.toHaveBeenCalled()
+  expect(record).toHaveBeenCalledWith(expect.objectContaining({ status: 'refused' }))
 })

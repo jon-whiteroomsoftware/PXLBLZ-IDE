@@ -201,4 +201,42 @@ describe('opt-in v2 Show route adoption', () => {
     expect(state().showV2SaveFailure).toBeNull()
     expect(replace).toHaveBeenCalledTimes(2)
   })
+
+  it('rolls a failed newer save back to an older save that settled while superseded', async () => {
+    const source = transitionV1Show('crossfade')
+    let resolveFirst!: () => void
+    let rejectSecond!: (reason: Error) => void
+    let stored: ShowRecordV2 | undefined
+    const firstWrite = new Promise<void>(resolve => { resolveFirst = resolve })
+    const secondWrite = new Promise<void>((_resolve, reject) => { rejectSecond = reject })
+    const replace = vi.fn()
+      .mockImplementationOnce((_id: string, record: ShowRecordV2) => firstWrite.then(() => { stored = structuredClone(record) }))
+      .mockImplementationOnce((_id: string, record: ShowRecordV2) => secondWrite.then(() => { stored = structuredClone(record) }))
+    setPersonalContentProvider({
+      id: 'v2-durable-supersession',
+      listShows: async () => [source],
+      listShowDocumentsV2: async () => [],
+      replaceShowV2: replace,
+    } as unknown as PersonalContentProvider)
+    useShowStore.setState({ shows: [source] })
+    const opened = await state().openShowV2Pilot(source.id)
+    if (opened.status !== 'ready') throw new Error('conversion failed')
+
+    const first = state().updateShowV2Pilot(source.id, { ...opened.record, name: 'Durable A' })
+    await vi.waitFor(() => expect(replace).toHaveBeenCalledTimes(1))
+    const second = state().updateShowV2Pilot(source.id, { ...state().showV2Pilots[source.id], name: 'Rejected B' })
+    expect(state().showV2Pilots[source.id].name).toBe('Rejected B')
+
+    resolveFirst()
+    await expect(first).resolves.toBeUndefined()
+    await vi.waitFor(() => expect(replace).toHaveBeenCalledTimes(2))
+    const durableA = structuredClone(replace.mock.calls[0][1] as ShowRecordV2)
+    rejectSecond(new Error('newer failed'))
+    await expect(second).rejects.toThrow('newer failed')
+
+    expect(state().showV2Pilots[source.id]).toEqual(durableA)
+    expect(state().showV2Histories[source.id]).toEqual({ past: [opened.record], future: [] })
+    expect(state().showV2SaveFailure).toMatchObject({ showId: source.id, record: { name: 'Rejected B' } })
+    expect(stored).toEqual(durableA)
+  })
 })

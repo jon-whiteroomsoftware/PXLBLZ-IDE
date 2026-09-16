@@ -22,7 +22,7 @@ export interface ShowV2MigrationOutcome {
 export interface ShowV2MigrationStore {
   inventory(): Promise<ShowV2MigrationSource[]>
   outcome(id: string): Promise<ShowV2MigrationOutcome | undefined>
-  snapshot(source: ShowV2MigrationSource, sourceHash: string): Promise<void>
+  snapshot(source: ShowV2MigrationSource, sourceHash: string): Promise<'ready' | 'conflicting-source'>
   writeV2(id: string, sourceHash: string, record: ShowDocument): Promise<'written' | 'changed-source'>
   read(id: string): Promise<ShowDocument>
   record(outcome: ShowV2MigrationOutcome): Promise<void>
@@ -38,8 +38,19 @@ export async function rehearseShowV2Migration(store: ShowV2MigrationStore): Prom
       outcomes.push(previous)
       continue
     }
+    if (source.sourceVersion === 1 && await store.snapshot(source, sourceHash) === 'conflicting-source') {
+      const outcome = {
+        id: source.id,
+        sourceHash,
+        sourceVersion: source.sourceVersion,
+        status: 'refused',
+        detail: 'Migration backup belongs to a different source revision.',
+      } as const
+      await store.record(outcome)
+      outcomes.push(outcome)
+      continue
+    }
     if (!source.document) {
-      await store.snapshot(source, sourceHash)
       const outcome = {
         id: source.id,
         sourceHash,
@@ -58,7 +69,6 @@ export async function rehearseShowV2Migration(store: ShowV2MigrationStore): Prom
       outcomes.push(outcome)
       continue
     }
-    await store.snapshot(source, sourceHash)
     const converted = convertShowRecordV1ToV2(source.document as ShowRecord)
     if (converted.status === 'refused') {
       const outcome = {

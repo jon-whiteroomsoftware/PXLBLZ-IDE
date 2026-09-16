@@ -234,10 +234,11 @@ record explicitly and refuses unsupported input without mutating either form.
 the same per-Show persistence queue and generic history transitions as ordinary
 Show updates. Undo and redo therefore each replace one whole record and perform
 one durable write. A current write failure restores the last durable
-record/history pair; a superseded failure cannot replace a newer accepted
-candidate. Providers without the version-2 replacement capability refuse
-before optimistic adoption. Reload obtains and validates stored version-2 bytes
-and starts a fresh session history.
+record/history pair; every successful queued write advances that pair even while
+a newer optimistic candidate owns the visible record. A superseded failure cannot
+replace a newer accepted candidate. Providers without the version-2 replacement
+capability refuse before optimistic adoption. Reload obtains and validates stored
+version-2 bytes and starts a fresh session history.
 
 The remote provider addresses the explicit v2 collection with
 `show-version=2`; D1 stores the complete closed record in `record_json` and
@@ -246,7 +247,17 @@ domain validator after a Cloudflare-compatible structural-schema interpreter,
 because Workers prohibit AJV's runtime code generation. Migration records keep
 the source row and hash before compare-and-swap replacement, reopen written
 bytes through production decoding, resume from outcomes, and restore every
-source column during rollback.
+source column during rollback. One immutable backup generation owns each Show
+rehearsal. A later legacy source hash refuses conversion until that backup is
+explicitly resolved; rollback likewise refuses to overwrite a changed legacy
+row whose hash no longer matches its backup. The restore write also compares
+the observed row version so an edit between rollback validation and replacement
+is preserved and reported as a refusal.
+
+Version-2 bundle import reserves destination and bundled Library namespaces
+before allocating conflict copies. A matching Library is reusable only when its
+complete dependency graph remains unchanged after remapping; dependency remaps
+propagate through every owner to a fixed point before the plan can be applied.
 
 The pilot's compilation seam resolves one Library map and passes that identical
 map through version-2 preparation and final Show compilation. A Restart whose

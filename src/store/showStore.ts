@@ -149,6 +149,13 @@ function advanceDurableBaseline(id: string, record: ShowRecord, history: ShowHis
   }
 }
 
+function advanceDurableShowV2Baseline(id: string, record: ShowRecordV2, history: ShowV2History): void {
+  const baseline = lastPersistedShowV2Pilots.get(id)
+  if (!baseline || baseline.record.updatedAt <= record.updatedAt) {
+    lastPersistedShowV2Pilots.set(id, { record, history })
+  }
+}
+
 function replacementWithNextOrderingStamp(previous: ShowRecord, replacement: ShowRecord): ShowRecord {
   return {
     ...normalizeShowRecord(replacement),
@@ -348,9 +355,7 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     }))
     try {
       await queueShowPersistence(id, () => provider.replaceShowV2!(id, adopted))
-      if (get().showV2Pilots[id]?.updatedAt === adopted.updatedAt) {
-        lastPersistedShowV2Pilots.set(id, { record: adopted, history })
-      }
+      advanceDurableShowV2Baseline(id, adopted, history)
     } catch (cause) {
       let rolledBack = false
       set(state => {

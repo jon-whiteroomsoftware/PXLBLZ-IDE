@@ -109,6 +109,21 @@ export function createD1ShowV2MigrationStore(
         `)
         .bind(userId, source.id, sourceHash, JSON.stringify(source.sourceRow), now())
         .run()
+      const backup = await db
+        .prepare(`
+          SELECT source_hash, source_row_json
+          FROM personal_show_v2_migration_backups
+          WHERE user_id = ? AND show_id = ?
+          LIMIT 1
+        `)
+        .bind(userId, source.id)
+        .first<{ source_hash: string; source_row_json: string }>()
+      if (!backup) throw new Error('Show ' + source.id + ' has no migration backup after snapshot.')
+      const original = parseBackup(backup.source_row_json, userId, source.id)
+      if (migrationSourceHash(original) !== backup.source_hash) {
+        throw new Error('Migration backup for Show ' + source.id + ' does not match its recorded source hash.')
+      }
+      return backup.source_hash === sourceHash ? 'ready' : 'conflicting-source'
     },
 
     writeV2: async (id, sourceHash, record) => {
@@ -155,15 +170,23 @@ export function createD1ShowV2MigrationStore(
     restore: async (id) => {
       const backup = await db
         .prepare(`
-          SELECT source_row_json
+          SELECT source_hash, source_row_json
           FROM personal_show_v2_migration_backups
           WHERE user_id = ? AND show_id = ?
           LIMIT 1
         `)
         .bind(userId, id)
-        .first<{ source_row_json: string }>()
+        .first<{ source_hash: string; source_row_json: string }>()
       if (!backup) throw new Error('Show ' + id + ' has no migration backup to restore.')
       const original = parseBackup(backup.source_row_json, userId, id)
+      if (migrationSourceHash(original) !== backup.source_hash) {
+        throw new Error('Migration backup for Show ' + id + ' does not match its recorded source hash.')
+      }
+      const current = await readRow(id)
+      if (!current) throw new Error('Show ' + id + ' disappeared before migration rollback.')
+      if (!current.record_json && migrationSourceHash(current) !== backup.source_hash) {
+        throw new Error('Show ' + id + ' changed after its migration backup; rollback refused.')
+      }
       const result = await db
         .prepare(`
           UPDATE personal_shows
@@ -172,7 +195,7 @@ export function createD1ShowV2MigrationStore(
               routing_layouts_json = ?, routing_switches_json = ?, transitions_json = ?,
               output_contract_json = ?, composition_json = ?, output_effects_json = ?,
               import_metadata_json = ?, record_json = ?
-          WHERE user_id = ? AND id = ?
+          WHERE user_id = ? AND id = ? AND updated_at = ? AND record_json IS ?
         `)
         .bind(
           original.name,
@@ -193,9 +216,14 @@ export function createD1ShowV2MigrationStore(
           original.record_json,
           userId,
           id,
+          current.updated_at,
+          current.record_json ?? null,
         )
         .run()
-      if (result.meta?.changes === 0) throw new Error('Show ' + id + ' disappeared before migration rollback.')
+      if (result.meta?.changes === 0) {
+        if (!await readRow(id)) throw new Error('Show ' + id + ' disappeared before migration rollback.')
+        throw new Error('Show ' + id + ' changed during migration rollback; rollback refused.')
+      }
       await db
         .prepare('DELETE FROM personal_show_v2_migration_outcomes WHERE user_id = ? AND show_id = ?')
         .bind(userId, id)

@@ -168,14 +168,40 @@ function planLibraries(bundle: ShowFileBundleV2, library: ShowImportLibraryV2, c
   const plan: ShowImportPlanV2['libraries'] = { reused: [], added: [], copied: [] }
   const byName = new Map(library.libraries.map(item => [item.name, item]))
   const byId = new Map(library.libraries.map(item => [item.id, item]))
+  const bundledById = new Map(bundle.libraries.map(item => [item.id, item]))
+  const reservedNames = [
+    ...library.libraries.map(item => item.name),
+    ...bundle.libraries.map(item => item.name),
+  ]
+  const copy = (item: LibraryRecord) => {
+    const targetName = nextLibraryCloneName(item.name, {
+      stockNames: Object.keys(LIBRARIES),
+      builtinNames: builtinNamespaceNames(),
+      userNames: [...reservedNames, ...plan.copied.map(value => value.targetName)],
+    })
+    plan.copied.push({ id: item.id, name: item.name, targetId: createId(), targetName })
+  }
   for (const item of bundle.libraries) {
     const named = byName.get(item.name)
     const identified = byId.get(item.id)
     if (!named && !identified) plan.added.push({ id: item.id, name: item.name })
     else if (named && named.id === item.id && artifactHash(named.src) === artifactHash(item.src)) plan.reused.push({ id: item.id, name: item.name })
-    else {
-      const targetName = nextLibraryCloneName(item.name, { stockNames: Object.keys(LIBRARIES), builtinNames: builtinNamespaceNames(), userNames: [...library.libraries.map(value => value.name), ...plan.copied.map(value => value.targetName)] })
-      plan.copied.push({ id: item.id, name: item.name, targetId: createId(), targetName })
+    else copy(item)
+  }
+  let changed = true
+  while (changed) {
+    changed = false
+    const remap = new Map(plan.copied.map(item => [item.name, item.targetName]))
+    for (let index = 0; index < plan.reused.length;) {
+      const reused = plan.reused[index]
+      const source = bundledById.get(reused.id)!
+      if (artifactHash(rewriteLibraryNamespaces(source.src, remap)) === artifactHash(source.src)) {
+        index += 1
+        continue
+      }
+      plan.reused.splice(index, 1)
+      copy(source)
+      changed = true
     }
   }
   return plan
