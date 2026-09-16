@@ -1,0 +1,67 @@
+{
+  "issue": 1038,
+  "scope": "Pure ordinary selection to lossless existing-format Group; no UI or compiler/schema changes",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "sourceCommit": "70812ae64c919ff1dcb15e019125bd3b6bad7c",
+    "amendment": "Jon 2026-09-16: lossless selections supported; any unrepresentable selection atomically refused in existing format",
+    "proofRows": [
+      "MODEL",
+      "SHARING",
+      "RESTART",
+      "CURVE",
+      "ACTIVATION",
+      "GROUP-HOLD",
+      "LAYOUT-END",
+      "PARITY"
+    ]
+  },
+  "invariants": [
+    "Creation localizes only selected ordinary same-Zone Clips and their Clip-owned animation/internal pair Transitions, without changing authored values, descriptors, Effect IDs or entry policy.",
+    "One local template slot per distinct selected runtime explicitly binds to the same authoritative top-level runtime; global instance, Layout and Show tracks remain exactly once.",
+    "Complete explicit fresh identity maps use their existing owner namespaces, including owner-scoped nested raw key IDs; unrepresentable selections refuse without crop, approximation or pairwise rewrite.",
+    "Initial origin equals the selected first start, initial Layout association is its existing containing occurrence, Layer destinations stay explicit, translation is zero and holds are empty.",
+    "Full structural/domain/materialized/Layout and shared RL08\u2013RL10 validation precede a complete unaliased result; refusal returns exact input and fifteen empty affected collections."
+  ],
+  "partitions": [
+    "One/multiple selected Clips; repeated shared runtime and distinct runtimes with identical source; existing Group child IDs excluded.",
+    "Complete, missing, extraneous, blank, duplicate and source-identity maps; nested owner reuse and unrelated namespace reuse; malformed closed intent and unsafe origin.",
+    "Clip Effect target with retained quadratic descriptor; instance-control, Show repeat and Layout tracks unchanged globally; activation before/after local bounds refused.",
+    "Exact crossfade, wipe and portal single-Layer pair settings; omitted/partial chains, whole-output, multi-participant and property-ramp Transitions refused.",
+    "Containing Layout association, multiple intersected Layouts, unavailable envelope gap, effective ID collision, distinct Zones and shared RL placement refusal.",
+    "Fast and Precise native reopened sharing/global animation/Restart, retained local Clip curve, equal-source distinct members and incoming preroll Restart.",
+    "Selection to Group, move, explicit existing local hold, linked duplicate, Make Unique and selected Ungroup; other occurrence/definition and runtime authority unchanged."
+  ],
+  "sequences": [
+    "Author ordinary schedule \u2192 create Group with explicit identities \u2192 serialize/reopen \u2192 materialize \u2192 compare original global timing/references/owners and independent evaluator.",
+    "Prepare ordinary and grouped records with trusted Pattern-by-instance/Libraries \u2192 compile \u2192 native EPE export/reopen \u2192 Fast/Precise fixed-step frames and private state across exact entries, boundaries, Restart and loop.",
+    "Create shared Group \u2192 move125 \u2192 local hold150/50 \u2192 duplicate600 \u2192 Make Unique selected occurrence \u2192 Ungroup selected occurrence \u2192 exact native frame/private-state comparison with independently authored ordinary held schedule.",
+    "Apply malformed intent/map, unsupported representation and invalid candidate partitions \u2192 exact original input identity, immutable data and empty affected collections.",
+    "Inject five named semantic faults sequentially \u2192 named consumer failures \u2192 restore exact bytes \u2192 rerun affected tests/parity."
+  ],
+  "oracles": [
+    "Provisional public importer/serializer reopen and full materialization, compared with authored schedule rather than generator internals.",
+    "Actual native buildShowEpeExportV2/parseEpe output executed through Fast and 16.16 replay, with exact transformed frame/elapsed/level equality and independent quadratic Fast formula.",
+    "Public effective runtime use count and Restart event derivation prove one shared state and first-contribution timing; identical source text does not coalesce distinct runtime identities.",
+    "Explicit fifteen affected collections, nested repeated raw key IDs, unrelated global owners and direct alias mutation distinguish atomic/complete immutable results.",
+    "Existing parity corpus remains all47 exact, including unchanged descriptor-free source bytes."
+  ],
+  "residualGaps": [
+    "Pure creation retains the existing structural-owner/final-preparation boundary. Source-dependent compilation eligibility remains the trusted later admission responsibility; no compiler limit is relaxed.",
+    "No Group creation UI/adoption is included in this owner slice.",
+    "An independently constructed literal held Group using already-landed hold/materializer/lowering reproduces a Precise one-LSB global-ramp section arithmetic difference from an aggregated ordinary oracle at275ms. Creation itself passes exact animated before/after native proof. Lifecycle exact proof uses constant controls; no tolerance or playback-domain widening. See inherited-section-arithmetic.json for both original observation and independent witness.",
+    "Coordinator owns final committed-tip authoritative suites, cross-family native review, landing and issue completion. Whole1038 is not claimed implemented by this slice."
+  ],
+  "qualification": {
+    "focused": "37/37 creation and215/5 affected files pass",
+    "static": "TypeScript project and scoped ESLint pass",
+    "parity": "47/47 source bytes exact",
+    "faultSensitivity": "5/5 named semantic faults killed, exact bytes restored",
+    "native": "Fast/Precise EPE reopen frames/private state exact on admitted grouping cases and constant-control held lifecycle"
+  },
+  "evidence": [
+    "src/engine/showGroupCreationV2.test.ts",
+    "fault-sensitivity.json",
+    "inherited-section-arithmetic.json"
+  ]
+}

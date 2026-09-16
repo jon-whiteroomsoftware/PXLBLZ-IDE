@@ -1,0 +1,40 @@
+{
+  "results": [
+    {
+      "name": "runtime-binding",
+      "testPattern": "sharing/global animation",
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-group-create-mutant-runtime-binding.log"
+    },
+    {
+      "name": "global-track-owner",
+      "testPattern": "sharing/global animation",
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-group-create-mutant-global-track-owner.log"
+    },
+    {
+      "name": "retained-kernel",
+      "testPattern": "retained local Clip kernel",
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-group-create-mutant-retained-kernel.log"
+    },
+    {
+      "name": "transition-easing",
+      "testPattern": "exact pair",
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-group-create-mutant-transition-easing.log"
+    },
+    {
+      "name": "identity-plan-closure",
+      "testPattern": "identity",
+      "exitCode": 1,
+      "killed": true,
+      "log": "/tmp/issue-1038-group-create-mutant-identity-plan-closure.log"
+    }
+  ],
+  "restoredExactBytes": true
+}

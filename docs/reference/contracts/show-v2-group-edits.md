@@ -21,6 +21,39 @@ discarded controls. This operation leaves unrelated collections empty. Refusal
 and no-op return the original record identity and empty affected collections.
 Make Unique on an occurrence whose definition already has one user is a no-op.
 
+## Lossless ordinary selection creation
+
+`createShowGroupFromSelectionV2` in `showGroupCreationV2.ts` takes explicit
+ordinary same-Zone Clip IDs, the complete internal Transition selection, a fresh
+definition and occurrence identity, name, the first-selected-start origin, and
+complete caller-supplied local identity maps. Initial placement retains the
+original destination Layers, zero translation and empty holds. Each distinct
+selected runtime contributes one definition slot explicitly bound to the SAME
+authoritative top-level runtime. Templates are copies, not new runtimes.
+
+Instance-, Layout- and Show-owned tracks stay global exactly once; selected
+Clip-owned tracks, appearance and keys subtract only the origin. Values, easing,
+retained descriptors, Effect IDs and Restart policies stay exact. Keys retain
+owner-scoped uniqueness; unrelated owners may reuse raw IDs. Identity maps must
+be complete, closed, nonblank and fresh for the cloned owner. Materialized IDs
+must also pass complete candidate validation.
+
+Jon accepted atomic refusal for any selection the existing format cannot
+represent losslessly. Activation outside the selected local duration, partial
+chains, existing Group children, whole-output/multi-participant Transitions and
+Transition ramps refuse without edits/history/save. A single-Layer pair with
+both endpoints selected and no ramps maps its complete settings/duration/easing.
+No crop, pairwise rewrite, GC, hoist, source coalescing, schema or compiler
+expansion is introduced. Full persisted/materialized/Layout and shared RL08–RL10
+validation run before a changed result escapes. Source-dependent final
+preparation remains outside this pure owner.
+
+The affected result names removed ordinary owners and added definition-local
+owners, the new definition/occurrence, and every affected nested raw key ID.
+Repeated key strings in distinct owners remain repeated. Original authoritative
+instances/global tracks and unrelated definitions/occurrences remain unchanged.
+Refusal returns the exact input record and empty affected collections.
+
 ## Runtime authority
 
 The edit resolves every selected definition slot before cloning. The effective
@@ -174,6 +207,14 @@ tracks, duplicate/delete, Make Unique/delete, exact IDs and full empty reopening
 followed by reuse of the retained definition.
 
 ## Evidence and limits
+
+[Selection creation tests](../../../src/engine/showGroupCreationV2.test.ts) prove
+lossless local references, owner-scoped explicit identities, atomic representation
+refusals, global owner preservation, native Fast/Precise sharing and Restart,
+retained local curves and held lifecycle interoperability. The
+[test-design packet](../evidence/issue-1038-group-create/test-design.json) records
+independent oracles and five named semantic faults. Its inherited section-arithmetic
+witness is separate from exact grouping playback proof.
 
 [Group identity tests](../../../src/engine/showGroupEditsV2.test.ts) reopen the
 candidate, inspect every mapped reference and affected collection, prove top-level

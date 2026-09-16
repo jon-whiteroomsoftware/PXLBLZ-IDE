@@ -1,0 +1,92 @@
+{
+  "creationCalled": false,
+  "source": "literal persisted Group using already-landed materializer/hold and lowerer",
+  "results": [
+    {
+      "fidelity": "fast",
+      "time": 275,
+      "oracle": [
+        0.24537500000000007,
+        0.025000000000000085,
+        0
+      ],
+      "literalHeldGroup": [
+        0.24537500000000007,
+        0.025000000000000085,
+        0
+      ]
+    },
+    {
+      "fidelity": "fast",
+      "time": 699,
+      "oracle": [
+        0.49316060000000056,
+        0.23700000000000007,
+        0
+      ],
+      "literalHeldGroup": [
+        0.49316060000000056,
+        0.23700000000000007,
+        0
+      ]
+    },
+    {
+      "fidelity": "fidelity",
+      "time": 275,
+      "oracle": [
+        0.246002197265625,
+        0.025787353515625,
+        0
+      ],
+      "literalHeldGroup": [
+        0.2460174560546875,
+        0.025787353515625,
+        0
+      ]
+    },
+    {
+      "fidelity": "fidelity",
+      "time": 699,
+      "oracle": [
+        0.497314453125,
+        0.23779296875,
+        0
+      ],
+      "literalHeldGroup": [
+        0.497314453125,
+        0.23779296875,
+        0
+      ]
+    }
+  ],
+  "originalLifecycleObservation": {
+    "sequence": "create \u2192 move125 \u2192 local hold150/50 \u2192 duplicate600 \u2192 Unique \u2192 Ungroup versus aggregated ordinary oracle, with original global quadratic control track",
+    "fastAt699": {
+      "oracle": 0.49316060000000056,
+      "lifecycle": 0.49316060000000045
+    },
+    "preciseAt275": {
+      "oracle": 0.246002197265625,
+      "lifecycle": 0.2460174560546875
+    }
+  },
+  "independentLiteralFixture": {
+    "runtime": "instance bound from literal-slot; one original main Clip0..1000 and literal overlay slot at125",
+    "localClips": [
+      "local0..100 Continue",
+      "local100..300 Restart"
+    ],
+    "hold": {
+      "localTimeMs": 150,
+      "durationMs": 50
+    },
+    "globalTrack": "instance-control sliderGain0..1000, .2 to .8 quadratic in",
+    "ordinaryOracle": [
+      "main0..1000",
+      "overlay125..225 Continue",
+      "overlay225..475 Restart"
+    ],
+    "consumer": "native EPE reopened, step1ms, map sample/pos [.25,.5], seed1038"
+  },
+  "boundary": "No create owner called for independent witness. No tolerance; exact grouping/global-animation native tests remain required."
+}

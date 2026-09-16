@@ -180,6 +180,17 @@ Explicit Make Pattern Independent creates a runtime; Clip-scoped Replace is the
 accepted operation that performs independence first when needed (§6). Migration
 preserves already-distinct legacy runtimes instead of collapsing them.
 
+Creating a Group from ordinary same-Zone Clips supports only selections that the
+existing Group format represents losslessly. Unrepresentable animation activation,
+partial Transition chains, whole-output or multi-participant Transitions and
+Transition Property ramps refuse atomically: the entire Show stays unchanged,
+with no history or save. Group creation never crops animation, approximates a
+Transition, manufactures a runtime or widens the format to accept a selection.
+The initial occurrence binds one local slot per distinct selected runtime to that
+same authoritative runtime ID; instance-, Layout- and Show-owned animation stays
+global exactly once. Selected Clip-owned choreography localizes by subtracting
+the explicit first-selected-start origin, with no resampling or reauthoring.
+
 Group definitions may retain their local instance slots in the measured envelope.
 `instanceBindings` maps slots to effective runtime IDs. When a binding names an
 ordinary `composition.patternInstances` entry, that entry is the authoritative
