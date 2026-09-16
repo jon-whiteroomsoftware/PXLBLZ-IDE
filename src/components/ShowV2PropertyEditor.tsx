@@ -61,8 +61,7 @@ export function ShowV2PropertyEditor({ capture, submitPropertyEdit, isCurrentCap
       if (live.current && current) { setReset(value => value + 1); onStatus(error instanceof Error ? `Save failed: ${error.message}` : 'Save failed.') }
     } finally { pending.current = false; if (live.current) setBusy(false) }
   }
-  // Qualified refused captures are enabled by the recovery Route after its prerequisite lands.
-  const available = !busy && capture.prepared.status !== 'refused'
+  const available = !busy && (capture.inputCapture?.status === 'qualified' || (!capture.inputCapture && capture.prepared.status !== 'refused'))
   return <section aria-label="Properties" className="mt-7 space-y-3">
     <div className="flex items-center justify-between gap-2"><h2 className="text-sm font-medium text-zinc-200">Properties</h2>
       <Button size="xs" variant="outline" className={buttonStyle} disabled={!available || !model.selected} onClick={() => { setCreating(true); setTrackId('') }}>New track</Button></div>

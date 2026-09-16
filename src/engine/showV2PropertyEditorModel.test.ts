@@ -1,3 +1,4 @@
+import { captureShowStageEditV2 } from './showPreparedStageV2'
 import { describe, expect, it } from 'vitest'
 import { propertyEditGroupRecord, propertyEditRecord } from '../test/showV2PropertyEditsFixture'
 import { buildShowV2PropertyEditorModel, createShowV2PropertyTrackIntent, propertyKeyPatchFromDraft, propertyEasingDraft, propertyEasingFromDraft } from './showV2PropertyEditorModel'
@@ -79,4 +80,13 @@ it('inherits numeric Effect eligibility from the first held value during incomin
  c.record.composition.transitions=[{id:'blend',kind:'crossfade',durationMs:300,easing:{curve:'linear'},participants:[{id:'pair',zoneId:clip.zoneId,layerId:clip.layerId,fromClipId:'from',toClipId:clip.id}],propertyRamps:[]}]
  const model=buildShowV2PropertyEditorModel(c,{kind:'show'},{activeStartMs:100,activeDurationMs:100})
  expect(model.targets.some(t=>t.target.kind==='clip-effect'&&t.target.clipId===clip.id&&t.target.effectId==='turn')).toBe(true)
+})
+
+it('uses the qualified frozen source and authored baseline instead of live identities after capture',()=>{
+ const c=capture(),qualified=captureShowStageEditV2(c.record,c.dependencies)
+ expect(qualified.inputCapture.status).toBe('qualified')
+ c.record.composition.patternInstances[0].controlTargets={}
+ c.dependencies.patterns[0].src='export function render2D(i,x,y){rgb(x,y,0)}'
+ const model=buildShowV2PropertyEditorModel(qualified,{kind:'show'})
+ expect(model.targets.filter(target=>target.target.kind==='instance-control').map(target=>target.target)).toEqual([{kind:'instance-control',instanceId:'instance',exportName:'sliderGain'}])
 })

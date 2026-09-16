@@ -1,6 +1,6 @@
 # Native Property editor adoption
 
-Assignment: gpt-5.6-sol/high, 2026-09-16. Base4b0bb5704aaf3a7b81f50e5522be3944c685c7ee; canonical70812ae64c919ff1dcb15e019125bd3b6bad7b4b §§4/6/9/12. Proof subsets MODEL/CURVE/ACTIVATION/SHARING/GROUP-HOLD/RESTART/ROUTE/FAILURE/PARITY. Coordinator owns issue progress and final delivery gates.
+Assignment: gpt-5.6-sol/high, 2026-09-16. API stack base4b11cf326b5498dec7a3832712d7fc941cff8fea; canonical70812ae64c919ff1dcb15e019125bd3b6bad7b4b §§4/6/9/12. Proof subsets MODEL/CURVE/ACTIVATION/SHARING/GROUP-HOLD/RESTART/ROUTE/FAILURE/PARITY. Coordinator owns issue progress and final delivery gates.
 
 The panel selects a persisted Show or Group-definition owner explicitly, then creates, retargets, changes activation or removes tracks and creates, reauthors or removes exact keys. Show targets cover nine families; Group targets cover seven local families. Definition time is local; the selected definition affects every linked occurrence. Global instance tracks identify shared consumers. Materialized IDs are never writable aliases.
 
@@ -17,6 +17,6 @@ New track: complete target, activation and two explicit time/value/curve rows
 
 Independent dirty patches preserve unrelated keys, exact structured easing and retained curve descriptors. IDs allocate once per required identity only on a valid submitted create. Scalar fields retain raw drafts without clamps. Group control choices inspect every authoritative linked binding against exact captured bundled slider metadata and existing authored scalar baseline. Missing source/baseline is unavailable, never guessed. Effect choices inspect all held spans intersecting requested activation, with exact ID/kind/numeric parameter.
 
-Shared capture/provider/current/completion safeguards, prepared admission, history and durable persistence remain the existing owners. Qualified-input recovery/admission is owned by the separate prerequisite worker. The panel consumes its exact typed propertyOwner wrapper after finalbase; a qualified refused preview may be repaired only when the full candidate prepares. Invalid captures remain disabled and no component admits a caller candidate or transform.
+Shared capture/provider/current/completion safeguards, prepared admission, history and durable persistence remain the existing owners. Qualified-input recovery/admission is owned by the separate prerequisite worker. The Route binds its exact typed propertyOwner wrapper and the model reads its frozen authored record/assets; a qualified refused preview may be repaired only when the full candidate prepares. Invalid captures remain disabled and no component admits a caller candidate or transform.
 
 Secondary text is limited to consequential scope: Group edits affect linked occurrences; time is global/local; instance tracks affect shared users; explicit key edits may reauthor retained segments. These prevent applying local/global/shared edits under a mistaken ownership assumption. No internal architecture explanation or decorative badges.

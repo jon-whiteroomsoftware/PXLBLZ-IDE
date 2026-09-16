@@ -1,6 +1,6 @@
 {
   "issue": 1038,
-  "base": "4b0bb5704aaf3a7b81f50e5522be3944c685c7ee",
+  "base": "4b11cf326b5498dec7a3832712d7fc941cff8fea",
   "specification": {
     "path": "docs/plans/scene-retirement-specification.md",
     "commit": "70812ae64c919ff1dcb15e019125bd3b6bad7b4b",
@@ -40,18 +40,32 @@
   ],
   "residualGaps": [
     "Source-dependent named candidate compiler refusals remain explicit; no compiler/schema/runtime expansion.",
-    "Shared recovery API/capture prerequisite finalbase and Route mounting pending; no component workaround.",
-    "Final committed browser proof, review and authoritative suites coordinator-owned."
+    "Fresh final committed Worker/browser responsive proof pending settled recovery base; no admission bypass.",
+    "Review and authoritative final suites coordinator-owned."
   ],
   "qualification": {
     "focused": {
-      "files": 3,
-      "tests": 47,
+      "files": 4,
+      "tests": 61,
       "result": "passed",
-      "scope": "pure model, thin panel six intents, nine/seven-family actual native artifacts"
+      "scope": "model/panel, nine/seven-family native artifacts, real Route provider/no-op/refusal/rollback/completion/linked Group adoption"
     },
     "static": "TypeScript project and scoped lint passed",
     "finalSuites": "coordinator-owned",
-    "checkpoint": "Pure model/thin panel only; exact shared recovery prerequisite and Route mount pending finalbase."
+    "checkpoint": "Integrated exact typed Property wrapper and qualified frozen capture inputs; source checkpoint precedes finalbase browser proof.",
+    "adjacentFocused": {
+      "files": 9,
+      "tests": 119,
+      "result": "passed"
+    },
+    "mutations": {
+      "killed": 3,
+      "survived": 0,
+      "report": "model-mutation.json"
+    },
+    "parity": {
+      "records": 47,
+      "result": "matched"
+    }
   }
 }

@@ -2,6 +2,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { propertyEditGroupRecord, propertyEditRecord } from '@/test/showV2PropertyEditsFixture'
+import { captureShowStageEditV2 } from '@/engine/showPreparedStageV2'
 import { ShowV2PropertyEditor, type ShowV2PropertySubmission } from './ShowV2PropertyEditor'
 import type { ShowV2PilotPreparedCapture } from '@/store/showV2PreparedEditAdmission'
 function setup(group=false) {
@@ -53,4 +54,15 @@ it('submits exact persisted key/track removals and one explicitly authored new k
 it('opening a persisted key and applying without dirty fields never sends a descriptor or easing patch',async()=>{
  const {record,submit}=setup();record.composition.propertyTracks=[{id:'track',target:{kind:'clip-opacity',clipId:'clip'},activeStartMs:0,activeDurationMs:1000,keyframes:[{id:'a',timeMs:0,value:.2,easing:{curve:'cubic-bezier',x1:.2,y1:9,x2:.8,y2:-9}},{id:'b',timeMs:1000,value:.8,easing:{curve:'linear'}}]}]
  owner();fireEvent.change(screen.getByLabelText('Property track'),{target:{value:'track'}});fireEvent.change(screen.getByLabelText('Property key'),{target:{value:'a'}});fireEvent.click(screen.getByRole('button',{name:'Apply key'}));await waitFor(()=>expect(submit).toHaveBeenCalledTimes(1));expect(submit.mock.calls[0][0].intent).toEqual({kind:'update-key',trackId:'track',keyId:'a',patch:{}})
+})
+
+it('qualified semantic inputs enable typed recovery; invalid capture stays disabled even with prepared assets',()=>{
+ const {capture,submit,status,view}=setup()
+ const qualified=captureShowStageEditV2(capture.record,capture.dependencies)
+ expect(qualified.inputCapture.status).toBe('qualified')
+ const refused={...qualified,prepared:{status:'refused' as const,code:'unsupported-pilot-record',message:'Known preimage restriction'}}
+ view.rerender(<ShowV2PropertyEditor capture={refused} isCurrentCapture={()=>true} isCurrentCompletion={()=>true} submitPropertyEdit={submit} onStatus={status}/>)
+ owner();expect(screen.getByRole('button',{name:'New track'})).toBeEnabled()
+ view.rerender(<ShowV2PropertyEditor capture={{...refused,inputCapture:{status:'invalid',message:'Unqualified source snapshot'}}} isCurrentCapture={()=>true} isCurrentCompletion={()=>true} submitPropertyEdit={submit} onStatus={status}/>)
+ expect(screen.getByRole('button',{name:'New track'})).toBeDisabled();expect(submit).not.toHaveBeenCalled()
 })

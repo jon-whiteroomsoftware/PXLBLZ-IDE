@@ -1,0 +1,17 @@
+[
+  {
+    "name": "missing-authored-baseline",
+    "exitCode": 1,
+    "killed": true
+  },
+  {
+    "name": "first-linked-authority-only",
+    "exitCode": 1,
+    "killed": true
+  },
+  {
+    "name": "live-inputs-replace-qualified",
+    "exitCode": 1,
+    "killed": true
+  }
+]

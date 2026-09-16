@@ -10,6 +10,8 @@ import type { ShowPatternInstance, ShowStructuredEasing } from './personalConten
 import type { ShowPropertyTargetV2, ShowPropertyTrackV2 } from './showCompositionV2'
 import type { ShowPropertyEditIntentV2, ShowPropertyTrackOwnerV2 } from './showPropertyEditsV2'
 import type { ShowV2TimelineCapture } from './showV2TimelineEditorModel'
+import type { ShowPreparedStageInputCaptureResultV2 } from './showPreparedStageV2'
+export interface ShowV2PropertyEditorCapture extends ShowV2TimelineCapture { inputCapture?: ShowPreparedStageInputCaptureResultV2 }
 
 export interface ShowV2PropertyTargetChoice { key: string; label: string; target: ShowPropertyTargetV2; sharedClipIds: string[] }
 export interface ShowV2PropertyKeyDraft { timeMs: string; value: string; easing: ShowStructuredEasing }
@@ -23,8 +25,9 @@ export function propertyTrackPatchFromDraft(draft: Partial<{ target: ShowPropert
   return { ...(draft.target !== undefined ? {target:structuredClone(draft.target)} : {}), ...(draft.activeStartMs !== undefined ? {activeStartMs:number(draft.activeStartMs)} : {}), ...(draft.activeDurationMs !== undefined ? {activeDurationMs:number(draft.activeDurationMs)} : {}) }
 }
 /** Read-only persisted target choices. Effective bindings provide eligibility, never writable IDs. */
-export function buildShowV2PropertyEditorModel(capture: ShowV2TimelineCapture, owner?: ShowPropertyTrackOwnerV2, activation?: Pick<ShowPropertyTrackV2,'activeStartMs'|'activeDurationMs'>) {
-  const record=capture.record
+export function buildShowV2PropertyEditorModel(capture: ShowV2PropertyEditorCapture, owner?: ShowPropertyTrackOwnerV2, activation?: Pick<ShowPropertyTrackV2,'activeStartMs'|'activeDurationMs'>) {
+  const inputs=capture.inputCapture?.status==='qualified'?capture.inputCapture.inputs:undefined
+  const record=inputs?.record??capture.record
   const owners:ShowV2PropertyOwnerChoice[]=[{key:JSON.stringify({kind:'show'}),label:'Show',owner:{kind:'show'},durationMs:record.composition.showEndMs,linkedOccurrenceIds:[]},...record.composition.groupDefinitions.map(definition=>({key:JSON.stringify({kind:'group-definition',definitionId:definition.id}),label:definition.name,owner:{kind:'group-definition' as const,definitionId:definition.id},durationMs:groupDuration(definition),linkedOccurrenceIds:record.composition.groupOccurrences.filter(o=>o.definitionId===definition.id).map(o=>o.id)}))]
   const definition=owner?.kind==='group-definition'?record.composition.groupDefinitions.find(d=>d.id===owner.definitionId):undefined
   const selected=owners.find(choice=>choice.owner.kind===owner?.kind&&(choice.owner.kind==='show'||(owner?.kind==='group-definition'&&choice.owner.definitionId===owner.definitionId)))
@@ -34,9 +37,9 @@ export function buildShowV2PropertyEditorModel(capture: ShowV2TimelineCapture, o
   let effective: typeof record
   try{effective=materializeShowGroupsV2(record)}catch{return {owners,selected,tracks,targets}}
   const add=(target:ShowPropertyTargetV2,label:string,sharedClipIds:string[]=[])=>targets.push({key:JSON.stringify(target),label,target:structuredClone(target),sharedClipIds})
-  const assets=capture.prepared.status==='ready'?capture.prepared.bundle.assets:capture.dependencies
+  const assets=inputs?.assets??(capture.prepared.status==='ready'?capture.prepared.bundle.assets:capture.dependencies)
   let libraries:Record<string,string>
-  try{libraries=capture.prepared.status==='ready'?capture.prepared.bundle.libraries:compileLibraries(LIBRARIES,assets.libraries)}catch{return {owners,selected,tracks,targets}}
+  try{libraries=!inputs&&capture.prepared.status==='ready'?capture.prepared.bundle.libraries:compileLibraries(LIBRARIES,assets.libraries)}catch{return {owners,selected,tracks,targets}}
   const sliders=(instance:ShowPatternInstance):Set<string>=>{
     const ref=instance.pattern,source=ref.kind==='stock'?DEMOS[resolveStockPatternId(ref.id)]:assets.patterns.find(p=>p.id===ref.id)?.src
     if(source===undefined)return new Set()
