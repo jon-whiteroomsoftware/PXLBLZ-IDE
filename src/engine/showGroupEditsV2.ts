@@ -1,10 +1,13 @@
 import {
   validateShowRecordV2,
   type ShowGroupDefinitionV2,
+  type ShowGroupLayerBindingV2,
+  type ShowGroupOccurrenceV2,
   type ShowPropertyTargetV2,
   type ShowRecordV2,
 } from './showCompositionV2'
 import { groupRuntimeBindings } from './showGroupsV2'
+import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 
 export interface ShowGroupUniqueIdentityPlanV2 {
   definitionId: string
@@ -23,10 +26,32 @@ export interface MakeShowGroupUniqueIntentV2 {
   identities: ShowGroupUniqueIdentityPlanV2
 }
 
+export interface ShowGroupOccurrencePlacementV2 {
+  startMs: number
+  layoutOccurrenceId: string
+  zoneId: string
+  layerBindings: ShowGroupLayerBindingV2[]
+  translationX: number
+  translationY: number
+}
+
+export interface MoveShowGroupOccurrenceIntentV2 extends ShowGroupOccurrencePlacementV2 {
+  kind: 'move-occurrence'
+  occurrenceId: string
+}
+
+export interface DuplicateShowGroupOccurrenceIntentV2 extends ShowGroupOccurrencePlacementV2 {
+  kind: 'duplicate-occurrence'
+  occurrenceId: string
+  newOccurrenceId: string
+}
+
 export type ShowGroupEditRefusalV2 =
   | 'invalid-record'
   | 'missing-occurrence'
   | 'invalid-identity-plan'
+  | 'invalid-occurrence-id'
+  | 'invalid-placement'
   | 'invalid-result'
 
 export interface ShowGroupEditAffectedV2 {
@@ -56,6 +81,164 @@ export type ShowGroupEditResultV2 =
     code: ShowGroupEditRefusalV2
     message: string
   } & ShowGroupEditAffectedV2)
+
+function emptyGroupEditAffected(): ShowGroupEditAffectedV2 {
+  return {
+    affectedClipIds: [], affectedInstanceIds: [], affectedTransitionIds: [], affectedTrackIds: [],
+    affectedLayoutDefinitionIds: [], affectedLayoutOccurrenceIds: [], affectedGroupDefinitionIds: [],
+    affectedGroupOccurrenceIds: [], affectedLayerIds: [], affectedMarkerIds: [],
+    affectedAppearanceKeyIds: [], affectedPropertyKeyIds: [], hoistedInstanceIds: [],
+    removedIds: [], discardedControlTargets: [],
+  }
+}
+
+function refuseGroupEdit(
+  record: ShowRecordV2,
+  code: ShowGroupEditRefusalV2,
+  message: string,
+): ShowGroupEditResultV2 {
+  return { status: 'refused', record, code, message, ...emptyGroupEditAffected() }
+}
+
+function validateGroupEditPreimage(record: ShowRecordV2): ShowGroupEditResultV2 | null {
+  const invalid = validateShowRecordV2(record)[0]
+  if (invalid) return refuseGroupEdit(record, 'invalid-record', `${invalid.path}: ${invalid.message}`)
+  const unavailable = validateShowLayoutAvailabilityV2(record)[0]
+  if (unavailable) {
+    return refuseGroupEdit(
+      record,
+      'invalid-record',
+      `${unavailable.entityKind} "${unavailable.entityId}" uses an unavailable Zone in Layout occurrence "${unavailable.layoutOccurrenceId}".`,
+    )
+  }
+  return null
+}
+
+function placementIssue(
+  record: ShowRecordV2,
+  definition: ShowGroupDefinitionV2,
+  placement: ShowGroupOccurrencePlacementV2,
+): string | null {
+  if (!Number.isSafeInteger(placement.startMs) || placement.startMs < 0) {
+    return 'Group occurrence start must be a nonnegative safe integer.'
+  }
+  if (!Number.isFinite(placement.translationX) || !Number.isFinite(placement.translationY)) {
+    return 'Group occurrence translation must be finite.'
+  }
+  if (typeof placement.layoutOccurrenceId !== 'string' || !placement.layoutOccurrenceId.trim()) {
+    return 'Group occurrence Layout identity must be nonblank.'
+  }
+  const layout = record.composition.layoutOccurrences.find(value => value.id === placement.layoutOccurrenceId)
+  if (!layout || placement.startMs < layout.startMs || placement.startMs >= layout.startMs + layout.durationMs) {
+    return 'Group occurrence Layout association must exist and own its start time.'
+  }
+  if (typeof placement.zoneId !== 'string' || !placement.zoneId.trim()
+    || !record.zones.some(zone => zone.id === placement.zoneId)) {
+    return 'Group occurrence Zone must exist.'
+  }
+  if (!Array.isArray(placement.layerBindings)) return 'Group occurrence Layer bindings must be explicit.'
+  const expected = [...definition.layers.map(layer => layer.id)].sort()
+  const actual = placement.layerBindings.map(binding => binding?.definitionLayerId).sort()
+  if (actual.length !== expected.length || actual.some((id, index) => id !== expected[index])) {
+    return 'Group occurrence Layer bindings must name every definition Layer exactly once.'
+  }
+  for (const binding of placement.layerBindings) {
+    const destination = record.composition.layers.find(layer => layer.id === binding.layerId)
+    if (!destination || destination.zoneId !== placement.zoneId) {
+      return 'Every Group occurrence Layer binding must target an existing Layer in the destination Zone.'
+    }
+  }
+  return null
+}
+
+function shiftedTrackActivation(
+  occurrence: ShowGroupOccurrenceV2,
+  nextStartMs: number,
+): ShowGroupOccurrenceV2['trackActivation'] | null | undefined {
+  if (!occurrence.trackActivation) return undefined
+  const startMs = occurrence.trackActivation.startMs + (nextStartMs - occurrence.startMs)
+  if (!Number.isSafeInteger(startMs) || startMs < 0) return null
+  return { startMs, durationMs: occurrence.trackActivation.durationMs }
+}
+
+function validateGroupEditResult(record: ShowRecordV2): string | null {
+  const invalid = validateShowRecordV2(record)[0]
+  if (invalid) return `${invalid.path}: ${invalid.message}`
+  const unavailable = validateShowLayoutAvailabilityV2(record)[0]
+  return unavailable
+    ? `${unavailable.entityKind} "${unavailable.entityId}" uses an unavailable Zone in Layout occurrence "${unavailable.layoutOccurrenceId}".`
+    : null
+}
+
+/** Move one Group occurrence without changing its definition or effective runtime identities. */
+export function moveShowGroupOccurrenceV2(
+  record: ShowRecordV2,
+  intent: MoveShowGroupOccurrenceIntentV2,
+): ShowGroupEditResultV2 {
+  const preimage = validateGroupEditPreimage(record)
+  if (preimage) return preimage
+  const occurrence = record.composition.groupOccurrences.find(value => value.id === intent.occurrenceId)
+  if (!occurrence) return refuseGroupEdit(record, 'missing-occurrence', `Group occurrence "${intent.occurrenceId}" does not exist.`)
+  const definition = record.composition.groupDefinitions.find(value => value.id === occurrence.definitionId)!
+  const issue = placementIssue(record, definition, intent)
+  if (issue) return refuseGroupEdit(record, 'invalid-placement', issue)
+  const trackActivation = shiftedTrackActivation(occurrence, intent.startMs)
+  if (trackActivation === null) return refuseGroupEdit(record, 'invalid-placement', 'Shifted Group track activation must remain a nonnegative safe time.')
+  const edited: ShowGroupOccurrenceV2 = {
+    ...structuredClone(occurrence),
+    startMs: intent.startMs,
+    layoutOccurrenceId: intent.layoutOccurrenceId,
+    zoneId: intent.zoneId,
+    layerBindings: structuredClone(intent.layerBindings),
+    translationX: intent.translationX,
+    translationY: intent.translationY,
+    ...(trackActivation ? { trackActivation } : {}),
+  }
+  if (JSON.stringify(edited) === JSON.stringify(occurrence)) {
+    return { status: 'unchanged', record, ...emptyGroupEditAffected() }
+  }
+  const next = structuredClone(record)
+  next.composition.groupOccurrences[next.composition.groupOccurrences.findIndex(value => value.id === occurrence.id)] = edited
+  const resultIssue = validateGroupEditResult(next)
+  if (resultIssue) return refuseGroupEdit(record, 'invalid-result', resultIssue)
+  return { status: 'changed', record: next, ...emptyGroupEditAffected(), affectedGroupOccurrenceIds: [occurrence.id] }
+}
+
+/** Add one linked Group occurrence without minting a definition, track, or runtime. */
+export function duplicateShowGroupOccurrenceV2(
+  record: ShowRecordV2,
+  intent: DuplicateShowGroupOccurrenceIntentV2,
+): ShowGroupEditResultV2 {
+  const preimage = validateGroupEditPreimage(record)
+  if (preimage) return preimage
+  const occurrence = record.composition.groupOccurrences.find(value => value.id === intent.occurrenceId)
+  if (!occurrence) return refuseGroupEdit(record, 'missing-occurrence', `Group occurrence "${intent.occurrenceId}" does not exist.`)
+  if (typeof intent.newOccurrenceId !== 'string' || !intent.newOccurrenceId.trim()
+    || record.composition.groupOccurrences.some(value => value.id === intent.newOccurrenceId)) {
+    return refuseGroupEdit(record, 'invalid-occurrence-id', 'Linked duplicate requires a fresh nonblank Group occurrence identity.')
+  }
+  const definition = record.composition.groupDefinitions.find(value => value.id === occurrence.definitionId)!
+  const issue = placementIssue(record, definition, intent)
+  if (issue) return refuseGroupEdit(record, 'invalid-placement', issue)
+  const trackActivation = shiftedTrackActivation(occurrence, intent.startMs)
+  if (trackActivation === null) return refuseGroupEdit(record, 'invalid-placement', 'Shifted Group track activation must remain a nonnegative safe time.')
+  const duplicate: ShowGroupOccurrenceV2 = {
+    ...structuredClone(occurrence),
+    id: intent.newOccurrenceId,
+    startMs: intent.startMs,
+    layoutOccurrenceId: intent.layoutOccurrenceId,
+    zoneId: intent.zoneId,
+    layerBindings: structuredClone(intent.layerBindings),
+    translationX: intent.translationX,
+    translationY: intent.translationY,
+    ...(trackActivation ? { trackActivation } : {}),
+  }
+  const next = structuredClone(record)
+  next.composition.groupOccurrences.push(duplicate)
+  const resultIssue = validateGroupEditResult(next)
+  if (resultIssue) return refuseGroupEdit(record, 'invalid-result', resultIssue)
+  return { status: 'changed', record: next, ...emptyGroupEditAffected(), affectedGroupOccurrenceIds: [duplicate.id] }
+}
 
 /** Make one linked Group occurrence structurally unique without minting a runtime. */
 export function makeShowGroupUniqueV2(

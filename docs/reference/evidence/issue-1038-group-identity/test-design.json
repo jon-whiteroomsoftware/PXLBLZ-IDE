@@ -6,7 +6,10 @@
     "The caller supplies a complete fresh nonblank conflict-free mapping for every cloned definition-local identity and internal reference.",
     "The selected occurrence preserves placement, Layer destinations, translation, track activation and holds; the old definition and other occurrences stay byte-identical.",
     "Refusal and no-op return the original record identity and empty affected collections; change returns a complete unaliased record and complete affected collections.",
-    "Genuine incompatible claims for one otherwise-unowned runtime ID refuse rather than selecting an occurrence by traversal order."
+    "Genuine incompatible claims for one otherwise-unowned runtime ID refuse rather than selecting an occurrence by traversal order.",
+    "Move replaces one complete explicit occurrence placement, shifts only its occurrence-owned global track activation, and preserves definition, runtime bindings, holds and local choreography.",
+    "Linked duplicate reuses one definition and the same effective runtimes; the caller supplies the only new persisted identity and no Pattern instance or animation owner is minted.",
+    "Complete materialized validation refuses collision, Show End, Layout availability, Transition attachment and overlapping effective instance-track owners before a candidate is exposed."
   ],
   "partitions": [
     "One selected occurrence among two linked users; already-unique occurrence; missing occurrence.",
@@ -14,7 +17,10 @@
     "Complete identity plan; missing source; extraneous source; blank target; duplicate target; existing target; cross-owner key collision.",
     "One and multiple Clips, appearance keys and Property keys; Clip, Layer, instance and Transition endpoint references; Clip-target and instance-target tracks.",
     "Compatible repeated unowned claim and incompatible same-ID unowned claim.",
-    "Continue and Restart Clips; no hold and ordered local hold; Fast and Fidelity replay."
+    "Continue and Restart Clips; no hold and ordered local hold; Fast and Fidelity replay.",
+    "Move within one Layout occurrence and across an explicit Layout boundary; translation-only; exact complete-placement no-op; unsafe time, missing references, incomplete Layer plan, collision and Show End refusal.",
+    "Linked duplicate with definition-qualified defaults and explicit top-level authority; distinct and simultaneous Restart entries; held Clip-target animation; overlapping and half-open-adjacent instance-target animation.",
+    "Fresh occurrence identity, blank and already-owned identity, and a fresh occurrence identity whose occurrence-qualified materialized Clip identity collides with persisted content."
   ],
   "sequences": [
     "Reopen two linked occurrences with held time, Make Unique one occurrence, reopen again, then inspect every local ID/reference, runtime use and authoritative payload.",
@@ -22,14 +28,19 @@
     "Bind one slot to a top-level instance while leaving its definition copy stale; combine it with an unbound slot, Make Unique and materialize both old and new definitions.",
     "Mutate each identity-plan partition and prove atomic refusal with original record identity and empty affected collections.",
     "Create incompatible missing-top-level same-ID claims in separate definitions and prove materialization and the edit owner refuse without choosing a payload.",
-    "Compile preimage and candidate through prepareShowV2ForCompile, reopen generated .epe artifacts, then compare frames and exported state across hold and Restart boundaries."
+    "Compile preimage and candidate through prepareShowV2ForCompile, reopen generated .epe artifacts, then compare frames and exported state across hold and Restart boundaries.",
+    "Move a held occurrence, reopen, independently calculate child intervals and Restart times, then prove unrelated top-level instance animation remains byte-identical.",
+    "Duplicate a held occurrence, reopen, compare effective runtime bindings and materialized child count, then derive distinct and coalesced Restart events on the same runtime.",
+    "Move then linked-duplicate; compare generated Fast and Fidelity source, frames and exported state with an independently authored record at every hold, Transition and Restart boundary."
   ],
   "oracles": [
     "Provisional v2 serialize/parse reopen plus complete validateShowRecordV2 validation.",
     "Exact definition and occurrence object equality for untouched owners; exact ID/reference maps and complete affected arrays for the selected clone.",
     "Public groupRuntimeBindings and materializeShowGroupsV2 outputs for runtime IDs, use counts and authoritative Pattern instance payloads.",
     "Public prepareShowV2ForCompile provenance and restartEvents, generated .epe reopen, and exact Fast/Fidelity frames plus exported state at boundary probes.",
-    "Input deep equality on change and reference identity on no-op/refusal."
+    "Input deep equality on change and reference identity on no-op/refusal.",
+    "Public validateShowLayoutAvailabilityV2 and complete materialized validation for destination Layout, collision, Transition, Show End and effective track ownership.",
+    "Exact empty affected collections except the persisted moved or duplicated occurrence ID; no transient child identity appears as an authored edit."
   ],
   "faults": [
     "Derive a new default runtime ID from the cloned definition ID.",
@@ -39,15 +50,24 @@
     "Remap persisted entities but leave a Transition endpoint, Property target, occurrence binding key or Layer binding key stale.",
     "Drop holds, track activation or destination Layer IDs while replacing the selected occurrence.",
     "Resolve incompatible unowned claims by first or last traversal order.",
-    "Return a partial candidate or nonempty affected arrays after refusal."
+    "Return a partial candidate or nonempty affected arrays after refusal.",
+    "Leave occurrence-owned track activation at its old global time or shift unrelated top-level instance tracks.",
+    "Mint a Pattern instance, definition, track or runtime for linked duplicate.",
+    "Drop or alias holds, runtime bindings or Layer bindings while copying the occurrence shell.",
+    "Validate only the occurrence shell and miss held materialized collision, Transition detachment, Layout unavailability or overlapping same-runtime tracks.",
+    "Emit two reset operations for simultaneous linked Restart entries instead of using the transient coalescing rule."
   ],
   "mutationEvidence": [
     "The first broad qualification instrumented 320 owner/authority mutants and exposed missing distinctions for already-unique selection, explicit unowned bindings, already-hoisted defaults, later-occurrence selection, instance-target remapping and key freshness.",
     "After adding those independent consumer partitions, the final exact-source semantic scope killed 224 of 233 mutants; the authoritative groupRuntimeBindings/materialization seam killed all 35 of 35 selected mutants.",
-    "The nine reported survivors were refusal-message text, owner-label text, a discriminated-union branch equivalent after the preceding Clip-target branch, and runtime-shape guards whose mutated paths reached the same refusal. No runtime identity, payload authority, hoist, reference-remap, plan-completeness or affected-set semantic mutant survived."
+    "The nine reported survivors were refusal-message text, owner-label text, a discriminated-union branch equivalent after the preceding Clip-target branch, and runtime-shape guards whose mutated paths reached the same refusal. No runtime identity, payload authority, hoist, reference-remap, plan-completeness or affected-set semantic mutant survived.",
+    "A named mutation that left occurrence-owned trackActivation at its old start was killed by the held move consumer because complete validation refused the under-covering interval.",
+    "A named mutation that bypassed complete candidate validation was killed by the destination collision partition, which observed an incorrectly changed result.",
+    "A named mutation that reused the source occurrence ID was killed by the linked duplicate consumer through complete validation.",
+    "A named mutation that shallow-copied the occurrence shell was killed by direct hold-array alias detection before serialization."
   ],
   "residualGaps": [
-    "Group move, duplicate, delete and ungroup remain later #1038 lifecycle owners.",
+    "Group delete and ungroup remain later #1038 lifecycle owners; this slice imposes no last-Clip or garbage-collection rule.",
     "Layer authoring is the disjoint #1038 Layer candidate; its held-Group integrated proof waits for this lineage to land.",
     "Global Insert Time, route adoption, UI and store/history/save adoption remain later #1038 slices.",
     "The coordinator owns final committed-tip suites, native Astra Medium review, landing, labels and publication."
