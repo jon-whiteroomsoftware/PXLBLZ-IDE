@@ -103,6 +103,7 @@ function replaceLinked(record: ShowRecordV2, definition: ShowGroupDefinitionV2, 
   // animates an unrelated user of a forked source in another occurrence.
   if (lostLocal.length > 0 && retainedIds.length > 0 && shared.size > 0) return refuse('invalid-result', `Replacement cannot discard Group "${definition.id}" control tracks ${lostLocal.map(track => `"${track.id}" (${track.target.kind === 'instance-control' ? track.target.exportName : ''})`).join(', ')} for sole runtimes ${retainedIds.map(id => `"${id}"`).join(', ')} without changing unrelated users of shared runtimes ${[...shared].map(id => `"${id}"`).join(', ')} across occurrences ${bindings.map(binding => `"${binding.occurrenceId}"`).join(', ')}.`)
   const losses: ShowGroupEditAffectedV2['discardedControlTargets'] = []
+  const topLevelRemovedTrackIds = new Set<string>()
   const removedTracks: string[] = []
   const removedKeys: string[] = []
   const copiedTracks: typeof record.composition.propertyTracks = []
@@ -157,7 +158,7 @@ function replaceLinked(record: ShowRecordV2, definition: ShowGroupDefinitionV2, 
     } else {
       for (const track of lost) {
         const authored = record.composition.propertyTracks.find(value => value.id === track.id)
-        if (authored) { removedTracks.push(authored.id); removedKeys.push(...authored.keyframes.map(key => key.id)); continue }
+        if (authored) { topLevelRemovedTrackIds.add(authored.id); removedTracks.push(authored.id); removedKeys.push(...authored.keyframes.map(key => key.id)); continue }
         const own = bindings.some(binding => lostLocal.some(local => track.id === `${binding.occurrenceId}:${local.id}`))
         if (!own || needsSplit) return refuse('invalid-result', `Replacement cannot discard effective Group control "${track.target.kind === 'instance-control' ? track.target.exportName : ''}" owned by "${track.id}" for sole runtime "${sourceId}" without changing another authored Group owner.`)
       }
@@ -180,11 +181,12 @@ function replaceLinked(record: ShowRecordV2, definition: ShowGroupDefinitionV2, 
     occurrence.instanceBindings = { ...occurrence.instanceBindings, [destinationSlotId]: plan.kind === 'independent' ? plan.instanceId : binding.runtimeId }
   }
   if (!needsSplit) {
-    edited.propertyTracks = edited.propertyTracks.filter(track => !lostLocal.includes(definition.propertyTracks.find(value => value.id === track.id)!))
+    const localRemovedTrackIds = new Set(lostLocal.map(track => track.id))
+    edited.propertyTracks = edited.propertyTracks.filter(track => !localRemovedTrackIds.has(track.id))
     removedTracks.push(...lostLocal.map(track => track.id))
     removedKeys.push(...lostLocal.flatMap(track => track.keyframes.map(key => key.id)))
   }
-  next.composition.propertyTracks = [...next.composition.propertyTracks.filter(track => !removedTracks.includes(track.id)), ...copiedTracks]
+  next.composition.propertyTracks = [...next.composition.propertyTracks.filter(track => !topLevelRemovedTrackIds.has(track.id)), ...copiedTracks]
   if (sourceChanged || shared.size > 0) next.composition.executionModel = 'continuous'
   const issue = validateShowRecordV2(next)[0]
   if (issue) return refuse('invalid-result', `${issue.path}: ${issue.message}`)

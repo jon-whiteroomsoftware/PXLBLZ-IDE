@@ -21,7 +21,8 @@
     "Local shared slots, held nonlinear control/time-scale animation, Restart, attached local Crossfade, Make Group Unique before definition Replace.",
     "Dormant sole/shared/default-hoisted authority and later default resolution, stale local static controls despite compatible top-level authority.",
     "Missing/extraneous/blank/colliding runtime/slot/effective track/key identities, derived-default collisions, malformed metadata, wrong context/targets, valid no-op.",
-    "Publicly admitted mixed retain/fork and foreign unused-slot incompatible animation refuse with exact original identity and empty affected collections."
+    "Publicly admitted mixed retain/fork and foreign unused-slot incompatible animation refuse with exact original identity and empty affected collections.",
+    "Equal raw track/key IDs across top-level, selected Group and unrelated dormant Group scopes; local removal/top-level retention, inverse removal and dormant pruning."
   ],
   "sequences": [
     "Reopen source and prepare independently, replace with caller plans, reopen edited record, compile/import .epe and compare actual contributors in both modes.",
@@ -36,10 +37,12 @@
   ],
   "tddEvidence": [
     "First-red partitions included dormant missing owner and active shared/default consumer behavior; stale local static cleanup reproduced unchanged instead of required changed before the fix.",
-    "All 54 Group cases and 424 affected checks pass on the landed zero-effective-use preparation prerequisite; retained orphaned original animation creates no phantom runtime."
+    "Original 54 Group cases and 424 affected checks passed on the landed zero-effective-use preparation prerequisite; retained orphaned original animation creates no phantom runtime.",
+    "First blocking review d6c4 found cross-scope removal data loss. Two admitted Fast/Fidelity regressions fail with the original filter deleting unrelated same-ID ordinary animation; separate scoped removal sets repair them. The five-case sweep brings the owner suite to 59 and repaired eight-file affected proof to 429/429. Exact parity remains 47/47. Candidate lineage and the first P1 outcome are retained."
   ],
   "mutationEvidence": [
-    "Green 54-case baseline; six scoped semantic faults all exit 1 with assertion failures: stale local template authority, discarded copied time-scale, dormant derived-default collision, stale-template no-op, aliased adoption and untrusted metadata. Owned source restored after each fault.",
+    "Original green 54-case baseline killed six scoped semantic faults with assertion failures: stale local template authority, discarded copied time-scale, dormant derived-default collision, stale-template no-op, aliased adoption and untrusted metadata. Owned source restored after each fault.",
+    "Repaired green 59-case baseline kills all seven faults, including restoring the exact reviewed cross-scope deletion filter. Every fault exits 1 with an assertion failure; source restored after each fault.",
     "Repository Show authoring qualification kills all 166 adjacent mutants, with zero survivors, timeouts or errors."
   ],
   "residualGaps": [

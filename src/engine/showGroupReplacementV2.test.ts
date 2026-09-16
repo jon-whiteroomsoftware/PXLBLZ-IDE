@@ -93,6 +93,89 @@ function linkedIntent(source: ShowRecordV2, definitionId = 'group', clipId = 'ch
 }
 const oldCode = 'export var level = 0.2; var lost = 0.4; export var elapsed = 0; export function sliderLevel(v) { level = v } export function sliderLost(v) { lost = v } export function beforeRender(delta) { elapsed += delta } export function render2D(index, x, y) { rgb(level, 0, 0) }'
 const newCode = 'export var level = 0.9; export var elapsed = 0; export function sliderLevel(v) { level = v } export function beforeRender(delta) { elapsed += delta } export function render2D(index, x, y) { rgb(0, 0, level) }'
+
+it.each(['fast', 'fidelity'] as const)('keeps unrelated top-level animation when an incompatible Group-local track has the same scoped ID in %s', fidelity => {
+  const source = linkedFixture([1200], true)
+  source.composition.propertyTracks = [{
+    id: 'lost', target: { kind: 'instance-control', instanceId: 'instance', exportName: 'sliderLevel' },
+    activeStartMs: 0, activeDurationMs: 1000,
+    keyframes: [{ id: 'lost:start', timeMs: 0, value: .3, easing: { curve: 'sine', direction: 'in-out' } }, { id: 'lost:end', timeMs: 1000, value: .7, easing: { curve: 'linear' } }],
+  }]
+  const other = structuredClone(source.composition.groupDefinitions[0])
+  other.id = 'dormant-other'
+  source.composition.groupDefinitions.push(other)
+  const before = structuredClone(source)
+  const old = runtime(source, fidelity)
+  const intent = linkedIntent(source)
+  intent.slot = { kind: 'retain' }
+  intent.runtimePlansBySourceRuntimeId = { [defaultGroupRuntimeIdV2('group', 'slot')]: { kind: 'retain' } }
+  const result = replaceShowGroupDefinitionClipPatternV2(source, intent)
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  expect(source).toEqual(before)
+  expect(reopen(result.record).composition.propertyTracks).toEqual(before.composition.propertyTracks)
+  expect(result.record.composition.groupDefinitions[1]).toEqual(before.composition.groupDefinitions[1])
+  expect(result.record.composition.groupDefinitions[0].propertyTracks.map(track => track.id)).toEqual(['level', 'speed'])
+  const changed = runtime(result.record, fidelity)
+  expect(normalizedPrivateSymbols(changed.memberSource('instance'))).toBe(normalizedPrivateSymbols(old.memberSource('instance')))
+  const oldPrefix = old.artifact.summary.clips.find(member => member.id === 'instance')!.prefix
+  const prefix = changed.artifact.summary.clips.find(member => member.id === 'instance')!.prefix
+  for (const atMs of [101, 251, 501, 751, 999]) {
+    const a = old.replay.advanceTo(atMs, { stepMs: 1, forceFullIntermediateRender: true })
+    const b = changed.replay.advanceTo(atMs, { stepMs: 1, forceFullIntermediateRender: true })
+    expect(b.frame).toEqual(a.frame)
+    for (const name of ['level', 'elapsed']) expect(b.exports[`${prefix}_${name}`]).toEqual(a.exports[`${oldPrefix}_${name}`])
+  }
+})
+
+it.each(['fast', 'fidelity'] as const)('prunes an incompatible top-level owner while retaining a compatible same-ID local track and its scoped keys in %s', fidelity => {
+  const source = linkedFixture([1200], true)
+  const definition = source.composition.groupDefinitions[0]
+  definition.propertyTracks.find(track => track.id === 'lost')!.id = 'incompatible'
+  const compatibleLocal = definition.propertyTracks.find(track => track.id === 'level')!
+  compatibleLocal.id = 'lost'
+  const sourceId = defaultGroupRuntimeIdV2('group', 'slot')
+  source.composition.patternInstances.push({ ...structuredClone(definition.patternInstances[0]), id: sourceId })
+  source.composition.propertyTracks = [{
+    id: 'lost', target: { kind: 'instance-control', instanceId: sourceId, exportName: 'sliderLost' },
+    activeStartMs: 0, activeDurationMs: 1000,
+    keyframes: [{ id: 'level:start', timeMs: 0, value: .4, easing: { curve: 'linear' } }, { id: 'level:end', timeMs: 1000, value: .6, easing: { curve: 'linear' } }],
+  }]
+  const before = structuredClone(source)
+  const old = runtime(source, fidelity)
+  const intent = linkedIntent(source)
+  intent.slot = { kind: 'retain' }
+  intent.runtimePlansBySourceRuntimeId = { [sourceId]: { kind: 'retain' } }
+  const result = replaceShowGroupDefinitionClipPatternV2(source, intent)
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  expect(source).toEqual(before)
+  expect(result.record.composition.propertyTracks).toEqual([])
+  expect(result.record.composition.groupDefinitions[0].propertyTracks.find(track => track.id === 'lost')).toEqual(compatibleLocal)
+  expect(result.record.composition.groupDefinitions[0].propertyTracks.map(track => track.id)).toEqual(['lost', 'speed'])
+  const changed = runtime(reopen(result.record), fidelity)
+  const oldPrefix = old.artifact.summary.clips.find(member => member.id === sourceId)!.prefix
+  const prefix = changed.artifact.summary.clips.find(member => member.id === sourceId)!.prefix
+  for (const atMs of [1251, 1301, 1401, 1501]) {
+    const a = old.replay.advanceTo(atMs, { stepMs: 1, forceFullIntermediateRender: true })
+    const b = changed.replay.advanceTo(atMs, { stepMs: 1, forceFullIntermediateRender: true })
+    expect(b.frame[2]).toEqual(a.frame[0])
+    expect(b.exports[`${prefix}_level`]).toEqual(a.exports[`${oldPrefix}_level`])
+  }
+})
+
+it('dormant local pruning preserves a same-ID top-level owner and keys in their separate scope', () => {
+  const source = fixture()
+  source.composition.propertyTracks = [{
+    id: 'lost', target: { kind: 'instance-control', instanceId: 'instance', exportName: 'sliderLevel' }, activeStartMs: 0, activeDurationMs: 1000,
+    keyframes: [{ id: 'lost:start', timeMs: 0, value: .3, easing: { curve: 'linear' } }, { id: 'lost:end', timeMs: 1000, value: .7, easing: { curve: 'linear' } }],
+  }]
+  const before = structuredClone(source)
+  const result = replaceShowGroupDefinitionClipPatternV2(source, dormantIntent())
+  expect(result.status).toBe('changed')
+  expect(reopen(result.record).composition.propertyTracks).toEqual(before.composition.propertyTracks)
+  expect(result.record.composition.groupDefinitions[0].propertyTracks.map(track => track.id)).toEqual(['level', 'speed'])
+  expect(source).toEqual(before)
+})
+
 function runtime(source: ShowRecordV2, fidelity: 'fast' | 'fidelity') {
   const record = reopen(source)
   const prepared = prepareShowV2ForCompile(record, { byCellId: {}, stageDimension: 2,

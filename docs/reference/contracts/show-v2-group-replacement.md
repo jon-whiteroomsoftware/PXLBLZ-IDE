@@ -62,6 +62,12 @@ Clip/slot, changed bindings, modified/copied/hoisted runtimes and copied/removed
 track/key owners; discarded controls are explicit targets. Static template losses
 without an effective-runtime counterpart retain their local slot target.
 Refusal/no-op return the original record identity and empty affected collections.
+Track removal is owner-scoped: top-level and definition-local track/key IDs may
+have equal strings, and removing one never selects the other scope. Separate
+removal sets govern the top-level and selected-definition arrays. Flat affected
+IDs retain their existing raw-ID vocabulary; the affected Group definition and
+source/result owner collections identify their scope, including repeated nested
+key strings. Unrelated definitions and same-ID compatible animation remain exact.
 Same-reference/name all-compatible requests still validate supplied identity plans
 before becoming no-ops. A source change or fresh runtime selects the explicit
 continuous execution policy.
@@ -88,6 +94,9 @@ The fixtures cover per-source sharing classes, sole/default authority, dormant
 hoisted authority and later resolution, complete invalid identity plans, exact
 half-open repeated animation, held nonlinear curves, Restart, attached Crossfade,
 Make Group Unique before Replace and admitted mixed/foreign-owner refusals.
+Scoped-ID regressions prove unrelated ordinary nonlinear animation through both
+delivered replay modes, inverse top-level/local pruning, identical owner-scoped
+key IDs and dormant-definition preservation.
 Precise Score boundaries can cross before a nominal millisecond; comparisons
 isolate actual contributors and explicitly compare unchanged ordinary output
 after Score wrap. No tolerance or source-eligibility bypass accepts a candidate.
