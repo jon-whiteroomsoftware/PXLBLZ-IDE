@@ -239,7 +239,7 @@
     {
       "id": "recovery-visible-voice-1038",
       "name": "Recovery",
-      "src": "export var elapsed=0;export var gain=0;export function sliderGain(v){gain=v}export function beforeRender(d){elapsed+=d}export function render2D(i,x,y){rgb(x,y,gain)}",
+      "src": "export var elapsed=0;export var gain=0;export function sliderGain(v){gain=v}export function beforeRender(d){elapsed+=d}export function render2D(i,x,y){rgb(x,y,gain)}export function render(i){rgb(.5,.5,gain)}",
       "updatedAt": 1,
       "controls": {}
     }
