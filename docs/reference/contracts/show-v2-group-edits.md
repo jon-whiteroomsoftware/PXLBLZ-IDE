@@ -83,6 +83,41 @@ Changed results contain only the persisted occurrence ID in
 Transient materialized child IDs are recomputable and are not reported as
 persisted edits.
 
+## Selected-occurrence Ungroup
+
+`ungroupShowGroupOccurrenceV2` removes one occurrence shell and persists that
+occurrence's existing materialized Clips, Transitions, Property tracks and
+nested keys as ordinary v2 owners. It selects exact occurrence-plus-local IDs;
+it never uses a prefix match or remints the materializer's deterministic IDs.
+Occurrence holds, translation, Layer bindings, track activation and local time
+are fully baked into the persisted projection. Restart remains the projected
+Clip's entry policy and continues to derive transiently at first contribution.
+
+Ungroup preserves every effective runtime ID. A selected runtime that already
+has a top-level authoritative Pattern-instance record reuses it unchanged. A
+missing top-level authority is hoisted once from `groupRuntimeBindings` under
+the same runtime ID; this adds a persisted record without creating a runtime.
+Other occurrence and definition records remain byte-identical. Ungroup retains
+an unused Group definition and every existing top-level instance because
+definition and instance collection are separate explicit policies.
+
+The changed result reports every newly persisted Clip, Transition, track and
+nested key, the removed occurrence, and only newly hoisted instance records.
+Appearance and Property key identities are owner-scoped by the v2 schema. Their
+flat affected arrays therefore contain one raw persisted ID per affected nested
+key and preserve repeated strings when distinct Clip or track owners use the same
+key ID; the corresponding affected Clip/track arrays identify the owner
+collections. `removedIds` contains the occurrence ID. Hold records are consumed
+into projected time and keys rather than reported as independently addressable
+removed owners.
+
+Complete record and Layout-availability validation run before the candidate is
+returned. Invalid preimages, missing occurrences, materialized identity
+collisions, Transition detachment, Layout/Show End errors and effective
+instance-track conflicts refuse atomically with the original record and empty
+affected collections. Compile eligibility remains an explicit
+`prepareShowV2ForCompile` concern; Ungroup does not widen compiler APIs.
+
 ## Evidence and limits
 
 [Group identity tests](../../../src/engine/showGroupEditsV2.test.ts) reopen the
@@ -93,13 +128,13 @@ Fast and Fidelity artifacts across held and Restart boundaries. Existing
 [Group tests](../../../src/engine/showV2Groups.test.ts) prove the authority change
 through the ordinary materialization and compile-preparation seams.
 
-The same tests reopen move and duplicate results, derive exact held child and
+The same tests reopen move, duplicate and Ungroup results, derive exact held child and
 Restart times, exercise Layout and effective-track refusals, and compare an
 independently authored oracle with generated Fast and Fidelity `.epe` output and
 replay state. Compile eligibility remains explicit through
 `prepareShowV2ForCompile`; this edit owner does not widen the compiler.
 
-This owner covers Make Unique, occurrence move, and linked duplicate. Group
-delete and ungroup, global Insert Time, Layer authoring, UI and store adoption
-remain separate #1038 owners. These operations do not impose deletion or garbage
-collection policy.
+This owner covers Make Unique, occurrence move, linked duplicate and
+selected-occurrence Ungroup. Group delete, global Insert Time, Layer authoring,
+UI and store adoption remain separate #1038 owners. These operations do not
+impose deletion or garbage-collection policy.

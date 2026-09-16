@@ -6,7 +6,7 @@ import {
   type ShowPropertyTargetV2,
   type ShowRecordV2,
 } from './showCompositionV2'
-import { groupRuntimeBindings } from './showGroupsV2'
+import { groupRuntimeBindings, materializeShowGroupsV2 } from './showGroupsV2'
 import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 
 export interface ShowGroupUniqueIdentityPlanV2 {
@@ -44,6 +44,11 @@ export interface DuplicateShowGroupOccurrenceIntentV2 extends ShowGroupOccurrenc
   kind: 'duplicate-occurrence'
   occurrenceId: string
   newOccurrenceId: string
+}
+
+export interface UngroupShowGroupOccurrenceIntentV2 {
+  kind: 'ungroup-occurrence'
+  occurrenceId: string
 }
 
 export type ShowGroupEditRefusalV2 =
@@ -238,6 +243,66 @@ export function duplicateShowGroupOccurrenceV2(
   const resultIssue = validateGroupEditResult(next)
   if (resultIssue) return refuseGroupEdit(record, 'invalid-result', resultIssue)
   return { status: 'changed', record: next, ...emptyGroupEditAffected(), affectedGroupOccurrenceIds: [duplicate.id] }
+}
+
+/** Persist one occurrence's existing materialized projection without cloning its runtimes. */
+export function ungroupShowGroupOccurrenceV2(
+  record: ShowRecordV2,
+  intent: UngroupShowGroupOccurrenceIntentV2,
+): ShowGroupEditResultV2 {
+  const preimage = validateGroupEditPreimage(record)
+  if (preimage) return preimage
+  const occurrence = record.composition.groupOccurrences.find(value => value.id === intent.occurrenceId)
+  if (!occurrence) return refuseGroupEdit(record, 'missing-occurrence', `Group occurrence "${intent.occurrenceId}" does not exist.`)
+  const definition = record.composition.groupDefinitions.find(value => value.id === occurrence.definitionId)!
+  let materialized: ShowRecordV2
+  try {
+    materialized = materializeShowGroupsV2(record)
+  } catch (error) {
+    return refuseGroupEdit(record, 'invalid-record', error instanceof Error ? error.message : String(error))
+  }
+
+  const clipIds = definition.clips.map(clip => `${occurrence.id}:${clip.id}`)
+  const transitionIds = definition.transitions.map(transition => `${occurrence.id}:${transition.id}`)
+  const trackIds = definition.propertyTracks.map(track => `${occurrence.id}:${track.id}`)
+  const clipById = new Map(materialized.composition.clips.map(clip => [clip.id, clip]))
+  const transitionById = new Map(materialized.composition.transitions.map(transition => [transition.id, transition]))
+  const trackById = new Map(materialized.composition.propertyTracks.map(track => [track.id, track]))
+  const projectedClips = clipIds.map(id => clipById.get(id)!)
+  const projectedTransitions = transitionIds.map(id => transitionById.get(id)!)
+  const projectedTracks = trackIds.map(id => trackById.get(id)!)
+
+  const next = structuredClone(record)
+  next.composition.groupOccurrences = next.composition.groupOccurrences.filter(value => value.id !== occurrence.id)
+  next.composition.clips.push(...structuredClone(projectedClips))
+  next.composition.transitions.push(...structuredClone(projectedTransitions))
+  next.composition.propertyTracks.push(...structuredClone(projectedTracks))
+
+  const hoistedInstanceIds: string[] = []
+  const topLevelIds = new Set(next.composition.patternInstances.map(instance => instance.id))
+  for (const binding of groupRuntimeBindings(record).filter(value => value.occurrenceId === occurrence.id)) {
+    if (topLevelIds.has(binding.runtimeId)) continue
+    next.composition.patternInstances.push({ ...structuredClone(binding.instance), id: binding.runtimeId })
+    topLevelIds.add(binding.runtimeId)
+    hoistedInstanceIds.push(binding.runtimeId)
+  }
+
+  const resultIssue = validateGroupEditResult(next)
+  if (resultIssue) return refuseGroupEdit(record, 'invalid-result', resultIssue)
+  return {
+    status: 'changed',
+    record: next,
+    ...emptyGroupEditAffected(),
+    affectedClipIds: [...clipIds].sort(),
+    affectedInstanceIds: [...hoistedInstanceIds].sort(),
+    affectedTransitionIds: [...transitionIds].sort(),
+    affectedTrackIds: [...trackIds].sort(),
+    affectedGroupOccurrenceIds: [occurrence.id],
+    affectedAppearanceKeyIds: projectedClips.flatMap(clip => clip.appearance.keys.map(key => key.id)).sort(),
+    affectedPropertyKeyIds: projectedTracks.flatMap(track => track.keyframes.map(key => key.id)).sort(),
+    hoistedInstanceIds: [...hoistedInstanceIds].sort(),
+    removedIds: [occurrence.id],
+  }
 }
 
 /** Make one linked Group occurrence structurally unique without minting a runtime. */

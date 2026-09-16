@@ -58,7 +58,8 @@ This slice supplies representation and materialization. The
 [Group edit contract](show-v2-group-edits.md) owns Make Unique plus occurrence
 move and linked duplicate on this representation. `showLayersV2.ts` owns pure
 Layer add, rename, reorder and explicit reassignment/removal, with its proof in
-[the Layer test design](../evidence/issue-1038-layers/test-design.json). Global
-Insert Time, Group delete and ungroup, and production UI/store adoption remain
-later #1038 owners; the landed route pilot consumes holds through the existing
+[the Layer test design](../evidence/issue-1038-layers/test-design.json). The Group
+edit owner persists exact held projections during selected-occurrence Ungroup.
+Global Insert Time, Group delete, and production UI/store adoption remain later
+#1038 owners; the landed route pilot consumes holds through the existing
 v2 codec and compile-preparation seams rather than redefining them.

@@ -16,12 +16,13 @@ import {
   duplicateShowGroupOccurrenceV2,
   makeShowGroupUniqueV2,
   moveShowGroupOccurrenceV2,
+  ungroupShowGroupOccurrenceV2,
   type ShowGroupEditResultV2,
   type ShowGroupOccurrencePlacementV2,
   type ShowGroupUniqueIdentityPlanV2,
 } from './showGroupEditsV2'
-import { groupRuntimeBindings, materializeShowGroupsV2 } from './showGroupsV2'
-import { deriveShowRestartEventsV2 } from './showPropertyAnimationV2'
+import { effectiveShowInstanceUseCountV2, groupRuntimeBindings, materializeShowGroupsV2 } from './showGroupsV2'
+import { deriveShowRestartEventsV2, evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 import { buildShowEpeExport } from './showEpeExport'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 
@@ -781,6 +782,293 @@ it('refuses a fresh occurrence identity whose derived Clip identity is already p
   expect(result).toMatchObject({ status: 'refused', code: 'invalid-result' })
   expect(result.record).toBe(record)
   expectEmptyAffected(result)
+})
+
+it('ungroups one held occurrence into its exact ordinary projection without cloning its runtime', () => {
+  const record = linkedRecord()
+  const before = structuredClone(record)
+  const selected = record.composition.groupOccurrences[0]
+  const definition = record.composition.groupDefinitions[0]
+  const effectiveBefore = materializeShowGroupsV2(record)
+  const runtimeId = 'group:["group","child"]'
+  const useCount = effectiveShowInstanceUseCountV2(record, runtimeId)
+  const restartBefore = deriveShowRestartEventsV2(record)
+  const expectedClipIds = definition.clips.map(clip => `${selected.id}:${clip.id}`)
+  const expectedTransitionIds = definition.transitions.map(transition => `${selected.id}:${transition.id}`)
+  const expectedTrackIds = definition.propertyTracks.map(track => `${selected.id}:${track.id}`)
+  const expectedClips = effectiveBefore.composition.clips.filter(clip => expectedClipIds.includes(clip.id))
+  const expectedTransitions = effectiveBefore.composition.transitions.filter(transition => expectedTransitionIds.includes(transition.id))
+  const expectedTracks = effectiveBefore.composition.propertyTracks.filter(track => expectedTrackIds.includes(track.id))
+
+  const result = ungroupShowGroupOccurrenceV2(record, { kind: 'ungroup-occurrence', occurrenceId: selected.id })
+
+  expect(result.status, result.status === 'refused' ? result.message : undefined).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(record).toEqual(before)
+  expect(result.record.composition.groupOccurrences).toEqual([before.composition.groupOccurrences[1]])
+  expect(result.record.composition.groupDefinitions).toEqual(before.composition.groupDefinitions)
+  expect(result.record.composition.clips.filter(clip => expectedClipIds.includes(clip.id))).toEqual(expectedClips)
+  expect(result.record.composition.transitions.filter(transition => expectedTransitionIds.includes(transition.id))).toEqual(expectedTransitions)
+  expect(result.record.composition.propertyTracks.filter(track => expectedTrackIds.includes(track.id))).toEqual(expectedTracks)
+  expect(result.record.composition.patternInstances.find(instance => instance.id === runtimeId)).toEqual({
+    ...definition.patternInstances[0], id: runtimeId,
+  })
+  const addedClip = result.record.composition.clips[result.record.composition.clips.length - 1]
+  const expectedLastClip = expectedClips[expectedClips.length - 1]
+  expect(addedClip).not.toBe(expectedLastClip)
+  expect(addedClip.appearance.keys).not.toBe(expectedLastClip.appearance.keys)
+  const reopened = reopen(result.record)
+  expect(effectiveShowInstanceUseCountV2(reopened, runtimeId)).toBe(useCount)
+  expect(deriveShowRestartEventsV2(reopened)).toEqual(restartBefore)
+  expect(result).toMatchObject({
+    affectedClipIds: expectedClipIds.sort(),
+    affectedInstanceIds: [runtimeId],
+    affectedTransitionIds: expectedTransitionIds.sort(),
+    affectedTrackIds: expectedTrackIds.sort(),
+    affectedGroupDefinitionIds: [],
+    affectedGroupOccurrenceIds: [selected.id],
+    affectedLayerIds: [],
+    hoistedInstanceIds: [runtimeId],
+    removedIds: [selected.id],
+  })
+  expect(result.affectedAppearanceKeyIds).toEqual(expectedClips.flatMap(clip => clip.appearance.keys.map(key => key.id)).sort())
+  expect(result.affectedPropertyKeyIds).toEqual(expectedTracks.flatMap(track => track.keyframes.map(key => key.id)).sort())
+  expect(result.affectedLayoutDefinitionIds).toEqual([])
+  expect(result.affectedLayoutOccurrenceIds).toEqual([])
+  expect(result.affectedMarkerIds).toEqual([])
+  expect(result.discardedControlTargets).toEqual([])
+})
+
+it('retains an unused definition and an existing authoritative instance when ungrouping its final occurrence', () => {
+  const record = linkedRecord()
+  const selected = record.composition.groupOccurrences[0]
+  record.composition.groupOccurrences = [selected]
+  selected.instanceBindings = { child: 'instance' }
+  const authoritative = structuredClone(record.composition.patternInstances[0])
+  authoritative.controlTargets = { gain: 0.625 }
+  record.composition.patternInstances = [authoritative]
+  record.composition.groupDefinitions[0].patternInstances[0].controlTargets = { stale: 1 }
+  const definition = structuredClone(record.composition.groupDefinitions[0])
+
+  const result = ungroupShowGroupOccurrenceV2(record, { kind: 'ungroup-occurrence', occurrenceId: selected.id })
+
+  expect(result.status, result.status === 'refused' ? result.message : undefined).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(result.record.composition.groupOccurrences).toEqual([])
+  expect(result.record.composition.groupDefinitions).toEqual([definition])
+  expect(result.record.composition.patternInstances).toEqual([authoritative])
+  expect(result.affectedInstanceIds).toEqual([])
+  expect(result.hoistedInstanceIds).toEqual([])
+  expect(result.affectedGroupDefinitionIds).toEqual([])
+  expect(result.removedIds).toEqual([selected.id])
+  expect(materializeShowGroupsV2(reopen(result.record)).composition.patternInstances.find(instance => instance.id === 'instance')).toEqual(authoritative)
+})
+
+it('hoists one explicit-unowned effective runtime and preserves a linked sibling byte-for-byte', () => {
+  const record = linkedRecord()
+  const selected = record.composition.groupOccurrences[0]
+  const sibling = structuredClone(record.composition.groupOccurrences[1])
+  selected.instanceBindings = { child: 'shared-unowned' }
+  record.composition.groupOccurrences[1].instanceBindings = { child: 'shared-unowned' }
+  const definition = record.composition.groupDefinitions[0]
+
+  const result = ungroupShowGroupOccurrenceV2(record, { kind: 'ungroup-occurrence', occurrenceId: selected.id })
+
+  expect(result.status, result.status === 'refused' ? result.message : undefined).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(result.record.composition.groupOccurrences).toEqual([{ ...sibling, instanceBindings: { child: 'shared-unowned' } }])
+  expect(result.record.composition.patternInstances.filter(instance => instance.id === 'shared-unowned')).toEqual([{
+    ...definition.patternInstances[0], id: 'shared-unowned',
+  }])
+  expect(result.affectedInstanceIds).toEqual(['shared-unowned'])
+  expect(result.hoistedInstanceIds).toEqual(['shared-unowned'])
+  expect(groupRuntimeBindings(result.record).find(binding => binding.occurrenceId === sibling.id)).toMatchObject({
+    runtimeId: 'shared-unowned', authority: 'composition', instance: { id: 'shared-unowned' },
+  })
+})
+
+it('reports repeated owner-scoped nested key IDs once per persisted key without claiming global uniqueness', () => {
+  const record = linkedRecord()
+  const definition = record.composition.groupDefinitions[0]
+  definition.clips.forEach(clip => {
+    clip.appearance.keys = [{ ...structuredClone(clip.appearance.keys[0]), id: 'same-appearance' }]
+  })
+  definition.propertyTracks[0].keyframes.forEach(key => { key.id = 'same-property' })
+  definition.propertyTracks[0].keyframes[1].id = 'same-property-end'
+  definition.propertyTracks.push({
+    ...structuredClone(definition.propertyTracks[0]), id: 'opacity-answer',
+    target: { kind: 'clip-opacity', clipId: 'answer' },
+  })
+  const effective = materializeShowGroupsV2(record)
+  const expectedAppearanceIds = effective.composition.clips
+    .filter(clip => clip.id === 'occ-0:pulse' || clip.id === 'occ-0:answer')
+    .flatMap(clip => clip.appearance.keys.map(key => key.id)).sort()
+  const expectedPropertyIds = effective.composition.propertyTracks
+    .filter(track => track.id === 'occ-0:opacity' || track.id === 'occ-0:opacity-answer')
+    .flatMap(track => track.keyframes.map(key => key.id)).sort()
+  const result = ungroupShowGroupOccurrenceV2(record, { kind: 'ungroup-occurrence', occurrenceId: 'occ-0' })
+  expect(result.status, result.status === 'refused' ? result.message : undefined).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(result.affectedAppearanceKeyIds).toEqual(expectedAppearanceIds)
+  expect(result.affectedAppearanceKeyIds.filter(id => id === 'occ-0:same-appearance')).toHaveLength(2)
+  expect(result.affectedPropertyKeyIds).toEqual(expectedPropertyIds)
+  expect(result.affectedPropertyKeyIds.filter(id => id === 'occ-0:same-property')).toHaveLength(2)
+  expect(result.affectedPropertyKeyIds.filter(id => id === 'occ-0:same-property-end')).toHaveLength(2)
+  expect(reopen(result.record).composition.clips.filter(clip => clip.id.startsWith('occ-0:'))).toHaveLength(2)
+})
+
+it('persists translated appearance and an exact nonlinear Property curve through a held Ungroup', () => {
+  const record = linkedRecord()
+  const occurrence = record.composition.groupOccurrences[0]
+  occurrence.translationX = 0.2
+  occurrence.translationY = -0.1
+  const definition = record.composition.groupDefinitions[0]
+  definition.clips[0].appearance.keys[0].value.transform = {
+    positionX: 0.05, positionY: 0.1, rotation: 0, scaleX: 1, scaleY: 1,
+  }
+  definition.clips[0].appearance.keys[0].value.aperture = {
+    enabled: true, x: 0.1, y: 0.2, width: 0.5, height: 0.5, aperture: 'ellipse',
+  }
+  const track = definition.propertyTracks[0]
+  track.target = { kind: 'clip-transform', clipId: 'pulse', property: 'positionX' }
+  track.keyframes = [
+    {
+      id: 'curve-start', timeMs: 0, value: 0.05, easing: { curve: 'quadratic', direction: 'in' },
+      curveSegment: {
+        baseValue: 0.05, deltaValue: 0.4, easing: { curve: 'quadratic', direction: 'in' },
+        sourceDurationMs: 100, elapsedOffsetMs: 0,
+      },
+    },
+    { id: 'curve-end', timeMs: 100, value: 0.45, easing: { curve: 'linear' } },
+  ]
+  const expected = materializeShowGroupsV2(record)
+  const expectedClip = expected.composition.clips.find(clip => clip.id === 'occ-0:pulse')!
+  const expectedTrack = expected.composition.propertyTracks.find(value => value.id === 'occ-0:opacity')!
+
+  const result = ungroupShowGroupOccurrenceV2(record, { kind: 'ungroup-occurrence', occurrenceId: occurrence.id })
+  expect(result.status, result.status === 'refused' ? result.message : undefined).toBe('changed')
+  if (result.status !== 'changed') return
+  const reopened = reopen(result.record)
+  const actualClip = reopened.composition.clips.find(clip => clip.id === expectedClip.id)!
+  const actualTrack = reopened.composition.propertyTracks.find(value => value.id === expectedTrack.id)!
+  expect(actualClip).toEqual(expectedClip)
+  expect(actualClip.appearance.keys[0].value.transform).toMatchObject({ positionX: 0.25, positionY: 0 })
+  expect(actualClip.appearance.keys[0].value.aperture?.x).toBeCloseTo(0.3, 12)
+  expect(actualClip.appearance.keys[0].value.aperture?.y).toBeCloseTo(0.1, 12)
+  expect(actualTrack).toEqual(expectedTrack)
+  expect(actualTrack.keyframes[0].curveSegment?.baseValue).toBeCloseTo(0.25, 12)
+  expect(evaluateShowPropertyTrackV2(actualTrack, 225)).toBeCloseTo(0.275, 12)
+})
+
+it('selects exact materialized IDs when another occurrence ID shares its prefix', () => {
+  const record = linkedRecord()
+  record.composition.groupOccurrences[0].id = 'a'
+  record.composition.groupOccurrences[1].id = 'a:b'
+  const sibling = structuredClone(record.composition.groupOccurrences[1])
+  const result = ungroupShowGroupOccurrenceV2(record, { kind: 'ungroup-occurrence', occurrenceId: 'a' })
+  expect(result.status, result.status === 'refused' ? result.message : undefined).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(result.record.composition.groupOccurrences).toEqual([sibling])
+  expect(result.affectedClipIds).toEqual(['a:answer', 'a:pulse'])
+  expect(result.record.composition.clips.some(clip => clip.id.startsWith('a:b:'))).toBe(false)
+  expect(materializeShowGroupsV2(reopen(result.record)).composition.clips.filter(clip => clip.id.startsWith('a:b:'))).toHaveLength(2)
+})
+
+it.each([
+  ['missing occurrence', (record: ShowRecordV2) => ungroupShowGroupOccurrenceV2(record, { kind: 'ungroup-occurrence', occurrenceId: 'missing' }), 'missing-occurrence'],
+  ['invalid projected identity collision', (record: ShowRecordV2) => {
+    record.composition.clips[0].id = 'occ-0:pulse'
+    return ungroupShowGroupOccurrenceV2(record, { kind: 'ungroup-occurrence', occurrenceId: 'occ-0' })
+  }, 'invalid-record'],
+] as const)('refuses Ungroup with %s atomically', (_partition, edit, code) => {
+  const record = linkedRecord()
+  const result = edit(record)
+  expect(result).toMatchObject({ status: 'refused', code })
+  expect(result.record).toBe(record)
+  expectEmptyAffected(result)
+})
+
+it('preserves runtime authority through Make Unique, move, linked duplicate and selected Ungroup', () => {
+  const record = linkedRecord()
+  record.composition.showEndMs = 1400
+  record.composition.layoutOccurrences[0].durationMs = 1400
+  const definition = record.composition.groupDefinitions[0]
+  const unique = makeShowGroupUniqueV2(record, {
+    kind: 'make-unique', occurrenceId: 'occ-0', identities: identityPlan(definition),
+  })
+  expect(unique.status, unique.status === 'refused' ? unique.message : undefined).toBe('changed')
+  if (unique.status !== 'changed') return
+  const uniqueOccurrence = unique.record.composition.groupOccurrences.find(value => value.id === 'occ-0')!
+  const moved = moveShowGroupOccurrenceV2(unique.record, {
+    kind: 'move-occurrence', occurrenceId: uniqueOccurrence.id,
+    ...placementOf(uniqueOccurrence, { startMs: 250 }),
+  })
+  expect(moved.status, moved.status === 'refused' ? moved.message : undefined).toBe('changed')
+  if (moved.status !== 'changed') return
+  const movedOccurrence = moved.record.composition.groupOccurrences.find(value => value.id === 'occ-0')!
+  const duplicated = duplicateShowGroupOccurrenceV2(moved.record, {
+    kind: 'duplicate-occurrence', occurrenceId: movedOccurrence.id, newOccurrenceId: 'occ-copy',
+    ...placementOf(movedOccurrence, { startMs: 1000 }),
+  })
+  expect(duplicated.status, duplicated.status === 'refused' ? duplicated.message : undefined).toBe('changed')
+  if (duplicated.status !== 'changed') return
+  const runtimeId = 'group:["group","child"]'
+  const useCount = effectiveShowInstanceUseCountV2(duplicated.record, runtimeId)
+  const ungrouped = ungroupShowGroupOccurrenceV2(duplicated.record, {
+    kind: 'ungroup-occurrence', occurrenceId: 'occ-copy',
+  })
+  expect(ungrouped.status, ungrouped.status === 'refused' ? ungrouped.message : undefined).toBe('changed')
+  if (ungrouped.status !== 'changed') return
+  const reopened = reopen(ungrouped.record)
+  expect(reopened.composition.groupOccurrences.map(value => value.id).sort()).toEqual(['occ-0', 'occ-1'])
+  expect(reopened.composition.groupDefinitions.map(value => value.id).sort()).toEqual(['group', 'group:unique'])
+  expect(effectiveShowInstanceUseCountV2(reopened, runtimeId)).toBe(useCount)
+  expect(reopened.composition.clips.filter(clip => clip.id.startsWith('occ-copy:'))).toHaveLength(2)
+  expect(groupRuntimeBindings(reopened).filter(binding => binding.runtimeId === runtimeId)).toHaveLength(2)
+})
+
+it.each(['fast', 'fidelity'] as const)('preserves reopened generated output and shared Restart state after Ungroup in %s mode', fidelity => {
+  const before = linkedRecord()
+  before.composition.groupDefinitions[0].clips[0].appearance.keys = [before.composition.groupDefinitions[0].clips[0].appearance.keys[0]]
+  before.composition.groupDefinitions[0].propertyTracks = []
+  const changed = ungroupShowGroupOccurrenceV2(before, { kind: 'ungroup-occurrence', occurrenceId: 'occ-0' })
+  expect(changed.status, changed.status === 'refused' ? changed.message : undefined).toBe('changed')
+  if (changed.status !== 'changed') return
+  const after = reopen(changed.record)
+  const runtimeId = 'group:["group","child"]'
+  const lookup = { byCellId: {}, byPatternInstanceId: { instance: code, [runtimeId]: code }, stageDimension: 2 as const }
+  const preparedBefore = prepareShowV2ForCompile(reopen(before), lookup, { libraries: LIBRARIES })
+  const preparedAfter = prepareShowV2ForCompile(after, lookup, { libraries: LIBRARIES })
+  expect(preparedBefore.status, JSON.stringify(preparedBefore)).toBe('ready')
+  expect(preparedAfter.status, JSON.stringify(preparedAfter)).toBe('ready')
+  if (preparedBefore.status !== 'ready' || preparedAfter.status !== 'ready') return
+  expect(preparedAfter.recipe.restartEvents).toEqual(preparedBefore.recipe.restartEvents)
+  expect(Object.values(preparedAfter.provenance.runtimeInstanceIdByClipId).filter(id => id === runtimeId)).toHaveLength(4)
+  const artifactBefore = compileShow(preparedBefore.recipe, LIBRARIES)
+  const artifactAfter = compileShow(preparedAfter.recipe, LIBRARIES)
+  const reopenedBefore = parseEpe(buildShowEpeExport(convertibleV1Show(), artifactBefore.code, {
+    id: `ungroup-before-${fidelity}`, stampedAt: '2026-09-15T00:00:00.000Z',
+  }).text)
+  const reopenedAfter = parseEpe(buildShowEpeExport(convertibleV1Show(), artifactAfter.code, {
+    id: `ungroup-after-${fidelity}`, stampedAt: '2026-09-15T00:00:00.000Z',
+  }).text)
+  expect(reopenedBefore).toMatchObject({ stamp: { kind: 'show' } })
+  expect(reopenedAfter).toMatchObject({ stamp: { kind: 'show' } })
+  expect(artifactAfter.summary.clips.map(clip => clip.id).sort()).toEqual(artifactBefore.summary.clips.map(clip => clip.id).sort())
+  const options = {
+    randomSeed: 1038,
+    fidelity,
+    mapPoints: [{ sample: [0.5, 0.5] as [number, number], pos: [0.5, 0.5] as [number, number] }],
+  }
+  const runtimeBefore = createFastReplayRuntime({ ...artifactBefore, code: reopenedBefore.src, dimension: 2 }, options)
+  const runtimeAfter = createFastReplayRuntime({ ...artifactAfter, code: reopenedAfter.src, dimension: 2 }, options)
+  for (const [index, atMs] of [0, 199, 200, 249, 250, 324, 525, 599, 600, 899].entries()) {
+    const advance = { stepMs: 1, forceFullIntermediateRender: true }
+    const actual = index === 0 ? runtimeAfter.renderCurrentFrame() : runtimeAfter.advanceTo(atMs, advance)
+    const oracle = index === 0 ? runtimeBefore.renderCurrentFrame() : runtimeBefore.advanceTo(atMs, advance)
+    expect(Array.from(actual.frame), `${fidelity} frame at ${atMs}`).toEqual(Array.from(oracle.frame))
+    expect(actual.exports, `${fidelity} state at ${atMs}`).toEqual(oracle.exports)
+  }
 })
 
 it.each(['fast', 'fidelity'] as const)('reopens and renders independently authored move plus linked duplicate choreography in %s mode', fidelity => {

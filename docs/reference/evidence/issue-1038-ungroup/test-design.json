@@ -1,0 +1,62 @@
+{
+  "issue": 1038,
+  "boundary": "Pure selected-occurrence Ungroup projection through existing v2 materialization; no cleanup, compiler, schema or adoption changes",
+  "invariants": [
+    "Ungroup persists exactly one selected occurrence's materialized Clips, Transitions, Property tracks and nested keys under their existing deterministic IDs.",
+    "Every projected ordinary Clip retains the same effective runtime ID and authoritative payload; missing top-level authorities are hoisted once under that same ID and no runtime is cloned.",
+    "Occurrence holds, translations, Layer bindings, track activation, nonlinear curves and Restart policy are fully represented by the ordinary projection.",
+    "Other occurrences and definitions remain byte-identical; unused definitions and existing Pattern-instance records are retained because cleanup is a separate policy.",
+    "Nested key affected arrays report one raw persisted ID per affected nested owner and preserve repeated strings instead of claiming global key-ID uniqueness.",
+    "Changed output is complete and unaliased; refusal returns the original record identity and every affected collection empty."
+  ],
+  "partitions": [
+    "Selected first and final occurrence; another occurrence whose ID shares the selected ID prefix; missing occurrence; invalid materialized identity collision.",
+    "Definition-qualified default without a top-level record, existing top-level authority with stale slot payload, explicit-unowned compatible runtime, and already-hoisted authority.",
+    "Hold inside a Clip and at an appearance key; hold before an internal Transition; hold-derived appearance and Property resume keys.",
+    "Nonzero X/Y appearance Transform and Aperture translation; nonlinear X Property curve with translated curveSegment.baseValue and interior evaluation.",
+    "Clip-target animation, effective instance-target ownership, positive internal Transition, Continue and Restart entry policies.",
+    "Distinct nested key IDs and repeated appearance/Property key strings under different owners.",
+    "Fast and Fidelity generated artifacts with shared runtime state and held Restart boundaries."
+  ],
+  "sequences": [
+    "Reopen two linked held occurrences, Ungroup one, reopen again, then compare the selected persisted owners with its pre-edit materialized projection and prove the sibling remains linked.",
+    "Ungroup the final explicitly bound occurrence and prove its unused definition plus existing authoritative instance remain exact.",
+    "Make Unique, move, linked-duplicate, then Ungroup the duplicate; reopen and prove unchanged effective use count and runtime authority.",
+    "Prepare preimage and candidate with trusted lookup/Libraries, reopen generated .epe artifacts, and compare Fast/Fidelity frames and exported state across hold, Transition and Restart boundaries."
+  ],
+  "oracles": [
+    "Exact entity equality with materializeShowGroupsV2 for selected Clip, Transition, track, appearance key and Property key owners.",
+    "groupRuntimeBindings and effectiveShowInstanceUseCountV2 for runtime IDs, authoritative payloads and unchanged use count.",
+    "deriveShowRestartEventsV2 for exact first-contribution events before and after Ungroup, with no held-time retrigger.",
+    "Provisional v2 serialize/parse reopen and complete validateShowRecordV2 plus Layout-availability validation.",
+    "Public Property evaluator at nonlinear interior time after translation.",
+    "prepareShowV2ForCompile provenance, generated .epe reopen, and exact Fast/Fidelity frames plus exported state."
+  ],
+  "tddEvidence": [
+    "The first focused run had 9 new failures and 67 existing passes because ungroupShowGroupOccurrenceV2 did not exist.",
+    "The first projection implementation passed every new semantic partition except a test expectation that omitted the materializer's required hold-derived appearance key; the oracle was corrected to the public materialized projection.",
+    "The expanded held spatial/nonlinear and lifecycle-sequence suite passes 78 of 78 owner tests."
+  ],
+  "mutationEvidence": [
+    "Replacing exact projected Clip selection with an occurrence-prefix filter copied the sibling `a:b` occurrence and was killed by the prefix-ambiguous consumer.",
+    "Replacing the effective runtime ID with an occurrence-qualified runtime ID was killed because projected ordinary Clips lost their authoritative instance.",
+    "Deleting the definition after its final occurrence was removed was killed by the explicit cleanup-separation consumer.",
+    "Deduplicating flat affected nested-key arrays was killed by the owner-scoped repeated-ID consumer."
+  ],
+  "faults": [
+    "Clone an occurrence-qualified runtime instead of preserving the effective runtime ID.",
+    "Prefer a stale definition-slot payload over an existing top-level authority or hoist the same runtime twice.",
+    "Use occurrence-ID prefix matching and accidentally persist a sibling occurrence's children.",
+    "Adopt the fully materialized record and erase every Group shell or delete an unused definition/instance.",
+    "Remint projected Clip, Transition, track or nested key identities.",
+    "Drop hold/resume keys, local-to-global activation, translation or retained nonlinear curveSegment coefficients.",
+    "Drop Transition settings or persist a separate Restart event instead of the Clip entry policy.",
+    "Deduplicate repeated owner-scoped nested key IDs in affected arrays.",
+    "Skip complete candidate validation, mutate the preimage, alias nested projected arrays, or return partial affected collections."
+  ],
+  "residualGaps": [
+    "Group delete and every definition/instance garbage-collection policy remain separate work; this owner deliberately retains unused definitions and existing instances.",
+    "Global Insert Time, route/UI/store adoption, history/save integration and command registration remain later #1038 slices.",
+    "The coordinator owns final committed-tip suites, native review, landing, issue state and publication."
+  ]
+}
