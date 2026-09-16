@@ -13,12 +13,12 @@ const claim = {
   agentKind: 'external' as const, agentId: 'grant', agentName: 'Client', callId: 'call',
 }
 
-async function request(env: WorkerEnv, method: string, params?: unknown) {
+async function request(env: WorkerEnv, method: string, params?: unknown, validatedGrant = grant) {
   return agentMcpRouting(new Request('https://app.test/mcp', {
     method: 'POST',
     headers: { Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params ? { params } : {}) }),
-  }), env, grant)
+  }), env, validatedGrant)
 }
 
 async function call(owner: { fetch: ReturnType<typeof vi.fn> }, name: string, args: object = {}) {
@@ -40,6 +40,8 @@ it.each([
   ['list_commands', {}],
   ['read_show', { binding_id: 'binding' }],
   ['get_context', { binding_id: 'binding' }],
+  ['list_patterns', { binding_id: 'binding' }],
+  ['list_controller_profiles', { binding_id: 'binding' }],
   ['begin_edit', { binding_id: 'binding', intent: 'Rename the Show', idempotency_key: 'begin' }],
   ['rename_show', { binding_id: 'binding', operation_id: 'operation', idempotency_key: 'rename', name: 'Renamed' }],
   ['commit_edit', { binding_id: 'binding', operation_id: 'operation', idempotency_key: 'commit' }],
@@ -58,6 +60,8 @@ it.each([
   ['get_connection', {}],
   ['list_commands', {}],
   ['read_show', { binding_id: 'binding' }],
+  ['list_patterns', { binding_id: 'binding' }],
+  ['list_controller_profiles', { binding_id: 'binding' }],
   ['rename_show', { binding_id: 'binding', operation_id: 'op', idempotency_key: 'change', name: 'New' }],
   ['get_outcome', { binding_id: 'binding', operation_id: 'op' }],
 ] as const)('%s fails closed for unknown or malformed account results', async (name, args) => {
@@ -70,18 +74,35 @@ it.each([
   }
 })
 
-it('preserves no_live_editor for a current grant whose browser binding is retiring', async () => {
-  const owner = { fetch: vi.fn(async () => Response.json({ code: 'retirement_unconfirmed' })) }
+it.each(['list_patterns', 'list_controller_profiles'] as const)('%s rejects an expired grant before contacting the owner', async name => {
+  const owner = { fetch: vi.fn() }
   const env = {
     AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => owner },
     ASSETS: { fetch: vi.fn() },
     AGENT_SERVICE_ENABLED: '1',
   } as unknown as WorkerEnv
-  const response = await request(env, 'tools/call', { name: 'read_show', arguments: { binding_id: 'retiring-binding' } })
-  const body = await response.json() as { result: { content: Array<{ text: string }>; structuredContent: Record<string, unknown>; isError?: boolean } }
-  expect(body).toMatchObject({ result: { isError: true, structuredContent: { code: 'no_live_editor' } } })
-  expectCopies(body.result)
-  expect(owner.fetch).toHaveBeenCalledOnce()
+  const response = await request(env, 'tools/call', {
+    name, arguments: { binding_id: 'binding' },
+  }, { ...grant, expiresAt: 0 })
+  const body = await response.json() as { result: { structuredContent: Record<string, unknown>; isError?: boolean } }
+  expect(body.result).toMatchObject({ isError: true, structuredContent: { code: 'unauthorized' } })
+  expect(owner.fetch).not.toHaveBeenCalled()
+})
+
+it('preserves no_live_editor for every read query when the browser binding is retiring', async () => {
+  for (const name of ['read_show', 'get_context', 'list_patterns', 'list_controller_profiles']) {
+    const owner = { fetch: vi.fn(async () => Response.json({ code: 'retirement_unconfirmed' })) }
+    const env = {
+      AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => owner },
+      ASSETS: { fetch: vi.fn() },
+      AGENT_SERVICE_ENABLED: '1',
+    } as unknown as WorkerEnv
+    const response = await request(env, 'tools/call', { name, arguments: { binding_id: 'retiring-binding' } })
+    const body = await response.json() as { result: { content: Array<{ text: string }>; structuredContent: Record<string, unknown>; isError?: boolean } }
+    expect(body).toMatchObject({ result: { isError: true, structuredContent: { code: 'no_live_editor' } } })
+    expectCopies(body.result)
+    expect(owner.fetch).toHaveBeenCalledOnce()
+  }
 })
 
 it('serializes the actual retained outcome diagnostic in text and structured MCP output', async () => {
@@ -179,7 +200,6 @@ it('keeps public success and error results schema-valid, distinguishable, and by
   validate('read_show', noEditor, true)
 
   const patternOwner = { fetch: vi.fn()
-    .mockResolvedValueOnce(Response.json({ code: 'bound', claim, binding: claim }))
     .mockResolvedValueOnce(Response.json({ code: 'read', patterns: [
       { kind: 'stock', id: 'Aurora', name: 'Aurora', exported_controls: [{ export_name: 'sliderSpeed', kind: 'slider', min: 0, max: 1 }, { export_name: 'toggleMirror', kind: 'toggle' }] },
       { kind: 'user', id: 'personal', name: 'Personal', exported_controls: [] },
@@ -187,18 +207,17 @@ it('keeps public success and error results schema-valid, distinguishable, and by
   const patterns = await call(patternOwner, 'list_patterns', { binding_id: 'binding', query: 'aur', kind: 'stock' })
   validate('list_patterns', patterns, false)
   expect(JSON.stringify(patterns.structuredContent)).not.toContain('source')
-  expect(await (patternOwner.fetch.mock.calls[1][0] as Request).clone().json()).toMatchObject({
-    type: 'relay-query', query: { kind: 'list_patterns', query: 'aur', patternKind: 'stock' },
+  expect(await (patternOwner.fetch.mock.calls[0][0] as Request).clone().json()).toMatchObject({
+    type: 'external-tool-query', expectedBindingId: 'binding', agentId: 'grant', agentName: 'Client',
+    query: { kind: 'list_patterns', query: 'aur', patternKind: 'stock' },
   })
 
   const profiles = await call({ fetch: vi.fn()
-    .mockResolvedValueOnce(Response.json({ code: 'bound', claim, binding: claim }))
     .mockResolvedValueOnce(Response.json({ code: 'read', controller_profiles: [{ id: 'profile', name: 'Profile', pixel_count: 256 }, { id: 'unknown', name: 'Unknown' }] })) },
   'list_controller_profiles', { binding_id: 'binding' })
   validate('list_controller_profiles', profiles, false)
 
   const unavailablePatterns = await call({ fetch: vi.fn()
-    .mockResolvedValueOnce(Response.json({ code: 'bound', claim, binding: claim }))
     .mockResolvedValueOnce(Response.json({ code: 'unavailable' })) },
   'list_patterns', { binding_id: 'binding' })
   validate('list_patterns', unavailablePatterns, true)

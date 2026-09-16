@@ -97,16 +97,13 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     outputSchema: AGENT_MCP_OUTPUT_SCHEMAS.read,
     annotations: { readOnlyHint: true, openWorldHint: false },
   }, async ({ binding_id, query, kind }) => {
-    const ownership = await owned(binding_id)
-    if (!ownership.identity) return output(ownership.result!)
-    return output({
-      ...await queryAgentEditor(env, grant.accountId, ownership.identity, {
-        kind: 'list_patterns',
-        ...(query !== undefined ? { query } : {}),
-        ...(kind ? { patternKind: kind } : {}),
-      }),
-      ...notice(ownership.resolved),
+    if (!active()) return output({ code: 'unauthorized' })
+    const resolved = await queryExternalTool(env, grant, binding_id, {
+      kind: 'list_patterns',
+      ...(query !== undefined ? { query } : {}),
+      ...(kind ? { patternKind: kind } : {}),
     })
+    return output(toolResult(resolved))
   })
   server.registerTool('list_controller_profiles', {
     description: 'List existing Controller-profile identities and optional last-known pixel counts. Does not read live hardware or claim an installed map.',
@@ -114,9 +111,9 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     outputSchema: AGENT_MCP_OUTPUT_SCHEMAS.read,
     annotations: { readOnlyHint: true, openWorldHint: false },
   }, async ({ binding_id }) => {
-    const ownership = await owned(binding_id)
-    if (!ownership.identity) return output(ownership.result!)
-    return output({ ...await queryAgentEditor(env, grant.accountId, ownership.identity, { kind: 'list_controller_profiles' }), ...notice(ownership.resolved) })
+    if (!active()) return output({ code: 'unauthorized' })
+    const resolved = await queryExternalTool(env, grant, binding_id, { kind: 'list_controller_profiles' })
+    return output(toolResult(resolved))
   })
   const registerMutation = (name: string, description: string, fields: Record<string, z.ZodTypeAny>, payload: (args: Record<string, unknown>) => unknown) => {
     if (Object.keys(fields).some(key => key in operation)) throw new Error('Canonical command collides with transport identity')
