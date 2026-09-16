@@ -1,7 +1,9 @@
+import { Worker } from 'node:worker_threads'
 import { describe, expect, it } from 'vitest'
 import { createFastReplayRuntime } from './fastReplay'
 import { parseEpe } from './epeImport'
 import { nativeDimension } from './loadPattern'
+import { createFxShim, createShim } from './shim'
 import { buildShowEpeExport } from './showEpeExport'
 import { compileShow, type GeneratedShowArtifact } from './showCompiler'
 import { showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
@@ -22,6 +24,176 @@ const MAP: MapPoint[] = Array.from({ length: 8 }, (_, index) => ({
   sample: [index / 7, 0.5],
   pos: [index / 7, 0.5],
 }))
+const RESTART_SCHEDULER_MAP: MapPoint[] = [{ sample: [0.5], pos: [0.5, 0.5] }]
+const RESTART_SCHEDULER_SOURCE = [
+  'export var sample = 0',
+  'export var level = 0',
+  'export function sliderLevel(value) { level = value }',
+  'export function beforeRender(delta) { if (delta > 0) sample = random(1) }',
+  'export function render(index) { rgb(sample, level, 0) }',
+].join('\n')
+
+type RestartLoopPolicy = 'continuous' | 'deterministic-loop'
+
+function restartSchedulerArtifact(
+  policy: RestartLoopPolicy,
+  restartEvents: number[],
+  withHiddenGap = false,
+  loopDurationMs = 200,
+) {
+  const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+  const scenes = withHiddenGap
+    ? [
+        {
+          holdMs: 50,
+          placements: [{ zoneName: 'main', clipId: 'shared', controlTargets: { sliderLevel: 0.1 } }],
+          transitionOut: { kind: 'cut' as const, durationMs: 0 },
+        },
+        {
+          holdMs: 50,
+          placements: [{ zoneName: 'main', clipId: 'gap' }],
+          transitionOut: { kind: 'cut' as const, durationMs: 0 },
+        },
+        {
+          holdMs: 100,
+          placements: [{ zoneName: 'main', clipId: 'shared', controlTargets: { sliderLevel: 0.9 } }],
+        },
+      ]
+    : [{ holdMs: loopDurationMs, placements: [{ zoneName: 'main', clipId: 'shared' }] }]
+  return compileShow({
+    clips: [
+      { id: 'shared', source: RESTART_SCHEDULER_SOURCE, controlTargets: { sliderLevel: 0 } },
+      ...(withHiddenGap
+        ? [{ id: 'gap', source: 'export function render(index) { rgb(0, 0, 0) }' }]
+        : []),
+    ],
+    zones,
+    routingLayouts: [{ id: 'default', name: 'Default', zones }],
+    routedSceneSequence: { scenes },
+    restartEvents: restartEvents.map(atMs => ({ atMs, clipId: 'shared' })),
+    loopDurationMs,
+    ...(policy === 'deterministic-loop' ? { deterministicLoopReset: true } : {}),
+  }, LIBRARIES, { patternSlotSharing: 'none' })
+}
+
+function reopenedRestartScheduler(
+  policy: RestartLoopPolicy,
+  fidelity: 'fast' | 'fidelity',
+  restartEvents: number[],
+  withHiddenGap = false,
+) {
+  const artifact = restartSchedulerArtifact(policy, restartEvents, withHiddenGap)
+  const reopened = parseEpe(buildShowEpeExport(flatV1Show(false), artifact.code).text)
+  const runtime = createFastReplayRuntime({
+    code: reopened.src,
+    fxCode: artifact.fxCode,
+    metadata: artifact.metadata,
+    dimension: nativeDimension(artifact.metadata.renderFns),
+  }, { mapPoints: RESTART_SCHEDULER_MAP, randomSeed: 1037, fidelity })
+  return { artifact, runtime }
+}
+
+function seededRandomDraw(fidelity: 'fast' | 'fidelity', ordinal: number): number {
+  const config = {
+    mapPoints: RESTART_SCHEDULER_MAP,
+    pixelCount: 1,
+    dimensions: 1 as const,
+    getVirtualTime: () => 0,
+    randomSeed: 1037,
+  }
+  const shim = fidelity === 'fidelity' ? createFxShim(config) : createShim(config)
+  const random = shim.builtins.random as (maximum?: number) => number
+  let value = 0
+  for (let draw = 0; draw < ordinal; draw += 1) value = random(shim.encodeScalar(1))
+  return shim.decodeScalar(value)
+}
+
+function decodedScalar(value: unknown, fidelity: 'fast' | 'fidelity'): number {
+  return Number(value) / (fidelity === 'fidelity' ? 65_536 : 1)
+}
+
+async function runGeneratedRestartProgress(
+  source: string,
+  sampleBinding: string,
+  elapsedBinding: string,
+): Promise<{
+  elapsedSeconds: number
+  randomCalls: number
+  lastRandom: number
+  sample: number
+  pixel: number
+}> {
+  const workerSource = `
+    const { parentPort, workerData } = require('node:worker_threads')
+    const pixelCount = 1
+    const floor = Math.floor
+    const ceil = Math.ceil
+    const round = Math.round
+    const trunc = Math.trunc
+    const abs = Math.abs
+    const min = Math.min
+    const max = Math.max
+    const sqrt = Math.sqrt
+    const pow = Math.pow
+    const sin = Math.sin
+    const cos = Math.cos
+    const atan2 = Math.atan2
+    const frac = value => value - Math.trunc(value)
+    const mod = (value, divisor) => value - Math.floor(value / divisor) * divisor
+    const clamp = (value, low = 0, high = 1) => Math.min(high, Math.max(low, value))
+    const mix = (left, right, amount) => left + (right - left) * amount
+    const wave = value => 0.5 + Math.sin(value * Math.PI * 2) * 0.5
+    const triangle = value => 1 - Math.abs((value % 1) * 2 - 1)
+    const array = length => Array(Math.floor(length)).fill(0)
+    let randomState = workerData.randomSeed >>> 0
+    let randomCalls = 0
+    let lastRandom = 0
+    function random(maximum = 1) {
+      randomState = (randomState + 0x6D2B79F5) >>> 0
+      let value = randomState
+      value = Math.imul(value ^ (value >>> 15), value | 1)
+      value ^= value + Math.imul(value ^ (value >>> 7), value | 61)
+      randomCalls = randomCalls + 1
+      lastRandom = (((value ^ (value >>> 14)) >>> 0) / 4294967296) * maximum
+      return lastRandom
+    }
+    let captured = [0, 0, 0]
+    function rgb(red, green, blue) { captured = [red, green, blue] }
+    function hsv(hue, saturation, value) { rgb(value, value, value) }
+    function time() { return 0 }
+    eval(workerData.source.replace(/\\bexport\\s+/g, ''))
+    beforeRender(670)
+    render(0)
+    parentPort.postMessage({
+      elapsedSeconds: eval(workerData.elapsedBinding),
+      randomCalls,
+      lastRandom,
+      sample: eval(workerData.sampleBinding),
+      pixel: captured[0],
+    })
+  `
+  const worker = new Worker(workerSource, {
+    eval: true,
+    workerData: { source, sampleBinding, elapsedBinding, randomSeed: 1037 },
+  })
+
+  return await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      void worker.terminate()
+      reject(new Error('Generated Restart artifact did not make progress within 2 seconds'))
+    }, 2_000)
+    worker.once('message', (result) => {
+      clearTimeout(timeout)
+      void worker.terminate()
+      resolve(result)
+    })
+    worker.once('error', (error) => {
+      clearTimeout(timeout)
+      void worker.terminate()
+      reject(error)
+    })
+  })
+}
 
 function replay(artifact: GeneratedShowArtifact, fidelity: 'fast' | 'fidelity', mapPoints = MAP) {
   return createFastReplayRuntime({
@@ -517,6 +689,119 @@ describe('lowerShowCompositionV2ForCompile', () => {
       expect(Math.abs(
         Number(afterLoop.exports[`${prefix}_elapsed`]) - Number(cold.exports[`${prefix}_elapsed`]),
       )).toBeLessThanOrEqual(fidelity === 'fidelity' ? 1 : 1e-9)
+    },
+  )
+
+  it.each((['fast', 'fidelity'] as const).flatMap(fidelity => ([
+    { fidelity, policy: 'continuous' as const, expectedDraw: 3 },
+    { fidelity, policy: 'deterministic-loop' as const, expectedDraw: 4 },
+  ])))(
+    'reopens an .epe whose hidden Restart gap follows $policy policy in $fidelity mode',
+    ({ fidelity, policy, expectedDraw }) => {
+      const { artifact, runtime } = reopenedRestartScheduler(policy, fidelity, [100], true)
+      expect(artifact.summary.clips.map(member => member.id).sort()).toEqual(['gap', 'shared'])
+      expect(artifact.summary.clips.filter(member => member.id === 'shared')).toHaveLength(1)
+      const prefix = artifact.summary.clips.find(member => member.id === 'shared')!.prefix
+
+      runtime.advanceLive(10)
+      const result = runtime.advanceLive(110)
+      const sample = decodedScalar(result.exports[`${prefix}_sample`], fidelity)
+      const level = decodedScalar(result.exports[`${prefix}_level`], fidelity)
+
+      expect(sample).toBe(seededRandomDraw(fidelity, expectedDraw))
+      expect(result.pixels[0][0]).toBeCloseTo(sample, fidelity === 'fast' ? 12 : 4)
+      expect(level).toBeCloseTo(0.9, fidelity === 'fast' ? 12 : 4)
+      expect(result.pixels[0][1]).toBeCloseTo(level, fidelity === 'fast' ? 12 : 4)
+    },
+  )
+
+  it('reopens an .epe and makes progress through 6.7 short Restart loops', { timeout: 5_000 }, async () => {
+    const artifact = restartSchedulerArtifact('continuous', [50], false, 100)
+    const reopened = parseEpe(buildShowEpeExport(flatV1Show(false), artifact.code).text)
+    const prefix = artifact.summary.clips[0].prefix
+    const sampleName = `${prefix}_sample`
+    const elapsedName = '__pxlblz_show_elapsed_s'
+    const result = await runGeneratedRestartProgress(
+      reopened.src,
+      artifact.metadata.patternVarBindings?.[sampleName] ?? sampleName,
+      artifact.metadata.patternVarBindings?.[elapsedName] ?? elapsedName,
+    )
+    expect(result.elapsedSeconds).toBeCloseTo(0.07, 12)
+    // One slice precedes the first event, each of the next six events crosses
+    // a tail/head loop boundary, and the final 20 ms is one ordinary slice.
+    expect(result.randomCalls).toBe(14)
+    expect(result.lastRandom).toBe(seededRandomDraw('fast', 14))
+    expect(result.sample).toBe(result.lastRandom)
+    expect(result.pixel).toBeCloseTo(result.lastRandom, 12)
+  })
+
+  it.each((['fast', 'fidelity'] as const).flatMap(fidelity => ([
+    { fidelity, policy: 'continuous' as const, expectedDraw: 4 },
+    { fidelity, policy: 'deterministic-loop' as const, expectedDraw: 3 },
+  ])))(
+    'reopens an .epe and visits every Restart across multiple $policy loops in $fidelity mode',
+    ({ fidelity, policy, expectedDraw }) => {
+      const coarseFixture = reopenedRestartScheduler(policy, fidelity, [100])
+      const steppedFixture = reopenedRestartScheduler(policy, fidelity, [100])
+      const prefix = coarseFixture.artifact.summary.clips[0].prefix
+
+      const coarse = coarseFixture.runtime.advanceLive(420)
+      let stepped = steppedFixture.runtime.advanceLive(100)
+      for (const deltaMs of [100, 100, 120]) stepped = steppedFixture.runtime.advanceLive(deltaMs)
+      const expectedSample = seededRandomDraw(fidelity, expectedDraw)
+      const steppedExpectedSample = seededRandomDraw(fidelity, fidelity === 'fast' ? expectedDraw : 5)
+
+      expect(decodedScalar(coarse.exports[`${prefix}_sample`], fidelity)).toBe(expectedSample)
+      // In Precise mode the established seconds clock retains one 16.16 tick
+      // after two separately rounded 100 ms frames. Measure that existing
+      // arithmetic result instead of adding an epsilon policy to Restart.
+      expect(decodedScalar(stepped.exports[`${prefix}_sample`], fidelity)).toBe(steppedExpectedSample)
+      expect(decodedScalar(coarse.exports.__pxlblz_show_elapsed_s, fidelity)).toBeCloseTo(0.02, 4)
+      expect(decodedScalar(stepped.exports.__pxlblz_show_elapsed_s, fidelity)).toBeCloseTo(0.02, 3)
+      expect(coarse.pixels[0][0]).toBeCloseTo(expectedSample, fidelity === 'fast' ? 12 : 4)
+      expect(stepped.pixels[0][0]).toBeCloseTo(steppedExpectedSample, fidelity === 'fast' ? 12 : 4)
+    },
+  )
+
+  it.each((['fast', 'fidelity'] as const).flatMap(fidelity => ([
+    { fidelity, policy: 'continuous' as const, deltaMs: 120, expectedDraw: 2, expectedElapsedSeconds: 0.12 },
+    { fidelity, policy: 'deterministic-loop' as const, deltaMs: 120, expectedDraw: 2, expectedElapsedSeconds: 0.12 },
+    { fidelity, policy: 'continuous' as const, deltaMs: 220, expectedDraw: 2, expectedElapsedSeconds: 0.02 },
+    { fidelity, policy: 'deterministic-loop' as const, deltaMs: 220, expectedDraw: 2, expectedElapsedSeconds: 0.02 },
+  ])))(
+    'reopens an .epe and visits zero/one-wrap Restart boundaries for $policy at $deltaMs ms in $fidelity mode',
+    ({ fidelity, policy, deltaMs, expectedDraw, expectedElapsedSeconds }) => {
+      const { artifact, runtime } = reopenedRestartScheduler(policy, fidelity, [100])
+      const prefix = artifact.summary.clips[0].prefix
+      const result = runtime.advanceLive(deltaMs)
+
+      expect(decodedScalar(result.exports[`${prefix}_sample`], fidelity))
+        .toBe(seededRandomDraw(fidelity, expectedDraw))
+      expect(decodedScalar(result.exports.__pxlblz_show_elapsed_s, fidelity))
+        .toBeCloseTo(expectedElapsedSeconds, fidelity === 'fast' ? 12 : 3)
+    },
+  )
+
+  it.each((['fast', 'fidelity'] as const).flatMap(fidelity => ([
+    { fidelity, policy: 'continuous' as const, expectedDraw: 5 },
+    { fidelity, policy: 'deterministic-loop' as const, expectedDraw: 3 },
+  ])))(
+    'reopens an .epe and coalesces time-zero Restart across $policy loops in $fidelity mode',
+    ({ fidelity, policy, expectedDraw }) => {
+      const coarseFixture = reopenedRestartScheduler(policy, fidelity, [0, 100])
+      const prefix = coarseFixture.artifact.summary.clips[0].prefix
+      const coarse = coarseFixture.runtime.advanceLive(420)
+      expect(decodedScalar(coarse.exports[`${prefix}_sample`], fidelity))
+        .toBe(seededRandomDraw(fidelity, expectedDraw))
+
+      const primingFixture = reopenedRestartScheduler(policy, fidelity, [0, 100])
+      const primingPrefix = primingFixture.artifact.summary.clips[0].prefix
+      expect(decodedScalar(primingFixture.runtime.advanceLive(0).exports[`${primingPrefix}_sample`], fidelity)).toBe(0)
+      const mutated = primingFixture.runtime.advanceLive(10)
+      const mutatedSample = decodedScalar(mutated.exports[`${primingPrefix}_sample`], fidelity)
+      expect(mutatedSample).toBe(seededRandomDraw(fidelity, 1))
+      expect(decodedScalar(primingFixture.runtime.advanceLive(0).exports[`${primingPrefix}_sample`], fidelity))
+        .toBe(mutatedSample)
     },
   )
 

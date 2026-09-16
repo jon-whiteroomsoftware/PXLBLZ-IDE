@@ -5022,16 +5022,16 @@ function emitRoutedSceneSequenceShowCode(
     ...(member.restartPlan.status === 'ready' ? member.restartPlan.restoreAssignments : []),
     ...memberRuntimeResetLines(member),
   ]
+  const memberSlotOwnerResetLines = (member: CompiledMember) => member.slotOwnerCount > 1
+    ? [
+        `${member.prefix}_slot_owner = -1`,
+        ...Array.from({ length: member.slotOwnerCount }, (_, index) => `${member.prefix}_slot_initialized[${index}] = 0`),
+      ]
+    : []
   const restartClipIds = new Set((emissionOptions.restartEvents ?? []).map(event => event.clipId))
-  const loopResetLines = members.flatMap((member) => [
-    ...(restartClipIds.has(member.id) ? restartMemberResetLines(member) : legacyMemberResetLines(member)),
-    ...(member.slotOwnerCount > 1
-      ? [
-          `${member.prefix}_slot_owner = -1`,
-          ...Array.from({ length: member.slotOwnerCount }, (_, index) => `${member.prefix}_slot_initialized[${index}] = 0`),
-        ]
-      : []),
-  ])
+  const loopResetLines = members.flatMap((member) => restartClipIds.has(member.id)
+    ? []
+    : [...legacyMemberResetLines(member), ...memberSlotOwnerResetLines(member)])
   const restartEventsByMember = new Map<CompiledMember, ShowRestartEventRecipe[]>()
   for (const event of emissionOptions.restartEvents ?? []) {
     const member = memberById.get(event.clipId)
@@ -5050,8 +5050,13 @@ function emitRoutedSceneSequenceShowCode(
   const restartResetFunctions = restartMembers.map(member => `function ${member.prefix}_restart() {
 ${indentBlock(restartMemberResetLines(member).join('\n'), 2)}
 }`)
+  const restartLoopResetFunctions = deterministicLoopReset
+    ? restartMembers.map(member => `function ${member.prefix}_restart_loop() {
+${indentBlock([...restartMemberResetLines(member), ...memberSlotOwnerResetLines(member)].join('\n'), 2)}
+}`)
+    : []
   const restartCrossingPrelude = restartMembers.length === 0 ? '' : `var __pxlblz_show_restart_previous_s = __pxlblz_show_elapsed_s
-  var __pxlblz_show_restart_wrapped = __pxlblz_show_elapsed_s + delta / 1000 >= ${totalMs / 1_000}`
+  var __pxlblz_show_restart_path_end_s = __pxlblz_show_elapsed_s + delta / 1000`
   const loopAdvancePrelude = deterministicLoopReset ? `var __pxlblz_show_loop_wrapped = __pxlblz_show_elapsed_s + delta / 1000 >= ${totalMs / 1_000}
   __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${totalMs / 1_000}
   if (__pxlblz_show_loop_wrapped) {
@@ -5167,28 +5172,33 @@ ${member.prefix}_mir_base_i = ${member.prefix}_adapt_mirror * (${member.pixelCou
     .map(({ code }) => indentBlock(code, 4))
     .join('\n')
 
-  const restartAdvanceAtEvent = (member: CompiledMember, pathSeconds: number) => {
-    const totalSeconds = totalMs / 1_000
-    const loopOffsets = pathSeconds > totalSeconds ? [0, totalSeconds] : [0]
-    return loopOffsets.flatMap((loopOffset) => segments.flatMap((segment) => {
-      const pathStart = loopOffset + segment.startMs / 1_000
-      const pathEnd = Math.min(loopOffset + segment.endMs / 1_000, pathSeconds)
-      if (pathStart >= pathSeconds || pathEnd <= pathStart) return []
+  const restartAdvanceFunctions = restartMembers.map((member) => {
+    const cursor = `${member.prefix}_restart_cursor_s`
+    const target = `${member.prefix}_restart_target_s`
+    const loopIndex = `${member.prefix}_restart_advance_loop_index`
+    const loopStart = `${member.prefix}_restart_loop_start_s`
+    const loopEnd = `${member.prefix}_restart_loop_end_s`
+    const passEnd = `${member.prefix}_restart_pass_end_s`
+    const segmentEnd = `${member.prefix}_restart_segment_end_s`
+    const segmentBlocks = segments.flatMap((segment) => {
       const sceneIndices = segment.kind === 'transition'
         ? [segment.sceneIndex, segment.sceneIndex + 1]
         : [segment.sceneIndex]
       const placements = sceneIndices.flatMap(sceneIndex => scenes[sceneIndex].placements)
-      const localEnd = pathEnd - loopOffset
+      const pathStart = `${loopStart} + ${segment.startMs / 1_000}`
+      const pathEnd = `${loopStart} + ${segment.endMs / 1_000}`
       if (!placements.some(placement => placement.member === member)) {
         const continuityWindow = continuityWindowByMember.get(member)
-        const advanceHidden = continuityWindow
+        const advanceHidden = continuityMemberSet.has(member)
+          && continuityWindow
           && segment.startMs >= continuityWindow.startMs
           && segment.endMs <= continuityWindow.endMs
-          ? `\n        ${member.prefix}_advance((${pathEnd} - ${member.prefix}_restart_cursor_s) * 1000)`
+          ? `\n      ${member.prefix}_advance((${segmentEnd} - ${cursor}) * 1000)`
           : ''
-        return [`      if (${member.prefix}_restart_cursor_s < ${pathEnd}) {${advanceHidden}
-        ${member.prefix}_restart_cursor_s = ${pathEnd}
-      }`]
+        return [`    ${segmentEnd} = min(${passEnd}, ${pathEnd})
+    if (${cursor} < ${segmentEnd} && ${passEnd} > ${pathStart}) {${advanceHidden}
+      ${cursor} = ${segmentEnd}
+    }`]
       }
       const propertyTrackContexts = sceneIndices.flatMap((sceneIndex) => (
         scenes[sceneIndex].propertyTracks
@@ -5201,45 +5211,48 @@ ${member.prefix}_mir_base_i = ${member.prefix}_adapt_mirror * (${member.pixelCou
         propertyTrackContexts.length > 0 ? propertyTrackContexts : undefined,
         {
           advanceDelta: candidate => candidate === member
-            ? `(${pathEnd} - ${member.prefix}_restart_cursor_s) * 1000`
+            ? `(${segmentEnd} - ${cursor}) * 1000`
             : null,
           markAdvanced: false,
         },
       ).find(candidate => candidate.member === member)!
-      return [`      if (${member.prefix}_restart_cursor_s < ${pathEnd}) {
-        var __pxlblz_show_restart_final_s = __pxlblz_show_elapsed_s
-        __pxlblz_show_elapsed_s = ${localEnd}${segment.kind === 'transition'
-          ? `\n        __pxlblz_show_transition_start_s = ${segment.startMs / 1_000}`
+      return [`    ${segmentEnd} = min(${passEnd}, ${pathEnd})
+    if (${cursor} < ${segmentEnd} && ${passEnd} > ${pathStart}) {
+      var __pxlblz_show_restart_final_s = __pxlblz_show_elapsed_s
+      __pxlblz_show_elapsed_s = ${segmentEnd} - ${loopStart}${segment.kind === 'transition'
+          ? `\n      __pxlblz_show_transition_start_s = ${segment.startMs / 1_000}`
           : ''}
-${indentBlock(entry.code, 8)}
-        ${member.prefix}_restart_cursor_s = ${pathEnd}
-        __pxlblz_show_elapsed_s = __pxlblz_show_restart_final_s
-      }`]
-    })).join('\n')
+${indentBlock(entry.code, 6)}
+      ${cursor} = ${segmentEnd}
+      __pxlblz_show_elapsed_s = __pxlblz_show_restart_final_s
+    }`]
+    }).join('\n')
+    return `function ${member.prefix}_restart_advance_to(${cursor}, ${target}) {
+  var ${loopIndex} = floor(${cursor} / ${totalMs / 1_000})
+  while (${cursor} < ${target}) {
+    var ${loopStart} = ${loopIndex} * ${totalMs / 1_000}
+    var ${loopEnd} = (${loopIndex} + 1) * ${totalMs / 1_000}
+    var ${passEnd} = min(${target}, ${loopEnd})
+    var ${segmentEnd} = 0
+${segmentBlocks}
+    if (${cursor} < ${passEnd}) ${cursor} = ${passEnd}
+    ${loopIndex} = ${loopIndex} + 1
   }
+  return ${cursor}
+}`
+  })
   const restartEventPrelude = restartMembers.length === 0 ? '' : `${restartMembers.map((member) => {
     const events = restartEventsByMember.get(member)!
-    const eventBlock = (condition: string, pathSeconds: number) => `    if (${condition}) {
-${restartAdvanceAtEvent(member, pathSeconds)}      ${member.prefix}_restart()
-      ${member.prefix}_restart_cursor_s = ${pathSeconds}
+    const eventTarget = `${member.prefix}_restart_event_s`
+    const loopIndex = `${member.prefix}_restart_loop_index`
+    const loopOffset = `${member.prefix}_restart_loop_offset_s`
+    const eventBlocks = events.map(event => `    ${eventTarget} = ${loopOffset} + ${event.atMs / 1_000}
+    if (${member.prefix}_restart_cursor_s < ${eventTarget} && ${eventTarget} <= __pxlblz_show_restart_path_end_s) {
+      ${member.prefix}_restart_cursor_s = ${member.prefix}_restart_advance_to(${member.prefix}_restart_cursor_s, ${eventTarget})
+      ${member.prefix}_restart()
+      ${member.prefix}_restart_cursor_s = ${eventTarget}
       ${member.prefix}_restart_crossed = 1
-    }`
-    const ordinary = events.map(event => eventBlock(
-      `__pxlblz_show_restart_previous_s < ${event.atMs / 1_000} && __pxlblz_show_elapsed_s >= ${event.atMs / 1_000}`,
-      event.atMs / 1_000,
-    )).join('\n')
-    const beforeWrap = events.map(event => eventBlock(
-      `__pxlblz_show_restart_previous_s < ${event.atMs / 1_000}`,
-      event.atMs / 1_000,
-    )).join('\n')
-    const afterWrap = events.map(event => eventBlock(
-      `__pxlblz_show_elapsed_s >= ${event.atMs / 1_000}`,
-      totalMs / 1_000 + event.atMs / 1_000,
-    )).join('\n')
-    const afterDeterministicWrap = events.filter(event => event.atMs > 0).map(event => eventBlock(
-      `__pxlblz_show_elapsed_s >= ${event.atMs / 1_000}`,
-      totalMs / 1_000 + event.atMs / 1_000,
-    )).join('\n')
+    }`).join('\n')
     const initialZero = events.some(event => event.atMs === 0)
       ? `  if (!__pxlblz_show_restart_primed) {
     ${member.prefix}_restart()
@@ -5251,17 +5264,23 @@ ${restartAdvanceAtEvent(member, pathSeconds)}      ${member.prefix}_restart()
     return `  ${member.prefix}_restart_delta = delta
   var ${member.prefix}_restart_cursor_s = __pxlblz_show_restart_previous_s
   var ${member.prefix}_restart_crossed = 0
-${initialZero}  if (!__pxlblz_show_restart_wrapped) {
-${ordinary}
-  } else if (${deterministicLoopReset ? 1 : 0}) {
-    ${member.prefix}_restart_cursor_s = ${totalMs / 1_000}
-${afterDeterministicWrap}
-  } else {
-${beforeWrap}
-${afterWrap}
+${initialZero}  var ${loopIndex} = 0
+  var ${loopOffset} = 0
+  var ${eventTarget} = 0
+  while (${loopOffset} <= __pxlblz_show_restart_path_end_s) {
+${eventBlocks}
+${deterministicLoopReset
+    ? `    if (${loopOffset} + ${totalMs / 1_000} <= __pxlblz_show_restart_path_end_s) {
+      ${member.prefix}_restart_loop()
+      ${member.prefix}_restart_cursor_s = ${loopOffset} + ${totalMs / 1_000}
+      ${member.prefix}_restart_crossed = 1
+    }`
+    : ''}
+    ${loopIndex} = ${loopIndex} + 1
+    ${loopOffset} = ${loopIndex} * ${totalMs / 1_000}
   }
   if (${member.prefix}_restart_crossed) {
-    ${member.prefix}_restart_delta = (__pxlblz_show_elapsed_s + (__pxlblz_show_restart_wrapped ? ${totalMs / 1_000} : 0) - ${member.prefix}_restart_cursor_s) * 1000
+    ${member.prefix}_restart_delta = (__pxlblz_show_restart_path_end_s - ${member.prefix}_restart_cursor_s) * 1000
   }`
   }).join('\n')}
   __pxlblz_show_restart_primed = 1`
@@ -6130,7 +6149,9 @@ function __pxlblz_show_capture_transition_rgb(r, g, b) {
     ...(usesRouteLayout ? ['var __pxlblz_show_route_layout = 0'] : []),
     ...(propertyRamps ? [`var __pxlblz_show_route_split_position = ${clampNumber(propertyRamps.splitPosition.initial, 0, 1)}`] : []),
     ...continuityMembers.map((member) => `var ${advancedFlag(member)} = 0`),
-    ...(restartMembers.length > 0 ? ['var __pxlblz_show_restart_primed = 0', ...restartDeclarations, ...restartResetFunctions] : []),
+    ...(restartMembers.length > 0
+      ? ['var __pxlblz_show_restart_primed = 0', ...restartDeclarations, ...restartResetFunctions, ...restartLoopResetFunctions, ...restartAdvanceFunctions]
+      : []),
     ...(hiddenContinuityFunction ? [hiddenContinuityFunction] : []),
     `export function beforeRender(delta) {
   ${frameAdvancePrelude}
@@ -6290,7 +6311,9 @@ ${indentBlock(body, 2)}
       'var __pxlblz_show_score_to_stack = 1',
       'var __pxlblz_show_score_kernel = -1',
       ...continuityMembers.map((member) => `var ${advancedFlag(member)} = 0`),
-      ...(restartMembers.length > 0 ? ['var __pxlblz_show_restart_primed = 0', ...restartDeclarations, ...restartResetFunctions] : []),
+      ...(restartMembers.length > 0
+        ? ['var __pxlblz_show_restart_primed = 0', ...restartDeclarations, ...restartResetFunctions, ...restartLoopResetFunctions, ...restartAdvanceFunctions]
+        : []),
       ...(hiddenContinuityFunction ? [hiddenContinuityFunction] : []),
       ...(scoreUsesSnapshot
         ? ['var __pxlblz_show_score_snapshot_boundary = -1', 'var __pxlblz_show_snapshot_ready = 0']
