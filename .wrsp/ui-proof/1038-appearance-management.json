@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/appearance-management-synthetic?show-v2-pilot=1&capture",
+  "operation": "On the 30-second native fixture, edited whole-Clip brightness and selected-time opacity, added/updated/duplicated/reordered Hue Effects, then Undo/Redo, durable reload and cold reopen: eight Show writes and exact held keys [0,2000,6000,9000]. Repository Playwright used a separate synthetic context because IAB lacks isolated authentication ingress; actual Worker/renderer Fast and Precise captures passed, desktop and 1024/390 keyboard scope-to-time navigation had zero browser errors/overflow, and fresh cold UI captures made zero Show writes. Existing named compiler refusals remain atomic.",
+  "captures": [
+    ".wrsp/ui-proof/1038-appearance-management-stage.png",
+    ".wrsp/ui-proof/1038-appearance-management-desktop.png",
+    ".wrsp/ui-proof/1038-appearance-management-narrow.png",
+    ".wrsp/ui-proof/1038-appearance-management-narrow-controls.png"
+  ],
+  "capturedAtCommit": "c23c5a079eed3f7125e51fcfe42b12bcfebd93ce"
+}
