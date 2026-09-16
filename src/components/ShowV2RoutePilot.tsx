@@ -201,7 +201,7 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
             <Button size="xs" variant="outline" disabled={!history?.past.length} onClick={() => void runHistory('undo')}>Undo</Button>
             <Button size="xs" variant="outline" disabled={!history?.future.length} onClick={() => void runHistory('redo')}>Redo</Button>
             <Button size="xs" variant="outline" onClick={() => void reopen()}>Reload saved v2</Button>
-            <Button size="xs" variant="outline" disabled={!record || emptyContent} onClick={() => void qualifyArtifacts()}>Reopen artifacts</Button>
+            <Button size="xs" variant="outline" disabled={preview?.status !== 'ready'} onClick={() => void qualifyArtifacts()}>Reopen artifacts</Button>
           </div>
           <output aria-live="polite" className={`mt-6 block text-sm leading-6 ${failure ? 'text-red-300' : 'text-zinc-400'}`}>
             {status || (record ? 'V2 record opened in memory.' : 'Opening v2 pilot…')}
