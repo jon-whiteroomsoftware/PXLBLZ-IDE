@@ -78,6 +78,53 @@ function addGroup(record: ShowRecordV2, destinationLayerId: string): void {
   expect(validateShowRecordV2(record)).toEqual([])
 }
 
+function addCompoundGroupReferencePair(record: ShowRecordV2, destinationLayerId: string): void {
+  const template = record.composition.clips[0]
+  const { zoneId: _zoneId, ...groupTemplate } = template
+  const entries = [
+    { definitionId: 'definition-one', instanceId: 'instance-one', layerId: 'c', childId: 'child-one', occurrenceId: 'a:b', startMs: 100 },
+    { definitionId: 'definition-two', instanceId: 'instance-two', layerId: 'b:c', childId: 'child-two', occurrenceId: 'a', startMs: 500 },
+  ]
+  for (const entry of entries) {
+    const definitionInstance = { ...structuredClone(record.composition.patternInstances[0]), id: entry.instanceId }
+    record.composition.groupDefinitions.push({
+      id: entry.definitionId,
+      name: entry.definitionId,
+      patternInstances: [definitionInstance],
+      layers: [{ id: entry.layerId, name: entry.layerId, rank: 0 }],
+      clips: [{
+        ...structuredClone(groupTemplate),
+        id: entry.childId,
+        instanceId: definitionInstance.id,
+        layerId: entry.layerId,
+        startMs: 0,
+        durationMs: 100,
+        appearance: {
+          keys: [{
+            ...structuredClone(template.appearance.keys[0]),
+            id: `${entry.childId}:appearance:1`,
+            timeMs: 0,
+          }],
+        },
+      }],
+      transitions: [],
+      propertyTracks: [],
+    })
+    record.composition.groupOccurrences.push({
+      id: entry.occurrenceId,
+      definitionId: entry.definitionId,
+      layoutOccurrenceId: record.composition.layoutOccurrences[0].id,
+      zoneId: record.zones[0].id,
+      startMs: entry.startMs,
+      translationX: 0,
+      translationY: 0,
+      layerBindings: [{ definitionLayerId: entry.layerId, layerId: destinationLayerId }],
+      holds: [],
+    })
+  }
+  expect(validateShowRecordV2(record)).toEqual([])
+}
+
 function heldGroupRecord(targetClipStartMs: number): {
   record: ShowRecordV2
   sourceLayerId: string
@@ -316,6 +363,40 @@ describe('v2 Layer ownership (#1038)', () => {
     expect(source).toEqual(before)
   })
 
+  it('distinguishes compound Group occurrence and definition-Layer identities in a complete reassignment', () => {
+    const source = baseRecord()
+    addSourceLayer(source)
+    addCompoundGroupReferencePair(source, 'layer-source')
+    const zoneId = source.zones[0].id
+    const targetLayerId = source.composition.layers.find(layer => layer.rank === 1)!.id
+    const before = structuredClone(source)
+
+    const changed = editShowLayerV2(source, {
+      kind: 'remove',
+      zoneId,
+      layerId: 'layer-source',
+      reassignments: [
+        { kind: 'group-layer-binding', groupOccurrenceId: 'a:b', definitionLayerId: 'c', layerId: targetLayerId },
+        { kind: 'group-layer-binding', groupOccurrenceId: 'a', definitionLayerId: 'b:c', layerId: targetLayerId },
+      ],
+    })
+
+    expect(changed).toMatchObject({
+      status: 'changed',
+      affectedGroupOccurrenceIds: ['a', 'a:b'],
+      affectedLayerIds: ['layer-source', targetLayerId].sort(),
+      removedIds: ['layer-source'],
+    })
+    if (changed.status !== 'changed') return
+    expect(changed.record.composition.groupOccurrences.map(occurrence => occurrence.layerBindings[0].layerId))
+      .toEqual([targetLayerId, targetLayerId])
+    expect(materializeShowGroupsV2(changed.record).composition.clips
+      .filter(clip => clip.id === 'a:b:child-one' || clip.id === 'a:child-two')
+      .map(clip => clip.id).sort()).toEqual(['a:b:child-one', 'a:child-two'])
+    expect(validateShowRecordV2(reopen(changed.record))).toEqual([])
+    expect(source).toEqual(before)
+  })
+
   it('uses the complete held Group interval for collision and half-open adjacency during reassignment', () => {
     const overlap = heldGroupRecord(499)
     const overlapBefore = structuredClone(overlap.record)
@@ -434,6 +515,70 @@ describe('v2 Layer ownership (#1038)', () => {
       participants: [{ ...participant, layerId: targetLayerId }],
     })
     expect(changed.record.composition.clips.every(clip => clip.layerId === targetLayerId)).toBe(true)
+    expect(validateShowRecordV2(reopen(changed.record))).toEqual([])
+    expect(source).toEqual(before)
+  })
+
+  it('distinguishes compound Transition and participant identities in a complete reassignment', () => {
+    const source = transitionRecord()
+    source.composition.showEndMs = 2_000
+    source.composition.layoutOccurrences[0].durationMs = 2_000
+    const sourceLayerId = source.composition.clips[0].layerId
+    const targetLayerId = source.composition.layers.find(layer => layer.id !== sourceLayerId)!.id
+    const firstTransition = source.composition.transitions[0]
+    firstTransition.id = 'a:b'
+    firstTransition.participants[0].id = 'c'
+    const clips = source.composition.clips.map(clip => {
+      const id = `${clip.id}-two`
+      return {
+        ...structuredClone(clip),
+        id,
+        startMs: clip.startMs + 1_000,
+        appearance: {
+          keys: clip.appearance.keys.map(key => ({
+            ...structuredClone(key), id: `${id}:${key.id}`, timeMs: key.timeMs + 1_000,
+          })),
+        },
+      }
+    })
+    source.composition.clips.push(...clips)
+    source.composition.transitions.push({
+      ...structuredClone(firstTransition),
+      id: 'a',
+      participants: [{
+        ...structuredClone(firstTransition.participants[0]),
+        id: 'b:c',
+        fromClipId: 'out-two',
+        toClipId: 'in-two',
+      }],
+    })
+    expect(validateShowRecordV2(source)).toEqual([])
+    const before = structuredClone(source)
+    const clipReassignments: ShowLayerReassignmentV2[] = source.composition.clips.map(clip => ({
+      kind: 'clip', clipId: clip.id, layerId: targetLayerId,
+    }))
+
+    const changed = editShowLayerV2(source, {
+      kind: 'remove',
+      zoneId: source.zones[0].id,
+      layerId: sourceLayerId,
+      reassignments: [
+        ...clipReassignments,
+        { kind: 'transition-participant', transitionId: 'a:b', participantId: 'c', layerId: targetLayerId },
+        { kind: 'transition-participant', transitionId: 'a', participantId: 'b:c', layerId: targetLayerId },
+      ],
+    })
+
+    expect(changed).toMatchObject({
+      status: 'changed',
+      affectedClipIds: ['in', 'in-two', 'out', 'out-two'],
+      affectedTransitionIds: ['a', 'a:b'],
+      affectedLayerIds: [sourceLayerId, targetLayerId].sort(),
+      removedIds: [sourceLayerId],
+    })
+    if (changed.status !== 'changed') return
+    expect(changed.record.composition.transitions.flatMap(transition => transition.participants)
+      .map(participant => participant.layerId)).toEqual([targetLayerId, targetLayerId])
     expect(validateShowRecordV2(reopen(changed.record))).toEqual([])
     expect(source).toEqual(before)
   })

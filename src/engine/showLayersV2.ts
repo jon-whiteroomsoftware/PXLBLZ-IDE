@@ -93,24 +93,28 @@ function validText(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
 }
 
+function layerReferenceKeyParts(kind: ShowLayerReassignmentV2['kind'], ...ids: string[]): string {
+  return JSON.stringify([kind, ...ids])
+}
+
 function layerReferenceKey(reassignment: ShowLayerReassignmentV2): string {
-  if (reassignment.kind === 'clip') return `clip:${reassignment.clipId}`
+  if (reassignment.kind === 'clip') return layerReferenceKeyParts('clip', reassignment.clipId)
   if (reassignment.kind === 'group-layer-binding') {
-    return `group-layer-binding:${reassignment.groupOccurrenceId}:${reassignment.definitionLayerId}`
+    return layerReferenceKeyParts('group-layer-binding', reassignment.groupOccurrenceId, reassignment.definitionLayerId)
   }
-  return `transition-participant:${reassignment.transitionId}:${reassignment.participantId}`
+  return layerReferenceKeyParts('transition-participant', reassignment.transitionId, reassignment.participantId)
 }
 
 function layerReferences(record: ShowRecordV2, layerId: string): LayerReference[] {
   const clips: LayerReference[] = record.composition.clips
     .filter(clip => clip.layerId === layerId)
-    .map(clip => ({ kind: 'clip', key: `clip:${clip.id}`, clipId: clip.id }))
+    .map(clip => ({ kind: 'clip', key: layerReferenceKeyParts('clip', clip.id), clipId: clip.id }))
   const bindings: LayerReference[] = record.composition.groupOccurrences.flatMap(occurrence => (
     occurrence.layerBindings
       .filter(binding => binding.layerId === layerId)
       .map(binding => ({
         kind: 'group-layer-binding' as const,
-        key: `group-layer-binding:${occurrence.id}:${binding.definitionLayerId}`,
+        key: layerReferenceKeyParts('group-layer-binding', occurrence.id, binding.definitionLayerId),
         groupOccurrenceId: occurrence.id,
         definitionLayerId: binding.definitionLayerId,
       }))
@@ -120,7 +124,7 @@ function layerReferences(record: ShowRecordV2, layerId: string): LayerReference[
       .filter(participant => participant.layerId === layerId)
       .map(participant => ({
         kind: 'transition-participant' as const,
-        key: `transition-participant:${transition.id}:${participant.id}`,
+        key: layerReferenceKeyParts('transition-participant', transition.id, participant.id),
         transitionId: transition.id,
         participantId: participant.id,
       }))

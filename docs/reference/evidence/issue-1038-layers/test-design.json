@@ -13,18 +13,21 @@
     "Rename changed versus exact no-op; reorder changed versus identical sparse-rank order; incomplete, duplicate and foreign Layer order.",
     "Empty Layer removal, ordinary Clip reference, Group binding reference, Transition participant reference, and the last empty Layer.",
     "Complete versus partial, duplicate, extraneous, cross-Zone and endpoint-incompatible reassignment plans.",
+    "Compound Group occurrence/definition-Layer and Transition/participant identity pairs whose colon-delimited spellings collide.",
     "Ordinary and held materialized-Group occupancy: one-millisecond overlap at 499 ms versus exact half-open adjacency at the held endpoint 500 ms.",
     "Fast and Precise generated output before and after opaque Layer reorder."
   ],
   "sequences": [
     "Add one empty named Layer, reorder the complete Zone stack, bind a Group occurrence, refuse removal without a plan, then explicitly rebind and remove it.",
     "Materialize a 200 ms Group occurrence with a 100 ms local hold into one child spanning [200,500), refuse reassignment beside a Clip starting at 499 ms, then accept the same plan beside a Clip starting at 500 ms.",
+    "Remove one Layer referenced by Group pairs (a:b,c) and (a,b:c), then by Transition pairs (a:b,c) and (a,b:c), preserving each independently addressed owner.",
     "Remove a Transition Layer with only endpoint Clip mappings, then with endpoint-incompatible complete mappings, then with all Clips and the participant mapped consistently.",
     "Rename and reorder through successive owner results, remove the empty Layer, serialize, reopen and validate.",
     "Compile and replay two opaque overlapping Layers, reorder their stable IDs, then observe the generated top color change in Fast and Precise modes."
   ],
   "oracles": [
     "Literal complete Layer order and rank, exact affected identity sets, input equality, changed-output non-aliasing and original-reference no-op/refusal.",
+    "Public Layer removal accepts both complete compound-ID plans and reopens with each intended Group binding or Transition participant moved exactly once.",
     "validateShowRecordV2 on every fixture and accepted result, including the validator's materialized Group collision pass.",
     "serializeProvisionalShowRecordV2 plus parseProvisionalShowRecordV2 reopen for accepted sequence endpoints.",
     "materializeShowGroupsV2 exposes the rebound child Layer and exact hold-extended duration while preserving Group definition, persisted holds and effective runtime identity.",
@@ -33,7 +36,7 @@
   "tddEvidence": [
     "Initial focused run failed because the new showLayersV2 public module did not exist.",
     "The first implementation run exposed two invalid Group test records with leaked top-level zoneId; correcting the consumer fixture produced a valid Group oracle before behavior assertions were accepted.",
-    "The focused public-owner suite passes 11 tests after adding sparse-order no-op, endpoint-incompatible Transition and held-Group boundary partitions."
+    "The delimiter-key implementation made both valid compound-ID plans refuse as duplicates; the public regressions failed before tuple encoding and pass in the 13-test owner suite after correction."
   ],
   "mutationEvidence": [
     "Bypassing complete candidate validation made both the ordinary/materialized-Group collision and Transition endpoint-incompatibility cases return changed; the two targeted tests failed and passed again after restoration.",
