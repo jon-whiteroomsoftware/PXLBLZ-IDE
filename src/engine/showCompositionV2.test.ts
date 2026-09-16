@@ -4,6 +4,7 @@ import {
   parseProvisionalShowRecordV2,
   serializeProvisionalShowRecordV2,
   validateShowRecordV2,
+  validateShowRecordV2Domain,
 } from './showCompositionV2'
 
 export function minimalShowRecordV2(): ShowRecordV2 {
@@ -293,6 +294,29 @@ describe('validateShowRecordV2', () => {
         path: '/composition/groupOccurrences/0', code: 'schema',
       })]),
     }))
+  })
+
+  it('refuses whitespace-only hold identities structurally and in the trusted domain validator without normalizing authored IDs', () => {
+    const record = minimalHeldGroupRecord()
+    record.composition.groupOccurrences[0].holds[0].id = ' \t '
+    const before = structuredClone(record)
+
+    expect(parseProvisionalShowRecordV2(JSON.stringify(record))).toEqual(expect.objectContaining({
+      status: 'refused',
+      issues: expect.arrayContaining([expect.objectContaining({
+        path: '/composition/groupOccurrences/0/holds/0/id', code: 'schema',
+      })]),
+    }))
+    expect(validateShowRecordV2Domain(record)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: 'composition.groupOccurrences[0].holds[0].id', code: 'missing-reference',
+      }),
+    ]))
+    expect(record).toEqual(before)
+
+    record.composition.groupOccurrences[0].holds[0].id = ' authored hold '
+    expect(parseProvisionalShowRecordV2(JSON.stringify(record))).toEqual({ status: 'opened', record })
+    expect(record.composition.groupOccurrences[0].holds[0].id).toBe(' authored hold ')
   })
 
   it.each([

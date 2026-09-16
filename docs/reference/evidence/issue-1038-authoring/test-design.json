@@ -9,27 +9,28 @@
     "The public Property Insert Time API and Group projection use one acyclic exact time-mapping kernel with unchanged public signatures."
   ],
   "partitions": [
-    "Missing or empty holds; one and multiple holds; blank/duplicate IDs; ordered, equal and unordered positions; positions at zero, strict interior and definition end; zero, positive, noninteger, unsafe and overflowing duration.",
+    "Missing or empty holds; one and multiple holds; empty, whitespace-only, authored-whitespace and duplicate IDs; ordered, equal and unordered positions; positions at zero, strict interior and definition end; zero, positive, noninteger, unsafe and overflowing duration.",
     "Child ending at, starting at, strictly spanning, before and after a hold; one hold and ordered multiple holds.",
     "Appearance key absent or exact at a hold; Property key inside a nonlinear segment, exact discontinuity and last active key.",
     "Internal Transition hold before the window, at start, strict interior and at end.",
     "Ordinary and Group instance-target owners with overlap and exact half-open adjacency.",
     "One continuously available Layout, retained Zone across a switch, unavailable Zone after a switch, collision and Show End overrun.",
     "Continue and Restart entry policies; explicit and default runtime bindings; Fast and Fidelity replay.",
-    "Ordinary short fixtures and a 60000 ms persisted Show without widening the millisecond domain."
+    "Ordinary short fixtures, a 60000 ms persisted Show, and safe-integer boundary arithmetic without widening the millisecond domain."
   ],
   "sequences": [
-    "Reopen valid held bytes, remove holds, then mutate every identity/order/range/duration partition and prove immutable refusal.",
+    "Reopen valid held bytes, remove holds, then mutate every identity/order/range/duration partition and prove immutable refusal; independently call the trusted domain validator for whitespace-only hold identity.",
     "Materialize two ordered holds through appearance and a quadratic Property track, reopen, and evaluate before, within and after both hold intervals.",
     "Map children ending and starting at one hold, compile the held Group and an independently authored ordinary-v2 record, reopen the generated artifact, and replay boundary probes in both runtimes.",
     "Move a hold from before an internal Transition to its start, interior and end; preserve the intact shift and refuse every detached participant window.",
     "Extend an occurrence across a Layout switch, retain then remove its Zone, and overrun Show End.",
     "Bind a Group instance track to an ordinary runtime with an active owner and refuse the materialized overlap without changing the candidate.",
-    "Derive Restart and effective-use information after holds and assert one mapped entry event on the same runtime."
+    "Derive Restart and effective-use information after holds and assert one mapped entry event on the same runtime.",
+    "Materialize two small holds against a definition duration of MAX_SAFE_INTEGER - 2 and prove the second Property insertion uses local time plus accumulated hold duration without an unsafe intermediate."
   ],
   "oracles": [
     "Provisional structural plus domain codec reopen, complete validation and exact input equality.",
-    "Complete materialized ordinary entities with independently calculated timestamps, durations, IDs, curve descriptors and evaluator values.",
+    "Complete materialized ordinary entities with independently calculated timestamps, durations, IDs, curve descriptors and evaluator values, including exact safe-integer Property boundary IDs.",
     "Public validateShowLayoutAvailabilityV2 output names the held Group occurrence and every unavailable Layout interval.",
     "Public prepareShowV2ForCompile output compiles; generated .epe reopens; exact quantized frames and state within 1e-12 floating association agree with the independent ordinary-v2 record in Fast and Fidelity.",
     "Public deriveShowRestartEventsV2 and effectiveShowInstanceUseCountV2 prove one entry event and unchanged runtime use.",
@@ -43,7 +44,8 @@
     "Create a Restart event during the hold or mint a new runtime during materialization.",
     "Validate only the occurrence start Layout and miss its hold-extended interval.",
     "Check conflicts before Group materialization and admit an overlapping effective instance target.",
-    "Retain a Transition whose mapped participant endpoints no longer match its unchanged duration."
+    "Retain a Transition whose mapped participant endpoints no longer match its unchanged duration.",
+    "Associate local time with the near-MAX definition duration before subtracting the definition duration, losing one millisecond to an unsafe floating-point intermediate."
   ],
   "mutationEvidence": [
     "The first extraction-aware qualification exposed two no-coverage arithmetic mutants in retained curveSegment offset mapping; a descriptor whose authored left time is nonzero made both signs observable.",

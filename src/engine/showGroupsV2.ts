@@ -117,12 +117,15 @@ export function materializeShowGroupsV2(record: ShowRecordV2): ShowRecordV2 {
       composition.transitions.push({ ...settings, id: `${occurrence.id}:${transition.id}`, participants: [{ id: `${occurrence.id}:${transition.id}:participant`, zoneId: occurrence.zoneId, layerId: layerId(from.layerId), fromClipId: clipId(fromPlacementId), toClipId: clipId(toPlacementId) }], propertyRamps: [] })
     }
     let definitionTracks = definition.propertyTracks
-    let localDurationMs = groupDuration(definition)
+    const definitionDurationMs = groupDuration(definition)
+    let accumulatedHoldDurationMs = 0
+    let localDurationMs = definitionDurationMs
     for (const hold of occurrence.holds) {
-      const atMs = hold.localTimeMs + localDurationMs - groupDuration(definition)
+      const atMs = hold.localTimeMs + accumulatedHoldDurationMs
       const inserted = insertTimeInPropertyTracksV2(definitionTracks, localDurationMs, atMs, hold.durationMs)
       if (inserted.status === 'refused') throw new Error(inserted.message)
       definitionTracks = inserted.propertyTracks
+      accumulatedHoldDurationMs += hold.durationMs
       localDurationMs += hold.durationMs
     }
     for (const track of definitionTracks) {

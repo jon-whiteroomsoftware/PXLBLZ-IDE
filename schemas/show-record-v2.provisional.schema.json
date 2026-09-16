@@ -615,7 +615,7 @@
     "ShowGroupOccurrenceHoldV2": {
       "type": "object",
       "properties": {
-        "id": { "$ref": "#/$defs/Id" },
+        "id": { "type": "string", "minLength": 1, "pattern": "\\S" },
         "localTimeMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
         "durationMs": { "$ref": "#/$defs/PositiveSafeInteger" }
       },

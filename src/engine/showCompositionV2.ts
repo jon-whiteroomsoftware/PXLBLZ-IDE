@@ -547,6 +547,16 @@ function validateUniqueNestedIds(
   })
   composition.groupOccurrences.forEach((occurrence, index) => {
     uniqueIndex(issues, `composition.groupOccurrences[${index}].holds`, occurrence.holds)
+    occurrence.holds.forEach((hold, holdIndex) => {
+      if (hold.id.trim().length === 0) {
+        addIssue(
+          issues,
+          `composition.groupOccurrences[${index}].holds[${holdIndex}].id`,
+          'missing-reference',
+          'Identity must contain a non-whitespace character.',
+        )
+      }
+    })
   })
 }
 

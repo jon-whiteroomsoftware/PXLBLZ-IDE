@@ -164,6 +164,48 @@ it('materializes ordered occurrence holds without stretching exact Property curv
   expect(effectiveShowInstanceUseCountV2(converted.record, 'occ-0:child')).toBe(1)
 })
 
+it('materializes a safe-integer Property boundary without an unsafe intermediate', () => {
+  const converted = convertShowRecordV1ToV2(groupShow())
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  const record = converted.record
+  const definitionDurationMs = Number.MAX_SAFE_INTEGER - 2
+  const definition = record.composition.groupDefinitions[0]
+  const occurrence = record.composition.groupOccurrences[0]
+  record.composition.showEndMs = Number.MAX_SAFE_INTEGER
+  record.composition.clips = []
+  record.composition.groupOccurrences = [occurrence]
+  record.composition.layoutOccurrences = [{
+    ...record.composition.layoutOccurrences[0], startMs: 0, durationMs: Number.MAX_SAFE_INTEGER,
+  }]
+  definition.clips[0].durationMs = definitionDurationMs
+  definition.propertyTracks[0].activeDurationMs = definitionDurationMs
+  definition.propertyTracks[0].keyframes = [
+    { id: 'first', timeMs: 0, value: 0.2, easing: { curve: 'linear' } },
+    { id: 'last', timeMs: definitionDurationMs, value: 0.8, easing: { curve: 'linear' } },
+  ]
+  occurrence.startMs = 0
+  delete occurrence.trackActivation
+  occurrence.holds = [
+    { id: 'first', localTimeMs: 1, durationMs: 1 },
+    { id: 'second', localTimeMs: 3, durationMs: 1 },
+  ]
+
+  const reopened = parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(record))
+  expect(reopened.status, JSON.stringify(reopened.status === 'refused' && reopened.issues)).toBe('opened')
+  if (reopened.status !== 'opened') return
+  const materialized = materializeShowGroupsV2(reopened.record)
+  const materializedTrack = materialized.composition.propertyTracks.find(track => track.id === 'occ-0:opacity')!
+
+  expect(materializedTrack.activeDurationMs).toBe(Number.MAX_SAFE_INTEGER)
+  expect(materializedTrack.keyframes.find(key => key.id === 'occ-0:opacity:hold:4')).toMatchObject({
+    timeMs: 4,
+  })
+  expect(materializedTrack.keyframes.some(key => key.id === 'occ-0:opacity:hold:3')).toBe(false)
+  expect(parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(materialized))).toEqual({
+    status: 'opened', record: materialized,
+  })
+})
+
 it('compiles and replays a held Group against an independently authored ordinary v2 record', () => {
   const converted = convertShowRecordV1ToV2(groupShow())
   if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
