@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1049",
+  "route": "/PXLBLZ-IDE/studio/shows/agent-refusal-proof-1049",
+  "operation": "Real codex-cli0.153.4 app-server MCP client accepted a Stage-map removal, received isError/refused for an empty rename, corrected the rename in the same private operation, and committed to applied/saved. The authenticated Playwright fixture asserted one working row with bounded issues and no final/unread outcome during refusal, then the same row saved with interim issues cleared. Reopening the saved Show confirmed both edits persisted. Synthetic test account only; real Worker/browser adoption and save, no simulated ACKs. Protocol qualified before #1048 identity changes.",
+  "captures": [
+    ".wrsp/ui-proof/1049-refusal-interim.png",
+    ".wrsp/ui-proof/1049-refusal-saved.png",
+    ".wrsp/ui-proof/1049-refusal-reopened.png"
+  ],
+  "capturedAtCommit": "8caa1a1e28a314e3ed95535782f01a161032cf6c"
+}
