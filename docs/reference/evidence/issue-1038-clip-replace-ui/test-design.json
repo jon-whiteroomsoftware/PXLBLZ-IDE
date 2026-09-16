@@ -14,7 +14,7 @@
       "PARITY"
     ]
   },
-  "base": "f73911cc017fe619f282ff2f224fafe01781d1ed",
+  "base": "6399856905cd8e1014de1dd0cc51d6aa311df7a5",
   "invariants": [
     "Caller submits source identity and complete fresh identities only; captured bundle/Library metadata owns public sliders/name.",
     "One replacement/history/provider save; sole runtime retained, effective shared users fork only selected ordinary Clip.",
@@ -58,6 +58,7 @@
     "focused": "8 files/74 tests passed, including six native Fast/Precise same-input/later-entry/invisible-survivor cases",
     "static": "project TypeScript/scoped ESLint/diff-check passed",
     "browser": "pending final committed-tip capture",
-    "layout": "Compact panel inherits inspector layout; required final desktop/narrow keyboard/control-bound capture will qualify unmapped-layout-sensitive advisory."
+    "layout": "Compact panel inherits inspector layout; required final desktop/narrow keyboard/control-bound capture will qualify unmapped-layout-sensitive advisory.",
+    "integration": "Three-commit suffix range-diff equivalent after rebase onto append-only adapter repair; production unchanged."
   }
 }
