@@ -53,6 +53,34 @@ export function minimalShowRecordV2(): ShowRecordV2 {
   }
 }
 
+function minimalHeldGroupRecord(): ShowRecordV2 {
+  const record = minimalShowRecordV2()
+  const instance = record.composition.patternInstances[0]
+  const appearance = structuredClone(record.composition.clips[0].appearance)
+  record.composition.clips = []
+  record.composition.groupDefinitions = [{
+    id: 'group',
+    name: 'Held Group',
+    patternInstances: [{ ...structuredClone(instance), id: 'child' }],
+    layers: [{ id: 'group-layer', name: 'Main', rank: 0 }],
+    clips: [{
+      id: 'child-clip', instanceId: 'child', layerId: 'group-layer', startMs: 0, durationMs: 400,
+      entryPolicy: 'continue', zoneSampleMode: 'span',
+      appearance: { keys: [{ ...appearance.keys[0], id: 'child-appearance', timeMs: 0 }] },
+    }],
+    transitions: [],
+    propertyTracks: [],
+  }]
+  record.composition.groupOccurrences = [{
+    id: 'occurrence', definitionId: 'group', layoutOccurrenceId: 'layout-occurrence', zoneId: 'zone',
+    startMs: 100, translationX: 0, translationY: 0,
+    instanceBindings: { child: 'instance' },
+    layerBindings: [{ definitionLayerId: 'group-layer', layerId: 'layer' }],
+    holds: [{ id: 'hold', localTimeMs: 200, durationMs: 100 }],
+  }]
+  return record
+}
+
 describe('validateShowRecordV2', () => {
   it('accepts a complete Scene-free Show and leaves its bytes unchanged', () => {
     const record = minimalShowRecordV2()
@@ -245,5 +273,46 @@ describe('validateShowRecordV2', () => {
 
     expect(parseProvisionalShowRecordV2(bytes)).toEqual({ status: 'opened', record })
     expect(parseProvisionalShowRecordV2('{')).toMatchObject({ status: 'refused', issues: [{ code: 'schema' }] })
+  })
+
+  it('reopens required ordered Group occurrence holds and refuses their omission', () => {
+    const record = minimalHeldGroupRecord()
+    record.composition.showEndMs = 60_000
+    record.composition.layoutOccurrences[0].durationMs = 60_000
+    record.composition.groupOccurrences[0].startMs = 30_000
+
+    expect(parseProvisionalShowRecordV2(JSON.stringify(record))).toEqual({ status: 'opened', record })
+
+    const withoutHolds = structuredClone(record) as unknown as {
+      composition: { groupOccurrences: Array<Record<string, unknown>> }
+    }
+    delete withoutHolds.composition.groupOccurrences[0].holds
+    expect(parseProvisionalShowRecordV2(JSON.stringify(withoutHolds))).toEqual(expect.objectContaining({
+      status: 'refused',
+      issues: expect.arrayContaining([expect.objectContaining({
+        path: '/composition/groupOccurrences/0', code: 'schema',
+      })]),
+    }))
+  })
+
+  it.each([
+    ['blank identity', (record: ShowRecordV2) => { record.composition.groupOccurrences[0].holds[0].id = '' }, '/composition/groupOccurrences/0/holds/0/id', 'schema'],
+    ['duplicate identity', (record: ShowRecordV2) => { record.composition.groupOccurrences[0].holds.push({ id: 'hold', localTimeMs: 300, durationMs: 10 }) }, 'composition.groupOccurrences[0].holds[1].id', 'duplicate-id'],
+    ['definition start', (record: ShowRecordV2) => { record.composition.groupOccurrences[0].holds[0].localTimeMs = 0 }, 'composition.groupOccurrences[0].holds[0].localTimeMs', 'out-of-bounds'],
+    ['definition end', (record: ShowRecordV2) => { record.composition.groupOccurrences[0].holds[0].localTimeMs = 400 }, 'composition.groupOccurrences[0].holds[0].localTimeMs', 'out-of-bounds'],
+    ['unordered time', (record: ShowRecordV2) => { record.composition.groupOccurrences[0].holds.unshift({ id: 'later', localTimeMs: 300, durationMs: 10 }) }, 'composition.groupOccurrences[0].holds[1].localTimeMs', 'out-of-bounds'],
+    ['zero duration', (record: ShowRecordV2) => { record.composition.groupOccurrences[0].holds[0].durationMs = 0 }, '/composition/groupOccurrences/0/holds/0/durationMs', 'schema'],
+    ['duration overflow', (record: ShowRecordV2) => { record.composition.groupOccurrences[0].holds[0].durationMs = Number.MAX_SAFE_INTEGER }, 'composition.groupOccurrences[0].holds', 'out-of-bounds'],
+  ] as const)('refuses Group occurrence hold %s without mutating authored input', (_name, change, path, code) => {
+    const record = minimalHeldGroupRecord()
+    change(record)
+    const before = JSON.stringify(record)
+    const result = parseProvisionalShowRecordV2(JSON.stringify(record))
+
+    expect(result).toEqual(expect.objectContaining({
+      status: 'refused',
+      issues: expect.arrayContaining([expect.objectContaining({ path, code })]),
+    }))
+    expect(JSON.stringify(record)).toBe(before)
   })
 })

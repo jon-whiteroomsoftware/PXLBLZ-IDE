@@ -559,6 +559,7 @@ describe('v2 property animation', () => {
       zoneId: base.zoneId, startMs: 1_200, translationX: 0, translationY: 0,
       instanceBindings: { 'child-instance': 'instance' },
       layerBindings: [{ definitionLayerId: 'group-layer', layerId: base.layerId }],
+      holds: [],
     }]
     source.composition.propertyTracks = [{
       id: 'speed', target: { kind: 'instance-time-scale', instanceId: 'instance' },
@@ -613,6 +614,7 @@ describe('v2 property animation', () => {
       zoneId: base.zoneId, startMs: 1_200, translationX: 0, translationY: 0,
       instanceBindings: { 'group-instance': 'instance' },
       layerBindings: [{ definitionLayerId: 'group-layer', layerId: base.layerId }],
+      holds: [],
     }]
     source.composition.propertyTracks = []
     expect(validateShowRecordV2(source)).toEqual([])
@@ -762,6 +764,7 @@ describe('v2 property animation', () => {
       zoneId: base.zoneId, startMs: 1_200, translationX: 0, translationY: 0,
       instanceBindings: { 'group-slot': 'replacement' },
       layerBindings: [{ definitionLayerId: 'group-layer', layerId: base.layerId }],
+      holds: [],
     }]
     expect(validateShowRecordV2(source)).toEqual([])
     const before = structuredClone(source)

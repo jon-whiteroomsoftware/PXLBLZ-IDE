@@ -1,9 +1,15 @@
-import { applyShowEasing } from './showEasing'
 import { validateShowRecordV2, type ShowClipV2, type ShowPropertyKeyframeV2, type ShowPropertyTrackV2, type ShowRecordV2 } from './showCompositionV2'
 import { effectiveShowInstanceUseCountV2, materializeShowGroupsV2 } from './showGroupsV2'
 import { propertyTrackIntervalsOverlap, sameShowInstancePropertyTargetV2 } from './showPropertyTrackConflictsV2'
+import {
+  evaluateShowPropertyKeysV2,
+  insertTimeInPropertyTracksV2,
+  type ShowInsertPropertyTimeResultV2,
+} from './showPropertyTrackTimeMappingV2'
 
 export { findNewShowInstancePropertyTrackConflictV2, findShowInstancePropertyTrackConflictsV2 } from './showPropertyTrackConflictsV2'
+export { evaluateShowPropertyKeysV2 } from './showPropertyTrackTimeMappingV2'
+export type { ShowInsertPropertyTimeResultV2 } from './showPropertyTrackTimeMappingV2'
 
 export type ShowClipPropertyTrackEditV2 =
   | { kind: 'move'; startMs: number }
@@ -14,11 +20,6 @@ export interface ShowClipPropertyTrackEditResultV2 {
   propertyTracks: ShowPropertyTrackV2[]
   affectedTrackIds: string[]
 }
-
-export type ShowInsertPropertyTimeResultV2 =
-  | { status: 'changed'; propertyTracks: ShowPropertyTrackV2[]; affectedTrackIds: string[] }
-  | { status: 'unchanged'; propertyTracks: ShowPropertyTrackV2[]; affectedTrackIds: [] }
-  | { status: 'refused'; propertyTracks: ShowPropertyTrackV2[]; affectedTrackIds: []; message: string }
 
 export type ShowPropertyKeyframeReauthorResultV2 =
   | { status: 'changed'; record: ShowRecordV2; affectedTrackIds: [string] }
@@ -91,27 +92,6 @@ export function evaluateShowPropertyTrackV2(
   const activeEndMs = track.activeStartMs + track.activeDurationMs
   if (atMs < track.activeStartMs || atMs >= activeEndMs) return undefined
   return evaluateShowPropertyKeysV2(track.keyframes, atMs)
-}
-
-export function evaluateShowPropertyKeysV2(
-  source: readonly ShowPropertyKeyframeV2[],
-  atMs: number,
-): number {
-  const keys = [...source].sort(compareKeys)
-  if (keys.length === 0) return 0
-  if (atMs <= keys[0].timeMs) return keys[0].value
-  const last = keys[keys.length - 1]
-  if (atMs >= last.timeMs) return last.value
-  const rightIndex = keys.findIndex(key => key.timeMs > atMs)
-  const left = keys[rightIndex - 1]
-  const right = keys[rightIndex]
-  if (left.curveSegment) {
-    const segment = left.curveSegment
-    const progress = (segment.elapsedOffsetMs + atMs - left.timeMs) / segment.sourceDurationMs
-    return segment.baseValue + segment.deltaValue * applyShowEasing(segment.easing, progress)
-  }
-  const progress = (atMs - left.timeMs) / (right.timeMs - left.timeMs)
-  return left.value + (right.value - left.value) * applyShowEasing(left.easing, progress)
 }
 
 /** Reauthor the ordinary segments adjacent to an explicitly edited key. */
@@ -218,26 +198,7 @@ export function insertTimeInShowPropertyTracksV2(
   atMs: number,
   durationMs: number,
 ): ShowInsertPropertyTimeResultV2 {
-  if (!Number.isSafeInteger(atMs) || !Number.isSafeInteger(durationMs)
-    || atMs < 0 || atMs > record.composition.showEndMs || durationMs <= 0
-    || !Number.isSafeInteger(record.composition.showEndMs + durationMs)) {
-    return { status: 'refused', propertyTracks: record.composition.propertyTracks, affectedTrackIds: [], message: 'Insert Time requires safe integer milliseconds inside Show time.' }
-  }
-  const affectedTrackIds: string[] = []
-  const propertyTracks = record.composition.propertyTracks.map(source => {
-    const activeEndMs = source.activeStartMs + source.activeDurationMs
-    if (activeEndMs <= atMs) return structuredClone(source)
-    affectedTrackIds.push(source.id)
-    if (source.activeStartMs >= atMs) return {
-      ...structuredClone(source),
-      activeStartMs: source.activeStartMs + durationMs,
-      keyframes: source.keyframes.map(key => ({ ...structuredClone(key), timeMs: key.timeMs + durationMs })),
-    }
-    return insertTrackHold(record, source, atMs, durationMs)
-  })
-  return affectedTrackIds.length === 0
-    ? { status: 'unchanged', propertyTracks: record.composition.propertyTracks, affectedTrackIds: [] }
-    : { status: 'changed', propertyTracks, affectedTrackIds }
+  return insertTimeInPropertyTracksV2(record.composition.propertyTracks, record.composition.showEndMs, atMs, durationMs)
 }
 
 /**
@@ -441,47 +402,6 @@ export function projectShowTransitionPropertyRampsV2(
 
 function sameTarget(left: ShowPropertyTrackV2['target'], right: ShowPropertyTrackV2['target']): boolean {
   return JSON.stringify(left) === JSON.stringify(right)
-}
-
-function insertTrackHold(
-  record: ShowRecordV2,
-  source: ShowPropertyTrackV2,
-  atMs: number,
-  durationMs: number,
-): ShowPropertyTrackV2 {
-  const keys = [...source.keyframes].sort(compareKeys)
-  const exact = keys.find(key => key.timeMs === atMs)
-  const value = evaluateShowPropertyKeysV2(keys, atMs)
-  const localIds = new Set(keys.map(key => key.id))
-  const shifted = keys.map(key => key.timeMs >= atMs
-    ? { ...structuredClone(key), timeMs: key.timeMs + durationMs }
-    : structuredClone(key))
-  if (exact) {
-    const holdId = freshKeyId(record, source, `${source.id}:hold:${atMs}`, localIds)
-    shifted.push({ id: holdId, timeMs: atMs, value, easing: { curve: 'linear' } })
-  } else {
-    const left = [...keys].reverse().find(key => key.timeMs < atMs)
-    const right = keys.find(key => key.timeMs > atMs)
-    if (left && right) {
-      const retainedLeft = shifted.find(key => key.id === left.id)!
-      if (!retainedLeft.curveSegment) retainedLeft.curveSegment = retainedSegment(left, right, left.timeMs)
-      const holdId = freshKeyId(record, source, `${source.id}:hold:${atMs}`, localIds)
-      localIds.add(holdId)
-      const resumeId = freshKeyId(record, source, `${source.id}:resume:${atMs + durationMs}`, localIds)
-      shifted.push(
-        { id: holdId, timeMs: atMs, value, easing: { curve: 'linear' } },
-        {
-          id: resumeId, timeMs: atMs + durationMs, value, easing: structuredClone(left.easing),
-          curveSegment: retainedSegment(left, right, atMs),
-        },
-      )
-    }
-  }
-  return {
-    ...structuredClone(source),
-    activeDurationMs: source.activeDurationMs + durationMs,
-    keyframes: shifted.sort(compareKeys),
-  }
 }
 
 function restrictTrack(

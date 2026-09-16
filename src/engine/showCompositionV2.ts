@@ -1,4 +1,4 @@
-import { groupDefinitionAsRecord, groupDuration, materializeShowGroupsV2 } from './showGroupsV2'
+import { groupDefinitionAsRecord, groupDuration, groupOccurrenceDuration, materializeShowGroupsV2 } from './showGroupsV2'
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv'
 import Ajv2020 from 'ajv/dist/2020'
 import draft07MetaSchemaText from 'ajv/dist/refs/json-schema-draft-07.json?raw'
@@ -162,6 +162,12 @@ export interface ShowGroupLayerBindingV2 {
   layerId: string
 }
 
+export interface ShowGroupOccurrenceHoldV2 {
+  id: string
+  localTimeMs: number
+  durationMs: number
+}
+
 export interface ShowGroupOccurrenceV2 {
   /** Omission shares definition instances; explicit bindings preserve independent runtimes. */
   instanceBindings?: Record<string, string>
@@ -175,6 +181,7 @@ export interface ShowGroupOccurrenceV2 {
   translationX: number
   translationY: number
   layerBindings: ShowGroupLayerBindingV2[]
+  holds: ShowGroupOccurrenceHoldV2[]
 }
 
 export interface ShowCompositionV2 {
@@ -538,6 +545,9 @@ function validateUniqueNestedIds(
   composition.transitions.forEach((transition, index) => {
     uniqueIndex(issues, `composition.transitions[${index}].participants`, transition.participants)
   })
+  composition.groupOccurrences.forEach((occurrence, index) => {
+    uniqueIndex(issues, `composition.groupOccurrences[${index}].holds`, occurrence.holds)
+  })
 }
 
 function validateNonnegativeTime(
@@ -740,7 +750,25 @@ function validateGroups(
       addIssue(issues, `${path}.layoutOccurrenceId`, 'missing-reference', 'Layout occurrence does not exist.')
     }
     if (definition) {
-      const endMs = safeAdd(occurrence.startMs, groupDuration(definition))
+      const definitionDurationMs = groupDuration(definition)
+      let previousHoldTimeMs = -1
+      occurrence.holds.forEach((hold, holdIndex) => {
+        const holdPath = `${path}.holds[${holdIndex}]`
+        validateNonnegativeTime(issues, `${holdPath}.localTimeMs`, hold.localTimeMs)
+        validatePositiveTime(issues, `${holdPath}.durationMs`, hold.durationMs)
+        if (hold.localTimeMs <= 0 || hold.localTimeMs >= definitionDurationMs) {
+          addIssue(issues, `${holdPath}.localTimeMs`, 'out-of-bounds', 'Group hold time must be strictly inside the definition duration.')
+        }
+        if (hold.localTimeMs <= previousHoldTimeMs) {
+          addIssue(issues, `${holdPath}.localTimeMs`, 'out-of-bounds', 'Group holds must be ordered by strictly increasing local time.')
+        }
+        previousHoldTimeMs = hold.localTimeMs
+      })
+      const durationMs = groupOccurrenceDuration(definition, occurrence)
+      if (!Number.isSafeInteger(durationMs)) {
+        addIssue(issues, `${path}.holds`, 'out-of-bounds', 'Group occurrence duration must be a safe integer.')
+      }
+      const endMs = safeAdd(occurrence.startMs, durationMs)
       const layout = context.occurrences.get(occurrence.layoutOccurrenceId)
       if (!layout
         || occurrence.startMs < layout.startMs

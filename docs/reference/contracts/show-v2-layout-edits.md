@@ -96,7 +96,8 @@ accepted domain edit from a bounded compiler-adapter refusal. The
 an occurrence split-position track with a retained nonlinear segment and compare
 Fast and Fidelity frames with the public Property evaluator.
 
-Group occurrence-local holds are owned by #1038. This owner consumes materialized
-Group contribution, so hold-aware duration and child projection must receive the
-same availability checks when that representation lands. Production Undo/Redo,
+Group occurrence-local holds are defined by the
+[Group hold contract](show-v2-group-holds.md). This owner consumes their
+materialized contribution, so extended occurrence duration and child projection
+receive the same complete availability checks. Production Undo/Redo,
 provider readback, `.pxlshow`/`.epe` route proof and UI remain integration work.

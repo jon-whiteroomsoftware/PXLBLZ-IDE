@@ -2,13 +2,17 @@ import { expect, it } from 'vitest'
 import { convertibleV1Show } from '../test/showV2TracerFixture'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
-import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2 } from './showCompositionV2'
+import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validateShowRecordV2 } from './showCompositionV2'
 import { showRecordToCompileRecipe } from './showModel'
 import { compileShow } from './showCompiler'
+import { createFastReplayRuntime } from './fastReplay'
+import { parseEpe } from './epeImport'
+import { buildShowEpeExport } from './showEpeExport'
 import { LIBRARIES } from '../pixelblaze/libs'
 import { materializeShowGroupOccurrences } from './showGroupModel'
-import { materializeShowGroupsV2 } from './showGroupsV2'
-import { evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
+import { effectiveShowInstanceUseCountV2, materializeShowGroupsV2 } from './showGroupsV2'
+import { deriveShowRestartEventsV2, evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
+import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 
 function groupShow() {
   const source = convertibleV1Show()
@@ -59,11 +63,12 @@ it('shares definition instances by default across linked occurrences', () => {
   expect(compileShow(prepared.recipe, LIBRARIES).code).toBe(compileShow(showRecordToCompileRecipe(expectedSource, expectedLookup), LIBRARIES).code)
 })
 
-it.each(['collision', 'binding', 'appearance', 'track', 'layout-crossing', 'runtime-conflict'] as const)('rejects invalid materialized Group state: %s', change => {
+it.each(['collision', 'hold-collision', 'binding', 'appearance', 'track', 'layout-crossing', 'runtime-conflict'] as const)('rejects invalid materialized Group state: %s', change => {
   const converted = convertShowRecordV1ToV2(groupShow())
   if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
   const composition = converted.record.composition
   if (change === 'collision') composition.groupOccurrences[1].startMs = 250
+  if (change === 'hold-collision') composition.groupOccurrences[0].holds = [{ id: 'overlap', localTimeMs: 100, durationMs: 300 }]
   if (change === 'binding') composition.groupOccurrences[0].layerBindings[0].layerId = 'missing'
   if (change === 'appearance') composition.groupDefinitions[0].clips[0].appearance.keys[0].timeMs = 1
   if (change === 'track') composition.groupDefinitions[0].propertyTracks[0].target = { kind: 'clip-opacity', clipId: 'missing' }
@@ -104,6 +109,261 @@ it('translates Group Transform curves together with held appearance', () => {
   expect(prepared.status, JSON.stringify(prepared.status === 'refused' && prepared.issues)).toBe('ready')
   if (prepared.status !== 'ready') return
   expect(compileShow(prepared.recipe, LIBRARIES).code).toBe(compileShow(showRecordToCompileRecipe(source, lookup), LIBRARIES).code)
+})
+
+it('materializes ordered occurrence holds without stretching exact Property curves or changing shared identity', () => {
+  const converted = convertShowRecordV1ToV2(groupShow())
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  const definition = converted.record.composition.groupDefinitions[0]
+  const occurrence = converted.record.composition.groupOccurrences[0]
+  converted.record.composition.groupOccurrences = [occurrence]
+  const child = definition.clips[0]
+  const authoredAppearanceId = `${child.id}:appearance:at-100`
+  child.appearance.keys.push({
+    ...structuredClone(child.appearance.keys[0]),
+    id: authoredAppearanceId,
+    timeMs: 100,
+    value: { ...structuredClone(child.appearance.keys[0].value), opacity: 0.25 },
+  })
+  definition.propertyTracks[0].keyframes[0].easing = { curve: 'quadratic', direction: 'in' }
+  occurrence.holds = [
+    { id: 'first-hold', localTimeMs: 50, durationMs: 25 },
+    { id: 'exact-key-hold', localTimeMs: 100, durationMs: 100 },
+  ]
+  const before = structuredClone(converted.record)
+
+  const materialized = materializeShowGroupsV2(converted.record)
+  const reopened = parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(materialized))
+  expect(reopened.status, JSON.stringify(reopened.status === 'refused' && reopened.issues)).toBe('opened')
+  if (reopened.status !== 'opened') return
+  const materializedClip = reopened.record.composition.clips.find(candidate => candidate.id === 'occ-0:pulse')!
+  const materializedTrack = reopened.record.composition.propertyTracks.find(candidate => candidate.id === 'occ-0:opacity')!
+
+  expect(materializedClip).toMatchObject({ startMs: 200, durationMs: 325, instanceId: 'occ-0:child' })
+  expect(materializedClip.appearance.keys.map(key => [key.id, key.timeMs, key.value.opacity])).toEqual([
+    ['occ-0:pulse:appearance:1', 200, 0.5],
+    ['occ-0:pulse:appearance:hold:first-hold', 250, 0.5],
+    ['occ-0:pulse:appearance:hold:exact-key-hold', 325, 0.25],
+    [`occ-0:${authoredAppearanceId}`, 425, 0.25],
+  ])
+  expect(evaluateShowPropertyTrackV2(materializedTrack, 260)).toBeCloseTo(0.2375)
+  expect(evaluateShowPropertyTrackV2(materializedTrack, 350)).toBeCloseTo(0.35)
+  expect(evaluateShowPropertyTrackV2(materializedTrack, 450)).toBeCloseTo(0.434375)
+  expect(materializedTrack.keyframes.find(key => key.id === 'occ-0:first')?.timeMs).toBe(200)
+  expect(materializedTrack.keyframes.find(key => key.id === 'occ-0:last')?.timeMs).toBe(525)
+  expect(converted.record).toEqual(before)
+  expect(materialized.composition.patternInstances.map(instance => instance.id)).toEqual(
+    expect.arrayContaining(converted.record.composition.patternInstances.map(instance => instance.id)),
+  )
+
+  definition.clips[0].entryPolicy = 'restart'
+  expect(deriveShowRestartEventsV2(converted.record)).toMatchObject({
+    status: 'derived',
+    events: [{ instanceId: 'occ-0:child', atMs: 200, clipIds: ['occ-0:pulse'] }],
+  })
+  expect(effectiveShowInstanceUseCountV2(converted.record, 'occ-0:child')).toBe(1)
+})
+
+it('compiles and replays a held Group against an independently authored ordinary v2 record', () => {
+  const converted = convertShowRecordV1ToV2(groupShow())
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  const held = converted.record
+  const definition = held.composition.groupDefinitions[0]
+  const occurrence = held.composition.groupOccurrences[0]
+  held.composition.groupOccurrences = [occurrence]
+  const first = definition.clips[0]
+  first.durationMs = 100
+  definition.clips.push({
+    ...structuredClone(first), id: 'answer', startMs: 100,
+    appearance: { keys: [{ ...structuredClone(first.appearance.keys[0]), id: 'answer:appearance', timeMs: 100 }] },
+  })
+  definition.propertyTracks[0].target = { kind: 'instance-time-scale', instanceId: 'child' }
+  definition.propertyTracks[0].keyframes[0].easing = { curve: 'quadratic', direction: 'in' }
+  occurrence.holds = [{ id: 'gap-hold', localTimeMs: 100, durationMs: 100 }]
+
+  const expected = structuredClone(held)
+  expected.composition.groupDefinitions = []
+  expected.composition.groupOccurrences = []
+  expected.composition.patternInstances.push({ ...structuredClone(definition.patternInstances[0]), id: 'occ-0:child' })
+  const layerId = occurrence.layerBindings[0].layerId
+  const appearanceValue = {
+    opacity: 0.5,
+    view: { mirror: false, phase: 0, brightness: 1 },
+    effects: [],
+    transform: { positionX: 0, positionY: 0, rotation: 0, scaleX: 1, scaleY: 1 },
+  }
+  expected.composition.clips.push(
+    {
+      id: 'occ-0:pulse', instanceId: 'occ-0:child', zoneId: 'zone', layerId,
+      startMs: 200, durationMs: 100, entryPolicy: 'continue', zoneSampleMode: 'span',
+      appearance: { keys: [{ id: 'occ-0:pulse:appearance:1', timeMs: 200, value: structuredClone(appearanceValue) }] },
+    },
+    {
+      id: 'occ-0:answer', instanceId: 'occ-0:child', zoneId: 'zone', layerId,
+      startMs: 400, durationMs: 100, entryPolicy: 'continue', zoneSampleMode: 'span',
+      appearance: { keys: [{ id: 'occ-0:answer:appearance', timeMs: 400, value: structuredClone(appearanceValue) }] },
+    },
+  )
+  expected.composition.propertyTracks.push({
+    id: 'occ-0:opacity', target: { kind: 'instance-time-scale', instanceId: 'occ-0:child' },
+    activeStartMs: 200, activeDurationMs: 300,
+    keyframes: [
+      {
+        id: 'occ-0:first', timeMs: 200, value: 0.2, easing: { curve: 'quadratic', direction: 'in' },
+        curveSegment: { baseValue: 0.2, deltaValue: 0.6, easing: { curve: 'quadratic', direction: 'in' }, sourceDurationMs: 200, elapsedOffsetMs: 0 },
+      },
+      { id: 'occ-0:opacity:hold:100', timeMs: 300, value: 0.35, easing: { curve: 'linear' } },
+      {
+        id: 'occ-0:opacity:resume:200', timeMs: 400, value: 0.35, easing: { curve: 'quadratic', direction: 'in' },
+        curveSegment: { baseValue: 0.2, deltaValue: 0.6, easing: { curve: 'quadratic', direction: 'in' }, sourceDurationMs: 200, elapsedOffsetMs: 100 },
+      },
+      { id: 'occ-0:last', timeMs: 500, value: 0.8, easing: { curve: 'linear' } },
+    ],
+  })
+  const reopened = parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(held))
+  const expectedReopened = parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(expected))
+  expect(reopened.status).toBe('opened')
+  expect(expectedReopened.status).toBe('opened')
+  if (reopened.status !== 'opened' || expectedReopened.status !== 'opened') return
+
+  const preparedHeld = prepareShowV2ForCompile(reopened.record, lookup)
+  const preparedExpected = prepareShowV2ForCompile(expectedReopened.record, lookup)
+  expect(preparedHeld.status, JSON.stringify(preparedHeld.status === 'refused' && preparedHeld.issues)).toBe('ready')
+  expect(preparedExpected.status, JSON.stringify(preparedExpected.status === 'refused' && preparedExpected.issues)).toBe('ready')
+  if (preparedHeld.status !== 'ready' || preparedExpected.status !== 'ready') return
+  const heldArtifact = compileShow(preparedHeld.recipe, LIBRARIES)
+  const expectedArtifact = compileShow(preparedExpected.recipe, LIBRARIES)
+  const reopenedArtifact = parseEpe(buildShowEpeExport(groupShow(), heldArtifact.code, {
+    id: 'issue-1038-group-hold', stampedAt: '2026-09-15T00:00:00.000Z',
+  }).text)
+  expect(reopenedArtifact).toMatchObject({ stamp: { kind: 'show' } })
+  expect(reopenedArtifact.src).toContain(heldArtifact.code)
+  for (const fidelity of ['fast', 'fidelity'] as const) {
+    const runtimeOptions = {
+      randomSeed: 1038,
+      fidelity,
+      mapPoints: [0, 0.5, 1].map(x => ({ sample: [x, 0.5] as [number, number], pos: [x, 0.5] as [number, number] })),
+    }
+    const heldRuntime = createFastReplayRuntime({ ...heldArtifact, code: reopenedArtifact.src, dimension: 2 }, runtimeOptions)
+    const expectedRuntime = createFastReplayRuntime({ ...expectedArtifact, dimension: 2 }, runtimeOptions)
+    for (const [index, atMs] of [0, 199, 200, 299, 300, 399, 400, 499, 500, 999].entries()) {
+      const options = { stepMs: 1, forceFullIntermediateRender: true }
+      const actual = index === 0 ? heldRuntime.renderCurrentFrame() : heldRuntime.advanceTo(atMs, options)
+      const oracle = index === 0 ? expectedRuntime.renderCurrentFrame() : expectedRuntime.advanceTo(atMs, options)
+      expect(Array.from(actual.frame), `${fidelity} frame at ${atMs}`).toEqual(Array.from(oracle.frame))
+      expect(Object.keys(actual.exports), `${fidelity} state keys at ${atMs}`).toEqual(Object.keys(oracle.exports))
+      for (const [name, expectedValue] of Object.entries(oracle.exports)) {
+        const actualValue = actual.exports[name]
+        if (typeof actualValue === 'number' && typeof expectedValue === 'number') {
+          expect(actualValue, `${fidelity} ${name} at ${atMs}`).toBeCloseTo(expectedValue, 12)
+        } else {
+          expect(actualValue, `${fidelity} ${name} at ${atMs}`).toEqual(expectedValue)
+        }
+      }
+    }
+  }
+})
+
+it('refuses holds that enter or detach an internal Transition window and accepts a complete shifted window', () => {
+  const converted = convertShowRecordV1ToV2(groupShow())
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  const record = converted.record
+  const definition = record.composition.groupDefinitions[0]
+  const first = definition.clips[0]
+  first.durationMs = 100
+  definition.clips.push({
+    ...structuredClone(first), id: 'answer', startMs: 200, durationMs: 100,
+    appearance: { keys: [{ ...structuredClone(first.appearance.keys[0]), id: 'answer:appearance', timeMs: 200 }] },
+  })
+  definition.propertyTracks = []
+  definition.transitions = [{
+    id: 'local-crossfade', fromPlacementId: 'pulse', toPlacementId: 'answer', kind: 'crossfade',
+    durationMs: 100, easing: { curve: 'linear' }, crossfadePolicy: 'live-live',
+  }]
+  record.composition.groupOccurrences = [record.composition.groupOccurrences[0]]
+  const occurrence = record.composition.groupOccurrences[0]
+  const before = structuredClone(record)
+
+  occurrence.holds = [{ id: 'before-window', localTimeMs: 50, durationMs: 25 }]
+  expect(validateShowRecordV2(record)).toEqual([])
+  const shifted = materializeShowGroupsV2(record)
+  expect(shifted.composition.transitions).toHaveLength(1)
+  expect(shifted.composition.clips.filter(clip => clip.id.startsWith('occ-0:')).map(clip => (
+    [clip.id, clip.startMs, clip.durationMs]
+  ))).toEqual([
+    ['occ-0:pulse', 200, 125],
+    ['occ-0:answer', 425, 100],
+  ])
+
+  for (const localTimeMs of [100, 150, 200]) {
+    occurrence.holds = [{ id: `blocked-${localTimeMs}`, localTimeMs, durationMs: 25 }]
+    const beforeRefusal = structuredClone(record)
+    expect(validateShowRecordV2(record)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: expect.stringContaining('materialized.composition.transitions') }),
+    ]))
+    expect(record).toEqual(beforeRefusal)
+  }
+  expect(before.composition.groupDefinitions).toEqual(record.composition.groupDefinitions)
+})
+
+it('uses extended occurrence duration for Show End and every intersected Layout availability interval', () => {
+  const converted = convertShowRecordV1ToV2(groupShow())
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  const record = converted.record
+  record.composition.clips = []
+  record.composition.groupOccurrences = [record.composition.groupOccurrences[0]]
+  record.composition.groupOccurrences[0].holds = [{ id: 'extension', localTimeMs: 100, durationMs: 100 }]
+  record.zones.push({ id: 'elsewhere', name: 'Elsewhere', nominalPixelCount: 16 })
+  record.zoneLayouts.push({ id: 'elsewhere-layout', name: 'Elsewhere', zones: [], logical: { kind: 'single', zoneIds: ['elsewhere'] } })
+  record.composition.layoutOccurrences = [
+    { ...record.composition.layoutOccurrences[0], durationMs: 450 },
+    { id: 'elsewhere-use', layoutId: 'elsewhere-layout', startMs: 450, durationMs: 550, parameters: {} },
+  ]
+
+  expect(validateShowRecordV2(record)).toEqual(expect.arrayContaining([
+    expect.objectContaining({ path: 'composition.groupOccurrences[0]', message: expect.stringContaining('unavailable') }),
+  ]))
+  expect(validateShowLayoutAvailabilityV2(record)).toEqual(expect.arrayContaining([
+    expect.objectContaining({ entityKind: 'group-occurrence', entityId: 'occ-0', layoutOccurrenceId: 'elsewhere-use' }),
+  ]))
+  record.composition.layoutOccurrences[0].durationMs = 500
+  record.composition.layoutOccurrences[1].startMs = 500
+  record.composition.layoutOccurrences[1].durationMs = 500
+  expect(validateShowRecordV2(record)).toEqual([])
+  expect(validateShowLayoutAvailabilityV2(record)).toEqual([])
+
+  record.composition.groupOccurrences[0].holds[0].durationMs = 701
+  expect(validateShowRecordV2(record)).toEqual(expect.arrayContaining([
+    expect.objectContaining({ path: 'composition.groupOccurrences[0]', message: expect.stringContaining('Show End') }),
+  ]))
+})
+
+it('refuses a held Group instance track that overlaps an ordinary effective owner', () => {
+  const converted = convertShowRecordV1ToV2(groupShow())
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  const record = converted.record
+  record.composition.groupOccurrences = [record.composition.groupOccurrences[0]]
+  const occurrence = record.composition.groupOccurrences[0]
+  occurrence.instanceBindings = { child: 'instance' }
+  occurrence.holds = [{ id: 'hold', localTimeMs: 100, durationMs: 100 }]
+  record.composition.groupDefinitions[0].propertyTracks[0].target = { kind: 'instance-time-scale', instanceId: 'child' }
+  record.composition.propertyTracks = [{
+    id: 'ordinary-owner', target: { kind: 'instance-time-scale', instanceId: 'instance' },
+    activeStartMs: 250, activeDurationMs: 100,
+    keyframes: [
+      { id: 'ordinary-start', timeMs: 250, value: 1, easing: { curve: 'linear' } },
+      { id: 'ordinary-end', timeMs: 350, value: 1, easing: { curve: 'linear' } },
+    ],
+  }]
+  const before = structuredClone(record)
+
+  expect(validateShowRecordV2(record)).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      path: expect.stringContaining('materialized.composition.propertyTracks'),
+      message: expect.stringContaining('overlaps active owner'),
+    }),
+  ]))
+  expect(record).toEqual(before)
 })
 
 it.each([

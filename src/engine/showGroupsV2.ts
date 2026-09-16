@@ -1,9 +1,14 @@
 import type { ShowGroupDefinition, ShowGroupOccurrence, ShowPatternInstance, ShowRecord } from './personalContentRecords'
 import type { ShowClipV2, ShowGroupDefinitionV2, ShowGroupOccurrenceV2, ShowPropertyTargetV2, ShowRecordV2 } from './showCompositionV2'
+import { insertTimeInPropertyTracksV2 } from './showPropertyTrackTimeMappingV2'
 import { clipAppearance, convertPropertyTarget } from './showV2ValueConversion'
 
 export function groupDuration(definition: ShowGroupDefinitionV2): number {
   return Math.max(0, ...definition.clips.map(clip => clip.startMs + clip.durationMs))
+}
+
+export function groupOccurrenceDuration(definition: ShowGroupDefinitionV2, occurrence: ShowGroupOccurrenceV2): number {
+  return occurrence.holds.reduce((durationMs, hold) => durationMs + hold.durationMs, groupDuration(definition))
 }
 
 /** Return the ordinary Clips that execute after expanding every Group occurrence. */
@@ -54,6 +59,7 @@ export function convertGroupOccurrence(
   return {
     id: occurrence.id, definitionId: occurrence.definitionId, layoutOccurrenceId: layout.id, zoneId: occurrence.zoneId,
     startMs, translationX: occurrence.translationX, translationY: occurrence.translationY,
+    holds: [],
     instanceBindings: Object.fromEntries(definition.patternInstances.map(instance => [instance.id, `${occurrence.id}:${instance.id}`])),
     trackActivation: { startMs: sceneStartMs - incoming, durationMs: source.scenes[sceneIndex].durationMs + incoming + outgoing },
     layerBindings: definition.layers.map(layer => {
@@ -91,15 +97,17 @@ export function materializeShowGroupsV2(record: ShowRecordV2): ShowRecordV2 {
     const clipId = (id: string) => `${occurrence.id}:${id}`
     const layerId = (id: string) => occurrence.layerBindings.find(binding => binding.definitionLayerId === id)!.layerId
     for (const child of definition.clips) {
+      const startMs = occurrenceBoundaryAfter(occurrence, child.startMs)
+      const endMs = occurrenceBoundaryBefore(occurrence, child.startMs + child.durationMs)
       composition.clips.push({
         ...structuredClone(child), id: clipId(child.id), instanceId: instanceId(child.instanceId), zoneId: occurrence.zoneId,
-        layerId: layerId(child.layerId), startMs: occurrence.startMs + child.startMs,
-        appearance: { keys: child.appearance.keys.map(key => {
+        layerId: layerId(child.layerId), startMs, durationMs: endMs - startMs,
+        appearance: { keys: materializeOccurrenceAppearanceKeys(child, occurrence).map(key => {
           const value = structuredClone(key.value)
           const transform = value.transform ?? { positionX: 0, positionY: 0, rotation: 0, scaleX: 1, scaleY: 1 }
           value.transform = { ...transform, positionX: transform.positionX + occurrence.translationX, positionY: transform.positionY + occurrence.translationY }
           if (value.aperture?.enabled) value.aperture = { ...value.aperture, x: value.aperture.x + occurrence.translationX, y: value.aperture.y + occurrence.translationY }
-          return { id: `${occurrence.id}:${key.id}`, timeMs: occurrence.startMs + key.timeMs, value }
+          return { ...key, id: `${occurrence.id}:${key.id}`, value }
         }) },
       })
     }
@@ -108,7 +116,16 @@ export function materializeShowGroupsV2(record: ShowRecordV2): ShowRecordV2 {
       const { fromPlacementId, toPlacementId, ...settings } = structuredClone(transition)
       composition.transitions.push({ ...settings, id: `${occurrence.id}:${transition.id}`, participants: [{ id: `${occurrence.id}:${transition.id}:participant`, zoneId: occurrence.zoneId, layerId: layerId(from.layerId), fromClipId: clipId(fromPlacementId), toClipId: clipId(toPlacementId) }], propertyRamps: [] })
     }
-    for (const track of definition.propertyTracks) {
+    let definitionTracks = definition.propertyTracks
+    let localDurationMs = groupDuration(definition)
+    for (const hold of occurrence.holds) {
+      const atMs = hold.localTimeMs + localDurationMs - groupDuration(definition)
+      const inserted = insertTimeInPropertyTracksV2(definitionTracks, localDurationMs, atMs, hold.durationMs)
+      if (inserted.status === 'refused') throw new Error(inserted.message)
+      definitionTracks = inserted.propertyTracks
+      localDurationMs += hold.durationMs
+    }
+    for (const track of definitionTracks) {
       const target: ShowPropertyTargetV2 = 'clipId' in track.target ? { ...track.target, clipId: clipId(track.target.clipId) }
         : 'instanceId' in track.target ? { ...track.target, instanceId: instanceId(track.target.instanceId) } : structuredClone(track.target)
       const activation = occurrence.trackActivation ?? { startMs: occurrence.startMs + track.activeStartMs, durationMs: track.activeDurationMs }
@@ -137,6 +154,39 @@ export function materializeShowGroupsV2(record: ShowRecordV2): ShowRecordV2 {
   composition.groupDefinitions = []
   composition.groupOccurrences = []
   return expanded
+}
+
+function occurrenceBoundaryBefore(occurrence: ShowGroupOccurrenceV2, localTimeMs: number): number {
+  return occurrence.startMs + localTimeMs + occurrence.holds.reduce((offsetMs, hold) => (
+    hold.localTimeMs < localTimeMs ? offsetMs + hold.durationMs : offsetMs
+  ), 0)
+}
+
+function occurrenceBoundaryAfter(occurrence: ShowGroupOccurrenceV2, localTimeMs: number): number {
+  return occurrence.startMs + localTimeMs + occurrence.holds.reduce((offsetMs, hold) => (
+    hold.localTimeMs <= localTimeMs ? offsetMs + hold.durationMs : offsetMs
+  ), 0)
+}
+
+function materializeOccurrenceAppearanceKeys(
+  child: ShowGroupDefinitionV2['clips'][number],
+  occurrence: ShowGroupOccurrenceV2,
+): ShowGroupDefinitionV2['clips'][number]['appearance']['keys'] {
+  const source = [...child.appearance.keys].sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
+  const usedIds = new Set(source.map(key => key.id))
+  const keys = source.map(key => ({ ...structuredClone(key), timeMs: occurrenceBoundaryAfter(occurrence, key.timeMs) }))
+  for (const hold of occurrence.holds) {
+    if (hold.localTimeMs <= child.startMs || hold.localTimeMs >= child.startMs + child.durationMs) continue
+    const valueAtHold = [...source].reverse().find(key => key.timeMs <= hold.localTimeMs)?.value ?? source[0]?.value
+    if (!valueAtHold) continue
+    const base = `${child.id}:appearance:hold:${hold.id}`
+    let id = base
+    let suffix = 2
+    while (usedIds.has(id)) id = `${base}:${suffix++}`
+    usedIds.add(id)
+    keys.push({ id, timeMs: occurrenceBoundaryBefore(occurrence, hold.localTimeMs), value: structuredClone(valueAtHold) })
+  }
+  return keys.sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
 }
 
 /** Checks every source payload field against the authored representation. */

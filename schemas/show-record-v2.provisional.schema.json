@@ -593,6 +593,10 @@
           "type": "array",
           "items": { "$ref": "#/$defs/ShowGroupLayerBindingV2" },
           "minItems": 1
+        },
+        "holds": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ShowGroupOccurrenceHoldV2" }
         }
       },
       "required": [
@@ -603,8 +607,19 @@
         "startMs",
         "translationX",
         "translationY",
-        "layerBindings"
+        "layerBindings",
+        "holds"
       ],
+      "additionalProperties": false
+    },
+    "ShowGroupOccurrenceHoldV2": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "localTimeMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
+        "durationMs": { "$ref": "#/$defs/PositiveSafeInteger" }
+      },
+      "required": ["id", "localTimeMs", "durationMs"],
       "additionalProperties": false
     },
     "ShowGroupLayerBindingV2": {

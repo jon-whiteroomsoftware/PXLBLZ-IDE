@@ -279,19 +279,19 @@ const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
   ),
   target(
     'animation-edit',
-    'showPropertyAnimationV2.ts',
+    'showPropertyTrackTimeMappingV2.ts',
     'evaluateShowPropertyKeysV2',
     'const progress = (segment.elapsedOffsetMs + atMs - left.timeMs) / segment.sourceDurationMs',
   ),
   target(
     'animation-edit',
-    'showPropertyAnimationV2.ts',
+    'showPropertyTrackTimeMappingV2.ts',
     'retainedSegment',
     'elapsedOffsetMs: left.curveSegment.elapsedOffsetMs + startMs - left.timeMs',
   ),
   target(
     'animation-edit',
-    'showPropertyAnimationV2.ts',
+    'showPropertyTrackTimeMappingV2.ts',
     'insertTrackHold',
     'const shifted = keys.map(key => key.timeMs >= atMs',
   ),
@@ -377,6 +377,7 @@ export function buildStrykerConfig(repoRoot: string) {
       'src/engine/showCommands/bulkAuthoring.test.ts',
       'src/engine/showCommands/bulkAuthoring.partitions.test.ts',
       'src/engine/showPropertyAnimationV2.test.ts',
+      'src/engine/showPropertyTrackTimeMappingV2.test.ts',
     ],
     vitest: {
       configFile: 'vitest.mutation.config.ts',

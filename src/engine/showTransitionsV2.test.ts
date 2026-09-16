@@ -396,6 +396,7 @@ describe('v2 Transition ownership', () => {
       zoneId: 'zone', startMs: 800, translationX: 0, translationY: 0,
       instanceBindings: { 'group-slot': incoming.instanceId },
       layerBindings: [{ definitionLayerId: 'group-layer', layerId: overlayLayer.id }],
+      holds: [],
     }]
     source.composition.propertyTracks = [{
       id: 'shared-instance-track', target: { kind: 'instance-time-scale', instanceId: incoming.instanceId },

@@ -457,6 +457,7 @@ describe('first-class Layout occurrence edits', () => {
       id: 'group-use', definitionId: 'group', layoutOccurrenceId: 'first', zoneId: 'left',
       startMs: 200, translationX: 0, translationY: 0,
       layerBindings: [{ definitionLayerId: 'group-layer', layerId: 'left-layer' }],
+      holds: [],
     }]
     expect(validateShowRecordV2(record)).toEqual([])
 

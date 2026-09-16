@@ -115,6 +115,7 @@ describe('v2 ordinary Show import planning', () => {
       translationY: 0,
       instanceBindings: { 'group-instance': 'group-runtime' },
       layerBindings: [{ definitionLayerId: 'group-layer', layerId: 'group-target-layer' }],
+      holds: [],
     }]
     show.stageMapId = 'custom-map'
     show.outputContract = {

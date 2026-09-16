@@ -1100,6 +1100,7 @@ describe('lowerShowCompositionV2ForCompile', () => {
         zoneId: base.zoneId, startMs: 1_200, translationX: 0, translationY: 0,
         instanceBindings: { 'group-instance': base.instanceId },
         layerBindings: [{ definitionLayerId: 'group-layer', layerId: base.layerId }],
+        holds: [],
       }]
       const lookup = { byCellId: {}, byPatternInstanceId: { [base.instanceId]: STATEFUL_SOURCE }, stageDimension: 2 as const }
 
