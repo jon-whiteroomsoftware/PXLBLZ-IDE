@@ -1,6 +1,6 @@
 import { validateShowRecordV2, type ShowClipV2, type ShowPropertyKeyframeV2, type ShowPropertyTrackV2, type ShowRecordV2 } from './showCompositionV2'
 import { effectiveShowInstanceUseCountV2, materializeShowGroupsV2 } from './showGroupsV2'
-import { propertyTrackIntervalsOverlap, sameShowInstancePropertyTargetV2 } from './showPropertyTrackConflictsV2'
+import { findShowInstancePropertyTrackConflictsV2, propertyTrackIntervalsOverlap, sameShowInstancePropertyTargetV2 } from './showPropertyTrackConflictsV2'
 import {
   evaluateShowPropertyKeysV2,
   insertTimeInPropertyTracksV2,
@@ -282,19 +282,45 @@ export function copyShowInstancePropertyTracksV2(
   const copiedTrackIds: string[] = []
   const usedTrackIds = new Set(effectiveTracks.map(track => track.id))
   const usedKeyIds = new Set(effectiveTracks.flatMap(track => track.keyframes.map(key => key.id)))
-  for (const source of record.composition.propertyTracks) {
+  const existingConflict = findShowInstancePropertyTrackConflictsV2(effectiveTracks)[0]
+  if (existingConflict) {
+    return {
+      status: 'refused', propertyTracks: record.composition.propertyTracks, copiedTrackIds: [], discardedTargets: [],
+      message: `Instance animation tracks "${existingConflict.trackIds[0]}" and "${existingConflict.trackIds[1]}" overlap for the same effective target.`,
+    }
+  }
+  const retainedSources: ShowPropertyTrackV2[] = []
+  for (const source of effectiveTracks) {
     if (!('instanceId' in source.target) || source.target.instanceId !== fromInstanceId) continue
     if (source.target.kind === 'instance-control' && compatible && !compatible.has(source.target.exportName)) {
       discardedTargets.push(structuredClone(source.target))
       continue
     }
+    retainedSources.push(source)
+  }
+  const plannedSourceIds = Object.keys(intent.identitiesBySourceTrackId).sort()
+  const retainedSourceIds = retainedSources.map(track => track.id).sort()
+  if (new Set(retainedSourceIds).size !== retainedSourceIds.length
+    || JSON.stringify(plannedSourceIds) !== JSON.stringify(retainedSourceIds)) {
+    return {
+      status: 'refused', propertyTracks: record.composition.propertyTracks, copiedTrackIds: [], discardedTargets: [],
+      message: 'Track copying requires an exact identity plan for every retained effective source track.',
+    }
+  }
+  for (const source of retainedSources) {
+    if (source.target.kind !== 'instance-time-scale' && source.target.kind !== 'instance-control') {
+      return {
+        status: 'refused', propertyTracks: record.composition.propertyTracks, copiedTrackIds: [], discardedTargets: [],
+        message: `Effective source track "${source.id}" is not instance-owned.`,
+      }
+    }
     const identity = intent.identitiesBySourceTrackId[source.id]
-    const plannedSourceIds = Object.keys(identity?.keyframeIdsBySourceId ?? {}).sort()
+    const plannedKeySourceIds = Object.keys(identity?.keyframeIdsBySourceId ?? {}).sort()
     const sourceIds = source.keyframes.map(key => key.id).sort()
     const plannedKeyIds = source.keyframes.map(key => identity?.keyframeIdsBySourceId[key.id] ?? '')
     if (!identity?.trackId.trim()
       || usedTrackIds.has(identity.trackId)
-      || JSON.stringify(plannedSourceIds) !== JSON.stringify(sourceIds)
+      || JSON.stringify(plannedKeySourceIds) !== JSON.stringify(sourceIds)
       || plannedKeyIds.some(id => !id.trim() || usedKeyIds.has(id))
       || new Set(plannedKeyIds).size !== plannedKeyIds.length) {
       return { status: 'refused', propertyTracks: record.composition.propertyTracks, copiedTrackIds: [], discardedTargets: [], message: `Copied track "${source.id}" requires complete fresh caller-supplied track and keyframe identities.` }

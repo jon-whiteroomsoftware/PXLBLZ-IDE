@@ -74,15 +74,20 @@ choreography; the Insert Time orchestrator owns those changes and validates the
 combined candidate.
 
 `copyShowInstancePropertyTracksV2` copies time-scale tracks and compatible public
-control tracks for Make Independent or Clip-scoped Replace. The caller supplies a
-complete fresh track and keyframe identity plan for every copied source track;
-the helper validates and returns those exact IDs. It reports discarded control
-targets, leaves source tracks unchanged, and refuses an incomplete identity plan
-or destination activation conflict atomically. Record validation likewise refuses
-overlapping instance-control or instance-time-scale owners while allowing
-half-open adjacency. Copy planning materializes Group occurrences before checking
-destination ownership and fresh identities, so a Group-bound effective track can
-neither be overlapped nor shadowed by an ordinary copied track.
+control tracks for Make Independent or Clip-scoped Replace. Its source set is the
+complete effective runtime projection: authored top-level tracks plus every
+occurrence-qualified Group track after local holds and occurrence time translation.
+Copies become authored top-level destination tracks; source tracks, Group
+definitions and occurrences remain unchanged. The caller supplies an exact fresh
+track and keyframe identity plan keyed by those effective IDs. Missing,
+extraneous, blank or colliding identities refuse atomically. The helper preserves
+activation, values, easing and retained curve descriptors, applies the placement
+delta once and returns the exact copied IDs. Compatibility filtering reports each
+discarded effective control target; time-scale tracks always remain eligible.
+Overlapping effective instance owners or destination activation conflicts refuse,
+while half-open adjacency is accepted. Freshness and conflicts use the full
+materialized record, so Group-derived identities cannot be shadowed by an authored
+copy.
 
 `projectShowTransitionPropertyRampsV2` converts every explicit ramp on one visual
 Transition into an independently activated Property track before a caller resets
@@ -178,7 +183,11 @@ equal stored endpoints with a nonconstant retained interior, steps/hold
 discontinuities, generated Fast/Precise source parity at activation boundaries,
 Insert Time boundary partitions, Group-aware sharing/Restart, carrier projection,
 caller-supplied copy identities, effective Group destination conflicts,
-copy/filter results and atomic conflict refusal. Group tests reopen translated
+top-level plus occurrence-qualified Group source copies, repeated occurrence
+adjacency/gaps, hold-mapped nonlinear descriptors, copy/filter results and atomic
+identity/conflict refusal. Fast and Precise reopened artifacts prove a copied
+Group-local control still drives an ordinary Clip after it binds the independent
+runtime. Group tests reopen translated
 Transform and Aperture tracks and evaluate retained nonlinear interiors after
 their `curveSegment` bases receive the occurrence offset.
 The [Transition owner tests](../../../src/engine/showTransitionsV2.test.ts) prove

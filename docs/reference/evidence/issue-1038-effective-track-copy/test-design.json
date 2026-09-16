@@ -1,0 +1,48 @@
+{
+  "issue": 1038,
+  "boundary": "Pure copyShowInstancePropertyTracksV2 projection from complete effective runtime animation into authored top-level destination tracks",
+  "invariants": [
+    "The copied source set contains every retained effective instance-control and instance-time-scale owner for the source runtime, including occurrence-qualified Group tracks after hold and occurrence-time mapping.",
+    "Copies are authored top-level destination tracks; source top-level tracks, Group definitions, occurrences, runtime bindings and Pattern instances remain unchanged.",
+    "The caller identity plan exactly covers retained effective track and key identities; missing, extraneous, blank, duplicate or already-owned identities refuse with the original top-level track array.",
+    "Activation, values, easing and nonlinear curveSegment descriptors are preserved, and placementDelta shifts activation and key times exactly once.",
+    "Compatibility filtering may discard effective instance-control tracks and reports their resolved targets; every effective time-scale track remains eligible.",
+    "Overlapping effective owners and destination conflicts refuse atomically; exact half-open adjacency is accepted."
+  ],
+  "partitions": [
+    "Top-level source track, one Group occurrence source and a mixture of both.",
+    "Repeated Group occurrences with exact adjacent activations and separated activations versus one-millisecond overlap.",
+    "Instance control retained versus compatibility-pruned; instance time scale always retained.",
+    "Zero placement delta versus positive delta after occurrence start and local-hold mapping.",
+    "Complete identity plan versus missing/extraneous track, missing/extraneous key, blank ID and collision with effective track/key owners.",
+    "Fast versus Fidelity replay after the ordinary Clip rebinds to the destination runtime."
+  ],
+  "sequences": [
+    "Materialize one ordinary Clip sharing its runtime with three Group occurrences, copy all effective animation, and compare every authored destination track to its occurrence-qualified effective source.",
+    "Insert one Group-local hold through a nonlinear control curve, materialize it, copy with a positive placement delta, reopen and compare evaluator values before and after the exact shift.",
+    "Bind the ordinary Clip to the destination runtime after copying, serialize/reopen, compile and observe its copied Group-local control in Fast and Fidelity modes.",
+    "Filter the Group control as incompatible, retain top-level and Group time-scale tracks, then add an identity for the discarded control and require exact-plan refusal.",
+    "Copy adjacent repeated occurrence owners, then move the second occurrence one millisecond earlier and require immutable overlap refusal."
+  ],
+  "oracles": [
+    "Literal materialized effective tracks compared to authored copies after only identity, destination and requested time translation change.",
+    "validateShowRecordV2 before admitted operations and after provisional serialization/reopen of copied candidates.",
+    "evaluateShowPropertyTrackV2 at nonlinear and hold boundaries before and after placement translation.",
+    "Generated Fast/Fidelity frame output equals the copied effective control value on the independently bound ordinary Clip.",
+    "Original record equality and original propertyTracks reference on every refusal."
+  ],
+  "tddEvidence": [
+    "The valid effective-source fixtures produced 13 focused failures: Group tracks were omitted, effective map violations were ignored, compatibility omitted Group time-scale/control reporting, and overlapping Group owners were accepted.",
+    "The bounded helper extension makes the complete 61-test Property-animation suite pass."
+  ],
+  "mutationEvidence": [
+    "Selecting only authored top-level source tracks made the complete effective-source copy regression fail.",
+    "Bypassing exact source-map comparison made the extraneous effective identity regression return changed.",
+    "Bypassing effective-owner conflict validation made two overlapping Group controls return unchanged when compatibility pruned both; the refined overlap regression failed.",
+    "Dropping curveSegment from copied keys made the nonlinear held-curve descriptor regression fail."
+  ],
+  "residualGaps": [
+    "This helper creates no runtime and performs no Clip rebind, Make Independent, Rejoin or Replace orchestration.",
+    "Compiler/schema/UI/store behavior is unchanged; the coordinator owns final suites, native review, landing and integrated #1038 proof."
+  ]
+}

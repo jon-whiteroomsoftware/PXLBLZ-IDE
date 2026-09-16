@@ -11,6 +11,7 @@ import { compileShow } from './showCompiler'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
 import { LIBRARIES } from '../pixelblaze/libs'
+import { materializeShowGroupsV2 } from './showGroupsV2'
 
 function animatedRecord(): ShowRecordV2 {
   const converted = convertShowRecordV1ToV2(convertibleV1Show())
@@ -76,6 +77,108 @@ function compiledPropertyRuntime(record: ShowRecordV2, fidelity: 'fast' | 'fidel
   }, {
     fidelity,
     randomSeed: 1037,
+    mapPoints: [{ sample: [0.25, 0.5], pos: [0.25, 0.5] }],
+  })
+}
+
+function effectiveInstanceTrackCopyRecord(
+  occurrenceStarts: readonly number[] = [100],
+  holds: readonly { id: string; localTimeMs: number; durationMs: number }[] = [],
+): ShowRecordV2 {
+  const record = animatedRecord()
+  const clip = record.composition.clips[0]
+  clip.startMs = 0
+  clip.durationMs = 2_000
+  clip.appearance.keys = [{
+    ...structuredClone(clip.appearance.keys[0]), id: 'ordinary:appearance', timeMs: 0,
+    value: { ...structuredClone(clip.appearance.keys[0].value), opacity: 1 },
+  }]
+  const instance = record.composition.patternInstances[0]
+  instance.controlTargets = { sliderLevel: 0.2 }
+  record.composition.patternInstances.push({ ...structuredClone(instance), id: 'replacement' })
+  const firstGroupRank = Math.max(...record.composition.layers.map(layer => layer.rank)) + 1
+  record.composition.layers.push(...occurrenceStarts.map((_start, index) => ({
+    id: `group-layer-${index}`, zoneId: clip.zoneId, name: `Group ${index}`, rank: firstGroupRank + index,
+  })))
+  record.composition.propertyTracks = [{
+    id: 'top-speed', target: { kind: 'instance-time-scale', instanceId: instance.id },
+    activeStartMs: 1_500, activeDurationMs: 100,
+    keyframes: [
+      { id: 'top-speed:start', timeMs: 1_500, value: 1, easing: { curve: 'linear' } },
+      { id: 'top-speed:end', timeMs: 1_600, value: 1.25, easing: { curve: 'linear' } },
+    ],
+  }]
+  const { zoneId: _zoneId, ...groupClip } = structuredClone(clip)
+  record.composition.groupDefinitions = [{
+    id: 'definition', name: 'Definition',
+    patternInstances: [{ ...structuredClone(instance), id: 'slot' }],
+    layers: [{ id: 'local-layer', name: 'Local', rank: 0 }],
+    clips: [{
+      ...groupClip, id: 'child', instanceId: 'slot', layerId: 'local-layer', startMs: 0, durationMs: 400,
+      appearance: { keys: [{
+        ...structuredClone(groupClip.appearance.keys[0]), id: 'child:appearance', timeMs: 0,
+        value: { ...structuredClone(groupClip.appearance.keys[0].value), opacity: 0 },
+      }] },
+    }],
+    transitions: [],
+    propertyTracks: [
+      {
+        id: 'local-control', target: { kind: 'instance-control', instanceId: 'slot', exportName: 'sliderLevel' },
+        activeStartMs: 0, activeDurationMs: 400,
+        keyframes: [
+          {
+            id: 'local-control:start', timeMs: 0, value: 0.2, easing: { curve: 'linear' },
+            curveSegment: {
+              baseValue: 0.2, deltaValue: 0.6, easing: { curve: 'sine', direction: 'in-out' },
+              sourceDurationMs: 400, elapsedOffsetMs: 0,
+            },
+          },
+          { id: 'local-control:end', timeMs: 400, value: 0.8, easing: { curve: 'linear' } },
+        ],
+      },
+      {
+        id: 'local-speed', target: { kind: 'instance-time-scale', instanceId: 'slot' },
+        activeStartMs: 0, activeDurationMs: 400,
+        keyframes: [
+          { id: 'local-speed:start', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+          { id: 'local-speed:end', timeMs: 400, value: 1.5, easing: { curve: 'linear' } },
+        ],
+      },
+    ],
+  }]
+  record.composition.groupOccurrences = occurrenceStarts.map((startMs, index) => ({
+    id: `occurrence-${index}`, definitionId: 'definition', layoutOccurrenceId: record.composition.layoutOccurrences[0].id,
+    zoneId: clip.zoneId, startMs, translationX: 0, translationY: 0,
+    instanceBindings: { slot: instance.id }, holds: holds.map(hold => ({ ...hold })),
+    layerBindings: [{ definitionLayerId: 'local-layer', layerId: `group-layer-${index}` }],
+  }))
+  return record
+}
+
+function effectiveCopyIdentities(record: ShowRecordV2, compatibleControlExports?: readonly string[]) {
+  const compatible = compatibleControlExports === undefined ? undefined : new Set(compatibleControlExports)
+  return Object.fromEntries(materializeShowGroupsV2(record).composition.propertyTracks
+    .filter(track => 'instanceId' in track.target && track.target.instanceId === 'instance')
+    .filter(track => track.target.kind !== 'instance-control' || compatible === undefined || compatible.has(track.target.exportName))
+    .map(track => [track.id, {
+      trackId: `copy:${track.id}`,
+      keyframeIdsBySourceId: Object.fromEntries(track.keyframes.map(key => [key.id, `copy:${key.id}`])),
+    }]))
+}
+
+const controlSource = 'var level = 0.2; export function sliderLevel(value) { level = value } export function beforeRender(delta) {} export function render2D(index, x, y) { rgb(level, 0, 0) }'
+
+function compiledEffectiveCopyRuntime(record: ShowRecordV2, fidelity: 'fast' | 'fidelity') {
+  const prepared = prepareShowV2ForCompile(reopen(record), {
+    byCellId: {}, byPatternInstanceId: { instance: controlSource, replacement: controlSource }, stageDimension: 2,
+  })
+  if (prepared.status !== 'ready') throw new Error(JSON.stringify(prepared.issues))
+  const artifact = compileShow(prepared.recipe, LIBRARIES)
+  return createFastReplayRuntime({
+    code: artifact.code, fxCode: artifact.fxCode, metadata: artifact.metadata,
+    dimension: nativeDimension(artifact.metadata.renderFns),
+  }, {
+    fidelity, randomSeed: 1038,
     mapPoints: [{ sample: [0.25, 0.5], pos: [0.25, 0.5] }],
   })
 }
@@ -694,6 +797,168 @@ describe('v2 property animation', () => {
       [{ kind: 'instance-control', instanceId: 'replacement', exportName: 'sliderKept' }, 300, [300, 1_300]],
     ])
     expect(source).toEqual(before)
+  })
+
+  it('copies top-level and occurrence-qualified Group instance tracks from their effective global-time owners', () => {
+    const source = effectiveInstanceTrackCopyRecord([100, 500, 1_000])
+    expect(validateShowRecordV2(source)).toEqual([])
+    const before = structuredClone(source)
+    const effective = materializeShowGroupsV2(source).composition.propertyTracks.filter(track => (
+      'instanceId' in track.target && track.target.instanceId === 'instance'
+    ))
+    const copied = copyShowInstancePropertyTracksV2(source, {
+      fromInstanceId: 'instance', toInstanceId: 'replacement', placementDeltaMs: 0,
+      identitiesBySourceTrackId: effectiveCopyIdentities(source),
+    })
+
+    expect(copied.status).toBe('changed')
+    if (copied.status !== 'changed') return
+    expect(copied.copiedTrackIds).toEqual(effective.map(track => `copy:${track.id}`))
+    expect(copied.propertyTracks.slice(-effective.length)).toEqual(effective.map(track => ({
+      ...structuredClone(track), id: `copy:${track.id}`,
+      target: { ...structuredClone(track.target), instanceId: 'replacement' },
+      keyframes: track.keyframes.map(key => ({ ...structuredClone(key), id: `copy:${key.id}` })),
+    })))
+    const copiedControls = copied.propertyTracks.filter(track => (
+      track.target.kind === 'instance-control' && track.target.instanceId === 'replacement'
+    ))
+    expect(copiedControls.map(track => [track.activeStartMs, track.activeDurationMs])).toEqual([
+      [100, 400], [500, 400], [1_000, 400],
+    ])
+    expect(source).toEqual(before)
+  })
+
+  it('preserves hold-mapped nonlinear descriptors and applies placement delta once', () => {
+    const source = effectiveInstanceTrackCopyRecord([100], [{ id: 'held-beat', localTimeMs: 200, durationMs: 100 }])
+    expect(validateShowRecordV2(source)).toEqual([])
+    const effective = materializeShowGroupsV2(source).composition.propertyTracks.find(track => (
+      track.id === 'occurrence-0:local-control'
+    ))!
+    const copied = copyShowInstancePropertyTracksV2(source, {
+      fromInstanceId: 'instance', toInstanceId: 'replacement', placementDeltaMs: 50,
+      identitiesBySourceTrackId: effectiveCopyIdentities(source),
+    })
+
+    expect(copied.status).toBe('changed')
+    if (copied.status !== 'changed') return
+    const actual = copied.propertyTracks.find(track => track.id === 'copy:occurrence-0:local-control')!
+    expect(actual.activeStartMs).toBe(effective.activeStartMs + 50)
+    expect(actual.activeDurationMs).toBe(effective.activeDurationMs)
+    expect(actual.keyframes.map(key => key.timeMs)).toEqual(effective.keyframes.map(key => key.timeMs + 50))
+    expect(actual.keyframes.map(key => key.curveSegment)).toEqual(effective.keyframes.map(key => key.curveSegment))
+    for (const atMs of [100, 250, 350, 500]) {
+      expect(evaluateShowPropertyTrackV2(actual, atMs + 50)).toBeCloseTo(evaluateShowPropertyTrackV2(effective, atMs)!)
+    }
+    const candidate = structuredClone(source)
+    candidate.composition.propertyTracks = copied.propertyTracks
+    expect(validateShowRecordV2(reopen(candidate))).toEqual([])
+  })
+
+  it.each(['fast', 'fidelity'] as const)('reopens copied Group control animation on the independent ordinary runtime in %s', fidelity => {
+    const source = effectiveInstanceTrackCopyRecord()
+    const copied = copyShowInstancePropertyTracksV2(source, {
+      fromInstanceId: 'instance', toInstanceId: 'replacement', placementDeltaMs: 0,
+      identitiesBySourceTrackId: effectiveCopyIdentities(source),
+    })
+    expect(copied.status).toBe('changed')
+    if (copied.status !== 'changed') return
+    const candidate = structuredClone(source)
+    candidate.composition.clips[0].instanceId = 'replacement'
+    candidate.composition.propertyTracks = copied.propertyTracks
+    expect(validateShowRecordV2(candidate)).toEqual([])
+    const track = candidate.composition.propertyTracks.find(item => item.id === 'copy:occurrence-0:local-control')!
+    const expected = evaluateShowPropertyTrackV2(track, 300)!
+    const frame = compiledEffectiveCopyRuntime(candidate, fidelity).advanceTo(300, {
+      stepMs: 10, forceFullIntermediateRender: true,
+    }).frame[0]
+    expect(Math.abs(frame - expected)).toBeLessThan(fidelity === 'fast' ? 1e-8 : 0.02)
+  })
+
+  it('filters incompatible effective Group controls, always copies time scale, and rejects an identity for discarded control', () => {
+    const source = effectiveInstanceTrackCopyRecord()
+    const identities = effectiveCopyIdentities(source, [])
+    const copied = copyShowInstancePropertyTracksV2(source, {
+      fromInstanceId: 'instance', toInstanceId: 'replacement', placementDeltaMs: 0,
+      compatibleControlExports: [], identitiesBySourceTrackId: identities,
+    })
+    expect(copied.status).toBe('changed')
+    if (copied.status !== 'changed') return
+    expect(copied.copiedTrackIds).toEqual(['copy:top-speed', 'copy:occurrence-0:local-speed'])
+    expect(copied.discardedTargets).toEqual([
+      { kind: 'instance-control', instanceId: 'instance', exportName: 'sliderLevel' },
+    ])
+
+    const extraneous = structuredClone(identities)
+    extraneous['occurrence-0:local-control'] = {
+      trackId: 'copy:discarded',
+      keyframeIdsBySourceId: {
+        'occurrence-0:local-control:start': 'copy:discarded:start',
+        'occurrence-0:local-control:end': 'copy:discarded:end',
+      },
+    }
+    const refused = copyShowInstancePropertyTracksV2(source, {
+      fromInstanceId: 'instance', toInstanceId: 'replacement', placementDeltaMs: 0,
+      compatibleControlExports: [], identitiesBySourceTrackId: extraneous,
+    })
+    expect(refused).toMatchObject({ status: 'refused', propertyTracks: source.composition.propertyTracks, copiedTrackIds: [], discardedTargets: [] })
+  })
+
+  it.each([
+    ['missing effective track', (plan: ReturnType<typeof effectiveCopyIdentities>) => { delete plan['occurrence-0:local-control'] }],
+    ['extraneous track', (plan: ReturnType<typeof effectiveCopyIdentities>) => { plan.extra = { trackId: 'copy:extra', keyframeIdsBySourceId: {} } }],
+    ['blank track ID', (plan: ReturnType<typeof effectiveCopyIdentities>) => { plan['occurrence-0:local-control'].trackId = '' }],
+    ['owned effective track ID', (plan: ReturnType<typeof effectiveCopyIdentities>) => { plan['occurrence-0:local-control'].trackId = 'occurrence-0:local-speed' }],
+    ['duplicate planned track ID', (plan: ReturnType<typeof effectiveCopyIdentities>) => { plan['occurrence-0:local-control'].trackId = plan['occurrence-0:local-speed'].trackId }],
+    ['missing effective key', (plan: ReturnType<typeof effectiveCopyIdentities>) => { delete plan['occurrence-0:local-control'].keyframeIdsBySourceId['occurrence-0:local-control:end'] }],
+    ['extraneous effective key', (plan: ReturnType<typeof effectiveCopyIdentities>) => { plan['occurrence-0:local-control'].keyframeIdsBySourceId.extra = 'copy:extra:key' }],
+    ['owned effective key ID', (plan: ReturnType<typeof effectiveCopyIdentities>) => { plan['occurrence-0:local-control'].keyframeIdsBySourceId['occurrence-0:local-control:end'] = 'occurrence-0:local-speed:end' }],
+    ['duplicate planned key ID', (plan: ReturnType<typeof effectiveCopyIdentities>) => { plan['occurrence-0:local-control'].keyframeIdsBySourceId['occurrence-0:local-control:end'] = plan['occurrence-0:local-speed'].keyframeIdsBySourceId['occurrence-0:local-speed:end'] }],
+  ] as const)('refuses an effective identity-plan violation: %s', (_name, mutate) => {
+    const source = effectiveInstanceTrackCopyRecord()
+    const plan = effectiveCopyIdentities(source)
+    mutate(plan)
+    const before = structuredClone(source)
+    const result = copyShowInstancePropertyTracksV2(source, {
+      fromInstanceId: 'instance', toInstanceId: 'replacement', placementDeltaMs: 0,
+      identitiesBySourceTrackId: plan,
+    })
+    expect(result).toMatchObject({ status: 'refused', propertyTracks: source.composition.propertyTracks, copiedTrackIds: [], discardedTargets: [] })
+    expect(result.propertyTracks).toBe(source.composition.propertyTracks)
+    expect(source).toEqual(before)
+  })
+
+  it('refuses overlapping effective Group source owners atomically while accepting exact adjacency', () => {
+    const adjacent = effectiveInstanceTrackCopyRecord([100, 500])
+    expect(validateShowRecordV2(adjacent)).toEqual([])
+    expect(copyShowInstancePropertyTracksV2(adjacent, {
+      fromInstanceId: 'instance', toInstanceId: 'replacement', placementDeltaMs: 0,
+      identitiesBySourceTrackId: effectiveCopyIdentities(adjacent),
+    }).status).toBe('changed')
+
+    const overlap = effectiveInstanceTrackCopyRecord([100, 499])
+    const before = structuredClone(overlap)
+    expect(validateShowRecordV2(overlap)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ message: expect.stringContaining('overlaps active owner') }),
+    ]))
+    const refused = copyShowInstancePropertyTracksV2(overlap, {
+      fromInstanceId: 'instance', toInstanceId: 'replacement', placementDeltaMs: 0,
+      identitiesBySourceTrackId: effectiveCopyIdentities(overlap),
+    })
+    expect(refused).toMatchObject({ status: 'refused', propertyTracks: overlap.composition.propertyTracks, copiedTrackIds: [], discardedTargets: [] })
+    expect(overlap).toEqual(before)
+
+    const prunedOverlap = effectiveInstanceTrackCopyRecord([100, 499])
+    prunedOverlap.composition.propertyTracks = []
+    prunedOverlap.composition.groupDefinitions[0].propertyTracks = prunedOverlap.composition.groupDefinitions[0].propertyTracks.filter(track => (
+      track.target.kind === 'instance-control'
+    ))
+    expect(validateShowRecordV2(prunedOverlap)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ message: expect.stringContaining('overlaps active owner') }),
+    ]))
+    expect(copyShowInstancePropertyTracksV2(prunedOverlap, {
+      fromInstanceId: 'instance', toInstanceId: 'replacement', placementDeltaMs: 0,
+      compatibleControlExports: [], identitiesBySourceTrackId: {},
+    })).toMatchObject({ status: 'refused', copiedTrackIds: [], discardedTargets: [] })
   })
 
   it('refuses an instance-track copy conflict with the complete preimage unchanged', () => {
