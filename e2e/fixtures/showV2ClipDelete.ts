@@ -4,7 +4,7 @@ import { convertibleV1Show } from '../../src/test/showV2TracerFixture'
 import type { ShowRecordV2 } from '../../src/engine/showCompositionV2'
 export const clipDeleteRecord:ShowRecordV2=JSON.parse(readFileSync(new URL('./showV2ClipDelete.json',import.meta.url),'utf8'))
 export const clipDeletePattern={id:'deletion-voice',name:'Deletion Voice',src:'export var elapsed=0;var level=.4;export function sliderGain(v){level=v}export function beforeRender(d){elapsed+=d}export function render2D(i,x,y){rgb(level,.1+.6*x,.1+.6*y)}',controls:{},updatedAt:1}
-export async function exerciseShowV2ClipDelete(page:Page){
+export async function exerciseShowV2ClipDelete(page:Page, onEmpty?:()=>Promise<void>){
  const legacy=convertibleV1Show();legacy.id=clipDeleteRecord.id;legacy.name=clipDeleteRecord.name
  for(const [resource,data] of [['patterns',clipDeletePattern],['shows',legacy]] as const){const response=await page.request.post(`/api/${resource}`,{data});expect(response.ok(),await response.text()).toBe(true)}
  const seeded=await page.request.put(`/api/shows/${legacy.id}?show-version=2`,{data:clipDeleteRecord});expect(seeded.ok(),await seeded.text()).toBe(true)
@@ -29,7 +29,8 @@ export async function exerciseShowV2ClipDelete(page:Page){
  await runWrite(route.getByRole('button',{name:'Delete Clip',exact:true}),4,record=>record.composition.clips.length===0&&record.composition.propertyTracks.length===0,'Clip deleted.')
  await expect(route.getByRole('button',{name:'Delete Clip',exact:true})).toHaveCount(0);await expect(route.getByRole('button',{name:'Reopen artifacts',exact:true})).toBeDisabled();await expect(route.getByText('Add content to preview or export this Show.',{exact:true})).toBeVisible();await expect(stage).toHaveCount(0)
  const empty=await readSaved();expect(empty.composition.patternInstances).toEqual(clipDeleteRecord.composition.patternInstances);expect(empty.composition.showEndMs).toBe(30000)
- // This capture records the explicit empty capability before content is re-added.
+ await onEmpty?.()
+ // The existing creation owner reuses the selected dormant source runtime.
  await timing.getByRole('button',{name:'Add Clip',exact:true}).click();await timing.getByRole('combobox',{name:'Clip Pattern'}).click();await page.getByRole('option',{name:'Deletion Voice',exact:true}).click();await expect(timing.getByLabel('Clip runtime')).toHaveValue('runtime:instance')
  await timing.getByRole('textbox',{name:'New Clip start',exact:true}).fill('0');await timing.getByRole('textbox',{name:'New Clip start',exact:true}).press('Enter')
  await timing.getByRole('textbox',{name:'New Clip duration',exact:true}).fill('30000');await timing.getByRole('textbox',{name:'New Clip duration',exact:true}).press('Enter')
