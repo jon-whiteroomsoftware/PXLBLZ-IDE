@@ -1,3 +1,4 @@
+import { editShowClipV2 } from './showClipsV2'
 import { LIBRARIES } from '../pixelblaze/libs'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { compileShow } from './showCompiler'
@@ -281,11 +282,11 @@ function scalarRampFixture(): ShowRecordV2 {
     transition.wholeOutput = { startMs: from.startMs + from.durationMs, fromClipIds: [participant.fromClipId], toClipIds: [participant.toClipId] }
     transition.participants = []
   }
-  source.composition.transitions[0].propertyRamps = [{ target: { kind: 'show-repeat-scale' }, from: 0.5, easing: { curve: 'linear' } }]
+  source.composition.transitions[0].propertyRamps = [{ target: { kind: 'show-repeat-scale' }, from: 2, easing: { curve: 'linear' } }]
   expect(validateShowRecordV2(source)).toEqual([])
   return source
 }
-const rampProjections = [{ rampIndex: 0, trackId: 'retained-ramp', startKeyId: 'ramp:first', endKeyId: 'ramp:last', activeEndMs: 600, toValue: 1 }]
+const rampProjections = [{ rampIndex: 0, trackId: 'retained-ramp', startKeyId: 'ramp:first', endKeyId: 'ramp:last', activeEndMs: 600, toValue: 4 }]
 it.each(['fast', 'fidelity'] as const)('projects a prepared zero Reset and simultaneous trailing edge without moving retained scalar animation in %s', fidelity => {
   const source = scalarRampFixture()
   expect(playback(source, fidelity).artifact.code.length).toBeGreaterThan(0)
@@ -301,7 +302,7 @@ it.each(['fast', 'fidelity'] as const)('projects a prepared zero Reset and simul
   expected.composition.clips[2].startMs = 650
   expected.composition.clips[2].appearance.keys[0].timeMs = 650
   expected.composition.propertyTracks = [{ id: 'retained-ramp', target: { kind: 'show-repeat-scale' }, activeStartMs: 100, activeDurationMs: 500, keyframes: [
-    { id: 'ramp:first', timeMs: 100, value: 0.5, easing: { curve: 'linear' } }, { id: 'ramp:last', timeMs: 200, value: 1, easing: { curve: 'linear' } },
+    { id: 'ramp:first', timeMs: 100, value: 2, easing: { curve: 'linear' } }, { id: 'ramp:last', timeMs: 200, value: 4, easing: { curve: 'linear' } },
   ] }]
   expect(reopen(edited.record)).toEqual(expected)
   expect(edited.affectedTrackIds).toContain('retained-ramp')
@@ -374,4 +375,33 @@ it('retargets an outgoing Clip-owned ramp reference with its right split owner',
   expect(result.status).toBe('changed')
   if (result.status !== 'changed') return
   expect(reopen(result.record).composition.transitions[1].propertyRamps).toEqual([{ participantId: 'pair-out', target: { kind: 'clip-view', clipId: 'right', property: 'brightness' }, from: 0.2, easing: { curve: 'linear' } }])
+})
+
+it('public Clip dispatch consumes the temporal transaction with connected edges and complete affected collections', () => {
+  const source = fixture()
+  const intent = { kind: 'trim' as const, clipId: 'selected', startMs: 250, endMs: 550 }
+  expect(editShowClipV2(source, intent)).toEqual(editShowClipTemporalV2(source, intent))
+})
+
+it('public temporal resize forwards the complete explicit zero Reset projection plan', () => {
+  const source = scalarRampFixture()
+  const intent = { kind: 'extend' as const, clipId: 'selected', startMs: 100, endMs: 650, propertyRampProjections: rampProjections }
+  expect(editShowClipV2(source, intent)).toEqual(editShowClipTemporalV2(source, intent))
+  const outside = { ...intent, propertyRampProjections: [{ ...rampProjections[0], toValue: 8.00000001 }] }
+  const refused = editShowClipV2(source, outside)
+  expect(refused.status).toBe('refused');expect(refused.record).toBe(source);expect(refused.affectedClipIds).toEqual([])
+})
+
+it.each([0.99999999, 8.00000001])('prepared zero Reset refuses outside source endpoint%s through public dispatch', outside => {
+  const source = scalarRampFixture()
+  source.composition.transitions[0].propertyRamps[0].from = outside
+  expect(playback(source, 'fast').artifact.code.length).toBeGreaterThan(0)
+  const result = editShowClipV2(source, { kind: 'extend', clipId: 'selected', startMs: 100, endMs: 650, propertyRampProjections: rampProjections })
+  expect(result.status).toBe('refused');expect(result.record).toBe(source);expect(result.affectedClipIds).toEqual([]);expect(result.affectedTrackIds).toEqual([])
+})
+
+it('public temporal missing-target refusal carries every empty affected collection from its owner', () => {
+  const source = fixture()
+  const intent = { kind: 'move' as const, clipId: 'absent', startMs: 300 }
+  expect(editShowClipV2(source, intent)).toEqual(editShowClipTemporalV2(source, intent))
 })

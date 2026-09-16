@@ -347,6 +347,15 @@ The nine target forms remain instance time-scale/control, Clip opacity/view/
 Transform/Aperture/Effect, Layout split-position and Show repeat-scale. Discrete
 presentation/Aperture-shape fields remain held appearance, not new numeric targets.
 
+An edit requiring a hold, restriction or projection of animated Show repeat-scale
+refuses atomically when its complete original source curve is outside the existing
+1–8 range. This includes retained descriptor source endpoints/coefficients and
+easing extrema, even when retained sampled values are inside. Exact boundary
+values 1 and 8 are admitted. Existing decode/playback and unrelated, dormant or
+whole-source-shift edits retain their existing semantics; this is an edit-local
+refusal, not broader persisted admission. Jon accepted this bounded range policy
+on 2026-09-16.
+
 A boundary-only sampled value cannot preserve a nonlinear curve. For each
 retained interval between keys, `curveSegment` in §3 evaluates:
 
@@ -510,6 +519,10 @@ preserves the list and runtime bindings. Ungroup materializes the mapped Clip,
 track, Transition and Restart ownership into ordinary v2 content without cloning
 runtimes. Definition edits recompute every occurrence duration/collision/Zone
 constraint atomically; invalidating one linked occurrence refuses the edit.
+
+Insert Time holds obey the animated repeat-scale source-range refusal in §6.
+Refusal returns the original record with empty affected collections before adoption;
+whole-source shifts do not inspect unrelated dormant animation.
 
 ## 8. Layers, Layout occurrences, Show End and Markers
 

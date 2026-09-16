@@ -69,9 +69,15 @@ held full-Show path and previously admitted source bytes stay unchanged.
 The sample emitter reads retained `curveSegment` with the same original-kernel formula
 as routing. Its non-descriptor emitted string path is byte-identical. In-range source
 2→4 quadratic descriptors, activation/endpoint holds, restore and loop are qualified
-in reopened Fast/Precise artifacts. The out-of-range source/hold clamp obligation is
-isolated pending an explicit accepted domain decision; this evidence makes no claim
-that raw retained coefficients preserve endpoint-clamped source curves outside1–8.
+in reopened Fast/Precise artifacts. Jon accepted edit-local refusal for out-of-range repeat animation on 2026-09-16.
+Actual hold/restriction/projection edits require complete source values within 1–8,
+including retained base/base+delta and exact easing extrema. Boundary 1/8 is admitted;
+retained inside samples cannot hide outside source coefficients. Insert Time and
+zero Reset projection refuse atomically, preserving original records and empty
+affected collections. Existing decode/playback, unaffected and whole-source-shift
+edits retain their admission; no global validator range restriction is introduced.
+The reusable pure range predicate solves Back and Bezier derivative extrema; it
+never samples or approximates endpoint equality.
 No emitter range, compiler source domain, RL08–RL10 or schema is widened.
 
 ## Consumer evidence
@@ -90,3 +96,9 @@ Precise arithmetic uses binary-exact125ms steps and a five-Q16 sample bound; thi
 not an arbitrary-millisecond exact-state claim. The47-record parity corpus and closed
 v1 schema gate remain unchanged. Named semantic faults and qualification are in the
 [test design](../evidence/issue-1038-clip-temporal/test-design.json).
+
+`editShowClipV2` delegates Move/Trim/Extend/Split to this pure temporal owner,
+including optional explicit `propertyRampProjections` on trim/extend. Identity,
+duplicate and Replace branches retain their owners. Full temporal affected
+collections pass through unchanged; absent-Zone preimages refuse full availability
+validation before edits.

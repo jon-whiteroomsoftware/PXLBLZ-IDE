@@ -29,14 +29,16 @@ function prepare(record: ShowRecordV2) {
   if (opened.status !== 'opened') throw new Error('Reopen failed')
   return prepareShowV2ForCompile(opened.record, { byCellId: {}, byPatternInstanceId: { instance: code }, stageDimension: 2 }, { libraries: LIBRARIES })
 }
-it.each([{ fidelity: 'fast', retained: false }, { fidelity: 'fidelity', retained: false }, { fidelity: 'fast', retained: true }, { fidelity: 'fidelity', retained: true }] as const)('reopened nonlinear repeat activation drives independent sample arithmetic/state ($fidelity, retained:$retained)', ({ fidelity, retained }) => {
+it.each(([{ fidelity: 'fast', retained: false }, { fidelity: 'fidelity', retained: false }, { fidelity: 'fast', retained: true }, { fidelity: 'fidelity', retained: true }] as const).flatMap(partition => [[2, 4], [1, 8], [8, 1]].map(([from, to]) => ({ ...partition, from, to }))))('reopened nonlinear repeat activation drives independent sample arithmetic/state ($fidelity, retained:$retained, $from→$to)', ({ fidelity, retained, from, to }) => {
   const record = fixture()
   record.composition.propertyTracks = [track()]
+  record.composition.propertyTracks[0].keyframes[0].value = from
+  record.composition.propertyTracks[0].keyframes[1].value = to
   if (retained) {
     const keys = record.composition.propertyTracks[0].keyframes
-    keys[0].value = 2.125
-    keys[0].curveSegment = { baseValue: 2, deltaValue: 2, sourceDurationMs: 1000, elapsedOffsetMs: 250, easing: { curve: 'quadratic', direction: 'in' } }
-    keys[1].value = 3.125
+    keys[0].value = from + (to - from) * 0.25 ** 2
+    keys[0].curveSegment = { baseValue: from, deltaValue: to - from, sourceDurationMs: 1000, elapsedOffsetMs: 250, easing: { curve: 'quadratic', direction: 'in' } }
+    keys[1].value = from + (to - from) * 0.75 ** 2
   }
   const prior = structuredClone(record)
   const prepared = prepare(record)
@@ -44,11 +46,12 @@ it.each([{ fidelity: 'fast', retained: false }, { fidelity: 'fidelity', retained
   if (prepared.status !== 'ready') return
   const artifact = compileShow(prepared.recipe, LIBRARIES)
   const epe = parseEpe(buildShowEpeExport(convertibleV1Show(), artifact.code, { id: 'repeat-proof', stampedAt: '2026-09-16T00:00:00Z' }).text)
-  const runtime = createFastReplayRuntime({ ...artifact, code: epe.src, dimension: 2 }, { fidelity, randomSeed: 1038, mapPoints: [{ sample: [0.3, 0.25], pos: [0.3, 0.25] }] })
+  const sampleX = from === 2 ? 0.3 : 0.125
+  const runtime = createFastReplayRuntime({ ...artifact, code: epe.src, dimension: 2 }, { fidelity, randomSeed: 1038, mapPoints: [{ sample: [sampleX, 0.25], pos: [sampleX, 0.25] }] })
   for (const time of [125, 250, 375, 500, 625, 750, 875]) {
     const result = runtime.advanceTo(time, { stepMs: 125, forceFullIntermediateRender: true })
-    const scale = time < 250 || time >= 750 ? 1 : retained ? 2 + 2 * (time / 1000) ** 2 : 2 + 2 * ((time - 250) / 500) ** 2
-    const expected = 0.3 * scale % 1
+    const scale = time < 250 || time >= 750 ? 1 : retained ? from + (to - from) * (time / 1000) ** 2 : from + (to - from) * ((time - 250) / 500) ** 2
+    const expected = sampleX * scale % 1
     const tolerance = fidelity === 'fast' ? 1e-12 : 5 / 65536
     expect(Math.abs(result.frame[0] - expected), `sample@${time}`).toBeLessThan(tolerance)
     expect(Math.floor(result.frame[0] * 255), `display sample@${time}`).toBe(Math.floor(expected * 255))

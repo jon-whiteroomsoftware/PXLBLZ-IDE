@@ -230,7 +230,7 @@ it('refuses a Clip whose Zone is absent from the active Layout', () => {
   source.zoneLayouts[0].logical = { kind: 'single', zoneIds: ['other'] }
   expect(validateShowRecordV2(source)).toEqual([])
   const result = editShowClipV2(source, { kind: 'move', clipId: 'clip', startMs: 300 })
-  expect(result).toMatchObject({ status: 'refused', code: 'unsupported-topology' })
+  expect(result).toMatchObject({ status: 'refused', code: 'invalid-record' })
   expect(result.record).toBe(source)
 })
 

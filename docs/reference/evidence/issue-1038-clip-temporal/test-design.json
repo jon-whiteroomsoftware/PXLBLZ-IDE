@@ -1,7 +1,7 @@
 {
   "issue": 1038,
   "specificationCommit": "b532a9061215c8d6e6d0e7cf109630bdc54e93ae",
-  "implementationBase": "31292ee71080713f0e99df80a99be4c0850f6caa",
+  "implementationBase": "93d9cc76749b0c4213a46b8574863d0770d480e9",
   "proofRows": [
     "TRANSITION",
     "V2-EDIT-WHOLE-OUTPUT",
@@ -21,7 +21,8 @@
     "Effective Group IDs reserve fresh split pieces without persisting or modifying Group projections.",
     "Layout coverage, ShowEnd and RL08\u2013RL10 guard complete contribution, not nominal rectangles.",
     "Scalar sample channel preserves exact retained in-range curves, activation, baseline and source bytes of prior paths; no compiler/schema domain widening.",
-    "Results are complete/unaliased; nested raw-key affected arrays preserve owner-scoped multiplicity."
+    "Results are complete/unaliased; nested raw-key affected arrays preserve owner-scoped multiplicity.",
+    "Actual repeat hold/projection checks full original source range and exact easing extrema; outside retained coefficients cannot hide behind inside samples. Existing decode/whole-source shifts are unchanged."
   ],
   "partitions": [
     "Rigid chains, both-edge trim, leading zero/negative, trailing ripple, whole-output endpoint sets and common-window refusal.",
@@ -30,7 +31,9 @@
     "Reset explicit plan changed+reopened Fast/Fidelity consumer; missing/extra/colliding/blank/wrong activation/wrong partition maps atomic.",
     "Strict intent unsafe/fractional/negative/extraneous fields, valid no-op identity, complete affected IDs, removed keys and unaliasing.",
     "Nonlinear original2\u21924, retained descriptor, held endpoint outside key extrema, baseline cuts during activation/restoration, positive carrier overlap versus exact adjacency.",
-    "Reopened artifacts loop, selected displayed8-bit samples and state; fine \u00b11ms numeric evaluator probes retained; no-hold47-byte corpus."
+    "Reopened artifacts loop, selected displayed8-bit samples and state; fine \u00b11ms numeric evaluator probes retained; no-hold47-byte corpus.",
+    "Repeat boundaries1/8 ascending/descending; tiny outside endpoints; raw source outside with retained values inside; Back/Bezier extrema; Reset outside from/to, complete source-shift and ended activation preservation.",
+    "Public temporal dispatch preserves complete changed/no-op/refusal effects, including missing-target refusal and explicit zero Reset projection intent."
   ],
   "oracles": [
     "Provisional codec reopen, complete v2 validator/availability and shared placement validator.",
@@ -45,7 +48,8 @@
     "Zero Reset initially missing; prepared scalar Reset explicit plan refused unsupported animated Show target before bounded adapter mapping.",
     "Retained nonlinear sample proof failed0.01875 at375ms in both modes when sample emitter rescaled endpoints instead of reading descriptor.",
     "Effective Group split track identity collision initially refused valid result; qualified fresh suffix corrected this.",
-    "Outgoing Clip ramp retained selected target until explicit right retarget regression/repair."
+    "Outgoing Clip ramp retained selected target until explicit right retarget regression/repair.",
+    "Range predicate initially absent; exact public connected dispatch red refused unsupported-topology before wiring; missing-target dispatch red omitted\u00a79 empty collections before early owner delegation."
   ],
   "mutationEvidence": [
     {
@@ -77,26 +81,46 @@
       "name": "group-split-id-unreserved",
       "exitCode": 1,
       "killed": true
+    },
+    {
+      "name": "global-repeat-hold-guard",
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "reset-repeat-range-guard",
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "retained-source-range-hidden",
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "easing-overshoot-range-hidden",
+      "exitCode": 1,
+      "killed": true
     }
   ],
   "qualification": {
-    "focused": "302/302 across8 affected files (299/299 initial plus3 scalar baseline/carrier partitions); scalar11/11",
-    "static": "Scoped ESLint and project tsc pass before added scalar cases",
+    "focused": "400/400 across10 affected temporal/Clip/Property/Insert/scalar/compiler/lowerer/Transition/v1-schema suites; range14cases include reopened1\u21928 Insert hold and scalar19cases cover1\u21928/8\u21921 original/retained Fast/Precise.",
+    "static": "Scoped ESLint/project tsc/diff-check pass; final ordinary commit hook follows.",
     "parity": "47-record report unchanged",
-    "faultSensitivity": "6/6 named semantic faults killed by executed behavioral tests; exact sources restored",
+    "faultSensitivity": "Prior6 and new4 named semantic faults killed by executed consumer checks, sources restored.",
     "finalSuites": "Coordinator-owned; no worker submission",
-    "state": "WIP source checkpoint; not candidate-ready. Range decision, finalbase rebase and temporal dispatch integration pending."
+    "state": "Bounded temporal integration/range adapter scope complete; source commit gate pending; coordinator owns final suites/review/landing."
   },
   "residualGaps": [
-    "Out-of-range repeat-scale raw descriptor/hold clamp sequence is isolated pending Jon domain decision, preserved in /tmp/issue-1038-repeat-range-counterexample.ts and.log.",
-    "Existing repeated Layout+Layer Transition global-scalar adapter refuses source preimage; no eligibility weakening or generalized preservation claim.",
-    "Thin showClipsV2 dispatch wiring awaits one finalbase refresh/rebase onto landed Replace and separately owned unused-track prerequisite.",
-    "UI/store/history/adoption, Group edit/cleanup, schema and wider compiler domains are outside this slice."
+    "Full1038 UI/store owner integration remains other slices; this candidate only pure Clip temporal plus bounded scalar adapter/emitter and edit-local range guard.",
+    "Existing repeated Layout+Layer Transition global-scalar adapter refuses source preimage; no RL08\u201310/source/Restart domain expansion or universal playback claim.",
+    "Coordinator owns final suites/native review/landing; no worker full-suite submission."
   ],
   "toolRecovery": {
     "failure": "Morph truncated giant compiler from566386 to417700bytes and removed knownNUL; detected before qualification",
     "recovery": "Automatic approval accepted guarded surviving-prefix/NUL proof plus reversible backup, exact31292bytes restored with no implementation splice",
     "backup": "/tmp/issue-1038-morph-compiler-truncation.txt",
     "fallback": "Coordinator authorized exact native bounded byte splice; NUL1 and all bytes outside sample emitter region preserved"
-  }
+  },
+  "acceptedAmendment": "Jon2026-09-16: edit-local refusal of out-of-range1\u20138 animated repeat source holds/restrictions/projections; canonical\u00a76/7 amended in this suffix."
 }
