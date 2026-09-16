@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/property-management-synthetic?show-v2-pilot=1&capture",
+  "operation": "Actual native Show track create, key create/update with custom Bezier, track target/activation update, key remove and track remove; linked held Group-definition track create; nine successful durable Show writes including Undo/Redo, exact D1 semantic readbacks, saved reload and cold reopen. Untouched Apply saved nothing. Original runtime payloads/global tracks/Group bindings stayed exact. Visible stock-plane Stage captured at 23 seconds in Fast/Precise; 1024/390 owner-to-track keyboard and zero-overflow checks passed with zero browser errors. Repository Playwright separate synthetic context used the actual Worker/renderer without user-cookie changes. All three screenshots visually inspected.",
+  "captures": [
+    ".wrsp/ui-proof/1038-properties-stage.png",
+    ".wrsp/ui-proof/1038-properties-desktop.png",
+    ".wrsp/ui-proof/1038-properties-narrow.png"
+  ],
+  "capturedAtCommit": "9a61e6be2828fc9a5869081c279e797f1635ad77"
+}

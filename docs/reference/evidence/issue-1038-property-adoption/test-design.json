@@ -40,7 +40,6 @@
   ],
   "residualGaps": [
     "Source-dependent named candidate compiler refusals remain explicit; no compiler/schema/runtime expansion.",
-    "Fresh final committed Worker/browser responsive proof pending settled recovery base; no admission bypass.",
     "Review and authoritative final suites coordinator-owned.",
     "Browser fixture setup with an unused blue-runtime refuses preparation despite bundled source; final fixture gives both existing runtimes actual consumers. This preimage limit is not repaired or bypassed by Property UI."
   ],
@@ -70,6 +69,26 @@
     },
     "sourceCheckpoint": "e44dcbd1",
     "finalbase": "Four-commit Property suffix range-diff identical on frozen Group-creation owner; final captured code/metadata tip follows this committed packet.",
-    "browserProof": ".wrsp/ui-proof/1038-properties.json"
+    "browserProof": ".wrsp/ui-proof/1038-properties.json",
+    "browser": {
+      "result": "passed",
+      "sourceTip": "9a61e6be2828fc9a5869081c279e797f1635ad77",
+      "writes": 9,
+      "sixOperations": true,
+      "linkedHeldOccurrences": 2,
+      "durableColdReopen": true,
+      "noOpZeroWrites": true,
+      "renderers": [
+        "Fast",
+        "Precise"
+      ],
+      "widths": [
+        1440,
+        1024,
+        390
+      ],
+      "errors": 0,
+      "report": "browser-result.json"
+    }
   }
 }

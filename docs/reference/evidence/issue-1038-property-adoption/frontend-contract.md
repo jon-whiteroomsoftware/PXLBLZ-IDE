@@ -1,6 +1,6 @@
 # Native Property editor adoption
 
-Assignment: gpt-5.6-sol/high, 2026-09-16. API stack basea1fd6f73ad7153eda6c62547c62a7bb1252ea439; canonical70812ae64c919ff1dcb15e019125bd3b6bad7b4b §§4/6/9/12. Proof subsets MODEL/CURVE/ACTIVATION/SHARING/GROUP-HOLD/RESTART/ROUTE/FAILURE/PARITY. Coordinator owns issue progress and final delivery gates.
+Assignment: gpt-5.6-sol/high, 2026-09-16. Final integration base51a5c2acf2e1732610e1ee4c2e3d4e29f934511e; canonical70812ae64c919ff1dcb15e019125bd3b6bad7b4b §§4/6/9/12. Proof subsets MODEL/CURVE/ACTIVATION/SHARING/GROUP-HOLD/RESTART/ROUTE/FAILURE/PARITY. Coordinator owns issue progress and final delivery gates.
 
 The panel selects a persisted Show or Group-definition owner explicitly, then creates, retargets, changes activation or removes tracks and creates, reauthors or removes exact keys. Show targets cover nine families; Group targets cover seven local families. Definition time is local; the selected definition affects every linked occurrence. Global instance tracks identify shared consumers. Materialized IDs are never writable aliases.
 
