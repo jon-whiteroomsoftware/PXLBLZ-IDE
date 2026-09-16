@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/layout-occurrence-ui?show-v2-pilot=1&capture",
+  "operation": "Thirty-second Layout workflow: repeated Make Unique, explicit existing definition selection, no-op and invalid switch zero writes, Move spanning held Group, Remove, exact Show End shorten/extend, Undo/Redo and complete removal Undo, native artifacts/provider/cold reopening. Eleven durable writes preserve one runtime, held Group, global track and dormant Marker. Visible stock-plane Fast/Precise, narrow keyboard/layout, zero errors.",
+  "captures": [
+    ".wrsp/ui-proof/1038-layout-occurrences-desktop-fast.png",
+    ".wrsp/ui-proof/1038-layout-occurrences-desktop-precise.png",
+    ".wrsp/ui-proof/1038-layout-occurrences-narrow.png"
+  ],
+  "capturedAtCommit": "afedab46ac327b27a1023b8a1d93de14e0cb60eb"
+}
