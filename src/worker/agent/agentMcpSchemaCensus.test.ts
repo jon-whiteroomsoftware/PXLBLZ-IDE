@@ -9,6 +9,7 @@ type JsonSchema = { properties?: Record<string, JsonSchema>; required?: string[]
 // and after #1048 moved mutation identity ownership into the relay.
 const OBSERVED_PRE_IDENTITY_BYTES = 360_987
 const OBSERVED_IDENTITY_BYTES = 358_419
+const OBSERVED_CONCISE_DESCRIPTION_BYTES = 345_749
 
 it('measures identity and concise-description reductions against the same discovery catalogue', async () => {
   const response = await agentMcpRouting(new Request('https://app.test/mcp', {
@@ -31,5 +32,6 @@ it('measures identity and concise-description reductions against the same discov
   console.info('issue-1051-schema-census', JSON.stringify({ ...measurement, identityDelta, conciseDescriptionDelta }))
   expect(measurement).toMatchObject({ tools: SHOW_COMMANDS.length + 10, mutations: SHOW_COMMANDS.length + 3 })
   expect(identityDelta).toBe(-2_568)
-  expect(conciseDescriptionDelta).toBeLessThan(0)
+  expect(measurement.currentBytes).toBe(OBSERVED_CONCISE_DESCRIPTION_BYTES)
+  expect(conciseDescriptionDelta).toBe(-12_670)
 })

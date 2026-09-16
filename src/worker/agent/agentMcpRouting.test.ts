@@ -173,7 +173,7 @@ it('keeps tool metadata concise and marks exactly the non-claiming read tools re
   expect(byName.get('begin_edit')?.inputSchema.properties?.intent?.description).toBe('Required nonblank edit intent displayed to the person in the editor; one line, at most 240 characters.')
 
   const readOnly = listed.result.tools.filter(tool => tool.annotations?.readOnlyHint === true).map(tool => tool.name).sort()
-  expect(readOnly).toEqual(['get_context', 'get_outcome', 'list_commands', 'read_show'])
+  expect(readOnly).toEqual(['get_context', 'get_outcome', 'list_commands', 'list_controller_profiles', 'list_patterns', 'read_show'])
   expect(byName.get('get_connection')?.annotations?.readOnlyHint).not.toBe(true)
   for (const mutation of mutations) expect(mutation.annotations?.readOnlyHint, mutation.name).not.toBe(true)
 })
