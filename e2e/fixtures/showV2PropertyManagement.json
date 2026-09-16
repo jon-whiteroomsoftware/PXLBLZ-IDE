@@ -32,7 +32,7 @@
   "outputContract": {
     "version": 1,
     "kind": "portable-2d",
-    "referenceMapId": "property-management-map",
+    "referenceMapId": "plane",
     "referencePixelCount": 16,
     "compatibility": {
       "dimensions": [
@@ -386,5 +386,5 @@
     ]
   },
   "updatedAt": 1,
-  "stageMapId": "property-management-map"
+  "stageMapId": "plane"
 }

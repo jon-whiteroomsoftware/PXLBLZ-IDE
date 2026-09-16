@@ -21,5 +21,13 @@
       }
     ],
     "change": "Restore both linked occurrences to the existing blue-runtime; preserve two runtime payloads and linked-use coverage."
+  },
+  "visibleStageQualification": {
+    "previousMap": "property-management-map custom metadata did not supply executable sample positions; black capture is excluded from proof",
+    "finalMap": "Existing stock plane for both stageMapId and outputContract.referenceMapId",
+    "meaningfulTimeMs": 23000,
+    "Fast": "Actual paused frame visually inspected: nonblack blue/green contribution",
+    "Precise": "Actual paused frame and Stage screenshot visually inspected: nonblack blue/green contribution",
+    "productSourceChanges": false
   }
 }
