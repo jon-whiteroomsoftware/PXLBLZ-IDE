@@ -1,0 +1,51 @@
+{
+  "issue": 1038,
+  "boundary": "Pure editShowClipV2 ordinary linked duplication, provisional codec reopen, effective Group projection, routed Layout availability, and generated Fast/Precise replay",
+  "invariants": [
+    "A linked duplicate creates exactly one ordinary Clip and no Pattern instance, instance-track owner or Transition; source and duplicate use the same runtime identity.",
+    "The caller supplies complete fresh identities for the new Clip, all copied appearance keys, all source Clip-owned tracks and every copied keyframe; missing, extraneous, blank, duplicate or owned identities refuse atomically.",
+    "Only copied appearance times, Clip-track activation and Clip-track key times shift by the placement delta; duration, sampling, appearance values, entry policy, easing, source choreography and instance animation remain unchanged.",
+    "Admission validates the complete result across ordinary and materialized-Group occupancy and every intersected Layout occurrence; half-open adjacency is valid and any overlap or unavailable Zone refuses.",
+    "Changed output is unaliased and reports only the new Clip and copied track identities; refusal returns the original record identity and empty affected collections."
+  ],
+  "partitions": [
+    "Fresh versus blank, owned, duplicate, missing and extraneous Clip/appearance/track/key identities, including an ID already owned by a different Property target.",
+    "Safe integral in-range placement versus negative, fractional, past-Show-End and overflow placement.",
+    "Existing destination Zone/Layer versus missing Zone, missing Layer and Layer owned by another Zone.",
+    "Exact ordinary and materialized-Group adjacency versus one-millisecond materialized overlap.",
+    "No Transition versus an attached source Transition that must remain byte-equivalent and must not be copied.",
+    "One Layout versus a later routed Layout occurrence with the destination Zone present or unavailable.",
+    "Every Clip target form: opacity, view, transform, aperture and Effect, with instance animation present but uncopied.",
+    "Continue versus Restart entry policy, with ordinary and effective Group sharers on the same Pattern instance.",
+    "Fast versus Fidelity generated replay of a nonlinear copied Clip track and the second shared-runtime Restart."
+  ],
+  "sequences": [
+    "Duplicate one Restart Clip at exact adjacency, reopen, derive two Restart events, and verify one unchanged Pattern instance plus one unchanged instance-time-scale track.",
+    "Duplicate beside a later materialized Group use, observe three effective users, then move the Group one millisecond earlier and require atomic collision refusal.",
+    "Duplicate into a second Layout occurrence, then replace that occurrence with a Layout lacking the destination Zone and require availability refusal.",
+    "Attach an incoming Transition to the source, duplicate after it, and compare the complete Transition collection byte-for-byte.",
+    "Serialize, reopen, prepare, compile and replay the source midpoint and duplicate midpoint in Fast and Fidelity modes."
+  ],
+  "oracles": [
+    "Literal Clip, Pattern-instance, Property-track, Group and Transition collections plus exact affected IDs and unchanged input equality.",
+    "validateShowRecordV2 before each topology operation and after provisional serialization/reopen of each accepted result.",
+    "effectiveShowInstanceUseCountV2 observes the ordinary and materialized Group users without any new runtime.",
+    "deriveShowRestartEventsV2 exposes source and duplicate entries on the same instance at their exact contribution starts.",
+    "evaluateShowPropertyTrackV2 proves the copied nonlinear midpoint; generated Fast/Fidelity frames show that value and exported state exposes one shared runtime whose call counter resets at the duplicate entry."
+  ],
+  "tddEvidence": [
+    "The first public duplicate-owner test failed 1/33 because editShowClipV2 had no duplicate operation, then passed after the bounded owner was added.",
+    "Freshness regressions failed 2/35 because copied appearance and Property key identities could reuse existing owners, then passed after effective-record ownership checks were added.",
+    "The expanded owner suite passes 65/65 after adding malformed runtime-plan, exact-plan, all-target, Group, Transition, Layout, Restart and generated consumer partitions."
+  ],
+  "mutationEvidence": [
+    "Replacing exact identity-key comparison with unconditional acceptance made four missing/extraneous-plan regressions fail.",
+    "Bypassing explicit Layout availability made the routed unavailable-Zone regression return changed.",
+    "Selecting every Property track made the adjacency regression refuse because instance animation entered the Clip-copy plan; omitting clip-effect selection made the all-target regression refuse.",
+    "The repository Show-authoring mutation qualification also passed 166/166 with no survivor; that configured set does not yet mutate showClipsV2.ts, so the three manual owner mutations above are the direct fault-sensitivity evidence."
+  ],
+  "residualGaps": [
+    "This slice intentionally excludes Make Pattern Independent, Rejoin, Clip-scoped Replace, Group-target editing, schema/compiler changes, command/UI integration and persistence.",
+    "The coordinator owns final committed-tip suites, native review, landing, issue publication and integrated #1038 proof."
+  ]
+}

@@ -33,6 +33,19 @@ tracks retain one global owner. Held-key IDs are scoped to their owning Clip and
 are preserved when their value is reused; splitting does not mint a runtime.
 Restart stays on the left Clip and the new right Clip uses Continue.
 
+Linked duplicate requires an explicit destination Zone, Layer and start plus a
+complete fresh identity plan for the new Clip, every appearance key, every
+top-level Clip-owned Property track and every key on those tracks. It copies the
+source duration, sampling, appearance and entry policy; translates the copied
+appearance and Clip-track activation/key times by the placement delta; and
+retargets every Clip Property form to the new Clip. The duplicate shares the
+source Pattern instance. Instance tracks remain global and unchanged, and no
+Pattern instance or attached Transition is copied. Duplicate validates ordinary
+and materialized-Group occupancy, Layout availability and the complete result;
+half-open adjacency is accepted while overlap refuses atomically. A duplicated
+Restart entry therefore derives a second event that resets the same shared
+runtime.
+
 ## Exact Property curves and activation
 
 `showPropertyAnimationV2.ts` owns half-open activation, curve restriction and
@@ -86,11 +99,15 @@ The owner validates the complete preimage and final candidate. Times must be saf
 integer milliseconds within Show End. Collisions and invalid references refuse
 atomically. A no-op returns the original valid record without running an edit.
 
-Actual Clip edits currently require no Transition records, no Group occurrences
-and one full-Show Layout occurrence. The Clip's Zone must be present
-in that Layout. A Layout without logical routing or explicit ranges uses the
-existing nominal-Zone fallback. General Transition, Group, Layout and Insert Time
-orchestration remains with their dedicated owners.
+Move, Trim, Extend and Split currently require no Transition records, no Group
+occurrences and one full-Show Layout occurrence. The Clip's Zone must be present
+in that Layout. Linked duplicate instead accepts those topologies when the
+complete candidate remains valid: it leaves existing Transitions unchanged,
+uses materialized Groups for collision and identity ownership, and checks the
+new Clip's full contribution against Layout availability. A Layout without
+logical routing or explicit ranges uses the existing nominal-Zone fallback.
+General Transition, Group, Layout and Insert Time orchestration remains with
+their dedicated owners.
 
 `deriveShowRestartEventsV2` materializes Group Clips, derives one event from
 each restarting Clip's effective instance, materialized Clip identity and first
@@ -146,10 +163,14 @@ Single-Zone independent sampling is equivalent to span sampling for this route.
 
 [Public edit tests](../../../src/engine/showClipsV2.test.ts) exercise immutable
 results, serialized/reopened records, held-change boundaries, Restart ownership,
-invalid intents, collision refusal, animation ownership, and Layout availability.
+invalid intents, exact caller identity plans, every Clip Property target,
+ordinary/materialized-Group collision refusal, attached Transition preservation,
+animation ownership, and routed Layout availability.
 Reopened records compile through the preparation seam and run in Fast and Precise
-modes. Split preserves frames and private state through the next loop unless the
-left Clip's authored Restart fires again on the next loop.
+modes. Linked duplicate proves its nonlinear copied track and second Restart on
+one generated shared runtime. Split preserves frames and private state through
+the next loop unless the left Clip's authored Restart fires again on the next
+loop.
 
 [Property animation tests](../../../src/engine/showPropertyAnimationV2.test.ts)
 exercise move → trim → extend → split → reopen for every supported easing option,
