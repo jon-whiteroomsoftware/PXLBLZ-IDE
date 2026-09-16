@@ -1,0 +1,46 @@
+{
+  "issue": 1038,
+  "boundary": "Pure editShowLayerV2 complete-record transformation, provisional codec reopen, Group materialization, and generated Fast/Precise artifact replay",
+  "invariants": [
+    "Layer identity and name remain stable inside one Zone; reorder changes only rank-derived stacking and keeps every Clip, Group, Transition and Pattern-runtime identity.",
+    "Removing a referenced Layer requires one caller-supplied destination for every ordinary Clip, Group occurrence layer binding and Transition participant that directly names it.",
+    "A reassignment plan is admitted only when it exactly covers the removed Layer, stays in the Zone, preserves Transition endpoint attachment and produces a complete valid record after effective Group materialization.",
+    "Accepted edits return an unaliased complete record and exact affected identity collections; unchanged and refused edits return the original record identity with every affected collection empty.",
+    "Empty named Layers survive blank time and the final empty Layer may be removed when the complete v2 validator accepts the resulting record."
+  ],
+  "partitions": [
+    "Add with fresh versus blank/colliding identity; existing versus missing Zone; unique versus colliding/negative rank; named versus blank name.",
+    "Rename changed versus exact no-op; reorder changed versus identical sparse-rank order; incomplete, duplicate and foreign Layer order.",
+    "Empty Layer removal, ordinary Clip reference, Group binding reference, Transition participant reference, and the last empty Layer.",
+    "Complete versus partial, duplicate, extraneous, cross-Zone and endpoint-incompatible reassignment plans.",
+    "Half-open valid occupancy versus ordinary/materialized-Group overlap after reassignment.",
+    "Fast and Precise generated output before and after opaque Layer reorder."
+  ],
+  "sequences": [
+    "Add one empty named Layer, reorder the complete Zone stack, bind a Group occurrence, refuse removal without a plan, then explicitly rebind and remove it.",
+    "Remove a Transition Layer with only endpoint Clip mappings, then with endpoint-incompatible complete mappings, then with all Clips and the participant mapped consistently.",
+    "Rename and reorder through successive owner results, remove the empty Layer, serialize, reopen and validate.",
+    "Compile and replay two opaque overlapping Layers, reorder their stable IDs, then observe the generated top color change in Fast and Precise modes."
+  ],
+  "oracles": [
+    "Literal complete Layer order and rank, exact affected identity sets, input equality, changed-output non-aliasing and original-reference no-op/refusal.",
+    "validateShowRecordV2 on every fixture and accepted result, including the validator's materialized Group collision pass.",
+    "serializeProvisionalShowRecordV2 plus parseProvisionalShowRecordV2 reopen for accepted sequence endpoints.",
+    "materializeShowGroupsV2 exposes the rebound child Layer while preserving Group definition and effective runtime identity.",
+    "Generated compiler artifacts replay literal blue-before/red-after top pixels in both Fast and Precise modes."
+  ],
+  "tddEvidence": [
+    "Initial focused run failed because the new showLayersV2 public module did not exist.",
+    "The first implementation run exposed two invalid Group test records with leaked top-level zoneId; correcting the consumer fixture produced a valid Group oracle before behavior assertions were accepted.",
+    "The focused public-owner suite passes 10 tests after adding sparse-order no-op and endpoint-incompatible Transition partitions."
+  ],
+  "mutationEvidence": [
+    "Bypassing complete candidate validation made both the ordinary/materialized-Group collision and Transition endpoint-incompatibility cases return changed; the two targeted tests failed and passed again after restoration."
+  ],
+  "residualGaps": [
+    "The integrated held-Group occupancy case waits for the concurrent Group-hold slice to land; its agreed fixture must prove a held child occupies the rebound Layer through its extended endpoint.",
+    "This slice supplies no UI, command adapter, global Insert Time, Clip identity operation, Group lifecycle operation or production adoption path.",
+    "The shared acyclic showEditResultV2 module is not present on this admitted base; this owner uses the agreed complete affected-field vocabulary locally without changing existing owners.",
+    "The coordinator owns final committed-tip suites, parity collection, native review, landing and integrated #1038 proof."
+  ]
+}
