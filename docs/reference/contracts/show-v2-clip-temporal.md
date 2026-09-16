@@ -128,3 +128,8 @@ storage/evaluator preservation and unchanged typed refusal for those preimages;
 it does not claim compiled playback for this unadmitted adapter partition.
 Previously admitted connected Split artifacts and scalar Fast/Precise output
 retain their separate consumer qualification. No lowerer/compiler widening occurs.
+
+Reset projection ramp indices must be nonnegative safe integers smaller than
+the selected Transition ramp count. Temporal admission and direct projection
+check this before any indexed array access; strings and other malformed numeric
+forms refuse atomically. Valid complete reordered plans retain caller identities.

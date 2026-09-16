@@ -1,0 +1,53 @@
+{
+  "issue": 1038,
+  "specificationCommit": "9357bc2e5577d5eb4cde8ff54af350c1c6a40dd6",
+  "implementationBase": "9357bc2e5577d5eb4cde8ff54af350c1c6a40dd6",
+  "proofRows": [
+    "TRANSITION",
+    "CURVE",
+    "FAILURE"
+  ],
+  "boundary": "Exact P2 projection index ingress corrective; existing source/domain/playback unchanged",
+  "invariants": [
+    "No Property ramp array indexing precedes nonnegative safe-integer/inrange admission.",
+    "Malformed indices refuse original record with empty effects and no throw through temporal/public dispatch and direct shared projection.",
+    "Validzero and complete reordered multiramp plans preserve caller track/key IDs."
+  ],
+  "partitions": [
+    "length/constructor and string0 array property/coercion traps.",
+    "Negative/fractional/NaN/Infinity/-Infinity/object/null/undefined/boolean/oversized/out-of-range indices.",
+    "Validzero and reordered complete two-ramp fresh identity plan; existing Fast/Precise Reset consumer cases retained."
+  ],
+  "sequences": [
+    "Create structurally valid scalar Transition source, send malformed plan through temporal owner/public dispatch/direct projector, assert original identity/all empty effects/no mutation/no throw.",
+    "Submit validzero then reordered complete two-ramp plan, codec reopen and inspect exact caller-supplied track/key identities.",
+    "Restore original array-property admission defect, run real owner regressions red, restore exact repaired bytes and rerun affected checks."
+  ],
+  "oracles": [
+    "Public owner result and original record identity/complete affected collections.",
+    "Codec reopened caller-owned track/key identity mapping.",
+    "Existing admitted Fast/Precise Reset artifact/state consumers and parity47 corpus."
+  ],
+  "residualGaps": [
+    "Only projection-index admission is repaired; broader Stage/adoption1038 remains separate.",
+    "Coordinator owns exact corrective review/final suites/landing."
+  ],
+  "tddEvidence": [
+    "64 cases:61pass/3fail before repair; length/constructor throw and string0 wrongly changes.",
+    "209/209 across4 affected adjacent files after repair; validzero/multiramp case preserved."
+  ],
+  "mutationEvidence": [
+    {
+      "name": "projection-array-property",
+      "killed": true,
+      "exitCode": 1
+    }
+  ],
+  "qualification": {
+    "focused": "209/209 across4files",
+    "static": "Scoped ESLint/project tsc PASS; exact restored source diff-check clean.",
+    "parity": "47-record exported source corpus unchanged",
+    "finalSuites": "Coordinator-owned, no worker submission"
+  },
+  "advisoryReceipt": "9357bc2e5577-cad402cd528cf33d5e40148f65734fb5932a462ab29c74444748467c28ecc8e1"
+}

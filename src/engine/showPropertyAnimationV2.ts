@@ -376,6 +376,7 @@ export function projectShowTransitionPropertyRampsV2(
   const transition = record.composition.transitions[transitionIndex]
   if (transition.propertyRamps.length === 0) return { status: 'unchanged', record, affectedTrackIds: [] }
   if (projections.length !== transition.propertyRamps.length
+    || projections.some(item => !Number.isSafeInteger(item.rampIndex) || item.rampIndex < 0 || item.rampIndex >= transition.propertyRamps.length)
     || new Set(projections.map(item => item.rampIndex)).size !== projections.length
     || new Set(projections.flatMap(item => [item.trackId, item.startKeyId, item.endKeyId])).size !== projections.length * 3) {
     return { status: 'refused', record, affectedTrackIds: [], message: 'Every Property ramp requires one projection with fresh identities.' }

@@ -31,10 +31,10 @@ function validIntent(intent: unknown): intent is ShowClipTemporalIntentV2 {
   const optional = raw.kind === 'trim' || raw.kind === 'extend' ? ['propertyRampProjections'] : []
   return fields.length > 0 && Object.keys(raw).every(field => fields.includes(field) || optional.includes(field)) && fields.every(field => Object.prototype.hasOwnProperty.call(raw, field)) && typeof raw.clipId === 'string' && raw.clipId.trim().length > 0
 }
-function validProjections(value: unknown): value is readonly ShowTransitionRampProjectionV2[] {
+function validProjections(value: unknown, rampCount: number): value is readonly ShowTransitionRampProjectionV2[] {
   if (!Array.isArray(value)) return false
   const fields = ['rampIndex', 'trackId', 'startKeyId', 'endKeyId', 'activeEndMs', 'toValue']
-  return value.every(item => item && typeof item === 'object' && !Array.isArray(item) && Object.keys(item).length === fields.length && fields.every(field => Object.prototype.hasOwnProperty.call(item, field)) && [item.trackId, item.startKeyId, item.endKeyId].every(id => typeof id === 'string' && id.trim().length > 0))
+  return value.every(item => item && typeof item === 'object' && !Array.isArray(item) && Object.keys(item).length === fields.length && fields.every(field => Object.prototype.hasOwnProperty.call(item, field)) && Number.isSafeInteger(item.rampIndex) && item.rampIndex >= 0 && item.rampIndex < rampCount && [item.trackId, item.startKeyId, item.endKeyId].every(id => typeof id === 'string' && id.trim().length > 0))
 }
 function replaceOwnedTracks(next: ShowRecordV2, propertyTracks: ShowRecordV2['composition']['propertyTracks'], ids: readonly string[], deltaMs = 0): void {
   const affected = new Set(ids)
@@ -101,7 +101,7 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
       if (durationMs < 0) return refuse('invalid-intent', 'Leading resize cannot create a negative Transition duration.')
       if (durationMs === 0) {
         if (incoming[0].propertyRamps.length) {
-          if (!intent.propertyRampProjections || !validProjections(intent.propertyRampProjections)) return refuse('unsupported-property-carrier', 'Reset requires explicit complete Property ramp projections before removing its carrier.')
+          if (!intent.propertyRampProjections || !validProjections(intent.propertyRampProjections, incoming[0].propertyRamps.length)) return refuse('unsupported-property-carrier', 'Reset requires explicit complete Property ramp projections before removing its carrier.')
           const usedIds = new Set(effective.composition.propertyTracks.flatMap(track => [track.id, ...track.keyframes.map(key => key.id)]))
           if (intent.propertyRampProjections.some(plan => [plan.trackId, plan.startKeyId, plan.endKeyId].some(id => usedIds.has(id)))) return refuse('unsupported-property-carrier', 'Property projection identities must be fresh against effective Group and ordinary owners.')
           const projected = projectShowTransitionPropertyRampsV2(record, incoming[0].id, intent.propertyRampProjections)

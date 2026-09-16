@@ -6,7 +6,7 @@ import { createFastReplayRuntime } from './fastReplay'
 import { buildShowEpeExport } from './showEpeExport'
 import { parseEpe } from './epeImport'
 import { materializeShowGroupsV2 } from './showGroupsV2'
-import { deriveShowRestartEventsV2, evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
+import { deriveShowRestartEventsV2, evaluateShowPropertyTrackV2, projectShowTransitionPropertyRampsV2, type ShowTransitionRampProjectionV2 } from './showPropertyAnimationV2'
 import { expect, it } from 'vitest'
 import { convertibleV1Show } from '../test/showV2TracerFixture'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
@@ -462,4 +462,34 @@ it.each(['participants', 'whole-output'] as const)('Split retains existing typed
     expect(prepared.issues.every(issue => issue.code === code)).toBe(true)
   }
   expect(deriveShowRestartEventsV2(edited.record)).toEqual(deriveShowRestartEventsV2(source))
+})
+
+
+it.each(['length', 'constructor', '0', -1, 0.5, NaN, Infinity, -Infinity, {}, null, undefined, true, Number.MAX_SAFE_INTEGER, 1])('malformed ramp index %s refuses atomically before array access', rawIndex => {
+  const source = scalarRampFixture()
+  const prior = structuredClone(source)
+  const plans = [{ ...rampProjections[0], rampIndex: rawIndex }] as unknown as ShowTransitionRampProjectionV2[]
+  for (const owner of [editShowClipTemporalV2, editShowClipV2]) {
+    const result = owner(source, { kind: 'extend', clipId: 'selected', startMs: 100, endMs: 650, propertyRampProjections: plans })
+    expect(result.status).toBe('refused')
+    expect(result.record).toBe(source)
+    for (const [key, value] of Object.entries(result)) if (key.startsWith('affected') || key === 'removedIds' || key === 'discardedControlTargets') expect(value).toEqual([])
+  }
+  const direct = projectShowTransitionPropertyRampsV2(source, source.composition.transitions[0].id, plans)
+  expect(direct.status).toBe('refused')
+  expect(direct.record).toBe(source)
+  expect(direct.affectedTrackIds).toEqual([])
+  expect(source).toEqual(prior)
+})
+
+it('valid zero and complete reordered multiramp indices preserve caller identities', () => {
+  const source = scalarRampFixture()
+  const zero = editShowClipTemporalV2(source, { kind: 'extend', clipId: 'selected', startMs: 100, endMs: 650, propertyRampProjections: rampProjections })
+  expect(zero.status).toBe('changed')
+  source.composition.transitions[0].propertyRamps.push({ target: { kind: 'clip-opacity', clipId: 'selected' }, from: 0.4, easing: { curve: 'linear' } })
+  expect(validateShowRecordV2(source)).toEqual([])
+  const plans = [{ ...rampProjections[0], rampIndex: 1, trackId: 'opacity-projection', startKeyId: 'opacity:start', endKeyId: 'opacity:end', toValue: 0.8 }, rampProjections[0]]
+  const result = editShowClipTemporalV2(source, { kind: 'extend', clipId: 'selected', startMs: 100, endMs: 650, propertyRampProjections: plans })
+  expect(result.status).toBe('changed')
+  expect(reopen(result.record).composition.propertyTracks.map(track => [track.id, track.keyframes.map(key => key.id)])).toEqual([['opacity-projection', ['opacity:start', 'opacity:end']], ['retained-ramp', ['ramp:first', 'ramp:last']]])
 })
