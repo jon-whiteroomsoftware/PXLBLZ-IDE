@@ -3,12 +3,31 @@ import { expect, type Page } from '@playwright/test'
 const fixture = JSON.parse(readFileSync(new URL('./showV2PreparedRecovery.json', import.meta.url), 'utf8'))
 /** Existing visible typed Layer edit; no test candidate/adoption callback. */
 export async function exerciseShowV2PreparedRecovery(page: Page) {
+  const patternsResponse = await page.request.get('/api/patterns')
+  expect(patternsResponse.ok()).toBe(true)
+  const existingPatterns = (await patternsResponse.json()).patterns
   for (const pattern of fixture.patterns) {
-    const response = await page.request.post('/api/patterns', { data: pattern })
-    expect(response.ok(), await response.text()).toBe(true)
+    const existing = existingPatterns.find((item: { id: string }) => item.id === pattern.id)
+    if (existing) {
+      for (const field of ['id', 'name', 'src', 'controls']) expect(existing[field]).toEqual(pattern[field])
+    } else {
+      const response = await page.request.post('/api/patterns', { data: pattern })
+      expect(response.ok(), await response.text()).toBe(true)
+    }
   }
-  const legacy = await page.request.post('/api/shows', { data: fixture.legacy })
-  expect(legacy.ok(), await legacy.text()).toBe(true)
+  const showsResponse = await page.request.get('/api/shows?show-version=2')
+  expect(showsResponse.ok()).toBe(true)
+  const existingShow = (await showsResponse.json()).shows.find((item: { id: string }) => item.id === fixture.record.id)
+  if (existingShow) {
+    const expected = structuredClone(fixture.record)
+    expected.updatedAt = existingShow.updatedAt
+    const repaired = structuredClone(expected)
+    repaired.composition.layers = repaired.composition.layers.filter((layer: { id: string }) => layer.id !== fixture.removedLayerId)
+    expect([expected, repaired]).toContainEqual(existingShow)
+  } else {
+    const legacy = await page.request.post('/api/shows', { data: fixture.legacy })
+    expect(legacy.ok(), await legacy.text()).toBe(true)
+  }
   const seeded = await page.request.put(`/api/shows/${fixture.record.id}?show-version=2`, { data: fixture.record })
   expect(seeded.ok(), await seeded.text()).toBe(true)
   let writes = 0

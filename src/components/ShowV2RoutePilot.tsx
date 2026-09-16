@@ -3,7 +3,6 @@ import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import { Button } from './ui/button'
 import { NumberField } from './ui/number-field'
 import { ShowStagePreview } from './ShowStagePreview'
-import { isValidatedEmptyShowV2 } from '@/engine/showMarkerRouteModel'
 import { admitShowV2PilotTransitionResize, type ShowV2PilotAdoptionReceipt } from '@/store/showV2PreparedEditAdmission'
 import { ShowV2MarkerEditor } from './ShowV2MarkerEditor'
 import { ShowV2ClipTimingEditor, ShowV2TimelineRows } from './ShowV2ClipTimingEditor'
@@ -44,7 +43,6 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
     return () => { live = false }
   }, [open, record, showId])
 
-  const emptyContent = record ? isValidatedEmptyShowV2(record) : false
   const transition = record?.composition.transitions[0]
   const stageMap = useMemo(() => {
     const selected = STOCK_MAPS.find(map => map.id === record?.stageMapId)
