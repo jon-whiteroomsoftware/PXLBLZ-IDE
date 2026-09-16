@@ -6,6 +6,7 @@ import { compileShow, type ShowRecipe } from './showCompiler'
 import { validateShowRecordV2, parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
+import { showRecordToCompileRecipe } from './showModel'
 import { buildShowEpeExportV2 } from './showEpeExportV2'
 import { parseEpe } from './epeImport'
 import { showV2GroupOccurrenceEditorFixture } from '../test/showV2GroupOccurrenceEditorFixture'
@@ -40,9 +41,9 @@ function replay(recipe:ShowRecipe,fidelity:'fast'|'fidelity',record?:ShowRecordV
  const code=file?.status==='exported'?parseEpe(file.text).src:artifact.code
  return createFastReplayRuntime({...artifact,code,dimension:nativeDimension(artifact.metadata.renderFns)},{fidelity,randomSeed:1038,mapPoints:[{sample:[.25,.75],pos:[.25,.75]},{sample:[.75,.25],pos:[.75,.25]}]})
 }
-function snapshots(recipe:ShowRecipe,fidelity:'fast'|'fidelity',record?:ShowRecordV2) {
+function snapshots(recipe:ShowRecipe,fidelity:'fast'|'fidelity',record?:ShowRecordV2,times:readonly number[]=[125,375,400,425,500,575,600,625,750,875]) {
  const runtime=replay(recipe,fidelity,record)
- return [125,375,400,425,500,575,600,625,750,875].map(time=>{
+ return times.map(time=>{
  const frame=runtime.advanceTo(time,{stepMs:25,forceFullIntermediateRender:true})
  // Export getters are live: clone at this frame before any subsequent advance.
  return {frame:Array.from(frame.frame),state:Object.fromEntries(Object.entries(frame.exports).filter(([name,value])=>/elapsed|calls/.test(name)&&typeof value==='number'))}
@@ -158,4 +159,63 @@ it.each(['fast','fidelity'] as const)('held linked Group spans repeated Layouts 
   expect(Object.keys(snapshots[0].state).length).toBeGreaterThan(0)
   expect(snapshots[1],`native output/state@${time}`).toEqual(snapshots[0])
  }
+})
+
+function continuousParticipantFixture(splitIncoming:boolean,sharedRestart=false){
+ const source=transitionV1Show('crossfade','live-live');source.composition!.scenes[0].zones[0].overlays=[]
+ const converted=convertShowRecordV1ToV2(source);if(converted.status!=='converted')throw Error(JSON.stringify(converted.issues))
+ const record=converted.record;record.composition.executionModel='continuous'
+ for(const clip of record.composition.clips)clip.zoneSampleMode='independent'
+ record.zoneLayouts=[{id:'layout',name:'Both',zones:[{zoneId:'zone',ranges:[{start:0,end:1}]}]},{id:'second',name:'Tail',zones:[{zoneId:'zone',ranges:[{start:1,end:1}]}]}]
+ const incoming=record.composition.clips[1]
+ if(sharedRestart){incoming.instanceId=record.composition.clips[0].instanceId;incoming.entryPolicy='restart'}
+ if(splitIncoming){incoming.durationMs=200;const later=structuredClone(incoming);later.id='in2';later.startMs=800;later.entryPolicy='continue';later.appearance.keys[0].timeMs=800;record.composition.clips.push(later)}
+ expect(validateShowRecordV2(record)).toEqual([])
+ return record
+}
+const continuousTimes=[125,375,400,425,500,575,600,625,700,725,750,800,825,875,900,925,975]
+it.each([false,true].flatMap(splitIncoming=>[600,700,800,900].map(atMs=>({splitIncoming,atMs}))))('continuous independent participant Layout refuses atomically pending lossless sampling ($splitIncoming/$atMs)',({splitIncoming,atMs})=>{
+ const record=continuousParticipantFixture(splitIncoming)
+ record.composition.layoutOccurrences[0].durationMs=atMs
+ record.composition.layoutOccurrences.push({...structuredClone(record.composition.layoutOccurrences[0]),id:'later',layoutId:'second',startMs:atMs,durationMs:1000-atMs})
+ const before=structuredClone(record),actual=prepare(record)
+ expect(actual).toMatchObject({status:'refused',issues:[{code:'unsupported-layout-occurrences',path:'composition.layoutOccurrences'}]})
+ if(actual.status==='refused')expect(actual.issues[0].message).toContain('Independent Clip sampling')
+ expect(record).toEqual(before)
+ expect(()=>lowerShowCompositionV2ForCompile(record,lookup)).toThrow('Independent Clip sampling')
+})
+it('continuous shared participant Restart keeps its first-contribution event while Layout switches independently',()=>{
+ const record=continuousParticipantFixture(false,true),before=prepare(record);expect(before.status).toBe('ready');if(before.status!=='ready')return
+ record.composition.layoutOccurrences[0].durationMs=800
+ record.composition.layoutOccurrences.push({...structuredClone(record.composition.layoutOccurrences[0]),id:'later',layoutId:'second',startMs:800,durationMs:200})
+ const expected=structuredClone(before.recipe);expected.routingSwitches=[{atMs:800,layoutId:'second',durationMs:0,easing:{curve:'linear'},direction:'forward'}]
+ if(expected.routingPropertyRamps)expected.routingPropertyRamps={splitPosition:{initial:.5,ramps:[{atMs:800,from:.5,to:.5,durationMs:0,easing:{curve:'linear'}}]}}
+ const actual=prepare(record);expect(actual.status).toBe('ready');if(actual.status!=='ready')return
+ expect(actual.recipe.clips.filter(clip=>!clip.compilerOwnedEmpty)).toHaveLength(1)
+ expect(actual.recipe.restartEvents).toEqual([{atMs:400,clipId:'out-instance'}])
+ for(const fidelity of ['fast','fidelity'] as const)expect(snapshots(actual.recipe,fidelity,record,continuousTimes)).toEqual(snapshots(expected,fidelity,undefined,continuousTimes))
+})
+
+it('keeps the previously admitted single-Layout continuous control byte-identical',()=>{
+ const record=continuousParticipantFixture(false),prepared=prepare(record),direct=lowerShowCompositionV2ForCompile(record,lookup)
+ expect(prepared.status).toBe('ready');if(prepared.status!=='ready')return
+ expect(prepared.recipe.routedSceneSequence).toBeUndefined()
+ const expected=showRecordToCompileRecipe(direct.show,direct.lookup)
+ expect(compileShow(prepared.recipe,LIBRARIES).code).toBe(compileShow(expected,LIBRARIES).code)
+ for(const fidelity of ['fast','fidelity'] as const)expect(snapshots(prepared.recipe,fidelity,record,continuousTimes)).toEqual(snapshots(expected,fidelity,undefined,continuousTimes))
+})
+it('records the existing physical2D independent/span sampling mismatch without treating it as equivalence',()=>{
+ const independent=continuousParticipantFixture(false),span=structuredClone(independent);for(const clip of span.composition.clips)clip.zoneSampleMode='span'
+ const flat=prepare(independent),routed=prepare(span);expect(flat.status).toBe('ready');expect(routed.status).toBe('ready');if(flat.status!=='ready'||routed.status!=='ready')return
+ const values=[flat.recipe,routed.recipe].map(recipe=>snapshots(recipe,'fast',undefined,[125])[0])
+ expect(values[0].frame).toEqual([1,.25,.75,1,.75,.25]);expect(values[1].frame).toEqual([1,0,.5,1,1,.5]);expect(values[0].state).toEqual(values[1].state)
+})
+it('records the complete flat routing recipe rejection as an unresolved preparation obligation',()=>{
+ const record=continuousParticipantFixture(false),baseline=prepare(record);expect(baseline.status).toBe('ready');if(baseline.status!=='ready')return
+ const global=structuredClone(baseline.recipe)
+ global.zones=[{id:'zone',name:'Main',ranges:[{start:0,end:1}]}]
+ global.routingLayouts=record.zoneLayouts.map(layout=>({id:layout.id,name:layout.name,zones:[{id:'zone',name:'Main',ranges:structuredClone(layout.zones[0].ranges)}]}))
+ global.clips=global.clips.map(clip=>({...clip,zone:'Main',zoneMode:'independent'}))
+ global.routingSwitches=[{atMs:800,layoutId:'second',durationMs:0,easing:{curve:'linear'},direction:'forward'}]
+ expect(()=>compileShow(global,LIBRARIES)).toThrow('routed clips cannot use scene boundary modes yet')
 })

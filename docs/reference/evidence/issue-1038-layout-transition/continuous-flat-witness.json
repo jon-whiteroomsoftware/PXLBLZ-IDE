@@ -1,0 +1,126 @@
+{
+  "lineageBase": "c6bb1e4d8894d45400a83091e22e1caad580c3e6",
+  "firstP1ReviewedTip": "6399856905cd8e1014de1dd0cc51d6aa311df7a5",
+  "input": "Continuous one-Zone independent sampling, rank0 opacity1; outgoing0..400; crossfade200; incoming600..1000, optionally partitioned600..800 andlinked800..1000; physical initialLayoutpixels0..1, secondLayoutpixel1; switch600/700/800/900.",
+  "preFixPublicOutcomes": [
+    {
+      "splitIncoming": false,
+      "atMs": 600,
+      "status": "refused",
+      "issues": [
+        {
+          "code": "unsupported-layout-occurrences",
+          "path": "composition.layoutOccurrences",
+          "message": "A Layout switch must attach to an emitted compiler hold end; this time cannot be represented without losing routing behavior."
+        }
+      ]
+    },
+    {
+      "splitIncoming": false,
+      "atMs": 700,
+      "status": "refused",
+      "issues": [
+        {
+          "code": "unsupported-layout-occurrences",
+          "path": "composition.layoutOccurrences",
+          "message": "A Layout switch must attach to an emitted compiler hold end; this time cannot be represented without losing routing behavior."
+        }
+      ]
+    },
+    {
+      "splitIncoming": false,
+      "atMs": 800,
+      "status": "ready"
+    },
+    {
+      "splitIncoming": false,
+      "atMs": 900,
+      "status": "refused",
+      "issues": [
+        {
+          "code": "unsupported-layout-occurrences",
+          "path": "composition.layoutOccurrences",
+          "message": "A Layout switch must attach to an emitted compiler hold end; this time cannot be represented without losing routing behavior."
+        }
+      ]
+    },
+    {
+      "splitIncoming": true,
+      "atMs": 600,
+      "status": "ready",
+      "switches": [
+        {
+          "atMs": 800,
+          "layoutId": "second",
+          "durationMs": 0,
+          "easing": {
+            "curve": "linear"
+          },
+          "direction": "forward"
+        }
+      ]
+    },
+    {
+      "splitIncoming": true,
+      "atMs": 700,
+      "status": "refused",
+      "issues": [
+        {
+          "code": "unsupported-layout-occurrences",
+          "path": "composition.layoutOccurrences",
+          "message": "A Layout switch must attach to an emitted compiler hold end; this time cannot be represented without losing routing behavior."
+        }
+      ]
+    },
+    {
+      "splitIncoming": true,
+      "atMs": 800,
+      "status": "ready"
+    },
+    {
+      "splitIncoming": true,
+      "atMs": 900,
+      "status": "refused",
+      "issues": [
+        {
+          "code": "unsupported-layout-occurrences",
+          "path": "composition.layoutOccurrences",
+          "message": "A Layout switch must attach to an emitted compiler hold end; this time cannot be represented without losing routing behavior."
+        }
+      ]
+    }
+  ],
+  "samplingWitness": {
+    "timeMs": 125,
+    "mapSamples": [
+      [
+        0.25,
+        0.75
+      ],
+      [
+        0.75,
+        0.25
+      ]
+    ],
+    "independentFrame": [
+      1,
+      0.25,
+      0.75,
+      1,
+      0.75,
+      0.25
+    ],
+    "spanFrame": [
+      1,
+      0,
+      0.5,
+      1,
+      1,
+      0.5
+    ],
+    "privateClocks": "Exactly equal; copied immediately at125ms"
+  },
+  "completeFlatCompilerWitness": "zones+layouts+member zone bindings+sceneSequence+global switches throws compileShow routed clips cannot use scene boundary modes yet atshowCompiler.ts3896",
+  "repair": "Retain prior-domain typed atomic refusal for the flat combination; qualified transition route remains supported. SingleLayout legacy source control, native routed shared Restart and real checked admission zero adoption/history/write prove the boundary.",
+  "residual": "Unresolved1038 adapter/sampling obligation at requested partial pause; not an accepted compiler limit or completed universal combination guarantee."
+}

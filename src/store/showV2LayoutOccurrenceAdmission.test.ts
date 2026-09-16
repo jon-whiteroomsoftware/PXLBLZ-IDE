@@ -10,6 +10,8 @@ import type { ShowRecordV2 } from '../engine/showCompositionV2'
 import { qualifyShowV2PilotArtifacts } from '../engine/showV2Pilot'
 import { createFastReplayRuntime } from '../engine/fastReplay'
 import { emitFixedPoint } from '../engine/fxEmit'
+import { transitionV1Show } from '../test/showV2TracerFixture'
+import { convertShowRecordV1ToV2 } from '../engine/showRecordV1ToV2'
 beforeEach(()=>{resetPersonalContentProvider();useShowStore.setState(showInitialState)})
 afterEach(()=>resetPersonalContentProvider())
 let fixtureId=0
@@ -88,4 +90,21 @@ it('suppresses obsolete settlement after an external replacement during the sole
  const {record,context,write}=setup();let settle!:()=>void;write.mockImplementationOnce(()=>new Promise<void>(resolve=>{settle=resolve}))
  const pending=admitShowV2PilotLayoutOccurrenceEdit({...context,intent:actions[1]});await vi.waitFor(()=>expect(write).toHaveBeenCalledTimes(1))
  const external=structuredClone(record);external.name='External replacement';useShowStore.setState({showV2Pilots:{[record.id]:external}});settle();expect(await pending).toMatchObject({status:'applied',settlement:'superseded'});expect(useShowStore.getState().showV2Pilots[record.id]).toBe(external);expect(write).toHaveBeenCalledTimes(1)
+})
+
+it('refuses unqualified continuous independent Layout routing with zero adoption/history/write',async()=>{
+ const source=transitionV1Show('crossfade','live-live');source.composition!.scenes[0].zones[0].overlays=[]
+ const converted=convertShowRecordV1ToV2(source);if(converted.status!=='converted')throw Error('Conversion fixture refused')
+ const record=converted.record,{dependencies}=showV2LayoutEditorFixture();record.id='continuous-independent-layout-refusal';record.composition.executionModel='continuous'
+ for(const clip of record.composition.clips)clip.zoneSampleMode='independent'
+ for(const instance of record.composition.patternInstances)instance.pattern={kind:'user',id:dependencies.patterns[0].id}
+ record.zoneLayouts=[{id:'layout',name:'Both',zones:[{zoneId:'zone',ranges:[{start:0,end:1}]}]},{id:'second',name:'Tail',zones:[{zoneId:'zone',ranges:[{start:1,end:1}]}]}]
+ record.composition.layoutOccurrences[0].durationMs=600
+ record.composition.layoutOccurrences.push({...structuredClone(record.composition.layoutOccurrences[0]),id:'later',layoutId:'second',startMs:600,durationMs:400})
+ const capture=stage.captureShowStageEditV2(record,dependencies);expect(capture.inputCapture.status).toBe('qualified');expect(capture.prepared.status).toBe('refused')
+ const write=vi.fn(),adopted=vi.fn();setPersonalContentProvider({...getPersonalContentProvider(),replaceShowV2:write})
+ useShowStore.setState({showV2Pilots:{[record.id]:record},showV2Histories:{[record.id]:{past:[],future:[]}}})
+ const result=await admitShowV2PilotLayoutOccurrenceEdit({showId:record.id,baseRevision:0,capture,isCurrent:()=>true,onAdopted:adopted,intent:{kind:'move',occurrenceId:'later',startMs:800}})
+ expect(result.status).toBe('refused');empty(result);expect(write).not.toHaveBeenCalled();expect(adopted).not.toHaveBeenCalled()
+ expect(useShowStore.getState().showV2Pilots[record.id]).toBe(record);expect(useShowStore.getState().showV2Histories[record.id]).toEqual({past:[],future:[]})
 })

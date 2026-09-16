@@ -6,8 +6,8 @@ Layout boundary does not create a new Pattern runtime, restart, appearance
 owner, or Scene boundary. The existing compiler recipe already represents its
 routing switches independently of that placement schedule.
 
-Only the formerly refused participant route with multiple Layout occurrences
-uses this projection. Its complete ordered occurrences provide global switch
+Only the formerly refused participant combination selected into the qualified
+routed Transition path with multiple Layout occurrences uses this projection. Its complete ordered occurrences provide global switch
 anchors, Layout identities and existing incoming-transfer duration/easing/
 direction. Repeated identical definitions need no switch unless a transfer is
 explicitly authored. Split-position baselines retain the initial occurrence and
@@ -41,3 +41,30 @@ first-contribution Restart. Typed Group Make Unique admission now saves/reopens
 this formerly refused shape once through existing history/provider protections.
 The prior Cut-only Group UI capture remains historical proof of its original
 fixture, without claiming a compiler limitation.
+
+## Continuous independent sampling remains unqualified
+
+A continuous record otherwise selected into flat emission retains the prior-domain
+refusal when it combines participant Layer Transitions and multiple Layout
+occurrences. It cannot silently attach routing to shifted Scene ends, drop a
+switch, or report ready with altered sampling. Public preparation returns an
+`unsupported-layout-occurrences` diagnostic; direct lowering fails closed. Checked
+Layout admission retains the original record/history and performs no adoption or
+provider write for such a candidate.
+
+The first review exposed a one-Zone, rank-zero, opacity-one independent-sampling
+counterexample: outgoing0..400, crossfade400..600, incoming600..1000 (or
+incoming600..800 plus a linked800..1000 Clip). Switching the second physical
+Layout at600 could emit at800, an800 switch could disappear, and700/900 could
+refuse incidentally. These forms now refuse consistently and atomically.
+
+Replacing flat independent sampling with routed span sampling is not lossless in
+the physical2D case: at125ms the same mapped source produces
+`[1,.25,.75,1,.75,.25]` versus `[1,0,.5,1,1,.5]` with identical private clocks.
+The complete existing flat compiler recipe, augmented with zones, Layouts,
+member-zone bindings and global switches, rejects scene boundary modes. These
+primary consumer witnesses remain an unresolved #1038 adapter/sampling obligation
+at the requested pause. They are not an accepted compiler limit or a guarantee of
+universal combination support. No emitter/domain widening or remapping workaround
+is introduced. Single-Layout admitted source bytes stay identical; qualified
+routed native output, sharing and first-contribution Restart remain covered.

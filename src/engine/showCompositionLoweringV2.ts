@@ -423,6 +423,9 @@ function resolveShowV2CompileContext(
     // where routed sampling previously refused. Existing routed admissions keep
     // their representation and generated source bytes.
     && (canLowerToFlat(record) || (unsupportedRoutedSampling && canLowerToFlat(record, true)))
+  if (flatEligible && !wholeOutput && composition.transitions.length > 0 && composition.layoutOccurrences.length > 1) {
+    return refuse('unsupported-layout-occurrences', 'composition.layoutOccurrences', 'Independent Clip sampling with Layer Transitions and multiple Layout occurrences requires lossless routing preparation proof.')
+  }
   if (unsupportedRoutedSampling && !flatEligible) {
     return refuse('unsupported-zone-sampling', 'composition.clips', 'lowering requires repeat-mode Clip sampling evidence before compilation.')
   }

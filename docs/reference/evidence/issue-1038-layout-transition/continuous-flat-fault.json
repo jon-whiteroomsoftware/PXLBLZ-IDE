@@ -1,0 +1,8 @@
+{
+  "fault": "remove-continuous-independent-multi-Layout-admission-guard",
+  "oracle": "Real checked Layout admission must refuse with original record, empty effects and zero adoption/history/write; guard removal violates this oracle.",
+  "exitCode": 1,
+  "sourceSha256": "4e1bd1b435de67bad752bdebed4084229e7b73c1524aa9c976787ca54474ee01",
+  "log": "/tmp/issue-1038-layout-transition-continuous-fault.log",
+  "sourceRestoredExactly": true
+}
