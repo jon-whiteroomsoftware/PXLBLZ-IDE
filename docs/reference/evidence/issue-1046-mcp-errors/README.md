@@ -1,8 +1,7 @@
 # Issue #1046 MCP result proof
 
-This packet records the worker-prepared proof at commit time. Final integration,
-the exact-base before/after probe, and real-client qualification remain owned by
-the coordinator after #1047 lands.
+This packet records focused schema/runtime evidence and the real Codex client
+before/after result probe. Final integration after #1047 lands remains pending.
 
 ## Automated evidence
 
@@ -30,24 +29,27 @@ the coordinator after #1047 lands.
   The same runtime discovery asserts every current tool has an `outputSchema`
   and initialization does not advertise `resources.listChanged: true`.
 
-## Real-client route (pending)
+## Real-client result proof
 
-The installed client inspected during preparation is `codex-cli 0.153.4`. The
-remaining acceptance proof should use the integrated local or hosted MCP origin:
+The installed `codex-cli 0.153.4` client exercised the actual local Worker through
+`codex app-server` and `mcpServer/tool/call`. An ephemeral client session used a
+synthetic account, real OAuth authorization/code exchange, and a registered stock
+binding explicitly disconnected before `read_show`. No model inference or user
+configuration change was needed; credentials are omitted from the transcripts.
 
-1. Add the streamable HTTP server with `codex mcp add pxlblz-1046 --url <origin>/mcp --oauth-resource <origin>/mcp --oauth-client-registration DCR`, then run `codex mcp login pxlblz-1046`.
-2. Open and arm an authorized Show editor, let the Codex session call
-   `get_connection`, and record the returned binding.
-3. Have the same session call `list_commands`; capture the ordinary tool result.
-4. Disconnect that browser binding, then call `read_show` with the recorded old
-   binding. Capture Codex rendering the tool call as an error with the unchanged
-   `no_live_editor` structured payload.
-5. Record `codex --version`, the endpoint kind (local or hosted), and the redacted
-   transcript in this packet or issue #1046. Remove the temporary MCP entry with
-   `codex mcp remove pxlblz-1046` after capture.
+- [Before](codex-before.json): baseline `18560a7c11cd0098912ae8159172da49fff4c773`
+  returned `no_live_editor` without `isError`.
+- [After](codex-after.json): integrated code
+  `b2f8426e7e391d440d00e124590d9f1772d1db6d` returns the identical text and
+  structured payload with `isError: true`.
+- `list_commands` remains a successful result with equal text and structured
+  representations in both runs.
 
-This worker did not perform OAuth consent or mutate the user's Codex MCP
-configuration, so the required real-client transcript is not yet claimed.
+This qualifies the real client's tool-result boundary. It does not claim a
+model-driven editing session, live browser adoption, or hosted deployment. The
+fixture's local Worker and OAuth lifecycle are real; its account and binding
+registration are synthetic. Fresh integration checks remain required after the
+prerequisites land.
 
 ## Remaining integration proof
 

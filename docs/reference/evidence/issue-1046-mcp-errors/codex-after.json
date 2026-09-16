@@ -1,0 +1,24 @@
+{
+  "client": "codex-cli 0.153.4",
+  "clientPath": "codex app-server mcpServer/tool/call",
+  "candidate": "b2f8426e7e391d440d00e124590d9f1772d1db6d",
+  "fixture": "Actual local Worker; synthetic signed account; real OAuth grant; registered stock binding explicitly disconnected before read_show; no model turn",
+  "serverConfigured": true,
+  "list_commands": {
+    "isError": null,
+    "code": "commands",
+    "textMatchesStructured": true
+  },
+  "retired_read_show": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"code\":\"no_live_editor\"}"
+      }
+    ],
+    "structuredContent": {
+      "code": "no_live_editor"
+    },
+    "isError": true
+  }
+}
