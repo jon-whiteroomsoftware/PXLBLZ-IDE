@@ -1,3 +1,4 @@
+import { exerciseShowV2PreparedRecovery } from './fixtures/showV2PreparedRecovery'
 import { expect, test } from './fixtures/authenticated'
 import { exerciseShowV2LayerManagement } from './fixtures/showV2LayerManagement'
 test('native Layers persist empty names/stacking and complete ordinary/held Group reassignment with one save per action', async ({ page }) => {
@@ -19,4 +20,8 @@ test('native Layers persist empty names/stacking and complete ordinary/held Grou
     expect(await route.evaluate(root => [...root.querySelectorAll<HTMLElement>('input,select,button')].filter(element => { const r = element.getBoundingClientRect(); return r.width > 0 && (r.left < -1 || r.right > innerWidth + 1) }).map(element => element.getAttribute('aria-label') || element.textContent))).toEqual([])
   }
   expect(errors).toEqual([])
+})
+
+test('existing Layer edit recovers qualified refused Show through checked admission and durable history', async ({ page }) => {
+  await exerciseShowV2PreparedRecovery(page)
 })
